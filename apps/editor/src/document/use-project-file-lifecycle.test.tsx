@@ -37,9 +37,9 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function project(name = "A") {
+function project(name = "A", parts = 3) {
   const result = createEmptyProject(name, name, "main");
-  for (let i = 0; i < 3; i++)
+  for (let i = 0; i < parts; i++)
     result.documents[0]!.instances.push({
       id: `r${i}`,
       reference: `R${i + 1}`,
@@ -67,8 +67,8 @@ function cloudStore(save: CloudProjectStore["save"]): CloudProjectStore {
 async function mount(
   store: CloudProjectStore | null = null,
   fetchImpl: typeof fetch = vi.fn(),
+  initial = project(),
 ) {
-  const initial = project();
   const recovery: UseProjectFileLifecycleOptions["recovery"] = {
     workingCopyId: "working-copy",
     ready: false,
@@ -187,6 +187,36 @@ it("keeps edits made during Save and continue, and can save them on retry", asyn
   await act(async () => editor.current.file.saveAndContinueReplaceGuard());
   expect(written.at(-1)?.name).toBe("Edited while saving");
   expect(editor.current.doc.project.name).toBe("B");
+  expect(editor.current.file.replaceGuard).toBeNull();
+});
+
+it("asks before New Project replaces an unsaved one-part sketch (#2147)", async () => {
+  const editor = await mount(null, vi.fn(), project("A", 1));
+  await editor.rename("Sketch");
+  expect(editor.current.file.hasUnsavedChanges()).toBe(true);
+  // Too small for the browser leave prompt, yet replacing it would take the
+  // tab's Undo with it.
+  expect(editor.current.file.hasUnsafeWork()).toBe(false);
+  await act(async () => editor.current.file.createNewProject());
+  expect(editor.current.file.replaceGuard?.intent).toBe("Create a new Project");
+  expect(editor.current.doc.project.name).toBe("Sketch");
+  await act(async () => editor.current.file.cancelReplaceGuard());
+  expect(editor.current.file.replaceGuard).toBeNull();
+  expect(editor.current.doc.project.documents[0]!.instances).toHaveLength(1);
+  await act(async () => {
+    editor.current.doc.transact([{ kind: "undo" }]);
+  });
+  expect(editor.current.doc.project.name).toBe("A");
+
+  // Leaving the editor keeps the window's tabs: no question for a sketch.
+  await editor.rename("Sketch");
+  const leave = vi.fn();
+  await act(async () =>
+    editor.current.file.guardDirtyReplacement("Go to Gallery", leave, {
+      leavesEditor: true,
+    }),
+  );
+  expect(leave).toHaveBeenCalledWith(false);
   expect(editor.current.file.replaceGuard).toBeNull();
 });
 

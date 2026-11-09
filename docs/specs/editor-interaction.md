@@ -465,6 +465,9 @@ one undo, reporting the exact affected count (also in dry run).
   limit is the shared limit the Shelf counts. Startup recovery never silently
   replaces the Project. Same-site product links go through this guard without a
   second native prompt.
+- Leaving (leave prompt, product links) skips a drawing under three authored
+  objects; replacing asks at any size, since the tab's Undo goes with it. A
+  Gallery or exported copy of exactly these bytes needs neither.
 
 ## Agent semantic control
 

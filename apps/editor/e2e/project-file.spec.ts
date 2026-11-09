@@ -252,6 +252,11 @@ test("Check and Save keeps its snapshot safe while the drawing is replaced or ed
   await checkAndSaveOneResistor();
   const fileMenu = await openMenu(page, "File");
   await fileMenu.getByRole("button", { name: "New Project" }).click();
+  // The save has not landed yet: even one part asks before it goes (#2147).
+  await page
+    .getByRole("dialog", { name: "Unsaved changes" })
+    .getByRole("button", { name: "Continue without saving" })
+    .click();
   await expect(page.getByTestId("hit-R1")).toHaveCount(0);
   await expect(issues).toHaveText("Not checked");
   releases.shift()!();
