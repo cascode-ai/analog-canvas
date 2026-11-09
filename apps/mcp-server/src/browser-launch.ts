@@ -1,7 +1,10 @@
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
-import { BROWSER_LAUNCH_PATH } from "@icm/agent-adapter/browser-launch";
+import {
+  BROWSER_LAUNCH_PATH,
+  type BrowserLaunchDeviceProof,
+} from "@icm/agent-adapter/browser-launch";
 
 export type BrowserOpener = (url: string) => Promise<void>;
 
@@ -43,6 +46,7 @@ export async function handOffToBrowser(
   origin: string,
   session: { sessionId: string; launchGrant: string },
   openBrowser: BrowserOpener,
+  device?: BrowserLaunchDeviceProof,
 ): Promise<void> {
   const path = `/${randomUUID()}`;
   const action = new URL(BROWSER_LAUNCH_PATH, origin).href;
@@ -79,6 +83,12 @@ export async function handOffToBrowser(
 <form action="${action}" method="post">
   <input type="hidden" name="sessionId" value="${session.sessionId}">
   <input type="hidden" name="grant" value="${session.launchGrant}">
+  ${
+    device
+      ? `<input type="hidden" name="deviceKey" value="${device.publicKey}">
+  <input type="hidden" name="deviceProof" value="${device.signature}">`
+      : ""
+  }
   <noscript><button>Continue to Analog Canvas</button></noscript>
 </form>
 <script nonce="${nonce}">document.forms[0].submit()</script>`);

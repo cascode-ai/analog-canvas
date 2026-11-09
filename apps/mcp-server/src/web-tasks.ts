@@ -22,6 +22,7 @@ import {
   type BrowserOpener,
 } from "./browser-launch.js";
 import type { OperationSession } from "./operation-session.js";
+import { browserDeviceProof } from "./browser-device.js";
 
 const CreatedSession = z.object({
   ok: z.literal(true),
@@ -108,6 +109,7 @@ export class WebTasks {
       "apiBaseUrlDefaulted" | "workspaceRoot" | "taskDirectory"
     >,
     private readonly openBrowser: BrowserOpener = openSystemBrowser,
+    private readonly deviceKeyPath?: string,
   ) {
     this.origin = new URL(apiBaseUrl).origin;
   }
@@ -386,7 +388,14 @@ export class WebTasks {
     // This bearer has no editor attached and the grant has no editor authority.
     await client.redeem(launch.claimCode);
     try {
-      await handOffToBrowser(this.origin, launch, this.openBrowser);
+      const device = this.deviceKeyPath
+        ? await browserDeviceProof(
+            this.deviceKeyPath,
+            this.origin,
+            launch,
+          ).catch(() => undefined)
+        : undefined;
+      await handOffToBrowser(this.origin, launch, this.openBrowser, device);
     } catch {
       await client.retireDetached().catch(() => undefined);
       throw new CanvasTaskError(

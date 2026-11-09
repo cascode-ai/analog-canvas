@@ -1,4 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
+import { generateKeyPairSync, sign } from "node:crypto";
+import {
+  BROWSER_LAUNCH_PATH,
+  BROWSER_LAUNCH_PENDING_PROJECT,
+  DEVICE_TRUST_PATH,
+  browserLaunchProofText,
+} from "@icm/agent-adapter/browser-launch";
 import mcpDistribution from "../config/agent-mcp-distribution.json";
 import {
   REQUEST_LEDGER_KEY_PREFIX,
@@ -401,7 +408,10 @@ function routedFixture() {
         storages.set(name, storage);
         object = new AgentSessionDO(
           { storage, getWebSockets: () => sockets.get(name) ?? [] },
-          { AGENT_ALLOWED_ORIGIN: "https://editor.example" },
+          {
+            AGENT_ALLOWED_ORIGIN: "https://editor.example",
+            AGENT_SESSION: namespace,
+          },
         );
         objects.set(name, object);
       }
@@ -420,6 +430,197 @@ function routedFixture() {
     sockets,
   };
 }
+
+it("trusts a proven installation for one account and origin, then revokes its active tasks", async () => {
+  const origin = "https://editor.example";
+  const fixture = routedFixture();
+  const env = {
+    ...fixture.env,
+    AUTH: {
+      getByName: () => ({
+        fetch: async (_input: string | Request, init?: RequestInit) => {
+          const cookie = new Headers(init?.headers).get("cookie");
+          const id =
+            cookie === "icm_session=a"
+              ? "owner-a"
+              : cookie === "icm_session=b"
+                ? "owner-b"
+                : undefined;
+          return Response.json({ user: id ? { id } : null });
+        },
+      }),
+    },
+  };
+  const key = generateKeyPairSync("ed25519");
+  const call = async (path: string, init?: RequestInit, site = origin) => {
+    const result = await routeAgentSessionRequest(
+      new Request(site + path, init),
+      env,
+    );
+    expect(result).toBeInstanceOf(Response);
+    return result!;
+  };
+  const post = (path: string, payload: object, site = origin) =>
+    call(
+      path,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+      site,
+    );
+  const launch = async (site = origin) => {
+    const created = await post(
+      "/api/agent/sessions",
+      {
+        browserLaunch: true,
+        projectSessionId: crypto.randomUUID(),
+        projectId: BROWSER_LAUNCH_PENDING_PROJECT,
+        documentIds: [],
+        scopes: [
+          "circuit.snapshot",
+          "project.import",
+          "gallery.publish",
+          "simulation.run",
+        ],
+      },
+      site,
+    );
+    expect(created.status).toBe(200);
+    const { session } = (await created.json()) as {
+      session: { sessionId: string; launchGrant: string; claimCode: string };
+    };
+    const claim = await post(
+      "/api/agent/claims",
+      { claimCode: session.claimCode },
+      site,
+    );
+    expect(claim.status).toBe(200);
+    const { agentToken } = (await claim.json()) as { agentToken: string };
+    return {
+      ...session,
+      headers: { authorization: `Bearer ${agentToken}` },
+      site,
+    };
+  };
+  const approve = (
+    task: Awaited<ReturnType<typeof launch>>,
+    approval: "once" | "trust" | "auto",
+    options: {
+      account?: string;
+      signingKey?: typeof key;
+      signatureSite?: string;
+    } = {},
+  ) => {
+    const {
+      account = "a",
+      signingKey = key,
+      signatureSite = task.site,
+    } = options;
+    const proof = sign(
+      null,
+      Buffer.from(
+        browserLaunchProofText(signatureSite, task.sessionId, task.launchGrant),
+      ),
+      signingKey.privateKey,
+    );
+    return call(
+      BROWSER_LAUNCH_PATH,
+      {
+        method: "POST",
+        headers: {
+          origin: task.site,
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "same-origin",
+          cookie: `icm_session=${account}`,
+        },
+        body: new URLSearchParams({
+          sessionId: task.sessionId,
+          grant: task.launchGrant,
+          deviceKey: signingKey.publicKey.export({ format: "jwk" }).x!,
+          deviceProof: proof.toString("base64url"),
+          approval,
+        }),
+      },
+      task.site,
+    );
+  };
+  const first = await launch();
+  expect((await approve(first, "auto")).status).toBe(403);
+  expect(
+    (
+      await approve(first, "trust", {
+        signatureSite: "https://elsewhere.example",
+      })
+    ).status,
+  ).toBe(403);
+  const consent = await approve(first, "trust");
+  expect(consent.status).toBe(200);
+  expect(await consent.json()).toMatchObject({
+    scopes: ["circuit.snapshot", "project.import"],
+  });
+  expect((await approve(first, "trust")).status).toBe(409);
+
+  const otherSite = await launch("https://another-editor.example");
+  expect((await approve(otherSite, "auto")).status).toBe(403);
+  const second = await launch();
+  expect((await approve(second, "auto", { account: "b" })).status).toBe(403);
+  expect(
+    (
+      await approve(second, "auto", {
+        signingKey: generateKeyPairSync("ed25519"),
+      })
+    ).status,
+  ).toBe(403);
+  expect((await approve(second, "auto")).status).toBe(200);
+  const cloud = await call(`/api/agent/sessions/${second.sessionId}/projects`, {
+    method: "POST",
+    headers: { ...second.headers, "content-type": "application/json" },
+    body: JSON.stringify({
+      apiVersion: "3.0",
+      requestId: "unrelated",
+      operation: "list-projects",
+    }),
+  });
+  expect(cloud.status).toBe(403);
+  expect(await cloud.json()).toMatchObject({
+    error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+  });
+
+  const devices = await call(DEVICE_TRUST_PATH, {
+    headers: { cookie: "icm_session=a" },
+  });
+  const {
+    devices: [device],
+  } = (await devices.json()) as { devices: { id: string }[] };
+  expect(device?.id).toMatch(/^[a-f0-9]{64}$/u);
+  const revoke = (cookie: string) =>
+    call(`${DEVICE_TRUST_PATH}/${device!.id}`, {
+      method: "DELETE",
+      headers: { cookie, origin, "sec-fetch-site": "same-origin" },
+    });
+  expect((await revoke("icm_session=b")).status).toBe(204);
+  const stillTrusted = await launch();
+  expect((await approve(stillTrusted, "auto")).status).toBe(200);
+  expect((await revoke("icm_session=a")).status).toBe(204);
+  for (const task of [first, second, stillTrusted]) {
+    fixture.objects.delete(task.sessionId); // Restore the revocation tombstone on eviction.
+    const status = await call(`/api/agent/sessions/${task.sessionId}/status`, {
+      headers: task.headers,
+    });
+    expect(await status.json()).toMatchObject({
+      error: { code: "SESSION_REVOKED" },
+    });
+  }
+  const fresh = await launch();
+  expect((await approve(fresh, "auto")).status).toBe(403);
+  const once = await approve(fresh, "once");
+  expect(once.status).toBe(200);
+  expect(await once.json()).toMatchObject({
+    scopes: expect.arrayContaining(["gallery.publish", "simulation.run"]),
+  });
+});
 
 type LiveEditor = ReturnType<typeof liveAgentEditor>;
 

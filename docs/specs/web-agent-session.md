@@ -12,6 +12,8 @@ operations are in the [Agent API](agent-api.md).
 GET  /api/agent/kit
 POST /api/agent/claims
 POST /api/agent/editor-launch
+GET  /api/agent/trusted-devices
+DELETE /api/agent/trusted-devices/{deviceId}
 POST /api/agent/connectors/resume
 GET  /api/agent/sessions/{sessionId}/status
 POST /api/agent/sessions/{sessionId}/circuit
@@ -61,13 +63,26 @@ GET  /api/agent/openapi.json
   secret to the tab. The Agent holds a scoped bearer for the detached session
   and reports readiness after reading the live Project. The URL carries no
   session credential.
+- A signed-in user may select **Trust this device** on the launch page.
+  The relay checks the installation's signature over the exact origin,
+  session and one-use grant. The device record belongs to that site and
+  account. Subsequent matching launches may consume a fresh grant without
+  a browser click. They receive only review, local file and circuit edit
+  scopes, and cannot list or import the account's Cloud Projects.
+  One-time approval still grants its ordinary scopes.
+- The account Settings revoke action invalidates the device generation and
+  ends its active trusted tasks. The relay checks that generation before
+  serving a trusted task. A revoked task stays terminal, including if its
+  Editor disconnects. A device may earn a fresh generation through a new
+  explicit approval.
 - `taskRef` selects a process-local client and browser session for subsequent
   MCP tools. A task's client uses its own revocable connector in memory.
   A live binding is reused. Before reopening, the relay checks that the
   previous session is still detached and active and that its page reported
   leaving. A lost socket alone preserves the binding. A page reloading can
   reattach within the connector's bounded reconnect wait. The new tab
-  requires its own approval and the receipt identifies an unconfirmed previous Project.
+  checks device trust or requires one-time approval. The receipt identifies
+  an unconfirmed previous Project.
   Pause, revoke and a missing relay record stop recovery. See the
   [task connection workflow](../agent/mcp-quickstart.md#connect).
 - The Claim shows as soon as creation succeeds; its countdown uses the

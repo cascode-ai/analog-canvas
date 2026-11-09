@@ -3,7 +3,11 @@
 ## Connect
 
 `open_canvas({})` opens a dedicated Canvas tab for a new task at the configured
-origin. The user chooses **Allow Agent access** in the browser. A successful
+origin. The browser offers **Allow Agent access** for this task and **Trust this
+device** for a signed-in account. On the same site, the same installation and
+account can then authorize new review tasks automatically. Each task gets its
+own working copy and credentials. **Account → Settings → Trusted Canvas
+devices** can revoke a device and end its trusted tasks. A successful
 reply includes `taskRef`, `sessionId` and the live Project and Cell context.
 Wait for `projectRead: "ready"` before editing. Pass that `taskRef` on every
 Canvas tool call in this task, including another `open_canvas` to reuse the tab
@@ -12,8 +16,8 @@ reference after the user approves. Task references last for the running MCP
 process. After a reopen with `recovery: "previous-project-unconfirmed"`,
 verify the target Project and revision before continuing earlier work.
 `SESSION_REVOKED` means the user revoked the task in the browser: ask before
-reconnecting, then call `open_canvas({})` for a new task, which needs a fresh
-approval.
+reconnecting, then call `open_canvas({})` for a new task. Canvas checks device
+trust again or shows the one-time approval.
 
 Use the manual connection for a page the user paired using a Claim. Run it
 in a separate MCP process from dedicated Canvas tasks.
