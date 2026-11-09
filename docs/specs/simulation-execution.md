@@ -262,7 +262,8 @@ Shared minimums for the hosted runner and the local host:
   recovers draft IDs.
 - Hosted runs are for the team only (#2074): Owner accounts, AI seats and
   administrators. Signed out, `start` and `/api/simulate` answer
-  `401 simulation-authentication-required`; any other account gets
+  `401 simulation-authentication-required`, which points to a team sign-in
+  or exporting a netlist; any other account gets
   `403 hosted-simulation-team-only`, which points to exporting a netlist.
   Profile discovery, and reading, cancelling or deleting one's own runs, stay
   open. `/api/auth/me` marks team accounts `hostedSimulation: true`; over the

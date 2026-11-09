@@ -23,9 +23,8 @@ edit model.
   and child Cells.
 - **Projects and interchange:** save a private Cloud Project, import/export
   canonical `.icproj.json`, import structural `.cir`, `.sp`, `.spi`, and `.scs` files, and export
-  deterministic structural SPICE or Spectre. The hosted editor also provides
-  saved simulation source folders and pinned ngspice/SKY130 and SG13G2 Profiles for qualified
-  OP, DC, AC, TRAN, and Noise runs.
+  deterministic structural SPICE or Spectre. Keep a Testbench and Specs beside
+  the circuit and run the exported netlist with your own simulator and PDK.
 - **Publication-ready output:** the web editor's SVG and PDF exports remain
   vector graphics; PNG is rendered at 3× raster scale.
 - **Community publishing:** signed-in users can publish selected circuits with
@@ -70,7 +69,7 @@ automatically rerunning it. File / Save and Ctrl+S remain save-only.
 - **Try the Windows desktop preview:** [download and run the preview](#windows-desktop-preview).
 - **Learn the editor:** [Getting started](docs/user/getting-started.md),
   [schematic hierarchy](docs/user/schematic-hierarchy.md),
-  [analog simulation](docs/user/analog-simulation.md),
+  [Testbench and simulation](docs/user/analog-simulation.md),
   [compatibility](docs/user/project-compatibility.md), and
   [troubleshooting](docs/user/troubleshooting.md).
 - **Understand the product:** [current architecture](docs/overall-product-plan.md)
