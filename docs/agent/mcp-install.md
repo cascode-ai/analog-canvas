@@ -41,6 +41,16 @@ path). Updating is explicit. Without installer support, use the manifest's confi
 launch configuration; never infer flags from another version or assume an old
 package has the installer.
 
+In the web editor, open **Agent → Codex setup**. On a site serving the
+verified archive, select **Include the Canvas review shortcut** to install MCP
+and the optional skill with one command (`hosts.codex.reviewCommand`). It
+installs the skill under `~/.agents/skills/canvas-review` and preserves a
+skill already at that path. The MCP registration is per site and the skill
+can use any matching registration. Invoke `$canvas-review` in a Codex chat,
+or pick it through `/skills` in Codex CLI. Include the source path and,
+optionally, the Cell and Web or image preference. Plain-language requests
+continue to use the same MCP workflow.
+
 Configuration success does not mean tools are loaded in this conversation:
 verify callable tools and `connection_status({refresh:false})` (version, API
 origin). If loading needs a host restart or new conversation, tell the user
@@ -51,7 +61,9 @@ the requested operation.
 Installer failures return `ok:false`, `stage`, `code`, a safe `message`,
 `nextAction` and bounded `evidence` (HTTP status, system code or runtime facts).
 The stage identifies arguments/runtime, manifest, download, integrity,
-extraction, local probe or host configuration. `use-http-kit` is a recovery
+extraction, local probe, host configuration or optional Skill setup.
+`skill-config` means MCP was registered and the optional Skill needs
+attention. `use-http-kit` is a recovery
 suggestion subject to the connection request's authorization; `stop` requires
 addressing the refusal. Older packages can return plain text; report only
 observed facts and never assume they implement newer flags or fields.

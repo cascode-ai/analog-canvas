@@ -1,4 +1,11 @@
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -64,6 +71,13 @@ await writeFile(
 );
 await chmod(executable, 0o755).catch(() => undefined);
 
+const skill = "canvas-review";
+const skillSource = resolve(root, "docs/agent/codex/skills", skill);
+const skillOutput = resolve(output, "skills", skill);
+await mkdir(resolve(skillOutput, "agents"), { recursive: true });
+for (const member of ["SKILL.md", "agents/openai.yaml"])
+  await copyFile(resolve(skillSource, member), resolve(skillOutput, member));
+
 await writeFile(
   resolve(output, "package.json"),
   `${JSON.stringify(
@@ -73,7 +87,7 @@ await writeFile(
       description: "Local MCP adapter for the Analog Canvas browser editor",
       type: "module",
       bin: { [distribution.binaryName]: "bin/analog-canvas-mcp.mjs" },
-      files: ["bin", "README.md"],
+      files: ["bin", "README.md", "skills"],
       engines: { node: distribution.node },
       license: "UNLICENSED",
     },

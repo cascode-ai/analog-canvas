@@ -5,6 +5,7 @@ import {
   writeFile,
   readFile,
   mkdir,
+  rename,
   rm,
   symlink,
 } from "node:fs/promises";
@@ -251,6 +252,21 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
         join(source, "analog-canvas-headless.mjs"),
         "export const headless = true;\n",
       );
+      const bundledSkill = join(
+        directory,
+        "package",
+        "skills",
+        "canvas-review",
+      );
+      await mkdir(join(bundledSkill, "agents"), { recursive: true });
+      await writeFile(
+        join(bundledSkill, "SKILL.md"),
+        "Bundled review guidance\n",
+      );
+      await writeFile(
+        join(bundledSkill, "agents", "openai.yaml"),
+        "policy:\n  allow_implicit_invocation: false\n",
+      );
       const archive = join(directory, "fixture.tgz");
       // Relative names: either Windows tar reads them, as it must the
       // archive the installer pipes to it.
@@ -379,6 +395,53 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
       expect(configured).toContain(
         local.launch.args[0]!.replaceAll("\\", "\\\\"),
       );
+      const skill = join(directory, ".agents", "skills", "canvas-review");
+      const skillFile = join(skill, "SKILL.md");
+      await expect(readFile(skillFile, "utf8")).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      const reviewArgs = [
+        "--origin",
+        launch.env.ANALOG_CANVAS_API_URL,
+        "--host",
+        "codex",
+        "--skill",
+        "canvas-review",
+      ];
+      await expect(
+        installMcp(reviewArgs, { home: directory, codex }),
+      ).resolves.toMatchObject({ skill: { status: "installed", path: skill } });
+      expect(await readFile(skillFile, "utf8")).toBe(
+        "Bundled review guidance\n",
+      );
+      expect(
+        await readFile(join(skill, "agents", "openai.yaml"), "utf8"),
+      ).toContain("allow_implicit_invocation: false");
+      await expect(
+        installMcp(reviewArgs, { home: directory, codex }),
+      ).resolves.toMatchObject({
+        skill: { status: "already-present", path: skill },
+      });
+      await writeFile(skillFile, "My review guidance\n");
+      await expect(
+        installMcp(reviewArgs, { home: directory, codex }),
+      ).resolves.toMatchObject({
+        skill: { status: "already-present", path: skill },
+      });
+      expect(await readFile(skillFile, "utf8")).toBe("My review guidance\n");
+      await rename(skill, `${skill}.user-copy`);
+      await mkdir(join(skill, "SKILL.md"), { recursive: true });
+      await expect(
+        installMcp(reviewArgs, { home: directory, codex }),
+      ).rejects.toMatchObject({
+        diagnostic: { stage: "skill-config", code: "SKILL_PATH_OCCUPIED" },
+      });
+      expect(
+        await readFile(join(`${skill}.user-copy`, "SKILL.md"), "utf8"),
+      ).toBe("My review guidance\n");
+      configured = await readFile(config, "utf8");
+      expect(configured).toContain(localBlock);
+      expect(configured.match(/ANALOG_CANVAS_API_URL =/gu)).toHaveLength(2);
       fetchMock.mockRejectedValue(Error("offline"));
       await expect(
         probeInstalledMcp(

@@ -29,7 +29,7 @@ export interface AgentMcpBootstrapManifest {
     env: { ANALOG_CANVAS_API_URL: string };
   };
   hosts: {
-    codex: { command: string };
+    codex: { command: string; reviewCommand?: string };
     claudeCode: { command: string; windowsCommand: string };
     cursor: {
       config: {
@@ -57,6 +57,56 @@ export interface AgentMcpBootstrapManifest {
   };
 }
 
+function verifiedArchiveInstaller(downloadUrl: string, sha256: string) {
+  return [
+    "node",
+    ...verifiedArchiveLaunchArgs(downloadUrl, sha256).map((argument) =>
+      JSON.stringify(argument),
+    ),
+  ].join(" ");
+}
+
+function installCommand(
+  installer: string,
+  origin: string,
+  host: "config" | "codex",
+) {
+  return `${installer} --install --origin ${JSON.stringify(origin)} --host ${host}`;
+}
+
+export function codexSiteArchiveSetup(
+  origin: string,
+  manifest: AgentMcpBootstrapManifest,
+): AgentMcpBootstrapManifest["hosts"]["codex"] | undefined {
+  const version = manifest?.version;
+  const sha256 = manifest?.distribution?.sha256;
+  const downloadUrl = `${origin}/downloads/mcp/analog-canvas-mcp-server-${version}.tgz`;
+  if (
+    manifest?.format !== AGENT_MCP_BOOTSTRAP_FORMAT ||
+    manifest.installation?.available !== true ||
+    typeof version !== "string" ||
+    !/^\d+\.\d+\.\d+$/u.test(version) ||
+    typeof sha256 !== "string" ||
+    !/^[a-f0-9]{64}$/u.test(sha256) ||
+    manifest.name !== agentMcpServerName(origin) ||
+    manifest.distribution.downloadUrl !== downloadUrl
+  )
+    return;
+  // Only copy commands built for the origin serving this editor.
+  const command = installCommand(
+    verifiedArchiveInstaller(downloadUrl, sha256),
+    origin,
+    "codex",
+  );
+  const reviewCommand = `${command} --skill canvas-review`;
+  return {
+    command,
+    ...(manifest.hosts?.codex?.reviewCommand === reviewCommand
+      ? { reviewCommand }
+      : {}),
+  };
+}
+
 export function agentMcpBootstrapManifest(
   publicOrigin: string,
   serveReleaseArchive = false,
@@ -81,16 +131,10 @@ export function agentMcpBootstrapManifest(
     env: { ANALOG_CANVAS_API_URL: origin },
   } as const;
   const installer = serveReleaseArchive
-    ? [
-        "node",
-        ...verifiedArchiveLaunchArgs(
-          downloadUrl,
-          distribution.release.sha256,
-        ).map((argument) => JSON.stringify(argument)),
-      ].join(" ")
+    ? verifiedArchiveInstaller(downloadUrl, distribution.release.sha256)
     : launchText;
-  const installCommand = (host: "config" | "codex") =>
-    `${installer} --install --origin ${JSON.stringify(origin)} --host ${host}`;
+  const configCommand = installCommand(installer, origin, "config");
+  const codexCommand = installCommand(installer, origin, "codex");
   // Immutable <=0.15.1 packages do not contain --install. Publishing a newer
   // package enables its entry point; never advertise unsupported old binaries.
   const [major = 0, minor = 0, patch = 0] = distribution.version
@@ -98,6 +142,8 @@ export function agentMcpBootstrapManifest(
     .map(Number);
   const localInstallation =
     major > 0 || minor > 15 || (minor === 15 && patch >= 2);
+  const archiveIncludesReviewSkill =
+    major > 0 || minor > 17 || (minor === 17 && patch >= 97);
 
   return {
     format: AGENT_MCP_BOOTSTRAP_FORMAT,
@@ -108,24 +154,29 @@ export function agentMcpBootstrapManifest(
     installation: {
       mode: "verified-local-bundle",
       available: localInstallation,
-      command: installCommand("config"),
+      command: configCommand,
       note: "Install only with evidence of this conversation's actual stdio host and effective configuration. Check the launching Node first and verify the archive SHA-256 before executing. Generic installation returns a local launch object, its per-origin serverName and the exact Claude Code registration command; use hosts.codex only for a confirmed Codex host. Use the returned local launch in Cursor for a regional installation. Installation does not prove callable tools. When the user's handoff authorizes fallback, bootstrap/environment failures can use the raw HTTP Kit without Node; integrity/identity failures stop. Keep any completed installation if host loading needs another conversation.",
     },
     launch,
     hosts: {
       codex: {
         command: localInstallation
-          ? installCommand("codex")
+          ? codexCommand
           : `codex mcp add ${serverName} --env ANALOG_CANVAS_API_URL=${origin} -- ${launchText}`,
+        ...(archiveIncludesReviewSkill && serveReleaseArchive
+          ? {
+              reviewCommand: `${codexCommand} --skill canvas-review`,
+            }
+          : {}),
       },
       // The verified installer returns the exact `claude mcp add` command
       // for its local launch under the same name.
       claudeCode: {
         command: localInstallation
-          ? installCommand("config")
+          ? configCommand
           : `claude mcp add ${serverName} --scope user --env ANALOG_CANVAS_API_URL=${origin} -- ${launchText}`,
         windowsCommand: localInstallation
-          ? installCommand("config")
+          ? configCommand
           : `claude mcp add ${serverName} --scope user --env ANALOG_CANVAS_API_URL=${origin} -- cmd /c ${launchText}`,
       },
       cursor: {
