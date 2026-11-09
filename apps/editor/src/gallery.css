@@ -1266,6 +1266,7 @@
 }
 
 .gallery-order-menu[open] > .gallery-order-button,
+.gallery-download-menu[open] > .gallery-order-button,
 .gallery-order-button:hover {
   border-color: var(--icm-accent);
   color: var(--icm-text);
@@ -1324,6 +1325,55 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Download (#2148), right of the count: the order's button and popover. */
+.gallery-download-menu {
+  position: relative;
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: 8px;
+  padding-bottom: 6px;
+}
+
+.gallery-download-popover {
+  width: min(19rem, calc(100vw - 44px));
+}
+
+.gallery-download-popover button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.gallery-download-status {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 8px;
+  border-top: 1px solid var(--icm-border);
+  color: var(--icm-text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.gallery-download-status progress {
+  width: 100%;
+}
+
+.gallery-download-status button {
+  justify-self: start;
+  border: 1px solid var(--icm-border);
+}
+
+.gallery-download-error {
+  color: var(--icm-danger, #b42318);
+}
+
+.gallery-download-note {
+  margin: 0;
+  padding: 6px 8px;
+  color: var(--icm-text-muted);
+  font-size: 12px;
 }
 
 .gallery-contributor-menu {
@@ -2092,7 +2142,8 @@ div.gallery-contributor-status {
     min-width: 0;
   }
   /* Only the icon: the count keeps its room. */
-  .gallery-order-label {
+  .gallery-order-label,
+  .gallery-download-label {
     display: none;
   }
   .gallery-order-menu {

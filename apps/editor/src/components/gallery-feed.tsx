@@ -47,6 +47,7 @@ import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
 import { GallerySourceNote, useGalleryDatasets } from "./gallery-datasets";
 import { GalleryOrderMenu } from "./gallery-order-menu";
+import { GalleryDownloadMenu } from "./gallery-download-menu";
 import {
   galleryOrderPreference,
   galleryShuffleSeed,
@@ -554,6 +555,8 @@ export function GalleryFeed({
             }
           />
         ) : null}
+        {/* Kept mounted on the shelf, so a running download goes on. */}
+        <GalleryDownloadMenu query={feedQuery} hidden={view !== "gallery"} />
       </div>
       {view === "shelf" ? (
         <Suspense

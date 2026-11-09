@@ -47,6 +47,18 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   downloads every public circuit, oldest first: `index.json` (the list's
   entries) and `entries/<id>.json` (`{entry, projectText}`), at most 600
   requests a minute, skipping circuits already on disk.
+- The wall's Download menu, the same for every reader and signed out too,
+  saves the wall's current results (its own list query) or every public
+  circuit as one `.zip`: `<id>.icproj.json` (the circuit's `projectText`) and
+  `manifest.json` (`query`, `generatedAt`, `origin`, `usage`, `sources` with
+  each dataset's license, `count`, `entries` with `id`, `name`, `author`,
+  `source`, `previewRevision` and `file`, and `failed` with `id`, `name` and
+  `reason`). Each choice states its count first; a run shows its progress
+  and can be cancelled. It lists oldest first and reads at most 10 requests
+  a second, 4 at once; network, 408, 429 (every reader waits its
+  `Retry-After`) and 5xx failures are retried, circuits still failing are
+  named, a list failure saves nothing and so do zero matches. The archive
+  code loads on first use.
 - No account is blocked for how it reads or writes; the account blocks and
   trap circuits of before 2026-11-09 are retired with their records.
 - `/api/*` has a flood limit of 1200 requests a minute per client address
