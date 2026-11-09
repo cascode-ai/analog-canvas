@@ -242,16 +242,22 @@ syntax and the [attribution](packages/spice/third-party/netlist-crawler/README.m
 
 Every public Gallery circuit is free to read, download in bulk, mirror and use
 for any purpose, AI training included; circuits from reference datasets keep
-their dataset's license. One script downloads all of them with their full
-Projects, with no account and nothing to install but Node 18 or newer:
+their dataset's license. The Gallery's **Download** menu saves the wall's
+current results, or every circuit, as one `.zip` of Project files with a
+manifest. One script downloads them too, with no account and nothing to
+install but Node 18 or newer:
 
 ```bash
 curl -O https://raw.githubusercontent.com/cascode-ai/analog-canvas/main/scripts/gallery-download.mjs
 node gallery-download.mjs gallery-download
+node gallery-download.mjs amsnet --source amsnet --q 'common gate'
+node gallery-download.mjs lna --url 'https://analog-canvas.tokenzhang.com/?source=circuitthink&parts=6-10'
 ```
 
-It writes `gallery-download/index.json` and one `entries/<id>.json` per
-circuit, and a rerun resumes. See the
+It writes `index.json` and one `entries/<id>.json` per circuit; filters
+(`--source`, `--q`, `--tags`, `--author`, `--parts`, `--netlistable`, or a
+wall link's with `--url`) narrow it, and a rerun keeps whole files and
+downloads the rest. See `--help` and the
 [Gallery contract](docs/specs/community-gallery.md#crawlers-ai-and-floods) for
 the API it reads.
 

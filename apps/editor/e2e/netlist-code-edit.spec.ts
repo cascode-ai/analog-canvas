@@ -179,8 +179,13 @@ test("explicit inspectors yield to Netlist for a replacement while ordinary edit
   await expect(code).toHaveCount(0);
 
   // Opening a different Project deliberately returns to its live Netlist,
-  // regardless of the inspector the previous Project left open.
+  // regardless of the inspector the previous Project left open. The opened
+  // file was never saved, so replacing it asks first (#2147).
   await openProjectFile(page, fixture());
+  await page
+    .getByRole("dialog", { name: "Unsaved changes" })
+    .getByRole("button", { name: "Continue without saving" })
+    .click();
   await expect(code).toBeVisible();
   await expect(code).toContainText("R2");
 

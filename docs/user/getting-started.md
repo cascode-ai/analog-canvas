@@ -32,7 +32,9 @@ history and Cloud binding. Use **+** for a new project, **Open file in new
 tab**, or **Open Shelf project in tab**. Double-click a tab's name to rename
 it; right-click it for **Close**, **Close Others** and **Close All**. Refresh
 restores this window's tabs and unsaved circuits (not Undo stacks); after
-closing the browser tab, a new editor tab offers **Reopen tabs**. This
+closing a browser tab with unsaved work, a new editor tab offers **Reopen
+tabs** once (**Not now** is remembered; **File → Recover Unsaved Work**
+keeps the copies). This
 browser-local workspace is not a backup: save or export what you need.
 
 ## Draw and connect
@@ -258,7 +260,7 @@ transparent background (needs HTTPS or localhost and clipboard permission).
 
 The **Netlist** button copies the netlist and opens its code in the right
 sidebar. **Format** (SPICE or SCS) and **Process** (Abstract, SKY130 by
-default, IHP SG13G2, TSMC 28, TSMC 180, Custom) are independent; a transistor
+default, IHP SG13G2, Custom) are independent; a transistor
 you draw takes the selected Process's model. Process changes are undoable and
 keep your values. **Fill N devices** gives older unbound devices the Process's
 model and dimensions in one undoable step. Choices are remembered in this
@@ -267,7 +269,7 @@ name the device and field. Export never adds model cards, analyses or a
 testbench.
 
 **Netlist → Configuration…** edits the Process presets as JSON: `selected`
-(`abstract`, `sky130`, `sg13g2`, `tsmc28`, `tsmc180`, `custom`) and its entry
+(`abstract`, `sky130`, `sg13g2`, `custom`) and its entry
 under `profiles`.
 
 - `abstract`: ideal R/C/L and generic NMOS/PMOS names.
@@ -278,8 +280,6 @@ under `profiles`.
   (`sg13_lv_nmos`/`sg13_lv_pmos`, `sg13_hv_*`, HBTs `npn13G2…`, `pnpMPA`;
   `rsil`, `rppd`, `rhigh`, `cap_cmim`, `cap_rfcmim` for physical R/C). Include
   the PDK's ngspice libraries and OSDI modules yourself.
-- `tsmc28` / `tsmc180`: TSMC reference MOS names; point `library.path` at your
-  PDK.
 - `custom`: keeps your targets and fills missing fields from your defaults.
 
 **Netlist → Instances…** edits every instance's `reference`, model `target`

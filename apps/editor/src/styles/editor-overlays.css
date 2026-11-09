@@ -1,8 +1,10 @@
 /* Editor overlay owner: recovery and guarded-action surfaces that must not resize the workspace. */
 
+/* A modal (Unsaved changes, Recover) stands above the floating panels, as
+   the other dialog backdrops do: Project Info at 40 covered its buttons. */
 .help-backdrop {
   position: fixed;
-  z-index: 30;
+  z-index: 80;
   inset: 0;
   display: grid;
   place-items: center;
@@ -199,9 +201,10 @@
 }
 
 /* Recovery banners float over the canvas so they never resize it. */
+/* Above the floating panels (Project Info, Agent), below menus and modals. */
 .recovery-banner {
   position: fixed;
-  z-index: 19;
+  z-index: 45;
   top: 4.6rem;
   left: 50%;
   translate: -50% 0;

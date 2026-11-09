@@ -49,6 +49,7 @@ import type {
 import { useProjectTabs } from "../document/use-project-tabs";
 import {
   findWorkspaceReopenOffer,
+  reopenDismissedThrough,
   planWorkspaceReopen,
   type WorkspaceReopenSummary,
 } from "../document/workspace-reopen";
@@ -807,6 +808,7 @@ export function useProjectTabSessions({
           browserWorkspaceStore(),
           workspaceWindowId(),
           open,
+          reopenDismissedThrough(),
         ),
       )
       .then((offer) => {

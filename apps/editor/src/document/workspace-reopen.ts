@@ -95,22 +95,48 @@ function unsavedCopy(session: unknown): Record<string, unknown> {
 }
 
 /**
- * A closed window's tabs are worth reopening when one holds unsaved work or
- * stands for a saved Project, Gallery entry or file. A window that only ever
- * showed an untouched New Circuit offers nothing.
+ * A closed window's tabs are worth reopening only when one holds unsaved
+ * work. Tabs of saved Projects, Gallery entries and files lose nothing by
+ * staying closed (the Shelf, the Gallery and the file still hold them), and
+ * offering them made every fresh window ask.
  */
 export function worthReopening(record: ProjectWorkspace): boolean {
-  return record.tabs.some(({ session }) => {
-    const tab = session as SavedTabFacts | null;
-    return Boolean(
-      tab &&
-      (tab.dirty === true ||
-        tab.unsafe === true ||
-        tab.publication ||
-        tab.file?.cloudBinding ||
-        tab.file?.nativeBinding),
-    );
-  });
+  return record.tabs.some(({ session }) => holdsUnsavedWork(session));
+}
+
+const REOPEN_DISMISSED_KEY = "icm-workspace-reopen-dismissed-through";
+
+/** The newest closed-window record Not now turned down; none is 0. */
+export function reopenDismissedThrough(
+  storage: Pick<Storage, "getItem"> | null = browserStorage(),
+): number {
+  const value = Number(storage?.getItem(REOPEN_DISMISSED_KEY));
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * Not now: no fresh window offers this record, or any older one, again. A
+ * window closed later with unsaved work is offered as before, and the tabs'
+ * recovery copies stay under File → Recover Unsaved Work.
+ */
+export function dismissWorkspaceReopen(
+  savedAt: number,
+  storage: Pick<Storage, "getItem" | "setItem"> | null = browserStorage(),
+): void {
+  if (!storage || savedAt <= reopenDismissedThrough(storage)) return;
+  try {
+    storage.setItem(REOPEN_DISMISSED_KEY, String(savedAt));
+  } catch {
+    // A full or blocked storage only means the offer may come back.
+  }
+}
+
+function browserStorage(): Storage | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
 }
 
 function projectName(text: unknown): string {
@@ -136,8 +162,8 @@ export function workspaceReopenSummary(
 
 /**
  * The newest workspace a closed window left with something worth reopening
- * (#1250). Open windows keep theirs; without a list of open windows nothing
- * is offered, as before.
+ * (#1250), newer than what Not now turned down. Open windows keep theirs;
+ * without a list of open windows nothing is offered, as before.
  */
 export async function findWorkspaceReopenOffer(
   store: Pick<
@@ -146,6 +172,7 @@ export async function findWorkspaceReopenOffer(
   >,
   windowId: string,
   openWindows: ReadonlySet<string> | null,
+  dismissedThrough = 0,
 ): Promise<{
   record: ProjectWorkspace;
   summary: WorkspaceReopenSummary;
@@ -154,7 +181,9 @@ export async function findWorkspaceReopenOffer(
   const record = await store.latestElsewhere(
     windowId,
     (candidate) =>
-      openWindows.has(candidate.windowId) || !worthReopening(candidate),
+      openWindows.has(candidate.windowId) ||
+      candidate.savedAt <= dismissedThrough ||
+      !worthReopening(candidate),
   );
   return record ? { record, summary: workspaceReopenSummary(record) } : null;
 }

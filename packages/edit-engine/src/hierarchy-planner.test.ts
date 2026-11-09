@@ -375,7 +375,7 @@ describe("a Library gate takes a standard cell of its function (#1450)", () => {
     expect(() =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", "nor2"),
     ).toThrow(
-      "nor2 is not a Cell or external subcircuit of this Project, nor a reviewed standard cell for nor-gate; use sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
+      "nor2 is not a Cell or external subcircuit of this Project, nor a reviewed standard cell for nor-gate; use sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1",
     );
   });
 
@@ -537,7 +537,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
       "Cell inv1 does not fit the nor-gate: it has no Pin B, and its Pin EN is not one of the gate's. Its Pins must be A, B and Y, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
     );
     expect(() => plan("nor3")).toThrow(
-      "nor3 is not a Cell or external subcircuit of this Project, nor a reviewed standard cell for nor-gate; use nor2, sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1, NR2D1BWP12T30P140",
+      "nor3 is not a Cell or external subcircuit of this Project, nor a reviewed standard cell for nor-gate; use nor2, sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1",
     );
     expect(
       gateCellTargets(project, project.topDocumentId, "nor-gate").map(

@@ -8372,11 +8372,15 @@ function WorkspaceEditor({
           chooseWireShape({ cornerOrder })
         }
         onOpenAnalytics={() => {
-          void guardDirtyReplacement("Open Analytics", async (discarded) => {
-            if (discarded) await dropDiscardedWork();
-            allowNextBrowserUnload();
-            window.location.assign("/analytics");
-          });
+          void guardDirtyReplacement(
+            "Open Analytics",
+            async (discarded) => {
+              if (discarded) await dropDiscardedWork();
+              allowNextBrowserUnload();
+              window.location.assign("/analytics");
+            },
+            { leavesEditor: true },
+          );
         }}
         onZoomOut={() => zoomViewAtCenter(1.2)}
         onZoomIn={() => zoomViewAtCenter(0.84)}

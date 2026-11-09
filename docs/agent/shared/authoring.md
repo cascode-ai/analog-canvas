@@ -123,13 +123,12 @@ their IDs, never resolved to the first.
   Nets (Auto as unbound) when `set-model` binds it to the first of:
   - a Project Cell drawn at transistor level (name, any case, or ID);
   - for a logic gate, a standard cell of its function and input count: SKY130
-    HD (`sky130_fd_sc_hd__nand2_1`), IHP SG13G2 (`sg13g2_nand2_1`) or TSMC 28
-    HPC+ 12-track (`ND2D1BWP12T30P140`, `…LVT`), any drive or variant, called
-    in library pin order and defined by the library's `.include`. Hosted
-    ngspice simulates SKY130 HD; a Profile without the library refuses
-    (`STANDARD_CELL_LIBRARY_UNAVAILABLE`); another pin order or no matching
-    gate is `STANDARD_CELL_UNSUPPORTED`; another function is refused with the
-    cells that fit. A SPICE-imported cell stays an external block.
+    HD (`sky130_fd_sc_hd__nand2_1`) or IHP SG13G2 (`sg13g2_nand2_1`), any drive
+    or variant, called in library pin order and defined by the library's
+    `.include`. Hosted ngspice simulates SKY130 HD; a Profile without the
+    library refuses (`STANDARD_CELL_LIBRARY_UNAVAILABLE`); another pin order
+    or no matching gate is `STANDARD_CELL_UNSUPPORTED`; another function is
+    refused with the cells that fit. A SPICE-imported cell stays an external block.
   - an external subcircuit of the Project (SPICE-imported or model-source), by
     name or ID.
 

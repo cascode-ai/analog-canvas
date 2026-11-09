@@ -72,3 +72,32 @@ it("Agent variants isolate sources and definition Apply targets the shared owner
     )!.formalParameters[0]!.defaultValue,
   ).toBe("2k");
 });
+
+it("Agent definition Apply refuses a retired TSMC process, naming the open ones", async () => {
+  const packaged = nativePackage();
+  const project = createCircuitComponentPackageProject(packaged, "retired");
+  const owner = project.externalSubcircuitDefinitions[0]!;
+  const source = project.modelSources![0]!;
+  const { client, controller } = liveAgentEditor({ project });
+  await client.connect("session-1.code");
+  await client.snapshot();
+  const refused = await client.applyActions([
+    {
+      kind: "apply-component-definition",
+      edit: {
+        kind: "apply_model_source",
+        source,
+        definitions: [{ definitionId: owner.id, entry: owner.name }],
+        transform: { process: "tsmc28" as never },
+      },
+    },
+  ]);
+  expect(refused).toMatchObject({
+    ok: false,
+    code: "ACTION_COMPILE_FAILED",
+    message: expect.stringContaining(
+      'process: Invalid option: expected one of "abstract"|"sky130"|"sg13g2"|"custom"',
+    ),
+  });
+  expect(controller.project).toEqual(project);
+});

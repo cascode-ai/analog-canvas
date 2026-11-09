@@ -16,6 +16,8 @@ import {
   planWorkspaceReopen,
   workspaceReopenSummary,
   worthReopening,
+  dismissWorkspaceReopen,
+  reopenDismissedThrough,
 } from "./workspace-reopen";
 
 function tab(name: string, facts: Record<string, unknown> = {}) {
@@ -79,12 +81,18 @@ function windowRecord(
 }
 
 describe("reopening a closed window's tabs (#1250)", () => {
-  it("offers only tabs worth reopening", () => {
+  it("offers only tabs with unsaved work", () => {
     const blank = windowRecord("a", 1, [tab("New Circuit")]);
     expect(worthReopening(blank)).toBe(false);
+    for (const facts of [{ dirty: true }, { unsafe: true }])
+      expect(
+        worthReopening(
+          windowRecord("a", 1, [tab("New Circuit"), tab("Bandgap", facts)]),
+        ),
+      ).toBe(true);
+    // Saved Projects, Gallery entries and files lose nothing by staying
+    // closed; offering them made every fresh window ask.
     for (const facts of [
-      { dirty: true },
-      { unsafe: true },
       { publication: { id: "gallery-1" } },
       { file: { cloudBinding: { id: "cloud-1" }, nativeBinding: null } },
       { file: { cloudBinding: null, nativeBinding: { name: "a.icproj" } } },
@@ -93,7 +101,33 @@ describe("reopening a closed window's tabs (#1250)", () => {
         worthReopening(
           windowRecord("a", 1, [tab("New Circuit"), tab("Bandgap", facts)]),
         ),
-      ).toBe(true);
+      ).toBe(false);
+  });
+
+  it("never offers again what Not now turned down, only a window closed later", async () => {
+    const stored = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => stored.get(key) ?? null,
+      setItem: (key: string, value: string) => void stored.set(key, value),
+    };
+    expect(reopenDismissedThrough(storage)).toBe(0);
+    dismissWorkspaceReopen(5, storage);
+    dismissWorkspaceReopen(3, storage);
+    expect(reopenDismissedThrough(storage)).toBe(5);
+
+    const store = createProjectWorkspaceStore(new IDBFactory());
+    await store.write(windowRecord("old", 5, [tab("OTA", { dirty: true })]));
+    expect(
+      await findWorkspaceReopenOffer(store, "fresh", new Set(["fresh"]), 5),
+    ).toBeNull();
+    await store.write(
+      windowRecord("later", 9, [tab("Mixer", { dirty: true })]),
+    );
+    expect(
+      (await findWorkspaceReopenOffer(store, "fresh", new Set(["fresh"]), 5))
+        ?.record.windowId,
+    ).toBe("later");
+    store.close();
   });
 
   it("names every tab, and an unreadable name never blocks the offer", () => {

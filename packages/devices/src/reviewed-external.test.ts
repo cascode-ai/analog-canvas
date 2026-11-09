@@ -639,7 +639,6 @@ describe("standard cells behind Library gates (#1450)", () => {
     expect(reviewedExternalModelSuggestions("nand-gate")).toEqual([
       "sky130_fd_sc_hd__nand2_1",
       "sg13g2_nand2_1",
-      "ND2D1BWP12T30P140",
     ]);
     expect(
       reviewedExternalModelSuggestions("inverter", "sky130_fd_pr"),
@@ -647,9 +646,15 @@ describe("standard cells behind Library gates (#1450)", () => {
     expect(reviewedExternalModelSuggestions("xor-gate-3", "sg13g2_pr")).toEqual(
       [],
     );
-    expect(reviewedExternalModelSuggestions("xor-gate-4")).toEqual([
-      "XOR4D1BWP12T30P140",
-    ]);
+    // TSMC 28's cells, of a retired process, are read for saved Projects but
+    // never suggested; no other library builds an XOR4.
+    expect(reviewedExternalModelSuggestions("xor-gate-4")).toEqual([]);
+    expect(
+      reviewedExternalModelSuggestions(
+        "nand-gate",
+        "tcbn28hpcplusbwp12t30p140",
+      ),
+    ).toEqual([]);
   });
 
   // Opt-in: ICM_STD_CELL_SPICE lists library netlists (sky130_fd_sc_hd.spice,

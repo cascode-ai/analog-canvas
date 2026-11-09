@@ -28,6 +28,10 @@ import type {
 } from "./browser-recovery-contract";
 import type { RecoveryCoordinator } from "./recovery-coordinator";
 import {
+  readDismissedStartupRecoveries,
+  rememberDismissedStartupRecovery,
+} from "./startup-recovery-dismissals";
+import {
   downloadTextArtifact,
   formatProjectOpenDiagnostics,
   projectFileBaseName,
@@ -246,10 +250,10 @@ export function useProjectFileLifecycle({
   );
   const [replaceGuardSaving, setReplaceGuardSaving] = useState(false);
   const [recoveryDialogOpen, setRecoveryDialogOpen] = useState(false);
-  const [
-    dismissedStartupRecoveryRecordId,
-    setDismissedStartupRecoveryRecordId,
-  ] = useState<string | null>(null);
+  // Offered once: Ignore and Restore are remembered across reloads.
+  const [dismissedStartupRecoveries, setDismissedStartupRecoveries] = useState(
+    readDismissedStartupRecoveries,
+  );
 
   function isDirtyWork(): boolean {
     return (
@@ -282,19 +286,29 @@ export function useProjectFileLifecycle({
   }
 
   /**
-   * The one predicate every leave/replace/refresh guard shares: there is
-   * meaningful drawing, the persistence state says it has not reached the
-   * Cloud, AND no equally safe copy of exactly these bytes exists anywhere
-   * else. Publishing to the gallery or exporting the Project file stamps
-   * the current snapshot safe — the drawing is recoverable from there, so
-   * prompting again would be crying wolf.
+   * What an in-app replacement (New, Open, Revert, restore) asks about: the
+   * persistence state says the work has not reached the Cloud or its file,
+   * AND no equally safe copy of exactly these bytes exists anywhere else.
+   * Publishing to the gallery or exporting the Project file stamps the
+   * current snapshot safe — the drawing is recoverable from there, so
+   * prompting again would be crying wolf. Any size counts: replacing takes
+   * the tab's Undo with it, as closing the tab does.
    */
-  function hasUnsafeWork(): boolean {
+  function hasUnsafeReplacement(): boolean {
     if (hasPendingEdits?.()) return true;
     if (nativeProjectStore) return isDirtyWork();
     if (!isDirtyWork()) return false;
-    if (!projectHasMeaningfulContent(liveProjectRef.current)) return false;
     return !holdsLiveProject(safeSnapshotTokenRef.current);
+  }
+
+  /**
+   * The leave/refresh guards' predicate: unsafe work that is also a
+   * meaningful drawing; a throwaway sketch is not worth a browser prompt.
+   */
+  function hasUnsafeWork(): boolean {
+    if (!hasUnsafeReplacement()) return false;
+    if (hasPendingEdits?.() || nativeProjectStore) return true;
+    return projectHasMeaningfulContent(liveProjectRef.current);
   }
 
   function noteProjectSnapshotSafe(snapshot = liveProjectRef.current): void {
@@ -663,6 +677,9 @@ export function useProjectFileLifecycle({
   async function guardDirtyReplacement(
     intent: string,
     perform: (discarded: boolean) => void | Promise<void>,
+    /** Leaving the editor keeps the window's tabs, so it asks only as the
+     * browser leave prompt does. */
+    { leavesEditor = false }: { leavesEditor?: boolean } = {},
   ): Promise<void> {
     replacementEpochRef.current++;
     if (nativeProjectStore && nativeSaveCoordinator.isSaving()) {
@@ -675,7 +692,7 @@ export function useProjectFileLifecycle({
       ? await beforeSnapshot()
       : liveProjectRef.current;
     if (!snapshot) return;
-    if (!hasUnsafeWork()) {
+    if (!(leavesEditor ? hasUnsafeWork() : hasUnsafeReplacement())) {
       await perform(false);
       return;
     }
@@ -733,7 +750,10 @@ export function useProjectFileLifecycle({
       if (!projectStore) {
         const guardSessionId = liveSessionRef.current;
         await exportProjectFile();
-        if (liveSessionRef.current === guardSessionId && !hasUnsafeWork()) {
+        if (
+          liveSessionRef.current === guardSessionId &&
+          !hasUnsafeReplacement()
+        ) {
           setReplaceGuard(null);
           await guard.perform(false);
         }
@@ -1176,7 +1196,7 @@ export function useProjectFileLifecycle({
             session.workingCopyId === recovery.workingCopyId &&
             session.latest?.review === "valid" &&
             session.latest.unsavedAtSnapshot === true &&
-            session.latest.recordId !== dismissedStartupRecoveryRecordId &&
+            !dismissedStartupRecoveries.has(session.latest.recordId) &&
             // Tiny sketches are not worth a banner; the manual Recover menu
             // still lists every snapshot.
             session.latest.meaningfulContent,
@@ -1222,7 +1242,6 @@ export function useProjectFileLifecycle({
       persistenceChangeRef.current = null;
       setReplaceGuard(null);
       setRecoveryDialogOpen(false);
-      setDismissedStartupRecoveryRecordId(null);
       if (session.cloudBinding)
         rememberRecentCloudProject(session.cloudBinding.id);
       else forgetRecentCloudProject();
@@ -1264,10 +1283,13 @@ export function useProjectFileLifecycle({
     cancelReplaceGuard,
     confirmReplaceGuard,
     saveAndContinueReplaceGuard,
-    dismissStartupRecovery: () =>
-      setDismissedStartupRecoveryRecordId(
-        startupRecovery?.latest?.recordId ?? null,
-      ),
+    dismissStartupRecovery: () => {
+      const recordId = startupRecovery?.latest?.recordId;
+      if (recordId)
+        setDismissedStartupRecoveries(
+          rememberDismissedStartupRecovery(recordId),
+        );
+    },
     createNewProject,
     revertToSavedProjectBaseline,
     restoreSavedProjectBaseline,

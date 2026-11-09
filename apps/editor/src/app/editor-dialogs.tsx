@@ -46,6 +46,7 @@ import type { createEditorNavigationController } from "../features/hierarchy/edi
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { primeGalleryPreview } from "../gallery-client";
+import { dismissWorkspaceReopen } from "../document/workspace-reopen";
 // The reference window beside the canvas: loaded apart from the editor's
 // first payload.
 const ReferenceWindow = lazy(() =>
@@ -456,7 +457,10 @@ export function EditorDialogs({
                 names: workspaceReopen.summary.names,
                 savedAt: workspaceReopen.summary.savedAt,
                 onReopen: () => void reopenClosedWindowTabs(),
-                onDismiss: () => setWorkspaceReopen(null),
+                onDismiss: () => {
+                  dismissWorkspaceReopen(workspaceReopen.summary.savedAt);
+                  setWorkspaceReopen(null);
+                },
               }
             : null
         }

@@ -422,6 +422,14 @@ async function authoringView(
   }
 }
 
+/** Answer the Unsaved changes dialog a replacement of unsaved work raises. */
+async function continueWithoutSaving(page: Page): Promise<void> {
+  await page
+    .getByRole("dialog", { name: "Unsaved changes" })
+    .getByRole("button", { name: "Continue without saving" })
+    .click();
+}
+
 test("account changes clear pinned details and deleted rows while offline focus retains the catalog", async ({
   page,
   context,
@@ -974,6 +982,8 @@ test("Create from keeps a new publication destination through draft reopening ev
     authorId: "alice",
   });
   await openProjectFile(page, saved);
+  // Replacing unsaved work of any size asks first (#2147).
+  await continueWithoutSaving(page);
   await awaitEditorReady(page);
   await openProjectDraft(page, "Library draft Derivative device");
   await button(editor, "Publish as new component").click();
@@ -1127,6 +1137,8 @@ test("new native publication survives a lost response, Project reopen and anothe
   await editor.getByLabel("Close component editor").click();
   const pending = await readProject(page);
   await openProjectFile(page, pending);
+  // Replacing unsaved work of any size asks first (#2147).
+  await continueWithoutSaving(page);
   await awaitEditorReady(page);
   async function reopenPublication() {
     await openProjectDraft(page, /^Library draft /);
@@ -1241,8 +1253,8 @@ test("public circuit authoring drafts survive closing and portable reopening wit
   await expect(button(editor, PUBLISH)).toBeDisabled();
   await editor.getByLabel("Close component editor").click();
   await openProjectFile(page, saved);
-  const discard = button(page, "Continue without saving");
-  if (await discard.isVisible()) await discard.click();
+  // Replacing unsaved work of any size asks first (#2147).
+  await continueWithoutSaving(page);
   await awaitEditorReady(page);
   await openProjectDraft(page, "Library draft finite_gain");
   await editor.getByRole("tab", { name: "Symbol", exact: true }).click();
@@ -3467,6 +3479,8 @@ test("copying custom circuits keeps terminal identities scoped to each native ow
         first!.terminals[oldIds.indexOf(mapping.terminalId)]!.id;
   }
   await openProjectFile(page, source);
+  // Replacing unsaved work of any size asks first (#2147).
+  await continueWithoutSaving(page);
   await page.getByTestId("hit-X1").click();
   await page.getByTestId("hit-X2").click({ modifiers: ["ControlOrMeta"] });
   await page.keyboard.press("ControlOrMeta+c");
@@ -3693,6 +3707,8 @@ test("native port removal migrates preferred artwork past a different placed cap
     placed.componentDefinitions!.push(artwork);
     placed.externalSubcircuitDefinitions[0]!.symbolId = artwork.symbol.id;
     await openProjectFile(page, placed);
+    // Replacing unsaved work of any size asks first (#2147).
+    await continueWithoutSaving(page);
   }
   const before = await readProject(page);
   const oldPreference = before.externalSubcircuitDefinitions[0]!.symbolId!;
@@ -3924,6 +3940,8 @@ test("project drafts can be deleted, undone, redone and saved without touching a
   const removed = await readProject(page);
   expect(removed.componentAuthoringDrafts).toEqual([]);
   await openProjectFile(page, removed);
+  // Replacing unsaved work of any size asks first (#2147).
+  await continueWithoutSaving(page);
   expect((await readProject(page)).componentAuthoringDrafts).toEqual([]);
 });
 

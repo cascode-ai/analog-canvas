@@ -91,7 +91,7 @@ describe("what the process still owes a circuit", () => {
     try {
       const prepared = prepareNetlistProcess(
         project,
-        createNetlistExportProfile("tsmc28"),
+        createNetlistExportProfile("abstract"),
         { onlyMissing: true },
       );
       expect(execute).toHaveBeenCalledTimes(1);
@@ -113,12 +113,12 @@ describe("what the process still owes a circuit", () => {
         expect(instance.netlist!.parameters).toMatchObject({
           w: "7u",
           l: "240n",
-          multi: "4",
+          m: "4",
         });
       expect(
         prepareNetlistProcess(
           result.project,
-          createNetlistExportProfile("tsmc28"),
+          createNetlistExportProfile("abstract"),
           { onlyMissing: true },
         ),
       ).toEqual({ edits: [], instanceCount: 0 });
@@ -616,9 +616,15 @@ describe("a part placed into a Process (#1251)", () => {
       deviceClass: "bjt",
       name: "PNP",
     });
-    // TSMC 28 names no PNP; the part keeps its missing-model finding.
+    // A Process naming no PNP leaves the part its missing-model finding.
+    const noPnp = preferences("custom");
+    noPnp.profiles.custom = setNetlistDefaultTarget(
+      noPnp.profiles.custom,
+      "pnp",
+      "",
+    );
     expect(
-      placementProcessFill(project, preferences("tsmc28"), id, [place("pnp")]),
+      placementProcessFill(project, noPnp, id, [place("pnp")]),
     ).toBeUndefined();
     // A part that needs no model is placed exactly as before.
     expect(
@@ -886,34 +892,73 @@ describe("persisted netlist process authoring", () => {
     ).toEqual([]);
   });
 
-  it("maps the TSMC multiplier both ways without changing authored W/L", () => {
-    let project = apply(
-      createLibraryExampleProject("current-mirror-loaded-differential-pair")!,
+  it("keeps exporting the TSMC models a Project already uses, read as Custom", () => {
+    // Saved while TSMC 28 was a Process: a transistor on its model, counted
+    // by multi, and a NAND on its standard cell.
+    let project = createEmptyProject("tsmc", "TSMC");
+    const document = project.documents[0]!;
+    document.instances.push(
+      {
+        id: "M1",
+        reference: "M1",
+        symbolId: "nmos",
+        placement: null,
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "nch_ulvt_mac" },
+          parameters: { w: "1u", l: "30n", multi: "2" },
+        },
+      },
+      {
+        id: "X1",
+        reference: "X1",
+        symbolId: "nand-gate",
+        placement: null,
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: "nand" },
+          parameters: {},
+        },
+      },
     );
-    const mos = project.documents[0]!.instances.find(
-      (instance) => instance.reference === "M1",
-    )!;
-    mos.netlist!.parameters = { w: "7u", l: "240n", m: "4" };
-    project = apply(project, createNetlistExportProfile("tsmc28"));
-    expect(
-      project.documents[0]!.instances.find(
-        (instance) => instance.id === mos.id,
-      )!.netlist!.parameters,
-    ).toMatchObject({ w: "7u", l: "240n", multi: "4" });
-    expect(exported(project)).toContain("pch_ulvt_mac");
-    // Its gates are offered TSMC 28's standard cells (#1450).
-    expect(
-      processReviewedLibrary(project, {
-        ...createDefaultNetlistExportPreferences(),
-        selected: "tsmc28",
-      }),
-    ).toBe("tcbn28hpcplusbwp12t30p140");
-    project = apply(project, createNetlistExportProfile("tsmc180"));
-    const params = project.documents[0]!.instances.find(
-      (instance) => instance.id === mos.id,
-    )!.netlist!.parameters;
-    expect(params).toMatchObject({ w: "7u", l: "240n", m: "4" });
-    expect(params).not.toHaveProperty("multi");
+    project.externalSubcircuitDefinitions.push({
+      id: "nand",
+      name: "ND2D1BWP12T30P140",
+      terminals: ["A1", "A2", "ZN", "VDD", "VSS"].map((name) => ({
+        id: `nand-${name}`,
+        name,
+        direction: "passive",
+      })),
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    for (const [instanceId, pinName] of [
+      ["M1", "D"],
+      ["M1", "G"],
+      ["M1", "S"],
+      ["M1", "B"],
+      ["X1", "A"],
+      ["X1", "B"],
+      ["X1", "Y"],
+    ] as const)
+      document.noConnects.push({
+        id: `${instanceId}-${pinName}`,
+        endpoint: { kind: "terminal", instanceId, pinName },
+      });
+    expect(inferNetlistProcess(project, "sky130")).toBe("custom");
+    const preferred = {
+      ...createDefaultNetlistExportPreferences(),
+      selected: "sky130" as const,
+    };
+    expect(processReviewedLibrary(project, preferred)).toBeUndefined();
+    // Filling what is missing leaves both models and their values alone.
+    project = apply(project, createNetlistExportProfile("sky130"), {
+      onlyMissing: true,
+    });
+    const text = exported(project);
+    expect(text).toMatch(
+      /^M1 NC\d+ NC\d+ NC\d+ NC\d+ nch_ulvt_mac l=30n multi=2 w=1u$/mu,
+    );
+    expect(text).toMatch(/^X1 NC\d+ NC\d+ NC\d+ VDD VSS ND2D1BWP12T30P140$/mu);
+    expect(exported(project, "spectre")).toContain("ND2D1BWP12T30P140");
   });
 
   it.each([
@@ -1001,7 +1046,7 @@ it("reuses immutable defaults across tab remounts but respects profile content a
     symbolId: "nmos",
     placement: null,
   });
-  const profile = createNetlistExportProfile("tsmc28");
+  const profile = createNetlistExportProfile("abstract");
   const read = createNetlistDefaultsCache();
   const first = read(project, profile);
   expect(first.instanceCount).toBe(1);

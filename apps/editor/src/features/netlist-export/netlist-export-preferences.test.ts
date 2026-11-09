@@ -7,6 +7,7 @@ import {
   selectNetlistExportProfile,
   setNetlistExportDeviceTarget,
 } from "./netlist-export-preferences.js";
+import { createNetlistExportProfile } from "./netlist-process-presets.js";
 
 describe("netlist authoring preferences", () => {
   it("moves the old SG13 ideal defaults once and preserves subsequent explicit Ideal choices", () => {
@@ -81,8 +82,88 @@ describe("netlist authoring preferences", () => {
       format: "spectre",
     });
     expect(restored).not.toHaveProperty("portCase");
-    expect(restored.profiles.tsmc28.devices.nmos.target).toBe("nch_ulvt_mac");
-    expect(restored.profiles.tsmc180.devices.pmos.target).toBe("pch");
+    expect(Object.keys(restored.profiles)).toEqual([
+      "abstract",
+      "sky130",
+      "sg13g2",
+      "custom",
+    ]);
+  });
+
+  /** A browser's preference from when TSMC 28 and TSMC 180 were Processes. */
+  function storedWithTsmc(selected: string) {
+    const stored = createDefaultNetlistExportPreferences();
+    const tsmc = (id: string, nmos: string, pmos: string) => {
+      const profile = createNetlistExportProfile("custom");
+      profile.devices.nmos.target = nmos;
+      profile.devices.pmos.target = pmos;
+      for (const family of ["nmos", "pmos"] as const) {
+        delete profile.devices[family].parameters.m;
+        profile.devices[family].parameters.l = "30n";
+        profile.devices[family].parameters.multi = "1";
+      }
+      return { ...profile, id };
+    };
+    return {
+      ...stored,
+      selected,
+      profiles: {
+        ...stored.profiles,
+        tsmc28: tsmc("tsmc28", "nch_ulvt_mac", "pch_ulvt_mac"),
+        tsmc180: tsmc("tsmc180", "nch", "pch"),
+      },
+    };
+  }
+
+  it("reads a remembered TSMC process as Custom with the templates its author worked with", () => {
+    const restored = readNetlistExportPreferences(
+      JSON.stringify(storedWithTsmc("tsmc28")),
+    );
+    expect(restored.selected).toBe("custom");
+    expect(Object.keys(restored.profiles)).toEqual([
+      "abstract",
+      "sky130",
+      "sg13g2",
+      "custom",
+    ]);
+    expect(restored.profiles.custom.id).toBe("custom");
+    expect(restored.profiles.custom.devices.nmos).toMatchObject({
+      target: "nch_ulvt_mac",
+      parameters: { l: "30n", multi: "1" },
+    });
+    expect(restored.profiles.custom.devices.pmos.target).toBe("pch_ulvt_mac");
+    // The move is complete: reading it again changes nothing.
+    expect(readNetlistExportPreferences(JSON.stringify(restored))).toEqual(
+      restored,
+    );
+  });
+
+  it("keeps an edited Custom when a remembered TSMC process moves to it", () => {
+    const stored = storedWithTsmc("tsmc180");
+    stored.profiles.custom.devices.nmos.target = "my_nmos";
+    const restored = readNetlistExportPreferences(JSON.stringify(stored));
+    expect(restored.selected).toBe("custom");
+    expect(restored.profiles.custom.devices.nmos.target).toBe("my_nmos");
+    expect(restored.profiles.custom.devices.pmos.target).toBe("PMOS");
+    // An unselected TSMC template simply goes.
+    const sky130 = readNetlistExportPreferences(
+      JSON.stringify(storedWithTsmc("sky130")),
+    );
+    expect(sky130.selected).toBe("sky130");
+    expect(sky130.profiles.custom).toEqual(
+      createNetlistExportProfile("custom"),
+    );
+  });
+
+  it("refuses a TSMC process in pasted configuration, naming the open ones", () => {
+    expect(() =>
+      parseNetlistExportPreferences(
+        JSON.stringify({
+          ...createDefaultNetlistExportPreferences(),
+          selected: "tsmc28",
+        }),
+      ),
+    ).toThrow("selected must be one of: abstract, sky130, sg13g2, custom.");
   });
 
   it("adds the IHP SG13G2 template to preferences saved before it existed", () => {

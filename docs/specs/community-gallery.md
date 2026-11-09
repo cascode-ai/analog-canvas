@@ -26,7 +26,7 @@ restrictive CSP.
   stricter checks. Previews are `private`; the edge cache holds immutable
   bytes; sessions are cached one minute per isolate.
 - Every read of a public circuit's Project (`GET /api/gallery/<id>`, not
-  `summary=1`) by anyone but its owner, repeats included, adds one to the
+  `summary=1` or a bulk download's `download=1`) by anyone but its owner, repeats included, adds one to the
   circuit's opens for the day (`gallery_entry_opens`: entry, day, count;
   never who; not backed up), which only `owner-data` reports.
 
@@ -44,9 +44,28 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   (`apps/editor/src/usage-policy-note.ts`, its one source); the Agent's MCP
   Gallery tool and the HTTP Agent operation point to `llms.txt`.
 - `scripts/gallery-download.mjs` (Node 18 or newer, no account or install)
-  downloads every public circuit, oldest first: `index.json` (the list's
-  entries) and `entries/<id>.json` (`{entry, projectText}`), at most 600
-  requests a minute, skipping circuits already on disk.
+  downloads every public circuit, oldest first, or those its filters select:
+  `--source`, `--q`, `--tags`, `--author`, `--parts`, `--netlistable`, and
+  `--url` with a wall link's filters (the link's `netlist` is the list's
+  `netlistable`; a link needing a signed-in reader is refused). It writes
+  `index.json` (the list's entries) and `entries/<id>.json`
+  (`{entry, projectText}`, each written whole through a temporary file), at
+  most 600 requests a minute. A rerun keeps a file only if it parses with its
+  id and a non-empty `projectText`. It ends with downloaded, kept and failed
+  counts and exits 1 when the list or any circuit failed; a `--source` that
+  `GET /api/gallery/sources` does not list is refused.
+- The wall's Download menu, the same for every reader and signed out too,
+  saves the wall's current results (its own list query) or every public
+  circuit as one `.zip`: `<id>.icproj.json` (the circuit's `projectText`) and
+  `manifest.json` (`query`, `generatedAt`, `origin`, `usage`, `sources` with
+  each dataset's license, `count`, `entries` with `id`, `name`, `author`,
+  `source`, `previewRevision` and `file`, and `failed` with `id`, `name` and
+  `reason`). Each choice states its count first; a run shows its progress
+  and can be cancelled. It lists oldest first and reads at most 10 requests
+  a second, 4 at once; network, 408, 429 (every reader waits its
+  `Retry-After`) and 5xx failures are retried, circuits still failing are
+  named, a list failure saves nothing and so do zero matches. The archive
+  code loads on first use.
 - No account is blocked for how it reads or writes; the account blocks and
   trap circuits of before 2026-11-09 are retired with their records.
 - `/api/*` has a flood limit of 1200 requests a minute per client address
@@ -393,7 +412,8 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
 - Each dataset has its own Durable Object `source:<key>` (community: `gallery`).
   Ids are `<prefix>-<id>` (`ag-308`); community ids never contain a hyphen;
   routes dispatch by id; feed and tags take `source=<key>` for one dataset's
-  wall.
+  wall. A key the Gallery does not have answers
+  `400 {"error":"unknown-source","sources":[…]}`, never the whole wall.
 - Without `source`, the feed and tags answer the community wall with every
   dataset in it (#1697): one order across the stores (each row's cursor resumes
   them all), totals, `filterCounts` and tag counts summed, `sources` each

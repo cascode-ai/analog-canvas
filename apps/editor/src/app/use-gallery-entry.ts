@@ -394,20 +394,24 @@ export function createLeaveEditor({
   // The header's Gallery and Arena links and the daily-limit card leave the
   // same way: through the guard for unsaved work, with a recovery copy kept.
   const leaveFor = (intent: string, path: string) => (): void => {
-    void guardDirtyReplacement(intent, async (discarded) => {
-      if (discarded) await dropDiscardedWork();
-      else {
-        const snapshot = await captureAuthoredProject();
-        if (!snapshot) return;
-        stageRecovery(snapshot, {
-          unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
-          cloudBinding,
-        });
-        await flushRecovery();
-      }
-      allowNextBrowserUnload();
-      window.location.assign(path);
-    });
+    void guardDirtyReplacement(
+      intent,
+      async (discarded) => {
+        if (discarded) await dropDiscardedWork();
+        else {
+          const snapshot = await captureAuthoredProject();
+          if (!snapshot) return;
+          stageRecovery(snapshot, {
+            unsavedAtSnapshot: isDirtyWork() || snapshot !== project,
+            cloudBinding,
+          });
+          await flushRecovery();
+        }
+        allowNextBrowserUnload();
+        window.location.assign(path);
+      },
+      { leavesEditor: true },
+    );
   };
   return {
     toGallery: leaveFor("Go to Gallery", "/"),

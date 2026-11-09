@@ -100,11 +100,10 @@ export function inferNetlistProcess(
   );
   if (!targets.length) return fallback;
   return (
-    (["abstract", "sky130", "sg13g2", "tsmc28", "tsmc180"] as const).find(
-      (id) =>
-        targets.every(({ family, target }) =>
-          NETLIST_DEVICE_TARGET_OPTIONS[id][family].includes(target),
-        ),
+    (["abstract", "sky130", "sg13g2"] as const).find((id) =>
+      targets.every(({ family, target }) =>
+        NETLIST_DEVICE_TARGET_OPTIONS[id][family].includes(target),
+      ),
     ) ?? "custom"
   );
 }
@@ -269,7 +268,7 @@ export function placementProcessFill(
 /**
  * The reviewed PDK library of the Process the Netlist panel shows, so model
  * suggestions stay within it: SKY130's in a SKY130 Project, IHP SG13G2's in
- * an SG13G2 one, TSMC 28's standard cells in a TSMC 28 one (#1450).
+ * an SG13G2 one (#1450).
  * Undefined for a Process without one, which suggests all.
  */
 export function processReviewedLibrary(
@@ -287,9 +286,7 @@ export function processReviewedLibrary(
     ? "sky130_fd_pr"
     : process === "sg13g2"
       ? "sg13g2_pr"
-      : process === "tsmc28"
-        ? "tcbn28hpcplusbwp12t30p140"
-        : undefined;
+      : undefined;
 }
 
 /**
@@ -469,27 +466,6 @@ export function planNetlistProcess(
       )!;
       instance = document.instances.find((item) => item.id === original.id)!;
       const parameters = { ...instance.netlist!.parameters };
-      // TSMC 28 names the parallel-device count multi; preserve its value on
-      // transitions both ways instead of carrying both spellings.
-      if (family === "nmos" || family === "pmos") {
-        const from = profile.id === "tsmc28" ? "m" : "multi";
-        const to = profile.id === "tsmc28" ? "multi" : "m";
-        const old = Object.entries(originalNetlist.parameters).find(
-          ([name]) => name.toLowerCase() === from,
-        );
-        if (old) {
-          const destination = Object.keys(parameters).find(
-            (name) => name.toLowerCase() === to,
-          );
-          if (
-            !destination ||
-            originalNetlist.parameters[destination] === undefined
-          )
-            parameters[destination ?? to] = old[1];
-          for (const name of Object.keys(parameters))
-            if (name.toLowerCase() === from) delete parameters[name];
-        }
-      }
       const defaults = reviewed
         ? Object.fromEntries(
             reviewed.parameters.map((parameter) => [
@@ -520,12 +496,7 @@ export function planNetlistProcess(
         const authored = Object.keys(originalNetlist.parameters).some(
           (key) => key.toLowerCase() === name.toLowerCase(),
         );
-        const mappedCount =
-          (name === "m" || name === "multi") &&
-          Object.keys(originalNetlist.parameters).some((key) =>
-            ["m", "multi"].includes(key.toLowerCase()),
-          );
-        if (!parameters[key]?.trim() || (reviewed && !authored && !mappedCount))
+        if (!parameters[key]?.trim() || (reviewed && !authored))
           parameters[key] = value;
       }
       if (

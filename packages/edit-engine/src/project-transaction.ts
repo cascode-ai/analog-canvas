@@ -86,9 +86,7 @@ export const ApplyModelSourceEditSchema = z.strictObject({
   transform: z
     .strictObject({
       language: z.enum(["spice", "spectre"]).optional(),
-      process: z
-        .enum(["abstract", "sky130", "sg13g2", "tsmc28", "tsmc180", "custom"])
-        .optional(),
+      process: z.enum(["abstract", "sky130", "sg13g2", "custom"]).optional(),
     })
     .optional(),
   definitions: z
