@@ -1,5 +1,5 @@
-import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "@icm/agent-adapter/browser-launch";
-export { AGENT_SESSION_RECOVERY_STORAGE_KEY };
+export const AGENT_SESSION_RECOVERY_STORAGE_KEY =
+  "icm.agent-session-recovery.v1";
 
 export interface BrowserStorageLike {
   getItem(key: string): string | null;

@@ -1,9 +1,9 @@
 import { agentSiteSessionId } from "@icm/agent-adapter";
 import {
-  AGENT_SESSION_RECOVERY_STORAGE_KEY,
   BROWSER_LAUNCH_GRANT_PREFIX,
   BROWSER_LAUNCH_PATH,
 } from "@icm/agent-adapter/browser-launch";
+import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../apps/editor/src/agent/session-recovery-presence";
 import type { AgentSessionRouterEnv } from "./agent-session-runtime";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;

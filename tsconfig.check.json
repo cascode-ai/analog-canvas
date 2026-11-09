@@ -17,6 +17,9 @@
       "@icm/agent-adapter/session-scope": [
         "./packages/agent-adapter/src/session-scope.ts"
       ],
+      "@icm/agent-adapter/browser-launch": [
+        "./packages/agent-adapter/src/browser-launch.ts"
+      ],
       "@icm/agent-client": ["./packages/agent-client/src/index.ts"],
       "@icm/mcp-server": ["./apps/mcp-server/src/index.ts"],
       "@icm/agent-routing": ["./packages/agent-routing/src/index.ts"],
