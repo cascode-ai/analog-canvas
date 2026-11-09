@@ -21,7 +21,10 @@ import type { CircuitProject, GridRect } from "@icm/model";
 import type { AgentGalleryPublication } from "../agent/agent-gallery-publish";
 import type { AgentRuntime } from "../agent/agent-runtime-loader";
 import type { BrowserAgentPlanningContext } from "../agent/browser-agent-command";
-import type { BrowserAgentFileHost } from "../agent/browser-agent-file-host";
+import type {
+  BrowserAgentFileHost,
+  OpenLocalProject,
+} from "../agent/browser-agent-file-host";
 import type { BrowserAgentHost } from "../agent/browser-agent-host";
 import type { BrowserAgentProjectHost } from "../agent/browser-agent-project-host";
 import type { BrowserAgentSimulationHost } from "../agent/browser-agent-simulation-host";
@@ -194,6 +197,7 @@ export function useAgentProjectResources({
   simulationTransport,
   projectSwitchBlockerRef,
   openProjectInTabRef,
+  openLocalProjectRef,
 }: {
   runtime: AgentRuntime | null;
   editorDocumentController: EditorDocumentController;
@@ -201,6 +205,7 @@ export function useAgentProjectResources({
   browserAgentHost: BrowserAgentHost | null;
   simulationTransport: ReturnType<typeof resolveSimulationTransport>;
   projectSwitchBlockerRef: RefObject<() => string | null>;
+  openLocalProjectRef: RefObject<OpenLocalProject>;
   openProjectInTabRef: RefObject<
     (
       project: CircuitProject,
@@ -254,6 +259,7 @@ export function useAgentProjectResources({
             commitProjectStructure: (next, active) =>
               browserAgentHost.commitProjectStructure(next, active),
             describeOpenBlocker: () => projectSwitchBlockerRef.current(),
+            openLocalProject: (...args) => openLocalProjectRef.current(...args),
             openProjectInNewTab: (candidate, background) =>
               openProjectInTabRef.current(
                 candidate,
@@ -276,6 +282,7 @@ export function useAgentProjectResources({
       runtime,
       browserAgentHost,
       openProjectInTabRef,
+      openLocalProjectRef,
       projectSwitchBlockerRef,
     ],
   );

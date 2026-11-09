@@ -14,6 +14,7 @@ import {
   drawnSwitchControl,
   matchGateCellPins,
   projectLengthToSky130Micrometres,
+  reviewedExternalBindingForMaster,
 } from "@icm/devices";
 import {
   analyzeDesignNetlistForAuthoring,
@@ -45,6 +46,7 @@ import {
   builtInSymbols,
   createHierarchicalBlockSymbol,
   hierarchicalSymbolId,
+  type PdkSymbolMappingOverride,
 } from "@icm/symbols";
 
 import { callSymbolFromDefinition } from "./call-symbols.js";
@@ -52,6 +54,7 @@ import {
   acOrientation,
   composeOrient,
   inverseOrient as inverse,
+  orientPoint,
   type RnlOrient,
 } from "./orientation.js";
 import { acPosition, AC_UNITS_PER_RNL_UNIT } from "./place.js";
@@ -529,7 +532,7 @@ export function applyRnlSnapshot(
     const wanted = name.startsWith("rnl-std")
       ? [STD_VERSION]
       : MAPPED_VERSIONS[name];
-    if (wanted && !wanted.includes(version))
+    if (wanted && version && !wanted.includes(version))
       diagnostics.push({
         severity: "warning",
         code: "RNL_IMPORT_PACKAGE_VERSION",
@@ -731,6 +734,97 @@ export function drawnModelTypes(snapshot: RnlSnapshot): Map<string, string> {
       types.size === 1 ? [[master, [...types][0]!] as const] : [],
     ),
   );
+}
+
+/**
+ * An external call keeps its actual master and ordered terminals. Use a
+ * standard device symbol only when the runtime's resolved pin positions
+ * identify every terminal on that symbol, consistently across its calls.
+ */
+export function drawnExternalSymbolMappings(
+  snapshot: RnlSnapshot,
+): PdkSymbolMappingOverride[] {
+  const found = new Map<string, PdkSymbolMappingOverride | null>();
+  for (const { model, host } of snapshot.levels) {
+    if (!model || !host) continue;
+    const symbols = new Map(model.symbols.map((symbol) => [symbol.id, symbol]));
+    const instances = new Map(
+      host.instances.map((instance) => [instance.id, instance]),
+    );
+    for (const object of model.objects) {
+      if (object.kind !== "instance") continue;
+      const instance = instances.get(object.host[0] ?? object.id);
+      const symbol = symbols.get(object.symbol.value ?? "");
+      const at = object.at.value;
+      const orient = object.orient.value;
+      if (
+        !instance?.master ||
+        !instance.subckt ||
+        reviewedExternalBindingForMaster(instance.master) ||
+        !symbol ||
+        symbol.default ||
+        !at ||
+        !isOrient(orient)
+      )
+        continue;
+      const terminals = instance.terminals.toSorted((a, b) => a.n - b.n);
+      if (!terminals.every(({ n }, index) => n === index + 1)) continue;
+      const count = terminals.length;
+      const key = `${instance.master.toLowerCase()}:${count}`;
+      const mappings = RNL_SYMBOLS.flatMap((row) => {
+        if (
+          !row.ac ||
+          row.inline ||
+          row.definition ||
+          row.symbol !== symbol.name ||
+          row.package !== symbol.package ||
+          row.pins.length !== count ||
+          row.undrawnPins.length ||
+          !deviceDescriptor(row.ac)
+        )
+          return [];
+        const pinNames = terminals.map(({ n }) => {
+          const pin = object.pins.find((item) =>
+            item.terminals.includes(`${instance.id}:${n}`),
+          );
+          if (!pin) return undefined;
+          const [x, y] = orientPoint(inverse(orient), [
+            pin.at[0] - at[0],
+            pin.at[1] - at[1],
+          ]);
+          return row.pins.find(
+            (item) =>
+              Math.abs(item.at[0] - x) < 1e-6 &&
+              Math.abs(item.at[1] - y) < 1e-6,
+          )?.acPin;
+        });
+        return pinNames.every((pin): pin is string => pin !== undefined) &&
+          new Set(pinNames).size === count
+          ? [
+              {
+                modelName: instance.master!,
+                terminalCount: count,
+                symbolId: row.ac,
+                pinNames,
+                registryId: "rnl-standard-symbol",
+              },
+            ]
+          : [];
+      });
+      const mapping = mappings.length === 1 ? mappings[0]! : null;
+      const prior = found.get(key);
+      found.set(
+        key,
+        mapping &&
+          (prior === undefined ||
+            (prior?.symbolId === mapping.symbolId &&
+              prior.pinNames.every((pin, i) => pin === mapping.pinNames[i])))
+          ? mapping
+          : null,
+      );
+    }
+  }
+  return [...found.values()].filter((item) => item !== null);
 }
 
 /**
@@ -1798,6 +1892,32 @@ function applyLevel(
 
   // Named points that wires meet become junctions, on the net of the first.
   const junctions = new Map<string, Junction>();
+  // An anonymous endpoint needs a Canvas anchor. Coordinate coincidence
+  // does not name a shared junction in RNL.
+  const coordinateJunctions = new Map<string, Junction>();
+  const coordinateKey = (wireIndex: number, vertexIndex: number) =>
+    `${wireIndex}:${vertexIndex}`;
+  for (const [wireIndex, wire] of model.wires.entries()) {
+    const netId = wire.nets.length === 1 ? netOf(wire.nets[0]!) : undefined;
+    if (!netId) continue;
+    for (const index of new Set([0, wire.via.length - 1])) {
+      const vertex = wire.via[index];
+      if (!vertex || !("at" in vertex)) continue;
+      const key = coordinateKey(wireIndex, index);
+      coordinateJunctions.set(key, {
+        id: deriveStableId(
+          "junction",
+          document.id,
+          level.id,
+          "coordinate",
+          key,
+        ),
+        netId,
+        position: snap(acPoint(vertex.at), CORNER_GRID),
+        role: "route-anchor",
+      });
+    }
+  }
   for (const wire of model.wires)
     for (const vertex of wire.via) {
       if (!("point" in vertex) || junctions.has(vertex.point)) continue;
@@ -1846,11 +1966,22 @@ function applyLevel(
     });
   document.junctions.push(
     ...junctions.values(),
+    ...coordinateJunctions.values(),
     ...[...openEnds.values()].map(({ junction }) => junction),
   );
 
   // Wires: a route from each pin or point to the next, through its bends.
-  const endpointOf = (vertex: RnlSnapshotVertex): RouteEndpoint | null => {
+  const endpointOf = (
+    vertex: RnlSnapshotVertex,
+    wireIndex: number,
+    vertexIndex: number,
+  ): RouteEndpoint | null => {
+    if ("at" in vertex) {
+      const junction = coordinateJunctions.get(
+        coordinateKey(wireIndex, vertexIndex),
+      );
+      return junction ? { kind: "junction", junctionId: junction.id } : null;
+    }
     if ("terminal" in vertex) {
       const terminal = terminalOf(vertex.terminal);
       const instance = terminal && instanceOf(terminal.name);
@@ -1923,11 +2054,11 @@ function applyLevel(
     wire.via.forEach((vertex, index) => {
       run.push(index);
       if (
-        !("at" in vertex) &&
         run.length > 1 &&
         (index === wire.via.length - 1 ||
-          ("point" in vertex && (wiresAt.get(vertex.point) ?? 0) > 1) ||
-          !through(index))
+          (!("at" in vertex) &&
+            (("point" in vertex && (wiresAt.get(vertex.point) ?? 0) > 1) ||
+              !through(index))))
       ) {
         runs.push(run);
         run = [index];
@@ -1959,8 +2090,8 @@ function applyLevel(
         )
       )
         return;
-      const start = endpointOf(vertices[0]!);
-      const end = endpointOf(vertices.at(-1)!);
+      const start = endpointOf(vertices[0]!, wireIndex, indices[0]!);
+      const end = endpointOf(vertices.at(-1)!, wireIndex, indices.at(-1)!);
       if (!start || !end || sameEndpoint(start, end)) {
         skipped += 1;
         return;

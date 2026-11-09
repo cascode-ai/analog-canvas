@@ -371,6 +371,7 @@ export class AgentHttpClient {
     agentToken: string,
     request: AgentFileResourceRequest,
     attempts?: AgentHttpAttempts,
+    target: "workspace" | "session" = "workspace",
   ): Promise<AgentFileResourceResponse> {
     const response = await this.send(
       `/api/agent/sessions/${encodeURIComponent(sessionId)}/files`,
@@ -385,6 +386,7 @@ export class AgentHttpClient {
       this.timeoutMs,
       request,
       attempts,
+      target,
     );
     return this.consume(response, (body) => {
       if (!response.ok) throw this.transportError(response.status, body);
@@ -457,6 +459,9 @@ export class AgentHttpClient {
       this.timeoutMs,
       request,
       attempts,
+      request.operation === "workspace" && request.request.action === "list"
+        ? "session"
+        : "workspace",
     );
     return this.consume(response, (body) => {
       if (!response.ok) throw this.transportError(response.status, body);
@@ -561,6 +566,7 @@ export class AgentHttpClient {
     timeoutMs = this.timeoutMs,
     identity?: { requestId: string; operation: string },
     attempts: AgentHttpAttempts = { count: 0 },
+    target: "workspace" | "session" = "workspace",
   ): Promise<Response> {
     if (
       this.contextRevision &&
@@ -571,6 +577,7 @@ export class AgentHttpClient {
       init = { ...init, headers };
     }
     if (
+      target === "workspace" &&
       this.workspaceId &&
       /\/(circuit|files|simulation|projects)$/.test(path)
     ) {

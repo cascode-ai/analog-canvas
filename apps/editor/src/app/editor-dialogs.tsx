@@ -15,6 +15,7 @@ import { claimNow } from "../agent/claim-clock";
 import { planProjectCellImport } from "@icm/edit-engine";
 import type { runErcChecks } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type { ReferenceWindowProps } from "../features/editor-shell/reference-panel";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
 import type { createEditorCommandRouter } from "../commands/editor-command";
 import type {
@@ -162,6 +163,7 @@ export function EditorDialogs({
   publishQuota,
   openProjectInTabRef,
   agentFileCandidate,
+  localDelivery,
   cloudBinding,
   replaceGuard,
   replaceGuardSaving,
@@ -278,6 +280,7 @@ export function EditorDialogs({
   publishQuota: GalleryPublishing["publishQuota"];
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
   agentFileCandidate: AgentProjectResources["agentFileCandidate"];
+  localDelivery: ReferenceWindowProps["localDelivery"];
   cloudBinding: ProjectFileLifecycle["cloudBinding"];
   replaceGuard: ProjectFileLifecycle["replaceGuard"];
   replaceGuardSaving: ProjectFileLifecycle["replaceGuardSaving"];
@@ -400,6 +403,7 @@ export function EditorDialogs({
           onImage={keepReferenceImage}
           takesPaste={ownReferenceTakesPaste}
           onSaved={referenceSaved}
+          localDelivery={localDelivery}
         />
       </Suspense>
       <EditorDialogLayer

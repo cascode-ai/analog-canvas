@@ -335,7 +335,8 @@ the RNL language and its runtime belong to rnl.
     a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, and a dashed one between
     junctions where it meets a body tie, any other line style or color as the
-    wire's own; junctions at named points; wires of no length,
+    wire's own; junctions at named points and independent anchors at
+    anonymous wire ends; wires of no length,
     which join what touches, are left to touching;
   - wire direction arrows, current and voltage markers (a label on a wire
     with + and − where the export puts them), and floating symbols;

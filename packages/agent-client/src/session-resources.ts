@@ -87,17 +87,19 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
   /** Invoke the canonical browser-hosted file-resource contract. */
   async fileResource(
     request: AgentFileResourceRequest,
+    target: "workspace" | "session" = "workspace",
   ): Promise<AgentFileResourceResponse> {
     request = structuredClone(request);
     const changesProject =
       request.operation === "open" ||
+      (request.operation === "locate-local" && !request.background) ||
       request.operation === "import-cell" ||
       (request.operation === "simulation-input" &&
         request.input.action === "update" &&
         request.input.owner.kind === "project-folder");
     try {
       const response = await this.resourceRequest(
-        "files",
+        target === "session" ? "session-files" : "files",
         request,
         (session, attempts) =>
           this.http.files(
@@ -105,9 +107,17 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
             session.agentToken,
             request,
             attempts,
+            target,
           ),
       );
-      if (response.ok && response.operation === "open")
+      if (
+        response.ok &&
+        (response.operation === "open" ||
+          (response.operation === "locate-local" &&
+            response.delivery &&
+            request.operation === "locate-local" &&
+            !request.background))
+      )
         await this.status({ refresh: true }).catch(() => {});
       return response;
     } finally {
@@ -329,7 +339,10 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
   }
 
   /** Bind this client to an open working copy without selecting its UI tab. */
-  async bindWorkspace(workspaceId: string | null): Promise<{
+  async bindWorkspace(
+    workspaceId: string | null,
+    expectedProjectId?: string,
+  ): Promise<{
     workspaceId: string | null;
     projectId: string | null;
     name: string | null;
@@ -360,12 +373,28 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
       await this.status({ refresh: true });
       return { workspaceId: null, projectId: null, name: null };
     }
-    const response = await this.projectResource({
-      apiVersion: AGENT_API_VERSION,
-      requestId: this.newRequestId(),
-      operation: "workspace",
-      request: { action: "list" },
+    const list = () =>
+      this.projectResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: this.newRequestId(),
+        operation: "workspace",
+        request: { action: "list" },
+      });
+    // A foreground open can publish a new context as the roster read starts.
+    // The client has refreshed on this refusal. Retry the read under a new ID.
+    let response = await list().catch((error: unknown) => {
+      if (
+        error instanceof AgentSessionError &&
+        error.code === "PROJECT_CONTEXT_STALE"
+      )
+        return null;
+      throw error;
     });
+    if (
+      !response ||
+      (!response.ok && response.error.code === "PROJECT_CONTEXT_STALE")
+    )
+      response = await list();
     if (
       !response.ok ||
       response.operation !== "workspace" ||
@@ -373,16 +402,22 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
     )
       throw new AgentSessionError(
         "WORKSPACE_IDENTITY_UNAVAILABLE",
-        "Cannot list open working copies",
+        response.ok
+          ? "Cannot list open working copies"
+          : response.error.message,
         "request-rejected",
       );
     const target = response.result.projects.find(
       (item) => item.workspaceId === workspaceId,
     );
-    if (!target)
+    if (
+      !target ||
+      (expectedProjectId !== undefined &&
+        target.projectId !== expectedProjectId)
+    )
       throw new AgentSessionError(
         "WORKSPACE_NOT_FOUND",
-        "Working copy is no longer open",
+        "Working copy is no longer open at the expected Project",
         "request-rejected",
       );
     if (this.inflight.size)

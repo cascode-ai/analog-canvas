@@ -369,6 +369,7 @@ export function createAgentWorkspaceTargets({
   simulationTransport,
   projectSwitchBlockerRef,
   openProjectInTabRef,
+  openLocalProjectRef,
   setAgentFileCandidate,
   agentProjectResources,
   browserAgentFileHost,
@@ -387,6 +388,7 @@ export function createAgentWorkspaceTargets({
   simulationTransport: AgentProjectResourcesOptions["simulationTransport"];
   projectSwitchBlockerRef: AgentProjectResourcesOptions["projectSwitchBlockerRef"];
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
+  openLocalProjectRef: AgentProjectResourcesOptions["openLocalProjectRef"];
   setAgentFileCandidate: AgentProjectResources["setAgentFileCandidate"];
   agentProjectResources: AgentProjectResources["agentProjectResources"];
   browserAgentFileHost: BrowserAgentFileHost;
@@ -459,6 +461,7 @@ export function createAgentWorkspaceTargets({
         commitProjectStructure: (next, active) =>
           host.commitProjectStructure(next, active),
         describeOpenBlocker: () => projectSwitchBlockerRef.current(),
+        openLocalProject: (...args) => openLocalProjectRef.current(...args),
         openProjectInNewTab: (candidate, background) =>
           openProjectInTabRef.current(
             candidate,

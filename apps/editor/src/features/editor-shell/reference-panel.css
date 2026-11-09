@@ -99,6 +99,18 @@
   font-weight: 600;
 }
 
+.reference-local-source {
+  overflow-wrap: anywhere;
+}
+
+.reference-panel-about:has(.reference-local-source[open]) {
+  max-height: 72%;
+}
+
+.reference-local-source ul {
+  padding-inline-start: 1.25rem;
+}
+
 .reference-panel-about p {
   margin: 0;
   padding: 0 3px;

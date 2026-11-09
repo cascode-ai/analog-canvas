@@ -281,6 +281,13 @@ const imageAmong = (files: FileList | null | undefined) =>
 const uploaded = new WeakSet<File>();
 
 export interface ReferenceWindowProps {
+  localDelivery?:
+    | {
+        source: import("@icm/agent-adapter").AgentLocalSource;
+        modified: boolean;
+        recovered: boolean;
+      }
+    | undefined;
   open: boolean;
   onClose: () => void;
   /** The Gallery entry the drawing came from or was published as, if any. */
@@ -319,6 +326,7 @@ export function ReferenceWindow({
   onImage,
   takesPaste,
   onSaved,
+  localDelivery,
   fetchLike = fetch,
 }: ReferenceWindowProps) {
   const dataset = entry ? gallerySourceOfEntryId(entry.id) : null;
@@ -533,6 +541,33 @@ export function ReferenceWindow({
             {shownDescription ? <p>{shownDescription}</p> : null}
           </>
         )}
+        {localDelivery ? (
+          <details className="reference-local-source">
+            <summary>Imported source</summary>
+            <p>{localDelivery.source.entryPath}</p>
+            <p>Source version (SHA-256)</p>
+            <code data-testid="local-source-version">
+              {localDelivery.source.version}
+            </code>
+            <p>
+              {localDelivery.modified
+                ? "Edited since import"
+                : "At imported revision"}
+            </p>
+            {localDelivery.recovered ? (
+              <p>Restored from this browser's saved tab snapshot.</p>
+            ) : null}
+            <ul>
+              {localDelivery.source.files.map((file) => (
+                <li key={file.path}>
+                  <span>{file.path}</span>
+                  <br />
+                  <code>{file.sha256}</code>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
         {entry ? (
           <dl className="reference-panel-facts">
             <div>

@@ -283,6 +283,7 @@ import { createEditorTransactionCommands } from "./editor-transaction-commands";
 import { DEFAULT_VIEWBOX } from "./default-view-box";
 import type { ComponentEditorSession } from "./component-editor-session";
 import { useProjectTabSessions } from "./use-project-tab-sessions";
+import type { OpenLocalProject } from "../agent/browser-agent-file-host";
 import { clearDeletedCloudProjects } from "../document/cloud-project-session";
 import { readWindowWorkspace } from "../document/workspace-reopen";
 import { useNativeProjectTabs } from "./use-native-project-tabs";
@@ -1121,6 +1122,7 @@ function WorkspaceEditor({
       background?: boolean,
     ) => Promise<boolean>
   >(async () => false);
+  const openLocalProjectRef = useRef<OpenLocalProject>(async () => "blocked");
   const {
     agentFileCandidate,
     setAgentFileCandidate,
@@ -1139,6 +1141,7 @@ function WorkspaceEditor({
     simulationTransport,
     projectSwitchBlockerRef,
     openProjectInTabRef,
+    openLocalProjectRef,
   });
   const agentProjectTabsRef = useRef(() => projectTabs);
   agentProjectTabsRef.current = () => projectTabs;
@@ -5297,6 +5300,7 @@ function WorkspaceEditor({
     cloudManagementBusy,
     isCloudManagementInFlight,
     renameShelfProject,
+    localDelivery,
     deleteShelfProject,
   } = useProjectTabSessions({
     hierarchyExpanded,
@@ -5346,6 +5350,7 @@ function WorkspaceEditor({
     setGalleryEntryContext,
     projectSwitchBlockerRef,
     openProjectInTabRef,
+    openLocalProjectRef,
     setAgentFileCandidate,
     setAnalogSimulationState,
     codeDraftDirty,
@@ -5466,6 +5471,7 @@ function WorkspaceEditor({
       simulationTransport,
       projectSwitchBlockerRef,
       openProjectInTabRef,
+      openLocalProjectRef,
       setAgentFileCandidate,
       agentProjectResources,
       browserAgentFileHost,
@@ -5882,6 +5888,7 @@ function WorkspaceEditor({
         publishQuota={publishQuota}
         openProjectInTabRef={openProjectInTabRef}
         agentFileCandidate={agentFileCandidate}
+        localDelivery={localDelivery}
         cloudBinding={cloudBinding}
         replaceGuard={replaceGuard}
         replaceGuardSaving={replaceGuardSaving}

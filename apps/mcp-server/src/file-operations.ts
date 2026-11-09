@@ -1,11 +1,18 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import {
   AGENT_API_VERSION,
   type AgentFileResourceRequest,
 } from "@icm/agent-adapter";
 import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
+import {
+  fileBlob,
+  pathWithin,
+  prepareLocalSource,
+  requestFailure,
+  sha256,
+} from "./local-source.js";
 
 export type ExportFileOptions = Omit<
   Extract<AgentFileResourceRequest, { operation: "download" }>,
@@ -41,51 +48,6 @@ export type ImportFileOperation =
 
 function requestId(): string {
   return `file-${randomUUID()}`;
-}
-
-function sha256(data: Uint8Array): string {
-  return createHash("sha256").update(data).digest("hex");
-}
-
-function fileBlob(
-  name: string,
-  mediaType: string,
-  data: Buffer,
-): Extract<AgentFileResourceRequest, { operation: "stage" }>["files"][number] {
-  return {
-    name,
-    mediaType,
-    encoding: "base64",
-    data: data.toString("base64"),
-    byteLength: data.byteLength,
-    sha256: sha256(data),
-  };
-}
-
-function requestFailure(code: string, message: string): AgentSessionError {
-  return new AgentSessionError(code, message, "request-rejected");
-}
-
-function pathWithin(
-  root: string,
-  path: string,
-): { absolute: string; name: string } {
-  const absolute = resolve(root, path);
-  const fromRoot = relative(root, absolute);
-  if (
-    fromRoot === "" ||
-    fromRoot === ".." ||
-    fromRoot.startsWith(`..\\`) ||
-    fromRoot.startsWith("../") ||
-    isAbsolute(fromRoot) ||
-    resolve(root, fromRoot) !== absolute
-  ) {
-    throw requestFailure(
-      "FILE_OUTSIDE_ROOT",
-      `SPICE file is outside rootPath: ${path}`,
-    );
-  }
-  return { absolute, name: fromRoot.replaceAll("\\", "/") };
 }
 
 export async function exportFile(
@@ -227,6 +189,134 @@ export async function openGalleryEntry(
     workspaceId: workspace?.workspaceId ?? null,
     activeWorkspaceId: after?.activeWorkspaceId ?? null,
     background,
+  };
+}
+
+export async function openLocalFile(
+  client: AgentSessionClient,
+  options: {
+    rootPath: string;
+    entryPath: string;
+    background?: boolean;
+    taskRef?: string;
+  },
+) {
+  let started = performance.now();
+  const { entryPath, files, version } = await prepareLocalSource(
+    options.rootPath,
+    options.entryPath,
+  );
+  const prepare = performance.now() - started;
+  const background = options.background ?? false;
+  started = performance.now();
+  const locateCopy = () =>
+    client.fileResource(
+      {
+        apiVersion: AGENT_API_VERSION,
+        requestId: requestId(),
+        operation: "locate-local",
+        sourceVersion: version,
+        background,
+      },
+      "session",
+    );
+  let located = await locateCopy().catch((error: unknown) => {
+    if (
+      error instanceof AgentSessionError &&
+      error.code === "PROJECT_CONTEXT_STALE"
+    )
+      return null;
+    throw error;
+  });
+  if (
+    !located ||
+    (!located.ok && located.error.code === "PROJECT_CONTEXT_STALE")
+  )
+    located = await locateCopy();
+  const locate = performance.now() - started;
+  if (!located.ok || located.operation !== "locate-local")
+    throw requestFailure(
+      located.ok ? "INVALID_RESPONSE" : located.error.code,
+      located.ok ? "Unexpected locate-local response" : located.error.message,
+    );
+  let delivery = located.delivery;
+  let transfer = 0;
+  let importMs = 0;
+  let open = 0;
+  if (!delivery) {
+    started = performance.now();
+    const staged = await client.fileResource(
+      {
+        apiVersion: AGENT_API_VERSION,
+        requestId: requestId(),
+        operation: "stage",
+        kind: "local-circuit",
+        entryPath,
+        files,
+      },
+      "session",
+    );
+    if (
+      !staged.ok ||
+      staged.operation !== "stage" ||
+      staged.candidate.source?.version !== version
+    )
+      throw requestFailure(
+        staged.ok ? "FILE_INTEGRITY_FAILED" : staged.error.code,
+        staged.ok
+          ? "The staged source version did not match the local bytes"
+          : staged.error.message,
+      );
+    importMs = staged.candidate.importMs ?? 0;
+    transfer = Math.max(0, performance.now() - started - importMs);
+    started = performance.now();
+    const opened = await client.fileResource(
+      {
+        apiVersion: AGENT_API_VERSION,
+        requestId: requestId(),
+        operation: "open",
+        candidateId: staged.candidate.candidateId,
+        background,
+      },
+      "session",
+    );
+    open = performance.now() - started;
+    if (!opened.ok || opened.operation !== "open" || !opened.delivery)
+      throw requestFailure(
+        opened.ok ? "FILE_LOAD_UNCONFIRMED" : opened.error.code,
+        opened.ok
+          ? "The browser did not confirm which Project loaded"
+          : opened.error.message,
+      );
+    delivery = opened.delivery;
+  }
+  if (delivery.source.version !== version)
+    throw requestFailure(
+      "FILE_INTEGRITY_FAILED",
+      "The live Project reports a different source version",
+    );
+  if (
+    options.taskRef &&
+    !background &&
+    client.workspaceId !== delivery.workspaceId
+  ) {
+    const target = await client.bindWorkspace(
+      delivery.workspaceId,
+      delivery.projectId,
+    );
+    if (target.workspaceId !== delivery.workspaceId)
+      throw requestFailure(
+        "FILE_LOAD_UNCONFIRMED",
+        "The loaded Project could not be bound to the task",
+      );
+  }
+  const { sessionId } = await client.status();
+  return {
+    ok: true,
+    taskRef: options.taskRef ?? null,
+    sessionId,
+    delivery,
+    timingMs: { prepare, locate, transfer, import: importMs, open },
   };
 }
 

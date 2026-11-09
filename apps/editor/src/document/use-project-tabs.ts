@@ -48,6 +48,8 @@ export function useProjectTabs<Session>(options: {
     () => options.initial?.activeId ?? createId("tab"),
   );
   const active = useRef(activeId);
+  const renderedActive = useRef(activeId);
+  renderedActive.current = activeId;
   const sessions = useRef(
     new Map<string, Session>(
       options.initial?.tabs.map((tab) => [tab.id, tab.session]),
@@ -61,6 +63,10 @@ export function useProjectTabs<Session>(options: {
   const live = options.capture();
   const liveIds = useRef(ids);
   liveIds.current = ids;
+  const sessionFor = (id: string) =>
+    id === active.current && id === renderedActive.current
+      ? current.current.capture()
+      : sessions.current.get(id)!;
   useEffect(() => {
     if (options.initial) {
       current.current.restore(sessions.current.get(active.current)!);
@@ -74,10 +80,7 @@ export function useProjectTabs<Session>(options: {
         activeId: active.current,
         tabs: liveIds.current.map((id) => ({
           id,
-          session:
-            id === active.current
-              ? current.current.capture()
-              : sessions.current.get(id)!,
+          session: sessionFor(id),
         })),
       },
       final,
@@ -123,7 +126,7 @@ export function useProjectTabs<Session>(options: {
     setBusy(true);
     try {
       if (!(await current.current.prepare())) return false;
-      sessions.current.set(active.current, current.current.capture());
+      sessions.current.set(active.current, sessionFor(active.current));
       operation();
       return true;
     } catch (error) {
@@ -189,10 +192,7 @@ export function useProjectTabs<Session>(options: {
     entries: () =>
       liveIds.current.map((id) => ({
         id,
-        session:
-          id === active.current
-            ? current.current.capture()
-            : sessions.current.get(id)!,
+        session: sessionFor(id),
       })),
     changed: () => {
       setIds((previous) => [...previous]);
@@ -212,8 +212,9 @@ export function useProjectTabs<Session>(options: {
       return transition(() => {
         const id = createId("tab");
         sessions.current.set(id, create());
-        setIds((previous) => [...previous, id]);
         activate(id);
+        liveIds.current = [...liveIds.current, id];
+        setIds(liveIds.current);
       });
     },
     openBackground: (create: () => Session, cloudId?: string | null) => {

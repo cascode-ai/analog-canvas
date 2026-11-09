@@ -208,8 +208,37 @@ Tool descriptions cover each action; these are the extra rules.
 - `project_code` and `netlist_code` reads return the requested export plus
   each Cell in `cells`, so one broken Cell cannot hide another.
 
-`export_file` is not Cloud Save or publication. `import_file` staging is not
-an import (Cadence globals: `action:"stage-spice", namingProfile:"cadence-bang"`);
+`import_file` with `action:"open-local"`, `taskRef`, `rootPath` and
+`entryPath` opens a local Project, SPICE, Spectre or RNL-annotated netlist in
+Canvas Web. Choose the smallest local root containing the entry and its
+referenced files. Preserve paths relative to that root. The adapter follows
+local SPICE/Spectre includes and explicit RNL package paths. A transfer accepts
+up to 24 files and 10 MB. An unresolved or out-of-root dependency stops
+delivery with its reference. Explicit circuit includes are treated as
+structural inputs. Model names whose library is external can be retained as
+calls without fetching an unreferenced PDK.
+
+The load receipt names the task, session, workspace, Project and Cell. It
+reports the structure and Cell revisions, original-byte SHA-256 of each file,
+and the source version derived from the entry and sorted path/hash pairs.
+Delivered netlists retain original hashes in Project source records, including
+drawing packages. Converted fragments use `derived-sha256:` and stay out of
+the version. A native Project delivery uses the bytes of the Project file.
+Project Info → Imported source shows the same version in the tab. Compare
+`source.drawing`, `source.electrical` and `source.diagnostics` separately.
+`electrical:"verified"` records an RNL import equivalence check against the
+structural source, independent of simulation. Parsed source positions refer
+to the converted representation when a native source was converted.
+
+Repeat the call to locate a matching open copy with its current edits.
+`previousRevision:"recovered-snapshot"` refers to the browser's restored
+snapshot, and `"unconfirmed"` to a fresh import whose earlier working
+revision is unavailable. A foreground delivery binds the task to the returned
+`workspaceId`. Bind explicitly for a background delivery. `timingMs.transfer` estimates transport and
+staging overhead apart from the editor's measured import.
+
+`export_file` downloads a local artifact. `import_file` staging validates a
+candidate (Cadence globals use `action:"stage-spice", namingProfile:"cadence-bang"`).
 `inspect` with `candidateId,documentId` reads a staged Cell as `documentCode`.
 `import-cell` (`mode:"replace-body"|"append"`) needs `project.import` plus edit
 scopes (no GUI approval); stale explicit revisions reject and the candidate is

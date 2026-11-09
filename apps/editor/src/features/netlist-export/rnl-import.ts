@@ -9,6 +9,7 @@ import {
   applyRnlSnapshot,
   canvasTopDocument,
   drawnCalledBlocks,
+  drawnExternalSymbolMappings,
   drawnModelTypes,
   undrawnBodies,
   withPowerLabelPorts,
@@ -20,6 +21,7 @@ import {
 } from "@icm/rnl";
 import {
   importSpiceSources,
+  type SpiceCompileOptions,
   type SpiceDiagnostic,
   type SpiceSourceInput,
 } from "@icm/spice";
@@ -38,6 +40,7 @@ export type RnlImportPlan =
       project: CircuitProject;
       /** The netlist import's findings, then what the drawing could not say. */
       diagnostics: SpiceDiagnostic[];
+      drawing: "preserved" | "partial" | "discarded";
     }
   | { status: "failed"; message: string; diagnostics: SpiceDiagnostic[] };
 
@@ -173,6 +176,11 @@ export async function writesFileNetlist(
   inputs: SpiceSourceInput[],
   entryPath: string,
   libraryBodies: readonly string[] = [],
+  compileOptions: SpiceCompileOptions = {},
+  symbolMappings: NonNullable<
+    Parameters<typeof importSpiceSources>[3]
+  >["externalSymbolMappings"] = [],
+  externalSubcircuitNames: readonly string[] = [],
 ): Promise<boolean> {
   const entry = inputs.find((input) => input.path === entryPath)!;
   const written = createDesignNetlistExport(project, {
@@ -186,16 +194,17 @@ export async function writesFileNetlist(
       ? { ...input, bytes: new TextEncoder().encode(written.file.text) }
       : input,
   );
-  const prepared = prepareImportSources(rewritten);
+  const prepared = prepareImportSources(rewritten, externalSubcircuitNames);
   const again = await importSpiceSources(
     prepared.inputs,
     entryPath,
-    {},
+    compileOptions,
     {
       namingProfile: "native",
       originalSources: rewritten,
       builtInBodies: prepared.builtInBodies,
       libraryBodies,
+      externalSymbolMappings: symbolMappings,
     },
   );
   if (!again.project || !again.successful) return false;
@@ -295,6 +304,7 @@ export async function planRnlImport(request: {
   inputs: SpiceSourceInput[];
   entryPath: string;
   runtime: RnlRuntime | null;
+  compileOptions?: SpiceCompileOptions;
 }): Promise<RnlImportPlan> {
   try {
     return await buildImportPlan(request);
@@ -310,10 +320,12 @@ async function buildImportPlan({
   inputs,
   entryPath,
   runtime,
+  compileOptions = {},
 }: {
   inputs: SpiceSourceInput[];
   entryPath: string;
   runtime: RnlRuntime | null;
+  compileOptions?: SpiceCompileOptions;
 }): Promise<RnlImportPlan> {
   if (!runtime)
     return failedPlan(
@@ -333,7 +345,20 @@ async function buildImportPlan({
     dialect,
     parts: { drawing: false, host: true, model: true },
   });
-  const prepared = prepareImportSources(inputs);
+  // The host graph reads the native circuit, independent of which symbols
+  // are drawn. Its subcircuit calls retain their exact masters and order.
+  const externalSubcircuitNames = [
+    ...new Set(
+      snapshot.levels.flatMap(
+        ({ host }) =>
+          host?.instances.flatMap(({ master, subckt }) =>
+            subckt && master ? [master] : [],
+          ) ?? [],
+      ),
+    ),
+  ];
+  const symbolMappings = drawnExternalSymbolMappings(snapshot);
+  const prepared = prepareImportSources(inputs, externalSubcircuitNames);
   const libraryBodies = undrawnBodies(
     snapshot,
     inputs.map((input) => input.path),
@@ -341,13 +366,14 @@ async function buildImportPlan({
   const imported = await importSpiceSources(
     prepared.inputs,
     entryPath,
-    {},
+    compileOptions,
     {
       namingProfile: "native",
       originalSources: inputs,
       builtInBodies: prepared.builtInBodies,
       // A model no card declares is the type its parts are drawn as.
       modelTypes: drawnModelTypes(snapshot),
+      externalSymbolMappings: symbolMappings,
       // A library block the file calls without its body is the block its
       // parts are drawn as.
       calledBlocks: drawnCalledBlocks(snapshot, dialect),
@@ -367,7 +393,12 @@ async function buildImportPlan({
   // beside it may call it, and so be the netlist's top in its place.
   const top = canvasTopDocument(imported.project, snapshot);
   if (top) imported.project.topDocumentId = top;
-  const drawn = drawingOf(imported.project, snapshot);
+  const drawn = snapshot.failed
+    ? {
+        code: "RNL_IMPORT_UNREADABLE",
+        message: `RNL could not read the file: ${snapshot.failed}`,
+      }
+    : drawingOf(imported.project, snapshot);
   const fileImported = imported.project;
   const kept =
     "code" in drawn
@@ -379,6 +410,9 @@ async function buildImportPlan({
             inputs,
             entryPath,
             libraryBodies,
+            compileOptions,
+            symbolMappings,
+            externalSubcircuitNames,
           ),
         );
   const read = "code" in drawn ? null : drawn;
@@ -402,13 +436,19 @@ async function buildImportPlan({
       status: "ready",
       project: withParameterTexts(kept.project, parameterTexts),
       diagnostics,
+      drawing: read?.diagnostics.length ? "partial" : "preserved",
     };
   const undrawn = withParameterTexts(
     withImportedInstanceDisplays(imported.project),
     parameterTexts,
   );
   serializeProject(undrawn);
-  return { status: "ready", project: undrawn, diagnostics };
+  return {
+    status: "ready",
+    project: undrawn,
+    diagnostics,
+    drawing: "discarded",
+  };
 }
 
 /**

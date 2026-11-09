@@ -58,6 +58,9 @@ freezes its input, so start/read/download need no circuit reread.
 
 ## Task guidance
 
+- Local circuit delivery: `import_file` with `action:"open-local"`. See
+  [file delivery and its receipt](mcp/tools.md#projects-files-and-gallery) for the source root and
+  version fields.
 - Circuit editing: [authoring](shared/authoring.md), then the built-in catalog
   for unfamiliar symbols (`analog-canvas://catalog/builtins?symbols=nmos,pmos,port`
   selects IDs); [tool details](mcp/tools.md) for less common calls.

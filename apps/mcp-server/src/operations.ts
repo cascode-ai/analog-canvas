@@ -62,7 +62,12 @@ import {
   verifyInformation,
   type SearchKind,
 } from "./results.js";
-import { exportFile, importFile, openGalleryEntry } from "./file-operations.js";
+import {
+  exportFile,
+  importFile,
+  openGalleryEntry,
+  openLocalFile,
+} from "./file-operations.js";
 import { compactSchema } from "./compact-schema.js";
 import { waitForSimulation } from "./simulation-wait.js";
 import {
@@ -413,6 +418,7 @@ const ImportFileArgs = z
     action: z.enum([
       "stage-project",
       "stage-spice",
+      "open-local",
       "import-cell",
       "inspect",
       "discard",
@@ -441,7 +447,7 @@ const ImportFileArgs = z
     const required =
       value.action === "stage-project"
         ? (["path"] as const)
-        : value.action === "stage-spice"
+        : value.action === "stage-spice" || value.action === "open-local"
           ? (["rootPath", "entryPath"] as const)
           : value.action === "import-cell"
             ? ([
@@ -1447,6 +1453,15 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = ImportFileArgs.parse(args);
+      if (parsed.action === "open-local")
+        return openLocalFile(session.client, {
+          rootPath: parsed.rootPath!,
+          entryPath: parsed.entryPath!,
+          ...(parsed.background === undefined
+            ? {}
+            : { background: parsed.background }),
+          ...(session.taskRef ? { taskRef: session.taskRef } : {}),
+        });
       return importFile(
         session.client,
         parsed.action === "stage-project"

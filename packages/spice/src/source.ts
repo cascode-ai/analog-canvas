@@ -174,6 +174,7 @@ async function loadInputs(inputs: readonly SpiceSourceInput[]): Promise<{
 export async function createSourceBundle(
   inputs: readonly SpiceSourceInput[],
   entryPath: string,
+  includeRoot?: "workspace",
 ): Promise<SourceBundle> {
   const normalizedEntry = normalizeSourcePath(entryPath) ?? entryPath;
   const loaded = await loadInputs(inputs);
@@ -203,7 +204,8 @@ export async function createSourceBundle(
 
   const visited = new Set<string>();
   const active: string[] = [];
-  const rootDirectory = directory(normalizedEntry);
+  const rootDirectory =
+    includeRoot === "workspace" ? "" : directory(normalizedEntry);
 
   function visit(path: string): void {
     const source = loaded.files.get(path)!;
