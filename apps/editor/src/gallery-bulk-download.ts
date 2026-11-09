@@ -97,7 +97,7 @@ const systemClock: GalleryZipClock = {
 };
 
 /** The list request's filters: the wall's own query, oldest first. */
-export function galleryZipListParams(query: GalleryFeedQuery): URLSearchParams {
+function galleryZipListParams(query: GalleryFeedQuery): URLSearchParams {
   return new URLSearchParams(
     galleryFeedQueryKey({ ...query, order: "oldest" }),
   );
