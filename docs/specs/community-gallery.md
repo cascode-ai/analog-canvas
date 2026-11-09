@@ -86,8 +86,10 @@ entries, keyset cursor, limit ≤60.
 - Filters, all applied before the first page's statistics:
   `author` (byline) or `owner` (account), `tags=a,b` (ANY), `netlistable=0|1`,
   `ai=1|0|dataset` (the AI mark; community circuits without it; reference
-  datasets' circuits), `liked=1` (signed out selects none), `parts=0-5,…` (ANY
-  taxonomy size; unknown narrows nothing), `q`, authorized `attention`/`reason`.
+  datasets' circuits), `reference=0` (no reference image from its author; not
+  offered on a dataset's wall), `liked=1` (signed out selects none),
+  `parts=0-5,…` (ANY taxonomy size; unknown narrows nothing), `q`, authorized
+  `attention`/`reason`.
 - `order`: `newest` (default), `oldest`, `parts`/`fewest` (unknown counts
   last), `likes` (most first, then newest), or `random` with
   `seed=[a-z0-9]{1,16}`; the cursor is opaque. A page's ids are sorted off
@@ -95,7 +97,8 @@ entries, keyset cursor, limit ≤60.
   the rows behind their Projects and previews.
 - `filterCounts` gives each side (`netlistable`/`withoutNetlist`,
   `ai`/`human`/`datasets`), size (`componentRanges`) and reason
-  (`attentionKinds`) with every other filter applied and its own left out; the
+  (`attentionKinds`) with every other filter applied and its own left out, and
+  `liked`, `attention` and `withoutReference` over the wall as filtered; the
   `authors` aggregate counts before pagination. Rejected and recycled entries
   never appear.
 - Entry fields: `previewRevision`, `previewWidth`/`previewHeight` (may be absent;
@@ -544,12 +547,15 @@ over names, authors and ids (a pasted link or id, entered, opens its drawing
 in its own store), then filters, each with the count choosing it would show:
 Random (every store mixed, the default; choosing it again shuffles anew),
 Community and each dataset with comparisons; With a reference figure (on by
-default, off when Community is chosen, whose drawings rarely have one); and
-Authors, most drawings first (twelve, then the rest on request). A reviewer's
-own drawings are never in their list. The address keeps them
+default, off when Community is chosen, whose drawings rarely have one); My
+drawings, when the list holds the reader's own (All mine, Flagged, Passed, No
+reference; choosing one leaves the author and reference filters off, and the
+bar above then counts what others' reviews of them come to); and Authors, most
+drawings first (twelve, then the rest on request). A reviewer's own drawings
+are in their list to look at, never to review. The address keeps them
 (`?scope=<random|community|key>`, `&refs=0|1` when the reference filter differs
-from its default, `&author=`; `&id=` opens one drawing, turning off any
-filter that hides it). Every tile's ⋯ menu has Report an issue, a link to
+from its default, `&author=`, `&mine=<all|flagged|passed|no-reference>`;
+`&id=` opens one drawing, turning off any filter that hides it). Every tile's ⋯ menu has Report an issue, a link to
 the drawing in Review, for anyone signed in but its author. Both
 sidebars fold to a strip at the left from a button at their top; each
 browser remembers it. Statistics shows the Owner each person's reviews and
@@ -571,10 +577,12 @@ Review), exported as JSON.
   its current revision is in; the Owner always.
 - `GET /api/gallery/review/<scope>/queue` (`scope`: a dataset with
   comparisons, or `community`) → `{entries: [{id, name, author,
-previewRevision, components, reviews, likes, likedByViewer, mine,
-comparison?, reference?, fixedBy?}]}`: the entries
-  the reader may review, unreviewed by them first, then fewest counting
-  reviews; `mine` is the reader's latest review, `reviews` how many count.
+previewRevision, components, reviews, likes, likedByViewer, mine, own?,
+outcome?, comparison?, reference?, fixedBy?}]}`: every entry, unreviewed by
+  the reader first, then fewest counting reviews; `mine` is the reader's
+  latest review, `reviews` how many count. The reader's own entries carry
+  `own: true` and, once reviewed, `outcome`: `flagged` while a counting issue
+  is open, else `passed` when a counting review passes it; no one else's.
 - `GET /api/gallery/<id>/reviews` → `{blind: true, revision}` or `{blind:
 false, revision, current, history}`. `POST` `{revision, verdict, flags,
 note, marks?}` → `{review}` (`marks`: ≤12 `{side: original|redraw, x, y,
@@ -606,7 +614,8 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   a dialog takes a pasted screenshot (⌘V / Ctrl+V or its Paste button), a
   dropped image or a chosen file, shows it, and uploads once they confirm
   they may share it (Review's empty Reference pane takes a pasted or dropped
-  one the same way, for the Owner): `PUT /api/gallery/<id>/reference` `{image:
+  one the same way, for the Owner and the entry's author):
+  `PUT /api/gallery/<id>/reference` `{image:
 {type, data}, rights: true}` (PNG, JPEG or WebP, ≤512 KB decoded; the page
   redraws a larger file as WebP) → `{revision}`; `DELETE` removes it. Errors:
   403 `forbidden`, 400 `rights-required` or `invalid-image`. Dataset entries
@@ -616,7 +625,8 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   it is put the same way after the entry saves; a failure leaves the entry
   published and the notice says how to attach it.
 - Anyone reads it: `GET …/reference[?v=<revision>]` (immutable when
-  `v` names it). The community review queue names it (`reference:
+  `v` names it). The wall marks such entries (`hasReference: true`, a
+  Reference word mark on the tile). The community review queue names it (`reference:
 {revision}`), lists such entries first, and `/review` sets it beside the
   drawing. The `reviews` backup scope holds them.
 

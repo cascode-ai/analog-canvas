@@ -158,6 +158,15 @@ export function GalleryWallTile({
                 Netlist
               </span>
             ) : null}
+            {entry.hasReference ? (
+              <span
+                className="gallery-tile-mark gallery-tile-reference"
+                data-testid={`gallery-has-reference-${entry.id}`}
+                title="Its author gave a reference image, the figure it was drawn from"
+              >
+                Reference
+              </span>
+            ) : null}
             {entry.aiGenerated ? (
               <span
                 className="gallery-tile-mark gallery-tile-ai"

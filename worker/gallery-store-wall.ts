@@ -77,6 +77,9 @@ export function requestedSearch(body: Record<string, unknown>): string | null {
 /** An entry whose curation asks its author to look again. */
 const NEEDS_ATTENTION =
   "json_extract(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.status') = 'needs-attention'";
+/** An entry its author gave a reference image (#2129). */
+const HAS_REFERENCE =
+  "EXISTS (SELECT 1 FROM entry_references r WHERE r.entry_id = e.id)";
 /** The findings of an entry's attention, one row each, for json_each. */
 const ATTENTION_ISSUES =
   "json_each(CASE WHEN e.curation_json = '' THEN '{}' ELSE e.curation_json END, '$.attention.issues')";
@@ -232,6 +235,7 @@ function feedConditions(
     if (body.netlistable === true) conditions.push("e.netlistable = 1");
     else if (body.withoutNetlist === true) conditions.push("e.netlistable = 0");
   }
+  if (body.withoutReference === true) conditions.push(`NOT ${HAS_REFERENCE}`);
   if (options.ai !== false && (body.ai === "ai" || body.ai === "human"))
     conditions.push(`e.ai_generated = ${body.ai === "ai" ? 1 : 0}`);
   // A store holding none of the chosen kind (#1697) answers with none.
@@ -425,6 +429,7 @@ function statisticsKey(body: Record<string, unknown>): string {
           ? "without"
           : "",
     ai: ["ai", "human", "none"].includes(String(body.ai)) ? body.ai : null,
+    withoutReference: body.withoutReference === true,
     liked: body.liked === true,
     parts: requestedComponentRanges(body.parts).map((range) => range.key),
     search: normalizeGallerySearchText(requestedSearch(body) ?? ""),
@@ -444,10 +449,12 @@ function wallStatistics(sql: SqlStorage, body: Record<string, unknown>) {
       total: number;
       attention: number;
       liked: number;
+      without_reference: number;
     }>(
       `SELECT COUNT(*) AS total,
          COUNT(CASE WHEN EXISTS (SELECT 1 FROM gallery_likes
            WHERE entry_id = e.id AND user_id = ?) THEN 1 END) AS liked,
+         COUNT(CASE WHEN NOT ${HAS_REFERENCE} THEN 1 END) AS without_reference,
          COUNT(CASE WHEN ? != '' AND (? = 1 OR e.owner_user_id = ?)
            AND ${NEEDS_ATTENTION} THEN 1 END) AS attention
        FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
@@ -469,6 +476,7 @@ function wallStatistics(sql: SqlStorage, body: Record<string, unknown>) {
     filterCounts: {
       attention: Number(counts.attention),
       liked: Number(counts.liked),
+      withoutReference: Number(counts.without_reference),
       ...pairs,
       ...(attentionKinds ? { attentionKinds } : {}),
       componentRanges,
@@ -524,6 +532,7 @@ export function list(
           likes: number;
           liked_by_viewer: number;
           simulation_passes: number;
+          has_reference: number;
           parts: number;
         }
       >(
@@ -534,6 +543,7 @@ export function list(
            e.component_count_version, e.ai_generated,
            ${order === "fewest" ? WALL_PARTS.fewest : WALL_PARTS.parts} AS parts,
            ${SIMULATION_CHECK_PASSES} AS simulation_passes,
+           ${HAS_REFERENCE} AS has_reference,
            ${WALL_LIKES} AS likes,
            (SELECT COUNT(*) FROM gallery_likes
              WHERE entry_id = e.id AND user_id = ?) AS liked_by_viewer
@@ -677,6 +687,7 @@ export function list(
       ),
       ...(fixers.has(row.id) ? { fixedBy: fixers.get(row.id) } : {}),
       ...(row.simulation_passes === 1 ? { simVerified: true } : {}),
+      ...(row.has_reference === 1 ? { hasReference: true } : {}),
       ...(body.sortKeys === true
         ? { sortKey: placeOf(row).key, cursor: placeOf(row).cursor }
         : {}),

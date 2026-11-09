@@ -4,7 +4,10 @@ import {
   entryIdOf,
   flagsFor,
   hasReference,
+  matchesMine,
   matchesReviewSearch,
+  mineFromSearch,
+  mineProgress,
   nextUnreviewed,
   referencesOnlyFromSearch,
   reviewAuthors,
@@ -63,6 +66,34 @@ describe("review queue", () => {
     ];
     expect(reviewProgress(cards)).toEqual({ passed: 1, flagged: 0, left: 1 });
     expect(nextUnreviewed(cards, 2)).toBe(1);
+  });
+
+  it("finds one's own drawings others flagged or passed, or without a reference (#2129)", () => {
+    const flagged = { ...card("a"), own: true, outcome: "flagged" as const };
+    const passed = {
+      ...card("b"),
+      own: true,
+      outcome: "passed" as const,
+      reference: { revision: "r" },
+    };
+    const waiting = { ...card("c"), own: true };
+    const others = { ...card("d"), outcome: "flagged" as const };
+    const cards = [flagged, passed, waiting, others];
+    const ids = (filter: Parameters<typeof matchesMine>[1]) =>
+      cards.filter((each) => matchesMine(each, filter)).map((each) => each.id);
+    expect(ids("all")).toEqual(["a", "b", "c"]);
+    expect(ids("flagged")).toEqual(["a"]);
+    expect(ids("passed")).toEqual(["b"]);
+    expect(ids("no-reference")).toEqual(["a", "c"]);
+    expect(mineProgress([flagged, passed, waiting])).toEqual({
+      passed: 1,
+      flagged: 1,
+      left: 1,
+    });
+    expect(mineFromSearch("?scope=community&mine=no-reference")).toBe(
+      "no-reference",
+    );
+    expect(mineFromSearch("?mine=bogus")).toBeNull();
   });
 
   it("searches by name, author, id or link and lists authors by their drawings", () => {

@@ -42,6 +42,8 @@ export interface GalleryFilterState {
   netlistable: boolean;
   /** Only circuits whose drawing does not; never with `netlistable`. */
   withoutNetlist: boolean;
+  /** Only circuits whose author gave no reference image (#2129). */
+  withoutReference: boolean;
   /**
    * How the circuits were made: AI-generated, by hand (community circuits
    * without the AI mark) or redrawn from a reference dataset; null for all.
@@ -83,6 +85,7 @@ const NARROWING_PARAMS = [
   "tags",
   "q",
   "netlist",
+  "reference",
   "ai",
   "liked",
   "attention",
@@ -102,6 +105,7 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
     search: "",
     netlistable: false,
     withoutNetlist: false,
+    withoutReference: false,
     ai: null,
     liked: false,
     parts: [],
@@ -123,6 +127,7 @@ export function galleryFiltersNarrowQuery(
     filters.tags.length > 0 ||
     filters.netlistable ||
     filters.withoutNetlist ||
+    filters.withoutReference ||
     filters.ai !== null ||
     filters.liked ||
     filters.attention ||
@@ -185,6 +190,7 @@ export function parseGalleryFilterQuery(search: string): {
       search: (params.get("q") ?? "").slice(0, MAX_FILTER_LENGTH),
       netlistable: params.get("netlist") === "1",
       withoutNetlist: params.get("netlist") === "0",
+      withoutReference: params.get("reference") === "0",
       ai: readAi(params.get("ai")),
       liked: params.get("liked") === "1",
       attention: params.get("attention") === "1",
@@ -223,6 +229,7 @@ export function galleryFilterSearch(
     "netlist",
     filters.netlistable ? "1" : filters.withoutNetlist ? "0" : null,
   );
+  set("reference", filters.withoutReference ? "0" : null);
   set(
     "ai",
     filters.ai === "ai"
@@ -287,6 +294,7 @@ export function parseStoredGalleryFilters(
     netlistable: record.netlistable === true,
     withoutNetlist:
       record.netlistable !== true && record.withoutNetlist === true,
+    withoutReference: record.withoutReference === true,
     ai: readAi(record.ai),
     liked: record.liked === true,
     attention: record.attention === true,

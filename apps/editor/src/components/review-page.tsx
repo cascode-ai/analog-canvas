@@ -20,7 +20,11 @@ import {
   flagLabel,
   flagsFor,
   hasReference,
+  matchesMine,
   matchesReviewSearch,
+  mineFromSearch,
+  mineProgress,
+  MINE_FILTERS,
   nextUnreviewed,
   referencesOnlyByDefault,
   referencesOnlyFromSearch,
@@ -33,6 +37,7 @@ import {
   shuffledQueue,
   withReview,
   type EntryFix,
+  type MineFilter,
   type ReviewCard,
   type ReviewMark,
   type ShownReview,
@@ -86,6 +91,10 @@ export function ReviewPage({
     authorFromSearch(window.location.search),
   );
   const [search, setSearch] = useState("");
+  // The reader's own drawings: all, flagged, passed or without a reference.
+  const [mine, setMine] = useState<MineFilter | null>(() =>
+    mineFromSearch(window.location.search),
+  );
   // A link from Statistics names the drawing to open.
   const focusId = useRef(new URLSearchParams(window.location.search).get("id"));
   const [load, setLoad] = useState<Load>({ status: "loading" });
@@ -114,9 +123,11 @@ export function ReviewPage({
         referencesOnly === referencesOnlyByDefault(scope)
           ? ""
           : `&refs=${referencesOnly ? 1 : 0}`
-      }${author ? `&author=${encodeURIComponent(author)}` : ""}`,
+      }${author ? `&author=${encodeURIComponent(author)}` : ""}${
+        mine ? `&mine=${mine}` : ""
+      }`,
     );
-  }, [scope, referencesOnly, author]);
+  }, [scope, referencesOnly, author, mine]);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,18 +179,23 @@ export function ReviewPage({
     return { random: load.mixed.map((id) => byId.get(id)!), ...load.lists };
   }, [load]);
   const all = useMemo(() => byScope[scope] ?? [], [byScope, scope]);
-  // The author and the search narrow every list alike; the reference filter
-  // is each list's own: the one chosen has it as set, any other as choosing
-  // it would set it.
+  // The author, one's own drawings and the search narrow every list alike;
+  // the reference filter is each list's own: the one chosen has it as set,
+  // any other as choosing it would set it.
   const narrowed = useCallback(
-    (list: readonly ReviewCard[], references: boolean) =>
+    (
+      list: readonly ReviewCard[],
+      references: boolean,
+      own: MineFilter | null = mine,
+    ) =>
       list.filter(
         (each) =>
           (!references || hasReference(each)) &&
           (!author || each.author === author) &&
+          (!own || matchesMine(each, own)) &&
           matchesReviewSearch(each, search),
       ),
-    [author, search],
+    [author, search, mine],
   );
   // Each row's count: what choosing it would show.
   const counts = useMemo(
@@ -189,11 +205,13 @@ export function ReviewPage({
           key,
           narrowed(
             list,
-            key === scope ? referencesOnly : referencesOnlyByDefault(key),
+            key === scope
+              ? referencesOnly
+              : !mine && referencesOnlyByDefault(key),
           ).length,
         ]),
       ),
-    [byScope, scope, referencesOnly, narrowed],
+    [byScope, scope, referencesOnly, mine, narrowed],
   );
   const cards = useMemo(
     () => narrowed(all, referencesOnly),
@@ -211,8 +229,35 @@ export function ReviewPage({
       ),
     [all, referencesOnly, search],
   );
+  // The rows of one's own drawings, when this list holds any: each counts
+  // what choosing it shows, every one of them whatever the reference filter
+  // (the one chosen, as that filter now stands).
+  const mineCounts = useMemo(() => {
+    if (!all.some((each) => each.own)) return null;
+    const searched = all.filter((each) => matchesReviewSearch(each, search));
+    return Object.fromEntries(
+      MINE_FILTERS.map(({ key }) => [
+        key,
+        searched.filter(
+          (each) =>
+            matchesMine(each, key) &&
+            (key !== mine || !referencesOnly || hasReference(each)),
+        ).length,
+      ]),
+    ) as Record<MineFilter, number>;
+  }, [all, search, mine, referencesOnly]);
+  // A drawing that leaves the list (given its reference, say) lets the next
+  // one take its place, the last one included.
+  useEffect(() => {
+    if (cards.length > 0 && index >= cards.length) setIndex(cards.length - 1);
+  }, [cards.length, index]);
   const card = cards[index];
-  const progress = useMemo(() => reviewProgress(cards), [cards]);
+  // Over one's own drawings the bar says what others' reviews of them come
+  // to; anywhere else, the reader's own progress.
+  const progress = useMemo(
+    () => (mine ? mineProgress(cards) : reviewProgress(cards)),
+    [cards, mine],
+  );
   useEffect(() => {
     if (!focusId.current || all.length === 0) return;
     const found = cards.findIndex((each) => each.id === focusId.current);
@@ -222,12 +267,13 @@ export function ReviewPage({
     if (target) {
       if (referencesOnly && !hasReference(target)) setReferencesOnly(false);
       if (author && target.author !== author) setAuthor(null);
+      if (mine && !matchesMine(target, mine)) setMine(null);
       if (!matchesReviewSearch(target, search)) setSearch("");
       return;
     }
     focusId.current = null;
     if (found >= 0) setIndex(found);
-  }, [cards, all, referencesOnly, author, search]);
+  }, [cards, all, referencesOnly, author, mine, search]);
   const replaceCard = useCallback(
     (id: string, change: (card: ReviewCard) => ReviewCard) =>
       setLoad((current) =>
@@ -279,11 +325,12 @@ export function ReviewPage({
       else if (referencesOnly && !hasReference(target))
         setReferencesOnly(false);
       if (author && target.author !== author) setAuthor(null);
+      if (mine && !matchesMine(target, mine)) setMine(null);
       setSearch("");
       setScope(store);
       return true;
     },
-    [cards, byScope, scope, referencesOnly, author],
+    [cards, byScope, scope, referencesOnly, author, mine],
   );
   // A random drawing of this list not yet reviewed (any, once all are).
   const jumpRandom = useCallback(() => {
@@ -311,12 +358,14 @@ export function ReviewPage({
             : current,
         );
       // Another list starts with its own reference filter: Community with
-      // every drawing, a dataset with its figures.
-      if (next !== scope) setReferencesOnly(referencesOnlyByDefault(next));
+      // every drawing, a dataset with its figures; one's own drawings, every
+      // one of them.
+      if (next !== scope)
+        setReferencesOnly(mine ? false : referencesOnlyByDefault(next));
       setScope(next);
       setIndex(0);
     },
-    [scope],
+    [scope, mine],
   );
 
   // Back from the editor (Open puts it in a tab): a drawing changed
@@ -562,6 +611,8 @@ export function ReviewPage({
             load.status === "ready" ? narrowed(all, true).length : null
           }
           onReferencesOnly={() => {
+            // Only those with a figure leaves none of those without one.
+            if (!referencesOnly && mine === "no-reference") setMine("all");
             setReferencesOnly((current) => !current);
             setIndex(0);
           }}
@@ -586,6 +637,19 @@ export function ReviewPage({
           author={author}
           onAuthor={(next) => {
             setAuthor(next);
+            if (next) setMine(null);
+            setIndex(0);
+          }}
+          mine={mine}
+          mineCounts={load.status === "ready" ? mineCounts : null}
+          onMine={(next) => {
+            // One's own drawings, each whatever its figure: choosing them
+            // leaves another author and the reference filter.
+            setMine(next);
+            if (next) {
+              setAuthor(null);
+              setReferencesOnly(false);
+            }
             setIndex(0);
           }}
           collapsed={sidebarCollapsed}
@@ -607,16 +671,28 @@ export function ReviewPage({
               <p className="gallery-status">
                 {search.trim()
                   ? `No drawing here matches “${search.trim()}”.`
-                  : author
-                    ? `No drawing by ${author} here.`
-                    : referencesOnly
-                      ? "No drawing here has a reference figure yet."
-                      : "Nothing to review here yet."}
+                  : mine
+                    ? {
+                        all: "You have no drawing here.",
+                        flagged: "None of your drawings here is flagged.",
+                        passed: "None of your drawings here has passed yet.",
+                        "no-reference":
+                          "Every drawing of yours here has a reference figure.",
+                      }[mine]
+                    : author
+                      ? `No drawing by ${author} here.`
+                      : referencesOnly
+                        ? "No drawing here has a reference figure yet."
+                        : "Nothing to review here yet."}
               </p>
             ) : (
               <>
                 <div className="review-toolbar">
-                  <Progress {...progress} total={cards.length} />
+                  <Progress
+                    {...progress}
+                    total={cards.length}
+                    waiting={mine !== null}
+                  />
                   <span className="review-steps">
                     <button
                       type="button"
@@ -784,11 +860,14 @@ function Progress({
   flagged,
   left,
   total,
+  waiting,
 }: {
   passed: number;
   flagged: number;
   left: number;
   total: number;
+  /** Over one's own drawings: the rest wait for others to review them. */
+  waiting: boolean;
 }) {
   const width = (part: number) => `${(100 * part) / Math.max(1, total)}%`;
   return (
@@ -799,7 +878,7 @@ function Progress({
       </div>
       <span>
         <b>{num(passed)}</b> passed · <b>{num(flagged)}</b> flagged ·{" "}
-        <b>{num(left)}</b> to review
+        <b>{num(left)}</b> {waiting ? "awaiting review" : "to review"}
       </span>
     </div>
   );
@@ -946,7 +1025,7 @@ function ReviewItem({
           </h4>
           {original ? (
             picture(original, "original")
-          ) : owner && !comparison ? (
+          ) : (owner || card.own) && !comparison ? (
             <ReviewReferenceDrop
               entryId={card.id}
               onAttached={onReference}

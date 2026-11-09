@@ -130,15 +130,27 @@ describe("reviews of Gallery drawings", () => {
       ).status,
     ).toBe(200);
     // The queue lists every drawing, the reader's own marked as theirs to
-    // look at; a dataset's only with a comparison; the unreviewed first.
+    // look at, with what others' reviews of it come to (an open issue flags
+    // it, #2129); a dataset's only with a comparison; the unreviewed first.
+    const outcomeOf = async (cookie: string) =>
+      (
+        (await (
+          await call("/api/gallery/review/community/queue", cookie)
+        ).json()) as { entries: { id: string; outcome?: string }[] }
+      ).entries.find((entry) => entry.id === id)?.outcome;
     expect(
       await (await call("/api/gallery/review/community/queue", maker)).json(),
-    ).toMatchObject({ entries: [{ id, own: true, mine: null }] });
-    expect(
-      await (await call("/api/gallery/review/community/queue", reader)).json(),
     ).toMatchObject({
+      entries: [{ id, own: true, mine: null, outcome: "flagged" }],
+    });
+    // Anyone else's drawing carries no one's verdict but the reader's.
+    const readerQueue = (await (
+      await call("/api/gallery/review/community/queue", reader)
+    ).json()) as { entries: Record<string, unknown>[] };
+    expect(readerQueue).toMatchObject({
       entries: [{ id, reviews: 2, mine: { verdict: "issue", current: true } }],
     });
+    expect(readerQueue.entries[0]).not.toHaveProperty("outcome");
     expect(
       await (
         await call("/api/gallery/review/analoggenie/queue", reader)
@@ -164,6 +176,8 @@ describe("reviews of Gallery drawings", () => {
     expect(
       await (await call("/api/gallery/review/community/issues", owner)).json(),
     ).toEqual({ issues: [], disputed: [] });
+    // A resolved issue no longer flags it; the pass passes it.
+    expect(await outcomeOf(maker)).toBe("passed");
 
     // Its author fixes it: the new version is a fix of theirs, sized by
     // what changed, and the old reviews stay in the history, no longer
@@ -184,6 +198,8 @@ describe("reviews of Gallery drawings", () => {
     expect(
       await (await call(`/api/gallery/${id}/reviews`, reader)).json(),
     ).toEqual({ blind: true, revision: next });
+    // Nobody has reviewed the new version yet.
+    expect(await outcomeOf(maker)).toBeUndefined();
     const after = (await (
       await call(`/api/gallery/${id}/reviews`, owner)
     ).json()) as { fixes: { devices: number; wires: number }[] };

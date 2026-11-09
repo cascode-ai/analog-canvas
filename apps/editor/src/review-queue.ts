@@ -79,6 +79,12 @@ export interface ReviewCard {
   mine: ShownReview | null;
   /** The reader's own drawing: theirs to look at, as others review it. */
   own?: boolean;
+  /**
+   * On the reader's own drawing, what others' reviews of its current version
+   * come to: an open issue flags it, a pass with none passes it; absent while
+   * nobody has reviewed it.
+   */
+  outcome?: "passed" | "flagged";
   /** A community circuit's reference image, if its author gave one. */
   reference?: { revision: string };
   comparison?: {
@@ -233,3 +239,44 @@ export function shuffledQueue(
 /** A drawing with something to compare it with: a figure or a reference. */
 export const hasReference = (card: ReviewCard) =>
   Boolean(card.comparison || card.reference);
+
+/**
+ * The reader's own drawings (#2129): all of them, those others flagged or
+ * passed, or those still without a reference figure, so an author finds
+ * what to fix or which figure to add without paging through the rest.
+ */
+export const MINE_FILTERS = [
+  { key: "all", label: "All mine" },
+  { key: "flagged", label: "Flagged" },
+  { key: "passed", label: "Passed" },
+  { key: "no-reference", label: "No reference" },
+] as const;
+export type MineFilter = (typeof MINE_FILTERS)[number]["key"];
+
+/** The filter of one's own drawings the address sets (`mine=`), if any. */
+export function mineFromSearch(search: string): MineFilter | null {
+  const mine = new URLSearchParams(search).get("mine");
+  return MINE_FILTERS.find((filter) => filter.key === mine)?.key ?? null;
+}
+
+/** Whether a drawing is the reader's own and in that filter. */
+export function matchesMine(card: ReviewCard, filter: MineFilter): boolean {
+  if (!card.own) return false;
+  if (filter === "flagged" || filter === "passed")
+    return card.outcome === filter;
+  if (filter === "no-reference") return !hasReference(card);
+  return true;
+}
+
+/**
+ * What others' reviews of the reader's own drawings come to, for the bar
+ * over them: passed, flagged, and those nobody has reviewed yet.
+ */
+export function mineProgress(cards: readonly ReviewCard[]) {
+  let passed = 0;
+  let flagged = 0;
+  for (const card of cards)
+    if (card.outcome === "passed") passed += 1;
+    else if (card.outcome === "flagged") flagged += 1;
+  return { passed, flagged, left: cards.length - passed - flagged };
+}

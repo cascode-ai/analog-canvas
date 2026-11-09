@@ -1105,9 +1105,9 @@
   gap: 4px;
 }
 
-/* Word marks after the name: the circuit extracts to a netlist, its
-   publisher says an AI made it, and its testbench met its Specs when the
-   server ran it again. Each records something and gates nothing, so they
+/* Word marks after the name: the circuit extracts to a netlist, its author
+   gave the figure it was drawn from, its publisher says an AI made it, and
+   its testbench met its Specs when the server ran it again. Each records something and gates nothing, so they
    stay small beside the name and never compete with the like heart. */
 .gallery-tile-mark {
   margin-left: 6px;
@@ -1120,6 +1120,12 @@
 .gallery-tile-netlist {
   color: #2f7d4f;
   background: #e4f2e9;
+}
+
+/* Provenance rather than quality, so the quietest of them. */
+.gallery-tile-reference {
+  color: #4f5866;
+  background: #eceef2;
 }
 
 .gallery-tile-ai {

@@ -228,6 +228,8 @@ export interface GalleryFeedEntry {
    * may see it, so a tile shows whatever it is given.
    */
   simVerified?: boolean;
+  /** Its author gave a reference image, the figure it was drawn from (#2129). */
+  hasReference?: boolean;
   likes?: number;
   likedByViewer?: boolean;
 }
@@ -247,6 +249,8 @@ export interface GalleryQuickFilterCounts {
   human?: number;
   /** Circuits redrawn from reference datasets (#1697), the third side. */
   datasets?: number;
+  /** Circuits whose author gave no reference image (#2129). */
+  withoutReference?: number;
   /** Entries under Needs attention per reason; only with that filter on. */
   attentionKinds?: Record<string, number>;
   /**
@@ -428,6 +432,8 @@ export interface GalleryFeedQuery {
   netlistable?: boolean;
   /** Only circuits whose drawing does not. */
   withoutNetlist?: boolean;
+  /** Only circuits whose author gave no reference image (#2129). */
+  withoutReference?: boolean;
   /** Only AI-generated circuits, those made by hand, or the datasets'. */
   ai?: "ai" | "human" | "dataset" | null;
   /** Only circuits the signed-in viewer has liked. */
@@ -477,6 +483,7 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   }
   if (query.netlistable) params.set("netlistable", "1");
   else if (query.withoutNetlist) params.set("netlistable", "0");
+  if (query.withoutReference) params.set("reference", "0");
   if (query.ai)
     params.set(
       "ai",
@@ -567,7 +574,13 @@ export async function loadGalleryFeed(
               liked: payload.filterCounts.liked,
               ...Object.fromEntries(
                 (
-                  ["withoutNetlist", "ai", "human", "datasets"] as const
+                  [
+                    "withoutNetlist",
+                    "ai",
+                    "human",
+                    "datasets",
+                    "withoutReference",
+                  ] as const
                 ).flatMap((key) => {
                   const count = payload.filterCounts![key];
                   return Number.isSafeInteger(count) && count! >= 0
