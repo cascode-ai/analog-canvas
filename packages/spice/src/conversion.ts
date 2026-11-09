@@ -55,6 +55,19 @@ export interface NetlistConversionOptions {
    * do not count toward the size and statement limits (#1933). The editor's
    * import sets it; the public endpoint bounds the whole text. */
   uncountedSpiceSections?: boolean;
+  /** A native MOS model this converter does not translate (`bsim3v3`,
+   * `psp103`, …) is kept out of the SPICE text and reported by name with the
+   * device type its `type=` gives, so an import can draw its instances
+   * without its parameters. Only the editor's import sets it. */
+  externalNativeModels?: boolean;
+}
+export interface ExternalNativeModel {
+  name: string;
+  type: "nmos" | "pmos";
+  /** The native model kind as written, such as `bsim3v3`. */
+  native: string;
+  /** 1-based input line of its model statement. */
+  line: number;
 }
 export type NetlistConversionResult =
   | {
@@ -64,6 +77,8 @@ export type NetlistConversionResult =
       target: NetlistDialect;
       issues: NetlistConversionIssue[];
       lineOrigins?: number[];
+      /** Set with `externalNativeModels`. */
+      externalModels?: ExternalNativeModel[];
     }
   | { status: "blocked"; issues: NetlistConversionIssue[] };
 export const MAX_CONVERSION_BYTES = 512 * 1024;
@@ -433,11 +448,40 @@ function noParameters(p: Parameters, s: Statement) {
 function prefix(name: string, wanted: string) {
   return name.toUpperCase().startsWith(wanted) ? name : wanted + name;
 }
+/** Native MOS models a Spectre netlist may carry from a foundry's library. */
+const EXTERNAL_NATIVE_MOS = new Set([
+  "bsim3",
+  "bsim3v3",
+  "bsimsoi",
+  "bsimcmg",
+  "bsimimg",
+  "bsimbulk",
+  "psp102",
+  "psp103",
+  "psp104",
+  "hisim2",
+  "hisimhv",
+  "ekv",
+  "mos1",
+  "mos2",
+  "mos3",
+  "mos9",
+  "mos11",
+]);
+function isExternalNativeMos(kind: string | undefined): boolean {
+  return !!kind && EXTERNAL_NATIVE_MOS.has(kind.toLowerCase());
+}
+/** A binned model `nch.1` is called by its group's name `nch` as well. */
+function modelGroupNames(name: string): string[] {
+  const group = /^(.+)\.\d+$/u.exec(name)?.[1];
+  return group ? [name, group] : [name];
+}
 interface Context {
   subckts: Set<string>;
   externalSubckts: Set<string>;
   models: Map<string, string>;
   ownedIncludes: Set<string>;
+  externalModels?: ExternalNativeModel[];
 }
 function spectreInstance(s: Statement, ctx: Context): string {
   const match = /^(\S+)\s*\(([^()]*)\)\s+(\S+)(?:\s+(.*))?$/u.exec(s.text);
@@ -745,6 +789,21 @@ function translate(s: Statement, ctx: Context): string[] {
           `.model ${f[1]} ${type}${mapped.size ? " " + emitParameters(mapped, s) : ""}`,
         ];
       }
+      if (ctx.externalModels && f[1] && f[2] && isExternalNativeMos(f[2])) {
+        const p = parameters(f.slice(3), s);
+        const type = take(p, "type", s, "").toLowerCase();
+        if (type !== "n" && type !== "p")
+          refuse(s, `A ${f[2]} model needs type=n or type=p.`);
+        for (const name of modelGroupNames(f[1]))
+          if (!ctx.externalModels.some((model) => model.name === name))
+            ctx.externalModels.push({
+              name,
+              type: type === "n" ? "nmos" : "pmos",
+              native: f[2],
+              line: s.line,
+            });
+        return [];
+      }
       // Spectre's BSIM4, as a netlist this editor hands out defines a MOS
       // stand-in: SPICE's BSIM4 is level 54. Other native models remain unreviewed.
       if (f[2]?.toLowerCase() !== "bsim4")
@@ -1005,6 +1064,7 @@ export function convertNetlist(
       ),
       models: new Map(),
       ownedIncludes: new Set(options.ownedIncludes),
+      ...(options.externalNativeModels ? { externalModels: [] } : {}),
     };
     const declared = new Set<string>();
     const globals = new Map<string, string>();
@@ -1051,10 +1111,15 @@ export function convertNetlist(
         f[1] &&
         f[2]
       ) {
-        const designator = { bsim4: "M", bjt: "Q", diode: "D" }[
-          f[2].toLowerCase()
-        ];
-        if (designator) ctx.models.set(f[1].toLowerCase(), designator);
+        const designator =
+          { bsim4: "M", bjt: "Q", diode: "D" }[f[2].toLowerCase()] ??
+          (ctx.externalModels && isExternalNativeMos(f[2]) ? "M" : undefined);
+        // Only the editor's import calls a binned card by its group's name.
+        if (designator)
+          for (const name of ctx.externalModels
+            ? modelGroupNames(f[1])
+            : [f[1]])
+            ctx.models.set(name.toLowerCase(), designator);
       }
     }
     const out = [
@@ -1161,6 +1226,7 @@ export function convertNetlist(
       target,
       issues: [],
       ...(options.withLineOrigins ? { lineOrigins } : {}),
+      ...(ctx.externalModels ? { externalModels: ctx.externalModels } : {}),
     };
   } catch (error) {
     if (error instanceof ConversionError)

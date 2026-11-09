@@ -252,7 +252,10 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
         "export const headless = true;\n",
       );
       const archive = join(directory, "fixture.tgz");
-      execFileSync("tar", ["-czf", archive, "-C", directory, "package"], {
+      // Relative names: either Windows tar reads them, as it must the
+      // archive the installer pipes to it.
+      execFileSync("tar", ["-czf", "fixture.tgz", "package"], {
+        cwd: directory,
         windowsHide: true,
       });
       const bytes = await readFile(archive);

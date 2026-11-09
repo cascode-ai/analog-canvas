@@ -52,18 +52,23 @@ function directory(path: string): string {
   return separator < 0 ? "" : path.slice(0, separator);
 }
 
+/**
+ * An include named by an absolute, drive-qualified or URL path is a library
+ * outside the sources (a PDK's models): it is kept as written and never read.
+ */
+export function isExternalLibraryPath(requestedPath: string): boolean {
+  return (
+    /^[\\/]/u.test(requestedPath) ||
+    /^[a-z]:[\\/]/iu.test(requestedPath) ||
+    requestedPath.includes("://")
+  );
+}
+
 function resolveInclude(
   sourcePath: string,
   requestedPath: string,
   rootDirectory: string,
 ): string | null {
-  if (
-    requestedPath.startsWith("/") ||
-    /^[a-z]:[\\/]/iu.test(requestedPath) ||
-    requestedPath.includes("://")
-  ) {
-    return null;
-  }
   const combined = [directory(sourcePath), requestedPath]
     .filter(Boolean)
     .join("/");
@@ -225,6 +230,29 @@ export async function createSourceBundle(
       const includeStatement = statement as
         | IncludeStatement
         | (LibraryStatement & { mode: "include"; requestedPath: string });
+      if (isExternalLibraryPath(includeStatement.requestedPath)) {
+        dependencies.push({
+          sourceFileId: source.id,
+          requestedPath: includeStatement.requestedPath,
+          resolvedPath: null,
+          targetFileId: null,
+          status: "external",
+          ...(includeStatement.kind === "library"
+            ? { section: includeStatement.section }
+            : {}),
+          sourceRef: includeStatement.sourceRef,
+        });
+        diagnostics.push(
+          diagnostic(
+            "SPICE_SOURCE_INCLUDE_EXTERNAL",
+            "warning",
+            "source",
+            `Kept as an external library and not read: ${includeStatement.requestedPath}${includeStatement.kind === "library" && includeStatement.section ? ` (section ${includeStatement.section})` : ""}. Models it defines have no card in the sources.`,
+            includeStatement.sourceRef,
+          ),
+        );
+        continue;
+      }
       const resolvedPath = resolveInclude(
         path,
         includeStatement.requestedPath,

@@ -27,10 +27,15 @@ adapter.
 - Unrecognized or malformed statements become opaque with a located
   diagnostic, never discarded.
 - `.include`, `.incpslt` and `.lib file section` share one sandboxed resolver:
-  relative to the including file; absolute, URL, drive-qualified and
-  root-escaping paths denied; missing targets and cycles are errors; repeats
-  suppressed; unreachable files excluded; no network or simulator search
-  paths. `.lib` elaborates only the named section (all text kept).
+  relative to the including file; root-escaping paths denied; missing targets
+  and cycles are errors; repeats suppressed; unreachable files excluded; no
+  network or simulator search paths. `.lib` elaborates only the named section
+  (all text kept).
+- An absolute, drive-qualified or URL path names an external library (a
+  foundry's models): kept as written, never read, a located warning
+  (`SPICE_SOURCE_INCLUDE_EXTERNAL`). A model it would define has no card in
+  the sources, so its device type comes from the caller, or the device is
+  refused naming the model.
 
 ## Compatibility profile
 

@@ -20451,6 +20451,15 @@
               },
               "rnlAppearance": {
                 "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema19"
+              },
+              "modelTypes": {
+                "type": "object",
+                "propertyNames": {
+                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
+                },
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema21"
+                }
               }
             },
             "required": [
@@ -20997,6 +21006,21 @@
               "source"
             ],
             "description": "RNL appearance in Canvas. Defaults to native Canvas conventions. Use source for authored styling."
+          },
+          "__schema20": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "__schema21": {
+            "type": "string",
+            "enum": [
+              "nmos",
+              "pmos",
+              "npn",
+              "pnp",
+              "d"
+            ]
           }
         }
       },

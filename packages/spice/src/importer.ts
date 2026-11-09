@@ -108,6 +108,12 @@ export interface SpiceImportOptions {
    */
   modelTypes?: ReadonlyMap<string, string>;
   /**
+   * How a refused device whose model no card declares is told to recover:
+   * by adding a card (the default), or, for a caller that takes device types
+   * itself (an Agent's delivery), by giving its type in `modelTypes`.
+   */
+  undeclaredModels?: "add-card" | "give-type";
+  /**
    * Library blocks the sources call but do not define, as Analog Canvas
    * writes a block whose body a simulator's libraries give (`callOnlyBlock`
    * of @icm/netlist), by the name its calls give, as another reading of the
@@ -550,6 +556,7 @@ function undeclaredModelMessage(
   instance: CircuitInstanceIR,
   modelTypeByName: ReadonlyMap<string, string>,
   spectre: boolean,
+  givesModelTypes: boolean,
 ): string | undefined {
   if (instance.target.kind !== "model") return undefined;
   const model = instance.target.modelName;
@@ -560,6 +567,8 @@ function undeclaredModelMessage(
     ] ?? [];
   if (!types.length) return undefined;
   const declaration = spectre ? "model statement" : ".model card";
+  if (givesModelTypes)
+    return `${instance.name} uses model ${model}, which no ${declaration} declares (an external library may hold its card), so its device type is unknown. Give its device type in modelTypes, such as {"${model}":"${types[0]}"}, rather than editing the files.`;
   const suggestions = types.map((type) => {
     if (!spectre) return `".model ${model} ${type}"`;
     const native =
@@ -605,6 +614,7 @@ function importInstance(
   symbolMappings: readonly PdkSymbolMappingOverride[],
   builtInBodies: ReadonlyMap<string, ImportedBody>,
   spectre: boolean,
+  givesModelTypes: boolean,
 ): Instance | null {
   const body = calledBuiltInBody(instance, builtInBodies);
   if (body) return importBuiltInBlock(instance, body, diagnostics);
@@ -615,7 +625,12 @@ function importInstance(
         "SPICE_IMPORT_UNSUPPORTED_SYMBOL",
         "error",
         "import",
-        undeclaredModelMessage(instance, modelTypeByName, spectre) ??
+        undeclaredModelMessage(
+          instance,
+          modelTypeByName,
+          spectre,
+          givesModelTypes,
+        ) ??
           `Unsupported SPICE device ${instance.name} (${targetDescription(instance, symbolMappings)}): the approved Razavi catalog has no symbol. Add and review a Razavi symbol mapping before importing.`,
         instance.sourceRef,
       ),
@@ -1024,6 +1039,7 @@ function importDocument(
           : symbolMappings,
         builtInBodies,
         spectreFileIds.has(instance.sourceRef.fileId),
+        options.undeclaredModels === "give-type",
       ),
     )
     .filter((instance): instance is Instance => instance !== null);

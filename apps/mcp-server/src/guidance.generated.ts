@@ -35,7 +35,7 @@ export const agentToolHelp = {
   connect:
     "Pair with the live browser editor of this server's bound origin (site in the reply). Pass its claim code once; a Claim connects one adapter, and later MCP processes can omit it and resume the saved, revocable connector, taking it over from any other running MCP process. Its access lists the granted scopes and every tool here; capabilities is the Circuit resource's. After connecting, read analog-canvas://reference/quickstart. Resource reads use the host's registered server alias (analog-canvas-<16 hex> per origin, or a legacy analog-canvas), not the normalized tool prefix analog_canvas. If unknown, discover the alias from the host resource list.",
   disconnect:
-    "Revoke the current browser Agent session and erase this MCP host's saved connector. A fresh editor claim code is required afterwards.",
+    "With taskRef, end that Canvas task; a later task starts with open_canvas without a taskRef and a fresh browser approval. Without taskRef, revoke the Claim-paired browser session and erase this MCP host's saved connector; pairing it again needs a fresh claim code.",
   connection_status:
     "Report runtime version, API origin and session observations; runtime.status \"outdated\" names the origin's latestVersion and its upgrade step. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully. recentRequests shows this process's last requests hop by hop (relay forward, editor work, the tab's visibility).",
   project_cells:
@@ -53,7 +53,7 @@ export const agentToolHelp = {
   export_file:
     "Export Project or formal Canvas SVG/PNG/PDF to outputPath. Visual export needs documentId. Use includeReview for the live receipt, bounds for an SVG/PNG detail, or expected to require the same workspace and revision. For simulation data use simulation_files sync/download or prepare-plot. simulation-plot returns SIMULATION_PLOT_RETIRED.",
   import_file:
-    "open-local delivers a local Project, RNL, SPICE or Spectre entry and its relative dependencies to Canvas Web. Pass taskRef, rootPath and entryPath. RNL reuses the layout with Canvas Pin, Ground and bulk styling. For authored styling pass rnlAppearance:source. Returns the live Project, Cell, revision, source version and drawing/electrical status. Other actions stage, inspect, open or discard a candidate, import-cell into the selected Cell, or request human approval for whole-Project replacement.",
+    "open-local delivers a local Project, RNL, SPICE or Spectre entry and its relative dependencies to Canvas Web. Pass taskRef, rootPath and entryPath, and modelTypes for models whose cards an external library holds. RNL reuses the layout with Canvas Pin, Ground and bulk styling. For authored styling pass rnlAppearance:source. Returns the live Project, Cell, revision, source version and drawing/electrical status. Other actions stage, inspect, open or discard a candidate, import-cell into the selected Cell, or request human approval for whole-Project replacement.",
   get_context:
     "Read document identity/revision/counts with a lightweight request or clean cache. refresh:true reconciles external changes. Connect already returns context.",
   inspect:

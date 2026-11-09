@@ -5,6 +5,7 @@ import {
   AGENT_API_VERSION,
   matchesAgentReviewTarget,
   type AgentFileResourceRequest,
+  type AgentLocalModelTypes,
   type AgentRnlAppearance,
 } from "@icm/agent-adapter";
 import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
@@ -215,6 +216,27 @@ export async function openGalleryEntry(
   };
 }
 
+/** Each stage of a local delivery, in ms; a refusal leaves those it never ran at 0. */
+export function deliveryTiming() {
+  return { prepare: 0, locate: 0, transfer: 0, import: 0, open: 0 };
+}
+type DeliveryTiming = ReturnType<typeof deliveryTiming>;
+
+/** Runs one stage and records its time, whether it succeeds or throws. */
+async function timed<T>(
+  timingMs: DeliveryTiming,
+  stage: keyof DeliveryTiming,
+  run: () => Promise<T>,
+): Promise<T> {
+  const started = performance.now();
+  try {
+    return await run();
+  } finally {
+    timingMs[stage] = performance.now() - started;
+  }
+}
+
+/** The caller keeps `timingMs`, so a refusal can report the stages it ran. */
 export async function openLocalFile(
   client: AgentSessionClient,
   options: {
@@ -223,19 +245,17 @@ export async function openLocalFile(
     background?: boolean;
     rnlAppearance?: AgentRnlAppearance;
     taskRef?: string;
+    modelTypes?: AgentLocalModelTypes;
   },
+  timingMs: DeliveryTiming = deliveryTiming(),
 ) {
-  let started = performance.now();
-  const { entryPath, files, version } = await prepareLocalSource(
-    options.rootPath,
-    options.entryPath,
+  const { entryPath, files, version } = await timed(timingMs, "prepare", () =>
+    prepareLocalSource(options.rootPath, options.entryPath),
   );
-  const prepare = performance.now() - started;
   const background = options.background ?? false;
   const appearance = options.rnlAppearance
     ? { rnlAppearance: options.rnlAppearance }
     : {};
-  started = performance.now();
   const locateCopy = () =>
     client.fileResource(
       {
@@ -248,43 +268,46 @@ export async function openLocalFile(
       },
       "session",
     );
-  let located = await locateCopy().catch((error: unknown) => {
-    if (
-      error instanceof AgentSessionError &&
-      error.code === "PROJECT_CONTEXT_STALE"
-    )
-      return null;
-    throw error;
+  const located = await timed(timingMs, "locate", async () => {
+    const first = await locateCopy().catch((error: unknown) => {
+      if (
+        error instanceof AgentSessionError &&
+        error.code === "PROJECT_CONTEXT_STALE"
+      )
+        return null;
+      throw error;
+    });
+    return !first || (!first.ok && first.error.code === "PROJECT_CONTEXT_STALE")
+      ? await locateCopy()
+      : first;
   });
-  if (
-    !located ||
-    (!located.ok && located.error.code === "PROJECT_CONTEXT_STALE")
-  )
-    located = await locateCopy();
-  const locate = performance.now() - started;
   if (!located.ok || located.operation !== "locate-local")
     throw requestFailure(
       located.ok ? "INVALID_RESPONSE" : located.error.code,
       located.ok ? "Unexpected locate-local response" : located.error.message,
     );
   let delivery = located.delivery;
-  let transfer = 0;
-  let importMs = 0;
-  let open = 0;
   if (!delivery) {
-    started = performance.now();
-    const staged = await client.fileResource(
-      {
-        apiVersion: AGENT_API_VERSION,
-        requestId: requestId(),
-        operation: "stage",
-        kind: "local-circuit",
-        entryPath,
-        files,
-        ...appearance,
-      },
-      "session",
+    // A refused import has no separate import time: it is all transfer.
+    const staged = await timed(timingMs, "transfer", () =>
+      client.fileResource(
+        {
+          apiVersion: AGENT_API_VERSION,
+          requestId: requestId(),
+          operation: "stage",
+          kind: "local-circuit",
+          entryPath,
+          files,
+          ...appearance,
+          ...(options.modelTypes ? { modelTypes: options.modelTypes } : {}),
+        },
+        "session",
+      ),
     );
+    if (staged.ok && staged.operation === "stage") {
+      timingMs.import = staged.candidate.importMs ?? 0;
+      timingMs.transfer = Math.max(0, timingMs.transfer - timingMs.import);
+    }
     if (
       !staged.ok ||
       staged.operation !== "stage" ||
@@ -296,20 +319,19 @@ export async function openLocalFile(
           ? "The staged source version did not match the local bytes"
           : staged.error.message,
       );
-    importMs = staged.candidate.importMs ?? 0;
-    transfer = Math.max(0, performance.now() - started - importMs);
-    started = performance.now();
-    const opened = await client.fileResource(
-      {
-        apiVersion: AGENT_API_VERSION,
-        requestId: requestId(),
-        operation: "open",
-        candidateId: staged.candidate.candidateId,
-        background,
-      },
-      "session",
+    const { candidateId } = staged.candidate;
+    const opened = await timed(timingMs, "open", () =>
+      client.fileResource(
+        {
+          apiVersion: AGENT_API_VERSION,
+          requestId: requestId(),
+          operation: "open",
+          candidateId,
+          background,
+        },
+        "session",
+      ),
     );
-    open = performance.now() - started;
     if (!opened.ok || opened.operation !== "open" || !opened.delivery)
       throw requestFailure(
         opened.ok ? "FILE_LOAD_UNCONFIRMED" : opened.error.code,
@@ -345,7 +367,7 @@ export async function openLocalFile(
     taskRef: options.taskRef ?? null,
     sessionId,
     delivery,
-    timingMs: { prepare, locate, transfer, import: importMs, open },
+    timingMs,
   };
 }
 

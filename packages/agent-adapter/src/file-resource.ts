@@ -81,6 +81,19 @@ export const AgentRnlAppearanceSchema = z
     "RNL appearance in Canvas. Defaults to native Canvas conventions. Use source for authored styling.",
   );
 export type AgentRnlAppearance = z.infer<typeof AgentRnlAppearanceSchema>;
+/**
+ * Device types an Agent states for models whose cards the delivered sources
+ * lack (a foundry library kept external). A card the sources give decides.
+ */
+export const AgentLocalModelTypesSchema = z
+  .record(
+    z.string().min(1).max(128),
+    z.enum(["nmos", "pmos", "npn", "pnp", "d"]),
+  )
+  .refine((types) => Object.keys(types).length <= 256, {
+    message: "At most 256 model types",
+  });
+export type AgentLocalModelTypes = z.infer<typeof AgentLocalModelTypesSchema>;
 
 export function hasRnlCommentRecords(text: string): boolean {
   return /^(?:\*|\/\/) @RNL\b/mu.test(text);
@@ -256,6 +269,7 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       entryPath: z.string().min(1).max(512).optional(),
       namingProfile: z.enum(["native", "cadence-bang"]).optional(),
       rnlAppearance: AgentRnlAppearanceSchema.optional(),
+      modelTypes: AgentLocalModelTypesSchema.optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("locate-local"),

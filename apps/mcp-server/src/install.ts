@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createReadStream, realpathSync } from "node:fs";
-import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { agentMcpServerName } from "@icm/agent-adapter";
@@ -13,6 +13,22 @@ import {
   installationSystemCode,
   type InstallationStage,
 } from "./installation-diagnostics.js";
+
+/**
+ * Lists or extracts the verified archive from standard input. Given a path,
+ * Git for Windows' tar, when it comes first on PATH, reads `C:\…` as a
+ * remote host.
+ */
+function fromArchive(bytes: Uint8Array, args: string[], maxBuffer: number) {
+  const [mode, ...members] = args;
+  return execFileSync("tar", [`${mode}zf`, "-", ...members], {
+    input: bytes,
+    maxBuffer,
+    timeout: 30_000,
+    windowsHide: true,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+}
 
 export function installationOrigin(value: string): string {
   const url = new URL(value);
@@ -282,40 +298,36 @@ export async function installMcp(
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const archive = join(directory, "package.tgz");
     const executable = join(directory, "analog-canvas-mcp.mjs");
-    await writeFile(archive, bytes, { mode: 0o600, flag: "wx" });
-    const program = execFileSync(
-      "tar",
-      ["-xOf", archive, "package/bin/analog-canvas-mcp.mjs"],
-      {
-        maxBuffer: 16_000_000,
-        timeout: 30_000,
-        windowsHide: true,
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    await writeFile(executable, program, { mode: 0o600, flag: "wx" });
-    // Local mode (#1498) loads the headless workspace from beside the adapter;
-    // a package that ships one installs it there too. An older package has
-    // none, and still installs.
-    const headlessEntry = "package/bin/analog-canvas-headless.mjs";
-    const entries = execFileSync("tar", ["-tf", archive], {
-      encoding: "utf8",
-      maxBuffer: 4_000_000,
-      timeout: 30_000,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    }).split(/\r?\n/u);
-    if (entries.includes(headlessEntry))
+    try {
+      // The verified package stays beside the installation it came from.
+      await writeFile(archive, bytes, { mode: 0o600, flag: "wx" });
       await writeFile(
-        join(directory, "analog-canvas-headless.mjs"),
-        execFileSync("tar", ["-xOf", archive, headlessEntry], {
-          maxBuffer: 24_000_000,
-          timeout: 30_000,
-          windowsHide: true,
-          stdio: ["ignore", "pipe", "pipe"],
-        }),
+        executable,
+        fromArchive(
+          bytes,
+          ["-xO", "package/bin/analog-canvas-mcp.mjs"],
+          16_000_000,
+        ),
         { mode: 0o600, flag: "wx" },
       );
+      // Local mode (#1498) loads the headless workspace from beside the adapter;
+      // a package that ships one installs it there too. An older package has
+      // none, and still installs.
+      const headlessEntry = "package/bin/analog-canvas-headless.mjs";
+      const entries = fromArchive(bytes, ["-t"], 4_000_000)
+        .toString("utf8")
+        .split(/\r?\n/u);
+      if (entries.includes(headlessEntry))
+        await writeFile(
+          join(directory, "analog-canvas-headless.mjs"),
+          fromArchive(bytes, ["-xO", headlessEntry], 24_000_000),
+          { mode: 0o600, flag: "wx" },
+        );
+    } catch (error) {
+      // A failed extraction leaves no half-made installation behind.
+      await rm(directory, { recursive: true, force: true });
+      throw error;
+    }
     // The probe starts the bundle exactly as the host will.
     const node = stableNodeExecutable(locations.execPath ?? process.execPath);
     stage = "local-probe";

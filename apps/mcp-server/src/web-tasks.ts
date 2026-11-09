@@ -69,6 +69,14 @@ type Task = {
   inFlight: number;
 };
 
+function failed(result: unknown): boolean {
+  return (
+    !!result &&
+    typeof result === "object" &&
+    (result as { ok?: unknown }).ok === false
+  );
+}
+
 export class CanvasTaskError extends Error {
   constructor(
     readonly code: string,
@@ -80,6 +88,13 @@ export class CanvasTaskError extends Error {
 
 const OPEN_CALL_WAIT_MS = 18_000;
 const RECONNECT_GRACE_MS = 3_500;
+
+function revoked(): CanvasTaskError {
+  return new CanvasTaskError(
+    "SESSION_REVOKED",
+    "The user revoked this Canvas task in the browser. Ask before reconnecting: open_canvas without a taskRef starts a new task that needs a fresh approval.",
+  );
+}
 
 /** Each task owns a browser session, client, and its own operation state. */
 export class WebTasks {
@@ -99,7 +114,7 @@ export class WebTasks {
 
   get hasTasks(): boolean {
     return [...this.tasks.values()].some(
-      (task) => task.binding || task.opening || task.used,
+      (task) => !!task.binding || !!task.opening || task.used,
     );
   }
 
@@ -127,7 +142,18 @@ export class WebTasks {
       );
     task.inFlight++;
     try {
-      return await operation(task.binding.operation);
+      const result = await operation(task.binding.operation);
+      // A call that met the browser's revocation leaves the client revoked;
+      // one that failed before reaching the relay asks it. The task ends with
+      // the revocation, whatever the call's own error said.
+      if (!task.ended) {
+        const status = await task.binding.operation.client
+          .status(failed(result) ? { refresh: true } : {})
+          .catch(() => null);
+        if (status?.state === "revoked") task.ended = revoked();
+      }
+      if (task.ended && !disconnect && failed(result)) throw task.ended;
+      return result;
     } finally {
       task.inFlight--;
     }
@@ -414,13 +440,11 @@ export class WebTasks {
     const { observation, lastErrorCode, state } =
       await binding.operation.client.status({ refresh: true });
     if (
+      state === "revoked" ||
       lastErrorCode === "SESSION_REVOKED" ||
       lastErrorCode === "SESSION_TAKEN_OVER"
     )
-      throw new CanvasTaskError(
-        "SESSION_REVOKED",
-        "The browser revoked this Canvas task.",
-      );
+      throw revoked();
     if (
       lastErrorCode === "SESSION_NOT_FOUND" ||
       (lastErrorCode === "SESSION_EXPIRED" && binding.paused)

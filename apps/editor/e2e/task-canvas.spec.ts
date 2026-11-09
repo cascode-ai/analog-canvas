@@ -136,9 +136,17 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
       rootPath,
       entryPath: path,
     });
+  // A refusal reports the stages it ran: here only preparation.
   await expect(deliver()).resolves.toMatchObject({
     ok: false,
     error: { code: "FILE_DEPENDENCY_MISSING" },
+    timingMs: {
+      prepare: expect.any(Number),
+      locate: 0,
+      transfer: 0,
+      import: 0,
+      open: 0,
+    },
   });
   const initialEdit = await tool("apply_actions", {
     actions: [
@@ -480,6 +488,66 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   await tool("disconnect", {});
 });
 
+test("delivers a Virtuoso netlist whose foundry library stays external, typed by the Agent", async ({
+  context,
+  baseURL,
+  accountName: _accountName,
+}, testInfo) => {
+  // A Virtuoso netlist names its foundry's library by an absolute path: it
+  // stays external and unread, and the Agent gives its models' device types.
+  // A task of its own keeps the deliveries above within one session's
+  // request rate.
+  const rootPath = testInfo.outputPath("virtuoso");
+  await mkdir(rootPath, { recursive: true });
+  await writeFile(
+    join(rootPath, "top.scs"),
+    [
+      "simulator lang=spectre",
+      'include "/pdk/tsmc28/models/spectre/toplevel.scs" section=tt',
+      "subckt inv (in out vdd vss)",
+      "M1 (out in vdd vdd) pch_mac w=2u l=30n",
+      "M0 (out in vss vss) nch_mac w=1u l=30n",
+      "ends inv",
+      "",
+    ].join("\n"),
+  );
+  const { tool } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("legacy-connector.json"),
+  );
+  const deliver = (modelTypes?: Record<string, string>) =>
+    tool("import_file", {
+      action: "open-local",
+      rootPath,
+      entryPath: "top.scs",
+      ...(modelTypes ? { modelTypes } : {}),
+    });
+  expect(await deliver()).toMatchObject({
+    ok: false,
+    error: {
+      code: "FILE_IMPORT_FAILED",
+      message: expect.stringContaining("modelTypes"),
+    },
+    timingMs: { transfer: expect.any(Number), open: 0 },
+  });
+  const typed = await deliver({ nch_mac: "nmos", pch_mac: "pmos" });
+  expect(typed, JSON.stringify(typed.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      source: {
+        format: "spectre",
+        files: [{ path: "top.scs" }],
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({ code: "SPICE_SOURCE_INCLUDE_EXTERNAL" }),
+          expect.objectContaining({ code: "LOCAL_MODEL_TYPES_GIVEN" }),
+        ]),
+      },
+    },
+  });
+  await tool("disconnect", {});
+});
+
 test("keeps Canvas and source RNL copies distinct across recovery", async ({
   context,
   baseURL,
@@ -703,11 +771,32 @@ test("opens and reuses only the Canvas authorized for each Agent task", async ({
     error: { code: "SESSION_REVOKED" },
   });
   await pages[1]!.getByTestId("agent-revoke").click();
+  // Every call on the task after the revocation says so, even one that fails
+  // before it reaches the relay: none asks for a Claim or blames the relay.
   await expect
     .poll(
       async () =>
-        (await tool("open_canvas", { taskRef: second.taskRef })).error?.code,
+        (
+          await tool("import_file", {
+            taskRef: second.taskRef,
+            action: "open-local",
+            rootPath: ".",
+            entryPath: "missing.sp",
+          })
+        ).error?.code,
     )
     .toBe("SESSION_REVOKED");
+  expect(await tool("get_context", { taskRef: second.taskRef })).toMatchObject({
+    ok: false,
+    error: { code: "SESSION_REVOKED" },
+  });
+  expect(await tool("open_canvas", { taskRef: second.taskRef })).toMatchObject({
+    ok: false,
+    authorization: "revoked",
+    error: {
+      code: "SESSION_REVOKED",
+      message: expect.stringContaining("open_canvas without a taskRef"),
+    },
+  });
   expect(pages).toHaveLength(3);
 });

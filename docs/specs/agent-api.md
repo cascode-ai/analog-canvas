@@ -118,9 +118,11 @@ edits; it chooses no topology and yields no edits on conflict
 ## Sibling resources
 
 - `/files` (File Resource): bounded Project/formal-artifact download,
-  Project/structural-SPICE candidate staging, simulation workspaces and
-  artifacts. Staging never changes the browser Project; replacement needs
-  explicit human approval.
+  Project, structural-SPICE and local-circuit candidate staging, locating a
+  delivered local circuit by its source version, simulation workspaces and
+  artifacts. A local-circuit stage may give the device types of models whose
+  cards the sources lack; a card the sources give decides. Staging never
+  changes the browser Project; replacement needs explicit human approval.
 - `/simulation`: prepare/run through the shared SimulationService
   ([execution](simulation-execution.md)); saved setup changes are Project
   structure edits.

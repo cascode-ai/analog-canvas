@@ -11,6 +11,9 @@ or reopen after closing. If approval is pending, continue with the returned
 reference after the user approves. Task references last for the running MCP
 process. After a reopen with `recovery: "previous-project-unconfirmed"`,
 verify the target Project and revision before continuing earlier work.
+`SESSION_REVOKED` means the user revoked the task in the browser: ask before
+reconnecting, then call `open_canvas({})` for a new task, which needs a fresh
+approval.
 
 Use the manual connection for a page the user paired using a Claim. Run it
 in a separate MCP process from dedicated Canvas tasks.

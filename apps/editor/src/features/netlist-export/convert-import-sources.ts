@@ -1,12 +1,39 @@
+import type { CircuitProject } from "@icm/model";
 import { findBuiltInBodies } from "@icm/netlist";
 import {
   convertNetlist,
   isSpectreSource,
   type SpiceBuiltInBody,
+  type SpiceDiagnostic,
   type SpiceSourceInput,
 } from "@icm/spice";
 
 export { isSpectreSource } from "@icm/spice";
+
+/**
+ * Of the device types a caller gave, those that typed a part: a model its
+ * parts call that no card, converted native card or drawing types.
+ */
+export function givenModelTypesUsed(
+  given: Readonly<Record<string, string>>,
+  project: CircuitProject,
+  typed: Iterable<string>,
+): [string, string][] {
+  const known = new Set([...typed].map((name) => name.toLowerCase()));
+  const called = new Set(
+    project.documents.flatMap((document) =>
+      document.instances.flatMap(({ importProvenance }) =>
+        importProvenance?.kind === "model"
+          ? [importProvenance.sourceMasterName.toLowerCase()]
+          : [],
+      ),
+    ),
+  );
+  return Object.entries(given).filter(
+    ([name]) =>
+      called.has(name.toLowerCase()) && !known.has(name.toLowerCase()),
+  );
+}
 
 /** The lines (1-based, inclusive) of each SPICE section of a Spectre source. */
 function spiceSections(
@@ -32,7 +59,9 @@ function spiceSections(
  * include resolution and import validation: native Spectre converted, and
  * in either dialect the bodies Analog Canvas writes itself found, so that a
  * call of one imports as the block that wrote it. No remote request is
- * necessary.
+ * necessary. A native MOS model card the converter does not translate gives
+ * its instances their device type (`modelTypes`, for the importer) and
+ * stays out of the converted text, with a warning.
  */
 export function prepareImportSources(
   inputs: SpiceSourceInput[],
@@ -40,8 +69,12 @@ export function prepareImportSources(
 ): {
   inputs: SpiceSourceInput[];
   builtInBodies: SpiceBuiltInBody[];
+  modelTypes: Map<string, string>;
+  diagnostics: SpiceDiagnostic[];
 } {
   const builtInBodies: SpiceBuiltInBody[] = [];
+  const modelTypes = new Map<string, string>();
+  const diagnostics: SpiceDiagnostic[] = [];
   const prepared = inputs.map((input) => {
     if (!isSpectreSource(input)) {
       builtInBodies.push(
@@ -72,11 +105,24 @@ export function prepareImportSources(
       withLineOrigins: true,
       // A model library the export wrote as SPICE (#1933) is read as it is.
       uncountedSpiceSections: true,
+      externalNativeModels: true,
       ...(externalSubcircuitNames ? { externalSubcircuitNames } : {}),
     });
     if (converted.status === "blocked") {
       const issue = converted.issues[0]!;
       throw new Error(`${input.path}:${issue.line}: ${issue.message}`);
+    }
+    const reported = new Set<number>();
+    for (const model of converted.externalModels ?? []) {
+      modelTypes.set(model.name, model.type);
+      if (reported.has(model.line)) continue;
+      reported.add(model.line);
+      diagnostics.push({
+        code: "SPICE_CONVERSION_MODEL_EXTERNAL",
+        severity: "warning",
+        stage: "import",
+        message: `${input.path}:${model.line}: ${model.native} model ${model.name} is drawn as ${model.type} and not converted; simulating it in Analog Canvas needs a converted model.`,
+      });
     }
     // Each SPICE section is its own SPICE file, its bytes as written, which
     // the converted source includes where the section stood: a model library
@@ -122,5 +168,5 @@ export function prepareImportSources(
       ...sectionFiles,
     ];
   });
-  return { inputs: prepared.flat(), builtInBodies };
+  return { inputs: prepared.flat(), builtInBodies, modelTypes, diagnostics };
 }

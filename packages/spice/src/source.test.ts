@@ -85,4 +85,40 @@ describe("SPICE SourceBundle", () => {
     expect(denied.dependencies[0]!.status).toBe("denied");
     expect(denied.files.map((file) => file.path)).toEqual(["root/circuit.spi"]);
   });
+
+  it("keeps an absolute, drive or URL library external and unread", async () => {
+    const bundle = await createSourceBundle(
+      [
+        input(
+          "circuit.spi",
+          [
+            '.lib "/pdk/models/toplevel.scs" tt',
+            '.include "C:/pdk/extra.sp"',
+            '.include "https://example.com/models.sp"',
+            "",
+          ].join("\n"),
+        ),
+      ],
+      "circuit.spi",
+    );
+    expect(bundle.dependencies.map((item) => item.status)).toEqual([
+      "external",
+      "external",
+      "external",
+    ]);
+    expect(bundle.dependencies[0]).toMatchObject({
+      requestedPath: "/pdk/models/toplevel.scs",
+      section: "tt",
+      resolvedPath: null,
+    });
+    expect(
+      bundle.diagnostics.map(({ code, severity }) => [code, severity]),
+    ).toEqual([
+      ["SPICE_SOURCE_INCLUDE_EXTERNAL", "warning"],
+      ["SPICE_SOURCE_INCLUDE_EXTERNAL", "warning"],
+      ["SPICE_SOURCE_INCLUDE_EXTERNAL", "warning"],
+    ]);
+    expect(bundle.diagnostics[0]!.sourceRef?.start.line).toBe(1);
+    expect(bundle.files.map((file) => file.path)).toEqual(["circuit.spi"]);
+  });
 });

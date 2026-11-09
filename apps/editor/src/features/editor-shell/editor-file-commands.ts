@@ -356,11 +356,12 @@ export function createEditorFileCommands({
           namingProfile,
           originalSources: sourceInputs,
           builtInBodies: prepared.builtInBodies,
+          modelTypes: prepared.modelTypes,
         },
       );
       const nextImportReport: SpiceImportReport = {
         entryPath: entryCandidates[0]!.path,
-        diagnostics: result.diagnostics,
+        diagnostics: [...prepared.diagnostics, ...result.diagnostics],
       };
       if (!result.project || !result.successful) {
         const firstError = result.diagnostics.find(
