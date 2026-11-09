@@ -386,6 +386,13 @@
   padding: 10px;
   resize: vertical;
 }
+/* The editor fills the box by flexing, never by a percentage height: a box
+   that grows past its own height in a column (the Project Code panel) left
+   Safari's editor at that height with a blank strip below (#2142). */
+.project-source-editor {
+  display: flex;
+  flex-direction: column;
+}
 .project-source-editor[data-invalid="true"],
 .project-code-panel > textarea[aria-invalid="true"],
 .netlist-profile-code > textarea[aria-invalid="true"] {
@@ -400,7 +407,8 @@
   border-color: var(--icm-error);
 }
 .project-source-editor .cm-editor {
-  height: 100%;
+  flex: 1 1 0;
+  min-height: 0;
   border-radius: inherit;
   background: transparent;
 }
@@ -451,8 +459,9 @@
 /* The code editor's own layout, which its stylesheet gives it once loaded. */
 .static-code-scroller {
   display: flex;
+  flex: 1 1 0;
   align-items: flex-start;
-  height: 100%;
+  min-height: 0;
   white-space: pre;
 }
 .static-code-gutter {
