@@ -4,6 +4,7 @@ import {
 } from "@icm/agent-adapter";
 import { deriveStableId, type CircuitProject } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
+import type { RnlAppearance } from "@icm/rnl";
 import {
   decodeSourceContent,
   importSpiceSources,
@@ -54,6 +55,7 @@ function retainSourceFiles(
 export async function importLocalCircuit(
   inputs: LocalCircuitInput[],
   entryPath: string,
+  appearance?: RnlAppearance,
 ) {
   const entry = inputs.find((input) => input.path === entryPath);
   if (!entry) throw new Error("The source bundle does not contain its entry");
@@ -84,6 +86,7 @@ export async function importLocalCircuit(
       entryPath,
       runtime: await loadRnlRuntime(),
       compileOptions,
+      appearance,
     });
     if (result.status === "failed")
       throw importError(result.diagnostics, result.message);

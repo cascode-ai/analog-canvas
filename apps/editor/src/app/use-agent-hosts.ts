@@ -22,6 +22,7 @@ import type { AgentGalleryPublication } from "../agent/agent-gallery-publish";
 import type { AgentRuntime } from "../agent/agent-runtime-loader";
 import type { BrowserAgentPlanningContext } from "../agent/browser-agent-command";
 import type {
+  AgentReviewWorkspace,
   BrowserAgentFileHost,
   OpenLocalProject,
 } from "../agent/browser-agent-file-host";
@@ -189,6 +190,10 @@ export function useBrowserAgentHost({
 }
 
 /** The Agent's file, run-history and simulation services for each Project. */
+export type AgentReviewWorkspaceReader = (
+  controller: EditorDocumentController,
+) => AgentReviewWorkspace | undefined;
+
 export function useAgentProjectResources({
   runtime,
   editorDocumentController,
@@ -198,6 +203,7 @@ export function useAgentProjectResources({
   projectSwitchBlockerRef,
   openProjectInTabRef,
   openLocalProjectRef,
+  reviewWorkspaceRef,
 }: {
   runtime: AgentRuntime | null;
   editorDocumentController: EditorDocumentController;
@@ -206,6 +212,7 @@ export function useAgentProjectResources({
   simulationTransport: ReturnType<typeof resolveSimulationTransport>;
   projectSwitchBlockerRef: RefObject<() => string | null>;
   openLocalProjectRef: RefObject<OpenLocalProject>;
+  reviewWorkspaceRef: RefObject<AgentReviewWorkspaceReader>;
   openProjectInTabRef: RefObject<
     (
       project: CircuitProject,
@@ -249,6 +256,8 @@ export function useAgentProjectResources({
             getProjectSessionId: () =>
               editorDocumentController.projectSessionId,
             getProject: () => editorDocumentController.project,
+            getReviewWorkspace: () =>
+              reviewWorkspaceRef.current(editorDocumentController),
             getDocument: (documentId) =>
               editorDocumentController.project.documents.find(
                 (candidate) => candidate.id === documentId,
@@ -283,6 +292,7 @@ export function useAgentProjectResources({
       browserAgentHost,
       openProjectInTabRef,
       openLocalProjectRef,
+      reviewWorkspaceRef,
       projectSwitchBlockerRef,
     ],
   );

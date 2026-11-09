@@ -230,7 +230,12 @@ Project Info → Imported source shows the same version in the tab. Compare
 structural source, independent of simulation. Parsed source positions refer
 to the converted representation when a native source was converted.
 
-Repeat the call to locate a matching open copy with its current edits.
+RNL opens with Canvas appearance. Pass `rnlAppearance:"source"` to keep the
+authored appearance. Repeat the call with the same appearance to locate a
+matching open copy with its current edits. Both appearances report the same
+source version for identical bytes. Project Info shows the appearance of
+the open copy. To keep working in a tab opened before the appearance choice
+was available, reuse its workspace with `open_canvas`.
 `previousRevision:"recovered-snapshot"` refers to the browser's restored
 snapshot, and `"unconfirmed"` to a fresh import whose earlier working
 revision is unavailable. A foreground delivery binds the task to the returned
@@ -251,6 +256,57 @@ the import-reference baseline (status becomes modified) and does not retarget
 bulk (resolve missing bulk first). Geometry is not arranged.
 `request-approval` is only for replacing the whole browser Project at the
 human's wish. After a Project switch, refresh status and context.
+
+### From a netlist to a review
+
+Decide how to draw separately from how to present. Reuse a usable Canvas
+Project or the layout and routing from an existing RNL drawing. Check that
+known Cell Pins and Ground use native symbols and MOS bulk branches are
+dashed in Canvas appearance. Use source appearance when the user wants the
+authored styling. An explicit redraw calls for a new layout. For a local
+source, `open_canvas` and `import_file` `open-local` bring the exact entry and
+dependencies into the task; the user need not prepare a tab. For a plain
+netlist, inspect the imported Instances, models, terminals and Nets. Arrange
+the parts and use [native routing](../shared/authoring.md): place tray
+Instances or adjust the initial layout, then route the missing connections.
+If the user asks for RNL or works in RNL files, author the drawing comments,
+validate them with upstream RNL tooling, then deliver the annotated entry
+with `open-local`. Keep the electrical lines and dependency files intact.
+
+Check electrical correspondence and visual completeness separately. Compare
+with the [reference netlist](#comparing-with-a-reference-netlist) where the
+format is supported. Check the critical connections, labels and pin landings
+in the drawing. Report unresolved mappings, missing geometry and any
+inconclusive comparison. Do not substitute devices or change the circuit to
+make an image render. A clean image is not an electrical check.
+
+- For a chat image, use `export_file` with `artifact:"png"`,
+  `includeReview:true`, the Cell's `documentId` and a local `outputPath`,
+  and show the resulting image. Use a new path for each revision and crop. Canvas
+  may open behind this workflow to render it. For a detail, pass Canvas
+  coordinates as `bounds:{x,y,width,height}`; get positions from `inspect`.
+- Keep the export's `taskRef` and `review` receipt. The latter names the live
+  Project, workspace, Cell, structure and Cell revisions, and, for a delivered
+  local source, its version and whether the working copy was modified or
+  recovered. `unsaved` describes the current working copy. `unplacedInstances`
+  counts undrawn Instances; check visible routes separately. Pass the
+  receipt's `projectId`, `workspaceId`, `workspaceGeneration`, `documentId`,
+  `structureRevision`, `revision` and `sourceVersion` (when
+  present) as `expected` to export the same revision.
+- For Web, reuse `open_canvas({taskRef})` and wait for `projectRead:"ready"`.
+  Activate the recorded workspace if needed, then use `circuit_view` to open
+  the Cell and fit or select the requested objects. Confirm with
+  `project_cells({taskRef,action:"workspace",request:{action:"list",includeReview:true}})`:
+  compare the active workspace, its Project and structure revision, and
+  its `review` generation, active Cell and source version with the picture
+  receipt. Compare that Cell's revision in `cells`. If the list cannot confirm
+  these fields, do not claim it shows the same revision. Switching presentation
+  does not reimport or redraw.
+- After a human edit, a request for the old image revision returns
+  `REVIEW_TARGET_CHANGED`. Read the live revision, label the change and export
+  the current image. A restored working copy has a new `workspaceGeneration`;
+  read its current state and label the recovery. Do not present a cached
+  image as current when the live Canvas cannot be confirmed.
 
 ## Timing and batch CLI
 

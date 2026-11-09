@@ -5,11 +5,13 @@ import {
   base64DecodeBytes,
   base64EncodeBytes,
   localSourceIdentity,
+  matchesAgentReviewTarget,
   type AgentFileCandidateSummary,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
   type AgentLocalProjectReceipt,
   type AgentLocalSource,
+  type AgentReviewReceipt,
 } from "@icm/agent-adapter";
 import {
   SimulationFiles,
@@ -24,6 +26,7 @@ import { createSimulationProjectFileHost } from "../features/simulation/project-
 import { createBrowserFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type { RnlAppearance } from "@icm/rnl";
 import { findBuiltInBodies } from "@icm/netlist";
 import { importSpiceSources } from "@icm/spice";
 import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
@@ -36,16 +39,29 @@ import { createBrowserSimulationArtifactStore } from "../features/simulation/bro
 type StoredCandidate = {
   project: CircuitProject;
   summary: AgentFileCandidateSummary;
+  rnlAppearance?: RnlAppearance;
 };
 
-export type OpenLocalProject = (
-  version: string,
-  background: boolean,
-  candidate?: { project: CircuitProject; source: AgentLocalSource },
-) => Promise<AgentLocalProjectReceipt | "blocked" | null>;
+export type OpenLocalProject = (request: {
+  sourceVersion: string;
+  background: boolean;
+  rnlAppearance: RnlAppearance;
+  candidate?: { project: CircuitProject; source: AgentLocalSource };
+}) => Promise<AgentLocalProjectReceipt | "blocked" | null>;
+
+export type AgentReviewWorkspace = Pick<
+  AgentReviewReceipt,
+  | "workspaceId"
+  | "workspaceGeneration"
+  | "sourceVersion"
+  | "modified"
+  | "recovered"
+  | "unsaved"
+>;
 
 export interface BrowserAgentFileHostOptions {
   openLocalProject?: OpenLocalProject;
+  getReviewWorkspace?: () => AgentReviewWorkspace | undefined;
   getActiveDocumentId?: () => string;
   commitProjectStructure?: (
     project: CircuitProject,
@@ -82,6 +98,7 @@ export class BrowserAgentFileHost {
   readonly simulationFiles: SimulationFiles;
   private readonly candidates = new Map<string, StoredCandidate>();
   private readonly boundProjectSessionId: string;
+  private readonly reviewGeneration = crypto.randomUUID();
   setArtifactPublisher(
     publisher: ArtifactPublisher,
     options?: { leasedDownloads?: boolean },
@@ -139,10 +156,11 @@ export class BrowserAgentFileHost {
             "FILE_OPEN_UNAVAILABLE",
             "Local delivery needs a Canvas Web editor",
           );
-        const delivery = await this.options.openLocalProject(
-          request.sourceVersion,
-          request.background ?? false,
-        );
+        const delivery = await this.options.openLocalProject({
+          sourceVersion: request.sourceVersion,
+          background: request.background ?? false,
+          rnlAppearance: request.rnlAppearance ?? "canvas",
+        });
         if (delivery === "blocked") return this.openBlocked(request);
         return {
           apiVersion: AGENT_API_VERSION,
@@ -232,11 +250,12 @@ export class BrowserAgentFileHost {
               "Local delivery needs a Canvas Web editor",
             );
           const { source } = candidate.summary;
-          const delivery = await this.options.openLocalProject(
-            source.version,
-            request.background ?? false,
-            { project: candidate.project, source },
-          );
+          const delivery = await this.options.openLocalProject({
+            sourceVersion: source.version,
+            background: request.background ?? false,
+            rnlAppearance: candidate.rnlAppearance ?? "canvas",
+            candidate: { project: candidate.project, source },
+          });
           if (delivery === "blocked") return this.openBlocked(request);
           if (!delivery)
             return this.error(
@@ -420,10 +439,9 @@ export class BrowserAgentFileHost {
           "Built-in simulation plots are retired. Read raw/CSV artifacts through simulation_files and plot externally.",
         );
       }
+      const project = this.options.getProject();
       if (request.artifact === "project") {
-        const bytes = new TextEncoder().encode(
-          serializeProject(this.options.getProject()),
-        );
+        const bytes = new TextEncoder().encode(serializeProject(project));
         return this.artifactResponse(
           request,
           "project.icproj.json",
@@ -431,57 +449,106 @@ export class BrowserAgentFileHost {
           bytes,
         );
       }
-      const document = this.options.getDocument(request.documentId!);
+      const document = request.documentId
+        ? this.options.getDocument(request.documentId)
+        : null;
       if (!document)
         return this.error(
           request,
-          "DOCUMENT_NOT_FOUND",
+          request.expected ? "REVIEW_TARGET_CHANGED" : "DOCUMENT_NOT_FOUND",
           "Document is not present in this Project",
         );
+      const wantsReview =
+        request.includeReview || request.expected || request.bounds;
+      const workspace = wantsReview
+        ? this.options.getReviewWorkspace?.()
+        : undefined;
+      const review: AgentReviewReceipt | undefined = wantsReview
+        ? {
+            ...workspace,
+            workspaceGeneration:
+              workspace?.workspaceGeneration ?? this.reviewGeneration,
+            projectId: project.id,
+            structureRevision: project.structureRevision,
+            documentId: document.id,
+            revision: document.revision,
+            sourceStatus: document.sourceStatus,
+            unplacedInstances: document.instances.filter(
+              (item) => !item.placement,
+            ).length,
+            ...(request.bounds ? { bounds: request.bounds } : {}),
+          }
+        : undefined;
+      if (
+        request.expected &&
+        (!review || !matchesAgentReviewTarget(review, request.expected))
+      )
+        return this.error(
+          request,
+          "REVIEW_TARGET_CHANGED",
+          "The Canvas no longer shows the requested revision. Read the live Project before taking a new image.",
+        );
+      const resolver = this.options.getResolver();
       const prepared = await prepareDocumentFormulaArtifacts(document);
       const source = await (async () => {
         try {
-          return await createBrowserFormalExportSource(
-            document,
-            this.options.getResolver(),
-            { title: this.options.getProject().name },
-          );
+          return await createBrowserFormalExportSource(document, resolver, {
+            title: project.name,
+            ...(request.bounds ? { bounds: request.bounds } : {}),
+          });
         } finally {
           prepared.release();
         }
       })();
+      let artifact: { name: string; mediaType: string; bytes: Uint8Array };
       if (request.artifact === "svg") {
-        return this.artifactResponse(
-          request,
-          "schematic.svg",
-          "image/svg+xml",
-          new TextEncoder().encode(source.svg),
-        );
-      }
-      if (request.artifact === "png") {
+        artifact = {
+          name: "schematic.svg",
+          mediaType: "image/svg+xml",
+          bytes: new TextEncoder().encode(source.svg),
+        };
+      } else if (request.artifact === "png") {
         const { rasterizeFormalSvgInBrowser } = await importChunk(
           "PNG export",
           () => import("@icm/exporters/browser-raster"),
         );
         const png = await rasterizeFormalSvgInBrowser(source);
-        return this.artifactResponse(
-          request,
-          "schematic.png",
-          png.mediaType,
-          png.bytes,
+        artifact = {
+          name: "schematic.png",
+          mediaType: png.mediaType,
+          bytes: png.bytes,
+        };
+      } else {
+        const { vectorizeFormalSvgInBrowser } = await importChunk(
+          "PDF export",
+          () => import("@icm/exporters/browser-pdf"),
         );
+        artifact = {
+          name: "schematic.pdf",
+          mediaType: "application/pdf",
+          bytes: await vectorizeFormalSvgInBrowser(source),
+        };
       }
-      const { vectorizeFormalSvgInBrowser } = await importChunk(
-        "PDF export",
-        () => import("@icm/exporters/browser-pdf"),
-      );
-      const pdf = await vectorizeFormalSvgInBrowser(source);
-      return this.artifactResponse(
+      const response = await this.artifactResponse(
         request,
-        "schematic.pdf",
-        "application/pdf",
-        pdf,
+        artifact.name,
+        artifact.mediaType,
+        artifact.bytes,
+        review,
       );
+      if (
+        review &&
+        (this.options.getProjectSessionId() !== this.boundProjectSessionId ||
+          this.options.getProject() !== project ||
+          this.options.getReviewWorkspace?.()?.workspaceGeneration !==
+            workspace?.workspaceGeneration)
+      )
+        return this.error(
+          request,
+          "REVIEW_TARGET_CHANGED",
+          "The live Canvas changed while exporting. Read its current revision before retrying.",
+        );
+      return response;
     } catch (error) {
       return this.error(
         request,
@@ -522,7 +589,11 @@ export class BrowserAgentFileHost {
         }));
         const start = performance.now();
         const { importLocalCircuit } = await import("./import-local-circuit");
-        const imported = await importLocalCircuit(inputs, entryPath);
+        const imported = await importLocalCircuit(
+          inputs,
+          entryPath,
+          request.rnlAppearance,
+        );
         project = imported.project;
         diagnostics = imported.diagnostics;
         const identityFiles =
@@ -632,7 +703,13 @@ export class BrowserAgentFileHost {
         diagnostics,
         ...local,
       };
-      this.candidates.set(candidateId, { project, summary });
+      this.candidates.set(candidateId, {
+        project,
+        summary,
+        ...(local?.source.format === "rnl"
+          ? { rnlAppearance: request.rnlAppearance ?? "canvas" }
+          : {}),
+      });
       return {
         apiVersion: AGENT_API_VERSION,
         requestId: request.requestId,
@@ -706,6 +783,7 @@ export class BrowserAgentFileHost {
     name: string,
     mediaType: string,
     bytes: Uint8Array,
+    review?: AgentReviewReceipt,
   ): Promise<AgentFileResourceResponse> {
     if (bytes.byteLength > AGENT_FILE_RESOURCE_MAX_BYTES)
       return this.error(
@@ -718,6 +796,7 @@ export class BrowserAgentFileHost {
       requestId: request.requestId,
       operation: "download",
       ok: true,
+      ...(review ? { review } : {}),
       artifact: {
         name,
         mediaType,

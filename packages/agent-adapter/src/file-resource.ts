@@ -6,6 +6,7 @@ import {
   SimulationFileResultSchema,
 } from "@icm/simulation-service/files";
 import { ProblemSchema } from "@icm/simulation-service/contract";
+import { GridRectSchema } from "@icm/model";
 
 import { AGENT_API_VERSION } from "./schema.js";
 
@@ -74,6 +75,13 @@ const AgentLocalSourceSchema = z.strictObject({
 
 export type AgentLocalSource = z.infer<typeof AgentLocalSourceSchema>;
 
+export const AgentRnlAppearanceSchema = z
+  .enum(["canvas", "source"])
+  .describe(
+    "RNL appearance in Canvas. Defaults to native Canvas conventions. Use source for authored styling.",
+  );
+export type AgentRnlAppearance = z.infer<typeof AgentRnlAppearanceSchema>;
+
 export function hasRnlCommentRecords(text: string): boolean {
   return /^(?:\*|\/\/) @RNL\b/mu.test(text);
 }
@@ -118,6 +126,37 @@ export type AgentLocalProjectReceipt = z.infer<
   typeof AgentLocalProjectReceiptSchema
 >;
 
+export const AgentReviewTargetSchema = z.strictObject({
+  projectId: StableIdSchema,
+  workspaceId: StableIdSchema.optional(),
+  workspaceGeneration: StableIdSchema,
+  documentId: StableIdSchema,
+  structureRevision: z.number().int().nonnegative(),
+  revision: z.number().int().nonnegative(),
+  sourceVersion: Sha256Schema.optional(),
+});
+
+const AgentReviewReceiptSchema = AgentReviewTargetSchema.extend({
+  sourceStatus:
+    AgentLocalProjectReceiptSchema.shape.document.shape.sourceStatus,
+  modified: z.boolean().optional(),
+  recovered: z.boolean().optional(),
+  unsaved: z.boolean().optional(),
+  unplacedInstances: z.number().int().nonnegative(),
+  bounds: GridRectSchema.optional(),
+});
+export type AgentReviewTarget = z.infer<typeof AgentReviewTargetSchema>;
+export type AgentReviewReceipt = z.infer<typeof AgentReviewReceiptSchema>;
+
+export function matchesAgentReviewTarget(
+  receipt: AgentReviewTarget,
+  expected: AgentReviewTarget,
+): boolean {
+  return Object.entries(expected).every(
+    ([key, value]) => receipt[key as keyof AgentReviewTarget] === value,
+  );
+}
+
 export const AgentFileDownloadOptionsSchema = z
   .strictObject({
     artifact: z
@@ -126,6 +165,18 @@ export const AgentFileDownloadOptionsSchema = z
         "Project and Canvas exports. simulation-plot is a retired compatibility request and returns SIMULATION_PLOT_RETIRED; use simulation-input artifact access for raw/CSV/Spec results.",
       ),
     documentId: StableIdSchema.optional(),
+    includeReview: z
+      .boolean()
+      .optional()
+      .describe(
+        "Include the live workspace and revision receipt with a visual export.",
+      ),
+    expected: AgentReviewTargetSchema.optional().describe(
+      "Require this live Canvas revision before exporting an image.",
+    ),
+    bounds: GridRectSchema.optional().describe(
+      "Exact SVG or PNG crop in Canvas coordinates.",
+    ),
     simulation: z
       .strictObject({
         runId: StableIdSchema,
@@ -136,6 +187,23 @@ export const AgentFileDownloadOptionsSchema = z
       .optional(),
   })
   .superRefine((value, context) => {
+    if (value.bounds && value.artifact !== "svg" && value.artifact !== "png")
+      context.addIssue({
+        code: "custom",
+        path: ["bounds"],
+        message: "Only SVG and PNG exports take a crop",
+      });
+    if (
+      (value.includeReview || value.expected) &&
+      (value.artifact === "project" ||
+        value.artifact === "simulation-plot" ||
+        (value.expected && value.expected.documentId !== value.documentId))
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["documentId"],
+        message: "Review receipts address the visual document being exported",
+      });
     if (value.artifact === "simulation-plot") {
       if (!value.simulation)
         context.addIssue({
@@ -187,11 +255,13 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
         .max(AGENT_FILE_RESOURCE_MAX_FILES),
       entryPath: z.string().min(1).max(512).optional(),
       namingProfile: z.enum(["native", "cadence-bang"]).optional(),
+      rnlAppearance: AgentRnlAppearanceSchema.optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("locate-local"),
       sourceVersion: Sha256Schema,
       background: z.boolean().optional(),
+      rnlAppearance: AgentRnlAppearanceSchema.optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("inspect"),
@@ -261,6 +331,7 @@ export const AgentFileResourceResponseSchema = z.union([
     operation: z.literal("download"),
     ok: z.literal(true),
     artifact: AgentFileBlobSchema,
+    review: AgentReviewReceiptSchema.optional(),
   }),
   FileResponseBaseSchema.extend({
     operation: z.enum(["stage", "inspect"]),

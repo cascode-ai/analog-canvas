@@ -1,6 +1,7 @@
 // Project tabs and their sessions: what a tab captures and restores, how the
 // window's tabs are saved and reopened, and what holds the editor on a tab.
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import type { RnlAppearance } from "@icm/rnl";
 import type {
   AgentLocalProjectReceipt,
   AgentLocalSource,
@@ -87,6 +88,7 @@ type AgentProjectResourcesOptions = Parameters<
 
 interface LocalDelivery {
   source: AgentLocalSource;
+  rnlAppearance?: RnlAppearance;
   importedRevision: string;
   recovered: boolean;
 }
@@ -149,6 +151,7 @@ interface ProjectTabSessionsOptions {
   projectSwitchBlockerRef: RefObject<() => string | null>;
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
   openLocalProjectRef: RefObject<OpenLocalProject>;
+  reviewWorkspaceRef: AgentProjectResourcesOptions["reviewWorkspaceRef"];
   setAgentFileCandidate: AgentProjectResources["setAgentFileCandidate"];
   setAnalogSimulationState: Dispatch<
     SetStateAction<"closed" | "open" | "maximized" | "minimized">
@@ -241,6 +244,7 @@ export function useProjectTabSessions({
   projectSwitchBlockerRef,
   openProjectInTabRef,
   openLocalProjectRef,
+  reviewWorkspaceRef,
   setAgentFileCandidate,
   setAnalogSimulationState,
   codeDraftDirty,
@@ -278,13 +282,19 @@ export function useProjectTabSessions({
       LocalDelivery & { sessionId: string }
     >(),
   );
+  const reviewGenerations = useRef(
+    new WeakMap<
+      EditorDocumentController,
+      { sessionId: string; generation: string }
+    >(),
+  );
   function localDeliveryOf(
     controller: EditorDocumentController,
   ): LocalDelivery | undefined {
     const local = localDeliveries.current.get(controller);
     if (local?.sessionId !== controller.projectSessionId) return undefined;
-    const { source, importedRevision, recovered } = local;
-    return { source, importedRevision, recovered };
+    const { sessionId: _sessionId, ...delivery } = local;
+    return delivery;
   }
   function captureTabSession() {
     return {
@@ -308,6 +318,15 @@ export function useProjectTabSessions({
     };
   }
   type TabSession = ReturnType<typeof captureTabSession>;
+  function isTabUnsaved(session: TabSession) {
+    // A tab whose exact bytes the Gallery holds loses nothing on close.
+    return (
+      (session.dirty &&
+        session.file.publishedSnapshotToken !==
+          projectChangeToken(session.controller.project)) ||
+      session.unsafe
+    );
+  }
   function restoreTabSession(session: TabSession) {
     resetInteractionState();
     // The outgoing tab still owns its artifacts and expiring workspaces.
@@ -676,12 +695,7 @@ export function useProjectTabSessions({
     restore: restoreTabSession,
     describe: (session) => ({
       name: session.controller.project.name,
-      // A tab whose exact bytes the Gallery holds loses nothing on close.
-      dirty:
-        (session.dirty &&
-          session.file.publishedSnapshotToken !==
-            projectChangeToken(session.controller.project)) ||
-        session.unsafe,
+      dirty: isTabUnsaved(session),
       unsafe: session.unsafe,
       cloudId: session.file.cloudBinding?.id ?? null,
       galleryId: session.publication?.id ?? null,
@@ -852,10 +866,45 @@ export function useProjectTabSessions({
           () => createTabSession(next, view, options),
           options.cloudBinding?.id,
         );
-  openLocalProjectRef.current = async (version, background, candidate) => {
+  reviewWorkspaceRef.current = (controller) => {
+    const tab = projectTabs
+      .entries()
+      .find(({ session }) => session.controller === controller);
+    if (!tab) return undefined;
+    const local = localDeliveryOf(controller);
+    const sessionId = controller.projectSessionId;
+    let live = reviewGenerations.current.get(controller);
+    if (!live || live.sessionId !== sessionId) {
+      live = { sessionId, generation: crypto.randomUUID() };
+      reviewGenerations.current.set(controller, live);
+    }
+    return {
+      workspaceId: tab.id,
+      workspaceGeneration: live.generation,
+      unsaved: isTabUnsaved(tab.session),
+      ...(local
+        ? {
+            sourceVersion: local.source.version,
+            modified:
+              projectChangeToken(controller.project) !== local.importedRevision,
+            recovered: local.recovered,
+          }
+        : {}),
+    };
+  };
+  openLocalProjectRef.current = async ({
+    sourceVersion,
+    background,
+    rnlAppearance,
+    candidate,
+  }) => {
+    const matches = (local: LocalDelivery | undefined) =>
+      local?.source.version === sourceVersion &&
+      // Earlier RNL tabs did not record which appearance was requested.
+      (local.source.format !== "rnl" || local.rnlAppearance === rnlAppearance);
     const existing = projectTabs
       .entries()
-      .find(({ session }) => session.localDelivery?.source.version === version);
+      .find(({ session }) => matches(session.localDelivery));
     let disposition: AgentLocalProjectReceipt["disposition"] = "reused";
     let controller = existing?.session.controller;
     if (existing) {
@@ -873,6 +922,7 @@ export function useProjectTabSessions({
         controller = session.controller;
         const localDelivery = {
           source: candidate.source,
+          ...(candidate.source.format === "rnl" ? { rnlAppearance } : {}),
           importedRevision: projectChangeToken(controller.project),
           recovered: false,
         };
@@ -891,8 +941,7 @@ export function useProjectTabSessions({
       .entries()
       .find((entry) => entry.session.controller === controller);
     const local = controller && localDeliveryOf(controller);
-    if (!actual || !controller || !local || local.source.version !== version)
-      return null;
+    if (!actual || !controller || !local || !matches(local)) return null;
     const { project, document } = controller;
     const span = document.sourceBinding?.sourceRef;
     const file = project.source.files.find((item) => item.id === span?.fileId);
@@ -1080,6 +1129,9 @@ export function useProjectTabSessions({
       return (
         local && {
           source: local.source,
+          ...(local.rnlAppearance
+            ? { rnlAppearance: local.rnlAppearance }
+            : {}),
           recovered: local.recovered,
           modified: local.importedRevision !== projectChangeToken(project),
         }

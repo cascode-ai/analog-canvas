@@ -3,7 +3,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import {
   AGENT_API_VERSION,
+  matchesAgentReviewTarget,
   type AgentFileResourceRequest,
+  type AgentRnlAppearance,
 } from "@icm/agent-adapter";
 import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
 import {
@@ -60,6 +62,9 @@ export async function exportFile(
     operation: "download",
     artifact: options.artifact,
     ...(options.documentId ? { documentId: options.documentId } : {}),
+    ...(options.includeReview ? { includeReview: true } : {}),
+    ...(options.expected ? { expected: options.expected } : {}),
+    ...(options.bounds ? { bounds: options.bounds } : {}),
     ...(options.simulation ? { simulation: options.simulation } : {}),
   });
   if (!response.ok || response.operation !== "download") {
@@ -68,6 +73,23 @@ export async function exportFile(
       response.ok ? "unexpected file response" : response.error.message,
     );
   }
+  if (
+    (options.includeReview && !response.review) ||
+    (options.expected &&
+      (!response.review ||
+        !matchesAgentReviewTarget(response.review, options.expected))) ||
+    (options.bounds &&
+      (!response.review?.bounds ||
+        Object.entries(options.bounds).some(
+          ([key, value]) =>
+            response.review?.bounds?.[key as keyof typeof options.bounds] !==
+            value,
+        )))
+  )
+    throw requestFailure(
+      "REVIEW_TARGET_CHANGED",
+      "Canvas did not confirm the requested revision and image bounds",
+    );
   const bytes = Buffer.from(response.artifact.data, "base64");
   if (
     bytes.byteLength !== response.artifact.byteLength ||
@@ -87,6 +109,7 @@ export async function exportFile(
     outputPath,
     byteLength: bytes.byteLength,
     sha256: response.artifact.sha256,
+    ...(response.review ? { review: response.review } : {}),
   };
 }
 
@@ -198,6 +221,7 @@ export async function openLocalFile(
     rootPath: string;
     entryPath: string;
     background?: boolean;
+    rnlAppearance?: AgentRnlAppearance;
     taskRef?: string;
   },
 ) {
@@ -208,6 +232,9 @@ export async function openLocalFile(
   );
   const prepare = performance.now() - started;
   const background = options.background ?? false;
+  const appearance = options.rnlAppearance
+    ? { rnlAppearance: options.rnlAppearance }
+    : {};
   started = performance.now();
   const locateCopy = () =>
     client.fileResource(
@@ -217,6 +244,7 @@ export async function openLocalFile(
         operation: "locate-local",
         sourceVersion: version,
         background,
+        ...appearance,
       },
       "session",
     );
@@ -253,6 +281,7 @@ export async function openLocalFile(
         kind: "local-circuit",
         entryPath,
         files,
+        ...appearance,
       },
       "session",
     );

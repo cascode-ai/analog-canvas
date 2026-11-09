@@ -1,6 +1,7 @@
 import { prepareImportSources } from "../netlist-export/convert-import-sources";
 import type { NetlistNamingProfile } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
+import type { RnlAppearance } from "@icm/rnl";
 import { importSpiceSources } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
 import { safeExportBaseName } from "@icm/exporters";
@@ -299,7 +300,10 @@ export function createEditorFileCommands({
     setStatus(message);
   };
 
-  const importRnlFiles = async (files: FileList | null): Promise<void> => {
+  const importRnlFiles = async (
+    files: FileList | null,
+    appearance: RnlAppearance = "canvas",
+  ): Promise<void> => {
     const sources = await readSources(files);
     if (!sources) return;
     // readSources returns only with exactly one entry.
@@ -316,6 +320,7 @@ export function createEditorFileCommands({
         inputs: sources.sourceInputs,
         entryPath,
         runtime: await loadRnlRuntime(),
+        appearance,
       });
       const report = { entryPath, diagnostics: plan.diagnostics };
       if (plan.status === "failed") {

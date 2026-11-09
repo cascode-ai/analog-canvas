@@ -380,6 +380,66 @@ function setup() {
 }
 
 describe("BrowserAgentFileHost", () => {
+  it("refuses a review image if the Project changes while its artifact is being hashed", async () => {
+    const controller = new EditorDocumentController(
+      createEmptyProject("review", "Review"),
+    );
+    const documentId = controller.document.id;
+    const host = new BrowserAgentFileHost({
+      getProjectSessionId: () => controller.projectSessionId,
+      getProject: () => controller.project,
+      getDocument: (id) =>
+        controller.project.documents.find((item) => item.id === id) ?? null,
+      getResolver: () => controller.resolver,
+      onApprovalRequested: () => {},
+    });
+    const hashing = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    const digest = crypto.subtle.digest.bind(crypto.subtle);
+    const delayed = vi
+      .spyOn(crypto.subtle, "digest")
+      .mockImplementationOnce(async (algorithm, bytes) => {
+        hashing.resolve();
+        await release.promise;
+        return digest(algorithm, bytes);
+      });
+    try {
+      const pending = host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: "review-during-edit",
+        operation: "download",
+        artifact: "svg",
+        documentId,
+        includeReview: true,
+        bounds: { x: 0, y: 0, width: 40, height: 50 },
+      });
+      await Promise.race([
+        hashing.promise,
+        pending.then((response) => {
+          throw new Error(
+            `Export ended before hashing: ${JSON.stringify(response)}`,
+          );
+        }),
+      ]);
+      controller.commitProjectStructure(
+        {
+          ...controller.project,
+          name: "Edited during export",
+          structureRevision: controller.project.structureRevision + 1,
+        },
+        documentId,
+      );
+      release.resolve();
+      await expect(pending).resolves.toMatchObject({
+        ok: false,
+        error: { code: "REVIEW_TARGET_CHANGED" },
+      });
+    } finally {
+      release.resolve();
+      delayed.mockRestore();
+    }
+  });
+
   it("returns canonical Project bytes without changing the live Project", async () => {
     const { live, host } = setup();
     const response = await host.handle({

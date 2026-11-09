@@ -7,6 +7,7 @@ import {
 import { serializeProject } from "@icm/project-protocol";
 import {
   applyRnlSnapshot,
+  type RnlAppearance,
   canvasTopDocument,
   drawnCalledBlocks,
   drawnExternalSymbolMappings,
@@ -101,9 +102,10 @@ type OmittedDrawing = { code: string; message: string };
 function drawingOf(
   imported: CircuitProject,
   snapshot: RnlSnapshot,
+  appearance: RnlAppearance,
 ): ReturnType<typeof applyRnlSnapshot> | OmittedDrawing {
   try {
-    return applyRnlSnapshot(imported, snapshot);
+    return applyRnlSnapshot(imported, snapshot, appearance);
   } catch (error) {
     return {
       code: "RNL_IMPORT_INVALID_DRAWING",
@@ -305,6 +307,7 @@ export async function planRnlImport(request: {
   entryPath: string;
   runtime: RnlRuntime | null;
   compileOptions?: SpiceCompileOptions;
+  appearance?: RnlAppearance | undefined;
 }): Promise<RnlImportPlan> {
   try {
     return await buildImportPlan(request);
@@ -321,11 +324,13 @@ async function buildImportPlan({
   entryPath,
   runtime,
   compileOptions = {},
+  appearance = "canvas",
 }: {
   inputs: SpiceSourceInput[];
   entryPath: string;
   runtime: RnlRuntime | null;
   compileOptions?: SpiceCompileOptions;
+  appearance?: RnlAppearance | undefined;
 }): Promise<RnlImportPlan> {
   if (!runtime)
     return failedPlan(
@@ -393,17 +398,17 @@ async function buildImportPlan({
   // beside it may call it, and so be the netlist's top in its place.
   const top = canvasTopDocument(imported.project, snapshot);
   if (top) imported.project.topDocumentId = top;
-  const drawn = snapshot.failed
+  let drawn = snapshot.failed
     ? {
         code: "RNL_IMPORT_UNREADABLE",
         message: `RNL could not read the file: ${snapshot.failed}`,
       }
-    : drawingOf(imported.project, snapshot);
+    : drawingOf(imported.project, snapshot, appearance);
   const fileImported = imported.project;
-  const kept =
-    "code" in drawn
-      ? drawn
-      : await drawnProject(fileImported, drawn, (project) =>
+  const verifyDrawing = async (drawing: typeof drawn) =>
+    "code" in drawing
+      ? drawing
+      : drawnProject(fileImported, drawing, (project) =>
           writesFileNetlist(
             project,
             fileImported,
@@ -415,11 +420,28 @@ async function buildImportPlan({
             externalSubcircuitNames,
           ),
         );
+  let kept = await verifyDrawing(drawn);
+  let appearanceFinding: SpiceDiagnostic | undefined;
+  if ("code" in kept && appearance === "canvas" && !snapshot.failed) {
+    const source = drawingOf(fileImported, snapshot, "source");
+    const verifiedSource = await verifyDrawing(source);
+    if ("project" in verifiedSource) {
+      appearanceFinding = reported({
+        severity: "warning",
+        code: "RNL_IMPORT_SOURCE_APPEARANCE",
+        message:
+          "Canvas appearance could not be verified. The source drawing was kept.",
+      });
+      drawn = source;
+      kept = verifiedSource;
+    }
+  }
   const read = "code" in drawn ? null : drawn;
   const parameterTexts = read?.parameterTexts ?? [];
   const diagnostics = [
     ...imported.diagnostics,
     ...(read?.diagnostics ?? []).map(reported),
+    ...(appearanceFinding ? [appearanceFinding] : []),
     ...("project" in kept
       ? []
       : [
@@ -436,7 +458,8 @@ async function buildImportPlan({
       status: "ready",
       project: withParameterTexts(kept.project, parameterTexts),
       diagnostics,
-      drawing: read?.diagnostics.length ? "partial" : "preserved",
+      drawing:
+        appearanceFinding || read?.diagnostics.length ? "partial" : "preserved",
     };
   const undrawn = withParameterTexts(
     withImportedInstanceDisplays(imported.project),

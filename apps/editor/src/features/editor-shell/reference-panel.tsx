@@ -284,6 +284,7 @@ export interface ReferenceWindowProps {
   localDelivery?:
     | {
         source: import("@icm/agent-adapter").AgentLocalSource;
+        rnlAppearance?: import("@icm/rnl").RnlAppearance;
         modified: boolean;
         recovered: boolean;
       }
@@ -549,6 +550,16 @@ export function ReferenceWindow({
             <code data-testid="local-source-version">
               {localDelivery.source.version}
             </code>
+            {localDelivery.rnlAppearance ? (
+              <p data-testid="local-source-appearance">
+                {localDelivery.rnlAppearance === "canvas" &&
+                !localDelivery.source.diagnostics.some(
+                  ({ code }) => code === "RNL_IMPORT_SOURCE_APPEARANCE",
+                )
+                  ? "Canvas appearance"
+                  : "Source appearance"}
+              </p>
+            ) : null}
             <p>
               {localDelivery.modified
                 ? "Edited since import"

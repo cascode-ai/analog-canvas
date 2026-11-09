@@ -25,7 +25,7 @@ export function createFormalExportSource(
   resolver: SymbolResolver,
   options: Pick<
     SvgRenderOptions,
-    "title" | "margin" | "objectIds" | "background"
+    "title" | "margin" | "objectIds" | "background" | "bounds"
   > = {},
 ): FormalExportSource {
   const svg = renderDocumentSvg(document, resolver, {
@@ -49,6 +49,7 @@ export async function createBrowserFormalExportSource(
   options: Parameters<typeof createFormalExportSource>[2] = {},
 ): Promise<FormalExportSource> {
   const source = createFormalExportSource(document, resolver, options);
+  if (options.bounds) return source;
   const { measureFormalExportSource } = await import("./browser-bounds.js");
   return measureFormalExportSource(
     source,

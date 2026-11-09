@@ -463,7 +463,8 @@ export function EditorMenuBar({
         onImportProject: (file) => void openProjectFile(file),
         onImportSpice: (files, namingProfile) =>
           void importSpiceFiles(files, namingProfile),
-        onImportRnl: (files) => void importRnlFiles(files),
+        onImportRnl: (files, appearance) =>
+          void importRnlFiles(files, appearance),
         onExportProject: () => void exportProjectFile(),
         onExportSvg: () => void exportSvg(),
         onExportRaster: (format) => void exportRaster(format),
