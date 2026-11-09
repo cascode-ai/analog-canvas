@@ -187,8 +187,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * a generated built-in model's fixed port order or pin mapping (#1393).
  * 15 refuses unimplemented external placeholders and unverified legacy
  * declarations whose original model bodies are absent from the Project.
+ * 16 exports a pulse, sine or AC source without a DC value (#2100): circuits
+ * that alone blocked, about 40 of them, extract.
  */
-export const NETLIST_MARK_RULE_VERSION = 15;
+export const NETLIST_MARK_RULE_VERSION = 16;
 
 export function designExtractsNetlist(
   project: CircuitProject,
