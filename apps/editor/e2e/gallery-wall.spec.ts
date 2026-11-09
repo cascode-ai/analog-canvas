@@ -145,7 +145,7 @@ test("the site lands on the full-screen gallery feed and states its size", async
     "Open any circuit to edit your own copy; publish your own from the editor.",
   );
   await expect(page.getByTestId("gallery-usage-note")).toContainText(
-    "Bulk collection is strictly prohibited",
+    "free to read, download in bulk, mirror and use",
   );
   const brand = page.getByTestId("gallery-editor-link");
   await expect(brand).toHaveCSS("display", "flex");

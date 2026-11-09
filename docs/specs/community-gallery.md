@@ -32,21 +32,21 @@ restrictive CSP.
 
 ## Crawlers, AI and floods
 
-- `robots.txt` states the usage policy (occasional manual use of single
-  circuits is welcome; bulk collection, scraping, mirroring or AI training
-  without the site author's permission, zzhishuai@ethz.ch, is strictly
-  prohibited, detected and blocked at once, and answered with a lawyer's
-  letter), closes the site to AI
-  training and answer-engine crawlers (`worker/usage-policy.ts`), and asks
-  everyone else for `Content-Signal: search=yes, ai-train=no` with
-  `Disallow: /g/`. A user's own assistant fetching one page is not refused.
-  `llms.txt` states the same policy to AI agents and lists no resource while
-  public Gallery documents are off; `sitemap.xml` stays 404. The Agent's MCP
-  Gallery tool description states it in one clause pointing to `llms.txt`;
-  the HTTP Agent operation description carries the sentence. The page shell
-  carries `<meta name="robots" content="noai, noimageai">` and a `<noscript>`
-  note, and the signed-in Gallery's footnote shows the note
-  (`apps/editor/src/usage-policy-note.ts`, the one source of that line).
+- `robots.txt` and `llms.txt` (`worker/usage-policy.ts`) state the usage
+  policy: every public circuit is free to read, download in bulk, mirror and
+  use for any purpose, AI training included; circuits from reference datasets
+  keep their dataset's license; clients stay under the flood limit.
+  `robots.txt` admits every crawler with `Content-Signal: search=yes,
+  ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
+  the list and entry API and no other resource while public Gallery
+  documents are off; `sitemap.xml` stays 404. The page shell's `<noscript>`
+  note and the signed-in Gallery's footnote show the one-line note
+  (`apps/editor/src/usage-policy-note.ts`, its one source); the Agent's MCP
+  Gallery tool and the HTTP Agent operation point to `llms.txt`.
+- `scripts/gallery-download.mjs` (Node 18 or newer, no account or install)
+  downloads every public circuit, oldest first: `index.json` (the list's
+  entries) and `entries/<id>.json` (`{entry, projectText}`), at most 600
+  requests a minute, skipping circuits already on disk.
 - Account blocks (AuthDO `account_blocks`, matched by account or email)
   came from trap circuits, retired 2026-11-08; no read blocks an account
   now. A recorded block refuses only the account's Gallery writes:

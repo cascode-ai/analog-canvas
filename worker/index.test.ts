@@ -127,7 +127,7 @@ describe("the /api flood limit", () => {
     // Not the daily allowances' refusal, and it names the usage policy.
     expect(await refused.json()).toMatchObject({
       error: "too-many-requests",
-      usage: expect.stringContaining("zzhishuai@ethz.ch"),
+      usage: expect.stringContaining("free to read, download in bulk"),
     });
     expect(keys).toEqual(["203.0.113.7"]);
 

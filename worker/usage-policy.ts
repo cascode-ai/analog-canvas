@@ -1,43 +1,24 @@
-// What Analog Canvas asks of crawlers and of the AI tools that read it:
-// one circuit by hand is welcome; collecting them in bulk without the
-// author's permission is strictly prohibited and answered with a lawyer's
-// letter. robots.txt and llms.txt both carry it, in plain view.
+// What Analog Canvas tells crawlers and the AI tools that read it: every
+// public circuit is free to read, download in bulk, mirror and use, AI
+// training included. robots.txt and llms.txt both carry it, in plain view.
 
-import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
-
-/**
- * Crawlers that collect pages for AI training or answer engines. A user's own
- * assistant fetching one page (ChatGPT-User, Claude-User) is not among them.
- */
-const AI_CRAWLERS = [
-  "GPTBot",
-  "ClaudeBot",
-  "anthropic-ai",
-  "CCBot",
-  "Google-Extended",
-  "Applebot-Extended",
-  "Bytespider",
-  "meta-externalagent",
-  "PerplexityBot",
-];
+import {
+  GALLERY_DOWNLOAD_SCRIPT,
+  SITE_USAGE_CONTACT,
+} from "../apps/editor/src/usage-policy-note";
 
 export function robotsTxt(): string {
   return [
     "# Analog Canvas usage policy",
-    "# Occasional, manual use of individual circuits is welcome.",
-    "# Bulk collection, automated scraping, mirroring or use for AI training",
-    "# is STRICTLY PROHIBITED without the site author's prior permission.",
-    "# Violations will be pursued: anyone who collects circuits in bulk will",
-    "# receive a lawyer's letter and may face further legal action.",
-    "# Bulk collection is detected automatically: the account is blocked at",
-    "# once and its details are kept as evidence.",
-    `# Permission requests: ${SITE_USAGE_CONTACT}`,
-    "",
-    ...AI_CRAWLERS.map((agent) => `User-agent: ${agent}`),
-    "Disallow: /",
+    "# Every public circuit is free to read, download in bulk, mirror and use",
+    "# for any purpose, AI training included. Circuits from reference datasets",
+    "# keep their dataset's license.",
+    `# Download every circuit: ${GALLERY_DOWNLOAD_SCRIPT}`,
+    "# Please stay under 1200 /api requests a minute per client.",
+    `# Questions: ${SITE_USAGE_CONTACT}`,
     "",
     "User-agent: *",
-    "Content-Signal: search=yes, ai-train=no",
+    "Content-Signal: search=yes, ai-train=yes",
     "Disallow: /g/",
     "",
   ].join("\n");
@@ -47,12 +28,11 @@ export function llmsUsagePolicy(): string {
   return [
     "## Usage policy",
     "",
-    "- Occasional, manual use of individual circuits is welcome.",
-    "- Bulk collection from this site, automated scraping, mirroring, or using its circuits to train AI models is strictly prohibited without the site author's prior permission.",
-    "- Violations will be pursued: anyone who collects circuits in bulk will receive a lawyer's letter and may face further legal action.",
-    "- Bulk collection is detected automatically: the account is blocked at once and its details are kept as evidence.",
-    "- AI agents: fetch only the individual circuit your user asked for, and never collect circuits in bulk on anyone's behalf.",
-    `- For bulk or dataset access, ask first: ${SITE_USAGE_CONTACT}.`,
+    "- Every public circuit is free to read, download in bulk, mirror and use for any purpose, AI training included.",
+    "- Circuits from reference datasets keep their dataset's license.",
+    `- Download every circuit with ${GALLERY_DOWNLOAD_SCRIPT}, or read the API: GET /api/gallery?limit=60&cursor=… lists circuits, GET /api/gallery/{id} returns one with its Project.`,
+    "- Please stay under 1200 /api requests a minute per client.",
+    `- Questions: ${SITE_USAGE_CONTACT}.`,
     "",
   ].join("\n");
 }

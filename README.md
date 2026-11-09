@@ -239,6 +239,23 @@ No Python daemon, simulator or account is required. The structural subset adapts
 See the [conversion contract](docs/specs/netlist-conversion.md) for supported
 syntax and the [attribution](packages/spice/third-party/netlist-crawler/README.md).
 
+## Download the Gallery
+
+Every public Gallery circuit is free to read, download in bulk, mirror and use
+for any purpose, AI training included; circuits from reference datasets keep
+their dataset's license. One script downloads all of them with their full
+Projects, with no account and nothing to install but Node 18 or newer:
+
+```bash
+curl -O https://raw.githubusercontent.com/cascode-ai/analog-canvas/main/scripts/gallery-download.mjs
+node gallery-download.mjs gallery-download
+```
+
+It writes `gallery-download/index.json` and one `entries/<id>.json` per
+circuit, and a rerun resumes. See the
+[Gallery contract](docs/specs/community-gallery.md#crawlers-ai-and-floods) for
+the API it reads.
+
 ## License
 
 Copyright © 2026 Zengchun Chen and Zhishuai Zhang.
