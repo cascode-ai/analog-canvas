@@ -9,7 +9,7 @@ $extensibility = Join-Path $env:WINDIR 'assembly\GAC\Extensibility\7.0.3300.0__b
 foreach ($file in @($compiler, $office, $extensibility)) {
     if (!(Test-Path -LiteralPath $file)) { throw "Missing build prerequisite: $file. Install Windows x64 desktop Office with .NET programmability support." }
 }
-& $compiler /nologo /target:library "/out:$destination\CircuitCanvas.dll" "/reference:$office" "/reference:$extensibility" /reference:Microsoft.CSharp.dll /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "$PSScriptRoot\src\CircuitCanvas.cs" "$PSScriptRoot\src\HistoryDialog.cs" "$PSScriptRoot\src\RibbonArtwork.cs"
+& $compiler /nologo /target:library "/out:$destination\CircuitCanvas.dll" "/reference:$office" "/reference:$extensibility" /reference:Microsoft.CSharp.dll /reference:System.Core.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll "$PSScriptRoot\src\CircuitCanvas.cs" "$PSScriptRoot\src\ResultReceiver.cs" "$PSScriptRoot\src\HistoryDialog.cs" "$PSScriptRoot\src\RibbonArtwork.cs"
 if ($LASTEXITCODE -ne 0) { throw 'Add-in compilation failed' }
 & $compiler /nologo /target:winexe "/out:$destination\CircuitCanvas.Setup.exe" /reference:System.Windows.Forms.dll "$PSScriptRoot\src\Installer.cs"
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }

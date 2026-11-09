@@ -141,8 +141,7 @@ using Extensibility;
             public string baseline;
             public string folder;
             public string token;
-            public int sequence;
-            public SaveReceipt receipt=new SaveReceipt();
+            public ResultReceiver receiver;
             public Process process;
         }
         public void OnConnection(object application,ext_ConnectMode mode,object addin,ref Array custom) {
@@ -300,7 +299,7 @@ using Extensibility;
                 project=Json().Serialize(seed);
             }
             File.WriteAllText(Path.Combine(folder,"session.json"),Json().Serialize(new {
-                token=token,documentId=documentId
+                token=token,documentId=documentId,cancellationProtocol=1
             }
             ),new UTF8Encoding(false));
             File.WriteAllText(Path.Combine(folder,"drawing.icproj"),project,new UTF8Encoding(false));
@@ -315,7 +314,7 @@ using Extensibility;
             start.EnvironmentVariables["ICM_DESKTOP_PROJECTS"]=Path.Combine(Data,"Projects");
             start.EnvironmentVariables["CIRCUIT_PPT_COMPONENTS"]=Path.Combine(Data,"components.json");
             session=new Session {
-                slide=slide,shape=shape,baseline=shape==null?null:ReadPayload(shape),folder=folder,token=token
+                slide=slide,shape=shape,baseline=shape==null?null:ReadPayload(shape),folder=folder,token=token,receiver=new ResultReceiver(folder,token)
             }
             ;
             session.process=Process.Start(start);
@@ -460,40 +459,12 @@ using Extensibility;
                 if(explain)MessageBox.Show("Create or edit a circuit first, then choose Save to PowerPoint in the editor.","Circuit Canvas");
                 return;
             }
-            if(!session.receipt.TryPublish(session.folder))return;
-            string path=Path.Combine(session.folder,"result.json");
-            if(!File.Exists(path))return;
-            Result result;
-            try {
-                result=Json().Deserialize<Result>(File.ReadAllText(path));
-            }
-            catch {
-                return;
-            }
-            if(result.sequence<=session.sequence||result.token!=session.token)return;
-            // PowerPoint temporarily rejects COM calls while a modal dialog is open. Retry later.
-            try {
+            string error=session.receiver.Poll(result => {
                 dynamic picture=Apply(app,session.slide,session.shape,session.baseline,result,session.folder);
                 session.shape=picture;
                 session.baseline=ReadPayload(picture);
-                session.sequence=result.sequence;
-                Ack(result.sequence,true,null);
-            }
-            catch(COMException e) {
-                if(e.ErrorCode==unchecked((int)0x80010001)||e.ErrorCode==unchecked((int)0x8001010A))return;
-                session.sequence=result.sequence;
-                Ack(result.sequence,false,e.Message);
-                if(explain)MessageBox.Show(e.Message,"Circuit Canvas");
-            }
-            catch(Exception e) {
-                session.sequence=result.sequence;
-                Ack(result.sequence,false,e.Message);
-                if(explain)MessageBox.Show(e.Message,"Circuit Canvas");
-            }
-        }
-        void Ack(int sequence,bool ok,string error) {
-            session.receipt.Record(sequence,ok,error);
-            session.receipt.TryPublish(session.folder);
+            });
+            if(explain&&error!=null)MessageBox.Show(error,"Circuit Canvas");
         }
     }
 }

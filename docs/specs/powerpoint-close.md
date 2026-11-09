@@ -19,7 +19,13 @@ slide picture. This contract covers closing its editor window.
   PowerPoint prompt. The close prompt and the header button's dot agree.
 - Failure, missing acknowledgement, or newer edits keep the window open.
 - The close dialog labels the PowerPoint destination in English. Choosing not
-  to update PowerPoint leaves its previously received drawing unchanged.
+  to update PowerPoint cancels pending saves before closing and retains local
+  recovery revisions. A cancelled session cannot publish or apply later saves.
+  Cancellation and result application share an exclusive cross-process gate,
+  covering result reads through durable acknowledgement. An in-flight or
+  interrupted apply, failed cancellation write, or incompatible add-in keeps
+  the editor open; locks are never stolen. An update already acknowledged by
+  PowerPoint is explicitly reported as retained, not undone.
 - PowerPoint must still save the presentation file. The editor does not save
   or close the user's presentation automatically.
 - Standalone editor launches retain the native close dialog and saving path.
@@ -29,5 +35,7 @@ slide picture. This contract covers closing its editor window.
 [PowerPoint close tests](../../apps/editor/src/app/powerpoint-close.test.ts)
 cover acknowledged snapshots, failure, edits during saving, changed Cells,
 and other project tabs; [save tests](../../apps/editor/src/app/powerpoint-save.test.tsx)
-cover the opened drawing, the dot and the notices. Packaged desktop acceptance must exercise the button
-and window-close paths with the actual renderer and file exchange.
+cover the opened drawing, the dot and the notices. Packaged desktop acceptance
+must exercise the button and window-close paths with the actual renderer and
+file exchange, including timeout then discard then delayed receiver, and
+cancellation during an apply.
