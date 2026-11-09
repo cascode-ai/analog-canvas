@@ -179,9 +179,11 @@ describe("Gallery opens", () => {
       );
     for (let n = 0; n < 120; n += 1)
       expect((await read(`/api/gallery/${id}`))?.status).toBe(200);
-    // Its author's reads and a tile's summary are not opens.
+    // Its author's reads, a tile's summary and a bulk download's read are
+    // not opens.
     await read(`/api/gallery/${id}`, cookieHeaders(maker));
     await read(`/api/gallery/${id}?summary=1`);
+    expect((await read(`/api/gallery/${id}?download=1`))?.status).toBe(200);
     expect(opens(env)).toEqual([{ entry_id: id, opens: 120 }]);
     expect(
       env.gallerySql

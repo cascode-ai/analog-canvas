@@ -245,7 +245,7 @@ it("fails when a circuit cannot be read, naming it, after saving the rest", asyn
   expect(code).toBe(1);
   expect(stdout).toContain("1 downloaded, 0 already on disk, 1 failed");
   expect(stderr).toContain(
-    'failed gone: /api/gallery/gone: 404 {"error":"not-found"}',
+    'failed gone: /api/gallery/gone?download=1: 404 {"error":"not-found"}',
   );
   expect(readdirSync(join(out, "entries"))).toEqual(["a.json"]);
 });

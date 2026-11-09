@@ -810,9 +810,11 @@ export async function routeGalleryRequest(
     const summary = url.searchParams.get("summary") === "1";
     const netlistAlone = summary && url.searchParams.get("netlist") === "spice";
     // Reading a circuit is free and unlimited; it adds one to the circuit's
-    // opens for the day (never who), except for its author.
+    // opens for the day (never who), except for its author and a bulk
+    // download (`download=1`), which reads every circuit once.
     if (
       !summary &&
+      url.searchParams.get("download") !== "1" &&
       payload.status === "public" &&
       (!viewer || viewer.id !== payload.ownerUserId)
     )

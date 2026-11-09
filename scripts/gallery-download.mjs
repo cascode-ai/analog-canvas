@@ -266,7 +266,9 @@ export async function main(argv) {
           if (existsSync(file) && wholeEntry(readFileSync(file, "utf8"), id)) {
             skipped++;
           } else {
-            const { entry, projectText } = await get(`/api/gallery/${id}`);
+            const { entry, projectText } = await get(
+              `/api/gallery/${id}?download=1`,
+            );
             const text = JSON.stringify({ entry, projectText });
             if (!wholeEntry(text, id))
               throw new Error("reply without its Project");

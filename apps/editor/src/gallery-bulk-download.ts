@@ -314,7 +314,7 @@ export async function downloadGalleryZip(
         const reason = await (async () => {
           if (!ENTRY_ID.test(entry.id)) return "unexpected id";
           const reply = await read(
-            `/api/gallery/${encodeURIComponent(entry.id)}`,
+            `/api/gallery/${encodeURIComponent(entry.id)}?download=1`,
           );
           if (!reply.ok) return reply.reason;
           const { entry: held, projectText } = reply.body as {

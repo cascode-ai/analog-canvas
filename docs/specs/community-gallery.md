@@ -26,7 +26,7 @@ restrictive CSP.
   stricter checks. Previews are `private`; the edge cache holds immutable
   bytes; sessions are cached one minute per isolate.
 - Every read of a public circuit's Project (`GET /api/gallery/<id>`, not
-  `summary=1`) by anyone but its owner, repeats included, adds one to the
+  `summary=1` or a bulk download's `download=1`) by anyone but its owner, repeats included, adds one to the
   circuit's opens for the day (`gallery_entry_opens`: entry, day, count;
   never who; not backed up), which only `owner-data` reports.
 
