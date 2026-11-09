@@ -382,7 +382,8 @@ describe("signing in to simulate", () => {
     expect(refused?.status).toBe(401);
     expect(await refused!.json()).toEqual({
       error: "simulation-authentication-required",
-      message: "Sign in to run simulations.",
+      message:
+        "Hosted simulation is for the Analog Canvas team: sign in with a team account, or export a SPICE or Spectre netlist with File › Export and run it with your own simulator and PDK.",
     });
     expect(
       await refuseSignedOutSimulation(
