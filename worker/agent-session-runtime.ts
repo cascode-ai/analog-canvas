@@ -25,8 +25,11 @@ import { agentOperatingKit } from "@icm/agent-adapter/kit";
 import {
   BROWSER_LAUNCH_PATH,
   BROWSER_LAUNCH_PENDING_PROJECT,
+  DEVICE_TRUST_PATH,
 } from "@icm/agent-adapter/browser-launch";
 import { editorLaunchPage } from "./agent-editor-launch";
+import type { AuthEnv } from "./auth";
+import { routeTrustedDevices } from "./agent-device-trust";
 import type { AgentArtifactBucket } from "./agent-artifacts";
 
 export const SESSION_STATE_KEY = "agent-session-v1";
@@ -94,11 +97,14 @@ export interface AgentSessionRouterEnv {
   AGENT_SESSION: AgentSessionNamespaceLike;
   AGENT_ALLOWED_ORIGIN?: string;
   AGENT_MCP_DOWNLOAD_ORIGIN?: string;
+  AUTH?: AuthEnv["AUTH"];
 }
 
 export type DurableStorageLike = {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
+  list?(options: { limit: number }): Promise<Map<string, unknown>>;
+  delete?(keys: string[]): Promise<number>;
   deleteAll?(): Promise<void>;
   setAlarm?(scheduledTime: number): Promise<void>;
 };
@@ -113,6 +119,7 @@ export type DurableStateLike = {
 export type AgentSessionEnv = {
   AGENT_ALLOWED_ORIGIN?: string;
   SIMULATION_ARTIFACTS?: AgentArtifactBucket;
+  AGENT_SESSION?: AgentSessionNamespaceLike;
 };
 
 export type WebSocketPairShape = { 0: WebSocket; 1: WebSocket };
@@ -196,6 +203,11 @@ export async function routeAgentSessionRequest(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/agent/")) return null;
+  if (
+    url.pathname === DEVICE_TRUST_PATH ||
+    url.pathname.startsWith(DEVICE_TRUST_PATH + "/")
+  )
+    return routeTrustedDevices(request, env);
   // Only a top-level loopback form may display the launch prompt. Redeeming
   // its grant is same-origin. Circuit routes retain their ordinary checks.
   if (url.pathname === BROWSER_LAUNCH_PATH && request.method === "POST") {

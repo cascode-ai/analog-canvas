@@ -81,6 +81,7 @@ let storage: MemoryStorage;
 let sessionCreations: number;
 let root: Root | null;
 let seen: { session: UseAgentSessionResult | null };
+let accountProjectsOpen: boolean;
 
 function relay(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input);
@@ -109,6 +110,7 @@ beforeEach(() => {
   storage = new MemoryStorage();
   sessionCreations = 0;
   seen = { session: null };
+  accountProjectsOpen = false;
   root = null;
   const page = {
     location: { href: "http://127.0.0.1/editor", search: "" },
@@ -162,6 +164,7 @@ function Editor() {
           project,
           projectSessionId: "tab-1",
           host,
+          hasAccountProjects: () => accountProjectsOpen,
         }
       : null,
   );
@@ -343,4 +346,64 @@ describe("workspace Agent provider (#1673)", () => {
       JSON.parse(storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY)!),
     ).toMatchObject({ sessionId: "saved-session" });
   });
+
+  it.each([true, false])(
+    "checks account Project access with local review restriction %s",
+    async (localReviewOnly) => {
+      storage.setItem(
+        AGENT_SESSION_RECOVERY_STORAGE_KEY,
+        JSON.stringify({
+          version: 1,
+          sessionId: "saved-session",
+          editorSecret: "editor-secret",
+          projectId: "project-main",
+          projectSessionId: "tab-1",
+          scopes: ["circuit.snapshot"],
+          expiresAt: Date.now() + 3_600_000,
+          ...(localReviewOnly ? { localReviewOnly } : {}),
+        }),
+      );
+      const fetchRelay = vi.fn(
+        (input: RequestInfo | URL, init?: RequestInit) =>
+          String(input) === "/api/agent/sessions/saved-session/control"
+            ? Promise.resolve(new Response("{}", { status: 200 }))
+            : relay(input, init),
+      );
+      vi.stubGlobal("fetch", fetchRelay);
+      vi.stubGlobal("WebSocket", ScriptedSocket);
+      ScriptedSocket.opened.length = 0;
+      vi.mocked(loadAgentRuntime).mockImplementationOnce(realRuntime);
+      await openEditor();
+      await settle(() => expect(ScriptedSocket.opened).toHaveLength(1));
+      const socket = ScriptedSocket.opened[0]!;
+      await act(async () => socket.emit("open"));
+      accountProjectsOpen = true;
+      await act(async () =>
+        socket.emit("message", {
+          data: JSON.stringify({
+            protocolVersion: "1.0",
+            sessionId: "saved-session",
+            messageId: "ready-1",
+            requestId: "event-ready-1",
+            sentAt: new Date().toISOString(),
+            kind: "event",
+            payload: { type: "session.ready", sessionId: "saved-session" },
+          }),
+        }),
+      );
+      if (localReviewOnly) {
+        expect(seen.session!.status).toBe("revoked");
+        expect(fetchRelay).toHaveBeenCalledWith(
+          "/api/agent/sessions/saved-session/control",
+          expect.objectContaining({ body: '{"action":"revoke"}' }),
+        );
+        expect(storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY)).toBeNull();
+      } else {
+        expect(seen.session!.status).not.toBe("revoked");
+        expect(
+          storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY),
+        ).not.toBeNull();
+      }
+    },
+  );
 });

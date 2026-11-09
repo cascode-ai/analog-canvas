@@ -22,6 +22,7 @@ import { GalleryChrome } from "./gallery-chrome";
 import { ModerationContent } from "./moderation";
 import { OwnerDataContent } from "./owner-data";
 import { OwnerTokensSection } from "./owner-tokens";
+import { TrustedCanvasDevices } from "./trusted-canvas-devices";
 import { MySubmissionsContent } from "./my-submissions";
 import { usePageTitle } from "../app/use-page-title";
 
@@ -359,6 +360,7 @@ function AccountSettings({
       {/* Upload tokens are the Owner's own accounts' alone, never an AI
           account a browser was switched to. */}
       {user.isOwner && !user.seat ? <OwnerTokensSection /> : null}
+      <TrustedCanvasDevices key={user.id} />
 
       <section
         className="account-page-section"

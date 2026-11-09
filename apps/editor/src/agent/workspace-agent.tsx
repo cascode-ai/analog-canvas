@@ -243,6 +243,7 @@ export function useEditorAgentSession(
       ...options,
       ...(pairing ? { pairOnLoad: pairing } : {}),
       beforeConnect: async () => latest.current?.beforeConnect?.(),
+      hasAccountProjects: () => latest.current?.hasAccountProjects?.() ?? false,
       contextRevision: revision,
       projectSessionId: revision,
     });

@@ -180,6 +180,11 @@ export abstract class AgentSessionTransport {
           this.http.status(session.sessionId, session.agentToken),
         );
         this.connection.observe(this.observation);
+        if (
+          this.session?.sessionId === this.observation.sessionId &&
+          this.observation.scopes
+        )
+          this.session.scopes = this.observation.scopes;
         if (previousContext !== this.http.contextRevision) {
           this.cache.clear();
           this.knownRevisions.clear();

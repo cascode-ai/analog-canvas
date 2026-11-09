@@ -106,6 +106,7 @@ export function createOperationSession(
             config.apiBaseUrl,
             settings,
             config.openBrowser,
+            `${config.connectorPath}.device.pem`,
           ),
         }
       : {}),

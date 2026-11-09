@@ -62,6 +62,11 @@ import {
   type WebSocketPairConstructor,
 } from "./agent-session-runtime";
 import { AgentArtifacts } from "./agent-artifacts";
+import {
+  AgentDeviceTrustDirectory,
+  DEVICE_TRUST_INTERNAL,
+  type DeviceTrustLink,
+} from "./agent-device-trust";
 
 // requestId is session-wide; identical payloads in different Project bindings
 // must never replay an earlier Project's cached result.
@@ -84,8 +89,22 @@ const ARTIFACT_CLEANUP_KEY = "agent-artifact-cleanup";
 const ARTIFACT_CLEANUP_RETRY_MS = 60_000;
 /** The release the paired adapter named, for the editor to show (#1844). */
 const ADAPTER_VERSION_KEY = "agent-adapter-version";
-type StoredBrowserSession = PersistedAgentSessionState & {
+const DEVICE_REVOKED_KEY = "agent-device-revoked-until";
+const TRUSTED_REVIEW_SCOPES = [
+  "circuit.snapshot",
+  "circuit.render",
+  "circuit.source-spans",
+  "circuit.edit.geometry",
+  "circuit.edit.connectivity",
+  "circuit.edit.presentation",
+  "editor.semantic-control",
+  "project.download",
+  "project.import",
+  "visual.download",
+] satisfies AgentSessionScope[];
+type StoredSession = PersistedAgentSessionState & {
   browserLaunched?: true;
+  deviceTrust?: DeviceTrustLink;
 };
 
 /** One event in the envelope the editor socket carries. */
@@ -114,6 +133,10 @@ interface RequestTrace {
 /** Cloudflare Durable Object owning one temporary Agent session. */
 export class AgentSessionDO {
   private readonly artifacts: AgentArtifacts;
+  private readonly deviceDirectory: AgentDeviceTrustDirectory;
+  private deviceTrust: DeviceTrustLink | undefined;
+  private deviceRevokedUntil = 0;
+  private approvingLaunch = false;
   /** Reason-only tombstone: no bearer, connector, editor proof or Project data. */
   private replacedUntil = 0;
   private editorLeft = false;
@@ -136,6 +159,7 @@ export class AgentSessionDO {
       state.storage,
       env.SIMULATION_ARTIFACTS,
     );
+    this.deviceDirectory = new AgentDeviceTrustDirectory(state.storage);
     this.ready = this.initialize();
     this.state.blockConcurrencyWhile?.(() => this.ready);
   }
@@ -216,6 +240,8 @@ export class AgentSessionDO {
     await this.ready;
     const url = new URL(request.url);
     const allowedOrigin = this.env.AGENT_ALLOWED_ORIGIN ?? null;
+    if (url.pathname.startsWith(DEVICE_TRUST_INTERNAL))
+      return this.deviceDirectory.handle(request);
     if (request.method === "POST" && url.pathname === "/create") {
       return this.create(request, allowedOrigin);
     }
@@ -226,6 +252,8 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+    if (this.deviceRevokedUntil > Date.now())
+      return this.deviceRevokedResponse(allowedOrigin);
     const machine = await this.loadMachine();
     if (trace) trace.restoreMs = performance.now() - trace.started;
     if (!machine) {
@@ -235,27 +263,40 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+    if (request.method === "POST" && url.pathname === "/approve-editor-launch")
+      return this.approveEditorLaunch(request, machine, allowedOrigin);
     if (
       request.method === "POST" &&
-      url.pathname === "/approve-editor-launch"
+      url.pathname === "/revoke-trusted-device"
     ) {
-      const grant = await request.text();
-      const secret = machine.approveBrowserLaunch(grant, Date.now());
-      if (!secret) return jsonResponse({ ok: false }, 409, allowedOrigin);
-      await this.persist();
-      return jsonResponse(
-        {
-          version: 1,
-          sessionId: machine.sessionId,
-          editorSecret: secret,
-          projectId: machine.projectId,
-          projectSessionId: machine.projectSessionId,
-          scopes: machine.scopes,
-          expiresAt: machine.expiresAt,
-        },
-        200,
-        allowedOrigin,
+      const revoked = (await request.json()) as DeviceTrustLink;
+      const current = this.deviceTrust;
+      if (
+        current &&
+        current.directory === revoked.directory &&
+        current.deviceId === revoked.deviceId &&
+        current.trustId === revoked.trustId
+      )
+        await this.revokeTrustedSession(machine);
+      return new Response(null, { status: 204 });
+    }
+    if (this.deviceTrust && !this.approvingLaunch) {
+      const trusted = await this.deviceTrustIsCurrent(this.deviceTrust).catch(
+        () => null,
       );
+      if (trusted === null)
+        return jsonResponse(
+          errorBody(
+            "EDITOR_OFFLINE",
+            "Device authorization could not be verified",
+          ),
+          503,
+          allowedOrigin,
+        );
+      if (!trusted) {
+        await this.revokeTrustedSession(machine);
+        return this.deviceRevokedResponse(allowedOrigin);
+      }
     }
     if (
       url.pathname.startsWith("/artifacts/") ||
@@ -364,6 +405,7 @@ export class AgentSessionDO {
             ? { contextRevision: machine.contextRevision }
             : {}),
           documentIds: machine.documentIds,
+          ...(this.deviceTrust ? { scopes: machine.scopes } : {}),
           authorization: machine.statusAt(now),
           editor: (this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? []).some(
             (socket) => socket.readyState === WebSocket.OPEN,
@@ -490,6 +532,18 @@ export class AgentSessionDO {
     if (socket.readyState !== WebSocket.OPEN) return;
     const status = machine.statusAt(Date.now());
     if (status === "expired" || status === "revoked") return;
+    if (this.deviceTrust) {
+      if (this.approvingLaunch) return;
+      const trusted = await this.deviceTrustIsCurrent(this.deviceTrust).catch(
+        () => null,
+      );
+      if (trusted === null) return;
+      if (!trusted) {
+        await this.revokeTrustedSession(machine);
+        return;
+      }
+      if (this.deviceRevokedUntil) return;
+    }
     const text =
       typeof message === "string" ? message : new TextDecoder().decode(message);
     const size = machine.checkMessageSize(
@@ -673,6 +727,16 @@ export class AgentSessionDO {
         await this.clearStoredSession();
         this.replacedUntil = 0;
         this.machine = null;
+      }
+      return;
+    }
+    if (this.deviceRevokedUntil) {
+      if (Date.now() < this.deviceRevokedUntil) {
+        await this.state.storage.setAlarm?.(this.deviceRevokedUntil);
+      } else {
+        this.deviceRevokedUntil = 0;
+        this.machine = null;
+        await this.clearStoredSession();
       }
       return;
     }
@@ -1132,6 +1196,8 @@ export class AgentSessionDO {
         this.relayTiming(circuitRequest, "circuit", result, forwardStarted),
       );
     } catch (error) {
+      if (this.deviceRevokedUntil)
+        return this.deviceRevokedResponse(allowedOrigin);
       const errorCode = error instanceof Error ? error.message : "";
       const code: AgentTransportErrorCode =
         errorCode === "REQUEST_TIMEOUT" || errorCode === "MESSAGE_TOO_LARGE"
@@ -1312,6 +1378,8 @@ export class AgentSessionDO {
         this.relayTiming(fileRequest, "files", result, forwardStarted),
       );
     } catch (error) {
+      if (this.deviceRevokedUntil)
+        return this.deviceRevokedResponse(allowedOrigin);
       const value = error instanceof Error ? error.message : "";
       const code: AgentTransportErrorCode =
         value === "REQUEST_TIMEOUT" || value === "MESSAGE_TOO_LARGE"
@@ -1517,6 +1585,8 @@ export class AgentSessionDO {
         ),
       );
     } catch (error) {
+      if (this.deviceRevokedUntil)
+        return this.deviceRevokedResponse(allowedOrigin);
       const value = error instanceof Error ? error.message : "";
       const code: AgentTransportErrorCode =
         value === "REQUEST_TIMEOUT" || value === "MESSAGE_TOO_LARGE"
@@ -1590,7 +1660,17 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+    const trustedLocalAction =
+      projectRequest.operation === "workspace"
+        ? ["list", "activate"].includes(projectRequest.request.action)
+        : [
+            "read-project-code",
+            "replace-project-code",
+            "read-netlist",
+            "replace-netlist",
+          ].includes(projectRequest.operation);
     if (
+      (this.deviceTrust && !trustedLocalAction) ||
       !projectOperationScopes(projectRequest).every(
         (required) => machine.assertScope(auth.session.scopes, required).ok,
       )
@@ -1667,6 +1747,8 @@ export class AgentSessionDO {
         this.relayTiming(projectRequest, "projects", result, forwardStarted),
       );
     } catch (error) {
+      if (this.deviceRevokedUntil)
+        return this.deviceRevokedResponse(allowedOrigin);
       const value = error instanceof Error ? error.message : "";
       const code: AgentTransportErrorCode =
         value === "REQUEST_TIMEOUT" || value === "MESSAGE_TOO_LARGE"
@@ -1777,6 +1859,10 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
+    if (body?.action === "revoke" && this.deviceTrust) {
+      await this.revokeTrustedSession(machine);
+      return jsonResponse({ ok: true, status: "revoked" }, 200, allowedOrigin);
+    }
     if (body?.action === "pause") machine.pause();
     else if (body?.action === "resume") machine.resume();
     else if (body?.action === "revoke") machine.revoke();
@@ -1855,13 +1941,17 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
-    machine.revoke();
-    this.emit({ type: "session.revoked", sessionId: machine.sessionId });
-    this.notifyEditor({
-      type: "session.revoked",
-      sessionId: machine.sessionId,
-    });
-    await this.clearStoredSession();
+    if (this.deviceTrust) {
+      await this.revokeTrustedSession(machine);
+    } else {
+      machine.revoke();
+      this.emit({ type: "session.revoked", sessionId: machine.sessionId });
+      this.notifyEditor({
+        type: "session.revoked",
+        sessionId: machine.sessionId,
+      });
+      await this.clearStoredSession();
+    }
     return new Response(null, {
       status: 204,
       headers: relayHeaders(allowedOrigin),
@@ -2037,11 +2127,13 @@ export class AgentSessionDO {
   }
 
   private async loadMachine(): Promise<AgentSessionMachine | null> {
+    if (this.deviceRevokedUntil) return null;
     if (this.machine) return this.machine;
     const stored =
-      await this.state.storage.get<StoredBrowserSession>(SESSION_STATE_KEY);
+      await this.state.storage.get<StoredSession>(SESSION_STATE_KEY);
     if (!stored) return null;
     this.browserLaunched = stored.browserLaunched === true;
+    this.deviceTrust = stored.deviceTrust;
     this.machine = AgentSessionMachine.restore(
       stored,
       () => crypto.randomUUID(),
@@ -2051,14 +2143,18 @@ export class AgentSessionDO {
   }
 
   private async initialize(): Promise<void> {
+    this.deviceRevokedUntil =
+      (await this.state.storage.get<number>(DEVICE_REVOKED_KEY)) ?? 0;
+    if (this.deviceRevokedUntil) return;
     this.replacedUntil =
       (await this.state.storage.get<number>("project-replaced-until")) ?? 0;
     this.editorLeft =
       (await this.state.storage.get<boolean>("agent-editor-left")) === true;
     const stored =
-      await this.state.storage.get<StoredBrowserSession>(SESSION_STATE_KEY);
+      await this.state.storage.get<StoredSession>(SESSION_STATE_KEY);
     if (stored) {
       this.browserLaunched = stored.browserLaunched === true;
+      this.deviceTrust = stored.deviceTrust;
       this.machine = AgentSessionMachine.restore(
         stored,
         () => crypto.randomUUID(),
@@ -2074,7 +2170,7 @@ export class AgentSessionDO {
   }
 
   private async persist(): Promise<void> {
-    if (this.replacedUntil > Date.now()) return;
+    if (this.deviceRevokedUntil || this.replacedUntil > Date.now()) return;
     if (!this.machine) return;
     const status = this.machine.statusAt(Date.now());
     if (status === "revoked" || status === "expired") {
@@ -2115,6 +2211,7 @@ export class AgentSessionDO {
       this.state.storage.put(SESSION_STATE_KEY, {
         ...machine.serialize(),
         ...(this.browserLaunched ? { browserLaunched: true } : {}),
+        ...(this.deviceTrust ? { deviceTrust: this.deviceTrust } : {}),
       }),
     ]);
     machine.forgetStoredRequests(completed.map(([requestId]) => requestId));
@@ -2125,13 +2222,195 @@ export class AgentSessionDO {
    * with an alarm to retry them, so the session ends either way.
    */
   private async clearStoredSession(): Promise<void> {
+    const device = this.deviceTrust;
+    this.deviceTrust = undefined;
+    if (device && this.machine)
+      await this.deviceTrustRequest(device.directory, {
+        action: "remove-session",
+        deviceId: device.deviceId,
+        trustId: device.trustId,
+        sessionId: this.machine.sessionId,
+      }).catch(() => undefined);
     const left = [
       ...((await this.state.storage.get<string[]>(ARTIFACT_CLEANUP_KEY)) ?? []),
       ...(await this.artifacts.clear()),
     ];
-    await this.state.storage.deleteAll?.();
+    const storage = this.state.storage;
+    if (!this.deviceRevokedUntil) {
+      await storage.deleteAll?.();
+    } else if (storage.list && storage.delete) {
+      // Leave the terminal marker in place throughout cleanup.
+      for (;;) {
+        const entries = await storage.list({ limit: 128 });
+        const keys = [...entries.keys()].filter(
+          (key) => key !== DEVICE_REVOKED_KEY,
+        );
+        if (keys.length === 0) break;
+        await storage.delete(keys);
+      }
+    }
     if (!left.length) return;
     await this.state.storage.put(ARTIFACT_CLEANUP_KEY, left);
     await this.state.storage.setAlarm?.(Date.now() + ARTIFACT_CLEANUP_RETRY_MS);
+  }
+
+  private async deviceTrustRequest(directory: string, input: object) {
+    const namespace = this.env.AGENT_SESSION;
+    if (!namespace) throw Error("Device trust is unavailable");
+    return namespace
+      .getByName(directory)
+      .fetch(`https://agent-session.internal${DEVICE_TRUST_INTERNAL}grant`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+  }
+
+  private async deviceTrustIsCurrent(link: DeviceTrustLink): Promise<boolean> {
+    const response = await this.deviceTrustRequest(link.directory, {
+      action: "check",
+      deviceId: link.deviceId,
+      trustId: link.trustId,
+      sessionId: this.machine?.sessionId,
+    });
+    if (!response.ok) throw Error("Device trust could not be verified");
+    const data = (await response.json()) as { trusted: boolean };
+    return data.trusted === true;
+  }
+
+  private deviceRevokedResponse(allowedOrigin: string | null) {
+    return jsonResponse(
+      errorBody("SESSION_REVOKED", errorMessage("SESSION_REVOKED")),
+      transportStatus("SESSION_REVOKED"),
+      allowedOrigin,
+    );
+  }
+
+  private async revokeTrustedSession(machine: AgentSessionMachine) {
+    if (this.deviceRevokedUntil > Date.now()) return;
+    const revokedUntil = Date.now() + 30 * 60_000;
+    await Promise.all([
+      this.state.storage.put(DEVICE_REVOKED_KEY, revokedUntil),
+      this.state.storage.setAlarm?.(revokedUntil),
+    ]);
+    this.deviceRevokedUntil = revokedUntil;
+    machine.revoke();
+    const event = {
+      type: "session.revoked" as const,
+      sessionId: machine.sessionId,
+    };
+    this.emit(event);
+    try {
+      this.notifyEditor(event);
+    } catch {
+      // An already closed Editor cannot prevent the revocation.
+    }
+    for (const [requestId, pending] of this.pendingForwards) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error("SESSION_REVOKED"));
+      machine.failRequest(requestId, false);
+    }
+    this.pendingForwards.clear();
+    for (const socket of this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? []) {
+      try {
+        socket.close?.(4003, "Agent session revoked");
+      } catch {
+        // A disconnected peer has no further access.
+      }
+    }
+    for (const subscriber of [...this.eventSubscribers.keys()])
+      this.removeEventSubscriber(subscriber, true);
+    await this.clearStoredSession();
+  }
+
+  private async approveEditorLaunch(
+    request: Request,
+    machine: AgentSessionMachine,
+    allowedOrigin: string | null,
+  ): Promise<Response> {
+    const approval = request.headers
+      .get("content-type")
+      ?.startsWith("application/json")
+      ? ((await request.json()) as {
+          grant: string;
+          device?: Omit<DeviceTrustLink, "trustId"> & {
+            action: "auto" | "trust";
+          };
+        })
+      : { grant: await request.text() };
+    const reply = (data: unknown, status: number) =>
+      jsonResponse(data, status, allowedOrigin);
+    if (
+      this.approvingLaunch ||
+      !machine.matchesBrowserLaunchGrant(approval.grant, Date.now())
+    )
+      return reply({ ok: false }, 409);
+    this.approvingLaunch = true;
+    try {
+      let link: DeviceTrustLink | undefined;
+      let pendingDevice = false;
+      if (approval.device) {
+        const { directory, deviceId, action } = approval.device;
+        const response = await this.deviceTrustRequest(directory, {
+          deviceId,
+          action,
+          sessionId: machine.sessionId,
+        }).catch(() => null);
+        if (!response?.ok) return reply({ ok: false }, response?.status ?? 503);
+        const result = (await response.json()) as {
+          trustId: string;
+          pending: boolean;
+        };
+        link = { directory, deviceId, trustId: result.trustId };
+        pendingDevice = result.pending;
+      }
+      const secret = machine.approveBrowserLaunch(
+        approval.grant,
+        Date.now(),
+        link ? TRUSTED_REVIEW_SCOPES : undefined,
+      );
+      if (!secret) {
+        if (link)
+          await this.deviceTrustRequest(link.directory, {
+            action: "remove-session",
+            deviceId: link.deviceId,
+            trustId: link.trustId,
+            sessionId: machine.sessionId,
+          }).catch(() => undefined);
+        return reply({ ok: false }, 409);
+      }
+      this.deviceTrust = link;
+      await this.persist();
+      if (link && pendingDevice) {
+        const committed = await this.deviceTrustRequest(link.directory, {
+          action: "commit",
+          deviceId: link.deviceId,
+          trustId: link.trustId,
+          sessionId: machine.sessionId,
+        }).catch(() => null);
+        if (!committed?.ok) {
+          await this.revokeTrustedSession(machine);
+          return reply({ ok: false }, committed?.status ?? 503);
+        }
+      }
+      if (link && !(await this.deviceTrustIsCurrent(link))) {
+        await this.revokeTrustedSession(machine);
+        return this.deviceRevokedResponse(allowedOrigin);
+      }
+      return reply(
+        {
+          version: 1,
+          sessionId: machine.sessionId,
+          editorSecret: secret,
+          projectId: machine.projectId,
+          projectSessionId: machine.projectSessionId,
+          scopes: machine.scopes,
+          ...(link ? { localReviewOnly: true } : {}),
+          expiresAt: machine.expiresAt,
+        },
+        200,
+      );
+    } finally {
+      this.approvingLaunch = false;
+    }
   }
 }

@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   AGENT_API_VERSION,
@@ -97,6 +103,8 @@ type LiveSession = {
   claimExpiresAt: number | null;
   expiresAt: number;
   scopes: AgentSessionScope[];
+  localReviewOnly: boolean;
+  hasAccountProjects: () => boolean;
   socket: WebSocket | null;
   claimed: boolean;
   paused: boolean;
@@ -121,7 +129,7 @@ function sendHeartbeat(
   socket: WebSocket,
   nonce: string = crypto.randomUUID(),
 ): void {
-  if (socket.readyState !== WebSocket.OPEN) return;
+  if (socket.readyState !== WebSocket.OPEN || live.hasAccountProjects()) return;
   let documentIds: string[];
   try {
     documentIds = live.documentIds();
@@ -189,6 +197,8 @@ export interface UseAgentSessionOptions {
   project: CircuitProject;
   projectSessionId: string;
   host: AgentOperationHost;
+  /** Account-backed Projects open in this browser tab, including background workspaces. */
+  hasAccountProjects?: () => boolean;
   /** Resolve an open working copy without selecting its browser tab. */
   resolveWorkspace?: (
     workspaceId: string,
@@ -432,6 +442,16 @@ export function useAgentSession(
     update,
   ]);
 
+  useLayoutEffect(() => {
+    if (liveRef.current?.localReviewOnly && options.hasAccountProjects?.())
+      void revoke();
+  }, [
+    options.hasAccountProjects,
+    options.project,
+    options.projectSessionId,
+    revoke,
+  ]);
+
   const grant = useCallback(
     async (
       scopes: readonly AgentSessionScope[],
@@ -507,6 +527,10 @@ export function useAgentSession(
           claimExpiresAt,
           expiresAt: recovery?.expiresAt ?? created!.session.expiresAt,
           scopes: [...scopes],
+          localReviewOnly: recovery?.localReviewOnly === true,
+          hasAccountProjects: () =>
+            recovery?.localReviewOnly === true &&
+            options.hasAccountProjects?.() === true,
           socket: null,
           claimed: recovery !== undefined,
           paused: false,
@@ -518,6 +542,12 @@ export function useAgentSession(
           attachedFileHosts: new WeakSet(),
         };
         liveRef.current = live;
+        const retireForAccountProject = () => {
+          if (!live.hasAccountProjects()) return false;
+          if (liveRef.current === live) void revoke();
+          return true;
+        };
+        if (retireForAccountProject()) return;
         // Creation already produced the handoff. Transport readiness remains a
         // separate status; a slow socket must not hide a successfully issued code.
         update({
@@ -525,7 +555,8 @@ export function useAgentSession(
           claimExpiresAt: live.claimExpiresAt,
         });
         live.publishArtifact = async (ref, text, transfer) => {
-          if (liveRef.current !== live) throw new Error("Session changed");
+          if (liveRef.current !== live || retireForAccountProject())
+            throw new Error("Session changed");
           const path = `/api/agent/sessions/${encodeURIComponent(live.sessionId)}/artifacts/${encodeURIComponent(ref.fileId ?? ref.id)}`;
           const response = await fetch(path, {
             method: "PUT",
@@ -594,6 +625,7 @@ export function useAgentSession(
               projectId: options.project.id,
               projectSessionId: options.projectSessionId,
               scopes: live.scopes,
+              ...(live.localReviewOnly ? { localReviewOnly: true } : {}),
               expiresAt,
             });
           }
@@ -651,6 +683,7 @@ export function useAgentSession(
               !live.allowReconnect
             )
               return;
+            if (retireForAccountProject()) return;
             let raw: unknown;
             try {
               raw = JSON.parse(String(event.data));
@@ -822,7 +855,11 @@ export function useAgentSession(
               );
               const knownHash = live.requestHashes.get(parsed.data.requestId);
               const sendFileResponse = (payload: unknown) => {
-                if (socket.readyState !== WebSocket.OPEN) return;
+                if (
+                  socket.readyState !== WebSocket.OPEN ||
+                  retireForAccountProject()
+                )
+                  return;
                 socket.send(
                   JSON.stringify({
                     protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
@@ -910,7 +947,11 @@ export function useAgentSession(
               );
               const knownHash = live.requestHashes.get(parsed.data.requestId);
               const sendSimulationResponse = (payload: unknown) => {
-                if (socket.readyState !== WebSocket.OPEN) return;
+                if (
+                  socket.readyState !== WebSocket.OPEN ||
+                  retireForAccountProject()
+                )
+                  return;
                 socket.send(
                   JSON.stringify({
                     protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
@@ -992,7 +1033,11 @@ export function useAgentSession(
                 parsed.data.payload,
               );
               const sendProjectResponse = (payload: unknown) => {
-                if (socket.readyState !== WebSocket.OPEN) return;
+                if (
+                  socket.readyState !== WebSocket.OPEN ||
+                  retireForAccountProject()
+                )
+                  return;
                 socket.send(
                   JSON.stringify({
                     protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
@@ -1356,6 +1401,7 @@ export function useAgentSession(
       options.project,
       options.projectSessionId,
       retire,
+      revoke,
       update,
     ],
   );

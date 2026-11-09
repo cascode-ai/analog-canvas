@@ -420,6 +420,7 @@ export function useEditorAgentConnection({
   browserAgentProjectHost,
   captureAuthoredProject,
   cloudBinding,
+  hasAccountProjects,
   startupRestoreReady,
   isDirtyWork,
   replaceActiveProject,
@@ -445,6 +446,7 @@ export function useEditorAgentConnection({
   browserAgentProjectHost: BrowserAgentProjectHost | null;
   captureAuthoredProject: () => Promise<CircuitProject | null>;
   cloudBinding: ProjectFileLifecycle["cloudBinding"];
+  hasAccountProjects: () => boolean;
   startupRestoreReady: ProjectFileLifecycle["startupRestoreReady"];
   isDirtyWork: ProjectFileLifecycle["isDirtyWork"];
   replaceActiveProject: ProjectFileLifecycle["replaceActiveProject"];
@@ -493,6 +495,7 @@ export function useEditorAgentConnection({
           project,
           projectSessionId: recoveryWorkingCopyId,
           host: browserAgentHost,
+          hasAccountProjects,
           fileHost: browserAgentFileHost,
           simulationHost: browserAgentSimulationHost,
           projectHost: browserAgentProjectHost,

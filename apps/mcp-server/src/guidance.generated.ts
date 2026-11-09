@@ -35,7 +35,7 @@ export const agentToolHelp = {
   connect:
     "Pair with the live browser editor of this server's bound origin (site in the reply). Pass its claim code once; a Claim connects one adapter, and later MCP processes can omit it and resume the saved, revocable connector, taking it over from any other running MCP process. Its access lists the granted scopes and every tool here; capabilities is the Circuit resource's. After connecting, read analog-canvas://reference/quickstart. Resource reads use the host's registered server alias (analog-canvas-<16 hex> per origin, or a legacy analog-canvas), not the normalized tool prefix analog_canvas. If unknown, discover the alias from the host resource list.",
   disconnect:
-    "With taskRef, end that Canvas task; a later task starts with open_canvas without a taskRef and a fresh browser approval. Without taskRef, revoke the Claim-paired browser session and erase this MCP host's saved connector; pairing it again needs a fresh claim code.",
+    "With taskRef, end that Canvas task. A later task starts with open_canvas without a taskRef and checks device trust or requests one-time approval. Without taskRef, revoke the Claim-paired browser session and erase this MCP host's saved connector; pairing it again needs a fresh claim code.",
   connection_status:
     "Report runtime version, API origin and session observations; runtime.status \"outdated\" names the origin's latestVersion and its upgrade step. refresh:false is local-only. Attached means a browser socket exists, not verified execution readiness; unknown means the relay was not checked successfully. recentRequests shows this process's last requests hop by hop (relay forward, editor work, the tab's visibility).",
   project_cells:

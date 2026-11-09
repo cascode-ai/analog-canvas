@@ -500,20 +500,36 @@ export class AgentSessionMachine {
     );
   }
 
-  /** A launch grant has no Editor authority and can be exchanged exactly once. */
-  approveBrowserLaunch(grant: string, now: number): string | null {
+  matchesBrowserLaunchGrant(grant: string, now: number): boolean {
     const claim = this.internals.claim;
-    if (
-      !grant.startsWith(BROWSER_LAUNCH_GRANT_PREFIX) ||
-      !claim?.used ||
-      this.statusAt(now) !== "active" ||
-      now >= claim.expiresAt - this.limits.claimTtlMs + BROWSER_LAUNCH_TTL_MS ||
-      !constantTimeEqual(
+    return (
+      grant.startsWith(BROWSER_LAUNCH_GRANT_PREFIX) &&
+      !!claim?.used &&
+      this.statusAt(now) === "active" &&
+      now < claim.expiresAt - this.limits.claimTtlMs + BROWSER_LAUNCH_TTL_MS &&
+      constantTimeEqual(
         secretVerifier(grant),
         this.internals.editorSecretVerifier,
       )
-    )
-      return null;
+    );
+  }
+
+  /** A launch grant has no Editor authority and can be exchanged exactly once. */
+  approveBrowserLaunch(
+    grant: string,
+    now: number,
+    allowedScopes?: readonly AgentSessionScope[],
+  ): string | null {
+    if (!this.matchesBrowserLaunchGrant(grant, now)) return null;
+    if (allowedScopes) {
+      this.internals.scopes = this.internals.scopes.filter((scope) =>
+        allowedScopes.includes(scope),
+      );
+      if (this.internals.token)
+        this.internals.token.scopes = this.internals.token.scopes.filter(
+          (scope) => allowedScopes.includes(scope),
+        );
+    }
     const secret = this.random();
     this.internals.editorSecretVerifier = secretVerifier(secret);
     return secret;
