@@ -22,6 +22,8 @@ const manifest = dev
 const output = join(root, "plan", `preview-acceptance-${Date.now()}`);
 await mkdir(output, { recursive: true });
 let running;
+let runningPid;
+let quitMarker;
 const errors = [];
 const auditFiles = [];
 const deliberateProbes = new Set();
@@ -77,6 +79,12 @@ async function launch(name, options = {}) {
           throw new Error("Expected the preview import prompt");
       }
     });
+  runningPid = await running.evaluate(() => process.pid);
+  quitMarker = join(output, `quit-${runningPid}.txt`);
+  await running.evaluate(({ app }, path) => {
+    const { writeFileSync } = process.getBuiltinModule("node:fs");
+    app.once("will-quit", () => writeFileSync(path, "will-quit"));
+  }, quitMarker);
   await running.evaluate(() => globalThis.__analogCanvasPreviewDriverReady());
   const page = await running.firstWindow();
   page.on("pageerror", (error) => errors.push(error.message));
@@ -125,6 +133,18 @@ async function exportProject(page, path) {
   await expect(page.getByText(/^Exported:/)).toBeVisible({ timeout: 20000 });
   return parseProject(await readFile(path, "utf8"));
 }
+async function releaseTestApplication() {
+  // Detach Playwright's Node inspector after the actual window/quit assertion.
+  // Waiting only for process exit leaves Electron waiting for the debugger.
+  await running.close();
+  running = undefined;
+}
+async function finishNormalClose() {
+  await expect
+    .poll(() => readFile(quitMarker, "utf8").catch(() => ""))
+    .toBe("will-quit");
+  await releaseTestApplication();
+}
 async function closePreview() {
   const state = await running.evaluate(async ({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].webContents.executeJavaScript(
@@ -132,7 +152,7 @@ async function closePreview() {
     ),
   );
   if (!state.dirty.length && !state.pendingEdits && !state.busy) {
-    const closed = running.waitForEvent("close");
+    const closed = running.windows()[0].waitForEvent("close");
     await running.evaluate(({ BrowserWindow, dialog }) => {
       dialog.showMessageBox = async () => {
         throw new Error("Clean workspace must not prompt");
@@ -140,7 +160,7 @@ async function closePreview() {
       BrowserWindow.getAllWindows()[0].close();
     });
     await closed;
-    running = undefined;
+    await finishNormalClose();
     return;
   }
   await running.evaluate(({ BrowserWindow, dialog }) => {
@@ -152,7 +172,7 @@ async function closePreview() {
     BrowserWindow.getAllWindows()[0].close();
   });
   await expect.poll(() => running.windows().length).toBe(1);
-  const closed = running.waitForEvent("close");
+  const closed = running.windows()[0].waitForEvent("close");
   await running.evaluate(({ BrowserWindow, dialog }) => {
     dialog.showMessageBox = async () => ({
       response: 1,
@@ -161,7 +181,7 @@ async function closePreview() {
     BrowserWindow.getAllWindows()[0].close();
   });
   await closed;
-  running = undefined;
+  await finishNormalClose();
 }
 try {
   let first = await launch("first");
@@ -198,7 +218,7 @@ try {
       exact: true,
     });
     await picker.getByLabel("Component search").fill("resistor");
-    await picker.getByTestId("insert-component-resistor").click();
+    await picker.locator("#insert-component-option-resistor").click();
     await first
       .getByTestId("schematic-canvas")
       .click({ position: { x, y: 260 } });
@@ -231,10 +251,10 @@ try {
   assert.equal(createdBeforeRetry.length, 1);
   // Exit without the close/save guard to model interruption after disk commit.
   // Reopen the real profile, with a new main process and renderer.
-  const interrupted = running.waitForEvent("close");
+  const interrupted = running.windows()[0].waitForEvent("close");
   await running.evaluate(({ app }) => app.exit(0));
   await interrupted;
-  running = undefined;
+  await releaseTestApplication();
   first = await launch("first");
   await expect(first.getByTestId("instance-count")).toHaveText("3");
   await first.keyboard.press("Control+s");
@@ -600,7 +620,7 @@ try {
     .getByRole("button", { name: "New project tab", exact: true })
     .click();
   await expect(restarted.getByTestId("instance-count")).toHaveText("0");
-  const savedClose = running.waitForEvent("close");
+  const savedClose = running.windows()[0].waitForEvent("close");
   await running.evaluate(({ BrowserWindow, dialog }) => {
     dialog.showMessageBox = async (_window, options) => {
       if (!options.buttons.includes("Save all and close"))
@@ -610,7 +630,7 @@ try {
     BrowserWindow.getAllWindows()[0].close();
   });
   await savedClose;
-  running = undefined;
+  await finishNormalClose();
   assert.equal(
     parseProject(await readFile(nativeB, "utf8")).name,
     "Background saved on close",
@@ -860,5 +880,6 @@ try {
 } finally {
   if (running) {
     await running.evaluate(({ app }) => app.exit(0)).catch(() => {});
+    await releaseTestApplication();
   }
 }

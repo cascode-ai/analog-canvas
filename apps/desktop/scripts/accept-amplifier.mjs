@@ -32,7 +32,7 @@ export async function acceptAmplifier({
       exact: true,
     });
     await picker.getByLabel("Component search").fill("resistor");
-    await picker.getByTestId("insert-component-resistor").click();
+    await picker.locator("#insert-component-option-resistor").click();
     await canvas.click({
       position: { x: box.width * 0.15, y: box.height * y },
     });
