@@ -496,7 +496,10 @@ export class BrowserAgentFileHost {
     const project = this.options.getProject();
     const delivery = await host(input);
     if (typeof delivery === "string") {
-      const messages: Record<string, string> = {
+      const messages: Record<
+        Exclude<LocalReviewResult, LocalReviewDelivery>,
+        string
+      > = {
         REVIEW_WORKSPACE_REQUIRED: "Activate the delivered working copy",
         REVIEW_TARGET_CHANGED: "The active Project or Cell revision changed",
         REVIEW_NOT_READY:
@@ -505,7 +508,7 @@ export class BrowserAgentFileHost {
           "The first review-ready snapshot is unavailable",
         REVIEW_OPEN_BLOCKED: "Canvas is holding the current tab open",
       };
-      return this.error(request, delivery, messages[delivery]!);
+      return this.error(request, delivery, messages[delivery]);
     }
     if (input.action !== "prepare-save")
       return { ...response, result: { action: input.action, delivery } };

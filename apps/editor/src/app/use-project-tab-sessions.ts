@@ -2,18 +2,13 @@
 // window's tabs are saved and reopened, and what holds the editor on a tab.
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { RnlAppearance } from "@icm/rnl";
-import {
-  matchesAgentReviewTarget,
-  type AgentLocalProjectReceipt,
-  type AgentLocalSource,
-  type EmbeddedReviewSource,
-  type LocalReviewDelivery,
+import type {
+  AgentLocalProjectReceipt,
+  AgentLocalSource,
+  EmbeddedReviewSource,
+  LocalReviewDelivery,
 } from "@icm/agent-adapter";
 import type { OpenLocalProject } from "../agent/browser-agent-file-host";
-import {
-  embeddedReviewSource,
-  reviewRevision,
-} from "../agent/embedded-review-source";
 import { assessImportReference, type HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
@@ -313,12 +308,15 @@ export function useProjectTabSessions({
     evidence: EmbeddedReviewSource | undefined;
   } | null>(null);
   useEffect(() => {
+    if (import.meta.env?.ICM_DESKTOP) return;
     const source = project.source;
     if (!source.entry) return;
     let obsolete = false;
-    void embeddedReviewSource(source).then((evidence) => {
-      if (!obsolete) setRecordedSource({ source, evidence });
-    });
+    void import("../agent/embedded-review-source")
+      .then(({ embeddedReviewSource }) => embeddedReviewSource(source))
+      .then((evidence) => {
+        if (!obsolete) setRecordedSource({ source, evidence });
+      });
     return () => {
       obsolete = true;
     };
@@ -930,6 +928,9 @@ export function useProjectTabSessions({
     };
   };
   localReviewRef.current = async (controller, command) => {
+    if (import.meta.env?.ICM_DESKTOP) return "REVIEW_WORKSPACE_REQUIRED";
+    const { embeddedReviewSource, matchesAgentReviewTarget, reviewRevision } =
+      await import("../agent/embedded-review-source");
     const workspace = reviewWorkspaceRef.current(controller);
     const initialLocal = localDeliveryOf(controller);
     if (

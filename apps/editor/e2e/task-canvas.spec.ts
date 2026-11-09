@@ -656,6 +656,15 @@ test("freezes a ready original and acknowledges a saved whole Project", async ({
       },
     },
   });
+  const embedded = page.getByText("Embedded netlist source", { exact: true });
+  if (!(await embedded.isVisible()))
+    await page
+      .getByRole("button", { name: "Project Info", exact: true })
+      .click();
+  await embedded.click();
+  await expect(page.getByTestId("embedded-source-version")).toHaveText(
+    source.version,
+  );
 
   await writeFile(
     join(rootPath, "plain.sp"),

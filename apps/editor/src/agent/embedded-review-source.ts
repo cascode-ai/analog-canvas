@@ -6,6 +6,7 @@ import {
 } from "@icm/agent-adapter";
 import { deriveStableId, type CircuitProject } from "@icm/model";
 import { localSourceReferences, normalizeSourcePath } from "@icm/spice";
+export { matchesAgentReviewTarget } from "@icm/agent-adapter";
 
 async function digestBytes(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);

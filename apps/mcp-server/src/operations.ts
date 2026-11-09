@@ -1462,10 +1462,11 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       name: "review_delivery",
       description: agentToolHelp["review_delivery"],
       get inputSchema() {
-        return lazyContract(LocalReviewDeliveryArgsSchema);
+        return lazyContract(LocalReviewDeliveryArgsSchema, true);
       },
     },
     handle: async (args, session) => {
+      const parsed = LocalReviewDeliveryArgsSchema.parse(args);
       if (!session.taskRef)
         throw new AgentSessionError(
           "WORKSPACE_TASK_REQUIRED",
@@ -1473,10 +1474,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           "request-rejected",
         );
       return {
-        ...(await reviewDelivery(
-          session.client,
-          LocalReviewDeliveryArgsSchema.parse(args),
-        )),
+        ...(await reviewDelivery(session.client, parsed)),
         taskRef: session.taskRef,
       };
     },
