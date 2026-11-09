@@ -95,6 +95,8 @@ export interface SpiceImportOptions {
   /** Input before frontend conversion; never used as mutable connectivity. */
   originalSources?: readonly SpiceSourceInput[];
   symbolMappings?: readonly PdkSymbolMappingOverride[];
+  /** Drawing evidence applies to unresolved external calls, without retyping devices. */
+  externalSymbolMappings?: readonly PdkSymbolMappingOverride[];
   namingProfile?: "native" | "cadence-bang";
   /** Bodies Analog Canvas writes itself among the sources' subcircuits. */
   builtInBodies?: readonly SpiceBuiltInBody[];
@@ -990,6 +992,10 @@ function importDocument(
   spectreFileIds: ReadonlySet<string>,
 ): SchematicDocument {
   const symbolMappings = options.symbolMappings ?? [];
+  const externalSymbolMappings = [
+    ...symbolMappings,
+    ...(options.externalSymbolMappings ?? []),
+  ];
   const namingProfile = options.namingProfile ?? "native";
   const documentId = deriveStableId("document", cell.name.toLowerCase());
   const visibleInstances = cell.instances.filter((instance) => {
@@ -1013,7 +1019,9 @@ function importDocument(
         instance,
         diagnostics,
         modelTypeByName,
-        symbolMappings,
+        instance.target.kind === "external-subcircuit"
+          ? externalSymbolMappings
+          : symbolMappings,
         builtInBodies,
         spectreFileIds.has(instance.sourceRef.fileId),
       ),

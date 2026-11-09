@@ -535,17 +535,15 @@ function spectreInstance(s: Statement, ctx: Context): string {
     refuse(s, `Unsupported native Spectre primitive ${master}.`);
   const declared = ctx.models.get(kind);
   const isSubckt =
-    ctx.subckts.has(kind) ||
-    !!reviewedExternalBindingForMaster(master!) ||
-    (!declared && ctx.externalSubckts.has(kind));
-  const conventional = /^[MDQ]/iu.test(name!) ? name![0]!.toUpperCase() : "X";
-  if (!isSubckt && !declared && !/^[MDQX]/iu.test(name!))
+    ctx.subckts.has(kind) || !!reviewedExternalBindingForMaster(master!);
+  const conventional = /^[MDQX]/iu.exec(name!)?.[0].toUpperCase();
+  if (!isSubckt && !declared && !conventional && !ctx.externalSubckts.has(kind))
     refuse(
       s,
       `Declare the external subcircuit ${master} or use an explicit X reference before conversion.`,
       "TARGET_KIND_REQUIRED",
     );
-  const designator = isSubckt ? "X" : (declared ?? conventional);
+  const designator = isSubckt ? "X" : (declared ?? conventional ?? "X");
   if (designator === "M") arity(4);
   else if (designator === "D") arity(2);
   else if (designator === "Q" && ![3, 4].includes(nodes.length))

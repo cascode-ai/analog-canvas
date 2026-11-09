@@ -179,7 +179,7 @@ export async function writesFileNetlist(
   compileOptions: SpiceCompileOptions = {},
   symbolMappings: NonNullable<
     Parameters<typeof importSpiceSources>[3]
-  >["symbolMappings"] = [],
+  >["externalSymbolMappings"] = [],
   externalSubcircuitNames: readonly string[] = [],
 ): Promise<boolean> {
   const entry = inputs.find((input) => input.path === entryPath)!;
@@ -204,7 +204,7 @@ export async function writesFileNetlist(
       originalSources: rewritten,
       builtInBodies: prepared.builtInBodies,
       libraryBodies,
-      symbolMappings,
+      externalSymbolMappings: symbolMappings,
     },
   );
   if (!again.project || !again.successful) return false;
@@ -373,7 +373,7 @@ async function buildImportPlan({
       builtInBodies: prepared.builtInBodies,
       // A model no card declares is the type its parts are drawn as.
       modelTypes: drawnModelTypes(snapshot),
-      symbolMappings,
+      externalSymbolMappings: symbolMappings,
       // A library block the file calls without its body is the block its
       // parts are drawn as.
       calledBlocks: drawnCalledBlocks(snapshot, dialect),
