@@ -301,6 +301,7 @@
     "agent": [
       "apps/editor/src/agent/**",
       "apps/editor/e2e/agent-connection.spec.ts",
+      "apps/editor/e2e/task-canvas.spec.ts",
       "apps/editor/e2e/web-agent-session.spec.ts",
       "apps/editor/e2e/agent-bus-reuse.spec.ts",
       "apps/editor/e2e/agent-bus-productivity.spec.ts",
@@ -313,6 +314,7 @@
       "packages/agent-adapter/**",
       "packages/agent-client/**",
       "packages/agent-routing/**",
+      "worker/agent-editor-launch.ts",
       "apps/editor/e2e/canvas-fixtures.ts",
       "apps/editor/e2e/editor-fixtures.ts",
       "apps/editor/e2e/gallery-fixtures.ts",
@@ -635,6 +637,7 @@
         "pnpm",
         "test:e2e:local",
         "apps/editor/e2e/agent-connection.spec.ts",
+        "apps/editor/e2e/task-canvas.spec.ts",
         "apps/editor/e2e/web-agent-session.spec.ts",
         "apps/editor/e2e/agent-bus-reuse.spec.ts",
         "apps/editor/e2e/agent-bus-productivity.spec.ts",
@@ -643,6 +646,7 @@
       "ci": {
         "e2eArgs": [
           "apps/editor/e2e/agent-connection.spec.ts",
+          "apps/editor/e2e/task-canvas.spec.ts",
           "apps/editor/e2e/web-agent-session.spec.ts",
           "apps/editor/e2e/agent-bus-reuse.spec.ts",
           "apps/editor/e2e/agent-bus-productivity.spec.ts",

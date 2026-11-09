@@ -11,6 +11,7 @@ operations are in the [Agent API](agent-api.md).
 ```text
 GET  /api/agent/kit
 POST /api/agent/claims
+POST /api/agent/editor-launch
 POST /api/agent/connectors/resume
 GET  /api/agent/sessions/{sessionId}/status
 POST /api/agent/sessions/{sessionId}/circuit
@@ -53,6 +54,22 @@ GET  /api/agent/openapi.json
   (unless it recovered one) without panel or control, exposing the Claim only
   as `window.analogCanvasAgent.claimCode()`. A Claim never enters a URL,
   storage or logs.
+- MCP `open_canvas` creates a detached relay session with no live Project and
+  opens a one-use loopback page in the system browser. A top-level form POST
+  carries a short-lived launch grant to the configured Canvas origin. On
+  approval in a fresh tab, the relay consumes that grant and issues an Editor
+  secret to the tab. The Agent holds a scoped bearer for the detached session
+  and reports readiness after reading the live Project. The URL carries no
+  session credential.
+- `taskRef` selects a process-local client and browser session for subsequent
+  MCP tools. A task's client uses its own revocable connector in memory.
+  A live binding is reused. Before reopening, the relay checks that the
+  previous session is still detached and active and that its page reported
+  leaving. A lost socket alone preserves the binding. A page reloading can
+  reattach within the connector's bounded reconnect wait. The new tab
+  requires its own approval and the receipt identifies an unconfirmed previous Project.
+  Pause, revoke and a missing relay record stop recovery. See the
+  [task connection workflow](../agent/mcp-quickstart.md#connect).
 - The Claim shows as soon as creation succeeds; its countdown uses the
   response `Date` advanced by the page's elapsed clock (a wrong computer clock
   cannot expire it). Expiry removes the code, not its explanation; failed or

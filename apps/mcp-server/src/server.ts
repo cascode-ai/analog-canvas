@@ -43,7 +43,10 @@ export function assembleServer(
   toolSession: ToolSessionState;
 } {
   const handler: McpServerHandler = {
-    listTools: listToolDefinitions,
+    listTools: () =>
+      listToolDefinitions().filter(
+        (tool) => tool.name !== "open_canvas" || toolSession.webTasks,
+      ),
     callTool: (name, args) => callTool(name, args, toolSession),
     listResources: listResourceEntries,
     listResourceTemplates,
@@ -54,7 +57,9 @@ export function assembleServer(
     handler,
     serverInfo: {
       ...MCP_SERVER_INFO,
-      instructions: `${agentServerInstructions}\n\nThis server is bound to ${binding.apiOrigin} and connects only Claims from that address.${binding.note ? ` ${binding.note}` : ""}`,
+      instructions: toolSession.localMode
+        ? "Analog Canvas MCP on the local Project file. Read get_context and use the existing circuit tools on this workspace."
+        : `${agentServerInstructions}\n\nThis server is bound to ${binding.apiOrigin} and connects only Claims from that address.${binding.note ? ` ${binding.note}` : ""}`,
     },
     toolSession,
   };

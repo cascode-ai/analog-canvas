@@ -1,4 +1,4 @@
-# Repository-only local workspaces: drawing without a browser
+# Local workspaces for drawing without a browser
 
 For batch work or an Agent drawing with no editor page open (dataset redraws,
 Gallery batch checks, build-server jobs). Internal tool (#1498): no stability
@@ -41,7 +41,10 @@ One process holds a workspace (`<dir>/.lock`; another opener is refused "in use
 by process N"; a dead process's lock is taken over), so give each worker its
 own directory. SIGINT, SIGTERM and SIGHUP write the file and release the lock.
 
-The package carries the drawing code as `bin/analog-canvas-headless.mjs`
-beside `bin/analog-canvas-mcp.mjs`; in a checkout run `pnpm build` and
-`pnpm headless:package` (`ANALOG_CANVAS_HEADLESS` names another bundle).
+Download `analog-canvas-headless-<version>.mjs` from the matching
+[MCP release](https://github.com/cascode-ai/analog-canvas/releases) and verify
+its digest against `SHA256SUMS.txt`. Set `ANALOG_CANVAS_HEADLESS` to the
+downloaded file. Existing installations can continue using their adjacent
+`analog-canvas-headless.mjs`. In a checkout run `pnpm build` and
+`pnpm headless:package`.
 Scripts can import the workspace API from `apps/editor/src/headless`.

@@ -5,17 +5,16 @@
 //
 // It talks to no editor: what the tools do is tested on source, and a
 // release candidate is paired with Production before it is published. One
-// placement in --local mode checks that the editor's drawing code the
-// package carries for it loads beside the executable (#1498).
+// placement in --local mode checks the separately acquired drawing engine.
 //
-//   node scripts/mcp-release-smoke.mjs [packaged-executable]
+//   node scripts/mcp-release-smoke.mjs [packaged-executable] [headless-asset]
 //
 // after `pnpm build` and `node scripts/package-mcp.mjs`, then
 // `node scripts/package-release.mjs` when no executable is given.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -37,11 +36,14 @@ const workspaceExecutable = resolve("apps/mcp-server/dist/main.js");
 const temporary = await mkdtemp(join(tmpdir(), "analog-mcp-smoke-"));
 const executable = join(temporary, "analog-canvas-mcp.mjs");
 await copyFile(packagedExecutable, executable);
-// --local loads the editor's drawing code from beside the executable (#1498).
-const headless = "analog-canvas-headless.mjs";
-await copyFile(
-  join(dirname(packagedExecutable), headless),
-  join(temporary, headless),
+const headless = resolve(
+  process.argv[3] ??
+    join(
+      dirname(packagedExecutable),
+      "..",
+      "..",
+      `analog-canvas-headless-${mcpVersion}.mjs`,
+    ),
 );
 const env = {
   ...process.env,
@@ -53,7 +55,7 @@ const env = {
   XDG_DATA_HOME: join(temporary, "data"),
   ANALOG_CANVAS_TASK_DIR: join(temporary, "task"),
 };
-// The bundle beside the executable, as a release ships it, not another.
+// Start the default package without a drawing engine on the search path.
 delete env.ANALOG_CANVAS_HEADLESS;
 
 /** Start one MCP over stdio and read what it offers. */
@@ -136,6 +138,11 @@ async function command(args, input) {
 }
 
 try {
+  await assert.rejects(
+    stat(join(dirname(packagedExecutable), "analog-canvas-headless.mjs")),
+    { code: "ENOENT" },
+    "The default MCP archive must exclude the optional drawing engine",
+  );
   const packaged = await offered(executable, temporary);
   assert.equal(
     packaged.version,
@@ -168,6 +175,9 @@ try {
     "The packaged command line must report the declared version",
   );
   // Local mode (#1498): drawn into a Project file, with no editor at all.
+  env.ANALOG_CANVAS_HEADLESS = headless;
+  const connectorBytes = (await stat(executable)).size;
+  const headlessBytes = (await stat(headless)).size;
   const drawing = join(temporary, "drawing");
   const placed = await command(
     ["--local", drawing, "--new", "--http", "apply_actions"],
@@ -192,7 +202,7 @@ try {
     "Local mode must save the drawing to the workspace's Project file",
   );
   process.stdout.write(
-    `Packaged MCP ${mcpVersion} starts on its own and offers ${packaged.tools.length} tools and ${packaged.resources.length} resources, as the workspace build does, and draws in a local workspace.\n`,
+    `Packaged MCP ${mcpVersion} (${connectorBytes} bytes) starts on its own with ${packaged.tools.length} tools and ${packaged.resources.length} resources. The optional engine (${headlessBytes} bytes) draws in a local workspace.\n`,
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });

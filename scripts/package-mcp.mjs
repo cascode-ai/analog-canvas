@@ -41,9 +41,12 @@ await build({
   },
   ssr: { noExternal: true },
 });
-// The editor's own drawing code for --local (#1498), loaded only in that
-// mode, so the adapter itself stays as small as it was.
-await bundleHeadless(binDirectory, { emptyOutDir: false });
+// The optional drawing engine is outside the default installation archive.
+const headlessAsset = `analog-canvas-headless-${version}.mjs`;
+const headless = await bundleHeadless(outputRoot, {
+  emptyOutDir: false,
+  fileName: headlessAsset,
+});
 
 const executable = resolve(binDirectory, "analog-canvas-mcp.mjs");
 const source = await readFile(executable, "utf8");
@@ -99,6 +102,9 @@ const tarball = resolve(outputRoot, distribution.release.asset);
 const digest = createHash("sha256")
   .update(await readFile(tarball))
   .digest("hex");
+const headlessDigest = createHash("sha256")
+  .update(await readFile(headless))
+  .digest("hex");
 assertDeclaredReleaseSha({
   verify: process.argv.includes(VERIFY_DECLARED_RELEASE_SHA_FLAG),
   platform: process.platform,
@@ -108,7 +114,7 @@ assertDeclaredReleaseSha({
 });
 await writeFile(
   resolve(outputRoot, "SHA256SUMS.txt"),
-  `${digest}  ${distribution.release.asset}\n`,
+  `${digest}  ${distribution.release.asset}\n${headlessDigest}  ${headlessAsset}\n`,
 );
 await writeFile(
   resolve(outputRoot, "mcp-bootstrap-release.json"),

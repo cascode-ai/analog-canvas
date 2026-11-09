@@ -91,6 +91,7 @@ jobs:
           fi
           gh release create "$TAG" "${flags[@]}" \
             "output/mcp/analog-canvas-mcp-server-$VERSION.tgz" \
+            "output/mcp/analog-canvas-headless-$VERSION.mjs" \
             "output/mcp/SHA256SUMS.txt" \
             "output/mcp/mcp-bootstrap-release.json" \
             --target "$GITHUB_SHA" \

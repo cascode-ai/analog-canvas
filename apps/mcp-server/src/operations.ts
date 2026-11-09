@@ -48,7 +48,8 @@ import {
 } from "@icm/agent-client";
 import type { AgentRequestTiming } from "@icm/agent-client";
 import { siteBinding, type OperationSession } from "./operation-session.js";
-import type { ContractTool } from "./tool-contracts.js";
+import { CanvasTaskError } from "./web-tasks.js";
+import type { ContractTool, Schema } from "./tool-contracts.js";
 import {
   diagnosticsCompact,
   compactActionReport,
@@ -85,6 +86,9 @@ import {
  * resource, not a session permission gate.
  */
 type ToolSessionState = OperationSession;
+
+const TaskRef = z.uuid().describe("Task reference returned by open_canvas.");
+const OpenCanvasArgs = z.strictObject({ taskRef: TaskRef.optional() });
 
 const ConnectArgs = z.strictObject({
   claimCode: z
@@ -664,7 +668,10 @@ function operationError(
   error: unknown,
   input?: unknown,
   contract?: Record<string, unknown>,
+  taskRef?: string,
 ): unknown {
+  if (error instanceof CanvasTaskError)
+    return { ok: false, error: { code: error.code, message: error.message } };
   if (error instanceof ContractQueryError)
     return {
       ok: false,
@@ -691,11 +698,14 @@ function operationError(
       ok: false,
       error: error.toJSON(),
       hint:
-        error.category === "unrecoverable-credential"
-          ? "call connect with a fresh claim code from the editor"
-          : error.category === "editor-offline"
-            ? "the authorized browser editor is not attached; ask the human to reopen the project"
-            : undefined,
+        taskRef &&
+        ["unrecoverable-credential", "editor-offline"].includes(error.category)
+          ? "Call open_canvas with the same taskRef to check its binding."
+          : error.category === "unrecoverable-credential"
+            ? "call connect with a fresh claim code from the editor"
+            : error.category === "editor-offline"
+              ? "the authorized browser editor is not attached; ask the human to reopen the project"
+              : undefined,
     };
   }
   return {
@@ -725,6 +735,24 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
             inputSchema: editContract(query.editKind),
           }
         : describeToolContract(query);
+    },
+  },
+  {
+    definition: {
+      name: "open_canvas",
+      description: agentToolHelp["open_canvas"],
+      get inputSchema() {
+        return lazyContract(OpenCanvasArgs);
+      },
+    },
+    handle: async (args, session) => {
+      const { taskRef } = OpenCanvasArgs.parse(args);
+      if (!session.webTasks)
+        throw new CanvasTaskError(
+          "CANVAS_TASK_UNAVAILABLE",
+          "Automatic browser launch needs a running Web MCP server.",
+        );
+      return session.webTasks.open(taskRef);
     },
   },
   {
@@ -774,7 +802,10 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         documentIds: report.documentIds,
         tokenExpiresAt: report.tokenExpiresAt,
         // The session's whole surface: granted scopes and every tool here.
-        access: { scopes: report.scopes, tools: toolGroups() },
+        access: {
+          scopes: report.scopes,
+          tools: toolGroups(session.localMode !== true),
+        },
         // The Circuit resource's operations and edits, not the session's.
         capabilities:
           detail === "full"
@@ -1735,13 +1766,38 @@ const TOOLS: readonly ToolEntry[] = [
 ];
 
 export function operationDefinitions(): ContractTool[] {
-  return TOOLS.map(({ definition }) => structuredClone(definition));
+  return TOOLS.map(({ definition }) => {
+    const result = structuredClone(definition);
+    if (taskTool(result.name)) addTaskRef(result.inputSchema);
+    return result;
+  });
+}
+
+function taskTool(name: string): boolean {
+  return !["open_canvas", "connect", "describe_tool"].includes(name);
+}
+
+// A task reference is an envelope field, outside operation-specific arguments.
+function addTaskRef(schema: Schema): void {
+  if (schema.properties || schema.type === "object")
+    schema.properties = {
+      ...(schema.properties as Schema | undefined),
+      taskRef: {
+        type: "string",
+        format: "uuid",
+        description: "Task reference from open_canvas.",
+      },
+    };
+  for (const key of ["oneOf", "anyOf"] as const)
+    for (const branch of (schema[key] as Schema[] | undefined) ?? [])
+      addTaskRef(branch);
 }
 
 /** Groups of the tools without a `circuit_` or `simulation` prefix. */
 const TOOL_GROUP: Readonly<Record<string, string>> = {
   describe_tool: "session",
   connect: "session",
+  open_canvas: "session",
   disconnect: "session",
   connection_status: "session",
   get_context: "circuit",
@@ -1762,7 +1818,7 @@ const TOOL_GROUP: Readonly<Record<string, string>> = {
 
 let toolGroupsCache: Record<string, string[]> | undefined;
 /** Every tool this server offers, by group, as `connect` reports them. */
-export function toolGroups(): Record<string, string[]> {
+export function toolGroups(browserLaunch = true): Record<string, string[]> {
   if (!toolGroupsCache) {
     toolGroupsCache = {};
     for (const { name } of TOOLS.map((tool) => tool.definition)) {
@@ -1776,7 +1832,10 @@ export function toolGroups(): Record<string, string[]> {
       (toolGroupsCache[group] ??= []).push(name);
     }
   }
-  return structuredClone(toolGroupsCache);
+  const groups = structuredClone(toolGroupsCache);
+  if (!browserLaunch)
+    groups.session = groups.session!.filter((name) => name !== "open_canvas");
+  return groups;
 }
 
 let contractRegistry: ToolContractRegistry | undefined;
@@ -1787,7 +1846,7 @@ export function describeToolContract(query: {
 }) {
   DescribeToolArgs.parse(query);
   contractRegistry ??= new ToolContractRegistry(
-    TOOLS.map((t) => t.definition),
+    operationDefinitions(),
     AGENT_MCP_VERSION,
   );
   return contractRegistry.describe(query);
@@ -1797,9 +1856,11 @@ export function describeToolContract(query: {
 export function toolInputSchema(
   name: string,
 ): Record<string, unknown> | undefined {
-  const schema = TOOLS.find((tool) => tool.definition.name === name)?.definition
-    .inputSchema;
-  if (!schema) return undefined;
+  const original = TOOLS.find((tool) => tool.definition.name === name)
+    ?.definition.inputSchema;
+  if (!original) return undefined;
+  const schema = structuredClone(original);
+  if (taskTool(name)) addTaskRef(schema);
   const compact = compactSchema(schema);
   return JSON.stringify(compact).length < JSON.stringify(schema).length
     ? compact
@@ -1821,6 +1882,50 @@ export async function executeOperation(
   const tool = TOOLS.find((entry) => entry.definition.name === name);
   if (!tool)
     return { ok: false, error: { code: "UNKNOWN_TOOL", message: name } };
+  if (taskTool(name) && args && typeof args === "object" && "taskRef" in args) {
+    const { taskRef, ...input } = args;
+    try {
+      // JSON cannot pass undefined. An in-process caller may omit it that way.
+      if (taskRef !== undefined) {
+        const ref = TaskRef.parse(taskRef);
+        if (!session.webTasks)
+          throw new CanvasTaskError(
+            "CANVAS_TASK_UNAVAILABLE",
+            "This operation has no Web task session.",
+          );
+        if (name === "disconnect") z.strictObject({}).parse(input);
+        return await session.webTasks.withSession(
+          ref,
+          (scoped) => invokeOperation(tool, input, scoped, options),
+          name === "disconnect",
+        );
+      }
+      args = input;
+    } catch (error) {
+      return operationError(error);
+    }
+  }
+  if (
+    name !== "open_canvas" &&
+    name !== "describe_tool" &&
+    session.webTasks?.hasTasks
+  )
+    return operationError(
+      new CanvasTaskError(
+        "CANVAS_TASK_REQUIRED",
+        "Pass the taskRef from open_canvas to work with its browser tab.",
+      ),
+    );
+  return invokeOperation(tool, args, session, options);
+}
+
+async function invokeOperation(
+  tool: ToolEntry,
+  args: unknown,
+  session: OperationSession,
+  options: { reportStartup?: boolean },
+): Promise<unknown> {
+  const { name } = tool.definition;
   const started = performance.now();
   // A session without a network client (offline discovery) has no hops.
   const mark = session.client?.timingMark?.();
@@ -1841,6 +1946,7 @@ export async function executeOperation(
       error,
       input,
       error instanceof z.ZodError ? tool.definition.inputSchema : undefined,
+      session.taskRef,
     );
   }
   return withTiming(

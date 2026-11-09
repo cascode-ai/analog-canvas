@@ -9,9 +9,14 @@ import {
   defaultConnectorFilePath,
   WorkspaceBindingStore,
 } from "@icm/agent-client";
+import { WebTasks } from "./web-tasks.js";
+import type { BrowserOpener } from "./browser-launch.js";
 
 export interface OperationSession {
   client: AgentSessionClient;
+  webTasks?: WebTasks;
+  localMode?: true;
+  taskRef?: string;
   /** ANALOG_CANVAS_API_URL was unset, so the client took the default site. */
   apiBaseUrlDefaulted?: boolean;
   workspaceBase?: string;
@@ -22,6 +27,7 @@ export interface OperationSession {
 
 export interface RuntimeConfig {
   apiBaseUrl: string;
+  openBrowser?: BrowserOpener;
   /** ANALOG_CANVAS_API_URL was unset; reported, never silent. */
   apiBaseUrlDefaulted?: boolean;
   connectorPath: string;
@@ -87,10 +93,22 @@ export function createOperationSession(
   const lease = (config.connectorLease ?? false) && !options.shortLived;
   const connectorStore = new ConnectorStore(config.connectorPath, { lease });
   if (lease) releaseLeaseOnExit(connectorStore);
-  return {
+  const settings = {
     ...(config.apiBaseUrlDefaulted ? { apiBaseUrlDefaulted: true } : {}),
     ...(config.workspaceRoot ? { workspaceRoot: config.workspaceRoot } : {}),
     ...(config.taskDirectory ? { taskDirectory: config.taskDirectory } : {}),
+  };
+  return {
+    ...settings,
+    ...(!options.shortLived
+      ? {
+          webTasks: new WebTasks(
+            config.apiBaseUrl,
+            settings,
+            config.openBrowser,
+          ),
+        }
+      : {}),
     client: new AgentSessionClient({
       http: new AgentHttpClient({
         baseUrl: config.apiBaseUrl,

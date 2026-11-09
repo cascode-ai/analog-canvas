@@ -61,6 +61,16 @@ export class AgentSessionClient extends AgentSessionTransactions {
       }
       return resumed;
     }
+    await this.redeem(claimCode);
+    return this.establishContext(
+      "claimed",
+      startedAt,
+      this.elapsedSince(startedAt),
+    );
+  }
+
+  /** Pair the Agent side before the user attaches a launched browser tab. */
+  async redeem(claimCode: string): Promise<void> {
     this.connection.apply("claim-started");
     try {
       const claim: ClaimSuccess = await this.http.claim(claimCode.trim());
@@ -75,11 +85,6 @@ export class AgentSessionClient extends AgentSessionTransactions {
       this.observation = null;
       this.session = this.activeSession(claim);
       await this.persistConnector(claim);
-      return await this.establishContext(
-        "claimed",
-        startedAt,
-        this.elapsedSince(startedAt),
-      );
     } catch (error) {
       if (!this.session) this.connection.apply("reset");
       throw error;
@@ -202,5 +207,17 @@ export class AgentSessionClient extends AgentSessionTransactions {
       await this.discardCredential("DISCONNECTED");
       await this.workspaceBindingStore?.clear();
     }
+  }
+
+  /** A recovery may retire only the same active, still detached session. */
+  async retireDetached(): Promise<boolean> {
+    const retired = await this.withAuthorization((session) =>
+      this.http.retireDetached(session.sessionId, session.agentToken),
+    );
+    if (retired) {
+      await this.discardCredential("DISCONNECTED");
+      await this.workspaceBindingStore?.clear();
+    }
+    return retired;
   }
 }

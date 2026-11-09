@@ -2,6 +2,19 @@
 
 ## Connect
 
+`open_canvas({})` opens a dedicated Canvas tab for a new task at the configured
+origin. The user chooses **Allow Agent access** in the browser. A successful
+reply includes `taskRef`, `sessionId` and the live Project and Cell context.
+Wait for `projectRead: "ready"` before editing. Pass that `taskRef` on every
+Canvas tool call in this task, including another `open_canvas` to reuse the tab
+or reopen after closing. If approval is pending, continue with the returned
+reference after the user approves. Task references last for the running MCP
+process. After a reopen with `recovery: "previous-project-unconfirmed"`,
+verify the target Project and revision before continuing earlier work.
+
+Use the manual connection for a page the user paired using a Claim. Run it
+in a separate MCP process from dedicated Canvas tasks.
+
 `connection_status({"refresh":false})` reports the loaded version and bound
 API origin (`runtime.apiOrigin`) locally. When the origin matches, `connect`
 with the Claim once (omit it to resume the saved connector); the exchange

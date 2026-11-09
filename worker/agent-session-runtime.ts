@@ -22,6 +22,11 @@ import {
   type AgentTransportErrorResponse,
 } from "@icm/agent-adapter";
 import { agentOperatingKit } from "@icm/agent-adapter/kit";
+import {
+  BROWSER_LAUNCH_PATH,
+  BROWSER_LAUNCH_PENDING_PROJECT,
+} from "@icm/agent-adapter/browser-launch";
+import { editorLaunchPage } from "./agent-editor-launch";
 import type { AgentArtifactBucket } from "./agent-artifacts";
 
 export const SESSION_STATE_KEY = "agent-session-v1";
@@ -191,6 +196,14 @@ export async function routeAgentSessionRequest(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/agent/")) return null;
+  // Only a top-level loopback form may display the launch prompt. Redeeming
+  // its grant is same-origin. Circuit routes retain their ordinary checks.
+  if (url.pathname === BROWSER_LAUNCH_PATH && request.method === "POST") {
+    const form = await readBoundedText(request, 1024);
+    return form.ok
+      ? editorLaunchPage(request, new URLSearchParams(form.text), env)
+      : new Response(null, { status: 413 });
+  }
   const allowedOrigin = env.AGENT_ALLOWED_ORIGIN ?? url.origin;
   if (!requestOriginAllowed(request, allowedOrigin)) {
     return jsonResponse(
@@ -264,11 +277,16 @@ export async function routeAgentSessionRequest(
       );
     }
     const rawClaim = result.session.claimCode;
+    const launch =
+      body.projectId === BROWSER_LAUNCH_PENDING_PROJECT &&
+      body.browserLaunch === true;
+    const { editorSecret, ...session } = result.session;
     const createdResponse = jsonResponse(
       {
         ...result,
         session: {
-          ...result.session,
+          ...session,
+          ...(launch ? { launchGrant: editorSecret } : { editorSecret }),
           claimCode:
             typeof rawClaim === "string"
               ? `${sessionId}.${rawClaim}`
@@ -368,7 +386,7 @@ export async function routeAgentSessionRequest(
   }
 
   const match =
-    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control|status|activity|artifact-status|artifacts\/[a-zA-Z0-9_-]{1,128}))?$/u.exec(
+    /^\/api\/agent\/sessions\/([^/]+)(?:\/(circuit|files|simulation|projects|events|editor|control|status|activity|detached-editor|artifact-status|artifacts\/[a-zA-Z0-9_-]{1,128}))?$/u.exec(
       url.pathname,
     );
   if (!match) return jsonResponse({ error: "Not found" }, 404, allowedOrigin);
