@@ -35,7 +35,7 @@ test("keeps editor chrome typography from suppressing SVG italics", async ({
 
 // The GitHub, change log and credit links are App.test's ("links GitHub and
 // the change log directly without a Help surface").
-test("keeps Gallery Library Hierarchy Netlist and Project Code together on the left at full and half width", async ({
+test("keeps Gallery, Library, Hierarchy, Netlist, Testbench and Project Code together at full and half width", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -53,6 +53,7 @@ test("keeps Gallery Library Hierarchy Netlist and Project Code together on the l
     "library-toggle",
     "hierarchy-toggle",
     "netlist-panel-toggle",
+    "testbench-panel-toggle",
     "project-code-toggle",
   ]);
   for (const width of [1440, 720]) {
