@@ -44,9 +44,16 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   (`apps/editor/src/usage-policy-note.ts`, its one source); the Agent's MCP
   Gallery tool and the HTTP Agent operation point to `llms.txt`.
 - `scripts/gallery-download.mjs` (Node 18 or newer, no account or install)
-  downloads every public circuit, oldest first: `index.json` (the list's
-  entries) and `entries/<id>.json` (`{entry, projectText}`), at most 600
-  requests a minute, skipping circuits already on disk.
+  downloads every public circuit, oldest first, or those its filters select:
+  `--source`, `--q`, `--tags`, `--author`, `--parts`, `--netlistable`, and
+  `--url` with a wall link's filters (the link's `netlist` is the list's
+  `netlistable`; a link needing a signed-in reader is refused). It writes
+  `index.json` (the list's entries) and `entries/<id>.json`
+  (`{entry, projectText}`, each written whole through a temporary file), at
+  most 600 requests a minute. A rerun keeps a file only if it parses with its
+  id and a non-empty `projectText`. It ends with downloaded, kept and failed
+  counts and exits 1 when the list or any circuit failed; a `--source` that
+  `GET /api/gallery/sources` does not list is refused.
 - The wall's Download menu, the same for every reader and signed out too,
   saves the wall's current results (its own list query) or every public
   circuit as one `.zip`: `<id>.icproj.json` (the circuit's `projectText`) and
