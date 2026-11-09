@@ -234,15 +234,17 @@ export async function routeAgentSessionRequest(
     request.method === "GET" &&
     url.pathname === "/api/agent/mcp-manifest.json"
   ) {
+    const servesArchive = env.AGENT_MCP_DOWNLOAD_ORIGIN === url.origin;
     const response = jsonResponse(
-      agentMcpBootstrapManifest(
-        url.origin,
-        env.AGENT_MCP_DOWNLOAD_ORIGIN === url.origin,
-      ),
+      agentMcpBootstrapManifest(url.origin, servesArchive),
       200,
       allowedOrigin,
     );
-    response.headers.set("cache-control", "public, max-age=300");
+    // A prior site archive may disappear when the Worker version changes.
+    response.headers.set(
+      "cache-control",
+      servesArchive ? "no-store" : "public, max-age=300",
+    );
     return response;
   }
 

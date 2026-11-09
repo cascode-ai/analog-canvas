@@ -27,6 +27,7 @@
     },
   ],
   "vars": {
+    "AGENT_MCP_DOWNLOAD_ORIGIN": "https://analog-canvas.tokenzhang.com",
     "SIMULATION_DISPATCH": "alarm",
     "SIMULATION_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com",
     "SG13G2_UPSTREAM_URL": "https://sim-fra.analog-canvas.tokenzhang.com/sg13g2",
@@ -55,6 +56,7 @@
     "run_worker_first": [
       "/api/*",
       "/assets/*",
+      "/downloads/mcp/*",
       "/",
       "/g/*",
       // Selection boards (docs/specs/selection-boards.md), served whole by the Worker.

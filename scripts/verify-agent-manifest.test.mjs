@@ -16,6 +16,7 @@ const MANIFEST_PATH = "/api/agent/mcp-manifest.json";
 const VERSION = "0.15.7";
 const DIGEST = createHash("sha256").update("asset-bytes").digest("hex");
 const PINNED_URL = `https://github.com/cascode-ai/analog-canvas/releases/download/mcp-v${VERSION}/analog-canvas-mcp-server-${VERSION}.tgz`;
+const MIRROR_PATH = `/downloads/mcp/analog-canvas-mcp-server-${VERSION}.tgz`;
 
 const distribution = {
   schemaVersion: 1,
@@ -56,15 +57,18 @@ describe("verify-agent-manifest", () => {
 
   beforeAll(async () => {
     server = createServer((request, response) => {
-      if (request.url === MANIFEST_PATH) {
-        response.statusCode = state.manifestStatus;
+      const moved = request.url === "/moved-manifest";
+      if (request.url === MANIFEST_PATH || moved) {
+        response.statusCode = moved ? 200 : state.manifestStatus;
+        if (response.statusCode === 302)
+          response.setHeader("location", "/moved-manifest");
         response.setHeader("content-type", "application/json");
         response.end(
-          state.manifestStatus === 200 ? JSON.stringify(state.manifest) : "no",
+          response.statusCode === 200 ? JSON.stringify(state.manifest) : "no",
         );
         return;
       }
-      if (request.url === "/asset.tgz") {
+      if (request.url === "/asset.tgz" || request.url === MIRROR_PATH) {
         response.statusCode = state.assetStatus;
         response.end(state.assetBytes);
         return;
@@ -83,7 +87,10 @@ describe("verify-agent-manifest", () => {
   /** Route the pinned GitHub URL to the local asset so tests stay hermetic. */
   function fetchImpl(url, init) {
     const href = String(url);
-    return fetch(href === PINNED_URL ? `${baseUrl}/asset.tgz` : href, init);
+    if (href === PINNED_URL) return fetch(`${baseUrl}/asset.tgz`, init);
+    if (new URL(href).origin !== baseUrl)
+      throw new Error(`Unexpected test request: ${href}`);
+    return fetch(href, init);
   }
 
   function freshState() {
@@ -130,6 +137,76 @@ describe("verify-agent-manifest", () => {
     ).resolves.toMatchObject({ version: VERSION, assetStatus: 200 });
   });
 
+  it.each([
+    { kind: "pinned bytes", bytes: "asset-bytes", metadata: {}, error: null },
+    {
+      kind: "wrong bytes",
+      bytes: "other-bytes",
+      metadata: {},
+      error: /bytes do not match/su,
+    },
+    {
+      kind: "another tag",
+      bytes: "asset-bytes",
+      metadata: { tag_name: "mcp-v0.15.6" },
+      error: /Could not download the pinned MCP archive/su,
+    },
+    {
+      kind: "a draft",
+      bytes: "asset-bytes",
+      metadata: { draft: true },
+      error: /Could not download the pinned MCP archive/su,
+    },
+    {
+      kind: "no matching asset",
+      bytes: "asset-bytes",
+      metadata: { assets: [] },
+      error: /Could not download the pinned MCP archive/su,
+    },
+  ])(
+    "checks $kind from the GitHub release API after a download timeout",
+    async ({ bytes, metadata, error }) => {
+      const releaseApi = `https://api.github.com/repos/cascode-ai/analog-canvas/releases/tags/mcp-v${VERSION}`;
+      const assetApi =
+        "https://api.github.com/repos/cascode-ai/analog-canvas/releases/assets/42";
+      let assetReads = 0;
+      const fetchImpl = async (url, init) => {
+        if (String(url) === PINNED_URL)
+          return new Response("gateway timeout", { status: 504 });
+        if (String(url) === releaseApi)
+          return Response.json({
+            tag_name: distribution.release.tag,
+            draft: false,
+            assets: [
+              { id: 17, name: "another-file", state: "uploaded" },
+              { id: 42, name: distribution.release.asset, state: "uploaded" },
+            ],
+            ...metadata,
+          });
+        expect(String(url)).toBe(assetApi);
+        assetReads += 1;
+        expect(new Headers(init.headers).get("accept")).toBe(
+          "application/octet-stream",
+        );
+        return new Response(bytes);
+      };
+      const result = verifyMcpAsset({
+        distribution,
+        fetchImpl,
+        retryDelayMs: 0,
+      });
+      if (!error)
+        await expect(result).resolves.toMatchObject({
+          version: VERSION,
+          assetUrl: PINNED_URL,
+          assetStatus: 200,
+          assetSource: "github-api",
+        });
+      else await expect(result).rejects.toThrow(error);
+      expect(assetReads).toBe(Object.keys(metadata).length ? 0 : 1);
+    },
+  );
+
   it("checks the serving declaration without a second GitHub dependency", async () => {
     state = freshState();
     state.assetStatus = 503;
@@ -141,6 +218,64 @@ describe("verify-agent-manifest", () => {
         verifyAsset: false,
       }),
     ).resolves.toMatchObject({ version: VERSION, assetUrl: PINNED_URL });
+  });
+
+  it("verifies bytes from the archive the serving site advertises", async () => {
+    state = freshState();
+    state.manifest.distribution.downloadUrl = baseUrl + MIRROR_PATH;
+    const requests = [];
+    const observed = (url, init) => {
+      requests.push(String(url));
+      return fetchImpl(url, init);
+    };
+    await expect(
+      verifyAgentManifest({
+        baseUrl,
+        distribution,
+        fetchImpl: observed,
+        requireSiteArchive: true,
+      }),
+    ).resolves.toMatchObject({
+      assetUrl: baseUrl + MIRROR_PATH,
+      assetStatus: 200,
+    });
+    expect(requests).toEqual([baseUrl + MANIFEST_PATH, baseUrl + MIRROR_PATH]);
+    state.assetBytes = "wrong archive";
+    await expect(
+      verifyAgentManifest({ baseUrl, distribution, fetchImpl: observed }),
+    ).rejects.toThrow(/bytes do not match/su);
+  });
+
+  it("rejects the old download route when a site archive is required", async () => {
+    state = freshState();
+    await expect(
+      verifyAgentManifest({
+        baseUrl,
+        distribution,
+        fetchImpl,
+        requireSiteArchive: true,
+      }),
+    ).rejects.toThrow(/must advertise its own pinned MCP archive/su);
+  });
+
+  it("refuses a redirected installation manifest", async () => {
+    state = freshState();
+    state.manifestStatus = 302;
+    await expect(
+      verifyAgentManifest({ baseUrl, distribution, fetchImpl }),
+    ).rejects.toThrow(/answered 302/su);
+  });
+
+  it("keeps explicit throttling even when discarding the response fails", async () => {
+    const fetchImpl = async (url) => {
+      expect(String(url)).toBe(PINNED_URL);
+      const response = new Response("rate limited", { status: 429 });
+      response.body.getReader(); // Canceling a locked response body rejects.
+      return response;
+    };
+    await expect(
+      verifyMcpAsset({ distribution, fetchImpl, retryDelayMs: 0 }),
+    ).rejects.toThrow(/answered 429/su);
   });
 
   it("fails with the release-ordering remedy when the pinned asset is missing", async () => {

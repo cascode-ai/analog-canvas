@@ -241,13 +241,13 @@ jobs:
               exit 1
             fi
           done
-          curl --fail --silent --show-error \
-            --retry 5 --retry-delay 2 --retry-all-errors \
-            --max-time 20 \
-            https://analog-canvas.tokenzhang.com/api/agent/mcp-manifest.json >/dev/null
-          # Asset integrity was verified before deploying. Now check only
-          # that the serving domain advertises the accepted declaration.
-          node scripts/verify-agent-manifest.mjs https://analog-canvas.tokenzhang.com --manifest-only
+          # A manual dispatch can select a mainline commit that predates site
+          # archives. Its public asset was checked before the Worker switched.
+          if grep -q '"AGENT_MCP_DOWNLOAD_ORIGIN"' wrangler.jsonc; then
+            node scripts/verify-agent-manifest.mjs https://analog-canvas.tokenzhang.com --require-site-archive
+          else
+            node scripts/verify-agent-manifest.mjs https://analog-canvas.tokenzhang.com --manifest-only
+          fi
           agent_session="$(curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \

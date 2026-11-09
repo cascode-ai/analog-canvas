@@ -97,16 +97,16 @@ function encodedResponse(
  * The boundary, which is the thing an earlier attempt did not draw: a path
  * under `/assets/` names a CONTENT-HASHED FILE. The name is a promise about
  * the bytes behind it, so if those bytes are gone the honest answer is 404.
- * Every other path is a CLIENT ROUTE — `/editor`, `/g/<id>` — which never had
- * a file behind it, and whose miss is answered with the shell so the app can
- * boot and route it.
+ * A versioned MCP archive also names a file. Routes such as `/editor` and
+ * `/g/<id>` have no file behind them; answer those misses with the shell so
+ * the app can boot and route them.
  *
  * The asset layer cannot tell them apart: `not_found_handling:
  * single-page-application` answers both with index.html at status 200. That
  * is right for a route and wrong for an asset, and it is the bug a browser
  * reports as "Failed to fetch dynamically imported module" after a redeploy
- * retires a chunk name. So `/assets/*` runs the Worker first, and the shell
- * arriving where a script was requested is recognised and turned into a 404.
+ * retires a chunk name. Build assets and MCP downloads run the Worker first.
+ * If the asset layer returns the shell for one of those files, return a 404.
  *
  * Detection is by content type rather than by comparing bytes: a real file
  * under /assets/ is script, style, font or image, and never text/html.
@@ -120,8 +120,10 @@ export async function serveAsset(
   assets: Assets,
 ): Promise<Response> {
   const path = new URL(request.url).pathname;
-  if (!path.startsWith("/assets/")) return assets.fetch(request);
-  const hashed = HASHED_ASSET.test(path);
+  const buildAsset = path.startsWith("/assets/");
+  if (!buildAsset && !path.startsWith("/downloads/mcp/"))
+    return assets.fetch(request);
+  const hashed = buildAsset && HASHED_ASSET.test(path);
   const compressible = hashed && isCompressibleAsset(path);
   const response =
     (compressible ? await fetchBrotliSibling(request, assets) : null) ??

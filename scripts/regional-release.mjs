@@ -24,6 +24,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { downloadVerifiedMcp } from "./verify-agent-manifest.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const FORMAL = join(root, "containers/canvas-cn/formal");
@@ -97,29 +98,17 @@ async function bundle(config, outdir, entry, target) {
   await rename(join(outdir, entry), target);
 }
 
-/** The pinned MCP bundle, verified against the distribution's SHA-256. */
-async function mcpBundle(target, fetchLike = fetch) {
+/** Stage the same verified bundle for the regional and Production origins. */
+async function mcpBundle(target, dist) {
   const distribution = JSON.parse(
     await readFile(join(root, "config/agent-mcp-distribution.json"), "utf8"),
   );
-  const { repository, tag, asset, sha256: expected } = distribution.release;
-  const url = `https://github.com/${repository}/releases/download/${tag}/${asset}`;
-  let response;
-  for (let attempt = 1; ; attempt++) {
-    response = await fetchLike(url).catch((error) => ({
-      ok: false,
-      status: error.message,
-    }));
-    if (response.ok || attempt === 4) break;
-    await new Promise((done) => setTimeout(done, attempt * 5000));
+  const { bytes } = await downloadVerifiedMcp({ distribution });
+  for (const directory of [target, dist]) {
+    const path = join(directory, "downloads/mcp", distribution.release.asset);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, bytes);
   }
-  if (!response.ok) throw new Error(`MCP bundle download: ${response.status}`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (sha256(bytes) !== expected)
-    throw new Error("MCP bundle does not match the pinned SHA-256");
-  const path = join(target, "downloads/mcp", asset);
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, bytes);
 }
 
 /** The release manifest for an assembled directory and the editor's dist. */
@@ -186,11 +175,13 @@ export async function createRegionalRelease(dist, sha, work, options = {}) {
     join(root, "config/gallery-sources.json"),
     join(target, "gallery-sources.json"),
   );
-  await (options.mcp ?? mcpBundle)(target);
+  if (options.mcp) await options.mcp(target);
+  else await mcpBundle(target, dist);
   // Root files the Worker may rewrite on the way out are served from here.
   for (const path of await files(dist)) {
     if (
       path.startsWith("assets/") ||
+      path.startsWith("downloads/mcp/") ||
       path.startsWith(`${RELEASE_DIRECTORY}/`) ||
       path.endsWith(".br")
     )
