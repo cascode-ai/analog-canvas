@@ -982,6 +982,8 @@ test("Create from keeps a new publication destination through draft reopening ev
     authorId: "alice",
   });
   await openProjectFile(page, saved);
+  // Replacing unsaved work of any size asks first (#2147).
+  await continueWithoutSaving(page);
   await awaitEditorReady(page);
   await openProjectDraft(page, "Library draft Derivative device");
   await button(editor, "Publish as new component").click();
@@ -1135,6 +1137,8 @@ test("new native publication survives a lost response, Project reopen and anothe
   await editor.getByLabel("Close component editor").click();
   const pending = await readProject(page);
   await openProjectFile(page, pending);
+  // Replacing unsaved work of any size asks first (#2147).
+  await continueWithoutSaving(page);
   await awaitEditorReady(page);
   async function reopenPublication() {
     await openProjectDraft(page, /^Library draft /);
