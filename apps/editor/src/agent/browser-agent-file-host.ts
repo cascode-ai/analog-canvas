@@ -68,7 +68,8 @@ type LocalReviewEdit = {
 export type LocalReviewCommand =
   | { action: "read" }
   | (LocalReviewEdit & {
-      action: "mark-ready" | "open-original" | "acknowledge-save";
+      action:
+        "mark-ready" | "open-original" | "prepare-save" | "acknowledge-save";
     });
 export type LocalReviewResult =
   | LocalReviewDelivery
@@ -493,9 +494,7 @@ export class BrowserAgentFileHost {
       };
     }
     const project = this.options.getProject();
-    const delivery = await host(
-      input.action === "prepare-save" ? { action: "read" } : input,
-    );
+    const delivery = await host(input);
     if (typeof delivery === "string") {
       const messages: Record<string, string> = {
         REVIEW_WORKSPACE_REQUIRED: "Activate the delivered working copy",

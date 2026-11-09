@@ -674,6 +674,25 @@ test("freezes a ready original and acknowledges a saved whole Project", async ({
       projectRevision: undrawnReview.delivery.projectRevision,
     }),
   ).resolves.toMatchObject({ ok: false, error: { code: "REVIEW_NOT_READY" } });
+  expect(
+    await tool("apply_actions", {
+      actions: [
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "R1" },
+          position: { x: 240, y: 120 },
+        },
+      ],
+    }),
+  ).toMatchObject({ ok: true, applied: true });
+  const cosmetic = await tool("review_delivery", { action: "read" });
+  await expect(
+    tool("review_delivery", {
+      action: "mark-ready",
+      expected: cosmetic.delivery.target,
+      projectRevision: cosmetic.delivery.projectRevision,
+    }),
+  ).resolves.toMatchObject({ ok: false, error: { code: "REVIEW_NOT_READY" } });
 });
 
 test("delivers a Virtuoso netlist whose foundry library stays external, typed by the Agent", async ({

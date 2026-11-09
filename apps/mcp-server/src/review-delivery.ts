@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { constants } from "node:fs";
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
   AGENT_API_VERSION,
@@ -90,7 +89,7 @@ export async function reviewDelivery(
   try {
     const staged = join(temporary, "project.icproj.json");
     await writeFile(staged, bytes, { mode: 0o600, flag: "wx" });
-    await copyFile(staged, outputPath, constants.COPYFILE_EXCL);
+    await link(staged, outputPath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST")
       throw requestFailure(

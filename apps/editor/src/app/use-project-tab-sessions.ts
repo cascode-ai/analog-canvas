@@ -14,7 +14,7 @@ import {
   embeddedReviewSource,
   reviewRevision,
 } from "../agent/embedded-review-source";
-import type { HierarchyFrame } from "@icm/derived";
+import { assessImportReference, type HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
   createId,
@@ -931,10 +931,10 @@ export function useProjectTabSessions({
   };
   localReviewRef.current = async (controller, command) => {
     const workspace = reviewWorkspaceRef.current(controller);
-    const local = localDeliveryOf(controller);
+    const initialLocal = localDeliveryOf(controller);
     if (
       !workspace ||
-      !local ||
+      !initialLocal ||
       workspace.workspaceId !== projectTabs.currentId()
     )
       return "REVIEW_WORKSPACE_REQUIRED";
@@ -942,17 +942,21 @@ export function useProjectTabSessions({
     const projectToken = projectChangeToken(project);
     const [projectRevision, embeddedSource] = await Promise.all([
       reviewRevision(projectToken),
-      local.source.format === "project"
+      initialLocal.source.format === "project"
         ? embeddedReviewSource(project.source)
         : undefined,
     ]);
     if (
       controller.project !== project ||
-      controller.document.id !== document.id ||
+      (command.action !== "acknowledge-save" &&
+        controller.document.id !== document.id) ||
       workspace.workspaceId !== projectTabs.currentId() ||
       reviewWorkspaceRef.current(controller)?.workspaceGeneration !==
         workspace.workspaceGeneration
     )
+      return "REVIEW_TARGET_CHANGED";
+    const local = localDeliveryOf(controller);
+    if (!local || local.source.version !== initialLocal.source.version)
       return "REVIEW_TARGET_CHANGED";
     const drawingPresent = document.instances.every(
       (instance) => instance.placement,
@@ -975,18 +979,29 @@ export function useProjectTabSessions({
       ...(embeddedSource ? { embeddedSource } : {}),
     };
     if (command.action === "read") return delivery;
+    const expected =
+      command.action === "acknowledge-save"
+        ? {
+            ...command.expected,
+            documentId: document.id,
+            revision: document.revision,
+          }
+        : command.expected;
     if (
       command.projectRevision !== projectRevision ||
-      !matchesAgentReviewTarget(delivery.target, command.expected)
+      !matchesAgentReviewTarget(delivery.target, expected)
     )
       return "REVIEW_TARGET_CHANGED";
     if (command.action === "acknowledge-save") {
+      if (currentEditBlocker()) return "REVIEW_TARGET_CHANGED";
       let saved = false;
       flushSync(() => {
         saved = acknowledgeLocalReviewSave(projectToken);
       });
       return saved ? { ...delivery, unsaved: false } : "REVIEW_TARGET_CHANGED";
     }
+    if (command.action === "prepare-save")
+      return currentEditBlocker() ? "REVIEW_NOT_READY" : delivery;
     if (command.action === "mark-ready") {
       const needsGeometry =
         local.source.drawing === "not-provided" ||
@@ -1002,6 +1017,15 @@ export function useProjectTabSessions({
           document.sourceStatus === "connectivity-modified")
       )
         return "REVIEW_NOT_READY";
+      if (!alreadyReviewed && needsGeometry) {
+        const assessment = assessImportReference(document, controller.resolver);
+        if (
+          !assessment.available ||
+          assessment.guides.length ||
+          assessment.issues.length
+        )
+          return "REVIEW_NOT_READY";
+      }
       if (!local.readyRevision)
         reviewOriginals.current.set(controller, {
           project,
@@ -1022,6 +1046,12 @@ export function useProjectTabSessions({
     if (!original) return "REVIEW_ORIGINAL_UNAVAILABLE";
     let originalController: EditorDocumentController | undefined;
     const opened = await projectTabs.open(() => {
+      if (
+        projectTabs.currentId() !== workspace.workspaceId ||
+        controller.project !== project ||
+        controller.document.id !== document.id
+      )
+        return null;
       const session = createTabSession(
         { ...original.project, id: createId("project") },
         DEFAULT_VIEWBOX,

@@ -84,6 +84,9 @@ const ARTIFACT_CLEANUP_KEY = "agent-artifact-cleanup";
 const ARTIFACT_CLEANUP_RETRY_MS = 60_000;
 /** The release the paired adapter named, for the editor to show (#1844). */
 const ADAPTER_VERSION_KEY = "agent-adapter-version";
+type StoredBrowserSession = PersistedAgentSessionState & {
+  browserLaunched?: true;
+};
 
 /** One event in the envelope the editor socket carries. */
 function editorEventMessage(event: AgentSessionEvent): string {
@@ -117,6 +120,7 @@ export class AgentSessionDO {
   private machine: AgentSessionMachine | null = null;
   private readonly ready: Promise<void>;
   private creating = false;
+  private browserLaunched = false;
   private publishedExpiresAt: number | null = null;
   private readonly pendingForwards = new Map<string, PendingForward>();
   private readonly eventSubscribers = new Map<
@@ -784,6 +788,7 @@ export class AgentSessionDO {
         random: () => crypto.randomUUID(),
       });
       this.machine = created.machine;
+      this.browserLaunched = browserLaunch;
       await this.persist();
       return jsonResponse(
         { ok: true, session: created.session },
@@ -1199,7 +1204,10 @@ export class AgentSessionDO {
     const scopeAllowed = fileOperationScopes(fileRequest).every(
       (required) => machine.assertScope(auth.session.scopes, required).ok,
     );
-    if (!scopeAllowed) {
+    if (
+      !scopeAllowed ||
+      (fileRequest.operation === "review" && !this.browserLaunched)
+    ) {
       return jsonResponse(
         errorBody(
           "TOKEN_SCOPE_INSUFFICIENT",
@@ -1281,7 +1289,11 @@ export class AgentSessionDO {
       if (trace) trace.result = result as RequestTrace["result"];
       // Export blobs are explicitly one-shot: the DO retains only an unavailable
       // idempotency marker, never their bytes. Candidate summaries are safe to cache.
-      if (fileRequest.operation === "download") {
+      if (
+        fileRequest.operation === "download" ||
+        (fileRequest.operation === "review" &&
+          fileRequest.input.action === "prepare-save")
+      ) {
         machine.completeRequestWithoutResult(fileRequest.requestId, Date.now());
       } else {
         machine.completeRequest(fileRequest.requestId, result, Date.now());
@@ -2027,10 +2039,9 @@ export class AgentSessionDO {
   private async loadMachine(): Promise<AgentSessionMachine | null> {
     if (this.machine) return this.machine;
     const stored =
-      await this.state.storage.get<PersistedAgentSessionState>(
-        SESSION_STATE_KEY,
-      );
+      await this.state.storage.get<StoredBrowserSession>(SESSION_STATE_KEY);
     if (!stored) return null;
+    this.browserLaunched = stored.browserLaunched === true;
     this.machine = AgentSessionMachine.restore(
       stored,
       () => crypto.randomUUID(),
@@ -2045,10 +2056,9 @@ export class AgentSessionDO {
     this.editorLeft =
       (await this.state.storage.get<boolean>("agent-editor-left")) === true;
     const stored =
-      await this.state.storage.get<PersistedAgentSessionState>(
-        SESSION_STATE_KEY,
-      );
+      await this.state.storage.get<StoredBrowserSession>(SESSION_STATE_KEY);
     if (stored) {
+      this.browserLaunched = stored.browserLaunched === true;
       this.machine = AgentSessionMachine.restore(
         stored,
         () => crypto.randomUUID(),
@@ -2102,7 +2112,10 @@ export class AgentSessionDO {
       ...completed.map(([requestId, record]) =>
         this.state.storage.put(requestLedgerKey(requestId), record),
       ),
-      this.state.storage.put(SESSION_STATE_KEY, machine.serialize()),
+      this.state.storage.put(SESSION_STATE_KEY, {
+        ...machine.serialize(),
+        ...(this.browserLaunched ? { browserLaunched: true } : {}),
+      }),
     ]);
     machine.forgetStoredRequests(completed.map(([requestId]) => requestId));
   }
