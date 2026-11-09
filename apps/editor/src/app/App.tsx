@@ -7063,7 +7063,7 @@ function WorkspaceEditor({
                               };
                             if (plan.kind === "unchanged") {
                               setStatus(
-                                `Canvas properties for ${selectedInstance.id} are already up to date`,
+                                `Canvas properties for ${selectedInstance.reference ?? selectedInstance.id} are already up to date`,
                               );
                               return { ok: true as const };
                             }
@@ -7090,8 +7090,21 @@ function WorkspaceEditor({
                                   "Canvas property code was rejected; see the status bar",
                               };
                             }
+                            // A rename in the code is the name to report.
+                            const renamed =
+                              plan.kind === "structure"
+                                ? undefined
+                                : plan.edits.find(
+                                    (edit) =>
+                                      edit.kind === "set_instance_reference",
+                                  );
                             setStatus(
-                              `Applied Canvas property code to ${selectedInstance.id}`,
+                              `Applied Canvas property code to ${
+                                renamed?.kind === "set_instance_reference"
+                                  ? renamed.reference
+                                  : (selectedInstance.reference ??
+                                    selectedInstance.id)
+                              }`,
                             );
                             return { ok: true as const };
                           } catch (error) {

@@ -222,7 +222,17 @@ export function extractDeviceInstance(
       parameterByFoldedName.set(folded, { name: parameter, rawValue });
     }
   }
+  // A source with a transient function or an AC clause may leave its DC value
+  // out, as SPICE and Spectre cards do: the simulator reads the function's
+  // time-zero value (zero for AC alone). The card prints no DC then.
+  const authored = (name: string) =>
+    parameterByFoldedName.get(name)?.rawValue.trim().toLowerCase();
+  const waveform = authored("waveform");
+  const dcOptional =
+    (waveform !== undefined && waveform !== "" && waveform !== "dc") ||
+    Boolean(authored("acmagnitude"));
   for (const parameter of requiredParameterNames(definition)) {
+    if (dcOptional && parameter.toLowerCase() === "dc") continue;
     if (!parameterByFoldedName.get(parameter.toLowerCase())?.rawValue.trim()) {
       diagnostic(
         diagnostics,

@@ -27,10 +27,17 @@ const SPECTRE_SCALE: Readonly<Record<string, string>> = {
  * A number as Spectre writes it, where Analog Canvas holds it as SPICE does:
  * the digits as written, the scale in Spectre's spelling (SPICE's Meg is
  * Spectre's M, and SPICE's M milli), and no unit after it, which Spectre
- * does not read (100fF as 100f, 1MegΩ as 1M). Anything else, such as an
- * expression or a name, as it is.
+ * does not read (100fF as 100f, 1MegΩ as 1M). A SPICE {expression} loses its
+ * braces, which Spectre does not read, and is parenthesized where it has
+ * spaces, which would end a Spectre value; anything else, such as a bare
+ * name, as it is.
  */
 export function spectreNumber(raw: string): string {
+  const braced = /^\s*\{([^{}]*)\}\s*$/u.exec(raw);
+  if (braced) {
+    const expression = braced[1]!.trim();
+    return /\s/u.test(expression) ? `(${expression})` : expression;
+  }
   const match =
     /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|mil|[tgkmunpfa])?([\p{L}°]*)\s*$/iu.exec(
       raw,
@@ -45,13 +52,20 @@ export function spectreNumber(raw: string): string {
   return `${digits}${SPECTRE_SCALE[scale.toLowerCase()] ?? ""}`;
 }
 
-/** A Spectre number as Analog Canvas holds it, spelled as SPICE spells it. */
+/** A Spectre number as Analog Canvas holds it, spelled as SPICE spells it; an
+ * expression or a name regains the braces SPICE needs around it. */
 function spiceNumberFromSpectre(text: string): string {
   const match =
     /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([TGMKkmunpfa])?\s*$/u.exec(
       text,
     );
-  if (!match) return text;
+  if (!match) {
+    const expression = text.trim();
+    if (!expression || /^\{.*\}$/su.test(expression)) return text;
+    // The parentheses spectreNumber added around a spaced expression.
+    const spaced = /^\(([^()]*\s[^()]*)\)$/u.exec(expression);
+    return `{${spaced ? spaced[1]!.trim() : expression}}`;
+  }
   const [, digits, scale = ""] = match;
   return `${digits}${scale === "M" ? "Meg" : scale === "K" ? "k" : scale}`;
 }

@@ -31,6 +31,7 @@ export async function handleNetlistConversionRequest(
   const reader = request.body?.getReader();
   const chunks: Uint8Array[] = [];
   let length = 0;
+  let body: unknown;
   try {
     if (reader)
       for (;;) {
@@ -49,25 +50,31 @@ export async function handleNetlistConversionRequest(
       bytes.set(chunk, offset);
       offset += chunk.length;
     }
-    const body: unknown = JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    return respond({ error: "Invalid UTF-8 JSON request." }, 400);
+  } finally {
+    reader?.releaseLock();
+  }
+  if (!body || typeof body !== "object")
+    return respond({ error: "Expected a JSON object." }, 400);
+  const input = body as Record<string, unknown>;
+  if (
+    typeof input.text !== "string" ||
+    !isNetlistDialect(input.source) ||
+    !isNetlistDialect(input.target) ||
+    (input.fragment !== undefined && typeof input.fragment !== "boolean")
+  )
+    return respond(
+      {
+        error:
+          "Supply text, source/target (spice, ngspice or spectre), and optional boolean fragment.",
+      },
+      400,
     );
-    if (!body || typeof body !== "object")
-      return respond({ error: "Expected a JSON object." }, 400);
-    const input = body as Record<string, unknown>;
-    if (
-      typeof input.text !== "string" ||
-      !isNetlistDialect(input.source) ||
-      !isNetlistDialect(input.target) ||
-      (input.fragment !== undefined && typeof input.fragment !== "boolean")
-    )
-      return respond(
-        {
-          error:
-            "Supply text, source/target (spice, ngspice or spectre), and optional boolean fragment.",
-        },
-        400,
-      );
+  // Past the envelope a throw is the converter's own failure, not the
+  // caller's request: it is reported as such rather than as bad JSON.
+  try {
     const result = convertNetlist({
       text: input.text,
       source: input.source,
@@ -85,8 +92,6 @@ export async function handleNetlistConversionRequest(
           : 422,
     );
   } catch {
-    return respond({ error: "Invalid UTF-8 JSON request." }, 400);
-  } finally {
-    reader?.releaseLock();
+    return respond({ error: "Conversion failed with an internal error." }, 500);
   }
 }

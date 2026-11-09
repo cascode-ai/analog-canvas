@@ -757,9 +757,17 @@ function translate(s: Statement, ctx: Context): string[] {
         const sweep = ["dec", "oct", "lin"].find((k) => p.has(k));
         if (!sweep) refuse(s, "AC requires dec, oct or lin.");
         out = `.ac ${sweep} ${get(sweep)} ${get("start")} ${get("stop")}`;
-      } else if (analysis === "dc")
-        out = `.dc ${take(p, "source", s)} ${get("start")} ${get("stop")} ${get("step")}`;
-      else
+      } else if (analysis === "dc") {
+        // Spectre names the swept source as dev=V1 param=dc; source= is the
+        // form this converter once wrote, still read.
+        let source: string;
+        if (p.has("dev")) {
+          source = take(p, "dev", s);
+          if (take(p, "param", s, "dc").toLowerCase() !== "dc")
+            refuse(s, "Only a sweep of a source's dc value is supported.");
+        } else source = take(p, "source", s);
+        out = `.dc ${source} ${get("start")} ${get("stop")} ${get("step")}`;
+      } else
         out = `.tran ${get("step")} ${get("stop")}${p.has("start") || p.has("maxstep") ? " " + get("start", "0") : ""}${p.has("maxstep") ? " " + get("maxstep") : ""}`;
       noParameters(p, s);
       return [out];
@@ -875,7 +883,7 @@ function translate(s: Statement, ctx: Context): string[] {
     ];
   if (head === ".dc" && f.length === 5)
     return [
-      `dc1 dc source=${f[1]} start=${value(f[2]!, "spice", s)} stop=${value(f[3]!, "spice", s)} step=${value(f[4]!, "spice", s)}`,
+      `dc1 dc dev=${f[1]} param=dc start=${value(f[2]!, "spice", s)} stop=${value(f[3]!, "spice", s)} step=${value(f[4]!, "spice", s)}`,
     ];
   if (
     head === ".tran" &&

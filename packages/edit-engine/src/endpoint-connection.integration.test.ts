@@ -8,6 +8,8 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import type { SchematicEdit } from "./edit-schema.js";
+import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
+import { planRoutingTransform } from "./routing-transform-planner.js";
 import { executeTransaction } from "./transaction.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -231,6 +233,61 @@ describe("EndpointConnection transform lifecycle", () => {
       ).toBe(true);
     },
   );
+
+  it("moves a connected component after a 45-degree turn", () => {
+    const document = pairedMosRouteDocument();
+    const turned = executeTransaction(
+      document,
+      {
+        transactionId: "turn-45-then-move",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [{ kind: "rotate_instance", instanceId: "M1", rotation: 45 }],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(turned).toMatchObject({ ok: true });
+    if (!turned.ok) return;
+    const origin = turned.document.instances.find(
+      (instance) => instance.id === "M1",
+    )!.placement!.position;
+
+    // A drag plans the move through the routing transform, which stretches
+    // the Route to the part left behind; its bends must stay integer.
+    for (const delta of [
+      { x: 40, y: 20 },
+      { x: 20, y: 0 },
+      { x: 0, y: -20 },
+    ]) {
+      const plan = planRoutingTransform(
+        turned.document,
+        resolver,
+        { instanceIds: ["M1"], routeIds: [], junctionIds: [] },
+        { kind: "translate", delta },
+      );
+      const moved = gateRoutingOperationPlan(turned.document, plan, {
+        symbolResolver: resolver,
+      });
+      expect(
+        moved,
+        moved.ok ? "" : JSON.stringify(moved.diagnostics),
+      ).toMatchObject({ ok: true });
+      if (!moved.ok) return;
+      const final = moved.evaluated.finalDocument;
+      expect(
+        final.instances.find((instance) => instance.id === "M1")!.placement
+          ?.position,
+      ).toEqual({ x: origin.x + delta.x, y: origin.y + delta.y });
+      expect(
+        final.routes.every((route) =>
+          routeBends(route).every(
+            (point) => Number.isInteger(point.x) && Number.isInteger(point.y),
+          ),
+        ),
+      ).toBe(true);
+    }
+  });
 
   it("removes stale escape doglegs after connected components take opposite 45-degree turns", () => {
     const document = pairedMosRouteDocument();

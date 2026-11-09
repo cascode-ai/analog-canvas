@@ -2,6 +2,16 @@ import type { Point, SegmentMode } from "@icm/model";
 import { isSegmentAllowed } from "@icm/derived";
 import { bridgeStretchedSegment, type PinAxis } from "./route-geometry-edit.js";
 
+/**
+ * A bend placed from the moved endpoint. A pin turned to 45 degrees sits off
+ * the integer lattice, and the bends a Route persists may not: the endpoint
+ * itself stays exact, derived from its pin, and its bends land on the nearest
+ * integer beside it.
+ */
+function bendCoordinate(value: number): number {
+  return Math.round(value);
+}
+
 function protectedMode(mode: SegmentMode | undefined): boolean {
   return mode === "locked" || mode === "trunk";
 }
@@ -51,8 +61,8 @@ export function stretchRouteEndpoint(
     const distance =
       Math.abs(neighbor.x - originalPoint.x) +
       Math.abs(neighbor.y - originalPoint.y);
-    neighbor.x = movedPoint.x + outward.x * distance;
-    neighbor.y = movedPoint.y + outward.y * distance;
+    neighbor.x = bendCoordinate(movedPoint.x + outward.x * distance);
+    neighbor.y = bendCoordinate(movedPoint.y + outward.y * distance);
     const nextIndex = side === "from" ? neighborIndex + 1 : neighborIndex - 1;
     const next = points[nextIndex]!;
     if (neighbor.x !== next.x && neighbor.y !== next.y) {
@@ -89,8 +99,8 @@ export function stretchRouteEndpoint(
       // the whole established path stays untouched.
       if (!alignedMove && protectedMode(modes[secondModeIndex])) {
         const corner = originallyVertical
-          ? { x: movedPoint.x, y: originalPoint.y }
-          : { x: originalPoint.x, y: movedPoint.y };
+          ? { x: bendCoordinate(movedPoint.x), y: originalPoint.y }
+          : { x: originalPoint.x, y: bendCoordinate(movedPoint.y) };
         const inserted =
           side === "from"
             ? [corner, { ...originalPoint }]
@@ -102,8 +112,8 @@ export function stretchRouteEndpoint(
         modes.splice(modeIndex, 1, mode, mode, mode);
         return;
       }
-      if (originallyVertical) neighbor.x = movedPoint.x;
-      else neighbor.y = movedPoint.y;
+      if (originallyVertical) neighbor.x = bendCoordinate(movedPoint.x);
+      else neighbor.y = bendCoordinate(movedPoint.y);
       return;
     }
     const stillAligned = originallyVertical
@@ -134,8 +144,8 @@ export function stretchRouteEndpoint(
       insertIndex,
       0,
       originallyVertical
-        ? { x: neighbor.x, y: movedPoint.y }
-        : { x: movedPoint.x, y: neighbor.y },
+        ? { x: neighbor.x, y: bendCoordinate(movedPoint.y) }
+        : { x: bendCoordinate(movedPoint.x), y: neighbor.y },
     );
     modes.splice(modeIndex, 1, mode, mode);
     return;
@@ -151,12 +161,12 @@ export function stretchRouteEndpoint(
   const elbow =
     Math.abs(dx) > Math.abs(dy)
       ? {
-          x: movedPoint.x + Math.sign(dx) * diagonalDistance,
+          x: bendCoordinate(movedPoint.x + Math.sign(dx) * diagonalDistance),
           y: neighbor.y,
         }
       : {
           x: neighbor.x,
-          y: movedPoint.y + Math.sign(dy) * diagonalDistance,
+          y: bendCoordinate(movedPoint.y + Math.sign(dy) * diagonalDistance),
         };
   const insertIndex = side === "from" ? 1 : points.length - 1;
   // The local stretch uses exactly the same octilinear leg constraint as Wire

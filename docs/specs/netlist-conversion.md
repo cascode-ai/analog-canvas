@@ -17,10 +17,11 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
 `ngspice` (alias) or `spectre`.
 
 - 200 `{ status: "converted", text, source, target, issues }`.
-- 422 `{ status: "blocked", diagnostics }` with original `line`, `statement`,
+- 422 `{ status: "blocked", issues }` with original `line`, `statement`,
   `code`, `message`; no partial text.
 - 400 invalid JSON/envelope, 405 method, 415 media type, 413 size: text ≤
-  512 KiB and 10,000 non-comment statements, body ≤ 1 MiB.
+  512 KiB and 10,000 non-comment statements, body ≤ 1 MiB; 500 a converter
+  failure.
 - Responses `no-store`; input is never stored or executed.
 - Default is a fragment. `fragment: false` treats a SPICE source's first
   physical line as its title and appends `.end` to SPICE output if absent.
