@@ -536,6 +536,11 @@ export function fileOperationScopes(
       return [
         request.artifact === "project" ? "project.download" : "visual.download",
       ];
+    case "review":
+      return request.input.action === "prepare-save" ||
+        request.input.action === "finish-save"
+        ? ["project.import", "project.download"]
+        : ["project.import"];
     case "stage":
     case "locate-local":
     case "inspect":

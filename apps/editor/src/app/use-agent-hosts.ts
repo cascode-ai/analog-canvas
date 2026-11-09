@@ -24,6 +24,8 @@ import type { BrowserAgentPlanningContext } from "../agent/browser-agent-command
 import type {
   AgentReviewWorkspace,
   BrowserAgentFileHost,
+  LocalReviewCommand,
+  LocalReviewResult,
   OpenLocalProject,
 } from "../agent/browser-agent-file-host";
 import type { BrowserAgentHost } from "../agent/browser-agent-host";
@@ -194,6 +196,11 @@ export type AgentReviewWorkspaceReader = (
   controller: EditorDocumentController,
 ) => AgentReviewWorkspace | undefined;
 
+export type LocalReviewDispatcher = (
+  controller: EditorDocumentController,
+  command: LocalReviewCommand,
+) => Promise<LocalReviewResult>;
+
 export function useAgentProjectResources({
   runtime,
   editorDocumentController,
@@ -204,6 +211,7 @@ export function useAgentProjectResources({
   openProjectInTabRef,
   openLocalProjectRef,
   reviewWorkspaceRef,
+  localReviewRef,
 }: {
   runtime: AgentRuntime | null;
   editorDocumentController: EditorDocumentController;
@@ -213,6 +221,7 @@ export function useAgentProjectResources({
   projectSwitchBlockerRef: RefObject<() => string | null>;
   openLocalProjectRef: RefObject<OpenLocalProject>;
   reviewWorkspaceRef: RefObject<AgentReviewWorkspaceReader>;
+  localReviewRef: RefObject<LocalReviewDispatcher>;
   openProjectInTabRef: RefObject<
     (
       project: CircuitProject,
@@ -258,6 +267,8 @@ export function useAgentProjectResources({
             getProject: () => editorDocumentController.project,
             getReviewWorkspace: () =>
               reviewWorkspaceRef.current(editorDocumentController),
+            localReview: (command) =>
+              localReviewRef.current(editorDocumentController, command),
             getDocument: (documentId) =>
               editorDocumentController.project.documents.find(
                 (candidate) => candidate.id === documentId,
@@ -293,6 +304,7 @@ export function useAgentProjectResources({
       openProjectInTabRef,
       openLocalProjectRef,
       reviewWorkspaceRef,
+      localReviewRef,
       projectSwitchBlockerRef,
     ],
   );

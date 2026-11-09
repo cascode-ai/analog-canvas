@@ -93,12 +93,7 @@ async function openFileTask(
   return { page, tool, taskRef, sessionId, original };
 }
 
-test("delivers a local RNL revision into its own Project tab and reuses the edited copy", async ({
-  context,
-  baseURL,
-  accountName: _accountName,
-}, testInfo) => {
-  const rootPath = testInfo.outputPath("source");
+async function prepareReviewSource(rootPath: string) {
   const entryPath = "cells/cell.scs";
   const packagePath = join(rootPath, "draw.rnl");
   await mkdir(join(rootPath, "cells"), { recursive: true });
@@ -125,6 +120,17 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   );
   const packageText =
     '@RNL(type="header") { @VERSION("0.3"); @PACKAGE(name="fixture",version="0.1"); }\n';
+  return { entryPath, packagePath, packageText };
+}
+
+test("delivers a local RNL revision into its own Project tab and reuses the edited copy", async ({
+  context,
+  baseURL,
+  accountName: _accountName,
+}, testInfo) => {
+  const rootPath = testInfo.outputPath("source");
+  const { entryPath, packagePath, packageText } =
+    await prepareReviewSource(rootPath);
   const { page, tool, taskRef, sessionId, original } = await openFileTask(
     context,
     baseURL!,
@@ -486,6 +492,188 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
     error: { code: "FILE_IMPORT_FAILED" },
   });
   await tool("disconnect", {});
+});
+
+test("freezes a ready original and acknowledges a saved whole Project", async ({
+  context,
+  baseURL,
+  accountName: _accountName,
+}, testInfo) => {
+  const rootPath = testInfo.outputPath("source");
+  const { entryPath, packagePath, packageText } =
+    await prepareReviewSource(rootPath);
+  await writeFile(packagePath, packageText);
+  const { page, tool } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("legacy-connector.json"),
+  );
+  const deliver = (path = entryPath) =>
+    tool("import_file", { action: "open-local", rootPath, entryPath: path });
+  const loaded = await deliver();
+  expect(loaded).toMatchObject({ ok: true });
+  const { source, workspaceId, projectId, document } = loaded.delivery;
+  const target = {
+    workspaceId,
+    projectId,
+    documentId: document.id,
+    revision: document.revision,
+    sourceVersion: source.version,
+  };
+  const firstReview = await tool("review_delivery", { action: "read" });
+  expect(firstReview, JSON.stringify(firstReview.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      target,
+      status: "awaiting-drawing",
+      copy: "working",
+      unsaved: true,
+    },
+  });
+  const originalRequest = {
+    expected: firstReview.delivery.target,
+    projectRevision: firstReview.delivery.projectRevision,
+  };
+  const ready = await tool("review_delivery", {
+    action: "mark-ready",
+    ...originalRequest,
+  });
+  expect(ready).toMatchObject({
+    ok: true,
+    delivery: { status: "ready", unsaved: true },
+  });
+  const initialReviewContext = await tool("get_context", { refresh: true });
+
+  expect(
+    await tool("apply_actions", {
+      actions: [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          reference: "R2",
+          position: { x: 200, y: 200 },
+        },
+      ],
+    }),
+  ).toMatchObject({ ok: true, applied: true });
+  if (!(await page.getByTestId("local-review-status").isVisible())) {
+    await page
+      .getByRole("button", { name: "Project Info", exact: true })
+      .click();
+    await page.getByText("Imported source", { exact: true }).click();
+  }
+  const outputPath = join(rootPath, "review-saved.icproj.json");
+  await expect(
+    tool("review_delivery", { action: "save", ...originalRequest, outputPath }),
+  ).resolves.toMatchObject({
+    ok: false,
+    error: { code: "REVIEW_TARGET_CHANGED" },
+  });
+  await expect(readFile(outputPath)).rejects.toMatchObject({ code: "ENOENT" });
+  const currentReview = await tool("review_delivery", { action: "read" });
+  const currentRequest = {
+    expected: currentReview.delivery.target,
+    projectRevision: currentReview.delivery.projectRevision,
+  };
+  const saved = await tool("review_delivery", {
+    action: "save",
+    ...currentRequest,
+    outputPath,
+  });
+  expect(saved, JSON.stringify(saved.error)).toMatchObject({
+    ok: true,
+    outputPath,
+    canvasSaved: true,
+    savedProjectRevision: currentRequest.projectRevision,
+    savedTarget: currentRequest.expected,
+  });
+  const savedText = await readFile(outputPath, "utf8");
+  expect(
+    parseProject(savedText)
+      .documents.flatMap(({ instances }) => instances)
+      .some(({ reference }) => reference === "R2"),
+  ).toBe(true);
+  await expect(page.getByTestId("local-review-status")).toHaveText(
+    "Ready for review · Saved",
+  );
+  await expect(
+    tool("review_delivery", { action: "save", ...currentRequest, outputPath }),
+  ).resolves.toMatchObject({
+    ok: false,
+    error: { code: "REVIEW_SAVE_PATH_EXISTS" },
+  });
+  expect(await readFile(outputPath, "utf8")).toBe(savedText);
+  const frozen = await tool("review_delivery", {
+    action: "open-original",
+    ...currentRequest,
+  });
+  expect(frozen, JSON.stringify(frozen.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      copy: "original",
+      unsaved: true,
+      status: "ready",
+      target: { sourceVersion: source.version, documentId: target.documentId },
+    },
+  });
+  expect(frozen.delivery.target.workspaceId).not.toBe(workspaceId);
+  expect(frozen.delivery.target.projectId).not.toBe(target.projectId);
+  expect(await tool("get_context", { refresh: true })).toMatchObject({
+    projectId: frozen.delivery.target.projectId,
+    instanceCount: initialReviewContext.instanceCount,
+  });
+  const originalExport = await tool("export_file", {
+    artifact: "project",
+    outputPath: testInfo.outputPath("frozen-original.icproj.json"),
+  });
+  const originalProject = parseProject(
+    await readFile(originalExport.outputPath, "utf8"),
+  );
+  expect(
+    originalProject.documents
+      .flatMap(({ instances }) => instances)
+      .some(({ reference }) => reference === "R2"),
+  ).toBe(false);
+  expect(await deliver()).toMatchObject({
+    ok: true,
+    delivery: { workspaceId, modified: true },
+  });
+  const reopenedSaved = await deliver("review-saved.icproj.json");
+  expect(reopenedSaved).toMatchObject({
+    ok: true,
+    delivery: { source: { format: "project" } },
+  });
+  expect(reopenedSaved.delivery.source.version).not.toBe(source.version);
+  expect(await tool("review_delivery", { action: "read" })).toMatchObject({
+    ok: true,
+    delivery: {
+      embeddedSource: {
+        entryPath,
+        version: source.version,
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: "draw.rnl" }),
+        ]),
+      },
+    },
+  });
+
+  await writeFile(
+    join(rootPath, "plain.sp"),
+    "* plain\n.subckt plain A B\nR1 A B 1k\n.ends\n",
+  );
+  expect(await deliver("plain.sp")).toMatchObject({ ok: true });
+  const undrawnReview = await tool("review_delivery", { action: "read" });
+  expect(undrawnReview).toMatchObject({
+    ok: true,
+    delivery: { status: "awaiting-drawing" },
+  });
+  await expect(
+    tool("review_delivery", {
+      action: "mark-ready",
+      expected: undrawnReview.delivery.target,
+      projectRevision: undrawnReview.delivery.projectRevision,
+    }),
+  ).resolves.toMatchObject({ ok: false, error: { code: "REVIEW_NOT_READY" } });
 });
 
 test("delivers a Virtuoso netlist whose foundry library stays external, typed by the Agent", async ({

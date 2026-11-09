@@ -301,6 +301,23 @@ export function useProjectFileLifecycle({
     safeSnapshotTokenRef.current = projectChangeToken(snapshot);
   }
 
+  function acknowledgeLocalReviewSave(token: string): boolean {
+    if (
+      !holdsLiveProject(token) ||
+      hasPendingEdits?.() ||
+      cloudBinding ||
+      nativeBindingRef.current ||
+      saveCoordinator.isSaving()
+    )
+      return false;
+    const snapshot = liveProjectRef.current;
+    noteProjectSnapshotSafe(snapshot);
+    setSavedProjectBaseline({ project: snapshot, viewBox });
+    setPersistenceState("clean");
+    setStatus("Review Project saved locally");
+    return true;
+  }
+
   function noteProjectPublished(snapshot = liveProjectRef.current): void {
     noteProjectSnapshotSafe(snapshot);
     publishedSnapshotTokenRef.current = projectChangeToken(snapshot);
@@ -1231,6 +1248,7 @@ export function useProjectFileLifecycle({
     hasUnsavedChanges,
     hasUnsafeWork,
     noteProjectSnapshotSafe,
+    acknowledgeLocalReviewSave,
     noteProjectPublished,
     replaceActiveProject,
     saveProjectToCloud,

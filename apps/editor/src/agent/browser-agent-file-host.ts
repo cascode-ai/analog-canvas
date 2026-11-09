@@ -12,6 +12,8 @@ import {
   type AgentLocalProjectReceipt,
   type AgentLocalSource,
   type AgentReviewReceipt,
+  type LocalReviewDelivery,
+  type LocalReviewTarget,
 } from "@icm/agent-adapter";
 import {
   SimulationFiles,
@@ -59,8 +61,29 @@ export type AgentReviewWorkspace = Pick<
   | "unsaved"
 >;
 
+type LocalReviewEdit = {
+  expected: LocalReviewTarget;
+  projectRevision: string;
+};
+export type LocalReviewCommand =
+  | { action: "read" }
+  | (LocalReviewEdit & {
+      action: "mark-ready" | "open-original" | "acknowledge-save";
+    });
+export type LocalReviewResult =
+  | LocalReviewDelivery
+  | "REVIEW_WORKSPACE_REQUIRED"
+  | "REVIEW_TARGET_CHANGED"
+  | "REVIEW_NOT_READY"
+  | "REVIEW_ORIGINAL_UNAVAILABLE"
+  | "REVIEW_OPEN_BLOCKED";
+export type LocalReviewHost = (
+  command: LocalReviewCommand,
+) => Promise<LocalReviewResult>;
+
 export interface BrowserAgentFileHostOptions {
   openLocalProject?: OpenLocalProject;
+  localReview?: LocalReviewHost;
   getReviewWorkspace?: () => AgentReviewWorkspace | undefined;
   getActiveDocumentId?: () => string;
   commitProjectStructure?: (
@@ -97,6 +120,10 @@ export interface BrowserAgentFileHostOptions {
 export class BrowserAgentFileHost {
   readonly simulationFiles: SimulationFiles;
   private readonly candidates = new Map<string, StoredCandidate>();
+  private readonly reviewSaves = new Map<
+    string,
+    LocalReviewEdit & { expiresAt: number }
+  >();
   private readonly boundProjectSessionId: string;
   private readonly reviewGeneration = crypto.randomUUID();
   setArtifactPublisher(
@@ -147,6 +174,8 @@ export class BrowserAgentFileHost {
         };
       case "download":
         return this.download(request);
+      case "review":
+        return this.reviewDelivery(request);
       case "stage":
         return this.stage(request);
       case "locate-local": {
@@ -426,6 +455,105 @@ export class BrowserAgentFileHost {
         error instanceof Error ? error.message : String(error),
       );
     }
+  }
+
+  private async reviewDelivery(
+    request: Extract<AgentFileResourceRequest, { operation: "review" }>,
+  ): Promise<AgentFileResourceResponse> {
+    const host = this.options.localReview;
+    if (!host)
+      return this.error(
+        request,
+        "REVIEW_WORKSPACE_REQUIRED",
+        "Open the working copy in Canvas Web",
+      );
+    const { input } = request;
+    const response = {
+      apiVersion: AGENT_API_VERSION,
+      requestId: request.requestId,
+      operation: "review" as const,
+      ok: true as const,
+    };
+    if (input.action === "finish-save") {
+      const save = this.reviewSaves.get(input.saveId);
+      this.reviewSaves.delete(input.saveId);
+      const delivered =
+        save &&
+        (await host({
+          action: "acknowledge-save",
+          expected: save.expected,
+          projectRevision: save.projectRevision,
+        }));
+      return {
+        ...response,
+        result: {
+          action: input.action,
+          canvasSaved: Boolean(delivered && typeof delivered !== "string"),
+        },
+      };
+    }
+    const project = this.options.getProject();
+    const delivery = await host(
+      input.action === "prepare-save" ? { action: "read" } : input,
+    );
+    if (typeof delivery === "string") {
+      const messages: Record<string, string> = {
+        REVIEW_WORKSPACE_REQUIRED: "Activate the delivered working copy",
+        REVIEW_TARGET_CHANGED: "The active Project or Cell revision changed",
+        REVIEW_NOT_READY:
+          "Confirm that the schematic is complete before delivery",
+        REVIEW_ORIGINAL_UNAVAILABLE:
+          "The first review-ready snapshot is unavailable",
+        REVIEW_OPEN_BLOCKED: "Canvas is holding the current tab open",
+      };
+      return this.error(request, delivery, messages[delivery]!);
+    }
+    if (input.action !== "prepare-save")
+      return { ...response, result: { action: input.action, delivery } };
+    if (
+      project !== this.options.getProject() ||
+      delivery.projectRevision !== input.projectRevision ||
+      !matchesAgentReviewTarget(delivery.target, input.expected)
+    )
+      return this.error(
+        request,
+        "REVIEW_TARGET_CHANGED",
+        "The active Project or Cell revision changed",
+      );
+    if (delivery.status !== "ready")
+      return this.error(
+        request,
+        "REVIEW_NOT_READY",
+        "Confirm that the schematic is complete before delivery",
+      );
+    const bytes = new TextEncoder().encode(serializeProject(project));
+    if (bytes.byteLength > AGENT_FILE_RESOURCE_MAX_BYTES)
+      return this.error(
+        request,
+        "FILE_TOO_LARGE",
+        "Project exceeds the File Resource limit",
+      );
+    const artifact = await fileArtifact(
+      "project.icproj.json",
+      "application/json",
+      bytes,
+    );
+    if (this.reviewSaves.size >= 16)
+      return this.error(
+        request,
+        "REVIEW_SAVE_BUSY",
+        "Pending review saves must finish or expire",
+      );
+    const saveId = crypto.randomUUID();
+    this.reviewSaves.set(saveId, {
+      expected: input.expected,
+      projectRevision: input.projectRevision,
+      expiresAt: Date.now() + AGENT_FILE_CANDIDATE_TTL_MS,
+    });
+    return {
+      ...response,
+      result: { action: input.action, delivery, saveId, artifact },
+    };
   }
 
   private async download(
@@ -798,14 +926,7 @@ export class BrowserAgentFileHost {
       operation: "download",
       ok: true,
       ...(review ? { review } : {}),
-      artifact: {
-        name,
-        mediaType,
-        encoding: "base64",
-        data: base64EncodeBytes(bytes),
-        byteLength: bytes.byteLength,
-        sha256: await sha256(bytes),
-      },
+      artifact: await fileArtifact(name, mediaType, bytes),
     };
   }
 
@@ -829,6 +950,9 @@ export class BrowserAgentFileHost {
       if (Date.parse(candidate.summary.expiresAt) <= now)
         this.candidates.delete(id);
     }
+    for (const [id, save] of this.reviewSaves) {
+      if (save.expiresAt <= now) this.reviewSaves.delete(id);
+    }
   }
 }
 
@@ -844,6 +968,21 @@ function isVirtualSourcePath(value: string): boolean {
     .every(
       (segment) => segment.length > 0 && segment !== "." && segment !== "..",
     );
+}
+
+async function fileArtifact(
+  name: string,
+  mediaType: string,
+  bytes: Uint8Array,
+) {
+  return {
+    name,
+    mediaType,
+    encoding: "base64" as const,
+    data: base64EncodeBytes(bytes),
+    byteLength: bytes.byteLength,
+    sha256: await sha256(bytes),
+  };
 }
 
 async function sha256(bytes: Uint8Array): Promise<string> {

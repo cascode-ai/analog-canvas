@@ -289,6 +289,24 @@ in the drawing. Report unresolved mappings, missing geometry and any
 inconclusive comparison. Do not substitute devices or change the circuit to
 make an image render. A clean image is not an electrical check.
 
+For a dedicated Web task, call `review_delivery` with `action:"read"` after
+opening and selecting the requested Cell. Use the live receipt's `target` as
+`expected` and pass `projectRevision` for subsequent review actions. After
+checking the complete drawing, `mark-ready` records the first review-ready
+Project as the original. A bare import stays pending until the drawing is
+ready. `open-original` opens that frozen Project in a fresh tab and binds
+the task to it. If the snapshot is unavailable, report the refusal and keep
+the working copy. A repeat `open-local` with the same source and appearance
+returns the existing working copy.
+
+For an explicit local save, use `review_delivery` with `action:"save"` and a
+new `.icproj.json` path. The receipt names the whole saved Project revision
+and local file. `canvasSaved:false` means the file was written and the live
+Canvas did not confirm that it still matches. Keep any newer changes in the
+working copy. Project Info shows the embedded netlist source on reopen,
+including its dependency hashes. That version is distinct from the input
+version of the saved Project file.
+
 - For a chat image, use `export_file` with `artifact:"png"`,
   `includeReview:true`, the Cell's `documentId` and a local `outputPath`,
   and show the resulting image. Use a new path for each revision and crop. Canvas
