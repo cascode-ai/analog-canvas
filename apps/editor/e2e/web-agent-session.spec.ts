@@ -1662,8 +1662,12 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
         sessionStorage.getItem("icm.agent-session-recovery.v1") ?? "null",
       ),
     );
+  const agentButton = page.getByTestId("open-agent");
   await page.goto("/editor");
-  await page.getByTestId("open-agent").click();
+  await agentButton.click();
+  await expect(agentButton).toHaveAttribute("data-connection", "live");
+  await expect(page.getByTestId("connect-agent-panel")).toHaveCount(0);
+  await agentButton.click();
   await expect(page.getByTestId("agent-status")).toHaveText("Connected");
   await expect(page.getByTestId("agent-idle-policy")).toContainText(
     "30 minutes",
@@ -1690,7 +1694,8 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
     sessionStorage.setItem(key, JSON.stringify(saved));
   });
   await page.reload();
-  await page.getByTestId("open-agent").click();
+  await expect(agentButton).toHaveAttribute("data-connection", "live");
+  await agentButton.click();
   await expect(page.getByTestId("agent-status")).toHaveText("Connected");
   expect(creates).toBe(1);
   await expect.poll(async () => (await recovery())?.expiresAt).toBe(deadline);
