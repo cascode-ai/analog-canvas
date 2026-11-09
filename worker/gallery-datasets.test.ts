@@ -81,6 +81,20 @@ describe("reference datasets in stores of their own (#1510)", () => {
     expect(
       (await wall("?source=community")).map((entry) => entry.id),
     ).not.toContain("ag-308");
+    // A dataset the Gallery does not have is an error, never the whole wall
+    // (#2149); an empty dataset is an empty wall.
+    for (const path of [
+      "/api/gallery?source=ams-net",
+      "/api/gallery/tags?source=nope",
+    ]) {
+      const unknown = await call(path);
+      expect(unknown.status).toBe(400);
+      expect(await unknown.json()).toMatchObject({
+        error: "unknown-source",
+        sources: expect.arrayContaining(["community", "analoggenie"]),
+      });
+    }
+    expect(await wall("?source=circuitthink")).toEqual([]);
     expect((await call("/api/gallery/ag-308")).status).toBe(200);
     expect(
       (await (await call("/api/gallery/sources")).json()) as {

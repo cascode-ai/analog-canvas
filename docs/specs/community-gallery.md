@@ -393,7 +393,8 @@ simulator, reason?, folders}` with per-Spec condition, value, unit and
 - Each dataset has its own Durable Object `source:<key>` (community: `gallery`).
   Ids are `<prefix>-<id>` (`ag-308`); community ids never contain a hyphen;
   routes dispatch by id; feed and tags take `source=<key>` for one dataset's
-  wall.
+  wall. A key the Gallery does not have answers
+  `400 {"error":"unknown-source","sources":[…]}`, never the whole wall.
 - Without `source`, the feed and tags answer the community wall with every
   dataset in it (#1697): one order across the stores (each row's cursor resumes
   them all), totals, `filterCounts` and tag counts summed, `sources` each

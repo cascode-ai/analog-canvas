@@ -12,7 +12,11 @@ import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { sessionUserOf, type SessionUser } from "./auth";
-import { gallerySourceByKey, gallerySourceOfEntryId } from "./gallery-sources";
+import {
+  GALLERY_SOURCES,
+  gallerySourceByKey,
+  gallerySourceOfEntryId,
+} from "./gallery-sources";
 import { routeComparisons } from "./gallery-comparisons";
 import { routeReviews } from "./gallery-reviews";
 import { routeReference } from "./gallery-references";
@@ -492,6 +496,25 @@ export async function routeGalleryRequest(
   const source =
     (segments[0] ? gallerySourceOfEntryId(segments[0]) : null) ??
     gallerySourceByKey(url.searchParams.get("source"));
+  // The feed and tags read `source=<key>`; a key the Gallery does not have is
+  // an error, never the whole Gallery (#2149).
+  const askedSource = url.searchParams.get("source");
+  if (
+    request.method === "GET" &&
+    (segments.length === 0 ||
+      (segments.length === 1 && segments[0] === "tags")) &&
+    askedSource &&
+    askedSource !== "community" &&
+    !gallerySourceByKey(askedSource)
+  )
+    return Response.json(
+      {
+        error: "unknown-source",
+        message: `No dataset is named ${JSON.stringify(askedSource.slice(0, 64))}. Leave source out for the whole Gallery, use community, or a key from /api/gallery/sources.`,
+        sources: ["community", ...GALLERY_SOURCES.map(({ key }) => key)],
+      },
+      { status: 400, headers: { "cache-control": "no-store" } },
+    );
   // A dataset's drawing, fixed in the editor by an account that may.
   const editedSource = segments[0] ? gallerySourceOfEntryId(segments[0]) : null;
   if (editedSource && segments.length === 1 && request.method === "PUT")
