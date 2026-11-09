@@ -24,7 +24,6 @@ import {
   wallTagCounts,
 } from "./gallery-wall-merge";
 import { sameOrigin } from "./same-origin";
-import { SITE_USAGE_NOTE } from "../apps/editor/src/usage-policy-note";
 import { llmsUsagePolicy, robotsTxt } from "./usage-policy";
 import {
   GALLERY_MAX_REJECT_REASON_LENGTH,
@@ -394,17 +393,7 @@ export async function routeGalleryRequest(
   let session: Promise<SessionUser | null> | undefined;
   const readSession = () => (session ??= sessionUserOf(request, env));
   // Every Gallery read is open to everyone, signed in or not; writes keep
-  // their own checks (docs/specs/community-gallery.md#reader-access). An
-  // account blocked for collecting the Gallery in bulk writes none of it.
-  if (
-    request.method !== "GET" &&
-    request.method !== "HEAD" &&
-    (await readSession())?.blocked
-  )
-    return Response.json(
-      { error: "account-blocked", usage: SITE_USAGE_NOTE },
-      { status: 403, headers: { "cache-control": "no-store" } },
-    );
+  // their own checks (docs/specs/community-gallery.md#reader-access).
 
   // Reviews reach any store, a dataset's too, before its read-only rule.
   const reviews = await routeReviews(request, env, segments, readSession);

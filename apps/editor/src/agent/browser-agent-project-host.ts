@@ -425,13 +425,6 @@ export class BrowserAgentProjectHost {
         );
       if (!response.ok) {
         const failure = await requestFailureOf(response);
-        if (failure.failure === "blocked")
-          return this.error(
-            request,
-            "GALLERY_ACCOUNT_BLOCKED",
-            failure.message,
-            "fix-input",
-          );
         if (response.status !== 403)
           return this.error(
             request,

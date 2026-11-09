@@ -16,25 +16,6 @@
 // tests never touch the network.
 
 import {
-  BROWSER_TRAP_READS,
-  blockNotice,
-  markMemberNotified,
-  memberBlockNotice,
-  memberNoticeRequested,
-  unsentMemberNotices,
-  ensureAccountBlockTables,
-  isBlocked,
-  listBlocks,
-  apologyOwed,
-  markApologized,
-  markNotified,
-  noteTrapRead,
-  recordBlock,
-  unblock,
-  unsentNotices,
-  type BlockEvidence,
-} from "./account-blocks";
-import {
   arenaAccount,
   unlinkArenaVoter,
   type ArenaService,
@@ -48,7 +29,6 @@ import {
   coordinatesProjectDeletion,
   includesProjectOwner,
 } from "./project-region-scope";
-import { exemptFromBlocks } from "./block-exempt";
 import { withHostedSimulation } from "./hosted-simulation-access";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
@@ -240,8 +220,6 @@ export interface SessionUser {
   seat?: string;
   /** One of the Owner's own accounts (OWNER_ACCOUNT_IDS). */
   isOwner?: true;
-  /** Blocked from the Gallery for collecting it in bulk (account-blocks.ts). */
-  blocked?: true;
   /**
    * The super-admin who switched this browser to the AI account it is
    * signed in as, and can switch it back. Regional projections retain its ID.
@@ -635,7 +613,10 @@ export class AuthDO {
     // Gallery reads are public: the read keys that stood in for a session
     // are gone.
     this.sql.exec("DROP TABLE IF EXISTS read_keys");
-    ensureAccountBlockTables(this.sql);
+    // Gallery account blocks and their trap reads are retired: nothing
+    // refuses an account's writes for how it read.
+    this.sql.exec("DROP TABLE IF EXISTS account_blocks");
+    this.sql.exec("DROP TABLE IF EXISTS trap_reads");
     this.ensureAiSeats(state);
   }
 
@@ -660,7 +641,7 @@ export class AuthDO {
           const row = this.sql
             .exec<UserRow>("SELECT * FROM users WHERE id = ?", id)
             .toArray()[0];
-          return row ? this.userWithRestrictions(row) : null;
+          return row ? this.publicUser(row) : null;
         },
         async (request, user) => {
           this.regionalAccountRequests.set(request, user);
@@ -677,22 +658,6 @@ export class AuthDO {
             }),
           ),
         (request) => this.fetch(request),
-        (id) =>
-          this.sql
-            .exec<UserRow>(
-              `SELECT * FROM users WHERE id = ? OR LOWER(email) IN (
-                SELECT LOWER(email) FROM users WHERE id = ?
-                UNION SELECT LOWER(email) FROM account_blocks WHERE user_id = ?
-              )`,
-              id,
-              id,
-              id,
-            )
-            .toArray()
-            .map((row) => ({
-              id: row.id,
-              blocked: this.userWithRestrictions(row).blocked === true,
-            })),
         this.deletions,
       );
       return this.regionalAuthority.fetch(request);
@@ -713,10 +678,6 @@ export class AuthDO {
     if (url.pathname === "/internal/owner-token-user") {
       return noStoreJson({ user: await this.ownerTokenUser(request) });
     }
-    if (url.pathname === "/internal/block-account" && request.method === "POST")
-      return this.blockAccount(request);
-    if (url.pathname === "/internal/block-notices" && request.method === "POST")
-      return noStoreJson({ sent: await this.sendBlockNotices() });
     if (
       url.pathname === "/internal/gallery-rejection" &&
       request.method === "POST"
@@ -806,155 +767,7 @@ export class AuthDO {
     if (route === "ai-accounts/return" && method === "POST") {
       return this.returnToOwner(request, url);
     }
-    if (route === "blocked" && method === "GET") {
-      if (!(await this.sessionUser(request))?.isOwner)
-        return Response.json({ error: "owner-only" }, { status: 403 });
-      return noStoreJson({ blocked: listBlocks(this.sql) });
-    }
-    if (route === "blocked/unblock" && method === "POST") {
-      if (!sameOrigin(request))
-        return Response.json({ error: "forbidden" }, { status: 403 });
-      if (!(await this.sessionUser(request))?.isOwner)
-        return Response.json({ error: "owner-only" }, { status: 403 });
-      const body = (await request.json().catch(() => null)) as {
-        userId?: unknown;
-      } | null;
-      if (typeof body?.userId !== "string")
-        return Response.json({ error: "invalid-user" }, { status: 400 });
-      return noStoreJson({
-        unblocked: unblock(this.sql, body.userId, this.now().toISOString()),
-      });
-    }
-    if (route === "blocked/apology" && method === "POST") {
-      if (!sameOrigin(request))
-        return Response.json({ error: "forbidden" }, { status: 403 });
-      if (!(await this.sessionUser(request))?.isOwner)
-        return Response.json({ error: "owner-only" }, { status: 403 });
-      return this.apologize(request);
-    }
-    if (route === "blocked/notify" && method === "POST") {
-      if (!sameOrigin(request))
-        return Response.json({ error: "forbidden" }, { status: 403 });
-      if (!(await this.sessionUser(request))?.isOwner)
-        return Response.json({ error: "owner-only" }, { status: 403 });
-      const body = (await request.json().catch(() => null)) as {
-        userId?: unknown;
-      } | null;
-      if (typeof body?.userId !== "string")
-        return Response.json({ error: "invalid-user" }, { status: 400 });
-      if (!memberNoticeRequested(this.sql, body.userId))
-        return Response.json({ error: "no-notice-owed" }, { status: 409 });
-      // Unsent now, the scheduled pass retries it.
-      return noStoreJson({ sent: (await this.sendBlockNotices()) > 0 });
-    }
     return Response.json({ error: "not-found" }, { status: 404 });
-  }
-
-  /**
-   * The Owner's own words to an account blocked by mistake, once it is
-   * unblocked: sent once per block, from the site's address, with replies
-   * going to the Owner.
-   */
-  private async apologize(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => null)) as {
-      userId?: unknown;
-      subject?: unknown;
-      text?: unknown;
-    } | null;
-    if (
-      typeof body?.userId !== "string" ||
-      typeof body.subject !== "string" ||
-      typeof body.text !== "string" ||
-      body.subject.trim().length === 0 ||
-      body.subject.length > 200 ||
-      body.text.trim().length === 0 ||
-      body.text.length > 5000
-    )
-      return Response.json({ error: "invalid-apology" }, { status: 400 });
-    const owed = apologyOwed(this.sql, body.userId);
-    if (!owed)
-      return Response.json({ error: "no-apology-owed" }, { status: 409 });
-    if (
-      !(await this.sendEmail(
-        owed.email,
-        body.subject,
-        body.text,
-        SITE_USAGE_CONTACT,
-      ))
-    )
-      return Response.json({ error: "send-failed" }, { status: 502 });
-    markApologized(this.sql, owed.id, this.now().toISOString());
-    return noStoreJson({ sent: true });
-  }
-
-  // --- Gallery blocks ---------------------------------------------------
-
-  /**
-   * Record a block: a program's (`script`) at once, a browser's once it has
-   * named two different entries within the day. Never the Owner's own tools.
-   * The Owner and the member are told at once; the scheduled pass retries an
-   * unsent notice. A block refuses Gallery writes alone: its reads are
-   * everyone's.
-   */
-  private async blockAccount(request: Request): Promise<Response> {
-    const body = (await request.json().catch(() => null)) as
-      ({ userId?: unknown; kind?: unknown } & Partial<BlockEvidence>) | null;
-    if (typeof body?.userId !== "string" || typeof body.entryId !== "string")
-      return Response.json({ error: "invalid-block" }, { status: 400 });
-    const row = this.sql
-      .exec<UserRow>("SELECT * FROM users WHERE id = ?", body.userId)
-      .toArray()[0];
-    if (!row) return Response.json({ error: "not-found" }, { status: 404 });
-    const user = this.publicUser(row);
-    if (exemptFromBlocks(user)) return noStoreJson({ blocked: false });
-    const script = body.kind !== "read";
-    if (
-      !script &&
-      noteTrapRead(this.sql, user.id, body.entryId, this.now()) <
-        BROWSER_TRAP_READS
-    )
-      return noStoreJson({ blocked: false });
-    const text = (value: unknown) =>
-      typeof value === "string" && value.length > 0 ? value : null;
-    const created = recordBlock(
-      this.sql,
-      user,
-      {
-        entryId: body.entryId,
-        path: text(body.path) ?? "",
-        ip: text(body.ip),
-        country: text(body.country),
-        userAgent: text(body.userAgent),
-      },
-      script ? "script" : "two-traps",
-      this.now().toISOString(),
-    );
-    if (created) await this.sendBlockNotices();
-    return noStoreJson({ blocked: true });
-  }
-
-  /**
-   * Emails the Owner, and the member with replies going to the Owner, every
-   * block not yet told; returns how many emails went.
-   */
-  private async sendBlockNotices(): Promise<number> {
-    let sent = 0;
-    for (const row of unsentNotices(this.sql)) {
-      const { subject, text } = blockNotice(row);
-      if (!(await this.sendEmail(SITE_USAGE_CONTACT, subject, text))) break;
-      markNotified(this.sql, row.id, this.now().toISOString());
-      sent += 1;
-    }
-    for (const row of unsentMemberNotices(this.sql)) {
-      const { subject, text } = memberBlockNotice(row);
-      if (
-        !(await this.sendEmail(row.email!, subject, text, SITE_USAGE_CONTACT))
-      )
-        break;
-      markMemberNotified(this.sql, row.id, this.now().toISOString());
-      sent += 1;
-    }
-    return sent;
   }
 
   /**
@@ -1062,16 +875,7 @@ export class AuthDO {
       this.sql.exec("DELETE FROM sessions WHERE token_hash = ?", tokenHash);
       return null;
     }
-    return this.userWithRestrictions(row);
-  }
-
-  private userWithRestrictions(row: UserRow): SessionUser {
-    const user = this.publicUser(row);
-    // A block by email never reaches the Owner, an admin, a moderator or an
-    // AI seat: they cannot be blocked, whatever another account did.
-    return !exemptFromBlocks(user) && isBlocked(this.sql, row.id, row.email)
-      ? { ...user, blocked: true }
-      : user;
+    return this.publicUser(row);
   }
 
   private publicUser(row: UserRow): SessionUser {

@@ -2,15 +2,9 @@
 // show. The Worker's refusals stay distinct (worker/api-rate-limit.ts,
 // worker/gallery.ts) instead of all reading as "unavailable".
 import { dailyOpenResetTime, isDailyAllowanceRefusal } from "./daily-allowance";
-import { SITE_USAGE_CONTACT } from "./usage-policy-note";
 
 export type RequestFailureKind =
-  | "blocked"
-  | "rate-limited"
-  | "daily-limit"
-  | "not-found"
-  | "server-error"
-  | "offline";
+  "rate-limited" | "daily-limit" | "not-found" | "server-error" | "offline";
 
 export interface RequestFailure {
   failure: RequestFailureKind;
@@ -56,11 +50,6 @@ export async function requestFailureOf(
     .json()
     .catch(() => null)) as { error?: unknown; resetAt?: unknown } | null;
   const { status } = response;
-  if (status === 403 && body?.error === "account-blocked")
-    return {
-      failure: "blocked",
-      message: `This account can't publish or change Gallery circuits for now. Contact the Owner by replying to our email or writing to ${SITE_USAGE_CONTACT}.`,
-    };
   if (await isDailyAllowanceRefusal(response)) {
     const resetAt = typeof body?.resetAt === "string" ? body.resetAt : "";
     return {

@@ -6,10 +6,11 @@ import {
   transportOrigin,
 } from "../../../worker/regional-auth.test-support.ts";
 import {
+  adminOf,
   makerOf,
-  ownerAccountOf,
   ORIGIN,
   route,
+  submitOne,
 } from "../../../worker/gallery.test-support.ts";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -37,7 +38,7 @@ it("discovers the authority's enabled sign-in providers through standalone egres
   });
 });
 
-it("enforces a Gallery block on writes and Owner recovery through the standalone egress policy", async () => {
+it("sends a moderator's rejection through the security RPC over standalone egress", async () => {
   const h = accounts();
   const network = vi.fn((request) => {
     expect(new URL(request.url).origin).toBe(transportOrigin);
@@ -50,45 +51,30 @@ it("enforces a Gallery block on writes and Owner recovery through the standalone
       IDENTITY_URL: transportOrigin + "/api/auth/regional/identities",
     });
   const member = await h.connect(await makerOf(h.source));
-  const owner = await h.connect(await ownerAccountOf(h.source));
-  h.source.authDurable.fetchLike = async () =>
-    Response.json({ id: "isolated-block-notice" });
-  const { user } = await (await h.call("/api/auth/me", member)).json();
-  const blocking = await h.region.fetch(
-    new Request("https://auth/internal/block-account", {
+  const admin = await h.connect(await adminOf(h.source));
+  const id = await submitOne(h.resources, "Regional publication", {
+    cookie: member,
+  });
+  const sent = [];
+  h.source.authDurable.fetchLike = async (_input, init) => {
+    sent.push(JSON.parse(String(init?.body)));
+    return Response.json({ id: "isolated-rejection" });
+  };
+  const rejected = await route(
+    h.resources,
+    new Request(ORIGIN + "/api/gallery/" + id + "/reject", {
       method: "POST",
-      body: JSON.stringify({
-        userId: user.id,
-        entryId: "ww5fnfambz",
-        kind: "script",
-        path: "/api/gallery/ww5fnfambz",
-      }),
+      headers: {
+        origin: ORIGIN,
+        cookie: admin,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ reason: "Please fix the source", notify: true }),
     }),
   );
-  expect(await blocking.json()).toEqual({ blocked: true });
-  const request = (path, method = "GET") =>
-    route(
-      h.resources,
-      new Request(ORIGIN + path, {
-        method,
-        headers: { cookie: member, origin: ORIGIN },
-      }),
-    );
-  // A blocked account still reads the Gallery; its writes are refused.
-  expect((await request("/api/gallery?tag=amplifier")).status).toBe(200);
-  const blocked = await request("/api/gallery/ww5fnfambz/like", "POST");
-  expect(blocked.status).toBe(403);
-  expect(await blocked.json()).toMatchObject({ error: "account-blocked" });
-  expect(
-    (
-      await h.call("/api/auth/blocked/unblock", owner, "POST", {
-        userId: user.id,
-      })
-    ).status,
-  ).toBe(200);
-  expect(
-    (await request("/api/gallery/ww5fnfambz/like", "POST")).status,
-  ).not.toBe(403);
+  expect(rejected.status).toBe(200);
+  expect(await rejected.json()).toMatchObject({ emailed: true });
+  expect(sent).toHaveLength(1);
   expect(
     network.mock.calls.map(([request]) => new URL(request.url).pathname),
   ).toContain("/api/auth/regional/security");

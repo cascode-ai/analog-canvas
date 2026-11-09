@@ -5,8 +5,8 @@ export const REGIONAL_SESSION_COOKIE = "icm_regional_session";
 /**
  * How long a region keeps authorizing an account without reaching the
  * authority. Renewal still runs every REGIONAL_REFRESH_MS, so logout, expiry
- * and restriction changes reach a connected region within one refresh; the
- * lease only bounds a cross-border outage.
+ * and account changes reach a connected region within one refresh; the lease
+ * only bounds a cross-border outage.
  */
 export const REGIONAL_LEASE_MS = 30 * 60_000;
 export const REGIONAL_HANDOFF_MS = 60_000;
@@ -89,10 +89,6 @@ export function isRegionalAccountRoute(method: string, path: string): boolean {
     "GET /api/auth/ai-accounts",
     "POST /api/auth/ai-accounts/switch",
     "POST /api/auth/ai-accounts/return",
-    "GET /api/auth/blocked",
-    "POST /api/auth/blocked/unblock",
-    "POST /api/auth/blocked/apology",
-    "POST /api/auth/blocked/notify",
   ].includes(method + " " + path);
 }
 
@@ -100,11 +96,7 @@ export function isRegionalAccountRoute(method: string, path: string): boolean {
 export function isRegionalSecurityRoute(method: string, path: string): boolean {
   return (
     method === "POST" &&
-    [
-      "/internal/block-account",
-      "/internal/block-notices",
-      "/internal/gallery-rejection",
-    ].includes(path)
+    path === "/internal/gallery-rejection"
   );
 }
 
@@ -175,7 +167,6 @@ export function sessionIdentity(value: unknown): SessionUser | null {
     !["user", "moderator"].includes(user.role) ||
     typeof user.isAdmin !== "boolean" ||
     !(user.isOwner === undefined || user.isOwner === true) ||
-    !(user.blocked === undefined || user.blocked === true) ||
     !(
       user.seat === undefined ||
       (typeof user.seat === "string" && user.seat.length <= 100)
@@ -202,7 +193,6 @@ export function sessionIdentity(value: unknown): SessionUser | null {
     role: user.role,
     isAdmin: user.isAdmin,
     ...(user.isOwner ? { isOwner: true } : {}),
-    ...(user.blocked ? { blocked: true } : {}),
     ...(user.seat ? { seat: user.seat } : {}),
     ...(user.switchedFrom?.id
       ? {

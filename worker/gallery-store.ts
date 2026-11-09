@@ -5,7 +5,6 @@
 import { COMPONENT_COUNT_RULE_VERSION } from "./gallery-components";
 import { readGalleryCuration, type GalleryAttention } from "./gallery-curation";
 import { AI_ACCOUNT_PROVIDER, AI_SEATS, type AuthNamespaceLike } from "./auth";
-import { isReservedGalleryId } from "../apps/editor/src/gallery-reserved-ids";
 
 /**
  * A circuit's id is its address, so it is short enough to read out loud and
@@ -20,16 +19,11 @@ const SHORT_ID_ALPHABET = "23456789abcdefghjkmnpqrstvwxyz";
 export const SHORT_ID_LENGTH = 10;
 
 export function shortId(length = SHORT_ID_LENGTH): string {
-  for (;;) {
-    const bytes = crypto.getRandomValues(new Uint8Array(length));
-    let id = "";
-    for (const byte of bytes) {
-      id += SHORT_ID_ALPHABET[byte % SHORT_ID_ALPHABET.length];
-    }
-    // A sliver of ids stays unused (gallery-reserved-ids.ts): the trap
-    // circuits that once held them are gone, and old blocks name them.
-    if (!isReservedGalleryId(id)) return id;
-  }
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let id = "";
+  for (const byte of bytes)
+    id += SHORT_ID_ALPHABET[byte % SHORT_ID_ALPHABET.length];
+  return id;
 }
 
 export const GALLERY_MAX_PROJECT_BYTES = 2 * 1024 * 1024;

@@ -419,12 +419,9 @@ describe("one Gallery tile", () => {
         Response.json({ status: "withdrawn", entry: { id: "entry-1" } }),
       ),
     ).toBe(GALLERY_ENTRY_MISSING);
-    const blocked = Response.json(
-      { error: "account-blocked" },
-      { status: 403 },
-    );
-    expect(await answer(blocked.clone())).toEqual(
-      await requestFailureOf(blocked),
+    const refused = Response.json({ error: "forbidden" }, { status: 403 });
+    expect(await answer(refused.clone())).toEqual(
+      await requestFailureOf(refused),
     );
   });
 });

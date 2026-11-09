@@ -243,58 +243,6 @@ it("requires the original actor when a switched overseas AI account starts hando
   ).toBeTruthy();
 });
 
-it("returns ordered Gallery restrictions and retains Owner-only unblocking", async () => {
-  const h = source();
-  const owner = await connect(h, await ownerAccountOf(h));
-  const member = await connect(h, await makerOf(h));
-  const body = {
-    userId: member.user.id,
-    entryId: "ww5fnfambz",
-    kind: "script",
-  };
-  const security = { path: "/internal/block-account", body };
-  expect((await rpc(h, "security", security, "wrong-secret")).status).toBe(401);
-  expect(
-    (await rpc(h, "security", { path: "/api/auth/account/delete", body }))
-      .status,
-  ).toBe(404);
-  const blocked = await (await rpc(h, "security", security)).json();
-  expect(blocked).toMatchObject({
-    result: { status: 200 },
-    restrictions: {
-      revision: 1,
-      users: [{ id: member.user.id, blocked: true }],
-    },
-  });
-  expect(
-    await (await rpc(h, "renew", { grant: member.grant })).json(),
-  ).toMatchObject({ user: { blocked: true }, restrictionRevision: 1 });
-  const operation = {
-    method: "POST",
-    path: "/api/auth/blocked/unblock",
-    body: { userId: member.user.id },
-  };
-  expect(
-    await (
-      await rpc(h, "account", { ...operation, grant: member.grant })
-    ).json(),
-  ).toMatchObject({ result: { status: 403 } });
-  expect(
-    await (
-      await rpc(h, "account", { ...operation, grant: owner.grant })
-    ).json(),
-  ).toMatchObject({
-    result: { status: 200 },
-    restrictions: {
-      revision: 2,
-      users: [{ id: member.user.id, blocked: false }],
-    },
-  });
-  const renewed = await (await rpc(h, "renew", { grant: member.grant })).json();
-  expect(renewed.restrictionRevision).toBe(2);
-  expect(renewed.user).not.toHaveProperty("blocked");
-});
-
 it("keeps the optional transport alias limited to configured login and authenticated RPC routes", async () => {
   const transportOrigin = "https://authority.test";
   const h = source(transportOrigin);
@@ -339,8 +287,9 @@ it("keeps the optional transport alias limited to configured login and authentic
   ).toBe(404);
   expect(
     (
-      await transport(transportOrigin, "/internal/block-account", "POST", {
-        userId: "any",
+      await transport(transportOrigin, "/internal/gallery-rejection", "POST", {
+        entryName: "any",
+        reason: "any",
       })
     ).status,
   ).toBe(404);

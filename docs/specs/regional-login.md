@@ -66,28 +66,21 @@ serves local authorization. Resource replication is owned by
   the transition is confirmed. Renewal recovers a lost transition reply after
   restart but cannot revive a logged-out session. Unbound legacy AI grants fail
   closed and require a new handoff.
-- Gallery blocking, block-notice maintenance and requested rejection emails
-  use the internal AUTH binding and the exact `isRegionalSecurityRoute`
-  allowlist. The authenticated authority RPC retains the existing restriction,
-  exemption and notification rules; the browser cannot invoke this service
-  capability. Owner block review/unblock/notify/apology uses the account grant
-  and existing Owner checks. Successful blocking and unblocking apply an ordered
-  authority restriction snapshot immediately, including related provider IDs
-  and authority exemptions. A late lease or operation cannot replace a newer
-  restriction. Evidence is bounded before serialization using the existing
-  block-record limits. A transport failure reports unavailability, never
-  successful delivery; unsent block notices remain retryable at the authority.
+- Requested rejection emails use the internal AUTH binding and the exact
+  `isRegionalSecurityRoute` allowlist; the browser cannot invoke this service
+  capability. A transport failure reports unavailability, never successful
+  delivery.
 - The authorization lease (30 minutes) and renewal interval (30 seconds) are
   defined in the [protocol module](../../worker/regional-auth-contract.ts).
   Background alarms renew every interval; a failed renewal never extends a
-  lease. Logout, expiry and restriction changes therefore reach a connected
+  lease. Logout, expiry and account changes therefore reach a connected
   region within one renewal, and the lease only bounds how long a region keeps
   serving through a cross-border outage. Expired leases return no user.
   Production must qualify alarm capacity and clock synchronization before
   enabling this profile.
 - Authority logout, session expiry or account disappearance stops renewal;
-  prior leases expire within their bound. `blocked` retains its Gallery-only meaning; it is not a
-  global account-disable flag. This protocol adds no global-disable feature.
+  prior leases expire within their bound. This protocol adds no
+  global-disable feature.
 - Identity lookup establishes an owner exists; it does not authorize a browser
   to read that owner's resources or allocate another quota. Unknown identities
   wait for reconciliation. Resource ownership, quotas and resource deletion
@@ -140,19 +133,19 @@ on `RegionalSessionDO`. Invalid or absent configuration keeps the new surface
 closed. HTTPS is required except explicit loopback acceptance origins. No
 production bindings, migrations or credentials are activated by this change.
 
-| Endpoint                                        | Caller and result                                                                                                                                                      |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Regional `GET /api/auth/regional/start`         | Browser; starts a bound handoff to the authority.                                                                                                                      |
-| Authority `GET /api/auth/regional/authorize`    | Browser; reuses existing login, then returns a code and state to the configured regional callback.                                                                     |
-| Regional `GET /api/auth/regional/callback`      | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                                                         |
-| Authority `POST /api/auth/regional/exchange`    | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt, restrictionRevision}`.                                                                            |
-| Authority `POST /api/auth/regional/renew`       | Authenticated region; `{grant}` → `{user, expiresAt, restrictionRevision}`.                                                                                            |
-| Authority `POST /api/auth/regional/identities`  | Authenticated importer. Each of up to 100 requested IDs is `found` with its user, `deleted` or `missing`.                                                              |
-| Authority `POST /api/auth/regional/deletions`   | Authenticated region. `{after}` reads one ordered job as `{version: 1, job}`. `{acknowledge: sequence}` records completed China cleanup.                               |
-| Authority `POST /api/auth/regional/account`     | Authenticated region; `{grant, method, path, body}` → `{result: {status, body}, user, expiresAt, restrictionRevision, restrictions?}` for the exact account allowlist. |
-| Authority `POST /api/auth/regional/owner-token` | Authenticated region; `{token}` → `{user}` or 401. Only internal import authorization consumes this result.                                                            |
-| Authority `POST /api/auth/regional/security`    | Authenticated region; `{path, body}` for the three exact internal security/notification operations → `{result: {status, body}, restrictions?}`.                        |
-| Regional `GET /api/auth/me`                     | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                                                                |
+| Endpoint                                        | Caller and result                                                                                                                        |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Regional `GET /api/auth/regional/start`         | Browser; starts a bound handoff to the authority.                                                                                        |
+| Authority `GET /api/auth/regional/authorize`    | Browser; reuses existing login, then returns a code and state to the configured regional callback.                                       |
+| Regional `GET /api/auth/regional/callback`      | Browser; verifies state and redeems the code server-side, then establishes a regional session.                                           |
+| Authority `POST /api/auth/regional/exchange`    | Authenticated region; `{code, verifier}` → `{user, grant, expiresAt}`.                                                                   |
+| Authority `POST /api/auth/regional/renew`       | Authenticated region; `{grant}` → `{user, expiresAt}`.                                                                                   |
+| Authority `POST /api/auth/regional/identities`  | Authenticated importer. Each of up to 100 requested IDs is `found` with its user, `deleted` or `missing`.                                |
+| Authority `POST /api/auth/regional/deletions`   | Authenticated region. `{after}` reads one ordered job as `{version: 1, job}`. `{acknowledge: sequence}` records completed China cleanup. |
+| Authority `POST /api/auth/regional/account`     | Authenticated region; `{grant, method, path, body}` → `{result: {status, body}, user, expiresAt}` for the exact account allowlist.       |
+| Authority `POST /api/auth/regional/owner-token` | Authenticated region; `{token}` → `{user}` or 401. Only internal import authorization consumes this result.                              |
+| Authority `POST /api/auth/regional/security`    | Authenticated region; `{path, body}` for the exact internal notification operation → `{result: {status, body}}`.                         |
+| Regional `GET /api/auth/me`                     | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                                  |
 
 Authority POSTs require `Authorization: Bearer <client secret>` over the pinned
 HTTPS endpoint; no CORS grant is issued. They accept bounded JSON bodies.
@@ -160,9 +153,7 @@ HTTPS endpoint; no CORS grant is issued. They accept bounded JSON bodies.
 enabled provider flags. Regional discovery reads these through the fixed
 transport; unavailability hides method shortcuts but retains the chooser.
 Security RPCs preserve executed handlers' status and body inside `result`;
-transport success does not imply operation success. Successful block/unblock
-responses require `restrictions: {revision, users: [{id, blocked}]}`. The source
-orders these snapshots; leases identify the restriction revision they observed.
+transport success does not imply operation success.
 Unauthorized/invalid grants return 401, malformed requests 400, disabled routes
 404 and wrong origins 421. Resource callers consume the trusted internal AUTH
 binding rather than accepting browser-supplied user IDs or service credentials.

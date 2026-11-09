@@ -140,7 +140,6 @@ async function editor(
   if (!sameOrigin(request)) return json({ error: "cross-origin" }, 403);
   const user = await sessionUserOf(request, env);
   if (!user) return json({ error: "sign-in-required" }, 401);
-  if (user.blocked) return json({ error: "blocked" }, 403);
   return user;
 }
 
@@ -159,8 +158,8 @@ function withViewer(
       ? {
           signedIn: true,
           name: user.displayName,
-          canEdit: !user.blocked,
-          canUnlock: !user.blocked && (user.isAdmin || madeIt),
+          canEdit: true,
+          canUnlock: user.isAdmin || madeIt,
           admin: user.isAdmin,
         }
       : {
