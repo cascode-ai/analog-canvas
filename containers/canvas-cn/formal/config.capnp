@@ -20,6 +20,7 @@ const config :Workerd.Config = (
         (name = "PROJECTS", durableObjectNamespace = "GalleryDO"),
         (name = "SIMULATION_ARTIFACTS", r2Bucket = "artifact-entry"),
         (name = "ASSETS", service = "assets"),
+        (name = "AGENT_MCP_DOWNLOAD_ORIGIN", text = "https://analog-canvas.tokenzhang.com"),
         (name = "SIMULATION_DISPATCH", text = "alarm"),
         (name = "SIMULATION_UPSTREAM_URL", text = "https://ngspice.canvas-operator.invalid"),
         (name = "SG13G2_UPSTREAM_URL", text = "https://ngspice.canvas-operator.invalid/sg13g2"),

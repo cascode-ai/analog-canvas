@@ -54,7 +54,8 @@ a new digest is recorded:
   any platform once the tarball matches its sums.
 
 Normal publication verifies the committed digest and never restamps. Publish
-the GitHub Release before deploying a site that advertises it. Production
-downloads the declared archive and verifies SHA-256 before changing the
-serving Worker, then checks the live manifest matches the declaration; a
-manifest HTTP 200 alone is not acceptance.
+the GitHub Release before deploying it. Production verifies the declared
+archive's SHA-256 and includes those bytes in the deployment. Its live manifest
+points to the archive on the same origin. After deploying, verify the manifest
+and download the archive it names to check the digest. When installing or
+upgrading, fetch a fresh manifest; a later deploy may retire a site archive.

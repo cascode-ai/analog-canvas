@@ -186,8 +186,11 @@ describe("brotli siblings in workerd", () => {
     );
   });
 
-  it("still answers a retired name with 404", async () => {
-    const response = await send("/assets/Gone-abcdefgh.js", "br");
+  it.each([
+    "/assets/Gone-abcdefgh.js",
+    "/downloads/mcp/analog-canvas-mcp-server-0.0.1.tgz",
+  ])("answers a retired file with an uncached 404: %s", async (path) => {
+    const response = await send(path, "br");
     expect(response.status).toBe(404);
     expect(response.headers["cache-control"]).toBe("no-store");
     expect(decoded(response)).toContain("Not found");

@@ -34,6 +34,7 @@ it("advertises the verified release archive from the regional editor origin", as
     target(),
   );
   expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("no-store");
   const manifest = await response.json();
   const downloadUrl = `${origin}/downloads/mcp/${distribution.release.asset}`;
   expect(manifest).toMatchObject({
