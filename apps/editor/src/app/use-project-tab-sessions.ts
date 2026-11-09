@@ -1,6 +1,7 @@
 // Project tabs and their sessions: what a tab captures and restores, how the
 // window's tabs are saved and reopened, and what holds the editor on a tab.
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import type { RnlAppearance } from "@icm/rnl";
 import type {
   AgentLocalProjectReceipt,
   AgentLocalSource,
@@ -87,6 +88,7 @@ type AgentProjectResourcesOptions = Parameters<
 
 interface LocalDelivery {
   source: AgentLocalSource;
+  rnlAppearance?: RnlAppearance;
   importedRevision: string;
   recovered: boolean;
 }
@@ -291,8 +293,8 @@ export function useProjectTabSessions({
   ): LocalDelivery | undefined {
     const local = localDeliveries.current.get(controller);
     if (local?.sessionId !== controller.projectSessionId) return undefined;
-    const { source, importedRevision, recovered } = local;
-    return { source, importedRevision, recovered };
+    const { sessionId: _sessionId, ...delivery } = local;
+    return delivery;
   }
   function captureTabSession() {
     return {
@@ -890,10 +892,19 @@ export function useProjectTabSessions({
         : {}),
     };
   };
-  openLocalProjectRef.current = async (version, background, candidate) => {
+  openLocalProjectRef.current = async ({
+    sourceVersion,
+    background,
+    rnlAppearance,
+    candidate,
+  }) => {
+    const matches = (local: LocalDelivery | undefined) =>
+      local?.source.version === sourceVersion &&
+      // Earlier RNL tabs did not record which appearance was requested.
+      (local.source.format !== "rnl" || local.rnlAppearance === rnlAppearance);
     const existing = projectTabs
       .entries()
-      .find(({ session }) => session.localDelivery?.source.version === version);
+      .find(({ session }) => matches(session.localDelivery));
     let disposition: AgentLocalProjectReceipt["disposition"] = "reused";
     let controller = existing?.session.controller;
     if (existing) {
@@ -911,6 +922,7 @@ export function useProjectTabSessions({
         controller = session.controller;
         const localDelivery = {
           source: candidate.source,
+          ...(candidate.source.format === "rnl" ? { rnlAppearance } : {}),
           importedRevision: projectChangeToken(controller.project),
           recovered: false,
         };
@@ -929,8 +941,7 @@ export function useProjectTabSessions({
       .entries()
       .find((entry) => entry.session.controller === controller);
     const local = controller && localDeliveryOf(controller);
-    if (!actual || !controller || !local || local.source.version !== version)
-      return null;
+    if (!actual || !controller || !local || !matches(local)) return null;
     const { project, document } = controller;
     const span = document.sourceBinding?.sourceRef;
     const file = project.source.files.find((item) => item.id === span?.fileId);
@@ -1118,6 +1129,9 @@ export function useProjectTabSessions({
       return (
         local && {
           source: local.source,
+          ...(local.rnlAppearance
+            ? { rnlAppearance: local.rnlAppearance }
+            : {}),
           recovered: local.recovered,
           modified: local.importedRevision !== projectChangeToken(project),
         }

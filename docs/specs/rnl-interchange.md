@@ -237,8 +237,10 @@ the RNL language and its runtime belong to rnl.
 
 ### Import
 
-- File → Import → `RNL…` reads a rich netlist with its includes and package
-  files. Project File, SPICE / SCS and Cadence SPICE are unchanged.
+- File → Import → `RNL…` opens the source layout using Canvas conventions.
+  `RNL (preserve source appearance)…` opens the authored appearance.
+  Both read the same netlist, includes and package files and apply the
+  electrical comparison before using the drawing.
 - The electrical import is the SPICE / SCS importer, called unchanged but for
   the two things below. The rnl runtime reads the same files (its snapshot,
   rnl-dev's editor-interface draft) and the drawing is laid over the imported
@@ -338,6 +340,15 @@ the RNL language and its runtime belong to rnl.
     wire's own; junctions at named points and independent anchors at
     anonymous wire ends; wires of no length,
     which join what touches, are left to touching;
+  - in the default Canvas appearance for external RNL, the branch reaching
+    a MOS body uses the Canvas dashed style. A free `0` label at an open
+    end on verified global ground becomes a native Ground. A Cell Pin left
+    without a source position can land at an existing wire end or junction
+    on its own Net. These placements reuse the original wire coordinates.
+    The import reports Pins without a usable wire end and ground labels it
+    cannot replace.
+    If the Canvas drawing cannot pass the electrical check, the importer
+    keeps a verified source drawing with a warning where available;
   - wire direction arrows, current and voltage markers (a label on a wire
     with + and − where the export puts them), and floating symbols;
   - labels where RNL shows them: a part's name and values bound to it, a
@@ -357,12 +368,12 @@ the RNL language and its runtime belong to rnl.
     hangs on the junction it stands beside, else on the Pin; a drawn name
     still binds only where it reads as the part's name; a level another tool
     wrote is read from its texts as above;
-  - in a file Analog Canvas wrote (`analog-canvas-extensions`), a label
+  - in a level Analog Canvas wrote (`$CANVAS_TYPESETTING` or extension 0.1), a label
     keeps its size and colour, and a bound label the drawn styles as its
     format only where they differ from what the binding shows anyway;
     another tool's labels (a part's name and values, net, power and Cell
-    Pin labels) take the house look: their text and place, never that
-    tool's size, styles or colour;
+    Pin labels) take the house look in Canvas appearance. Preserve source
+    appearance keeps the supplied label styles where supported;
   - a part the author never named (`$CANVAS_UNNAMED`) unnamed again, with
     no netlist record, as the editor keeps one, where the netlist import
     gave its record no parameter; its name label, written with the

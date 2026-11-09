@@ -1,5 +1,6 @@
 import {
   arrowArtwork,
+  isMosBulkTerminal,
   resolveAnnotationText,
   mosBulkKind,
   portableCellIdentifier,
@@ -45,6 +46,7 @@ type Junction = SchematicDocument["junctions"][number];
 import {
   builtInSymbols,
   createHierarchicalBlockSymbol,
+  createProjectSymbolResolver,
   hierarchicalSymbolId,
   type PdkSymbolMappingOverride,
 } from "@icm/symbols";
@@ -61,6 +63,9 @@ import { acPosition, AC_UNITS_PER_RNL_UNIT } from "./place.js";
 import { RNL_SYMBOLS, rnlBodyPortOrder, type RnlSymbol } from "./symbol-map.js";
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
 import { acRichText, type RnlRun } from "./text.js";
+import { applyNativeRnlAppearance } from "./native-terminals.js";
+
+export type RnlAppearance = "canvas" | "source";
 
 /**
  * The parts of the rnl runtime's snapshot the import reads (its
@@ -109,6 +114,13 @@ export interface RnlLevelSnapshot {
     /** The scene's graphics (13.4), in the order written. */
     shapes?: readonly RnlShapeView[];
   };
+}
+
+function hasCanvasTypesetting(model: NonNullable<RnlLevelSnapshot["model"]>) {
+  return model.objects.some(
+    (object) =>
+      object.kind === "usage" && object.definition === "$CANVAS_TYPESETTING",
+  );
 }
 
 export interface RnlShapeView {
@@ -480,10 +492,12 @@ export function canvasTopDocument(
  * 6): parts placed, turned and in the variant their RNL symbol stands for;
  * wires with every bend, split where they run through a pin or point; and
  * junction points. The electrical part is the importer's, unchanged.
+ * Callers without an appearance retain the legacy projection.
  */
 export function applyRnlSnapshot(
   project: CircuitProject,
   snapshot: RnlSnapshot,
+  appearance?: RnlAppearance,
 ): {
   project: CircuitProject;
   diagnostics: RnlImportDiagnostic[];
@@ -496,16 +510,17 @@ export function applyRnlSnapshot(
   const parameterTexts: RnlParameterText[] = [];
   const cellNames: { documentId: StableId; name: string }[] = [];
   const keptParameters: KeptParameter[] = [];
-  // A file Canvas 0.4 or later wrote draws every Pin a Cell has and says
-  // which wire each net label is on.
-  const canvas04 = snapshot.packages.some(({ name, version }) => {
-    const [major = 0, minor = 0] = version.split(".").map(Number);
-    return name === "analog-canvas-extensions" && (major > 0 || minor >= 4);
-  });
-  // Analog Canvas wrote the file (any version): its labels' looks are its own.
-  const canvasLooks = snapshot.packages.some(
+  const canvasPackages = snapshot.packages.filter(
     ({ name }) => name === "analog-canvas-extensions",
   );
+  const canvasAtLeast = (minorVersion: number) =>
+    canvasPackages.some(({ version }) => {
+      const [major = 0, minor = 0] = version.split(".").map(Number);
+      return major > 0 || minor >= minorVersion;
+    });
+  const canvas02 = canvasAtLeast(2);
+  const canvas04 = canvasAtLeast(4);
+  const canvasDocuments = new Set<string>();
   const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
     diagnostics.push({
@@ -554,6 +569,14 @@ export function applyRnlSnapshot(
         });
       continue;
     }
+    // Since 0.2 Canvas writes a marker on each level. An external level can
+    // use the package's symbols without having been written by Canvas.
+    const canvasWritten =
+      canvasPackages.length > 0 &&
+      (appearance === undefined ||
+        !canvas02 ||
+        hasCanvasTypesetting(level.model));
+    if (canvasWritten) canvasDocuments.add(document.id);
     applyLevel(
       next,
       document,
@@ -567,9 +590,10 @@ export function applyRnlSnapshot(
       cellNames,
       snapshot.dialect === "spectre" ? "spectre" : "spice",
       keptParameters,
-      canvas04,
+      canvas04 && canvasWritten,
       tiedToGround,
-      canvasLooks,
+      canvasWritten || appearance === "source",
+      !canvasWritten && appearance === "canvas",
     );
   }
   for (const { documentId, name } of cellNames)
@@ -589,7 +613,8 @@ export function applyRnlSnapshot(
     printsFileCircuit(withPowerLabelPorts(trial, powerLabelPorts), snapshot),
   );
   // Only a file Canvas 0.4 or later wrote draws every Pin a Cell has.
-  if (canvas04) unpinUndrawnPorts(next, undrawnPins, powerLabelPorts);
+  if (canvas04)
+    unpinUndrawnPorts(next, canvasDocuments, undrawnPins, powerLabelPorts);
   trimCallMappings(next);
   return {
     project: next,
@@ -1048,8 +1073,9 @@ function applyLevel(
   wiresNamed: boolean,
   /** Each Cell's pins its calls all tie to ground (`groundTiedPins`). */
   tiedToGround: Set<string>,
-  /** Analog Canvas wrote the file, so its labels keep their looks. */
+  /** Preserve authored label styling. */
   canvasLooks: boolean,
+  nativeAppearance: boolean,
 ): void {
   const warn = (code: string, message: string) =>
     diagnostics.push({
@@ -1696,6 +1722,7 @@ function applyLevel(
     { netId: string; label?: RnlObjectView }
   >();
   const movedPins = new Set<string>();
+  const placedPins = new Set<string>();
   const marks = new Map<string, number>();
   /** Marks read once the wires are routes, and figures, by usage. */
   const later: RnlObjectView[] = [];
@@ -1772,10 +1799,12 @@ function applyLevel(
       );
       const pin = pinId === undefined ? undefined : instanceOf(pinId);
       if (pin) {
+        const placement = placementOf();
         movedPins.add(pin.id);
+        if (placement) placedPins.add(pin.id);
         glyphOf.set(object.id, { instanceId: pin.id, pinName: "P" });
         if (mapped) pin.symbolId = mapped.row.ac!;
-        pin.placement = placementOf() ?? pin.placement;
+        pin.placement = placement ?? pin.placement;
         Object.assign(pin, paintOf(object));
         continue;
       }
@@ -1786,10 +1815,11 @@ function applyLevel(
       );
       if (object.definition === "$IO_PORT" && drawn && netId) {
         const id = deriveStableId("cell-pin", document.id, level.id, object.id);
+        const placement = placementOf();
         document.instances.push({
           id,
           symbolId: mapped?.row.ac ?? "port",
-          placement: placementOf(),
+          placement,
           ...paintOf(object),
         });
         document.nets
@@ -1803,6 +1833,7 @@ function applyLevel(
           interfaceInstanceIds: [id],
         });
         movedPins.add(id);
+        if (placement) placedPins.add(id);
         glyphOf.set(object.id, { instanceId: id, pinName: "P" });
         continue;
       }
@@ -2103,17 +2134,9 @@ function applyLevel(
         );
       // A dashed wire to a MOS body is Analog Canvas's body tie.
       const bodyTie =
-        lineStyle === "dashed" &&
-        [start, end].some(
-          (endpoint) =>
-            endpoint.kind === "terminal" &&
-            endpoint.pinName === "B" &&
-            deviceDescriptor(
-              document.instances.find(
-                (instance) => instance.id === endpoint.instanceId,
-              )?.symbolId ?? "",
-            )?.deviceClass === "mos",
-        );
+        presentation !== "power-rail" &&
+        (nativeAppearance || lineStyle === "dashed") &&
+        [start, end].some((endpoint) => isMosBulkTerminal(document, endpoint));
       const drawnAs = bodyTie ? ("bulk-dashed" as const) : presentation;
       const lineOverride = bodyTie ? undefined : lineStyle;
       const id = (part: string, index = 0) =>
@@ -2519,6 +2542,7 @@ function applyLevel(
   // editor's default name label hidden, as a part's labels are; a net label
   // beside it may be what shows the name.
   for (const id of movedPins) {
+    if (nativeAppearance && !placedPins.has(id)) continue;
     const terminal = document.netlist?.terminals.find((item) =>
       item.interfaceInstanceIds.includes(id),
     );
@@ -2536,6 +2560,23 @@ function applyLevel(
         name: true,
         values: false,
       });
+  }
+  if (nativeAppearance) {
+    const { unplacedPins, unplacedGrounds } = applyNativeRnlAppearance(
+      document,
+      createProjectSymbolResolver(project, builtInSymbols),
+      placedPins,
+    );
+    if (unplacedPins.length)
+      warn(
+        "RNL_IMPORT_PIN_NOT_ROUTED",
+        `No existing wire end could place Cell Pins on their Nets: ${unplacedPins.join(", ")}`,
+      );
+    if (unplacedGrounds)
+      warn(
+        "RNL_IMPORT_GROUND_NOT_PLACED",
+        `${unplacedGrounds} ground wire ends kept their source labels because a native Ground could not land there`,
+      );
   }
   // A label the drawing does not show still names a part's clock: the one
   // the import gave it stays, hidden; a switch that had a CTRL pin takes the
@@ -2693,14 +2734,9 @@ function importTexts(
   // 0.2 (it says how the level sets names): the binding `$CANVAS_LABEL`
   // states, and a label without one holds its own text. A level another
   // tool wrote is read as its texts read.
-  const canvasWritten = model.objects.some(
-    (object) =>
-      object.kind === "usage" && object.definition === "$CANVAS_TYPESETTING",
-  );
-  // A label's size, styles and colour come back only from Analog Canvas's own
-  // export. Another tool's texts carry that tool's typography (Virtuoso's
-  // upright 10-point names), so its labels take the house look: the text
-  // and where it stands, nothing of how it was set.
+  const canvasWritten = hasCanvasTypesetting(model);
+  // Preserve label styles for Canvas-authored levels and source appearance.
+  // Other external levels use the Canvas typography at the same positions.
   const scaled = canvasLooks ? sizeScale : () => ({});
   const statedOf = new Map(
     model.objects.flatMap((object) =>
@@ -4237,13 +4273,16 @@ function printsFileCircuit(
  */
 function unpinUndrawnPorts(
   project: CircuitProject,
+  canvasDocuments: ReadonlySet<string>,
   undrawnPins: ReadonlySet<string>,
   powerLabelPorts: RnlPowerLabelPort[],
 ): void {
   const labelled = new Set(powerLabelPorts.map((port) => port.terminalId));
   const next = structuredClone(project);
   const ports: RnlPowerLabelPort[] = [];
-  for (const document of next.documents)
+  for (const document of next.documents.filter(({ id }) =>
+    canvasDocuments.has(id),
+  ))
     for (const terminal of document.netlist?.terminals ?? []) {
       const [pinId, ...more] = terminal.interfaceInstanceIds;
       if (

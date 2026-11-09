@@ -32,6 +32,7 @@ import {
   AGENT_MCP_VERSION,
   AgentFileDownloadOptionsSchema,
   AgentGalleryEntryFields,
+  AgentRnlAppearanceSchema,
   AgentWorkspaceActionSchema,
   AgentComponentLibraryActionSchema,
 } from "@icm/agent-adapter";
@@ -432,6 +433,7 @@ const ImportFileArgs = z
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     candidateId: z.string().min(1).optional(),
     background: z.boolean().optional(),
+    rnlAppearance: AgentRnlAppearanceSchema.optional(),
     documentId: z
       .string()
       .min(1)
@@ -444,6 +446,12 @@ const ImportFileArgs = z
     expectedRevision: z.number().int().nonnegative().optional(),
   })
   .superRefine((value, context) => {
+    if (value.rnlAppearance && value.action !== "open-local")
+      context.addIssue({
+        code: "custom",
+        path: ["rnlAppearance"],
+        message: "RNL appearance is only used for open-local",
+      });
     const required =
       value.action === "stage-project"
         ? (["path"] as const)
@@ -1459,6 +1467,9 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           ...(parsed.background === undefined
             ? {}
             : { background: parsed.background }),
+          ...(parsed.rnlAppearance
+            ? { rnlAppearance: parsed.rnlAppearance }
+            : {}),
           ...(session.taskRef ? { taskRef: session.taskRef } : {}),
         });
       return importFile(

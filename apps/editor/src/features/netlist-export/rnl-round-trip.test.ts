@@ -3,11 +3,14 @@ import { resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  buildDocumentDerivedContext,
   deriveImportedRoutingGuidance,
+  endpointKey,
   resolveAnnotationPresentation,
   resolveAnnotationText,
   resolveDocumentLogicalNets,
   resolveDocumentStyleProfile,
+  resolveRouteGeometry,
 } from "@icm/derived";
 import {
   IDEAL_COMPARATOR_TARGET,
@@ -93,6 +96,136 @@ const example = (name: string): CircuitProject =>
       "utf8",
     ),
   );
+
+it("uses native Pins, Ground and bulk styling even when external RNL uses the Canvas package", async () => {
+  const entryPath = "review.sp";
+  const text = [
+    "* External RNL review fixture",
+    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full",version="0.3");',
+    '* @USE-PACKAGE(name="analog-canvas-extensions",version="0.5"); }',
+    ".model nch nmos",
+    ".subckt review IN OUT BIAS",
+    "M1 OUT IN 0 BIAS nch w=1u l=0.15u",
+    "* @RNL {",
+    "* #M1 @SET-SYMBOL $NMOS_4TERM; #M1 @PLACE(0,0);",
+    '* &IN @WIRE(mode="straight") {(-8,0) #M1:2};',
+    '* (-8.4,0) @TEXT("IN",halign="end");',
+    '* &OUT @WIRE(mode="straight") {#M1:1 (0,7)};',
+    "* %body = (8,0);",
+    '* &BIAS @WIRE(mode="straight",linecolor="#30485d") {#M1:4 %body (8,-4)};',
+    '* (8,-4.4) @TEXT("BIAS",valign="top");',
+    "* %g = (0,-7);",
+    '* &"0" @WIRE(mode="straight") {#M1:3 %g};',
+    '* (0,-7.4) @TEXT("0",valign="top");',
+    '* (9,-5) @TEXT("0");',
+    "* }",
+    ".ends review",
+    ".end",
+  ].join("\n");
+  const input = {
+    entryPath,
+    runtime,
+    inputs: [{ path: entryPath, bytes: new TextEncoder().encode(text) }],
+  };
+  const native = await planRnlImport(input);
+  const source = await planRnlImport({ ...input, appearance: "source" });
+  if (native.status !== "ready" || source.status !== "ready")
+    throw new Error(JSON.stringify([native.diagnostics, source.diagnostics]));
+  expect(native.drawing).toBe("preserved");
+  expect(source.drawing).toBe("preserved");
+  const top = (project: CircuitProject) =>
+    project.documents.find(
+      (document) => document.id === project.topDocumentId,
+    )!;
+  const canvas = top(native.project);
+  const original = top(source.project);
+  expect(
+    canvas.instances.find((part) => part.reference === "M1")?.placement,
+  ).toEqual(
+    original.instances.find((part) => part.reference === "M1")?.placement,
+  );
+  const ground = canvas.instances.find((part) => part.symbolId === "ground");
+  expect(ground?.placement?.position).toEqual({ x: 0, y: 80 });
+  expect(original.instances.some((part) => part.symbolId === "ground")).toBe(
+    false,
+  );
+  const textZeros = (doc: typeof canvas) =>
+    doc.drafting?.objects.filter(
+      (item) => item.kind === "text" && flattenRichText(item.content) === "0",
+    );
+  expect(textZeros(canvas)).toHaveLength(1);
+  expect(textZeros(original)).toHaveLength(2);
+  const bulk = canvas.routes.find(
+    (route) => route.start.kind === "terminal" && route.start.pinName === "B",
+  )!;
+  expect(bulk.presentation).toBe("bulk-dashed");
+  expect(
+    canvas.routes.filter((route) => route.presentation === "bulk-dashed"),
+  ).toHaveLength(2);
+  expect(
+    original.routes.find((route) => route.id === bulk.id)?.presentation,
+  ).toBeUndefined();
+  const landed = (project: CircuitProject) => {
+    const doc = top(project);
+    const resolver = createProjectSymbolResolver(project, builtInSymbols);
+    const { contactEvidence } = buildDocumentDerivedContext(doc, resolver);
+    return doc.netlist!.terminals.every(({ interfaceInstanceIds }) =>
+      interfaceInstanceIds.some((id) =>
+        contactEvidence.byEndpointKey
+          .get(
+            endpointKey({
+              kind: "terminal",
+              instanceId: id,
+              pinName: "P",
+            }),
+          )
+          ?.incidents.some(({ kind }) => kind === "route"),
+      ),
+    );
+  };
+  expect(landed(native.project)).toBe(true);
+  expect(landed(source.project)).toBe(false);
+  const centerlines = (project: CircuitProject, doc: typeof canvas) => {
+    const resolver = createProjectSymbolResolver(project, builtInSymbols);
+    return doc.routes.map((route) => [
+      route.id,
+      resolveRouteGeometry(doc, resolver, route)?.centerline,
+    ]);
+  };
+  expect(centerlines(native.project, canvas)).toEqual(
+    centerlines(source.project, original),
+  );
+  const [after, before] = [native, source].map(({ project }) =>
+    projectElectricalGraph(project),
+  );
+  if (after?.status !== "ready" || before?.status !== "ready")
+    throw new Error("Both drawings must be electrically comparable");
+  expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
+
+  const ambiguous = await planRnlImport({
+    ...input,
+    inputs: [
+      {
+        path: entryPath,
+        bytes: new TextEncoder().encode(
+          text.replace(
+            '* (0,-7.4) @TEXT("0",valign="top");',
+            '* &"0" @WIRE(mode="straight") {(0,-7) (0,-11)};\n* (0,-7.4) @TEXT("0",valign="top");',
+          ),
+        ),
+      },
+    ],
+  });
+  if (ambiguous.status !== "ready") throw new Error(ambiguous.message);
+  expect(ambiguous.diagnostics).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ code: "RNL_IMPORT_GROUND_NOT_PLACED" }),
+    ]),
+  );
+  expect(
+    top(ambiguous.project).instances.some((part) => part.symbolId === "ground"),
+  ).toBe(false);
+});
 
 it.each(["spice", "spectre"] as const)(
   "round-trips an electrical Delay Cell's body, supply connections and unchanged artwork through %s+RNL",

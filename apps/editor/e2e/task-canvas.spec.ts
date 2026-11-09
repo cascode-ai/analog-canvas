@@ -1,6 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test as base, type Page } from "@playwright/test";
+import {
+  expect,
+  test as base,
+  type BrowserContext,
+  type Page,
+} from "@playwright/test";
 import { parseProject } from "@icm/project-protocol";
 import { assembleServer } from "../../mcp-server/src/server.js";
 import { regionalAccounts } from "./regional-auth-fixture.js";
@@ -58,6 +63,36 @@ const test = base.extend<{ accountName: string | null }>({
 process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
 test.use({ trace: "off", screenshot: "off" });
 
+async function openFileTask(
+  browser: BrowserContext,
+  apiBaseUrl: string,
+  connectorPath: string,
+) {
+  let canvas: Page | undefined;
+  const server = assembleServer({
+    apiBaseUrl,
+    connectorPath,
+    openBrowser: async (url) => {
+      canvas = await browser.newPage();
+      await canvas.goto(url);
+    },
+  });
+  const call = async (name: string, args: object) => {
+    const result = await server.handler.callTool(name, args);
+    const block = result.content[0];
+    if (block?.type !== "text" || !block.text)
+      throw new Error("Expected a tool receipt");
+    return JSON.parse(block.text);
+  };
+  const opening = call("open_canvas", {});
+  await expect.poll(() => canvas !== undefined).toBe(true);
+  const page = canvas!;
+  await page.getByRole("button", { name: "Allow Agent access" }).click();
+  const { taskRef, sessionId, context: original } = await opening;
+  const tool = (name: string, args: object) => call(name, { ...args, taskRef });
+  return { page, tool, taskRef, sessionId, original };
+}
+
 test("delivers a local RNL revision into its own Project tab and reuses the edited copy", async ({
   context,
   baseURL,
@@ -90,28 +125,11 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   );
   const packageText =
     '@RNL(type="header") { @VERSION("0.3"); @PACKAGE(name="fixture",version="0.1"); }\n';
-  let canvas: Page | undefined;
-  const server = assembleServer({
-    apiBaseUrl: baseURL!,
-    connectorPath: testInfo.outputPath("legacy-connector.json"),
-    openBrowser: async (url) => {
-      canvas = await context.newPage();
-      await canvas.goto(url);
-    },
-  });
-  const call = async (name: string, args: object) => {
-    const result = await server.handler.callTool(name, args);
-    const block = result.content[0];
-    if (block?.type !== "text" || !block.text)
-      throw new Error("Expected a tool receipt");
-    return JSON.parse(block.text);
-  };
-  const opening = call("open_canvas", {});
-  await expect.poll(() => canvas !== undefined).toBe(true);
-  const page = canvas!;
-  await page.getByRole("button", { name: "Allow Agent access" }).click();
-  const { taskRef, sessionId, context: original } = await opening;
-  const tool = (name: string, args: object) => call(name, { ...args, taskRef });
+  const { page, tool, taskRef, sessionId, original } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("legacy-connector.json"),
+  );
   const deliver = (path = entryPath) =>
     tool("import_file", {
       action: "open-local",
@@ -136,7 +154,12 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   await writeFile(packagePath, packageText);
   const loaded = await deliver();
   expect(loaded.ok, JSON.stringify(loaded.error)).toBe(true);
-  expect(loaded.delivery.source.diagnostics).toEqual([]);
+  expect(loaded.delivery.source.diagnostics).toEqual([
+    expect.objectContaining({
+      code: "RNL_IMPORT_PIN_NOT_ROUTED",
+      message: expect.stringContaining("IN"),
+    }),
+  ]);
   expect(loaded).toMatchObject({
     ok: true,
     taskRef,
@@ -144,7 +167,7 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
     delivery: {
       disposition: "opened",
       modified: false,
-      source: { format: "rnl", drawing: "preserved", electrical: "verified" },
+      source: { format: "rnl", drawing: "partial", electrical: "verified" },
     },
   });
   const { source, workspaceId } = loaded.delivery;
@@ -181,6 +204,9 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   await page.getByText("Imported source", { exact: true }).click();
   await expect(page.getByTestId("local-source-version")).toHaveText(
     source.version,
+  );
+  await expect(page.getByTestId("local-source-appearance")).toHaveText(
+    "Canvas appearance",
   );
   await expect(page.getByText("draw.rnl", { exact: true })).toBeVisible();
   const initial = await tool("get_context", {});
@@ -364,7 +390,6 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
       ]),
     },
   });
-
   await writeFile(packagePath, packageText + "\n");
   const newer = await deliver();
   expect(newer).toMatchObject({
@@ -428,11 +453,13 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
     join(rootPath, "plain.scs"),
     "simulator lang=spectre\nsubckt plain (A B)\nR1 (A B) resistor r=1k\nends plain\n",
   );
-  expect(await deliver("plain.scs")).toMatchObject({
+  const spectre = await deliver("plain.scs");
+  expect(spectre, JSON.stringify(spectre.error)).toMatchObject({
     ok: true,
     delivery: { source: { format: "spectre", drawing: "not-provided" } },
   });
-  expect(await deliver("native.icproj.json")).toMatchObject({
+  const openedProject = await deliver("native.icproj.json");
+  expect(openedProject, JSON.stringify(openedProject.error)).toMatchObject({
     ok: true,
     delivery: { source: { format: "project", drawing: "native" } },
   });
@@ -449,6 +476,83 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   expect(await deliver("invalid.icproj.json")).toMatchObject({
     ok: false,
     error: { code: "FILE_IMPORT_FAILED" },
+  });
+  await tool("disconnect", {});
+});
+
+test("keeps Canvas and source RNL copies distinct across recovery", async ({
+  context,
+  baseURL,
+  accountName: _accountName,
+}, testInfo) => {
+  const rootPath = testInfo.outputPath("source");
+  const entryPath = "cell.scs";
+  await mkdir(rootPath, { recursive: true });
+  await writeFile(
+    join(rootPath, entryPath),
+    [
+      '// @RNL(type="header") { @VERSION("0.3");',
+      '// @USE-PACKAGE(name="rnl-std-full", version="0.3"); }',
+      "simulator lang=spectre",
+      "subckt dut (IN OUT)",
+      "R1 (IN OUT) resistor r=1k",
+      "// @RNL {",
+      '// #R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0");',
+      '// &IN @WIRE(mode="straight") {#R1:1 (0,10)};',
+      '// &OUT @WIRE(mode="straight") {#R1:2 (0,-10)};',
+      "// }",
+      "ends dut",
+      "",
+    ].join("\n"),
+  );
+  const { page, tool, sessionId } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("legacy-connector.json"),
+  );
+  const deliver = (rnlAppearance?: "canvas" | "source") =>
+    tool("import_file", {
+      action: "open-local",
+      rootPath,
+      entryPath,
+      ...(rnlAppearance ? { rnlAppearance } : {}),
+    });
+  const native = await deliver();
+  expect(native, JSON.stringify(native.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      disposition: "opened",
+      source: { format: "rnl", version: expect.any(String) },
+    },
+  });
+  const { source, workspaceId } = native.delivery;
+  const faithful = await deliver("source");
+  expect(faithful, JSON.stringify(faithful.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      disposition: "opened",
+      source: { version: source.version },
+    },
+  });
+  expect(faithful.delivery.workspaceId).not.toBe(workspaceId);
+  await expect(deliver("canvas")).resolves.toMatchObject({
+    ok: true,
+    delivery: { disposition: "reused", workspaceId },
+  });
+
+  await page.reload();
+  await expect(tool("open_canvas", {})).resolves.toMatchObject({
+    ok: true,
+    sessionId,
+  });
+  await expect(deliver("source")).resolves.toMatchObject({
+    ok: true,
+    delivery: {
+      disposition: "reused",
+      previousRevision: "recovered-snapshot",
+      workspaceId: faithful.delivery.workspaceId,
+      source: { version: source.version },
+    },
   });
   await tool("disconnect", {});
 });

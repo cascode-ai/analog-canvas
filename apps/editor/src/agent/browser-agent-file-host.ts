@@ -26,6 +26,7 @@ import { createSimulationProjectFileHost } from "../features/simulation/project-
 import { createBrowserFormalExportSource } from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type { RnlAppearance } from "@icm/rnl";
 import { findBuiltInBodies } from "@icm/netlist";
 import { importSpiceSources } from "@icm/spice";
 import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
@@ -38,13 +39,15 @@ import { createBrowserSimulationArtifactStore } from "../features/simulation/bro
 type StoredCandidate = {
   project: CircuitProject;
   summary: AgentFileCandidateSummary;
+  rnlAppearance?: RnlAppearance;
 };
 
-export type OpenLocalProject = (
-  version: string,
-  background: boolean,
-  candidate?: { project: CircuitProject; source: AgentLocalSource },
-) => Promise<AgentLocalProjectReceipt | "blocked" | null>;
+export type OpenLocalProject = (request: {
+  sourceVersion: string;
+  background: boolean;
+  rnlAppearance: RnlAppearance;
+  candidate?: { project: CircuitProject; source: AgentLocalSource };
+}) => Promise<AgentLocalProjectReceipt | "blocked" | null>;
 
 export type AgentReviewWorkspace = Pick<
   AgentReviewReceipt,
@@ -153,10 +156,11 @@ export class BrowserAgentFileHost {
             "FILE_OPEN_UNAVAILABLE",
             "Local delivery needs a Canvas Web editor",
           );
-        const delivery = await this.options.openLocalProject(
-          request.sourceVersion,
-          request.background ?? false,
-        );
+        const delivery = await this.options.openLocalProject({
+          sourceVersion: request.sourceVersion,
+          background: request.background ?? false,
+          rnlAppearance: request.rnlAppearance ?? "canvas",
+        });
         if (delivery === "blocked") return this.openBlocked(request);
         return {
           apiVersion: AGENT_API_VERSION,
@@ -246,11 +250,12 @@ export class BrowserAgentFileHost {
               "Local delivery needs a Canvas Web editor",
             );
           const { source } = candidate.summary;
-          const delivery = await this.options.openLocalProject(
-            source.version,
-            request.background ?? false,
-            { project: candidate.project, source },
-          );
+          const delivery = await this.options.openLocalProject({
+            sourceVersion: source.version,
+            background: request.background ?? false,
+            rnlAppearance: candidate.rnlAppearance ?? "canvas",
+            candidate: { project: candidate.project, source },
+          });
           if (delivery === "blocked") return this.openBlocked(request);
           if (!delivery)
             return this.error(
@@ -584,7 +589,11 @@ export class BrowserAgentFileHost {
         }));
         const start = performance.now();
         const { importLocalCircuit } = await import("./import-local-circuit");
-        const imported = await importLocalCircuit(inputs, entryPath);
+        const imported = await importLocalCircuit(
+          inputs,
+          entryPath,
+          request.rnlAppearance,
+        );
         project = imported.project;
         diagnostics = imported.diagnostics;
         const identityFiles =
@@ -694,7 +703,13 @@ export class BrowserAgentFileHost {
         diagnostics,
         ...local,
       };
-      this.candidates.set(candidateId, { project, summary });
+      this.candidates.set(candidateId, {
+        project,
+        summary,
+        ...(local?.source.format === "rnl"
+          ? { rnlAppearance: request.rnlAppearance ?? "canvas" }
+          : {}),
+      });
       return {
         apiVersion: AGENT_API_VERSION,
         requestId: request.requestId,

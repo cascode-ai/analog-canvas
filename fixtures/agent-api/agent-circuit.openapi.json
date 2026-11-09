@@ -20448,6 +20448,9 @@
                   "native",
                   "cadence-bang"
                 ]
+              },
+              "rnlAppearance": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema19"
               }
             },
             "required": [
@@ -20477,6 +20480,9 @@
               },
               "background": {
                 "type": "boolean"
+              },
+              "rnlAppearance": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema19"
               }
             },
             "required": [
@@ -20983,6 +20989,14 @@
               "sha256"
             ],
             "additionalProperties": false
+          },
+          "__schema19": {
+            "type": "string",
+            "enum": [
+              "canvas",
+              "source"
+            ],
+            "description": "RNL appearance in Canvas. Defaults to native Canvas conventions. Use source for authored styling."
           }
         }
       },

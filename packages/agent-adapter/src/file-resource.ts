@@ -75,6 +75,13 @@ const AgentLocalSourceSchema = z.strictObject({
 
 export type AgentLocalSource = z.infer<typeof AgentLocalSourceSchema>;
 
+export const AgentRnlAppearanceSchema = z
+  .enum(["canvas", "source"])
+  .describe(
+    "RNL appearance in Canvas. Defaults to native Canvas conventions. Use source for authored styling.",
+  );
+export type AgentRnlAppearance = z.infer<typeof AgentRnlAppearanceSchema>;
+
 export function hasRnlCommentRecords(text: string): boolean {
   return /^(?:\*|\/\/) @RNL\b/mu.test(text);
 }
@@ -248,11 +255,13 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
         .max(AGENT_FILE_RESOURCE_MAX_FILES),
       entryPath: z.string().min(1).max(512).optional(),
       namingProfile: z.enum(["native", "cadence-bang"]).optional(),
+      rnlAppearance: AgentRnlAppearanceSchema.optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("locate-local"),
       sourceVersion: Sha256Schema,
       background: z.boolean().optional(),
+      rnlAppearance: AgentRnlAppearanceSchema.optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("inspect"),

@@ -53,7 +53,7 @@ export const agentToolHelp = {
   export_file:
     "Export Project or formal Canvas SVG/PNG/PDF to outputPath. Visual export needs documentId. Use includeReview for the live receipt, bounds for an SVG/PNG detail, or expected to require the same workspace and revision. For simulation data use simulation_files sync/download or prepare-plot. simulation-plot returns SIMULATION_PLOT_RETIRED.",
   import_file:
-    "open-local delivers a local Project, RNL, SPICE or Spectre entry and its relative dependencies to Canvas Web. Pass taskRef, rootPath and entryPath. Returns the live Project, Cell, revision, source version and drawing/electrical status. Other actions stage, inspect, open or discard a candidate, import-cell into the selected Cell, or request human approval for whole-Project replacement.",
+    "open-local delivers a local Project, RNL, SPICE or Spectre entry and its relative dependencies to Canvas Web. Pass taskRef, rootPath and entryPath. RNL reuses the layout with Canvas Pin, Ground and bulk styling. For authored styling pass rnlAppearance:source. Returns the live Project, Cell, revision, source version and drawing/electrical status. Other actions stage, inspect, open or discard a candidate, import-cell into the selected Cell, or request human approval for whole-Project replacement.",
   get_context:
     "Read document identity/revision/counts with a lightweight request or clean cache. refresh:true reconciles external changes. Connect already returns context.",
   inspect:

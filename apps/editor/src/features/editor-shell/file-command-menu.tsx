@@ -9,6 +9,16 @@ import {
 } from "react";
 
 import type { RecentProjectFile } from "../../hosts/native-project-store";
+import type { RnlAppearance } from "@icm/rnl";
+
+const rnlImports = [
+  { id: "rnl-files", label: "RNL…", appearance: "canvas" },
+  {
+    id: "rnl-source-files",
+    label: "RNL (preserve source appearance)…",
+    appearance: "source",
+  },
+] as const;
 
 export interface FileCommandMenuProps {
   NativeFileCommands?: ComponentType<
@@ -37,8 +47,7 @@ export interface FileCommandMenuProps {
     files: FileList | null,
     namingProfile?: "native" | "cadence-bang",
   ) => void;
-  /** SPICE or Spectre with RNL: the netlist, drawn as its RNL draws it. */
-  onImportRnl?: (files: FileList | null) => void;
+  onImportRnl?: (files: FileList | null, appearance: RnlAppearance) => void;
   onExportProject: () => void;
   onExportSvg: () => void;
   onExportRaster: (format: "png" | "pdf") => void;
@@ -262,22 +271,26 @@ export function FileCommandMenu({
               }
             />
           </label>
-          {onImportRnl ? (
-            <label
-              className="file-import"
-              tabIndex={0}
-              onKeyDown={activateFileLabel}
-            >
-              RNL…
-              <input
-                data-testid="rnl-files"
-                type="file"
-                accept=".spi,.cir,.sp,.scs,.inc,.lib,.rnl"
-                multiple
-                onChange={(event) => onImportRnl(event.currentTarget.files)}
-              />
-            </label>
-          ) : null}
+          {onImportRnl &&
+            rnlImports.map(({ id, label, appearance }) => (
+              <label
+                className="file-import"
+                key={id}
+                tabIndex={0}
+                onKeyDown={activateFileLabel}
+              >
+                {label}
+                <input
+                  data-testid={id}
+                  type="file"
+                  accept=".spi,.cir,.sp,.scs,.inc,.lib,.rnl"
+                  multiple
+                  onChange={(event) =>
+                    onImportRnl(event.currentTarget.files, appearance)
+                  }
+                />
+              </label>
+            ))}
         </CommandSubmenu>
       </div>
       <div>

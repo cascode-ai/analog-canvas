@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import type { CircuitProject } from "@icm/model";
 import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
 
 import {
@@ -12,6 +13,74 @@ import {
 } from "./editor-fixtures.js";
 import { labelCensus, labelDifferences } from "./label-census.js";
 import { bipolarProject } from "./bipolar-project.js";
+
+test("imports native bulk styling by default and offers the source appearance", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const file = {
+    name: "review.sp",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      [
+        "* External RNL",
+        '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full",version="0.3"); }',
+        ".model nch nmos",
+        ".subckt review OUT IN",
+        "M1 OUT IN 0 0 nch w=1u l=0.15u",
+        "* @RNL {",
+        "* #M1 @SET-SYMBOL $NMOS_4TERM; #M1 @PLACE(0,0);",
+        '* &"0" @WIRE(mode="straight") {#M1:4 (7,0)};',
+        '* (7.4,0) @TEXT("0",halign="start");',
+        "* }",
+        ".ends review",
+        ".end",
+      ].join("\n"),
+    ),
+  };
+  await page.getByTestId("rnl-files").setInputFiles(file);
+  await expectStatus(page, /^Imported \d+ Documents?/u);
+  const native: CircuitProject = await exportedProject(page);
+  const drawn = native.documents[0]!;
+  expect(
+    drawn.instances.some(
+      (instance) => instance.symbolId === "ground" && instance.placement,
+    ),
+  ).toBe(true);
+  expect(drawn.routes[0]?.presentation).toBe("bulk-dashed");
+
+  const menu = await openMenu(page, "File");
+  await menu.getByRole("button", { name: "Import", exact: true }).click();
+  await expect(
+    menu.getByText("RNL (preserve source appearance)…", { exact: true }),
+  ).toBeVisible();
+  await page.getByTestId("rnl-source-files").setInputFiles({
+    ...file,
+    name: "source.sp",
+    buffer: Buffer.from(
+      file.buffer
+        .toString("utf8")
+        .replace(".subckt review", ".subckt source")
+        .replace(".ends review", ".ends source"),
+    ),
+  });
+  const unsaved = page.getByRole("dialog", { name: "Unsaved changes" });
+  const ready = page.getByRole("tab", { name: /source \(SPICE Import\)/u });
+  await expect(unsaved.or(ready)).toBeVisible();
+  if (await unsaved.isVisible())
+    await unsaved
+      .getByRole("button", { name: "Continue without saving" })
+      .click();
+  await expect(ready).toBeVisible();
+  const source: CircuitProject = await exportedProject(page);
+  const original = source.documents[0]!;
+  expect(
+    original.instances.some(
+      (instance) => instance.symbolId === "ground" && instance.placement,
+    ),
+  ).toBe(false);
+  expect(original.routes[0]?.presentation).toBeUndefined();
+});
 
 test("loads each Canvas package version once for both RNL formats", async ({
   page,

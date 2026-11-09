@@ -5,6 +5,7 @@ import {
   AGENT_API_VERSION,
   matchesAgentReviewTarget,
   type AgentFileResourceRequest,
+  type AgentRnlAppearance,
 } from "@icm/agent-adapter";
 import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
 import {
@@ -220,6 +221,7 @@ export async function openLocalFile(
     rootPath: string;
     entryPath: string;
     background?: boolean;
+    rnlAppearance?: AgentRnlAppearance;
     taskRef?: string;
   },
 ) {
@@ -230,6 +232,9 @@ export async function openLocalFile(
   );
   const prepare = performance.now() - started;
   const background = options.background ?? false;
+  const appearance = options.rnlAppearance
+    ? { rnlAppearance: options.rnlAppearance }
+    : {};
   started = performance.now();
   const locateCopy = () =>
     client.fileResource(
@@ -239,6 +244,7 @@ export async function openLocalFile(
         operation: "locate-local",
         sourceVersion: version,
         background,
+        ...appearance,
       },
       "session",
     );
@@ -275,6 +281,7 @@ export async function openLocalFile(
         kind: "local-circuit",
         entryPath,
         files,
+        ...appearance,
       },
       "session",
     );

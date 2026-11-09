@@ -230,7 +230,12 @@ Project Info → Imported source shows the same version in the tab. Compare
 structural source, independent of simulation. Parsed source positions refer
 to the converted representation when a native source was converted.
 
-Repeat the call to locate a matching open copy with its current edits.
+RNL opens with Canvas appearance. Pass `rnlAppearance:"source"` to keep the
+authored appearance. Repeat the call with the same appearance to locate a
+matching open copy with its current edits. Both appearances report the same
+source version for identical bytes. Project Info shows the appearance of
+the open copy. To keep working in a tab opened before the appearance choice
+was available, reuse its workspace with `open_canvas`.
 `previousRevision:"recovered-snapshot"` refers to the browser's restored
 snapshot, and `"unconfirmed"` to a fresh import whose earlier working
 revision is unavailable. A foreground delivery binds the task to the returned
@@ -254,14 +259,12 @@ human's wish. After a Project switch, refresh status and context.
 
 ### From a netlist to a review
 
-Decide how to draw separately from how to present. Follow the user's explicit
-choice. Reuse a usable Canvas Project or an existing RNL drawing. Reuse keeps
-the authored positions, routes and styles, even when Canvas exports the image.
-If asked for Canvas drawing conventions, use native Cell Pins and supply
-markers and the native dashed style on drawn MOS bulk connections. Check
-those features in the image; substituting symbol definitions does not change
-authored wires and labels. An explicit redraw calls for a new layout. For a
-local source, `open_canvas` and `import_file` `open-local` bring the exact entry and
+Decide how to draw separately from how to present. Reuse a usable Canvas
+Project or the layout and routing from an existing RNL drawing. Check that
+known Cell Pins and Ground use native symbols and MOS bulk branches are
+dashed in Canvas appearance. Use source appearance when the user wants the
+authored styling. An explicit redraw calls for a new layout. For a local
+source, `open_canvas` and `import_file` `open-local` bring the exact entry and
 dependencies into the task; the user need not prepare a tab. For a plain
 netlist, inspect the imported Instances, models, terminals and Nets. Arrange
 the parts and use [native routing](../shared/authoring.md): place tray
