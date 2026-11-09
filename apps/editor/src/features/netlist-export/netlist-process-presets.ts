@@ -11,8 +11,6 @@ export const NETLIST_PROFILE_IDS = [
   "abstract",
   "sky130",
   "sg13g2",
-  "tsmc28",
-  "tsmc180",
   "custom",
 ] as const;
 export type NetlistProfileId = (typeof NETLIST_PROFILE_IDS)[number];
@@ -20,8 +18,6 @@ export const NETLIST_PROFILE_LABELS = {
   abstract: "Abstract",
   sky130: "SKY130",
   sg13g2: "IHP SG13G2",
-  tsmc28: "TSMC 28",
-  tsmc180: "TSMC 180",
   custom: "Custom",
 } as const;
 export const NETLIST_QUICK_TARGET_FAMILIES = [
@@ -106,37 +102,6 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
   },
   ...SKY130_QUICK_TARGETS,
   ...SG13G2_QUICK_TARGETS,
-  tsmc28: {
-    npn: [""],
-    pnp: [""],
-    nmos: [
-      "nch_ulvt_mac",
-      "nch_lvt_mac",
-      "nch_mac",
-      "nch_hvt_mac",
-      "nch_ehvt_mac",
-      "nch_18_mac",
-    ],
-    pmos: [
-      "pch_ulvt_mac",
-      "pch_lvt_mac",
-      "pch_mac",
-      "pch_ehvt_mac",
-      "pch_18_mac",
-    ],
-    resistor: [""],
-    capacitor: [""],
-    inductor: [""],
-  },
-  tsmc180: {
-    npn: [""],
-    pnp: ["pnp10_5_rpo"],
-    nmos: ["nch", "nch_mac"],
-    pmos: ["pch", "pch_mac"],
-    resistor: [""],
-    capacitor: [""],
-    inductor: [""],
-  },
   custom: {
     npn: [
       GENERIC_NPN_MODEL.name,
@@ -147,7 +112,6 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       GENERIC_PNP_MODEL.name,
       ...SKY130_QUICK_TARGETS.sky130.pnp,
       ...SG13G2_QUICK_TARGETS.sg13g2.pnp,
-      "pnp10_5_rpo",
     ],
     nmos: [
       "NMOS",
@@ -161,13 +125,6 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__nfet_20v0_nvt",
       "sky130_fd_pr__nfet_20v0_zvt",
       ...SG13G2_QUICK_TARGETS.sg13g2.nmos,
-      "nch_ulvt_mac",
-      "nch_lvt_mac",
-      "nch_mac",
-      "nch_hvt_mac",
-      "nch_ehvt_mac",
-      "nch_18_mac",
-      "nch",
     ],
     pmos: [
       "PMOS",
@@ -178,12 +135,6 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__pfet_g5v0d16v0",
       "sky130_fd_pr__pfet_20v0",
       ...SG13G2_QUICK_TARGETS.sg13g2.pmos,
-      "pch_ulvt_mac",
-      "pch_lvt_mac",
-      "pch_mac",
-      "pch_ehvt_mac",
-      "pch_18_mac",
-      "pch",
     ],
     resistor: [
       ...SKY130_QUICK_TARGETS.sky130.resistor,
@@ -245,15 +196,6 @@ const SG13G2_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   resistor: "rppd",
   capacitor: "cap_cmim",
 };
-const TSMC28_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
-  nmos: "nch_ulvt_mac",
-  pmos: "pch_ulvt_mac",
-};
-const TSMC180_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
-  nmos: "nch",
-  pmos: "pch",
-  pnp: "pnp10_5_rpo",
-};
 
 /**
  * A drain-extended (DMOS) symbol cannot take a process's core MOS model when
@@ -292,17 +234,12 @@ export function netlistDeviceFamily(
 export function createNetlistExportProfile(
   id: NetlistProfileId,
 ): NetlistExportProfile {
-  const foundryProfile = id === "tsmc28" || id === "tsmc180";
   const foundryTargets =
     id === "sky130"
       ? SKY130_TARGETS
       : id === "sg13g2"
         ? SG13G2_TARGETS
-        : id === "tsmc28"
-          ? TSMC28_TARGETS
-          : id === "tsmc180"
-            ? TSMC180_TARGETS
-            : undefined;
+        : undefined;
   const devices = Object.fromEntries(
     NETLIST_DEVICE_FAMILIES.map((family) => {
       const parameters = Object.fromEntries(
@@ -316,13 +253,7 @@ export function createNetlistExportProfile(
           .map((parameter) => [parameter.name, parameter.defaultValue!]),
       );
       if (["nmos", "pmos"].includes(family)) {
-        if (id === "tsmc28") {
-          parameters.l = "30n";
-          delete parameters.m;
-          parameters.multi = "1";
-        } else if (id === "tsmc180") {
-          parameters.l = "180n";
-        } else if (id === "sg13g2") {
+        if (id === "sg13g2") {
           // The core devices' minimum length; SG13G2 counts fingers as ng.
           parameters.l = "130n";
           delete parameters.nf;
@@ -330,10 +261,7 @@ export function createNetlistExportProfile(
       }
       if (family === "voltage-source") parameters.dc = "1.8";
       if (family === "current-source") parameters.dc = "100u";
-      const target =
-        foundryTargets?.[family] ??
-        (foundryProfile ? undefined : GENERIC_TARGETS[family]) ??
-        "";
+      const target = foundryTargets?.[family] ?? GENERIC_TARGETS[family] ?? "";
       const reviewed =
         id === "sg13g2" && (family === "resistor" || family === "capacitor")
           ? reviewedExternalBindingForMaster(target)

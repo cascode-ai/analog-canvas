@@ -8713,8 +8713,6 @@
                       "abstract",
                       "sky130",
                       "sg13g2",
-                      "tsmc28",
-                      "tsmc180",
                       "custom"
                     ]
                   }

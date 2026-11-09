@@ -28,6 +28,8 @@ const NETLIST_EXPORT_PREFERENCES_KEY = "icm.netlist-export.v1";
  */
 const DEFAULT_PROCESS_GENERATION = 2;
 const SG13_DEFAULTS_GENERATION = 1;
+/** Processes the editor no longer offers; a preference naming one reads as Custom. */
+const RETIRED_NETLIST_PROFILE_IDS: readonly unknown[] = ["tsmc28", "tsmc180"];
 export interface NetlistExportPreferences {
   selected: NetlistProfileId;
   /** The default-process generation this preference has been moved to. */
@@ -71,11 +73,26 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   const profiles = parsed.profiles as Partial<
     Record<NetlistProfileId, NetlistExportProfile>
   >;
+  const stored: Partial<Record<string, unknown>> = profiles;
   // v1 shipped Abstract, SKY130, and Custom. Add new foundry templates
   // without discarding any edited legacy profile or its selected preset.
-  for (const id of ["tsmc28", "tsmc180", "sg13g2"] as const) {
-    profiles[id] ??= createNetlistExportProfile(id);
-  }
+  profiles.sg13g2 ??= createNetlistExportProfile("sg13g2");
+  // TSMC 28 and TSMC 180 are retired, as they are not open processes; one
+  // still remembered reads as Custom. Custom takes that process's templates while
+  // it is the untouched default, so new parts keep the models their author
+  // worked with; an edited Custom stays as its author left it.
+  const retired = RETIRED_NETLIST_PROFILE_IDS.includes(parsed.selected);
+  const template = retired && {
+    ...(stored[parsed.selected as string] as object),
+    id: "custom",
+  };
+  if (
+    isNetlistExportProfile(template) &&
+    JSON.stringify(profiles.custom) ===
+      JSON.stringify(createNetlistExportProfile("custom"))
+  )
+    profiles.custom = template;
+  for (const id of RETIRED_NETLIST_PROFILE_IDS) delete stored[id as string];
   if ((parsed.sg13Defaults ?? 0) < SG13_DEFAULTS_GENERATION) {
     const defaults = createNetlistExportProfile("sg13g2");
     const sg13 = profiles.sg13g2;
@@ -94,6 +111,7 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
     format: "spice",
     ...parsed,
     ...(moved ? { selected: "sky130" as const } : {}),
+    ...(retired ? { selected: "custom" as const } : {}),
     defaultProcess: DEFAULT_PROCESS_GENERATION,
     sg13Defaults: SG13_DEFAULTS_GENERATION,
     profiles,

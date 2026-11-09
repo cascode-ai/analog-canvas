@@ -319,7 +319,7 @@ test("process shortcuts change only visible model text and clipboard failure sta
   await expect(copy).toBeFocused();
   await expect.poll(() => editor.innerText()).toBe(before);
   await manager.getByLabel("Model process").focus();
-  await manager.getByLabel("Model process").selectOption("tsmc28");
+  await manager.getByLabel("Model process").selectOption("abstract");
   await expect(manager.getByLabel("Model process")).toHaveValue("sg13g2");
   await expect.poll(() => editor.innerText()).toBe(before);
   await expect(manager.getByRole("status")).toContainText(

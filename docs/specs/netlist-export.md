@@ -348,7 +348,7 @@ parameters or renumbers first.
 #### Process configuration
 
 - Netlist configuration stores `format`, the process and device templates for
-  Abstract, SKY130 (starting process), IHP SG13G2, TSMC 28, TSMC 180 and Custom.
+  Abstract, SKY130 (starting process), IHP SG13G2 and Custom.
   Process selection is one undoable transaction writing ordinary bindings;
   Simulation Profiles never rewrite them. Opening the panel never edits the
   Project or refills deliberately missing parameters.
@@ -369,9 +369,14 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   keeping identity, placement, appearance and connections.
 - Standard-cell target suggestions follow Process and gate function and use
   advertised qualified masters; offline export keeps reviewed example names.
-- TSMC 28 maps `m` to `multi` and back. Process changes keep names, IDs and
-  authored values (except 16 V DMOS sizing); the panel offers filling only
-  missing models in one undo.
+- TSMC 28 and TSMC 180 are not offered: they are not open processes. A
+  stored preference selecting one reads as Custom, which takes its templates
+  while unedited; pasted configuration or an Agent `transform.process` naming
+  one is refused with the open choices. Parts keep their model names and values, and
+  Library gates already bound to TSMC 28 HPC+ cells keep exporting; no
+  suggestion names those cells.
+- Process changes keep names, IDs and authored values (except 16 V DMOS
+  sizing); the panel offers filling only missing models in one undo.
 - Import reads an `M` card naming a reviewed SKY130 transistor without a
   same-name `.model` as its `X` wrapper; a model binding naming a reviewed device
   warns `REVIEWED_DEVICE_AS_MODEL_CARD`.

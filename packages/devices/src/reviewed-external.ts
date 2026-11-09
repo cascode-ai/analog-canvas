@@ -1274,8 +1274,12 @@ interface StandardCellRule {
   readonly read: (name: string) => GateCell | undefined;
   /** The cell's public pins, in the library's order. */
   readonly pins: (fn: GateFunction, inputs: number) => readonly CellPin[];
-  /** The function's weakest common cell, offered as a suggestion. */
-  readonly example: (fn: GateFunction, inputs: number) => string;
+  /**
+   * The function's weakest common cell, offered as a suggestion. None for a
+   * library of a retired process, read only so that gates a saved Project
+   * bound to its cells keep exporting.
+   */
+  readonly example?: (fn: GateFunction, inputs: number) => string;
   /** The most inputs the library builds a function with; four where unlisted. */
   readonly maxInputs: Partial<Record<GateFunction, number>>;
   /** Every cell name of the library, gate cells or not. */
@@ -1325,17 +1329,6 @@ const TSMC28_FUNCTIONS: Readonly<Record<string, GateFunction>> = {
   XOR: "xor",
   XNR: "xnor",
 };
-const TSMC28_STEMS: Readonly<Record<GateFunction, string>> = {
-  inv: "INV",
-  buf: "BUFF",
-  nand: "ND",
-  nor: "NR",
-  and: "AN",
-  or: "OR",
-  xor: "XOR",
-  xnor: "XNR",
-};
-
 const STANDARD_CELL_RULES: readonly StandardCellRule[] = [
   {
     // sky130_fd_sc_hd__nand2_1: inputs A–D, VGND VNB VPB VPWR, then the
@@ -1380,6 +1373,7 @@ const STANDARD_CELL_RULES: readonly StandardCellRule[] = [
     namespace: /^sg13g2_/iu,
   },
   {
+    // TSMC 28 HPC+ 12-track, retired with its process (not an open one):
     // ND2D1BWP12T30P140[LVT]: [CK]<function><inputs>[X|OPT…]D<drive>; the
     // clock (CK, DCCK), delay (DEL), ECO (G…MCO) and level-shifting (LVLHL)
     // buffers and inverters too. Input I or A1–A4, output ZN inverting and Z
@@ -1401,8 +1395,6 @@ const STANDARD_CELL_RULES: readonly StandardCellRule[] = [
       ["VDD", "VDD", "VDD"],
       ["VSS", "VSS", "VSS"],
     ],
-    example: (fn, inputs) =>
-      `${TSMC28_STEMS[fn]}${inputs > 1 ? inputs : ""}D1BWP12T30P140`,
     maxInputs: {},
     namespace: /BWP12T30P140(?:LVT)?$/iu,
   },
@@ -1563,7 +1555,10 @@ export function resolveReviewedLibraryInterface(
   );
 }
 
-/** The process each reviewed library belongs to: a PDK's standard cells ride with its primitives. */
+/**
+ * The process each reviewed library belongs to: a PDK's standard cells ride
+ * with its primitives. A retired process's library belongs to Custom.
+ */
 export const LIBRARY_PROCESS: Readonly<
   Record<ReviewedExternalDeviceBinding["libraryId"], string>
 > = {
@@ -1571,7 +1566,7 @@ export const LIBRARY_PROCESS: Readonly<
   sky130_fd_sc_hd: "sky130",
   sg13g2_pr: "sg13g2",
   sg13g2_stdcell: "sg13g2",
-  tcbn28hpcplusbwp12t30p140: "tsmc28",
+  tcbn28hpcplusbwp12t30p140: "custom",
 };
 
 /** Reviewed masters a part may take, from one PDK's libraries or all of them. */
@@ -1589,10 +1584,13 @@ export function reviewedExternalModelSuggestions(
   // example. Other strengths can still be authored through the model name.
   const gate = GATE_OF_SYMBOL.get(symbolId);
   if (gate)
-    return STANDARD_CELL_RULES.filter(
-      (rule) =>
-        sameProcess(rule.libraryId) && builds(rule, gate.fn, gate.inputs),
-    ).flatMap((rule) => {
+    return STANDARD_CELL_RULES.flatMap((rule) => {
+      if (
+        !rule.example ||
+        !sameProcess(rule.libraryId) ||
+        !builds(rule, gate.fn, gate.inputs)
+      )
+        return [];
       const inventories = libraries?.filter(
         (library) => library.cells === rule.libraryId && library.masters,
       );

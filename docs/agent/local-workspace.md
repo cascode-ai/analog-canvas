@@ -14,7 +14,7 @@ saves. A `focus` in `apply_actions` is skipped (`VIEW_STEP_SKIPPED` warning).
   `--name` names the Project; `--reference <file.sp>` copies a netlist to
   `<dir>/reference.sp`. An existing workspace opens unchanged, so a restarted
   worker resumes; without `--new` a missing one is refused. `--process`
-  (`abstract`, `sky130` default, `sg13g2`, `tsmc28`, `tsmc180`, `custom`) sets
+  (`abstract`, `sky130` default, `sg13g2`, `custom`) sets
   the Process for new transistors; keep one per workspace.
 - As an MCP server (`node <package>/bin/analog-canvas-mcp.mjs --local /abs/jobs/opamp-12 --new`)
   `connect` needs no claim and no tool needs `connect` first; each change
