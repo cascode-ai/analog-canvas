@@ -32,7 +32,9 @@ history and Cloud binding. Use **+** for a new project, **Open file in new
 tab**, or **Open Shelf project in tab**. Double-click a tab's name to rename
 it; right-click it for **Close**, **Close Others** and **Close All**. Refresh
 restores this window's tabs and unsaved circuits (not Undo stacks); after
-closing the browser tab, a new editor tab offers **Reopen tabs**. This
+closing a browser tab with unsaved work, a new editor tab offers **Reopen
+tabs** once (**Not now** is remembered; **File → Recover Unsaved Work**
+keeps the copies). This
 browser-local workspace is not a backup: save or export what you need.
 
 ## Draw and connect

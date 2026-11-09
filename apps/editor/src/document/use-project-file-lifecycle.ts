@@ -28,6 +28,10 @@ import type {
 } from "./browser-recovery-contract";
 import type { RecoveryCoordinator } from "./recovery-coordinator";
 import {
+  readDismissedStartupRecoveries,
+  rememberDismissedStartupRecovery,
+} from "./startup-recovery-dismissals";
+import {
   downloadTextArtifact,
   formatProjectOpenDiagnostics,
   projectFileBaseName,
@@ -246,10 +250,10 @@ export function useProjectFileLifecycle({
   );
   const [replaceGuardSaving, setReplaceGuardSaving] = useState(false);
   const [recoveryDialogOpen, setRecoveryDialogOpen] = useState(false);
-  const [
-    dismissedStartupRecoveryRecordId,
-    setDismissedStartupRecoveryRecordId,
-  ] = useState<string | null>(null);
+  // Offered once: Ignore and Restore are remembered across reloads.
+  const [dismissedStartupRecoveries, setDismissedStartupRecoveries] = useState(
+    readDismissedStartupRecoveries,
+  );
 
   function isDirtyWork(): boolean {
     return (
@@ -1192,7 +1196,7 @@ export function useProjectFileLifecycle({
             session.workingCopyId === recovery.workingCopyId &&
             session.latest?.review === "valid" &&
             session.latest.unsavedAtSnapshot === true &&
-            session.latest.recordId !== dismissedStartupRecoveryRecordId &&
+            !dismissedStartupRecoveries.has(session.latest.recordId) &&
             // Tiny sketches are not worth a banner; the manual Recover menu
             // still lists every snapshot.
             session.latest.meaningfulContent,
@@ -1238,7 +1242,6 @@ export function useProjectFileLifecycle({
       persistenceChangeRef.current = null;
       setReplaceGuard(null);
       setRecoveryDialogOpen(false);
-      setDismissedStartupRecoveryRecordId(null);
       if (session.cloudBinding)
         rememberRecentCloudProject(session.cloudBinding.id);
       else forgetRecentCloudProject();
@@ -1280,10 +1283,13 @@ export function useProjectFileLifecycle({
     cancelReplaceGuard,
     confirmReplaceGuard,
     saveAndContinueReplaceGuard,
-    dismissStartupRecovery: () =>
-      setDismissedStartupRecoveryRecordId(
-        startupRecovery?.latest?.recordId ?? null,
-      ),
+    dismissStartupRecovery: () => {
+      const recordId = startupRecovery?.latest?.recordId;
+      if (recordId)
+        setDismissedStartupRecoveries(
+          rememberDismissedStartupRecovery(recordId),
+        );
+    },
     createNewProject,
     revertToSavedProjectBaseline,
     restoreSavedProjectBaseline,

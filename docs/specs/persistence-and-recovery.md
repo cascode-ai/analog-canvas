@@ -78,8 +78,11 @@ to reload when the work is saved, the reload restoring the current circuit.
   content saved and keeps closed tabs closed; failures keep earlier snapshots.
 - A fresh window with no workspace and no explicit open request (Gallery or
   Cloud link, example, `/editor?new=1`) non-modally offers ("Reopen tabs" /
-  "Not now") the newest workspace a closed window left, if it holds unsaved
-  work or a Cloud Project, Gallery entry or file. Open windows hold a Web
+  "Not now") the newest workspace a closed window left, if one of its tabs
+  holds unsaved work; saved Projects, Gallery entries and files alone are not
+  offered. Not now is remembered in this browser: that workspace and older
+  ones are never offered again (their recovery copies stay under Recover
+  Unsaved Work). Open windows hold a Web
   Lock named after their identity and are never offered (no Web Locks, no
   offer). Reopened tabs join the window; an already open Cloud Project is not
   doubled unless unsaved, then it reopens unbound as `<name> (unsaved copy)`.
@@ -168,7 +171,9 @@ authorization: [HTTP handler](../../worker/gallery-cloud-projects.ts).
   recovery; the incoming Project gets its own working-copy id.
 - Startup offers the tab's latest valid record non-modally (Restore,
   Download backup, Ignore) only when it says `unsavedAtSnapshot: true`, the
-  foreground is clean and this is not a refresh-restore. Pending writes stay
+  foreground is clean and this is not a refresh-restore. Each record is
+  offered once: Restore and Ignore are remembered in this browser across
+  reloads; Recover Unsaved Work still lists it. Pending writes stay
   silent; failures surface while dirty.
 - Only an explicit human **Replace Project** installs an Agent-staged
   candidate, ending the old Agent session.

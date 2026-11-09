@@ -201,9 +201,10 @@
 }
 
 /* Recovery banners float over the canvas so they never resize it. */
+/* Above the floating panels (Project Info, Agent), below menus and modals. */
 .recovery-banner {
   position: fixed;
-  z-index: 19;
+  z-index: 45;
   top: 4.6rem;
   left: 50%;
   translate: -50% 0;
