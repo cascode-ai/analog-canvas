@@ -993,7 +993,7 @@ export function useProjectTabSessions({
     )
       return "REVIEW_TARGET_CHANGED";
     if (command.action === "acknowledge-save") {
-      if (currentEditBlocker()) return "REVIEW_TARGET_CHANGED";
+      if (projectSwitchBlockerRef.current()) return "REVIEW_TARGET_CHANGED";
       let saved = false;
       flushSync(() => {
         saved = acknowledgeLocalReviewSave(projectToken);
@@ -1001,14 +1001,14 @@ export function useProjectTabSessions({
       return saved ? { ...delivery, unsaved: false } : "REVIEW_TARGET_CHANGED";
     }
     if (command.action === "prepare-save")
-      return currentEditBlocker() ? "REVIEW_NOT_READY" : delivery;
+      return projectSwitchBlockerRef.current() ? "REVIEW_NOT_READY" : delivery;
     if (command.action === "mark-ready") {
       const needsGeometry =
         local.source.drawing === "not-provided" ||
         local.source.drawing === "discarded";
       if (
         !drawingPresent ||
-        currentEditBlocker() ||
+        projectSwitchBlockerRef.current() ||
         (!alreadyReviewed &&
           needsGeometry &&
           document.sourceStatus !== "geometry-only-changed") ||
