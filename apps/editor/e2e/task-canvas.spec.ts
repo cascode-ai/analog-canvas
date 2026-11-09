@@ -1,5 +1,55 @@
-import { expect, test } from "@playwright/test";
+import { expect, test as base } from "@playwright/test";
 import { assembleServer } from "../../mcp-server/src/server.js";
+import { regionalAccounts } from "./regional-auth-fixture.js";
+
+const test = base.extend<{ accountName: string | null }>({
+  accountName: async ({ page, context, baseURL }, use) => {
+    const editorUrl = new URL(baseURL!);
+    // A deployed-site run still exercises the full task lifecycle. The
+    // isolated account cookie is available only on loopback.
+    if (editorUrl.hostname !== "127.0.0.1") {
+      await use(null);
+      return;
+    }
+    const accountName = "canvas-task-member";
+    const accounts = await regionalAccounts(editorUrl.origin);
+    try {
+      await page.goto(accounts.origin + "/account");
+      await page.getByTestId("account-signin").locator("summary").click();
+      await page.getByTestId("signin-email").click();
+      await page
+        .getByLabel("邮箱", { exact: true })
+        .fill(`${accountName}@example.test`);
+      await page.getByRole("button", { name: "发送验证码" }).click();
+      await expect.poll(accounts.emailCode).toMatch(/^\d{6}$/u);
+      await page
+        .getByLabel("验证码", { exact: true })
+        .fill(accounts.emailCode());
+      await page.getByRole("button", { name: "验证并继续" }).click();
+      await expect(page).toHaveURL(accounts.origin + "/account");
+      await expect(page.getByTestId("account-name")).toHaveText(accountName);
+      await page.close();
+
+      // Forward the launched editor's account reads to the isolated Auth
+      // service. The browser supplies its existing loopback session cookie.
+      await context.route(
+        (url) =>
+          url.origin === editorUrl.origin &&
+          ["/api/auth/me", "/api/auth/providers"].includes(url.pathname),
+        async (route) => {
+          const url = new URL(route.request().url());
+          const response = await route.fetch({
+            url: accounts.origin + url.pathname,
+          });
+          await route.fulfill({ response });
+        },
+      );
+      await use(accountName);
+    } finally {
+      await accounts.close();
+    }
+  },
+});
 
 // The one-time editor proof is posted in the browser, never in test artifacts.
 process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
@@ -9,6 +59,7 @@ test("opens and reuses only the Canvas authorized for each Agent task", async ({
   context,
   baseURL,
   request,
+  accountName,
 }, testInfo) => {
   const pages: Awaited<ReturnType<typeof context.newPage>>[] = [];
   const launchBodies: string[] = [];
@@ -59,6 +110,10 @@ test("opens and reuses only the Canvas authorized for each Agent task", async ({
       projectRead: "ready",
       context: { documentId: "document-main", instanceCount: 0 },
     });
+    if (accountName)
+      await expect(pages[count]!.getByTestId("account-name")).toHaveText(
+        accountName,
+      );
     return receipt;
   };
 
