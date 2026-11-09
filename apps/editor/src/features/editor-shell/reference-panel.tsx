@@ -283,10 +283,12 @@ const uploaded = new WeakSet<File>();
 export interface ReferenceWindowProps {
   localDelivery?:
     | {
-        source: import("@icm/agent-adapter").AgentLocalSource;
+        source?: import("@icm/agent-adapter").AgentLocalSource;
+        embeddedSource?: import("@icm/agent-adapter").EmbeddedReviewSource;
         rnlAppearance?: import("@icm/rnl").RnlAppearance;
-        modified: boolean;
-        recovered: boolean;
+        modified?: boolean;
+        recovered?: boolean;
+        reviewStatus?: string;
       }
     | undefined;
   open: boolean;
@@ -542,7 +544,7 @@ export function ReferenceWindow({
             {shownDescription ? <p>{shownDescription}</p> : null}
           </>
         )}
-        {localDelivery ? (
+        {localDelivery?.source ? (
           <details className="reference-local-source">
             <summary>Imported source</summary>
             <p>{localDelivery.source.entryPath}</p>
@@ -550,6 +552,11 @@ export function ReferenceWindow({
             <code data-testid="local-source-version">
               {localDelivery.source.version}
             </code>
+            {localDelivery.reviewStatus ? (
+              <p data-testid="local-review-status">
+                {localDelivery.reviewStatus}
+              </p>
+            ) : null}
             {localDelivery.rnlAppearance ? (
               <p data-testid="local-source-appearance">
                 {localDelivery.rnlAppearance === "canvas" &&
@@ -574,6 +581,25 @@ export function ReferenceWindow({
                   <span>{file.path}</span>
                   <br />
                   <code>{file.sha256}</code>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+        {localDelivery?.embeddedSource ? (
+          <details className="reference-local-source">
+            <summary>Embedded netlist source</summary>
+            <p>{localDelivery.embeddedSource.entryPath}</p>
+            <p>Embedded source version (SHA-256)</p>
+            <code data-testid="embedded-source-version">
+              {localDelivery.embeddedSource.version}
+            </code>
+            <ul>
+              {localDelivery.embeddedSource.files.map(({ path, sha256 }) => (
+                <li key={path}>
+                  <span>{path}</span>
+                  <br />
+                  <code>{sha256}</code>
                 </li>
               ))}
             </ul>

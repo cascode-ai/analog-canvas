@@ -327,6 +327,7 @@ import {
   useBrowserAgentHost,
   useEditorAgentConnection,
   type AgentReviewWorkspaceReader,
+  type LocalReviewDispatcher,
 } from "./use-agent-hosts";
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
@@ -1127,6 +1128,9 @@ function WorkspaceEditor({
   const reviewWorkspaceRef = useRef<AgentReviewWorkspaceReader>(
     () => undefined,
   );
+  const localReviewRef = useRef<LocalReviewDispatcher>(
+    async () => "REVIEW_WORKSPACE_REQUIRED",
+  );
   const {
     agentFileCandidate,
     setAgentFileCandidate,
@@ -1147,6 +1151,7 @@ function WorkspaceEditor({
     openProjectInTabRef,
     openLocalProjectRef,
     reviewWorkspaceRef,
+    localReviewRef,
   });
   const agentProjectTabsRef = useRef(() => projectTabs);
   agentProjectTabsRef.current = () => projectTabs;
@@ -1268,6 +1273,7 @@ function WorkspaceEditor({
     isDirtyWork,
     hasUnsavedChanges,
     hasUnsafeWork,
+    acknowledgeLocalReviewSave,
     noteProjectPublished,
     replaceActiveProject,
     captureReplacementTarget,
@@ -5357,12 +5363,14 @@ function WorkspaceEditor({
     openProjectInTabRef,
     openLocalProjectRef,
     reviewWorkspaceRef,
+    localReviewRef,
     setAgentFileCandidate,
     setAnalogSimulationState,
     codeDraftDirty,
     captureAuthoredProject,
     captureFileSession,
     restoreFileSession,
+    acknowledgeLocalReviewSave,
     cloudBinding,
     replaceGuard,
     recoveryDialogOpen,

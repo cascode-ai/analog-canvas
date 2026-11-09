@@ -5,9 +5,11 @@ import type { RnlAppearance } from "@icm/rnl";
 import type {
   AgentLocalProjectReceipt,
   AgentLocalSource,
+  EmbeddedReviewSource,
+  LocalReviewDelivery,
 } from "@icm/agent-adapter";
 import type { OpenLocalProject } from "../agent/browser-agent-file-host";
-import type { HierarchyFrame } from "@icm/derived";
+import { assessImportReference, type HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
   createId,
@@ -91,6 +93,9 @@ interface LocalDelivery {
   rnlAppearance?: RnlAppearance;
   importedRevision: string;
   recovered: boolean;
+  copy?: "working" | "original";
+  readyRevision?: string;
+  readyDocuments?: string[];
 }
 
 interface ProjectTabSessionsOptions {
@@ -152,6 +157,7 @@ interface ProjectTabSessionsOptions {
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
   openLocalProjectRef: RefObject<OpenLocalProject>;
   reviewWorkspaceRef: AgentProjectResourcesOptions["reviewWorkspaceRef"];
+  localReviewRef: AgentProjectResourcesOptions["localReviewRef"];
   setAgentFileCandidate: AgentProjectResources["setAgentFileCandidate"];
   setAnalogSimulationState: Dispatch<
     SetStateAction<"closed" | "open" | "maximized" | "minimized">
@@ -160,6 +166,7 @@ interface ProjectTabSessionsOptions {
   captureAuthoredProject: () => Promise<CircuitProject | null>;
   captureFileSession: ProjectFileLifecycle["captureFileSession"];
   restoreFileSession: ProjectFileLifecycle["restoreFileSession"];
+  acknowledgeLocalReviewSave: ProjectFileLifecycle["acknowledgeLocalReviewSave"];
   cloudBinding: ProjectFileLifecycle["cloudBinding"];
   replaceGuard: ProjectFileLifecycle["replaceGuard"];
   recoveryDialogOpen: ProjectFileLifecycle["recoveryDialogOpen"];
@@ -245,12 +252,14 @@ export function useProjectTabSessions({
   openProjectInTabRef,
   openLocalProjectRef,
   reviewWorkspaceRef,
+  localReviewRef,
   setAgentFileCandidate,
   setAnalogSimulationState,
   codeDraftDirty,
   captureAuthoredProject,
   captureFileSession,
   restoreFileSession,
+  acknowledgeLocalReviewSave,
   cloudBinding,
   replaceGuard,
   recoveryDialogOpen,
@@ -288,6 +297,30 @@ export function useProjectTabSessions({
       { sessionId: string; generation: string }
     >(),
   );
+  const reviewOriginals = useRef(
+    new WeakMap<
+      EditorDocumentController,
+      { project: CircuitProject; documentId: string }
+    >(),
+  );
+  const [recordedSource, setRecordedSource] = useState<{
+    source: CircuitProject["source"];
+    evidence: EmbeddedReviewSource | undefined;
+  } | null>(null);
+  useEffect(() => {
+    if (import.meta.env?.ICM_DESKTOP) return;
+    const source = project.source;
+    if (!source.entry) return;
+    let obsolete = false;
+    void import("../agent/embedded-review-source")
+      .then(({ embeddedReviewSource }) => embeddedReviewSource(source))
+      .then((evidence) => {
+        if (!obsolete) setRecordedSource({ source, evidence });
+      });
+    return () => {
+      obsolete = true;
+    };
+  }, [project.source]);
   function localDeliveryOf(
     controller: EditorDocumentController,
   ): LocalDelivery | undefined {
@@ -694,7 +727,9 @@ export function useProjectTabSessions({
     capture: captureTabSession,
     restore: restoreTabSession,
     describe: (session) => ({
-      name: session.controller.project.name,
+      name: session.localDelivery?.readyRevision
+        ? `${session.controller.project.name} · ${session.localDelivery.source.version.slice(0, 8)} · ${session.localDelivery.copy === "original" ? "Original" : "Working copy"}`
+        : session.controller.project.name,
       dirty: isTabUnsaved(session),
       unsafe: session.unsafe,
       cloudId: session.file.cloudBinding?.id ?? null,
@@ -892,6 +927,157 @@ export function useProjectTabSessions({
         : {}),
     };
   };
+  localReviewRef.current = async (controller, command) => {
+    if (import.meta.env?.ICM_DESKTOP) return "REVIEW_WORKSPACE_REQUIRED";
+    const { embeddedReviewSource, matchesAgentReviewTarget, reviewRevision } =
+      await import("../agent/embedded-review-source");
+    const workspace = reviewWorkspaceRef.current(controller);
+    const initialLocal = localDeliveryOf(controller);
+    if (
+      !workspace ||
+      !initialLocal ||
+      workspace.workspaceId !== projectTabs.currentId()
+    )
+      return "REVIEW_WORKSPACE_REQUIRED";
+    const { project, document } = controller;
+    const projectToken = projectChangeToken(project);
+    const [projectRevision, embeddedSource] = await Promise.all([
+      reviewRevision(projectToken),
+      initialLocal.source.format === "project"
+        ? embeddedReviewSource(project.source)
+        : undefined,
+    ]);
+    if (
+      controller.project !== project ||
+      (command.action !== "acknowledge-save" &&
+        controller.document.id !== document.id) ||
+      workspace.workspaceId !== projectTabs.currentId() ||
+      reviewWorkspaceRef.current(controller)?.workspaceGeneration !==
+        workspace.workspaceGeneration
+    )
+      return "REVIEW_TARGET_CHANGED";
+    const local = localDeliveryOf(controller);
+    if (!local || local.source.version !== initialLocal.source.version)
+      return "REVIEW_TARGET_CHANGED";
+    const drawingPresent = document.instances.every(
+      (instance) => instance.placement,
+    );
+    const alreadyReviewed = local.readyDocuments?.includes(document.id);
+    const delivery: LocalReviewDelivery = {
+      target: {
+        workspaceId: workspace.workspaceId,
+        workspaceGeneration: workspace.workspaceGeneration,
+        projectId: project.id,
+        structureRevision: project.structureRevision,
+        documentId: document.id,
+        revision: document.revision,
+        sourceVersion: local.source.version,
+      },
+      projectRevision,
+      copy: local.copy ?? "working",
+      status: alreadyReviewed && drawingPresent ? "ready" : "awaiting-drawing",
+      unsaved: reviewWorkspaceRef.current(controller)?.unsaved ?? true,
+      ...(embeddedSource ? { embeddedSource } : {}),
+    };
+    if (command.action === "read") return delivery;
+    const expected =
+      command.action === "acknowledge-save"
+        ? {
+            ...command.expected,
+            documentId: document.id,
+            revision: document.revision,
+          }
+        : command.expected;
+    if (
+      command.projectRevision !== projectRevision ||
+      !matchesAgentReviewTarget(delivery.target, expected)
+    )
+      return "REVIEW_TARGET_CHANGED";
+    if (command.action === "acknowledge-save") {
+      if (projectSwitchBlockerRef.current()) return "REVIEW_TARGET_CHANGED";
+      let saved = false;
+      flushSync(() => {
+        saved = acknowledgeLocalReviewSave(projectToken);
+      });
+      return saved ? { ...delivery, unsaved: false } : "REVIEW_TARGET_CHANGED";
+    }
+    if (command.action === "prepare-save")
+      return projectSwitchBlockerRef.current() ? "REVIEW_NOT_READY" : delivery;
+    if (command.action === "mark-ready") {
+      const needsGeometry =
+        local.source.drawing === "not-provided" ||
+        local.source.drawing === "discarded";
+      if (
+        !drawingPresent ||
+        projectSwitchBlockerRef.current() ||
+        (!alreadyReviewed &&
+          needsGeometry &&
+          document.sourceStatus !== "geometry-only-changed") ||
+        (!local.readyRevision &&
+          local.source.format !== "project" &&
+          document.sourceStatus === "connectivity-modified")
+      )
+        return "REVIEW_NOT_READY";
+      if (!alreadyReviewed && needsGeometry) {
+        const assessment = assessImportReference(document, controller.resolver);
+        if (
+          !assessment.available ||
+          assessment.guides.length ||
+          assessment.issues.length
+        )
+          return "REVIEW_NOT_READY";
+      }
+      if (!local.readyRevision)
+        reviewOriginals.current.set(controller, {
+          project,
+          documentId: document.id,
+        });
+      if (!alreadyReviewed) {
+        localDeliveries.current.set(controller, {
+          ...local,
+          readyRevision: local.readyRevision ?? projectRevision,
+          readyDocuments: [...(local.readyDocuments ?? []), document.id],
+          sessionId: controller.projectSessionId,
+        });
+        projectTabs.changed();
+      }
+      return { ...delivery, status: "ready" };
+    }
+    const original = reviewOriginals.current.get(controller);
+    if (!original) return "REVIEW_ORIGINAL_UNAVAILABLE";
+    let originalController: EditorDocumentController | undefined;
+    const opened = await projectTabs.open(() => {
+      if (
+        projectTabs.currentId() !== workspace.workspaceId ||
+        controller.project !== project ||
+        controller.document.id !== document.id
+      )
+        return null;
+      const session = createTabSession(
+        { ...original.project, id: createId("project") },
+        DEFAULT_VIEWBOX,
+        { source: "opened-file", agentEdited: true, persistenceState: "dirty" },
+      );
+      originalController = session.controller;
+      originalController.openDocument(original.documentId);
+      const originalDelivery: LocalDelivery = {
+        ...local,
+        copy: "original",
+        readyDocuments: [original.documentId],
+        importedRevision: projectChangeToken(originalController.project),
+        recovered: false,
+      };
+      localDeliveries.current.set(originalController, {
+        ...originalDelivery,
+        sessionId: originalController.projectSessionId,
+      });
+      reviewOriginals.current.set(originalController, original);
+      return { ...session, localDelivery: originalDelivery };
+    });
+    return opened && originalController
+      ? localReviewRef.current(originalController, { action: "read" })
+      : "REVIEW_OPEN_BLOCKED";
+  };
   openLocalProjectRef.current = async ({
     sourceVersion,
     background,
@@ -904,7 +1090,11 @@ export function useProjectTabSessions({
       (local.source.format !== "rnl" || local.rnlAppearance === rnlAppearance);
     const existing = projectTabs
       .entries()
-      .find(({ session }) => matches(session.localDelivery));
+      .find(
+        ({ session }) =>
+          session.localDelivery?.copy !== "original" &&
+          matches(session.localDelivery),
+      );
     let disposition: AgentLocalProjectReceipt["disposition"] = "reused";
     let controller = existing?.session.controller;
     if (existing) {
@@ -1126,16 +1316,26 @@ export function useProjectTabSessions({
   return {
     localDelivery: (() => {
       const local = localDeliveryOf(editorDocumentController);
-      return (
-        local && {
-          source: local.source,
-          ...(local.rnlAppearance
-            ? { rnlAppearance: local.rnlAppearance }
-            : {}),
-          recovered: local.recovered,
-          modified: local.importedRevision !== projectChangeToken(project),
-        }
-      );
+      const embeddedSource =
+        (!local || local.source.format === "project") &&
+        recordedSource?.source === project.source
+          ? recordedSource.evidence
+          : undefined;
+      if (!local) return embeddedSource ? { embeddedSource } : undefined;
+      return {
+        source: local.source,
+        ...(local.rnlAppearance ? { rnlAppearance: local.rnlAppearance } : {}),
+        recovered: local.recovered,
+        modified: local.importedRevision !== projectChangeToken(project),
+        reviewStatus: local.readyDocuments?.includes(
+          editorDocumentController.document.id,
+        )
+          ? isDirtyWork()
+            ? "Ready for review · Unsaved"
+            : "Ready for review · Saved"
+          : "Loaded · Drawing pending",
+        ...(embeddedSource ? { embeddedSource } : {}),
+      };
     })(),
     flushNativeWorkspace,
     cloudManagementBusy,

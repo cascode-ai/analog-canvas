@@ -5,18 +5,11 @@ import { isAbsolute, posix, relative, resolve } from "node:path";
 import {
   AGENT_FILE_RESOURCE_MAX_BYTES,
   AGENT_FILE_RESOURCE_MAX_FILES,
-  hasRnlCommentRecords,
   localSourceIdentity,
   type AgentFileResourceRequest,
 } from "@icm/agent-adapter";
 import { AgentSessionError } from "@icm/agent-client";
-import {
-  decodeSourceContent,
-  isExternalLibraryPath,
-  isSpectreSource,
-  parseSpiceSource,
-  spectreSourceIncludes,
-} from "@icm/spice";
+import { localSourceReferences } from "@icm/spice";
 
 type FileBlob = Extract<
   AgentFileResourceRequest,
@@ -61,32 +54,6 @@ export function pathWithin(
       `File is outside rootPath: ${path}`,
     );
   return { absolute, name };
-}
-
-/** Fetch paths declared in RNL records. The browser runtime interprets the records. */
-function packageReferences(text: string, packageFile: boolean): string[] {
-  if (!packageFile && !hasRnlCommentRecords(text)) return [];
-  const records = packageFile
-    ? text
-    : text
-        .split(/\r\n?|\n/u)
-        .map((line) => /^(?:\*|\/\/) (.*)$/u.exec(line)?.[1] ?? "\u0000")
-        .join("\n");
-  const paths: string[] = [];
-  let depth = 0;
-  for (const [token, opening, attributes] of records.matchAll(
-    /(^@RNL\b(?:\([^\r\n)]*\))?\s*\{)|"(?:[^"\\]|\\.)*"|\/\/[^\r\n]*|@USE-PACKAGE\s*\(((?:"(?:[^"\\]|\\.)*"|[^"()\u0000])*)\)|[{}\u0000]/gmu,
-  )) {
-    if (opening) depth = 1;
-    else if (token === "\u0000") depth = 0;
-    else if (depth && token === "{") depth++;
-    else if (depth && token === "}") depth--;
-    else if (depth === 1 && attributes) {
-      const path = /(?:^|,)\s*path\s*=\s*("(?:[^"\\]|\\.)*")/u.exec(attributes);
-      if (path) paths.push(JSON.parse(path[1]!) as string);
-    }
-  }
-  return paths;
 }
 
 function dependencyPath(parent: string, requested: string): string {
@@ -242,32 +209,15 @@ export async function prepareLocalSource(rootPath: string, path: string) {
     if (project) return;
 
     try {
-      const content = decodeSourceContent(bytes);
-      for (const path of packageReferences(content.text, packageFile))
-        await visit(dependencyPath(name, path), `${name} @USE-PACKAGE`, true);
-      if (packageFile) return;
-
-      const includes = isSpectreSource({ path: name, bytes })
-        ? spectreSourceIncludes(content.text)
-        : parseSpiceSource({
-            path: name,
-            id: name,
-            hash: "",
-            ...content,
-          }).statements.flatMap((statement) => {
-            const path =
-              statement.kind === "include" ||
-              (statement.kind === "library" && statement.mode === "include")
-                ? statement.requestedPath
-                : undefined;
-            return path ? [{ path, line: statement.sourceRef.start.line }] : [];
-          });
-      for (const { path, line } of includes) {
-        // A library named by an absolute path (a foundry's models) stays the
-        // simulator's: it is not read, and the import keeps it external.
-        if (isExternalLibraryPath(path)) continue;
-        await visit(dependencyPath(name, path), `${name}:${line}`);
-      }
+      for (const dependency of localSourceReferences(
+        { path: name, bytes },
+        packageFile,
+      ))
+        await visit(
+          dependencyPath(name, dependency.path),
+          dependency.reference,
+          dependency.packageFile,
+        );
     } catch (error) {
       if (error instanceof AgentSessionError) throw error;
       throw requestFailure(

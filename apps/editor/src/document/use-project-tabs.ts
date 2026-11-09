@@ -120,15 +120,14 @@ export function useProjectTabs<Session>(options: {
   }, []);
   const describe = (id: string) =>
     options.describe(id === activeId ? live : sessions.current.get(id)!);
-  const transition = async (operation: () => void) => {
+  const transition = async (operation: () => void | false) => {
     if (transitioning.current) return false;
     transitioning.current = true;
     setBusy(true);
     try {
       if (!(await current.current.prepare())) return false;
       sessions.current.set(active.current, sessionFor(active.current));
-      operation();
-      return true;
+      return operation() !== false;
     } catch (error) {
       current.current.onError(
         error instanceof Error ? error.message : String(error),
@@ -199,7 +198,7 @@ export function useProjectTabs<Session>(options: {
       persistenceRef.current(false);
     },
     open: (
-      create: () => Session,
+      create: () => Session | null,
       cloudId?: string | null,
       galleryId?: string | null,
     ) => {
@@ -210,8 +209,10 @@ export function useProjectTabs<Session>(options: {
       );
       if (existing) return select(existing);
       return transition(() => {
+        const session = create();
+        if (!session) return false;
         const id = createId("tab");
-        sessions.current.set(id, create());
+        sessions.current.set(id, session);
         activate(id);
         liveIds.current = [...liveIds.current, id];
         setIds(liveIds.current);

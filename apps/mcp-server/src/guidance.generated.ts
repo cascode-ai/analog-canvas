@@ -52,6 +52,8 @@ export const agentToolHelp = {
     "Compatibility entry for simulation_source, simulation_edit, simulation_data and simulation_plot. Edit with returned revisions; sync downloads complete files; prepare-plot writes editable local code and does not execute it. Details: analog-canvas://reference/mcp-simulation.",
   export_file:
     "Export Project or formal Canvas SVG/PNG/PDF to outputPath. Visual export needs documentId. Use includeReview for the live receipt, bounds for an SVG/PNG detail, or expected to require the same workspace and revision. For simulation data use simulation_files sync/download or prepare-plot. simulation-plot returns SIMULATION_PLOT_RETIRED.",
+  review_delivery:
+    "Confirm the active local review copy. Read, mark-ready after verifying the drawing, open-original from the first review-ready snapshot, or explicitly save a whole Project to a new local .icproj.json. Use the read receipt's expected target and Project revision.",
   import_file:
     "open-local delivers a local Project, RNL, SPICE or Spectre entry and its relative dependencies to Canvas Web. Pass taskRef, rootPath and entryPath, and modelTypes for models whose cards an external library holds. RNL reuses the layout with Canvas Pin, Ground and bulk styling. For authored styling pass rnlAppearance:source. Returns the live Project, Cell, revision, source version and drawing/electrical status. Other actions stage, inspect, open or discard a candidate, import-cell into the selected Cell, or request human approval for whole-Project replacement.",
   get_context:

@@ -36,6 +36,7 @@ import {
   AgentRnlAppearanceSchema,
   AgentWorkspaceActionSchema,
   AgentComponentLibraryActionSchema,
+  LocalReviewDeliveryArgsSchema,
 } from "@icm/agent-adapter";
 import {
   AgentAuthoringCommandSchema,
@@ -72,6 +73,7 @@ import {
   openLocalFile,
 } from "./file-operations.js";
 import { compactSchema } from "./compact-schema.js";
+import { reviewDelivery } from "./review-delivery.js";
 import { waitForSimulation } from "./simulation-wait.js";
 import {
   ContractQueryError,
@@ -1457,6 +1459,28 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
   },
   {
     definition: {
+      name: "review_delivery",
+      description: agentToolHelp["review_delivery"],
+      get inputSchema() {
+        return lazyContract(LocalReviewDeliveryArgsSchema, true);
+      },
+    },
+    handle: async (args, session) => {
+      const parsed = LocalReviewDeliveryArgsSchema.parse(args);
+      if (!session.taskRef)
+        throw new AgentSessionError(
+          "WORKSPACE_TASK_REQUIRED",
+          "Open a dedicated Canvas task before delivering a review",
+          "request-rejected",
+        );
+      return {
+        ...(await reviewDelivery(session.client, parsed)),
+        taskRef: session.taskRef,
+      };
+    },
+  },
+  {
+    definition: {
       name: "import_file",
       description: agentToolHelp["import_file"],
       get inputSchema() {
@@ -1864,6 +1888,7 @@ const TOOL_GROUP: Readonly<Record<string, string>> = {
   gallery_circuits: "gallery",
   user_components: "components",
   export_file: "files",
+  review_delivery: "files",
   import_file: "files",
 };
 

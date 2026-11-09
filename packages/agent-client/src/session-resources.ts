@@ -93,6 +93,8 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
     const changesProject =
       request.operation === "open" ||
       (request.operation === "locate-local" && !request.background) ||
+      (request.operation === "review" &&
+        request.input.action === "open-original") ||
       request.operation === "import-cell" ||
       (request.operation === "simulation-input" &&
         request.input.action === "update" &&
@@ -113,6 +115,8 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
       if (
         response.ok &&
         (response.operation === "open" ||
+          (response.operation === "review" &&
+            response.result.action === "open-original") ||
           (response.operation === "locate-local" &&
             response.delivery &&
             request.operation === "locate-local" &&

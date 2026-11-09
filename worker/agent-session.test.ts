@@ -423,6 +423,51 @@ function routedFixture() {
 
 type LiveEditor = ReturnType<typeof liveAgentEditor>;
 
+it("keeps dedicated review acknowledgements out of ordinary Claim sessions", async () => {
+  const { env } = routedFixture();
+  const post = (path: string, input: object, token?: string) =>
+    routeAgentSessionRequest(
+      new Request(`https://editor.example${path}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(input),
+      }),
+      env,
+    );
+  const create = await post("/api/agent/sessions", {
+    projectId: "project",
+    projectSessionId: "workspace",
+    documentIds: ["main"],
+    scopes: ["project.import", "project.download"],
+  });
+  expect(create?.status).toBe(200);
+  const { session } = (await create!.json()) as {
+    session: { sessionId: string; claimCode: string };
+  };
+  const claimed = await post("/api/agent/claims", {
+    claimCode: session.claimCode,
+  });
+  expect(claimed?.status).toBe(200);
+  const { agentToken } = (await claimed!.json()) as { agentToken: string };
+  const receipt = await post(
+    `/api/agent/sessions/${session.sessionId}/files`,
+    {
+      apiVersion: "3.0",
+      requestId: "unauthorized-review-save",
+      operation: "review",
+      input: { action: "finish-save", saveId: "candidate" },
+    },
+    agentToken,
+  );
+  expect(receipt?.status).toBe(403);
+  expect(await receipt!.json()).toMatchObject({
+    error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+  });
+});
+
 /** A live editor whose Project and Cell carry the session's identities. */
 function editorFor(
   projectId: string,

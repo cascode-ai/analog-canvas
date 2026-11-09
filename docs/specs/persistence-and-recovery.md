@@ -138,13 +138,20 @@ authorization: [HTTP handler](../../worker/gallery-cloud-projects.ts).
   revision), saved baseline and recovery id; no server session. An
   acknowledgement advances the binding; edits made in flight stay dirty; Undo
   back to the acknowledged content is clean.
-- Dirty comes only from persistent edits; clean only from an acknowledged
-  Cloud Save of the current content (selection, view, export and panels
-  change nothing). File-menu/tab marks and the close question also treat a
+- Persistent edits make the Project dirty. An acknowledged Cloud Save or
+  dedicated Agent review save of the current content makes it clean.
+  Selection, view, export and panels leave persistence state alone.
+  File-menu/tab marks and the close question also treat a
   Gallery publication of exactly the current content as saved. While dirty,
   and only then, the browser-native `beforeunload` guard is registered; no
   synthetic history, custom warning or unload-time async reliance.
-- Import/Export Project File never claim Save or clear dirty state; export
+- Import/Export Project File never claim Save or clear dirty state. A
+  dedicated, browser-approved Agent task can explicitly save its delivered
+  review copy. The local adapter publishes the verified whole Project
+  bytes to a new file before acknowledging its one-use receipt. The editor
+  accepts that acknowledgement only for the same active workspace and
+  whole Project revision, with no pending edit. The local save owns no
+  Cloud binding. Export
   never removes recovery records (only retention and explicit deletion do).
   Recovery writes capture identity before enqueueing; Cloud acknowledgement
   does not wait for them, and recovery failure never fails a Save.

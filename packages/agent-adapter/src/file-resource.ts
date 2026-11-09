@@ -170,6 +170,58 @@ export function matchesAgentReviewTarget(
   );
 }
 
+const LocalReviewTargetSchema = AgentReviewTargetSchema.extend({
+  workspaceId: StableIdSchema,
+  sourceVersion: Sha256Schema,
+});
+export type LocalReviewTarget = z.infer<typeof LocalReviewTargetSchema>;
+
+const EmbeddedReviewSourceSchema = z.strictObject({
+  entryPath: z.string().min(1),
+  version: Sha256Schema,
+  files: z.array(
+    z.strictObject({ path: z.string().min(1), sha256: Sha256Schema }),
+  ),
+});
+export type EmbeddedReviewSource = z.infer<typeof EmbeddedReviewSourceSchema>;
+
+const LocalReviewDeliverySchema = z.strictObject({
+  target: LocalReviewTargetSchema,
+  projectRevision: Sha256Schema,
+  copy: z.enum(["working", "original"]),
+  status: z.enum(["awaiting-drawing", "ready"]),
+  unsaved: z.boolean(),
+  embeddedSource: EmbeddedReviewSourceSchema.optional(),
+});
+export type LocalReviewDelivery = z.infer<typeof LocalReviewDeliverySchema>;
+
+const ReadLocalReviewSchema = z.strictObject({ action: z.literal("read") });
+const MarkLocalReviewReadySchema = z.strictObject({
+  action: z.literal("mark-ready"),
+  expected: LocalReviewTargetSchema,
+  projectRevision: Sha256Schema,
+});
+const OpenLocalReviewOriginalSchema = MarkLocalReviewReadySchema.extend({
+  action: z.literal("open-original"),
+});
+const PrepareLocalReviewSaveSchema = MarkLocalReviewReadySchema.extend({
+  action: z.literal("prepare-save"),
+});
+const FinishLocalReviewSaveSchema = z.strictObject({
+  action: z.literal("finish-save"),
+  saveId: StableIdSchema,
+});
+
+export const LocalReviewDeliveryArgsSchema = z.discriminatedUnion("action", [
+  ReadLocalReviewSchema,
+  MarkLocalReviewReadySchema,
+  OpenLocalReviewOriginalSchema,
+  PrepareLocalReviewSaveSchema.extend({
+    action: z.literal("save"),
+    outputPath: z.string().min(1).describe("A new local .icproj.json file"),
+  }),
+]);
+
 export const AgentFileDownloadOptionsSchema = z
   .strictObject({
     artifact: z
@@ -276,6 +328,16 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       sourceVersion: Sha256Schema,
       background: z.boolean().optional(),
       rnlAppearance: AgentRnlAppearanceSchema.optional(),
+    }),
+    FileRequestBaseSchema.extend({
+      operation: z.literal("review"),
+      input: z.discriminatedUnion("action", [
+        ReadLocalReviewSchema,
+        MarkLocalReviewReadySchema,
+        OpenLocalReviewOriginalSchema,
+        PrepareLocalReviewSaveSchema,
+        FinishLocalReviewSaveSchema,
+      ]),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("inspect"),
@@ -388,6 +450,26 @@ export const AgentFileResourceResponseSchema = z.union([
     delivery: AgentLocalProjectReceiptSchema.nullable(),
   }),
   FileResponseBaseSchema.extend({
+    operation: z.literal("review"),
+    ok: z.literal(true),
+    result: z.discriminatedUnion("action", [
+      z.strictObject({
+        action: z.enum(["read", "mark-ready", "open-original"]),
+        delivery: LocalReviewDeliverySchema,
+      }),
+      z.strictObject({
+        action: z.literal("prepare-save"),
+        delivery: LocalReviewDeliverySchema,
+        saveId: StableIdSchema,
+        artifact: AgentFileBlobSchema,
+      }),
+      z.strictObject({
+        action: z.literal("finish-save"),
+        canvasSaved: z.boolean(),
+      }),
+    ]),
+  }),
+  FileResponseBaseSchema.extend({
     operation: z.enum([
       "error",
       "download",
@@ -397,6 +479,7 @@ export const AgentFileResourceResponseSchema = z.union([
       "request-approval",
       "open",
       "locate-local",
+      "review",
       "simulation-input",
       "import-cell",
     ]),
