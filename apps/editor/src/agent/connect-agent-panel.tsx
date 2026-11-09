@@ -357,12 +357,12 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
           </p>
         ) : null}
 
+        <CodexInstallOptions />
         <ClaimHandOff
           {...props}
           now={clock}
           controls={<ConnectionControls {...props} />}
         />
-        <CodexInstallOptions />
         {props.status !== "idle" &&
         props.status !== "creating" &&
         props.status !== "revoked" &&
