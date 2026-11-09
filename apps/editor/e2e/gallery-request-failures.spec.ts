@@ -39,7 +39,6 @@ test("Shelf export preserves each load failure without downloading", async ({
   await page.goto("/?view=shelf");
   for (const [status, body, message] of [
     [401, {}, "Sign in"],
-    [403, { error: "account-blocked" }, "Owner"],
     [404, {}, "not found"],
     [
       429,
@@ -108,7 +107,7 @@ test("My submissions keeps the card and names failed withdraw, restore and delet
     }),
   );
   await page.route(`**/api/gallery/${ENTRY.id}/recycle`, (route) =>
-    route.fulfill({ status: 403, json: { error: "account-blocked" } }),
+    route.fulfill({ status: 503, json: {} }),
   );
   await page.route("**/api/gallery/withdrawn/restore", (route) =>
     route.fulfill({
@@ -121,7 +120,9 @@ test("My submissions keeps the card and names failed withdraw, restore and delet
   );
   await page.goto("/mine");
   await page.getByTestId(`mine-withdraw-${ENTRY.id}`).click();
-  await expect(page.getByTestId("mine-notice")).toContainText("Owner");
+  await expect(page.getByTestId("mine-notice")).toContainText(
+    "server could not answer",
+  );
   await expect(page.getByTestId(`mine-withdraw-${ENTRY.id}`)).toBeEnabled();
   await page.getByTestId("mine-restore-withdrawn").click();
   await expect(page.getByTestId("mine-notice")).toContainText(

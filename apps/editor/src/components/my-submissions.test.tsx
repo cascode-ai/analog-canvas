@@ -30,7 +30,6 @@ it("reports offline actions and accepts successful empty replies", async () => {
 
 it.each([
   [401, {}, "Sign in"],
-  [403, { error: "account-blocked" }, "Owner"],
   [404, {}, "Not found"],
   [
     429,

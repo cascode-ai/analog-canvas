@@ -38,7 +38,6 @@ function respondWith(status: number, body: unknown) {
 }
 
 it.each([
-  [403, { error: "account-blocked" }, "Owner"],
   [
     429,
     { error: "too-many-requests", retryAfterSeconds: 12 },

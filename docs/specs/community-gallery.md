@@ -37,7 +37,7 @@ restrictive CSP.
   use for any purpose, AI training included; circuits from reference datasets
   keep their dataset's license; clients stay under the flood limit.
   `robots.txt` admits every crawler with `Content-Signal: search=yes,
-  ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
+ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   the list and entry API and no other resource while public Gallery
   documents are off; `sitemap.xml` stays 404. The page shell's `<noscript>`
   note and the signed-in Gallery's footnote show the one-line note
@@ -47,22 +47,8 @@ restrictive CSP.
   downloads every public circuit, oldest first: `index.json` (the list's
   entries) and `entries/<id>.json` (`{entry, projectText}`), at most 600
   requests a minute, skipping circuits already on disk.
-- Account blocks (AuthDO `account_blocks`, matched by account or email)
-  came from trap circuits, retired 2026-11-08; no read blocks an account
-  now. A recorded block refuses only the account's Gallery writes:
-  `403 {"error":"account-blocked","usage":…}`, shown as that write's
-  failure. The Owner, curators, moderators and AI seats are never blocked
-  (`worker/block-exempt.ts`). No new circuit takes a reserved id
-  (`apps/editor/src/gallery-reserved-ids.ts`), since the records name the
-  traps' ids. A record keeps the email, display name, sign-in method, time,
-  path, IP address, country, user agent and reason (`script` or
-  `two-traps`), and outlives an unblock and the account. The scheduled pass
-  resends an unsent notice. Owner only: `GET /api/auth/blocked` lists the
-  records, and `POST /api/auth/blocked/unblock {userId}` (same origin) lifts
-  a block; `POST /api/auth/blocked/apology {userId, subject, text}` then
-  emails that account the Owner's words once per block (site sender, replies
-  to the usage contact); `POST /api/auth/blocked/notify {userId}` sends the
-  notice for an active block from before 2026-10-25, once.
+- No account is blocked for how it reads or writes; the account blocks and
+  trap circuits of before 2026-11-09 are retired with their records.
 - `/api/*` has a flood limit of 1200 requests a minute per client address
   (Workers rate limiting, `API_RATE_LIMITER`). Past it:
   `429 {"error":"too-many-requests","retryAfterSeconds":60,"usage":…}` with

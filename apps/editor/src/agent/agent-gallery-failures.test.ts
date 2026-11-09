@@ -29,36 +29,6 @@ it("keeps an omitted cursor total nullable through the real Agent list client", 
   });
 });
 
-// Anyone reads the Gallery, a blocked account included; only listing the AI
-// accounts' own entries asks who reads.
-it.each([{ operation: "list-gallery", scope: "ai-seats" }] as const)(
-  "preserves blocked recovery for $operation",
-  async (request) => {
-    const editor = liveAgentEditor({
-      projectHost: {
-        fetch: async () =>
-          Response.json({ error: "account-blocked" }, { status: 403 }),
-      },
-    });
-    await editor.client.connect("session-1.code");
-    const before = editor.controller.project;
-    const result = await editor.client.projectResource({
-      apiVersion: "3.0",
-      requestId: "blocked",
-      ...request,
-    });
-    expect(result).toMatchObject({
-      ok: false,
-      error: {
-        code: "GALLERY_ACCOUNT_BLOCKED",
-        recovery: "fix-input",
-        message: expect.stringContaining("Owner"),
-      },
-    });
-    expect(editor.controller.project).toBe(before);
-  },
-);
-
 it.each([
   [404, {}, "GALLERY_ENTRY_NOT_FOUND", "fix-input", "does not exist"],
   [

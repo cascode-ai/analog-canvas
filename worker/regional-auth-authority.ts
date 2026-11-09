@@ -58,9 +58,6 @@ export class RegionalAuthority {
     ) => Promise<Response>,
     private readonly ownerToken: (token: string) => Promise<SessionUser | null>,
     private readonly security: (request: Request) => Promise<Response>,
-    private readonly relatedRestrictions: (
-      id: string,
-    ) => { id: string; blocked: boolean }[],
     private readonly deletions: AccountDeletions,
   ) {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_codes (
@@ -69,10 +66,8 @@ export class RegionalAuthority {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_grants (
       grant_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL,
       audience TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
-    sql.exec(
-      "CREATE TABLE IF NOT EXISTS regional_security_clock (id INTEGER PRIMARY KEY CHECK(id = 1), revision INTEGER NOT NULL)",
-    );
-    sql.exec("INSERT OR IGNORE INTO regional_security_clock VALUES (1, 0)");
+    // Gallery blocks are retired, and with them the restriction revisions.
+    sql.exec("DROP TABLE IF EXISTS regional_security_clock");
     for (const table of ["regional_codes", "regional_grants"]) {
       const columns = sql
         .exec<{ name: string }>(`PRAGMA table_info(${table})`)
@@ -125,16 +120,8 @@ export class RegionalAuthority {
             body: JSON.stringify(body.body),
           }),
         );
-        const result = { status: response.status, body: await response.json() };
         return answer({
-          result,
-          ...(response.ok && body.path === "/internal/block-account"
-            ? {
-                restrictions: this.restrictions(
-                  (body.body as Record<string, unknown>).userId,
-                ),
-              }
-            : {}),
+          result: { status: response.status, body: await response.json() },
         });
       }
       if (url.pathname === REGIONAL_PREFIX + "owner-token") {
@@ -284,7 +271,6 @@ export class RegionalAuthority {
     }
     return answer({
       user: current.user,
-      restrictionRevision: current.restrictionRevision,
       grant,
       expiresAt: this.now() + REGIONAL_LEASE_MS,
     });
@@ -303,7 +289,6 @@ export class RegionalAuthority {
     }
     return answer({
       user: grant.user,
-      restrictionRevision: grant.restrictionRevision,
       expiresAt: this.now() + REGIONAL_LEASE_MS,
     });
   }
@@ -326,33 +311,16 @@ export class RegionalAuthority {
     if (!actor) return null;
     const subject = row.subject_id ? this.identity(row.subject_id) : anchor;
     if (!subject) return null;
-    const restrictionRevision = this.sql
-      .exec<{ revision: number }>(
-        "SELECT revision FROM regional_security_clock WHERE id = 1",
-      )
-      .one().revision;
-    if (subject.id === actor.id)
-      return { row, actor, user: subject, restrictionRevision };
+    if (subject.id === actor.id) return { row, actor, user: subject };
     if (!actor.isAdmin || !subject.seat) return null;
     return {
       row,
       actor,
-      restrictionRevision,
       user: {
         ...subject,
         switchedFrom: { id: actor.id, displayName: actor.displayName },
       },
     };
-  }
-
-  private restrictions(id: unknown) {
-    const users = typeof id === "string" ? this.relatedRestrictions(id) : [];
-    const revision = this.sql
-      .exec<{ revision: number }>(
-        "UPDATE regional_security_clock SET revision = revision + 1 WHERE id = 1 RETURNING revision",
-      )
-      .one().revision;
-    return { revision, users };
   }
 
   private async deleteAccount(
@@ -458,12 +426,6 @@ export class RegionalAuthority {
       status: response.status,
       body: await response.json().catch(() => null),
     };
-    const restrictions =
-      body.path === "/api/auth/blocked/unblock" && response.ok
-        ? this.restrictions(
-            (body.body as Record<string, unknown> | undefined)?.userId,
-          )
-        : undefined;
     const current = await this.currentGrant(body.grant);
     if (!current) return answer({ error: "invalid-grant" }, 401);
     return answer({
@@ -471,8 +433,6 @@ export class RegionalAuthority {
       // the bounded reader above applies to untrusted incoming RPC bodies.
       result,
       user: current.user,
-      restrictionRevision: current.restrictionRevision,
-      ...(restrictions ? { restrictions } : {}),
       expiresAt: this.now() + REGIONAL_LEASE_MS,
     });
   }

@@ -5,7 +5,7 @@ import type { CloudProjectBinding } from "./cloud-projects";
 import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { isDailyAllowanceRefusal } from "../../daily-allowance";
-import { requestFailureOf, type RequestFailure } from "../../request-failure";
+import { requestFailureOf } from "../../request-failure";
 
 /**
  * Client for the documented gallery submissions endpoint
@@ -55,7 +55,6 @@ export class GalleryReadError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly failure?: RequestFailure,
   ) {
     super(message);
   }
@@ -93,7 +92,7 @@ export async function loadGalleryPublicationContext(
   if (response.status === 404) return null;
   if (!response.ok) {
     const failure = await requestFailureOf(response);
-    throw new GalleryReadError(failure.message, response.status, failure);
+    throw new GalleryReadError(failure.message, response.status);
   }
   const payload = (await response.json()) as {
     entry: {
@@ -191,7 +190,7 @@ export type GalleryPublishOutcome =
   | { status: "unauthorized" }
   | { status: "too-large" }
   | { status: "rate-limited" }
-  | { status: "rejected"; message: string; failure?: RequestFailure }
+  | { status: "rejected"; message: string }
   | { status: "unreachable"; message: string };
 
 async function sendGalleryProject(
@@ -274,13 +273,11 @@ async function sendGalleryProject(
   if (response.status === 413) return { status: "too-large" };
   if (await isDailyAllowanceRefusal(response))
     return { status: "rate-limited" };
-  const failure = await requestFailureOf(response);
   const payload = (await response.json().catch(() => null)) as {
     error?: unknown;
   } | null;
   return {
     status: "rejected",
-    ...(failure.failure === "blocked" ? { failure } : {}),
     message:
       typeof payload?.error === "string"
         ? payload.error
@@ -336,7 +333,6 @@ export function describePublishOutcome(outcome: GalleryPublishOutcome): string {
     case "rate-limited":
       return "Daily publish limit reached — it resets at 00:00 UTC";
     case "rejected":
-      if (outcome.failure) return outcome.failure.message;
       return outcome.message === "publication-link-conflict"
         ? "This Project’s publication link changed elsewhere. Reopen the saved Project before publishing."
         : outcome.message === "cloud-project-not-found"

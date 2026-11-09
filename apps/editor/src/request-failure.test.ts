@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { refuseApiFlood } from "../../../worker/api-rate-limit";
 import { requestFailureOf } from "./request-failure";
-import { SITE_USAGE_CONTACT } from "./usage-policy-note";
 
 describe("requestFailureOf", () => {
   it("says the Worker's flood limit asks to wait, not that the server is down", async () => {
@@ -16,14 +15,6 @@ describe("requestFailureOf", () => {
       failure: "rate-limited",
       message: "Too many requests. Wait 60 seconds and try again.",
     });
-  });
-
-  it("names a blocked account and where to appeal", async () => {
-    const failure = await requestFailureOf(
-      Response.json({ error: "account-blocked" }, { status: 403 }),
-    );
-    expect(failure.failure).toBe("blocked");
-    expect(failure.message).toContain(SITE_USAGE_CONTACT);
   });
 
   it("gives a daily allowance its reset time", async () => {
