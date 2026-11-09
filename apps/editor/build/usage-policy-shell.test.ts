@@ -10,12 +10,10 @@ describe("usagePolicyShell", () => {
       attrs?: Record<string, string>;
       children?: string;
     }[];
-    const [meta, noscript] = transform();
-    expect(meta).toMatchObject({
-      tag: "meta",
-      attrs: { name: "robots", content: "noai, noimageai" },
-    });
-    expect(noscript?.tag).toBe("noscript");
+    const tags = transform();
+    // No robots meta: AI tools may read and train on every page.
+    expect(tags.map((tag) => tag.tag)).toEqual(["noscript"]);
+    const [noscript] = tags;
     // Written into the HTML as given: the note reads as text, never as markup.
     expect(noscript?.children).not.toMatch(/[<>]/u);
     const text = noscript!

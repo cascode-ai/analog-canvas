@@ -267,38 +267,32 @@ describe("suspended public Gallery documents", () => {
     }
   });
 
-  it("lists no resources for crawlers or Agents, and llms.txt states only the usage policy", async () => {
+  it("lists no sitemap, and llms.txt states the open usage policy", async () => {
     const env = environment();
     const sitemap = await route(env, new Request(`${ORIGIN}/sitemap.xml`));
     expect(sitemap.status).toBe(404);
     expect(sitemap.headers.get("cache-control")).toBe("no-store");
-    // llms.txt states the usage policy and lists no resources.
     const llms = await route(env, new Request(`${ORIGIN}/llms.txt`));
     expect(llms.status).toBe(200);
     const policy = await llms.text();
-    expect(policy).toContain("manual use of individual circuits is welcome");
-    expect(policy).toContain("strictly prohibited");
-    expect(policy).toContain("lawyer's letter");
-    expect(policy).toContain("zzhishuai@ethz.ch");
+    expect(policy).toContain("free to read, download in bulk, mirror and use");
+    expect(policy).toContain("AI training included");
+    expect(policy).toContain("scripts/gallery-download.mjs");
+    expect(policy).not.toContain("prohibited");
     expect(policy).not.toContain("/g/");
   });
 
-  it("asks AI crawlers to stay out and points bulk collection to the author", async () => {
+  it("lets every crawler in, AI training included", async () => {
     const env = environment();
     const robots = await (
       await route(env, new Request(`${ORIGIN}/robots.txt`))
     ).text();
     expect(robots).toMatch(
-      /User-agent: GPTBot\n(?:User-agent: .+\n)*Disallow: \/\n/u,
+      /User-agent: \*\nContent-Signal: search=yes, ai-train=yes\nDisallow: \/g\/\n/u,
     );
-    expect(robots).toMatch(
-      /User-agent: \*\nContent-Signal: search=yes, ai-train=no\nDisallow: \/g\/\n/u,
-    );
-    expect(robots).toContain("STRICTLY PROHIBITED");
-    expect(robots).toContain("lawyer's letter");
-    expect(robots).toContain("zzhishuai@ethz.ch");
-    // A user's own assistant fetching one page is not refused.
-    expect(robots).not.toContain("ChatGPT-User");
+    expect(robots).not.toMatch(/Disallow: \/\n/u);
+    expect(robots).not.toContain("PROHIBITED");
+    expect(robots).toContain("scripts/gallery-download.mjs");
   });
 });
 

@@ -359,8 +359,6 @@ export function memberBlockNotice(row: AccountBlockRow): {
       "",
       `Your Analog Canvas account (${row.email}) was blocked from the Gallery at ${row.blocked_at.slice(0, 16).replace("T", " ")} UTC, because it read Gallery circuits the way a bulk-collection program does.`,
       "",
-      "Occasional manual use of single circuits is welcome. Bulk collection, scraping, mirroring or AI training without permission is not allowed.",
-      "",
       "If you think this is a mistake, please reply to this email and tell me briefly what you were doing. I will check and restore your access.",
       "",
       "This check is still being tested. If it blocked you by mistake, I am sorry.",
