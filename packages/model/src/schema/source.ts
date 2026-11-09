@@ -30,8 +30,9 @@ const SourceContentSchema = z.strictObject({
 export const SourceFileRecordSchema = z.strictObject({
   id: StableIdSchema,
   path: z.string().min(1),
+  /** Local delivery records the original hash; its converted fragments use derived-sha256. */
   hash: z.string().min(1),
-  /** Parsed input; source spans and hash refer to this file. */
+  /** Parsed input, which source spans address even when originalContent exists. */
   content: SourceContentSchema.optional(),
   /** Present only when a frontend converted the original input (e.g. Spectre). */
   originalContent: SourceContentSchema.optional(),

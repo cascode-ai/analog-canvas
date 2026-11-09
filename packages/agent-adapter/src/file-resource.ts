@@ -20,7 +20,7 @@ const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
  * be downloaded.
  */
 export const AGENT_FILE_RESOURCE_MAX_BYTES = 10_000_000;
-const AGENT_FILE_RESOURCE_MAX_FILES = 24;
+export const AGENT_FILE_RESOURCE_MAX_FILES = 24;
 export const AGENT_FILE_CANDIDATE_TTL_MS = 5 * 60_000;
 
 const AgentFileBlobSchema = z.strictObject({
@@ -40,6 +40,83 @@ const FileRequestBaseSchema = z.strictObject({
   apiVersion: z.literal(AGENT_API_VERSION),
   requestId: StableIdSchema,
 });
+
+const AgentLocalSourceFileSchema = z.strictObject({
+  path: z.string().min(1).max(512),
+  sha256: Sha256Schema,
+  byteLength: z.number().int().positive(),
+});
+
+const AgentFileDiagnosticSchema = z.strictObject({
+  severity: z.enum(["warning", "error"]),
+  message: z.string().min(1),
+  code: z.string().min(1).optional(),
+});
+
+const AgentLocalSourceSchema = z.strictObject({
+  version: Sha256Schema,
+  entryPath: z.string().min(1).max(512),
+  files: z
+    .array(AgentLocalSourceFileSchema)
+    .min(1)
+    .max(AGENT_FILE_RESOURCE_MAX_FILES),
+  format: z.enum(["project", "rnl", "spice", "spectre"]),
+  drawing: z.enum([
+    "native",
+    "preserved",
+    "partial",
+    "discarded",
+    "not-provided",
+  ]),
+  electrical: z.enum(["verified", "not-verified"]),
+  diagnostics: z.array(AgentFileDiagnosticSchema),
+});
+
+export type AgentLocalSource = z.infer<typeof AgentLocalSourceSchema>;
+
+export function hasRnlCommentRecords(text: string): boolean {
+  return /^(?:\*|\/\/) @RNL\b/mu.test(text);
+}
+
+export function localSourceIdentity(
+  entryPath: string,
+  files: readonly { name: string; sha256: string }[],
+): string {
+  const byPath = files.map(({ name, sha256 }) => [name, sha256]).sort();
+  return JSON.stringify([entryPath, byPath]);
+}
+
+export const AgentLocalProjectReceiptSchema = z.strictObject({
+  source: AgentLocalSourceSchema,
+  disposition: z.enum(["opened", "reused"]),
+  previousRevision: z.enum(["unconfirmed", "live", "recovered-snapshot"]),
+  workspaceId: StableIdSchema,
+  projectId: StableIdSchema,
+  structureRevision: z.number().int().nonnegative(),
+  modified: z.boolean(),
+  topDocumentId: StableIdSchema,
+  document: z.strictObject({
+    id: StableIdSchema,
+    name: z.string(),
+    revision: z.number().int().nonnegative(),
+    sourceStatus: z.enum([
+      "in-sync",
+      "geometry-only-changed",
+      "connectivity-modified",
+    ]),
+    source: z
+      .strictObject({
+        path: z.string().min(1),
+        line: z.number().int().positive(),
+        representation: z.enum(["original", "parsed"]),
+      })
+      .optional(),
+  }),
+});
+
+export type AgentLocalProjectReceipt = z.infer<
+  typeof AgentLocalProjectReceiptSchema
+>;
 
 export const AgentFileDownloadOptionsSchema = z
   .strictObject({
@@ -103,13 +180,18 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("stage"),
-      kind: z.enum(["project", "structural-spice"]),
+      kind: z.enum(["project", "structural-spice", "local-circuit"]),
       files: z
         .array(AgentFileBlobSchema)
         .min(1)
         .max(AGENT_FILE_RESOURCE_MAX_FILES),
       entryPath: z.string().min(1).max(512).optional(),
       namingProfile: z.enum(["native", "cadence-bang"]).optional(),
+    }),
+    FileRequestBaseSchema.extend({
+      operation: z.literal("locate-local"),
+      sourceVersion: Sha256Schema,
+      background: z.boolean().optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("inspect"),
@@ -147,7 +229,7 @@ const FileResponseBaseSchema = z.strictObject({
 });
 export const AgentFileCandidateSummarySchema = z.strictObject({
   candidateId: StableIdSchema,
-  kind: z.enum(["project", "structural-spice"]),
+  kind: z.enum(["project", "structural-spice", "local-circuit"]),
   expiresAt: z.string().datetime(),
   projectName: z.string().min(1),
   documentCount: z.number().int().nonnegative(),
@@ -162,12 +244,9 @@ export const AgentFileCandidateSummarySchema = z.strictObject({
       }),
     )
     .optional(),
-  diagnostics: z.array(
-    z.strictObject({
-      severity: z.enum(["warning", "error"]),
-      message: z.string().min(1),
-    }),
-  ),
+  diagnostics: z.array(AgentFileDiagnosticSchema),
+  source: AgentLocalSourceSchema.optional(),
+  importMs: z.number().nonnegative().optional(),
 });
 export const AgentFileResourceResponseSchema = z.union([
   FileResponseBaseSchema.extend({
@@ -216,6 +295,12 @@ export const AgentFileResourceResponseSchema = z.union([
   FileResponseBaseSchema.extend({
     operation: z.literal("open"),
     ok: z.literal(true),
+    delivery: AgentLocalProjectReceiptSchema.optional(),
+  }),
+  FileResponseBaseSchema.extend({
+    operation: z.literal("locate-local"),
+    ok: z.literal(true),
+    delivery: AgentLocalProjectReceiptSchema.nullable(),
   }),
   FileResponseBaseSchema.extend({
     operation: z.enum([
@@ -226,6 +311,7 @@ export const AgentFileResourceResponseSchema = z.union([
       "discard",
       "request-approval",
       "open",
+      "locate-local",
       "simulation-input",
       "import-cell",
     ]),

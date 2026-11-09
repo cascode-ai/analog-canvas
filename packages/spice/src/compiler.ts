@@ -675,7 +675,7 @@ export async function compileSpiceSources(
   options: SpiceCompileOptions = {},
 ): Promise<SpiceCompileResult> {
   return compileSourceBundle(
-    await createSourceBundle(inputs, entryPath),
+    await createSourceBundle(inputs, entryPath, options.includeRoot),
     options,
   );
 }

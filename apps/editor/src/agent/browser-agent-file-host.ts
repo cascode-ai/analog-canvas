@@ -4,9 +4,12 @@ import {
   AGENT_FILE_RESOURCE_MAX_BYTES,
   base64DecodeBytes,
   base64EncodeBytes,
+  localSourceIdentity,
   type AgentFileCandidateSummary,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
+  type AgentLocalProjectReceipt,
+  type AgentLocalSource,
 } from "@icm/agent-adapter";
 import {
   SimulationFiles,
@@ -35,7 +38,14 @@ type StoredCandidate = {
   summary: AgentFileCandidateSummary;
 };
 
+export type OpenLocalProject = (
+  version: string,
+  background: boolean,
+  candidate?: { project: CircuitProject; source: AgentLocalSource },
+) => Promise<AgentLocalProjectReceipt | "blocked" | null>;
+
 export interface BrowserAgentFileHostOptions {
+  openLocalProject?: OpenLocalProject;
   getActiveDocumentId?: () => string;
   commitProjectStructure?: (
     project: CircuitProject,
@@ -122,6 +132,26 @@ export class BrowserAgentFileHost {
         return this.download(request);
       case "stage":
         return this.stage(request);
+      case "locate-local": {
+        if (!this.options.openLocalProject)
+          return this.error(
+            request,
+            "FILE_OPEN_UNAVAILABLE",
+            "Local delivery needs a Canvas Web editor",
+          );
+        const delivery = await this.options.openLocalProject(
+          request.sourceVersion,
+          request.background ?? false,
+        );
+        if (delivery === "blocked") return this.openBlocked(request);
+        return {
+          apiVersion: AGENT_API_VERSION,
+          requestId: request.requestId,
+          operation: "locate-local",
+          ok: true,
+          delivery,
+        };
+      }
       case "import-cell":
         return this.importCell(request);
       case "inspect": {
@@ -194,6 +224,35 @@ export class BrowserAgentFileHost {
             "FILE_CANDIDATE_NOT_FOUND",
             "Candidate is unavailable or expired",
           );
+        if (candidate.summary.source) {
+          if (!this.options.openLocalProject)
+            return this.error(
+              request,
+              "FILE_OPEN_UNAVAILABLE",
+              "Local delivery needs a Canvas Web editor",
+            );
+          const { source } = candidate.summary;
+          const delivery = await this.options.openLocalProject(
+            source.version,
+            request.background ?? false,
+            { project: candidate.project, source },
+          );
+          if (delivery === "blocked") return this.openBlocked(request);
+          if (!delivery)
+            return this.error(
+              request,
+              "FILE_LOAD_UNCONFIRMED",
+              "The editor could not confirm the imported Project tab",
+            );
+          this.candidates.delete(request.candidateId);
+          return {
+            apiVersion: AGENT_API_VERSION,
+            requestId: request.requestId,
+            operation: "open",
+            ok: true,
+            delivery,
+          };
+        }
         if (!this.options.openProjectInNewTab)
           return this.error(
             request,
@@ -206,11 +265,7 @@ export class BrowserAgentFileHost {
             request.background,
           ))
         )
-          return this.error(
-            request,
-            "FILE_OPEN_BLOCKED",
-            `Can't open the imported Project yet: ${this.options.describeOpenBlocker?.() ?? "another Project operation is running"}`,
-          );
+          return this.openBlocked(request);
         this.candidates.delete(request.candidateId);
         return {
           apiVersion: AGENT_API_VERSION,
@@ -220,6 +275,16 @@ export class BrowserAgentFileHost {
         };
       }
     }
+  }
+
+  private openBlocked(
+    request: AgentFileResourceRequest,
+  ): AgentFileResourceResponse {
+    return this.error(
+      request,
+      "FILE_OPEN_BLOCKED",
+      `Can't open the imported Project yet: ${this.options.describeOpenBlocker?.() ?? "another Project operation is running"}`,
+    );
   }
 
   /** Called only by a visible browser confirmation. */
@@ -441,7 +506,54 @@ export class BrowserAgentFileHost {
     try {
       let project: CircuitProject | null = null;
       let diagnostics: AgentFileCandidateSummary["diagnostics"] = [];
-      if (request.kind === "project") {
+      let local: { source: AgentLocalSource; importMs: number } | undefined;
+      if (request.kind === "local-circuit") {
+        const entryPath = request.entryPath;
+        if (!entryPath)
+          return this.error(
+            request,
+            "FILE_CONTENT_INVALID",
+            "Local delivery requires entryPath",
+          );
+        const inputs = decoded.files.map(({ name, bytes }, index) => ({
+          path: name,
+          bytes,
+          sha256: request.files[index]!.sha256,
+        }));
+        const start = performance.now();
+        const { importLocalCircuit } = await import("./import-local-circuit");
+        const imported = await importLocalCircuit(inputs, entryPath);
+        project = imported.project;
+        diagnostics = imported.diagnostics;
+        const identityFiles =
+          imported.format === "project"
+            ? request.files
+            : project.source.files.flatMap(({ path, hash }) =>
+                hash.startsWith("sha256:")
+                  ? [{ name: path, sha256: hash.slice(7) }]
+                  : [],
+              );
+        local = {
+          importMs: performance.now() - start,
+          source: {
+            version: await sha256(
+              new TextEncoder().encode(
+                localSourceIdentity(entryPath, identityFiles),
+              ),
+            ),
+            entryPath,
+            files: request.files.map(({ name, sha256, byteLength }) => ({
+              path: name,
+              sha256,
+              byteLength,
+            })),
+            format: imported.format,
+            drawing: imported.drawing,
+            electrical: imported.electrical,
+            diagnostics,
+          },
+        };
+      } else if (request.kind === "project") {
         if (decoded.files.length !== 1)
           return this.error(
             request,
@@ -518,6 +630,7 @@ export class BrowserAgentFileHost {
           terminalNames: d.netlist?.terminals.map((t) => t.name) ?? [],
         })),
         diagnostics,
+        ...local,
       };
       this.candidates.set(candidateId, { project, summary });
       return {
@@ -530,7 +643,9 @@ export class BrowserAgentFileHost {
     } catch (error) {
       return this.error(
         request,
-        "FILE_CONTENT_INVALID",
+        request.kind === "local-circuit"
+          ? "FILE_IMPORT_FAILED"
+          : "FILE_CONTENT_INVALID",
         error instanceof Error ? error.message : "File content is invalid",
       );
     }

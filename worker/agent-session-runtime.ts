@@ -535,6 +535,7 @@ export function fileOperationScopes(
         request.artifact === "project" ? "project.download" : "visual.download",
       ];
     case "stage":
+    case "locate-local":
     case "inspect":
     case "discard":
     case "request-approval":

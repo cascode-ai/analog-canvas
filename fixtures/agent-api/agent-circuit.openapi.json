@@ -20413,7 +20413,8 @@
                 "type": "string",
                 "enum": [
                   "project",
-                  "structural-spice"
+                  "structural-spice",
+                  "local-circuit"
                 ]
               },
               "files": {
@@ -20443,6 +20444,34 @@
               "operation",
               "kind",
               "files"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "locate-local"
+              },
+              "sourceVersion": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema15"
+              },
+              "background": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "sourceVersion"
             ],
             "additionalProperties": false
           },
@@ -20853,8 +20882,7 @@
                 "maximum": 9007199254740991
               },
               "sha256": {
-                "type": "string",
-                "pattern": "^[a-f0-9]{64}$"
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema15"
               }
             },
             "required": [
@@ -20866,6 +20894,10 @@
               "sha256"
             ],
             "additionalProperties": false
+          },
+          "__schema15": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           }
         }
       },
@@ -21535,8 +21567,7 @@
                     "maximum": 9007199254740991
                   },
                   "sha256": {
-                    "type": "string",
-                    "pattern": "^[a-f0-9]{64}$"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
                   }
                 },
                 "required": [
@@ -21580,11 +21611,11 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
               },
               "documentCode": {
                 "description": "Canonical staged SchematicDocument JSON, only for an explicit inspect.documentId; not a live document.",
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema28"
               }
             },
             "required": [
@@ -21694,7 +21725,7 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
               },
               "approval": {
                 "type": "string",
@@ -21727,6 +21758,9 @@
               "ok": {
                 "type": "boolean",
                 "const": true
+              },
+              "delivery": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema29"
               }
             },
             "required": [
@@ -21734,6 +21768,43 @@
               "requestId",
               "operation",
               "ok"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "locate-local"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "delivery": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema29"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "delivery"
             ],
             "additionalProperties": false
           },
@@ -21756,6 +21827,7 @@
                   "discard",
                   "request-approval",
                   "open",
+                  "locate-local",
                   "simulation-input",
                   "import-cell"
                 ]
@@ -22442,6 +22514,10 @@
             "maximum": 9007199254740991
           },
           "__schema23": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "__schema24": {
             "type": "object",
             "properties": {
               "candidateId": {
@@ -22451,7 +22527,8 @@
                 "type": "string",
                 "enum": [
                   "project",
-                  "structural-spice"
+                  "structural-spice",
+                  "local-circuit"
                 ]
               },
               "expiresAt": {
@@ -22508,26 +22585,15 @@
               "diagnostics": {
                 "type": "array",
                 "items": {
-                  "type": "object",
-                  "properties": {
-                    "severity": {
-                      "type": "string",
-                      "enum": [
-                        "warning",
-                        "error"
-                      ]
-                    },
-                    "message": {
-                      "type": "string",
-                      "minLength": 1
-                    }
-                  },
-                  "required": [
-                    "severity",
-                    "message"
-                  ],
-                  "additionalProperties": false
+                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema25"
                 }
+              },
+              "source": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema26"
+              },
+              "importMs": {
+                "type": "number",
+                "minimum": 0
               }
             },
             "required": [
@@ -22541,8 +22607,230 @@
             ],
             "additionalProperties": false
           },
-          "__schema24": {
+          "__schema25": {
+            "type": "object",
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "warning",
+                  "error"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "severity",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "__schema26": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
+              },
+              "entryPath": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "files": {
+                "minItems": 1,
+                "maxItems": 24,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema27"
+                }
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "project",
+                  "rnl",
+                  "spice",
+                  "spectre"
+                ]
+              },
+              "drawing": {
+                "type": "string",
+                "enum": [
+                  "native",
+                  "preserved",
+                  "partial",
+                  "discarded",
+                  "not-provided"
+                ]
+              },
+              "electrical": {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "not-verified"
+                ]
+              },
+              "diagnostics": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema25"
+                }
+              }
+            },
+            "required": [
+              "version",
+              "entryPath",
+              "files",
+              "format",
+              "drawing",
+              "electrical",
+              "diagnostics"
+            ],
+            "additionalProperties": false
+          },
+          "__schema27": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "sha256": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
+              },
+              "byteLength": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "path",
+              "sha256",
+              "byteLength"
+            ],
+            "additionalProperties": false
+          },
+          "__schema28": {
             "type": "string"
+          },
+          "__schema29": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema26"
+              },
+              "disposition": {
+                "type": "string",
+                "enum": [
+                  "opened",
+                  "reused"
+                ]
+              },
+              "previousRevision": {
+                "type": "string",
+                "enum": [
+                  "unconfirmed",
+                  "live",
+                  "recovered-snapshot"
+                ]
+              },
+              "workspaceId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
+              },
+              "projectId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
+              },
+              "structureRevision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "modified": {
+                "type": "boolean"
+              },
+              "topDocumentId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
+              },
+              "document": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sourceStatus": {
+                    "type": "string",
+                    "enum": [
+                      "in-sync",
+                      "geometry-only-changed",
+                      "connectivity-modified"
+                    ]
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "line": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "representation": {
+                        "type": "string",
+                        "enum": [
+                          "original",
+                          "parsed"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "line",
+                      "representation"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "revision",
+                  "sourceStatus"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "source",
+              "disposition",
+              "previousRevision",
+              "workspaceId",
+              "projectId",
+              "structureRevision",
+              "modified",
+              "topDocumentId",
+              "document"
+            ],
+            "additionalProperties": false
           }
         }
       },

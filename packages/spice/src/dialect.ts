@@ -17,6 +17,8 @@ export interface SpiceDialectEvidence {
 
 export interface SpiceCompileOptions {
   dialect?: SupportedSpiceDialectId | "auto";
+  /** Includes can use any path within a preselected virtual workspace. */
+  includeRoot?: "workspace";
 }
 
 export function detectSpiceDialect(

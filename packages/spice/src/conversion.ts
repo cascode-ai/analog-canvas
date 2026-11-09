@@ -27,6 +27,7 @@ SOFTWARE.
  * Pure strict-subset translation: no file access, model discovery or execution.
  */
 import { reviewedExternalBindingForMaster } from "@icm/devices";
+import { parseSpiceSource } from "./syntax.js";
 
 export type NetlistDialect = "spice" | "ngspice" | "spectre";
 export interface NetlistConversionIssue {
@@ -45,6 +46,8 @@ export interface NetlistConversionOptions {
    * retain their actual language rather than being relabelled. */
   ownedIncludes?: readonly string[];
   subcircuitNames?: readonly string[];
+  /** Calls classified by a separate reading of the native circuit. */
+  externalSubcircuitNames?: readonly string[];
   /** Execution projections can retain native owners without reverse-writing
    * converted text. Entries are 1-based input lines; 0 is a generated header. */
   withLineOrigins?: boolean;
@@ -155,6 +158,48 @@ function unescapeSpectreNames(text: string): string {
   }
   return out;
 }
+function spectreInclude(
+  f: string[],
+  s: Statement,
+): { path: string; section?: string } {
+  if (f.length < 2 || f.length > 3 || !/^"[^"\r\n]+"$/u.test(f[1]!))
+    refuse(s, "Include requires a quoted path and optional section.");
+  if (f[2] && !/^section=[A-Za-z_]\w*$/u.test(f[2]))
+    refuse(s, "Unsupported include option.");
+  return {
+    path: f[1]!.slice(1, -1),
+    ...(f[2] ? { section: f[2].slice(8) } : {}),
+  };
+}
+
+/** File references from the same logical statements the converter reads. */
+export function spectreSourceIncludes(
+  text: string,
+): { path: string; line: number }[] {
+  return statements(text, "spectre", true).flatMap((s) => {
+    if (s.dialect === "spectre") {
+      if (!/^include\s/iu.test(s.text)) return [];
+      return [
+        { path: spectreInclude(fields(s.text, s), s).path, line: s.line },
+      ];
+    }
+    if (!/^\.(?:include|incpslt|lib)\s/iu.test(s.text)) return [];
+    const directive = parseSpiceSource({
+      text: s.text,
+      path: "",
+      id: "",
+      hash: "",
+      encoding: "utf-8",
+    }).statements[0];
+    const path =
+      directive?.kind === "include" ||
+      (directive?.kind === "library" && directive.mode === "include")
+        ? directive.requestedPath
+        : undefined;
+    return path ? [{ path, line: s.line }] : [];
+  });
+}
+
 function uncomment(text: string, dialect: Statement["dialect"]): string {
   let quote = "",
     depth = 0;
@@ -390,6 +435,7 @@ function prefix(name: string, wanted: string) {
 }
 interface Context {
   subckts: Set<string>;
+  externalSubckts: Set<string>;
   models: Map<string, string>;
   ownedIncludes: Set<string>;
 }
@@ -489,7 +535,9 @@ function spectreInstance(s: Statement, ctx: Context): string {
     refuse(s, `Unsupported native Spectre primitive ${master}.`);
   const declared = ctx.models.get(kind);
   const isSubckt =
-    ctx.subckts.has(kind) || !!reviewedExternalBindingForMaster(master!);
+    ctx.subckts.has(kind) ||
+    !!reviewedExternalBindingForMaster(master!) ||
+    (!declared && ctx.externalSubckts.has(kind));
   const conventional = /^[MDQ]/iu.test(name!) ? name![0]!.toUpperCase() : "X";
   if (!isSubckt && !declared && !/^[MDQX]/iu.test(name!))
     refuse(
@@ -650,11 +698,8 @@ function translate(s: Statement, ctx: Context): string[] {
     if (head === "parameters")
       return [".param " + emitParameters(parameters(f.slice(1), s), s)];
     if (head === "include") {
-      if (f.length < 2 || f.length > 3 || !/^"[^"\r\n]+"$/u.test(f[1]!))
-        refuse(s, "Include requires a quoted path and optional section.");
-      if (f[2] && !/^section=[A-Za-z_]\w*$/u.test(f[2]))
-        refuse(s, "Unsupported include option.");
-      return [f[2] ? `.lib ${f[1]} ${f[2].slice(8)}` : `.include ${f[1]}`];
+      const { path, section } = spectreInclude(f, s);
+      return [section ? `.lib "${path}" ${section}` : `.include "${path}"`];
     }
     if (f[1]?.toLowerCase() === "op") {
       noParameters(parameters(f.slice(2), s), s);
@@ -956,6 +1001,9 @@ export function convertNetlist(
     const ctx: Context = {
       subckts: new Set(
         options.subcircuitNames?.map((name) => name.toLowerCase()),
+      ),
+      externalSubckts: new Set(
+        options.externalSubcircuitNames?.map((name) => name.toLowerCase()),
       ),
       models: new Map(),
       ownedIncludes: new Set(options.ownedIncludes),

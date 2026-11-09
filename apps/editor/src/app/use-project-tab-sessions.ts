@@ -1,6 +1,11 @@
 // Project tabs and their sessions: what a tab captures and restores, how the
 // window's tabs are saved and reopened, and what holds the editor on a tab.
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import type {
+  AgentLocalProjectReceipt,
+  AgentLocalSource,
+} from "@icm/agent-adapter";
+import type { OpenLocalProject } from "../agent/browser-agent-file-host";
 import type { HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
@@ -80,6 +85,12 @@ type AgentProjectResourcesOptions = Parameters<
   typeof useAgentProjectResources
 >[0];
 
+interface LocalDelivery {
+  source: AgentLocalSource;
+  importedRevision: string;
+  recovered: boolean;
+}
+
 interface ProjectTabSessionsOptions {
   projectStore: CloudProjectStore | null;
   onCloudProjectSaved(project: CloudProjectSummary): void;
@@ -137,6 +148,7 @@ interface ProjectTabSessionsOptions {
   setGalleryEntryContext: Dispatch<SetStateAction<GalleryEntryContext | null>>;
   projectSwitchBlockerRef: RefObject<() => string | null>;
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
+  openLocalProjectRef: RefObject<OpenLocalProject>;
   setAgentFileCandidate: AgentProjectResources["setAgentFileCandidate"];
   setAnalogSimulationState: Dispatch<
     SetStateAction<"closed" | "open" | "maximized" | "minimized">
@@ -228,6 +240,7 @@ export function useProjectTabSessions({
   setGalleryEntryContext,
   projectSwitchBlockerRef,
   openProjectInTabRef,
+  openLocalProjectRef,
   setAgentFileCandidate,
   setAnalogSimulationState,
   codeDraftDirty,
@@ -259,6 +272,20 @@ export function useProjectTabSessions({
   cancelAllTransientInteraction,
   nativeWorkspaceSaving,
 }: ProjectTabSessionsOptions) {
+  const localDeliveries = useRef(
+    new WeakMap<
+      EditorDocumentController,
+      LocalDelivery & { sessionId: string }
+    >(),
+  );
+  function localDeliveryOf(
+    controller: EditorDocumentController,
+  ): LocalDelivery | undefined {
+    const local = localDeliveries.current.get(controller);
+    if (local?.sessionId !== controller.projectSessionId) return undefined;
+    const { source, importedRevision, recovered } = local;
+    return { source, importedRevision, recovered };
+  }
   function captureTabSession() {
     return {
       controller: editorDocumentController,
@@ -277,6 +304,7 @@ export function useProjectTabSessions({
       dirty: isDirtyWork(),
       unsafe: hasUnsafeWork() || codeDraftDirty,
       fit: false,
+      localDelivery: localDeliveryOf(editorDocumentController),
     };
   }
   type TabSession = ReturnType<typeof captureTabSession>;
@@ -365,6 +393,7 @@ export function useProjectTabSessions({
       dirty: options.persistenceState === "dirty",
       unsafe: options.persistenceState === "dirty",
       fit: true,
+      localDelivery: undefined,
     };
   }
   type PortableTab = Omit<TabSession, "controller" | "cellViews"> & {
@@ -380,6 +409,12 @@ export function useProjectTabSessions({
     const controller = new EditorDocumentController(
       parseProject(saved.projectText),
     );
+    if (saved.localDelivery)
+      localDeliveries.current.set(controller, {
+        ...saved.localDelivery,
+        recovered: true,
+        sessionId: controller.projectSessionId,
+      });
     if (saved.agentEdited === true) controller.noteAgentEdit();
     if (!controller.openDocument(saved.activeDocumentId))
       throw new Error("Missing active Cell");
@@ -817,6 +852,87 @@ export function useProjectTabSessions({
           () => createTabSession(next, view, options),
           options.cloudBinding?.id,
         );
+  openLocalProjectRef.current = async (version, background, candidate) => {
+    const existing = projectTabs
+      .entries()
+      .find(({ session }) => session.localDelivery?.source.version === version);
+    let disposition: AgentLocalProjectReceipt["disposition"] = "reused";
+    let controller = existing?.session.controller;
+    if (existing) {
+      if (!background && !(await projectTabs.select(existing.id)))
+        return "blocked";
+    } else {
+      if (!candidate) return null;
+      disposition = "opened";
+      const create = () => {
+        const session = createTabSession(candidate.project, DEFAULT_VIEWBOX, {
+          source: "opened-file",
+          agentEdited: true,
+          persistenceState: "dirty",
+        });
+        controller = session.controller;
+        const localDelivery = {
+          source: candidate.source,
+          importedRevision: projectChangeToken(controller.project),
+          recovered: false,
+        };
+        localDeliveries.current.set(controller, {
+          ...localDelivery,
+          sessionId: controller.projectSessionId,
+        });
+        return { ...session, localDelivery };
+      };
+      const applied = background
+        ? projectTabs.openBackground(create)
+        : await projectTabs.open(create);
+      if (!applied) return "blocked";
+    }
+    const actual = projectTabs
+      .entries()
+      .find((entry) => entry.session.controller === controller);
+    const local = controller && localDeliveryOf(controller);
+    if (!actual || !controller || !local || local.source.version !== version)
+      return null;
+    const { project, document } = controller;
+    const span = document.sourceBinding?.sourceRef;
+    const file = project.source.files.find((item) => item.id === span?.fileId);
+    const original =
+      file &&
+      !file.originalContent &&
+      local.source.files.some((input) => input.path === file.path);
+    return {
+      source: local.source,
+      disposition,
+      previousRevision:
+        disposition === "opened"
+          ? "unconfirmed"
+          : local.recovered
+            ? "recovered-snapshot"
+            : "live",
+      workspaceId: actual.id,
+      projectId: project.id,
+      structureRevision: project.structureRevision,
+      modified: projectChangeToken(project) !== local.importedRevision,
+      topDocumentId: project.topDocumentId,
+      document: {
+        id: document.id,
+        name: document.name,
+        revision: document.revision,
+        sourceStatus: document.sourceStatus,
+        ...(file && span
+          ? {
+              source: {
+                path: file.path,
+                line: span.start.line,
+                representation: original
+                  ? ("original" as const)
+                  : ("parsed" as const),
+              },
+            }
+          : {}),
+      },
+    };
+  };
   async function manageCloud(
     action: (store: CloudProjectStore) => Promise<void>,
   ) {
@@ -959,6 +1075,16 @@ export function useProjectTabSessions({
       throw new Error(workspaceWriteError.current);
   }
   return {
+    localDelivery: (() => {
+      const local = localDeliveryOf(editorDocumentController);
+      return (
+        local && {
+          source: local.source,
+          recovered: local.recovered,
+          modified: local.importedRevision !== projectChangeToken(project),
+        }
+      );
+    })(),
     flushNativeWorkspace,
     cloudManagementBusy,
     isCloudManagementInFlight: () => cloudMutation.current,

@@ -34,7 +34,10 @@ function spiceSections(
  * call of one imports as the block that wrote it. No remote request is
  * necessary.
  */
-export function prepareImportSources(inputs: SpiceSourceInput[]): {
+export function prepareImportSources(
+  inputs: SpiceSourceInput[],
+  externalSubcircuitNames?: readonly string[],
+): {
   inputs: SpiceSourceInput[];
   builtInBodies: SpiceBuiltInBody[];
 } {
@@ -69,6 +72,7 @@ export function prepareImportSources(inputs: SpiceSourceInput[]): {
       withLineOrigins: true,
       // A model library the export wrote as SPICE (#1933) is read as it is.
       uncountedSpiceSections: true,
+      ...(externalSubcircuitNames ? { externalSubcircuitNames } : {}),
     });
     if (converted.status === "blocked") {
       const issue = converted.issues[0]!;
