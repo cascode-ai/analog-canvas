@@ -741,6 +741,46 @@ describe("public Agent session routes", () => {
     expect([first.status, second.status].sort()).toEqual([200, 409]);
   });
 
+  it("preserves a claimed session when its editor is detached without a page exit", async () => {
+    const { env } = routedFixture();
+    const origin = "https://editor.example";
+    const call = (path: string, init?: RequestInit) =>
+      routeAgentSessionRequest(new Request(origin + path, init), env);
+    const post = (body: unknown) => ({
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const created = await call(
+      "/api/agent/sessions",
+      post({
+        projectSessionId: "project:recover",
+        projectId: "project",
+        documentIds: ["document-main"],
+        scopes: ["circuit.snapshot"],
+      }),
+    );
+    const { session } = await created!.json();
+    const claimed = await call(
+      "/api/agent/claims",
+      post({ claimCode: session.claimCode }),
+    );
+    const { agentToken } = await claimed!.json();
+    const path = `/api/agent/sessions/${session.sessionId}`;
+    const headers = { authorization: `Bearer ${agentToken}` };
+
+    expect(
+      (await call(`${path}/detached-editor`, { method: "DELETE", headers }))
+        ?.status,
+    ).toBe(409);
+    const status = await call(`${path}/status`, { headers });
+    expect(await status!.json()).toMatchObject({
+      ok: true,
+      authorization: "active",
+      editor: "detached",
+    });
+  });
+
   it("gates the File Resource independently from Circuit edit scopes", async () => {
     const { env } = routedFixture();
     const createdResponse = await routeAgentSessionRequest(

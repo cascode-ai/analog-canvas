@@ -1466,10 +1466,19 @@ export function useAgentSession(
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") wakeTransport();
     };
+    // Closing the tab need not unmount React. Close the transport while this
+    // page can still send the frame, retaining the same-tab recovery proof.
+    const onPageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) liveRef.current?.socket?.close(1000, "tab left");
+    };
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", wakeTransport);
     window.addEventListener("online", wakeTransport);
     document.addEventListener("visibilitychange", onVisibilityChange);
     document.addEventListener("resume", wakeTransport);
     return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", wakeTransport);
       window.removeEventListener("online", wakeTransport);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("resume", wakeTransport);

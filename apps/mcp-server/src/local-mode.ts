@@ -80,7 +80,7 @@ export interface HeadlessWorkspace {
 
 /**
  * Where the bundle is looked for: the path ANALOG_CANVAS_HEADLESS names;
- * else beside this adapter, as a release ships it; else the workspace
+ * else beside this adapter, as older releases shipped it; else the workspace
  * build's, which `pnpm headless:package` writes.
  */
 export function headlessBundleCandidates(
@@ -103,7 +103,7 @@ async function loadHeadlessWorkspace(
   const found = candidates.find((path) => existsSync(path));
   if (!found)
     throw new Error(
-      `Local mode needs the headless workspace bundle, and there is none at ${candidates.join(" or ")}. In a checkout, build it with \`pnpm headless:package\`; or name one with ANALOG_CANVAS_HEADLESS=<path>.`,
+      `Local mode needs the optional headless workspace bundle. Download analog-canvas-headless-<version>.mjs from the matching MCP release and set ANALOG_CANVAS_HEADLESS to its path. In a checkout, build it with \`pnpm headless:package\`.`,
     );
   return (await import(
     /* @vite-ignore */ pathToFileURL(found).href
@@ -464,6 +464,7 @@ export async function openLocalMode(
   let closing: Promise<void> | undefined;
   return {
     session: {
+      localMode: true,
       client: new AgentSessionClient({
         http,
         connectorStore: new LocalConnectorStore(http),

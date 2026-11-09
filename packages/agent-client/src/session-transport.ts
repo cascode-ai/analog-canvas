@@ -65,6 +65,8 @@ export interface AgentSessionClientOptions {
   sleep?: (ms: number) => Promise<void>;
   tokenExpiryGraceMs?: number;
   connectorStore?: ConnectorStore;
+  /** Keep an isolated connector for renewal without a persisted file. */
+  resumeInMemory?: boolean;
   workspaceBindingStore?: WorkspaceBindingStore;
   /** A one-command process cannot honor an in-memory-only bind. */
   requireDurableWorkspaceBinding?: boolean;
@@ -113,6 +115,7 @@ export abstract class AgentSessionTransport {
   private readonly offlineRetryDelaysMs: readonly number[];
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly tokenExpiryGraceMs: number;
+  private readonly resumeInMemory: boolean;
   protected readonly connectorStore: ConnectorStore | undefined;
   protected readonly workspaceBindingStore: WorkspaceBindingStore | undefined;
   protected readonly requireDurableWorkspaceBinding: boolean;
@@ -129,7 +132,7 @@ export abstract class AgentSessionTransport {
   protected capabilitiesCache: AgentCapabilitiesResponse | null = null;
   private resumePromise: Promise<ActiveSession | null> | null = null;
   /** The connector this process redeemed or resumed, if any. */
-  private ownConnector: string | undefined;
+  private ownConnector: StoredConnectorCredential | undefined;
   protected simulationMetadata = new Map<
     string,
     {
@@ -156,6 +159,7 @@ export abstract class AgentSessionTransport {
       options.sleep ??
       ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.tokenExpiryGraceMs = options.tokenExpiryGraceMs ?? 30_000;
+    this.resumeInMemory = options.resumeInMemory ?? false;
     this.connectorStore = options.connectorStore;
     this.workspaceBindingStore = options.workspaceBindingStore;
     this.requireDurableWorkspaceBinding =
@@ -164,7 +168,12 @@ export abstract class AgentSessionTransport {
   }
 
   async status(options: { refresh?: boolean } = {}): Promise<StatusReport> {
-    if (options.refresh && (this.session || this.connectorStore)) {
+    if (
+      options.refresh &&
+      (this.session ||
+        this.connectorStore ||
+        (this.resumeInMemory && this.ownConnector))
+    ) {
       try {
         const previousContext = this.http.contextRevision;
         this.observation = await this.withAuthorization((session) =>
@@ -398,7 +407,7 @@ export abstract class AgentSessionTransport {
     // only a file still holding this process's own connector goes.
     if (code !== "SESSION_TAKEN_OVER") await this.connectorStore?.clear();
     else if (this.ownConnector)
-      await this.connectorStore?.clear(this.ownConnector);
+      await this.connectorStore?.clear(this.ownConnector.connectorToken);
     this.ownConnector = undefined;
   }
 
@@ -451,7 +460,8 @@ export abstract class AgentSessionTransport {
   }
 
   protected async resumeConnector(): Promise<ActiveSession | null> {
-    if (!this.connectorStore) return null;
+    if (!this.connectorStore && !(this.resumeInMemory && this.ownConnector))
+      return null;
     if (this.resumePromise) return this.resumePromise;
     this.resumePromise = this.resumeConnectorOnce();
     try {
@@ -462,7 +472,9 @@ export abstract class AgentSessionTransport {
   }
 
   private async resumeConnectorOnce(): Promise<ActiveSession | null> {
-    const stored = await this.connectorStore?.load();
+    const stored = this.connectorStore
+      ? await this.connectorStore.load()
+      : this.ownConnector;
     if (!stored && this.connectorStore?.takenOver) {
       // The relay sees one connector resumed twice, so only this process
       // can tell that another one took the saved connector over.
@@ -480,7 +492,7 @@ export abstract class AgentSessionTransport {
     // Other Agent operations or manual edits can renew the session after this
     // credential was saved. Only the server can decide whether it expired.
     this.connection.apply("resume-started");
-    this.ownConnector = stored.connectorToken;
+    this.ownConnector = stored;
     try {
       const claim = await this.http.resumeConnector(
         stored.sessionId,
@@ -570,8 +582,6 @@ export abstract class AgentSessionTransport {
   }
 
   protected async persistConnector(claim: ClaimSuccess): Promise<void> {
-    this.ownConnector = claim.connectorToken;
-    if (!this.connectorStore) return;
     const credential: StoredConnectorCredential = {
       version: 1,
       apiBaseUrl: this.http.baseUrl,
@@ -580,7 +590,8 @@ export abstract class AgentSessionTransport {
       connectorExpiresAt: claim.connectorExpiresAt,
       storedAt: this.now(),
     };
-    await this.connectorStore.save(credential);
+    this.ownConnector = credential;
+    await this.connectorStore?.save(credential);
   }
 
   protected tokenValid(session: { tokenExpiresAt: number }): boolean {

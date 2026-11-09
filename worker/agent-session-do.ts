@@ -33,6 +33,7 @@ import {
   type PersistedAgentSessionState,
   type RequestBeginResult,
 } from "@icm/agent-adapter";
+import { BROWSER_LAUNCH_PENDING_PROJECT } from "@icm/agent-adapter/browser-launch";
 
 import {
   EDITOR_PROTOCOL,
@@ -112,6 +113,7 @@ export class AgentSessionDO {
   private readonly artifacts: AgentArtifacts;
   /** Reason-only tombstone: no bearer, connector, editor proof or Project data. */
   private replacedUntil = 0;
+  private editorLeft = false;
   private machine: AgentSessionMachine | null = null;
   private readonly ready: Promise<void>;
   private creating = false;
@@ -226,6 +228,28 @@ export class AgentSessionDO {
       return jsonResponse(
         errorBody("SESSION_NOT_FOUND", errorMessage("SESSION_NOT_FOUND")),
         404,
+        allowedOrigin,
+      );
+    }
+    if (
+      request.method === "POST" &&
+      url.pathname === "/approve-editor-launch"
+    ) {
+      const grant = await request.text();
+      const secret = machine.approveBrowserLaunch(grant, Date.now());
+      if (!secret) return jsonResponse({ ok: false }, 409, allowedOrigin);
+      await this.persist();
+      return jsonResponse(
+        {
+          version: 1,
+          sessionId: machine.sessionId,
+          editorSecret: secret,
+          projectId: machine.projectId,
+          projectSessionId: machine.projectSessionId,
+          scopes: machine.scopes,
+          expiresAt: machine.expiresAt,
+        },
+        200,
         allowedOrigin,
       );
     }
@@ -449,6 +473,9 @@ export class AgentSessionDO {
     if (request.method === "DELETE" && url.pathname === "/session") {
       return this.disconnect(request, machine, allowedOrigin);
     }
+    if (request.method === "DELETE" && url.pathname === "/detached-editor") {
+      return this.disconnect(request, machine, allowedOrigin, true);
+    }
     return jsonResponse({ error: "Not found" }, 404, allowedOrigin);
   }
 
@@ -587,7 +614,7 @@ export class AgentSessionDO {
     }
   }
 
-  async webSocketClose(socket?: WebSocket) {
+  async webSocketClose(socket?: WebSocket, code?: number, reason?: string) {
     // Hibernatable sockets require an explicit close reply. Without it the
     // browser stays CLOSING and never reaches its reconnect handler.
     if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
@@ -606,6 +633,10 @@ export class AgentSessionDO {
         candidate !== socket && candidate.readyState === WebSocket.OPEN,
     );
     if (replacement) return;
+    if (code === 1000 && reason === "tab left") {
+      this.editorLeft = true;
+      await this.state.storage.put("agent-editor-left", true);
+    }
     this.emit({
       type: "editor.offline",
       sessionId: this.machine?.sessionId ?? "unknown",
@@ -706,6 +737,7 @@ export class AgentSessionDO {
         projectId?: unknown;
         documentIds?: unknown;
         scopes?: unknown;
+        browserLaunch?: unknown;
       } | null;
       if (
         !body ||
@@ -726,9 +758,14 @@ export class AgentSessionDO {
         (value): value is AgentSessionScope =>
           AgentSessionScopeSchema.safeParse(value).success,
       );
+      const browserLaunch =
+        body.browserLaunch === true &&
+        body.projectId === BROWSER_LAUNCH_PENDING_PROJECT;
       if (
         scopes.length !== body.scopes.length ||
-        body.documentIds.length === 0
+        (browserLaunch
+          ? body.documentIds.length !== 0
+          : body.documentIds.length === 0)
       ) {
         return jsonResponse(
           { error: "Invalid session scopes or Documents" },
@@ -738,6 +775,7 @@ export class AgentSessionDO {
       }
       const created = AgentSessionMachine.create({
         sessionId: body.sessionId,
+        browserLaunch,
         projectSessionId: body.projectSessionId,
         projectId: body.projectId,
         documentIds: body.documentIds,
@@ -876,6 +914,9 @@ export class AgentSessionDO {
         401,
       );
     }
+    const version = await this.state.storage.get<string | null>(
+      ADAPTER_VERSION_KEY,
+    );
     const status = machine.statusAt(Date.now());
     if (status === "revoked" || status === "expired") {
       const code = status === "revoked" ? "SESSION_REVOKED" : "SESSION_EXPIRED";
@@ -892,12 +933,13 @@ export class AgentSessionDO {
     if (!Pair || !this.state.acceptWebSocket) {
       return jsonResponse({ error: "WebSocket runtime unavailable" }, 501);
     }
-    const version = await this.state.storage.get<string | null>(
-      ADAPTER_VERSION_KEY,
-    );
     const pair = new Pair();
     const previousSockets = this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? [];
     this.state.acceptWebSocket(pair[1], [EDITOR_SOCKET_TAG]);
+    if (this.editorLeft) {
+      this.editorLeft = false;
+      await this.state.storage.put("agent-editor-left", false);
+    }
     this.emit({ type: "editor.online", sessionId: machine.sessionId });
     for (const socket of previousSockets) {
       if (socket.readyState === WebSocket.OPEN) {
@@ -1767,8 +1809,30 @@ export class AgentSessionDO {
     request: Request,
     machine: AgentSessionMachine,
     allowedOrigin: string | null,
+    onlyIfDetached = false,
   ): Promise<Response> {
     const token = bearerToken(request);
+    if (onlyIfDetached) {
+      const auth = machine.authorize(token, Date.now());
+      if (!auth.ok)
+        return jsonResponse(
+          errorBody(auth.code, errorMessage(auth.code)),
+          transportStatus(auth.code),
+          allowedOrigin,
+        );
+      const attached = (
+        this.state.getWebSockets?.(EDITOR_SOCKET_TAG) ?? []
+      ).some((socket) => socket.readyState === WebSocket.OPEN);
+      if (
+        attached ||
+        (!this.editorLeft &&
+          machine.projectId !== BROWSER_LAUNCH_PENDING_PROJECT)
+      )
+        return new Response(null, {
+          status: 409,
+          headers: relayHeaders(allowedOrigin),
+        });
+    }
     const editorAuthorized = machine.authorizeEditor(
       request.headers.get("x-editor-secret") ?? "",
     );
@@ -1978,6 +2042,8 @@ export class AgentSessionDO {
   private async initialize(): Promise<void> {
     this.replacedUntil =
       (await this.state.storage.get<number>("project-replaced-until")) ?? 0;
+    this.editorLeft =
+      (await this.state.storage.get<boolean>("agent-editor-left")) === true;
     const stored =
       await this.state.storage.get<PersistedAgentSessionState>(
         SESSION_STATE_KEY,

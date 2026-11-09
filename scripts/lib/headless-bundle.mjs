@@ -1,7 +1,7 @@
 // The headless drawing workspace (#1498) as one Node module:
 // apps/editor/src/headless with every @icm package it reaches, from source.
 // scripts/package-headless.mjs writes it for the workspace build and
-// scripts/package-mcp.mjs beside the MCP release's bin.
+// scripts/package-mcp.mjs as an optional release asset.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { build } from "vite";
@@ -22,7 +22,10 @@ const HEADLESS_BUNDLE_NAME = "analog-canvas-headless.mjs";
  * the editor loads only on demand (formula typesetting, browser-only export)
  * is inlined and still evaluated only when called.
  */
-export async function bundleHeadless(outDir, { emptyOutDir = true } = {}) {
+export async function bundleHeadless(
+  outDir,
+  { emptyOutDir = true, fileName = HEADLESS_BUNDLE_NAME } = {},
+) {
   await build({
     root,
     configFile: false,
@@ -43,9 +46,9 @@ export async function bundleHeadless(outDir, { emptyOutDir = true } = {}) {
       target: "node24",
       minify: false,
       rollupOptions: {
-        output: { entryFileNames: HEADLESS_BUNDLE_NAME, codeSplitting: false },
+        output: { entryFileNames: fileName, codeSplitting: false },
       },
     },
   });
-  return resolve(outDir, HEADLESS_BUNDLE_NAME);
+  return resolve(outDir, fileName);
 }

@@ -574,6 +574,7 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   let browserSocket: WebSocketRoute | null = null;
   let sessionCreates = 0;
   let revokeControls = 0;
+  let acknowledgeContext = false;
   let contextRevision: string | undefined;
   let initialProjectId: string | undefined;
 
@@ -586,7 +587,8 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
         const parsed = JSON.parse(String(message));
         if (parsed.kind === "heartbeat") {
           contextRevision = parsed.contextRevision;
-          socket.send(JSON.stringify({ ...parsed, kind: "heartbeat-ack" }));
+          if (acknowledgeContext)
+            socket.send(JSON.stringify({ ...parsed, kind: "heartbeat-ack" }));
         }
         responses.push(parsed as SessionMessage);
       });
@@ -659,10 +661,14 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
   await page.getByRole("button", { name: "Agent", exact: true }).click();
   await expect(page.locator('[data-testid^="agent-preset-"]')).toHaveCount(0);
   await expectClaimCode(page, `${sessionId}.one-time-claim`);
-  await expect.poll(() => browserSocket !== null).toBe(true);
+  // The route can exist before the browser is ready to receive frames.
+  await expect
+    .poll(() => responses.some((message) => message.kind === "heartbeat"))
+    .toBe(true);
   expect(sessionCreates).toBe(1);
   const socket = browserSocket!;
 
+  // The relay can confirm pairing before it acknowledges the tab's context.
   socket.send(
     JSON.stringify({
       protocolVersion: "1.0",
@@ -672,6 +678,17 @@ test("grants a browser Agent, edits through the live host, and shares undo", asy
       sentAt: new Date().toISOString(),
       kind: "event",
       payload: { type: "session.ready", sessionId },
+    }),
+  );
+  await expect(page.getByTestId("connect-agent-panel")).toHaveAttribute(
+    "data-status",
+    "reconnecting",
+  );
+  acknowledgeContext = true;
+  socket.send(
+    JSON.stringify({
+      ...responses.findLast((message) => message.kind === "heartbeat"),
+      kind: "heartbeat-ack",
     }),
   );
   // Pairing closes the dialog; the header's Agent button lights up.
@@ -1645,8 +1662,12 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
         sessionStorage.getItem("icm.agent-session-recovery.v1") ?? "null",
       ),
     );
+  const agentButton = page.getByTestId("open-agent");
   await page.goto("/editor");
-  await page.getByTestId("open-agent").click();
+  await agentButton.click();
+  await expect(agentButton).toHaveAttribute("data-connection", "live");
+  await expect(page.getByTestId("connect-agent-panel")).toHaveCount(0);
+  await agentButton.click();
   await expect(page.getByTestId("agent-status")).toHaveText("Connected");
   await expect(page.getByTestId("agent-idle-policy")).toContainText(
     "30 minutes",
@@ -1673,7 +1694,8 @@ test("keeps browser recovery on the renewed idle deadline and expires after inac
     sessionStorage.setItem(key, JSON.stringify(saved));
   });
   await page.reload();
-  await page.getByTestId("open-agent").click();
+  await expect(agentButton).toHaveAttribute("data-connection", "live");
+  await agentButton.click();
   await expect(page.getByTestId("agent-status")).toHaveText("Connected");
   expect(creates).toBe(1);
   await expect.poll(async () => (await recovery())?.expiresAt).toBe(deadline);

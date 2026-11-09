@@ -493,6 +493,27 @@ export class AgentHttpClient {
     }
   }
 
+  async retireDetached(
+    sessionId: string,
+    agentToken: string,
+  ): Promise<boolean> {
+    const response = await this.send(
+      `/api/agent/sessions/${encodeURIComponent(sessionId)}/detached-editor`,
+      {
+        method: "DELETE",
+        headers: {
+          authorization: `Bearer ${agentToken}`,
+        },
+      },
+      3_000,
+    );
+    if (response.status === 204) return true;
+    if (response.status === 409) return false;
+    return this.consume(response, (body) => {
+      throw this.transportError(response.status, body);
+    });
+  }
+
   async status(
     sessionId: string,
     agentToken: string,

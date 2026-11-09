@@ -33,6 +33,11 @@
       "development": "./src/session-scope.ts",
       "types": "./dist/session-scope.d.ts",
       "default": "./dist/session-scope.js"
+    },
+    "./browser-launch": {
+      "development": "./src/browser-launch.ts",
+      "types": "./dist/browser-launch.d.ts",
+      "default": "./dist/browser-launch.js"
     }
   },
   "scripts": {

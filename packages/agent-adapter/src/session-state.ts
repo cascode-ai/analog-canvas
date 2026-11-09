@@ -1,5 +1,9 @@
 import type { AgentSessionScope, AgentTransportErrorCode } from "./envelope.js";
 import { sha256Hex } from "@icm/derived";
+import {
+  BROWSER_LAUNCH_GRANT_PREFIX,
+  BROWSER_LAUNCH_TTL_MS,
+} from "./browser-launch.js";
 
 /**
  * Pure, runtime-agnostic Agent session state machine (WP-WA4). All time is
@@ -234,6 +238,7 @@ export interface PersistedAgentSessionState {
 export interface CreateAgentSessionOptions {
   limits?: Partial<AgentSessionLimits>;
   sessionId?: string;
+  browserLaunch?: boolean;
   projectSessionId: string;
   projectId: string;
   documentIds: readonly string[];
@@ -279,7 +284,9 @@ export class AgentSessionMachine {
   } {
     const limits = { ...DEFAULT_AGENT_SESSION_LIMITS, ...options.limits };
     const sessionId = options.sessionId ?? options.random();
-    const editorSecret = options.random();
+    const editorSecret = options.browserLaunch
+      ? BROWSER_LAUNCH_GRANT_PREFIX + options.random()
+      : options.random();
     const claimCode = options.random();
     const claimExpiresAt = options.now + limits.claimTtlMs;
     const expiresAt = options.now + limits.sessionTtlMs;
@@ -484,10 +491,32 @@ export class AgentSessionMachine {
 
   /** Authenticate the browser WebSocket channel with the editor secret. */
   authorizeEditor(secret: string): boolean {
-    return constantTimeEqual(
-      secretVerifier(secret),
-      this.internals.editorSecretVerifier,
+    return (
+      !secret.startsWith(BROWSER_LAUNCH_GRANT_PREFIX) &&
+      constantTimeEqual(
+        secretVerifier(secret),
+        this.internals.editorSecretVerifier,
+      )
     );
+  }
+
+  /** A launch grant has no Editor authority and can be exchanged exactly once. */
+  approveBrowserLaunch(grant: string, now: number): string | null {
+    const claim = this.internals.claim;
+    if (
+      !grant.startsWith(BROWSER_LAUNCH_GRANT_PREFIX) ||
+      !claim?.used ||
+      this.statusAt(now) !== "active" ||
+      now >= claim.expiresAt - this.limits.claimTtlMs + BROWSER_LAUNCH_TTL_MS ||
+      !constantTimeEqual(
+        secretVerifier(grant),
+        this.internals.editorSecretVerifier,
+      )
+    )
+      return null;
+    const secret = this.random();
+    this.internals.editorSecretVerifier = secretVerifier(secret);
+    return secret;
   }
 
   /**

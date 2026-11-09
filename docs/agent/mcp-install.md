@@ -65,7 +65,13 @@ remains unreachable or HTTP requests cannot run, report that blocker and one
 next action. Never include claims, tokens, raw environment dumps or Project
 data in diagnostics.
 
-Connect with the human's claim, then follow the [quickstart](mcp-quickstart.md).
+For a new task in Codex or Claude Code, call `open_canvas` and approve access
+in the system browser. Follow the [quickstart](mcp-quickstart.md) for task
+references and reconnects. The connector requires Node, the system browser,
+and access to the configured Canvas site and relay. Offline drawing uses the
+[optional local engine](https://github.com/cascode-ai/analog-canvas/blob/main/docs/agent/local-workspace.md).
+
+For a manual pairing, connect with the human's Claim.
 Later processes resume the saved revocable connector without a claim; keep it
 private. `ANALOG_CANVAS_MCP_CONNECTOR` overrides its file path, never a token.
 The default file (one per origin) belongs to one running MCP process at a

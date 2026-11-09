@@ -9,7 +9,7 @@
     },
     {
       "source": "docs/agent/mcp-quickstart.md",
-      "sha256": "f46912d4e0d8cf50cb605887bad62254cf5fc33a418820574fe49f22a476e49d"
+      "sha256": "1187d3c9435c170dc6620a0f22b6515716786880da505da1e32a0a7417400b6f"
     },
     {
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
@@ -85,7 +85,7 @@
     },
     {
       "source": "docs/agent/mcp-install.md",
-      "sha256": "609fa9bc0595340abd4017b3977442de0580616032dd16f93e5548f3e0e05058"
+      "sha256": "5d7bd9095cb7aa4a870cce621f5a637809812e07dff4935ca46ba098810ab76c"
     },
     {
       "source": "docs/agent/api-usage.md",
@@ -125,11 +125,11 @@
     },
     {
       "source": "docs/agent/local-workspace.md",
-      "sha256": "66da36a8ace81e9baee565afe8b0c7e0209dd2cd1f586b9f3117d56194dfc999"
+      "sha256": "094858800db3da96bcd14ca7f22d008fe8dc4167c4f9d51f6d6a343a093a00d5"
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "4a8c12e1323c3e32bf302ac3f0f4c03560ec644065f47d321bdf0c91956ec0fc"
+      "sha256": "c2534685293166a3a26a9762d3008c511d99cd9a0545b01add5dbc7ebd38a083"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -137,7 +137,7 @@
     },
     {
       "source": "docs/agent/mcp/instructions.md",
-      "sha256": "6b7f2482a576fa50cca54ad273bd0dde337ecf6557ee7edae494314e4ab65b60"
+      "sha256": "192f1564382f644811d45d199b9fd74a2cca28757e868a797ee9bf0f0bd21971"
     },
     {
       "source": "docs/agent/entrypoints/connect.md",
@@ -644,7 +644,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "5ff6ab03602743bd185d9d6c2badc7682dee44fad29c060ac2eb2709a106aa38"
+      "sha256": "12cd501521e1cf27058e527d039420b1313ad29b52d0b0284e4b87143ad06a21"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -693,7 +693,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "12254e197e31db364f94110144e19a284823395eaa044cad75e51a9f77525fed"
+      "sha256": "944ce3c4f2ad3124509dc687aa8028b43a705ff2d474582d203a375d08fb740f"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",
