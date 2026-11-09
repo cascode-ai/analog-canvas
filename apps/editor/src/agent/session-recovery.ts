@@ -16,6 +16,7 @@ export interface AgentSessionRecoveryRecord {
   readonly projectId: string;
   readonly projectSessionId: string;
   readonly scopes: readonly AgentSessionScope[];
+  readonly localReviewOnly?: true;
   readonly expiresAt: number;
 }
 
@@ -52,6 +53,7 @@ function parseRecord(value: unknown): AgentSessionRecoveryRecord | null {
     projectId: record.projectId,
     projectSessionId: record.projectSessionId,
     scopes: [...record.scopes],
+    ...(record.localReviewOnly === true ? { localReviewOnly: true } : {}),
     expiresAt: record.expiresAt,
   };
 }

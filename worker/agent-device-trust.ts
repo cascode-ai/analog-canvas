@@ -1,5 +1,6 @@
 import {
   browserLaunchProofText,
+  BROWSER_LAUNCH_TTL_MS,
   DEVICE_TRUST_PATH,
 } from "@icm/agent-adapter/browser-launch";
 import { sessionUserOf } from "./auth";
@@ -11,7 +12,8 @@ import type {
 export const DEVICE_TRUST_INTERNAL = "/device-trust/";
 const DEVICE_ID = /^[a-f0-9]{64}$/u;
 const MAX_DEVICES = 16;
-const MAX_SESSIONS = 64;
+const MAX_SESSIONS = 32;
+const DEVICE_TASK_LEASE_MS = 60 * 60_000;
 const DEVICES_KEY = "agent-trusted-devices";
 
 export type DeviceTrustLink = {
@@ -24,11 +26,12 @@ type DeviceEntry = {
   id: string;
   trustId: string;
   trustedAt: number;
-  sessions: string[];
+  pendingUntil?: number;
+  sessions: { id: string; expiresAt: number }[];
 };
 
 type DeviceRequest = {
-  action: "auto" | "trust" | "check" | "remove-session";
+  action: "auto" | "trust" | "commit" | "check" | "remove-session";
   deviceId: string;
   trustId?: string;
   sessionId?: string;
@@ -117,12 +120,17 @@ export class AgentDeviceTrustDirectory {
     const path = new URL(request.url).pathname.slice(
       DEVICE_TRUST_INTERNAL.length,
     );
-    const entries = (await this.storage.get<DeviceEntry[]>(DEVICES_KEY)) ?? [];
+    const now = Date.now();
+    const entries = (
+      (await this.storage.get<DeviceEntry[]>(DEVICES_KEY)) ?? []
+    ).filter((entry) => !entry.pendingUntil || entry.pendingUntil > now);
     const reply = (data: unknown, status = 200) =>
       Response.json(data, { status });
     if (request.method === "GET" && path === "list")
       return reply({
-        devices: entries.map(({ id, trustedAt }) => ({ id, trustedAt })),
+        devices: entries
+          .filter((entry) => !entry.pendingUntil)
+          .map(({ id, trustedAt }) => ({ id, trustedAt })),
       });
     if (request.method === "DELETE" && DEVICE_ID.test(path)) {
       const entry = entries.find(({ id }) => id === path);
@@ -131,7 +139,12 @@ export class AgentDeviceTrustDirectory {
         DEVICES_KEY,
         entries.filter(({ id }) => id !== path),
       );
-      return reply({ sessions: entry.sessions, trustId: entry.trustId });
+      return reply({
+        sessions: entry.sessions
+          .filter((session) => session.expiresAt > now)
+          .map(({ id }) => id),
+        trustId: entry.trustId,
+      });
     }
     if (request.method !== "POST" || path !== "grant")
       return reply({ error: "Invalid device request" }, 400);
@@ -139,12 +152,44 @@ export class AgentDeviceTrustDirectory {
     if (!input || !DEVICE_ID.test(input.deviceId))
       return reply({ error: "Invalid device proof" }, 400);
     let entry = entries.find(({ id }) => id === input.deviceId);
-    if (input.action === "check")
-      return reply({ trusted: !!entry && entry.trustId === input.trustId });
+    if (input.action === "check") {
+      if (!entry || entry.pendingUntil || entry.trustId !== input.trustId)
+        return reply({ trusted: false });
+      const session = entry.sessions.find(({ id }) => id === input.sessionId);
+      if (session && session.expiresAt - now < DEVICE_TASK_LEASE_MS / 2) {
+        session.expiresAt = now + DEVICE_TASK_LEASE_MS;
+        await this.storage.put(DEVICES_KEY, entries);
+      }
+      return reply({ trusted: true });
+    }
+    if (input.action === "commit") {
+      if (
+        !entry ||
+        entry.trustId !== input.trustId ||
+        !entry.sessions.some(({ id }) => id === input.sessionId)
+      )
+        return reply(
+          { error: "Pending device authorization expired or was revoked" },
+          409,
+        );
+      delete entry.pendingUntil;
+      await this.storage.put(DEVICES_KEY, entries);
+      return reply({ ok: true });
+    }
     if (input.action === "remove-session") {
       if (entry && entry.trustId === input.trustId) {
-        entry.sessions = entry.sessions.filter((id) => id !== input.sessionId);
-        await this.storage.put(DEVICES_KEY, entries);
+        entry.sessions = entry.sessions.filter(
+          ({ id }) => id !== input.sessionId,
+        );
+        await this.storage.put(
+          DEVICES_KEY,
+          entries.filter(
+            (candidate) =>
+              candidate !== entry ||
+              !entry.pendingUntil ||
+              entry.sessions.length > 0,
+          ),
+        );
       }
       return reply({ ok: true });
     }
@@ -153,26 +198,36 @@ export class AgentDeviceTrustDirectory {
       (input.action !== "trust" && input.action !== "auto")
     )
       return reply({ error: "Invalid device authorization" }, 400);
+    if (input.action === "auto" && (!entry || entry.pendingUntil))
+      return reply({ error: "Device is not trusted for this account" }, 403);
     if (!entry) {
-      if (input.action !== "trust")
-        return reply({ error: "Device is not trusted for this account" }, 403);
       if (entries.length >= MAX_DEVICES)
         return reply({ error: "Revoke a trusted device first" }, 409);
       entry = {
         id: input.deviceId,
         trustId: crypto.randomUUID(),
         trustedAt: Date.now(),
+        pendingUntil: now + BROWSER_LAUNCH_TTL_MS,
         sessions: [],
       };
       entries.push(entry);
     }
-    if (!entry.sessions.includes(input.sessionId)) {
+    entry.sessions = entry.sessions.filter(
+      (session) => session.expiresAt > now,
+    );
+    if (!entry.sessions.some(({ id }) => id === input.sessionId)) {
       if (entry.sessions.length >= MAX_SESSIONS)
         return reply({ error: "Too many active tasks from this device" }, 409);
-      entry.sessions.push(input.sessionId);
+      entry.sessions.push({
+        id: input.sessionId,
+        expiresAt: now + DEVICE_TASK_LEASE_MS,
+      });
       await this.storage.put(DEVICES_KEY, entries);
     }
-    return reply({ trustId: entry.trustId });
+    return reply({
+      trustId: entry.trustId,
+      pending: Boolean(entry.pendingUntil),
+    });
   }
 }
 

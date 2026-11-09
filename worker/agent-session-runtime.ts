@@ -103,6 +103,8 @@ export interface AgentSessionRouterEnv {
 export type DurableStorageLike = {
   get<T>(key: string): Promise<T | undefined>;
   put<T>(key: string, value: T): Promise<void>;
+  list?(options: { limit: number }): Promise<Map<string, unknown>>;
+  delete?(keys: string[]): Promise<number>;
   deleteAll?(): Promise<void>;
   setAlarm?(scheduledTime: number): Promise<void>;
 };

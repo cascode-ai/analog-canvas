@@ -977,6 +977,27 @@
               "minLength": 1
             }
           },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "circuit.snapshot",
+                "circuit.render",
+                "circuit.source-spans",
+                "circuit.edit.geometry",
+                "circuit.edit.connectivity",
+                "circuit.edit.presentation",
+                "editor.semantic-control",
+                "project.download",
+                "project.import",
+                "visual.download",
+                "simulation.run",
+                "gallery.publish",
+                "components.publish"
+              ]
+            }
+          },
           "authorization": {
             "type": "string",
             "enum": [

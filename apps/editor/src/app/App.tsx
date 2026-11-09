@@ -1406,6 +1406,7 @@ function WorkspaceEditor({
 
   const startupCloudRestoreAttemptedRef = useRef(false);
   const hasExplicitBootTarget =
+    agentStartupRecovery?.localReviewOnly === true ||
     restoredWorkspace !== null ||
     initialGalleryEntryId !== null ||
     bootRequestsNewProject ||
@@ -1466,6 +1467,13 @@ function WorkspaceEditor({
     browserAgentProjectHost,
     captureAuthoredProject,
     cloudBinding,
+    hasAccountProjects: () =>
+      agentProjectTabsRef
+        .current()
+        .entries()
+        .some(({ session }) =>
+          Boolean(session.file.cloudBinding || session.publication),
+        ),
     startupRestoreReady,
     isDirtyWork,
     replaceActiveProject,

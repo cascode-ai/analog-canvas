@@ -22,6 +22,7 @@ import {
   AgentFileResourceRequestSchema,
   AgentProjectResourceRequestSchema,
   AgentSessionMachine,
+  AgentSessionScopeSchema,
   AgentSimulationResourceRequestSchema,
   agentMcpServerName,
   agentSiteTag,
@@ -51,6 +52,7 @@ import {
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
 } from "./agent-session";
+import { AgentDeviceTrustDirectory } from "./agent-device-trust";
 
 const limits: Partial<AgentSessionLimits> = {
   claimTtlMs: 60_000,
@@ -388,6 +390,12 @@ class MemoryStorage {
   async put<T>(key: string, value: T): Promise<void> {
     this.values.set(key, structuredClone(value));
   }
+  async list({ limit }: { limit: number }): Promise<Map<string, unknown>> {
+    return new Map([...this.values].slice(0, limit));
+  }
+  async delete(keys: string[]): Promise<number> {
+    return keys.filter((key) => this.values.delete(key)).length;
+  }
   async deleteAll(): Promise<void> {
     this.values.clear();
   }
@@ -396,7 +404,7 @@ class MemoryStorage {
   }
 }
 
-function routedFixture() {
+function routedFixture(dropDeviceRevocation?: (sessionId: string) => boolean) {
   const objects = new Map<string, AgentSessionDO>();
   const storages = new Map<string, MemoryStorage>();
   const sockets = new Map<string, WebSocket[]>();
@@ -416,7 +424,15 @@ function routedFixture() {
         objects.set(name, object);
       }
       return {
-        fetch: (input, init) => object!.fetch(new Request(input, init)),
+        fetch: (input, init) => {
+          const request = new Request(input, init);
+          if (
+            new URL(request.url).pathname === "/revoke-trusted-device" &&
+            dropDeviceRevocation?.(name)
+          )
+            return Promise.resolve(new Response(null, { status: 503 }));
+          return object!.fetch(request);
+        },
       };
     },
   };
@@ -433,7 +449,10 @@ function routedFixture() {
 
 it("trusts a proven installation for one account and origin, then revokes its active tasks", async () => {
   const origin = "https://editor.example";
-  const fixture = routedFixture();
+  let unreachableSession: string | null = null;
+  const fixture = routedFixture(
+    (sessionId) => sessionId === unreachableSession,
+  );
   const env = {
     ...fixture.env,
     AUTH: {
@@ -478,12 +497,7 @@ it("trusts a proven installation for one account and origin, then revokes its ac
         projectSessionId: crypto.randomUUID(),
         projectId: BROWSER_LAUNCH_PENDING_PROJECT,
         documentIds: [],
-        scopes: [
-          "circuit.snapshot",
-          "project.import",
-          "gallery.publish",
-          "simulation.run",
-        ],
+        scopes: AgentSessionScopeSchema.options,
       },
       site,
     );
@@ -557,9 +571,26 @@ it("trusts a proven installation for one account and origin, then revokes its ac
   ).toBe(403);
   const consent = await approve(first, "trust");
   expect(consent.status).toBe(200);
-  expect(await consent.json()).toMatchObject({
-    scopes: ["circuit.snapshot", "project.import"],
-  });
+  const firstApproval = (await consent.json()) as {
+    scopes: string[];
+    editorSecret: string;
+    localReviewOnly: boolean;
+  };
+  const allowed = firstApproval.scopes;
+  expect(firstApproval.localReviewOnly).toBe(true);
+  expect(allowed).toEqual(
+    expect.arrayContaining([
+      "circuit.snapshot",
+      "project.import",
+      "circuit.edit.geometry",
+    ]),
+  );
+  for (const denied of [
+    "gallery.publish",
+    "simulation.run",
+    "components.publish",
+  ])
+    expect(allowed).not.toContain(denied);
   expect((await approve(first, "trust")).status).toBe(409);
 
   const otherSite = await launch("https://another-editor.example");
@@ -574,19 +605,91 @@ it("trusts a proven installation for one account and origin, then revokes its ac
     ).status,
   ).toBe(403);
   expect((await approve(second, "auto")).status).toBe(200);
-  const cloud = await call(`/api/agent/sessions/${second.sessionId}/projects`, {
+  const observed = await call(
+    `/api/agent/sessions/${second.sessionId}/status`,
+    { headers: second.headers },
+  );
+  expect(await observed.json()).toMatchObject({ scopes: allowed });
+  for (const request of [
+    { operation: "list-projects" },
+    {
+      operation: "workspace",
+      request: { action: "open", cloudProjectId: "private" },
+    },
+    { operation: "workspace", request: { action: "save" } },
+    { operation: "list-gallery", scope: "ai-seats" },
+  ]) {
+    const denied = await call(
+      `/api/agent/sessions/${second.sessionId}/projects`,
+      {
+        method: "POST",
+        headers: { ...second.headers, "content-type": "application/json" },
+        body: JSON.stringify({
+          apiVersion: "3.0",
+          requestId: crypto.randomUUID(),
+          ...request,
+        }),
+      },
+    );
+    expect(denied.status, JSON.stringify(request)).toBe(403);
+    expect(await denied.json()).toMatchObject({
+      error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+    });
+  }
+
+  const firstSocket = {
+    readyState: WebSocket.OPEN,
+    send: vi.fn(),
+    close: vi.fn(),
+  };
+  fixture.sockets.set(first.sessionId, [firstSocket as unknown as WebSocket]);
+  await fixture.objects.get(first.sessionId)!.webSocketMessage(
+    firstSocket as unknown as WebSocket,
+    JSON.stringify({
+      protocolVersion: "1.0",
+      sessionId: first.sessionId,
+      kind: "heartbeat",
+      nonce: "local-project",
+      contextRevision: "local-context",
+      projectId: "local-project",
+      documentIds: ["local-cell"],
+    }),
+  );
+  const pending = call(`/api/agent/sessions/${first.sessionId}/circuit`, {
     method: "POST",
-    headers: { ...second.headers, "content-type": "application/json" },
+    headers: { ...first.headers, "content-type": "application/json" },
     body: JSON.stringify({
       apiVersion: "3.0",
-      requestId: "unrelated",
-      operation: "list-projects",
+      requestId: "pending-local-snapshot",
+      operation: "snapshot",
+      documentId: "local-cell",
     }),
   });
-  expect(cloud.status).toBe(403);
-  expect(await cloud.json()).toMatchObject({
-    error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+  await vi.waitFor(() =>
+    expect(firstSocket.send).toHaveBeenCalledWith(
+      expect.stringContaining('"kind":"circuit-request"'),
+    ),
+  );
+  const storage = fixture.storages.get(first.sessionId)!;
+  const beforeRevocation = await storage.get(SESSION_STATE_KEY);
+  const explicitEnd = await call(
+    `/api/agent/sessions/${first.sessionId}/control`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-editor-secret": firstApproval.editorSecret,
+      },
+      body: JSON.stringify({ action: "revoke" }),
+    },
+  );
+  expect(explicitEnd.status).toBe(200);
+  expect(await (await pending).json()).toMatchObject({
+    error: { code: "SESSION_REVOKED" },
   });
+  expect(await storage.get(SESSION_STATE_KEY)).toBeUndefined();
+  // Simulate eviction after the marker committed but before old state was cleaned.
+  await storage.put(SESSION_STATE_KEY, beforeRevocation);
 
   const devices = await call(DEVICE_TRUST_PATH, {
     headers: { cookie: "icm_session=a" },
@@ -603,7 +706,17 @@ it("trusts a proven installation for one account and origin, then revokes its ac
   expect((await revoke("icm_session=b")).status).toBe(204);
   const stillTrusted = await launch();
   expect((await approve(stillTrusted, "auto")).status).toBe(200);
+  unreachableSession = second.sessionId;
+  const socket = {
+    readyState: WebSocket.OPEN,
+    send: vi.fn(),
+    close: vi.fn(),
+  } as unknown as WebSocket;
+  fixture.sockets.set(second.sessionId, [socket]);
   expect((await revoke("icm_session=a")).status).toBe(204);
+  expect(socket.close).not.toHaveBeenCalled();
+  await fixture.objects.get(second.sessionId)!.webSocketMessage(socket, "{}");
+  expect(socket.close).toHaveBeenCalledWith(4003, "Agent session revoked");
   for (const task of [first, second, stillTrusted]) {
     fixture.objects.delete(task.sessionId); // Restore the revocation tombstone on eviction.
     const status = await call(`/api/agent/sessions/${task.sessionId}/status`, {
@@ -620,6 +733,24 @@ it("trusts a proven installation for one account and origin, then revokes its ac
   expect(await once.json()).toMatchObject({
     scopes: expect.arrayContaining(["gallery.publish", "simulation.run"]),
   });
+});
+
+it("does not authorize an automatic task before a trusted-device enrollment commits", async () => {
+  const directory = new AgentDeviceTrustDirectory(new MemoryStorage());
+  const deviceId = "a".repeat(64);
+  const grant = (action: string, sessionId: string, trustId?: string) =>
+    directory.handle(
+      new Request("https://agent-session.internal/device-trust/grant", {
+        method: "POST",
+        body: JSON.stringify({ action, sessionId, deviceId, trustId }),
+      }),
+    );
+  const pending = await grant("trust", "first");
+  const { trustId } = (await pending.json()) as { trustId: string };
+  expect((await grant("auto", "concurrent")).status).toBe(403);
+  expect((await grant("remove-session", "first", trustId)).status).toBe(200);
+  expect((await grant("commit", "first", trustId)).status).toBe(409);
+  expect((await grant("auto", "fresh")).status).toBe(403);
 });
 
 type LiveEditor = ReturnType<typeof liveAgentEditor>;

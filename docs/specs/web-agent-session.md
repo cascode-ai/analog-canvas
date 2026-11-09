@@ -68,13 +68,15 @@ GET  /api/agent/openapi.json
   session and one-use grant. The device record belongs to that site and
   account. Subsequent matching launches may consume a fresh grant without
   a browser click. They receive only review, local file and circuit edit
-  scopes, and cannot list or import the account's Cloud Projects.
+  scopes. The relay exposes the effective scopes to the adapter after approval.
+  If a Cloud or Gallery Project is opened in the trusted browser tab, the
+  editor ends the trusted connection before serving account Project content.
   One-time approval still grants its ordinary scopes.
 - The account Settings revoke action invalidates the device generation and
-  ends its active trusted tasks. The relay checks that generation before
-  serving a trusted task. A revoked task stays terminal, including if its
-  Editor disconnects. A device may earn a fresh generation through a new
-  explicit approval.
+  ends its active trusted tasks. The relay checks that generation on requests
+  and socket messages. A revoked task stays terminal, including if its Editor
+  disconnects. A device may earn a fresh generation through a new explicit
+  approval.
 - `taskRef` selects a process-local client and browser session for subsequent
   MCP tools. A task's client uses its own revocable connector in memory.
   A live binding is reused. Before reopening, the relay checks that the
@@ -119,7 +121,7 @@ GET  /api/agent/openapi.json
 - Every credential needs a live session. Claim redemption rotates connector
   and bearer; connector resume rotates the bearer; rotation invalidates the
   previous one; revoke or expiry invalidates all three. The relay stores only
-  verifiers. The MCP Helper may persist only the connector in its private
+  verifiers. The MCP Helper may persist the connector in its private
   (0600) profile, holding the default per-origin file by a lease whose holder
   is checked for liveness at every use (an exited holder never blocks;
   explicit paths take no lease). A Helper paired by its own Claim while
@@ -129,6 +131,10 @@ GET  /api/agent/openapi.json
   pid) and never resumes that connector until it connects again. Browser
   recovery persists neither credential. A returned connector expiry is a
   snapshot: resume always asks the server.
+- The MCP Helper keeps a per-origin signing key beside the connector in its
+  private profile. It uses the key to prove possession for a one-use launch
+  grant. The signing key stays local. A signed-in account can list and revoke
+  the device records belonging to that account at the current site.
 - Ended sessions bulk-delete download copies (failures retried later) and
   answer the typed expired/revoked errors.
 

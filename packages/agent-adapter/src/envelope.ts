@@ -10,6 +10,7 @@
 import { z } from "zod";
 
 import { lazyJsonSchema } from "./lazy-json-schema.js";
+import { AgentSessionScopeSchema } from "./session-scope.js";
 
 /** Relay protocol version. Bumped only on an incompatible envelope change. */
 export const AGENT_SESSION_PROTOCOL_VERSION = "1.0" as const;
@@ -26,6 +27,7 @@ export const AgentSessionStatusResponseSchema = z.strictObject({
   projectId: z.string().min(1),
   contextRevision: z.string().min(1).optional(),
   documentIds: z.array(z.string().min(1)),
+  scopes: z.array(AgentSessionScopeSchema).optional(),
   authorization: z.enum(["active", "paused"]),
   editor: z.enum(["attached", "detached"]),
   observedAt: z.number().int().nonnegative(),
