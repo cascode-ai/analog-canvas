@@ -286,9 +286,11 @@ def nginx_config(release, settings):
     if not template.is_file():
         # Releases older than the filing feature can still serve privately.
         return private
+    public_listeners = ('listen 443 ssl;\n    listen [::]:443 ssl;' if mode == 'open'
+                        else 'listen 127.0.0.1:8443 ssl;')
     public = template.read_text(encoding='utf-8')
     return private + b'\n' + (public
-        .replace('@LISTEN@', '443 ssl' if mode == 'open' else '127.0.0.1:8443 ssl')
+        .replace('listen @LISTEN@;', public_listeners)
         .replace('@UPSTREAM_HOST@', '$http_host' if mode == 'open' else 'localhost')
         .replace('@FILING_NUMBER@', number)).encode('utf-8')
 
