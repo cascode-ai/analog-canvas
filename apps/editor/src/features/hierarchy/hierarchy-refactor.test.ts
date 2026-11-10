@@ -13,6 +13,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
+import { importSpiceSources } from "@icm/spice";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -244,6 +245,133 @@ describe("hierarchy refactoring", () => {
     expect(
       cell(controller, "pair").instances.some((item) => item.id === "R1"),
     ).toBe(true);
+  });
+
+  describe("a new Cell from imported parts (#2203)", () => {
+    const imported = async (text: string) => {
+      const result = await importSpiceSources(
+        [{ path: "cell.sp", bytes: new TextEncoder().encode(text) }],
+        "cell.sp",
+      );
+      expect(result.successful).toBe(true);
+      return result.project!;
+    };
+    const netlist = (project: CircuitProject) => {
+      const exported = createDesignNetlistExport(project);
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported.diagnostics));
+      return exported.file.text.trim();
+    };
+    /** Move every part of the Top Cell into a new Cell, `name`. */
+    const extractAll = (controller: EditorDocumentController, name: string) => {
+      const top = cell(controller, controller.project.topDocumentId);
+      const ids = top.instances.map((item) => item.id);
+      commit(
+        controller,
+        planCellFromSelection(
+          controller.project,
+          top.id,
+          ids,
+          "extracted",
+          name,
+          selectionCellPins(controller.project, top.id, ids),
+          1,
+        ).edits,
+      );
+    };
+
+    it("keeps a Net no wire draws, and its name, in one undo step", async () => {
+      const controller = new EditorDocumentController(
+        await imported(
+          [
+            ".subckt R11_CHAIN IN OUT VSS",
+            "R1 IN mid 1k",
+            "R2 mid OUT 2k",
+            "R3 OUT VSS 3k",
+            ".ends R11_CHAIN",
+          ].join("\n"),
+        ),
+      );
+      const before = netlist(controller.project);
+      extractAll(controller, "ChainChild");
+      const after = netlist(controller.project);
+      expect(after).toBe(
+        [
+          ".subckt ChainChild VSS IN OUT",
+          "R1 IN mid 1k",
+          "R2 mid OUT 2k",
+          "R3 OUT VSS 3k",
+          ".ends ChainChild",
+          "",
+          ".subckt R11_CHAIN VSS IN OUT",
+          "X1 VSS IN OUT ChainChild",
+          ".ends R11_CHAIN",
+        ].join("\n"),
+      );
+      expect(controller.transact([{ kind: "undo" }]).ok).toBe(true);
+      expect(netlist(controller.project)).toBe(before);
+      expect(controller.transact([{ kind: "redo" }]).ok).toBe(true);
+      expect(netlist(controller.project)).toBe(after);
+    });
+
+    it("keeps ground and a body's supply apart", async () => {
+      const project = await imported(
+        [
+          ".subckt S D G VSS",
+          "R1 VSS D 1k",
+          "M1 D G src VSS nch w=1u l=1u",
+          ".model nch nmos level=1",
+          ".ends S",
+        ].join("\n"),
+      );
+      // A ground marker on the source, as a drawn circuit has one.
+      const top = project.documents.find(
+        (item) => item.id === project.topDocumentId,
+      )!;
+      top.instances.push({
+        id: "GND0",
+        symbolId: "ground",
+        placement: {
+          position: { x: 300, y: 300 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      const source = top.nets.find((net) =>
+        net.terminals.some(
+          (item) => item.instanceId === "M1" && item.pinName === "S",
+        ),
+      )!;
+      source.terminals.push({ instanceId: "GND0", pinName: "0" });
+      top.connectivityEvidence.push({
+        id: "gnd0-claim",
+        kind: "name-claim",
+        netId: source.id,
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "GND0" },
+      });
+      const controller = new EditorDocumentController(project);
+      expect(netlist(controller.project)).toContain("M1 D G GND VSS nch");
+      extractAll(controller, "Stage");
+      // The body stays on the VSS Pin's Net, not on the ground marker's.
+      const child = cell(controller, "extracted");
+      const netOfPin = (symbolId: string, pinName: string) =>
+        child.nets.find((net) =>
+          net.terminals.some(
+            (item) =>
+              item.pinName === pinName &&
+              child.instances.find((part) => part.id === item.instanceId)
+                ?.symbolId === symbolId,
+          ),
+        )?.id;
+      expect(netOfPin("nmos", "B")).toBeDefined();
+      expect(netOfPin("nmos", "B")).not.toBe(netOfPin("ground", "0"));
+      const text = netlist(controller.project);
+      expect(text).toContain("M1 D G GND VSS nch");
+      expect(text).toMatch(/^X1 (?=.*\bGND\b)(?=.*\bVSS\b).* Stage$/mu);
+    });
   });
 
   it("flattens an instance into its parent with its parameter values", () => {

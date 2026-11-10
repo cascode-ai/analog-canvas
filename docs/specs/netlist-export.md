@@ -482,8 +482,10 @@ never invents an identifier.
   never in the PowerPoint dialog.
 - Source edits (References, targets, printed values) apply as one atomic
   transaction with per-Document revisions; printer locations link caret and
-  canvas both ways (never by Reference spelling). Invalid edits keep the draft;
-  dirty source is never overwritten (Reload); Copy waits for apply or discard.
+  canvas both ways (never by Reference spelling). Invalid edits keep the draft,
+  also while the panel is closed or replaced, with its Project tab until Apply
+  or Reload; dirty source is never overwritten (Reload); Copy waits for apply
+  or discard.
 - While strict export is blocked the panel shows a read-only draft
   (`createDraftNetlistPreview`) with `?` for missing facts and a draft first
   line; Copy, export and `designExtractsNetlist` never use it.

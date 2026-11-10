@@ -55,7 +55,7 @@ import {
 } from "../document/workspace-reopen";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
-  discardableHoldReason,
+  discardableHold,
   editInProgressReason,
   projectHoldReason,
 } from "../features/editor-shell/edit-blockers";
@@ -163,6 +163,8 @@ interface ProjectTabSessionsOptions {
     SetStateAction<"closed" | "open" | "maximized" | "minimized">
   >;
   codeDraftDirty: boolean;
+  /** Who holds each code draft: an open panel, or the editor (#2193). */
+  codeDrafts: { panel: boolean; netlist: boolean; projectCode: boolean };
   captureAuthoredProject: () => Promise<CircuitProject | null>;
   captureFileSession: ProjectFileLifecycle["captureFileSession"];
   restoreFileSession: ProjectFileLifecycle["restoreFileSession"];
@@ -255,6 +257,7 @@ export function useProjectTabSessions({
   setAgentFileCandidate,
   setAnalogSimulationState,
   codeDraftDirty,
+  codeDrafts,
   captureAuthoredProject,
   captureFileSession,
   restoreFileSession,
@@ -712,7 +715,9 @@ export function useProjectTabSessions({
     projectNameEditing: projectNameEditing.current,
     textEditing: !!textEditing,
     textOnScreen: !!textEditingTarget,
-    codeDraftDirty,
+    codeDraftDirty: codeDrafts.panel,
+    netlistDraft: codeDrafts.netlist,
+    projectCodeDraft: codeDrafts.projectCode,
   });
   const currentEditBlocker = () => editInProgressReason(editInProgress());
   const [cloudManagementBusy, setCloudManagementBusy] = useState(false);
@@ -730,7 +735,7 @@ export function useProjectTabSessions({
   });
   const projectSwitchBlocker = () => projectHoldReason(projectHeld());
   /** A hold the tab strip offers to drop beside the action (#2180). */
-  const discardableSwitchHold = () => discardableHoldReason(projectHeld());
+  const discardableSwitchHold = () => discardableHold(projectHeld());
   projectSwitchBlockerRef.current = projectSwitchBlocker;
   const projectTabs = useProjectTabs<TabSession>({
     initial: initialTabs,
