@@ -319,6 +319,17 @@ function ReviewFeedback({
   const [comment, setComment] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  async function copyFeedback() {
+    setBusy(true);
+    try {
+      await copy(comment);
+      setStatus("Copied. Paste it into the original Agent chat.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Copy failed");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="reference-local-source">
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -336,18 +347,8 @@ function ReviewFeedback({
           <button
             type="button"
             disabled={busy || !comment.trim()}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await copy(comment);
-                setStatus("Copied. Paste it into the original Agent chat.");
-              } catch (error) {
-                setStatus(
-                  error instanceof Error ? error.message : "Copy failed",
-                );
-              } finally {
-                setBusy(false);
-              }
+            onClick={() => {
+              void copyFeedback();
             }}
           >
             Copy review feedback
