@@ -1459,7 +1459,8 @@ button.gallery-download-aside {
   top: calc(100% + 1px);
   right: 0;
   box-sizing: border-box;
-  width: min(23rem, calc(100vw - 44px));
+  /* Room for a dataset's name, its mark and its count on one line (#2198). */
+  width: min(26rem, calc(100vw - 44px));
   padding: 10px;
   border: 1px solid var(--icm-border);
   border-radius: 12px;
@@ -1614,9 +1615,11 @@ div.gallery-contributor-status {
 }
 
 .gallery-contributor-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
   padding: 0;
-  overflow: hidden;
   border: 0;
   color: var(--icm-text);
   background: transparent;
@@ -1624,21 +1627,27 @@ div.gallery-contributor-status {
   font-size: 13px;
   font-weight: 600;
   text-align: left;
-  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
 }
 
-/* A reference dataset among the contributors (#1574). */
+/* Only the name gives way, ending in an ellipsis; its button's title
+   holds it whole (#2198). */
+.gallery-contributor-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A reference dataset among the contributors (#1574), always whole. */
 .gallery-contributor-tag {
-  margin-left: 6px;
+  flex-shrink: 0;
   padding: 1px 6px;
   border: 1px solid var(--icm-border);
   border-radius: 999px;
   color: var(--icm-text-muted);
   font-size: 11px;
   font-weight: 500;
-  vertical-align: 1px;
 }
 
 .gallery-contributor-row[aria-current="true"] .gallery-contributor-author {
@@ -1647,6 +1656,9 @@ div.gallery-contributor-status {
 
 .gallery-contributor-author:hover {
   color: var(--icm-accent);
+}
+
+.gallery-contributor-author:hover .gallery-contributor-name {
   text-decoration: underline;
   text-underline-offset: 0.15rem;
 }
