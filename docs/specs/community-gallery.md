@@ -68,9 +68,9 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   count loads. A press fixes the query; the button then shows its progress
   (`32 / 78`) with Cancel beside it while the wall stays usable. A complete
   run saves the file and offers `Download ZIP` again. A run with failures
-  saves nothing by itself: it shows `N failed · Retry` and `Download partial
-ZIP (M of N)`, whose file is named `…-partial.zip` and whose manifest
-  lists the failed circuits.
+  saves nothing by itself: it shows `N failed · Retry` and
+  `Download partial ZIP (M of N)`, whose file is named `…-partial.zip` and
+  whose manifest lists the failed circuits.
   It lists oldest first and reads at most 10 requests a second, 4 at once;
   network, 408, 429 (every reader waits its `Retry-After`) and 5xx failures
   are retried, circuits still failing are named, a list failure saves
@@ -161,8 +161,9 @@ entries, keyset cursor, limit ≤60.
   `/editor?example=<id>` is loopback-only. Insert (G) reads the same list.
 - `/g/<id>` for an entry the reader cannot read (withdrawn, rejected or
   never there; `?summary=1` answers 404) shows "This circuit is not in the
-  Gallery." with Back to the Gallery, on a computer as on a phone, and opens
-  no editor. The pages the app serves are listed in
+  Gallery." with Back to the Gallery (and, on a computer, Open the editor
+  for the window's own tabs), on a computer as on a phone, and opens no
+  blank editor. The pages the app serves are listed in
   `apps/editor/src/page-routes.ts`; the Worker answers any other path (not
   `/api/*`, a file or a Worker page) with 404 and a small page home.
 - Hosted Production/preview always uses Gallery, never bundled examples;
