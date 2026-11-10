@@ -70,6 +70,8 @@ During handover the entrance holds at most 512 new requests for at most 15
 seconds, never replays a sent request, and cancels handover if accepted ordinary
 requests have not drained within 3 seconds. It then ends event streams and
 WebSockets so their clients can reconnect to the same domestic entrance.
+Before holding the entrance, allow running background ticks up to 90 seconds
+to finish while the website keeps serving; otherwise defer the handover.
 Release only queued requests after actual runtime readiness; genuine failures
 remain failures. Normal release acceptance targets are at most 5 seconds of
 additional request waiting and 10 seconds of Agent recovery, measured on the

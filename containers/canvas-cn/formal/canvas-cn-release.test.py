@@ -502,11 +502,25 @@ class HostDrainTest(unittest.TestCase):
     def test_running_oneshot_job_defers_handover(self):
         host = release.Host(run=lambda args, **kwargs: SimpleNamespace(
             returncode=0 if 'show' in args else 3, stdout=b'activating\n'))
-        with patch.object(release.time, 'monotonic', side_effect=[0, 4]), \
+        with patch.object(release.time, 'monotonic', side_effect=[0, 91]), \
                 patch.object(release, 'entrance') as entrance:
             with self.assertRaisesRegex(release.ReleaseError, 'background-busy'):
                 host.hold()
             entrance.assert_not_called()
+
+    def test_background_tick_finishes_before_the_public_entrance_is_held(self):
+        busy = True
+        def run(args, **kwargs):
+            return SimpleNamespace(returncode=0, stdout=b'activating\n' if busy else b'inactive\n')
+        def finish_tick(_seconds):
+            nonlocal busy
+            entrance.assert_not_called()
+            busy = False
+        with patch.object(release.time, 'monotonic', side_effect=[0, 4]), \
+                patch.object(release.time, 'sleep', side_effect=finish_tick), \
+                patch.object(release, 'entrance') as entrance:
+            release.Host(run=run).hold()
+        entrance.assert_called_once_with('hold')
 
 
 if __name__ == '__main__':
