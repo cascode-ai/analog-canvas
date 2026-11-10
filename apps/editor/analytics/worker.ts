@@ -291,6 +291,10 @@ export class AnalyticsDO {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    // A backup must preserve even the identities due for daily retirement.
+    if (request.method === "GET" && url.pathname === "/backup") {
+      return this.backup();
+    }
     // The day's first request, counted or not, retires the finished days.
     this.rollUpFinishedDays(utcDay(Date.now()));
     if (request.method === "POST" && url.pathname === "/hit") {
@@ -326,6 +330,72 @@ export class AnalyticsDO {
       return Response.json(this.readAnalyticsSummary());
     }
     return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  private backup(): Response {
+    const tables = [
+      "visitors",
+      "daily_views",
+      "daily_visitors",
+      "analytics_meta",
+      "analytics_countries",
+      "analytics_sources",
+      "analytics_pages",
+      "analytics_points",
+      "daily_visitor_counts",
+      "load_times",
+    ];
+    const snapshot = this.state.storage.transactionSync(() => {
+      // Bound native-query results before copying any table into JS memory.
+      let rowCount = 0;
+      let rowBytes = 0;
+      for (const table of tables) {
+        const columns = this.sql
+          .exec<{ name: string }>(`PRAGMA table_info("${table}")`)
+          .toArray();
+        const fields = columns
+          .map(
+            ({ name }) =>
+              `'${name.replaceAll("'", "''")}', "${name.replaceAll('"', '""')}"`,
+          )
+          .join(",");
+        const size = this.sql
+          .exec<{ rows: number; bytes: number }>(
+            `SELECT COUNT(*) AS rows, COALESCE(SUM(length(CAST(json_object(${fields}) AS BLOB))), 0) AS bytes FROM "${table}"`,
+          )
+          .one();
+        rowCount += Number(size.rows);
+        rowBytes += Number(size.bytes);
+        if (rowCount > 50_000 || rowBytes > 8 * 1024 * 1024) return null;
+      }
+      return {
+        format: "canvas-analytics-backup-v1",
+        capturedAt: new Date().toISOString(),
+        schema: this.sql
+          .exec<{ name: string; sql: string }>(
+            `SELECT name, sql FROM sqlite_master WHERE tbl_name IN (${tables.map(() => "?").join(",")}) AND sql IS NOT NULL ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END, name`,
+            ...tables,
+          )
+          .toArray(),
+        tables: Object.fromEntries(
+          tables.map((table) => [
+            table,
+            this.sql.exec(`SELECT * FROM "${table}"`).toArray(),
+          ]),
+        ),
+      };
+    });
+    if (!snapshot)
+      return Response.json({ error: "backup-too-large" }, { status: 413 });
+    const body = JSON.stringify(snapshot);
+    if (new TextEncoder().encode(body).length > 8 * 1024 * 1024)
+      return Response.json({ error: "backup-too-large" }, { status: 413 });
+    return new Response(body, {
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      },
+    });
   }
 
   private recordHit(event: PageViewEvent, now: number): void {

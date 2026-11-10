@@ -68,6 +68,39 @@ describe("analytics request normalization", () => {
 });
 
 describe("analytics HTTP routes", () => {
+  it("exports backups only to the authenticated replication peer", async () => {
+    const env = {
+      ...analyticsEnv({ format: "canvas-analytics-backup-v1" }, (input) => {
+        expect(input).toBe("https://analytics.internal/backup");
+      }),
+      PROJECT_SYNC_TOKEN: "private-peer-token",
+    };
+    const url =
+      "https://analog-canvas.tokenzhang.com/api/analytics-sync/backup";
+    expect((await routeAnalyticsRequest(new Request(url), env))?.status).toBe(
+      401,
+    );
+    expect(
+      (
+        await routeAnalyticsRequest(
+          new Request(url, { headers: { authorization: "Bearer wrong" } }),
+          env,
+        )
+      )?.status,
+    ).toBe(401);
+    const exported = await routeAnalyticsRequest(
+      new Request(url, {
+        headers: { authorization: "Bearer private-peer-token" },
+      }),
+      env,
+    );
+    expect(exported?.status).toBe(200);
+    expect(exported?.headers.get("cache-control")).toBe("no-store");
+    await expect(exported?.json()).resolves.toEqual({
+      format: "canvas-analytics-backup-v1",
+    });
+  });
+
   it("delegates the public counters to the established global object", async () => {
     const response = await routeAnalyticsRequest(
       new Request("https://analog-canvas.tokenzhang.com/api/stats"),
