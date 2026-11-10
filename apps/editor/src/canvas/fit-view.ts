@@ -387,7 +387,7 @@ export interface CanvasView {
 }
 
 /** The neighbourhood of a point a navigation shows, in Document units. */
-export const FOCUS_EXTENT = { width: 160, height: 120 } as const;
+const FOCUS_EXTENT = { width: 160, height: 120 } as const;
 
 /**
  * The camera a navigation (Find, a diagnostic, a trace hop) lands on to show
