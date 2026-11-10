@@ -552,7 +552,8 @@ export function fileOperationScopes(
       if (request.input.action === "locate")
         return ["project.import", "editor.semantic-control"];
       return request.input.action === "prepare-save" ||
-        request.input.action === "finish-save"
+        request.input.action === "finish-save" ||
+        request.input.action === "changes"
         ? ["project.import", "project.download"]
         : ["project.import"];
     case "stage":

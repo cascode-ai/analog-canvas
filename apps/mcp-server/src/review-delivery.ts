@@ -6,6 +6,7 @@ import {
   matchesAgentReviewTarget,
   type AgentFileResourceRequest,
   type LocalReviewDeliveryArgsSchema,
+  type ReviewSourceFiles,
 } from "@icm/agent-adapter";
 import type { AgentSessionClient } from "@icm/agent-client";
 import type { z } from "zod";
@@ -14,6 +15,7 @@ import { requestFailure, sha256 } from "./local-source.js";
 export async function reviewDelivery(
   client: AgentSessionClient,
   options: z.infer<typeof LocalReviewDeliveryArgsSchema>,
+  reference?: ReviewSourceFiles,
 ) {
   const request = async (
     input: Extract<AgentFileResourceRequest, { operation: "review" }>["input"],
@@ -38,7 +40,11 @@ export async function reviewDelivery(
     return response.result;
   };
   if (options.action !== "save") {
-    const result = await request(options);
+    const result = await request(
+      options.action === "changes" && reference
+        ? { ...options, reference }
+        : options,
+    );
     if (!("delivery" in result) || result.action === "prepare-save")
       throw requestFailure(
         "REVIEW_LOAD_UNCONFIRMED",

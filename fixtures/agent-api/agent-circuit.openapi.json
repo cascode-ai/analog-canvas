@@ -20601,6 +20601,50 @@
                     "properties": {
                       "action": {
                         "type": "string",
+                        "const": "changes"
+                      },
+                      "expected": {
+                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema24"
+                      },
+                      "projectRevision": {
+                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
+                      },
+                      "reference": {
+                        "type": "object",
+                        "properties": {
+                          "entryPath": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 512
+                          },
+                          "files": {
+                            "minItems": 1,
+                            "maxItems": 24,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
+                            }
+                          }
+                        },
+                        "required": [
+                          "entryPath",
+                          "files"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "expected",
+                      "projectRevision"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
                         "const": "locate"
                       },
                       "expected": {
@@ -22384,6 +22428,77 @@
                     "properties": {
                       "action": {
                         "type": "string",
+                        "const": "changes"
+                      },
+                      "delivery": {
+                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema34"
+                      },
+                      "comparison": {
+                        "type": "object",
+                        "properties": {
+                          "sourceVersion": {
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
+                          },
+                          "status": {
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema35"
+                          },
+                          "topology": {
+                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema35"
+                          },
+                          "summary": {
+                            "type": "string"
+                          },
+                          "comparedCells": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "differences": {
+                            "maxItems": 200,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema36"
+                            }
+                          },
+                          "detailsTruncated": {
+                            "type": "boolean"
+                          },
+                          "drawingChanged": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "sourceVersion",
+                          "status",
+                          "topology",
+                          "summary",
+                          "comparedCells",
+                          "reasons",
+                          "differences",
+                          "detailsTruncated",
+                          "drawingChanged"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "delivery",
+                      "comparison"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
                         "const": "prepare-save"
                       },
                       "delivery": {
@@ -23615,6 +23730,57 @@
               "copy",
               "status",
               "unsaved"
+            ],
+            "additionalProperties": false
+          },
+          "__schema35": {
+            "type": "string",
+            "enum": [
+              "equal",
+              "different",
+              "inconclusive"
+            ]
+          },
+          "__schema36": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string"
+              },
+              "cell": {
+                "type": "string"
+              },
+              "object": {
+                "type": "string"
+              },
+              "expected": {},
+              "actual": {},
+              "source": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "line": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "path",
+                  "line"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "kind",
+              "cell",
+              "object",
+              "expected",
+              "actual"
             ],
             "additionalProperties": false
           }

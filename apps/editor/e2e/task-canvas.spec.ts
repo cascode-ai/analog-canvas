@@ -638,6 +638,230 @@ test("copies an object review reference and locates only its reviewed revision",
   await tool("disconnect", {});
 });
 
+test("reads an electrical change against the delivered include and verifies the revised files", async ({
+  context,
+  baseURL,
+  accountName: _accountName,
+}, testInfo) => {
+  const rootPath = testInfo.outputPath("source");
+  await mkdir(join(rootPath, "cells"), { recursive: true });
+  const entryPath = "dut.scs";
+  const childPath = join(rootPath, "cells", "load.scs");
+  const child = [
+    "// original source",
+    "",
+    "subckt load (A B C)",
+    "R1 (A B) resistor r=1k",
+    "R2 (A B) resistor r=3k",
+    "R3 (A C) resistor r=5k",
+    "R5 (B C) resistor r=6k",
+    "ends load",
+    "",
+  ].join("\n");
+  await writeFile(
+    join(rootPath, entryPath),
+    'simulator lang=spectre\ninclude "cells/load.scs"\nsubckt dut (A B C)\nX1 (A B C) load\nends dut\n',
+  );
+  await writeFile(childPath, child);
+  const { tool } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("connector.json"),
+  );
+  const loaded = await tool("import_file", {
+    action: "open-local",
+    rootPath,
+    entryPath,
+  });
+  expect(loaded).toMatchObject({ ok: true });
+  const exportedPath = testInfo.outputPath("fixture.icproj.json");
+  expect(
+    await tool("export_file", {
+      artifact: "project",
+      outputPath: exportedPath,
+    }),
+  ).toMatchObject({ ok: true });
+  const project = parseProject(await readFile(exportedPath, "utf8"));
+  const cell = project.documents.find(({ name }) => name === "load")!;
+  expect(
+    await tool("circuit_view", {
+      documentId: cell.id,
+      actions: [{ kind: "focus", intent: { kind: "activate-document" } }],
+    }),
+  ).toMatchObject({ ok: true });
+  const readTarget = async () => {
+    const read = await tool("review_delivery", { action: "read" });
+    expect(read).toMatchObject({
+      ok: true,
+      delivery: { target: { documentId: cell.id } },
+    });
+    return {
+      expected: read.delivery.target,
+      projectRevision: read.delivery.projectRevision,
+    };
+  };
+  const before = await readTarget();
+  expect(
+    await tool("apply_actions", {
+      documentId: cell.id,
+      actions: [
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "R1" },
+          position: { x: 200, y: 120 },
+        },
+      ],
+    }),
+  ).toMatchObject({ ok: true, applied: true });
+  const geometry = await tool("review_delivery", {
+    action: "changes",
+    ...(await readTarget()),
+  });
+  expect(geometry, JSON.stringify(geometry)).toMatchObject({
+    ok: true,
+    comparison: { status: "equal", differences: [], drawingChanged: true },
+  });
+  expect(
+    await tool("review_delivery", { action: "changes", ...before }),
+  ).toMatchObject({
+    ok: false,
+    error: { code: "REVIEW_TARGET_CHANGED" },
+  });
+  const pin = (instance: string, name: string) => ({
+    kind: "pin",
+    instance,
+    pin: name,
+  });
+  const batches = [
+    [
+      {
+        kind: "set-property",
+        target: { kind: "instance", reference: "R1" },
+        set: { value: "2k" },
+      },
+    ],
+    [{ kind: "delete", target: { kind: "instance", reference: "R3" } }],
+    [
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R2" },
+        position: { x: 400, y: 120 },
+      },
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R5" },
+        position: { x: 600, y: 120 },
+      },
+      { kind: "disconnect", target: pin("R2", "2") },
+    ],
+    [{ kind: "connect", from: pin("R2", "2"), to: pin("R5", "2") }],
+    [
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R4",
+        position: { x: 200, y: 320 },
+        parameters: { value: "4k" },
+      },
+    ],
+    [
+      { kind: "connect", from: pin("R4", "1"), to: pin("R1", "1") },
+      { kind: "connect", from: pin("R4", "2"), to: pin("R5", "2") },
+    ],
+  ];
+  for (const actions of batches) {
+    const changed = await tool("apply_actions", {
+      documentId: cell.id,
+      actions,
+    });
+    expect(changed, JSON.stringify(changed)).toMatchObject({
+      ok: true,
+      applied: true,
+    });
+  }
+  const target = await readTarget();
+  const changes = await tool("review_delivery", {
+    action: "changes",
+    ...target,
+  });
+  expect(changes, JSON.stringify(changes)).toMatchObject({
+    ok: true,
+    action: "changes",
+    comparison: {
+      status: "different",
+      sourceVersion: loaded.delivery.source.version,
+      differences: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "parameter",
+          cell: "load",
+          source: { path: "cells/load.scs", line: 4 },
+        }),
+        expect.objectContaining({
+          kind: "connection",
+          cell: "load",
+          object: "r2:1",
+          source: { path: "cells/load.scs", line: 5 },
+        }),
+        expect.objectContaining({
+          kind: "device",
+          cell: "load",
+          object: "r3",
+          actual: false,
+          source: { path: "cells/load.scs", line: 6 },
+        }),
+        expect.objectContaining({
+          kind: "device",
+          cell: "load",
+          object: "r4",
+          actual: expect.objectContaining({
+            terminals: [
+              { name: "1", net: "A" },
+              { name: "2", net: "C" },
+            ],
+          }),
+        }),
+      ]),
+    },
+  });
+  expect(await readFile(childPath, "utf8")).toBe(child);
+  expect(
+    await tool("verify", {
+      expectedSource: { rootPath, entryPath, ...target },
+    }),
+  ).toMatchObject({
+    comparison: {
+      sourceVersion: loaded.delivery.source.version,
+      status: "different",
+    },
+  });
+  await writeFile(
+    childPath,
+    child
+      .replace("1k", "2k")
+      .replace("R2 (A B)", "R2 (A C)")
+      .replace("R3 (A C) resistor r=5k", "R4 (A C) resistor r=4k"),
+  );
+  const verified = await tool("verify", {
+    expectedSource: { rootPath, entryPath, ...target },
+  });
+  expect(verified, JSON.stringify(verified)).toMatchObject({
+    comparison: { status: "equal" },
+  });
+  const reopened = await tool("import_file", {
+    action: "open-local",
+    rootPath,
+    entryPath,
+  });
+  expect(reopened).toMatchObject({
+    ok: true,
+    delivery: { modified: false, document: { sourceStatus: "in-sync" } },
+  });
+  expect(reopened.delivery.source.version).not.toBe(
+    loaded.delivery.source.version,
+  );
+  await tool("disconnect", {});
+});
+
 test("freezes a ready original and acknowledges a saved whole Project", async ({
   context,
   baseURL,

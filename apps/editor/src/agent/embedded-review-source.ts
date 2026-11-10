@@ -42,10 +42,8 @@ function originalBytes({
   return bytes;
 }
 
-/** Original records survive a native Project save, unlike the tab receipt. */
-export async function embeddedReviewSource(
-  source: CircuitProject["source"],
-): Promise<EmbeddedReviewSource | undefined> {
+/** Read only original bytes reachable from the delivery entry, with their hashes verified. */
+export async function embeddedReviewBundle(source: CircuitProject["source"]) {
   const entryPath = source.entry;
   if (!entryPath) return;
   const byPath = new Map<string, SourceRecord[]>();
@@ -55,7 +53,10 @@ export async function embeddedReviewSource(
     candidates.push(record);
     byPath.set(record.path, candidates);
   }
-  const verified = new Map<string, string>();
+  const verified = new Map<
+    string,
+    { path: string; sha256: string; bytes: Uint8Array }
+  >();
   let remaining = AGENT_FILE_RESOURCE_MAX_BYTES;
   async function visit(path: string, packageFile: boolean): Promise<boolean> {
     if (verified.has(path)) return true;
@@ -72,7 +73,7 @@ export async function embeddedReviewSource(
     if (remaining < 0) return false;
     const sha256 = await digestBytes(bytes);
     if (record?.hash !== `sha256:${sha256}`) return false;
-    verified.set(path, sha256);
+    verified.set(path, { path, sha256, bytes });
     const folder = path.slice(0, path.lastIndexOf("/") + 1);
     for (const dependency of localSourceReferences(
       { path, bytes },
@@ -90,7 +91,7 @@ export async function embeddedReviewSource(
   } catch {
     return;
   }
-  const files = [...verified].map(([path, sha256]) => ({ path, sha256 }));
+  const files = [...verified.values()];
   return {
     entryPath,
     files,
@@ -101,4 +102,18 @@ export async function embeddedReviewSource(
       ),
     ),
   };
+}
+
+/** Original records survive a native Project save, unlike the tab receipt. */
+export async function embeddedReviewSource(
+  source: CircuitProject["source"],
+): Promise<EmbeddedReviewSource | undefined> {
+  const bundle = await embeddedReviewBundle(source);
+  return (
+    bundle && {
+      entryPath: bundle.entryPath,
+      version: bundle.version,
+      files: bundle.files.map(({ path, sha256 }) => ({ path, sha256 })),
+    }
+  );
 }

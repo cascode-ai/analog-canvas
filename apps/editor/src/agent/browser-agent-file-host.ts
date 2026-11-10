@@ -37,6 +37,7 @@ import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formul
 import { importChunk } from "../components/chunk-import";
 import { simulationFileEngine } from "../features/simulation/file-engine";
 import { createBrowserSimulationArtifactStore } from "../features/simulation/browser-simulation-artifact-store";
+import type { ReviewSource } from "./review-source-comparison";
 
 type StoredCandidate = {
   project: CircuitProject;
@@ -74,7 +75,11 @@ export type LocalReviewCommand =
     >
   | (LocalReviewEdit & {
       action:
-        "mark-ready" | "open-original" | "prepare-save" | "acknowledge-save";
+        | "mark-ready"
+        | "open-original"
+        | "prepare-save"
+        | "acknowledge-save"
+        | "changes";
     });
 export type LocalReviewResult =
   | LocalReviewDelivery
@@ -520,6 +525,62 @@ export class BrowserAgentFileHost {
       };
       return this.error(request, delivery, messages[delivery]);
     }
+    if (input.action === "changes") {
+      const { embeddedReviewBundle } = await import("./embedded-review-source");
+      const original = await embeddedReviewBundle(project.source);
+      if (
+        !original ||
+        original.version !==
+          (delivery.embeddedSource?.version ?? delivery.target.sourceVersion)
+      )
+        return this.error(
+          request,
+          "REVIEW_SOURCE_UNAVAILABLE",
+          "The delivered original netlist and dependencies could not be verified",
+        );
+      let source: ReviewSource = original;
+      if (input.reference) {
+        const decoded = await this.decodeFiles(input.reference);
+        if (!decoded.ok)
+          return this.error(request, decoded.code, decoded.message);
+        source = {
+          entryPath: input.reference.entryPath,
+          files: decoded.files.map(({ name, bytes }) => ({
+            path: name,
+            bytes,
+          })),
+          version: await sha256(
+            new TextEncoder().encode(
+              localSourceIdentity(
+                input.reference.entryPath,
+                input.reference.files,
+              ),
+            ),
+          ),
+        };
+      }
+      const { compareReviewSource } =
+        await import("./review-source-comparison");
+      const comparison = await compareReviewSource(
+        project,
+        delivery.target.documentId,
+        source,
+        original,
+      );
+      if (
+        project !== this.options.getProject() ||
+        typeof (await host(input)) === "string"
+      )
+        return this.error(
+          request,
+          "REVIEW_TARGET_CHANGED",
+          "The active Project or Cell revision changed during comparison",
+        );
+      return {
+        ...response,
+        result: { action: input.action, delivery, comparison },
+      };
+    }
     if (input.action !== "prepare-save")
       return { ...response, result: { action: input.action, delivery } };
     if (
@@ -870,7 +931,10 @@ export class BrowserAgentFileHost {
   }
 
   private async decodeFiles(
-    request: Extract<AgentFileResourceRequest, { operation: "stage" }>,
+    request: Pick<
+      Extract<AgentFileResourceRequest, { operation: "stage" }>,
+      "files"
+    >,
   ): Promise<
     | { ok: true; files: { name: string; bytes: Uint8Array }[] }
     | { ok: false; code: string; message: string }

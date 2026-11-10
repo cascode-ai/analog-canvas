@@ -37,6 +37,7 @@ import {
   AgentWorkspaceActionSchema,
   AgentComponentLibraryActionSchema,
   LocalReviewDeliveryArgsSchema,
+  VerifyReviewSourceSchema,
 } from "@icm/agent-adapter";
 import {
   AgentAuthoringCommandSchema,
@@ -74,6 +75,7 @@ import {
 } from "./file-operations.js";
 import { compactSchema } from "./compact-schema.js";
 import { reviewDelivery } from "./review-delivery.js";
+import { prepareLocalSource, requestFailure } from "./local-source.js";
 import { waitForSimulation } from "./simulation-wait.js";
 import {
   ContractQueryError,
@@ -488,6 +490,9 @@ const DocumentArgs = z.strictObject({
   refresh: z.boolean().optional(),
 });
 const VerifyArgs = DocumentArgs.extend({
+  expectedSource: VerifyReviewSourceSchema.optional().describe(
+    "Compare a delivered working copy with the local entry and its dependencies. Pass the exact target and Project revision from review_delivery.",
+  ),
   expectedNetlist: z
     .strictObject({
       text: z
@@ -1787,7 +1792,25 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     handle: async (args, session) => {
       const client = session.client;
       const parsed = VerifyArgs.parse(args ?? {});
-      const documentId = parsed.documentId;
+      const sourceReference = parsed.expectedSource;
+      if (sourceReference && !session.taskRef)
+        throw requestFailure(
+          "WORKSPACE_TASK_REQUIRED",
+          "Open a dedicated Canvas task before verifying a local source",
+        );
+      if (sourceReference && parsed.expectedNetlist)
+        throw requestFailure("INVALID_ARGUMENT", "Choose one reference source");
+      if (
+        sourceReference &&
+        parsed.documentId &&
+        parsed.documentId !== sourceReference.expected.documentId
+      )
+        throw requestFailure(
+          "INVALID_ARGUMENT",
+          "Verify must address the reviewed Cell",
+        );
+      const documentId =
+        sourceReference?.expected.documentId ?? parsed.documentId;
       const before = client.cachedSnapshot(documentId);
       const fresh = await client.refreshSnapshot(documentId);
       const changed =
@@ -1796,22 +1819,36 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           : [];
       const counts = diagnosticsCompact(fresh).counts;
       const { information, omitted } = verifyInformation(fresh);
+      let comparison;
+      if (sourceReference) {
+        const { rootPath, entryPath, ...target } = sourceReference;
+        const source = await prepareLocalSource(rootPath, entryPath);
+        const compared = await reviewDelivery(
+          client,
+          { action: "changes", ...target },
+          { entryPath: source.entryPath, files: source.files },
+        );
+        if (!("comparison" in compared))
+          throw requestFailure(
+            "REVIEW_LOAD_UNCONFIRMED",
+            "Canvas did not confirm the comparison",
+          );
+        comparison = compared.comparison;
+      } else if (parsed.expectedNetlist) {
+        comparison = await compareExpectedNetlist(
+          client,
+          fresh.documentId,
+          parsed.expectedNetlist,
+          parsed.details,
+        );
+      }
       return {
         revision: fresh.revision,
         ...counts,
         ...(information.length ? { information } : {}),
         ...(omitted ? { informationOmitted: omitted } : {}),
         changedObjectIds: changed,
-        ...(parsed.expectedNetlist
-          ? {
-              comparison: await compareExpectedNetlist(
-                client,
-                fresh.documentId,
-                parsed.expectedNetlist,
-                parsed.details,
-              ),
-            }
-          : {}),
+        ...(comparison ? { comparison } : {}),
       };
     },
   },

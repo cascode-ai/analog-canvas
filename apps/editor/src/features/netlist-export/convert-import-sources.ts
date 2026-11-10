@@ -64,17 +64,25 @@ function spiceSections(
  * stays out of the converted text, with a warning.
  */
 export function prepareImportSources(
-  inputs: SpiceSourceInput[],
+  inputs: readonly SpiceSourceInput[],
   externalSubcircuitNames?: readonly string[],
 ): {
   inputs: SpiceSourceInput[];
   builtInBodies: SpiceBuiltInBody[];
   modelTypes: Map<string, string>;
   diagnostics: SpiceDiagnostic[];
+  originalLocation(
+    path: string,
+    line: number,
+  ): { path: string; line: number } | undefined;
 } {
   const builtInBodies: SpiceBuiltInBody[] = [];
   const modelTypes = new Map<string, string>();
   const diagnostics: SpiceDiagnostic[] = [];
+  const originsByPath = new Map<
+    string,
+    (line: number) => { path: string; line: number } | undefined
+  >();
   const prepared = inputs.map((input) => {
     if (!isSpectreSource(input)) {
       builtInBodies.push(
@@ -146,6 +154,10 @@ export function prepareImportSources(
       const path = `${input.path}.section${section + 1}.sp`;
       if (sectionFiles.some((file) => file.path === path)) return;
       const { from, to } = sections[section]!;
+      originsByPath.set(path, (line) => ({
+        path: input.path,
+        line: from + line - 1,
+      }));
       sectionFiles.push({
         path,
         bytes: new TextEncoder().encode(
@@ -163,10 +175,23 @@ export function prepareImportSources(
           : [{ ...body, source: { path: input.path, line: line + 1 } }];
       }),
     );
+    originsByPath.set(input.path, (line) => {
+      const original = origins[line - 1];
+      return original ? { path: input.path, line: original } : undefined;
+    });
     return [
       { path: input.path, bytes: new TextEncoder().encode(kept.join("\n")) },
       ...sectionFiles,
     ];
   });
-  return { inputs: prepared.flat(), builtInBodies, modelTypes, diagnostics };
+  return {
+    inputs: prepared.flat(),
+    builtInBodies,
+    modelTypes,
+    diagnostics,
+    originalLocation(path, line) {
+      const locate = originsByPath.get(path);
+      return locate ? locate(line) : { path, line };
+    },
+  };
 }
