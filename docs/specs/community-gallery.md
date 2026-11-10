@@ -308,6 +308,8 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
 - `POST /api/gallery/<id>/like` (same-origin) toggles one like per account.
   The Owner's accounts instead add a heart each press and take one back with
   `?take=1` (⌥-click), the last taking the like away; `likes` counts hearts.
+  A signed-out like or Publish opens the header's sign-in choices (every
+  method the site offers, regional login included), never one provider.
 - Withdraw is immediate and restorable; Reject takes preset reasons plus a note
   and, ticked by default, emails the author that reason (the account's address,
   else the one it published with; replies to the Owner; never an AI account);
