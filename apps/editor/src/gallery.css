@@ -48,6 +48,7 @@
   }
 
   .gallery-actions .bug-report-link,
+  .gallery-actions .bug-report-email,
   .gallery-actions .app-repository-link {
     display: none;
   }
