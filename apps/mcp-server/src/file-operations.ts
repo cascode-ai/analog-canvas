@@ -111,6 +111,7 @@ export async function exportFile(
     byteLength: bytes.byteLength,
     sha256: response.artifact.sha256,
     ...(response.review ? { review: response.review } : {}),
+    ...(response.warnings ? { warnings: response.warnings } : {}),
   };
 }
 

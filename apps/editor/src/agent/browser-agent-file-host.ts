@@ -701,7 +701,12 @@ export class BrowserAgentFileHost {
           prepared.release();
         }
       })();
-      let artifact: { name: string; mediaType: string; bytes: Uint8Array };
+      let artifact: {
+        name: string;
+        mediaType: string;
+        bytes: Uint8Array;
+        notice?: string;
+      };
       if (request.artifact === "svg") {
         artifact = {
           name: "schematic.svg",
@@ -724,10 +729,12 @@ export class BrowserAgentFileHost {
           "PDF export",
           () => import("@icm/exporters/browser-pdf"),
         );
+        const pdf = await vectorizeFormalSvgInBrowser(source);
         artifact = {
           name: "schematic.pdf",
           mediaType: "application/pdf",
-          bytes: await vectorizeFormalSvgInBrowser(source),
+          bytes: pdf.bytes,
+          ...(pdf.notice ? { notice: pdf.notice } : {}),
         };
       }
       const response = await this.artifactResponse(
@@ -736,6 +743,7 @@ export class BrowserAgentFileHost {
         artifact.mediaType,
         artifact.bytes,
         review,
+        artifact.notice,
       );
       if (
         review &&
@@ -989,6 +997,7 @@ export class BrowserAgentFileHost {
     mediaType: string,
     bytes: Uint8Array,
     review?: AgentReviewReceipt,
+    notice?: string,
   ): Promise<AgentFileResourceResponse> {
     if (bytes.byteLength > AGENT_FILE_RESOURCE_MAX_BYTES)
       return this.error(
@@ -1002,6 +1011,7 @@ export class BrowserAgentFileHost {
       operation: "download",
       ok: true,
       ...(review ? { review } : {}),
+      ...(notice ? { warnings: [notice] } : {}),
       artifact: await fileArtifact(name, mediaType, bytes),
     };
   }

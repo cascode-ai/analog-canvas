@@ -42,8 +42,16 @@ and diagnostics never enter a formal artifact.
   period. One face per Document; Metropolis stays the default.
 - PDF selects Metropolis, DejaVu or the period face per glyph and embeds each
   used weight/slant as a subset (PDF has no CSS fallback); faces are loaded
-  for measurement and removed after. A missing required face fails the
-  export. Glyphs in neither family (e.g. CJK) are outside PDF coverage.
+  for measurement and removed after. CJK characters, which the canvas draws in
+  a system face, take the ICM CJK faces (Noto Sans SC Regular cut by code
+  point, `packages/exporters/fonts/cjk/`), fetched only for an export that
+  uses them; they have one weight, so bold or italic CJK is set regular. A
+  missing required face fails the export. A character no chosen face's cmap
+  holds (e.g. Hangul, emoji) is written as a blank of about its width and
+  the PDF still saves, but the export never reports it complete: the editor
+  status and the Agent download's `warnings` name the characters left out
+  and point to SVG or PNG, which keep them. Invisible characters (joiners,
+  variation selectors) are not named.
 - Canonical SVG resolves scripts to numeric font sizes and explicit baseline
   displacement, and the next visible run restores the parent baseline; never
   `baseline-shift` or percentage `font-size` (Office-class importers mishandle

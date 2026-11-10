@@ -462,6 +462,14 @@ export const AgentFileResourceResponseSchema = z.union([
     ok: z.literal(true),
     artifact: AgentFileBlobSchema,
     review: AgentReviewReceiptSchema.optional(),
+    warnings: z
+      .array(z.string().min(1).max(1000))
+      .min(1)
+      .max(16)
+      .optional()
+      .describe(
+        "What the artifact leaves out, e.g. characters no PDF font holds",
+      ),
   }),
   FileResponseBaseSchema.extend({
     operation: z.enum(["stage", "inspect"]),
