@@ -111,26 +111,54 @@ export async function editorLaunchPage(
   headers.set("content-type", "text/html; charset=utf-8");
   headers.set(
     "content-security-policy",
-    `default-src 'none'; script-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
+    `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'`,
   );
   return new Response(
     `<!doctype html>
 <html lang="en">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Connect Agent to Analog Canvas</title>
+<style nonce="${nonce}">
+  :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #37352f; background: #f7f6f3; }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  header { display: flex; align-items: center; gap: 12px; padding: 16px 24px; background: #fff; border-bottom: 1px solid #e9e9e7; font-size: 14px; font-weight: 600; }
+  header svg { width: 24px; height: 24px; }
+  main { max-width: 560px; margin: 48px auto; padding: 28px; background: #fff; border: 1px solid #e9e9e7; border-radius: 12px; }
+  h1 { margin: 0 0 12px; font-size: 24px; font-weight: 600; letter-spacing: -.4px; }
+  h2 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+  p { font-size: 14px; line-height: 1.6; margin: 8px 0 16px; overflow-wrap: anywhere; }
+  #account { color: #787774; }
+  section { border-top: 1px solid #e9e9e7; padding-top: 20px; margin-top: 20px; }
+  button { min-height: 40px; padding: 8px 16px; font: inherit; font-size: 14px; font-weight: 500; border: 1px solid #dfdfde; border-radius: 6px; background: #fff; color: #37352f; cursor: pointer; }
+  button:hover { background: #f1f1ef; }
+  #allow { background: #2383e2; border-color: #2383e2; color: #fff; }
+  #allow:hover { background: #1b6fc4; }
+  button:focus-visible { outline: 3px solid #2383e2; outline-offset: 3px; }
+  button:disabled { opacity: .55; cursor: wait; }
+  #status { margin: 20px 0 0; }
+  #status:empty { display: none; }
+  @media (max-width: 600px) { main { margin: 24px 16px; padding: 24px; } button { width: 100%; } }
+</style>
+<header><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 4v16M12 7v10M12 8h6V3M12 16h6v5M3 12h5" /></svg>Analog Canvas</header>
 <main>
-  <h1>Connect Agent to Analog Canvas</h1>
-  <p id="account"></p>
+  <h1>Connect your Agent</h1>
+  <p id="account" role="status">Checking your Canvas account…</p>
+  <section aria-labelledby="once-heading">
+  <h2 id="once-heading">Allow this task</h2>
   <p>Allow the local Agent to read and edit a new Canvas tab through this site's Agent relay.
   The connection also grants available file, simulation, and publishing tools.
   You can pause or disconnect from the editor's Agent panel.</p>
   <button type="button" id="allow">Allow Agent access</button>
+  </section>
   ${
     hasDevice
-      ? `<p>Trust <strong id="device">this device</strong> to open future review tabs for this account without asking.
+      ? `<section aria-labelledby="trust-heading"><h2 id="trust-heading">Future review tasks</h2>
+  <p>Trust <strong id="device">this device</strong> to open future review tabs for this account without asking.
   Trusted tasks can read and edit local review copies. Cloud and Gallery actions use Canvas controls.
   Stop trusting it from the editor's Agent panel or Account settings.</p>
-  <button type="button" id="trust">Trust this device</button>`
+  <button type="button" id="trust">Trust this device</button></section>`
       : ""
   }
   <p id="status" role="status"></p>
@@ -160,7 +188,7 @@ export async function editorLaunchPage(
           ? "Signed in to Canvas as " + name + "."
           : "Not signed in to Canvas.";
     })
-    .catch(() => {});
+    .catch(() => { document.getElementById("account").textContent = "Canvas account status is unavailable."; });
   async function approve(approval) {
     button.disabled = true;
     if (trust) trust.disabled = true;

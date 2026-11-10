@@ -547,11 +547,12 @@
       ],
       "reads": [
         {
-          "document": "reference/quickstart"
+          "document": "reference/quickstart",
+          "section": "Connect"
         },
         {
           "document": "reference/mcp-tools",
-          "section": "From a netlist to a review"
+          "section": "Start a review"
         }
       ],
       "hosts": {

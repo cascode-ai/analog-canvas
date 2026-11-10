@@ -272,26 +272,16 @@ human's wish. After a Project switch, refresh status and context.
 
 ### From a netlist to a review
 
-Decide how to draw separately from how to present. Reuse a usable Canvas
-Project or the layout and routing from an existing RNL drawing. Check that
-known Cell Pins and Ground use native symbols and MOS bulk branches are
-dashed in Canvas appearance. Use source appearance when the user wants the
-authored styling. An explicit redraw calls for a new layout. For a local
-source, `open_canvas` and `import_file` `open-local` bring the exact entry and
-dependencies into the task; the user need not prepare a tab. For a plain
-netlist, inspect the imported Instances, models, terminals and Nets. Arrange
-the parts and use [native routing](../shared/authoring.md): place tray
-Instances or adjust the initial layout, then route the missing connections.
-If the user asks for RNL or works in RNL files, author the drawing comments,
-validate them with upstream RNL tooling, then deliver the annotated entry
-with `open-local`. Keep the electrical lines and dependency files intact.
+#### Start a review
 
-Check electrical correspondence and visual completeness separately. Compare
-with the [reference netlist](#comparing-with-a-reference-netlist) where the
-format is supported. Check the critical connections, labels and pin landings
-in the drawing. Report unresolved mappings, missing geometry and any
-inconclusive comparison. Do not substitute devices or change the circuit to
-make an image render. A clean image is not an electrical check.
+Use `open_canvas` for a dedicated task. Keep its `taskRef` on subsequent calls.
+Use `import_file` with `action:"open-local"` and the source path to load the
+entry and dependencies; reuse the returned working copy. For source-root
+options or import diagnostics, read [Projects, files and Gallery](#projects-files-and-gallery).
+
+Reuse usable Canvas or RNL geometry. For missing geometry or an explicit
+redraw, read [Draw a review](#draw-a-review). Check the render's critical
+connections, labels and pin landings before reporting it ready.
 
 `review_delivery` reads the task's tab as it is now, whether a Web task, a
 trusted one or a tab paired by Claim. It takes no arguments, and Canvas keeps
@@ -309,6 +299,44 @@ no review state:
   `status`; an expression parameter compares by its text. Report an
   `inconclusive` result with its `reasons`, and truncated details.
 
+Default to Web: fit the requested Cell with `circuit_view` and return the
+existing task's location, source version and unresolved issues. Read
+[Review images and presentation changes](#review-images-and-presentation-changes)
+only for an image, presentation switch or recovery. Read
+[Review feedback and source changes](#review-feedback-and-source-changes)
+when the user gives feedback or requests a source edit.
+Simulation tools and guides are needed only for a requested simulation.
+
+#### Draw a review
+
+Decide how to draw separately from how to present. Reuse a usable Canvas
+Project or the layout and routing from an existing RNL drawing. Check that
+known Cell Pins and Ground use native symbols and MOS bulk branches are
+dashed in Canvas appearance. Use source appearance when the user wants the
+authored styling. An explicit redraw calls for a new layout. For a local
+source, `open_canvas` and `import_file` `open-local` bring the exact entry and
+dependencies into the task; the user need not prepare a tab. For a plain
+netlist, inspect the imported Instances, models, terminals and Nets. Arrange
+the parts and read the authoring sections [Pin geometry and the normal path](../shared/authoring.md#pin-geometry-and-the-normal-path)
+and [Wiring](../shared/authoring.md#wiring): place tray
+Instances or adjust the initial layout, then route the missing connections.
+If the user asks for RNL or works in RNL files, author the drawing comments,
+validate them with upstream RNL tooling, then deliver the annotated entry
+with `open-local`. Keep the electrical lines and dependency files intact.
+
+Check electrical correspondence and visual completeness separately. Compare
+with the [reference netlist](#comparing-with-a-reference-netlist) where the
+format is supported. Check the critical connections, labels and pin landings
+in the drawing. Report unresolved mappings, missing geometry and any
+inconclusive comparison. Do not substitute devices or change the circuit to
+make an image render. A clean image is not an electrical check.
+
+With MCP, read `analog-canvas://reference/authoring?section=Wiring` and
+use the same exact-heading selector for pin geometry. Read other sections
+only for the relevant device or operation, such as MOS bodies or Cell Pins.
+
+#### Review feedback and source changes
+
 Write changes back to the source files yourself. To check the revised text,
 compare it with Canvas's netlist (`netlist_code` read) or, for structural
 SPICE, pass it to `verify` as `expectedNetlist`. A repeat `open-local` with
@@ -318,6 +346,8 @@ To comment on an object, the user selects one Instance or highlights a Net,
 opens **Project Info → Review feedback** and copies the comment into the
 Agent chat. The text names the Cell, the object's name and ID, its netlist
 line when known, and the comment; `circuit_view` with that ID shows it.
+
+#### Review images and presentation changes
 
 - For a chat image, use `export_file` with `artifact:"png"`,
   `includeReview:true`, the Cell's `documentId` and a local `outputPath`,

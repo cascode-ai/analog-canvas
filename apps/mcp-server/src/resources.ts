@@ -13,6 +13,13 @@ export const ADVANCED_EDITS_RESOURCE_URI =
 export function listResourceTemplates() {
   return [
     {
+      uriTemplate: "analog-canvas://reference/{name}{?section}",
+      name: "One documentation section",
+      description:
+        "Select an exact heading title (URL encoded), including its subsections. Omit section for the whole document.",
+      mimeType: "text/markdown",
+    },
+    {
       uriTemplate: "analog-canvas://catalog/builtins{?symbols}",
       name: "Selected built-in symbols",
       description:
@@ -53,6 +60,47 @@ export function listResourceEntries(): McpResourceEntry[] {
 }
 
 export function readResourceContent(uri: string): McpResourceContent {
+  if (uri.startsWith("analog-canvas://reference/") && uri.includes("?")) {
+    const parsed = new URL(uri);
+    const section = parsed.searchParams.get("section");
+    if (
+      !section ||
+      parsed.hash ||
+      [...parsed.searchParams.keys()].some((key) => key !== "section") ||
+      parsed.searchParams.getAll("section").length !== 1
+    )
+      throw new RpcMethodError(-32602, "Provide one exact section heading");
+    const source = readResourceContent(uri.slice(0, uri.indexOf("?")));
+    const lines = source.text.split("\n");
+    let fence: string | undefined;
+    const headings: { index: number; level: number; title: string }[] = [];
+    lines.forEach((line, index) => {
+      const marker = /^\s{0,3}(`{3,}|~{3,})/u.exec(line)?.[1];
+      if (marker) {
+        if (!fence) fence = marker;
+        else if (marker[0] === fence[0] && marker.length >= fence.length)
+          fence = undefined;
+        return;
+      }
+      const match = !fence && /^(#{1,6}) (.+?)\s*$/u.exec(line);
+      if (match && match[1] && match[2])
+        headings.push({ index, level: match[1].length, title: match[2] });
+    });
+    const matches = headings.filter((heading) => heading.title === section);
+    const start = matches[0];
+    if (matches.length !== 1 || !start)
+      throw new RpcMethodError(-32602, "Unknown or ambiguous section heading");
+    const end =
+      headings.find(
+        (heading) =>
+          heading.index > start.index && heading.level <= start.level,
+      )?.index ?? lines.length;
+    return {
+      uri,
+      mimeType: "text/markdown",
+      text: lines.slice(start.index, end).join("\n").trimEnd() + "\n",
+    };
+  }
   if (uri.startsWith("analog-canvas://catalog/builtins?")) {
     const parsed = new URL(uri);
     if (

@@ -72,6 +72,49 @@ function expandSchema(
 beforeAll(() => void listToolDefinitions(), 30_000);
 
 describe("mcp resources single-source projection", () => {
+  it("reads a documentation section without unrelated guidance", () => {
+    const uri = "analog-canvas://reference/authoring?section=Wiring";
+    const selected = readResourceContent(uri);
+    expect(selected.uri).toBe(uri);
+    expect(selected.text).toContain("## Wiring");
+    expect(selected.text).not.toContain("## External model sources");
+    expect(selected.text).not.toContain("## Batches and limits");
+    expect(selected.text.length).toBeLessThan(
+      readResourceContent("analog-canvas://reference/authoring").text.length /
+        4,
+    );
+    for (const query of [
+      "section=missing",
+      "section=",
+      "section=Wiring&section=Wiring",
+      "other=Wiring",
+    ])
+      expect(() =>
+        readResourceContent(`analog-canvas://reference/authoring?${query}`),
+      ).toThrow();
+  });
+  it("follows review branch links to readable sections", () => {
+    const start = readResourceContent(
+      "analog-canvas://reference/mcp-tools?section=Start%20a%20review",
+    );
+    const drawing = readResourceContent(
+      "analog-canvas://reference/mcp-tools?section=Draw%20a%20review",
+    );
+    for (const text of [start.text, drawing.text]) {
+      const links = [...text.matchAll(/\]\(([^)]+)\)/g)].map(
+        (match) => match[1]!,
+      );
+      expect(links.length).toBeGreaterThan(0);
+      for (const uri of links) {
+        expect(uri).toContain("?section=");
+        expect(readResourceContent(uri).text.length).toBeGreaterThan(0);
+      }
+    }
+    expect(drawing.text).toContain(
+      "authoring?section=Pin%20geometry%20and%20the%20normal%20path",
+    );
+    expect(start.text).not.toContain("#### Draw a review");
+  });
   it("selects exact symbols from the same catalog and rejects guessing", () => {
     const full = readResourceContent("analog-canvas://catalog/builtins");
     const selected = readResourceContent(

@@ -1,6 +1,6 @@
 interface:
-  display_name: "Canvas 审核"
-  short_description: "在 Analog Canvas 打开网表或工程，交付 Web 审核或图片。"
-  default_prompt: "使用 $canvas-review 审核我提供的电路来源，按需要打开指定 Cell 或交付图片。"
+  display_name: "Canvas Review"
+  short_description: "Review a local circuit in Canvas or export an image."
+  default_prompt: "Use $canvas-review to review my circuit source, open the requested Cell, or deliver an image."
 policy:
   allow_implicit_invocation: false
