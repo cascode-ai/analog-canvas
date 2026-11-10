@@ -351,6 +351,7 @@ describe("Deleting locked drawings and texts (#2187)", () => {
     expect(locked).toEqual({
       annotationIds: ["text-locked"],
       draftingIds: ["box-locked"],
+      routeIds: [],
     });
     expect(lockedDeletionStatus(locked, true)).toBe(
       "Deleted the unlocked objects and kept 1 locked drawing and 1 locked text; unlock them to delete",
@@ -385,8 +386,85 @@ describe("Deleting locked drawings and texts (#2187)", () => {
       "Kept 1 locked drawing; unlock it to delete",
     );
     expect(
-      lockedDeletionStatus({ annotationIds: [], draftingIds: [] }, false),
+      lockedDeletionStatus(
+        { annotationIds: [], draftingIds: [], routeIds: [] },
+        false,
+      ),
     ).toBeNull();
+  });
+
+  it("keeps a selected wire a locked label stands on, and deletes the rest", () => {
+    // A box or Ctrl+A selection takes the wire and the label on it; the
+    // label went with its wire, and the transaction refused the whole
+    // deletion for it.
+    const document = lockedSheet();
+    document.nets.push({ id: "net-a", terminals: [] });
+    document.junctions.push(
+      { id: "j0", netId: "net-a", position: { x: 0, y: 100 } },
+      { id: "j1", netId: "net-a", position: { x: 100, y: 100 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "wire",
+        netId: "net-a",
+        start: { kind: "junction", junctionId: "j0" },
+        end: { kind: "junction", junctionId: "j1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    document.annotations.push({
+      id: "label-locked",
+      kind: "route-marker",
+      markerKind: "current",
+      content: { runs: [{ kind: "text", value: "I1" }] },
+      anchor: {
+        kind: "route",
+        routeId: "wire",
+        legId: document.routes.find((route) => route.id === "wire")!.legs[0]!
+          .id,
+        t: 0.5,
+        normalOffset: 0,
+        direction: "forward",
+        orientation: "follow",
+        fallbackPosition: { x: 50, y: 100 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: true,
+    });
+    const { routing, locked } = planCellSelectionDeletion(
+      document,
+      resolver,
+      {
+        instanceIds: [],
+        routeIds: ["wire"],
+        junctionIds: [],
+        annotationIds: ["label-locked"],
+        draftingIds: ["box"],
+      },
+      1,
+    );
+    expect(locked).toEqual({
+      annotationIds: ["label-locked"],
+      draftingIds: [],
+      routeIds: ["wire"],
+    });
+    expect(lockedDeletionStatus(locked, true)).toBe(
+      "Deleted the unlocked objects and kept 1 locked text, with the wire under it; unlock it to delete",
+    );
+    const gate = gateRoutingOperationPlan(document, routing, {
+      symbolResolver: resolver,
+    });
+    if (!gate.ok) throw new Error(gate.message);
+    const after = gate.evaluated.finalDocument;
+    expect(after.routes.map((route) => route.id)).toEqual(["wire"]);
+    expect(after.annotations.map((annotation) => annotation.id)).toContain(
+      "label-locked",
+    );
+    expect(after.drafting?.objects.map((object) => object.id)).toEqual([
+      "box-locked",
+    ]);
   });
 
   it("refuses a locked drawing's removal in the transaction itself", () => {

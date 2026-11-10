@@ -82,7 +82,7 @@ export function hasDeletableVisualSelection(
   const locked = lockedSelectionObjects(document, selection);
   return (
     selection.instanceIds.length > 0 ||
-    selection.routeIds.length > 0 ||
+    selection.routeIds.length > locked.routeIds.length ||
     selection.junctionIds.length > 0 ||
     selection.annotationIds.length > locked.annotationIds.length ||
     selection.draftingIds.length > locked.draftingIds.length
