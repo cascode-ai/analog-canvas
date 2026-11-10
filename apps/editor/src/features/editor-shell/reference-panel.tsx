@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -15,7 +16,7 @@ import { MarkablePicture } from "../../components/review-picture";
 import { gallerySourceOfEntryId } from "../../gallery-sources";
 import { REFERENCE_SAVED, uploadReferenceImage } from "../../reference-image";
 import type { GalleryEntryContext } from "./gallery-example-commands";
-import type { OwnReferenceImage } from "./own-reference";
+import { REFERENCE_SHEET_QUERY, type OwnReferenceImage } from "./own-reference";
 
 /**
  * The figure a Gallery drawing was drawn from: a dataset's original figure,
@@ -205,6 +206,21 @@ export function clearOfDocks(
     : { ...box, left, width };
 }
 
+function subscribeSheet(listener: () => void): () => void {
+  const query = window.matchMedia?.(REFERENCE_SHEET_QUERY);
+  query?.addEventListener("change", listener);
+  return () => query?.removeEventListener("change", listener);
+}
+
+/** Whether the window is a sheet along the bottom, at phone widths. */
+function useSheet(): boolean {
+  return useSyncExternalStore(
+    subscribeSheet,
+    () => window.matchMedia?.(REFERENCE_SHEET_QUERY).matches ?? false,
+    () => false,
+  );
+}
+
 /**
  * A window floating over the editor: it moves by its title bar, resizes
  * from any edge or corner, folds to its title bar and closes from it.
@@ -314,26 +330,33 @@ function ReferenceFloat({
       setBox(inView(next));
     });
   };
+  // At phone widths a sheet along the bottom, its full width: it neither
+  // moves nor resizes, and keeps its floating place for a wider window.
+  const sheet = useSheet();
   return (
     <div
-      className={`reference-panel${folded ? " folded" : ""}`}
+      className={`reference-panel${folded ? " folded" : ""}${sheet ? " sheet" : ""}`}
       data-testid="reference-panel"
       // Open, Fit View keeps the drawing out from under it.
-      {...(folded ? {} : { "data-floating-window": "project-info" })}
+      {...(folded || sheet ? {} : { "data-floating-window": "project-info" })}
       role="complementary"
       aria-label={title}
-      style={{
-        left: box.left,
-        width: box.width,
-        ...(folded
-          ? { bottom: window.innerHeight - (box.top + box.height) }
-          : { top: box.top, height: box.height }),
-      }}
+      style={
+        sheet
+          ? undefined
+          : {
+              left: box.left,
+              width: box.width,
+              ...(folded
+                ? { bottom: window.innerHeight - (box.top + box.height) }
+                : { top: box.top, height: box.height }),
+            }
+      }
     >
       <div
         className="reference-panel-head"
         onPointerDown={(event) => {
-          if ((event.target as HTMLElement).closest("button")) return;
+          if (sheet || (event.target as HTMLElement).closest("button")) return;
           const from = box;
           follow(event, (dx, dy) =>
             setBox(
@@ -367,16 +390,16 @@ function ReferenceFloat({
       </div>
       {folded ? null : children}
       {folded ? null : footer}
-      {EDGES.filter((edge) => !folded || edge === "e" || edge === "w").map(
-        (edge) => (
+      {(sheet ? [] : EDGES)
+        .filter((edge) => !folded || edge === "e" || edge === "w")
+        .map((edge) => (
           <div
             key={edge}
             className={`reference-resize ${edge}`}
             aria-hidden="true"
             onPointerDown={resize(edge)}
           />
-        ),
-      )}
+        ))}
     </div>
   );
 }

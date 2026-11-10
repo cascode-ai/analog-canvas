@@ -110,6 +110,30 @@ it("keeps the person's own folding", async () => {
   expect(panel().classList).toContain("folded");
 });
 
+it("is a sheet along the bottom at phone widths, its details editable (#2151)", async () => {
+  vi.stubGlobal("matchMedia", (media: string) => ({
+    matches: media === "(max-width: 640px)",
+    media,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  try {
+    editorPage();
+    const { panel } = await show({ openings: 1 });
+    expect(panel().classList).toContain("sheet");
+    expect(panel().classList).not.toContain("folded");
+    // Laid out by the sheet's own rules, not a floating box.
+    expect(panel().getAttribute("style")).toBeNull();
+    expect(panel().querySelector(".reference-resize")).toBeNull();
+    expect(panel().dataset.floatingWindow).toBeUndefined();
+    expect(panel().querySelector(".reference-name")).not.toBeNull();
+    expect(panel().querySelector(".reference-description")).not.toBeNull();
+    expect(panel().textContent).toContain("Reference picture");
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 it("moves a window off docks that open beside it", async () => {
   const { clearOfDocks } = await import("./reference-panel");
   const box = { left: 1048, top: 400, width: 380, height: 420 };

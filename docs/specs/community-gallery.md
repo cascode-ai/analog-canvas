@@ -162,7 +162,9 @@ entries, keyset cursor, limit ≤60.
   it moves it aside, and Fit View keeps the drawing clear of it while it is
   open beside the docks. Closing it is
   remembered in this browser; Project Info in the status bar or the File menu
-  opens it again. The picture is a
+  opens it again. At phone widths (640 px and less) it starts closed and
+  opens as a full-width sheet along the bottom, which neither moves nor
+  resizes. The picture is a
   pasted screenshot (⌘V / Ctrl+V, unless a text field or a circuit takes the
   paste), a dropped image or a chosen file, kept per tab for the page's life;
   a drawing opened from the Gallery starts from its entry's figure (a
