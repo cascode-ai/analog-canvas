@@ -1243,10 +1243,12 @@ function WorkspaceEditor({
   const noteCodeDraftDirty = useCallback((dirty: boolean) => {
     setPanelCodeDraftDirty(dirty);
   }, []);
-  // A Netlist draft outlives its panel and holds the Project as an open one
-  // does, until Apply or Reload (#2193).
+  // Netlist and Project Code drafts outlive their panels and hold the Project
+  // as open ones do, until Apply or Reload (#2193, #2201).
   const netlistDraft = useHeldCodeDraft(projectSessionId);
-  const codeDraftDirty = panelCodeDraftDirty || netlistDraft.dirty;
+  const projectCodeDraft = useHeldCodeDraft(projectSessionId);
+  const codeDraftDirty =
+    panelCodeDraftDirty || netlistDraft.dirty || projectCodeDraft.dirty;
   const openGalleryProjectInTabRef = useRef<
     (
       project: CircuitProject,
@@ -6478,7 +6480,7 @@ function WorkspaceEditor({
                   <ProjectCodePanel
                     key={projectSessionId}
                     serializeProject={snapshotSerializer.serialize}
-                    onDirtyChange={noteCodeDraftDirty}
+                    draftDocument={projectCodeDraft.document}
                     project={project}
                     selection={{
                       documentId: document.id,

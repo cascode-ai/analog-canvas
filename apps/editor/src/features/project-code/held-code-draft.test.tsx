@@ -5,11 +5,12 @@ import { EditorView } from "@codemirror/view";
 import { expect, it, vi } from "vitest";
 
 import { importSpiceSources } from "@icm/spice";
-import type { CircuitProject } from "@icm/model";
+import { createEmptyProject, type CircuitProject } from "@icm/model";
 
 import { NetlistCodePanel } from "../netlist-export/netlist-code-panel";
 import { createDefaultNetlistExportPreferences } from "../netlist-export/netlist-export-preferences";
 import { useHeldCodeDraft, type CodeDraftDocument } from "./held-code-draft";
+import { ProjectCodePanel } from "./project-code-panel";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -132,5 +133,61 @@ it("keeps an unapplied Netlist draft through closing and reopening the panel (#2
   expect(view.state.doc.toString()).toBe(live);
   expect(button("Reload")).toBeNull();
   expect(dirty.at(-1)).toBe(false);
+  await close();
+});
+
+it("keeps an unapplied Project Code draft, valid or not, through closing and reopening the panel (#2201)", async () => {
+  const project = createEmptyProject("project", "New Circuit");
+  const onApply = vi.fn(() => ({ ok: true }));
+  const { dirty, show, type, button, text, close } = await hostPanel(
+    (draftDocument, sessionId) => (
+      <ProjectCodePanel
+        key={sessionId}
+        draftDocument={draftDocument}
+        project={project}
+        onApply={onApply}
+      />
+    ),
+  );
+  let view = (await show(true))!;
+  const live = view.state.doc.toString();
+  const valid = live.replace('"New Circuit"', '"R10 valid pending rename"');
+  expect(valid).not.toBe(live);
+  await type(view, () => valid);
+  expect(button("Apply")?.disabled).toBe(false);
+
+  await show(false);
+  const heldWhileClosed = dirty.at(-1);
+  view = (await show(true))!;
+  expect(view.state.doc.toString()).toBe(valid);
+  expect(heldWhileClosed).toBe(true);
+  expect(button("Apply")?.disabled).toBe(false);
+  expect(button("Reload")?.disabled).toBe(false);
+  expect(text()).toContain("Valid Project JSON");
+
+  // Unfinished JSON comes back with its error, and Apply still waits.
+  const invalid = valid.slice(0, -2);
+  await type(view, () => invalid);
+  await show(false);
+  view = (await show(true))!;
+  expect(view.state.doc.toString()).toBe(invalid);
+  expect(button("Apply")?.disabled).toBe(true);
+  expect(button("Reload")?.disabled).toBe(false);
+  expect(text()).not.toContain("Showing the current complete Project");
+  expect(text()).not.toContain("Valid Project JSON");
+
+  // Another Project session never sees it.
+  view = (await show(true, "project:2"))!;
+  expect(view.state.doc.toString()).toBe(live);
+  expect(dirty.at(-1)).toBe(false);
+
+  // Only Reload drops it.
+  view = (await show(true))!;
+  await type(view, () => valid);
+  await act(async () => button("Reload")!.click());
+  expect(view.state.doc.toString()).toBe(live);
+  expect(button("Apply")?.disabled).toBe(true);
+  expect(dirty.at(-1)).toBe(false);
+  expect(onApply).not.toHaveBeenCalled();
   await close();
 });

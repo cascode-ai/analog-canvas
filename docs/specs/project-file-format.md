@@ -51,7 +51,9 @@ export -> validate -> encode file schema 78 -> readable canonical JSON -> downlo
 - A migrated imported file is dirty; the browser-selected source is never
   overwritten. Recovery records may be canonicalized only after a validated
   write. Project Code, export, Agent replacement, Cloud Save and recovery share
-  the one reader/writer; a full source edit is one undoable commit.
+  the one reader/writer; a full source edit is one undoable commit. An
+  unapplied Project Code draft, valid or not, stays with its Project tab, also
+  while the panel is closed, until Apply or Reload.
 - Not in the file: viewport, selection, undo, overlays, Agent credentials,
   recovery envelopes, renders, derived diagnostics.
 - Windows desktop also accepts `.icproj` as a filename alias for the same JSON
