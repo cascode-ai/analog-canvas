@@ -453,7 +453,7 @@ test("shows first-party visitor analytics without tracking the dashboard itself"
   await expect(page.getByText("42", { exact: true })).toBeVisible();
   await expect(page).toHaveTitle("Analytics — Analog Canvas");
   await expect(
-    page.getByRole("link", { name: "Back to editor" }),
+    page.getByRole("link", { name: "Back to the Gallery" }),
   ).toHaveAttribute("href", "/");
   await expect(page.getByRole("textbox", { name: "From" })).toHaveValue(
     "2026-05-15",
