@@ -60,25 +60,8 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   id and a non-empty `projectText`. It ends with downloaded, kept and failed
   counts and exits 1 when the list or any circuit failed; a `--source` that
   `GET /api/gallery/sources` does not list is refused.
-- The wall's Download button, in its count row, the same for every reader
-  and signed out too (no menu or choice of scope), saves the wall's current
-  results (its own list query; every public circuit when no filter narrows
-  it) as one `.zip`: `<id>.icproj.json` (the circuit's `projectText`) and
-  `manifest.json` (`query`, `generatedAt`, `origin`, `usage`, `sources` with
-  each dataset's license, `count`, `entries` with `id`, `name`, `author`,
-  `source`, `previewRevision` and `file`, and `failed` with `id`, `name` and
-  `reason`). Its label is the current results' count (`Download 78`), which
-  follows every filter and search; it is disabled at zero and while the
-  count loads. A press fixes the query; the button then shows its progress
-  (`32 / 78`) with Cancel beside it while the wall stays usable. A complete
-  run saves the file and offers `Download ZIP` again. A run with failures
-  saves nothing by itself: it shows `N failed · Retry` and
-  `Download partial ZIP (M of N)`, whose file is named `…-partial.zip` and
-  whose manifest lists the failed circuits.
-  It lists oldest first and reads 32 at once without fixed pacing;
-  network, 408, 429 (every reader waits its `Retry-After`) and 5xx failures
-  are retried, circuits still failing are named, a list failure saves
-  nothing and so do zero matches. The archive code loads on first use.
+- Bulk download is available through the public HTTP API and download script;
+  the Gallery wall has no bulk-download button or menu.
 - No account is blocked for how it reads or writes; the account blocks and
   trap circuits of before 2026-11-09 are retired with their records.
 - Gallery `GET` and `HEAD` requests (`/api/gallery` and `/api/gallery/…`)
