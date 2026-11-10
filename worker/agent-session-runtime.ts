@@ -596,75 +596,103 @@ export function simulationOperationScopes(
   }
 }
 
-export function projectOperationScopes(
-  request: AgentProjectResourceRequest,
-): AgentSessionScope[] {
+/**
+ * A trusted-device task's grant: it reads and edits local review copies, and
+ * every table here applies to it as to any session. Simulation, publishing
+ * and the account operations below are left out.
+ */
+export const TRUSTED_REVIEW_SCOPES = [
+  "circuit.snapshot",
+  "circuit.render",
+  "circuit.source-spans",
+  "circuit.edit.geometry",
+  "circuit.edit.connectivity",
+  "circuit.edit.presentation",
+  "editor.semantic-control",
+  "project.download",
+  "project.import",
+  "visual.download",
+] satisfies AgentSessionScope[];
+
+/**
+ * A Project operation's grant: its scopes, and whether it reaches the
+ * signed-in account's Cloud Projects, Gallery or component library, which a
+ * trusted-device task never does.
+ */
+export function projectOperationAccess(request: AgentProjectResourceRequest): {
+  scopes: AgentSessionScope[];
+  reachesAccount: boolean;
+} {
+  const circuitEdits: AgentSessionScope[] = [
+    "circuit.edit.geometry",
+    "circuit.edit.connectivity",
+    "circuit.edit.presentation",
+  ];
+  const importAndEdit: AgentSessionScope[] = [
+    "project.import",
+    ...circuitEdits,
+  ];
   switch (request.operation) {
     case "components":
-      return request.request.action === "list" ||
-        request.request.action === "read" ||
-        request.request.action === "record" ||
-        request.request.action === "browse" ||
-        request.request.action === "authoring-read" ||
-        request.request.action === "drafts" ||
-        (request.request.action === "delete-drafts" &&
-          request.request.dryRun) ||
-        (request.request.action === "authoring-apply" &&
-          request.request.dryRun) ||
-        request.request.action === "inspect"
-        ? ["circuit.snapshot"]
-        : [
-              "insert",
-              "authoring-update",
-              "authoring-save",
-              "delete-drafts",
-              "authoring-apply",
-            ].includes(request.request.action)
-          ? [
-              "project.import",
-              "circuit.edit.geometry",
-              "circuit.edit.connectivity",
-              "circuit.edit.presentation",
-            ]
-          : ["components.publish"];
+      return {
+        scopes:
+          request.request.action === "list" ||
+          request.request.action === "read" ||
+          request.request.action === "record" ||
+          request.request.action === "browse" ||
+          request.request.action === "authoring-read" ||
+          request.request.action === "drafts" ||
+          (request.request.action === "delete-drafts" &&
+            request.request.dryRun) ||
+          (request.request.action === "authoring-apply" &&
+            request.request.dryRun) ||
+          request.request.action === "inspect"
+            ? ["circuit.snapshot"]
+            : [
+                  "insert",
+                  "authoring-update",
+                  "authoring-save",
+                  "delete-drafts",
+                  "authoring-apply",
+                ].includes(request.request.action)
+              ? importAndEdit
+              : ["components.publish"],
+        reachesAccount: true,
+      };
     case "insert-gallery-entry":
-      return [
-        "project.import",
-        "circuit.edit.geometry",
-        "circuit.edit.connectivity",
-        "circuit.edit.presentation",
-      ];
+      return { scopes: importAndEdit, reachesAccount: true };
     case "workspace":
-      return request.request.action === "list"
-        ? ["circuit.snapshot"]
-        : [
-            "project.import",
-            "circuit.edit.connectivity",
-            "circuit.edit.geometry",
-            "circuit.edit.presentation",
-          ];
+      return {
+        scopes:
+          request.request.action === "list"
+            ? ["circuit.snapshot"]
+            : importAndEdit,
+        // Opening and saving Cloud Projects; the other actions stay in tabs.
+        reachesAccount:
+          request.request.action === "open" ||
+          request.request.action === "save",
+      };
     case "list-gallery":
     case "read-gallery-entry":
     case "read-gallery-entries":
-      return ["circuit.snapshot"];
+      return { scopes: ["circuit.snapshot"], reachesAccount: true };
     case "read-project-code":
     case "read-netlist":
-      return ["project.download"];
+      return { scopes: ["project.download"], reachesAccount: false };
     case "replace-project-code":
-      return [
-        "circuit.edit.geometry",
-        "circuit.edit.connectivity",
-        "circuit.edit.presentation",
-      ];
+      return { scopes: circuitEdits, reachesAccount: false };
     case "replace-netlist":
-      return ["circuit.edit.connectivity", "circuit.edit.presentation"];
+      return {
+        scopes: ["circuit.edit.connectivity", "circuit.edit.presentation"],
+        reachesAccount: false,
+      };
     case "list-projects":
     case "list-cells":
     case "import-cell":
-      return ["project.import"];
+      return { scopes: ["project.import"], reachesAccount: true };
     case "publish-gallery-entry":
     case "update-gallery-entry":
-      return ["gallery.publish"];
+      return { scopes: ["gallery.publish"], reachesAccount: true };
   }
 }
 

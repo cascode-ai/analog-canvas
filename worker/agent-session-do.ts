@@ -54,8 +54,9 @@ import {
   requestLedgerKey,
   sha256Text,
   simulationOperationScopes,
-  projectOperationScopes,
+  projectOperationAccess,
   transportStatus,
+  TRUSTED_REVIEW_SCOPES,
   type AgentSessionEnv,
   type DurableStateLike,
   type PendingForward,
@@ -65,6 +66,7 @@ import { AgentArtifacts } from "./agent-artifacts";
 import {
   AgentDeviceTrustDirectory,
   DEVICE_TRUST_INTERNAL,
+  DeviceTrustClient,
   type DeviceTrustLink,
 } from "./agent-device-trust";
 
@@ -89,21 +91,20 @@ const ARTIFACT_CLEANUP_KEY = "agent-artifact-cleanup";
 const ARTIFACT_CLEANUP_RETRY_MS = 60_000;
 /** The release the paired adapter named, for the editor to show (#1844). */
 const ADAPTER_VERSION_KEY = "agent-adapter-version";
+/** Reason-only tombstones: no bearer, connector, editor proof or Project data. */
 const DEVICE_REVOKED_KEY = "agent-device-revoked-until";
-const TRUSTED_REVIEW_SCOPES = [
-  "circuit.snapshot",
-  "circuit.render",
-  "circuit.source-spans",
-  "circuit.edit.geometry",
-  "circuit.edit.connectivity",
-  "circuit.edit.presentation",
-  "editor.semantic-control",
-  "project.download",
-  "project.import",
-  "visual.download",
-] satisfies AgentSessionScope[];
+/** Whether the device that opened an ended trusted task is still trusted. */
+const DEVICE_REVOKED_TRUST_KEY = "agent-device-revoked-trust";
+const PROJECT_REPLACED_KEY = "project-replaced-until";
+const TOMBSTONE_MS = 30 * 60_000;
+type EndedTrust = "kept" | "removed";
+/** What an ended trusted task answers, so the Agent knows what the next task does. */
+const TRUSTED_TASK_ENDED: Record<EndedTrust, string> = {
+  kept: "The user ended this Canvas task in the browser. The device that opened it is still trusted, so a new task would open without asking the user: start one only when the user asks.",
+  removed:
+    "This Canvas task ended because the device that opened it is no longer trusted for the signed-in account. A new task opens only after the user approves it in the browser.",
+};
 type StoredSession = PersistedAgentSessionState & {
-  browserLaunched?: true;
   deviceTrust?: DeviceTrustLink;
 };
 
@@ -134,16 +135,16 @@ interface RequestTrace {
 export class AgentSessionDO {
   private readonly artifacts: AgentArtifacts;
   private readonly deviceDirectory: AgentDeviceTrustDirectory;
+  private readonly devices: DeviceTrustClient;
   private deviceTrust: DeviceTrustLink | undefined;
   private deviceRevokedUntil = 0;
+  private deviceRevokedTrust: EndedTrust | undefined;
   private approvingLaunch = false;
-  /** Reason-only tombstone: no bearer, connector, editor proof or Project data. */
   private replacedUntil = 0;
   private editorLeft = false;
   private machine: AgentSessionMachine | null = null;
   private readonly ready: Promise<void>;
   private creating = false;
-  private browserLaunched = false;
   private publishedExpiresAt: number | null = null;
   private readonly pendingForwards = new Map<string, PendingForward>();
   private readonly eventSubscribers = new Map<
@@ -160,6 +161,7 @@ export class AgentSessionDO {
       env.SIMULATION_ARTIFACTS,
     );
     this.deviceDirectory = new AgentDeviceTrustDirectory(state.storage);
+    this.devices = new DeviceTrustClient(env.AGENT_SESSION);
     this.ready = this.initialize();
     this.state.blockConcurrencyWhile?.(() => this.ready);
   }
@@ -277,13 +279,14 @@ export class AgentSessionDO {
         current.deviceId === revoked.deviceId &&
         current.trustId === revoked.trustId
       )
-        await this.revokeTrustedSession(machine);
+        await this.revokeTrustedSession(machine, "removed");
       return new Response(null, { status: 204 });
     }
-    if (this.deviceTrust && !this.approvingLaunch) {
-      const trusted = await this.deviceTrustIsCurrent(this.deviceTrust).catch(
-        () => null,
-      );
+    const trustedTask = this.approvingLaunch
+      ? undefined
+      : this.trustedTask(machine);
+    if (trustedTask) {
+      const trusted = await trustedTask.isCurrent().catch(() => null);
       if (trusted === null)
         return jsonResponse(
           errorBody(
@@ -294,7 +297,7 @@ export class AgentSessionDO {
           allowedOrigin,
         );
       if (!trusted) {
-        await this.revokeTrustedSession(machine);
+        await this.revokeTrustedSession(machine, "removed");
         return this.deviceRevokedResponse(allowedOrigin);
       }
     }
@@ -321,14 +324,7 @@ export class AgentSessionDO {
             allowedOrigin,
           );
         if (!machine.assertScope(auth.session.scopes, "simulation.run").ok)
-          return jsonResponse(
-            errorBody(
-              "TOKEN_SCOPE_INSUFFICIENT",
-              errorMessage("TOKEN_SCOPE_INSUFFICIENT"),
-            ),
-            403,
-            allowedOrigin,
-          );
+          return this.refuseScope(allowedOrigin);
       }
       if (url.pathname === "/artifact-status") {
         if (request.method !== "GET")
@@ -532,14 +528,13 @@ export class AgentSessionDO {
     if (socket.readyState !== WebSocket.OPEN) return;
     const status = machine.statusAt(Date.now());
     if (status === "expired" || status === "revoked") return;
-    if (this.deviceTrust) {
+    const trustedTask = this.trustedTask(machine);
+    if (trustedTask) {
       if (this.approvingLaunch) return;
-      const trusted = await this.deviceTrustIsCurrent(this.deviceTrust).catch(
-        () => null,
-      );
+      const trusted = await trustedTask.isCurrent().catch(() => null);
       if (trusted === null) return;
       if (!trusted) {
-        await this.revokeTrustedSession(machine);
+        await this.revokeTrustedSession(machine, "removed");
         return;
       }
       if (this.deviceRevokedUntil) return;
@@ -720,21 +715,14 @@ export class AgentSessionDO {
           Date.now() + ARTIFACT_CLEANUP_RETRY_MS,
         );
     }
-    if (this.replacedUntil) {
-      if (Date.now() < this.replacedUntil) {
-        await this.state.storage.setAlarm?.(this.replacedUntil);
+    const tombstone = this.replacedUntil || this.deviceRevokedUntil;
+    if (tombstone) {
+      if (Date.now() < tombstone) {
+        await this.state.storage.setAlarm?.(tombstone);
       } else {
-        await this.clearStoredSession();
         this.replacedUntil = 0;
-        this.machine = null;
-      }
-      return;
-    }
-    if (this.deviceRevokedUntil) {
-      if (Date.now() < this.deviceRevokedUntil) {
-        await this.state.storage.setAlarm?.(this.deviceRevokedUntil);
-      } else {
         this.deviceRevokedUntil = 0;
+        this.deviceRevokedTrust = undefined;
         this.machine = null;
         await this.clearStoredSession();
       }
@@ -852,7 +840,6 @@ export class AgentSessionDO {
         random: () => crypto.randomUUID(),
       });
       this.machine = created.machine;
-      this.browserLaunched = browserLaunch;
       await this.persist();
       return jsonResponse(
         { ok: true, session: created.session },
@@ -1090,19 +1077,13 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
-    const scopeAllowed = operationScopes(circuitRequest).every(
-      (required) => machine.assertScope(auth.session.scopes, required).ok,
-    );
-    if (!scopeAllowed) {
-      return jsonResponse(
-        errorBody(
-          "TOKEN_SCOPE_INSUFFICIENT",
-          errorMessage("TOKEN_SCOPE_INSUFFICIENT"),
-        ),
-        403,
-        allowedOrigin,
-      );
-    }
+    if (
+      !machine.assertScopes(
+        auth.session.scopes,
+        operationScopes(circuitRequest),
+      ).ok
+    )
+      return this.refuseScope(allowedOrigin);
     if (
       !request.headers.has("x-agent-workspace") &&
       "documentId" in circuitRequest
@@ -1267,22 +1248,13 @@ export class AgentSessionDO {
         transportStatus(auth.code),
         allowedOrigin,
       );
-    const scopeAllowed = fileOperationScopes(fileRequest).every(
-      (required) => machine.assertScope(auth.session.scopes, required).ok,
-    );
     if (
-      !scopeAllowed ||
-      (fileRequest.operation === "review" && !this.browserLaunched)
-    ) {
-      return jsonResponse(
-        errorBody(
-          "TOKEN_SCOPE_INSUFFICIENT",
-          errorMessage("TOKEN_SCOPE_INSUFFICIENT"),
-        ),
-        403,
-        allowedOrigin,
-      );
-    }
+      !machine.assertScopes(
+        auth.session.scopes,
+        fileOperationScopes(fileRequest),
+      ).ok
+    )
+      return this.refuseScope(allowedOrigin);
     if (
       !request.headers.has("x-agent-workspace") &&
       fileRequest.operation === "download" &&
@@ -1497,19 +1469,13 @@ export class AgentSessionDO {
         transportStatus(auth.code),
         allowedOrigin,
       );
-    const scopeAllowed = simulationOperationScopes(simulationRequest).every(
-      (required) => machine.assertScope(auth.session.scopes, required).ok,
-    );
-    if (!scopeAllowed) {
-      return jsonResponse(
-        errorBody(
-          "TOKEN_SCOPE_INSUFFICIENT",
-          errorMessage("TOKEN_SCOPE_INSUFFICIENT"),
-        ),
-        403,
-        allowedOrigin,
-      );
-    }
+    if (
+      !machine.assertScopes(
+        auth.session.scopes,
+        simulationOperationScopes(simulationRequest),
+      ).ok
+    )
+      return this.refuseScope(allowedOrigin);
     const readOnly = isReadOnlySimulationRequest(simulationRequest);
     if (trace)
       trace.identity = {
@@ -1660,30 +1626,12 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
-    const trustedLocalAction =
-      projectRequest.operation === "workspace"
-        ? ["list", "activate"].includes(projectRequest.request.action)
-        : [
-            "read-project-code",
-            "replace-project-code",
-            "read-netlist",
-            "replace-netlist",
-          ].includes(projectRequest.operation);
+    const access = projectOperationAccess(projectRequest);
     if (
-      (this.deviceTrust && !trustedLocalAction) ||
-      !projectOperationScopes(projectRequest).every(
-        (required) => machine.assertScope(auth.session.scopes, required).ok,
-      )
-    ) {
-      return jsonResponse(
-        errorBody(
-          "TOKEN_SCOPE_INSUFFICIENT",
-          errorMessage("TOKEN_SCOPE_INSUFFICIENT"),
-        ),
-        403,
-        allowedOrigin,
-      );
-    }
+      (this.deviceTrust && access.reachesAccount) ||
+      !machine.assertScopes(auth.session.scopes, access.scopes).ok
+    )
+      return this.refuseScope(allowedOrigin);
     const readOnly = isReadOnlyProjectRequest(projectRequest);
     if (trace)
       trace.identity = {
@@ -1859,9 +1807,31 @@ export class AgentSessionDO {
         allowedOrigin,
       );
     }
-    if (body?.action === "revoke" && this.deviceTrust) {
-      await this.revokeTrustedSession(machine);
-      return jsonResponse({ ok: true, status: "revoked" }, 200, allowedOrigin);
+    const trustedTask = this.trustedTask(machine);
+    const ended = () =>
+      jsonResponse({ ok: true, status: "revoked" }, 200, allowedOrigin);
+    // Stop trusting the device that opened this task: its other tasks end
+    // with it, and its next task needs an approval again.
+    if (body?.action === "untrust-device") {
+      if (!trustedTask)
+        return jsonResponse(
+          { error: "This task was not opened from a trusted device" },
+          409,
+          allowedOrigin,
+        );
+      if (!(await trustedTask.untrust()))
+        return jsonResponse(
+          { error: "Device trust could not be changed" },
+          503,
+          allowedOrigin,
+        );
+      await this.revokeTrustedSession(machine, "removed");
+      return ended();
+    }
+    // Ending a trusted task leaves its device trusted.
+    if (body?.action === "revoke" && trustedTask) {
+      await this.revokeTrustedSession(machine, "kept");
+      return ended();
     }
     if (body?.action === "pause") machine.pause();
     else if (body?.action === "resume") machine.resume();
@@ -1875,14 +1845,8 @@ export class AgentSessionDO {
       );
     if (body.action === "revoke" || body.action === "replace-project") {
       await this.clearStoredSession();
-      if (body.action === "replace-project") {
-        this.replacedUntil = Date.now() + 30 * 60_000;
-        await this.state.storage.put(
-          "project-replaced-until",
-          this.replacedUntil,
-        );
-        await this.state.storage.setAlarm?.(this.replacedUntil);
-      }
+      if (body.action === "replace-project")
+        this.replacedUntil = await this.tombstone(PROJECT_REPLACED_KEY);
     } else {
       machine.recordActivity(Date.now());
       await this.persist();
@@ -1942,7 +1906,7 @@ export class AgentSessionDO {
       );
     }
     if (this.deviceTrust) {
-      await this.revokeTrustedSession(machine);
+      await this.revokeTrustedSession(machine, "kept");
     } else {
       machine.revoke();
       this.emit({ type: "session.revoked", sessionId: machine.sessionId });
@@ -2132,7 +2096,6 @@ export class AgentSessionDO {
     const stored =
       await this.state.storage.get<StoredSession>(SESSION_STATE_KEY);
     if (!stored) return null;
-    this.browserLaunched = stored.browserLaunched === true;
     this.deviceTrust = stored.deviceTrust;
     this.machine = AgentSessionMachine.restore(
       stored,
@@ -2145,15 +2108,20 @@ export class AgentSessionDO {
   private async initialize(): Promise<void> {
     this.deviceRevokedUntil =
       (await this.state.storage.get<number>(DEVICE_REVOKED_KEY)) ?? 0;
-    if (this.deviceRevokedUntil) return;
+    if (this.deviceRevokedUntil) {
+      // Absent for a task ended by an earlier release: its answer stays generic.
+      this.deviceRevokedTrust = await this.state.storage.get<EndedTrust>(
+        DEVICE_REVOKED_TRUST_KEY,
+      );
+      return;
+    }
     this.replacedUntil =
-      (await this.state.storage.get<number>("project-replaced-until")) ?? 0;
+      (await this.state.storage.get<number>(PROJECT_REPLACED_KEY)) ?? 0;
     this.editorLeft =
       (await this.state.storage.get<boolean>("agent-editor-left")) === true;
     const stored =
       await this.state.storage.get<StoredSession>(SESSION_STATE_KEY);
     if (stored) {
-      this.browserLaunched = stored.browserLaunched === true;
       this.deviceTrust = stored.deviceTrust;
       this.machine = AgentSessionMachine.restore(
         stored,
@@ -2210,7 +2178,6 @@ export class AgentSessionDO {
       ),
       this.state.storage.put(SESSION_STATE_KEY, {
         ...machine.serialize(),
-        ...(this.browserLaunched ? { browserLaunched: true } : {}),
         ...(this.deviceTrust ? { deviceTrust: this.deviceTrust } : {}),
       }),
     ]);
@@ -2225,12 +2192,7 @@ export class AgentSessionDO {
     const device = this.deviceTrust;
     this.deviceTrust = undefined;
     if (device && this.machine)
-      await this.deviceTrustRequest(device.directory, {
-        action: "remove-session",
-        deviceId: device.deviceId,
-        trustId: device.trustId,
-        sessionId: this.machine.sessionId,
-      }).catch(() => undefined);
+      await this.devices.task(device, this.machine.sessionId).leave();
     const left = [
       ...((await this.state.storage.get<string[]>(ARTIFACT_CLEANUP_KEY)) ?? []),
       ...(await this.artifacts.clear()),
@@ -2243,7 +2205,8 @@ export class AgentSessionDO {
       for (;;) {
         const entries = await storage.list({ limit: 128 });
         const keys = [...entries.keys()].filter(
-          (key) => key !== DEVICE_REVOKED_KEY,
+          (key) =>
+            key !== DEVICE_REVOKED_KEY && key !== DEVICE_REVOKED_TRUST_KEY,
         );
         if (keys.length === 0) break;
         await storage.delete(keys);
@@ -2254,45 +2217,57 @@ export class AgentSessionDO {
     await this.state.storage.setAlarm?.(Date.now() + ARTIFACT_CLEANUP_RETRY_MS);
   }
 
-  private async deviceTrustRequest(directory: string, input: object) {
-    const namespace = this.env.AGENT_SESSION;
-    if (!namespace) throw Error("Device trust is unavailable");
-    return namespace
-      .getByName(directory)
-      .fetch(`https://agent-session.internal${DEVICE_TRUST_INTERNAL}grant`, {
-        method: "POST",
-        body: JSON.stringify(input),
-      });
+  /** This session's standing with the device that opened it, if one did. */
+  private trustedTask(machine: AgentSessionMachine) {
+    return (
+      this.deviceTrust && this.devices.task(this.deviceTrust, machine.sessionId)
+    );
   }
 
-  private async deviceTrustIsCurrent(link: DeviceTrustLink): Promise<boolean> {
-    const response = await this.deviceTrustRequest(link.directory, {
-      action: "check",
-      deviceId: link.deviceId,
-      trustId: link.trustId,
-      sessionId: this.machine?.sessionId,
-    });
-    if (!response.ok) throw Error("Device trust could not be verified");
-    const data = (await response.json()) as { trusted: boolean };
-    return data.trusted === true;
+  /** A trusted-device task is told it is local, and where the rest is done. */
+  private refuseScope(allowedOrigin: string | null): Response {
+    const code = this.deviceTrust
+      ? "TRUSTED_TASK_LOCAL_ONLY"
+      : "TOKEN_SCOPE_INSUFFICIENT";
+    return jsonResponse(
+      errorBody(code, errorMessage(code)),
+      transportStatus(code),
+      allowedOrigin,
+    );
+  }
+
+  /** Write a tombstone that outlives the session's state; the alarm ends it. */
+  private async tombstone(key: string): Promise<number> {
+    const until = Date.now() + TOMBSTONE_MS;
+    await Promise.all([
+      this.state.storage.put(key, until),
+      this.state.storage.setAlarm?.(until),
+    ]);
+    return until;
   }
 
   private deviceRevokedResponse(allowedOrigin: string | null) {
     return jsonResponse(
-      errorBody("SESSION_REVOKED", errorMessage("SESSION_REVOKED")),
+      errorBody(
+        "SESSION_REVOKED",
+        this.deviceRevokedTrust
+          ? TRUSTED_TASK_ENDED[this.deviceRevokedTrust]
+          : errorMessage("SESSION_REVOKED"),
+      ),
       transportStatus("SESSION_REVOKED"),
       allowedOrigin,
     );
   }
 
-  private async revokeTrustedSession(machine: AgentSessionMachine) {
+  /** End a trusted task for good, recording whether its device stays trusted. */
+  private async revokeTrustedSession(
+    machine: AgentSessionMachine,
+    trust: EndedTrust,
+  ) {
     if (this.deviceRevokedUntil > Date.now()) return;
-    const revokedUntil = Date.now() + 30 * 60_000;
-    await Promise.all([
-      this.state.storage.put(DEVICE_REVOKED_KEY, revokedUntil),
-      this.state.storage.setAlarm?.(revokedUntil),
-    ]);
-    this.deviceRevokedUntil = revokedUntil;
+    await this.state.storage.put(DEVICE_REVOKED_TRUST_KEY, trust);
+    this.deviceRevokedTrust = trust;
+    this.deviceRevokedUntil = await this.tombstone(DEVICE_REVOKED_KEY);
     machine.revoke();
     const event = {
       type: "session.revoked" as const,
@@ -2332,8 +2307,11 @@ export class AgentSessionDO {
       ?.startsWith("application/json")
       ? ((await request.json()) as {
           grant: string;
-          device?: Omit<DeviceTrustLink, "trustId"> & {
+          device?: {
+            directory: string;
+            deviceId: string;
             action: "auto" | "trust";
+            label?: string;
           };
         })
       : { grant: await request.text() };
@@ -2349,51 +2327,37 @@ export class AgentSessionDO {
       let link: DeviceTrustLink | undefined;
       let pendingDevice = false;
       if (approval.device) {
-        const { directory, deviceId, action } = approval.device;
-        const response = await this.deviceTrustRequest(directory, {
-          deviceId,
-          action,
-          sessionId: machine.sessionId,
-        }).catch(() => null);
-        if (!response?.ok) return reply({ ok: false }, response?.status ?? 503);
-        const result = (await response.json()) as {
-          trustId: string;
-          pending: boolean;
-        };
-        link = { directory, deviceId, trustId: result.trustId };
-        pendingDevice = result.pending;
+        const { directory, ...device } = approval.device;
+        const enrolled = await this.devices.enroll(
+          directory,
+          device,
+          machine.sessionId,
+        );
+        if ("status" in enrolled) return reply({ ok: false }, enrolled.status);
+        link = enrolled.link;
+        pendingDevice = enrolled.pending;
       }
+      const trustedTask = link && this.devices.task(link, machine.sessionId);
       const secret = machine.approveBrowserLaunch(
         approval.grant,
         Date.now(),
         link ? TRUSTED_REVIEW_SCOPES : undefined,
       );
       if (!secret) {
-        if (link)
-          await this.deviceTrustRequest(link.directory, {
-            action: "remove-session",
-            deviceId: link.deviceId,
-            trustId: link.trustId,
-            sessionId: machine.sessionId,
-          }).catch(() => undefined);
+        await trustedTask?.leave();
         return reply({ ok: false }, 409);
       }
       this.deviceTrust = link;
       await this.persist();
-      if (link && pendingDevice) {
-        const committed = await this.deviceTrustRequest(link.directory, {
-          action: "commit",
-          deviceId: link.deviceId,
-          trustId: link.trustId,
-          sessionId: machine.sessionId,
-        }).catch(() => null);
-        if (!committed?.ok) {
-          await this.revokeTrustedSession(machine);
-          return reply({ ok: false }, committed?.status ?? 503);
+      if (trustedTask && pendingDevice) {
+        const committed = await trustedTask.commit();
+        if (!committed.ok) {
+          await this.revokeTrustedSession(machine, "removed");
+          return reply({ ok: false }, committed.status);
         }
       }
-      if (link && !(await this.deviceTrustIsCurrent(link))) {
-        await this.revokeTrustedSession(machine);
+      if (trustedTask && !(await trustedTask.isCurrent())) {
+        await this.revokeTrustedSession(machine, "removed");
         return this.deviceRevokedResponse(allowedOrigin);
       }
       return reply(

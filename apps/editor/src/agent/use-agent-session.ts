@@ -103,7 +103,7 @@ type LiveSession = {
   claimExpiresAt: number | null;
   expiresAt: number;
   scopes: AgentSessionScope[];
-  localReviewOnly: boolean;
+  trustedDevice: boolean;
   hasAccountProjects: () => boolean;
   socket: WebSocket | null;
   claimed: boolean;
@@ -170,6 +170,8 @@ export interface AgentSessionViewModel {
   backgroundRequests: boolean;
   /** The release the paired adapter named, when it named one (#1844). */
   adapterVersion: string | null;
+  /** A trusted device opened this task: it reviews local copies only. */
+  trustedDevice: boolean;
 }
 
 /** How often a present person renews the session: well inside its window. */
@@ -240,6 +242,8 @@ export interface UseAgentSessionResult extends AgentSessionViewModel {
   reconnect: () => void;
   newConnection: () => Promise<void>;
   revoke: () => Promise<void>;
+  /** End this trusted task and stop trusting the device that opened it. */
+  untrustDevice: () => Promise<void>;
 }
 
 function attachArtifactPublisher(
@@ -331,6 +335,7 @@ export function useAgentSession(
       error: null,
       backgroundRequests: false,
       adapterVersion: null,
+      trustedDevice: recovery?.localReviewOnly === true,
     };
   });
 
@@ -368,7 +373,13 @@ export function useAgentSession(
   const control = useCallback(
     async (
       live: LiveSession,
-      action: "pause" | "resume" | "revoke" | "presence" | "keep-alive",
+      action:
+        | "pause"
+        | "resume"
+        | "revoke"
+        | "presence"
+        | "keep-alive"
+        | "untrust-device",
       signal: AbortSignal,
     ) => {
       const response = await fetch(
@@ -443,7 +454,7 @@ export function useAgentSession(
   ]);
 
   useLayoutEffect(() => {
-    if (liveRef.current?.localReviewOnly && options.hasAccountProjects?.())
+    if (liveRef.current?.trustedDevice && options.hasAccountProjects?.())
       void revoke();
   }, [
     options.hasAccountProjects,
@@ -466,6 +477,7 @@ export function useAgentSession(
         claimCode: null,
         claimExpiresAt: null,
         scopes,
+        trustedDevice: recovery?.localReviewOnly === true,
       });
       try {
         // Transport is only needed after an explicit connection or recovery.
@@ -527,7 +539,7 @@ export function useAgentSession(
           claimExpiresAt,
           expiresAt: recovery?.expiresAt ?? created!.session.expiresAt,
           scopes: [...scopes],
-          localReviewOnly: recovery?.localReviewOnly === true,
+          trustedDevice: recovery?.localReviewOnly === true,
           hasAccountProjects: () =>
             recovery?.localReviewOnly === true &&
             options.hasAccountProjects?.() === true,
@@ -625,7 +637,7 @@ export function useAgentSession(
               projectId: options.project.id,
               projectSessionId: options.projectSessionId,
               scopes: live.scopes,
-              ...(live.localReviewOnly ? { localReviewOnly: true } : {}),
+              ...(live.trustedDevice ? { localReviewOnly: true } : {}),
               expiresAt,
             });
           }
@@ -732,6 +744,29 @@ export function useAgentSession(
                   simulationHost: options.simulationHost,
                   projectHost: options.projectHost,
                 };
+            /** This request's answer, while this tab may still give one. */
+            const reply = (
+              kind: `${"circuit" | "file" | "simulation" | "project"}-response`,
+              payload: unknown,
+            ) => {
+              if (
+                socket.readyState !== WebSocket.OPEN ||
+                retireForAccountProject()
+              )
+                return;
+              socket.send(
+                JSON.stringify({
+                  protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
+                  sessionId: live.sessionId,
+                  messageId: crypto.randomUUID(),
+                  requestId: parsed.data.requestId,
+                  sentAt: new Date().toISOString(),
+                  timing: responseTiming(),
+                  kind,
+                  payload,
+                }),
+              );
+            };
             if (parsed.data.kind === "event") {
               const sessionEvent = AgentSessionEventSchema.safeParse(
                 parsed.data.payload,
@@ -809,38 +844,31 @@ export function useAgentSession(
                 !options.enabled)
             ) {
               const candidate = parsed.data.payload as { operation?: string };
-              const simulation = parsed.data.kind === "simulation-request";
-              const circuit = parsed.data.kind === "circuit-request";
-              const project = parsed.data.kind === "project-request";
-              socket.send(
-                JSON.stringify({
-                  ...parsed.data,
-                  kind: parsed.data.kind.replace("-request", "-response"),
-                  payload: {
-                    apiVersion: AGENT_API_VERSION,
-                    requestId: parsed.data.requestId,
-                    operation: candidate.operation ?? "error",
-                    ok: false,
-                    error: {
-                      code:
-                        target === null
-                          ? "WORKSPACE_NOT_FOUND"
-                          : options.contextReady === false
-                            ? "NO_ACTIVE_PROJECT"
-                            : "PROJECT_CONTEXT_STALE",
-                      message:
-                        target === null
-                          ? "The requested working copy is no longer open"
-                          : "Read the current browser context before operating on a Project",
-                      ...(project ? { recovery: "refresh" } : {}),
-                      ...(simulation
-                        ? { stage: "input", recovery: "fix-input" }
-                        : {}),
-                    },
-                    ...(circuit ? { diagnostics: [] } : {}),
-                  },
-                }),
-              );
+              const family = parsed.data.kind.slice(0, -"-request".length) as
+                "circuit" | "file" | "simulation" | "project";
+              reply(`${family}-response`, {
+                apiVersion: AGENT_API_VERSION,
+                requestId: parsed.data.requestId,
+                operation: candidate.operation ?? "error",
+                ok: false,
+                error: {
+                  code:
+                    target === null
+                      ? "WORKSPACE_NOT_FOUND"
+                      : options.contextReady === false
+                        ? "NO_ACTIVE_PROJECT"
+                        : "PROJECT_CONTEXT_STALE",
+                  message:
+                    target === null
+                      ? "The requested working copy is no longer open"
+                      : "Read the current browser context before operating on a Project",
+                  ...(family === "project" ? { recovery: "refresh" } : {}),
+                  ...(family === "simulation"
+                    ? { stage: "input", recovery: "fix-input" }
+                    : {}),
+                },
+                ...(family === "circuit" ? { diagnostics: [] } : {}),
+              });
               return;
             }
             if (parsed.data.kind === "file-request") {
@@ -854,25 +882,8 @@ export function useAgentSession(
                 ]),
               );
               const knownHash = live.requestHashes.get(parsed.data.requestId);
-              const sendFileResponse = (payload: unknown) => {
-                if (
-                  socket.readyState !== WebSocket.OPEN ||
-                  retireForAccountProject()
-                )
-                  return;
-                socket.send(
-                  JSON.stringify({
-                    protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
-                    sessionId: live.sessionId,
-                    messageId: crypto.randomUUID(),
-                    requestId: parsed.data.requestId,
-                    sentAt: new Date().toISOString(),
-                    timing: responseTiming(),
-                    kind: "file-response",
-                    payload,
-                  }),
-                );
-              };
+              const sendFileResponse = (payload: unknown) =>
+                reply("file-response", payload);
               if (!fileRequest.success || !target?.fileHost) {
                 sendFileResponse({
                   apiVersion: AGENT_API_VERSION,
@@ -946,25 +957,8 @@ export function useAgentSession(
                 ]),
               );
               const knownHash = live.requestHashes.get(parsed.data.requestId);
-              const sendSimulationResponse = (payload: unknown) => {
-                if (
-                  socket.readyState !== WebSocket.OPEN ||
-                  retireForAccountProject()
-                )
-                  return;
-                socket.send(
-                  JSON.stringify({
-                    protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
-                    sessionId: live.sessionId,
-                    messageId: crypto.randomUUID(),
-                    requestId: parsed.data.requestId,
-                    sentAt: new Date().toISOString(),
-                    timing: responseTiming(),
-                    kind: "simulation-response",
-                    payload,
-                  }),
-                );
-              };
+              const sendSimulationResponse = (payload: unknown) =>
+                reply("simulation-response", payload);
               if (!simulationRequest.success || !target?.simulationHost) {
                 sendSimulationResponse({
                   apiVersion: AGENT_API_VERSION,
@@ -1032,25 +1026,8 @@ export function useAgentSession(
               const projectRequest = parseAgentProjectResourceRequest(
                 parsed.data.payload,
               );
-              const sendProjectResponse = (payload: unknown) => {
-                if (
-                  socket.readyState !== WebSocket.OPEN ||
-                  retireForAccountProject()
-                )
-                  return;
-                socket.send(
-                  JSON.stringify({
-                    protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
-                    sessionId: live.sessionId,
-                    messageId: crypto.randomUUID(),
-                    requestId: parsed.data.requestId,
-                    sentAt: new Date().toISOString(),
-                    timing: responseTiming(),
-                    kind: "project-response",
-                    payload,
-                  }),
-                );
-              };
+              const sendProjectResponse = (payload: unknown) =>
+                reply("project-response", payload);
               if (!projectRequest.success || !target?.projectHost) {
                 sendProjectResponse({
                   apiVersion: AGENT_API_VERSION,
@@ -1139,20 +1116,8 @@ export function useAgentSession(
             ]);
             const payloadHash = sha256Hex(payloadKey);
             const cached = live.requestCache.get(parsed.data.requestId);
-            const sendResponse = (payload: unknown) => {
-              socket.send(
-                JSON.stringify({
-                  protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
-                  sessionId: live.sessionId,
-                  messageId: crypto.randomUUID(),
-                  requestId: parsed.data.requestId,
-                  sentAt: new Date().toISOString(),
-                  timing: responseTiming(),
-                  kind: "circuit-response",
-                  payload,
-                }),
-              );
-            };
+            const sendResponse = (payload: unknown) =>
+              reply("circuit-response", payload);
             const sendRequestError = (
               code: "REQUEST_ID_REUSED" | "REQUEST_RESULT_UNAVAILABLE",
               message: string,
@@ -1496,6 +1461,42 @@ export function useAgentSession(
     }
   }, [beginOperation, control, finishOperation, options.enabled, update]);
 
+  const untrustDevice = useCallback(async () => {
+    if (!options.enabled) return;
+    const live = liveRef.current;
+    if (!live?.trustedDevice) return;
+    const operation = beginOperation("untrusting");
+    try {
+      // The relay ends every task the device opened, this one included.
+      await operation.wait(control(live, "untrust-device", operation.signal));
+      if (operationRef.current !== operation) return;
+      if (liveRef.current === live) detach();
+      update({
+        status: "revoked",
+        claimCode: null,
+        claimExpiresAt: null,
+        expiringSoon: false,
+        error: null,
+      });
+    } catch {
+      if (operationRef.current !== operation || liveRef.current !== live)
+        return;
+      update({
+        error:
+          "Could not stop trusting this device. Try again, or revoke it in Account › Settings › Trusted Canvas devices.",
+      });
+    } finally {
+      finishOperation(operation);
+    }
+  }, [
+    beginOperation,
+    control,
+    detach,
+    finishOperation,
+    options.enabled,
+    update,
+  ]);
+
   const reconnect = useCallback(() => {
     if (!options.enabled) return;
     const live = liveRef.current;
@@ -1802,5 +1803,6 @@ export function useAgentSession(
     reconnect,
     newConnection,
     revoke,
+    untrustDevice,
   };
 }

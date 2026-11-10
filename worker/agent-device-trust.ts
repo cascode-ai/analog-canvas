@@ -4,12 +4,15 @@ import {
   DEVICE_TRUST_PATH,
 } from "@icm/agent-adapter/browser-launch";
 import { sessionUserOf } from "./auth";
-import type {
-  AgentSessionRouterEnv,
-  DurableStorageLike,
+import {
+  sha256Text,
+  type AgentSessionNamespaceLike,
+  type AgentSessionRouterEnv,
+  type DurableStorageLike,
 } from "./agent-session-runtime";
 
 export const DEVICE_TRUST_INTERNAL = "/device-trust/";
+const INTERNAL = "https://agent-session.internal";
 const DEVICE_ID = /^[a-f0-9]{64}$/u;
 const MAX_DEVICES = 16;
 const MAX_SESSIONS = 32;
@@ -25,7 +28,11 @@ export type DeviceTrustLink = {
 type DeviceEntry = {
   id: string;
   trustId: string;
+  /** What the installation calls itself: a label for people, not an authority. */
+  name?: string;
   trustedAt: number;
+  /** When the device last opened a task. */
+  lastUsedAt?: number;
   pendingUntil?: number;
   sessions: { id: string; expiresAt: number }[];
 };
@@ -35,7 +42,11 @@ type DeviceRequest = {
   deviceId: string;
   trustId?: string;
   sessionId?: string;
+  name?: string;
 };
+
+/** A device whose trust was just removed, with the tasks it had opened. */
+type RemovedDevice = { deviceId: string; trustId: string; sessions: string[] };
 
 function base64UrlBytes(value: string, length: number) {
   if (!/^[A-Za-z0-9_-]+$/u.test(value)) return;
@@ -51,14 +62,14 @@ function base64UrlBytes(value: string, length: number) {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-async function digest(text: string) {
-  const bytes = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(text),
-  );
-  return Array.from(new Uint8Array(bytes), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
+/** The launching installation's name, as Settings and the prompt show it. */
+export function deviceLabel(value: string | null | undefined) {
+  const label = value
+    ?.replace(/[\p{Cc}\p{Cf}]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 64);
+  return label || undefined;
 }
 
 export async function verifyLaunchDevice(
@@ -83,10 +94,15 @@ export async function verifyLaunchDevice(
       browserLaunchProofText(origin, sessionId, grant),
     );
     if (await crypto.subtle.verify("Ed25519", verifier, proof, text))
-      return digest(publicKey);
+      return sha256Text(publicKey);
   } catch {
     // An invalid proof grants no device authority.
   }
+}
+
+/** One directory per account and site. */
+async function directoryName(origin: string, userId: string) {
+  return `agent-device-trust-${await sha256Text(JSON.stringify([origin, userId]))}`;
 }
 
 export async function deviceTrustDirectory(
@@ -94,11 +110,171 @@ export async function deviceTrustDirectory(
   env: AgentSessionRouterEnv,
 ) {
   const user = await sessionUserOf(request, env);
-  if (!user) return null;
-  const key = await digest(
-    JSON.stringify([new URL(request.url).origin, user.id]),
+  return user ? directoryName(new URL(request.url).origin, user.id) : null;
+}
+
+function directory(namespace: AgentSessionNamespaceLike, name: string) {
+  return {
+    fetch: (path: string, init: RequestInit) =>
+      namespace
+        .getByName(name)
+        .fetch(`${INTERNAL}${DEVICE_TRUST_INTERNAL}${path}`, init),
+  };
+}
+
+/** End the tasks devices opened under trust that was just removed. */
+async function endTasks(
+  namespace: AgentSessionNamespaceLike,
+  name: string,
+  devices: RemovedDevice[],
+  except?: string,
+) {
+  await Promise.allSettled(
+    devices.flatMap(({ deviceId, trustId, sessions }) =>
+      sessions
+        .filter((sessionId) => sessionId !== except)
+        .map((sessionId) =>
+          namespace
+            .getByName(sessionId)
+            .fetch(`${INTERNAL}/revoke-trusted-device`, {
+              method: "POST",
+              body: JSON.stringify({ directory: name, deviceId, trustId }),
+            }),
+        ),
+    ),
   );
-  return `agent-device-trust-${key}`;
+}
+
+/**
+ * Remove one device's trust and end its tasks. A task its revocation does not
+ * reach ends at its next request, which finds the trust gone.
+ */
+async function untrustDevice(
+  namespace: AgentSessionNamespaceLike,
+  name: string,
+  deviceId: string,
+  options: { trustId?: string; except?: string } = {},
+): Promise<boolean> {
+  const response = await directory(namespace, name).fetch(
+    deviceId + (options.trustId ? `?trust=${options.trustId}` : ""),
+    { method: "DELETE" },
+  );
+  if (!response.ok) return false;
+  const { sessions, trustId } = (await response.json()) as {
+    sessions: string[];
+    trustId?: string;
+  };
+  if (trustId)
+    await endTasks(
+      namespace,
+      name,
+      [{ deviceId, trustId, sessions }],
+      options.except,
+    );
+  return true;
+}
+
+/** Account deletion forgets every device the account trusted on this site. */
+export async function purgeTrustedDevices(
+  namespace: AgentSessionNamespaceLike | undefined,
+  origin: string,
+  userId: string,
+): Promise<boolean> {
+  if (!namespace) return true;
+  try {
+    const name = await directoryName(origin, userId);
+    const response = await directory(namespace, name).fetch("all", {
+      method: "DELETE",
+    });
+    if (!response.ok) return false;
+    const { devices } = (await response.json()) as {
+      devices: RemovedDevice[];
+    };
+    await endTasks(namespace, name, devices);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** What one circuit session asks of the directory holding its device's trust. */
+export class DeviceTrustClient {
+  constructor(
+    private readonly namespace: AgentSessionNamespaceLike | undefined,
+  ) {}
+
+  private grant(name: string, input: DeviceRequest) {
+    if (!this.namespace) throw Error("Device trust is unavailable");
+    return directory(this.namespace, name).fetch("grant", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  /** Enroll a task with its device; a refusal carries the directory's status. */
+  async enroll(
+    name: string,
+    device: { deviceId: string; action: "auto" | "trust"; label?: string },
+    sessionId: string,
+  ): Promise<{ link: DeviceTrustLink; pending: boolean } | { status: number }> {
+    const response = await this.grant(name, {
+      action: device.action,
+      deviceId: device.deviceId,
+      sessionId,
+      ...(device.label ? { name: device.label } : {}),
+    }).catch(() => null);
+    if (!response?.ok) return { status: response?.status ?? 503 };
+    const result = (await response.json()) as {
+      trustId: string;
+      pending: boolean;
+    };
+    return {
+      link: {
+        directory: name,
+        deviceId: device.deviceId,
+        trustId: result.trustId,
+      },
+      pending: result.pending,
+    };
+  }
+
+  /** One task's standing with the device that opened it. */
+  task(link: DeviceTrustLink, sessionId: string) {
+    const send = (action: "commit" | "check" | "remove-session") =>
+      this.grant(link.directory, {
+        action,
+        deviceId: link.deviceId,
+        trustId: link.trustId,
+        sessionId,
+      });
+    const namespace = this.namespace;
+    return {
+      /** Make a first trust standing once its task is approved. */
+      async commit() {
+        const response = await send("commit").catch(() => null);
+        return { ok: response?.ok === true, status: response?.status ?? 503 };
+      },
+      /** Throws when the directory cannot answer; renews the task's lease. */
+      async isCurrent() {
+        const response = await send("check");
+        if (!response.ok) throw Error("Device trust could not be verified");
+        return (
+          ((await response.json()) as { trusted: boolean }).trusted === true
+        );
+      },
+      async leave() {
+        await send("remove-session").catch(() => undefined);
+      },
+      /** The person in this task's tab stops trusting its device; the task ends itself. */
+      untrust() {
+        if (!namespace) return Promise.resolve(false);
+        return untrustDevice(namespace, link.directory, link.deviceId, {
+          trustId: link.trustId,
+          except: sessionId,
+        }).catch(() => false);
+      },
+    };
+  }
 }
 
 /** Runs in an account-and-origin DO, separate from every circuit session. */
@@ -117,34 +293,48 @@ export class AgentDeviceTrustDirectory {
   }
 
   private async handleSerial(request: Request) {
-    const path = new URL(request.url).pathname.slice(
-      DEVICE_TRUST_INTERNAL.length,
-    );
+    const url = new URL(request.url);
+    const path = url.pathname.slice(DEVICE_TRUST_INTERNAL.length);
     const now = Date.now();
     const entries = (
       (await this.storage.get<DeviceEntry[]>(DEVICES_KEY)) ?? []
     ).filter((entry) => !entry.pendingUntil || entry.pendingUntil > now);
     const reply = (data: unknown, status = 200) =>
       Response.json(data, { status });
+    const removed = (entry: DeviceEntry): RemovedDevice => ({
+      deviceId: entry.id,
+      trustId: entry.trustId,
+      sessions: entry.sessions
+        .filter((session) => session.expiresAt > now)
+        .map(({ id }) => id),
+    });
     if (request.method === "GET" && path === "list")
       return reply({
         devices: entries
           .filter((entry) => !entry.pendingUntil)
-          .map(({ id, trustedAt }) => ({ id, trustedAt })),
+          .map(({ id, name, trustedAt, lastUsedAt }) => ({
+            id,
+            ...(name ? { name } : {}),
+            trustedAt,
+            ...(lastUsedAt ? { lastUsedAt } : {}),
+          })),
       });
+    if (request.method === "DELETE" && path === "all") {
+      await this.storage.put(DEVICES_KEY, []);
+      return reply({ devices: entries.map(removed) });
+    }
     if (request.method === "DELETE" && DEVICE_ID.test(path)) {
-      const entry = entries.find(({ id }) => id === path);
+      const trust = url.searchParams.get("trust");
+      const entry = entries.find(
+        ({ id, trustId }) => id === path && (!trust || trustId === trust),
+      );
       if (!entry) return reply({ sessions: [] });
       await this.storage.put(
         DEVICES_KEY,
-        entries.filter(({ id }) => id !== path),
+        entries.filter((candidate) => candidate !== entry),
       );
-      return reply({
-        sessions: entry.sessions
-          .filter((session) => session.expiresAt > now)
-          .map(({ id }) => id),
-        trustId: entry.trustId,
-      });
+      const { trustId, sessions } = removed(entry);
+      return reply({ sessions, trustId });
     }
     if (request.method !== "POST" || path !== "grant")
       return reply({ error: "Invalid device request" }, 400);
@@ -206,7 +396,7 @@ export class AgentDeviceTrustDirectory {
       entry = {
         id: input.deviceId,
         trustId: crypto.randomUUID(),
-        trustedAt: Date.now(),
+        trustedAt: now,
         pendingUntil: now + BROWSER_LAUNCH_TTL_MS,
         sessions: [],
       };
@@ -222,6 +412,9 @@ export class AgentDeviceTrustDirectory {
         id: input.sessionId,
         expiresAt: now + DEVICE_TASK_LEASE_MS,
       });
+      entry.lastUsedAt = now;
+      const name = deviceLabel(input.name);
+      if (name) entry.name = name;
       await this.storage.put(DEVICES_KEY, entries);
     }
     return reply({
@@ -248,32 +441,20 @@ export async function routeTrustedDevices(
       (request.method !== "GET" || url.pathname !== DEVICE_TRUST_PATH))
   )
     return new Response(null, { status: 403, headers });
-  const directory = await deviceTrustDirectory(request, env);
-  if (!directory) return new Response(null, { status: 401, headers });
-  const response = await env.AGENT_SESSION.getByName(directory).fetch(
-    `https://agent-session.internal${DEVICE_TRUST_INTERNAL}${revoke ? deviceId : "list"}`,
-    { method: request.method },
-  );
+  const name = await deviceTrustDirectory(request, env);
+  if (!name) return new Response(null, { status: 401, headers });
+  if (revoke)
+    return new Response(null, {
+      status: (await untrustDevice(env.AGENT_SESSION, name, deviceId).catch(
+        () => false,
+      ))
+        ? 204
+        : 503,
+      headers,
+    });
+  const response = await directory(env.AGENT_SESSION, name).fetch("list", {
+    method: "GET",
+  });
   if (!response.ok) return new Response(null, { status: 503, headers });
-  if (!revoke) return Response.json(await response.json(), { headers });
-  const result = (await response.json()) as {
-    sessions: string[];
-    trustId?: string;
-  };
-  await Promise.allSettled(
-    result.sessions.map((sessionId) =>
-      env.AGENT_SESSION.getByName(sessionId).fetch(
-        "https://agent-session.internal/revoke-trusted-device",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            directory,
-            deviceId,
-            trustId: result.trustId,
-          }),
-        },
-      ),
-    ),
-  );
-  return new Response(null, { status: 204, headers });
+  return Response.json(await response.json(), { headers });
 }

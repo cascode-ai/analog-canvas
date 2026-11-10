@@ -12,6 +12,8 @@ import {
 import { GalleryDO } from "./gallery-do";
 import { RegionalProjectDO } from "./regional-projects";
 import { accounts, config, secret } from "./regional-auth.test-support";
+import { sha256Text } from "./agent-session-runtime";
+import { RegionalSessionDO } from "./regional-session";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -259,9 +261,20 @@ it("accepts deletion from China and recovers cleanup after Arena failure and a l
   });
   let arenaAvailable = false;
   let arenaCalls = 0;
+  // Each region forgets the devices trusted at its own site's origin.
+  const trusted = { overseas: new Set<string>(), cn: new Set<string>() };
+  const devices = (seen: Set<string>) => ({
+    getByName: (name: string) => ({
+      fetch: async (input: string | Request, init?: RequestInit) => {
+        seen.add(`${init?.method} ${name} ${String(input)}`);
+        return Response.json({ devices: [] });
+      },
+    }),
+  });
   const h = accounts(
     {
       AUTH_REGIONAL_AUTHORITY: enabled,
+      AGENT_SESSION: devices(trusted.overseas),
       ARENA: {
         fetch: async () => {
           arenaCalls++;
@@ -271,9 +284,28 @@ it("accepts deletion from China and recovers cleanup after Arena failure and a l
     },
     { AUTH_REGIONAL_CLIENT: enabled },
   );
+  // The China site serves its own origin. Its deletion ticks run here; the
+  // fixture's region, which shares the overseas origin, holds the sign-ins.
+  const china = "https://cn.canvas.test";
+  const region = new RegionalSessionDO(
+    { storage: { ...sqliteState().storage, setAlarm: async () => {} } },
+    {
+      AUTH_REGIONAL_CLIENT: JSON.stringify({
+        ...JSON.parse(enabled),
+        clientOrigin: china,
+      }),
+      AGENT_SESSION: devices(trusted.cn),
+    },
+  );
+  const forward = (async (input, init) =>
+    h.source.authDurable.fetch(new Request(input, init))) as typeof fetch;
+  region.fetchLike = forward;
   const overseas = await makerOf(h.source);
   const domestic = await h.connect(overseas);
   const other = await h.connect(overseas);
+  const { user } = (await (await h.call("/api/auth/me", domestic)).json()) as {
+    user: { id: string };
+  };
   const requestId = crypto.randomUUID();
   const path = "/api/auth/account/delete";
   const accepted = await h.call(path, domestic, "POST", {
@@ -289,17 +321,16 @@ it("accepts deletion from China and recovers cleanup after Arena failure and a l
     method: "POST",
   });
   expect((await h.source.authDurable.fetch(tick.clone())).status).toBe(503);
-  const fetchLike = h.region.fetchLike;
-  h.region.fetchLike = async (input, init) => {
-    const response = await fetchLike(input, init);
+  region.fetchLike = async (input, init) => {
+    const response = await forward(input, init);
     const body = JSON.parse(String(init?.body));
     if (String(input).endsWith("/deletions") && body.acknowledge)
       throw new Error("response lost after durable acknowledgement");
     return response;
   };
-  expect((await h.region.fetch(tick.clone())).status).toBe(503);
-  h.region.fetchLike = fetchLike;
-  expect((await h.region.fetch(tick.clone())).status).toBe(200);
+  expect((await region.fetch(tick.clone())).status).toBe(503);
+  region.fetchLike = forward;
+  expect((await region.fetch(tick.clone())).status).toBe(200);
   arenaAvailable = true;
   expect((await h.source.authDurable.fetch(tick.clone())).status).toBe(200);
   expect(arenaCalls).toBe(2);
@@ -308,6 +339,10 @@ it("accepts deletion from China and recovers cleanup after Arena failure and a l
   expect(await done.json()).toEqual({
     deletion: { requestId, overseas: "complete", cn: "complete" },
   });
+  const purge = async (site: string) =>
+    `DELETE agent-device-trust-${await sha256Text(JSON.stringify([site, user.id]))} https://agent-session.internal/device-trust/all`;
+  expect([...trusted.overseas]).toEqual([await purge(ORIGIN)]);
+  expect([...trusted.cn]).toEqual([await purge(china)]);
 });
 
 it("keeps overseas local deletion available outside the trial cohort", async () => {

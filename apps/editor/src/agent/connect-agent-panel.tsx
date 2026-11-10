@@ -33,12 +33,15 @@ export interface ConnectAgentPanelProps {
   backgroundRequests?: boolean;
   /** The release the paired adapter named, when it named one. */
   adapterVersion?: string | null;
+  /** A trusted device opened this task, which reviews local copies only. */
+  trustedDevice?: boolean;
   now: number;
   onPause: () => void;
   onResume: () => void;
   onReconnect: () => void;
   onNewConnection: () => void;
   onRevoke: () => void;
+  onUntrustDevice?: () => void;
   onClose: () => void;
 }
 
@@ -71,6 +74,16 @@ const STATUS_LABEL: Record<AgentConnectionStatus, string> = {
   expired: "Session expired",
 };
 
+function statusLabel(
+  status: AgentConnectionStatus,
+  trustedDevice: boolean | undefined,
+): string {
+  return trustedDevice &&
+    !["idle", "creating", "revoked", "expired"].includes(status)
+    ? `${STATUS_LABEL[status]} · Trusted device`
+    : STATUS_LABEL[status];
+}
+
 function formatRemaining(expiresAt: number | null, now: number): string {
   if (expiresAt === null) return "—";
   const seconds = Math.max(0, Math.ceil((expiresAt - now) / 1_000));
@@ -102,6 +115,8 @@ function ConnectionControls(
     | "onReconnect"
     | "onNewConnection"
     | "onRevoke"
+    | "trustedDevice"
+    | "onUntrustDevice"
   >,
 ): ReactNode {
   if (props.pendingOperation === "creating" || props.status === "creating")
@@ -123,7 +138,9 @@ function ConnectionControls(
         ? "Disconnected locally; confirming with server…"
         : props.pendingOperation === "pausing"
           ? "Pausing…"
-          : "Resuming…"}
+          : props.pendingOperation === "untrusting"
+            ? "Stopping device trust…"
+            : "Resuming…"}
     </span>
   ) : null;
   const terminal = props.status === "revoked" || props.status === "expired";
@@ -198,6 +215,16 @@ function ConnectionControls(
       <button type="button" data-testid="agent-revoke" onClick={props.onRevoke}>
         Disconnect
       </button>
+      {props.trustedDevice && props.onUntrustDevice ? (
+        <button
+          type="button"
+          data-testid="agent-untrust-device"
+          onClick={props.onUntrustDevice}
+          disabled={Boolean(props.pendingOperation)}
+        >
+          Stop trusting this device
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -328,7 +355,7 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
           <div className="agent-panel-heading">
             <h2>Connect Agent</h2>
             <p className="agent-panel-status" data-testid="agent-status">
-              {STATUS_LABEL[props.status]}
+              {statusLabel(props.status, props.trustedDevice)}
             </p>
           </div>
           <button
@@ -411,7 +438,7 @@ export function AgentPropertiesSection(
               className={`agent-status-dot ${terminal ? "terminal" : ""}`}
               aria-hidden="true"
             />
-            {STATUS_LABEL[props.status]}
+            {statusLabel(props.status, props.trustedDevice)}
           </p>
         </div>
         <div className="agent-properties-actions">

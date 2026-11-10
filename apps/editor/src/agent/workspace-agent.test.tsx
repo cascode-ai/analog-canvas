@@ -406,4 +406,52 @@ describe("workspace Agent provider (#1673)", () => {
       }
     },
   );
+
+  it("stops trusting the device from its trusted tab, which ends the task", async () => {
+    storage.setItem(
+      AGENT_SESSION_RECOVERY_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        sessionId: "saved-session",
+        editorSecret: `proof-${crypto.randomUUID()}`,
+        projectId: "project-main",
+        projectSessionId: "tab-1",
+        scopes: ["circuit.snapshot"],
+        expiresAt: Date.now() + 3_600_000,
+        localReviewOnly: true,
+      }),
+    );
+    let refuse = true;
+    const fetchRelay = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+      String(input) === "/api/agent/sessions/saved-session/control"
+        ? Promise.resolve(
+            refuse
+              ? new Response(null, { status: 503 })
+              : Response.json({ ok: true, status: "revoked" }),
+          )
+        : relay(input, init),
+    );
+    vi.stubGlobal("fetch", fetchRelay);
+    vi.stubGlobal("WebSocket", ScriptedSocket);
+    ScriptedSocket.opened.length = 0;
+    vi.mocked(loadAgentRuntime).mockImplementationOnce(realRuntime);
+    await openEditor();
+    await settle(() => expect(ScriptedSocket.opened).toHaveLength(1));
+    await act(async () => ScriptedSocket.opened[0]!.emit("open"));
+    expect(seen.session!.trustedDevice).toBe(true);
+
+    // A relay that cannot change the trust leaves the task running.
+    await act(async () => seen.session!.untrustDevice());
+    expect(seen.session!.error).toContain("Trusted Canvas devices");
+    expect(seen.session!.status).not.toBe("revoked");
+    refuse = false;
+    await act(async () => seen.session!.untrustDevice());
+    expect(fetchRelay).toHaveBeenCalledWith(
+      "/api/agent/sessions/saved-session/control",
+      expect.objectContaining({ body: '{"action":"untrust-device"}' }),
+    );
+    expect(seen.session!.status).toBe("revoked");
+    expect(seen.session!.error).toBeNull();
+    expect(storage.getItem(AGENT_SESSION_RECOVERY_STORAGE_KEY)).toBeNull();
+  });
 });

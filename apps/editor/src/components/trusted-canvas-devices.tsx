@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { DEVICE_TRUST_PATH } from "@icm/agent-adapter/browser-launch";
 
-type Device = { id: string; trustedAt: number };
+type Device = {
+  id: string;
+  /** What the installation calls itself, when it said. */
+  name?: string;
+  trustedAt: number;
+  /** When it last opened a task. */
+  lastUsedAt?: number;
+};
+
+const day = (time: number) => new Date(time).toLocaleDateString();
 
 export function TrustedCanvasDevices() {
   const [devices, setDevices] = useState<Device[] | null>(null);
@@ -59,12 +68,15 @@ export function TrustedCanvasDevices() {
         {devices ? "Refresh trusted devices" : "Show trusted devices"}
       </button>
       {devices?.length === 0 ? <p>No trusted devices on this site.</p> : null}
-      {devices?.map(({ id, trustedAt }) => (
+      {devices?.map(({ id, name, trustedAt, lastUsedAt }) => (
         <div className="account-page-row" key={id}>
           <div>
-            <span className="account-page-label">Device {id.slice(0, 8)}</span>
+            <span className="account-page-label">
+              {name ?? `Device ${id.slice(0, 8)}`}
+            </span>
             <span className="account-page-value">
-              {new Date(trustedAt).toLocaleDateString()}
+              Trusted {day(trustedAt)}
+              {lastUsedAt ? ` · last used ${day(lastUsedAt)}` : ""}
             </span>
           </div>
           <button type="button" disabled={busy} onClick={() => void revoke(id)}>

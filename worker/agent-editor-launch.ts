@@ -5,9 +5,22 @@ import {
 } from "@icm/agent-adapter/browser-launch";
 import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../apps/editor/src/agent/session-recovery-presence";
 import type { AgentSessionRouterEnv } from "./agent-session-runtime";
-import { deviceTrustDirectory, verifyLaunchDevice } from "./agent-device-trust";
+import {
+  deviceLabel,
+  deviceTrustDirectory,
+  verifyLaunchDevice,
+} from "./agent-device-trust";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
+
+/** JSON for an inline script: no markup or line separators survive. */
+function scriptJson(value: unknown) {
+  return JSON.stringify(value).replace(
+    /[<>&\u2028\u2029]/gu,
+    (character) =>
+      `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+  );
+}
 
 /** A loopback navigation shows the prompt; a same-origin approval uses the grant. */
 export async function editorLaunchPage(
@@ -42,6 +55,7 @@ export async function editorLaunchPage(
   const contentType = request.headers.get("content-type");
   const deviceKey = form.get("deviceKey") ?? "";
   const deviceProof = form.get("deviceProof") ?? "";
+  const deviceName = deviceLabel(form.get("deviceName"));
   const hasDevice =
     /^[A-Za-z0-9_-]{43}$/u.test(deviceKey) &&
     /^[A-Za-z0-9_-]{86}$/u.test(deviceProof);
@@ -75,7 +89,12 @@ export async function editorLaunchPage(
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           grant,
-          device: { directory, deviceId, action: approval },
+          device: {
+            directory,
+            deviceId,
+            action: approval,
+            ...(deviceName ? { label: deviceName } : {}),
+          },
         }),
       },
     );
@@ -101,14 +120,16 @@ export async function editorLaunchPage(
 <title>Connect Agent to Analog Canvas</title>
 <main>
   <h1>Connect Agent to Analog Canvas</h1>
+  <p id="account"></p>
   <p>Allow the local Agent to read and edit a new Canvas tab through this site's Agent relay.
   The connection also grants available file, simulation, and publishing tools.
   You can pause or disconnect from the editor's Agent panel.</p>
   <button type="button" id="allow">Allow Agent access</button>
   ${
     hasDevice
-      ? `<p>Trust this device to open future review tabs with your signed-in account.
-  Trusted tasks can read and edit local review copies. Cloud and Gallery actions use Canvas controls.</p>
+      ? `<p>Trust <strong id="device">this device</strong> to open future review tabs for this account without asking.
+  Trusted tasks can read and edit local review copies. Cloud and Gallery actions use Canvas controls.
+  Stop trusting it from the editor's Agent panel or Account settings.</p>
   <button type="button" id="trust">Trust this device</button>`
       : ""
   }
@@ -118,13 +139,35 @@ export async function editorLaunchPage(
   const button = document.getElementById("allow");
   const trust = document.getElementById("trust");
   const status = document.getElementById("status");
+  const launch = ${scriptJson({
+    fields: {
+      sessionId,
+      grant,
+      ...(hasDevice
+        ? { deviceKey, deviceProof, ...(deviceName ? { deviceName } : {}) }
+        : {}),
+    },
+    deviceName: deviceName ?? null,
+  })};
+  if (launch.deviceName && trust)
+    document.getElementById("device").textContent = launch.deviceName;
+  fetch("/api/auth/me", { cache: "no-store", signal: AbortSignal.timeout(8000) })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((body) => {
+      const name = body && body.user && body.user.displayName;
+      document.getElementById("account").textContent =
+        typeof name === "string"
+          ? "Signed in to Canvas as " + name + "."
+          : "Not signed in to Canvas.";
+    })
+    .catch(() => {});
   async function approve(approval) {
     button.disabled = true;
     if (trust) trust.disabled = true;
     try {
       if (sessionStorage.length !== 0) throw new Error();
-      const fields = ${JSON.stringify({ sessionId, grant, ...(hasDevice ? { deviceKey, deviceProof } : {}) })};
-      const response = await fetch(${JSON.stringify(BROWSER_LAUNCH_PATH)}, {
+      const fields = launch.fields;
+      const response = await fetch(${scriptJson(BROWSER_LAUNCH_PATH)}, {
         method: "POST",
         mode: "same-origin",
         referrerPolicy: "same-origin",
@@ -137,7 +180,7 @@ export async function editorLaunchPage(
         return;
       }
       if (!response.ok || sessionStorage.length !== 0) throw new Error();
-      sessionStorage.setItem(${JSON.stringify(AGENT_SESSION_RECOVERY_STORAGE_KEY)},
+      sessionStorage.setItem(${scriptJson(AGENT_SESSION_RECOVERY_STORAGE_KEY)},
         JSON.stringify(await response.json()));
       location.replace("/editor");
       return true;

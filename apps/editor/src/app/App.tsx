@@ -332,6 +332,7 @@ import {
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import {
+  agentConnectionControls,
   useWorkspaceAgentRuntime,
   WorkspaceAgentProvider,
 } from "../agent/workspace-agent";
@@ -7632,19 +7633,7 @@ function WorkspaceEditor({
                   agentSession.error !== null) &&
                 !agentStatusDismissed
                   ? {
-                      status: agentSession.status,
-                      claimCode: agentSession.claimCode,
-                      claimExpiresAt: agentSession.claimExpiresAt,
-                      scopes: agentSession.scopes,
-                      expiresAt: agentSession.expiresAt,
-                      error: agentSession.error,
-                      backgroundRequests: agentSession.backgroundRequests,
-                      onPause: () => void agentSession.pause(),
-                      onResume: () => void agentSession.resume(),
-                      onReconnect: agentSession.reconnect,
-                      onNewConnection: () => void agentSession.newConnection(),
-                      pendingOperation: agentSession.pendingOperation,
-                      onRevoke: () => void agentSession.revoke(),
+                      ...agentConnectionControls(agentSession),
                       expanded: agentDetailsOpen,
                       onToggleDetails: () =>
                         setAgentDetailsOpen((open) => !open),

@@ -25,6 +25,8 @@ import {
   AccountDeletions,
   deletionRequestId,
 } from "./account-deletions";
+import { purgeTrustedDevices } from "./agent-device-trust";
+import type { AgentSessionNamespaceLike } from "./agent-session-runtime";
 import {
   coordinatesProjectDeletion,
   includesProjectOwner,
@@ -194,6 +196,8 @@ export type AuthEnv = {
    * deletion asks it to unlink the account from its Voter.
    */
   ARENA?: ArenaService;
+  /** Agent sessions, whose trusted-device directories account deletion clears. */
+  AGENT_SESSION?: AgentSessionNamespaceLike;
   GH_OAUTH_CLIENT_ID?: string;
   GH_OAUTH_CLIENT_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -1509,9 +1513,10 @@ export class AuthDO {
   /**
    * Delete the signed-in account and everything kept for it. The Gallery
    * (published circuits, likes, Cloud Projects), the shared component
-   * library and AnalogArena's link to the account's Voter go first and the
-   * account last: if a step fails, the person is still signed in to try
-   * again, and every step is safe to repeat.
+   * library, AnalogArena's link to the account's Voter and the devices it
+   * trusted for Agent tasks go first and the account last: if a step fails,
+   * the person is still signed in to try again, and every step is safe to
+   * repeat.
    */
   private async deleteAccount(request: Request, url: URL): Promise<Response> {
     if (!sameOrigin(request)) {
@@ -1596,6 +1601,10 @@ export class AuthDO {
       !(await unlinkArenaVoter(this.env.ARENA, arenaAccount(user), url.origin))
     )
       return noStoreJson({ error: "arena-unlink-failed" }, 503);
+    if (
+      !(await purgeTrustedDevices(this.env.AGENT_SESSION, url.origin, user.id))
+    )
+      return noStoreJson({ error: "devices-delete-failed" }, 503);
     this.sql.exec("DELETE FROM sessions WHERE user_id = ?", user.id);
     this.sql.exec("DELETE FROM owner_tokens WHERE user_id = ?", user.id);
     if (user.email) {

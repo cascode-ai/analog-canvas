@@ -679,7 +679,15 @@ export class AgentSessionMachine {
     scopes: readonly AgentSessionScope[],
     required: AgentSessionScope,
   ): { ok: true } | { ok: false; code: AgentTransportErrorCode } {
-    return scopes.includes(required)
+    return this.assertScopes(scopes, [required]);
+  }
+
+  /** Require every scope an operation needs. */
+  assertScopes(
+    scopes: readonly AgentSessionScope[],
+    required: readonly AgentSessionScope[],
+  ): { ok: true } | { ok: false; code: AgentTransportErrorCode } {
+    return required.every((scope) => scopes.includes(scope))
       ? { ok: true }
       : { ok: false, code: "TOKEN_SCOPE_INSUFFICIENT" };
   }

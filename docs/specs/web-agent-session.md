@@ -63,20 +63,26 @@ GET  /api/agent/openapi.json
   secret to the tab. The Agent holds a scoped bearer for the detached session
   and reports readiness after reading the live Project. The URL carries no
   session credential.
-- A signed-in user may select **Trust this device** on the launch page.
-  The relay checks the installation's signature over the exact origin,
-  session and one-use grant. The device record belongs to that site and
-  account. Subsequent matching launches may consume a fresh grant without
-  a browser click. They receive only review, local file and circuit edit
-  scopes. The relay exposes the effective scopes to the adapter after approval.
-  If a Cloud or Gallery Project is opened in the trusted browser tab, the
-  editor ends the trusted connection before serving account Project content.
-  One-time approval still grants its ordinary scopes.
-- The account Settings revoke action invalidates the device generation and
-  ends its active trusted tasks. The relay checks that generation on requests
-  and socket messages. A revoked task stays terminal, including if its Editor
-  disconnects. A device may earn a fresh generation through a new explicit
-  approval.
+- A signed-in user may select **Trust this device** on the launch page, which
+  names the signed-in account and the installation. The relay checks the
+  installation's signature over the exact origin, session and one-use grant.
+  The device record belongs to that site and account and keeps the
+  installation's name, when it was trusted and when it last opened a task.
+  Subsequent matching launches may consume a fresh grant without a browser
+  click. They receive the
+  [trusted-task grant](#permissions-and-limits), which `status` reports as
+  `scopes`; no other session's `status` carries `scopes`. If a Cloud or
+  Gallery Project is opened in the trusted browser
+  tab, the editor ends the trusted connection before serving account Project
+  content. One-time approval still grants its ordinary scopes.
+- **Stop trusting this device** in a trusted tab's Agent panel, revoking a
+  device in account Settings, and deleting the account (on each site)
+  invalidate the device generation and end its active trusted tasks. The
+  relay checks that generation on requests and socket messages. Disconnect
+  ends one trusted task and keeps its device trusted. A revoked task stays
+  terminal, including if its Editor disconnects, and its `SESSION_REVOKED`
+  message says whether its device is still trusted. A device may earn a fresh
+  generation through a new explicit approval.
 - `taskRef` selects a process-local client and browser session for subsequent
   MCP tools. A task's client uses its own revocable connector in memory.
   A live binding is reused. Before reopening, the relay checks that the
@@ -220,7 +226,17 @@ reconciles, never blindly replays.
   Project's authored Testbench: listing or reading it needs `project.download`,
   saving it `project.import` (+ connectivity edit if it edits the circuit),
   never `simulation.run`. `gallery.publish` is independent of edit scopes;
-  older sessions need a new connection for it.
+  older sessions need a new connection for it. `review` confirms a delivered
+  local review copy with the scopes `fileOperationScopes` gives each action;
+  the editor answers it only for that copy's tab, whether the session came
+  from `open_canvas` or a Claim.
+- A trusted-device task holds `TRUSTED_REVIEW_SCOPES` and none of the Project
+  operations `projectOperationAccess` marks `reachesAccount` (Cloud Projects,
+  Gallery, the component library); both live in
+  `worker/agent-session-runtime.ts`. Any refusal it meets answers
+  `TRUSTED_TASK_LOCAL_ONLY` (403); the
+  [transport error table](../../packages/agent-adapter/src/transport-errors.ts)
+  gives its next step.
 - MCP `connect` (pairing and resume) reports the session's granted scopes and
   every tool the adapter offers as `access`; its `capabilities` stays the
   Circuit resource's (`resource: "circuit"`).

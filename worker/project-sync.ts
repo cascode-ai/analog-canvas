@@ -103,7 +103,7 @@ async function handleProjectSync(
     const job = await readDeletionForRecovery(env, Number(body.after));
     if (job instanceof Response) return job;
     if (!job) return Response.json({ status: "caught-up" });
-    if (!(await purgeAccountResources(env, job.userId, true)))
+    if (!(await purgeAccountResources(env, job.userId, { replay: true })))
       return Response.json({ status: "retry" }, { status: 503 });
     return Response.json({ status: "sent", sequence: job.sequence });
   }

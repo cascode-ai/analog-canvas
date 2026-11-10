@@ -11,7 +11,7 @@ import {
   REQUEST_LEDGER_KEY_PREFIX,
   SESSION_STATE_KEY,
   fileOperationScopes,
-  projectOperationScopes,
+  projectOperationAccess,
   requestLedgerKey,
   simulationOperationScopes,
 } from "./agent-session-runtime";
@@ -28,6 +28,7 @@ import {
   agentSiteTag,
   type AgentMcpBootstrapManifest,
   type AgentSessionLimits,
+  type AgentSessionScope,
   type PersistedAgentSessionState,
 } from "@icm/agent-adapter";
 import {
@@ -52,7 +53,10 @@ import {
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
 } from "./agent-session";
-import { AgentDeviceTrustDirectory } from "./agent-device-trust";
+import {
+  AgentDeviceTrustDirectory,
+  purgeTrustedDevices,
+} from "./agent-device-trust";
 
 const limits: Partial<AgentSessionLimits> = {
   claimTtlMs: 60_000,
@@ -164,14 +168,16 @@ it("opens a staged import under the Project import scope", () => {
 });
 
 it("authorizes Gallery, Project Code and Netlist operations by their real effects", () => {
-  const scopes = (operation: Record<string, unknown>) =>
-    projectOperationScopes(
+  const access = (operation: Record<string, unknown>) =>
+    projectOperationAccess(
       AgentProjectResourceRequestSchema.parse({
         apiVersion: "3.0",
         requestId: "projects",
         ...operation,
       }),
     );
+  const scopes = (operation: Record<string, unknown>) =>
+    access(operation).scopes;
   expect(scopes({ operation: "list-gallery" })).toEqual(["circuit.snapshot"]);
   const target = {
     projectId: "project",
@@ -302,6 +308,54 @@ it("authorizes Gallery, Project Code and Netlist operations by their real effect
     }),
   ).toEqual(["circuit.edit.connectivity", "circuit.edit.presentation"]);
   expect(scopes({ operation: "list-projects" })).toEqual(["project.import"]);
+
+  // A trusted-device task keeps to the browser's own tabs and copies.
+  for (const local of [
+    { operation: "read-project-code" },
+    { operation: "read-netlist" },
+    {
+      operation: "replace-netlist",
+      netlist: ".end\n",
+      expectedStructureRevision: 0,
+    },
+    { operation: "workspace", request: { action: "list" } },
+    {
+      operation: "workspace",
+      request: { action: "activate", workspaceId: "w" },
+    },
+    { operation: "workspace", request: { action: "new" } },
+    { operation: "workspace", request: { action: "rename", name: "Amp" } },
+    // Between open tabs; a tab holding a Cloud Project ends a trusted task.
+    {
+      operation: "workspace",
+      request: {
+        action: "copy",
+        sourceWorkspaceId: "a",
+        sourceDocumentId: "main",
+        sourceRevision: 0,
+        sourceStructureRevision: 0,
+        targetWorkspaceId: "b",
+        targetDocumentId: "main",
+        expectedStructureRevision: 0,
+        expectedRevision: 0,
+        offset: { x: 0, y: 0 },
+      },
+    },
+  ])
+    expect(access(local).reachesAccount, JSON.stringify(local)).toBe(false);
+  for (const account of [
+    { operation: "list-gallery" },
+    { operation: "list-projects" },
+    { operation: "list-cells", cloudProjectId: "cloud" },
+    { operation: "components", request: { action: "authoring-read" } },
+    {
+      operation: "workspace",
+      request: { action: "open", cloudProjectId: "c" },
+    },
+    { operation: "workspace", request: { action: "save" } },
+    { operation: "publish-gallery-entry", name: "Amp" },
+  ])
+    expect(access(account).reachesAccount, JSON.stringify(account)).toBe(true);
 });
 
 function folder() {
@@ -554,6 +608,7 @@ it("trusts a proven installation for one account and origin, then revokes its ac
           grant: task.launchGrant,
           deviceKey: signingKey.publicKey.export({ format: "jwk" }).x!,
           deviceProof: proof.toString("base64url"),
+          deviceName: `Work laptop${String.fromCharCode(0x202e)} (win32)`,
           approval,
         }),
       },
@@ -633,9 +688,30 @@ it("trusts a proven installation for one account and origin, then revokes its ac
     );
     expect(denied.status, JSON.stringify(request)).toBe(403);
     expect(await denied.json()).toMatchObject({
-      error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+      error: { code: "TRUSTED_TASK_LOCAL_ONLY" },
     });
   }
+  const hosted = await call(
+    `/api/agent/sessions/${second.sessionId}/simulation`,
+    {
+      method: "POST",
+      headers: { ...second.headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        apiVersion: "3.0",
+        requestId: crypto.randomUUID(),
+        operation: "start",
+        preparedId: "prepared",
+        digest: "a".repeat(64),
+      }),
+    },
+  );
+  expect(hosted.status).toBe(403);
+  expect(await hosted.json()).toMatchObject({
+    error: {
+      code: "TRUSTED_TASK_LOCAL_ONLY",
+      message: expect.stringContaining("approves once"),
+    },
+  });
 
   const firstSocket = {
     readyState: WebSocket.OPEN,
@@ -696,8 +772,18 @@ it("trusts a proven installation for one account and origin, then revokes its ac
   });
   const {
     devices: [device],
-  } = (await devices.json()) as { devices: { id: string }[] };
+  } = (await devices.json()) as {
+    devices: {
+      id: string;
+      name?: string;
+      trustedAt: number;
+      lastUsedAt?: number;
+    }[];
+  };
   expect(device?.id).toMatch(/^[a-f0-9]{64}$/u);
+  // The label loses its direction override; the second task renewed its use.
+  expect(device?.name).toBe("Work laptop (win32)");
+  expect(device!.lastUsedAt).toBeGreaterThanOrEqual(device!.trustedAt);
   const revoke = (cookie: string) =>
     call(`${DEVICE_TRUST_PATH}/${device!.id}`, {
       method: "DELETE",
@@ -753,10 +839,251 @@ it("does not authorize an automatic task before a trusted-device enrollment comm
   expect((await grant("auto", "fresh")).status).toBe(403);
 });
 
+/** Browser launches from one installation for one signed-in account. */
+function trustedLaunches() {
+  const origin = "https://editor.example";
+  const account = "member";
+  const cookie = `icm_session=${account}`;
+  const fixture = routedFixture();
+  const env = {
+    ...fixture.env,
+    AUTH: {
+      getByName: () => ({
+        fetch: async (_input: string | Request, init?: RequestInit) =>
+          Response.json({
+            user:
+              new Headers(init?.headers).get("cookie") === cookie
+                ? { id: account }
+                : null,
+          }),
+      }),
+    },
+  };
+  const key = generateKeyPairSync("ed25519");
+  const call = async (path: string, init?: RequestInit) => {
+    const result = await routeAgentSessionRequest(
+      new Request(origin + path, init),
+      env,
+    );
+    expect(result).toBeInstanceOf(Response);
+    return result!;
+  };
+  const post = (path: string, payload: object) =>
+    call(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  const open = async (approval: "once" | "trust" | "auto") => {
+    const created = await post("/api/agent/sessions", {
+      browserLaunch: true,
+      projectSessionId: crypto.randomUUID(),
+      projectId: BROWSER_LAUNCH_PENDING_PROJECT,
+      documentIds: [],
+      scopes: AgentSessionScopeSchema.options,
+    });
+    const { session } = (await created.json()) as {
+      session: { sessionId: string; launchGrant: string; claimCode: string };
+    };
+    const claim = await post("/api/agent/claims", {
+      claimCode: session.claimCode,
+    });
+    const { agentToken } = (await claim.json()) as { agentToken: string };
+    const proof = sign(
+      null,
+      Buffer.from(
+        browserLaunchProofText(origin, session.sessionId, session.launchGrant),
+      ),
+      key.privateKey,
+    );
+    const approved = await call(BROWSER_LAUNCH_PATH, {
+      method: "POST",
+      headers: {
+        origin,
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "same-origin",
+        cookie,
+      },
+      body: new URLSearchParams({
+        sessionId: session.sessionId,
+        grant: session.launchGrant,
+        deviceKey: key.publicKey.export({ format: "jwk" }).x!,
+        deviceProof: proof.toString("base64url"),
+        approval,
+      }),
+    });
+    const control = async (action: string) => {
+      const { editorSecret } = (await approved.clone().json()) as {
+        editorSecret: string;
+      };
+      return call(`/api/agent/sessions/${session.sessionId}/control`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-editor-secret": editorSecret,
+        },
+        body: JSON.stringify({ action }),
+      });
+    };
+    const status = async () =>
+      (await call(`/api/agent/sessions/${session.sessionId}/status`, {
+        headers: { authorization: `Bearer ${agentToken}` },
+      }).then((response) => response.json())) as {
+        error?: { code: string; message: string };
+      };
+    return { approved, control, status };
+  };
+  const devices = async () =>
+    (
+      (await (
+        await call(DEVICE_TRUST_PATH, { headers: { cookie } })
+      ).json()) as {
+        devices: { id: string }[];
+      }
+    ).devices;
+  return { origin, account, env, open, devices };
+}
+
+it("names the account and installation on the launch prompt as inert text", async () => {
+  const { env } = routedFixture();
+  const origin = "https://editor.example";
+  const created = await routeAgentSessionRequest(
+    new Request(origin + "/api/agent/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        browserLaunch: true,
+        projectSessionId: crypto.randomUUID(),
+        projectId: BROWSER_LAUNCH_PENDING_PROJECT,
+        documentIds: [],
+        scopes: AgentSessionScopeSchema.options,
+      }),
+    }),
+    env,
+  );
+  const { session } = (await created!.json()) as {
+    session: { sessionId: string; launchGrant: string };
+  };
+  const key = generateKeyPairSync("ed25519");
+  const proof = sign(
+    null,
+    Buffer.from(
+      browserLaunchProofText(origin, session.sessionId, session.launchGrant),
+    ),
+    key.privateKey,
+  );
+  const name = "</script><b>Laptop</b>";
+  const prompt = await routeAgentSessionRequest(
+    new Request(origin + BROWSER_LAUNCH_PATH, {
+      method: "POST",
+      headers: {
+        origin: "http://127.0.0.1:4100",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-dest": "document",
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        sessionId: session.sessionId,
+        grant: session.launchGrant,
+        deviceKey: key.publicKey.export({ format: "jwk" }).x!,
+        deviceProof: proof.toString("base64url"),
+        deviceName: name,
+      }),
+    }),
+    env,
+  );
+  expect(prompt!.status).toBe(200);
+  const html = await prompt!.text();
+  expect(html).toContain("Trust this device");
+  // The page reads the signed-in account itself; the name stays script data.
+  expect(html).toContain('fetch("/api/auth/me"');
+  expect(html).not.toContain(name);
+  expect(html).toContain(
+    name.replace(
+      /[<>]/gu,
+      (character) =>
+        "\\" + "u" + character.charCodeAt(0).toString(16).padStart(4, "0"),
+    ),
+  );
+});
+
+it("lets a trusted tab stop trusting its device, which ends the device's tasks", async () => {
+  const { open, devices } = trustedLaunches();
+  const once = await open("once");
+  expect((await once.control("untrust-device")).status).toBe(409);
+  const first = await open("trust");
+  expect(first.approved.status).toBe(200);
+  const second = await open("auto");
+  expect(second.approved.status).toBe(200);
+  expect(await devices()).toHaveLength(1);
+
+  expect(await (await first.control("untrust-device")).json()).toMatchObject({
+    ok: true,
+    status: "revoked",
+  });
+  for (const task of [first, second])
+    expect(await task.status()).toMatchObject({
+      error: {
+        code: "SESSION_REVOKED",
+        message: expect.stringContaining("no longer trusted"),
+      },
+    });
+  expect(await devices()).toEqual([]);
+  // The next task from this installation asks again.
+  expect((await open("auto")).approved.status).toBe(403);
+  expect((await once.status()).error).toBeUndefined();
+});
+
+it("tells the Agent whether the device of an ended trusted task is still trusted", async () => {
+  const { open, devices } = trustedLaunches();
+  const once = await open("once");
+  await once.control("revoke");
+  expect(await once.status()).toMatchObject({
+    error: { code: "SESSION_REVOKED", message: "Session has been revoked" },
+  });
+  // Disconnect in the tab ends the task; the device stays trusted.
+  const ended = await open("trust");
+  await ended.control("revoke");
+  const stillTrusted = {
+    error: {
+      code: "SESSION_REVOKED",
+      message: expect.stringContaining("is still trusted"),
+    },
+  };
+  expect(await ended.status()).toMatchObject(stillTrusted);
+  expect(await devices()).toHaveLength(1);
+  const untrusted = await open("auto");
+  await untrusted.control("untrust-device");
+  expect(await untrusted.status()).toMatchObject({
+    error: { message: expect.stringContaining("no longer trusted") },
+  });
+  // A task keeps the answer it ended with.
+  expect(await ended.status()).toMatchObject(stillTrusted);
+});
+
+it("forgets an account's trusted devices and ends their tasks when it is deleted", async () => {
+  const { origin, account, env, open, devices } = trustedLaunches();
+  const task = await open("trust");
+  expect(task.approved.status).toBe(200);
+  expect(await purgeTrustedDevices(env.AGENT_SESSION, origin, account)).toBe(
+    true,
+  );
+  expect(await task.status()).toMatchObject({
+    error: {
+      code: "SESSION_REVOKED",
+      message: expect.stringContaining("no longer trusted"),
+    },
+  });
+  expect(await devices()).toEqual([]);
+  expect((await open("auto")).approved.status).toBe(403);
+  // Isolated Auth tests run without the binding: there is nothing to forget.
+  expect(await purgeTrustedDevices(undefined, origin, account)).toBe(true);
+});
+
 type LiveEditor = ReturnType<typeof liveAgentEditor>;
 
-it("keeps dedicated review acknowledgements out of ordinary Claim sessions", async () => {
-  const { env } = routedFixture();
+it("lets a Claim session ask its editor for a review delivery", async () => {
+  const { env, objects, sockets } = routedFixture();
   const post = (path: string, input: object, token?: string) =>
     routeAgentSessionRequest(
       new Request(`https://editor.example${path}`, {
@@ -769,33 +1096,50 @@ it("keeps dedicated review acknowledgements out of ordinary Claim sessions", asy
       }),
       env,
     );
-  const create = await post("/api/agent/sessions", {
-    projectId: "project",
-    projectSessionId: "workspace",
-    documentIds: ["main"],
-    scopes: ["project.import", "project.download"],
-  });
-  expect(create?.status).toBe(200);
-  const { session } = (await create!.json()) as {
-    session: { sessionId: string; claimCode: string };
+  const paired = async (scopes: AgentSessionScope[]) => {
+    const create = await post("/api/agent/sessions", {
+      projectId: "project",
+      projectSessionId: `workspace-${scopes.length}`,
+      documentIds: ["main"],
+      scopes,
+    });
+    expect(create?.status).toBe(200);
+    const { session } = (await create!.json()) as {
+      session: { sessionId: string; claimCode: string };
+    };
+    const claimed = await post("/api/agent/claims", {
+      claimCode: session.claimCode,
+    });
+    expect(claimed?.status).toBe(200);
+    const { agentToken } = (await claimed!.json()) as { agentToken: string };
+    const browser = editorEnd(editorFor("project", "main"), () =>
+      objects.get(session.sessionId)!,
+    );
+    sockets.set(session.sessionId, [browser.socket]);
+    const review = await post(
+      `/api/agent/sessions/${session.sessionId}/files`,
+      {
+        apiVersion: "3.0",
+        requestId: "claim-review",
+        operation: "review",
+        input: { action: "finish-save", saveId: "candidate" },
+      },
+      agentToken,
+    );
+    return { review: review!, families: browser.families };
   };
-  const claimed = await post("/api/agent/claims", {
-    claimCode: session.claimCode,
+  // The editor, not the relay, decides whether this tab holds a delivery.
+  const granted = await paired(["project.import", "project.download"]);
+  expect(granted.families).toEqual(["file"]);
+  expect(await granted.review.json()).toMatchObject({
+    operation: "review",
+    ok: false,
+    error: { code: "REVIEW_WORKSPACE_REQUIRED" },
   });
-  expect(claimed?.status).toBe(200);
-  const { agentToken } = (await claimed!.json()) as { agentToken: string };
-  const receipt = await post(
-    `/api/agent/sessions/${session.sessionId}/files`,
-    {
-      apiVersion: "3.0",
-      requestId: "unauthorized-review-save",
-      operation: "review",
-      input: { action: "finish-save", saveId: "candidate" },
-    },
-    agentToken,
-  );
-  expect(receipt?.status).toBe(403);
-  expect(await receipt!.json()).toMatchObject({
+  const ungranted = await paired(["project.download"]);
+  expect(ungranted.review.status).toBe(403);
+  expect(ungranted.families).toEqual([]);
+  expect(await ungranted.review.json()).toMatchObject({
     error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
   });
 });
