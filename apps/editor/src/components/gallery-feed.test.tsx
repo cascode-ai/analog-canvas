@@ -410,7 +410,12 @@ describe("GalleryCountPanel", () => {
     expect(community).toContain(
       'data-testid="gallery-contributor-dataset-analoggenie"',
     );
-    expect(community).toContain(">Dataset</span>");
+    // Only the name may give way; the mark is its own box, the name whole
+    // in the button's title (#2198).
+    expect(community).toContain(
+      '<span class="gallery-contributor-name">AnalogGenie</span><span class="gallery-contributor-tag">Dataset</span>',
+    );
+    expect(community).toContain('title="AnalogGenie"');
     // The dataset takes its place in the ranking: boboIC 1, AnalogGenie 2, Rgeph 3.
     expect(community).toContain('data-testid="gallery-contributor-row-1"');
     expect(community).toContain('data-testid="gallery-contributor-row-3"');

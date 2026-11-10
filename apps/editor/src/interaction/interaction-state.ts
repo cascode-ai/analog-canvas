@@ -119,6 +119,12 @@ export interface WireLabelDraft {
   sizeScale: number;
   alignment: "start" | "middle" | "end";
   position: Point;
+  /** The name and look accepting the name fixed; the Wire keeps them. */
+  applied?: {
+    name: string;
+    content: RichTextDocument;
+    formatOverride?: RichTextDocument;
+  };
 }
 
 export interface PendingComponentPlacement {

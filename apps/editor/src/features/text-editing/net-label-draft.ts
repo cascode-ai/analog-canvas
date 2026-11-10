@@ -9,15 +9,31 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 
+export interface PreparedNetLabel {
+  name: string;
+  content: RichTextDocument;
+  formatOverride?: RichTextDocument;
+}
+
+/** The name and look a Net Label or Wire name draft places: the ones fixed
+ * when it was applied while its look is unchanged. The applied look may hide
+ * characters of the name (the `_` before a subscript), so it is never read
+ * back into a name. */
+export function placedNetLabelDraft(
+  draft: { content: RichTextDocument; applied?: PreparedNetLabel | undefined },
+  presentation: SchematicDocument["presentation"],
+): PreparedNetLabel {
+  return draft.applied &&
+    JSON.stringify(draft.applied.content) === JSON.stringify(draft.content)
+    ? draft.applied
+    : prepareNetLabelDraft(draft.content, presentation);
+}
+
 /** Ordinary Label placement and inline Wire naming create the same name and look. */
 export function prepareNetLabelDraft(
   draft: RichTextDocument,
   presentation: SchematicDocument["presentation"],
-): {
-  name: string;
-  content: RichTextDocument;
-  formatOverride?: RichTextDocument;
-} {
+): PreparedNetLabel {
   // Scalar complement shorthand remains available. Explicit signal
   // expressions keep their electrical characters when formatted.
   const plainText = flattenRichText(draft);

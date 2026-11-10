@@ -1,13 +1,8 @@
-import {
-  lazy,
-  Suspense,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import type { CircuitProject } from "@icm/model";
 
+import { useAuthoringDocument } from "../user-components/use-authoring-document";
+import type { CodeDraftDocument } from "./held-code-draft";
 import { formatProjectCode, planProjectCodeCommit } from "./project-code";
 import { projectCodeInstanceRanges } from "./project-code-ranges";
 import { createProjectCodeReader } from "./project-code-reader";
@@ -24,10 +19,14 @@ export function ProjectCodePanel({
   project,
   selection,
   serializeProject = formatProjectCode,
-  onDirtyChange,
+  draftDocument,
   onApply,
 }: {
-  onDirtyChange?(dirty: boolean): void;
+  /**
+   * Where the unapplied draft lives: the editor's, so closing the panel keeps
+   * it (#2201). Left out, the panel keeps one of its own.
+   */
+  draftDocument?: CodeDraftDocument | undefined;
   project: CircuitProject;
   /** The session's canonical serializer; validation still belongs to the reader. */
   serializeProject?: typeof formatProjectCode;
@@ -47,26 +46,15 @@ export function ProjectCodePanel({
     [project, serializeProject],
   );
   const baseline = reader.baseline;
-  const [draft, setDraft] = useState(baseline);
-  const [editBaseline, setEditBaseline] = useState(baseline);
-  const [dirty, setDirty] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const ownApply = useRef(false);
-
-  useLayoutEffect(() => {
-    if (!dirty || ownApply.current) {
-      ownApply.current = false;
-      setDraft(baseline);
-      setEditBaseline(baseline);
-      setDirty(false);
-      setError(null);
-    }
-  }, [baseline, dirty]);
-
-  useLayoutEffect(() => {
-    onDirtyChange?.(dirty);
-    return () => onDirtyChange?.(false);
-  }, [dirty, onDirtyChange]);
+  // Without a draft the code is the live Project.
+  const { document: heldDraft, value: held } = useAuthoringDocument(
+    () => null,
+    draftDocument,
+  );
+  const draft = held?.text ?? baseline;
+  const editBaseline = held?.base ?? baseline;
+  const dirty = held !== null;
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   const selectionKey = selection
     ? `${selection.documentId}\u0000${selection.instanceIds.join("\u0000")}`
@@ -87,23 +75,19 @@ export function ProjectCodePanel({
 
   const changedOutsideDraft = dirty && editBaseline !== baseline;
   const parsed = reader.validate(draft);
+  const error = applyError ?? (parsed.ok ? null : parsed.message);
 
   function change(source: string): void {
-    if (!dirty) setEditBaseline(baseline);
-    setDraft(source);
-    setDirty(source !== baseline);
-    const next = reader.validate(source);
-    setError(next.ok ? null : next.message);
+    heldDraft.set(
+      source === baseline ? null : { text: source, base: editBaseline },
+    );
+    setApplyError(null);
   }
 
   function apply(): void {
-    const current = reader.validate(draft);
-    if (!current.ok) {
-      setError(current.message);
-      return;
-    }
+    if (!parsed.ok) return;
     if (changedOutsideDraft) {
-      setError(
+      setApplyError(
         "The canvas or Agent changed this Project while you were editing. Reload the live code before applying.",
       );
       return;
@@ -113,21 +97,17 @@ export function ProjectCodePanel({
       planProjectCodeCommit,
     });
     if (!outcome.ok) {
-      setError(outcome.message ?? "The Project edit was rejected");
+      setApplyError(outcome.message ?? "The Project edit was rejected");
       return;
     }
-    ownApply.current = true;
-    setDraft(baseline);
-    setEditBaseline(baseline);
-    setDirty(false);
-    setError(null);
+    // The Project holds the draft now; its code replaces the text.
+    heldDraft.set(null);
+    setApplyError(null);
   }
 
   function reload(): void {
-    setDraft(baseline);
-    setEditBaseline(baseline);
-    setDirty(false);
-    setError(null);
+    heldDraft.set(null);
+    setApplyError(null);
   }
 
   return (

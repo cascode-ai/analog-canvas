@@ -12,17 +12,40 @@ const schematicRoundPeriodFontFamily = "ICM Round Period";
 
 const roundPeriodSource = `url(data:font/ttf;base64,${schematicRoundPeriodFontBase64}) format("truetype")`;
 
-export const schematicRoundPeriodFontFaceCss = [
+const roundPeriodFaces = [
   [400, "normal"],
   [400, "italic"],
   [700, "normal"],
   [700, "italic"],
-]
-  .map(
-    ([weight, style]) =>
-      `@font-face{font-family:"${schematicRoundPeriodFontFamily}";src:${roundPeriodSource};font-weight:${weight};font-style:${style};font-display:block;unicode-range:U+002E}`,
-  )
+] as const;
+
+const roundPeriodFace = ([weight, style]: (typeof roundPeriodFaces)[number]) =>
+  `@font-face{font-family:"${schematicRoundPeriodFontFamily}";src:${roundPeriodSource};font-weight:${weight};font-style:${style};font-display:block;unicode-range:U+002E}`;
+
+/** Every house text style, for a live canvas whose text changes. */
+export const schematicRoundPeriodFontFaceCss = roundPeriodFaces
+  .map(roundPeriodFace)
   .join("");
+
+/**
+ * The faces a finished drawing's markup uses, each embedding the glyph once
+ * (#2214): none when no text holds a full stop, and the bold or italic faces
+ * only when some text is bold or italic. A face per style keeps the browser
+ * from synthesizing a slanted or emboldened period.
+ */
+export function schematicRoundPeriodFontFaceCssFor(markup: string): string {
+  const text = markup.replace(/<[^>]*>/gu, "");
+  if (!text.includes(".")) return "";
+  const italic = /italic/u.test(markup);
+  const bold = /font-weight(?:=["']?|:\s*)(?:bold|[6-9]00)/u.test(markup);
+  return roundPeriodFaces
+    .filter(
+      ([weight, style]) =>
+        (weight === 400 || bold) && (style === "normal" || italic),
+    )
+    .map(roundPeriodFace)
+    .join("");
+}
 
 export function withSchematicRoundPeriodFont(fallbackStack: string): string {
   return `'${schematicRoundPeriodFontFamily}',${fallbackStack}`;

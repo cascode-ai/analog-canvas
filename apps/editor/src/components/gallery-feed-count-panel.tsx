@@ -98,9 +98,10 @@ function GalleryContributorRow({
         className="gallery-contributor-author"
         data-testid={`gallery-contributor-author-${rank}`}
         aria-label={`View ${option.author}'s gallery`}
+        title={option.author}
         onClick={() => onSelectAuthor(option)}
       >
-        {option.author}
+        <span className="gallery-contributor-name">{option.author}</span>
       </button>
       <span className="gallery-contributor-count">
         {contributionLabel(option.count)}
@@ -136,9 +137,11 @@ function GalleryDatasetContributorRow({
         type="button"
         className="gallery-contributor-author"
         aria-label={`View the ${dataset.name} dataset`}
+        title={dataset.name}
         onClick={() => onSelect(dataset.key)}
       >
-        {dataset.name}
+        {/* A long name gives way; the mark stays whole (#2198). */}
+        <span className="gallery-contributor-name">{dataset.name}</span>
         <span className="gallery-contributor-tag">Dataset</span>
       </button>
       <span className="gallery-contributor-count">

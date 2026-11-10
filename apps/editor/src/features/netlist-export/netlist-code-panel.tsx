@@ -54,6 +54,8 @@ import {
   codeViewportHeight,
   StaticCodeView,
 } from "../project-code/static-code-view";
+import type { CodeDraftDocument } from "../project-code/held-code-draft";
+import { useAuthoringDocument } from "../user-components/use-authoring-document";
 
 const ProjectTextEditor = lazy(
   () => import("../project-code/project-text-editor"),
@@ -101,7 +103,7 @@ export function netlistIssueTarget(
 /** Live structural output. Diagnostics belong outside the copyable code. */
 export function NetlistCodePanel({
   project,
-  onDirtyChange,
+  draftDocument,
   rootDocumentId,
   onRootChange,
   format,
@@ -123,7 +125,11 @@ export function NetlistCodePanel({
   onProcessChange,
   onDeviceTargetChange,
 }: {
-  onDirtyChange?(dirty: boolean): void;
+  /**
+   * Where the unapplied draft lives: the editor's, so closing or switching the
+   * panel keeps it (#2193). Left out, the panel keeps one of its own.
+   */
+  draftDocument?: CodeDraftDocument | undefined;
   project: CircuitProject;
   rootDocumentId?: string | undefined;
   onRootChange?(documentId: string): void;
@@ -255,15 +261,16 @@ export function NetlistCodePanel({
         : null,
     [project, result],
   );
-  const [draft, setDraft] = useState(source);
-  const [editBaseline, setEditBaseline] = useState(source);
+  // Without a draft the code is the circuit's netlist.
+  const { document: heldDraft, value: held } = useAuthoringDocument(
+    () => null,
+    draftDocument,
+  );
+  const draft = held?.text ?? source;
+  const editBaseline = held?.base ?? source;
   const [applyError, setApplyError] = useState<string | null>(null);
-  const ownApply = useRef(false);
   const dirty = draft !== editBaseline;
-  useLayoutEffect(() => {
-    onDirtyChange?.(dirty);
-    return () => onDirtyChange?.(false);
-  }, [dirty, onDirtyChange]);
+  const dropDraft = () => heldDraft.set(null);
 
   const conflict = dirty && source !== editBaseline;
   const draftRef = useRef(draft);
@@ -278,12 +285,7 @@ export function NetlistCodePanel({
   };
   useEffect(() => () => focusRef.current(null), []);
   useLayoutEffect(() => {
-    if (!dirty || ownApply.current) {
-      setDraft(source);
-      setEditBaseline(source);
-      setApplyError(null);
-    }
-    ownApply.current = false;
+    if (!dirty) setApplyError(null);
   }, [source]);
   function apply(
     options: { fillMissingDefaults?: boolean; dropUnwritable?: boolean } = {},
@@ -301,8 +303,7 @@ export function NetlistCodePanel({
         !editSession!.analyze(draftRef.current).ok)
     ) {
       writesDraft = false;
-      setDraft(source);
-      setEditBaseline(source);
+      dropDraft();
       setApplyError(null);
     }
     if (!writesDraft && !options.fillMissingDefaults) return true;
@@ -346,19 +347,18 @@ export function NetlistCodePanel({
       }
     }
     if (!edits.length) {
-      setDraft(source);
-      setEditBaseline(source);
+      dropDraft();
       setApplyError(null);
       return true;
     }
-    ownApply.current = true;
     if (!onApply(edits)) {
-      ownApply.current = false;
       setApplyError(
         "Edit rejected. Check the device prefix and duplicate names; the circuit keeps the last valid values.",
       );
       return false;
     }
+    // The circuit holds the draft now; its netlist replaces the text.
+    dropDraft();
     setApplyError(null);
     return true;
   }
@@ -602,7 +602,9 @@ export function NetlistCodePanel({
               invalid={invalid}
               onChange={(text) => {
                 draftRef.current = text;
-                setDraft(text);
+                heldDraft.set(
+                  text === editBaseline ? null : { text, base: editBaseline },
+                );
                 setApplyError(null);
               }}
               onEnter={() => {
@@ -716,8 +718,7 @@ export function NetlistCodePanel({
           <button
             type="button"
             onClick={() => {
-              setDraft(source);
-              setEditBaseline(source);
+              dropDraft();
               setApplyError(null);
               focusInstance(null);
             }}
