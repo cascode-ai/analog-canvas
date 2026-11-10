@@ -6,6 +6,7 @@ import {
   analyzeDesignNetlistForAuthoring,
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
+import { supplyPortRank } from "./extract-ground-pin.js";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
 
 /**
@@ -44,6 +45,46 @@ export function designNetlistNetName(
       .ir?.cells.find((cell) => cell.id === documentId)
       ?.nets.find((net) => net.id === logicalId)?.name;
     if (name) return name;
+  }
+  return null;
+}
+
+/**
+ * The pins a design netlist writes for one Cell printed as a subcircuit, in
+ * order: the Cell's own Pins, each by its first Net, and those the export
+ * adds, such as ground's pin or a default supply; `supply` marks the ones
+ * the export puts before the signals (#2177). A drawing that does not
+ * extract yet answers with its draft's pins; one with no draft, null.
+ */
+export function designNetlistCellPorts(
+  project: CircuitProject,
+  documentId: string,
+): readonly { id: string; name: string; supply: boolean }[] | null {
+  const source = project.documents.find(
+    (document) => document.id === documentId,
+  );
+  if (!source) return null;
+  // Read as the export ranks the ports it sorts.
+  const logical = resolveCommittedDocumentLogicalNets(
+    withNetlistPowerMarkerClaims(source),
+  );
+  const analysisOptions = {
+    groundPin: "pin" as const,
+    rootDocumentId: documentId,
+  };
+  for (const analyze of [
+    analyzeDesignNetlist,
+    analyzeDesignNetlistForAuthoring,
+  ]) {
+    const cell = analyze(project, analysisOptions).ir?.cells.find(
+      (candidate) => candidate.id === documentId,
+    );
+    if (cell)
+      return cell.ports.map(({ id, name }) => ({
+        id,
+        name,
+        supply: supplyPortRank(logical, { id, name }) < 2,
+      }));
   }
   return null;
 }

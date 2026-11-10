@@ -378,6 +378,21 @@
   font-size: var(--icm-font-xs);
 }
 
+/* A pin the export adds, such as ground's: in its place, not editable. */
+.cell-pin-added-name {
+  overflow: hidden;
+  padding-left: var(--icm-space-2);
+  color: var(--icm-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-pin-added-note {
+  grid-column: 3 / -1;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
+}
+
 .cell-props-row-actions {
   display: flex;
   justify-content: flex-end;

@@ -631,8 +631,8 @@ export function EditorDialogs({
                   renameCellTerminal(terminalId, name, cellId),
                 onSetPinDirection: (cellId, portId, direction) =>
                   updateCellPortDirection(portId, direction, cellId),
-                onMovePin: (cellId, portId, delta) =>
-                  moveCellPort(portId, delta, cellId),
+                onMovePin: (cellId, portId, otherPortId) =>
+                  moveCellPort(portId, otherPortId, cellId),
                 onEditParameter: (cellId, name, change) =>
                   editCellParameter(name, change, cellId),
                 onSymbolSizeChange: setCellSymbolBodySize,
