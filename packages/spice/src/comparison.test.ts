@@ -369,6 +369,42 @@ R1 VDD OUT 10k
     const model = await ir(`${reference}\n.model nfet nmos level=1`);
     expect(compareCircuitIR(model, model, "amp").status).toBe("inconclusive");
   });
+  it("does not attribute a retargeted Cell's contents to its previous definition", async () => {
+    const text = [
+      "* two calls share the same Cell",
+      ".subckt load a b",
+      "R1 a b 1k",
+      ".ends load",
+      ".subckt top a b",
+      "X1 a b load",
+      "X2 a b load",
+      ".ends top",
+    ].join("\n");
+    const revised =
+      text.replace("X1 a b load", "X1 a b load2") +
+      "\n.subckt load2 a b\nR1 a b 2k\n.ends load2";
+    const result = compareCircuitIR(
+      await ir(revised),
+      await ir(text),
+      "top",
+      "top",
+      {
+        referenceSpans: true,
+      },
+    );
+    expect(result).toMatchObject({
+      status: "inconclusive",
+      topology: "different",
+      differences: [
+        {
+          kind: "target",
+          object: "x1",
+          expectedSource: { start: { line: 6 } },
+        },
+      ],
+      reasons: [expect.stringContaining("load2")],
+    });
+  });
   it("keeps over-budget literals inconclusive while retaining known differences", async () => {
     const text = withValue("1".repeat(4097));
     const expected = await ir(text);

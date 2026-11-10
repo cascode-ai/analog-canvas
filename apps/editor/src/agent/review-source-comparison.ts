@@ -1,6 +1,11 @@
 import { hasRnlCommentRecords } from "@icm/agent-adapter";
+import { deviceDescriptor } from "@icm/devices";
 import type { CircuitProject, SourceSpan } from "@icm/model";
-import { analyzeDesignNetlist, printDesignNetlist } from "@icm/netlist";
+import {
+  analyzeDesignNetlist,
+  printDesignNetlist,
+  type DesignNetlistIR,
+} from "@icm/netlist";
 import {
   compareCircuitIR,
   compileSpiceSources,
@@ -14,6 +19,34 @@ const MAX_DIFFERENCES = 200;
 
 function statementKey({ fileId, start, end }: SourceSpan) {
   return `${fileId}:${start.offset}:${end.offset}`;
+}
+
+/** Type evidence from the actual placed symbols, keyed by their exported model names. */
+function drawingModelTypes(project: CircuitProject, design: DesignNetlistIR) {
+  const types = new Map<string, string | undefined>();
+  for (const cell of design.cells) {
+    const document = project.documents.find(({ id }) => id === cell.id);
+    const symbols = new Map(
+      document?.instances.map(({ id, symbolId }) => [id, symbolId]),
+    );
+    for (const card of cell.instances) {
+      if (card.invocationKind !== "primitive" || !card.target) continue;
+      const symbol = symbols.get(card.id);
+      const known = symbol && deviceDescriptor(symbol, project);
+      const type = known
+        ? (known.mosBulkClass ??
+          (known.symbolId === "diode"
+            ? "d"
+            : ["npn", "pnp"].find((id) => id === known.symbolId)))
+        : undefined;
+      const name = card.target.toLowerCase();
+      types.set(
+        name,
+        types.has(name) && types.get(name) !== type ? undefined : type,
+      );
+    }
+  }
+  return types;
 }
 
 async function prepareReference(
@@ -128,7 +161,10 @@ export async function compareReviewSource(
   // Resolved local includes have already contributed their Cells to this IR.
   const resolvedIncludes = new Set(
     reference.bundle.dependencies
-      .filter(({ status }) => status === "resolved")
+      .filter(
+        ({ status, section }) =>
+          status === "resolved" || (status === "duplicate" && !section),
+      )
       .map(({ sourceRef }) => statementKey(sourceRef)),
   );
   const expected = {
@@ -149,6 +185,7 @@ export async function compareReviewSource(
     expectedRoot,
     {
       referenceSpans: true,
+      actualModelTypes: drawingModelTypes(project, actualDesign.ir),
     },
   );
   const files = new Map(
@@ -159,17 +196,20 @@ export async function compareReviewSource(
     ...result.reasons,
     ...prepared.diagnostics.map(({ message }) => message),
   ];
-  const status =
-    prepared.diagnostics.length && result.status === "equal"
-      ? ("inconclusive" as const)
-      : result.status;
+  const conversionIncomplete = prepared.diagnostics.length > 0;
+  const status = conversionIncomplete
+    ? ("inconclusive" as const)
+    : result.status;
   return {
     ...result,
     status,
+    summary: conversionIncomplete
+      ? `Structural comparison is incomplete. ${result.summary}`
+      : result.summary,
     reasons,
     sourceVersion: source.version,
     drawingChanged:
-      result.status === "equal" &&
+      status === "equal" &&
       project.documents.some(
         ({ id, sourceStatus }) =>
           comparedDocuments.has(id) && sourceStatus === "geometry-only-changed",

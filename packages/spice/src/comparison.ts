@@ -46,6 +46,8 @@ export interface StructuralComparisonOptions {
   declarations?: boolean | undefined;
   /** Preserve the exact original spans for a source writeback report. */
   referenceSpans?: boolean | undefined;
+  /** Known types of model targets in the drawing, even if its printer omits their declarations. */
+  actualModelTypes?: ReadonlyMap<string, string | undefined>;
 }
 export interface StructuralComparison {
   status: "equal" | "different" | "inconclusive";
@@ -238,14 +240,20 @@ export function compareCircuitIR(
     actual.models.map((model) => [lower(model.name), lower(model.modelType)]),
   );
   for (const model of expected.models) {
-    const type = actualModels.get(lower(model.name));
+    const name = lower(model.name);
+    const type = actualModels.get(name) ?? options.actualModelTypes?.get(name);
     if (type !== undefined)
       difference(
         "declaration",
         expectedRoot,
-        `model ${lower(model.name)}`,
+        `model ${name}`,
         type,
         lower(model.modelType),
+        model.sourceRef,
+      );
+    else if (options.actualModelTypes?.has(name))
+      structural(
+        `The drawing's model type for ${model.name} could not be checked`,
       );
   }
   const seen = new Set<string>();
@@ -538,12 +546,15 @@ export function compareCircuitIR(
             ei.sourceRef,
           );
       }
-      if (ai.target.kind === "subcircuit" && ei.target.kind === "subcircuit")
-        pair(
-          ai.target.cellName,
-          ei.target.cellName,
-          new Set([...ancestors, key]),
-        );
+      if (ai.target.kind === "subcircuit" && ei.target.kind === "subcircuit") {
+        const actualCell = ai.target.cellName;
+        const expectedCell = ei.target.cellName;
+        if (options.referenceSpans && lower(actualCell) !== lower(expectedCell))
+          reasons.add(
+            `${en}/${ref}: review the definition of the new Cell ${actualCell} separately`,
+          );
+        else pair(actualCell, expectedCell, new Set([...ancestors, key]));
+      }
       if (options.parameters === false) continue;
       for (const param of new Set([
         ...Object.keys(ai.parameters),
