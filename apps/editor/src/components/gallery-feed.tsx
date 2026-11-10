@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { cloudShelfOpened } from "./arena-gate-request";
 import "../styles/gallery-entry.css";
 
@@ -47,7 +47,7 @@ import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
 import { GallerySourceNote, useGalleryDatasets } from "./gallery-datasets";
 import { GalleryOrderMenu } from "./gallery-order-menu";
-import { GalleryDownloadMenu } from "./gallery-download-menu";
+import { GalleryDownloadButton } from "./gallery-download-button";
 import {
   galleryOrderPreference,
   galleryShuffleSeed,
@@ -411,6 +411,20 @@ export function GalleryFeed({
   const componentRangeCounts: Record<string, number> = localQuickCounts
     ? countComponentRanges(visibleEntries)
     : (state.filterCounts?.componentRanges ?? {});
+  // What Download saves (#2173): the wall's current results, once the server
+  // has counted them; words still being typed are not asked yet.
+  const downloadPending =
+    state.status === "loading" || searchQuery.trim() !== serverSearch;
+  const downloadCount =
+    state.status !== "ready"
+      ? null
+      : !normalizedSearchQuery || searchAnswered
+        ? state.total
+        : state.nextCursor === null
+          ? visibleEntries.length
+          : null;
+  const lastDownloadCountRef = useRef<number | null>(null);
+  if (!downloadPending) lastDownloadCountRef.current = downloadCount;
   const sizeFilters = GALLERY_COMPONENT_RANGES.map((range) => {
     const chosen = selectedParts.includes(range.key);
     const span =
@@ -556,7 +570,12 @@ export function GalleryFeed({
           />
         ) : null}
         {/* Kept mounted on the shelf, so a running download goes on. */}
-        <GalleryDownloadMenu query={feedQuery} hidden={view !== "gallery"} />
+        <GalleryDownloadButton
+          query={feedQuery}
+          count={downloadPending ? lastDownloadCountRef.current : downloadCount}
+          pending={downloadPending}
+          hidden={view !== "gallery"}
+        />
       </div>
       {view === "shelf" ? (
         <Suspense

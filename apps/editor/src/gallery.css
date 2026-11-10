@@ -1279,8 +1279,7 @@
 }
 
 .gallery-order-menu[open] > .gallery-order-button,
-.gallery-download-menu[open] > .gallery-order-button,
-.gallery-order-button:hover {
+.gallery-order-button:hover:not(:disabled) {
   border-color: var(--icm-accent);
   color: var(--icm-text);
 }
@@ -1340,53 +1339,46 @@
   letter-spacing: 0.04em;
 }
 
-/* Download (#2148), right of the count: the order's button and popover. */
-.gallery-download-menu {
-  position: relative;
+/* Download (#2148), right of the count: one button, its progress in place,
+   and Cancel or the run's end beside it. */
+.gallery-download {
+  display: flex;
   flex-shrink: 0;
+  align-items: center;
   align-self: center;
+  gap: 6px;
   margin-left: 8px;
   padding-bottom: 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
-.gallery-download-popover {
-  width: min(19rem, calc(100vw - 44px));
-}
-
-.gallery-download-popover button:disabled {
-  opacity: 0.5;
+.gallery-download .gallery-order-button:disabled {
+  opacity: 0.55;
   cursor: default;
 }
 
-.gallery-download-status {
-  display: grid;
-  gap: 6px;
-  margin: 4px 0 0;
-  padding: 8px;
-  border-top: 1px solid var(--icm-border);
-  color: var(--icm-text);
-  font-size: 13px;
-  overflow-wrap: anywhere;
+.gallery-download-count {
+  font-variant-numeric: tabular-nums;
 }
 
-.gallery-download-status progress {
-  width: 100%;
+.gallery-download-aside {
+  color: var(--icm-text-muted);
 }
 
-.gallery-download-status button {
-  justify-self: start;
-  border: 1px solid var(--icm-border);
+.gallery-download-aside a,
+.gallery-download-aside button,
+button.gallery-download-aside {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--icm-accent);
+  font: inherit;
+  cursor: pointer;
 }
 
 .gallery-download-error {
   color: var(--icm-danger, #b42318);
-}
-
-.gallery-download-note {
-  margin: 0;
-  padding: 6px 8px;
-  color: var(--icm-text-muted);
-  font-size: 12px;
 }
 
 .gallery-contributor-menu {
@@ -2154,13 +2146,17 @@ div.gallery-contributor-status {
   .gallery-contributor-menu {
     min-width: 0;
   }
-  /* Only the icon: the count keeps its room. */
+  /* Only the icon, and Download's number: the count keeps its room. */
   .gallery-order-label,
   .gallery-download-label {
     display: none;
   }
   .gallery-order-menu {
     flex-shrink: 0;
+  }
+  .gallery-download {
+    gap: 4px;
+    margin-left: 4px;
   }
 }
 
