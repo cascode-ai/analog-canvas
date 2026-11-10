@@ -229,6 +229,9 @@ export function netlistDeviceFamily(
   if (symbolId === "zener-diode") return undefined;
   // A Schottky diode is a diode with its own generic barrier model.
   if (symbolId === "schottky-diode") return "schottky-diode";
+  // An ammeter is a 0 V source: a Process's source defaults (1.8 V) never
+  // apply to it.
+  if (symbolId === "ammeter") return undefined;
   const descriptor = deviceDescriptor(symbolId);
   if (descriptor?.mosBulkClass) return descriptor.mosBulkClass;
   if (descriptor?.deviceClass === "bjt")

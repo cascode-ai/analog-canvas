@@ -1850,6 +1850,22 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "ammeter",
+    symbolId: "ammeter",
+    deviceClass: "voltage-source",
+    referencePrefix: "A",
+    pinOrder: ["+", "-"],
+    targetPolicy: "builtin",
+    sourceWaveformDefault: "dc",
+    parameters: [],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: false,
+    },
+  },
+  {
     id: "current-source",
     symbolId: "current-source",
     deviceClass: "current-source",

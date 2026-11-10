@@ -129,6 +129,9 @@ derive from `parameters`.
 - MOS pin order is D/G/S/B; hidden pins stay. Decorative symbols have no
   definition; an unsupported electrical Symbol blocks. Sources export only from
   a structural specification, never a display string.
+- An independent voltage source that declares no parameters (the ammeter) is
+  `DC 0` whatever its record holds: SPICE `VA1 a b DC 0`, Spectre
+  `A1 (a b) vsource dc=0`, so the current through it can be probed.
 
 ### Ideal blocks
 

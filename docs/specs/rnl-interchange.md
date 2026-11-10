@@ -488,8 +488,8 @@ the RNL language and its runtime belong to rnl.
 ## Acceptance criteria
 
 - The mapping table draws every built-in symbol but the polarized capacitor,
-  LED, Schottky diode, speaker, microphone, potentiometer, photoresistor and
-  sine voltage source, which await an unpublished extensions version
+  LED, Schottky diode, speaker, microphone, ammeter, potentiometer,
+  photoresistor and sine voltage source, which await an unpublished extensions version
   (`RNL_NO_SYMBOL` until then), follows the registration rules and matches
   each symbol's pins
   (`packages/rnl/src/symbol-map.test.ts`).

@@ -2044,6 +2044,45 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "ammeter",
+      name: "Ammeter",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "nand-gate",
       name: "NAND Gate",
       category: "logic",

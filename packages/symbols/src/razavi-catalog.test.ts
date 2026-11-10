@@ -1657,6 +1657,40 @@ describe("Razavi symbol catalog", () => {
     ).toBeLessThan(circle.radius);
   });
 
+  it("draws the ammeter as the voltage source's circle with an A inside, unmarked", () => {
+    const source = requireRazaviCatalogSymbol("voltage-source");
+    const ammeter = requireRazaviCatalogSymbol("ammeter");
+    expect(ammeter.pins).toEqual(source.pins);
+    expect(getRazaviCatalogEntry("ammeter")).toMatchObject({
+      category: "source",
+      provenance: "house",
+      pinOrder: ["+", "-"],
+      palette: true,
+    });
+    const unmarked = source.primitives.filter(
+      (primitive) => !primitive.part?.startsWith("upright-polarity"),
+    );
+    expect(
+      ammeter.primitives.filter((p) => !p.part?.startsWith("letter-a")),
+    ).toEqual(unmarked);
+    const circle = source.primitives[0];
+    const letter = ammeter.primitives.find((p) => p.part === "letter-a");
+    const bar = ammeter.primitives.find((p) => p.part === "letter-a-bar");
+    if (
+      circle?.kind !== "circle" ||
+      letter?.kind !== "polyline" ||
+      bar?.kind !== "line"
+    )
+      throw new Error("missing letter");
+    // An A: two legs meeting at the top, a bar across them, inside the circle.
+    const [left, apex, right] = letter.points;
+    expect(apex!.y).toBeLessThan(left!.y);
+    expect(left!.x).toBe(-right!.x);
+    expect(bar.from.x).toBe(-bar.to.x);
+    for (const point of [...letter.points, bar.from, bar.to])
+      expect(Math.hypot(point.x, point.y)).toBeLessThan(circle.radius);
+  });
+
   it("draws the photoresistor as the Resistor with two light arrows pointing at it", () => {
     const resistor = requireRazaviCatalogSymbol("resistor");
     const photo = requireRazaviCatalogSymbol("photoresistor");
