@@ -1102,7 +1102,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A transformer is two inductors plus mutual coupling that SPICE import does not recognize, so it is placed by hand; netlist export writes it as the built-in xfmr subcircuit.",
     assetPath: "xfmr.json",
     assetHash:
-      "5b159d1e1e167d998953670feca9001577323642806c640e58a564ae71b6f9d3",
+      "a7bd3094ddc53037de4dd23641061ceb8138161e5b89cff4f70f833a1500bb8d",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -9161,7 +9161,25 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         part: "secondary-polarity",
       },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "mirrored",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: ["secondary-winding"],
+        additionalPrimitives: [
+          {
+            kind: "path",
+            data: "M -20 10 L -19.4953 10 C -19.4953 10 -19.4953 10 -18.2174 10 C -16.9409 10 -14.3851 10 -13.1087 10 C -11.8308 10 -11.8308 10 -11.8308 10 C -11.8308 10 -11.8308 10 -11.5749 11.2452 C -11.319 12.4889 -10.8087 14.9763 -9.7867 16.1873 C -8.7647 17.3983 -7.2323 17.3313 -6.2088 14.8439 C -5.1868 12.355 -4.6765 7.4457 -5.4427 4.991 C -6.2088 2.5363 -8.2544 2.5363 -8.7201 5.0237 C -9.1872 7.5126 -8.0759 12.4889 -6.3874 15.0209 C -4.6988 17.5545 -2.4331 17.6422 -0.9439 15.1548 C 0.5437 12.6659 1.2549 7.6004 0.5884 5.0683 C -0.0781 2.5363 -2.1222 2.5363 -2.6325 5.0683 C -3.1442 7.6004 -2.1222 12.6659 -0.456 15.1325 C 1.2102 17.5991 3.5206 17.4652 5.0544 14.9317 C 6.5867 12.3996 7.3425 7.468 6.6983 5.0014 C 6.0541 2.5363 4.01 2.5363 3.3763 5.0014 C 2.744 7.468 3.5206 12.3996 4.7985 14.8885 C 6.0764 17.3759 7.8542 17.4205 8.9983 16.1992 C 10.1423 14.9763 10.6525 12.4889 10.9084 11.2452 C 11.1643 10 11.1643 10 11.1643 10 C 11.1643 10 11.1643 10 12.5523 10 C 13.9403 10 16.7178 10 18.1073 10 C 19.4953 10 19.4953 10 19.4953 10 L 20 10",
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "round",
+            },
+            part: "secondary-winding-mirrored",
+          },
+        ],
+      },
+    ],
   },
   {
     schemaVersion: 1,

@@ -447,6 +447,78 @@ describe("planComponentPropertyCodeEdits", () => {
     ).not.toHaveProperty("shape");
   });
 
+  it("mirrors a transformer's secondary and back, pins and Nets unchanged (#2170)", () => {
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    let document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "T1",
+      symbolId: "xfmr",
+      reference: "T1",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({
+      id: "p",
+      terminals: [{ instanceId: "T1", pinName: "P+" }],
+    });
+    const nets = structuredClone(document.nets);
+    const mirror = (mirrored: boolean) => {
+      const edits = planComponentPropertyCodeEdits(
+        document,
+        document.instances[0]!,
+        {
+          placement: null,
+          appearance: { color: "auto", windingsMirrored: mirrored },
+        },
+      );
+      if (!edits.length) return edits;
+      const applied = executeTransaction(
+        document,
+        {
+          transactionId: `windings-${mirrored}`,
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "test" },
+          edits,
+        },
+        { symbolResolver: resolver },
+      );
+      if (!applied.ok) throw new Error(applied.error.message);
+      document = applied.document;
+      return edits;
+    };
+    const value = () =>
+      componentPropertyCodeValue({
+        instance: document.instances[0]!,
+        referenceVisible: true,
+        valueVisible: false,
+      }).appearance.windingsMirrored;
+    expect(value()).toBe(false);
+    expect(mirror(true)).toEqual([
+      {
+        kind: "set_instance_symbol",
+        instanceId: "T1",
+        symbolId: "xfmr",
+        symbolVariantId: "mirrored",
+      },
+    ]);
+    expect(value()).toBe(true);
+    expect(document.nets).toEqual(nets);
+    expect(resolver.resolve("xfmr", "mirrored")!.definition.pins).toEqual(
+      resolver.resolve("xfmr")!.definition.pins,
+    );
+    expect(mirror(true)).toEqual([]);
+    mirror(false);
+    expect(document.instances[0]!.symbolVariantId).toBeUndefined();
+    // Only a transformer offers the choice.
+    expect(
+      componentPropertyCodeValue({
+        instance: { id: "L1", symbolId: "inductor", placement: null },
+        referenceVisible: true,
+        valueVisible: false,
+      }).appearance,
+    ).not.toHaveProperty("windingsMirrored");
+  });
+
   it("shows an op-amp's supply pins and keeps them shown as its form changes (#1833)", () => {
     const resolver = new InMemorySymbolResolver(builtInSymbols);
     let document = createEmptyDocument("main", "Main");

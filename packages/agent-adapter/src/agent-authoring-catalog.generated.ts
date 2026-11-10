@@ -1691,7 +1691,18 @@ export const agentRazaviAuthoringCatalog = {
           },
         },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "mirrored",
+          hiddenPinNames: [],
+          bounds: {
+            x: -24,
+            y: -24,
+            width: 48,
+            height: 48,
+          },
+        },
+      ],
     },
     {
       symbolId: "center-tap-inductor",

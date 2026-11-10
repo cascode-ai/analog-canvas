@@ -187,6 +187,13 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     description: "",
     help: "Draw the op-amp's VDD and VSS as pins to wire. Hidden, each takes the Net chosen in its row, or the Cell's supply on Auto; the netlist is the same either way.",
   },
+  {
+    path: "appearance.windingsMirrored",
+    label: "Mirrored windings",
+    kind: "boolean",
+    description: "",
+    help: "Draw the secondary winding looping away from the primary, as a mirror image, instead of the same way. Only the drawing changes: pins, dots and the netlist stay the same.",
+  },
 ];
 
 export function colorToRgb(value: string): [number, number, number] {
