@@ -487,8 +487,10 @@ the RNL language and its runtime belong to rnl.
 
 ## Acceptance criteria
 
-- The mapping table draws every built-in symbol, follows the registration
-  rules and matches each symbol's pins (`packages/rnl/src/symbol-map.test.ts`).
+- The mapping table draws every built-in symbol but the LED, which awaits an
+  unpublished extensions version (`RNL_NO_SYMBOL` until then), follows the
+  registration rules and matches each symbol's pins
+  (`packages/rnl/src/symbol-map.test.ts`).
 - Every symbol of the mapping table is in the package the rnl runtime's
   catalog says defines it, with each pin where the runtime puts it and
   leaving the way it says, so an rnl upgrade that moves a pin fails there

@@ -893,6 +893,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "led",
+    name: "LED or Laser Diode",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A light-emitting or laser diode does not appear on the reviewed page; it is the reviewed Diode body and leads, unchanged, with two outgoing light arrows drawn as the Variable Resistor's adjustment arrow is.",
+    pinOrder: ["A", "K"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE D card does not say the diode emits light, so an imported D card keeps the plain Diode symbol.",
+    assetPath: "led.json",
+    assetHash:
+      "c49c1043ae7a0d5e96ae2eb0e969adfde72b63f389d779a15211ec3d59e60281",
+  },
+  {
     symbolId: "externally-controlled-switch",
     name: "Externally Controlled Switch",
     category: "switch",
@@ -8272,6 +8289,194 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "led",
+    name: "LED or Laser Diode",
+    viewBox: {
+      x: -24,
+      y: -18,
+      width: 48,
+      height: 28,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -8.333334,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -8.333334,
+            y: -6.75,
+          },
+          {
+            x: -8.333334,
+            y: 6.75,
+          },
+          {
+            x: 5.833334,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: -7.333334,
+        },
+        to: {
+          x: 6.666666,
+          y: 7.333334,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -5,
+          y: -9,
+        },
+        to: {
+          x: -1,
+          y: -13,
+        },
+        part: "light-arrow-1-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 1,
+            y: -15,
+          },
+          {
+            x: -2.6,
+            y: -13.8,
+          },
+          {
+            x: -0.2,
+            y: -11.4,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-1-head",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 1,
+          y: -9,
+        },
+        to: {
+          x: 5,
+          y: -13,
+        },
+        part: "light-arrow-2-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 7,
+            y: -15,
+          },
+          {
+            x: 3.4,
+            y: -13.8,
+          },
+          {
+            x: 5.8,
+            y: -11.4,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-2-head",
       },
     ],
     variants: [],

@@ -612,6 +612,21 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "led",
+    symbolId: "led",
+    deviceClass: "diode",
+    referencePrefix: "D",
+    pinOrder: ["A", "K"],
+    targetPolicy: "required-model",
+    parameters: [],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: true,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: true,
+    },
+  },
+  {
     id: "npn",
     symbolId: "npn",
     deviceClass: "bjt",

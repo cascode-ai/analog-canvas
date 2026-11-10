@@ -53,6 +53,7 @@ export function symbolCategory(symbolId: string): string {
       "variable-inductor",
       "diode",
       "zener-diode",
+      "led",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
@@ -180,6 +181,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   ccvs: "CCVS",
   port: "Cell Pin",
   "zener-diode": "Zener",
+  led: "LED",
   "center-tap-inductor": "CT Coil",
 };
 
@@ -216,6 +218,7 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   port: "A terminal on this Cell interface — the parent circuit connects to it",
   "port-filled":
     "A solid bias-voltage port, typically used for VB-style bias nodes",
+  led: "Light-emitting or laser diode — electrically the Diode",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -294,6 +297,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "variable-inductor",
   "diode",
   "zener-diode",
+  "led",
   "tcoil",
   "center-tap-inductor",
   "xfmr",

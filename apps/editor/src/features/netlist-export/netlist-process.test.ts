@@ -442,6 +442,13 @@ describe("a part placed into a Process (#1251)", () => {
     // A plain diode takes the generic model. A Zener's BV builds its own
     // model in the netlist, which the generic one would refuse.
     expect(fill("diode", {})).toBeDefined();
+    // An LED is the diode, drawn emitting light: the same model fill.
+    expect(
+      processPlacementTarget(project, preferences("sky130"), "led"),
+    ).toEqual(processPlacementTarget(project, preferences("sky130"), "diode"));
+    expect(
+      processPlacementTarget(project, preferences("sky130"), "led"),
+    ).toBeDefined();
     expect(fill("zener-diode", { bv: "5.6" })).toBeUndefined();
     expect(
       processPlacementTarget(project, preferences("sky130"), "zener-diode"),

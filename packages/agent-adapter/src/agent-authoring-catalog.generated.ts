@@ -1351,6 +1351,45 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "led",
+      name: "LED or Laser Diode",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      bounds: {
+        x: -20,
+        y: -15,
+        width: 40,
+        height: 22.34,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "externally-controlled-switch",
       name: "Externally Controlled Switch",
       category: "switch",
