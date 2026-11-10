@@ -1083,6 +1083,12 @@ function WorkspaceEditor({
       ? netlistEntry.documentId
       : undefined;
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
+  // An invalid or refused Document settings edit; one the panel closed on
+  // is gone with it (#2180).
+  const [documentSettingsDraftDirty, setDocumentSettingsDraftDirty] =
+    useState(false);
+  const documentSettingsDraft =
+    documentSettingsOpen && documentSettingsDraftDirty;
   const projectNameEditing = useRef(false);
   const {
     publishGalleryOpen,
@@ -5339,6 +5345,7 @@ function WorkspaceEditor({
     restoredTabs,
     currentEditBlocker,
     projectSwitchBlocker,
+    discardableSwitchHold,
     projectTabs,
     dropDiscardedWork,
     workspaceReopen,
@@ -5390,7 +5397,8 @@ function WorkspaceEditor({
     setNetlistFocusedInstance,
     netlistEntry,
     setNetlistEntry,
-    documentSettingsOpen,
+    documentSettingsDraft,
+    setDocumentSettingsOpen,
     projectNameEditing,
     publishGalleryOpen,
     versionHistoryOpen,
@@ -5788,6 +5796,7 @@ function WorkspaceEditor({
         nativeWorkspaceSaving={nativeWorkspaceSaving}
         createTabSession={createTabSession}
         projectTabs={projectTabs}
+        discardableSwitchHold={discardableSwitchHold}
         recentNativeFiles={recentNativeFiles}
         nativeBusy={nativeBusy}
         setNativeBusy={setNativeBusy}
@@ -6572,6 +6581,7 @@ function WorkspaceEditor({
                 documentSettingsOpen
                   ? {
                       document,
+                      onDraftChange: setDocumentSettingsDraftDirty,
                       canvas: {
                         showGrid: gridDotsVisible,
                         annotationGrid,

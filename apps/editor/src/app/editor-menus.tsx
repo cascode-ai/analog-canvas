@@ -9,6 +9,7 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
+import { flushSync } from "react-dom";
 import { deriveRoutingAffectedClosure } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -162,6 +163,7 @@ export function EditorMenuBar({
   nativeWorkspaceSaving,
   createTabSession,
   projectTabs,
+  discardableSwitchHold,
   recentNativeFiles,
   nativeBusy,
   setNativeBusy,
@@ -260,6 +262,7 @@ export function EditorMenuBar({
   nativeWorkspaceSaving: RefObject<boolean>;
   createTabSession: ProjectTabSessions["createTabSession"];
   projectTabs: ProjectTabSessions["projectTabs"];
+  discardableSwitchHold: ProjectTabSessions["discardableSwitchHold"];
   recentNativeFiles: NativeProjectTabs["recentNativeFiles"];
   nativeBusy: NativeProjectTabs["nativeBusy"];
   setNativeBusy: NativeProjectTabs["setNativeBusy"];
@@ -341,6 +344,27 @@ export function EditorMenuBar({
                 (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
               }
               onSelect={projectTabs.select}
+              heldBy={() => {
+                const reason = discardableSwitchHold();
+                return reason
+                  ? {
+                      reason,
+                      // Closing the panel drops its draft (#2180).
+                      discard: () =>
+                        flushSync(() => setDocumentSettingsOpen(false)),
+                      resume: () => {
+                        setSelectionOpen(true);
+                        requestAnimationFrame(() =>
+                          window.document
+                            .querySelector<HTMLElement>(
+                              '[data-testid="document-settings-code-editor"] [contenteditable="true"]',
+                            )
+                            ?.focus(),
+                        );
+                      },
+                    }
+                  : null;
+              }}
               onRename={(id, name) => {
                 if (id === projectTabs.activeId) renameProject(name);
               }}

@@ -10,6 +10,16 @@ const InlineConfirm = lazy(() =>
   })),
 );
 
+/** A draft holding the Project that the tab strip can drop (#2180). */
+export interface TabSwitchHold {
+  /** Why the Project is held, as a sentence without its full stop. */
+  reason: string;
+  /** Drops the draft, synchronously, so the tab change can follow. */
+  discard(): void;
+  /** Returns the person to the draft. */
+  resume(): void;
+}
+
 export function ProjectTabs({
   cloudEnabled = true,
   tabs,
@@ -28,6 +38,7 @@ export function ProjectTabs({
   onOpenShelf,
   onRenameShelf,
   onDeleteShelf,
+  heldBy,
 }: {
   cloudEnabled?: boolean;
   tabs: { id: string; name: string; dirty: boolean }[];
@@ -47,6 +58,11 @@ export function ProjectTabs({
   onOpenShelf(id: string): void;
   onRenameShelf(id: string, name: string): Promise<void>;
   onDeleteShelf(id: string): Promise<void>;
+  /**
+   * A draft that holds the Project and that the person can drop here, or
+   * null (#2180). A tab change it holds asks beside the strip first.
+   */
+  heldBy?(): TabSwitchHold | null;
 }) {
   const list = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState<{
@@ -92,14 +108,30 @@ export function ProjectTabs({
     },
     [],
   );
+  const [held, setHeld] = useState<
+    (TabSwitchHold & { proceed(): void }) | null
+  >(null);
+  /** Runs a tab change, or asks first while a draft holds the Project. */
+  const unlessHeld = (proceed: () => void) => {
+    const hold = heldBy?.();
+    if (!hold) {
+      setHeld(null);
+      proceed();
+      return;
+    }
+    setClosing(null);
+    setClosingMany(null);
+    setHeld({ ...hold, proceed });
+  };
   const [closing, setClosing] = useState<string | null>(null);
   const selecting = useRef<{ id: string; promise: Promise<boolean> } | null>(
     null,
   );
-  const selectTab = (id: string) => {
+  const selectTab = (id: string): void => {
     if (busy) return;
     finishRename(nameInput.current?.value ?? null);
     setClosing(null);
+    if (id !== activeId && heldBy?.()) return unlessHeld(() => selectTab(id));
     const request = { id, promise: onSelect(id) };
     selecting.current = request;
     void request.promise.finally(() => {
@@ -108,7 +140,10 @@ export function ProjectTabs({
   };
   const closeTrigger = useRef<HTMLButtonElement | null>(null);
   const closeTarget = tabs.find((tab) => tab.id === closing);
-  useEffect(() => setClosing(null), [activeId]);
+  useEffect(() => {
+    setClosing(null);
+    setHeld(null);
+  }, [activeId]);
   // A tab's right-click menu, and several tabs it closes once confirmed.
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(
     null,
@@ -124,17 +159,22 @@ export function ProjectTabs({
   /** Closes one tab, asking first when it holds unsaved edits. */
   const closeOne = (id: string, trigger: HTMLButtonElement | null) => {
     if (!tabs.some((item) => item.id === id)) return;
+    setHeld(null);
     if (unsaved(id)) {
       closeTrigger.current = trigger;
       setClosingMany(null);
       setClosing(id);
-    } else onClose(id);
+    } else closeNow([id], () => onClose(id));
   };
+  /** Closing the open tab changes the Project; closing another does not. */
+  const closeNow = (ids: readonly string[], close: () => void) =>
+    ids.includes(activeId) ? unlessHeld(close) : close();
   const closeMany = (ids: readonly string[]) => {
     if (!ids.length) return;
     setClosing(null);
+    setHeld(null);
     if (ids.some(unsaved)) setClosingMany(ids);
-    else onCloseMany(ids);
+    else closeNow(ids, () => onCloseMany(ids));
   };
   const keyboardFocus = useRef(false);
   useEffect(() => {
@@ -282,7 +322,7 @@ export function ProjectTabs({
           title="New project tab"
           aria-label="New project tab"
           disabled={busy}
-          onClick={onNew}
+          onClick={() => unlessHeld(onNew)}
         >
           ＋
         </button>
@@ -291,7 +331,7 @@ export function ProjectTabs({
           title="Open file in new tab"
           aria-label="Open file in new tab"
           disabled={busy}
-          onClick={onOpenFile}
+          onClick={() => unlessHeld(onOpenFile)}
         >
           ↗
         </button>
@@ -312,7 +352,7 @@ export function ProjectTabs({
               <ProjectShelf
                 projects={cloudProjects}
                 busy={busy}
-                onOpen={onOpenShelf}
+                onOpen={(id) => unlessHeld(() => onOpenShelf(id))}
                 onRename={onRenameShelf}
                 onDelete={onDeleteShelf}
               />
@@ -360,6 +400,35 @@ export function ProjectTabs({
           ))}
         </ContextMenu>
       ) : null}
+      {held ? (
+        <div
+          className="project-tab-close-decision"
+          role="alertdialog"
+          aria-label="Draft holds this Project"
+          data-testid="project-tab-held-decision"
+        >
+          <span>{held.reason}. </span>
+          <button
+            type="button"
+            onClick={() => {
+              setHeld(null);
+              held.discard();
+              held.proceed();
+            }}
+          >
+            Discard draft and continue
+          </button>{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setHeld(null);
+              held.resume();
+            }}
+          >
+            Keep editing
+          </button>
+        </div>
+      ) : null}
       {closingMany && !closeTarget ? (
         <div
           className="project-tab-close-decision"
@@ -383,8 +452,9 @@ export function ProjectTabs({
                 if (!next) setClosingMany(null);
               }}
               onConfirm={() => {
-                onCloseMany(closingMany);
+                const ids = closingMany;
                 setClosingMany(null);
+                closeNow(ids, () => onCloseMany(ids));
               }}
             >
               Close tabs
@@ -425,8 +495,9 @@ export function ProjectTabs({
                 }
               }}
               onConfirm={() => {
-                onClose(closeTarget.id);
+                const id = closeTarget.id;
                 setClosing(null);
+                closeNow([id], () => onClose(id));
               }}
             >
               Close tab
