@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Install the release Production serves, after it has stayed live long enough.
+"""Install the release Production serves after explicit overseas verification.
 
 Production publishes /regional-release/current.json with every deploy. This
-runner follows it: once a commit has been served for --settle-seconds (past
-Production's own verification and rollback), it downloads only changed files,
+runner follows it: once matching CI proof has stayed live for --settle-seconds,
+it downloads only changed files,
 checks every SHA-256 and required credential, backs up the stopped state,
 switches the release, smoke-tests it and switches back on failure. It never
 changes state directories, credentials or switches; a failed install leaves
@@ -99,6 +99,27 @@ def read_current(fetcher):
     if current.get('manifest') != f'/regional-release/{commit}/release.json':
         raise ReleaseError('transport-or-invalid-status')
     return current
+
+
+def verified_overseas(fetcher, current):
+    """Only CI writes proof, after its live checks; assets alone are not proof."""
+    digest, attempt = current.get('sha256'), current.get('attempt')
+    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest):
+        return False
+    if not isinstance(attempt, str) or not re.fullmatch(r'[1-9][0-9]*-[1-9][0-9]*', attempt):
+        return False
+    try:
+        proof = json.loads(fetcher.get(
+            f"/api/regional-release/verification/{current['commit']}/{digest}/{attempt}", 4096))
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return False
+        raise
+    except ValueError:
+        return False
+    return isinstance(proof, dict) and proof == {
+        'schemaVersion': 1, 'commit': current['commit'], 'sha256': digest,
+        'attempt': attempt, 'verified': True}
 
 
 def read_manifest(fetcher, current):
@@ -365,9 +386,13 @@ def tick(args, host=None, fetcher=None, now=None):
     if state.get('failedCommit') == commit:
         return dict(result, health='failed', reason=state.get('failedReason', 'release-failed'),
                     status='refused', failedCommit=commit, failedReason=state.get('failedReason'))
+    identity = {key: published.get(key) for key in ['commit', 'sha256', 'attempt']}
+    if not verified_overseas(fetcher, published):
+        return dict(result, status='awaiting-verification', pending=identity,
+                    lastCaughtUpAt=state.get('lastCaughtUpAt', now))
     pending = state.get('pending') or {}
-    if pending.get('commit') != commit:
-        pending = {'commit': commit, 'firstSeen': now}
+    if any(pending.get(key) != value for key, value in identity.items()) or 'firstSeen' not in pending:
+        pending = dict(identity, firstSeen=now)
     if now - pending['firstSeen'] < args.settle_seconds:
         return dict(result, status='settling', pending=pending, lastCaughtUpAt=state.get('lastCaughtUpAt', now))
     commit, manifest, text = read_manifest(fetcher, published)
@@ -392,6 +417,9 @@ def tick(args, host=None, fetcher=None, now=None):
         if path.is_file() and path.relative_to(partial).as_posix() not in manifest['files']:
             path.unlink()
     downloaded = assemble(fetcher, manifest, serving, partial)
+    # A rollback or another deploy while downloading invalidates this candidate.
+    if read_current(fetcher) != published or not verified_overseas(fetcher, published):
+        return dict(result, status='source-changed', pending={})
     (partial / 'release.json').write_bytes(text)
     check_credentials((partial / 'config.capnp').read_text(), credentials)
     # The service keeps a private umask for its monitor. Only the verified
@@ -416,6 +444,9 @@ def tick(args, host=None, fetcher=None, now=None):
             # Nothing is switched yet; do not stop the runtime again each minute.
             return dict(result, health='failed', reason='release-failed', status='backup-failed',
                         failedCommit=commit, failedReason='release-failed')
+        # Transport failure here is retryable: no release has been switched yet.
+        if read_current(fetcher) != published or not verified_overseas(fetcher, published):
+            return dict(result, status='source-changed', pending={})
         try:
             # Persisted before switching, so an interrupted runner can roll back.
             save(state_path, dict(state, previous=str(serving), installing=commit))
@@ -487,7 +518,7 @@ def main():
     parser.add_argument('--state', default='/var/lib/canvas-cn-release/monitor.json')
     parser.add_argument('--public-mode', choices=('stage', 'open', 'off'))
     parser.add_argument('--filing-number', default='')
-    parser.add_argument('--settle-seconds', type=int, default=600)
+    parser.add_argument('--settle-seconds', type=int, default=120)
     parser.add_argument('--smoke-attempts', type=int, default=30)
     parser.add_argument('--keep', type=int, default=10)
     args = parser.parse_args()
@@ -511,7 +542,8 @@ def main():
     except (OSError, ValueError, TypeError, KeyError, subprocess.CalledProcessError, urllib.error.URLError):
         # Bodies and paths may contain upstream payloads; report the class only.
         result = {'health': 'failed', 'reason': 'transport-or-invalid-status', 'lastAttemptAt': time.time()}
-    for key in ['lastCaughtUpAt', 'failedCommit', 'failedReason', 'pending', 'previous']:
+    # Only an uninterrupted observation may carry its settling clock forward.
+    for key in ['lastCaughtUpAt', 'failedCommit', 'failedReason', 'previous']:
         if key not in result and key in previous:
             result[key] = previous[key]
     save(state_path, result)

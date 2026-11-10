@@ -68,6 +68,10 @@ import {
   type ArenaEnv,
 } from "./arena";
 import { watchRegionalPulls } from "./regional-watchdog";
+import {
+  routeRegionalRelease,
+  type RegionalReleaseEnv,
+} from "./regional-release";
 
 // The stores that keep durable data also answer point-in-time recovery. The
 // export names are the deployed class names, so they must not change.
@@ -84,6 +88,7 @@ export { AgentSessionDO } from "./agent-session";
 export { SimulationControlDO } from "./simulation-control-do";
 
 type Env = TopologyTaskEnv &
+  RegionalReleaseEnv &
   ResourceSyncEnv &
   GalleryEnv &
   ComponentLibraryEnv &
@@ -170,6 +175,9 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const flood = await refuseApiFlood(request, env);
   if (flood) return flood;
+
+  const release = await routeRegionalRelease(request, env);
+  if (release) return release;
 
   const conversion = await handleNetlistConversionRequest(request);
   if (conversion) return conversion;
