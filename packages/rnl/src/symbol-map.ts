@@ -161,6 +161,24 @@ export function rnlSymbolFor(
 }
 
 /**
+ * The device type of the `.model` card an Analog Canvas symbol calls, if it
+ * calls one. RNL import and the Canvas review both read a model's type off the
+ * symbol that draws it.
+ */
+export function symbolModelType(
+  symbolId: string,
+  project?: Pick<CircuitProject, "componentDefinitions">,
+): "nmos" | "pmos" | "npn" | "pnp" | "d" | undefined {
+  const descriptor = deviceDescriptor(symbolId, project);
+  if (descriptor?.mosBulkClass) return descriptor.mosBulkClass;
+  if (descriptor?.deviceClass === "diode") return "d";
+  return descriptor?.deviceClass === "bjt" &&
+    (symbolId === "npn" || symbolId === "pnp")
+    ? symbolId
+    : undefined;
+}
+
+/**
  * A symbol's pins and primitives as text, to compare two by: each object's
  * keys in order, without a primitive's `part`, which names it and draws nothing.
  */

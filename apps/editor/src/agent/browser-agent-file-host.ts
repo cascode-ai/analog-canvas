@@ -12,8 +12,6 @@ import {
   type AgentLocalProjectReceipt,
   type AgentLocalSource,
   type AgentReviewReceipt,
-  type LocalReviewDelivery,
-  type LocalReviewTarget,
 } from "@icm/agent-adapter";
 import {
   SimulationFiles,
@@ -37,7 +35,6 @@ import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formul
 import { importChunk } from "../components/chunk-import";
 import { simulationFileEngine } from "../features/simulation/file-engine";
 import { createBrowserSimulationArtifactStore } from "../features/simulation/browser-simulation-artifact-store";
-import type { ReviewSource } from "./review-source-comparison";
 
 type StoredCandidate = {
   project: CircuitProject;
@@ -55,47 +52,11 @@ export type OpenLocalProject = (request: {
 
 export type AgentReviewWorkspace = Pick<
   AgentReviewReceipt,
-  | "workspaceId"
-  | "workspaceGeneration"
-  | "sourceVersion"
-  | "modified"
-  | "recovered"
-  | "unsaved"
+  "workspaceId" | "workspaceGeneration" | "sourceVersion"
 >;
-
-type LocalReviewEdit = {
-  expected: LocalReviewTarget;
-  projectRevision: string;
-};
-export type LocalReviewCommand =
-  | { action: "read" }
-  | Extract<
-      Extract<AgentFileResourceRequest, { operation: "review" }>["input"],
-      { action: "locate" }
-    >
-  | (LocalReviewEdit & {
-      action:
-        | "mark-ready"
-        | "open-original"
-        | "prepare-save"
-        | "acknowledge-save"
-        | "changes";
-    });
-export type LocalReviewResult =
-  | LocalReviewDelivery
-  | "REVIEW_WORKSPACE_REQUIRED"
-  | "REVIEW_TARGET_CHANGED"
-  | "REVIEW_OBJECT_UNAVAILABLE"
-  | "REVIEW_NOT_READY"
-  | "REVIEW_ORIGINAL_UNAVAILABLE"
-  | "REVIEW_OPEN_BLOCKED";
-export type LocalReviewHost = (
-  command: LocalReviewCommand,
-) => Promise<LocalReviewResult>;
 
 export interface BrowserAgentFileHostOptions {
   openLocalProject?: OpenLocalProject;
-  localReview?: LocalReviewHost;
   getReviewWorkspace?: () => AgentReviewWorkspace | undefined;
   getActiveDocumentId?: () => string;
   commitProjectStructure?: (
@@ -132,10 +93,6 @@ export interface BrowserAgentFileHostOptions {
 export class BrowserAgentFileHost {
   readonly simulationFiles: SimulationFiles;
   private readonly candidates = new Map<string, StoredCandidate>();
-  private readonly reviewSaves = new Map<
-    string,
-    LocalReviewEdit & { expiresAt: number }
-  >();
   private readonly boundProjectSessionId: string;
   private readonly reviewGeneration = crypto.randomUUID();
   setArtifactPublisher(
@@ -474,158 +431,37 @@ export class BrowserAgentFileHost {
   private async reviewDelivery(
     request: Extract<AgentFileResourceRequest, { operation: "review" }>,
   ): Promise<AgentFileResourceResponse> {
-    const host = this.options.localReview;
-    if (!host)
+    // One snapshot answers both what is drawn and how it compares.
+    const project = this.options.getProject();
+    const resolver = this.options.getResolver();
+    const workspaceId = this.options.getReviewWorkspace?.()?.workspaceId;
+    if (!workspaceId || !project.source.entry)
       return this.error(
         request,
         "REVIEW_WORKSPACE_REQUIRED",
-        "Open the working copy in Canvas Web",
+        "Open a Project imported from a netlist in a Canvas Web tab",
       );
-    const { input } = request;
-    const response = {
+    const { embeddedReviewBundle } = await import("./embedded-review-source");
+    const { compareReviewSource, incompleteCells } =
+      await import("./review-source-comparison");
+    const source = await embeddedReviewBundle(project.source);
+    if (!source)
+      return this.error(
+        request,
+        "REVIEW_SOURCE_UNAVAILABLE",
+        "The Project's netlist and its dependencies could not be verified",
+      );
+    return {
       apiVersion: AGENT_API_VERSION,
       requestId: request.requestId,
-      operation: "review" as const,
-      ok: true as const,
-    };
-    if (input.action === "finish-save") {
-      const save = this.reviewSaves.get(input.saveId);
-      this.reviewSaves.delete(input.saveId);
-      const delivered =
-        save &&
-        (await host({
-          action: "acknowledge-save",
-          expected: save.expected,
-          projectRevision: save.projectRevision,
-        }));
-      return {
-        ...response,
-        result: {
-          action: input.action,
-          canvasSaved: Boolean(delivered && typeof delivered !== "string"),
-        },
-      };
-    }
-    const project = this.options.getProject();
-    const delivery = await host(input);
-    if (typeof delivery === "string") {
-      const messages: Record<
-        Exclude<LocalReviewResult, LocalReviewDelivery>,
-        string
-      > = {
-        REVIEW_WORKSPACE_REQUIRED: "Activate the delivered working copy",
-        REVIEW_TARGET_CHANGED: "The active Project or Cell revision changed",
-        REVIEW_OBJECT_UNAVAILABLE:
-          "The reviewed object or hierarchy path is no longer available",
-        REVIEW_NOT_READY:
-          "Confirm that the schematic is complete before delivery",
-        REVIEW_ORIGINAL_UNAVAILABLE:
-          "The first review-ready snapshot is unavailable",
-        REVIEW_OPEN_BLOCKED: "Canvas is holding the current tab open",
-      };
-      return this.error(request, delivery, messages[delivery]);
-    }
-    if (input.action === "changes") {
-      const { embeddedReviewBundle } = await import("./embedded-review-source");
-      const original = await embeddedReviewBundle(project.source);
-      if (
-        !original ||
-        original.version !==
-          (delivery.embeddedSource?.version ?? delivery.target.sourceVersion)
-      )
-        return this.error(
-          request,
-          "REVIEW_SOURCE_UNAVAILABLE",
-          "The delivered original netlist and dependencies could not be verified",
-        );
-      let source: ReviewSource = original;
-      if (input.reference) {
-        const decoded = await this.decodeFiles(input.reference);
-        if (!decoded.ok)
-          return this.error(request, decoded.code, decoded.message);
-        source = {
-          entryPath: input.reference.entryPath,
-          files: decoded.files.map(({ name, bytes }) => ({
-            path: name,
-            bytes,
-          })),
-          version: await sha256(
-            new TextEncoder().encode(
-              localSourceIdentity(
-                input.reference.entryPath,
-                input.reference.files,
-              ),
-            ),
-          ),
-        };
-      }
-      const { compareReviewSource } =
-        await import("./review-source-comparison");
-      const comparison = await compareReviewSource(
-        project,
-        delivery.target.documentId,
-        source,
-        original,
-      );
-      if (
-        project !== this.options.getProject() ||
-        typeof (await host(input)) === "string"
-      )
-        return this.error(
-          request,
-          "REVIEW_TARGET_CHANGED",
-          "The active Project or Cell revision changed during comparison",
-        );
-      return {
-        ...response,
-        result: { action: input.action, delivery, comparison },
-      };
-    }
-    if (input.action !== "prepare-save")
-      return { ...response, result: { action: input.action, delivery } };
-    if (
-      project !== this.options.getProject() ||
-      delivery.projectRevision !== input.projectRevision ||
-      !matchesAgentReviewTarget(delivery.target, input.expected)
-    )
-      return this.error(
-        request,
-        "REVIEW_TARGET_CHANGED",
-        "The active Project or Cell revision changed",
-      );
-    if (delivery.status !== "ready")
-      return this.error(
-        request,
-        "REVIEW_NOT_READY",
-        "Confirm that the schematic is complete before delivery",
-      );
-    const bytes = new TextEncoder().encode(serializeProject(project));
-    if (bytes.byteLength > AGENT_FILE_RESOURCE_MAX_BYTES)
-      return this.error(
-        request,
-        "FILE_TOO_LARGE",
-        "Project exceeds the File Resource limit",
-      );
-    const artifact = await fileArtifact(
-      "project.icproj.json",
-      "application/json",
-      bytes,
-    );
-    if (this.reviewSaves.size >= 16)
-      return this.error(
-        request,
-        "REVIEW_SAVE_BUSY",
-        "Pending review saves must finish or expire",
-      );
-    const saveId = crypto.randomUUID();
-    this.reviewSaves.set(saveId, {
-      expected: input.expected,
-      projectRevision: input.projectRevision,
-      expiresAt: Date.now() + AGENT_FILE_CANDIDATE_TTL_MS,
-    });
-    return {
-      ...response,
-      result: { action: input.action, delivery, saveId, artifact },
+      operation: "review",
+      ok: true,
+      delivery: {
+        workspaceId,
+        source: { entryPath: source.entryPath, version: source.version },
+        incompleteCells: incompleteCells(project, resolver),
+      },
+      comparison: await compareReviewSource(project, source),
     };
   }
 
@@ -1045,9 +881,6 @@ export class BrowserAgentFileHost {
     for (const [id, candidate] of this.candidates) {
       if (Date.parse(candidate.summary.expiresAt) <= now)
         this.candidates.delete(id);
-    }
-    for (const [id, save] of this.reviewSaves) {
-      if (save.expiresAt <= now) this.reviewSaves.delete(id);
     }
   }
 }

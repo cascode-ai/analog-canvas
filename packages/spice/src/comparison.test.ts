@@ -341,6 +341,56 @@ R1 VDD OUT 10k
       compareCircuitIR(bodies, bodies, "amp", "amp", { declarations: false }),
     ).toMatchObject({ status: "equal", reasons: [] });
   });
+  it("lists the declarations it leaves out, and compares an expression by its text", async () => {
+    const text = [
+      ".param wn=1u",
+      ".model nfet nmos level=1",
+      ".subckt amp IN OUT VDD VSS gain=2",
+      "M7 OUT IN VSS VSS nfet w={wn} l=1u",
+      "R1 VDD OUT 10k",
+      ".ends amp",
+      ".tran 1n 10n",
+    ].join("\n");
+    const expected = await ir(text);
+    const options = { declarations: false } as const;
+    const same = compareCircuitIR(
+      await ir(text),
+      expected,
+      "amp",
+      "amp",
+      options,
+    );
+    expect(same).toMatchObject({ status: "equal", reasons: [] });
+    expect(same.notes).toEqual([
+      "Model cards not compared: nfet",
+      "Parameters not compared: wn, amp.gain",
+      "Statements not compared: .tran",
+    ]);
+    expect(
+      compareCircuitIR(
+        await ir(text.replace("w={wn}", "w={2*wn}")),
+        expected,
+        "amp",
+        "amp",
+        options,
+      ),
+    ).toMatchObject({
+      status: "different",
+      differences: [
+        {
+          kind: "parameter",
+          object: "m7.w",
+          actual: "{2*wn}",
+          expected: "{wn}",
+        },
+      ],
+    });
+    // With declarations compared, the same netlist needs a manual check.
+    expect(compareCircuitIR(await ir(text), expected, "amp")).toMatchObject({
+      status: "inconclusive",
+      notes: [],
+    });
+  });
   it("compares child definitions, not only instance calls", async () => {
     const text = `.subckt child A B\nR1 A B 1k\n.ends child\n.subckt top I O\nX1 I O child\n.ends top`;
     const result = compareCircuitIR(

@@ -173,7 +173,7 @@ export function EditorDialogs({
   publishQuota,
   openProjectInTabRef,
   agentFileCandidate,
-  localDelivery,
+  importedSource,
   reviewFeedback,
   cloudBinding,
   replaceGuard,
@@ -297,7 +297,7 @@ export function EditorDialogs({
   publishQuota: GalleryPublishing["publishQuota"];
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
   agentFileCandidate: AgentProjectResources["agentFileCandidate"];
-  localDelivery: ReferenceWindowProps["localDelivery"];
+  importedSource: ReferenceWindowProps["importedSource"];
   reviewFeedback: ReferenceWindowProps["reviewFeedback"];
   cloudBinding: ProjectFileLifecycle["cloudBinding"];
   replaceGuard: ProjectFileLifecycle["replaceGuard"];
@@ -436,7 +436,7 @@ export function EditorDialogs({
           onImage={keepReferenceImage}
           takesPaste={ownReferenceTakesPaste}
           onSaved={referenceSaved}
-          localDelivery={localDelivery}
+          importedSource={importedSource}
           reviewFeedback={reviewFeedback}
         />
       </Suspense>

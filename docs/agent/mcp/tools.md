@@ -157,40 +157,22 @@ card versus call for one name is a `binding` difference. `summary` (e.g.
 `topology equal; 1 port-order, 8 binding-style differences`) precedes
 `status` and `topology` (devices, targets, port sets, scopes, connections).
 `compare` skips `{portOrder:false}`, `{bindings:false}`, `{parameters:false}`
-or `{declarations:false}` (`.model` bodies, `.param`, preserved statements).
+or `{declarations:false}`. The last leaves `.model` bodies, `.param`, Cell
+parameters and preserved statements out, lists them in `notes`, and compares
+an expression parameter by its text.
 
 Parameters compare exact decimals after SPICE scaling; a reviewed SKY130 call
 takes W/L in micrometres (`l=0.15` is `150n`), a model card metres; absent `m`
 is 1 and absent reviewed counts (`nf`) their default. Details list at most 200
 differences (literal strings, null when absent) with a truncation flag.
-Literals over 4096 characters, parameterized hierarchy, expressions, model
-bodies and unresolved statements are `inconclusive` (a type-only
-`.model nch nmos` is compared). Port directions, model internals and
-performance are not tested.
+Otherwise literals over 4096 characters, parameterized hierarchy, expressions,
+model bodies and preserved statements are `inconclusive`, and unresolved
+statements always are (a type-only `.model nch nmos` is compared). Port
+directions, model internals and performance are not tested.
 
 ## Projects, files and Gallery
 
 Tool descriptions cover each action; these are the extra rules.
-
-For a local review writeback, read `review_delivery`, then call it with
-`action:"changes"` and the returned `target` as `expected` and
-`projectRevision`. The comparison covers the selected Cell and its descendants
-and uses the original dependency bytes held in the delivered Project. It
-names their `sourceVersion`. Difference locations point into those original
-files. An added Instance has terminals and its Cell but no original line.
-An equal comparison can report
-`drawingChanged:true`.
-
-Before writing files, call `verify` with
-`expectedSource:{rootPath,entryPath,expected,projectRevision}` and check that
-`comparison.sourceVersion` matches the change list. Review conflicts with the
-user. Edit the original files, then repeat `verify` against the same draft.
-A changed review target needs a fresh read. Confirm `comparison.status:"equal"`
-before claiming structural agreement. When delivering with `open-local`,
-check that its source version matches the verified version. Report incomplete
-or truncated comparisons and keep the working copy available. A changed
-Cell binding may need a separate check of the new definition. Model bodies
-and library sections can require manual comparison.
 
 - `disconnect` revokes the session; Project/Cell switches and Gallery
   navigation do not. `PROJECT_CONTEXT_STALE` needs refreshed context and a new
@@ -311,33 +293,30 @@ in the drawing. Report unresolved mappings, missing geometry and any
 inconclusive comparison. Do not substitute devices or change the circuit to
 make an image render. A clean image is not an electrical check.
 
-In the tab holding the delivered working copy, whether a Web task or a tab
-paired by Claim, call `review_delivery` with `action:"read"` after opening
-and selecting the requested Cell. Use the live receipt's `target` as
-`expected` and pass `projectRevision` for subsequent review actions. After
-checking the complete drawing, `mark-ready` records the first review-ready
-Project as the original. A bare import stays pending until the drawing is
-ready. `open-original` opens that frozen Project in a fresh tab and binds
-the task to it. If the snapshot is unavailable, report the refusal and keep
-the working copy. A repeat `open-local` with the same source and appearance
-returns the existing working copy.
+`review_delivery` reads the task's tab as it is now, whether a Web task, a
+trusted one or a tab paired by Claim. It takes no arguments, and Canvas keeps
+no review state:
 
-For an explicit local save, use `review_delivery` with `action:"save"` and a
-new `.icproj.json` path. The receipt names the whole saved Project revision
-and local file. `canvasSaved:false` means the file was written and the live
-Canvas did not confirm that it still matches. Keep any newer changes in the
-working copy. Project Info shows the embedded netlist source on reopen,
-including its dependency hashes. That version is distinct from the input
-version of the saved Project file.
+- `delivery.source`: entry and version of the netlist the Project was
+  imported from, which for a netlist delivery is the delivered version;
+- `delivery.incompleteCells`: Cells still missing a placed Instance or a
+  drawn connection the import gave;
+- `comparison`: the whole design, from the top Cell, against that netlist
+  with verify's comparator. Differences give the original file and line; an
+  added Instance has none. Unread includes, model cards, parameters,
+  analyses and import warnings are listed in `notes` and do not decide
+  `status`; an expression parameter compares by its text. Report an
+  `inconclusive` result with its `reasons`, and truncated details.
 
-To review an object, select one Instance or highlight a Net in the delivered
-tab. Open **Project Info → Review feedback**, add the comment, and copy it
-into the original Agent chat. The copied `Canvas review reference` gives
-the arguments for `review_delivery` `action:"locate"`. The tool checks the
-task's active workspace, source version, whole Project revision, Cell and
-occurrence path before focusing the exact object. A version mismatch or
-missing object needs an explicit report to the user. When the recorded
-workspace is still open, activate it before retrying with the same reference.
+Write changes back to the source files yourself. To check the revised text,
+compare it with Canvas's netlist (`netlist_code` read) or, for structural
+SPICE, pass it to `verify` as `expectedNetlist`. A repeat `open-local` with
+the same source and appearance returns the existing copy with its edits.
+
+To comment on an object, the user selects one Instance or highlights a Net,
+opens **Project Info → Review feedback** and copies the comment into the
+Agent chat. The text names the Cell, the object's name and ID, its netlist
+line when known, and the comment; `circuit_view` with that ID shows it.
 
 - For a chat image, use `export_file` with `artifact:"png"`,
   `includeReview:true`, the Cell's `documentId` and a local `outputPath`,
@@ -346,9 +325,8 @@ workspace is still open, activate it before retrying with the same reference.
   coordinates as `bounds:{x,y,width,height}`; get positions from `inspect`.
 - Keep the export's `taskRef` and `review` receipt. The latter names the live
   Project, workspace, Cell, structure and Cell revisions, and, for a delivered
-  local source, its version and whether the working copy was modified or
-  recovered. `unsaved` describes the current working copy. `unplacedInstances`
-  counts undrawn Instances; check visible routes separately. Pass the
+  local source, its version. `unplacedInstances` counts undrawn Instances;
+  check visible routes separately. Pass the
   receipt's `projectId`, `workspaceId`, `workspaceGeneration`, `documentId`,
   `structureRevision`, `revision` and `sourceVersion` (when
   present) as `expected` to export the same revision.

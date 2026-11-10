@@ -548,14 +548,9 @@ export function fileOperationScopes(
       return [
         request.artifact === "project" ? "project.download" : "visual.download",
       ];
+    // It reads the delivered netlist back, as a Project download does.
     case "review":
-      if (request.input.action === "locate")
-        return ["project.import", "editor.semantic-control"];
-      return request.input.action === "prepare-save" ||
-        request.input.action === "finish-save" ||
-        request.input.action === "changes"
-        ? ["project.import", "project.download"]
-        : ["project.import"];
+      return ["project.import", "project.download"];
     case "stage":
     case "locate-local":
     case "inspect":

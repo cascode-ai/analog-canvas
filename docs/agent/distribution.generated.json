@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "c4ae73ad9601c314de21024949af62b7ad2af0ff048579209d8cdb6706ca4a26",
+  "registrySha256": "74f01ee105179a1fc57e856456940ce10e6056c3e33a3d9ef18c0f2542a2d6a5",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "97474d246db77e770ef402c1118d69405417d0b908aaa625edb987c97ad03235"
+      "sha256": "2ad929b9c4311f3d2a05ce1b5ea0e6e8f5a46bdb14c98901c9c455f698785971"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -129,7 +129,7 @@
     },
     {
       "source": "docs/agent/skills/canvas-review/SKILL.md",
-      "sha256": "de4ceb867f59a8f0d0fc0ce284270ca2a9bca26a7f38c1bb872b741a448c2137"
+      "sha256": "1bab86b45ce843b146c00d5ec4a980a34f06a1826a29d3169db5cb91a22d0e1a"
     },
     {
       "source": "docs/agent/skills/canvas-review/agents/openai.yaml",
@@ -137,7 +137,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "53893d98edf10f32c3ccd8532439cd9e3c591fa5b6835bbf932b751eabf8b73a"
+      "sha256": "9942d2a4d4275bf073712515645434cb7130c933f4a7acb1d48ac35c989f382f"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -639,7 +639,7 @@
       ],
       "hosts": {
         "codex": "0.17.97",
-        "claudeCode": "0.17.103"
+        "claudeCode": "0.17.104"
       }
     }
   ],
@@ -675,7 +675,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "94b4dccf0bef2f7f42eec503edd99985144a7c278300088a68e8d837ee679c90"
+      "sha256": "1c0cf646ea005885c1e25b93940051087bc6c7c2530bead1ad68a67e4571a616"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -714,7 +714,7 @@
       "sources": [
         "docs/agent/distribution.json"
       ],
-      "sha256": "32b4040646558fd5eda82b50d8be807c1376146ce589bfa77bf38c0eae966bb8"
+      "sha256": "f606c003dd1028aeab5f168aedc7f13129f705eabbacb59fd22f239ad96ec84f"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -731,7 +731,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "2c67c8c3dca10d2747412c27ed04f0699218e9c9ae795cb894cbaa6e3810b3e2"
+      "sha256": "6e8e98f39422f54e92142daf25405887582b2e29fe25d1b86b59258f3c76a2dd"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

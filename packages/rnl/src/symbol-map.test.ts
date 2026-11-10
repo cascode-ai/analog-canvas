@@ -11,6 +11,7 @@ import {
   RNL_SYMBOLS,
   rnlBodyPortOrder,
   rnlSymbolFor,
+  symbolModelType,
   terminalOfPin,
 } from "./symbol-map.js";
 
@@ -54,6 +55,13 @@ function registration(symbolId: string): readonly [number, number] {
 }
 
 describe("the RNL symbol list", () => {
+  it("reads the model type each symbol's card declares", () => {
+    expect(
+      ["nmos", "pdmos", "diode", "zener-diode", "npn", "pnp", "resistor"].map(
+        (symbolId) => symbolModelType(symbolId),
+      ),
+    ).toEqual(["nmos", "pmos", "d", "d", "npn", "pnp", undefined]);
+  });
   it("draws every Analog Canvas symbol", () => {
     expect(
       builtInSymbols

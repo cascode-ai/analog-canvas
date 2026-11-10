@@ -288,7 +288,6 @@ import type { ComponentEditorSession } from "./component-editor-session";
 import { useProjectTabSessions } from "./use-project-tab-sessions";
 import type { OpenLocalProject } from "../agent/browser-agent-file-host";
 import { clearDeletedCloudProjects } from "../document/cloud-project-session";
-import { projectChangeToken } from "../document/project-session-lifecycle";
 import { readWindowWorkspace } from "../document/workspace-reopen";
 import { useNativeProjectTabs } from "./use-native-project-tabs";
 import {
@@ -331,8 +330,9 @@ import {
   useBrowserAgentHost,
   useEditorAgentConnection,
   type AgentReviewWorkspaceReader,
-  type LocalReviewDispatcher,
 } from "./use-agent-hosts";
+import { reviewFeedbackText } from "../features/editor-shell/review-feedback";
+import { writeClipboardText } from "../hosts/clipboard-text";
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import {
@@ -1139,9 +1139,6 @@ function WorkspaceEditor({
   const reviewWorkspaceRef = useRef<AgentReviewWorkspaceReader>(
     () => undefined,
   );
-  const localReviewRef = useRef<LocalReviewDispatcher>(
-    async () => "REVIEW_WORKSPACE_REQUIRED",
-  );
   const {
     agentFileCandidate,
     setAgentFileCandidate,
@@ -1162,7 +1159,6 @@ function WorkspaceEditor({
     openProjectInTabRef,
     openLocalProjectRef,
     reviewWorkspaceRef,
-    localReviewRef,
   });
   const agentProjectTabsRef = useRef(() => projectTabs);
   agentProjectTabsRef.current = () => projectTabs;
@@ -1284,7 +1280,6 @@ function WorkspaceEditor({
     isDirtyWork,
     hasUnsavedChanges,
     hasUnsafeWork,
-    acknowledgeLocalReviewSave,
     noteProjectPublished,
     replaceActiveProject,
     captureReplacementTarget,
@@ -5368,8 +5363,7 @@ function WorkspaceEditor({
     cloudManagementBusy,
     isCloudManagementInFlight,
     renameShelfProject,
-    localDelivery,
-    copyReviewFeedback,
+    importedSource,
     deleteShelfProject,
   } = useProjectTabSessions({
     hierarchyExpanded,
@@ -5422,19 +5416,12 @@ function WorkspaceEditor({
     openProjectInTabRef,
     openLocalProjectRef,
     reviewWorkspaceRef,
-    localReviewRef,
-    locateReviewObject: (locator) =>
-      agentSemanticIntentRef.current({
-        documentId: locator.documentId,
-        intent: { kind: "select", locator },
-      }).ok,
     setAgentFileCandidate,
     setAnalogSimulationState,
     codeDraftDirty,
     captureAuthoredProject,
     captureFileSession,
     restoreFileSession,
-    acknowledgeLocalReviewSave,
     cloudBinding,
     replaceGuard,
     recoveryDialogOpen,
@@ -5973,14 +5960,9 @@ function WorkspaceEditor({
         publishQuota={publishQuota}
         openProjectInTabRef={openProjectInTabRef}
         agentFileCandidate={agentFileCandidate}
-        localDelivery={localDelivery}
+        importedSource={importedSource}
         reviewFeedback={(() => {
-          if (
-            !localDelivery ||
-            !("taskRef" in localDelivery) ||
-            !localDelivery.taskRef
-          )
-            return undefined;
+          if (!importedSource) return undefined;
           const instance =
             selectedIds.length === 1
               ? document.instances.find(({ id }) => id === selectedIds[0])
@@ -6006,17 +5988,18 @@ function WorkspaceEditor({
             objectId: object.id,
             ...(sourceRef ? { sourceRef } : {}),
           };
-          const { taskRef } = localDelivery;
           return {
+            // A comment in progress stays while its object stays selected.
             identity: JSON.stringify([
-              taskRef,
               projectSessionId,
-              projectChangeToken(project),
-              locator,
+              document.id,
+              object.id,
             ]),
             label: `${document.name} · ${label}`,
             copy: (comment: string) =>
-              copyReviewFeedback(project, taskRef, locator, label, comment),
+              writeClipboardText(
+                reviewFeedbackText(project, locator, label, comment),
+              ),
           };
         })()}
         cloudBinding={cloudBinding}

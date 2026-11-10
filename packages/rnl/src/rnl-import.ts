@@ -60,7 +60,12 @@ import {
   type RnlOrient,
 } from "./orientation.js";
 import { acPosition, AC_UNITS_PER_RNL_UNIT } from "./place.js";
-import { RNL_SYMBOLS, rnlBodyPortOrder, type RnlSymbol } from "./symbol-map.js";
+import {
+  RNL_SYMBOLS,
+  rnlBodyPortOrder,
+  symbolModelType,
+  type RnlSymbol,
+} from "./symbol-map.js";
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
 import { acRichText, type RnlRun } from "./text.js";
 import { applyNativeRnlAppearance } from "./native-terminals.js";
@@ -745,7 +750,7 @@ export function drawnModelTypes(snapshot: RnlSnapshot): Map<string, string> {
             row.symbol === symbol.name &&
             family(row.package) === family(symbol.package),
         ).flatMap((row) => {
-          const type = modelTypeOf(row.ac!);
+          const type = symbolModelType(row.ac!);
           return type ? [type] : [];
         }),
       );
@@ -941,17 +946,6 @@ export function undrawnBodies(
   return snapshot.levels
     .filter((level) => level.kind === "subckt" && !written(level))
     .map(({ name }) => name);
-}
-
-/** The model type of an Analog Canvas device symbol, if it calls a model. */
-function modelTypeOf(symbolId: string): string | null {
-  const descriptor = deviceDescriptor(symbolId);
-  if (!descriptor) return null;
-  if (descriptor.mosBulkClass) return descriptor.mosBulkClass;
-  if (descriptor.deviceClass === "diode") return "d";
-  if (descriptor.deviceClass === "bjt")
-    return symbolId === "npn" || symbolId === "pnp" ? symbolId : null;
-  return null;
 }
 
 /**

@@ -1097,7 +1097,7 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
   const paired = async (scopes: AgentSessionScope[]) => {
     const create = await post("/api/agent/sessions", {
       projectId: "project",
-      projectSessionId: `workspace-${scopes.length}`,
+      projectSessionId: `workspace-${scopes.join("+")}`,
       documentIds: ["main"],
       scopes,
     });
@@ -1120,7 +1120,6 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
         apiVersion: "3.0",
         requestId: "claim-review",
         operation: "review",
-        input: { action: "finish-save", saveId: "candidate" },
       },
       agentToken,
     );
@@ -1134,12 +1133,18 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
     ok: false,
     error: { code: "REVIEW_WORKSPACE_REQUIRED" },
   });
-  const ungranted = await paired(["project.download"]);
-  expect(ungranted.review.status).toBe(403);
-  expect(ungranted.families).toEqual([]);
-  expect(await ungranted.review.json()).toMatchObject({
-    error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
-  });
+  // A review reads the netlist back, as a Project download does.
+  for (const scopes of [
+    ["project.download"],
+    ["project.import"],
+  ] satisfies AgentSessionScope[][]) {
+    const ungranted = await paired(scopes);
+    expect(ungranted.review.status).toBe(403);
+    expect(ungranted.families).toEqual([]);
+    expect(await ungranted.review.json()).toMatchObject({
+      error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+    });
+  }
 });
 
 /** A live editor whose Project and Cell carry the session's identities. */

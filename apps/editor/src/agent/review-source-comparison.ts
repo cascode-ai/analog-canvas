@@ -1,11 +1,16 @@
-import { hasRnlCommentRecords } from "@icm/agent-adapter";
-import { deviceDescriptor } from "@icm/devices";
+import {
+  hasRnlCommentRecords,
+  type LocalReviewDelivery,
+  type ReviewComparison,
+} from "@icm/agent-adapter";
+import { assessImportReference } from "@icm/derived";
 import type { CircuitProject, SourceSpan } from "@icm/model";
 import {
   analyzeDesignNetlist,
   printDesignNetlist,
   type DesignNetlistIR,
 } from "@icm/netlist";
+import { symbolModelType } from "@icm/rnl";
 import {
   compareCircuitIR,
   compileSpiceSources,
@@ -13,6 +18,7 @@ import {
   isSpectreSource,
   type SpiceSourceInput,
 } from "@icm/spice";
+import type { SymbolResolver } from "@icm/symbols";
 import { prepareImportSources } from "../features/netlist-export/convert-import-sources";
 
 const MAX_DIFFERENCES = 200;
@@ -23,11 +29,35 @@ export interface ReviewSource {
   files: readonly SpiceSourceInput[];
 }
 
+/** Cells whose drawing still lacks an Instance or a connection the import gave. */
+export function incompleteCells(
+  project: CircuitProject,
+  resolver: SymbolResolver,
+): LocalReviewDelivery["incompleteCells"] {
+  return project.documents.flatMap((document) => {
+    const unplacedInstances = document.instances.filter(
+      ({ placement }) => !placement,
+    ).length;
+    const unroutedConnections = assessImportReference(document, resolver).guides
+      .length;
+    return unplacedInstances || unroutedConnections
+      ? [
+          {
+            documentId: document.id,
+            name: document.name,
+            unplacedInstances,
+            unroutedConnections,
+          },
+        ]
+      : [];
+  });
+}
+
 function statementKey({ fileId, start, end }: SourceSpan) {
   return `${fileId}:${start.offset}:${end.offset}`;
 }
 
-/** Type evidence from the actual placed symbols, keyed by their exported model names. */
+/** Type evidence from the placed symbols, keyed by the model names they call. */
 function drawingModelTypes(project: CircuitProject, design: DesignNetlistIR) {
   const types = new Map<string, string | undefined>();
   for (const cell of design.cells) {
@@ -38,14 +68,10 @@ function drawingModelTypes(project: CircuitProject, design: DesignNetlistIR) {
     for (const card of cell.instances) {
       if (card.invocationKind !== "primitive" || !card.target) continue;
       const symbol = symbols.get(card.id);
-      const known = symbol && deviceDescriptor(symbol, project);
-      const type = known
-        ? (known.mosBulkClass ??
-          (known.symbolId === "diode"
-            ? "d"
-            : ["npn", "pnp"].find((id) => id === known.symbolId)))
-        : undefined;
+      const type = symbol && symbolModelType(symbol, project);
+      if (!type) continue;
       const name = card.target.toLowerCase();
+      // Symbols of two kinds calling one model leave its type unknown.
       types.set(
         name,
         types.has(name) && types.get(name) !== type ? undefined : type,
@@ -90,24 +116,28 @@ async function compileReference(source: ReviewSource) {
   return { ...compiled, prepared };
 }
 
-/** Compare the selected Cell and its descendants using verify's structural comparator. */
+/**
+ * The whole design, from the top Cell, against the netlist it was imported
+ * from, with verify's structural comparator. Statements Canvas does not model
+ * (unread includes, model cards, parameters, analyses) and import warnings are
+ * listed in `notes`; they do not decide the result.
+ */
 export async function compareReviewSource(
   project: CircuitProject,
-  documentId: string,
   source: ReviewSource,
-  original = source,
-) {
-  const unavailable = (reasons: string[]) => ({
+): Promise<ReviewComparison> {
+  const unavailable = (reasons: string[]): ReviewComparison => ({
     sourceVersion: source.version,
-    status: "inconclusive" as const,
-    topology: "inconclusive" as const,
+    status: "inconclusive",
+    topology: "inconclusive",
     summary: "Structural comparison is incomplete",
-    reasons,
     comparedCells: 0,
+    reasons,
+    notes: [],
     differences: [],
     detailsTruncated: false,
-    drawingChanged: false,
   });
+  const documentId = project.topDocumentId;
   const actualDesign = analyzeDesignNetlist(project, {
     format: "spice",
     rootDocumentId: documentId,
@@ -123,9 +153,9 @@ export async function compareReviewSource(
 
   const actualPath = "canvas-review.sp";
   const actualFile = printDesignNetlist("spice", actualDesign.ir);
-  let actual, reference, baseline;
+  let actual, reference;
   try {
-    [actual, reference, baseline] = await Promise.all([
+    [actual, reference] = await Promise.all([
       compileSpiceSources(
         [
           {
@@ -136,9 +166,6 @@ export async function compareReviewSource(
         actualPath,
       ),
       compileReference(source),
-      original.version !== source.version
-        ? compileReference(original)
-        : undefined,
     ]);
   } catch (error) {
     return unavailable([
@@ -152,17 +179,17 @@ export async function compareReviewSource(
     !reference.ir
   )
     return unavailable([
-      "The draft or original source could not be compiled",
+      "The drawing or its netlist could not be compiled",
       ...[...actual.diagnostics, ...reference.diagnostics]
         .filter(({ severity }) => severity === "error")
         .slice(0, 12)
         .map(({ message }) => message),
     ]);
-  const root = project.documents.find(({ id }) => id === documentId);
-  const name = root?.sourceBinding?.cellName.toLowerCase();
+  const top = project.documents.find(({ id }) => id === documentId);
+  const name = top?.sourceBinding?.cellName.toLowerCase();
   const expectedRoot = name
     ? reference.ir.cells.find((cell) => cell.name.toLowerCase() === name)?.name
-    : documentId === project.topDocumentId && reference.ir.topCells.length === 1
+    : reference.ir.topCells.length === 1
       ? reference.ir.topCells[0]
       : undefined;
   const actualRoot = actualDesign.ir.cells.find(
@@ -170,7 +197,7 @@ export async function compareReviewSource(
   )?.name;
   if (!actualRoot || !expectedRoot)
     return unavailable([
-      "The compared source must have an unambiguous root Cell",
+      "The netlist has no single top Cell matching the Project's top Cell",
     ]);
 
   // Resolved local includes have already contributed their Cells to this IR.
@@ -193,71 +220,43 @@ export async function compareReviewSource(
         ),
     ),
   };
-  const actualModelTypes = drawingModelTypes(project, actualDesign.ir);
   const result = compareCircuitIR(
     actual.ir,
     expected,
     actualRoot,
     expectedRoot,
     {
+      declarations: false,
       referenceSpans: true,
-      actualModelTypes,
+      actualModelTypes: drawingModelTypes(project, actualDesign.ir),
     },
   );
   const files = new Map(
     reference.bundle.files.map(({ id, path }) => [id, path]),
   );
-  const comparedDocuments = new Set(actualDesign.ir.cells.map(({ id }) => id));
-  const extraReasons = reference.prepared.diagnostics.map(
-    ({ message }) => message,
-  );
-  if (baseline) {
-    if (!baseline.successful || !baseline.ir)
-      extraReasons.push(
-        "The delivered model declarations could not be checked",
-      );
-    const modelNames = (source: typeof reference) =>
-      new Set([
-        ...(source.ir?.models.map(({ name }) => name.toLowerCase()) ?? []),
-        ...[...source.prepared.modelTypes.keys()].map((name) =>
-          name.toLowerCase(),
-        ),
-      ]);
-    const referenceNames = modelNames(reference);
-    for (const name of modelNames(baseline)) {
-      if (actualModelTypes.has(name) && !referenceNames.has(name))
-        extraReasons.push(
-          `The revised source no longer declares the used model ${name}`,
-        );
-    }
-  }
-  const status = extraReasons.length
-    ? ("inconclusive" as const)
-    : result.status;
   return {
-    ...result,
-    status,
-    summary: extraReasons.length
-      ? "Structural comparison is incomplete"
-      : result.summary,
-    reasons: [...result.reasons, ...extraReasons],
     sourceVersion: source.version,
-    drawingChanged:
-      status === "equal" &&
-      project.documents.some(
-        ({ id, sourceStatus }) =>
-          comparedDocuments.has(id) && sourceStatus === "geometry-only-changed",
-      ),
+    status: result.status,
+    topology: result.topology,
+    summary: result.summary,
+    comparedCells: result.comparedCells,
+    reasons: result.reasons,
+    notes: [
+      ...new Set([
+        ...result.notes,
+        ...reference.prepared.diagnostics.map(({ message }) => message),
+      ]),
+    ],
     detailsTruncated: result.differences.length > MAX_DIFFERENCES,
     differences: result.differences
       .slice(0, MAX_DIFFERENCES)
       .map(({ expectedSource, ...difference }) => {
         const path = expectedSource && files.get(expectedSource.fileId);
-        const source =
+        const location =
           path &&
           expectedSource &&
           reference.prepared.originalLocation(path, expectedSource.start.line);
-        return source ? { ...difference, source } : difference;
+        return location ? { ...difference, source: location } : difference;
       }),
   };
 }

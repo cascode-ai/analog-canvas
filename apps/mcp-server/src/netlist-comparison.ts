@@ -90,6 +90,7 @@ export async function compareExpectedNetlist(
     topology: result.topology,
     counts,
     reasons: result.reasons,
+    ...(result.notes.length ? { notes: result.notes } : {}),
     comparedCells: result.comparedCells,
     basis: "structural-export",
     structureRevision: exported.structureRevision,

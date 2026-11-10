@@ -20380,7 +20380,7 @@
               },
               "bounds": {
                 "description": "Exact SVG or PNG crop in Canvas coordinates.",
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema19"
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema17"
               },
               "simulation": {
                 "type": "object",
@@ -20458,7 +20458,7 @@
                 "maxItems": 24,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
+                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
                 }
               },
               "entryPath": {
@@ -20474,15 +20474,15 @@
                 ]
               },
               "rnlAppearance": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema21"
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema19"
               },
               "modelTypes": {
                 "type": "object",
                 "propertyNames": {
-                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema22"
+                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
                 },
                 "additionalProperties": {
-                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema23"
+                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema21"
                 }
               }
             },
@@ -20509,13 +20509,13 @@
                 "const": "locate-local"
               },
               "sourceVersion": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema16"
               },
               "background": {
                 "type": "boolean"
               },
               "rnlAppearance": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema21"
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema19"
               },
               "taskRef": {
                 "type": "string",
@@ -20543,277 +20543,12 @@
               "operation": {
                 "type": "string",
                 "const": "review"
-              },
-              "input": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "read"
-                      }
-                    },
-                    "required": [
-                      "action"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "mark-ready"
-                      },
-                      "expected": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema24"
-                      },
-                      "projectRevision": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "expected",
-                      "projectRevision"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "open-original"
-                      },
-                      "expected": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema24"
-                      },
-                      "projectRevision": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "expected",
-                      "projectRevision"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "changes"
-                      },
-                      "expected": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema24"
-                      },
-                      "projectRevision": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
-                      },
-                      "reference": {
-                        "type": "object",
-                        "properties": {
-                          "entryPath": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 512
-                          },
-                          "files": {
-                            "minItems": 1,
-                            "maxItems": 24,
-                            "type": "array",
-                            "items": {
-                              "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
-                            }
-                          }
-                        },
-                        "required": [
-                          "entryPath",
-                          "files"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "expected",
-                      "projectRevision"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "locate"
-                      },
-                      "expected": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema24"
-                      },
-                      "projectRevision": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
-                      },
-                      "locator": {
-                        "type": "object",
-                        "properties": {
-                          "documentId": {
-                            "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-                          },
-                          "hierarchyPath": {
-                            "maxItems": 32,
-                            "type": "array",
-                            "items": {
-                              "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema25"
-                            }
-                          },
-                          "kind": {
-                            "type": "string",
-                            "enum": [
-                              "instance",
-                              "net"
-                            ]
-                          },
-                          "objectId": {
-                            "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-                          },
-                          "endpoint": {
-                            "oneOf": [
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "type": "string",
-                                    "const": "terminal"
-                                  },
-                                  "instanceId": {
-                                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-                                  },
-                                  "pinName": {
-                                    "type": "string",
-                                    "minLength": 1
-                                  },
-                                  "memberId": {
-                                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-                                  }
-                                },
-                                "required": [
-                                  "kind",
-                                  "instanceId",
-                                  "pinName"
-                                ],
-                                "additionalProperties": false
-                              },
-                              {
-                                "type": "object",
-                                "properties": {
-                                  "kind": {
-                                    "type": "string",
-                                    "const": "junction"
-                                  },
-                                  "junctionId": {
-                                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-                                  },
-                                  "memberId": {
-                                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-                                  }
-                                },
-                                "required": [
-                                  "kind",
-                                  "junctionId"
-                                ],
-                                "additionalProperties": false
-                              }
-                            ]
-                          },
-                          "sourceRef": {
-                            "type": "object",
-                            "properties": {
-                              "fileId": {
-                                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-                              },
-                              "start": {
-                                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema26"
-                              },
-                              "end": {
-                                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema26"
-                              }
-                            },
-                            "required": [
-                              "fileId",
-                              "start",
-                              "end"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "required": [
-                          "documentId",
-                          "hierarchyPath",
-                          "kind",
-                          "objectId"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "expected",
-                      "projectRevision",
-                      "locator"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "prepare-save"
-                      },
-                      "expected": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema24"
-                      },
-                      "projectRevision": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "expected",
-                      "projectRevision"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "finish-save"
-                      },
-                      "saveId": {
-                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "saveId"
-                    ],
-                    "additionalProperties": false
-                  }
-                ]
               }
             },
             "required": [
               "apiVersion",
               "requestId",
-              "operation",
-              "input"
+              "operation"
             ],
             "additionalProperties": false
           },
@@ -21221,13 +20956,17 @@
                 "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
               },
               "structureRevision": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema16"
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               },
               "revision": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema17"
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               },
               "sourceVersion": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema16"
               }
             },
             "required": [
@@ -21240,20 +20979,10 @@
             "additionalProperties": false
           },
           "__schema16": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
-          "__schema17": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
-          "__schema18": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
           },
-          "__schema19": {
+          "__schema17": {
             "type": "object",
             "properties": {
               "x": {
@@ -21285,7 +21014,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema20": {
+          "__schema18": {
             "type": "object",
             "properties": {
               "name": {
@@ -21312,7 +21041,7 @@
                 "maximum": 9007199254740991
               },
               "sha256": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema16"
               }
             },
             "required": [
@@ -21325,7 +21054,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema21": {
+          "__schema19": {
             "type": "string",
             "enum": [
               "canvas",
@@ -21333,12 +21062,12 @@
             ],
             "description": "RNL appearance in Canvas. Defaults to native Canvas conventions. Use source for authored styling."
           },
-          "__schema22": {
+          "__schema20": {
             "type": "string",
             "minLength": 1,
             "maxLength": 128
           },
-          "__schema23": {
+          "__schema21": {
             "type": "string",
             "enum": [
               "nmos",
@@ -21347,88 +21076,6 @@
               "pnp",
               "d"
             ]
-          },
-          "__schema24": {
-            "type": "object",
-            "properties": {
-              "projectId": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
-              },
-              "workspaceId": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
-              },
-              "workspaceGeneration": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
-              },
-              "documentId": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema1"
-              },
-              "structureRevision": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema16"
-              },
-              "revision": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema17"
-              },
-              "sourceVersion": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
-              }
-            },
-            "required": [
-              "projectId",
-              "workspaceId",
-              "workspaceGeneration",
-              "documentId",
-              "structureRevision",
-              "revision",
-              "sourceVersion"
-            ],
-            "additionalProperties": false
-          },
-          "__schema25": {
-            "type": "object",
-            "properties": {
-              "parentDocumentId": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-              },
-              "instanceId": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-              },
-              "childDocumentId": {
-                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
-              }
-            },
-            "required": [
-              "parentDocumentId",
-              "instanceId",
-              "childDocumentId"
-            ],
-            "additionalProperties": false
-          },
-          "__schema26": {
-            "type": "object",
-            "properties": {
-              "offset": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
-              },
-              "line": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
-              },
-              "column": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
-              }
-            },
-            "required": [
-              "offset",
-              "line",
-              "column"
-            ],
-            "additionalProperties": false
           }
         }
       },
@@ -22072,7 +21719,44 @@
                 "const": true
               },
               "artifact": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "mediaType": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "encoding": {
+                    "type": "string",
+                    "const": "base64"
+                  },
+                  "data": {
+                    "type": "string",
+                    "minLength": 4
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "sha256": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
+                  }
+                },
+                "required": [
+                  "name",
+                  "mediaType",
+                  "encoding",
+                  "data",
+                  "byteLength",
+                  "sha256"
+                ],
+                "additionalProperties": false
               },
               "review": {
                 "type": "object",
@@ -22090,25 +21774,20 @@
                     "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
                   },
                   "structureRevision": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema25"
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   },
                   "revision": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema26"
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   },
                   "sourceVersion": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
                   },
                   "sourceStatus": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema27"
-                  },
-                  "modified": {
-                    "type": "boolean"
-                  },
-                  "recovered": {
-                    "type": "boolean"
-                  },
-                  "unsaved": {
-                    "type": "boolean"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
                   },
                   "unplacedInstances": {
                     "type": "integer",
@@ -22161,7 +21840,7 @@
               },
               "warnings": {
                 "description": "What the artifact leaves out, e.g. characters no PDF font holds",
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema28"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema25"
               }
             },
             "required": [
@@ -22194,11 +21873,11 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema30"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema27"
               },
               "documentCode": {
                 "description": "Canonical staged SchematicDocument JSON, only for an explicit inspect.documentId; not a live document.",
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema34"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema31"
               }
             },
             "required": [
@@ -22308,7 +21987,7 @@
                 "const": true
               },
               "candidate": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema30"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema27"
               },
               "approval": {
                 "type": "string",
@@ -22343,7 +22022,7 @@
                 "const": true
               },
               "delivery": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema35"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
               }
             },
             "required": [
@@ -22374,7 +22053,7 @@
               "delivery": {
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema35"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
                   },
                   {
                     "type": "null"
@@ -22408,144 +22087,123 @@
                 "type": "boolean",
                 "const": true
               },
-              "result": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "enum": [
-                          "read",
-                          "mark-ready",
-                          "open-original",
-                          "locate"
-                        ]
-                      },
-                      "delivery": {
-                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema36"
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "delivery"
-                    ],
-                    "additionalProperties": false
+              "delivery": {
+                "type": "object",
+                "properties": {
+                  "workspaceId": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
                   },
-                  {
+                  "source": {
                     "type": "object",
                     "properties": {
-                      "action": {
+                      "entryPath": {
                         "type": "string",
-                        "const": "changes"
+                        "minLength": 1
                       },
-                      "delivery": {
-                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema36"
-                      },
-                      "comparison": {
-                        "type": "object",
-                        "properties": {
-                          "sourceVersion": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
-                          },
-                          "status": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema37"
-                          },
-                          "topology": {
-                            "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema37"
-                          },
-                          "summary": {
-                            "type": "string"
-                          },
-                          "comparedCells": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 9007199254740991
-                          },
-                          "reasons": {
-                            "type": "array",
-                            "items": {
-                              "type": "string"
-                            }
-                          },
-                          "differences": {
-                            "maxItems": 200,
-                            "type": "array",
-                            "items": {
-                              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema38"
-                            }
-                          },
-                          "detailsTruncated": {
-                            "type": "boolean"
-                          },
-                          "drawingChanged": {
-                            "type": "boolean"
-                          }
-                        },
-                        "required": [
-                          "sourceVersion",
-                          "status",
-                          "topology",
-                          "summary",
-                          "comparedCells",
-                          "reasons",
-                          "differences",
-                          "detailsTruncated",
-                          "drawingChanged"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "delivery",
-                      "comparison"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "prepare-save"
-                      },
-                      "delivery": {
-                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema36"
-                      },
-                      "saveId": {
-                        "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
-                      },
-                      "artifact": {
+                      "version": {
                         "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
                       }
                     },
                     "required": [
-                      "action",
-                      "delivery",
-                      "saveId",
-                      "artifact"
+                      "entryPath",
+                      "version"
                     ],
                     "additionalProperties": false
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "action": {
-                        "type": "string",
-                        "const": "finish-save"
+                  "incompleteCells": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "documentId": {
+                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "unplacedInstances": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unroutedConnections": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
                       },
-                      "canvasSaved": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "action",
-                      "canvasSaved"
-                    ],
-                    "additionalProperties": false
+                      "required": [
+                        "documentId",
+                        "name",
+                        "unplacedInstances",
+                        "unroutedConnections"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
-                ]
+                },
+                "required": [
+                  "workspaceId",
+                  "source",
+                  "incompleteCells"
+                ],
+                "additionalProperties": false
+              },
+              "comparison": {
+                "type": "object",
+                "properties": {
+                  "sourceVersion": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
+                  },
+                  "status": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema33"
+                  },
+                  "topology": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema33"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "comparedCells": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "notes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "differences": {
+                    "maxItems": 200,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema34"
+                    }
+                  },
+                  "detailsTruncated": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "sourceVersion",
+                  "status",
+                  "topology",
+                  "summary",
+                  "comparedCells",
+                  "reasons",
+                  "notes",
+                  "differences",
+                  "detailsTruncated"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -22553,7 +22211,8 @@
               "requestId",
               "operation",
               "ok",
-              "result"
+              "delivery",
+              "comparison"
             ],
             "additionalProperties": false
           },
@@ -23264,60 +22923,10 @@
             "maximum": 9007199254740991
           },
           "__schema23": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 512
-              },
-              "mediaType": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "encoding": {
-                "type": "string",
-                "const": "base64"
-              },
-              "data": {
-                "type": "string",
-                "minLength": 4
-              },
-              "byteLength": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
-              },
-              "sha256": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
-              }
-            },
-            "required": [
-              "name",
-              "mediaType",
-              "encoding",
-              "data",
-              "byteLength",
-              "sha256"
-            ],
-            "additionalProperties": false
-          },
-          "__schema24": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
           },
-          "__schema25": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
-          "__schema26": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 9007199254740991
-          },
-          "__schema27": {
+          "__schema24": {
             "type": "string",
             "enum": [
               "in-sync",
@@ -23325,20 +22934,20 @@
               "connectivity-modified"
             ]
           },
-          "__schema28": {
+          "__schema25": {
             "minItems": 1,
             "maxItems": 16,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema29"
+              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema26"
             }
           },
-          "__schema29": {
+          "__schema26": {
             "type": "string",
             "minLength": 1,
             "maxLength": 1000
           },
-          "__schema30": {
+          "__schema27": {
             "type": "object",
             "properties": {
               "candidateId": {
@@ -23406,11 +23015,11 @@
               "diagnostics": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema31"
+                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema28"
                 }
               },
               "source": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema29"
               },
               "importMs": {
                 "type": "number",
@@ -23428,7 +23037,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema31": {
+          "__schema28": {
             "type": "object",
             "properties": {
               "severity": {
@@ -23453,11 +23062,11 @@
             ],
             "additionalProperties": false
           },
-          "__schema32": {
+          "__schema29": {
             "type": "object",
             "properties": {
               "version": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
               },
               "entryPath": {
                 "type": "string",
@@ -23469,7 +23078,7 @@
                 "maxItems": 24,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema33"
+                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema30"
                 }
               },
               "format": {
@@ -23501,7 +23110,7 @@
               "diagnostics": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema31"
+                  "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema28"
                 }
               }
             },
@@ -23516,7 +23125,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema33": {
+          "__schema30": {
             "type": "object",
             "properties": {
               "path": {
@@ -23525,7 +23134,7 @@
                 "maxLength": 512
               },
               "sha256": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
               },
               "byteLength": {
                 "type": "integer",
@@ -23540,14 +23149,14 @@
             ],
             "additionalProperties": false
           },
-          "__schema34": {
+          "__schema31": {
             "type": "string"
           },
-          "__schema35": {
+          "__schema32": {
             "type": "object",
             "properties": {
               "source": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema29"
               },
               "disposition": {
                 "type": "string",
@@ -23596,7 +23205,7 @@
                     "maximum": 9007199254740991
                   },
                   "sourceStatus": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema27"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
                   },
                   "source": {
                     "type": "object",
@@ -23648,114 +23257,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema36": {
-            "type": "object",
-            "properties": {
-              "target": {
-                "type": "object",
-                "properties": {
-                  "projectId": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
-                  },
-                  "workspaceId": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
-                  },
-                  "workspaceGeneration": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
-                  },
-                  "documentId": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
-                  },
-                  "structureRevision": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema25"
-                  },
-                  "revision": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema26"
-                  },
-                  "sourceVersion": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
-                  }
-                },
-                "required": [
-                  "projectId",
-                  "workspaceId",
-                  "workspaceGeneration",
-                  "documentId",
-                  "structureRevision",
-                  "revision",
-                  "sourceVersion"
-                ],
-                "additionalProperties": false
-              },
-              "projectRevision": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
-              },
-              "copy": {
-                "type": "string",
-                "enum": [
-                  "working",
-                  "original"
-                ]
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "awaiting-drawing",
-                  "ready"
-                ]
-              },
-              "unsaved": {
-                "type": "boolean"
-              },
-              "embeddedSource": {
-                "type": "object",
-                "properties": {
-                  "entryPath": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "version": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
-                  },
-                  "files": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "path": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "sha256": {
-                          "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema24"
-                        }
-                      },
-                      "required": [
-                        "path",
-                        "sha256"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
-                },
-                "required": [
-                  "entryPath",
-                  "version",
-                  "files"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "target",
-              "projectRevision",
-              "copy",
-              "status",
-              "unsaved"
-            ],
-            "additionalProperties": false
-          },
-          "__schema37": {
+          "__schema33": {
             "type": "string",
             "enum": [
               "equal",
@@ -23763,7 +23265,7 @@
               "inconclusive"
             ]
           },
-          "__schema38": {
+          "__schema34": {
             "type": "object",
             "properties": {
               "kind": {

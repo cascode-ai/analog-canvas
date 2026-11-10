@@ -4,6 +4,6 @@ export const agentSkills = [
   {
     name: "canvas-review",
     files: ["SKILL.md", "agents/openai.yaml"],
-    hosts: { codex: "0.17.97", claudeCode: "0.17.103" },
+    hosts: { codex: "0.17.97", claudeCode: "0.17.104" },
   },
 ] as const;
