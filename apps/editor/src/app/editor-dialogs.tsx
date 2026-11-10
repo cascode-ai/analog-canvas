@@ -7,6 +7,7 @@ import {
   Suspense,
   useCallback,
   type Dispatch,
+  type ReactNode,
   type RefObject,
   type SetStateAction,
 } from "react";
@@ -130,6 +131,7 @@ export function EditorDialogs({
   setRecoveryFailureDismissed,
   chunkLoadFailure,
   setChunkLoadFailure,
+  notices,
   recoveryState,
   recoverySessions,
   project,
@@ -250,6 +252,8 @@ export function EditorDialogs({
   setRecoveryFailureDismissed: Dispatch<SetStateAction<boolean>>;
   chunkLoadFailure: string | null;
   setChunkLoadFailure: Dispatch<SetStateAction<string | null>>;
+  /** Brief outcomes (PowerPoint, Gallery), first in the notice column. */
+  notices: ReactNode;
   recoveryState: UseRecoveryCoordinatorResult["state"];
   recoverySessions: UseRecoveryCoordinatorResult["sessions"];
   project: CircuitProject;
@@ -437,6 +441,7 @@ export function EditorDialogs({
         />
       </Suspense>
       <EditorDialogLayer
+        notices={notices}
         chunkLoadFailure={
           chunkLoadFailure === null
             ? null

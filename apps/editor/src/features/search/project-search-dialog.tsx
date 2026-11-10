@@ -66,8 +66,8 @@ export function ProjectSearchDialog({
         <div className="project-search-results" aria-live="polite">
           {query.trim().length === 0 ? (
             <p>
-              Search instance IDs, symbols, Nets, ports, property keys or
-              values.
+              Search instance IDs, component names, symbols, Nets, ports,
+              property keys or values.
             </p>
           ) : results.length === 0 ? (
             <p>No matching project objects.</p>

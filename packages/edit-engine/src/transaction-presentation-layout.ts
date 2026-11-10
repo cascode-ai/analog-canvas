@@ -310,6 +310,15 @@ export function applyPresentationLayoutEdit(
           ),
         };
       }
+      if (object.locked) {
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            `Drafting object is locked: ${object.id}`,
+          ),
+        };
+      }
       objects.splice(index, 1);
       draft.layoutGroups = draft.layoutGroups.flatMap((group) => {
         if (!group.objectIds.includes(object.id)) return [group];

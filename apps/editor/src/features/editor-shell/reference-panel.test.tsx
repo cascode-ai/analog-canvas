@@ -3,7 +3,10 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 
-import type { GalleryEntryContext } from "./gallery-example-commands";
+import {
+  withSavedDetails,
+  type GalleryEntryContext,
+} from "./gallery-example-commands";
 import type { ReferenceWindowProps } from "./reference-panel";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -195,7 +198,6 @@ it("keeps an author's saved picture for a tab restored later", async () => {
     };
   });
   try {
-    const { withSavedDetails } = await import("./gallery-example-commands");
     const entry: GalleryEntryContext = {
       id: "a1b2c3d4e5",
       name: "Bandgap",

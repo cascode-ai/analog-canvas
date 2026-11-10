@@ -1,4 +1,3 @@
-import { useLayoutEffect, useRef } from "react";
 import type { RecoveryState } from "../document/recovery-coordinator";
 
 /** The recovery states the failure banner reports. */
@@ -21,28 +20,6 @@ export interface RecoveryAvailableBannerProps {
   onDismiss(): void;
 }
 
-/** Follow the actual toolbar, including wrapped controls and project tabs. */
-function useRecoveryBannerPosition() {
-  const ref = useRef<HTMLElement>(null);
-  useLayoutEffect(() => {
-    const chrome = document.querySelector(".app-chrome");
-    if (!chrome) return;
-    const update = () => {
-      if (ref.current)
-        ref.current.style.top = `${chrome.getBoundingClientRect().bottom + 8}px`;
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(chrome);
-    window.addEventListener("resize", update);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, []);
-  return ref;
-}
-
 function failureMessage(state: RecoveryFailureState): string {
   switch (state) {
     case "quota-exceeded":
@@ -63,10 +40,8 @@ export function RecoveryFailureBanner({
   onDownload,
   onDismiss,
 }: RecoveryFailureBannerProps) {
-  const ref = useRecoveryBannerPosition();
   return (
     <aside
-      ref={ref}
       className="recovery-banner recovery-banner-warning"
       data-testid="recovery-failure-banner"
       role="alert"
@@ -95,10 +70,8 @@ export function RecoveryAvailableBanner({
   onDownload,
   onDismiss,
 }: RecoveryAvailableBannerProps) {
-  const ref = useRecoveryBannerPosition();
   return (
     <aside
-      ref={ref}
       className="recovery-banner"
       data-testid="startup-recovery-banner"
       aria-label="Unsaved recovery available"
@@ -141,12 +114,10 @@ export function WorkspaceReopenBanner({
   onReopen,
   onDismiss,
 }: WorkspaceReopenBannerProps) {
-  const ref = useRecoveryBannerPosition();
   const shown = names.slice(0, 3).join(", ");
   const more = names.length > 3 ? ` and ${names.length - 3} more` : "";
   return (
     <aside
-      ref={ref}
       className="recovery-banner"
       data-testid="workspace-reopen-banner"
       aria-label="Reopen tabs from your last window"

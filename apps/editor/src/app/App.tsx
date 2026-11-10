@@ -1083,6 +1083,12 @@ function WorkspaceEditor({
       ? netlistEntry.documentId
       : undefined;
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
+  // An invalid or refused Document settings edit; one the panel closed on
+  // is gone with it (#2180).
+  const [documentSettingsDraftDirty, setDocumentSettingsDraftDirty] =
+    useState(false);
+  const documentSettingsDraft =
+    documentSettingsOpen && documentSettingsDraftDirty;
   const projectNameEditing = useRef(false);
   const {
     publishGalleryOpen,
@@ -3946,6 +3952,8 @@ function WorkspaceEditor({
 
   /** The Cell the last navigation fit framed, to fit again below. */
   const fittedDocument = useRef<string | null>(null);
+  /** A navigation's focus to frame again once the dock it opened is drawn. */
+  const focusBeforeDock = useRef<(() => void) | null>(null);
   const {
     selectDocumentFromHierarchy,
     jumpToCaller,
@@ -3977,6 +3985,10 @@ function WorkspaceEditor({
     onFit: (documentId) => {
       fittedDocument.current = documentId;
     },
+    onFocusBeforeDock: (frameAgain) => {
+      focusBeforeDock.current = frameAgain;
+    },
+    selectionOpen,
     openDocument,
     resetInteractionState,
     selectOnly,
@@ -4003,6 +4015,14 @@ function WorkspaceEditor({
     // That fit reported itself too; it needs no second pass.
     fittedDocument.current = null;
   }, [document.id, documentStack]);
+  // A Find result or diagnostic focuses its part, then opens Properties.
+  // Once the dock is drawn, before it is painted, frame the part again in
+  // what the dock leaves visible, so on a phone it is not underneath (#2186).
+  useLayoutEffect(() => {
+    const frameAgain = focusBeforeDock.current;
+    focusBeforeDock.current = null;
+    if (selectionOpen) frameAgain?.();
+  }, [selectionOpen]);
   useEffect(() => {
     const resolved = reconcileHierarchyPath(
       project,
@@ -5339,6 +5359,7 @@ function WorkspaceEditor({
     restoredTabs,
     currentEditBlocker,
     projectSwitchBlocker,
+    discardableSwitchHold,
     projectTabs,
     dropDiscardedWork,
     workspaceReopen,
@@ -5390,7 +5411,8 @@ function WorkspaceEditor({
     setNetlistFocusedInstance,
     netlistEntry,
     setNetlistEntry,
-    documentSettingsOpen,
+    documentSettingsDraft,
+    setDocumentSettingsOpen,
     projectNameEditing,
     publishGalleryOpen,
     versionHistoryOpen,
@@ -5652,16 +5674,6 @@ function WorkspaceEditor({
   });
   return (
     <main className="app-shell">
-      {powerPoint.notice}
-      {office.notice}
-      {publishedNotice ? (
-        <Suspense fallback={null}>
-          <GalleryPublishedNotice
-            notice={publishedNotice}
-            onDismiss={() => setPublishedNotice(null)}
-          />
-        </Suspense>
-      ) : null}
       {capabilities.community ? (
         <Suspense fallback={null}>
           <GalleryTopologyTaskNotice
@@ -5788,6 +5800,7 @@ function WorkspaceEditor({
         nativeWorkspaceSaving={nativeWorkspaceSaving}
         createTabSession={createTabSession}
         projectTabs={projectTabs}
+        discardableSwitchHold={discardableSwitchHold}
         recentNativeFiles={recentNativeFiles}
         nativeBusy={nativeBusy}
         setNativeBusy={setNativeBusy}
@@ -5887,6 +5900,20 @@ function WorkspaceEditor({
         />
       ) : null}
       <EditorDialogs
+        notices={
+          <>
+            {powerPoint.notice}
+            {office.notice}
+            {publishedNotice ? (
+              <Suspense fallback={null}>
+                <GalleryPublishedNotice
+                  notice={publishedNotice}
+                  onDismiss={() => setPublishedNotice(null)}
+                />
+              </Suspense>
+            ) : null}
+          </>
+        }
         cellPropertiesId={cellPropertiesId}
         setCellPropertiesId={setCellPropertiesId}
         importCellOpen={importCellOpen}
@@ -6572,6 +6599,7 @@ function WorkspaceEditor({
                 documentSettingsOpen
                   ? {
                       document,
+                      onDraftChange: setDocumentSettingsDraftDirty,
                       canvas: {
                         showGrid: gridDotsVisible,
                         annotationGrid,
@@ -8369,6 +8397,7 @@ function WorkspaceEditor({
           <EditorCanvasContextMenu
             canvasContextMenu={canvasContextMenu}
             setCanvasContextMenu={setCanvasContextMenu}
+            document={document}
             visualSelection={visualSelection}
             hasHierarchyEnterSelection={hasHierarchyEnterSelection}
             alignmentParticipantCount={alignmentParticipantCount}

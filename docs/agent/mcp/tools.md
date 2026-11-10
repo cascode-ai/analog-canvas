@@ -271,7 +271,9 @@ revision is unavailable. A foreground delivery binds the task to the returned
 `workspaceId`. Bind explicitly for a background delivery. `timingMs.transfer` estimates transport and
 staging overhead apart from the editor's measured import.
 
-`export_file` downloads a local artifact. `import_file` staging validates a
+`export_file` downloads a local artifact; its `warnings`, when present, say
+what the artifact leaves out (a PDF names characters no PDF font holds, which
+SVG and PNG keep). `import_file` staging validates a
 candidate (Cadence globals use `action:"stage-spice", namingProfile:"cadence-bang"`).
 `inspect` with `candidateId,documentId` reads a staged Cell as `documentCode`.
 `import-cell` (`mode:"replace-body"|"append"`) needs `project.import` plus edit

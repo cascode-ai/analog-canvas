@@ -226,10 +226,11 @@ export async function createVisualExportArtifact(
   );
   const pdf = await vectorizeFormalSvgInBrowser(source);
   return {
-    bytes: pdf as BlobPart,
+    bytes: pdf.bytes as BlobPart,
     mediaType: "application/pdf",
     extension: "pdf",
-    report: `Exported PDF revision ${document.revision}`,
+    // A PDF missing characters never reads as a complete export.
+    report: pdf.notice ?? `Exported PDF revision ${document.revision}`,
   };
 }
 

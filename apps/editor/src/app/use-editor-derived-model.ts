@@ -296,8 +296,9 @@ export function useEditorDerivedModel({
     if (!searchActive || searchQuery.trim().length === 0) return [];
     return buildProjectSearchIndex(project, {
       connectivityIndex: projectConnectivityIndex,
+      resolver,
     }).search(searchQuery);
-  }, [project, projectConnectivityIndex, searchActive, searchQuery]);
+  }, [project, projectConnectivityIndex, resolver, searchActive, searchQuery]);
   const flightlines = useMemo(
     () => [
       ...new Map(

@@ -701,7 +701,12 @@ export class BrowserAgentFileHost {
           prepared.release();
         }
       })();
-      let artifact: { name: string; mediaType: string; bytes: Uint8Array };
+      let artifact: {
+        name: string;
+        mediaType: string;
+        bytes: Uint8Array;
+        notice?: string;
+      };
       if (request.artifact === "svg") {
         artifact = {
           name: "schematic.svg",
@@ -720,14 +725,26 @@ export class BrowserAgentFileHost {
           bytes: png.bytes,
         };
       } else {
-        const { vectorizeFormalSvgInBrowser } = await importChunk(
-          "PDF export",
-          () => import("@icm/exporters/browser-pdf"),
-        );
+        const { vectorizeFormalSvgInBrowser, omittedGlyphsRefusal } =
+          await importChunk(
+            "PDF export",
+            () => import("@icm/exporters/browser-pdf"),
+          );
+        const pdf = await vectorizeFormalSvgInBrowser(source);
+        // A client released before `warnings` refuses a response field it
+        // does not know: one that has not asked for them gets the
+        // characters named in a refusal instead (#2179).
+        if (pdf.notice && !request.includeWarnings)
+          return this.error(
+            request,
+            "PDF_CHARACTERS_LEFT_OUT",
+            omittedGlyphsRefusal(pdf.omitted),
+          );
         artifact = {
           name: "schematic.pdf",
           mediaType: "application/pdf",
-          bytes: await vectorizeFormalSvgInBrowser(source),
+          bytes: pdf.bytes,
+          ...(pdf.notice ? { notice: pdf.notice } : {}),
         };
       }
       const response = await this.artifactResponse(
@@ -736,6 +753,7 @@ export class BrowserAgentFileHost {
         artifact.mediaType,
         artifact.bytes,
         review,
+        artifact.notice,
       );
       if (
         review &&
@@ -989,6 +1007,7 @@ export class BrowserAgentFileHost {
     mediaType: string,
     bytes: Uint8Array,
     review?: AgentReviewReceipt,
+    notice?: string,
   ): Promise<AgentFileResourceResponse> {
     if (bytes.byteLength > AGENT_FILE_RESOURCE_MAX_BYTES)
       return this.error(
@@ -1002,6 +1021,7 @@ export class BrowserAgentFileHost {
       operation: "download",
       ok: true,
       ...(review ? { review } : {}),
+      ...(notice ? { warnings: [notice] } : {}),
       artifact: await fileArtifact(name, mediaType, bytes),
     };
   }

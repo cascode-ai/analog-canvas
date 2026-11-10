@@ -1,3 +1,4 @@
+import { lockedSelectionObjects } from "@icm/edit-engine";
 import type { SchematicDocument } from "@icm/model";
 
 export type VisualSelectionKind =
@@ -71,6 +72,21 @@ export function clearVisualSelectionKinds(
 
 export function hasVisualSelection(selection: VisualSelection): boolean {
   return Object.values(selection).some((ids) => ids.length > 0);
+}
+
+/** Whether Delete would take anything: locked drawings and texts stay. */
+export function hasDeletableVisualSelection(
+  selection: VisualSelection,
+  document: SchematicDocument,
+): boolean {
+  const locked = lockedSelectionObjects(document, selection);
+  return (
+    selection.instanceIds.length > 0 ||
+    selection.routeIds.length > locked.routeIds.length ||
+    selection.junctionIds.length > 0 ||
+    selection.annotationIds.length > locked.annotationIds.length ||
+    selection.draftingIds.length > locked.draftingIds.length
+  );
 }
 
 /**

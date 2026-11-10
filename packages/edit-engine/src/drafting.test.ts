@@ -172,7 +172,7 @@ describe("drafting and guide edits", () => {
     expect(secondRemoved.document.layoutGroups).toEqual([]);
   });
 
-  it("removes a locked drafting object because Delete has priority", () => {
+  it("refuses to remove a locked drafting object until it is unlocked", () => {
     const document = createEmptyDocument("doc", "Drafting");
     const created = executeTransaction(
       document,
@@ -201,9 +201,9 @@ describe("drafting and guide edits", () => {
         1,
       ),
     );
-    expect(removed.ok).toBe(true);
-    if (!removed.ok) return;
-    expect(removed.document.drafting?.objects).toEqual([]);
+    // #2187: Delete went straight through the lock the Properties showed.
+    expect(removed.ok).toBe(false);
+    expect(JSON.stringify(removed)).toContain("Drafting object is locked: t1");
   });
 
   it("allows only a pure unlock while a locked drafting object exists", () => {

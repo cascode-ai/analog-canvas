@@ -9,6 +9,7 @@ import {
   type RefObject,
   type SetStateAction,
 } from "react";
+import { flushSync } from "react-dom";
 import { deriveRoutingAffectedClosure } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -34,7 +35,10 @@ import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
 import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
 import type { useSelectionController } from "../features/selection/selection-controller";
 import type { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
-import { hasVisualSelection } from "../features/selection/visual-selection";
+import {
+  hasDeletableVisualSelection,
+  hasVisualSelection,
+} from "../features/selection/visual-selection";
 import type { useInteractionState } from "../interaction/interaction-state";
 import {
   useEditorServices,
@@ -162,6 +166,7 @@ export function EditorMenuBar({
   nativeWorkspaceSaving,
   createTabSession,
   projectTabs,
+  discardableSwitchHold,
   recentNativeFiles,
   nativeBusy,
   setNativeBusy,
@@ -260,6 +265,7 @@ export function EditorMenuBar({
   nativeWorkspaceSaving: RefObject<boolean>;
   createTabSession: ProjectTabSessions["createTabSession"];
   projectTabs: ProjectTabSessions["projectTabs"];
+  discardableSwitchHold: ProjectTabSessions["discardableSwitchHold"];
   recentNativeFiles: NativeProjectTabs["recentNativeFiles"];
   nativeBusy: NativeProjectTabs["nativeBusy"];
   setNativeBusy: NativeProjectTabs["setNativeBusy"];
@@ -341,6 +347,27 @@ export function EditorMenuBar({
                 (nativeProjectStore !== undefined && (nativeBusy || saveBusy))
               }
               onSelect={projectTabs.select}
+              heldBy={() => {
+                const reason = discardableSwitchHold();
+                return reason
+                  ? {
+                      reason,
+                      // Closing the panel drops its draft (#2180).
+                      discard: () =>
+                        flushSync(() => setDocumentSettingsOpen(false)),
+                      resume: () => {
+                        setSelectionOpen(true);
+                        requestAnimationFrame(() =>
+                          window.document
+                            .querySelector<HTMLElement>(
+                              '[data-testid="document-settings-code-editor"] [contenteditable="true"]',
+                            )
+                            ?.focus(),
+                        );
+                      },
+                    }
+                  : null;
+              }}
               onRename={(id, name) => {
                 if (id === projectTabs.activeId) renameProject(name);
               }}
@@ -498,7 +525,8 @@ export function EditorMenuBar({
       onOpenSearch={() => editorCommands.execute({ id: "search.open" })}
       deleteSelection={{
         enabled:
-          hasVisualSelection(visualSelection) || selectedEndpoint !== null,
+          hasDeletableVisualSelection(visualSelection, document) ||
+          selectedEndpoint !== null,
         execute: () => editorCommands.execute({ id: "selection.delete" }),
       }}
       copySelectionImages={(["png", "svg"] as const).map((format) => ({
@@ -695,6 +723,7 @@ export function EditorMenuBar({
 export function EditorCanvasContextMenu({
   canvasContextMenu,
   setCanvasContextMenu,
+  document,
   visualSelection,
   hasHierarchyEnterSelection,
   alignmentParticipantCount,
@@ -708,6 +737,7 @@ export function EditorCanvasContextMenu({
   setCanvasContextMenu: Dispatch<
     SetStateAction<{ x: number; y: number } | null>
   >;
+  document: SchematicDocument;
   visualSelection: SelectionController["selection"];
   hasHierarchyEnterSelection: boolean;
   alignmentParticipantCount: number;
@@ -792,7 +822,7 @@ export function EditorCanvasContextMenu({
         },
         {
           label: "Delete",
-          enabled: hasVisualSelection(visualSelection),
+          enabled: hasDeletableVisualSelection(visualSelection, document),
           execute: () => editorCommands.execute({ id: "selection.delete" }),
         },
       ]}

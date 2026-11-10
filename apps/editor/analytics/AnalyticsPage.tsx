@@ -6,6 +6,7 @@ import {
   type FeatureCollection,
 } from "./worldMap";
 import { BugReportLink } from "../src/components/bug-report-link";
+import { isEditorPath } from "../src/page-routes";
 
 type DayRow = { date: string; pv: number; uv: number };
 type BreakdownRow = { pv?: number; uv?: number; count?: number };
@@ -103,12 +104,33 @@ function rowMetrics(row: BreakdownRow): BreakdownTotal {
   return { pv: row.pv ?? row.count ?? 0, uv: row.uv ?? 0 };
 }
 
+/**
+ * Where "Back" goes (#2188): the editor page the reader came from, else the
+ * Gallery, each named for what it opens.
+ */
+export function analyticsBackLink(referrer: string, origin: string) {
+  try {
+    const from = new URL(referrer);
+    if (from.origin === origin && isEditorPath(from.pathname))
+      return {
+        href: `${from.pathname}${from.search}`,
+        label: "Back to editor",
+      };
+  } catch {
+    // No referrer, or not a URL: the Gallery.
+  }
+  return { href: "/", label: "Back to the Gallery" };
+}
+
 export function AnalyticsPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [registeredAccounts, setRegisteredAccounts] = useState<number | null>(
     null,
   );
   const [error, setError] = useState(false);
+  const [back] = useState(() =>
+    analyticsBackLink(document.referrer, window.location.origin),
+  );
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">(() =>
@@ -261,8 +283,8 @@ export function AnalyticsPage() {
             className="analytics-bug-report"
             testId="analytics-report-bug"
           />
-          <a className="analytics-home" href="/">
-            ← Back to editor
+          <a className="analytics-home" href={back.href}>
+            ← {back.label}
           </a>
         </div>
       </header>
