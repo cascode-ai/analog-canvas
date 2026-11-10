@@ -63,6 +63,11 @@ export interface RichTextEditorProps {
   displayAlias?: boolean;
   onDisplayAliasChange?(enabled: boolean): RichTextDocument | undefined;
   onLayoutHeightChange?(height: number): void;
+  /**
+   * The most CSS pixels of height the editor may take; past it the formula
+   * editor's body scrolls while its close and Insert buttons stay in view.
+   */
+  maxHeight?: number;
 }
 
 function enclosingOverbar(node: Node): HTMLElement | null {
@@ -449,6 +454,7 @@ export function RichTextEditor({
   displayAlias,
   onDisplayAliasChange,
   onLayoutHeightChange,
+  maxHeight,
 }: RichTextEditorProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const editableRef = useRef<HTMLDivElement>(null);
@@ -1035,7 +1041,10 @@ export function RichTextEditor({
   return (
     <div
       ref={shellRef}
-      className={`rich-text-editor-shell${compact ? " compact" : ""}`}
+      className={`rich-text-editor-shell${compact ? " compact" : ""}${
+        maxHeight !== undefined ? " bounded" : ""
+      }${formulaOpen && !sourceOnly ? " formula-open" : ""}`}
+      style={maxHeight !== undefined ? { maxHeight } : undefined}
       onPointerDown={(event) => event.stopPropagation()}
     >
       <div

@@ -93,6 +93,53 @@ export interface CanvasTextEditorFrame {
   scale: number;
   layoutWidth: number;
   layoutHeight: number;
+  /**
+   * The most layout pixels of height the visible canvas holds: the panel
+   * never grows past it, and its contents scroll inside it instead (#2172).
+   */
+  maxLayoutHeight: number;
+}
+
+interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function intersection(a: Rect, b: Rect): Rect {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  return {
+    x,
+    y,
+    width: Math.max(0, Math.min(a.x + a.width, b.x + b.width) - x),
+    height: Math.max(0, Math.min(a.y + a.height, b.y + b.height) - y),
+  };
+}
+
+/**
+ * The parts of the canvas off the screen or clipped away, in screen pixels
+ * per side, joined with the docks that cover it. A canvas taller than a
+ * phone's screen otherwise let the panel open below its bottom edge (#2172).
+ */
+export function canvasInsetsOnScreen(
+  canvas: Rect,
+  shown: Rect,
+  docks: CanvasInsets,
+): CanvasInsets {
+  return {
+    left: Math.max(docks.left, shown.x - canvas.x),
+    top: Math.max(docks.top, shown.y - canvas.y),
+    right: Math.max(
+      docks.right,
+      canvas.x + canvas.width - (shown.x + shown.width),
+    ),
+    bottom: Math.max(
+      docks.bottom,
+      canvas.y + canvas.height - (shown.y + shown.height),
+    ),
+  };
 }
 
 export function resolveCanvasTextEditorFrame(
@@ -122,12 +169,19 @@ export function resolveCanvasTextEditorFrame(
   // A name longer than the box wraps, and the frame is sized before any of it
   // is typed, so budget for a few wrapped lines instead of the one the
   // committed bounds imply. Anything past that scrolls rather than being
-  // clipped away by the foreignObject.
+  // clipped away by the foreignObject. The panel never outgrows the visible
+  // canvas: on a phone the formula editor scrolls inside it, its Insert and
+  // close buttons in view, rather than running off the screen (#2172).
   const lineHeight = 15.116 * sizeScale * 1.2;
-  const layoutHeight = Math.max(
-    EDITOR_LAYOUT_MIN_HEIGHT,
-    54 + lineHeight * 3,
-    preferredLayoutHeight ?? 0,
+  const maxLayoutHeight =
+    Math.max(0, visible.height - viewportInset * 2) / scale;
+  const layoutHeight = Math.min(
+    maxLayoutHeight,
+    Math.max(
+      EDITOR_LAYOUT_MIN_HEIGHT,
+      54 + lineHeight * 3,
+      preferredLayoutHeight ?? 0,
+    ),
   );
   const height = layoutHeight * scale;
   const targetGap = 8;
@@ -152,6 +206,7 @@ export function resolveCanvasTextEditorFrame(
     scale,
     layoutWidth,
     layoutHeight,
+    maxLayoutHeight,
   };
 }
 
@@ -190,6 +245,7 @@ function resolveInlineTextEditorFrame(
     scale,
     layoutWidth,
     layoutHeight: INLINE_EDITOR_LAYOUT_HEIGHT,
+    maxLayoutHeight: INLINE_EDITOR_LAYOUT_HEIGHT,
   };
 }
 
@@ -229,7 +285,30 @@ export function CanvasTextEditorOverlay({
     ]
       .filter((dock) => getComputedStyle(dock).visibility !== "hidden")
       .map((dock) => dock.getBoundingClientRect());
-    const next = canvasInsetsFromOverlays(svg.getBoundingClientRect(), docks);
+    const canvas = svg.getBoundingClientRect();
+    // The visual viewport, so a phone's on-screen keyboard counts too, cut
+    // by every ancestor that clips the canvas.
+    const view = svg.ownerDocument.defaultView;
+    let shown: Rect = view?.visualViewport
+      ? {
+          x: view.visualViewport.offsetLeft,
+          y: view.visualViewport.offsetTop,
+          width: view.visualViewport.width,
+          height: view.visualViewport.height,
+        }
+      : view
+        ? { x: 0, y: 0, width: view.innerWidth, height: view.innerHeight }
+        : canvas;
+    for (let node = svg.parentElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.overflowX !== "visible" || style.overflowY !== "visible")
+        shown = intersection(shown, node.getBoundingClientRect());
+    }
+    const next = canvasInsetsOnScreen(
+      canvas,
+      shown,
+      canvasInsetsFromOverlays(canvas, docks),
+    );
     setObscuredPixels((current) =>
       (["left", "right", "top", "bottom"] as const).every(
         (side) => Math.abs(current[side] - next[side]) < 0.5,
@@ -266,14 +345,24 @@ export function CanvasTextEditorOverlay({
       measureObscured();
     };
     measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(svg);
+    // A phone's keyboard or pinch zoom resizes the visual viewport alone.
+    const viewport = svg.ownerDocument.defaultView?.visualViewport;
+    viewport?.addEventListener("resize", measureObscured);
+    viewport?.addEventListener("scroll", measureObscured);
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(measure);
+    observer?.observe(svg);
     for (const dock of svg.ownerDocument.querySelectorAll(
       "[data-canvas-overlay]",
     ))
-      observer.observe(dock);
-    return () => observer.disconnect();
+      observer?.observe(dock);
+    return () => {
+      observer?.disconnect();
+      viewport?.removeEventListener("resize", measureObscured);
+      viewport?.removeEventListener("scroll", measureObscured);
+    };
   }, [measureObscured]);
 
   // preserveAspectRatio="meet" fits the camera inside the element, so the
@@ -455,6 +544,12 @@ export function CanvasTextEditorOverlay({
               }
             : {})}
           onLayoutHeightChange={handleLayoutHeightChange}
+          maxHeight={Math.max(
+            0,
+            frame.maxLayoutHeight -
+              (signalPreview ? 48 : 0) -
+              (secondaryAction ? 40 : 0),
+          )}
         />
         {secondaryAction ? (
           <button

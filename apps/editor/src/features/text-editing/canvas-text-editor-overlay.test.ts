@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveCanvasTextEditorFrame } from "./canvas-text-editor-overlay";
+import {
+  canvasInsetsOnScreen,
+  resolveCanvasTextEditorFrame,
+} from "./canvas-text-editor-overlay";
 
 const target = { x: 100, y: 200, width: 200, height: 30 };
 const camera = (width: number, height: number) => ({
@@ -154,6 +157,65 @@ describe("canvas text editor frame", () => {
     );
     expect(bottomRight.x + bottomRight.width).toBeLessThanOrEqual(960 - 8);
     expect(bottomRight.y + bottomRight.height).toBeLessThanOrEqual(640 - 8);
+  });
+
+  it("never grows past the visible canvas, so a phone reaches Insert (#2172)", () => {
+    // 320×568 at the default 100% zoom: one Document unit is one pixel, the
+    // canvas 524 px tall under the header, the label mid-screen. The formula
+    // editor open measures 520 px, more than fits above or below the label.
+    const label = { x: 140, y: 270, width: 40, height: 18 };
+    const phone = resolveCanvasTextEditorFrame(
+      label,
+      camera(320, 524),
+      1,
+      1,
+      520,
+    );
+    expect(phone.maxLayoutHeight).toBe(524 - 16);
+    expect(phone.layoutHeight).toBe(phone.maxLayoutHeight);
+    expect(phone.y).toBeGreaterThanOrEqual(8);
+    expect(phone.y + phone.height).toBeLessThanOrEqual(524 - 8);
+    expect(phone.layoutWidth).toBe(304);
+    // 390×844 has the room: the whole editor opens below the label.
+    const tall = resolveCanvasTextEditorFrame(
+      label,
+      camera(390, 800),
+      1,
+      1,
+      480,
+    );
+    expect(tall.layoutHeight).toBe(480);
+    expect(tall.y).toBeGreaterThan(label.y + label.height);
+    expect(tall.y + tall.height).toBeLessThanOrEqual(800 - 8);
+  });
+
+  it("keeps to the part of the canvas on screen (#2172)", () => {
+    // A canvas element taller than the screen it is shown on: what lies
+    // below the screen counts as covered, joined with any dock.
+    const canvas = { x: 0, y: 44, width: 320, height: 800 };
+    const screen = { x: 0, y: 0, width: 320, height: 568 };
+    const docks = { left: 0, right: 30, top: 0, bottom: 0 };
+    const obscured = canvasInsetsOnScreen(canvas, screen, docks);
+    expect(obscured).toEqual({ left: 0, right: 30, top: 0, bottom: 276 });
+    const frame = resolveCanvasTextEditorFrame(
+      { x: 140, y: 270, width: 40, height: 18 },
+      camera(320, 800),
+      1,
+      1,
+      520,
+      obscured,
+    );
+    // On screen: canvas top 44 plus frame, within the 568 px screen.
+    expect(44 + frame.y + frame.height).toBeLessThanOrEqual(568 - 8);
+    expect(frame.layoutHeight).toBe(800 - 276 - 16);
+    // A canvas wholly on screen loses nothing.
+    expect(
+      canvasInsetsOnScreen(
+        { x: 0, y: 44, width: 320, height: 500 },
+        screen,
+        docks,
+      ),
+    ).toEqual(docks);
   });
 
   it("stays inside a translated viewport", () => {

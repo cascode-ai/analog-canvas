@@ -991,6 +991,37 @@
   box-shadow: var(--icm-shadow-md);
 }
 
+/* Bounded by the visible canvas (#2172): the formula editor takes the room
+   the toolbar and text leave, its body scrolls, and its header and Insert
+   row stay in view. Too short even for those, the whole panel scrolls. */
+.rich-text-editor-shell.bounded {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.rich-text-editor-shell.bounded.formula-open {
+  display: flex;
+  flex-direction: column;
+}
+
+.rich-text-editor-shell.bounded.formula-open > *,
+.rich-text-editor-shell.bounded.formula-open > .rich-text-formula-popover > * {
+  flex: none;
+}
+
+.rich-text-editor-shell.bounded.formula-open > .rich-text-formula-popover {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 9rem;
+}
+
+.rich-text-editor-shell.bounded.formula-open
+  > .rich-text-formula-popover
+  > .rich-text-formula-scroll-region {
+  flex: 1 1 auto;
+}
+
 .rich-text-formula-header {
   display: flex;
   align-items: center;
