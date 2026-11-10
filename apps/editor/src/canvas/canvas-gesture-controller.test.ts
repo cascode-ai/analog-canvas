@@ -71,6 +71,20 @@ describe("classifyWheelSource", () => {
     ).toBe("trackpad");
   });
 
+  it("reads a detent as a wheel at any page zoom (#2169)", () => {
+    // Chromium at 90% and 75% page zoom: deltaY = 100 / zoom, wheelDeltaY
+    // derived from it at 1.2, so the detent is neither whole nor a multiple
+    // of 120 — the case that panned instead of zooming.
+    for (const [deltaY, wheelDeltaY] of [
+      [111.11111, -133],
+      [133.33333, -160],
+      [125, -150],
+    ] as const)
+      expect(
+        classifyWheelSource({ deltaMode: 0, deltaX: 0, deltaY, wheelDeltaY }),
+      ).toBe("mouse");
+  });
+
   it("reads two axes or sub-pixel precision as a surface", () => {
     expect(classifyWheelSource({ deltaMode: 0, deltaX: 4, deltaY: 12 })).toBe(
       "trackpad",
