@@ -1,4 +1,5 @@
 import { directObjectLocator } from "@icm/derived";
+import { reviewedExternalBindingById } from "@icm/devices";
 import type { CircuitProject } from "@icm/model";
 import {
   analyzeDesignNetlist,
@@ -44,10 +45,12 @@ export type DesignNetlistExportResult = {
  * The legitimate single-pin nodes are excluded by construction — a Cell port
  * carries its node outward to whoever instantiates the Cell, a global net is
  * shared with the rest of the design, an explicit NoConnect is the author
- * saying that this pin ends here on purpose, and a node somebody named (or
+ * saying that this pin ends here on purpose, a node somebody named (or
  * that a SPICE import named) is a declared signal rather than leftover
- * geometry. What remains is an unnamed node one pin reaches: a wire that was
- * drawn and never finished.
+ * geometry, and a terminal its device floats by design (the tap of a SKY130
+ * spiral drawn as a 2-pin inductor, set in Properties, never a pin to wire
+ * or mark) ends on its own node on purpose too. What remains is an unnamed
+ * node one pin reaches: a wire that was drawn and never finished.
  *
  * This is deliberately the export's own gate rather than an extraction error:
  * the analyzer also serves formal-interface derivation and simulation-source
@@ -71,12 +74,25 @@ function deadEndNodeDiagnostics(
     const document = project.documents.find((item) => item.id === cell.id);
     if (!document) continue;
     const contacts = new Map<string, string[]>();
+    const floating = new Set<string>();
     for (const instance of cell.instances) {
+      const binding = reviewedExternalBindingById(
+        instance.reviewedExternalBindingId,
+      );
       for (const node of instance.nodes) {
         const pins = contacts.get(node.netName);
         const pin = `${instance.reference}.${node.pinName}`;
         if (pins) pins.push(pin);
         else contacts.set(node.netName, [pin]);
+        if (
+          binding?.terminals.some(
+            (terminal) =>
+              terminal.targetName === node.pinName &&
+              terminal.interaction === "property" &&
+              terminal.role === "floating",
+          )
+        )
+          floating.add(pin);
       }
     }
     const ports = new Set(cell.ports.map((port) => port.netName));
@@ -85,7 +101,7 @@ function deadEndNodeDiagnostics(
       if (net.scope === "global" || ports.has(net.name)) continue;
       if (declared.has(net.id) || !unnamed.has(net.id)) continue;
       const pins = contacts.get(net.name);
-      if (!pins || pins.length !== 1) continue;
+      if (!pins || pins.length !== 1 || floating.has(pins[0]!)) continue;
       diagnostics.push({
         code: NETLIST_DEAD_END_NET,
         severity: "error",
@@ -189,8 +205,11 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * declarations whose original model bodies are absent from the Project.
  * 16 exports a pulse, sine or AC source without a DC value (#2100): circuits
  * that alone blocked, about 40 of them, extract.
+ * 17 no longer calls the tap of a SKY130 spiral drawn as a 2-pin inductor a
+ * dead end: its device floats it by design, so a circuit it alone blocked
+ * extracts.
  */
-export const NETLIST_MARK_RULE_VERSION = 16;
+export const NETLIST_MARK_RULE_VERSION = 17;
 
 export function designExtractsNetlist(
   project: CircuitProject,
