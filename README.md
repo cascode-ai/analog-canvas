@@ -242,8 +242,8 @@ syntax and the [attribution](packages/spice/third-party/netlist-crawler/README.m
 
 Every public Gallery circuit is free to read, download in bulk, mirror and use
 for any purpose, AI training included; circuits from reference datasets keep
-their dataset's license. The Gallery's **Download** menu saves the wall's
-current results, or every circuit, as one `.zip` of Project files with a
+their dataset's license. The Gallery's **Download** button saves the wall's
+current results (every circuit when unfiltered) as one `.zip` of Project files with a
 manifest. One script downloads them too, with no account and nothing to
 install but Node 18 or newer:
 
@@ -257,7 +257,9 @@ node gallery-download.mjs lna --url 'https://analog-canvas.tokenzhang.com/?sourc
 It writes `index.json` and one `entries/<id>.json` per circuit; filters
 (`--source`, `--q`, `--tags`, `--author`, `--parts`, `--netlistable`, or a
 wall link's with `--url`) narrow it, and a rerun keeps whole files and
-downloads the rest. See `--help` and the
+downloads the rest. Public reads have no rate or daily download cap; the
+script starts 32 parallel downloads without fixed waits. Use `--concurrency N`
+to choose the parallelism for your connection. See `--help` and the
 [Gallery contract](docs/specs/community-gallery.md#crawlers-ai-and-floods) for
 the API it reads.
 

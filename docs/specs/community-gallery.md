@@ -37,7 +37,8 @@ restrictive CSP.
 - `robots.txt` and `llms.txt` (`worker/usage-policy.ts`) state the usage
   policy: every public circuit is free to read, download in bulk, mirror and
   use for any purpose, AI training included; circuits from reference datasets
-  keep their dataset's license; clients stay under the flood limit.
+  keep their dataset's license; public Gallery reads have no request-rate cap
+  or daily download quota.
   `robots.txt` admits every crawler with `Content-Signal: search=yes,
 ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   the list and entry API and no other resource while public Gallery
@@ -51,8 +52,11 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   `--url` with a wall link's filters (the link's `netlist` is the list's
   `netlistable`; a link needing a signed-in reader is refused). It writes
   `index.json` (the list's entries) and `entries/<id>.json`
-  (`{entry, projectText}`, each written whole through a temporary file), at
-  most 600 requests a minute. A rerun keeps a file only if it parses with its
+  (`{entry, projectText}`, each written whole through a temporary file).
+  Downloads start without fixed pacing, 32 in parallel by default;
+  `--concurrency N` accepts any positive safe integer. There is no total-count
+  or runtime cap; `--max N` is an optional reader-selected subset.
+  A rerun keeps a file only if it parses with its
   id and a non-empty `projectText`. It ends with downloaded, kept and failed
   counts and exits 1 when the list or any circuit failed; a `--source` that
   `GET /api/gallery/sources` does not list is refused.
@@ -71,17 +75,20 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   saves nothing by itself: it shows `N failed · Retry` and
   `Download partial ZIP (M of N)`, whose file is named `…-partial.zip` and
   whose manifest lists the failed circuits.
-  It lists oldest first and reads at most 10 requests a second, 4 at once;
+  It lists oldest first and reads 32 at once without fixed pacing;
   network, 408, 429 (every reader waits its `Retry-After`) and 5xx failures
   are retried, circuits still failing are named, a list failure saves
   nothing and so do zero matches. The archive code loads on first use.
 - No account is blocked for how it reads or writes; the account blocks and
   trap circuits of before 2026-11-09 are retired with their records.
-- `/api/*` has a flood limit of 1200 requests a minute per client address
-  (Workers rate limiting, `API_RATE_LIMITER`). Past it:
+- Gallery `GET` and `HEAD` requests (`/api/gallery` and `/api/gallery/…`)
+  bypass the API flood limiter, including Projects, previews, reference
+  images and bulk netlists. Private and owner-only routes still authenticate.
+  Other `/api/*` requests keep a flood limit of 1200 requests a minute per
+  client address (Workers rate limiting, `API_RATE_LIMITER`). Past it:
   `429 {"error":"too-many-requests","retryAfterSeconds":60,"usage":…}` with
-  `Retry-After: 60`. It is neither a quota nor a daily allowance; clients
-  show their daily-limit messages only for other `429`s. Uncounted: the
+  `Retry-After: 60`. It is neither a download quota nor a daily allowance.
+  Also uncounted: the
   Owner's backup and smoke credentials, requests with no client address, and
   `/api/arena/…`, which is forwarded unchanged. A failing limiter lets
   requests through.

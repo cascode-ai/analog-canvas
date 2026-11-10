@@ -30,6 +30,7 @@ gallery-download. Without a filter, every public circuit.
   --netlistable 1|0  only circuits that extract to a netlist, or that do not
   --url LINK         the filters of a Gallery wall link; flags override it
   --max N            at most N circuits
+  --concurrency N    parallel downloads (default 32; no fixed request pacing)
   --base URL         the site; default the --url link's, else
                      https://analog-canvas.tokenzhang.com
 
@@ -118,13 +119,16 @@ export function parseArgs(argv) {
   const maxText = option("--max");
   const max = maxText === undefined ? Infinity : Number(maxText);
   if (!(max > 0)) throw new UsageError("--max takes a positive number");
+  const concurrency = Number(option("--concurrency") ?? 32);
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1)
+    throw new UsageError("--concurrency takes a positive integer");
   const base = (
     option("--base") ?? (link ? new URL(link).origin : DEFAULT_BASE)
   ).replace(/\/+$/u, "");
   const unknown = args.find((arg) => arg.startsWith("-"));
   if (unknown) throw new UsageError(`unknown option ${unknown}`);
   if (args.length > 1) throw new UsageError("one OUT_DIR at most");
-  return { out: args[0] ?? "gallery-download", params, max, base };
+  return { out: args[0] ?? "gallery-download", params, max, base, concurrency };
 }
 
 /** Whether a saved entry file is whole: it parses, names its id, has a Project. */
@@ -149,17 +153,10 @@ function writeWhole(file, text) {
 
 class RequestError extends Error {}
 
-// The site allows 1200 /api requests a minute per client; stay at half.
-const SPACING_MS = 100;
-
-/** GETs spaced SPACING_MS apart; network, 408, 429 and 5xx are retried. */
+/** GETs without fixed pacing; network, 408, 429 and 5xx are retried. */
 function reader(base) {
-  let nextStart = 0;
   return async function get(path) {
     for (let attempt = 1; ; attempt++) {
-      const wait = nextStart - Date.now();
-      nextStart = Math.max(nextStart, Date.now()) + SPACING_MS;
-      if (wait > 0) await new Promise((done) => setTimeout(done, wait));
       const response = await fetch(base + path).catch(() => null);
       const text = response ? await response.text().catch(() => null) : null;
       if (response?.ok && text !== null) {
@@ -206,7 +203,7 @@ export async function main(argv) {
     console.error(`${error.message}\n\n${USAGE}`);
     return 2;
   }
-  const { out, params, max, base } = options;
+  const { out, params, max, base, concurrency } = options;
   const get = reader(base);
 
   // A dataset key the site does not know would be no filter at all on an
@@ -258,7 +255,7 @@ export async function main(argv) {
   const failed = [];
   const queue = index.map((entry) => entry.id);
   await Promise.all(
-    Array.from({ length: 4 }, async () => {
+    Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
       for (let id; (id = queue.shift());) {
         try {
           if (!/^[\w-]+$/u.test(id)) throw new Error("unexpected id");

@@ -14,7 +14,7 @@ export function robotsTxt(): string {
     "# for any purpose, AI training included. Circuits from reference datasets",
     "# keep their dataset's license.",
     `# Download every circuit: ${GALLERY_DOWNLOAD_SCRIPT}`,
-    "# Please stay under 1200 /api requests a minute per client.",
+    "# Public Gallery reads have no request-rate cap or daily download quota.",
     `# Questions: ${SITE_USAGE_CONTACT}`,
     "",
     "User-agent: *",
@@ -31,7 +31,7 @@ export function llmsUsagePolicy(): string {
     "- Every public circuit is free to read, download in bulk, mirror and use for any purpose, AI training included.",
     "- Circuits from reference datasets keep their dataset's license.",
     `- Download every circuit with ${GALLERY_DOWNLOAD_SCRIPT}, or read the API: GET /api/gallery?limit=60&cursor=… lists circuits, GET /api/gallery/{id} returns one with its Project.`,
-    "- Please stay under 1200 /api requests a minute per client.",
+    "- Public Gallery reads have no request-rate cap or daily download quota.",
     `- Questions: ${SITE_USAGE_CONTACT}.`,
     "",
   ].join("\n");

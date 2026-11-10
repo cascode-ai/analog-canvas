@@ -7,6 +7,7 @@ describe("requestFailureOf", () => {
   it("says the Worker's flood limit asks to wait, not that the server is down", async () => {
     const refusal = await refuseApiFlood(
       new Request("https://example.test/api/gallery", {
+        method: "POST",
         headers: { "cf-connecting-ip": "203.0.113.9" },
       }),
       { API_RATE_LIMITER: { limit: async () => ({ success: false }) } },

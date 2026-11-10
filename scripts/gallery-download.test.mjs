@@ -84,6 +84,9 @@ describe("the arguments", () => {
       ["--netlistable", "yes"],
       ["--parts", "small"],
       ["--max", "0"],
+      ["--concurrency", "0"],
+      ["--concurrency", "1.5"],
+      ["--concurrency", "Infinity"],
       ["--source"],
       ["--tag", "bias"],
       ["a", "b"],
@@ -136,13 +139,19 @@ afterEach(() => {
 async function gallery(entries, refuse = () => null) {
   const asked = [];
   const server = createServer((request, response) => {
+    void answer(request, response).catch((error) => {
+      response.writeHead(500);
+      response.end(String(error));
+    });
+  });
+  async function answer(request, response) {
     const url = new URL(request.url, "http://local");
     asked.push(url.pathname + url.search);
     const send = (status, body) => {
       response.writeHead(status, { "content-type": "application/json" });
       response.end(JSON.stringify(body));
     };
-    const refused = refuse(url);
+    const refused = await refuse(url);
     if (refused) return send(refused.status, refused.body);
     if (url.pathname === "/api/gallery/sources")
       return send(200, {
@@ -176,7 +185,7 @@ async function gallery(entries, refuse = () => null) {
       ownerUserId: null,
       projectText: projectOf(id),
     });
-  });
+  }
   await new Promise((done) => server.listen(0, "127.0.0.1", done));
   cleanups.push(() => server.close());
   return { base: `http://127.0.0.1:${server.address().port}`, asked };
@@ -294,4 +303,31 @@ it("refuses a dataset the site does not have, by its list or by its answer", asy
   expect(answer.stderr).toContain(
     'The list failed: /api/gallery?source=x&limit=60&order=oldest: 400 {"error":"unknown-source"}',
   );
+});
+
+it("downloads in the requested parallelism without spacing requests apart", async () => {
+  const entries = Array.from({ length: 24 }, (_, index) =>
+    summary(`e${index}`, index),
+  );
+  let active = 0;
+  let peak = 0;
+  const { base } = await gallery(entries, async (url) => {
+    if (url.pathname === "/api/gallery") return null;
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise((done) => setTimeout(done, 50));
+    active--;
+    return null;
+  });
+  const out = outDir();
+  const result = await run([out, "--base", base, "--concurrency", "8"]);
+  expect(result.code).toBe(0);
+  expect(peak).toBe(8);
+  expect(result.stdout).toContain("24 downloaded, 0 already on disk, 0 failed");
+  for (const entry of entries)
+    expect(
+      JSON.parse(
+        readFileSync(join(out, "entries", `${entry.id}.json`), "utf8"),
+      ),
+    ).toEqual({ entry, projectText: projectOf(entry.id) });
 });
