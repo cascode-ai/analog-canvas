@@ -113,7 +113,10 @@ unfinished work can still be saved.
 
 **Cell properties** is one sheet for the Cell's name, its Pins (direction,
 block side and netlist order), its parameters and the block's size; **Auto**
-returns a pin to its default side. Select a parent instance and open
+returns a pin to its default side. Its Pins read in netlist order: supply
+Pins (VDD, VSS) lead and keep their place, the others move up and down, and
+a pin the netlist adds, such as ground's `VSS`, is marked **Added by the
+netlist**. Select a parent instance and open
 **Properties** for pin offsets, or **Edit symbol layout on canvas** for drag
 grips. Changes apply to every instance. Highlight a Net (`H`) to see its
 **Hierarchy Net trace** in Properties, with **Enter** and **Return** across

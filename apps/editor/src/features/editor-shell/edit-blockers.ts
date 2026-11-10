@@ -1,7 +1,12 @@
 /** The edits in progress that keep the editor on its Project (#1462). */
 export interface EditInProgress {
   componentEditor: boolean;
-  documentSettingsOpen: boolean;
+  /**
+   * Document settings hold a draft that is not applied: invalid code, or an
+   * edit the Project refused. Settings merely open hold nothing, since every
+   * valid edit applies at once (#2180).
+   */
+  documentSettingsDraft: boolean;
   projectNameEditing: boolean;
   /** A canvas text edit, and whether its label is on screen to finish. */
   textEditing: boolean;
@@ -30,7 +35,10 @@ const first = (reasons: readonly (readonly [boolean, string])[]) =>
 export function editInProgressReason(state: EditInProgress): string | null {
   return first([
     [state.componentEditor, "the component editor is open"],
-    [state.documentSettingsOpen, "Document settings are open"],
+    [
+      state.documentSettingsDraft,
+      "Document settings hold a draft that is not applied",
+    ],
     [state.projectNameEditing, "the Project's name is being edited on its tab"],
     [
       state.textEditing && state.textOnScreen,
@@ -54,4 +62,16 @@ export function projectHoldReason(state: ProjectHeld): string | null {
       [state.versionHistoryOpen, "Version history is open"],
     ]) ?? editInProgressReason(state)
   );
+}
+
+/**
+ * The hold a person can drop where they asked for a Project switch, or null:
+ * a Document settings draft, when nothing else holds the Project (#2180).
+ * Other holds finish where they are, or have their own dialog.
+ */
+export function discardableHoldReason(state: ProjectHeld): string | null {
+  if (!state.documentSettingsDraft) return null;
+  return projectHoldReason({ ...state, documentSettingsDraft: false }) === null
+    ? projectHoldReason(state)
+    : null;
 }

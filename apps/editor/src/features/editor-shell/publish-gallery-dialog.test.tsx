@@ -20,7 +20,10 @@ describe("PublishGalleryDialog", () => {
     );
     expect(markup).toContain('data-testid="publish-gallery-dialog"');
     expect(markup).toContain('data-testid="publish-signin"');
-    expect(markup).toContain('href="/api/auth/github/start"');
+    // The page's one sign-in, never one provider picked for the reader
+    // (#2157).
+    expect(markup).toContain('data-testid="publish-signin-open"');
+    expect(markup).not.toContain("/api/auth/");
     // The passphrase is gone entirely — no field, no copy, no password input.
     expect(markup).not.toContain("passphrase");
     expect(markup).not.toContain('type="password"');

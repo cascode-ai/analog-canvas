@@ -1010,7 +1010,7 @@ export default function ComponentDefinitionEditor(
                 : "Edit Component"}
         </strong>
         {(props.mode === "new" || repair) && props.circuit ? (
-          <div className="component-exit">
+          <div className="component-exit component-definition-type-row">
             <label className="component-definition-type">
               Definition type{" "}
               <select

@@ -35,10 +35,14 @@ function point(value) {
 }
 
 function transformPoint(point, center, rotation) {
-  if (rotation !== 90) fail(`unsupported rotation ${rotation}`);
+  // "90-mirrored" turns a winding as 90 does, then reflects it across the
+  // horizontal line through its centre: the same coil, its loops the other
+  // way.
+  if (rotation !== 90 && rotation !== "90-mirrored")
+    fail(`unsupported rotation ${rotation}`);
   return {
     x: rounded(center.x + point.y),
-    y: rounded(center.y - point.x),
+    y: rounded(rotation === 90 ? center.y - point.x : center.y + point.x),
   };
 }
 
@@ -202,7 +206,24 @@ const xfmr = {
       dot(value, index === 0 ? "primary-polarity" : "secondary-polarity"),
     ),
   ],
-  variants: [],
+  // The reference draws both windings looping the same way; many figures
+  // mirror the secondary so the two face apart (#2170). Pins, dots and the
+  // netlist stay the same: only the secondary's loops turn over.
+  variants: [
+    {
+      id: "mirrored",
+      hiddenPinNames: [],
+      hiddenPrimitiveParts: ["secondary-winding"],
+      additionalPrimitives: [
+        transformPrimitive(
+          inductorPath,
+          xfmrCenters[1],
+          "90-mirrored",
+          "secondary-winding-mirrored",
+        ),
+      ],
+    },
+  ],
 };
 
 const tcoilLayout = tcoilEvidence.evidence.normalization;

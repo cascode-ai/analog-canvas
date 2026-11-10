@@ -86,6 +86,12 @@ export const LazyReplaceGuardDialog = lazyChunk("dialog", () =>
   })),
 );
 
+export const LazySaveSignInDialog = lazyChunk("dialog", () =>
+  import("../components/cloud-save-sign-in").then((module) => ({
+    default: module.SaveSignInDialog,
+  })),
+);
+
 export const LazyRecentRecoveryDialog = lazyChunk("dialog", () =>
   import("../components/recent-recovery-dialog").then((module) => ({
     default: module.RecentRecoveryDialog,

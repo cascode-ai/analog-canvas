@@ -1,26 +1,31 @@
 import type { SqlStorage } from "./gallery-store";
-import type { GalleryWallStatistics } from "./gallery-store-wall";
 
-/** One DO's dataset statistics; restart/restore discards the entire cache. */
-export class GalleryWallStatisticsCache {
+/** The Gallery's backup revision: imports, maintenance and likes move it. */
+function galleryRevision(sql: SqlStorage): number {
+  return sql
+    .exec<{ revision: number }>(
+      "SELECT revision FROM backup_revisions WHERE scope = 'gallery'",
+    )
+    .one().revision;
+}
+
+/**
+ * One DO's answers worked out from its Gallery rows, each kept until the
+ * revision they follow moves (by default the Gallery's, which every write
+ * moves); restart/restore discards the entire cache.
+ */
+export class GalleryRevisionCache<T> {
   private revision: number | undefined;
   private characters = 0;
-  private readonly values = new Map<
-    string,
-    { statistics: GalleryWallStatistics; characters: number }
-  >();
+  private readonly values = new Map<string, { value: T; characters: number }>();
 
-  read(
-    sql: SqlStorage,
-    key: string,
-    calculate: () => GalleryWallStatistics,
-  ): GalleryWallStatistics {
-    // The transaction-owned revision includes imports, maintenance and likes.
-    const revision = sql
-      .exec<{ revision: number }>(
-        "SELECT revision FROM backup_revisions WHERE scope = 'gallery'",
-      )
-      .one().revision;
+  constructor(
+    private readonly revisionOf: (sql: SqlStorage) => number = galleryRevision,
+  ) {}
+
+  read(sql: SqlStorage, key: string, calculate: () => T): T {
+    // A transaction-owned revision: a rolled-back write leaves it alone.
+    const revision = this.revisionOf(sql);
     if (this.revision !== revision) {
       this.values.clear();
       this.characters = 0;
@@ -30,20 +35,20 @@ export class GalleryWallStatisticsCache {
     if (known) {
       this.values.delete(key);
       this.values.set(key, known);
-      return known.statistics;
+      return known.value;
     }
-    const statistics = calculate();
-    const characters = key.length + JSON.stringify(statistics).length;
+    const value = calculate();
+    const characters = key.length + JSON.stringify(value).length;
     // Bound both arbitrary filter combinations and unusually large aggregates.
     const budget = 1_048_576;
-    if (characters > budget) return statistics;
+    if (characters > budget) return value;
     while (this.values.size >= 128 || this.characters + characters > budget) {
       const oldest = this.values.keys().next().value!;
       this.characters -= this.values.get(oldest)!.characters;
       this.values.delete(oldest);
     }
-    this.values.set(key, { statistics, characters });
+    this.values.set(key, { value, characters });
     this.characters += characters;
-    return statistics;
+    return value;
   }
 }

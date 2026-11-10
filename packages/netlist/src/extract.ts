@@ -56,6 +56,7 @@ import {
   diagnostic,
 } from "./extract-common.js";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
+import { supplyPortRank } from "./extract-ground-pin.js";
 import { bubblePhasePins } from "./extract-switch.js";
 import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
@@ -501,12 +502,8 @@ function analyzeDesign(
       const logical = resolveCommittedDocumentLogicalNets(
         withNetlistPowerMarkerClaims(documentsById.get(cell.id)!),
       );
-      const rank = (port: DesignNetlistCell["ports"][number]) => {
-        const domain = logical.byBaseNetId.get(port.id)?.powerDomain;
-        if (domain === "vdd" || port.name.toUpperCase() === "VDD") return 0;
-        if (domain === "ground" || port.name.toUpperCase() === "VSS") return 1;
-        return 2;
-      };
+      const rank = (port: DesignNetlistCell["ports"][number]) =>
+        supplyPortRank(logical, port);
       for (const port of cell.ports) {
         if (rank(port) === 2) continue;
         const net = cell.nets.find(

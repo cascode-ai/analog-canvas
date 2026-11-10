@@ -1,4 +1,5 @@
-import type { CircuitProject } from "@icm/model";
+import type { CircuitProject, Instance } from "@icm/model";
+import type { SymbolResolver } from "@icm/symbols";
 
 import type { ProjectConnectivityIndex } from "./connectivity-index.js";
 import { findHierarchyPaths } from "./hierarchy-navigation.js";
@@ -7,7 +8,8 @@ import { resolveDocumentLogicalNets } from "./logical-net.js";
 
 /**
  * Deterministic project-wide search index (Net connectivity rationale).
- * Case-insensitive exact/prefix/substring matching over instances and nets,
+ * Case-insensitive exact/prefix/substring matching over instances (ID,
+ * Reference, symbol ID, the component name people see, parameters) and nets,
  * returning `ObjectLocator`s ranked exact > prefix > substring with no
  * fuzzy ranking. Pure backend consumed by search and hierarchy navigation.
  */
@@ -21,6 +23,7 @@ export type SearchObjectLocator = ObjectLocator & {
 export type SearchField =
   | "instance-id"
   | "symbol"
+  | "component-name"
   | "netlist-reference"
   | "property"
   | "net-name"
@@ -80,11 +83,40 @@ function searchLocator(
   return directObjectLocator(documentId, kind, objectId);
 }
 
+/**
+ * The component name a person sees in Library and Properties: a Project
+ * component's own, else its symbol's, else its external owner's.
+ */
+function componentName(
+  project: CircuitProject,
+  definitionNames: ReadonlyMap<string, string>,
+  instance: Instance,
+  resolver: SymbolResolver | undefined,
+): string | undefined {
+  const binding = instance.netlist?.binding;
+  return (
+    definitionNames.get(instance.symbolId) ??
+    resolver?.resolve(instance.symbolId)?.definition.name ??
+    (binding?.kind === "external-subcircuit"
+      ? project.externalSubcircuitDefinitions.find(
+          (item) => item.id === binding.definitionId,
+        )?.name
+      : undefined)
+  );
+}
+
 function collectCandidates(
   project: CircuitProject,
   objectIndex?: ProjectConnectivityIndex["objectIndex"],
+  resolver?: SymbolResolver,
 ): Candidate[] {
   const candidates: Candidate[] = [];
+  const definitionNames = new Map(
+    (project.componentDefinitions ?? []).map((item) => [
+      item.symbol.id,
+      item.symbol.name,
+    ]),
+  );
   for (const document of project.documents) {
     for (const instance of document.instances) {
       const locator = searchLocator(
@@ -110,6 +142,15 @@ function collectCandidates(
         field: "symbol",
         value: instance.symbolId.toLowerCase(),
       });
+      const name = componentName(project, definitionNames, instance, resolver);
+      if (name) {
+        candidates.push({
+          locator,
+          label,
+          field: "component-name",
+          value: name.toLowerCase(),
+        });
+      }
       const reference = instance.reference;
       if (reference) {
         candidates.push({
@@ -164,11 +205,16 @@ export interface ProjectSearchIndex {
 
 export function buildProjectSearchIndex(
   project: CircuitProject,
-  options: { connectivityIndex?: ProjectConnectivityIndex } = {},
+  options: {
+    connectivityIndex?: ProjectConnectivityIndex;
+    /** Names built-in and Cell symbols as the Library does. */
+    resolver?: SymbolResolver;
+  } = {},
 ): ProjectSearchIndex {
   const candidates = collectCandidates(
     project,
     options.connectivityIndex?.objectIndex,
+    options.resolver,
   );
   return {
     search(query) {

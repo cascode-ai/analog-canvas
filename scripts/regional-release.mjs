@@ -200,6 +200,12 @@ export async function createRegionalRelease(dist, sha, work, options = {}) {
       commit: sha,
       manifest: `/${RELEASE_DIRECTORY}/${sha}/release.json`,
       sha256: sha256(text),
+      // Local builds have no CI proof and must not authorize a regional install.
+      ...(process.env.GITHUB_RUN_ID && process.env.GITHUB_RUN_ATTEMPT
+        ? {
+            attempt: `${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`,
+          }
+        : {}),
     })}\n`,
   );
   return manifest;

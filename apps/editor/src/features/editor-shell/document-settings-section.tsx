@@ -2,6 +2,7 @@ import { applyLabelSubscriptCase } from "../text-editing/label-subscript-case";
 import {
   lazy,
   Suspense,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -31,6 +32,12 @@ export interface DocumentSettingsSectionProps {
     current: DocumentSettingsCodeValue,
     applyLabels: typeof applyLabelSubscriptCase,
   ): { ok: true } | { ok: false; message: string };
+  /**
+   * Whether the draft holds what is not applied: invalid code, or an edit the
+   * Project refused. A valid edit applies at once, so settings merely open,
+   * or edited validly, report false; so does the section as it closes.
+   */
+  onDraftChange?(unapplied: boolean): void;
 }
 
 /** One plain JSON surface for every Document-wide and editor preference. */
@@ -38,6 +45,7 @@ export function DocumentSettingsSection({
   document,
   canvas,
   onApply,
+  onDraftChange,
 }: DocumentSettingsSectionProps) {
   const baseline = useMemo(
     () => formatDocumentSettingsCode(document, canvas),
@@ -66,6 +74,13 @@ export function DocumentSettingsSection({
   }, [baseline]);
 
   const parsed = useMemo(() => adapter.parse(draft), [adapter, draft]);
+  const unapplied = !parsed.ok || rejected;
+  const reportDraft = useRef(onDraftChange);
+  reportDraft.current = onDraftChange;
+  useEffect(() => {
+    reportDraft.current?.(unapplied);
+  }, [unapplied]);
+  useEffect(() => () => reportDraft.current?.(false), []);
   const status =
     message ??
     (parsed.ok ? null : `${parsed.message} · Canvas keeps the last valid edit`);

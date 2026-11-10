@@ -358,6 +358,11 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       apiVersion: z.literal(AGENT_API_VERSION),
       requestId: StableIdSchema,
       operation: z.literal("download"),
+      // A client that reads the response's `warnings` says so. One released
+      // before them refuses a response field it does not know, so a PDF
+      // that would leave characters out is refused for it, naming them
+      // (#2179).
+      includeWarnings: z.literal(true).optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("stage"),
@@ -462,6 +467,14 @@ export const AgentFileResourceResponseSchema = z.union([
     ok: z.literal(true),
     artifact: AgentFileBlobSchema,
     review: AgentReviewReceiptSchema.optional(),
+    warnings: z
+      .array(z.string().min(1).max(1000))
+      .min(1)
+      .max(16)
+      .optional()
+      .describe(
+        "What the artifact leaves out, e.g. characters no PDF font holds",
+      ),
   }),
   FileResponseBaseSchema.extend({
     operation: z.enum(["stage", "inspect"]),

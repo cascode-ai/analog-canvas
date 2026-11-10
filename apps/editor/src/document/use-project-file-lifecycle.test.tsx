@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
+import { File as NodeFile } from "node:buffer";
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
+import { InMemorySymbolResolver } from "@icm/symbols";
+import { createEditorFileCommands } from "../features/editor-shell/editor-file-commands";
 import {
   createGalleryExampleCommands,
   type GalleryEntryContext,
@@ -53,6 +56,11 @@ function project(name = "A", parts = 3) {
   return result;
 }
 
+/** A chosen source file; jsdom's own File cannot be read. */
+function sourceFile(text: string, name: string): File {
+  return new NodeFile([text], name) as unknown as File;
+}
+
 function cloudStore(save: CloudProjectStore["save"]): CloudProjectStore {
   return {
     kind: "cloud",
@@ -86,6 +94,7 @@ async function mount(
     doc: ReturnType<typeof useDocumentController>;
     file: ReturnType<typeof useProjectFileLifecycle>;
     commands: ReturnType<typeof createGalleryExampleCommands>;
+    fileCommands: ReturnType<typeof createEditorFileCommands>;
   };
   const statuses: string[] = [];
   let pendingEdits = false;
@@ -117,7 +126,22 @@ async function mount(
       setStatus: (message) => statuses.push(message),
       fetchImpl,
     });
-    current = { doc, file, commands };
+    const fileCommands = createEditorFileCommands({
+      project: doc.project,
+      document: doc.project.documents[0]!,
+      resolver: new InMemorySymbolResolver([]),
+      defaultViewBox: view,
+      exportDelivery: { deliverFile: vi.fn(), copyText: vi.fn() },
+      electricalWarningsPresent: () => false,
+      guardDirtyReplacement: file.guardDirtyReplacement,
+      replaceActiveProject: file.replaceActiveProject,
+      showNetlist: () => {},
+      setImportReport: () => {},
+      setImportReviewOpen: () => {},
+      setSelectionOpen: () => {},
+      setStatus: (message) => statuses.push(message),
+    });
+    current = { doc, file, commands, fileCommands };
     return null;
   }
   root = createRoot(document.createElement("div"));
@@ -184,10 +208,56 @@ it("keeps edits made during Save and continue, and can save them on retry", asyn
   expect(editor.current.file.hasUnsavedChanges()).toBe(true);
   expect(editor.current.file.replaceGuard).not.toBeNull();
   expect(editor.statuses.at(-1)).toContain("newer edits remain unsaved");
+  expect(editor.current.file.replaceGuard?.problem).toEqual({
+    kind: "failed",
+    message: "Saved, but newer edits remain unsaved. Save again to continue.",
+  });
   await act(async () => editor.current.file.saveAndContinueReplaceGuard());
   expect(written.at(-1)?.name).toBe("Edited while saving");
   expect(editor.current.doc.project.name).toBe("B");
   expect(editor.current.file.replaceGuard).toBeNull();
+});
+
+it("asks how to keep the work when Save finds no account (#2161)", async () => {
+  const editor = await mount(
+    cloudStore(async () => ({ status: "signed-out" })),
+  );
+  await editor.rename("Sketch");
+  await act(async () => editor.current.file.saveByHand());
+  expect(editor.current.file.saveSignInOpen).toBe(true);
+  expect(editor.current.file.hasUnsavedChanges()).toBe(true);
+  await act(async () => editor.current.file.closeSaveSignIn());
+  expect(editor.current.file.saveSignInOpen).toBe(false);
+  expect(editor.current.doc.project.name).toBe("Sketch");
+});
+
+it("tells the dialog why Save and continue stopped (#2155)", async () => {
+  const outcomes: CloudProjectSaveOutcome[] = [
+    { status: "signed-out" },
+    { status: "unreachable", message: "offline" },
+  ];
+  const editor = await mount(cloudStore(async () => outcomes.shift()!));
+  await editor.rename("Before save");
+  await editor.guard();
+  await act(async () => editor.current.file.saveAndContinueReplaceGuard());
+  expect(editor.current.file.replaceGuard?.problem).toEqual({
+    kind: "signed-out",
+  });
+  await act(async () => editor.current.file.saveAndContinueReplaceGuard());
+  expect(editor.current.file.replaceGuard?.problem).toEqual({
+    kind: "failed",
+    message: "Cloud Projects unavailable; work remains local (offline)",
+  });
+  // Nothing was replaced meanwhile.
+  expect(editor.current.doc.project.name).toBe("Before save");
+
+  // Signed out, the Project file is the way on.
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:project");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  await act(async () => editor.current.file.exportAndContinueReplaceGuard());
+  expect(editor.current.file.replaceGuard).toBeNull();
+  expect(editor.current.doc.project.name).toBe("B");
 });
 
 it("asks before New Project replaces an unsaved one-part sketch (#2147)", async () => {
@@ -218,6 +288,47 @@ it("asks before New Project replaces an unsaved one-part sketch (#2147)", async 
   );
   expect(leave).toHaveBeenCalledWith(false);
   expect(editor.current.file.replaceGuard).toBeNull();
+});
+
+it("asks before a SPICE import replaces an unsaved sketch (#2152)", async () => {
+  const editor = await mount(
+    null,
+    vi.fn(),
+    createEmptyProject("A", "A", "main"),
+  );
+  await editor.rename("Testbench edited");
+  const rc = sourceFile(
+    "* RC\nV1 vin 0 DC 1\nR1 vin vout 1k\nC1 vout 0 1n\n.end\n",
+    "qa-rc.cir",
+  );
+  // A file that does not import leaves the Project as it was, unasked.
+  await act(async () =>
+    editor.current.fileCommands.importSpiceFiles([
+      sourceFile("* none\n", "notes.txt"),
+    ]),
+  );
+  expect(editor.current.file.replaceGuard).toBeNull();
+  expect(editor.current.doc.project.name).toBe("Testbench edited");
+
+  await act(async () => editor.current.fileCommands.importSpiceFiles([rc]));
+  expect(editor.current.file.replaceGuard?.intent).toBe("Import SPICE sources");
+  expect(editor.current.doc.project.name).toBe("Testbench edited");
+  // Stay keeps the tab, and its Undo.
+  await act(async () => editor.current.file.cancelReplaceGuard());
+  expect(editor.current.doc.project.name).toBe("Testbench edited");
+  await act(async () => {
+    editor.current.doc.transact([{ kind: "undo" }]);
+  });
+  expect(editor.current.doc.project.name).toBe("A");
+
+  await editor.rename("Testbench edited");
+  await act(async () => editor.current.fileCommands.importSpiceFiles([rc]));
+  await act(async () => editor.current.file.confirmReplaceGuard());
+  expect(
+    editor.current.doc.project.documents.flatMap(({ instances }) =>
+      instances.map(({ reference }) => reference),
+    ),
+  ).toEqual(expect.arrayContaining(["V1", "R1", "C1"]));
 });
 
 it.each(["switch", "edit", "replace", "unapplied code draft"])(

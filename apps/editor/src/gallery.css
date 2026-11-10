@@ -48,6 +48,7 @@
   }
 
   .gallery-actions .bug-report-link,
+  .gallery-actions .bug-report-email,
   .gallery-actions .app-repository-link {
     display: none;
   }
@@ -1278,8 +1279,7 @@
 }
 
 .gallery-order-menu[open] > .gallery-order-button,
-.gallery-download-menu[open] > .gallery-order-button,
-.gallery-order-button:hover {
+.gallery-order-button:hover:not(:disabled) {
   border-color: var(--icm-accent);
   color: var(--icm-text);
 }
@@ -1339,53 +1339,46 @@
   letter-spacing: 0.04em;
 }
 
-/* Download (#2148), right of the count: the order's button and popover. */
-.gallery-download-menu {
-  position: relative;
+/* Download (#2148), right of the count: one button, its progress in place,
+   and Cancel or the run's end beside it. */
+.gallery-download {
+  display: flex;
   flex-shrink: 0;
+  align-items: center;
   align-self: center;
+  gap: 6px;
   margin-left: 8px;
   padding-bottom: 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
-.gallery-download-popover {
-  width: min(19rem, calc(100vw - 44px));
-}
-
-.gallery-download-popover button:disabled {
-  opacity: 0.5;
+.gallery-download .gallery-order-button:disabled {
+  opacity: 0.55;
   cursor: default;
 }
 
-.gallery-download-status {
-  display: grid;
-  gap: 6px;
-  margin: 4px 0 0;
-  padding: 8px;
-  border-top: 1px solid var(--icm-border);
-  color: var(--icm-text);
-  font-size: 13px;
-  overflow-wrap: anywhere;
+.gallery-download-count {
+  font-variant-numeric: tabular-nums;
 }
 
-.gallery-download-status progress {
-  width: 100%;
+.gallery-download-aside {
+  color: var(--icm-text-muted);
 }
 
-.gallery-download-status button {
-  justify-self: start;
-  border: 1px solid var(--icm-border);
+.gallery-download-aside a,
+.gallery-download-aside button,
+button.gallery-download-aside {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--icm-accent);
+  font: inherit;
+  cursor: pointer;
 }
 
 .gallery-download-error {
   color: var(--icm-danger, #b42318);
-}
-
-.gallery-download-note {
-  margin: 0;
-  padding: 6px 8px;
-  color: var(--icm-text-muted);
-  font-size: 12px;
 }
 
 .gallery-contributor-menu {
@@ -1415,6 +1408,18 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.gallery-count-icon {
+  display: none;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* The last count, held while the wall's new one loads (#2160). */
+.gallery-count-panel[aria-busy="true"] .gallery-count-label {
+  opacity: 0.55;
 }
 
 .gallery-count-panel::-webkit-details-marker {
@@ -2144,22 +2149,82 @@ div.gallery-contributor-status {
   .gallery-view-tabs {
     padding-inline: 10px;
   }
-  .gallery-view-tablist {
-    flex-shrink: 0;
-  }
   .gallery-view-tab {
     padding: 8px 10px;
   }
+  /* The count gives way first, down to its first figures, then the tabs. */
   .gallery-contributor-menu {
-    min-width: 0;
+    min-width: 52px;
+    flex-shrink: 100;
   }
-  /* Only the icon: the count keeps its room. */
+  .gallery-count-panel {
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  /* Only the icon, and Download's number: the count keeps its room. */
   .gallery-order-label,
   .gallery-download-label {
     display: none;
   }
   .gallery-order-menu {
     flex-shrink: 0;
+  }
+  .gallery-download {
+    gap: 4px;
+    margin-left: 4px;
+  }
+  /* Still one row, its height kept (#2189): where the tabs and the wall's
+     tools do not fit, the tabs give way first and scroll sideways inside
+     their own strip, so Order and Download stay on screen and the page never
+     scrolls sideways. The strip reaches over the row's rule, as the open
+     tab does. */
+  .gallery-view-tablist {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-bottom: -1px;
+    padding-bottom: 1px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .gallery-view-tablist::-webkit-scrollbar {
+    display: none;
+  }
+  .gallery-view-tab {
+    flex-shrink: 0;
+  }
+}
+
+/* A phone has no room for the count beside the tabs and the tools: the
+   Download button says how many circuits the wall holds, and the count's
+   contributor menu stays behind an icon, opening across the row (#2189). */
+@media (max-width: 480px) {
+  .gallery-view-tabs {
+    position: relative;
+  }
+  .gallery-view-tabs .gallery-contributor-menu {
+    position: static;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+  .gallery-view-tabs .gallery-count-label {
+    display: none;
+  }
+  .gallery-view-tabs .gallery-count-icon {
+    display: block;
+  }
+  .gallery-view-tabs .gallery-count-panel {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+  .gallery-view-tabs .gallery-contributor-popover {
+    left: 10px;
+    right: 10px;
+    width: auto;
+  }
+  /* The tabs that do not fit fade out at the strip's end: it scrolls. */
+  .gallery-view-tablist {
+    mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
   }
 }
 

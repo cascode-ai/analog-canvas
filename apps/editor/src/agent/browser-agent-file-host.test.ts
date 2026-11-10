@@ -8,6 +8,8 @@ import {
 } from "@icm/agent-adapter";
 import { createEmptyProject, type ProjectSimulationFolder } from "@icm/model";
 import { resolveDocumentLogicalNets } from "@icm/derived";
+import { createBrowserFormalExportSource } from "@icm/exporters";
+import { vectorizeFormalSvgInBrowser } from "@icm/exporters/browser-pdf";
 import { serializeProject } from "@icm/project-protocol";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -15,6 +17,26 @@ import { BrowserAgentFileHost } from "./browser-agent-file-host";
 import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
 import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";
 import { EditorDocumentController } from "../document/document-controller";
+
+// A whole-sheet image and a PDF need the browser's DOM to draw; a case
+// answers them here, the others run the real exporters.
+vi.mock("@icm/exporters", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@icm/exporters")>();
+  return {
+    ...real,
+    createBrowserFormalExportSource: vi.fn(
+      real.createBrowserFormalExportSource,
+    ),
+  };
+});
+vi.mock("@icm/exporters/browser-pdf", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("@icm/exporters/browser-pdf")>();
+  return {
+    ...real,
+    vectorizeFormalSvgInBrowser: vi.fn(real.vectorizeFormalSvgInBrowser),
+  };
+});
 
 it("inspects a staged Cell, commits it to an existing identity, retains failed candidates and supports one undo", async () => {
   const controller = new EditorDocumentController(
@@ -438,6 +460,65 @@ describe("BrowserAgentFileHost", () => {
       release.resolve();
       delayed.mockRestore();
     }
+  });
+
+  it("names what a PDF leaves out: in warnings for a client that reads them, else in a refusal (#2179)", async () => {
+    // Both PDFs come back missing one character.
+    const missingOne = {
+      bytes: new TextEncoder().encode("%PDF-1.7"),
+      omitted: ["한"],
+      notice:
+        "PDF saved without 한 (U+D55C): no PDF font has it. Export SVG or PNG to keep it.",
+    };
+    vi.mocked(vectorizeFormalSvgInBrowser)
+      .mockResolvedValueOnce(missingOne)
+      .mockResolvedValueOnce(missingOne);
+    const sheet = {
+      svg: "<svg xmlns='http://www.w3.org/2000/svg'/>",
+      bounds: { x: 0, y: 0, width: 40, height: 40 },
+    };
+    vi.mocked(createBrowserFormalExportSource)
+      .mockResolvedValueOnce(sheet)
+      .mockResolvedValueOnce(sheet);
+    const controller = new EditorDocumentController(
+      createEmptyProject("pdf", "PDF"),
+    );
+    const host = new BrowserAgentFileHost({
+      getProjectSessionId: () => controller.projectSessionId,
+      getProject: () => controller.project,
+      getDocument: (id) =>
+        controller.project.documents.find((item) => item.id === id) ?? null,
+      getResolver: () => controller.resolver,
+      onApprovalRequested: () => {},
+    });
+    const download = (includeWarnings?: true) =>
+      host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: includeWarnings ? "pdf-warned" : "pdf-older-client",
+        operation: "download",
+        artifact: "pdf",
+        documentId: controller.document.id,
+        ...(includeWarnings ? { includeWarnings } : {}),
+      });
+
+    const warned = await download(true);
+    expect(warned).toMatchObject({
+      ok: true,
+      warnings: [expect.stringContaining("PDF saved without 한 (U+D55C)")],
+    });
+    expect(AgentFileResourceResponseSchema.safeParse(warned).success).toBe(
+      true,
+    );
+    // An installed MCP package refuses `warnings`; it is told instead.
+    await expect(download()).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "PDF_CHARACTERS_LEFT_OUT",
+        message: expect.stringMatching(
+          /^The PDF would leave out 한 \(U\+D55C\): .*update the Agent client/,
+        ),
+      },
+    });
   });
 
   it("returns canonical Project bytes without changing the live Project", async () => {

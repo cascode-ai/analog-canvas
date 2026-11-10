@@ -115,26 +115,17 @@ function materializeTextDecorations(svg: SVGSVGElement): void {
 /** A jsPDF font style: the weight and slant a run of text is set in. */
 export type PdfFontStyle = "normal" | "bold" | "italic" | "bolditalic";
 
-/**
- * Resolve each glyph to an embedded face, preserving contiguous runs of
- * that face. PDF has no CSS font fallback: Greek/math and the round period
- * must explicitly name the face the browser selects for them. Return only
- * the family/style pairs actually used, for the caller to embed.
- */
-export function setTextInFamilies(
+/** Each text node of the scene's text, and the style it is set in. */
+function styledTextNodes(
   svg: SVGSVGElement,
-  familyForGlyph: (glyph: string) => string,
-): Map<string, Set<PdfFontStyle>> {
-  const families = new Map<string, Set<PdfFontStyle>>();
+): { node: Text; style: PdfFontStyle }[] {
   const walker = document.createTreeWalker(svg, NodeFilter.SHOW_TEXT);
-  const nodes: Text[] = [];
+  const nodes: { node: Text; style: PdfFontStyle }[] = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const text = node as Text;
     // Spaces too: their advance is the face's as well.
-    if (text.parentElement?.closest("text") && text.data) nodes.push(text);
-  }
-  for (const node of nodes) {
-    const computed = getComputedStyle(node.parentElement!);
+    if (!text.parentElement?.closest("text") || !text.data) continue;
+    const computed = getComputedStyle(text.parentElement);
     const bold =
       computed.fontWeight === "bold" ||
       Number.parseInt(computed.fontWeight, 10) >= 600;
@@ -146,10 +137,51 @@ export function setTextInFamilies(
       : italic
         ? "italic"
         : "normal";
+    nodes.push({ node: text, style });
+  }
+  return nodes;
+}
+
+/**
+ * The characters the scene's text sets in each style, for the caller to
+ * find their faces before setTextInFamilies.
+ */
+export function textGlyphsByStyle(
+  svg: SVGSVGElement,
+): Map<PdfFontStyle, Set<string>> {
+  const glyphs = new Map<PdfFontStyle, Set<string>>();
+  for (const { node, style } of styledTextNodes(svg)) {
+    const set = glyphs.get(style) ?? new Set<string>();
+    glyphs.set(style, set);
+    for (const glyph of node.data) set.add(glyph);
+  }
+  return glyphs;
+}
+
+/** Where a character goes in the PDF: its face, and the text written. */
+export interface PdfGlyph {
+  family: string;
+  /** The character itself, or a blank of its width that the face holds. */
+  text: string;
+}
+
+/**
+ * Resolve each glyph to an embedded face, preserving contiguous runs of
+ * that face. PDF has no CSS font fallback: Greek/math and the round period
+ * must explicitly name the face the browser selects for them. Return only
+ * the family/style pairs actually used, for the caller to embed.
+ */
+export function setTextInFamilies(
+  svg: SVGSVGElement,
+  place: (glyph: string, style: PdfFontStyle) => PdfGlyph,
+): Map<string, Set<PdfFontStyle>> {
+  const families = new Map<string, Set<PdfFontStyle>>();
+  for (const { node, style } of styledTextNodes(svg)) {
     const fragment = document.createDocumentFragment();
     let span: SVGTSpanElement | undefined;
     for (const glyph of node.data) {
-      const family = familyForGlyph(glyph);
+      const { family, text } = place(glyph, style);
+      if (!text) continue;
       const styles = families.get(family) ?? new Set<PdfFontStyle>();
       styles.add(style);
       families.set(family, styles);
@@ -158,7 +190,7 @@ export function setTextInFamilies(
         span.setAttribute("font-family", family);
         fragment.append(span);
       }
-      span.textContent += glyph;
+      span.textContent += text;
     }
     node.replaceWith(fragment);
   }

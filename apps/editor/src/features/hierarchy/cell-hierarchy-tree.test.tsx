@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { buildProjectHierarchy } from "@icm/derived";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -97,6 +99,31 @@ describe("CellHierarchyTree", () => {
     ])
       for (const [element] of markup.matchAll(tag))
         expect(element).not.toContain("title=");
+  });
+
+  it("hides a row's tools in a place they keep, so hovering never narrows its name (#2175)", () => {
+    // Hidden tools that left the layout gave the name their room; on hover
+    // they took it back, and a click aimed at the name set Top instead.
+    const css = readFileSync(
+      new URL("../../styles/editor-hierarchy-tree.css", import.meta.url),
+      "utf8",
+    );
+    for (const tools of [
+      /\.hierarchy-node:not\(:hover\) \.hierarchy-set-top \{([^}]*)\}/u,
+      /\.hierarchy-node:not\(:hover, :focus-within, \[data-active\]\)\s+\.hierarchy-row-actions \{([^}]*)\}/u,
+    ]) {
+      const rule = tools.exec(css)?.[1];
+      expect(rule).toContain("visibility: hidden;");
+      expect(rule).not.toContain("display:");
+    }
+    // The name opens the row; only the TOP badge, its own button, sets Top.
+    const markup = render();
+    const name =
+      /<button[^>]*class="hierarchy-node-label"[^>]*aria-label="X1: Channel"[^>]*>.*?<\/button>/u.exec(
+        markup,
+      )?.[0];
+    expect(name).toBeDefined();
+    expect(name).not.toContain("Top");
   });
 
   it("starts a new or imported Cell from the tree itself", () => {

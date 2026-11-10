@@ -30,6 +30,21 @@ it("opens beside a drawing", async () => {
   root.unmount();
 });
 
+it("starts closed on a phone, and opens there on request (#2151)", async () => {
+  vi.stubGlobal("matchMedia", (media: string) => ({
+    matches: media === "(max-width: 640px)",
+  }));
+  try {
+    const { seen, open, root } = await page("/editor");
+    expect(seen.at(-1)).toBe(false);
+    await open();
+    expect(seen.at(-1)).toBe(true);
+    root.unmount();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 it("starts closed in the PowerPoint dialog, and opens there on request", async () => {
   const { seen, open, root } = await page("/editor?office=dialog");
   expect(seen.at(-1)).toBe(false);

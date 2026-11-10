@@ -12,8 +12,10 @@ import { useEffect, useState } from "react";
 import { usePageTitle } from "../app/use-page-title";
 import { isDailyAllowanceRefusal } from "../daily-allowance";
 import { galleryPreviewUrl } from "../gallery-client";
+import { galleryDateLabel } from "../gallery-date";
 import { openEditorOnPhone } from "../phone-viewing";
 import { GalleryChrome } from "./gallery-chrome";
+import { GalleryEntryMissing } from "./missing-page";
 
 export interface PhoneEntry {
   id: string;
@@ -87,7 +89,8 @@ export function PhoneCircuitView({
   onShowNetlist: () => void;
   onCopyLink: () => void;
 }) {
-  const day = entry.createdAt.slice(0, 10);
+  // The wall's date, "Oct 19, 2026" (#2164).
+  const day = galleryDateLabel(entry.createdAt);
   return (
     <main className="phone-circuit" data-testid="phone-circuit">
       <h1>{entry.name}</h1>
@@ -143,8 +146,7 @@ export function PhoneCircuitView({
         <p className="phone-circuit-note">{netlist.message}</p>
       ) : null}
       <p className="phone-circuit-note">
-        To edit, copy or simulate this circuit, open its link on a computer or a
-        tablet.
+        To edit or copy this circuit, open its link on a computer or a tablet.
       </p>
       <EditorAnyway />
     </main>
@@ -154,6 +156,7 @@ export function PhoneCircuitView({
 type PageState =
   | { status: "loading" }
   | { status: "ready"; entry: PhoneEntry }
+  | { status: "missing" }
   | { status: "message"; message: string };
 
 /** What /g/<id> shows on a phone. */
@@ -176,15 +179,15 @@ export function PhoneCircuitPage({
     void fetch(`/api/gallery/${encodeURIComponent(entryId)}?summary=1`, {
       credentials: "same-origin",
     })
-      .then(async (response) => {
+      .then(async (response): Promise<PageState> => {
+        // The same page a computer shows (#2159).
+        if (response.status === 404) return { status: "missing" };
         const message =
           response.status === 401
             ? "Sign in to see this circuit."
-            : response.status === 404
-              ? "This circuit is not in the Gallery."
-              : !response.ok
-                ? "The circuit could not be loaded. Try again later."
-                : null;
+            : !response.ok
+              ? "The circuit could not be loaded. Try again later."
+              : null;
         if (message) return { status: "message" as const, message };
         const body = (await response.json()) as { entry?: PhoneEntry };
         return body.entry
@@ -206,6 +209,8 @@ export function PhoneCircuitPage({
     };
   }, [entryId]);
   if (!entryId) return <PhoneEditorNotice visitStats={visitStats} />;
+  if (state.status === "missing")
+    return <GalleryEntryMissing visitStats={visitStats} />;
   const showNetlist = () => {
     setNetlist({ status: "loading" });
     void fetch(`/api/gallery/${encodeURIComponent(entryId)}?netlist=spice`, {

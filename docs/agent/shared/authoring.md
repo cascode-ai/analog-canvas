@@ -448,8 +448,8 @@ document-local terminal equivalence only (omitted means unknown).
 declarations. `delete-selection` nests explicit IDs by type, omitted lists
 empty: `{"kind":"delete-selection","selection":{"instanceIds":["M1"],"routeIds":["route-3"]}}`
 (`instanceIds`, `routeIds`, `junctionIds`, `annotationIds`, `draftingIds`,
-`noConnectIds`; `annotate` text is drafting). Unknown or misclassified IDs
-reject it all. Deleting a part deletes wires that only tapped it; a wire
+`noConnectIds`; `annotate` text is drafting). Unknown, misclassified or locked
+IDs reject it all; unlock a locked drawing or text first. Deleting a part deletes wires that only tapped it; a wire
 running on to another pin, or carrying a label, stays open there so a
 replacement reconnects (`ERC_DANGLING_WIRE` names open ends).
 

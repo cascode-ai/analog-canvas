@@ -218,12 +218,23 @@ Production's release, never a separate build.
   runner test. A change adding Production configuration adds its regional
   mapping or exclusion in the same commit.
 - Every candidate carries `/regional-release/<sha>/` from
-  `scripts/regional-release.mjs`. Once Production has served a commit for 10
-  minutes, the host's `canvas-cn-release.timer` installs it: this build's
+  `scripts/regional-release.mjs`. After live Production verification succeeds,
+  CI writes a receipt to the private `analog-canvas-regional-releases` bucket,
+  binding the commit, manifest SHA-256 and workflow run attempt. Only the
+  protected CI credential writes receipts; the Worker exposes read-only
+  `/api/regional-release/verification/<commit>/<sha256>/<attempt>` with no cache.
+  The host reads proof from the fixed overseas origin and waits two minutes
+  with the same verified candidate before `canvas-cn-release.timer` installs it: this build's
   changed files only (the previous regional release's chunks are kept for open
   tabs; downloads resume across ticks and commits), every SHA-256 and required credential checked, a stopped-state backup,
   then smoke checks. A failed check switches back and alerts; that commit is
-  not retried. A Production rollback is followed the same way.
+  not retried. The source and proof are rechecked before switching. Missing or
+  mismatched proof leaves the current service running (`awaiting-verification`);
+  network failures fail closed. A Production rollback with proof is followed
+  the same way. Releases predating receipts require deliberate recovery;
+  local smoke-failure rollback to the previous verified installation remains
+  available. Bootstrap this gate only after its first overseas receipt exists,
+  keeping the legacy updater paused during that deployment.
 - Secrets and the writes switches are root-owned credential files on the
   host; every host runs identical release bytes.
 - Regional simulation uses the `regional` profile of the

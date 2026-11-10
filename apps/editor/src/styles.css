@@ -204,6 +204,12 @@ body {
   overflow: visible;
 }
 
+/* What the chrome drops down (a menu, the Shelf, a tab's menu or close
+   confirmation) stands above the notice column under it (#2182). */
+.app-chrome:has(details[open], .context-menu, .project-tab-close-decision) {
+  z-index: 46;
+}
+
 .app-chrome-main {
   display: flex;
   flex-wrap: nowrap;
@@ -368,6 +374,36 @@ body {
   border-color: var(--icm-border-hover);
   color: var(--icm-text);
   background: var(--icm-surface-hover);
+}
+
+/* The way to report without a GitHub account: an email, icon only. */
+.bug-report-email {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--icm-control-h);
+  height: var(--icm-control-h);
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  color: var(--icm-text-muted);
+  background: transparent;
+}
+
+.bug-report-email:hover {
+  border-color: var(--icm-border-hover);
+  color: var(--icm-text);
+  background: var(--icm-surface-hover);
+}
+
+.bug-report-email svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.3;
+  stroke-linejoin: round;
 }
 
 .bug-report-mark {

@@ -121,6 +121,34 @@ export function canvasInsetsFromOverlays(
 }
 
 /**
+ * The insets with a window floating beside the right-hand docks, such as
+ * Project Info open with its picture: standing within `reach` of the
+ * canvas's visible right side, it is avoided as a dock is, so a fit does
+ * not land the drawing under it (#2158). Elsewhere it is the person's to
+ * move, as any floating panel.
+ */
+export function insetsBesideFloatingWindow(
+  canvas: { x: number; y: number; width: number; height: number },
+  insets: CanvasInsets,
+  floating: { x: number; y: number; width: number; height: number } | null,
+  reach = 32,
+): CanvasInsets {
+  if (!floating || floating.width <= 0 || floating.height <= 0) return insets;
+  const visibleRight = canvas.x + canvas.width - insets.right;
+  if (floating.x + floating.width < visibleRight - reach) return insets;
+  if (floating.x <= canvas.x + insets.left) return insets;
+  if (
+    floating.y + floating.height <= canvas.y ||
+    floating.y >= canvas.y + canvas.height
+  )
+    return insets;
+  return {
+    ...insets,
+    right: Math.max(insets.right, canvas.x + canvas.width - floating.x),
+  };
+}
+
+/**
  * Fit the Document into the part of the canvas nobody is standing on.
  *
  * The canvas element spans the whole workspace and the Properties dock floats
@@ -356,6 +384,37 @@ export function zoomCameraAtAnchor(
 export interface CanvasView {
   viewport: { width: number; height: number };
   insets: CanvasInsets;
+}
+
+/** The neighbourhood of a point a navigation shows, in Document units. */
+const FOCUS_EXTENT = { width: 160, height: 120 } as const;
+
+/**
+ * The camera a navigation (Find, a diagnostic, a trace hop) lands on to show
+ * a point: its neighbourhood fitted into the visible part of the measured
+ * canvas, as F fits a drawing, so the Properties dock the navigation opens
+ * does not cover the part on a phone (#2186). Unmeasured, the neighbourhood
+ * is the camera itself.
+ */
+export function focusCameraOnPoint(
+  point: Point,
+  grid: number,
+  measured: CanvasView | null,
+): GridRect {
+  const neighbourhood = {
+    x: point.x - FOCUS_EXTENT.width / 2,
+    y: point.y - FOCUS_EXTENT.height / 2,
+    width: FOCUS_EXTENT.width,
+    height: FOCUS_EXTENT.height,
+  };
+  return measured
+    ? fitCameraToVisibleBounds(
+        neighbourhood,
+        grid,
+        measured.viewport,
+        measured.insets,
+      )
+    : neighbourhood;
 }
 
 /**

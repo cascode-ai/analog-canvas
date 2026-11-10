@@ -62,6 +62,8 @@ export async function exportFile(
     requestId: requestId(),
     operation: "download",
     artifact: options.artifact,
+    // export_file passes the response's warnings on (#2179).
+    includeWarnings: true,
     ...(options.documentId ? { documentId: options.documentId } : {}),
     ...(options.includeReview ? { includeReview: true } : {}),
     ...(options.expected ? { expected: options.expected } : {}),
@@ -111,6 +113,7 @@ export async function exportFile(
     byteLength: bytes.byteLength,
     sha256: response.artifact.sha256,
     ...(response.review ? { review: response.review } : {}),
+    ...(response.warnings ? { warnings: response.warnings } : {}),
   };
 }
 

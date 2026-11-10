@@ -138,6 +138,7 @@ import {
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
   canvasInsetsFromOverlays,
+  insetsBesideFloatingWindow,
   type CameraRectInput,
   type CanvasInsets,
 } from "../canvas/fit-view";
@@ -269,6 +270,7 @@ import {
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import type { ReplaceProjectOptions } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
+import { takePendingSave } from "../document/save-after-sign-in";
 import { authoredObjectCount } from "../document/project-content";
 import { createDraftingCommands } from "../features/drafting/drafting-commands";
 import {
@@ -1081,6 +1083,12 @@ function WorkspaceEditor({
       ? netlistEntry.documentId
       : undefined;
   const [documentSettingsOpen, setDocumentSettingsOpen] = useState(false);
+  // An invalid or refused Document settings edit; one the panel closed on
+  // is gone with it (#2180).
+  const [documentSettingsDraftDirty, setDocumentSettingsDraftDirty] =
+    useState(false);
+  const documentSettingsDraft =
+    documentSettingsOpen && documentSettingsDraftDirty;
   const projectNameEditing = useRef(false);
   const {
     publishGalleryOpen,
@@ -1292,6 +1300,9 @@ function WorkspaceEditor({
     cancelReplaceGuard,
     confirmReplaceGuard,
     saveAndContinueReplaceGuard,
+    exportAndContinueReplaceGuard,
+    saveSignInOpen,
+    closeSaveSignIn,
     dismissStartupRecovery,
     createNewProject,
     revertToSavedProjectBaseline,
@@ -1390,6 +1401,19 @@ function WorkspaceEditor({
       return nextDocument;
     },
   });
+  // A Save asked for while signed out continues once this window has
+  // signed in and shows that Project again (#2161).
+  const saveByHandRef = useRef(saveByHand);
+  saveByHandRef.current = saveByHand;
+  useEffect(() => {
+    if (
+      publishSession &&
+      projectStore &&
+      startupRestoreReady &&
+      takePendingSave(project.id)
+    )
+      void saveByHandRef.current();
+  }, [publishSession, projectStore, startupRestoreReady, project.id]);
   const linkExistingPublication = useGalleryPublicationLink({
     publishGalleryOpen,
     projectStore,
@@ -3913,14 +3937,23 @@ function WorkspaceEditor({
     const overlays = [
       ...window.document.querySelectorAll("[data-canvas-overlay]"),
     ].map((element) => element.getBoundingClientRect());
+    const floating = window.document
+      .querySelector("[data-floating-window]")
+      ?.getBoundingClientRect();
     return {
       viewport: { width: canvasRect.width, height: canvasRect.height },
-      insets: canvasInsetsFromOverlays(canvasRect, overlays),
+      insets: insetsBesideFloatingWindow(
+        canvasRect,
+        canvasInsetsFromOverlays(canvasRect, overlays),
+        floating ?? null,
+      ),
     };
   }
 
   /** The Cell the last navigation fit framed, to fit again below. */
   const fittedDocument = useRef<string | null>(null);
+  /** A navigation's focus to frame again once the dock it opened is drawn. */
+  const focusBeforeDock = useRef<(() => void) | null>(null);
   const {
     selectDocumentFromHierarchy,
     jumpToCaller,
@@ -3952,6 +3985,10 @@ function WorkspaceEditor({
     onFit: (documentId) => {
       fittedDocument.current = documentId;
     },
+    onFocusBeforeDock: (frameAgain) => {
+      focusBeforeDock.current = frameAgain;
+    },
+    selectionOpen,
     openDocument,
     resetInteractionState,
     selectOnly,
@@ -3978,6 +4015,14 @@ function WorkspaceEditor({
     // That fit reported itself too; it needs no second pass.
     fittedDocument.current = null;
   }, [document.id, documentStack]);
+  // A Find result or diagnostic focuses its part, then opens Properties.
+  // Once the dock is drawn, before it is painted, frame the part again in
+  // what the dock leaves visible, so on a phone it is not underneath (#2186).
+  useLayoutEffect(() => {
+    const frameAgain = focusBeforeDock.current;
+    focusBeforeDock.current = null;
+    if (selectionOpen) frameAgain?.();
+  }, [selectionOpen]);
   useEffect(() => {
     const resolved = reconcileHierarchyPath(
       project,
@@ -5314,6 +5359,7 @@ function WorkspaceEditor({
     restoredTabs,
     currentEditBlocker,
     projectSwitchBlocker,
+    discardableSwitchHold,
     projectTabs,
     dropDiscardedWork,
     workspaceReopen,
@@ -5365,7 +5411,8 @@ function WorkspaceEditor({
     setNetlistFocusedInstance,
     netlistEntry,
     setNetlistEntry,
-    documentSettingsOpen,
+    documentSettingsDraft,
+    setDocumentSettingsOpen,
     projectNameEditing,
     publishGalleryOpen,
     versionHistoryOpen,
@@ -5627,16 +5674,6 @@ function WorkspaceEditor({
   });
   return (
     <main className="app-shell">
-      {powerPoint.notice}
-      {office.notice}
-      {publishedNotice ? (
-        <Suspense fallback={null}>
-          <GalleryPublishedNotice
-            notice={publishedNotice}
-            onDismiss={() => setPublishedNotice(null)}
-          />
-        </Suspense>
-      ) : null}
       {capabilities.community ? (
         <Suspense fallback={null}>
           <GalleryTopologyTaskNotice
@@ -5763,6 +5800,7 @@ function WorkspaceEditor({
         nativeWorkspaceSaving={nativeWorkspaceSaving}
         createTabSession={createTabSession}
         projectTabs={projectTabs}
+        discardableSwitchHold={discardableSwitchHold}
         recentNativeFiles={recentNativeFiles}
         nativeBusy={nativeBusy}
         setNativeBusy={setNativeBusy}
@@ -5862,6 +5900,20 @@ function WorkspaceEditor({
         />
       ) : null}
       <EditorDialogs
+        notices={
+          <>
+            {powerPoint.notice}
+            {office.notice}
+            {publishedNotice ? (
+              <Suspense fallback={null}>
+                <GalleryPublishedNotice
+                  notice={publishedNotice}
+                  onDismiss={() => setPublishedNotice(null)}
+                />
+              </Suspense>
+            ) : null}
+          </>
+        }
         cellPropertiesId={cellPropertiesId}
         setCellPropertiesId={setCellPropertiesId}
         importCellOpen={importCellOpen}
@@ -5978,6 +6030,10 @@ function WorkspaceEditor({
         cancelReplaceGuard={cancelReplaceGuard}
         confirmReplaceGuard={confirmReplaceGuard}
         saveAndContinueReplaceGuard={saveAndContinueReplaceGuard}
+        exportAndContinueReplaceGuard={exportAndContinueReplaceGuard}
+        saveSignInOpen={saveSignInOpen}
+        closeSaveSignIn={closeSaveSignIn}
+        exportProjectFile={exportProjectFile}
         dismissStartupRecovery={dismissStartupRecovery}
         restoreRecoverySession={restoreRecoverySession}
         downloadRecoveryBackup={downloadRecoveryBackup}
@@ -6543,6 +6599,7 @@ function WorkspaceEditor({
                 documentSettingsOpen
                   ? {
                       document,
+                      onDraftChange: setDocumentSettingsDraftDirty,
                       canvas: {
                         showGrid: gridDotsVisible,
                         annotationGrid,
@@ -8340,6 +8397,7 @@ function WorkspaceEditor({
           <EditorCanvasContextMenu
             canvasContextMenu={canvasContextMenu}
             setCanvasContextMenu={setCanvasContextMenu}
+            document={document}
             visualSelection={visualSelection}
             hasHierarchyEnterSelection={hasHierarchyEnterSelection}
             alignmentParticipantCount={alignmentParticipantCount}

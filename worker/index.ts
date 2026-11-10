@@ -15,6 +15,7 @@ import {
 } from "./agent-session";
 import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
 import { serveAsset } from "./static-assets";
+import { isAppPagePath } from "../apps/editor/src/page-routes";
 import { routeGalleryRequest } from "./gallery";
 import { pumpProjectSync } from "./project-sync";
 import { routeResourceSync, type ResourceSyncEnv } from "./resource-sync";
@@ -67,6 +68,10 @@ import {
   type ArenaEnv,
 } from "./arena";
 import { watchRegionalPulls } from "./regional-watchdog";
+import {
+  routeRegionalRelease,
+  type RegionalReleaseEnv,
+} from "./regional-release";
 
 // The stores that keep durable data also answer point-in-time recovery. The
 // export names are the deployed class names, so they must not change.
@@ -83,6 +88,7 @@ export { AgentSessionDO } from "./agent-session";
 export { SimulationControlDO } from "./simulation-control-do";
 
 type Env = TopologyTaskEnv &
+  RegionalReleaseEnv &
   ResourceSyncEnv &
   GalleryEnv &
   ComponentLibraryEnv &
@@ -170,6 +176,9 @@ async function route(request: Request, env: Env): Promise<Response> {
   const flood = await refuseApiFlood(request, env);
   if (flood) return flood;
 
+  const release = await routeRegionalRelease(request, env);
+  if (release) return release;
+
   const conversion = await handleNetlistConversionRequest(request);
   if (conversion) return conversion;
 
@@ -247,12 +256,89 @@ export function injectGalleryReadableDocument(
     );
 }
 
+/** The app shell's mark: what the asset layer answers a path with no file. */
+const APP_SHELL_MARK = '<div id="root"></div>';
+
+/** A path no page serves: a small page home, never the app (#2159). */
+function pageNotFound(method: string): Response {
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Page not found — Analog Canvas</title>
+<style>
+body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f2328;background:#f6f5f2}
+main{max-width:36rem;margin:15vh auto;padding:0 20px}
+h1{margin:0 0 8px;font-size:22px}
+p{margin:0 0 16px;color:#5f6368}
+a{color:#1570ef}
+</style>
+</head>
+<body>
+<main>
+<h1>There is no page here.</h1>
+<p>Check the link, or start from the Gallery.</p>
+<p><a href="/">Back to the Gallery</a></p>
+</main>
+</body>
+</html>
+`;
+  return new Response(method === "HEAD" ? null : html, {
+    status: 404,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      // A path may become a page with the next deploy.
+      "cache-control": "no-store",
+    },
+  });
+}
+
+/**
+ * The asset layer answers every path without a file with the app shell. A
+ * page the app serves keeps it; any other path is answered 404 (#2159).
+ * Real HTML files (the PowerPoint add-in's) are not the shell and pass.
+ */
+async function withoutStrayShell(
+  request: Request,
+  response: Response,
+  env: Env,
+): Promise<Response> {
+  if (
+    !["GET", "HEAD"].includes(request.method) ||
+    response.status !== 200 ||
+    !(response.headers.get("content-type") ?? "")
+      .toLowerCase()
+      .includes("text/html") ||
+    isAppPagePath(new URL(request.url).pathname)
+  )
+    return response;
+  // A HEAD answer has no body to tell the shell by: read the same GET.
+  const page =
+    request.method === "HEAD"
+      ? await serveAsset(new Request(request.url), env.ASSETS)
+      : response;
+  const text = await page.text();
+  if (text.includes(APP_SHELL_MARK)) return pageNotFound(request.method);
+  if (request.method === "HEAD") return response;
+  // The text is decoded: it goes out with its own length and encoding.
+  const headers = new Headers(response.headers);
+  headers.delete("content-encoding");
+  headers.delete("content-length");
+  return new Response(text, { status: response.status, headers });
+}
+
 /** Add real public Gallery facts to the first HTML response before React enhances it. */
 async function servePublicDocument(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  const response = await serveAsset(request, env.ASSETS);
+  const response = await withoutStrayShell(
+    request,
+    await serveAsset(request, env.ASSETS),
+    env,
+  );
   if (
     request.method !== "GET" ||
     response.status !== 200 ||

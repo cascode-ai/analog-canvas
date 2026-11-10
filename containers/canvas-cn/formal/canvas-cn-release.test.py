@@ -7,6 +7,8 @@ import os
 import pathlib
 import tempfile
 import unittest
+import urllib.error
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location(
     'release', pathlib.Path(__file__).with_name('canvas-cn-release.py'))
@@ -38,12 +40,19 @@ class FakeProduction:
             '': f'/regional-release/{commit}/'}}
         text = json.dumps(manifest).encode()
         self.served[f'/regional-release/{commit}/release.json'] = text
-        self.served['/regional-release/current.json'] = json.dumps({
+        pointer = {
             'commit': commit, 'manifest': f'/regional-release/{commit}/release.json',
-            'sha256': digest(text)}).encode()
+            'sha256': digest(text), 'attempt': '123-1'}
+        self.served['/regional-release/current.json'] = json.dumps(pointer).encode()
+        self.proof_path = f"/api/regional-release/verification/{commit}/{digest(text)}/123-1"
+        self.proof = json.dumps({'schemaVersion': 1, 'commit': commit,
+                                'sha256': digest(text), 'attempt': '123-1', 'verified': True}).encode()
+        self.served[self.proof_path] = self.proof
 
     def get(self, path, limit=0):
         self.requests.append(path)
+        if path not in self.served:
+            raise urllib.error.HTTPError('https://example.test' + path, 404, 'missing', {}, None)
         return self.served[path]
 
 
@@ -135,6 +144,97 @@ class ReleaseTest(unittest.TestCase):
                                   state=str(pathlib.Path(self.temp.name) / 'state.json'),
                                   settle_seconds=settle, local='http://127.0.0.1:1',
                                   smoke_attempts=1, keep=10, origin='https://example.test')
+
+    def test_an_available_release_without_overseas_verification_never_installs(self):
+        production, host = FakeProduction(self.files), FakeHost()
+        del production.served[production.proof_path]
+        result = release.tick(self.args(0), host, production, now=1000)
+        self.assertEqual(result['status'], 'awaiting-verification')
+        self.assertEqual(self.current.resolve().name, OLD)
+        self.assertEqual(host.calls, [])
+
+    def test_stability_starts_at_proof_and_a_rerun_cannot_reuse_old_proof(self):
+        production, host = FakeProduction(self.files), FakeHost()
+        del production.served[production.proof_path]
+        args = self.args(120)
+        def tick(at):
+            result = release.tick(args, host, production, now=at)
+            pathlib.Path(args.state).write_text(json.dumps(result))
+            return result['status']
+        self.assertEqual(tick(1000), 'awaiting-verification')
+        production.served[production.proof_path] = production.proof
+        self.assertEqual(tick(2000), 'settling')
+        pointer = json.loads(production.served['/regional-release/current.json'])
+        pointer['attempt'] = '123-2'
+        production.served['/regional-release/current.json'] = json.dumps(pointer).encode()
+        self.assertEqual(tick(2200), 'awaiting-verification')
+        new_path = production.proof_path.replace('/123-1', '/123-2')
+        # A wrong receipt body fails too, even at the requested path.
+        production.served[new_path] = production.proof
+        self.assertEqual(tick(2300), 'awaiting-verification')
+        proof = json.loads(production.proof)
+        proof['attempt'] = '123-2'
+        production.served[new_path] = json.dumps(proof).encode()
+        self.assertEqual(tick(2400), 'settling')
+        self.assertEqual(tick(2519), 'settling')
+        self.assertEqual(host.calls, [])
+        self.assertEqual(tick(2520), 'installed')
+        self.assertEqual(self.current.resolve().name, NEW)
+
+    def test_source_changed_during_download_does_not_restart_the_site(self):
+        production, host = FakeProduction(self.files), FakeHost()
+        original = production.get
+        reads = 0
+        def get(path, limit=0):
+            nonlocal reads
+            if path == '/regional-release/current.json':
+                reads += 1
+                if reads > 1:
+                    return FakeProduction(self.files, OLD).get(path)
+            return original(path, limit)
+        production.get = get
+        result = release.tick(self.args(0), host, production, now=1000)
+        self.assertEqual(result['status'], 'source-changed')
+        self.assertEqual(host.calls, [])
+        self.assertEqual(self.current.resolve().name, OLD)
+
+    def test_observed_rollback_resets_stability_in_the_persisted_runner(self):
+        production = FakeProduction(self.files)
+        pointer = production.served['/regional-release/current.json']
+        args = self.args(120)
+        argv = ['release', '--current', args.current, '--releases', args.releases,
+                '--credentials', args.credentials, '--unit-dir', args.unit_dir,
+                '--state', args.state, '--settle-seconds', '120']
+        def run(at):
+            with patch('sys.argv', argv), patch.object(release, 'Fetcher', return_value=production), \
+                    patch.object(release.time, 'time', return_value=at), \
+                    patch.object(release, 'Host', return_value=FakeHost()):
+                release.main()
+            return json.loads(pathlib.Path(args.state).read_text())
+        self.assertEqual(run(1000)['status'], 'settling')
+        production.served['/regional-release/current.json'] = FakeProduction(self.files, OLD).served['/regional-release/current.json']
+        self.assertEqual(run(1060)['status'], 'current')
+        production.served['/regional-release/current.json'] = pointer
+        self.assertEqual(run(1120)['status'], 'settling')
+        self.assertEqual(run(1121)['pending']['firstSeen'], 1120)
+
+    def test_final_probe_failure_retries_without_install_or_permanent_refusal(self):
+        production, host = FakeProduction(self.files), FakeHost()
+        original = production.get
+        reads = 0
+        def get(path, limit=0):
+            nonlocal reads
+            if path == '/regional-release/current.json':
+                reads += 1
+                if reads == 3:
+                    raise urllib.error.HTTPError('https://example.test', 503, 'unavailable', {}, None)
+            return original(path, limit)
+        production.get = get
+        with self.assertRaises(urllib.error.HTTPError):
+            release.tick(self.args(0), host, production, now=1000)
+        self.assertEqual(self.current.resolve().name, OLD)
+        self.assertNotIn(('systemctl', 'restart', 'canvas-cn-formal.service'), host.calls)
+        self.assertEqual(release.tick(self.args(0), host, production, now=1100)['status'], 'installed')
 
     def test_waits_for_production_to_settle_then_installs_changed_files(self):
         production, host = FakeProduction(self.files), FakeHost({'canvas-cn-project-sync.timer'})

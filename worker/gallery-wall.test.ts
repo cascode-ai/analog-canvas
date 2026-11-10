@@ -817,6 +817,100 @@ describe("newest-first gallery feed", () => {
     expect((await list("q=%20-%20")).total).toBe(5);
   });
 
+  it("reads a search's metadata off the card index and answers its words again from memory until the Gallery changes (#2160)", async () => {
+    const env = environment();
+    const ids = await wallOf(env, 4);
+    ["Bandgap reference", "Current mirror", "Bandgap core", "LNA"].forEach(
+      (name, index) =>
+        env.gallerySql.exec(
+          "UPDATE gallery_entries SET name = ? WHERE id = ?",
+          name,
+          ids[index]!,
+        ),
+    );
+    // Production's planner has statistics; without the forced index it
+    // read each row's tags behind its Project and preview.
+    env.gallerySql.exec("ANALYZE");
+    const search = async (words: string) =>
+      (
+        (await (
+          await route(env, new Request(`${ORIGIN}/api/gallery?q=${words}`))
+        ).json()) as { entries: { name: string }[]; total: number }
+      ).entries
+        .map((entry) => entry.name)
+        .sort();
+    const scans = () =>
+      env.galleryQueries.filter((query) =>
+        /^\s*SELECT e\.id, e\.name, e\.author, e\.description, e\.tags/u.test(
+          query,
+        ),
+      );
+    env.galleryQueries.length = 0;
+    expect(await search("bandgap")).toEqual([
+      "Bandgap core",
+      "Bandgap reference",
+    ]);
+    expect(scans()).toHaveLength(1);
+    const plan = env.gallerySql
+      .exec<{ detail: string }>(`EXPLAIN QUERY PLAN ${scans()[0]!}`)
+      .toArray()
+      .map((step) => step.detail)
+      .join("\n");
+    expect(plan).toContain("COVERING INDEX idx_gallery_entries_card");
+    // The same words, however written, and the tag counts beside them read
+    // nothing again.
+    expect(await search("BANDGAP")).toEqual([
+      "Bandgap core",
+      "Bandgap reference",
+    ]);
+    await route(env, new Request(`${ORIGIN}/api/gallery/tags?q=bandgap`));
+    expect(scans()).toHaveLength(1);
+    // Other words are worked out anew.
+    expect(await search("mirror")).toEqual(["Current mirror"]);
+    expect(scans()).toHaveLength(2);
+    // A like or a netlist mark changes no answer: the same words stay
+    // answered, while the order by likes still follows the new like.
+    env.gallerySql.exec(
+      "INSERT INTO gallery_likes (entry_id, user_id, liked_at, hearts) VALUES (?, 'reader', '2026-11-10T00:00:00.000Z', 1)",
+      ids[2]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET netlistable = 1 - netlistable WHERE id = ?",
+      ids[0]!,
+    );
+    const byLikes = (
+      (await (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery?q=bandgap&order=likes`),
+        )
+      ).json()) as { entries: { name: string }[] }
+    ).entries.map((entry) => entry.name);
+    expect(byLikes).toEqual(["Bandgap core", "Bandgap reference"]);
+    expect(scans()).toHaveLength(2);
+    // A change to an entry's words answers at once.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET name = 'Bandgap LNA' WHERE id = ?",
+      ids[3]!,
+    );
+    expect(await search("bandgap")).toEqual([
+      "Bandgap LNA",
+      "Bandgap core",
+      "Bandgap reference",
+    ]);
+    expect(scans()).toHaveLength(3);
+    // So does an entry leaving the wall.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET status = 'recycled' WHERE id = ?",
+      ids[3]!,
+    );
+    expect(await search("bandgap")).toEqual([
+      "Bandgap core",
+      "Bandgap reference",
+    ]);
+    expect(scans()).toHaveLength(4);
+  });
+
   it("ranks public contributors by circuit count and excludes hidden or blank bylines", async () => {
     const env = environment();
     const ids = await wallOf(env, 6);

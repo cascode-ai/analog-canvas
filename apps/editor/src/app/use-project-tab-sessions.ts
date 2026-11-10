@@ -59,6 +59,7 @@ import {
 } from "../document/workspace-reopen";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
+  discardableHoldReason,
   editInProgressReason,
   projectHoldReason,
 } from "../features/editor-shell/edit-blockers";
@@ -154,7 +155,8 @@ interface ProjectTabSessionsOptions {
   setNetlistEntry: Dispatch<
     SetStateAction<{ sessionId: string; documentId: string } | null>
   >;
-  documentSettingsOpen: boolean;
+  documentSettingsDraft: boolean;
+  setDocumentSettingsOpen: Dispatch<SetStateAction<boolean>>;
   projectNameEditing: RefObject<boolean>;
   publishGalleryOpen: boolean;
   versionHistoryOpen: boolean;
@@ -252,7 +254,8 @@ export function useProjectTabSessions({
   setNetlistFocusedInstance,
   netlistEntry,
   setNetlistEntry,
-  documentSettingsOpen,
+  documentSettingsDraft,
+  setDocumentSettingsOpen,
   projectNameEditing,
   publishGalleryOpen,
   versionHistoryOpen,
@@ -384,6 +387,8 @@ export function useProjectTabSessions({
     setCodeNetPreview(null);
     setAnalogSimulationState("closed");
     setNetlistPreflightOpen(false);
+    // Document settings belong to the Project they show (#2180).
+    setDocumentSettingsOpen(false);
     activateDocumentSession(session.controller);
     restoreFileSession(session.file);
     resumeRecoverySession(session.recovery);
@@ -710,7 +715,7 @@ export function useProjectTabSessions({
   // What keeps the editor on this Project now (#1462).
   const editInProgress = () => ({
     componentEditor: !!componentEditor,
-    documentSettingsOpen,
+    documentSettingsDraft,
     projectNameEditing: projectNameEditing.current,
     textEditing: !!textEditing,
     textOnScreen: !!textEditingTarget,
@@ -719,18 +724,20 @@ export function useProjectTabSessions({
   const currentEditBlocker = () => editInProgressReason(editInProgress());
   const [cloudManagementBusy, setCloudManagementBusy] = useState(false);
   const cloudMutation = useRef(false);
-  const projectSwitchBlocker = () =>
-    projectHoldReason({
-      ...editInProgress(),
-      saving:
-        isSaveInFlight() ||
-        nativeWorkspaceSaving.current ||
-        cloudMutation.current,
-      replaceGuard: !!replaceGuard,
-      recoveryDialogOpen,
-      publishGalleryOpen,
-      versionHistoryOpen,
-    });
+  const projectHeld = () => ({
+    ...editInProgress(),
+    saving:
+      isSaveInFlight() ||
+      nativeWorkspaceSaving.current ||
+      cloudMutation.current,
+    replaceGuard: !!replaceGuard,
+    recoveryDialogOpen,
+    publishGalleryOpen,
+    versionHistoryOpen,
+  });
+  const projectSwitchBlocker = () => projectHoldReason(projectHeld());
+  /** A hold the tab strip offers to drop beside the action (#2180). */
+  const discardableSwitchHold = () => discardableHoldReason(projectHeld());
   projectSwitchBlockerRef.current = projectSwitchBlocker;
   const projectTabs = useProjectTabs<TabSession>({
     initial: initialTabs,
@@ -1448,6 +1455,7 @@ export function useProjectTabSessions({
     restoredTabs,
     currentEditBlocker,
     projectSwitchBlocker,
+    discardableSwitchHold,
     projectTabs,
     dropDiscardedWork,
     workspaceReopen,

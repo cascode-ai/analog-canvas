@@ -267,7 +267,11 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 - Engine instance-follow is the single-instance fallback and agrees on internal
   wiring (a component whose pins slide together travels whole).
 - `C` is modal copy placement with one preallocated clone mapping; Delete turns
-  the visual selection into one graph deletion plan.
+  the visual selection into one graph deletion plan. Locked drawings and texts
+  it names stay and the status counts them, and a locked text keeps the
+  selected wire it stands on; a selection of only locked ones deletes nothing
+  and menus offer no Delete for it. A deletion whose closure would take a
+  locked text deletes nothing and says so. Only Unlock frees them.
   [Project-aware copy](#project-aware-copy) owns copy identity.
 - Marquee: left-to-right is window (fully contained; Routes need their whole
   centerline), right-to-left crossing; a Junction is its point; Route tests use
@@ -308,6 +312,9 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 
 - Previews may hold floats; every committed point snaps to the Document grid; one
   grid-aligned camera normalizer serves fit, zoom, pan, focus and Agent focus.
+- Fit and a navigation's focus (Find, diagnostics, trace) frame their target in
+  the canvas the edge docks leave visible; a focus that opens Properties frames
+  again once the dock is drawn.
 - Frame-zoom: right-drag on empty canvas or Alt+left-drag; it never touches the
   revision; a press within one grid cell stays a click.
 - Escape cancels without mutation; a committed gesture is one transaction;

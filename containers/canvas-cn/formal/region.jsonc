@@ -13,29 +13,29 @@
     "AUTH": {
       "class": "RegionalSessionDO",
       "key": "canvas-cn-formal-session-v1",
-      "reason": "Regional sessions lease identity from the overseas authority."
+      "reason": "Regional sessions lease identity from the overseas authority.",
     },
     "GALLERY": { "class": "GalleryDO", "key": "canvas-cn-formal-gallery-v1" },
     "COMPONENT_LIBRARY": {
       "class": "ComponentLibraryDO",
-      "key": "canvas-cn-formal-components-v1"
+      "key": "canvas-cn-formal-components-v1",
     },
     "AGENT_SESSION": {
       "class": "AgentSessionDO",
-      "key": "canvas-cn-formal-agent-v1"
+      "key": "canvas-cn-formal-agent-v1",
     },
     "SIMULATION_CONTROL": {
       "class": "SimulationControlDO",
-      "key": "canvas-cn-formal-simulation-v1"
+      "key": "canvas-cn-formal-simulation-v1",
     },
     "TOPOLOGY_TASK": {
       "class": "TopologyTaskDO",
-      "key": "canvas-cn-formal-topology-v1"
+      "key": "canvas-cn-formal-topology-v1",
     },
     "ANALYTICS": {
       "class": "AnalyticsDO",
-      "key": "canvas-cn-formal-analytics-v1"
-    }
+      "key": "canvas-cn-formal-analytics-v1",
+    },
   },
   // R2 is served by the pinned R2-compatible storage modules
   // (prepare-artifacts.mjs), private to this process.
@@ -44,21 +44,22 @@
   // loopback operator tunnel. A URL path (SG13G2's /sg13g2) is kept.
   "operators": {
     "ngspice": { "address": "127.0.0.1:19094" },
-    "vacask": { "address": "127.0.0.1:19095" }
+    "vacask": { "address": "127.0.0.1:19095" },
   },
   "upstreams": {
     "SIMULATION_UPSTREAM_URL": "ngspice",
     "SG13G2_UPSTREAM_URL": "ngspice",
-    "VACASK_UPSTREAM_URL": "vacask"
+    "VACASK_UPSTREAM_URL": "vacask",
   },
   // Production configuration the region deliberately does not carry.
   "excluded": {
+    "r2_buckets.REGIONAL_RELEASES": "CI verification receipts are read only from the fixed overseas origin.",
     "services.ARENA": "AnalogArena trusts only Production's binding (docs/specs/analog-arena.md).",
     "queues.SIMULATION_JOBS": "Both regions dispatch by alarm (SIMULATION_DISPATCH); the queue carries no work.",
     "routes": "Public hostnames and ICP-filed routing are host configuration, not bindings.",
     "observability": "Cloudflare-only logging; the host keeps the systemd journal.",
     "workers_dev": "Cloudflare-only preview hostname.",
-    "migrations": "Cloudflare class migrations; workerd namespaces are declared above."
+    "migrations": "Cloudflare class migrations; workerd namespaces are declared above.",
   },
   // Region-only text bindings (identical on every regional host).
   "text": {
@@ -66,7 +67,7 @@
     "PROJECT_REGION": "cn",
     "RESOURCE_REGION": "cn",
     "PROJECT_SYNC_PULL": "true",
-    "PROJECT_SYNC_MAX_BYTES": "1073741824"
+    "PROJECT_SYNC_MAX_BYTES": "1073741824",
   },
   // Region-only Durable Object aliases.
   "aliases": { "PROJECTS": "GalleryDO" },
@@ -90,6 +91,6 @@
     "PROJECT_IDENTITY_URL": "identity-url",
     "PROJECT_IDENTITY_TOKEN": "identity-token",
     "PROJECT_WRITES_ENABLED": "project-writes-enabled",
-    "RESOURCE_WRITES_ENABLED": "resource-writes-enabled"
-  }
+    "RESOURCE_WRITES_ENABLED": "resource-writes-enabled",
+  },
 }

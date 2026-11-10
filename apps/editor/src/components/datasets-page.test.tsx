@@ -52,6 +52,27 @@ const render = async (fetchLike: typeof fetch) => {
 };
 
 describe("/datasets", () => {
+  it("asks no kept circuits of a reader it knows is signed out (#2163)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) =>
+        String(input) === "/api/auth/me"
+          ? Response.json({ user: null })
+          : Response.json({}, { status: 401 }),
+      ),
+    );
+    const asked: string[] = [];
+    await render(async (url) => {
+      asked.push(String(url));
+      return Response.json({ comparisons: [comparison("ag-1", "match")] });
+    });
+    expect(
+      container.querySelector('[data-testid="datasets-row-ag-1"]'),
+    ).not.toBeNull();
+    expect(asked.some((url) => url.includes("/comparisons"))).toBe(true);
+    expect(asked.filter((url) => url.includes("/bookmarks"))).toEqual([]);
+  });
+
   it("asks a signed-out reader to sign in", async () => {
     await render(async () => Response.json({}, { status: 401 }));
     expect(

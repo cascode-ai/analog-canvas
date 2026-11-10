@@ -1495,7 +1495,8 @@
   }
 
   .app-chrome-main .app-chrome-actions .app-repository-link,
-  .app-chrome-main .app-chrome-actions .bug-report-link {
+  .app-chrome-main .app-chrome-actions .bug-report-link,
+  .app-chrome-main .app-chrome-actions .bug-report-email {
     display: none;
   }
 }
@@ -1750,15 +1751,13 @@
 }
 
 /* After a publish or an update: what reached the Gallery, and a way to it. */
+/* It stands in the notice column (.editor-notices). */
 .gallery-published-notice {
-  position: fixed;
-  top: 96px;
-  left: 50%;
-  z-index: 300;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 12px;
-  max-width: calc(100vw - 32px);
+  max-width: 100%;
   padding: 10px 14px;
   border: 1px solid var(--icm-border);
   border-radius: 8px;
@@ -1766,7 +1765,6 @@
   color: var(--icm-text);
   box-shadow: 0 4px 20px rgb(0 0 0 / 12%);
   font-size: 13px;
-  transform: translateX(-50%);
 }
 
 .gallery-published-notice-mark {
@@ -1838,15 +1836,13 @@
   }
 }
 
+/* It stands in the notice column (.editor-notices). */
 .powerpoint-notice {
-  position: fixed;
-  top: 96px;
-  left: 50%;
-  z-index: 300;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: min(560px, calc(100vw - 32px));
+  max-width: min(560px, 100%);
   padding: 10px 14px;
   border: 1px solid var(--icm-border);
   border-radius: 8px;
@@ -1854,7 +1850,6 @@
   color: var(--icm-text);
   box-shadow: 0 4px 20px rgb(0 0 0 / 12%);
   font-size: 13px;
-  transform: translateX(-50%);
   animation:
     powerpoint-notice-in 150ms ease-out,
     powerpoint-notice-out 400ms ease-in forwards;

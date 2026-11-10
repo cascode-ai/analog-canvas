@@ -92,6 +92,14 @@
   line-height: 1.45;
 }
 
+/* A link to nothing, on any screen (#2159). */
+.missing-page {
+  justify-items: start;
+  width: min(40rem, 100%);
+  box-sizing: border-box;
+  margin: 32px auto;
+}
+
 .phone-circuit-editor-anyway {
   justify-self: start;
   padding: 0;

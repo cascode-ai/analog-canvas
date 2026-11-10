@@ -15,6 +15,20 @@ const read = async (path) =>
   parseJsonc(await readFile(join(root, path), "utf8"));
 
 describe("regional runtime declaration", () => {
+  it("can exclude the overseas verification store without creating a local copy", async () => {
+    const wrangler = await read("wrangler.jsonc");
+    const region = await read("containers/canvas-cn/formal/region.jsonc");
+    wrangler.r2_buckets.push({
+      binding: "OVERSEAS_PROOF",
+      bucket_name: "proof",
+    });
+    region.excluded["r2_buckets.OVERSEAS_PROOF"] =
+      "CI proof is read only from the fixed overseas origin.";
+    expect(classify(wrangler, region)).toEqual([]);
+    expect(renderConfig(wrangler, region)).not.toContain(
+      'name = "OVERSEAS_PROOF"',
+    );
+  });
   it("keeps the committed China configuration generated from wrangler.jsonc", async () => {
     for (const [path, text] of Object.entries(await generate()))
       expect(await readFile(join(root, path), "utf8"), path).toBe(text);

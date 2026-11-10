@@ -200,19 +200,100 @@
   background: #fef3c7;
 }
 
-/* Recovery banners float over the canvas so they never resize it. */
-/* Above the floating panels (Project Info, Agent), below menus and modals. */
-.recovery-banner {
+/* A signed-out Save's two ways on: an account, or the Project as a file. */
+.cloud-save-sign-in {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.cloud-save-sign-in p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cloud-save-sign-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cloud-save-sign-in-actions button {
+  height: var(--icm-control-h);
+  padding: 0 0.85rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cloud-save-sign-in-actions button:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+
+.cloud-save-sign-in-actions .cloud-save-sign-in-primary {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.cloud-save-sign-in-actions .cloud-save-sign-in-primary:hover:not(:disabled) {
+  background: var(--icm-accent);
+  filter: brightness(1.05);
+}
+
+.replace-guard-actions .save-sign-in-close {
+  margin-left: auto;
+}
+
+.cloud-save-sign-in-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Notices stand in one column under the chrome (EditorNotices), floating
+   over the canvas so they never resize it, each at its own height so none
+   covers another (#2182). Above the floating panels (Project Info), below
+   modals; what the chrome drops down rises above them (.app-chrome). */
+.editor-notices {
   position: fixed;
   z-index: 45;
-  top: 4.6rem;
+  top: var(--editor-notices-top, 4.6rem);
   left: 50%;
   translate: -50% 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: min(40.5rem, 100vw);
+  max-height: calc(100dvh - var(--editor-notices-top, 4.6rem));
+  /* Room for the notices' shadows inside the scrolling column. */
+  padding: 0 1.25rem 1.25rem;
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.editor-notices:empty {
+  display: none;
+}
+
+.editor-notices > * {
+  pointer-events: auto;
+}
+
+.recovery-banner {
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-  max-width: min(38rem, calc(100vw - 2.5rem));
+  max-width: 100%;
   padding: 0.7rem 1rem;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-lg);

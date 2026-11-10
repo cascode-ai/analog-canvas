@@ -32,9 +32,9 @@ import {
 } from "./hierarchy-planner.js";
 import {
   planCreateCellPin,
-  planReorderCellPort,
   planReorderCellTerminal,
   planSetVddConnectionMode,
+  planSwapCellPorts,
   planUpdateCellPortDirection,
 } from "./cell-pin-planner.js";
 import {
@@ -2303,11 +2303,11 @@ describe("hierarchy domain planners", () => {
       ]),
     );
 
-    const reorderEdits = planReorderCellPort(
+    const reorderEdits = planSwapCellPorts(
       project,
       document.id,
       "terminal-in",
-      -1,
+      "terminal-out-a",
     );
     expect(reorderEdits).toEqual([
       expect.objectContaining({

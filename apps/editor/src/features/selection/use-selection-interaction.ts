@@ -21,11 +21,13 @@ import {
   createRoutingOperationPlan,
   executeTransaction,
   gateRoutingOperationPlan,
+  lockedDeletionStatus,
   planCellSelectionDeletion,
   planRoutingDeletion,
   planSetNoConnect,
   planDisconnectPinMember,
   planRoutingTransform,
+  type LockedSelectionObjects,
   type RoutingOperationIntent,
   type SchematicEdit,
   type WireSource,
@@ -1230,6 +1232,7 @@ export function useSelectionInteraction(
           : "Deleted selected schematic objects";
     let deletionPlan;
     let terminalIds: string[];
+    let locked: LockedSelectionObjects;
     try {
       const selectionPlan = planCellSelectionDeletion(
         options.document,
@@ -1239,12 +1242,21 @@ export function useSelectionInteraction(
       );
       deletionPlan = selectionPlan.routing;
       terminalIds = selectionPlan.terminalIds;
+      locked = selectionPlan.locked;
     } catch (error) {
       options.setStatus(
         error instanceof Error ? error.message : "Delete failed",
       );
       return;
     }
+    // Locked drawings and texts stay; with nothing else selected, nothing goes.
+    const keptAlone =
+      deletionPlan.edits.length === 0 && lockedDeletionStatus(locked, false);
+    if (keptAlone) {
+      options.setStatus(keptAlone);
+      return;
+    }
+    const finalStatus = lockedDeletionStatus(locked, true) ?? deletionStatus;
     if (terminalIds.length > 0) {
       if (
         options.commitCellTerminalSelection(terminalIds, [
@@ -1253,7 +1265,7 @@ export function useSelectionInteraction(
       ) {
         options.resetSelection();
         options.setSelectedEndpoint(null);
-        options.setStatus(deletionStatus);
+        options.setStatus(finalStatus);
       }
       return;
     }
@@ -1268,7 +1280,7 @@ export function useSelectionInteraction(
     if (result.ok) {
       options.resetSelection();
       options.setSelectedEndpoint(null);
-      options.setStatus(deletionStatus);
+      options.setStatus(finalStatus);
     }
   };
 

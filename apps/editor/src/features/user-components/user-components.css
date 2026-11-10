@@ -451,9 +451,23 @@
   .component-definition-dialog > header {
     flex-wrap: wrap;
   }
-  .component-definition-type {
+  /* Definition type takes a row of its own, its label above a select that
+     fits the dialog, so nothing pushes the dialog into a sideways scroll
+     (#2156). */
+  .component-definition-type-row {
     order: 1;
-    flex-basis: 100%;
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .component-definition-type {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--icm-space-1);
+  }
+  .component-definition-type select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
   .component-definition-native .component-definition-workspace {
     grid-template-columns: minmax(0, 1fr);

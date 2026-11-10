@@ -13,6 +13,7 @@ import {
 import {
   createDesignNetlistExport,
   compileNgspiceSourceSimulation,
+  designExtractsNetlist,
 } from "@icm/netlist";
 import { createLibraryExampleProject } from "../../examples/library-examples";
 import { placedInstanceNetlist } from "../component-insert/placed-instance-netlist";
@@ -999,6 +1000,9 @@ describe("persisted netlist process authoring", () => {
         { family },
       );
       expect(exported(mapped)).toContain(target);
+      // The tap a 2-pin spiral floats on its own node is its device's
+      // design, not an unfinished wire, so the netlist mark holds.
+      expect(designExtractsNetlist(mapped)).toBe(true);
       expect(
         mapped.documents[0]!.instances[0]!.netlist!.parameters,
       ).not.toHaveProperty("value");

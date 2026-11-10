@@ -417,13 +417,13 @@ describe("selection boards", () => {
   });
 
   it("reaches the Worker before the asset layer answers with the shell", () => {
-    // Without these, Production serves the editor shell at /boards/<id>.
+    // The all-path switch includes /boards and /boards/<id>; otherwise the
+    // asset layer can answer with the editor shell before this route runs.
     const wrangler = readFileSync(
       resolve(process.cwd(), "wrangler.jsonc"),
       "utf8",
     );
-    expect(wrangler).toContain(`"/boards",`);
-    expect(wrangler).toContain(`"/boards/*",`);
+    expect(wrangler).toMatch(/"run_worker_first"\s*:\s*true\b/u);
   });
 
   it("draws each entry plain: no colour, no frames or notes", async () => {

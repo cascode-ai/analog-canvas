@@ -23,6 +23,7 @@ import {
   DIAMOND_SOURCE_VARIANT,
   NO_INTERNAL_MARK,
   supplyPinsEdit,
+  windingsMirroredEdit,
   symbolForInputPolarity,
   symbolForInputsSwapped,
   symbolForInternalMark,
@@ -337,6 +338,14 @@ export function planComponentPropertyCodeEdits(
     });
   else if (supplyPins !== undefined) {
     const edit = supplyPinsEdit(instance, supplyPins);
+    if (edit) edits.push(edit);
+  }
+  // So is a transformer's secondary, looping either way (#2170).
+  if (value.appearance.windingsMirrored !== undefined) {
+    const edit = windingsMirroredEdit(
+      instance,
+      value.appearance.windingsMirrored,
+    );
     if (edit) edits.push(edit);
   }
   // A controlled source's outline is its variant; the part stays the same.

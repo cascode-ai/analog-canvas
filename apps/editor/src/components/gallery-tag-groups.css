@@ -165,6 +165,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The last counts, held while the wall's new ones load (#2160). */
+.gallery-sidebar-count[data-held="true"],
+.gallery-tag-groups[aria-busy="true"] .gallery-sidebar-count {
+  opacity: 0.5;
+}
+
 /* The part-count sizes, set apart from the tags below like the quick
    filters above. */
 .gallery-sidebar-sizes {

@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 function wranglerConfig(file = "wrangler.jsonc"): {
   assets: {
     binding?: string;
-    run_worker_first?: string[];
+    run_worker_first?: boolean | string[];
     not_found_handling?: string;
   };
   triggers?: { crons?: string[] };
@@ -45,21 +45,13 @@ describe("assets binding wiring", () => {
     // same local harness reproduced exactly, by omitting the binding.
     const { assets } = wranglerConfig();
     expect(assets.binding).toBe("ASSETS");
-    expect(assets.run_worker_first).toContain("/assets/*");
-    expect(assets.run_worker_first).toContain("/api/*");
-    expect(assets.run_worker_first).toEqual(
-      expect.arrayContaining([
-        "/",
-        "/g/*",
-        "/robots.txt",
-        "/sitemap.xml",
-        "/llms.txt",
-      ]),
-    );
-    // The Gallery paths need the Worker to enrich the shell or return their
-    // direct document. Other client routes still get the shell from
-    // Cloudflare; the Worker also separates "a hashed file that is gone"
-    // from "a route with no file".
+    // Every path reaches it: /assets/* and /api/*, the Gallery paths, whose
+    // shell it enriches or whose direct document it returns, and every
+    // other path, where it separates "a hashed file that is gone" from "a
+    // route with no file", and a page the app serves from a path no page
+    // serves, which answers 404 (#2159). Wrangler refuses "/*" listed
+    // beside the paths it covers, so the setting is the boolean.
+    expect(assets.run_worker_first).toBe(true);
     expect(assets.not_found_handling).toBe("single-page-application");
   });
 
@@ -69,16 +61,7 @@ describe("assets binding wiring", () => {
     // chip-arena.com's / and /analytics show Analog Canvas's own pages;
     // /api/* already reaches the Worker.
     const config = wranglerConfig();
-    expect(config.assets.run_worker_first).toEqual(
-      expect.arrayContaining([
-        "/schematic",
-        "/schematic/*",
-        "/arena",
-        "/arena/*",
-        "/",
-        "/analytics",
-      ]),
-    );
+    expect(config.assets.run_worker_first).toBe(true);
     expect(config.services).toContainEqual({
       binding: "ARENA",
       service: "analog-arena",

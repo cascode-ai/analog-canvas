@@ -470,6 +470,16 @@ export function planBrowserAgentCommand(
         command.selection,
         sequence,
       );
+      // The GUI keeps the locked ones and deletes the rest; an Agent is told
+      // instead, so it never believes them gone.
+      const locked = [
+        ...selected.locked.draftingIds,
+        ...selected.locked.annotationIds,
+      ];
+      if (locked.length)
+        throw new Error(
+          `selection: ${locked.join(", ")} ${locked.length === 1 ? "is" : "are"} locked; unlock before deleting; no objects were deleted`,
+        );
       if (selected.terminalIds.length)
         return {
           structureEdits: planRemoveCellTerminals(

@@ -5,6 +5,7 @@ import { createEmptyDocument } from "@icm/model";
 import {
   EMPTY_VISUAL_SELECTION,
   clearVisualSelectionKinds,
+  hasDeletableVisualSelection,
   hasVisualSelection,
   normalizeVisualSelection,
   pruneVisualSelection,
@@ -117,5 +118,38 @@ describe("a Shift or Ctrl/Cmd box adds to the selection (2026-10-18)", () => {
       annotationIds: ["label-1"],
       draftingIds: [],
     });
+  });
+
+  it("offers Delete only while something selected is unlocked (#2187)", () => {
+    const document = createEmptyDocument("doc", "Locks");
+    const box = (id: string, locked: boolean) => ({
+      id,
+      kind: "rectangle" as const,
+      locked,
+      zIndex: 0,
+      anchor: { kind: "free" as const, position: { x: 0, y: 0 } },
+      center: { x: 0, y: 0 },
+      width: 20,
+      height: 10,
+      rotation: 0 as const,
+      lineStyle: "solid" as const,
+    });
+    document.drafting = { objects: [box("box", false), box("locked", true)] };
+    const selecting = (draftingIds: string[]) => ({
+      ...EMPTY_VISUAL_SELECTION,
+      draftingIds,
+    });
+    expect(hasDeletableVisualSelection(selecting(["locked"]), document)).toBe(
+      false,
+    );
+    expect(
+      hasDeletableVisualSelection(selecting(["locked", "box"]), document),
+    ).toBe(true);
+    expect(
+      hasDeletableVisualSelection(
+        { ...selecting(["locked"]), instanceIds: ["R1"] },
+        document,
+      ),
+    ).toBe(true);
   });
 });

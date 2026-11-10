@@ -186,6 +186,7 @@ export function GallerySearchProgress({
 
 export function GalleryCountPanel({
   total,
+  busy = false,
   filtered = false,
   searched = false,
   search = null,
@@ -202,6 +203,8 @@ export function GalleryCountPanel({
   onToggleDatasets = () => undefined,
 }: {
   total: number | null;
+  /** The last wall's count, held while the new one loads (#2160). */
+  busy?: boolean;
   filtered?: boolean;
   searched?: boolean;
   search?: { visible: number; settled: boolean } | null;
@@ -273,8 +276,23 @@ export function GalleryCountPanel({
         className="gallery-count-panel"
         data-testid="gallery-count-panel"
         aria-label={`${label}. Show contributor leaderboard`}
+        aria-busy={busy}
         title={breakdown}
       >
+        {/* A phone shows this in place of the count (#2189). */}
+        <svg
+          className="gallery-count-icon"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          aria-hidden
+        >
+          <circle cx="6" cy="5.5" r="2.25" />
+          <path d="M1.75 13.5c.5-2.4 2.2-3.75 4.25-3.75s3.75 1.35 4.25 3.75" />
+          <path d="M10.5 3.5a2.1 2.1 0 0 1 0 4.1M12 9.9c1.2.5 2 1.7 2.25 3.6" />
+        </svg>
         <span className="gallery-count-label">{label}</span>
       </summary>
       <div

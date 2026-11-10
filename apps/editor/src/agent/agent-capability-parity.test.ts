@@ -516,6 +516,49 @@ it("rejects a wrongly classified selection before deleting any valid member", as
   expect(controller.document.drafting).toEqual(before.documents[0]!.drafting);
 });
 
+it("refuses to delete a locked drawing until it is unlocked (#2187)", async () => {
+  const { tool, controller, add } = await folder();
+  const id = await add();
+  expect(
+    (
+      await tool("circuit_text", {
+        actions: [
+          { kind: "annotate", position: { x: 300, y: 100 }, text: "Keep me" },
+        ],
+      })
+    ).ok,
+  ).toBe(true);
+  const text = controller.document.drafting!.objects[0]!;
+  const lockText = (locked: boolean) =>
+    tool("advanced_transact", {
+      edits: [{ kind: "upsert_drafting_object", object: { ...text, locked } }],
+    });
+  expect((await lockText(true)).ok).toBe(true);
+  const before = structuredClone(controller.project);
+  const rejected = await tool("apply_actions", {
+    actions: [
+      {
+        kind: "delete-selection",
+        selection: { instanceIds: [id], draftingIds: [text.id] },
+      },
+    ],
+  });
+  expect(rejected).toMatchObject({ ok: false });
+  expect(rejected.message).toContain(`${text.id} is locked`);
+  expect(controller.project).toEqual(before);
+  expect((await lockText(false)).ok).toBe(true);
+  const accepted = await tool("apply_actions", {
+    actions: [
+      {
+        kind: "delete-selection",
+        selection: { instanceIds: [id], draftingIds: [text.id] },
+      },
+    ],
+  });
+  expect(accepted.ok, accepted.message).toBe(true);
+  expect(controller.document.drafting?.objects ?? []).toEqual([]);
+});
+
 it.each([
   "instanceIds",
   "routeIds",

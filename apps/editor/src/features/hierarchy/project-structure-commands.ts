@@ -9,8 +9,8 @@ import {
   planRenameCell,
   planRenameCellTerminal,
   planSetCellTerminalSignal,
-  planReorderCellPort,
   planReorderCellTerminal,
+  planSwapCellPorts,
   planSetCellSymbolPresentation,
   planUpdateCellTerminalDirection,
   planUpdateCellPortDirection,
@@ -689,12 +689,18 @@ export function createProjectStructureCommands({
     }
   };
 
+  /** Swap a Port with another, as moving it up or down past it. */
   const moveCellPort = (
     portId: string,
-    delta: -1 | 1,
+    otherPortId: string,
     targetDocumentId = activeDocument.id,
   ): void => {
-    const edits = planReorderCellPort(project, targetDocumentId, portId, delta);
+    const edits = planSwapCellPorts(
+      project,
+      targetDocumentId,
+      portId,
+      otherPortId,
+    );
     if (edits.length === 0) return;
     if (commitStructure("reorder-cell-interface-port", edits)) {
       setStatus("Reordered formal port interface");

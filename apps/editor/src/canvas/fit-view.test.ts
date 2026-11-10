@@ -6,6 +6,8 @@ import {
   canvasInsetsFromOverlays,
   fitCameraToBounds,
   fitCameraToVisibleBounds,
+  focusCameraOnPoint,
+  insetsBesideFloatingWindow,
   normalizeCameraRect,
   panCameraByScreenPixels,
   zoomCameraAtAnchor,
@@ -202,6 +204,30 @@ describe("fit around floating panels", () => {
     ).toEqual({ left: 0, right: 0, top: 0, bottom: 0 });
   });
 
+  it("keeps the drawing out from under Project Info beside the docks (#2158)", () => {
+    const dock = { left: 0, right: 350, top: 0, bottom: 0 };
+    // Open with its picture, 12 px left of the open Properties dock.
+    expect(
+      insetsBesideFloatingWindow(canvas, dock, {
+        x: 30,
+        y: 430,
+        width: 368,
+        height: 420,
+      }),
+    ).toEqual({ ...dock, right: 730 });
+    // Moved away from that side, it is the person's to move.
+    expect(
+      insetsBesideFloatingWindow(canvas, dock, {
+        x: 20,
+        y: 430,
+        width: 300,
+        height: 420,
+      }),
+    ).toEqual(dock);
+    // Folded or closed, nothing is measured.
+    expect(insetsBesideFloatingWindow(canvas, dock, null)).toEqual(dock);
+  });
+
   it("centres the drawing in what is left, not under the panel", () => {
     const bounds = { x: 0, y: 0, width: 400, height: 400 };
     const camera = fitCameraToVisibleBounds(
@@ -218,6 +244,54 @@ describe("fit around floating panels", () => {
     const scale = 410 / 400;
     const centreOnScreen = (200 - camera.x) * scale;
     expect(centreOnScreen).toBeCloseTo(205, 0);
+  });
+
+  // A phone's open Properties dock: min(280px, the width beside the 56px rail).
+  it.each([320, 390, 430])(
+    "focuses a found part beside Properties on a %ipx phone (#2186)",
+    (width) => {
+      const viewport = { width, height: 700 };
+      const dock = Math.min(280, width - 56);
+      const point = { x: 1230, y: -470 };
+      const camera = focusCameraOnPoint(point, 10, {
+        viewport,
+        insets: { left: 0, right: dock, top: 0, bottom: 0 },
+      });
+      // Screen pixels through the SVG's xMidYMid meet mapping.
+      const scale = Math.min(width / camera.width, 700 / camera.height);
+      const offsetX = (width - camera.width * scale) / 2;
+      const offsetY = (700 - camera.height * scale) / 2;
+      const screen = (x: number, y: number) => ({
+        x: offsetX + (x - camera.x) * scale,
+        y: offsetY + (y - camera.y) * scale,
+      });
+      const visible = width - dock;
+      // The whole neighbourhood, part and labels, is left of the dock.
+      const topLeft = screen(point.x - 80, point.y - 60);
+      const bottomRight = screen(point.x + 80, point.y + 60);
+      expect(topLeft.x).toBeGreaterThanOrEqual(-scale * 5);
+      expect(bottomRight.x).toBeLessThanOrEqual(visible + scale * 5);
+      expect(topLeft.y).toBeGreaterThanOrEqual(0);
+      expect(bottomRight.y).toBeLessThanOrEqual(700);
+      // The part sits in the middle of that strip, not under the dock.
+      expect(screen(point.x, point.y).x).toBeCloseTo(visible / 2, -1);
+    },
+  );
+
+  it("focuses as before where nothing covers the canvas or it is unmeasured", () => {
+    const point = { x: 200, y: 100 };
+    expect(focusCameraOnPoint(point, 10, null)).toEqual({
+      x: 120,
+      y: 40,
+      width: 160,
+      height: 120,
+    });
+    // Unobscured, the 160 x 120 neighbourhood fills the height as meet did.
+    const camera = focusCameraOnPoint(point, 10, {
+      viewport: { width: 1200, height: 600 },
+      insets: { left: 0, right: 0, top: 0, bottom: 0 },
+    });
+    expect(camera).toEqual({ x: 80, y: 40, width: 240, height: 120 });
   });
 
   it("falls back to fitting the element when nothing is visible", () => {

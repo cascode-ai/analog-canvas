@@ -2,6 +2,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -9,12 +10,13 @@ import {
 
 import "../../styles/review-page.css";
 import "./reference-panel.css";
+import { canvasInsetsFromOverlays } from "../../canvas/fit-view";
 import type { SessionUser } from "../../components/account";
 import { MarkablePicture } from "../../components/review-picture";
 import { gallerySourceOfEntryId } from "../../gallery-sources";
 import { REFERENCE_SAVED, uploadReferenceImage } from "../../reference-image";
 import type { GalleryEntryContext } from "./gallery-example-commands";
-import type { OwnReferenceImage } from "./own-reference";
+import { REFERENCE_SHEET_QUERY, type OwnReferenceImage } from "./own-reference";
 
 /**
  * The figure a Gallery drawing was drawn from: a dataset's original figure,
@@ -22,11 +24,14 @@ import type { OwnReferenceImage } from "./own-reference";
  * has none (or the reader may not see it).
  */
 async function referenceOf(
-  id: string,
+  { id, hasReference }: Pick<GalleryEntryContext, "id" | "hasReference">,
   fetchLike: typeof fetch,
 ): Promise<{ blob: Blob; label: string | null } | null> {
   const source = gallerySourceOfEntryId(id);
   if (source && !source.comparisons) return null;
+  // A community entry that said it has no picture is not asked for one
+  // (#2163); one that did not say is.
+  if (!source && hasReference === false) return null;
   const response = await fetchLike(
     source
       ? `/api/gallery/sources/${source.key}/comparisons/${encodeURIComponent(id)}/figure`
@@ -126,13 +131,98 @@ function foldedOnScreen(box: Box): Box {
   return { ...kept, top: bottom - kept.height };
 }
 
-// Where the window was, whether it was folded and whether it showed only
-// the picture, kept across tabs and closing.
-const remembered: { box: Box | null; folded: boolean; pictureOnly: boolean } = {
+// Where the window was, whether it was folded (and whether the person
+// folded or unfolded it) and whether it showed only the picture, kept
+// across tabs and closing.
+const remembered: {
+  box: Box | null;
+  folded: boolean;
+  foldChosen: boolean;
+  /** The openings by hand already shown unfolded. */
+  openings: number;
+  pictureOnly: boolean;
+} = {
   box: null,
   folded: false,
+  foldChosen: false,
+  openings: 0,
   pictureOnly: false,
 };
+
+/** The canvas less the docks over its sides: where the window belongs. */
+function canvasArea(): {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+} {
+  const canvas = document
+    .querySelector('[data-testid="schematic-canvas"]')
+    ?.getBoundingClientRect();
+  if (!canvas || canvas.width <= 0 || canvas.height <= 0)
+    return {
+      left: 0,
+      top: 60,
+      right: window.innerWidth,
+      bottom: window.innerHeight - 40,
+      width: window.innerWidth,
+      height: window.innerHeight - 100,
+    };
+  const docks = [...document.querySelectorAll("[data-canvas-overlay]")]
+    .filter((dock) => getComputedStyle(dock).visibility !== "hidden")
+    .map((dock) => dock.getBoundingClientRect());
+  const insets = canvasInsetsFromOverlays(canvas, docks);
+  const left = canvas.left + insets.left;
+  const top = canvas.top + insets.top;
+  const right = canvas.right - insets.right;
+  const bottom = canvas.bottom - insets.bottom;
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
+const MARGIN = 12;
+
+/**
+ * A box moved off the docks beside the canvas, Properties above all, and
+ * narrowed if the canvas between them is narrower (#2158). A box already
+ * clear of them stays where it is.
+ */
+export function clearOfDocks(
+  box: Box,
+  area: { left: number; right: number },
+): Box {
+  const room = area.right - area.left - 2 * MARGIN;
+  const width = Math.max(MIN_WIDTH, Math.min(box.width, room));
+  let left = Math.min(box.left, area.right - MARGIN - width);
+  if (area.left + MARGIN + width <= area.right - MARGIN)
+    left = Math.max(left, area.left + MARGIN);
+  return left === box.left && width === box.width
+    ? box
+    : { ...box, left, width };
+}
+
+function subscribeSheet(listener: () => void): () => void {
+  const query = window.matchMedia?.(REFERENCE_SHEET_QUERY);
+  query?.addEventListener("change", listener);
+  return () => query?.removeEventListener("change", listener);
+}
+
+/** Whether the window is a sheet along the bottom, at phone widths. */
+function useSheet(): boolean {
+  return useSyncExternalStore(
+    subscribeSheet,
+    () => window.matchMedia?.(REFERENCE_SHEET_QUERY).matches ?? false,
+    () => false,
+  );
+}
 
 /**
  * A window floating over the editor: it moves by its title bar, resizes
@@ -143,40 +233,46 @@ const remembered: { box: Box | null; folded: boolean; pictureOnly: boolean } = {
 function ReferenceFloat({
   title,
   onClose,
+  shows,
+  openings,
   actions,
   children,
   footer,
 }: {
   title: string;
   onClose: () => void;
+  /**
+   * Whether there is something to see: a reference picture, or a review's
+   * details. Without one, until the person folds or unfolds it, the window
+   * shows only its title bar (#2158).
+   */
+  shows: boolean;
+  /** How often the person has asked for the window; each time it unfolds. */
+  openings: number;
   /** Buttons of the title bar, shown while the window is open. */
   actions?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
 }) {
-  const [folded, setFolded] = useState(remembered.folded);
+  const [folded, setFolded] = useState(() =>
+    openings > remembered.openings
+      ? false
+      : remembered.foldChosen
+        ? remembered.folded
+        : !shows,
+  );
   // At first in the canvas's bottom-right corner, clear of the side panels.
   const [box, setBox] = useState<Box>(() => {
+    const area = canvasArea();
     if (remembered.box)
-      return (remembered.folded ? foldedOnScreen : onScreen)(
-        inside(remembered.box),
+      return (folded ? foldedOnScreen : onScreen)(
+        clearOfDocks(inside(remembered.box), area),
       );
-    const canvas = document
-      .querySelector('[data-testid="schematic-canvas"]')
-      ?.getBoundingClientRect();
-    const area = canvas ?? {
-      left: 0,
-      top: 60,
-      right: window.innerWidth,
-      bottom: window.innerHeight - 40,
-      width: window.innerWidth,
-      height: window.innerHeight - 100,
-    };
     const width = Math.min(380, Math.max(MIN_WIDTH, area.width * 0.45));
     const height = Math.min(420, Math.max(MIN_HEIGHT, area.height - 24));
     return onScreen({
-      left: area.right - width - 12,
-      top: area.bottom - height - 12,
+      left: area.right - width - MARGIN,
+      top: area.bottom - height - MARGIN,
       width,
       height,
     });
@@ -185,6 +281,22 @@ function ReferenceFloat({
     remembered.box = box;
     remembered.folded = folded;
   }, [box, folded]);
+  // Asked for (File or the status bar), it shows what it holds, from then
+  // on as if the person had unfolded it.
+  useEffect(() => {
+    if (openings <= remembered.openings) return;
+    remembered.openings = openings;
+    remembered.foldChosen = true;
+    setBox((current) => onScreen(current));
+    setFolded(false);
+  }, [openings]);
+  // A picture arriving (a Gallery entry's, or one pasted) opens it, unless
+  // the person has folded or unfolded it.
+  useEffect(() => {
+    if (remembered.foldChosen || folded === !shows) return;
+    setBox((current) => (shows ? onScreen : foldedOnScreen)(current));
+    setFolded(!shows);
+  }, [shows, folded]);
   // A smaller browser window keeps it in view.
   const inView = folded ? foldedOnScreen : onScreen;
   useEffect(() => {
@@ -192,6 +304,18 @@ function ReferenceFloat({
     window.addEventListener("resize", keep);
     return () => window.removeEventListener("resize", keep);
   }, [inView]);
+  // Properties opening, or widening, moves it off the dock.
+  useEffect(() => {
+    const canvas = document.querySelector('[data-testid="schematic-canvas"]');
+    if (!canvas || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() =>
+      setBox((current) => clearOfDocks(current, canvasArea())),
+    );
+    observer.observe(canvas);
+    for (const dock of document.querySelectorAll("[data-canvas-overlay]"))
+      observer.observe(dock);
+    return () => observer.disconnect();
+  }, []);
   const resize = (edge: Edge) => (event: ReactPointerEvent<HTMLElement>) => {
     const from = box;
     follow(event, (dx, dy) => {
@@ -209,24 +333,33 @@ function ReferenceFloat({
       setBox(inView(next));
     });
   };
+  // At phone widths a sheet along the bottom, its full width: it neither
+  // moves nor resizes, and keeps its floating place for a wider window.
+  const sheet = useSheet();
   return (
     <div
-      className={`reference-panel${folded ? " folded" : ""}`}
+      className={`reference-panel${folded ? " folded" : ""}${sheet ? " sheet" : ""}`}
       data-testid="reference-panel"
+      // Open, Fit View keeps the drawing out from under it.
+      {...(folded || sheet ? {} : { "data-floating-window": "project-info" })}
       role="complementary"
       aria-label={title}
-      style={{
-        left: box.left,
-        width: box.width,
-        ...(folded
-          ? { bottom: window.innerHeight - (box.top + box.height) }
-          : { top: box.top, height: box.height }),
-      }}
+      style={
+        sheet
+          ? undefined
+          : {
+              left: box.left,
+              width: box.width,
+              ...(folded
+                ? { bottom: window.innerHeight - (box.top + box.height) }
+                : { top: box.top, height: box.height }),
+            }
+      }
     >
       <div
         className="reference-panel-head"
         onPointerDown={(event) => {
-          if ((event.target as HTMLElement).closest("button")) return;
+          if (sheet || (event.target as HTMLElement).closest("button")) return;
           const from = box;
           follow(event, (dx, dy) =>
             setBox(
@@ -242,6 +375,7 @@ function ReferenceFloat({
           title={folded ? "Show the window" : "Fold to the title bar"}
           aria-label={folded ? "Unfold" : "Fold"}
           onClick={() => {
+            remembered.foldChosen = true;
             setBox((current) => (folded ? onScreen : foldedOnScreen)(current));
             setFolded(!folded);
           }}
@@ -259,16 +393,16 @@ function ReferenceFloat({
       </div>
       {folded ? null : children}
       {folded ? null : footer}
-      {EDGES.filter((edge) => !folded || edge === "e" || edge === "w").map(
-        (edge) => (
+      {(sheet ? [] : EDGES)
+        .filter((edge) => !folded || edge === "e" || edge === "w")
+        .map((edge) => (
           <div
             key={edge}
             className={`reference-resize ${edge}`}
             aria-hidden="true"
             onPointerDown={resize(edge)}
           />
-        ),
-      )}
+        ))}
     </div>
   );
 }
@@ -295,6 +429,8 @@ export interface ReferenceWindowProps {
       }
     | undefined;
   open: boolean;
+  /** How often the person has asked for the window (File, status bar). */
+  openings?: number;
   onClose: () => void;
   /** The Gallery entry the drawing came from or was published as, if any. */
   entry: GalleryEntryContext | null;
@@ -306,8 +442,15 @@ export interface ReferenceWindowProps {
   onImage: (file: File) => void;
   /** Whether a paste may be the image (no text field or circuit takes it). */
   takesPaste: (event: ClipboardEvent) => boolean;
-  /** Saved: the editor keeps the name and description with the drawing. */
-  onSaved: (fields: { name: string; description: string }) => void;
+  /**
+   * Saved: the editor keeps the name and description with the drawing, and
+   * notes when the picture became the entry's reference image.
+   */
+  onSaved: (fields: {
+    name: string;
+    description: string;
+    referenceSaved: boolean;
+  }) => void;
   fetchLike?: typeof fetch;
 }
 
@@ -373,6 +516,7 @@ function ReviewFeedback({
  */
 export function ReferenceWindow({
   open,
+  openings = 0,
   onClose,
   entry,
   session,
@@ -409,7 +553,7 @@ export function ReferenceWindow({
     if (!entry) return;
     let cancelled = false;
     let url: string | null = null;
-    void referenceOf(entry.id, fetchLike).then((found) => {
+    void referenceOf(entry, fetchLike).then((found) => {
       if (cancelled) return;
       if (found) url = URL.createObjectURL(found.blob);
       setFigure(found && url ? { src: url, label: found.label } : null);
@@ -463,6 +607,7 @@ export function ReferenceWindow({
     }
     setBusy(true);
     setNote(null);
+    let referenceSaved = false;
     if (entry && textDirty) {
       const response = await fetchLike(
         `/api/gallery/${encodeURIComponent(entry.id)}`,
@@ -491,10 +636,11 @@ export function ReferenceWindow({
         return;
       }
       uploaded.add(image.file);
+      referenceSaved = true;
     }
     setBusy(false);
     setNote("Saved");
-    onSaved(savedAs);
+    onSaved({ ...savedAs, referenceSaved });
   }
 
   if (!open) return null;
@@ -523,6 +669,13 @@ export function ReferenceWindow({
     <ReferenceFloat
       title="Project Info"
       onClose={onClose}
+      openings={openings}
+      shows={
+        shown !== null ||
+        reviewFeedback !== undefined ||
+        localDelivery?.source !== undefined ||
+        localDelivery?.embeddedSource !== undefined
+      }
       actions={
         <button
           type="button"

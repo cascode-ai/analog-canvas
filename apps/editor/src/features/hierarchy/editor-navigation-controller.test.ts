@@ -9,7 +9,10 @@ import { buildSvgScene } from "@icm/render-svg";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
-import { fitCameraToVisibleBounds } from "../../canvas/fit-view";
+import {
+  fitCameraToVisibleBounds,
+  focusCameraOnPoint,
+} from "../../canvas/fit-view";
 import {
   createEditorNavigationController,
   type EditorNavigationControllerDependencies,
@@ -222,6 +225,60 @@ describe("editor navigation controller", () => {
 
     expect(input.selectOnly).toHaveBeenCalledWith("instance", ["R1"]);
     expect(input.closeSearch).toHaveBeenCalledOnce();
+  });
+
+  it("frames a found part again once the Properties it opens is drawn (#2186)", () => {
+    const phone = (dock: number) => ({
+      viewport: { width: 390, height: 700 },
+      insets: { left: 0, right: dock, top: 0, bottom: 0 },
+    });
+    const point = { x: 400, y: 300 };
+    const result = {
+      locator: {
+        documentId: "",
+        hierarchyPath: [],
+        kind: "instance" as const,
+        objectId: "R1",
+      },
+      label: "R1",
+      field: "instance-id" as const,
+      matchType: "exact" as const,
+    };
+    const setUp = (selectionOpen: boolean) => {
+      const input = dependencies();
+      input.document.instances[0]!.placement = {
+        position: point,
+        rotation: 0,
+        mirror: "none",
+      };
+      result.locator.documentId = input.document.id;
+      let measured = phone(selectionOpen ? 280 : 40);
+      input.measureCanvasView = () => measured;
+      input.selectionOpen = selectionOpen;
+      input.onFocusBeforeDock = vi.fn();
+      input.setSelectionOpen = vi.fn(() => {
+        measured = phone(280);
+      });
+      createEditorNavigationController(input).selectSearchResult(result);
+      return input;
+    };
+    // Closed: framed beside the collapsed shelf, then again beside the dock.
+    const closed = setUp(false);
+    const grid = closed.document.presentation.grid;
+    const besideDock = focusCameraOnPoint(point, grid, phone(280));
+    expect(closed.setSelectionOpen).toHaveBeenCalledWith(true);
+    expect(closed.setViewBox).toHaveBeenLastCalledWith(
+      focusCameraOnPoint(point, grid, phone(40)),
+      grid,
+    );
+    const frameAgain = vi.mocked(closed.onFocusBeforeDock!).mock.calls[0]![0];
+    frameAgain();
+    expect(closed.setViewBox).toHaveBeenLastCalledWith(besideDock, grid);
+
+    // Already open: framed beside the dock at once, nothing to do later.
+    const open = setUp(true);
+    expect(open.setViewBox).toHaveBeenLastCalledWith(besideDock, grid);
+    expect(open.onFocusBeforeDock).not.toHaveBeenCalled();
   });
 
   it("owns Net highlight activation and clearing", () => {

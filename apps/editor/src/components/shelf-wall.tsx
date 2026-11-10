@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 import { InlineConfirm } from "./inline-confirm";
 import { ProjectConflicts } from "./project-conflicts";
+import { readSessionUser } from "./account";
 
 import {
   CLOUD_PROJECT_LIMIT,
@@ -249,9 +250,17 @@ export function ShelfWall() {
 
   const refresh = useCallback(() => {
     let cancelled = false;
-    void loadShelf().then((next) => {
-      if (!cancelled) setState(next);
-    });
+    // A reader the page knows is signed out has no shelf to ask for: the
+    // sign-in prompt shows at once (#2163).
+    void readSessionUser()
+      .then((session): Promise<ShelfState> | ShelfState =>
+        session.available && !session.user
+          ? { status: "signed-out" }
+          : loadShelf(),
+      )
+      .then((next) => {
+        if (!cancelled) setState(next);
+      });
     return () => {
       cancelled = true;
     };

@@ -340,9 +340,37 @@
   cursor: nwse-resize;
 }
 
-/* A phone's screen is the drawing's. */
-@media (max-width: 640px) {
-  .reference-panel {
-    display: none;
-  }
+/* At phone widths a sheet along the bottom, its full width, opened from File
+   or the status bar (#2151). */
+.reference-panel.sheet {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: min(75dvh, 560px);
+  border-width: 1px 0 0;
+  border-radius: var(--icm-radius-lg) var(--icm-radius-lg) 0 0;
+  box-shadow: 0 -8px 24px rgb(0 0 0 / 18%);
+}
+
+.reference-panel.sheet.folded {
+  height: auto;
+}
+
+.reference-panel.sheet .reference-panel-head {
+  padding-block: 8px;
+  cursor: default;
+  touch-action: auto;
+}
+
+/* Finger-sized buttons. */
+.reference-panel.sheet .reference-panel-head button {
+  width: 36px;
+  height: 32px;
+  font-size: 16px;
+}
+
+/* 16 px keeps a phone from zooming in on the field it focuses. */
+.reference-panel.sheet .reference-name,
+.reference-panel.sheet .reference-description {
+  font-size: 16px;
 }

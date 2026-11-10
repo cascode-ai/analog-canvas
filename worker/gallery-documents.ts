@@ -4,6 +4,7 @@
 import { parseProject } from "@icm/project-protocol";
 import { type GalleryEntrySummary, type GalleryEnv } from "./gallery-store";
 import { callGallery } from "./gallery-requests";
+import { galleryEntryIdOfPath } from "../apps/editor/src/page-routes";
 
 interface PublicGalleryCatalog {
   entries: GalleryEntrySummary[];
@@ -321,9 +322,9 @@ export async function galleryReadableDocument(
     const catalog = await publicGalleryCatalog(env);
     return catalog ? catalogDocument(request, catalog) : null;
   }
-  const match = /^\/g\/([A-Za-z0-9-]{1,64})\/?$/u.exec(url.pathname);
-  if (!match) return null;
-  const stored = await publicGalleryEntry(env, match[1]!);
+  const entryId = galleryEntryIdOfPath(url.pathname);
+  if (!entryId) return null;
+  const stored = await publicGalleryEntry(env, entryId);
   if (!stored) return null;
   try {
     return entryDocument(request, stored);
