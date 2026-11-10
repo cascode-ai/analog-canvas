@@ -15,6 +15,7 @@ import { galleryPreviewUrl } from "../gallery-client";
 import { galleryDateLabel } from "../gallery-date";
 import { openEditorOnPhone } from "../phone-viewing";
 import { GalleryChrome } from "./gallery-chrome";
+import { GalleryEntryMissing } from "./missing-page";
 
 export interface PhoneEntry {
   id: string;
@@ -155,6 +156,7 @@ export function PhoneCircuitView({
 type PageState =
   | { status: "loading" }
   | { status: "ready"; entry: PhoneEntry }
+  | { status: "missing" }
   | { status: "message"; message: string };
 
 /** What /g/<id> shows on a phone. */
@@ -177,15 +179,15 @@ export function PhoneCircuitPage({
     void fetch(`/api/gallery/${encodeURIComponent(entryId)}?summary=1`, {
       credentials: "same-origin",
     })
-      .then(async (response) => {
+      .then(async (response): Promise<PageState> => {
+        // The same page a computer shows (#2159).
+        if (response.status === 404) return { status: "missing" };
         const message =
           response.status === 401
             ? "Sign in to see this circuit."
-            : response.status === 404
-              ? "This circuit is not in the Gallery."
-              : !response.ok
-                ? "The circuit could not be loaded. Try again later."
-                : null;
+            : !response.ok
+              ? "The circuit could not be loaded. Try again later."
+              : null;
         if (message) return { status: "message" as const, message };
         const body = (await response.json()) as { entry?: PhoneEntry };
         return body.entry
@@ -207,6 +209,8 @@ export function PhoneCircuitPage({
     };
   }, [entryId]);
   if (!entryId) return <PhoneEditorNotice visitStats={visitStats} />;
+  if (state.status === "missing")
+    return <GalleryEntryMissing visitStats={visitStats} />;
   const showNetlist = () => {
     setNetlist({ status: "loading" });
     void fetch(`/api/gallery/${encodeURIComponent(entryId)}?netlist=spice`, {

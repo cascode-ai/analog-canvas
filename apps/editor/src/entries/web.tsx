@@ -33,6 +33,11 @@ import { localhostExamplesEnabled } from "../gallery-source";
 import { arenaEntryRedirect } from "../arena-entry-address";
 import { saveAfterSignInRedirect } from "../document/save-after-sign-in";
 import { isPhoneViewing } from "../phone-viewing";
+import { galleryEntryIdOfPath, isEditorPath } from "../page-routes";
+import {
+  GalleryEntryGate,
+  galleryEntryPresence,
+} from "../components/gallery-entry-gate";
 
 export function mountWebEditor() {
   // A Schematic Arena "Draw it yourself" link opens its drawing in the
@@ -70,11 +75,8 @@ export function mountWebEditor() {
     })),
   );
   const startPath = window.location.pathname;
-  // `/editor` and `/g/<id>`: every path no other page claims.
-  const editorRoute =
-    !/^\/(?:analytics|moderation|privacy|changelog|account|mine|datasets|review)?\/?$/.test(
-      startPath,
-    );
+  // `/editor` and `/g/<id>`; a path no page serves is none of them (#2159).
+  const editorRoute = isEditorPath(startPath);
   // Unpaired Gallery visitors must not download the Editor/Agent runtime.
   // The editor routes load it with the editor; /privacy and a recovered
   // Agent session hold it above the page.
@@ -262,11 +264,29 @@ export function mountWebEditor() {
     ),
   );
 
-  /** `/` is the gallery, `/editor` the editor, `/g/<id>` one gallery entry. */
-  function galleryEntryIdOf(path: string): string | null {
-    const match = /^\/g\/([A-Za-z0-9-]{1,64})\/?$/.exec(path);
-    return match ? match[1]! : null;
-  }
+  const GalleryEntryMissing = lazy(
+    guardedRouteChunk(() =>
+      import("../components/missing-page").then((module) => ({
+        default: module.GalleryEntryMissing,
+      })),
+    ),
+  );
+
+  const PageNotFound = lazy(
+    guardedRouteChunk(() =>
+      import("../components/missing-page").then((module) => ({
+        default: module.PageNotFound,
+      })),
+    ),
+  );
+
+  // A `/g/<id>` link on a computer asks, beside the editor's download,
+  // whether the Gallery holds that circuit (#2159).
+  const startEntryId = galleryEntryIdOfPath(startPath);
+  const startEntryPresence =
+    startEntryId && !isPhoneViewing()
+      ? galleryEntryPresence(fetch, startEntryId)
+      : null;
 
   function Root() {
     const path = window.location.pathname;
@@ -374,26 +394,45 @@ export function mountWebEditor() {
         </Suspense>
       );
     }
+    // Every other path is no page: the Worker answers it with 404 first,
+    // so this shows only where no Worker runs (#2159).
+    if (!editorRoute)
+      return (
+        <Suspense fallback={<div className="analytics-loading">Loading…</div>}>
+          <PageNotFound visitStats={stats} />
+        </Suspense>
+      );
     if (isPhoneViewing())
       return (
         <Suspense fallback={<div className="analytics-loading">Loading…</div>}>
           <PhoneCircuitPage
-            entryId={galleryEntryIdOf(path)}
+            entryId={galleryEntryIdOfPath(path)}
             visitStats={stats}
           />
         </Suspense>
       );
     return (
-      <Suspense
-        fallback={<div className="analytics-loading">Loading editor…</div>}
+      <GalleryEntryGate
+        presence={startEntryPresence}
+        missing={
+          <Suspense
+            fallback={<div className="analytics-loading">Loading…</div>}
+          >
+            <GalleryEntryMissing visitStats={stats} />
+          </Suspense>
+        }
       >
-        <AccountStatePreload value={initialAccountState}>
-          <EditorWorkspace
-            visitStats={stats}
-            initialGalleryEntryId={galleryEntryIdOf(path)}
-          />
-        </AccountStatePreload>
-      </Suspense>
+        <Suspense
+          fallback={<div className="analytics-loading">Loading editor…</div>}
+        >
+          <AccountStatePreload value={initialAccountState}>
+            <EditorWorkspace
+              visitStats={stats}
+              initialGalleryEntryId={galleryEntryIdOfPath(path)}
+            />
+          </AccountStatePreload>
+        </Suspense>
+      </GalleryEntryGate>
     );
   }
 

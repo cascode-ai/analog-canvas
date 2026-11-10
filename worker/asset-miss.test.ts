@@ -17,7 +17,8 @@ import workerEntry from "./index";
  * The stub is written from that measurement rather than from the docs, and
  * the live curl after deploying is still the evidence that settles it.
  */
-const SHELL = "<!doctype html><title>Analog Canvas</title>";
+const SHELL =
+  '<!doctype html><title>Analog Canvas</title><div id="root"></div>';
 
 function envWithAssets(files: Record<string, string>) {
   return {
@@ -46,6 +47,7 @@ function envWithAssets(files: Record<string, string>) {
 const env = envWithAssets({
   "/index.html": SHELL,
   "/assets/App-real123.js": "export const ok = true;",
+  "/office/taskpane.html": "<!doctype html><title>Analog Canvas add-in</title>",
 });
 
 const get = (path: string) =>
@@ -78,15 +80,59 @@ describe("a chunk name that no longer exists", () => {
 describe("client routes keep the shell", () => {
   // The other half of the boundary, and the half the earlier attempt broke:
   // these paths never had a file behind them, so their miss IS the shell.
-  it.each(["/editor", "/g/abc123", "/"])(
-    "%s renders the shell",
-    async (path) => {
-      const response = await get(path);
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toContain("text/html");
-      expect(await response.text()).toContain("doctype");
-    },
-  );
+  it.each([
+    "/editor",
+    "/editor/",
+    "/g/abc123",
+    "/g/ag-308/",
+    "/",
+    "/datasets",
+    "/review",
+    "/account",
+    "/mine",
+    "/privacy",
+    "/changelog",
+    "/moderation",
+    "/analytics",
+  ])("%s renders the shell", async (path) => {
+    const response = await get(path);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(await response.text()).toContain('<div id="root"></div>');
+  });
+
+  it("serves a real HTML file, as the PowerPoint add-in's", async () => {
+    const response = await get("/office/taskpane.html");
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain("add-in");
+  });
+});
+
+describe("a path no page serves (#2159)", () => {
+  it.each([
+    "/no-such-page",
+    "/favicon.ico",
+    "/editor/extra",
+    "/g/not_an_id",
+    "/g/abc123/extra",
+  ])("%s answers 404 with a page home, not the app", async (path) => {
+    const response = await get(path);
+    expect(response.status).toBe(404);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    const page = await response.text();
+    expect(page).toContain('<a href="/">Back to the Gallery</a>');
+    expect(page).not.toContain('<div id="root"></div>');
+  });
+
+  it("answers HEAD alike, without a body", async () => {
+    const response = await workerEntry.fetch(
+      new Request("https://example.test/no-such-page", { method: "HEAD" }),
+      env,
+    );
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("");
+  });
 });
 
 describe("hashed asset HTTP caching", () => {

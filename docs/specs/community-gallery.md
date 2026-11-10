@@ -156,6 +156,12 @@ entries, keyset cursor, limit ≤60.
 
 - `/` is the feed; `/g/<id>` opens an entry through the protocol boundary;
   `/editor?example=<id>` is loopback-only. Insert (G) reads the same list.
+- `/g/<id>` for an entry the reader cannot read (withdrawn, rejected or
+  never there; `?summary=1` answers 404) shows "This circuit is not in the
+  Gallery." with Back to the Gallery, on a computer as on a phone, and opens
+  no editor. The pages the app serves are listed in
+  `apps/editor/src/page-routes.ts`; the Worker answers any other path (not
+  `/api/*`, a file or a Worker page) with 404 and a small page home.
 - Hosted Production/preview always uses Gallery, never bundled examples;
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.

@@ -47,11 +47,11 @@
     "binding": "ASSETS",
     "directory": "./apps/editor/dist",
     // A path under /assets/ names a content-hashed file: the name is a
-    // promise about the bytes, so a miss is a miss and must say 404. Every
-    // other path is a client route with no file behind it, and its miss is
-    // the shell. The Worker sees /assets/* in order to tell those two apart,
-    // because the asset layer alone answers both with the shell and a
-    // browser expecting JavaScript gets HTML at status 200.
+    // promise about the bytes, so a miss is a miss and must say 404. Any
+    // other miss is the shell, which the Worker keeps for the app's pages
+    // and turns into 404 for a path no page serves. The asset layer alone
+    // answers every miss with the shell at status 200, so a browser
+    // expecting JavaScript would get HTML.
     "not_found_handling": "single-page-application",
     "run_worker_first": [
       "/api/*",
@@ -74,6 +74,11 @@
       // Chip Arena's visitor statistics on chip-arena.com, forwarded there;
       // on Analog Canvas's host the Worker hands it back to the assets.
       "/analytics",
+      // Every other path too: the asset layer answers a path with no file
+      // with the app shell at 200, and only the Worker can tell a page the
+      // app serves (apps/editor/src/page-routes.ts) from a path no page
+      // serves, which it answers 404 (#2159).
+      "/*",
     ],
   },
   // AnalogArena (Arcadia-1/chip-arena) has no route of its own: this
