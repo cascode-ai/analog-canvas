@@ -46,7 +46,11 @@ import {
   updateTextEditingSession,
 } from "../text-editing/text-editing";
 import type { TextEditingSession } from "../text-editing/text-editing";
-import { prepareNetLabelDraft } from "../text-editing/net-label-draft";
+import {
+  placedNetLabelDraft,
+  prepareNetLabelDraft,
+  type PreparedNetLabel,
+} from "../text-editing/net-label-draft";
 import { planElectricalMarkerName } from "./electrical-marker-name";
 import { planNetLabelAlias } from "./group-naming";
 import type { NetLabelPlacementTarget } from "../wiring/route-interaction-geometry";
@@ -216,6 +220,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     position: Point;
     target: NetLabelPlacementTarget | null;
     commitAfterNaming: boolean;
+    /** The name and look Apply fixed; placing keeps them. */
+    applied?: PreparedNetLabel;
     /** Set once R turns the label; until then it takes its wire's look. */
     direction?: NetLabelDirection;
   } | null>(null);
@@ -864,8 +870,8 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       options.setStatus("The target wire is no longer available");
       return false;
     }
-    const prepared = prepareNetLabelDraft(
-      placement.content,
+    const prepared = placedNetLabelDraft(
+      placement,
       options.document.presentation,
     );
     const existingLabel = options.netLabelForRoute(route);
@@ -900,6 +906,7 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     const ready = {
       ...netLabelPlacement,
       content: prepared.content,
+      applied: prepared,
       phase: "placing" as const,
     };
     if (ready.commitAfterNaming && ready.target) {
