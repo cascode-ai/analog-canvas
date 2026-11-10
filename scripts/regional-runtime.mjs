@@ -88,7 +88,10 @@ export function classify(wrangler, region) {
       );
   }
   for (const bucket of wrangler.r2_buckets ?? [])
-    if (!region.buckets?.[bucket.binding])
+    if (
+      !region.buckets?.[bucket.binding] &&
+      !(`r2_buckets.${bucket.binding}` in excluded)
+    )
       problems.push(`R2 bucket ${bucket.binding} has no regional storage`);
   for (const [name, operator] of Object.entries(region.upstreams ?? {})) {
     if (!(name in (wrangler.vars ?? {})))
@@ -143,9 +146,10 @@ export function renderConfig(wrangler, region) {
       `(name = ${quote(name)}, durableObjectNamespace = ${quote(className)}),`,
     );
   for (const bucket of wrangler.r2_buckets ?? [])
-    add(
-      `(name = ${quote(bucket.binding)}, r2Bucket = ${quote(region.buckets[bucket.binding])}),`,
-    );
+    if (region.buckets?.[bucket.binding])
+      add(
+        `(name = ${quote(bucket.binding)}, r2Bucket = ${quote(region.buckets[bucket.binding])}),`,
+      );
   add(`(name = "ASSETS", service = "assets"),`);
   for (const [name, value] of Object.entries(wrangler.vars ?? {})) {
     const operator = region.upstreams?.[name];

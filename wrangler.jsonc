@@ -124,6 +124,10 @@
   },
   "r2_buckets": [
     {
+      "binding": "REGIONAL_RELEASES",
+      "bucket_name": "analog-canvas-regional-releases",
+    },
+    {
       "binding": "SIMULATION_ARTIFACTS",
       "bucket_name": "analog-canvas-simulation-artifacts-production",
     },

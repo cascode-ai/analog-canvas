@@ -56,6 +56,17 @@ describe("retired Preview data boundary", () => {
 });
 
 describe("Cloudflare deploy workflow", () => {
+  it("publishes regional approval only after all live checks, using the protected CI credential", () => {
+    const approval = step("Publish regional verification receipt");
+    expect(workflow.indexOf(approval)).toBeGreaterThan(
+      workflow.indexOf("node scripts/deployment-candidate.mjs verify-live"),
+    );
+    expect(approval).toContain("steps.verify.outcome == 'success'");
+    expect(approval).toContain("regional-verification.mjs");
+    expect(approval).toContain("r2 object put");
+    expect(approval).toContain("--remote");
+    expect(approval).toContain("secrets.CLOUDFLARE_API_TOKEN");
+  });
   it("sends this deploy's simulation check credential only when it has one", () => {
     expect(simulationSmokeHeaders({ SIMULATION_SMOKE_TOKEN: "this" })).toEqual({
       "content-type": "application/json",
