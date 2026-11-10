@@ -48,7 +48,10 @@ export default {
         { scheduledTime: Date.now(), cron: "regional-timer" },
         { ...base, PROJECTS: undefined } as unknown as Env,
       );
-      return Response.json({ status: "ran" }, { headers: { "cache-control": "no-store" } });
+      return Response.json(
+        { status: "ran" },
+        { headers: { "cache-control": "no-store" } },
+      );
     }
     const env: Env = {
       ...base,
@@ -78,6 +81,8 @@ export default {
       );
       // The destination owns Host; browser Origin and cookies stay unchanged.
       upstream.headers.delete("host");
+      // This is an internal rate-limit address, not a Cloudflare edge request.
+      upstream.headers.delete("cf-connecting-ip");
       try {
         return await fetch(upstream, {
           redirect: "manual",

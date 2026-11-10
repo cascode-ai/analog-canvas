@@ -51,6 +51,9 @@ function proxyEnvironment() {
     expect(request.redirect).toBe("manual");
     expect(new URL(request.url).origin).toBe(transport);
     requests.push(request.clone());
+    // Cloudflare rejects client-supplied CF-Connecting-IP before the authority.
+    if (request.headers.has("cf-connecting-ip"))
+      return new Response("error code: 1000", { status: 403 });
     return source.authDurable.fetch(request);
   });
   return { source, target, requests };
@@ -69,7 +72,7 @@ it("hands off through the fixed authority while keeping the shared browser origi
   expect(authorizeUrl.origin).toBe(ORIGIN);
   const authorized = await entry.fetch(
     new Request(authorizeUrl, {
-      headers: { Cookie: overseasCookie },
+      headers: { Cookie: overseasCookie, "X-Real-IP": "203.0.113.7" },
     }),
     target,
   );
