@@ -928,9 +928,13 @@ test("netlist filter scopes the category and tag counts from a link on, and igno
   holdFull = true;
   await toggle.click();
   const held = await heldRequest;
-  await expect(categoryCount("Amplifiers")).toHaveText("…");
-  await expect(amplifierCount).toHaveText("…");
+  // Meanwhile the last counts stay, dimmed (#2160).
+  const tagGroups = sidebar.locator(".gallery-tag-groups");
+  await expect(tagGroups).toHaveAttribute("aria-busy", "true");
+  await expect(categoryCount("Amplifiers")).toHaveText("1");
+  await expect(amplifierCount).toHaveText("1");
   await toggle.click();
+  await expect(tagGroups).toHaveAttribute("aria-busy", "false");
   await expect(categoryCount("Amplifiers")).toHaveText("1");
   const lateResponse = page.waitForResponse((response) =>
     response.url().endsWith("/api/gallery/tags"),
