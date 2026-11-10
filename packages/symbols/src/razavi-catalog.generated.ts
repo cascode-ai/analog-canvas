@@ -1192,6 +1192,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "microphone",
+    name: "Microphone",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A microphone does not appear on the reviewed page; it is drawn as textbooks draw it, a circle with a bar along one side, its leads leaving the bar's ends on the Independent Voltage Source's pins with the same polarity marks.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE V card does not say the source is a microphone, so an imported V card keeps the circular voltage source.",
+    assetPath: "microphone.json",
+    assetHash:
+      "0f2809eb08b91e7a2f06be9d99d845b0a3ce69007b8e74700c30764088b54fb1",
+  },
+  {
     symbolId: "nand-gate",
     name: "NAND Gate",
     category: "logic",
@@ -9652,6 +9669,162 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 20,
           y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "microphone",
+    name: "Microphone",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 44,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 8,
+          y: 0,
+        },
+        radius: 8,
+        part: "capsule",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10,
+        },
+        to: {
+          x: 0,
+          y: 10,
+        },
+        part: "diaphragm",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.058139,
+          y: -14.534884,
+        },
+        to: {
+          x: -11.918605,
+          y: -14.534884,
+        },
+        part: "upright-polarity-positive-horizontal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -15.988372,
+          y: -18.604651,
+        },
+        to: {
+          x: -15.988372,
+          y: -10.465117,
+        },
+        part: "upright-polarity-positive-vertical",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.058139,
+          y: 13.372093,
+        },
+        to: {
+          x: -11.918605,
+          y: 13.372093,
+        },
+        part: "upright-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10,
+        },
+        to: {
+          x: 0,
+          y: 20,
         },
         style: {
           strokeRole: "normal",

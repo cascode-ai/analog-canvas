@@ -59,6 +59,7 @@ export function symbolCategory(symbolId: string): string {
       "xfmr",
       "crystal",
       "speaker",
+      "microphone",
     ].includes(symbolId)
   ) {
     return EXTENDED_DEVICE_CATEGORY;
@@ -221,6 +222,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "A solid bias-voltage port, typically used for VB-style bias nodes",
   led: "Light-emitting or laser diode — electrically the Diode",
   speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",
+  microphone:
+    "Microphone — electrically an independent voltage source (DC, AC, SIN…)",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -305,6 +308,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "xfmr",
   "crystal",
   "speaker",
+  "microphone",
   "depletion-nmos",
   "depletion-pmos",
   "ndmos",

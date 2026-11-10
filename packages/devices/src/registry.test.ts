@@ -199,6 +199,17 @@ describe("built-in device registry", () => {
     );
   });
 
+  it("gives the Microphone the voltage-source contract, V-prefixed", () => {
+    expect(deviceDescriptor("microphone")).toEqual({
+      ...deviceDescriptor("voltage-source"),
+      id: "microphone",
+      symbolId: "microphone",
+    });
+    expect(referencePolicyForSymbol("microphone")).toEqual(
+      referencePolicyForSymbol("voltage-source"),
+    );
+  });
+
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
     expect(builtInSubcircuitDescriptors).toHaveLength(69);
     expect(

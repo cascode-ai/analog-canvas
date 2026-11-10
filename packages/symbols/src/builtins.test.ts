@@ -43,6 +43,7 @@ const PRODUCT_IDS = [
   "xfmr",
   "center-tap-inductor",
   "inverter",
+  "microphone",
   "nand-gate",
   "nmos",
   "nor-gate",
