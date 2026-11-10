@@ -1,6 +1,6 @@
 import { createPublicKey, verify } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { browserLaunchProofText } from "@icm/agent-adapter/browser-launch";
 import { expect, it } from "vitest";
@@ -18,6 +18,8 @@ it("reuses the installation key when launch proofs race and binds each signature
       browserDeviceProof(path, origin, next),
     ]);
     expect(second.publicKey).toBe(first.publicKey);
+    // Settings and the approval page name the installation by its host.
+    expect(first.name?.startsWith(`${hostname()} (`)).toBe(true);
     const publicKey = createPublicKey({
       key: { kty: "OKP", crv: "Ed25519", x: first.publicKey },
       format: "jwk",

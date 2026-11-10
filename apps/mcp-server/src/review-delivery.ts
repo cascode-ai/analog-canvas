@@ -8,7 +8,7 @@ import {
   type LocalReviewDeliveryArgsSchema,
   type ReviewSourceFiles,
 } from "@icm/agent-adapter";
-import type { AgentSessionClient } from "@icm/agent-client";
+import { AgentSessionError, type AgentSessionClient } from "@icm/agent-client";
 import type { z } from "zod";
 import { requestFailure, sha256 } from "./local-source.js";
 
@@ -20,12 +20,27 @@ export async function reviewDelivery(
   const request = async (
     input: Extract<AgentFileResourceRequest, { operation: "review" }>["input"],
   ) => {
-    const response = await client.fileResource({
-      apiVersion: AGENT_API_VERSION,
-      requestId: `review-${randomUUID()}`,
-      operation: "review",
-      input,
+    const send = () =>
+      client.fileResource({
+        apiVersion: AGENT_API_VERSION,
+        requestId: `review-${randomUUID()}`,
+        operation: "review",
+        input,
+      });
+    // A delivery opened in the foreground of a Claim-paired tab publishes a
+    // new context. The refusal ran nothing, and the client has refreshed.
+    const first = await send().catch((error: unknown) => {
+      if (
+        error instanceof AgentSessionError &&
+        error.code === "PROJECT_CONTEXT_STALE"
+      )
+        return null;
+      throw error;
     });
+    const response =
+      !first || (!first.ok && first.error.code === "PROJECT_CONTEXT_STALE")
+        ? await send()
+        : first;
     if (
       !response.ok ||
       response.operation !== "review" ||

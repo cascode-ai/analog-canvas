@@ -8,6 +8,8 @@ export const DEVICE_TRUST_PATH = "/api/agent/trusted-devices";
 export interface BrowserLaunchDeviceProof {
   publicKey: string;
   signature: string;
+  /** How the approval page and Settings name the installation; unsigned. */
+  name?: string;
 }
 
 export function browserLaunchProofText(

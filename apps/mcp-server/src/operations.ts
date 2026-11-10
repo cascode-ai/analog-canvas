@@ -100,7 +100,15 @@ import {
 type ToolSessionState = OperationSession;
 
 const TaskRef = z.uuid().describe("Task reference returned by open_canvas.");
-const OpenCanvasArgs = z.strictObject({ taskRef: TaskRef.optional() });
+const OpenCanvasArgs = z.strictObject({
+  taskRef: TaskRef.optional(),
+  approval: z
+    .literal("once")
+    .optional()
+    .describe(
+      "Have the user approve this task in the browser even on a trusted device, so it acts with the signed-in account.",
+    ),
+});
 
 const ConnectArgs = z.strictObject({
   claimCode: z
@@ -772,13 +780,13 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       },
     },
     handle: async (args, session) => {
-      const { taskRef } = OpenCanvasArgs.parse(args);
+      const { taskRef, approval } = OpenCanvasArgs.parse(args);
       if (!session.webTasks)
         throw new CanvasTaskError(
           "CANVAS_TASK_UNAVAILABLE",
           "Automatic browser launch needs a running Web MCP server.",
         );
-      return session.webTasks.open(taskRef);
+      return session.webTasks.open(taskRef, approval);
     },
   },
   {
@@ -1471,17 +1479,15 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       },
     },
     handle: async (args, session) => {
-      const parsed = LocalReviewDeliveryArgsSchema.parse(args);
-      if (!session.taskRef)
-        throw new AgentSessionError(
-          "WORKSPACE_TASK_REQUIRED",
-          "Open a dedicated Canvas task before delivering a review",
-          "request-rejected",
-        );
-      return {
-        ...(await reviewDelivery(session.client, parsed)),
-        taskRef: session.taskRef,
-      };
+      // Canvas answers only in the tab that holds the delivered copy, for a
+      // Web task and a Claim-paired tab alike.
+      const receipt = await reviewDelivery(
+        session.client,
+        LocalReviewDeliveryArgsSchema.parse(args),
+      );
+      return session.taskRef
+        ? { ...receipt, taskRef: session.taskRef }
+        : receipt;
     },
   },
   {

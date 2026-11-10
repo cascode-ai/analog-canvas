@@ -6,11 +6,18 @@ import {
   sign,
 } from "node:crypto";
 import { link, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { hostname } from "node:os";
 import { dirname } from "node:path";
 import {
   browserLaunchProofText,
   type BrowserLaunchDeviceProof,
 } from "@icm/agent-adapter/browser-launch";
+
+const SYSTEMS: Partial<Record<NodeJS.Platform, string>> = {
+  darwin: "macOS",
+  linux: "Linux",
+  win32: "Windows",
+};
 
 async function loadDeviceKey(path: string) {
   try {
@@ -58,8 +65,10 @@ export async function browserDeviceProof(
     launch.sessionId,
     launch.launchGrant,
   );
+  const system = SYSTEMS[process.platform] ?? process.platform;
   return {
     publicKey,
     signature: sign(null, Buffer.from(message), key).toString("base64url"),
+    name: `${hostname()} (${system})`,
   };
 }
