@@ -22,6 +22,7 @@ import type { CellInsertCandidate } from "../features/component-insert/insert-co
 import { fullInsertLaunch } from "../features/component-insert/insert-launch";
 import type { createEditorFileCommands } from "../features/editor-shell/editor-file-commands";
 import { openOwnReference } from "../features/editor-shell/own-reference";
+import type { DiscardableDraft } from "../features/editor-shell/edit-blockers";
 import { ProjectTabs } from "../features/editor-shell/project-tabs";
 import type { useEditorPanels } from "../features/editor-shell/use-editor-panels";
 import type { createEditorNavigationController } from "../features/hierarchy/editor-navigation-controller";
@@ -167,6 +168,8 @@ export function EditorMenuBar({
   createTabSession,
   projectTabs,
   discardableSwitchHold,
+  discardHeldCodeDrafts,
+  showProjectPanel,
   recentNativeFiles,
   nativeBusy,
   setNativeBusy,
@@ -266,6 +269,8 @@ export function EditorMenuBar({
   createTabSession: ProjectTabSessions["createTabSession"];
   projectTabs: ProjectTabSessions["projectTabs"];
   discardableSwitchHold: ProjectTabSessions["discardableSwitchHold"];
+  discardHeldCodeDrafts: (drafts: readonly DiscardableDraft[]) => void;
+  showProjectPanel: (mode: EditorProjectPanelMode) => void;
   recentNativeFiles: NativeProjectTabs["recentNativeFiles"];
   nativeBusy: NativeProjectTabs["nativeBusy"];
   setNativeBusy: NativeProjectTabs["setNativeBusy"];
@@ -348,25 +353,37 @@ export function EditorMenuBar({
               }
               onSelect={projectTabs.select}
               heldBy={() => {
-                const reason = discardableSwitchHold();
-                return reason
-                  ? {
-                      reason,
-                      // Closing the panel drops its draft (#2180).
-                      discard: () =>
-                        flushSync(() => setDocumentSettingsOpen(false)),
-                      resume: () => {
-                        setSelectionOpen(true);
-                        requestAnimationFrame(() =>
-                          window.document
-                            .querySelector<HTMLElement>(
-                              '[data-testid="document-settings-code-editor"] [contenteditable="true"]',
-                            )
-                            ?.focus(),
-                        );
-                      },
+                const hold = discardableSwitchHold();
+                if (!hold) return null;
+                const { reason, drafts } = hold;
+                return {
+                  reason,
+                  discard: () =>
+                    flushSync(() => {
+                      // Closing the panel drops its draft (#2180); a code
+                      // draft outlives its panel and is dropped as such.
+                      if (drafts.includes("document-settings"))
+                        setDocumentSettingsOpen(false);
+                      discardHeldCodeDrafts(drafts);
+                    }),
+                  resume: () => {
+                    const [first] = drafts;
+                    if (first !== "document-settings") {
+                      showProjectPanel(
+                        first === "netlist" ? "netlist" : "project-code",
+                      );
+                      return;
                     }
-                  : null;
+                    setSelectionOpen(true);
+                    requestAnimationFrame(() =>
+                      window.document
+                        .querySelector<HTMLElement>(
+                          '[data-testid="document-settings-code-editor"] [contenteditable="true"]',
+                        )
+                        ?.focus(),
+                    );
+                  },
+                };
               }}
               onRename={(id, name) => {
                 if (id === projectTabs.activeId) renameProject(name);

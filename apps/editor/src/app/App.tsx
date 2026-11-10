@@ -5426,6 +5426,11 @@ function WorkspaceEditor({
     setAgentFileCandidate,
     setAnalogSimulationState,
     codeDraftDirty,
+    codeDrafts: {
+      panel: panelCodeDraftDirty,
+      netlist: netlistDraft.dirty,
+      projectCode: projectCodeDraft.dirty,
+    },
     captureAuthoredProject,
     captureFileSession,
     restoreFileSession,
@@ -5795,6 +5800,12 @@ function WorkspaceEditor({
         createTabSession={createTabSession}
         projectTabs={projectTabs}
         discardableSwitchHold={discardableSwitchHold}
+        discardHeldCodeDrafts={(drafts) => {
+          if (drafts.includes("netlist")) netlistDraft.document.set(null);
+          if (drafts.includes("project-code"))
+            projectCodeDraft.document.set(null);
+        }}
+        showProjectPanel={showProjectPanel}
         recentNativeFiles={recentNativeFiles}
         nativeBusy={nativeBusy}
         setNativeBusy={setNativeBusy}
