@@ -247,6 +247,10 @@
   filter: brightness(1.05);
 }
 
+.replace-guard-actions .save-sign-in-close {
+  margin-left: auto;
+}
+
 .cloud-save-sign-in-actions button:disabled {
   opacity: 0.55;
   cursor: default;

@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 export interface CloudSaveSignInProps {
   /** Opens the page header's sign-in choices (GitHub, Google, email). */
   onSignIn(): void;
@@ -43,6 +45,76 @@ export function CloudSaveSignIn({
           {exportLabel}
         </button>
       </div>
+    </div>
+  );
+}
+
+export interface SaveSignInDialogProps {
+  /** Closes this dialog, opens the sign-in choices; the Save follows. */
+  onSignIn(): void;
+  /** Closes this dialog and downloads the Project file. */
+  onDownload(): void;
+  onClose(): void;
+}
+
+/**
+ * File > Save or Ctrl/Cmd+S without an account (#2161): sign in and the
+ * Save continues, or download the Project file. Escape and Not now leave
+ * the work as it was, unsaved.
+ */
+export function SaveSignInDialog({
+  onSignIn,
+  onDownload,
+  onClose,
+}: SaveSignInDialogProps) {
+  const dialog = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() =>
+      dialog.current
+        ?.querySelector<HTMLButtonElement>(".cloud-save-sign-in-primary")
+        ?.focus(),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return (
+    <div
+      className="help-backdrop"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        ref={dialog}
+        className="replace-guard-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="save-sign-in-title"
+        data-testid="save-sign-in-dialog"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onClose();
+          }
+        }}
+      >
+        <div className="replace-guard-copy">
+          <h2 id="save-sign-in-title">Sign in to save</h2>
+          <CloudSaveSignIn
+            onSignIn={onSignIn}
+            onExport={onDownload}
+            exportLabel="Download project file"
+          />
+        </div>
+        <div className="replace-guard-actions">
+          <button
+            type="button"
+            className="replace-guard-stay save-sign-in-close"
+            onClick={onClose}
+          >
+            Not now
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

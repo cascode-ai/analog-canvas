@@ -48,6 +48,7 @@ import type { useNetlistExportPreferences } from "../features/netlist-export/net
 import { primeGalleryPreview } from "../gallery-client";
 import { dismissWorkspaceReopen } from "../document/workspace-reopen";
 import { requestSignIn } from "../components/sign-in-request";
+import { rememberSaveOnSignIn } from "../document/save-after-sign-in";
 // The reference window beside the canvas: loaded apart from the editor's
 // first payload.
 const ReferenceWindow = lazy(() =>
@@ -179,6 +180,9 @@ export function EditorDialogs({
   confirmReplaceGuard,
   saveAndContinueReplaceGuard,
   exportAndContinueReplaceGuard,
+  saveSignInOpen,
+  closeSaveSignIn,
+  exportProjectFile,
   dismissStartupRecovery,
   restoreRecoverySession,
   downloadRecoveryBackup,
@@ -298,6 +302,9 @@ export function EditorDialogs({
   confirmReplaceGuard: ProjectFileLifecycle["confirmReplaceGuard"];
   saveAndContinueReplaceGuard: ProjectFileLifecycle["saveAndContinueReplaceGuard"];
   exportAndContinueReplaceGuard: ProjectFileLifecycle["exportAndContinueReplaceGuard"];
+  saveSignInOpen: ProjectFileLifecycle["saveSignInOpen"];
+  closeSaveSignIn: ProjectFileLifecycle["closeSaveSignIn"];
+  exportProjectFile: ProjectFileLifecycle["exportProjectFile"];
   dismissStartupRecovery: ProjectFileLifecycle["dismissStartupRecovery"];
   restoreRecoverySession: ProjectFileLifecycle["restoreRecoverySession"];
   downloadRecoveryBackup: ProjectFileLifecycle["downloadRecoveryBackup"];
@@ -391,6 +398,11 @@ export function EditorDialogs({
   const galleryEntry = import.meta.env?.ICM_DESKTOP
     ? null
     : galleryEntryContext;
+  /** Opens the header's sign-in choices; this Project saves once signed in. */
+  const signInToSave = () => {
+    rememberSaveOnSignIn(project.id);
+    requestSignIn();
+  };
   return (
     <>
       {/* The drawing's name, description and reference image, beside it. */}
@@ -496,9 +508,24 @@ export function EditorDialogs({
                 onSignIn: () => {
                   // The sign-in choices sit under this dialog: Stay first.
                   cancelReplaceGuard();
-                  requestSignIn();
+                  signInToSave();
                 },
                 onExportAndContinue: exportAndContinueReplaceGuard,
+              }
+            : null
+        }
+        saveSignIn={
+          saveSignInOpen
+            ? {
+                onSignIn: () => {
+                  closeSaveSignIn();
+                  signInToSave();
+                },
+                onDownload: () => {
+                  closeSaveSignIn();
+                  void exportProjectFile();
+                },
+                onClose: closeSaveSignIn,
               }
             : null
         }

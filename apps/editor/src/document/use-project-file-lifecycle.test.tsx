@@ -218,6 +218,19 @@ it("keeps edits made during Save and continue, and can save them on retry", asyn
   expect(editor.current.file.replaceGuard).toBeNull();
 });
 
+it("asks how to keep the work when Save finds no account (#2161)", async () => {
+  const editor = await mount(
+    cloudStore(async () => ({ status: "signed-out" })),
+  );
+  await editor.rename("Sketch");
+  await act(async () => editor.current.file.saveByHand());
+  expect(editor.current.file.saveSignInOpen).toBe(true);
+  expect(editor.current.file.hasUnsavedChanges()).toBe(true);
+  await act(async () => editor.current.file.closeSaveSignIn());
+  expect(editor.current.file.saveSignInOpen).toBe(false);
+  expect(editor.current.doc.project.name).toBe("Sketch");
+});
+
 it("tells the dialog why Save and continue stopped (#2155)", async () => {
   const outcomes: CloudProjectSaveOutcome[] = [
     { status: "signed-out" },

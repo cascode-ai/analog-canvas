@@ -31,6 +31,7 @@ import type { WebEditorApp } from "./web-editor";
 import { configureWebServiceWorker } from "./web-service-worker";
 import { localhostExamplesEnabled } from "../gallery-source";
 import { arenaEntryRedirect } from "../arena-entry-address";
+import { saveAfterSignInRedirect } from "../document/save-after-sign-in";
 import { isPhoneViewing } from "../phone-viewing";
 
 export function mountWebEditor() {
@@ -39,6 +40,13 @@ export function mountWebEditor() {
   const arenaEntryPath = arenaEntryRedirect(window.location);
   if (arenaEntryPath) {
     window.location.replace(arenaEntryPath);
+    return;
+  }
+  // A GitHub or Google sign-in begun from a signed-out Save ends here, on
+  // the Gallery: the editor's tabs resume and the Save continues (#2161).
+  const savePath = saveAfterSignInRedirect(window.location);
+  if (savePath) {
+    window.location.replace(savePath);
     return;
   }
   // The Agent runtime is not part of the editor (#1673). A page that must

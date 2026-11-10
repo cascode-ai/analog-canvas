@@ -278,6 +278,8 @@ export function useProjectFileLifecycle({
     null,
   );
   const [replaceGuardSaving, setReplaceGuardSaving] = useState(false);
+  /** A Save by hand found no account: Sign in to save is open. */
+  const [saveSignInOpen, setSaveSignInOpen] = useState(false);
   const [recoveryDialogOpen, setRecoveryDialogOpen] = useState(false);
   // Offered once: Ignore and Restore are remembered across reloads.
   const [dismissedStartupRecoveries, setDismissedStartupRecoveries] = useState(
@@ -525,7 +527,12 @@ export function useProjectFileLifecycle({
   function saveProjectToCloudByHand(
     candidate?: CircuitProject,
   ): Promise<CloudProjectSaveOutcome> {
-    return saveProjectToCloud(candidate).then(gateAfterManualCloudSave);
+    return saveProjectToCloud(candidate).then((outcome) => {
+      // Signed out, the person is asked how to keep the work instead of a
+      // line in the status bar (#2161).
+      if (outcome.status === "signed-out") setSaveSignInOpen(true);
+      return gateAfterManualCloudSave(outcome);
+    });
   }
 
   /** The person's Save: the Project's file, the Cloud, or an export. */
@@ -1279,6 +1286,7 @@ export function useProjectFileLifecycle({
         session.publishedSnapshotToken ?? null;
       persistenceChangeRef.current = null;
       setReplaceGuard(null);
+      setSaveSignInOpen(false);
       setRecoveryDialogOpen(false);
       if (session.cloudBinding)
         rememberRecentCloudProject(session.cloudBinding.id);
@@ -1295,6 +1303,8 @@ export function useProjectFileLifecycle({
     savedProjectBaseline,
     replaceGuard,
     replaceGuardSaving,
+    saveSignInOpen,
+    closeSaveSignIn: () => setSaveSignInOpen(false),
     recoveryDialogOpen,
     startupRecovery,
     startupCloudProjectId,
