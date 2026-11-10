@@ -13,6 +13,7 @@ import socket
 import subprocess
 import tempfile
 import time
+from contextlib import closing
 
 CONTROL = '/run/canvas-cn-ingress/control.sock'
 
@@ -25,7 +26,7 @@ class ControlConnection(http.client.HTTPConnection):
 
 
 def entrance(action):
-    with ControlConnection('localhost', timeout=8) as connection:
+    with closing(ControlConnection('localhost', timeout=8)) as connection:
         connection.request('GET' if action == 'status' else 'POST', '/' + action, body=b'')
         response = connection.getresponse()
         body = response.read()

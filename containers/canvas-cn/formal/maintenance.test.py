@@ -5,10 +5,53 @@ import tarfile
 import tempfile
 import unittest
 import importlib.util
+import http.server
+import os
+import socketserver
+import threading
+from unittest.mock import patch
 spec = importlib.util.spec_from_file_location('maintenance', pathlib.Path(__file__).with_name('maintenance.py'))
 maintenance = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(maintenance)
 Snapshot = maintenance.Snapshot
+
+
+@unittest.skipUnless(os.name == 'posix', 'requires a Unix socket')
+class EntranceTest(unittest.TestCase):
+    def test_status_hold_refusal_and_resume_use_the_private_http_socket(self):
+        seen = []
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen.append((self.command, self.path))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"holding":false,"pending":0,"active":1,"uncertain":false}')
+
+            def do_POST(self):
+                seen.append((self.command, self.path))
+                self.send_response(409 if self.path == '/hold' else 200)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        with tempfile.TemporaryDirectory() as directory:
+            control = str(pathlib.Path(directory) / 'control.sock')
+            with socketserver.UnixStreamServer(control, Handler) as server:
+                thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=.01))
+                thread.start()
+                try:
+                    with patch.object(maintenance, 'CONTROL', control):
+                        self.assertEqual(maintenance.entrance('status'), {
+                            'holding': False, 'pending': 0, 'active': 1, 'uncertain': False})
+                        with self.assertRaisesRegex(RuntimeError, 'entrance-hold-refused'):
+                            maintenance.entrance('hold')
+                        self.assertIsNone(maintenance.entrance('resume'))
+                finally:
+                    server.shutdown()
+                    thread.join()
+            self.assertEqual(seen, [('GET', '/status'), ('POST', '/hold'), ('POST', '/resume')])
 
 
 @unittest.skipUnless(shutil.which('rsync'), 'requires Linux rsync')
