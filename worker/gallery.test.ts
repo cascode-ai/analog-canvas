@@ -40,17 +40,32 @@ describe("Gallery readers", () => {
       "/api/gallery/tags",
       "/api/gallery/authors",
       `/api/gallery/${id}`,
+      `/api/gallery/${id}?download=1`,
       `/api/gallery/${id}/versions`,
       `/api/gallery/${id}/preview.svg?v=${entry.previewRevision}`,
     ];
   }
-  const direct = async (env: Harness, path: string, headers?: HeadersInit) =>
-    (await routeGalleryRequest(
-      new Request(`${ORIGIN}${path}`, headers ? { headers } : {}),
-      env,
-    ))!;
+  const direct = async (
+    env: Harness,
+    path: string,
+    headers?: HeadersInit,
+    method = "GET",
+  ) =>
+    workerEntry.fetch(
+      new Request(`${ORIGIN}${path}`, {
+        method,
+        headers: {
+          "cf-connecting-ip": "203.0.113.7",
+          ...Object.fromEntries(new Headers(headers)),
+        },
+      }),
+      {
+        ...env,
+        API_RATE_LIMITER: { limit: async () => ({ success: false }) },
+      } as unknown as Parameters<typeof workerEntry.fetch>[1],
+    );
 
-  it("serves every read to anyone, signed in or not, with no count of reads", async () => {
+  it("serves every read to anyone even when the client has exhausted the API flood allowance", async () => {
     const env = environment();
     const paths = [
       ...(await reads(env)),
@@ -58,6 +73,7 @@ describe("Gallery readers", () => {
       "/api/gallery/stats",
       "/api/gallery?q=circuit",
       "/api/gallery?limit=1",
+      "/api/gallery/maintenance/netlists",
     ];
     const member = cookieHeaders(await makerOf(env));
     for (const headers of [undefined, member]) {
@@ -86,6 +102,12 @@ describe("Gallery readers", () => {
         )?.status,
         path,
       ).not.toBe(401);
+    // The exemption stops at Gallery reads; writes and other APIs still
+    // refuse a client that has exhausted the flood allowance.
+    expect(
+      (await direct(env, "/api/gallery/submissions", undefined, "POST")).status,
+    ).toBe(429);
+    expect((await direct(env, "/api/gallery-other")).status).toBe(429);
     // Writes still need a session.
     const like = await routeGalleryRequest(
       new Request(`${ORIGIN}${paths[4]}/like`, {
@@ -295,6 +317,7 @@ describe("suspended public Gallery documents", () => {
     expect(robots).not.toMatch(/Disallow: \/\n/u);
     expect(robots).not.toContain("PROHIBITED");
     expect(robots).toContain("scripts/gallery-download.mjs");
+    expect(robots).toContain("no request-rate cap or daily download quota");
   });
 });
 

@@ -65,60 +65,52 @@ function gallery(
 ) {
   const asked: Asked[] = [];
   const attempts = new Map<string, number>();
-  let inFlight = 0;
-  let maxInFlight = 0;
   const fetchLike = (async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "https://gallery.test");
     asked.push({ url, at: Date.now() });
-    inFlight++;
-    maxInFlight = Math.max(maxInFlight, inFlight);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, latencyMs));
-      const key = url.pathname + url.search;
-      const attempt = (attempts.get(key) ?? 0) + 1;
-      attempts.set(key, attempt);
-      const early = reply?.(url, attempt);
-      if (early instanceof Error) throw early;
-      if (early) return early;
-      if (url.pathname === "/api/gallery") {
-        const limit = Number(url.searchParams.get("limit") ?? 60);
-        const cursor = url.searchParams.get("cursor");
-        let start = cursor
-          ? entries.findIndex((entry) => entry.id === cursor.split("|")[1]) + 1
-          : 0;
-        if (cursor && repeatAcrossPages) start -= 1;
-        const page = entries.slice(start, start + limit);
-        const more = start + limit < entries.length;
-        const last = page.at(-1);
-        return Response.json({
-          entries: page,
-          nextCursor: more && last ? `o${last.createdAt}|${last.id}` : null,
-          ...(cursor
-            ? {}
-            : {
-                total: entries.length,
-                authors: [],
-                filterCounts: { attention: 0, netlistable: 0, liked: 0 },
-              }),
-          ...(url.searchParams.get("q")
-            ? { search: url.searchParams.get("q") }
-            : {}),
-        });
-      }
-      const id = decodeURIComponent(url.pathname.split("/")[3] ?? "");
-      const entry = entries.find((each) => each.id === id);
-      if (!entry) return Response.json({ error: "not-found" }, { status: 404 });
+    await new Promise((resolve) => setTimeout(resolve, latencyMs));
+    const key = url.pathname + url.search;
+    const attempt = (attempts.get(key) ?? 0) + 1;
+    attempts.set(key, attempt);
+    const early = reply?.(url, attempt);
+    if (early instanceof Error) throw early;
+    if (early) return early;
+    if (url.pathname === "/api/gallery") {
+      const limit = Number(url.searchParams.get("limit") ?? 60);
+      const cursor = url.searchParams.get("cursor");
+      let start = cursor
+        ? entries.findIndex((entry) => entry.id === cursor.split("|")[1]) + 1
+        : 0;
+      if (cursor && repeatAcrossPages) start -= 1;
+      const page = entries.slice(start, start + limit);
+      const more = start + limit < entries.length;
+      const last = page.at(-1);
       return Response.json({
-        entry,
-        status: "public",
-        ownerUserId: null,
-        projectText: projectOf(id),
+        entries: page,
+        nextCursor: more && last ? `o${last.createdAt}|${last.id}` : null,
+        ...(cursor
+          ? {}
+          : {
+              total: entries.length,
+              authors: [],
+              filterCounts: { attention: 0, netlistable: 0, liked: 0 },
+            }),
+        ...(url.searchParams.get("q")
+          ? { search: url.searchParams.get("q") }
+          : {}),
       });
-    } finally {
-      inFlight--;
     }
+    const id = decodeURIComponent(url.pathname.split("/")[3] ?? "");
+    const entry = entries.find((each) => each.id === id);
+    if (!entry) return Response.json({ error: "not-found" }, { status: 404 });
+    return Response.json({
+      entry,
+      status: "public",
+      ownerUserId: null,
+      projectText: projectOf(id),
+    });
   }) as typeof fetch;
-  return { fetchLike, asked, maxInFlight: () => maxInFlight };
+  return { fetchLike, asked };
 }
 
 async function settle<T>(promise: Promise<T>): Promise<T> {
@@ -156,6 +148,7 @@ it("pages the wall's own query oldest first, keeps each circuit once and writes 
     seed: "abc",
   };
   const progress: GalleryZipProgress[] = [];
+  const started = Date.now();
   const result = await settle(
     downloadGalleryZip(query, {
       fetch: server.fetchLike,
@@ -165,6 +158,9 @@ it("pages the wall's own query oldest first, keeps each circuit once and writes 
     }),
   );
 
+  // 126 Projects over a 50 ms connection must not spend 12+ seconds in
+  // client-imposed waits. This also covers all pages and complete ZIP bytes.
+  expect(Date.now() - started).toBeLessThan(1000);
   const lists = server.asked.filter(
     ({ url }) => url.pathname === "/api/gallery",
   );
@@ -231,7 +227,7 @@ it("pages the wall's own query oldest first, keeps each circuit once and writes 
   });
 });
 
-it("stays at ten requests a second over four readers, retries what is transient and reports what still failed", async () => {
+it("retries what is transient and reports what still failed", async () => {
   const entries = Array.from({ length: 12 }, (_, index) =>
     summary(`e${index}`, index),
   );
@@ -254,10 +250,6 @@ it("stays at ten requests a second over four readers, retries what is transient 
     downloadGalleryZip({}, { fetch: server.fetchLike }),
   );
 
-  const starts = server.asked.map(({ at }) => at);
-  for (let index = 1; index < starts.length; index++)
-    expect(starts[index]! - starts[index - 1]!).toBeGreaterThanOrEqual(100);
-  expect(server.maxInFlight()).toBe(4);
   // Four tries for a 500, one for a 404 or a reply without its Project.
   const tries = (id: string) =>
     server.asked.filter(({ url }) => url.pathname === `/api/gallery/${id}`)
@@ -283,7 +275,7 @@ it("stays at ten requests a second over four readers, retries what is transient 
 });
 
 it("holds every reader, waiting ones too, for a 429's Retry-After", async () => {
-  const entries = Array.from({ length: 6 }, (_, index) =>
+  const entries = Array.from({ length: 40 }, (_, index) =>
     summary(`e${index}`, index),
   );
   let rateLimitedAt = 0;
@@ -307,29 +299,36 @@ it("holds every reader, waiting ones too, for a 429's Retry-After", async () => 
       ({ at }) => at > rateLimitedAt && at < rateLimitedAt + 3000,
     ),
   ).toEqual([]);
-  expect(result).toMatchObject({ count: 6, failed: [] });
+  expect(result).toMatchObject({ count: 40, failed: [] });
 });
 
-it("stops on Cancel and saves nothing", async () => {
-  const entries = Array.from({ length: 40 }, (_, index) =>
-    summary(`e${index}`, index),
-  );
-  const server = gallery(entries);
-  const controller = new AbortController();
-  const outcome = downloadGalleryZip(
-    {},
-    {
-      fetch: server.fetchLike,
-      signal: controller.signal,
-      onProgress: (progress) => {
-        if (progress.done === 5) controller.abort();
+it.each([5, 40])(
+  "stops on Cancel and saves nothing (%i circuits)",
+  async (count) => {
+    const entries = Array.from({ length: count }, (_, index) =>
+      summary(`e${index}`, index),
+    );
+    const server = gallery(entries);
+    const controller = new AbortController();
+    let requestsAtCancel = 0;
+    const outcome = downloadGalleryZip(
+      {},
+      {
+        fetch: server.fetchLike,
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (progress.done === 5) {
+            requestsAtCancel = server.asked.length;
+            controller.abort();
+          }
+        },
       },
-    },
-  );
-  await expect(settle(outcome)).rejects.toMatchObject({ name: "AbortError" });
-  // Only reads already under way finish; none starts after Cancel.
-  expect(server.asked.length).toBeLessThanOrEqual(1 + 5 + 4);
-});
+    );
+    await expect(settle(outcome)).rejects.toMatchObject({ name: "AbortError" });
+    // Only reads already under way finish; none starts after Cancel.
+    expect(server.asked).toHaveLength(requestsAtCancel);
+  },
+);
 
 it("says nothing matched rather than make an empty archive", async () => {
   const server = gallery([]);

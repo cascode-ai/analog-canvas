@@ -4,8 +4,8 @@
  * File → Open reads, beside a `manifest.json`. It pages the wall's own query
  * oldest first, so the cursor walk is stable, reads each circuit and deflates
  * it into the archive at once, so memory holds about the compressed archive,
- * never every Project. Requests stay at most 10 a second, half the site's
- * flood limit (docs/specs/community-gallery.md#crawlers-ai-and-floods).
+ * never every Project. Parallel reads start without fixed pacing
+ * (docs/specs/community-gallery.md#crawlers-ai-and-floods).
  */
 import { strToU8, Zip, ZipDeflate } from "fflate";
 
@@ -18,9 +18,7 @@ import { galleryEntryMatchesQuery } from "./gallery-search";
 import { gallerySourceOfEntryId } from "./gallery-sources";
 
 const PAGE_SIZE = 60;
-const CONCURRENCY = 4;
-/** Between request starts: at most 10 a second, all readers together. */
-const SPACING_MS = 100;
+const CONCURRENCY = 32;
 const ATTEMPTS = 4;
 /** Archive bytes held as one array before they become a Blob part. */
 const PART_BYTES = 4 * 1024 * 1024;
@@ -50,7 +48,7 @@ export interface GalleryZipResult {
   failed: GalleryZipFailure[];
 }
 
-/** Time, injectable so a test runs the throttle on a virtual clock. */
+/** Time, injectable so a test runs retry delays on a virtual clock. */
 export interface GalleryZipClock {
   now(): number;
   sleep(ms: number, signal?: AbortSignal): Promise<void>;
@@ -121,16 +119,14 @@ export function galleryZipFileName(
 type Reply = { ok: true; body: unknown } | { ok: false; reason: string };
 
 /**
- * GETs on one shared schedule: request starts spaced SPACING_MS apart, a
- * transient failure (network, 408, 429, 5xx) retried, a 429 pausing every
- * reader for its Retry-After.
+ * GETs without fixed pacing. Transient failures (network, 408, 429, 5xx)
+ * are retried; a 429 pauses every reader for its Retry-After.
  */
-function scheduledReader(
+function retryingReader(
   fetchLike: typeof fetch,
   clock: GalleryZipClock,
   signal: AbortSignal | undefined,
 ) {
-  let nextStart = 0;
   let pausedUntil = 0;
   async function turn(): Promise<void> {
     for (;;) {
@@ -140,17 +136,13 @@ function scheduledReader(
         await clock.sleep(pausedUntil - now, signal);
         continue;
       }
-      const start = Math.max(nextStart, now);
-      nextStart = start + SPACING_MS;
-      if (start > now) await clock.sleep(start - now, signal);
-      if (signal?.aborted) throw abortError();
-      // A 429 that came while this reader waited holds it too.
-      if (pausedUntil <= clock.now()) return;
+      return;
     }
   }
   return async function read(path: string): Promise<Reply> {
     for (let attempt = 1; ; attempt++) {
       await turn();
+      if (signal?.aborted) throw abortError();
       let response: Response | null = null;
       try {
         response = await fetchLike(path, {
@@ -170,6 +162,7 @@ function scheduledReader(
           if (signal?.aborted) throw abortError();
         }
       }
+      if (signal?.aborted) throw abortError();
       if (response?.ok && readable) return { ok: true, body };
       const status = response?.status ?? 0;
       const transient =
@@ -252,7 +245,7 @@ export async function downloadGalleryZip(
   const clock = options.clock ?? systemClock;
   const { signal } = options;
   const date = options.date ?? new Date();
-  const read = scheduledReader(fetchLike, clock, signal);
+  const read = retryingReader(fetchLike, clock, signal);
   const params = galleryZipListParams(query);
   const search = params.get("q") ?? "";
   const fileName = galleryZipFileName(query, date);
@@ -309,7 +302,7 @@ export async function downloadGalleryZip(
   const failed: GalleryZipFailure[] = [];
   let next = 0;
   await Promise.all(
-    Array.from({ length: CONCURRENCY }, async () => {
+    Array.from({ length: Math.min(CONCURRENCY, listed.length) }, async () => {
       for (let entry; (entry = listed[next++]);) {
         const reason = await (async () => {
           if (!ENTRY_ID.test(entry.id)) return "unexpected id";
@@ -341,6 +334,7 @@ export async function downloadGalleryZip(
       }
     }),
   );
+  if (signal?.aborted) throw abortError();
   const order = new Map(listed.map((entry, index) => [entry.id, index]));
   failed.sort(
     (left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0),

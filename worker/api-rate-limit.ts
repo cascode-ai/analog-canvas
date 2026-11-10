@@ -14,14 +14,11 @@ export type ApiRateLimitEnv = {
 };
 
 /**
- * Refuses an /api request once its client address passes the binding's
- * allowance (wrangler.jsonc). This is flood protection, not a quota: the
- * Gallery's daily opens and the simulation queue limits stay the per-account
- * bounds, and its `too-many-requests` is not their daily `429`. Not counted:
- * the Owner's own jobs, which carry a store or smoke credential; a request
- * with no client address (local runs); AnalogArena's /api/arena, which is
- * forwarded and answered unchanged (docs/specs/analog-arena.md). A limiter
- * that fails lets the request through.
+ * Gallery GET/HEAD reads have no request-rate cap. Other /api requests use
+ * the binding's flood allowance; route-level authentication and write limits
+ * apply independently. Owner jobs, local requests without a client address
+ * and the forwarded Arena API are exempt. A failing limiter lets reads and
+ * writes through.
  */
 export async function refuseApiFlood(
   request: Request,
@@ -32,7 +29,9 @@ export async function refuseApiFlood(
   if (
     !limiter ||
     !pathname.startsWith("/api/") ||
-    pathname.startsWith("/api/arena/")
+    pathname.startsWith("/api/arena/") ||
+    ((request.method === "GET" || request.method === "HEAD") &&
+      (pathname === "/api/gallery" || pathname.startsWith("/api/gallery/")))
   )
     return null;
   const address = request.headers.get("cf-connecting-ip");
