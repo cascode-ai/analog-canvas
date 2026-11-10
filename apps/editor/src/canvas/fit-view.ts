@@ -386,6 +386,37 @@ export interface CanvasView {
   insets: CanvasInsets;
 }
 
+/** The neighbourhood of a point a navigation shows, in Document units. */
+export const FOCUS_EXTENT = { width: 160, height: 120 } as const;
+
+/**
+ * The camera a navigation (Find, a diagnostic, a trace hop) lands on to show
+ * a point: its neighbourhood fitted into the visible part of the measured
+ * canvas, as F fits a drawing, so the Properties dock the navigation opens
+ * does not cover the part on a phone (#2186). Unmeasured, the neighbourhood
+ * is the camera itself.
+ */
+export function focusCameraOnPoint(
+  point: Point,
+  grid: number,
+  measured: CanvasView | null,
+): GridRect {
+  const neighbourhood = {
+    x: point.x - FOCUS_EXTENT.width / 2,
+    y: point.y - FOCUS_EXTENT.height / 2,
+    width: FOCUS_EXTENT.width,
+    height: FOCUS_EXTENT.height,
+  };
+  return measured
+    ? fitCameraToVisibleBounds(
+        neighbourhood,
+        grid,
+        measured.viewport,
+        measured.insets,
+      )
+    : neighbourhood;
+}
+
 /**
  * The camera F lands on: the bounds fitted into the visible part of the
  * measured canvas, or into the element when it could not be measured.

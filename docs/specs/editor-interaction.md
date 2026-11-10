@@ -310,6 +310,9 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 
 - Previews may hold floats; every committed point snaps to the Document grid; one
   grid-aligned camera normalizer serves fit, zoom, pan, focus and Agent focus.
+- Fit and a navigation's focus (Find, diagnostics, trace) frame their target in
+  the canvas the edge docks leave visible; a focus that opens Properties frames
+  again once the dock is drawn.
 - Frame-zoom: right-drag on empty canvas or Alt+left-drag; it never touches the
   revision; a press within one grid cell stays a click.
 - Escape cancels without mutation; a committed gesture is one transaction;

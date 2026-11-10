@@ -24,6 +24,7 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import {
   fitViewCamera,
+  focusCameraOnPoint,
   type CameraRectInput,
   type CanvasView,
 } from "../../canvas/fit-view";
@@ -62,6 +63,14 @@ export interface EditorNavigationControllerDependencies {
    * editor fits that Cell again once they have (#1686).
    */
   onFit?: (documentId: string) => void;
+  /**
+   * Handed the framing of a point a navigation focused while opening the
+   * Properties dock: it measured the canvas before the dock was drawn over
+   * it, so the editor frames the point again once it is (#2186).
+   */
+  onFocusBeforeDock?: (frameAgain: () => void) => void;
+  /** Whether the Properties dock is open now. */
+  selectionOpen?: boolean;
   openDocument: (documentId: string) => SchematicDocument | null | undefined;
   resetInteractionState: () => void;
   selectOnly: (kind: SelectionKind, ids: readonly string[]) => void;
@@ -99,6 +108,8 @@ export function createEditorNavigationController({
   setViewBox,
   measureCanvasView,
   onFit,
+  onFocusBeforeDock,
+  selectionOpen = false,
   openDocument,
   resetInteractionState,
   selectOnly,
@@ -199,16 +210,21 @@ export function createEditorNavigationController({
     );
     resetInteractionState();
 
-    const focusPoint = (point: Point) =>
+    // The point's neighbourhood lands in the canvas the docks leave visible.
+    const focused: { point?: Point } = {};
+    const frame = (point: Point) =>
       setViewBox(
-        {
-          x: point.x - 80,
-          y: point.y - 60,
-          width: 160,
-          height: 120,
-        },
+        focusCameraOnPoint(
+          point,
+          opened.presentation.grid,
+          measureCanvasView?.() ?? null,
+        ),
         opened.presentation.grid,
       );
+    const focusPoint = (point: Point) => {
+      focused.point = point;
+      frame(point);
+    };
     const endpoint =
       locator.kind === "terminal"
         ? locator.endpoint
@@ -284,7 +300,11 @@ export function createEditorNavigationController({
     }
     // A list that navigates (the Netlist panel's issues) stays in the dock,
     // so the next finding is one click away.
-    if (!options.keepPanel) setSelectionOpen(true);
+    if (!options.keepPanel) {
+      const point = focused.point;
+      if (point && !selectionOpen) onFocusBeforeDock?.(() => frame(point));
+      setSelectionOpen(true);
+    }
     setStatus(statusMessage);
   };
 

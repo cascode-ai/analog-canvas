@@ -3952,6 +3952,8 @@ function WorkspaceEditor({
 
   /** The Cell the last navigation fit framed, to fit again below. */
   const fittedDocument = useRef<string | null>(null);
+  /** A navigation's focus to frame again once the dock it opened is drawn. */
+  const focusBeforeDock = useRef<(() => void) | null>(null);
   const {
     selectDocumentFromHierarchy,
     jumpToCaller,
@@ -3983,6 +3985,10 @@ function WorkspaceEditor({
     onFit: (documentId) => {
       fittedDocument.current = documentId;
     },
+    onFocusBeforeDock: (frameAgain) => {
+      focusBeforeDock.current = frameAgain;
+    },
+    selectionOpen,
     openDocument,
     resetInteractionState,
     selectOnly,
@@ -4009,6 +4015,14 @@ function WorkspaceEditor({
     // That fit reported itself too; it needs no second pass.
     fittedDocument.current = null;
   }, [document.id, documentStack]);
+  // A Find result or diagnostic focuses its part, then opens Properties.
+  // Once the dock is drawn, before it is painted, frame the part again in
+  // what the dock leaves visible, so on a phone it is not underneath (#2186).
+  useLayoutEffect(() => {
+    const frameAgain = focusBeforeDock.current;
+    focusBeforeDock.current = null;
+    if (selectionOpen) frameAgain?.();
+  }, [selectionOpen]);
   useEffect(() => {
     const resolved = reconcileHierarchyPath(
       project,
