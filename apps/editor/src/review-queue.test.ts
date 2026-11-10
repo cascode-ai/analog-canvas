@@ -191,7 +191,8 @@ describe("review queue", () => {
     expect(scopeFromSearch("?scope=community")).toBe("community");
     expect(scopeFromSearch("?scope=analoggenie")).toBe("analoggenie");
     expect(scopeFromSearch("?scope=amsnet")).toBe("amsnet");
-    expect(scopeFromSearch("?scope=analogretriever")).toBe("random");
+    expect(scopeFromSearch("?scope=analogretriever")).toBe("analogretriever");
+    expect(scopeFromSearch("?scope=nope")).toBe("random");
     expect(scopeFromSearch("")).toBe("random");
   });
 });

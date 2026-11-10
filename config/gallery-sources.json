@@ -35,7 +35,8 @@
       "prefix": "ar",
       "name": "AnalogRetriever",
       "byline": "AnalogRetriever (redrawn)",
-      "license": "No licence stated by the dataset",
+      "license": "MIT",
+      "comparisons": true,
       "homepage": "https://github.com/yihan-wa/AnalogRetriever",
       "paper": "https://arxiv.org/abs/2604.23195"
     }
