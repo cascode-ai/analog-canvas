@@ -129,3 +129,19 @@ export function groundPortIndex(
   }
   return index;
 }
+
+/**
+ * Where a port of a Cell printed as a subcircuit sorts: its positive supply
+ * first (0), then ground (1), then the signals (2) in the Cell's own order.
+ * `logical` reads the Cell with the netlist's power-marker claims. Cell
+ * properties shows the same order, the supplies locked in place (#2177).
+ */
+export function supplyPortRank(
+  logical: ReturnType<typeof resolveCommittedDocumentLogicalNets>,
+  port: { id: string; name: string },
+): 0 | 1 | 2 {
+  const domain = logical.byBaseNetId.get(port.id)?.powerDomain;
+  if (domain === "vdd" || port.name.toUpperCase() === "VDD") return 0;
+  if (domain === "ground" || port.name.toUpperCase() === "VSS") return 1;
+  return 2;
+}

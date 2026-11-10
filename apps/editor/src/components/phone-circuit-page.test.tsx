@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { galleryDateLabel } from "../gallery-date";
 import {
   PhoneCircuitView,
   PhoneEditorNotice,
@@ -34,13 +35,20 @@ describe("a phone's circuit page (2026-10-14)", () => {
   it("shows the circuit's picture and facts, its netlist on request, and the way to a computer", () => {
     const page = view(null);
     expect(page).toContain("Five-transistor OTA");
-    expect(page).toContain("Maker · 2026-10-13 · Netlist");
+    // The date as the wall's tiles write it (#2164).
+    expect(page).toContain(
+      `Maker · ${galleryDateLabel(entry.createdAt)} · Netlist`,
+    );
+    expect(page).not.toContain("2026-10-13");
     expect(page).toContain(
       `/api/gallery/efx8jakksk/preview.svg?v=${"a".repeat(64)}`,
     );
     expect(page).toContain("amplifier");
     expect(page).toContain('data-testid="phone-show-netlist"');
-    expect(page).toContain("open its link on a computer");
+    // No simulation is offered here any more (#2164).
+    expect(page).toContain(
+      "To edit or copy this circuit, open its link on a computer or a tablet.",
+    );
     expect(page).toContain('data-testid="phone-editor-anyway"');
     const written = view({ status: "ready", text: "R1 a b 1k\n.end" });
     expect(written).toContain('data-testid="phone-netlist"');

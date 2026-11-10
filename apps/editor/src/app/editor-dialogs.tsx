@@ -48,6 +48,8 @@ import type { createProjectStructureCommands } from "../features/hierarchy/proje
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { primeGalleryPreview } from "../gallery-client";
 import { dismissWorkspaceReopen } from "../document/workspace-reopen";
+import { requestSignIn } from "../components/sign-in-request";
+import { rememberSaveOnSignIn } from "../document/save-after-sign-in";
 // The reference window beside the canvas: loaded apart from the editor's
 // first payload.
 const ReferenceWindow = lazy(() =>
@@ -60,8 +62,12 @@ import {
   keepOwnReferenceImage,
   useOwnReferenceImage,
   useOwnReferenceOpen,
+  useOwnReferenceOpenings,
 } from "../features/editor-shell/own-reference";
-import type { GalleryEntryContext } from "../features/editor-shell/gallery-example-commands";
+import {
+  withSavedDetails,
+  type GalleryEntryContext,
+} from "../features/editor-shell/gallery-example-commands";
 import { CIRCUIT_CLIPBOARD_MIME } from "../features/clipboard/system-clipboard";
 import { isTypingTarget } from "./editor-runtime-helpers";
 // A paste is the reference image's unless a text field or a circuit takes it.
@@ -178,6 +184,10 @@ export function EditorDialogs({
   cancelReplaceGuard,
   confirmReplaceGuard,
   saveAndContinueReplaceGuard,
+  exportAndContinueReplaceGuard,
+  saveSignInOpen,
+  closeSaveSignIn,
+  exportProjectFile,
   dismissStartupRecovery,
   restoreRecoverySession,
   downloadRecoveryBackup,
@@ -296,6 +306,10 @@ export function EditorDialogs({
   cancelReplaceGuard: ProjectFileLifecycle["cancelReplaceGuard"];
   confirmReplaceGuard: ProjectFileLifecycle["confirmReplaceGuard"];
   saveAndContinueReplaceGuard: ProjectFileLifecycle["saveAndContinueReplaceGuard"];
+  exportAndContinueReplaceGuard: ProjectFileLifecycle["exportAndContinueReplaceGuard"];
+  saveSignInOpen: ProjectFileLifecycle["saveSignInOpen"];
+  closeSaveSignIn: ProjectFileLifecycle["closeSaveSignIn"];
+  exportProjectFile: ProjectFileLifecycle["exportProjectFile"];
   dismissStartupRecovery: ProjectFileLifecycle["dismissStartupRecovery"];
   restoreRecoverySession: ProjectFileLifecycle["restoreRecoverySession"];
   downloadRecoveryBackup: ProjectFileLifecycle["downloadRecoveryBackup"];
@@ -346,6 +360,7 @@ export function EditorDialogs({
   recordGalleryPublication: ReturnType<typeof useGalleryPublicationRecord>;
 }) {
   const ownReferenceOpen = useOwnReferenceOpen();
+  const ownReferenceOpenings = useOwnReferenceOpenings();
   const ownReference = useOwnReferenceImage(projectSessionId);
   const keepReferenceImage = useCallback(
     (file: File) => keepOwnReferenceImage(projectSessionId, file),
@@ -357,15 +372,19 @@ export function EditorDialogs({
   const referenceSaved = ({
     name,
     description,
+    referenceSaved: imageSaved,
   }: {
     name: string;
     description: string;
+    referenceSaved: boolean;
   }) => {
     renameProject(name);
     if (galleryEntryContext) {
       const savedId = galleryEntryContext.id;
       setGalleryEntryContext((current) =>
-        current?.id === savedId ? { ...current, name, description } : current,
+        current?.id === savedId
+          ? withSavedDetails(current, { name, description }, imageSaved)
+          : current,
       );
       galleryLoadGenerationRef.current += 1;
       setGalleryRefreshSignal((previous) => previous + 1);
@@ -389,6 +408,11 @@ export function EditorDialogs({
   const galleryEntry = import.meta.env?.ICM_DESKTOP
     ? null
     : galleryEntryContext;
+  /** Opens the header's sign-in choices; this Project saves once signed in. */
+  const signInToSave = () => {
+    rememberSaveOnSignIn(project.id);
+    requestSignIn();
+  };
   return (
     <>
       {/* The drawing's name, description and reference image, beside it. */}
@@ -396,6 +420,7 @@ export function EditorDialogs({
         <ReferenceWindow
           key={`${projectSessionId}:${galleryEntry?.id ?? ""}`}
           open={ownReferenceOpen}
+          openings={ownReferenceOpenings}
           onClose={closeOwnReference}
           entry={galleryEntry}
           session={publishSession}
@@ -487,9 +512,31 @@ export function EditorDialogs({
                 exportOnly: projectStore === null,
                 nativeSave: nativeProjectStore !== undefined,
                 saving: replaceGuardSaving,
+                problem: replaceGuard.problem,
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,
                 onDiscard: confirmReplaceGuard,
+                onSignIn: () => {
+                  // The sign-in choices sit under this dialog: Stay first.
+                  cancelReplaceGuard();
+                  signInToSave();
+                },
+                onExportAndContinue: exportAndContinueReplaceGuard,
+              }
+            : null
+        }
+        saveSignIn={
+          saveSignInOpen
+            ? {
+                onSignIn: () => {
+                  closeSaveSignIn();
+                  signInToSave();
+                },
+                onDownload: () => {
+                  closeSaveSignIn();
+                  void exportProjectFile();
+                },
+                onClose: closeSaveSignIn,
               }
             : null
         }
@@ -592,8 +639,8 @@ export function EditorDialogs({
                   renameCellTerminal(terminalId, name, cellId),
                 onSetPinDirection: (cellId, portId, direction) =>
                   updateCellPortDirection(portId, direction, cellId),
-                onMovePin: (cellId, portId, delta) =>
-                  moveCellPort(portId, delta, cellId),
+                onMovePin: (cellId, portId, otherPortId) =>
+                  moveCellPort(portId, otherPortId, cellId),
                 onEditParameter: (cellId, name, change) =>
                   editCellParameter(name, change, cellId),
                 onSymbolSizeChange: setCellSymbolBodySize,

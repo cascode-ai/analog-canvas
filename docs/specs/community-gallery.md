@@ -21,7 +21,9 @@ restrictive CSP.
   reference images and `maintenance/netlists`. Writes (publish, update,
   likes, reference images, moderation) need a session, and so do the review
   routes, whose queue is a reviewer's own. Bundled editor examples are not
-  Gallery content.
+  Gallery content. A page that knows its reader is signed out (`/api/auth/me`
+  says no user) sends none of these reads (review queues, My shelf's
+  Projects, dataset bookmarks) and shows its sign-in prompt at once.
 - "Public" means on the wall; admin, owner-only and write routes keep
   stricter checks. Previews are `private`; the edge cache holds immutable
   bytes; sessions are cached one minute per isolate.
@@ -54,18 +56,25 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   id and a non-empty `projectText`. It ends with downloaded, kept and failed
   counts and exits 1 when the list or any circuit failed; a `--source` that
   `GET /api/gallery/sources` does not list is refused.
-- The wall's Download menu, the same for every reader and signed out too,
-  saves the wall's current results (its own list query) or every public
-  circuit as one `.zip`: `<id>.icproj.json` (the circuit's `projectText`) and
+- The wall's Download button, in its count row, the same for every reader
+  and signed out too (no menu or choice of scope), saves the wall's current
+  results (its own list query; every public circuit when no filter narrows
+  it) as one `.zip`: `<id>.icproj.json` (the circuit's `projectText`) and
   `manifest.json` (`query`, `generatedAt`, `origin`, `usage`, `sources` with
   each dataset's license, `count`, `entries` with `id`, `name`, `author`,
   `source`, `previewRevision` and `file`, and `failed` with `id`, `name` and
-  `reason`). Each choice states its count first; a run shows its progress
-  and can be cancelled. It lists oldest first and reads at most 10 requests
-  a second, 4 at once; network, 408, 429 (every reader waits its
-  `Retry-After`) and 5xx failures are retried, circuits still failing are
-  named, a list failure saves nothing and so do zero matches. The archive
-  code loads on first use.
+  `reason`). Its label is the current results' count (`Download 78`), which
+  follows every filter and search; it is disabled at zero and while the
+  count loads. A press fixes the query; the button then shows its progress
+  (`32 / 78`) with Cancel beside it while the wall stays usable. A complete
+  run saves the file and offers `Download ZIP` again. A run with failures
+  saves nothing by itself: it shows `N failed · Retry` and
+  `Download partial ZIP (M of N)`, whose file is named `…-partial.zip` and
+  whose manifest lists the failed circuits.
+  It lists oldest first and reads at most 10 requests a second, 4 at once;
+  network, 408, 429 (every reader waits its `Retry-After`) and 5xx failures
+  are retried, circuits still failing are named, a list failure saves
+  nothing and so do zero matches. The archive code loads on first use.
 - No account is blocked for how it reads or writes; the account blocks and
   trap circuits of before 2026-11-09 are retired with their records.
 - `/api/*` has a flood limit of 1200 requests a minute per client address
@@ -150,14 +159,28 @@ entries, keyset cursor, limit ≤60.
 
 - `/` is the feed; `/g/<id>` opens an entry through the protocol boundary;
   `/editor?example=<id>` is loopback-only. Insert (G) reads the same list.
+- `/g/<id>` for an entry the reader cannot read (withdrawn, rejected or
+  never there; `?summary=1` answers 404) shows "This circuit is not in the
+  Gallery." with Back to the Gallery (and, on a computer, Open the editor
+  for the window's own tabs), on a computer as on a phone, and opens no
+  blank editor. The pages the app serves are listed in
+  `apps/editor/src/page-routes.ts`; the Worker answers any other path (not
+  `/api/*`, a file or a Worker page) with 404 and a small page home.
 - Hosted Production/preview always uses Gallery, never bundled examples;
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
 - Every drawing shows Project Info floating over the canvas's bottom-right
-  corner from the start: its name, a Gallery entry's contributor, its
-  description and its reference picture. Closing it is
+  corner, left of the docks, from the start: its name, a Gallery entry's
+  contributor, its description and its reference picture. Without a picture
+  (or a review's details) it starts folded to its title bar and unfolds when
+  one arrives; a fold or unfold by hand, or opening it from the status bar or
+  the File menu (which unfolds it), holds from then on. A dock opening under
+  it moves it aside, and Fit View keeps the drawing clear of it while it is
+  open beside the docks. Closing it is
   remembered in this browser; Project Info in the status bar or the File menu
-  opens it again. The picture is a
+  opens it again. At phone widths (640 px and less) it starts closed and
+  opens as a full-width sheet along the bottom, which neither moves nor
+  resizes. The picture is a
   pasted screenshot (⌘V / Ctrl+V, unless a text field or a circuit takes the
   paste), a dropped image or a chosen file, kept per tab for the page's life;
   a drawing opened from the Gallery starts from its entry's figure (a
@@ -297,6 +320,8 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
 - `POST /api/gallery/<id>/like` (same-origin) toggles one like per account.
   The Owner's accounts instead add a heart each press and take one back with
   `?take=1` (⌥-click), the last taking the like away; `likes` counts hearts.
+  A signed-out like or Publish opens the header's sign-in choices (every
+  method the site offers, regional login included), never one provider.
 - Withdraw is immediate and restorable; Reject takes preset reasons plus a note
   and, ticked by default, emails the author that reason (the account's address,
   else the one it published with; replies to the Owner; never an AI account);
@@ -631,8 +656,9 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   it is put the same way after the entry saves; a failure leaves the entry
   published and the notice says how to attach it.
 - Anyone reads it: `GET …/reference[?v=<revision>]` (immutable when
-  `v` names it). The wall marks such entries (`hasReference: true`, a
-  Reference word mark on the tile). The community review queue names it (`reference:
+  `v` names it). The wall and `GET /api/gallery/<id>`'s `entry` mark such
+  entries (`hasReference: true`; a Reference word mark on the tile); the
+  editor asks for the picture only when its entry says so. The community review queue names it (`reference:
 {revision}`), lists such entries first, and `/review` sets it beside the
   drawing. The `reviews` backup scope holds them.
 

@@ -80,10 +80,39 @@ export interface SavedProjectBaseline {
 export type PersistenceState =
   "unbound" | "clean" | "dirty" | "saving" | "offline" | "conflict" | "failed";
 
+/** Why the last Save in a dialog did not let it continue. */
+export type SaveProblem =
+  { kind: "signed-out" } | { kind: "failed"; message: string };
+
 interface ReplaceGuardState {
   intent: string;
   /** `discarded` is true after Continue without saving. */
   perform: (discarded: boolean) => void | Promise<void>;
+  /** Shown in the dialog, not only in the status bar behind it (#2155). */
+  problem?: SaveProblem;
+}
+
+/** What a Cloud Save that did not save says, in the status bar and dialogs. */
+function cloudSaveFailureText(
+  outcome: Exclude<CloudProjectSaveOutcome, { status: "saved" }>,
+  limit: number,
+): string {
+  switch (outcome.status) {
+    case "signed-out":
+      return `Sign in to save this ${CLOUD_PROJECT_COPY.singular}`;
+    case "unreachable":
+      return `${CLOUD_PROJECT_COPY.plural} unavailable; work remains local (${outcome.message})`;
+    case "conflict":
+      return `${CLOUD_PROJECT_COPY.singular} changed elsewhere at revision ${outcome.project.revision}; current work was not overwritten`;
+    case "too-large":
+      return `Project is too large for ${CLOUD_PROJECT_COPY.plural}; download a backup`;
+    case "limit":
+      return `${CLOUD_PROJECT_COPY.singular} limit reached (${outcome.projects.length}/${limit})`;
+    case "not-found":
+      return `${CLOUD_PROJECT_COPY.singular} no longer exists; current work remains local`;
+    case "rejected":
+      return outcome.message;
+  }
 }
 
 export interface ReplaceProjectOptions {
@@ -249,6 +278,8 @@ export function useProjectFileLifecycle({
     null,
   );
   const [replaceGuardSaving, setReplaceGuardSaving] = useState(false);
+  /** A Save by hand found no account: Sign in to save is open. */
+  const [saveSignInOpen, setSaveSignInOpen] = useState(false);
   const [recoveryDialogOpen, setRecoveryDialogOpen] = useState(false);
   // Offered once: Ignore and Restore are remembered across reloads.
   const [dismissedStartupRecoveries, setDismissedStartupRecoveries] = useState(
@@ -437,32 +468,14 @@ export function useProjectFileLifecycle({
       );
       return outcome;
     }
-    if (outcome.status === "unreachable") {
-      setPersistenceState("offline");
-      setStatus(
-        `${CLOUD_PROJECT_COPY.plural} unavailable; work remains local (${outcome.message})`,
-      );
-      return outcome;
-    }
-    if (outcome.status === "conflict") {
-      setPersistenceState("conflict");
-      setStatus(
-        `${CLOUD_PROJECT_COPY.singular} changed elsewhere at revision ${outcome.project.revision}; current work was not overwritten`,
-      );
-      return outcome;
-    }
-    setPersistenceState("failed");
-    setStatus(
-      outcome.status === "signed-out"
-        ? `Sign in to save this ${CLOUD_PROJECT_COPY.singular}`
-        : outcome.status === "too-large"
-          ? `Project is too large for ${CLOUD_PROJECT_COPY.plural}; download a backup`
-          : outcome.status === "limit"
-            ? `${CLOUD_PROJECT_COPY.singular} limit reached (${outcome.projects.length}/${projectStore.limit})`
-            : outcome.status === "not-found"
-              ? `${CLOUD_PROJECT_COPY.singular} no longer exists; current work remains local`
-              : outcome.message,
+    setPersistenceState(
+      outcome.status === "unreachable"
+        ? "offline"
+        : outcome.status === "conflict"
+          ? "conflict"
+          : "failed",
     );
+    setStatus(cloudSaveFailureText(outcome, projectStore.limit));
     return outcome;
   }
 
@@ -514,7 +527,12 @@ export function useProjectFileLifecycle({
   function saveProjectToCloudByHand(
     candidate?: CircuitProject,
   ): Promise<CloudProjectSaveOutcome> {
-    return saveProjectToCloud(candidate).then(gateAfterManualCloudSave);
+    return saveProjectToCloud(candidate).then((outcome) => {
+      // Signed out, the person is asked how to keep the work instead of a
+      // line in the status bar (#2161).
+      if (outcome.status === "signed-out") setSaveSignInOpen(true);
+      return gateAfterManualCloudSave(outcome);
+    });
   }
 
   /** The person's Save: the Project's file, the Cloud, or an export. */
@@ -743,20 +761,13 @@ export function useProjectFileLifecycle({
         ) {
           setReplaceGuard(null);
           await guard.perform(false);
-        }
+        } else if (outcome.status === "failed" || outcome.status === "conflict")
+          noteReplaceGuardProblem({ kind: "failed", message: outcome.message });
         setReplaceGuardSaving(false);
         return;
       }
       if (!projectStore) {
-        const guardSessionId = liveSessionRef.current;
-        await exportProjectFile();
-        if (
-          liveSessionRef.current === guardSessionId &&
-          !hasUnsafeReplacement()
-        ) {
-          setReplaceGuard(null);
-          await guard.perform(false);
-        }
+        await exportAndContinue(guard);
         setReplaceGuardSaving(false);
         return;
       }
@@ -774,9 +785,43 @@ export function useProjectFileLifecycle({
       ) {
         setReplaceGuard(null);
         await guard.perform(false);
-      }
+      } else
+        noteReplaceGuardProblem(
+          outcome.status === "signed-out"
+            ? { kind: "signed-out" }
+            : {
+                kind: "failed",
+                message:
+                  outcome.status === "saved"
+                    ? "Saved, but newer edits remain unsaved. Save again to continue."
+                    : cloudSaveFailureText(outcome, projectStore.limit),
+              },
+        );
       setReplaceGuardSaving(false);
     })();
+  }
+
+  /** Shows why the guard's Save did not continue, in the guard itself. */
+  function noteReplaceGuardProblem(problem: SaveProblem): void {
+    setReplaceGuard((current) => (current ? { ...current, problem } : current));
+  }
+
+  /** Exports the Project file, then continues once the file holds this work. */
+  async function exportAndContinue(guard: ReplaceGuardState): Promise<void> {
+    const guardSessionId = liveSessionRef.current;
+    await exportProjectFile();
+    if (liveSessionRef.current === guardSessionId && !hasUnsafeReplacement()) {
+      setReplaceGuard(null);
+      await guard.perform(false);
+    }
+  }
+
+  /** The guard's file way out when the Cloud cannot take the work. */
+  function exportAndContinueReplaceGuard(): void {
+    const guard = replaceGuard;
+    if (!guard || replaceGuardSaving) return;
+    setReplaceGuardSaving(true);
+    void exportAndContinue(guard).finally(() => setReplaceGuardSaving(false));
   }
 
   function createNewProject(): void {
@@ -1241,6 +1286,7 @@ export function useProjectFileLifecycle({
         session.publishedSnapshotToken ?? null;
       persistenceChangeRef.current = null;
       setReplaceGuard(null);
+      setSaveSignInOpen(false);
       setRecoveryDialogOpen(false);
       if (session.cloudBinding)
         rememberRecentCloudProject(session.cloudBinding.id);
@@ -1257,6 +1303,8 @@ export function useProjectFileLifecycle({
     savedProjectBaseline,
     replaceGuard,
     replaceGuardSaving,
+    saveSignInOpen,
+    closeSaveSignIn: () => setSaveSignInOpen(false),
     recoveryDialogOpen,
     startupRecovery,
     startupCloudProjectId,
@@ -1283,6 +1331,7 @@ export function useProjectFileLifecycle({
     cancelReplaceGuard,
     confirmReplaceGuard,
     saveAndContinueReplaceGuard,
+    exportAndContinueReplaceGuard,
     dismissStartupRecovery: () => {
       const recordId = startupRecovery?.latest?.recordId;
       if (recordId)

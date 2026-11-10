@@ -1,6 +1,7 @@
 // The editor's menus bound to its commands: the header with its project tabs,
 // File, Edit and Circuit menus and toolbars, and the canvas context menu.
 import { cloudShelfOpened } from "../components/arena-gate-request";
+import { takeChosenFiles } from "../components/chosen-files";
 import {
   useRef,
   type Dispatch,
@@ -53,6 +54,7 @@ import {
 } from "./use-native-project-tabs";
 import type { useProjectTabSessions } from "./use-project-tab-sessions";
 import type { useSimulationSurface } from "./use-simulation-surface";
+import { galleryEntryIdOfPath } from "../page-routes";
 
 type ProjectFileLifecycle = ReturnType<typeof useProjectFileLifecycle>;
 type EditorPanels = ReturnType<typeof useEditorPanels>;
@@ -281,9 +283,7 @@ export function EditorMenuBar({
     typeof window === "undefined" ? null : new URL(window.location.href),
   ).current;
   const cloudId = address?.searchParams.get("project");
-  const galleryId = address?.pathname.match(
-    /^\/g\/([A-Za-z0-9-]{1,64})\/?$/u,
-  )?.[1];
+  const galleryId = address ? galleryEntryIdOfPath(address.pathname) : null;
   if (
     projectTabs.tabs.some(
       (tab) =>
@@ -404,8 +404,7 @@ export function EditorMenuBar({
             accept=".json,.icproj.json"
             data-testid="tab-project-file"
             onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
+              const [file] = takeChosenFiles(event.currentTarget);
               if (file) void openProjectFile(file, { inTab: true });
             }}
           />

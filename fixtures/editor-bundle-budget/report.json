@@ -4,30 +4,30 @@
   "routes": {
     "editor": {
       "budget": {
-        "files": 80,
+        "files": 87,
         "rawKib": 3637,
         "gzipKib": 1047,
         "brotliKib": 887
       },
       "measured": {
-        "files": 76,
-        "rawKib": 3306.3,
-        "gzipKib": 951.8,
-        "brotliKib": 806.3
+        "files": 79,
+        "rawKib": 3487.4,
+        "gzipKib": 1004.1,
+        "brotliKib": 849.3
       }
     },
     "gallery": {
       "budget": {
-        "files": 24,
+        "files": 28,
         "rawKib": 410,
         "gzipKib": 132,
         "brotliKib": 116
       },
       "measured": {
-        "files": 21,
-        "rawKib": 372.4,
-        "gzipKib": 119.4,
-        "brotliKib": 104.6
+        "files": 25,
+        "rawKib": 391.3,
+        "gzipKib": 124.8,
+        "brotliKib": 109.4
       }
     }
   }

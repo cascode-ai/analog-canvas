@@ -227,6 +227,8 @@ describe("Gallery and example commands", () => {
       description: "A circuit",
       tags: ["ota"],
       aiGenerated: true,
+      // No reference picture named: none is asked for (#2163).
+      hasReference: false,
       sourceDigest: digest(projectText),
     });
   });

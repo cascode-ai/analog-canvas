@@ -18,10 +18,33 @@ export interface GalleryEntryContext {
   /** The entry's AI mark; the update dialog starts from it. */
   aiGenerated?: boolean;
   /**
+   * Whether its author gave a reference image, as the entry said when read;
+   * absent when not known, as in a context kept from before it was said.
+   */
+  hasReference?: boolean;
+  /**
    * SHA-256 of the stored text this copy was opened from, so a later visit
    * can tell whether the Gallery has changed the entry since.
    */
   sourceDigest?: string;
+}
+
+/**
+ * The entry after Project Info saved its name and description, and its
+ * picture when one was uploaded: the entry has a reference image from then
+ * on, so a tab restored later asks for it instead of trusting the "none"
+ * it read before.
+ */
+export function withSavedDetails(
+  context: GalleryEntryContext,
+  details: { name: string; description: string },
+  referenceSaved: boolean,
+): GalleryEntryContext {
+  return {
+    ...context,
+    ...details,
+    ...(referenceSaved ? { hasReference: true } : {}),
+  };
 }
 
 interface GalleryEntryPayload {
@@ -31,6 +54,7 @@ interface GalleryEntryPayload {
     description?: string;
     tags?: string[];
     aiGenerated?: boolean;
+    hasReference?: boolean;
   };
   ownerUserId?: string | null;
   projectText?: string;
@@ -161,6 +185,9 @@ export function createGalleryExampleCommands({
       description: payload.entry?.description ?? "",
       tags: payload.entry?.tags ?? [],
       aiGenerated: payload.entry?.aiGenerated === true,
+      ...(payload.entry
+        ? { hasReference: payload.entry.hasReference === true }
+        : {}),
       ...(sourceDigest ? { sourceDigest } : {}),
     };
     if (inTab) {

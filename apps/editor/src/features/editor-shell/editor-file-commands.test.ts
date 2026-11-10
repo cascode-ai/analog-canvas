@@ -361,9 +361,7 @@ describe("RNL chunk failures", () => {
       throw new Error("missing chunk");
     });
     const target = commands();
-    await target.importRnlFiles([
-      new File(["* rnl\n"], "circuit.sp"),
-    ] as unknown as FileList);
+    await target.importRnlFiles([new File(["* rnl\n"], "circuit.sp")]);
     expect(target.dependencies.replaceActiveProject).not.toHaveBeenCalled();
     expect(target.dependencies.onChunkLoadFailure).toHaveBeenCalledWith(
       "RNL import",

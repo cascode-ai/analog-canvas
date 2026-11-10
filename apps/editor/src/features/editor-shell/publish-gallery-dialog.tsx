@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { SubmissionGateReport } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
 import { galleryTagLabel } from "../../gallery-tag-label";
-import { GitHubMark, GoogleMark } from "../../components/provider-marks";
+import { requestSignIn } from "../../components/sign-in-request";
 
 import {
   describePublishOutcome,
@@ -345,28 +345,20 @@ export function PublishGalleryDialog({
               Publishing needs an account, so the circuit carries your name and
               stays yours to edit or withdraw.
             </p>
+            {/* The page's one sign-in (#2157): every way this site offers,
+                GitHub, Google or an emailed code, and the regional login. */}
             <div className="publish-gallery-signin-actions">
-              <a
-                className="account-provider"
-                href="/api/auth/github/start"
-                data-testid="publish-signin-github"
+              <button
+                type="button"
+                data-testid="publish-signin-open"
+                onClick={() => {
+                  onClose();
+                  requestSignIn();
+                }}
               >
-                <GitHubMark />
-                Continue with GitHub
-              </a>
-              <a
-                className="account-provider"
-                href="/api/auth/google/start"
-                data-testid="publish-signin-google"
-              >
-                <GoogleMark />
-                Continue with Google
-              </a>
+                Sign in
+              </button>
             </div>
-            <p className="publish-gallery-signin-note">
-              Prefer email? Use Sign in at the top right: we email you a code to
-              type there.
-            </p>
           </div>
         ) : (
           <>

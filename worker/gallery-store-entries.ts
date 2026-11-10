@@ -274,8 +274,21 @@ export function entry(
     return Response.json({ error: "not-found" }, { status: 404 });
   }
   const fixedBy = fixersOf(sql, [row.id]).get(row.id);
+  // As the wall marks it, so a reader asks for the picture only when there
+  // is one (#2163).
+  const hasReference =
+    sql
+      .exec(
+        "SELECT 1 AS found FROM entry_references WHERE entry_id = ?",
+        row.id,
+      )
+      .toArray().length > 0;
   return Response.json({
-    entry: { ...summaryOf(row, true), ...(fixedBy ? { fixedBy } : {}) },
+    entry: {
+      ...summaryOf(row, true),
+      ...(fixedBy ? { fixedBy } : {}),
+      ...(hasReference ? { hasReference: true } : {}),
+    },
     status: row.status,
     ownerUserId: row.owner_user_id,
     submitterEmail: row.submitter_email,

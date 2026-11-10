@@ -57,9 +57,10 @@ describe("assets binding wiring", () => {
       ]),
     );
     // The Gallery paths need the Worker to enrich the shell or return their
-    // direct document. Other client routes still get the shell from
-    // Cloudflare; the Worker also separates "a hashed file that is gone"
-    // from "a route with no file".
+    // direct document. Every other path reaches it too: it separates "a
+    // hashed file that is gone" from "a route with no file", and a page the
+    // app serves from a path no page serves, which answers 404 (#2159).
+    expect(assets.run_worker_first).toContain("/*");
     expect(assets.not_found_handling).toBe("single-page-application");
   });
 

@@ -31,6 +31,15 @@ describe("reference images", () => {
     const image = { type: "image/png", data: png.toString("base64") };
     const put = (cookie: string, body: object) =>
       call(cookie, { method: "PUT", body: JSON.stringify(body) });
+    // The entry says whether there is one, as the wall does, so a reader
+    // asks for the picture only then (#2163).
+    const entry = async (query = "") =>
+      (
+        (await (
+          await route(env, new Request(`${ORIGIN}/api/gallery/${id}${query}`))
+        ).json()) as { entry: { hasReference?: boolean } }
+      ).entry;
+    expect(await entry()).not.toHaveProperty("hasReference");
 
     expect((await put(reader, { image, rights: true })).status).toBe(403);
     expect(await (await put(maker, { image })).json()).toEqual({
@@ -47,6 +56,8 @@ describe("reference images", () => {
     const saved = await put(maker, { image, rights: true });
     expect(saved.status).toBe(200);
     const { revision } = (await saved.json()) as { revision: string };
+    expect((await entry()).hasReference).toBe(true);
+    expect((await entry("?summary=1")).hasReference).toBe(true);
 
     // Any signed-in reader sees it, and the review queue names it.
     const read = await call(reader);
@@ -75,5 +86,6 @@ describe("reference images", () => {
     // The Owner may remove it too.
     expect((await call(owner, { method: "DELETE" })).status).toBe(200);
     expect((await call(reader)).status).toBe(404);
+    expect(await entry()).not.toHaveProperty("hasReference");
   });
 });

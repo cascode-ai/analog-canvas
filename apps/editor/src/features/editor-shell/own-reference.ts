@@ -22,9 +22,18 @@ function rememberClosed(closed: boolean): void {
     // Without storage it opens with the next page.
   }
 }
-// The PowerPoint dialog starts with the drawing alone; it opens there too.
+/** Phone widths, where the window is a sheet along the bottom (#2151). */
+export const REFERENCE_SHEET_QUERY = "(max-width: 640px)";
+
+// The PowerPoint dialog starts with the drawing alone, and so does a phone,
+// whose screen is the drawing's; it opens there on request.
 let open = (() => {
   if (isOfficeDialog()) return false;
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia?.(REFERENCE_SHEET_QUERY).matches
+  )
+    return false;
   try {
     return localStorage.getItem(CLOSED_KEY) !== "closed";
   } catch {
@@ -42,8 +51,13 @@ const subscribe = (listener: () => void) => {
   return () => listeners.delete(listener);
 };
 
+// How often the person has asked for the window (File or the status bar):
+// each time it shows unfolded, whatever it showed before.
+let openings = 0;
+
 export const openOwnReference = () => {
   open = true;
+  openings += 1;
   rememberClosed(false);
   changed();
 };
@@ -65,6 +79,14 @@ export function useOwnReferenceOpen(): boolean {
     subscribe,
     () => open,
     () => false,
+  );
+}
+
+export function useOwnReferenceOpenings(): number {
+  return useSyncExternalStore(
+    subscribe,
+    () => openings,
+    () => 0,
   );
 }
 

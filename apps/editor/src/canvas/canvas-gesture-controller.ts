@@ -222,6 +222,20 @@ export function classifyWheelSource(event: WheelSourceShape): WheelSource {
   if (typeof wheelDeltaY === "number" && wheelDeltaY !== 0) {
     if (Math.abs(wheelDeltaY) === 3 * Math.abs(event.deltaY)) return "trackpad";
     if (wheelDeltaY % 120 === 0) return "mouse";
+    // At a page zoom other than 100% Chromium divides a detent's deltaY by
+    // the zoom (100 → 111.1 at 90%) and derives wheelDeltaY from it at the
+    // wheel's 1.2 ratio (133), so neither the multiple of 120 nor a whole
+    // deltaY survives (#2169). A detent-sized, single-axis step at that
+    // ratio is no evidence of a surface, so it stays "unknown" — which
+    // zooms unless a trackpad gesture is under way — rather than "mouse",
+    // which would wipe a surface's evidence for the steps that follow.
+    if (
+      event.deltaX === 0 &&
+      Math.abs(wheelDeltaY) >= 60 &&
+      Math.abs(Math.abs(wheelDeltaY) - 1.2 * Math.abs(event.deltaY)) <=
+        0.02 * Math.abs(wheelDeltaY)
+    )
+      return "unknown";
   }
   // Two axes at once is a surface, not a wheel.
   if (event.deltaX !== 0) return "trackpad";
@@ -390,8 +404,11 @@ export function createCanvasGestureController({
     const deltaX = event.deltaX * unit;
     const deltaY = event.deltaY * unit;
     if (event.ctrlKey || event.metaKey) {
+      // A pinch arrives as many small ctrl+wheel steps; a Ctrl+wheel detent
+      // as one of 100 px or more, which at the pinch rate jumped 2.7× and
+      // more per notch (#2169). Cap a single step instead.
       zoomAtClientPoint(
-        Math.exp(deltaY * 0.01),
+        Math.exp(Math.max(-0.2, Math.min(0.2, deltaY * 0.01))),
         event.clientX,
         event.clientY,
         element,

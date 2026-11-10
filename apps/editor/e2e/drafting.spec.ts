@@ -436,8 +436,9 @@ test("authors one validated formula through the canonical text editor", async ({
   expect(editorLayout.shellHeight).toBeGreaterThanOrEqual(
     editorLayout.shellScrollHeight,
   );
-  expect(editorLayout.shellOverflowY).not.toBe("auto");
-  expect(editorLayout.shellOverflowY).not.toBe("scroll");
+  // The panel itself scrolls only on a canvas too short for the formula's
+  // header and Insert row (#2172); here it fits, and the formula body is
+  // what scrolls.
   expect(editorLayout.formulaOverflowY).toBe("auto");
   expect(editorLayout.keyboardToggleDisplay).toBe("none");
   expect(editorLayout.virtualKeyboardVisible).toBe(false);

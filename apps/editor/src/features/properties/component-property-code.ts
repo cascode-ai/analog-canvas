@@ -28,6 +28,7 @@ import {
   componentOutputsSwapped,
   componentSourceShape,
   componentSupplyPins,
+  componentWindingsMirrored,
   NO_INTERNAL_MARK,
   type SourceShape,
 } from "./component-visual-variants";
@@ -85,6 +86,8 @@ export interface ComponentPropertyCodeValue
     shape?: SourceShape;
     /** An op-amp's VDD and VSS drawn as pins to wire (#1833). */
     supplyPins?: boolean;
+    /** A transformer's secondary looping away from its primary (#2170). */
+    windingsMirrored?: boolean;
   };
 }
 
@@ -281,6 +284,7 @@ function parseAppearance(
     inputsSwapped: componentInputsSwapped(context.instance.symbolId),
     outputsSwapped: componentOutputsSwapped(context.instance.symbolId),
     supplyPins: componentSupplyPins(context.instance, context.resolver),
+    windingsMirrored: componentWindingsMirrored(context.instance),
   };
   const shape = componentSourceShape(context.instance);
   const supported = new Set<string>(["color"]);
@@ -335,6 +339,7 @@ export function componentPropertyCodeValue(
   const outputsSwapped = componentOutputsSwapped(instance.symbolId);
   const shape = componentSourceShape(instance);
   const supplyPins = componentSupplyPins(instance, context.resolver);
+  const windingsMirrored = componentWindingsMirrored(instance);
   const display: ComponentPropertyDisplayCode = {};
   if (context.referenceVisible !== null) {
     display.visualAnnotation = context.referenceVisible;
@@ -429,6 +434,7 @@ export function componentPropertyCodeValue(
       ...(outputsSwapped !== undefined ? { outputsSwapped } : {}),
       ...(shape !== undefined ? { shape } : {}),
       ...(supplyPins !== undefined ? { supplyPins } : {}),
+      ...(windingsMirrored !== undefined ? { windingsMirrored } : {}),
     },
   };
 }
@@ -474,6 +480,9 @@ export function serializeComponentPropertyCode(
         ...(appearance.shape !== undefined ? { shape: appearance.shape } : {}),
         ...(appearance.supplyPins !== undefined
           ? { supplyPins: appearance.supplyPins }
+          : {}),
+        ...(appearance.windingsMirrored !== undefined
+          ? { windingsMirrored: appearance.windingsMirrored }
           : {}),
       },
       ...(display ? { display } : {}),

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { cloudShelfOpened } from "./arena-gate-request";
 import "../styles/gallery-entry.css";
 
@@ -47,7 +47,7 @@ import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
 import { GallerySourceNote, useGalleryDatasets } from "./gallery-datasets";
 import { GalleryOrderMenu } from "./gallery-order-menu";
-import { GalleryDownloadMenu } from "./gallery-download-menu";
+import { GalleryDownloadButton } from "./gallery-download-button";
 import {
   galleryOrderPreference,
   galleryShuffleSeed,
@@ -233,6 +233,7 @@ export function GalleryFeed({
     state,
     setState,
     heldWall,
+    answersQuery,
     shownWallRef,
     sentinelRef,
     toggleLike,
@@ -333,8 +334,26 @@ export function GalleryFeed({
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
       )
     : entries;
-  const refreshing = state.status === "loading" && heldWall.length > 0;
-  shownWallRef.current = refreshing ? heldWall : visibleEntries;
+  // Words not yet answered by the server: still being typed, or about to be
+  // asked. Meanwhile the wall shown before them stays, dimmed, when they
+  // match nothing loaded, rather than blanking until the answer (#2160).
+  const wordsPending =
+    searchingLoaded && (searchQuery.trim() !== serverSearch || !answersQuery);
+  const answeredWallRef = useRef<GalleryFeedEntry[]>([]);
+  if (state.status === "ready" && !wordsPending)
+    answeredWallRef.current = visibleEntries;
+  const holdingAnswered =
+    state.status === "ready" &&
+    wordsPending &&
+    visibleEntries.length === 0 &&
+    answeredWallRef.current.length > 0;
+  const loadingHeld = state.status === "loading" && heldWall.length > 0;
+  const refreshing = loadingHeld || holdingAnswered;
+  shownWallRef.current = loadingHeld
+    ? heldWall
+    : holdingAnswered
+      ? answeredWallRef.current
+      : visibleEntries;
 
   const { linkedId, focusFailure } = useGalleryFocusLink({
     preload,
@@ -411,6 +430,53 @@ export function GalleryFeed({
   const componentRangeCounts: Record<string, number> = localQuickCounts
     ? countComponentRanges(visibleEntries)
     : (state.filterCounts?.componentRanges ?? {});
+  // What Download saves (#2173): the wall's current results, once the server
+  // has counted them; words still being typed are not asked yet.
+  const downloadPending =
+    state.status === "loading" || searchQuery.trim() !== serverSearch;
+  const downloadCount =
+    state.status !== "ready"
+      ? null
+      : !normalizedSearchQuery || searchAnswered
+        ? state.total
+        : state.nextCursor === null
+          ? visibleEntries.length
+          : null;
+  // While another combination loads, the counts beside the held wall stay
+  // until its own arrive (#2160); the first load has none to hold.
+  const liveCounts = {
+    unavailable: state.status === "unavailable",
+    total: state.total,
+    filtered: galleryFiltersNarrowQuery(filters),
+    searched: searchAnswered,
+    search: searchingLoaded
+      ? {
+          visible: visibleEntries.length,
+          settled: state.nextCursor === null && state.status === "ready",
+        }
+      : null,
+    authors: datasetWall && !narrowedToAuthor ? [] : authors,
+    partial: localAuthors && state.nextCursor !== null,
+    datasets,
+    datasetShare,
+    quickCounts,
+    quickCountsPartial,
+    attentionKindCounts,
+    componentRangeCounts,
+  };
+  const heldCountsRef = useRef<typeof liveCounts | null>(null);
+  const countsSettled = state.status !== "loading";
+  if (countsSettled) heldCountsRef.current = liveCounts;
+  const counts = countsSettled ? liveCounts : heldCountsRef.current;
+  const countsHeld = !countsSettled && counts !== null;
+  const lastDownloadCountRef = useRef<number | null>(null);
+  if (!downloadPending) lastDownloadCountRef.current = downloadCount;
+  const countText = (value: number, partial: boolean) =>
+    counts === null
+      ? "…"
+      : counts.unavailable
+        ? "—"
+        : `${value.toLocaleString()}${partial ? "+" : ""}`;
   const sizeFilters = GALLERY_COMPONENT_RANGES.map((range) => {
     const chosen = selectedParts.includes(range.key);
     const span =
@@ -440,12 +506,11 @@ export function GalleryFeed({
           {chosen ? "✓" : ""}
         </span>
         <span className="gallery-tag-name">{range.label}</span>
-        <span className="gallery-sidebar-count">
-          {state.status === "loading"
-            ? "…"
-            : state.status === "unavailable"
-              ? "—"
-              : `${(componentRangeCounts[range.key] ?? 0).toLocaleString()}${quickCountsPartial ? "+" : ""}`}
+        <span className="gallery-sidebar-count" data-held={countsHeld}>
+          {countText(
+            counts?.componentRangeCounts[range.key] ?? 0,
+            counts?.quickCountsPartial === true,
+          )}
         </span>
       </button>
     );
@@ -453,15 +518,17 @@ export function GalleryFeed({
   const quickCount = (key: keyof typeof loadedQuickCounts) => (
     <span
       className="gallery-sidebar-count"
+      data-held={countsHeld}
       title={
-        quickCountsPartial ? "Matches in circuits loaded so far" : undefined
+        counts?.quickCountsPartial
+          ? "Matches in circuits loaded so far"
+          : undefined
       }
     >
-      {state.status === "loading"
-        ? "…"
-        : state.status === "unavailable"
-          ? "—"
-          : `${quickCounts[key].toLocaleString()}${quickCountsPartial ? "+" : ""}`}
+      {countText(
+        counts?.quickCounts[key] ?? 0,
+        counts?.quickCountsPartial === true,
+      )}
     </span>
   );
   const duplicates = new Map(
@@ -530,33 +597,31 @@ export function GalleryFeed({
             describes the community wall and leaves with it. */}
         {view === "gallery" ? (
           <GalleryCountPanel
-            total={state.total}
-            filtered={galleryFiltersNarrowQuery(filters)}
-            authors={datasetWall && !narrowedToAuthor ? [] : authors}
-            partial={localAuthors && state.nextCursor !== null}
+            total={counts?.total ?? null}
+            busy={countsHeld}
+            filtered={counts?.filtered ?? false}
+            authors={counts?.authors ?? []}
+            partial={counts?.partial ?? false}
             author={narrowedName}
             onSelectAuthor={selectContributor}
             onShowAllAuthors={() => selectAuthor(null)}
-            datasets={datasets}
-            datasetShare={datasetShare}
+            datasets={counts?.datasets ?? []}
+            datasetShare={counts?.datasetShare ?? null}
             currentDataset={source}
             onSelectDataset={selectDataset}
             hideDatasets={hideDatasets}
             onToggleDatasets={toggleDatasets}
-            searched={searchAnswered}
-            search={
-              searchingLoaded
-                ? {
-                    visible: visibleEntries.length,
-                    settled:
-                      state.nextCursor === null && state.status === "ready",
-                  }
-                : null
-            }
+            searched={counts?.searched ?? false}
+            search={counts?.search ?? null}
           />
         ) : null}
         {/* Kept mounted on the shelf, so a running download goes on. */}
-        <GalleryDownloadMenu query={feedQuery} hidden={view !== "gallery"} />
+        <GalleryDownloadButton
+          query={feedQuery}
+          count={downloadPending ? lastDownloadCountRef.current : downloadCount}
+          pending={downloadPending}
+          hidden={view !== "gallery"}
+        />
       </div>
       {view === "shelf" ? (
         <Suspense
@@ -589,13 +654,13 @@ export function GalleryFeed({
                 isOwner={isOwner}
                 attentionOnly={attentionOnly}
                 attentionKind={attentionKind}
-                attentionKindCounts={attentionKindCounts}
+                attentionKindCounts={counts?.attentionKindCounts ?? {}}
                 aiFilter={aiFilter}
                 showDatasets={
                   // Shown while the wall loads, so it never pops in later.
                   !hideDatasets &&
                   (state.status === "loading" ||
-                    quickCounts.datasets > 0 ||
+                    (counts?.quickCounts.datasets ?? 0) > 0 ||
                     aiFilter === "dataset")
                 }
                 netlistableOnly={netlistableOnly}
@@ -708,7 +773,7 @@ export function GalleryFeed({
                 aria-busy={refreshing}
                 inert={refreshing}
               >
-                {searchingLoaded && state.status === "ready" ? (
+                {searchingLoaded && state.status === "ready" && !refreshing ? (
                   <GallerySearchProgress
                     checked={entries.length}
                     total={state.total}

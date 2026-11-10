@@ -1495,7 +1495,8 @@
   }
 
   .app-chrome-main .app-chrome-actions .app-repository-link,
-  .app-chrome-main .app-chrome-actions .bug-report-link {
+  .app-chrome-main .app-chrome-actions .bug-report-link,
+  .app-chrome-main .app-chrome-actions .bug-report-email {
     display: none;
   }
 }

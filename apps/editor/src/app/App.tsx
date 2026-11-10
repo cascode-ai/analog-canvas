@@ -138,6 +138,7 @@ import {
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
   canvasInsetsFromOverlays,
+  insetsBesideFloatingWindow,
   type CameraRectInput,
   type CanvasInsets,
 } from "../canvas/fit-view";
@@ -269,6 +270,7 @@ import {
 import { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import type { ReplaceProjectOptions } from "../document/use-project-file-lifecycle";
 import { useUnsavedWorkGuard } from "../document/use-unsaved-work-guard";
+import { takePendingSave } from "../document/save-after-sign-in";
 import { authoredObjectCount } from "../document/project-content";
 import { createDraftingCommands } from "../features/drafting/drafting-commands";
 import {
@@ -1292,6 +1294,9 @@ function WorkspaceEditor({
     cancelReplaceGuard,
     confirmReplaceGuard,
     saveAndContinueReplaceGuard,
+    exportAndContinueReplaceGuard,
+    saveSignInOpen,
+    closeSaveSignIn,
     dismissStartupRecovery,
     createNewProject,
     revertToSavedProjectBaseline,
@@ -1390,6 +1395,19 @@ function WorkspaceEditor({
       return nextDocument;
     },
   });
+  // A Save asked for while signed out continues once this window has
+  // signed in and shows that Project again (#2161).
+  const saveByHandRef = useRef(saveByHand);
+  saveByHandRef.current = saveByHand;
+  useEffect(() => {
+    if (
+      publishSession &&
+      projectStore &&
+      startupRestoreReady &&
+      takePendingSave(project.id)
+    )
+      void saveByHandRef.current();
+  }, [publishSession, projectStore, startupRestoreReady, project.id]);
   const linkExistingPublication = useGalleryPublicationLink({
     publishGalleryOpen,
     projectStore,
@@ -3913,9 +3931,16 @@ function WorkspaceEditor({
     const overlays = [
       ...window.document.querySelectorAll("[data-canvas-overlay]"),
     ].map((element) => element.getBoundingClientRect());
+    const floating = window.document
+      .querySelector("[data-floating-window]")
+      ?.getBoundingClientRect();
     return {
       viewport: { width: canvasRect.width, height: canvasRect.height },
-      insets: canvasInsetsFromOverlays(canvasRect, overlays),
+      insets: insetsBesideFloatingWindow(
+        canvasRect,
+        canvasInsetsFromOverlays(canvasRect, overlays),
+        floating ?? null,
+      ),
     };
   }
 
@@ -5978,6 +6003,10 @@ function WorkspaceEditor({
         cancelReplaceGuard={cancelReplaceGuard}
         confirmReplaceGuard={confirmReplaceGuard}
         saveAndContinueReplaceGuard={saveAndContinueReplaceGuard}
+        exportAndContinueReplaceGuard={exportAndContinueReplaceGuard}
+        saveSignInOpen={saveSignInOpen}
+        closeSaveSignIn={closeSaveSignIn}
+        exportProjectFile={exportProjectFile}
         dismissStartupRecovery={dismissStartupRecovery}
         restoreRecoverySession={restoreRecoverySession}
         downloadRecoveryBackup={downloadRecoveryBackup}

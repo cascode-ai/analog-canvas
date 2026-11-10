@@ -20,6 +20,7 @@ import {
   type GalleryTagSummary,
 } from "../gallery-client";
 import { isRequestFailure } from "../request-failure";
+import { requestSignIn } from "./sign-in-request";
 
 /**
  * The eager landing request is one-use: the wall takes it only for its first
@@ -254,8 +255,10 @@ export function useGalleryWall({
     } catch {
       return;
     }
+    // Signed out: the header's sign-in choices, every way this site offers,
+    // never one provider picked for the reader (#2157). The wall stays.
     if (response.status === 401) {
-      window.location.href = "/api/auth/github/start";
+      requestSignIn();
       return;
     }
     if (!response.ok) return;
@@ -466,6 +469,9 @@ export function useGalleryWall({
     state,
     setState,
     heldWall,
+    // Whether the wall held is the answer to the current query, rather than
+    // to the one before it while the new one is about to be asked.
+    answersQuery: loadedQueryRef.current === galleryFeedQueryKey(feedQuery),
     shownWallRef,
     sentinelRef,
     toggleLike,

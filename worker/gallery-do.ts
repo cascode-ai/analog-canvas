@@ -49,6 +49,8 @@ import {
   ownerData,
   tagCounts,
   toggleLike,
+  installSearchRevision,
+  type GalleryWallStatistics,
 } from "./gallery-store-wall";
 import {
   cloudProjectCreate,
@@ -106,7 +108,7 @@ import {
   schemaBackup,
   schemaRestore,
 } from "./gallery-store-backup";
-import { GalleryWallStatisticsCache } from "./gallery-store-wall-cache";
+import { GalleryRevisionCache } from "./gallery-store-wall-cache";
 import {
   comparisonCount,
   comparisonPart,
@@ -171,7 +173,8 @@ const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
 export class GalleryDO {
   private readonly regionalProjects: RegionalProjectDO | undefined;
   private readonly sql: SqlStorage;
-  private readonly wallStatisticsCache = new GalleryWallStatisticsCache();
+  private readonly wallStatisticsCache =
+    new GalleryRevisionCache<GalleryWallStatistics>();
   /**
    * This start of the object. A restart — a deploy, or a point-in-time
    * restore that also rewinds the revisions — restarts a capture too.
@@ -369,6 +372,8 @@ export class GalleryDO {
     installBookmarks(this.sql);
     // Each community entry's reference image, if its author gave one.
     installReferences(this.sql);
+    // What a cached search answer follows (#2160).
+    installSearchRevision(this.sql);
     // A tile's whole card, by id: a page's tiles and the Owner's lists read
     // it here, never the row, whose card fields sit behind its Project and
     // preview (about 100 kB, some 25 pages each; 30 cold tiles took about

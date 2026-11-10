@@ -11,8 +11,10 @@ import {
   projectCellInterface,
   type CellPortDirection,
   type CircuitProject,
+  type ProjectedFormalCellPort,
   type SchematicDocument,
 } from "@icm/model";
+import { designNetlistCellPorts } from "@icm/netlist";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -59,7 +61,8 @@ export interface CellPropertiesDialogProps {
   onRename(cellId: string, name: string): void;
   onRenamePin(cellId: string, terminalId: string, name: string): void;
   onSetPinDirection(cellId: string, portId: string, direction: Direction): void;
-  onMovePin(cellId: string, portId: string, delta: -1 | 1): void;
+  /** Move a Pin up or down past another, swapping the two. */
+  onMovePin(cellId: string, portId: string, otherPortId: string): void;
   onEditParameter(
     cellId: string,
     name: string,
@@ -76,6 +79,58 @@ export interface CellPropertiesDialogProps {
     side: PinSide,
     offset: number,
   ): void;
+}
+
+type PinRow =
+  | {
+      kind: "pin";
+      port: ProjectedFormalCellPort;
+      /** A supply, which the netlist lists first: its place is fixed. */
+      supply: boolean;
+      /** The Pins it trades places with, moved up or down. */
+      up?: string | undefined;
+      down?: string | undefined;
+    }
+  | { kind: "added"; name: string };
+
+/**
+ * The Pins table in netlist order (#2177): the supplies first, where the
+ * export puts them, then the signals in the Cell's own order, and the pins
+ * the export adds (ground's, a default supply) where it writes them. A
+ * signal moves past the signal beside it; a supply stays. Until every Pin
+ * exports, the Cell's own order alone, each Pin movable.
+ */
+function cellPinRows(
+  ports: readonly ProjectedFormalCellPort[],
+  exported: readonly { id: string; name: string; supply: boolean }[] | null,
+): PinRow[] {
+  let rows: PinRow[] = ports.map((port) => ({
+    kind: "pin" as const,
+    port,
+    supply: false,
+  }));
+  if (exported) {
+    const listed: PinRow[] = [];
+    const seen = new Set<number>();
+    for (const item of exported) {
+      const index = ports.findIndex((port) => port.netIds.includes(item.id));
+      if (index < 0) listed.push({ kind: "added", name: item.name });
+      else if (!seen.has(index)) {
+        seen.add(index);
+        listed.push({ kind: "pin", port: ports[index]!, supply: item.supply });
+      }
+    }
+    if (seen.size === ports.length) rows = listed;
+  }
+  const movable = rows.filter(
+    (row): row is Extract<PinRow, { kind: "pin" }> =>
+      row.kind === "pin" && !row.supply,
+  );
+  movable.forEach((row, index) => {
+    row.up = movable[index - 1]?.port.id;
+    row.down = movable[index + 1]?.port.id;
+  });
+  return rows;
 }
 
 /**
@@ -213,6 +268,10 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
         )?.definition
       : undefined;
   }, [project, cell]);
+  const exportedPorts = useMemo(
+    () => designNetlistCellPorts(project, cellId),
+    [project, cellId],
+  );
   useEffect(() => dialogRef.current?.focus(), []);
   useEffect(() => {
     // Undo or an Agent edit can remove the Cell under an open dialog.
@@ -223,6 +282,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
   const netlist = cell.netlist;
   const projection = projectCellInterface(netlist);
   const ports = projection.ports;
+  const pinRows = cellPinRows(ports, exportedPorts);
   const target = localBlockSymbolTarget(cell);
   const placements = new Map(
     (target.presentation?.pinPlacements ?? []).map((placement) => [
@@ -379,22 +439,58 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                 <span className="cell-count-badge">{ports.length}</span>
                 <span className="cell-props-section-note">
                   Top to bottom is the netlist order
+                  {pinRows.some((row) => row.kind === "pin" && row.supply)
+                    ? "; supplies lead"
+                    : ""}
                 </span>
               </header>
               {ports.length ? (
                 <div
-                  className="cell-props-table"
+                  className="cell-props-table cell-pin-table"
                   role="table"
                   aria-label="Formal port order"
                 >
                   <div className="cell-props-row cell-pin-row" role="row">
-                    <span role="columnheader">#</span>
-                    <span role="columnheader">Name</span>
-                    <span role="columnheader">Direction</span>
-                    <span role="columnheader">Side</span>
-                    <span role="columnheader" aria-label="Order" />
+                    <span role="columnheader" className="cell-pin-order">
+                      #
+                    </span>
+                    <span role="columnheader" className="cell-pin-name">
+                      Name
+                    </span>
+                    <span role="columnheader" className="cell-pin-direction">
+                      Direction
+                    </span>
+                    <span role="columnheader" className="cell-pin-side">
+                      Side
+                    </span>
+                    <span
+                      role="columnheader"
+                      className="cell-pin-actions"
+                      aria-label="Order"
+                    />
                   </div>
-                  {ports.map((port, index) => {
+                  {pinRows.map((row, position) => {
+                    if (row.kind === "added")
+                      return (
+                        <div
+                          key={`added-${row.name}`}
+                          className="cell-props-row cell-pin-row cell-pin-added"
+                          role="row"
+                        >
+                          <span role="cell" className="cell-pin-order">
+                            {position + 1}
+                          </span>
+                          <span role="cell" className="cell-pin-name">
+                            <span className="cell-pin-added-name">
+                              {row.name}
+                            </span>
+                          </span>
+                          <span role="cell" className="cell-pin-added-note">
+                            Added by the netlist
+                          </span>
+                        </div>
+                      );
+                    const { port } = row;
                     // Declarations of one name may state different
                     // directions; a direction is only a drawing hint.
                     const mixed =
@@ -413,7 +509,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                         role="row"
                       >
                         <span role="cell" className="cell-pin-order">
-                          {index + 1}
+                          {position + 1}
                         </span>
                         <span role="cell" className="cell-pin-name">
                           {port.terminalIds.map((id) => {
@@ -437,7 +533,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                             </small>
                           ) : null}
                         </span>
-                        <span role="cell">
+                        <span role="cell" className="cell-pin-direction">
                           <select
                             aria-label={`Formal port ${port.name} direction`}
                             value={mixed ? "" : port.direction}
@@ -461,7 +557,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                             ))}
                           </select>
                         </span>
-                        <span role="cell">
+                        <span role="cell" className="cell-pin-side">
                           <select
                             aria-label={`Cell symbol ${port.name} pin side`}
                             value={placement?.side ?? "auto"}
@@ -481,27 +577,39 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                             ))}
                           </select>
                         </span>
-                        <span role="cell" className="cell-props-row-actions">
-                          <button
-                            type="button"
-                            className="cell-props-icon-button"
-                            aria-label={`Move ${port.name} up`}
-                            disabled={index === 0}
-                            onClick={() =>
-                              props.onMovePin(cell.id, port.id, -1)
-                            }
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            className="cell-props-icon-button"
-                            aria-label={`Move ${port.name} down`}
-                            disabled={index === ports.length - 1}
-                            onClick={() => props.onMovePin(cell.id, port.id, 1)}
-                          >
-                            ↓
-                          </button>
+                        <span
+                          role="cell"
+                          className="cell-props-row-actions cell-pin-actions"
+                        >
+                          {/* A supply's place is the netlist's: it leads. */}
+                          {row.supply ? null : (
+                            <>
+                              <button
+                                type="button"
+                                className="cell-props-icon-button"
+                                aria-label={`Move ${port.name} up`}
+                                disabled={!row.up}
+                                onClick={() =>
+                                  row.up &&
+                                  props.onMovePin(cell.id, port.id, row.up)
+                                }
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                className="cell-props-icon-button"
+                                aria-label={`Move ${port.name} down`}
+                                disabled={!row.down}
+                                onClick={() =>
+                                  row.down &&
+                                  props.onMovePin(cell.id, port.id, row.down)
+                                }
+                              >
+                                ↓
+                              </button>
+                            </>
+                          )}
                         </span>
                       </div>
                     );

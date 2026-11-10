@@ -251,7 +251,7 @@
   gap: 0.5rem;
 }
 
-.publish-gallery-signin-actions a {
+.publish-gallery-signin-actions button {
   flex: 1 1 12rem;
   padding: 0.5rem 0.85rem;
   border: 1px solid var(--icm-border, #d0d5dd);
@@ -263,12 +263,8 @@
   text-decoration: none;
 }
 
-.publish-gallery-signin-actions a:hover {
+.publish-gallery-signin-actions button:hover {
   border-color: var(--icm-accent, #1570ef);
-}
-
-.publish-gallery-signin-note {
-  font-size: 0.75rem;
 }
 
 .publish-gallery-actions {

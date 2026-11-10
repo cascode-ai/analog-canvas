@@ -170,6 +170,36 @@ export function supplyPinsEdit(
   };
 }
 
+/**
+ * A transformer's secondary drawn looping away from its primary instead of
+ * the same way (#2170): its "mirrored" variant, so pins, dots and netlist
+ * never change. The same way, as the reference draws it, is the default.
+ */
+const MIRRORABLE_WINDINGS = new Set(["xfmr"]);
+const MIRRORED_WINDINGS_VARIANT = "mirrored";
+
+export function componentWindingsMirrored(
+  instance: Pick<Instance, "symbolId" | "symbolVariantId">,
+): boolean | undefined {
+  if (!MIRRORABLE_WINDINGS.has(instance.symbolId)) return undefined;
+  return instance.symbolVariantId === MIRRORED_WINDINGS_VARIANT;
+}
+
+/** Turns a transformer's secondary over, or back; none where already so. */
+export function windingsMirroredEdit(
+  instance: Pick<Instance, "id" | "symbolId" | "symbolVariantId">,
+  mirrored: boolean,
+): SchematicEdit | undefined {
+  const current = componentWindingsMirrored(instance);
+  if (current === undefined || current === mirrored) return undefined;
+  return {
+    kind: "set_instance_symbol",
+    instanceId: instance.id,
+    symbolId: instance.symbolId,
+    symbolVariantId: mirrored ? MIRRORED_WINDINGS_VARIANT : null,
+  };
+}
+
 export function componentSourceShape(
   instance: Pick<Instance, "symbolId" | "symbolVariantId">,
 ): SourceShape | undefined {

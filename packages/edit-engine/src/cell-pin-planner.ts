@@ -628,20 +628,29 @@ export function planReorderCellTerminal(
   ];
 }
 
-/** Reorder projected formal Ports while keeping each Port's marker declarations together. */
-export function planReorderCellPort(
+/**
+ * Reorder projected formal Ports by swapping two, each keeping its marker
+ * declarations together; the Ports between them stay put. Cell properties
+ * swaps a signal with its neighbour in netlist order, past the supplies the
+ * netlist lists first (#2177).
+ */
+export function planSwapCellPorts(
   project: CircuitProject,
   documentId: string,
   portId: string,
-  delta: -1 | 1,
+  otherPortId: string,
 ): ProjectStructureEdit[] {
   const document = requireDocument(project, documentId);
   const ports = projectCellInterface(document.netlist).ports;
   const index = ports.findIndex((port) => port.id === portId);
-  const next = index + delta;
-  if (index < 0)
-    throw new Error(`Cell port does not exist: ${documentId}.${portId}`);
-  if (next < 0 || next >= ports.length) return [];
+  const next = ports.findIndex((port) => port.id === otherPortId);
+  for (const [found, id] of [
+    [index, portId],
+    [next, otherPortId],
+  ] as const)
+    if (found < 0)
+      throw new Error(`Cell port does not exist: ${documentId}.${id}`);
+  if (index === next) return [];
   const orderedGroups = ports.map((port) => [...port.terminalIds]);
   [orderedGroups[index], orderedGroups[next]] = [
     orderedGroups[next]!,
