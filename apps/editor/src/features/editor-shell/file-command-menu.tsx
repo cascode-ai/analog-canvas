@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from "react";
 
+import { takeChosenFiles } from "../../components/chosen-files";
 import type { RecentProjectFile } from "../../hosts/native-project-store";
 import type { RnlAppearance } from "@icm/rnl";
 
@@ -44,10 +45,10 @@ export interface FileCommandMenuProps {
   onSave: () => void;
   onImportProject: (file: File | null) => void;
   onImportSpice: (
-    files: FileList | null,
+    files: readonly File[],
     namingProfile?: "native" | "cadence-bang",
   ) => void;
-  onImportRnl?: (files: FileList | null, appearance: RnlAppearance) => void;
+  onImportRnl?: (files: readonly File[], appearance: RnlAppearance) => void;
   onExportProject: () => void;
   onExportSvg: () => void;
   onExportRaster: (format: "png" | "pdf") => void;
@@ -237,7 +238,7 @@ export function FileCommandMenu({
               type="file"
               accept=".json,.icproj.json,application/json"
               onChange={(event) =>
-                onImportProject(event.currentTarget.files?.[0] ?? null)
+                onImportProject(takeChosenFiles(event.currentTarget)[0] ?? null)
               }
             />
           </label>
@@ -252,7 +253,9 @@ export function FileCommandMenu({
               type="file"
               accept=".spi,.cir,.sp,.scs,.inc,.lib"
               multiple
-              onChange={(event) => onImportSpice(event.currentTarget.files)}
+              onChange={(event) =>
+                onImportSpice(takeChosenFiles(event.currentTarget))
+              }
             />
           </label>
           <label
@@ -267,7 +270,10 @@ export function FileCommandMenu({
               accept=".spi,.cir,.sp,.scs,.inc,.lib"
               multiple
               onChange={(event) =>
-                onImportSpice(event.currentTarget.files, "cadence-bang")
+                onImportSpice(
+                  takeChosenFiles(event.currentTarget),
+                  "cadence-bang",
+                )
               }
             />
           </label>
@@ -286,7 +292,10 @@ export function FileCommandMenu({
                   accept=".spi,.cir,.sp,.scs,.inc,.lib,.rnl"
                   multiple
                   onChange={(event) =>
-                    onImportRnl(event.currentTarget.files, appearance)
+                    onImportRnl(
+                      takeChosenFiles(event.currentTarget),
+                      appearance,
+                    )
                   }
                 />
               </label>

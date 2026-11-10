@@ -1,6 +1,7 @@
 // The editor's menus bound to its commands: the header with its project tabs,
 // File, Edit and Circuit menus and toolbars, and the canvas context menu.
 import { cloudShelfOpened } from "../components/arena-gate-request";
+import { takeChosenFiles } from "../components/chosen-files";
 import {
   useRef,
   type Dispatch,
@@ -404,8 +405,7 @@ export function EditorMenuBar({
             accept=".json,.icproj.json"
             data-testid="tab-project-file"
             onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
+              const [file] = takeChosenFiles(event.currentTarget);
               if (file) void openProjectFile(file, { inTab: true });
             }}
           />

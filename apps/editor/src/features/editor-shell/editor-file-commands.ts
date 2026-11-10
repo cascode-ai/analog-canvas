@@ -241,8 +241,8 @@ export function createEditorFileCommands({
   };
 
   /** The chosen files and the one entry among them, or null after saying why. */
-  const readSources = async (files: FileList | null) => {
-    if (!files || files.length === 0) return null;
+  const readSources = async (files: readonly File[]) => {
+    if (files.length === 0) return null;
     const sourceInputs = await Promise.all(
       [...files].map(async (file) => ({
         path: file.webkitRelativePath || file.name,
@@ -301,7 +301,7 @@ export function createEditorFileCommands({
   };
 
   const importRnlFiles = async (
-    files: FileList | null,
+    files: readonly File[],
     appearance: RnlAppearance = "canvas",
   ): Promise<void> => {
     const sources = await readSources(files);
@@ -339,7 +339,7 @@ export function createEditorFileCommands({
   };
 
   const importSpiceFiles = async (
-    files: FileList | null,
+    files: readonly File[],
     namingProfile: "native" | "cadence-bang" = "native",
   ): Promise<void> => {
     const sources = await readSources(files);
