@@ -550,9 +550,16 @@ test("copies an object review reference and locates only its reviewed revision",
       .click();
   await panel.click();
   await page.getByLabel("Review comment").fill("Check the connection at R1.");
+  const copied = page.getByText(
+    "Copied. Paste it into the original Agent chat.",
+    {
+      exact: true,
+    },
+  );
   await page
     .getByRole("button", { name: "Copy review feedback", exact: true })
     .click();
+  await expect(copied).toBeVisible();
   const feedback = await page.evaluate(() => navigator.clipboard.readText());
   expect(feedback).toContain("Check the connection at R1.");
   expect(feedback).toContain("R1");
@@ -613,6 +620,7 @@ test("copies an object review reference and locates only its reviewed revision",
   await page
     .getByRole("button", { name: "Copy review feedback", exact: true })
     .click();
+  await expect(copied).toBeVisible();
   const netFeedback = await page.evaluate(() => navigator.clipboard.readText());
   const netReference = JSON.parse(
     netFeedback.match(/\x60\x60\x60json\r?\n([\s\S]*?)\r?\n\x60\x60\x60/u)![1]!,
