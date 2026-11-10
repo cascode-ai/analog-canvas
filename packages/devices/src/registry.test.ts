@@ -199,6 +199,17 @@ describe("built-in device registry", () => {
     );
   });
 
+  it("gives the Polarized Capacitor the capacitor contract, + on pin 1", () => {
+    expect(deviceDescriptor("polarized-capacitor")).toEqual({
+      ...deviceDescriptor("capacitor"),
+      id: "polarized-capacitor",
+      symbolId: "polarized-capacitor",
+    });
+    expect(referencePolicyForSymbol("polarized-capacitor")).toEqual(
+      referencePolicyForSymbol("capacitor"),
+    );
+  });
+
   it("gives the Microphone the voltage-source contract, V-prefixed", () => {
     expect(deviceDescriptor("microphone")).toEqual({
       ...deviceDescriptor("voltage-source"),

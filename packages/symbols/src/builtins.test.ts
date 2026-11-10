@@ -13,6 +13,7 @@ const PRODUCT_IDS = [
   "battery",
   "buffer",
   "capacitor",
+  "polarized-capacitor",
   "closed-switch",
   "comparator",
   "comparator-differential",

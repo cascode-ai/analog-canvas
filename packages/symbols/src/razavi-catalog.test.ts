@@ -1629,6 +1629,42 @@ describe("Razavi symbol catalog", () => {
       });
   });
 
+  it("draws the polarized capacitor on the Capacitor's pins, + by the straight plate", () => {
+    const capacitor = requireRazaviCatalogSymbol("capacitor");
+    const polarized = requireRazaviCatalogSymbol("polarized-capacitor");
+    expect(polarized.pins).toEqual(capacitor.pins);
+    expect(getRazaviCatalogEntry("polarized-capacitor")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["1", "2"],
+      palette: true,
+    });
+    const [plate, , topLead, bottomLead] = capacitor.primitives;
+    // The straight plate and both leads are the Capacitor's.
+    expect(polarized.primitives.slice(0, 4)).toEqual([
+      plate,
+      expect.objectContaining({ kind: "path", part: "curved-plate" }),
+      topLead,
+      bottomLead,
+    ]);
+    const curved = polarized.primitives[1];
+    if (curved?.kind !== "path" || plate?.kind !== "line")
+      throw new Error("missing plates");
+    // The curved plate bows toward the straight one, its apex on the lead.
+    expect(curved.bounds?.y).toBeCloseTo(-plate.from.y, 6);
+    expect(curved.bounds?.width).toBeCloseTo(plate.from.x - plate.to.x, 6);
+    // The + mark sits beside pin 1's plate, clear of the lead.
+    const marks = polarized.primitives.filter((primitive) =>
+      primitive.part?.startsWith("positive-mark"),
+    );
+    expect(marks).toHaveLength(2);
+    for (const mark of marks) {
+      if (mark.kind !== "line") throw new Error("mark is a line");
+      expect(Math.max(mark.from.y, mark.to.y)).toBeLessThan(plate.from.y);
+      expect(Math.max(mark.from.x, mark.to.x)).toBeLessThan(0);
+    }
+  });
+
   it("draws the Schottky diode as the Diode with an S-hooked cathode bar", () => {
     const diode = requireRazaviCatalogSymbol("diode");
     const schottky = requireRazaviCatalogSymbol("schottky-diode");

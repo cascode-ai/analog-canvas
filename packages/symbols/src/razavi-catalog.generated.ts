@@ -187,6 +187,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "polarized-capacitor",
+    name: "Polarized Capacitor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A polarized (electrolytic) capacitor does not appear on the reviewed page; it is the reviewed Capacitor's straight plate, leads and pins, with the other plate curved and a + mark beside the straight plate, as textbooks draw an electrolytic.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE C card does not say the capacitor is polarized, so an imported C card keeps the plain Capacitor symbol.",
+    assetPath: "polarized-capacitor.json",
+    assetHash:
+      "58597e4339d330679151798ffcae3054a710261eb7f37de879c30d2c915f632a",
+  },
+  {
     symbolId: "closed-switch",
     name: "Closed Switch",
     category: "switch",
@@ -3935,6 +3952,146 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: 20,
         },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "polarized-capacitor",
+    name: "Polarized Capacitor",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 8.05064,
+          y: -3.233605,
+        },
+        to: {
+          x: -8.05064,
+          y: -3.233605,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -8.05064 6.5 C -2.7 2.144804 2.7 2.144804 8.05064 6.5",
+        part: "curved-plate",
+        bounds: {
+          x: -8.05064,
+          y: 3.233605,
+          width: 16.10128,
+          height: 3.266395,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -3.233605,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 3.233605,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -11,
+          y: -9,
+        },
+        to: {
+          x: -5,
+          y: -9,
+        },
+        part: "positive-mark-horizontal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -8,
+          y: -12,
+        },
+        to: {
+          x: -8,
+          y: -6,
+        },
+        part: "positive-mark-vertical",
         style: {
           strokeRole: "normal",
           lineCap: "butt",

@@ -89,6 +89,7 @@ describe("the RNL symbol list", () => {
         .map((symbol) => symbol.id)
         .filter((id) => !rnlSymbolFor(id)),
     ).toEqual([
+      "polarized-capacitor",
       "led",
       "schottky-diode",
       "microphone",
