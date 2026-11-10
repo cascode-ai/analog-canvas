@@ -8,6 +8,7 @@ Proposed regional deployment contract:
 [regional login](regional-login.md),
 [regional Cloud Projects](regional-projects.md),
 [regional publications](regional-resources.md),
+[regional action parity](regional-actions.md),
 [regional visitor statistics](regional-analytics.md).
 
 | Specification                                                      | Covers                                                                |

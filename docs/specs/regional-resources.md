@@ -7,20 +7,25 @@ Primary owner: Gallery, Component Library and regional runtime.
 Gallery, User Components and Dataset publications use origin-owned replicas;
 their likes and reviews use writer-owned replicas.
 [Private Projects](regional-projects.md) retain their separate two-writer protocol.
+The [regional action contract](regional-actions.md) requires the same authorized
+operations through either entrance. Command routing is not yet implemented;
+the existing replica guard alone does not satisfy that contract.
 
 ## Rules
 
-- The publishing region alone edits, moderates, withdraws, restores or deletes
-  a resource. The other region serves a local read-only copy. Existing IDs,
-  owners, retained versions and publication status survive copying.
+- The publishing region alone commits edits, moderation, withdrawal, restoration
+  and deletion. The other region serves a local replica and routes an authorized
+  user's command to that writer. The storage guard is internal, not a restriction
+  on which entrance an owner or moderator may use. Existing IDs, owners, retained
+  versions and publication status survive copying.
 - Dataset comparison figures/netlists, community reference images and fix
   history follow the same publication origin. Keep comparisons imported before a
   drawing and audit records retained after its deletion; seeding covers these
   identities too.
 - Either region likes or reviews any entry it serves. Each like
   (`entryId:userId`) and review (its ID) belongs to the region that last wrote
-  it and travels in the store's `-interactions` stream; only that region unlikes
-  it or resolves the review. A withdrawn like is re-claimed by whichever region
+  it and travels in the store's `-interactions` stream; that writer commits an
+  unlike or review resolution requested through either entrance. A withdrawn like is re-claimed by whichever region
   writes it next; each claim raises the identity's generation, and a higher
   generation wins. Equal generations were written concurrently: both regions
   keep the overseas record. Blind-review visibility is unchanged.
@@ -77,7 +82,8 @@ their likes and reviews use writer-owned replicas.
   Peer bodies may be gzip-encoded; limits apply to the inflated bytes.
 - Dataset records retain their source namespace and the
   [Gallery's mutation permissions](community-gallery.md). Imports and drawing
-  fixes apply only at the publishing region; copied records remain read-only.
+  fixes commit at the publishing region through the same command boundary;
+  direct writes to copied records remain refused.
 - Publication daily admission remains enforced by each region's existing API;
   it is not a globally reserved quota. Imported rows count in local admission
   after catch-up. Private Project quota coordination is unchanged.
