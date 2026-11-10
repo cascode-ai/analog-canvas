@@ -58,6 +58,33 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "photoresistor",
+    symbolId: "photoresistor",
+    deviceClass: "resistor",
+    referencePrefix: "R",
+    pinOrder: ["1", "2"],
+    targetPolicy: "builtin",
+    parameters: [
+      {
+        name: "value",
+        label: "Value",
+        required: true,
+        editor: "text",
+        unitHint: "Ohm",
+        placeholder: "1k",
+        defaultValue: "1k",
+        help: "Resistance",
+        displayRole: "value",
+      },
+    ],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: true,
+    },
+  },
+  {
     id: "speaker",
     symbolId: "speaker",
     deviceClass: "resistor",

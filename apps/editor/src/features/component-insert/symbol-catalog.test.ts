@@ -97,6 +97,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("led")).toBe("Extended Devices");
     expect(symbolCategory("schottky-diode")).toBe("Extended Devices");
     expect(symbolCategory("polarized-capacitor")).toBe("Extended Devices");
+    expect(symbolCategory("photoresistor")).toBe("Extended Devices");
     expect(symbolCategory("speaker")).toBe("Extended Devices");
     expect(symbolCategory("microphone")).toBe("Extended Devices");
     expect(symbolCategory("potentiometer")).toBe("Extended Devices");
@@ -261,6 +262,7 @@ describe("component insertion catalog", () => {
     expect(extended?.symbols.map((symbol) => symbol.id)).toEqual([
       "variable-resistor",
       "potentiometer",
+      "photoresistor",
       "variable-capacitor",
       "polarized-capacitor",
       "variable-inductor",
@@ -299,6 +301,7 @@ describe("component insertion catalog", () => {
     expect(
       libraryDisplayName("polarized-capacitor", "Polarized Capacitor"),
     ).toBe("Pol Cap");
+    expect(libraryDisplayName("photoresistor", "Photoresistor")).toBe("LDR");
     expect(libraryDisplayName("potentiometer", "Potentiometer")).toBe("Pot");
     expect(libraryDisplayName("microphone", "Microphone")).toBe("Mic");
     expect(libraryDisplayName("port-filled", "Bias Voltage Port")).toBe(
@@ -355,6 +358,7 @@ describe("reach order inside a category", () => {
     expect(ids("Extended Devices")).toEqual([
       "variable-resistor",
       "potentiometer",
+      "photoresistor",
       "variable-capacitor",
       "polarized-capacitor",
       "variable-inductor",

@@ -2465,6 +2465,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "a7f604401b6dd5c790e99506c9d7e4e74fc4181b18c87632f9e07777c7b6e7ce",
   },
   {
+    symbolId: "photoresistor",
+    name: "Photoresistor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A photoresistor (light-dependent resistor) does not appear on the reviewed page; it is the reviewed Resistor body, leads and pins, unchanged, with two incoming light arrows drawn as the LED's outgoing ones are, turned to point at the body.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE R card does not say the resistor senses light, so an imported R card keeps the plain Resistor symbol.",
+    assetPath: "photoresistor.json",
+    assetHash:
+      "1c00907a1f4d22919c4d411312e71828b45ed9ed6e1cce822a563bb0cae1becc",
+  },
+  {
     symbolId: "resistor",
     name: "Resistor",
     category: "passive",
@@ -19159,6 +19176,138 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             y: 2.828427,
           },
         ],
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "photoresistor",
+    name: "Photoresistor",
+    viewBox: {
+      x: -18,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "path",
+        data: "M 0 -20 L 0 -8.72093 L 5.372093 -6.395349 L -4.604651 -4.069767 L 5.372093 -1.162791 L -4.988372 1.744186 L 5.372093 4.651163 L -4.604651 7.55814 L 0 8.72093 L 0 20",
+        bounds: {
+          x: -4.988372,
+          y: -20,
+          width: 10.360465,
+          height: 40,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 12,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -15,
+          y: -9,
+        },
+        to: {
+          x: -11,
+          y: -5,
+        },
+        part: "light-arrow-1-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -9,
+            y: -3,
+          },
+          {
+            x: -10.2,
+            y: -6.6,
+          },
+          {
+            x: -12.6,
+            y: -4.2,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-1-head",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -15,
+          y: -3,
+        },
+        to: {
+          x: -11,
+          y: 1,
+        },
+        part: "light-arrow-2-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -9,
+            y: 3,
+          },
+          {
+            x: -10.2,
+            y: -0.5999999999999996,
+          },
+          {
+            x: -12.6,
+            y: 1.7999999999999998,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-2-head",
       },
     ],
     variants: [],
