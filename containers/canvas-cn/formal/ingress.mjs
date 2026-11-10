@@ -214,7 +214,7 @@ export function createIngress({
 
 // This control socket is never exposed through nginx or a TCP listener.
 async function serveIngress({
-  port = 8793,
+  port = 8794,
   controlPath = "/run/canvas-cn-ingress/control.sock",
   ...options
 } = {}) {

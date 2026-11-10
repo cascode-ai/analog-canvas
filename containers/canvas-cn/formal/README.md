@@ -52,7 +52,7 @@ host.
 
 The browser entrance is `127.0.0.1:8082` (an SSH forward during the trial).
 Public and trial nginx listeners forward business requests through the
-independently installed `canvas-cn-ingress.service` on loopback port 8793.
+independently installed `canvas-cn-ingress.service` on loopback port 8794.
 Its root-accessible Unix control socket is never proxied publicly. Install
 its pinned Node 24.22.1 Linux x64 runtime (archive SHA-256
 `6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6`)
