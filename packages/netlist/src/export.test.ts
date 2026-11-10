@@ -429,6 +429,33 @@ describe("copy/export netlist projection", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "exports a Polarized Capacitor as the capacitor it is in %s",
+    (format) => {
+      const project = createEmptyProject("polarized-project", "Polarized");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "C1",
+        symbolId: "polarized-capacitor",
+        reference: "C1",
+        placement: null,
+        netlist: { parameters: { value: "10u" } },
+      });
+      document.nets = [
+        { id: "a", terminals: [{ instanceId: "C1", pinName: "1" }] },
+        { id: "b", terminals: [{ instanceId: "C1", pinName: "2" }] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /^C1\s+\S+\s+\S+\s+10u$/mu
+          : /^C1\s+\(\S+ \S+\)\s+capacitor c=10u$/mu,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "exports an imported source whose function or AC clause stands without a DC value (%s)",
     async (format) => {
       const source = `

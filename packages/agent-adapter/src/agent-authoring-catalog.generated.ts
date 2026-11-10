@@ -266,6 +266,50 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "polarized-capacitor",
+      name: "Polarized Capacitor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1p",
+        },
+      ],
+      bounds: {
+        x: -11,
+        y: -20,
+        width: 19.06,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "closed-switch",
       name: "Closed Switch",
       category: "switch",

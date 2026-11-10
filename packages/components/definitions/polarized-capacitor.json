@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "polarized-capacitor",
+    "name": "Polarized Capacitor",
+    "viewBox": {
+      "x": -14,
+      "y": -24,
+      "width": 28,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "1",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "2",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": 8.05064,
+          "y": -3.233605
+        },
+        "to": {
+          "x": -8.05064,
+          "y": -3.233605
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -8.05064 6.5 C -2.7 2.144804 2.7 2.144804 8.05064 6.5",
+        "part": "curved-plate",
+        "bounds": {
+          "x": -8.05064,
+          "y": 3.233605,
+          "width": 16.10128,
+          "height": 3.266395
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -3.233605
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 3.233605
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -11,
+          "y": -9
+        },
+        "to": {
+          "x": -5,
+          "y": -9
+        },
+        "part": "positive-mark-horizontal",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -8,
+          "y": -12
+        },
+        "to": {
+          "x": -8,
+          "y": -6
+        },
+        "part": "positive-mark-vertical",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "polarized-capacitor",
+    "symbolId": "polarized-capacitor",
+    "deviceClass": "capacitor",
+    "referencePrefix": "C",
+    "pinOrder": ["1", "2"],
+    "pinSemantics": [
+      {
+        "pinName": "1",
+        "role": "capacitor-top-plate"
+      },
+      {
+        "pinName": "2",
+        "role": "capacitor-bottom-plate"
+      }
+    ],
+    "targetPolicy": "builtin",
+    "parameters": [
+      {
+        "name": "value",
+        "label": "Value",
+        "required": true,
+        "editor": "text",
+        "unitHint": "F",
+        "placeholder": "1p",
+        "defaultValue": "1p",
+        "help": "Capacitance",
+        "displayRole": "value"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "polarized-capacitor",
+    "name": "Polarized Capacitor",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A polarized (electrolytic) capacitor does not appear on the reviewed page; it is the reviewed Capacitor's straight plate, leads and pins, with the other plate curved and a + mark beside the straight plate, as textbooks draw an electrolytic.",
+    "pinOrder": ["1", "2"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A SPICE C card does not say the capacitor is polarized, so an imported C card keeps the plain Capacitor symbol.",
+    "assetPath": "polarized-capacitor.json"
+  }
+}

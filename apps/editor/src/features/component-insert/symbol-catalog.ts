@@ -50,6 +50,7 @@ export function symbolCategory(symbolId: string): string {
     [
       "variable-resistor",
       "variable-capacitor",
+      "polarized-capacitor",
       "variable-inductor",
       "diode",
       "zener-diode",
@@ -189,6 +190,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   "zener-diode": "Zener",
   led: "LED",
   "schottky-diode": "Schottky",
+  "polarized-capacitor": "Pol Cap",
   potentiometer: "Pot",
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
@@ -228,6 +230,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "port-filled":
     "A solid bias-voltage port, typically used for VB-style bias nodes",
   led: "Light-emitting or laser diode — electrically the Diode",
+  "polarized-capacitor":
+    "Polarized (electrolytic) capacitor — electrically the Capacitor, + on pin 1",
   "schottky-diode":
     "Schottky barrier diode — electrically a diode, on the generic DSCH model",
   speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",
@@ -311,6 +315,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "variable-resistor",
   "potentiometer",
   "variable-capacitor",
+  "polarized-capacitor",
   "variable-inductor",
   "diode",
   "zener-diode",
