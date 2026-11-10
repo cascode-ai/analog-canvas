@@ -104,7 +104,12 @@ function ModerationCollection({
       if (action === "delete" && rejected) {
         const moved = await galleryLifecycleRequest(id, "recycle");
         if (!moved.ok) {
-          failureMessage = (await requestFailureOf(moved)).message;
+          failureMessage = (
+            await requestFailureOf(
+              moved,
+              "Could not update this entry. Please try again.",
+            )
+          ).message;
           throw new Error("Could not move this entry to the bin.");
         }
         binned = true;
@@ -114,7 +119,12 @@ function ModerationCollection({
           ? await call(`/api/gallery/${id}`, "DELETE")
           : await galleryLifecycleRequest(id, action);
       if (!response.ok) {
-        failureMessage = (await requestFailureOf(response)).message;
+        failureMessage = (
+          await requestFailureOf(
+            response,
+            "Could not update this entry. Please try again.",
+          )
+        ).message;
         throw new Error("Could not update this entry. Please try again.");
       }
       gone();

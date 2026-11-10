@@ -44,6 +44,7 @@ function retrySeconds(response: Response, body: unknown): number {
  */
 export async function requestFailureOf(
   response: Response,
+  fallback?: string,
 ): Promise<RequestFailure> {
   const body = (await response
     .clone()
@@ -86,8 +87,9 @@ export async function requestFailureOf(
   return {
     failure: "server-error",
     message:
-      status >= 500
+      fallback ??
+      (status >= 500
         ? `The server could not answer (${status}). Try again later.`
-        : `The server refused the request (${status}).`,
+        : `The server refused the request (${status}).`),
   };
 }
