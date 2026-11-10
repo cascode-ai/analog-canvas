@@ -1,7 +1,7 @@
 // AnalogArena's host and paths (docs/specs/analog-arena.md#routing).
 // Forwarding and the redirects (arena.ts) and the sign-in return and handoff
 // (auth-do.ts) all read them here, so they never disagree about which paths
-// are Arena's. wrangler.jsonc lists the same pages in run_worker_first.
+// are Arena's. wrangler.jsonc runs the Worker first for every path.
 
 /** AnalogArena's own host, served by this Worker. */
 export const ARENA_HOST = "chip-arena.com";
