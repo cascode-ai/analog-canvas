@@ -8,13 +8,17 @@ import type {
   EmbeddedReviewSource,
   LocalReviewDelivery,
 } from "@icm/agent-adapter";
-import type { OpenLocalProject } from "../agent/browser-agent-file-host";
+import type {
+  LocalReviewCommand,
+  OpenLocalProject,
+} from "../agent/browser-agent-file-host";
 import { assessImportReference, type HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
   createId,
   type CircuitProject,
   type GridRect,
+  type ObjectLocator,
 } from "@icm/model";
 import {
   useEffect,
@@ -65,6 +69,7 @@ import type { useEditorPanels } from "../features/editor-shell/use-editor-panels
 import type { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import type { useSelectionController } from "../features/selection/selection-controller";
 import type { resolveTextEditingTarget } from "../features/text-editing/text-editing";
+import { writeClipboardText } from "../hosts/clipboard-text";
 import type { useInteractionState } from "../interaction/interaction-state";
 import type { PlacementOrientationOperation } from "../interaction/shortcut-orientation";
 import { materializeRazaviProjectBulkConnections } from "../presentation/razavi-presentation";
@@ -91,6 +96,7 @@ type AgentProjectResourcesOptions = Parameters<
 
 interface LocalDelivery {
   source: AgentLocalSource;
+  taskRef?: string;
   rnlAppearance?: RnlAppearance;
   importedRevision: string;
   recovered: boolean;
@@ -159,6 +165,9 @@ interface ProjectTabSessionsOptions {
   openLocalProjectRef: RefObject<OpenLocalProject>;
   reviewWorkspaceRef: AgentProjectResourcesOptions["reviewWorkspaceRef"];
   localReviewRef: AgentProjectResourcesOptions["localReviewRef"];
+  locateReviewObject: (
+    locator: Extract<LocalReviewCommand, { action: "locate" }>["locator"],
+  ) => boolean;
   setAgentFileCandidate: AgentProjectResources["setAgentFileCandidate"];
   setAnalogSimulationState: Dispatch<
     SetStateAction<"closed" | "open" | "maximized" | "minimized">
@@ -254,6 +263,7 @@ export function useProjectTabSessions({
   openLocalProjectRef,
   reviewWorkspaceRef,
   localReviewRef,
+  locateReviewObject,
   setAgentFileCandidate,
   setAnalogSimulationState,
   codeDraftDirty,
@@ -941,7 +951,13 @@ export function useProjectTabSessions({
       workspace.workspaceId !== projectTabs.currentId()
     )
       return "REVIEW_WORKSPACE_REQUIRED";
-    const { project, document } = controller;
+    const { project } = controller;
+    const activeDocumentId = controller.document.id;
+    const document =
+      command.action === "locate"
+        ? project.documents.find(({ id }) => id === command.expected.documentId)
+        : controller.document;
+    if (!document) return "REVIEW_TARGET_CHANGED";
     const projectToken = projectChangeToken(project);
     const [projectRevision, embeddedSource] = await Promise.all([
       reviewRevision(projectToken),
@@ -952,7 +968,7 @@ export function useProjectTabSessions({
     if (
       controller.project !== project ||
       (command.action !== "acknowledge-save" &&
-        controller.document.id !== document.id) ||
+        controller.document.id !== activeDocumentId) ||
       workspace.workspaceId !== projectTabs.currentId() ||
       reviewWorkspaceRef.current(controller)?.workspaceGeneration !==
         workspace.workspaceGeneration
@@ -995,6 +1011,11 @@ export function useProjectTabSessions({
       !matchesAgentReviewTarget(delivery.target, expected)
     )
       return "REVIEW_TARGET_CHANGED";
+    if (command.action === "locate")
+      return command.locator.documentId === document.id &&
+        locateReviewObject(command.locator)
+        ? delivery
+        : "REVIEW_OBJECT_UNAVAILABLE";
     if (command.action === "acknowledge-save") {
       if (projectSwitchBlockerRef.current()) return "REVIEW_TARGET_CHANGED";
       let saved = false;
@@ -1085,10 +1106,12 @@ export function useProjectTabSessions({
     sourceVersion,
     background,
     rnlAppearance,
+    taskRef,
     candidate,
   }) => {
     const matches = (local: LocalDelivery | undefined) =>
       local?.source.version === sourceVersion &&
+      (!taskRef || !local.taskRef || local.taskRef === taskRef) &&
       // Earlier RNL tabs did not record which appearance was requested.
       (local.source.format !== "rnl" || local.rnlAppearance === rnlAppearance);
     const existing = projectTabs
@@ -1096,7 +1119,7 @@ export function useProjectTabSessions({
       .find(
         ({ session }) =>
           session.localDelivery?.copy !== "original" &&
-          matches(session.localDelivery),
+          matches(localDeliveryOf(session.controller)),
       );
     let disposition: AgentLocalProjectReceipt["disposition"] = "reused";
     let controller = existing?.session.controller;
@@ -1115,6 +1138,7 @@ export function useProjectTabSessions({
         controller = session.controller;
         const localDelivery = {
           source: candidate.source,
+          ...(taskRef ? { taskRef } : {}),
           ...(candidate.source.format === "rnl" ? { rnlAppearance } : {}),
           importedRevision: projectChangeToken(controller.project),
           recovered: false,
@@ -1135,6 +1159,14 @@ export function useProjectTabSessions({
       .find((entry) => entry.session.controller === controller);
     const local = controller && localDeliveryOf(controller);
     if (!actual || !controller || !local || !matches(local)) return null;
+    if (taskRef && local.taskRef !== taskRef) {
+      localDeliveries.current.set(controller, {
+        ...local,
+        taskRef,
+        sessionId: controller.projectSessionId,
+      });
+      projectTabs.changed();
+    }
     const { project, document } = controller;
     const span = document.sourceBinding?.sourceRef;
     const file = project.source.files.find((item) => item.id === span?.fileId);
@@ -1316,7 +1348,73 @@ export function useProjectTabSessions({
     if (workspaceWriteError.current)
       throw new Error(workspaceWriteError.current);
   }
+  async function reviewFeedbackText(
+    snapshot: CircuitProject,
+    taskRef: string,
+    locator: ObjectLocator,
+    label: string,
+    comment: string,
+  ) {
+    const controller = editorDocumentController;
+    const local = localDeliveryOf(controller);
+    const delivery = await localReviewRef.current(controller, {
+      action: "read",
+    });
+    if (
+      taskRef !== localDeliveryOf(controller)?.taskRef ||
+      typeof delivery === "string" ||
+      controller.project !== snapshot ||
+      delivery.target.documentId !== locator.documentId
+    )
+      throw new Error("The reviewed drawing changed. Select the target again.");
+    const { sourceRef, ...address } = locator;
+    const file = snapshot.source.files.find(
+      ({ id }) => id === sourceRef?.fileId,
+    );
+    const sourceFiles = delivery.embeddedSource?.files ?? local?.source.files;
+    const location =
+      sourceRef &&
+      file &&
+      !file.originalContent &&
+      sourceFiles?.some(
+        ({ path, sha256 }) =>
+          path === file.path && file.hash === `sha256:${sha256}`,
+      )
+        ? `${file.path}:${sourceRef.start.line}`
+        : "Original source location unavailable";
+    const cell = controller.document.name;
+    const reference = {
+      taskRef,
+      action: "locate",
+      expected: delivery.target,
+      projectRevision: delivery.projectRevision,
+      locator: address,
+    };
+    return [
+      `Canvas review feedback for ${snapshot.name} / ${cell} / ${label}`,
+      location,
+      "",
+      "Canvas review reference",
+      "```json",
+      JSON.stringify(reference, null, 2),
+      "```",
+      "",
+      comment.trim(),
+    ].join("\n");
+  }
+
   return {
+    copyReviewFeedback(
+      snapshot: CircuitProject,
+      taskRef: string,
+      locator: ObjectLocator,
+      label: string,
+      comment: string,
+    ) {
+      return writeClipboardText(
+        reviewFeedbackText(snapshot, taskRef, locator, label, comment),
+      );
+    },
     localDelivery: (() => {
       const local = localDeliveryOf(editorDocumentController);
       const embeddedSource =
@@ -1327,6 +1425,7 @@ export function useProjectTabSessions({
       if (!local) return embeddedSource ? { embeddedSource } : undefined;
       return {
         source: local.source,
+        ...(local.taskRef ? { taskRef: local.taskRef } : {}),
         ...(local.rnlAppearance ? { rnlAppearance: local.rnlAppearance } : {}),
         recovered: local.recovered,
         modified: local.importedRevision !== projectChangeToken(project),

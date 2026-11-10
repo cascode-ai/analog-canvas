@@ -113,6 +113,7 @@ import type {
   CircuitProject,
   DerivedPoint,
   GridRect,
+  ObjectLocator,
   Point,
   Rotation,
   SchematicDocument,
@@ -285,6 +286,7 @@ import type { ComponentEditorSession } from "./component-editor-session";
 import { useProjectTabSessions } from "./use-project-tab-sessions";
 import type { OpenLocalProject } from "../agent/browser-agent-file-host";
 import { clearDeletedCloudProjects } from "../document/cloud-project-session";
+import { projectChangeToken } from "../document/project-session-lifecycle";
 import { readWindowWorkspace } from "../document/workspace-reopen";
 import { useNativeProjectTabs } from "./use-native-project-tabs";
 import {
@@ -5320,6 +5322,7 @@ function WorkspaceEditor({
     isCloudManagementInFlight,
     renameShelfProject,
     localDelivery,
+    copyReviewFeedback,
     deleteShelfProject,
   } = useProjectTabSessions({
     hierarchyExpanded,
@@ -5372,6 +5375,11 @@ function WorkspaceEditor({
     openLocalProjectRef,
     reviewWorkspaceRef,
     localReviewRef,
+    locateReviewObject: (locator) =>
+      agentSemanticIntentRef.current({
+        documentId: locator.documentId,
+        intent: { kind: "select", locator },
+      }).ok,
     setAgentFileCandidate,
     setAnalogSimulationState,
     codeDraftDirty,
@@ -5913,6 +5921,51 @@ function WorkspaceEditor({
         openProjectInTabRef={openProjectInTabRef}
         agentFileCandidate={agentFileCandidate}
         localDelivery={localDelivery}
+        reviewFeedback={(() => {
+          if (
+            !localDelivery ||
+            !("taskRef" in localDelivery) ||
+            !localDelivery.taskRef
+          )
+            return undefined;
+          const instance =
+            selectedIds.length === 1
+              ? document.instances.find(({ id }) => id === selectedIds[0])
+              : undefined;
+          const netId = selectedHighlightIsActive
+            ? selectedHighlightNetId
+            : selectedIds.length === 0
+              ? highlightedNet?.netId
+              : undefined;
+          const net = netId
+            ? document.nets.find(({ id }) => id === netId)
+            : undefined;
+          const object = net ?? instance;
+          if (!object) return undefined;
+          const sourceRef = net ? undefined : instance?.sourceRef;
+          const label = net
+            ? (logicalNets.byBaseNetId.get(net.id)?.name ?? net.id)
+            : (instance?.reference ?? object.id);
+          const locator: ObjectLocator = {
+            documentId: document.id,
+            hierarchyPath: documentStack,
+            kind: net ? "net" : "instance",
+            objectId: object.id,
+            ...(sourceRef ? { sourceRef } : {}),
+          };
+          const { taskRef } = localDelivery;
+          return {
+            identity: JSON.stringify([
+              taskRef,
+              projectSessionId,
+              projectChangeToken(project),
+              locator,
+            ]),
+            label: `${document.name} · ${label}`,
+            copy: (comment: string) =>
+              copyReviewFeedback(project, taskRef, locator, label, comment),
+          };
+        })()}
         cloudBinding={cloudBinding}
         replaceGuard={replaceGuard}
         replaceGuardSaving={replaceGuardSaving}

@@ -4,7 +4,11 @@ import {
   freezeSnapshot,
   isFrozenSnapshot,
 } from "@icm/model";
-import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type {
+  CircuitProject,
+  HierarchyFrame,
+  SchematicDocument,
+} from "@icm/model";
 
 /** Replace one validated Document without allowing callers to patch Project. */
 export function replaceProjectDocument(
@@ -62,4 +66,26 @@ export function referencedDocumentId(
   }
 
   return null;
+}
+
+export function hierarchyPathReaches(
+  project: CircuitProject,
+  documentId: string,
+  path: readonly HierarchyFrame[],
+): boolean {
+  return (
+    path.length === 0 ||
+    (path.at(-1)?.childDocumentId === documentId &&
+      path.every((frame, index) => {
+        const instance = project.documents
+          .find(({ id }) => id === frame.parentDocumentId)
+          ?.instances.find(({ id }) => id === frame.instanceId);
+        return (
+          instance !== undefined &&
+          referencedDocumentId(project, instance) === frame.childDocumentId &&
+          (index === 0 ||
+            path[index - 1]?.childDocumentId === frame.parentDocumentId)
+        );
+      }))
+  );
 }

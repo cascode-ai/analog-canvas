@@ -327,6 +327,15 @@ working copy. Project Info shows the embedded netlist source on reopen,
 including its dependency hashes. That version is distinct from the input
 version of the saved Project file.
 
+To review an object, select one Instance or highlight a Net in the delivered
+tab. Open **Project Info → Review feedback**, add the comment, and copy it
+into the original Agent chat. The copied `Canvas review reference` gives
+the arguments for `review_delivery` `action:"locate"`. The tool checks the
+task's active workspace, source version, whole Project revision, Cell and
+occurrence path before focusing the exact object. A version mismatch or
+missing object needs an explicit report to the user. When the recorded
+workspace is still open, activate it before retrying with the same reference.
+
 - For a chat image, use `export_file` with `artifact:"png"`,
   `includeReview:true`, the Cell's `documentId` and a local `outputPath`,
   and show the resulting image. Use a new path for each revision and crop. Canvas

@@ -48,6 +48,7 @@ export type OpenLocalProject = (request: {
   sourceVersion: string;
   background: boolean;
   rnlAppearance: RnlAppearance;
+  taskRef?: string;
   candidate?: { project: CircuitProject; source: AgentLocalSource };
 }) => Promise<AgentLocalProjectReceipt | "blocked" | null>;
 
@@ -67,6 +68,10 @@ type LocalReviewEdit = {
 };
 export type LocalReviewCommand =
   | { action: "read" }
+  | Extract<
+      Extract<AgentFileResourceRequest, { operation: "review" }>["input"],
+      { action: "locate" }
+    >
   | (LocalReviewEdit & {
       action:
         | "mark-ready"
@@ -79,6 +84,7 @@ export type LocalReviewResult =
   | LocalReviewDelivery
   | "REVIEW_WORKSPACE_REQUIRED"
   | "REVIEW_TARGET_CHANGED"
+  | "REVIEW_OBJECT_UNAVAILABLE"
   | "REVIEW_NOT_READY"
   | "REVIEW_ORIGINAL_UNAVAILABLE"
   | "REVIEW_OPEN_BLOCKED";
@@ -194,6 +200,7 @@ export class BrowserAgentFileHost {
           sourceVersion: request.sourceVersion,
           background: request.background ?? false,
           rnlAppearance: request.rnlAppearance ?? "canvas",
+          ...(request.taskRef ? { taskRef: request.taskRef } : {}),
         });
         if (delivery === "blocked") return this.openBlocked(request);
         return {
@@ -288,6 +295,7 @@ export class BrowserAgentFileHost {
             sourceVersion: source.version,
             background: request.background ?? false,
             rnlAppearance: candidate.rnlAppearance ?? "canvas",
+            ...(request.taskRef ? { taskRef: request.taskRef } : {}),
             candidate: { project: candidate.project, source },
           });
           if (delivery === "blocked") return this.openBlocked(request);
@@ -506,6 +514,8 @@ export class BrowserAgentFileHost {
       > = {
         REVIEW_WORKSPACE_REQUIRED: "Activate the delivered working copy",
         REVIEW_TARGET_CHANGED: "The active Project or Cell revision changed",
+        REVIEW_OBJECT_UNAVAILABLE:
+          "The reviewed object or hierarchy path is no longer available",
         REVIEW_NOT_READY:
           "Confirm that the schematic is complete before delivery",
         REVIEW_ORIGINAL_UNAVAILABLE:

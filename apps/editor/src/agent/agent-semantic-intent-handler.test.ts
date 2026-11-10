@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { buildProjectConnectivityIndex } from "@icm/derived";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import { createAgentSemanticIntentHandler } from "./agent-semantic-intent-handler";
 
-function setup() {
-  const project = createEmptyProject("semantic-project", "Semantic Project");
+function setup(
+  project = createEmptyProject("semantic-project", "Semantic Project"),
+) {
   const document = project.documents[0]!;
   document.instances.push({
     id: "R1",
@@ -120,5 +121,58 @@ describe("Agent semantic intent handler", () => {
         intent: { kind: "fit-document" },
       }),
     ).toMatchObject({ ok: false, code: "DOCUMENT_NOT_FOUND" });
+  });
+
+  it("locates the requested occurrence when two calls share one Cell", () => {
+    const project = createEmptyProject("review-project", "Review");
+    const parent = project.documents[0]!;
+    const child = createEmptyDocument("review-child", "Child");
+    child.instances.push({
+      id: "child-R1",
+      symbolId: "resistor",
+      placement: null,
+    });
+    project.documents.push(child);
+    for (const id of ["X1", "X2"]) {
+      parent.instances.push({
+        id,
+        symbolId: "resistor",
+        placement: null,
+        netlist: {
+          parameters: {},
+          binding: { kind: "subcircuit", childDocumentId: child.id },
+        },
+      });
+    }
+    const { handle, navigateToLocator } = setup(project);
+    const locator = {
+      documentId: child.id,
+      hierarchyPath: [
+        {
+          parentDocumentId: parent.id,
+          instanceId: "X2",
+          childDocumentId: child.id,
+        },
+      ],
+      kind: "instance" as const,
+      objectId: "child-R1",
+    };
+    expect(
+      handle({ documentId: child.id, intent: { kind: "select", locator } }),
+    ).toMatchObject({ ok: true });
+    expect(navigateToLocator).toHaveBeenCalledWith(locator, expect.any(String));
+    const stale = {
+      ...locator,
+      hierarchyPath: [
+        { ...locator.hierarchyPath[0]!, instanceId: "deleted-X2" },
+      ],
+    };
+    expect(
+      handle({
+        documentId: child.id,
+        intent: { kind: "select", locator: stale },
+      }),
+    ).toMatchObject({ ok: false, code: "LOCATOR_MISMATCH" });
+    expect(navigateToLocator).toHaveBeenCalledOnce();
   });
 });

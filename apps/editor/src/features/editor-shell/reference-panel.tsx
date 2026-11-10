@@ -281,6 +281,9 @@ const imageAmong = (files: FileList | null | undefined) =>
 const uploaded = new WeakSet<File>();
 
 export interface ReferenceWindowProps {
+  reviewFeedback?:
+    | { identity: string; label: string; copy(comment: string): Promise<void> }
+    | undefined;
   localDelivery?:
     | {
         source?: import("@icm/agent-adapter").AgentLocalSource;
@@ -308,6 +311,55 @@ export interface ReferenceWindowProps {
   fetchLike?: typeof fetch;
 }
 
+function ReviewFeedback({
+  label,
+  copy,
+}: NonNullable<ReferenceWindowProps["reviewFeedback"]>) {
+  const [open, setOpen] = useState(false);
+  const [comment, setComment] = useState("");
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function copyFeedback() {
+    setBusy(true);
+    try {
+      await copy(comment);
+      setStatus("Copied. Paste it into the original Agent chat.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Copy failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="reference-local-source">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+        Review feedback
+      </button>
+      {open ? (
+        <>
+          <p>{label}</p>
+          <textarea
+            className="reference-description"
+            aria-label="Review comment"
+            value={comment}
+            onChange={(event) => setComment(event.currentTarget.value)}
+          />
+          <button
+            type="button"
+            disabled={busy || !comment.trim()}
+            onClick={() => {
+              void copyFeedback();
+            }}
+          >
+            Copy review feedback
+          </button>
+          <p role="status">{status}</p>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * Project Info, beside the canvas in every drawing from the start: the
  * drawing's name, a Gallery entry's contributor, the description and the
@@ -330,6 +382,7 @@ export function ReferenceWindow({
   takesPaste,
   onSaved,
   localDelivery,
+  reviewFeedback,
   fetchLike = fetch,
 }: ReferenceWindowProps) {
   const dataset = entry ? gallerySourceOfEntryId(entry.id) : null;
@@ -544,6 +597,9 @@ export function ReferenceWindow({
             {shownDescription ? <p>{shownDescription}</p> : null}
           </>
         )}
+        {reviewFeedback ? (
+          <ReviewFeedback key={reviewFeedback.identity} {...reviewFeedback} />
+        ) : null}
         {localDelivery?.source ? (
           <details className="reference-local-source">
             <summary>Imported source</summary>
@@ -574,6 +630,24 @@ export function ReferenceWindow({
             </p>
             {localDelivery.recovered ? (
               <p>Restored from this browser's saved tab snapshot.</p>
+            ) : null}
+            <p>
+              {localDelivery.source.electrical === "verified"
+                ? "Drawing checked against the imported netlist."
+                : "Drawing correspondence has not been verified."}
+            </p>
+            {localDelivery.source.diagnostics.length > 0 ? (
+              <ul aria-label="Import diagnostics">
+                {[
+                  ...new Set(
+                    localDelivery.source.diagnostics.map(
+                      ({ message }) => message,
+                    ),
+                  ),
+                ].map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
             ) : null}
             <ul>
               {localDelivery.source.files.map((file) => (

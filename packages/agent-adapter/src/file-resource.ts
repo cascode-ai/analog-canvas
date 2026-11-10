@@ -6,7 +6,7 @@ import {
   SimulationFileResultSchema,
 } from "@icm/simulation-service/files";
 import { ProblemSchema } from "@icm/simulation-service/contract";
-import { GridRectSchema } from "@icm/model";
+import { GridRectSchema, ObjectLocatorSchema } from "@icm/model";
 
 import { AGENT_API_VERSION } from "./schema.js";
 
@@ -246,6 +246,10 @@ const ReviewComparisonSchema = z.strictObject({
   detailsTruncated: z.boolean(),
   drawingChanged: z.boolean(),
 });
+const LocateLocalReviewObjectSchema = MarkLocalReviewReadySchema.extend({
+  action: z.literal("locate"),
+  locator: ObjectLocatorSchema.extend({ kind: z.enum(["instance", "net"]) }),
+});
 const PrepareLocalReviewSaveSchema = MarkLocalReviewReadySchema.extend({
   action: z.literal("prepare-save"),
 });
@@ -259,6 +263,7 @@ export const LocalReviewDeliveryArgsSchema = z.discriminatedUnion("action", [
   MarkLocalReviewReadySchema,
   OpenLocalReviewOriginalSchema,
   CompareLocalReviewSchema,
+  LocateLocalReviewObjectSchema,
   PrepareLocalReviewSaveSchema.extend({
     action: z.literal("save"),
     outputPath: z.string().min(1).describe("A new local .icproj.json file"),
@@ -371,6 +376,7 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       sourceVersion: Sha256Schema,
       background: z.boolean().optional(),
       rnlAppearance: AgentRnlAppearanceSchema.optional(),
+      taskRef: z.uuid().optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("review"),
@@ -381,6 +387,7 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
         CompareLocalReviewSchema.extend({
           reference: ReviewSourceFilesSchema.optional(),
         }),
+        LocateLocalReviewObjectSchema,
         PrepareLocalReviewSaveSchema,
         FinishLocalReviewSaveSchema,
       ]),
@@ -411,6 +418,7 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       operation: z.literal("open"),
       candidateId: StableIdSchema,
       background: z.boolean().optional(),
+      taskRef: z.uuid().optional(),
     }),
   ],
 );
@@ -500,7 +508,7 @@ export const AgentFileResourceResponseSchema = z.union([
     ok: z.literal(true),
     result: z.discriminatedUnion("action", [
       z.strictObject({
-        action: z.enum(["read", "mark-ready", "open-original"]),
+        action: z.enum(["read", "mark-ready", "open-original", "locate"]),
         delivery: LocalReviewDeliverySchema,
       }),
       z.strictObject({

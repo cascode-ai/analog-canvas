@@ -265,6 +265,7 @@ export async function openLocalFile(
         sourceVersion: version,
         background,
         ...appearance,
+        ...(options.taskRef ? { taskRef: options.taskRef } : {}),
       },
       "session",
     );
@@ -328,6 +329,7 @@ export async function openLocalFile(
           operation: "open",
           candidateId,
           background,
+          ...(options.taskRef ? { taskRef: options.taskRef } : {}),
         },
         "session",
       ),
