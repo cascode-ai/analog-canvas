@@ -1629,6 +1629,40 @@ describe("Razavi symbol catalog", () => {
       });
   });
 
+  it("draws the photoresistor as the Resistor with two light arrows pointing at it", () => {
+    const resistor = requireRazaviCatalogSymbol("resistor");
+    const photo = requireRazaviCatalogSymbol("photoresistor");
+    expect(photo.pins).toEqual(resistor.pins);
+    expect(getRazaviCatalogEntry("photoresistor")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["1", "2"],
+      palette: true,
+    });
+    expect(photo.primitives[0]).toEqual(resistor.primitives[0]);
+    const body = resistor.primitives[0];
+    if (body?.kind !== "path" || !body.bounds) throw new Error("missing body");
+    const heads = photo.primitives.filter(
+      (primitive) => primitive.kind === "polygon",
+    );
+    const shafts = photo.primitives.filter(
+      (primitive) => primitive.kind === "line",
+    );
+    expect(heads).toHaveLength(2);
+    expect(shafts).toHaveLength(2);
+    // Incoming: each tip is the arrow's point nearest the body, left of it.
+    shafts.forEach((shaft, index) => {
+      const head = heads[index];
+      if (shaft.kind !== "line" || head?.kind !== "polygon")
+        throw new Error("arrow");
+      const tip = head.points[0]!;
+      expect(tip.x).toBeGreaterThan(shaft.to.x);
+      expect(shaft.to.x).toBeGreaterThan(shaft.from.x);
+      expect(tip.x).toBeLessThan(body.bounds!.x);
+      expect(head).toMatchObject({ fill: "foreground", stroke: "none" });
+    });
+  });
+
   it("draws the polarized capacitor on the Capacitor's pins, + by the straight plate", () => {
     const capacitor = requireRazaviCatalogSymbol("capacitor");
     const polarized = requireRazaviCatalogSymbol("polarized-capacitor");

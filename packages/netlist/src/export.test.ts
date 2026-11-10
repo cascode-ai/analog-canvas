@@ -429,6 +429,33 @@ describe("copy/export netlist projection", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "exports a Photoresistor as the resistor it is in %s",
+    (format) => {
+      const project = createEmptyProject("photo-project", "Photoresistor");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "R1",
+        symbolId: "photoresistor",
+        reference: "R1",
+        placement: null,
+        netlist: { parameters: { value: "10k" } },
+      });
+      document.nets = [
+        { id: "a", terminals: [{ instanceId: "R1", pinName: "1" }] },
+        { id: "b", terminals: [{ instanceId: "R1", pinName: "2" }] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /^R1\s+\S+\s+\S+\s+10k$/mu
+          : /^R1\s+\(\S+ \S+\)\s+resistor r=10k$/mu,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "exports a Polarized Capacitor as the capacitor it is in %s",
     (format) => {
       const project = createEmptyProject("polarized-project", "Polarized");

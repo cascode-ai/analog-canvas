@@ -91,6 +91,7 @@
     "port",
     "port-filled",
     "potentiometer",
+    "photoresistor",
     "resistor",
     "simple-spdt-switch",
     "simple-switch",
@@ -138,6 +139,7 @@
   "deviceOrder": [
     "resistor",
     "variable-resistor",
+    "photoresistor",
     "speaker",
     "capacitor",
     "variable-capacitor",

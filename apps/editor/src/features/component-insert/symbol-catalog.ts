@@ -49,6 +49,7 @@ export function symbolCategory(symbolId: string): string {
   if (
     [
       "variable-resistor",
+      "photoresistor",
       "variable-capacitor",
       "polarized-capacitor",
       "variable-inductor",
@@ -191,6 +192,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   led: "LED",
   "schottky-diode": "Schottky",
   "polarized-capacitor": "Pol Cap",
+  photoresistor: "LDR",
   potentiometer: "Pot",
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
@@ -230,6 +232,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "port-filled":
     "A solid bias-voltage port, typically used for VB-style bias nodes",
   led: "Light-emitting or laser diode — electrically the Diode",
+  photoresistor:
+    "Photoresistor (light-dependent resistor) — electrically the Resistor",
   "polarized-capacitor":
     "Polarized (electrolytic) capacitor — electrically the Capacitor, + on pin 1",
   "schottky-diode":
@@ -314,6 +318,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "delay-cell",
   "variable-resistor",
   "potentiometer",
+  "photoresistor",
   "variable-capacitor",
   "polarized-capacitor",
   "variable-inductor",

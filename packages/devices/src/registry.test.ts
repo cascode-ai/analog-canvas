@@ -199,6 +199,17 @@ describe("built-in device registry", () => {
     );
   });
 
+  it("gives the Photoresistor the resistor contract", () => {
+    expect(deviceDescriptor("photoresistor")).toEqual({
+      ...deviceDescriptor("resistor"),
+      id: "photoresistor",
+      symbolId: "photoresistor",
+    });
+    expect(referencePolicyForSymbol("photoresistor")).toEqual(
+      referencePolicyForSymbol("resistor"),
+    );
+  });
+
   it("gives the Polarized Capacitor the capacitor contract, + on pin 1", () => {
     expect(deviceDescriptor("polarized-capacitor")).toEqual({
       ...deviceDescriptor("capacitor"),

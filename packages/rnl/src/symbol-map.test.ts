@@ -94,6 +94,7 @@ describe("the RNL symbol list", () => {
       "schottky-diode",
       "microphone",
       "potentiometer",
+      "photoresistor",
       "speaker",
     ]);
   });
