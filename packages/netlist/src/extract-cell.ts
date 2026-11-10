@@ -67,8 +67,10 @@ import {
   GENERIC_PJF_MODEL,
   GENERIC_PMOS_MODEL,
   GENERIC_PNP_MODEL,
+  GENERIC_SCHOTTKY_MODEL,
   definesGenericModel,
   reportGenericDiodes,
+  reportGenericSchottkys,
   reportUndefinedGenericModels,
   reportGenericBjts,
   reportGenericJfets,
@@ -467,6 +469,13 @@ export function extractCell(
   );
   if (genericDiodes.length)
     reportGenericDiodes(document, genericDiodes, diagnostics);
+  const genericSchottkys = carryGenericCard(
+    GENERIC_SCHOTTKY_MODEL,
+    "diode",
+    !options.run,
+  );
+  if (genericSchottkys.length)
+    reportGenericSchottkys(document, genericSchottkys, diagnostics);
   const genericBjts = [GENERIC_NPN_MODEL, GENERIC_PNP_MODEL]
     .map((model) => ({
       model,

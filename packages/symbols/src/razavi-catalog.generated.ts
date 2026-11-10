@@ -910,6 +910,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "c49c1043ae7a0d5e96ae2eb0e969adfde72b63f389d779a15211ec3d59e60281",
   },
   {
+    symbolId: "schottky-diode",
+    name: "Schottky Diode",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A Schottky diode does not appear on the reviewed page; it is the reviewed Diode body and leads, unchanged, with the cathode bar hooked into the S shape textbooks draw for a metal-semiconductor junction.",
+    pinOrder: ["A", "K"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE D card does not say the junction is a Schottky barrier, so an imported D card keeps the plain Diode symbol.",
+    assetPath: "schottky-diode.json",
+    assetHash:
+      "4cde938cfb578d4417a2fc71dcb59593b6b8d5b2ebf97021ee6ca5256315c385",
+  },
+  {
     symbolId: "externally-controlled-switch",
     name: "Externally Controlled Switch",
     category: "switch",
@@ -8558,6 +8575,139 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         fill: "foreground",
         stroke: "none",
         part: "light-arrow-2-head",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "schottky-diode",
+    name: "Schottky Diode",
+    viewBox: {
+      x: -24,
+      y: -10,
+      width: 48,
+      height: 20,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -8.333334,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -8.333334,
+            y: -6.75,
+          },
+          {
+            x: -8.333334,
+            y: 6.75,
+          },
+          {
+            x: 5.833334,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: 10,
+            y: -4.333334,
+          },
+          {
+            x: 10,
+            y: -7.333334,
+          },
+          {
+            x: 6.666666,
+            y: -7.333334,
+          },
+          {
+            x: 6.666666,
+            y: 7.333334,
+          },
+          {
+            x: 3.333334,
+            y: 7.333334,
+          },
+          {
+            x: 3.333334,
+            y: 4.333334,
+          },
+        ],
+        part: "schottky-cathode",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
       },
     ],
     variants: [],

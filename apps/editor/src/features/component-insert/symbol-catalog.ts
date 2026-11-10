@@ -54,6 +54,7 @@ export function symbolCategory(symbolId: string): string {
       "diode",
       "zener-diode",
       "led",
+      "schottky-diode",
       "njfet",
       "pjfet",
       "tcoil",
@@ -187,6 +188,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   port: "Cell Pin",
   "zener-diode": "Zener",
   led: "LED",
+  "schottky-diode": "Schottky",
   potentiometer: "Pot",
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
@@ -226,6 +228,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "port-filled":
     "A solid bias-voltage port, typically used for VB-style bias nodes",
   led: "Light-emitting or laser diode — electrically the Diode",
+  "schottky-diode":
+    "Schottky barrier diode — electrically a diode, on the generic DSCH model",
   speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",
   microphone:
     "Microphone — electrically an independent voltage source (DC, AC, SIN…)",
@@ -311,6 +315,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "diode",
   "zener-diode",
   "led",
+  "schottky-diode",
   "njfet",
   "pjfet",
   "tcoil",

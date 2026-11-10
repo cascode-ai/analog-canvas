@@ -1,5 +1,5 @@
-// Generic DIODE, NPN, PNP, NJF and PJF cards for a Process without its own, and the
-// findings on parts that lean on a generic model.
+// Generic DIODE, DSCH, NPN, PNP, NJF and PJF cards for a Process without its
+// own, and the findings on parts that lean on a generic model.
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type {
   DesignNetlistInstance,
@@ -26,6 +26,24 @@ export const GENERIC_DIODE_MODEL: DesignNetlistModel = {
   parameters: [
     { name: "IS", rawValue: "1e-14" },
     { name: "N", rawValue: "1" },
+  ],
+  authoredName: true,
+};
+
+/**
+ * The model a Schottky diode takes in every Process, none of which ships one:
+ * each Schottky Diode placed from the library binds to `DSCH`, carried and
+ * replaced as the generic diode is. A placeholder barrier junction with its
+ * saturation current, emission coefficient and series resistance stated, not
+ * any real device: about 0.3 V forward at 1 mA, where `DIODE` drops 0.7 V.
+ */
+export const GENERIC_SCHOTTKY_MODEL: DesignNetlistModel = {
+  name: "DSCH",
+  type: "D",
+  parameters: [
+    { name: "IS", rawValue: "1e-8" },
+    { name: "N", rawValue: "1.05" },
+    { name: "RS", rawValue: "1" },
   ],
   authoredName: true,
 };
@@ -194,6 +212,30 @@ export function reportGenericDiodes(
         ? `. It has no breakdown, so ${partList(zeners)} ${zeners.length === 1 ? "does" : "do"} not act as a Zener until given a Zener model`
         : ""
     }`,
+    parts.map((part) => part.id),
+    "info",
+  );
+}
+
+/**
+ * Which Schottky diodes run on the generic card, one finding for the Cell as
+ * for its plain diodes: information, since the netlist runs, but on a
+ * stand-in barrier, not on a device anyone chose.
+ */
+export function reportGenericSchottkys(
+  document: SchematicDocument,
+  diodes: readonly DesignNetlistInstance[],
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const parts = namedParts(document, diodes);
+  const values = GENERIC_SCHOTTKY_MODEL.parameters
+    .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
+    .join(", ");
+  diagnostic(
+    diagnostics,
+    document.id,
+    "GENERIC_SCHOTTKY_MODEL",
+    `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic Schottky model ${GENERIC_SCHOTTKY_MODEL.name} (${values}); set a model for a real device`,
     parts.map((part) => part.id),
     "info",
   );
