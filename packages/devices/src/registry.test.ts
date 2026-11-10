@@ -239,6 +239,25 @@ describe("built-in device registry", () => {
     );
   });
 
+  it("gives the Ammeter a parameterless voltage-source contract, A-prefixed", () => {
+    expect(deviceDescriptor("ammeter")).toEqual({
+      ...deviceDescriptor("voltage-source"),
+      id: "ammeter",
+      symbolId: "ammeter",
+      referencePrefix: "A",
+      parameters: [],
+      capabilities: {
+        supportsModel: false,
+        supportsBulkBinding: false,
+        supportsValueAnnotation: false,
+      },
+    });
+    expect(referencePolicyForSymbol("ammeter")).toMatchObject({
+      kind: "required",
+      prefix: "A",
+    });
+  });
+
   it("gives the Microphone the voltage-source contract, V-prefixed", () => {
     expect(deviceDescriptor("microphone")).toEqual({
       ...deviceDescriptor("voltage-source"),

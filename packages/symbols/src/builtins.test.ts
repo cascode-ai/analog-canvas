@@ -46,6 +46,7 @@ const PRODUCT_IDS = [
   "center-tap-inductor",
   "inverter",
   "microphone",
+  "ammeter",
   "nand-gate",
   "njfet",
   "nmos",

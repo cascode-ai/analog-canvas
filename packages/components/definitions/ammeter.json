@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "ammeter",
+    "name": "Ammeter",
+    "viewBox": {
+      "x": -14,
+      "y": -24,
+      "width": 28,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "circle",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 10.755814,
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -4,
+            "y": 5
+          },
+          {
+            "x": 0,
+            "y": -5.5
+          },
+          {
+            "x": 4,
+            "y": 5
+          }
+        ],
+        "part": "letter-a",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -2.666667,
+          "y": 1.5
+        },
+        "to": {
+          "x": 2.666667,
+          "y": 1.5
+        },
+        "part": "letter-a-bar",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "ammeter",
+    "symbolId": "ammeter",
+    "deviceClass": "voltage-source",
+    "referencePrefix": "A",
+    "pinOrder": ["+", "-"],
+    "targetPolicy": "builtin",
+    "sourceWaveformDefault": "dc",
+    "parameters": [],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": false
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "ammeter",
+    "name": "Ammeter",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "An ammeter does not appear on the reviewed page; it is drawn as textbooks draw a meter, the reviewed Independent Voltage Source's circle, leads and pins with an A inside and no polarity marks.",
+    "pinOrder": ["+", "-"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A 0 V SPICE V card does not say it is a meter, so an imported one keeps the circular voltage source.",
+    "assetPath": "ammeter.json"
+  }
+}

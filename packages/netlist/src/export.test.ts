@@ -364,6 +364,34 @@ describe("copy/export netlist projection", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "exports an Ammeter as a 0 V source whatever its record holds, in %s",
+    (format) => {
+      const project = createEmptyProject("ammeter-project", "Ammeter");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "A1",
+        symbolId: "ammeter",
+        reference: "A1",
+        placement: null,
+        // A stray value (pasted, or from an Agent) changes nothing.
+        netlist: { parameters: { dc: "5", acMagnitude: "1" } },
+      });
+      document.nets = [
+        { id: "in", terminals: [{ instanceId: "A1", pinName: "+" }] },
+        { id: "out", terminals: [{ instanceId: "A1", pinName: "-" }] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /^VA1 \S+ \S+ DC 0$/mu
+          : /^A1 \(\S+ \S+\) vsource dc=0$/mu,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "exports a placed Sine Voltage Source as a SIN source in %s",
     (format) => {
       // As placed: each catalog default, the waveform among them.

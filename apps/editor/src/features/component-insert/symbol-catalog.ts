@@ -65,6 +65,7 @@ export function symbolCategory(symbolId: string): string {
       "crystal",
       "speaker",
       "microphone",
+      "ammeter",
       "potentiometer",
     ].includes(symbolId)
   ) {
@@ -245,6 +246,7 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",
   microphone:
     "Microphone — electrically an independent voltage source (DC, AC, SIN…)",
+  ammeter: "Ammeter — a 0 V source in series; probe the current through it",
   potentiometer:
     "Potentiometer — total resistance r, wiper W at fraction pos from end 1",
 };
@@ -339,6 +341,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "crystal",
   "speaker",
   "microphone",
+  "ammeter",
   "depletion-nmos",
   "depletion-pmos",
   "ndmos",
