@@ -78,6 +78,97 @@ afterEach(() => {
 });
 
 describe("visitor counting", () => {
+  it("refuses an oversized export before materializing rows and keeps counting available", async () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(`CREATE TABLE visitors(visitor_hash TEXT PRIMARY KEY, last_seen_day INTEGER NOT NULL);
+      WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<50001)
+      INSERT INTO visitors SELECT printf('%064x',x), 1 FROM n;`);
+    const analytics = new AnalyticsDO(sqliteState(db));
+    const response = await analytics.fetch(
+      new Request("https://analytics.internal/backup"),
+    );
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "backup-too-large" });
+    expect((await summary(analytics)).totals.uv).toBe(50001);
+  });
+
+  it("restores retired history and page-load buckets as well as current identities", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const original = new AnalyticsDO(sqliteState());
+    await hit(original, HASH_A);
+    vi.setSystemTime(DAY_ONE + 368 * DAY_MS);
+    await hit(original, HASH_B);
+    await original.fetch(
+      new Request("https://analytics.internal/load", {
+        method: "POST",
+        body: JSON.stringify({ country: "CH", ttfb: 450, shown: 1200 }),
+      }),
+    );
+    const backup = await (
+      await original.fetch(new Request("https://analytics.internal/backup"))
+    ).json();
+    const db = new DatabaseSync(":memory:");
+    for (const definition of backup.schema) db.exec(definition.sql);
+    for (const [table, rows] of Object.entries(backup.tables)) {
+      for (const row of rows as Record<string, string | number | null>[]) {
+        const keys = Object.keys(row);
+        db.prepare(
+          `INSERT INTO "${table}" (${keys.map((key) => `"${key}"`).join(",")}) VALUES (${keys.map(() => "?").join(",")})`,
+        ).run(...Object.values(row));
+      }
+    }
+    const recovered = new AnalyticsDO(sqliteState(db));
+    const report = await summary(recovered);
+    expect(report.totals).toEqual({ pv: 2, uv: 2 });
+    expect(report.days.at(-369)).toMatchObject({ pv: 1, uv: 1 });
+    expect(report.loadTimes.all).toMatchObject({
+      n: 1,
+      ttfbP50: 500,
+      shownP50: 1250,
+    });
+  });
+
+  it("exports a complete restorable snapshot without retiring yesterday's identities", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const analytics = new AnalyticsDO(sqliteState());
+    await hit(analytics, HASH_A);
+    await hit(analytics, HASH_A, { path: "/editor" });
+    vi.setSystemTime(DAY_ONE + DAY_MS);
+    const response = await analytics.fetch(
+      new Request("https://analytics.internal/backup"),
+    );
+    expect(response.status).toBe(200);
+    const backup = await response.json();
+    expect(backup.format).toBe("canvas-analytics-backup-v1");
+    expect(backup.tables.daily_visitors).toEqual([
+      {
+        day: Math.floor(DAY_ONE / DAY_MS),
+        visitor_hash: HASH_A,
+        source: "direct-or-unknown",
+      },
+    ]);
+    const restored = new DatabaseSync(":memory:");
+    for (const definition of backup.schema) restored.exec(definition.sql);
+    for (const [table, rows] of Object.entries(backup.tables)) {
+      for (const row of rows as Record<string, string | number | null>[]) {
+        const keys = Object.keys(row);
+        restored
+          .prepare(
+            `INSERT INTO "${table}" (${keys.map((key) => `"${key}"`).join(",")}) VALUES (${keys.map(() => "?").join(",")})`,
+          )
+          .run(...Object.values(row));
+      }
+    }
+    const recovered = new AnalyticsDO(sqliteState(restored));
+    expect((await summary(recovered)).totals).toEqual({ pv: 2, uv: 1 });
+    expect(await hit(recovered, HASH_A)).toMatchObject({ pv: 3, uv: 1 });
+    expect((await summary(recovered)).paths).toContainEqual({
+      path: "/editor",
+      pv: 1,
+      uv: 0,
+    });
+  });
+
   it("counts a returning visitor once, whatever the day", async () => {
     vi.useFakeTimers({ now: DAY_ONE });
     const analytics = new AnalyticsDO(sqliteState());

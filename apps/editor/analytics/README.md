@@ -24,6 +24,17 @@ schema initializer uses `CREATE TABLE IF NOT EXISTS` and never clears existing
 rows; schema changes must preserve that rule unless a separately reviewed data
 migration and recovery plan exists.
 
+## Backups
+
+`GET /api/analytics-sync/backup`, authenticated with the existing replication
+peer's `PROJECT_SYNC_TOKEN`, exports the analytics tables and their SQLite
+definitions in one synchronous transaction. The `canvas-analytics-backup-v1`
+snapshot includes visitor hashes and must stay private. It performs no daily
+roll-up. An export exceeding 8 MiB or 50,000 rows fails with 413 rather than returning a
+partial snapshot. Restore into an isolated database and verify counts and
+returning-visitor behavior before any migration; never overwrite a live store.
+Gallery backups do not include analytics.
+
 ## The visitor cookie and its limits
 
 Returning visitors are counted with one first-party cookie. Its limits follow

@@ -1,3 +1,4 @@
+import { bearerMatches } from "../../../worker/bearer";
 import {
   ANALYTICS_PERSISTENCE_IDENTITY,
   hasOptedOut,
@@ -24,6 +25,7 @@ export const PAGE_LOAD_ROUTE = `${TRACK_ROUTE}/load`;
 export type AnalyticsRouteEnv = {
   ANALYTICS: DurableObjectNamespaceLike;
   ANALYTICS_KEY: string | undefined;
+  PROJECT_SYNC_TOKEN?: string;
 };
 
 type RequestCf = {
@@ -85,6 +87,25 @@ export async function routeAnalyticsRequest(
   env: AnalyticsRouteEnv,
 ): Promise<Response | null> {
   const url = new URL(request.url);
+  if (url.pathname === "/api/analytics-sync/backup") {
+    if (!bearerMatches(request, env.PROJECT_SYNC_TOKEN))
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    if (request.method !== "GET")
+      return Response.json(
+        { error: "method-not-allowed" },
+        { status: 405, headers: { Allow: "GET" } },
+      );
+    const response = await env.ANALYTICS.getByName(
+      ANALYTICS_PERSISTENCE_IDENTITY.objectName,
+    ).fetch("https://analytics.internal/backup");
+    return new Response(response.body, {
+      status: response.status,
+      headers: {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      },
+    });
+  }
   if (url.pathname === TRACK_ROUTE && request.method === "POST") {
     return trackPageView(request, env);
   }
