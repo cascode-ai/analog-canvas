@@ -1258,6 +1258,21 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "njfet",
+    name: "N-Channel JFET",
+    category: "transistor",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reviewed pages draw no junction FET. It is drawn as textbooks draw one: a vertical channel bar, the drain and source leaving its ends to the right on the MOS's D and S pins, and the gate lead from the MOS's G pin with its arrow pointing into the channel, in the reviewed MOS and BJT stroke weights and the MOS source arrowhead. It does not claim an exact textbook witness.",
+    pinOrder: ["D", "G", "S"],
+    palette: true,
+    automaticMappings: ["spice:J:njf"],
+    assetPath: "njfet.json",
+    assetHash:
+      "1cbe637694d68288e12520bf3a82100dd41cec6eeffeb115145276e06d5733df",
+  },
+  {
     symbolId: "nmos",
     name: "NMOS",
     category: "transistor",
@@ -2248,6 +2263,21 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterPath: "scripts/lib/derived-logic-gate.mjs",
       converterVersion: 1,
     },
+  },
+  {
+    symbolId: "pjfet",
+    name: "P-Channel JFET",
+    category: "transistor",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reviewed pages draw no junction FET. It is drawn as textbooks draw one: a vertical channel bar, the drain and source leaving its ends to the right on the MOS's D and S pins, and the gate lead from the MOS's G pin with its arrow pointing out of the channel, in the reviewed MOS and BJT stroke weights and the MOS source arrowhead. It does not claim an exact textbook witness.",
+    pinOrder: ["D", "G", "S"],
+    palette: true,
+    automaticMappings: ["spice:J:pjf"],
+    assetPath: "pjfet.json",
+    assetHash:
+      "e079ffac71a8b8d0e19f9c722e183c4ca1a4ee33a2b39e9f4f53e7b561f0d879",
   },
   {
     symbolId: "pmos",
@@ -9931,6 +9961,156 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "njfet",
+    name: "N-Channel JFET",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 38,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "D",
+        role: "drain",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "G",
+        role: "gate",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "S",
+        role: "source",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -20,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 20,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4,
+          y: -12.5,
+        },
+        to: {
+          x: -4,
+          y: 12.5,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -5.2,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -14.502325,
+            y: -4.069767,
+          },
+          {
+            x: -14.502325,
+            y: 4.069767,
+          },
+          {
+            x: -5.2,
+            y: 0,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "nmos",
     name: "NMOS",
     viewBox: {
@@ -17448,6 +17628,156 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "pjfet",
+    name: "P-Channel JFET",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 38,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "D",
+        role: "drain",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "G",
+        role: "gate",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "S",
+        role: "source",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -20,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 20,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4,
+          y: -12.5,
+        },
+        to: {
+          x: -4,
+          y: 12.5,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -5.2,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -5.2,
+            y: -4.069767,
+          },
+          {
+            x: -5.2,
+            y: 4.069767,
+          },
+          {
+            x: -14.502325,
+            y: 0,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
       },
     ],
     variants: [],

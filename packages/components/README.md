@@ -130,6 +130,12 @@ The product set is exactly the reviewed reference entries and explicit house der
   SPICE import still places them only by hand. Placement still authors complete starting
   parameters: T-coil uses `L1=1n`, `L2=1n`, `K=1`, and `CB=1p`; XFMR uses
   `Lp=1n`, `Ls=1n`, and `K=1`;
+- `njfet` and `pjfet`, house junction FETs: a vertical channel bar, drain and
+  source leaving its ends to the right on the NMOS/PMOS D and S pins (p-channel
+  source on top), and the gate lead from G with its arrow into (n) or out of
+  (p) the channel. Primitive SPICE `J` (`d g s`), model required; every Process
+  binds the generic `NJF`/`PJF` (see the
+  [netlist export spec](../../docs/specs/netlist-export.md#generic-models));
 - `diode` and `zener-diode`. The Zener body is direct PDF-vector evidence from
   _Fundamentals of Microelectronics_, Figure 3.44(a). Both retain the SPICE D
   electrical contract, but Zener presentation is manual or PDK-mapped because

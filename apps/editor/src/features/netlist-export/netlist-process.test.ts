@@ -448,6 +448,36 @@ describe("a part placed into a Process (#1251)", () => {
     ).toBeUndefined();
   });
 
+  it.each(NETLIST_PROFILE_IDS)(
+    "binds a placed JFET to the generic NJF or PJF under %s",
+    (process) => {
+      // No Process ships a JFET: every one names the netlist's own stand-in.
+      const project = createEmptyProject("jfet", "JFET");
+      for (const [symbolId, model] of [
+        ["njfet", "NJF"],
+        ["pjfet", "PJF"],
+      ] as const) {
+        expect(
+          processPlacementTarget(project, preferences(process), symbolId),
+        ).toBe(model);
+        const edit = place(symbolId);
+        const placed = commit(
+          project,
+          placementProcessFill(
+            project,
+            preferences(process),
+            project.topDocumentId,
+            [{ ...edit, instance: { ...edit.instance, reference: "J1" } }],
+          )!,
+        );
+        const [part] = placed.documents[0]!.instances;
+        expect(instanceModelTarget(placed, part!)).toBe(model);
+        expect(part!.netlist?.binding).toMatchObject({ deviceClass: "jfet" });
+        expect(part!.netlist?.parameters).toMatchObject({ m: "1" });
+      }
+    },
+  );
+
   it("places IHP SG13G2 transistors and HBTs as the PDK's own X calls", () => {
     const sg13g2 = preferences("sg13g2");
     let project = createEmptyProject("ihp", "IHP");

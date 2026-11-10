@@ -1875,6 +1875,63 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "njfet",
+      name: "N-Channel JFET",
+      category: "transistor",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "m",
+          default: "1",
+        },
+        {
+          name: "area",
+        },
+      ],
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "D",
+          role: "drain",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "S",
+          role: "source",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "nmos",
       name: "NMOS",
       category: "transistor",
@@ -2626,6 +2683,63 @@ export const agentRazaviAuthoringCatalog = {
           at: {
             x: 20,
             y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "pjfet",
+      name: "P-Channel JFET",
+      category: "transistor",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "m",
+          default: "1",
+        },
+        {
+          name: "area",
+        },
+      ],
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "D",
+          role: "drain",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "S",
+          role: "source",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
           },
         },
       ],

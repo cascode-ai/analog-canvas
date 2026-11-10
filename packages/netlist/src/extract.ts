@@ -258,6 +258,7 @@ function projectSpiceReferences(cell: DesignNetlistCell): void {
     inductor: "L",
     diode: "D",
     bjt: "Q",
+    jfet: "J",
     "voltage-source": "V",
     "current-source": "I",
     vcvs: "E",

@@ -354,7 +354,10 @@ export function electricalGraphFromIR(
         const topologyTarget =
           topologyClass === "mos" && descriptor?.mosBulkClass
             ? descriptor.mosBulkClass
-            : topologyClass === "bjt" && (symbol === "npn" || symbol === "pnp")
+            : (topologyClass === "bjt" &&
+                  (symbol === "npn" || symbol === "pnp")) ||
+                (topologyClass === "jfet" &&
+                  (symbol === "njfet" || symbol === "pjfet"))
               ? symbol
               : instance.target;
         const device = vertex(
@@ -694,9 +697,15 @@ function topologyLabel(label: string): string {
             : target.includes("npn")
               ? "npn"
               : `model:${target}`
-          : deviceClass === "hierarchical"
-            ? value[3]
-            : null;
+          : deviceClass === "jfet"
+            ? target.includes("pjf")
+              ? "p"
+              : target.includes("njf")
+                ? "n"
+                : `model:${target}`
+            : deviceClass === "hierarchical"
+              ? value[3]
+              : null;
     // Models and values are exact-duplicate evidence, but not topology. Keep
     // the emitted device class, invocation kind and recognizable transistor
     // polarity so differently sized/modelled NMOS stages remain close without

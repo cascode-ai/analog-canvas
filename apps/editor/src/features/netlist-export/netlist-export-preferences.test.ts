@@ -7,7 +7,10 @@ import {
   selectNetlistExportProfile,
   setNetlistExportDeviceTarget,
 } from "./netlist-export-preferences.js";
-import { createNetlistExportProfile } from "./netlist-process-presets.js";
+import {
+  createNetlistExportProfile,
+  NETLIST_PROFILE_IDS,
+} from "./netlist-process-presets.js";
 
 describe("netlist authoring preferences", () => {
   it("moves the old SG13 ideal defaults once and preserves subsequent explicit Ideal choices", () => {
@@ -181,6 +184,25 @@ describe("netlist authoring preferences", () => {
     expect(restored.profiles.sg13g2.devices.nmos.parameters).not.toHaveProperty(
       "nf",
     );
+  });
+
+  it("gives preferences saved before the JFETs their stand-ins, keeping every other choice", () => {
+    const saved = createDefaultNetlistExportPreferences();
+    saved.selected = "custom";
+    saved.profiles.custom.devices.npn.target = "my_npn";
+    saved.profiles.sky130.devices.nmos.parameters.w = "5u";
+    const older = structuredClone(saved);
+    for (const id of NETLIST_PROFILE_IDS) {
+      const devices: Record<string, unknown> = older.profiles[id].devices;
+      delete devices.njfet;
+      delete devices.pjfet;
+    }
+    const restored = readNetlistExportPreferences(JSON.stringify(older));
+    expect(restored).toEqual(saved);
+    for (const id of NETLIST_PROFILE_IDS) {
+      expect(restored.profiles[id].devices.njfet.target).toBe("NJF");
+      expect(restored.profiles[id].devices.pjfet.target).toBe("PJF");
+    }
   });
 
   it("does not accept a case override in new configuration code", () => {

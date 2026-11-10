@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   createNetlistExportProfile,
   isNetlistExportProfile,
+  NETLIST_DEVICE_FAMILIES,
   NETLIST_PROFILE_IDS,
   setNetlistDefaultTarget,
   type NetlistExportProfile,
@@ -93,6 +94,16 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   )
     profiles.custom = template;
   for (const id of RETIRED_NETLIST_PROFILE_IDS) delete stored[id as string];
+  // A device family added since the profile was saved (the JFETs) takes its
+  // defaults; every family the author already has stays as they left it.
+  for (const id of NETLIST_PROFILE_IDS) {
+    const devices = profiles[id]?.devices as
+      Partial<NetlistExportProfile["devices"]> | undefined;
+    if (!devices || typeof devices !== "object") continue;
+    const defaults = createNetlistExportProfile(id).devices;
+    for (const family of NETLIST_DEVICE_FAMILIES)
+      devices[family] ??= defaults[family];
+  }
   if ((parsed.sg13Defaults ?? 0) < SG13_DEFAULTS_GENERATION) {
     const defaults = createNetlistExportProfile("sg13g2");
     const sg13 = profiles.sg13g2;

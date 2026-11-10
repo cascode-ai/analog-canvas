@@ -106,7 +106,7 @@ export function generateCircuitSource(
       // protected token in this projection only, never an electrical default.
       if (
         !card.target &&
-        ["mos", "diode", "bjt", "switch", "hierarchical"].includes(
+        ["mos", "diode", "bjt", "jfet", "switch", "hierarchical"].includes(
           card.deviceClass,
         )
       )

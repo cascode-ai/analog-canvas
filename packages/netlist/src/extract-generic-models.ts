@@ -1,4 +1,4 @@
-// Generic DIODE, NPN and PNP cards for a Process without its own, and the
+// Generic DIODE, NPN, PNP, NJF and PJF cards for a Process without its own, and the
 // findings on parts that lean on a generic model.
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type {
@@ -56,6 +56,35 @@ export const GENERIC_PNP_MODEL: DesignNetlistModel = {
     { name: "IS", rawValue: "1e-16" },
     { name: "BF", rawValue: "50" },
     { name: "VAF", rawValue: "50" },
+  ],
+  authoredName: true,
+};
+
+/**
+ * The models a junction FET takes in every Process, none of which ships one:
+ * each NJFET and PJFET placed from the library binds to `NJF` and `PJF`,
+ * carried and replaced as the generic diode is. Shichman-Hodges placeholders
+ * with their pinch-off voltage, transconductance coefficient and channel-
+ * length modulation stated, not any real device: IDSS = BETA*VTO^2 = 4 mA.
+ * SPICE's PJF takes VTO negative as NJF does, so both state -2.
+ */
+export const GENERIC_NJF_MODEL: DesignNetlistModel = {
+  name: "NJF",
+  type: "NJF",
+  parameters: [
+    { name: "VTO", rawValue: "-2" },
+    { name: "BETA", rawValue: "1e-3" },
+    { name: "LAMBDA", rawValue: "0.01" },
+  ],
+  authoredName: true,
+};
+export const GENERIC_PJF_MODEL: DesignNetlistModel = {
+  name: "PJF",
+  type: "PJF",
+  parameters: [
+    { name: "VTO", rawValue: "-2" },
+    { name: "BETA", rawValue: "1e-3" },
+    { name: "LAMBDA", rawValue: "0.01" },
   ],
   authoredName: true,
 };
@@ -313,6 +342,38 @@ export function reportGenericBjts(
     "GENERIC_BJT_MODEL",
     `${uses.join(", ")}; set a model for a real device`,
     named.flatMap(({ parts }) => parts.map((part) => part.id)),
+    "info",
+  );
+}
+
+/**
+ * Which junction FETs run on the generic cards, one finding for the Cell as
+ * for its bipolar transistors: information, since the netlist runs, but on
+ * stand-in transistors, not on devices anyone chose.
+ */
+export function reportGenericJfets(
+  document: SchematicDocument,
+  used: ReadonlyArray<{
+    model: DesignNetlistModel;
+    parts: readonly DesignNetlistInstance[];
+  }>,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const uses = used.map(({ model, parts }) => {
+    const names = namedParts(document, parts).map((part) => part.name);
+    const values = model.parameters
+      .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
+      .join(", ");
+    return `${partList(names)} ${names.length === 1 ? "uses" : "use"} the generic JFET model ${model.name} (${values})`;
+  });
+  diagnostic(
+    diagnostics,
+    document.id,
+    "GENERIC_JFET_MODEL",
+    `${uses.join(", ")}; set a model for a real device`,
+    used.flatMap(({ parts }) =>
+      namedParts(document, parts).map((part) => part.id),
+    ),
     "info",
   );
 }

@@ -2194,7 +2194,7 @@
     "symbol": "$NJFET",
     "definition": null,
     "package": "rnl-std-semiconductors",
-    "ac": null,
+    "ac": "njfet",
     "variant": null,
     "orient": "R0",
     "terminals": [
@@ -2214,18 +2214,40 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
-    "pins": [],
+    "offset": [1, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "s",
+        "ac_pin": "S",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
     "undrawn_pins": [],
-    "box": null,
+    "box": [-3.4, -2.4, 0.4, 2.4],
     "ac_netlist_order": null,
-    "note": "新画：AC 没有。J，模型类型 njf；也画 Z（ngspice 的 MESFET，nmf）"
+    "note": "J，模型类型 njf；也画 Z（ngspice 的 MESFET，nmf）"
   },
   {
     "symbol": "$PJFET",
     "definition": null,
     "package": "rnl-std-semiconductors",
-    "ac": null,
+    "ac": "pjfet",
     "variant": null,
     "orient": "R0",
     "terminals": [
@@ -2245,12 +2267,34 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
-    "pins": [],
+    "offset": [1, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [0, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "s",
+        "ac_pin": "S",
+        "at": [0, 2],
+        "dir": 90
+      }
+    ],
     "undrawn_pins": [],
-    "box": null,
+    "box": [-3.4, -2.4, 0.4, 2.4],
     "ac_netlist_order": null,
-    "note": "新画：AC 没有。J，模型类型 pjf；也画 Z（pmf）"
+    "note": "J，模型类型 pjf；也画 Z（pmf）"
   },
   {
     "symbol": "$OPAMP",

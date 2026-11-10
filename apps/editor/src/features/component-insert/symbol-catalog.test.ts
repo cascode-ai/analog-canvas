@@ -313,7 +313,14 @@ describe("reach order inside a category", () => {
 
     // Alphabetical order separated NMOS from PMOS with a bipolar between them,
     // and the supply Port from its Rail.
-    expect(ids("Transistors")).toEqual(["nmos", "pmos", "npn", "pnp"]);
+    expect(ids("Transistors")).toEqual([
+      "nmos",
+      "pmos",
+      "npn",
+      "pnp",
+      "njfet",
+      "pjfet",
+    ]);
     expect(ids("Extended Devices")).toEqual([
       "variable-resistor",
       "variable-capacitor",

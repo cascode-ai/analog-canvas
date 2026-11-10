@@ -168,10 +168,16 @@ export function rnlSymbolFor(
 export function symbolModelType(
   symbolId: string,
   project?: Pick<CircuitProject, "componentDefinitions">,
-): "nmos" | "pmos" | "npn" | "pnp" | "d" | undefined {
+): "nmos" | "pmos" | "npn" | "pnp" | "njf" | "pjf" | "d" | undefined {
   const descriptor = deviceDescriptor(symbolId, project);
   if (descriptor?.mosBulkClass) return descriptor.mosBulkClass;
   if (descriptor?.deviceClass === "diode") return "d";
+  if (descriptor?.deviceClass === "jfet")
+    return symbolId === "njfet"
+      ? "njf"
+      : symbolId === "pjfet"
+        ? "pjf"
+        : undefined;
   return descriptor?.deviceClass === "bjt" &&
     (symbolId === "npn" || symbolId === "pnp")
     ? symbolId

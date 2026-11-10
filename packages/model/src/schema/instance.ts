@@ -66,6 +66,7 @@ export const NetlistDeviceClassSchema = z.enum([
   "mos",
   "diode",
   "bjt",
+  "jfet",
   "voltage-source",
   "current-source",
   "vcvs",

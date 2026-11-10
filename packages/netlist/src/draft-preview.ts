@@ -34,6 +34,7 @@ const MODEL_BEARING = new Set<DesignNetlistInstance["deviceClass"]>([
   "mos",
   "diode",
   "bjt",
+  "jfet",
   "switch",
   "hierarchical",
 ]);

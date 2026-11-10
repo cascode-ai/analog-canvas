@@ -306,6 +306,8 @@ function netlistDeviceClass(symbolId: string): NetlistDeviceClass | null {
     "zener-diode": "diode",
     npn: "bjt",
     pnp: "bjt",
+    njfet: "jfet",
+    pjfet: "jfet",
     "voltage-source": "voltage-source",
     "current-source": "current-source",
     "voltage-controlled-switch": "switch",
@@ -408,6 +410,10 @@ function symbolFor(
       return { symbolId: "npn", pinNames: ["C", "B", "E"] };
     if (instance.terminals.length === 3 && modelType === "pnp")
       return { symbolId: "pnp", pinNames: ["C", "B", "E"] };
+    if (instance.terminals.length === 3 && modelType === "njf")
+      return { symbolId: "njfet", pinNames: ["D", "G", "S"] };
+    if (instance.terminals.length === 3 && modelType === "pjf")
+      return { symbolId: "pjfet", pinNames: ["D", "G", "S"] };
     if (instance.terminals.length === 4 && modelType === "nmos")
       return { symbolId: "nmos", pinNames: ["D", "G", "S", "B"] };
     if (instance.terminals.length === 4 && modelType === "pmos")
@@ -783,12 +789,14 @@ function cellPinSide(
     if (
       (deviceClass === "mos" && pin === "D") ||
       (deviceClass === "bjt" && pin === "C") ||
+      (deviceClass === "jfet" && pin === "D") ||
       pin === "OUT"
     )
       drives += 1;
     else if (
       (deviceClass === "mos" && pin === "G") ||
       (deviceClass === "bjt" && pin === "B") ||
+      (deviceClass === "jfet" && pin === "G") ||
       pin === "IN+" ||
       pin === "IN-"
     )

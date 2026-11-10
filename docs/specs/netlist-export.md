@@ -235,15 +235,22 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 - BJTs in Abstract or Custom bind to `NPN`/`PNP` with cards
   `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` and
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (information `GENERIC_BJT_MODEL`).
+- JFETs (`J<ref> d g s`) in every Process bind to `NJF`/`PJF` with cards
+  `.model NJF NJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)` and
+  `.model PJF PJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)` (information
+  `GENERIC_JFET_MODEL`); SPICE's PJF takes VTO negative as NJF does.
 - A same-name model in the imported SPICE suppresses the card everywhere; one in
   a folder's files only for that folder's runs. The stand-in card itself, as the
   export writes it in SPICE or Spectre (type and parameters, in any case or
   order), suppresses nothing: a netlist the editor wrote, imported again, holds
   it (#1789). VACASK prints `sp_diode`/`sp_bjt`
   (`type=±1`). Spectre export carries native stand-ins with the same parameters:
-  `model DIODE diode is=1e-14 n=1`, `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`
-  and `model PNP bjt type=pnp is=1e-16 bf=50 vaf=50`. Spectre run decks carry none
-  of these stand-ins; their model libraries remain the authority.
+  `model DIODE diode is=1e-14 n=1`, `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`,
+  `model PNP bjt type=pnp is=1e-16 bf=50 vaf=50` and
+  `model NJF jfet type=n vto=-2 beta=1e-3 lambda=0.01` (`PJF` `type=p`). VACASK
+  has no qualified JFET mapping and refuses `NJF`/`PJF` with
+  `VACASK_UNSUPPORTED_MODEL`. Spectre run decks carry none of these stand-ins;
+  their model libraries remain the authority.
 - A netlist handed out (panel, copy, save, `SPICE+RNL`, `Spectre+RNL`) carries
   BSIM4 stand-ins for generic `NMOS`/`PMOS` in each Cell naming them
   (information `GENERIC_MOS_MODEL`), so it reads back with each part's channel

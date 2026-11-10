@@ -63,7 +63,7 @@ export function symbolCategory(symbolId: string): string {
   }
   const expanded = expandedDeviceCatalogEntry(symbolId);
   if (expanded) return expanded.category;
-  if (["nmos", "pmos", "npn", "pnp"].includes(symbolId)) {
+  if (["nmos", "pmos", "npn", "pnp", "njfet", "pjfet"].includes(symbolId)) {
     return "Transistors";
   }
   if (
@@ -258,6 +258,8 @@ const SYMBOL_ORDER: readonly string[] = [
   "pmos",
   "npn",
   "pnp",
+  "njfet",
+  "pjfet",
   // Passives in the order they are taught and reached for, not alphabetical.
   "resistor",
   "capacitor",

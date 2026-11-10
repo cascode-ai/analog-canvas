@@ -67,7 +67,8 @@ export function spiceModelCard(
 /**
  * A model a Cell carries, as Spectre's model statement: a MOS stand-in is
  * Spectre's own BSIM4, as SPICE's is level 54; the classic junction and
- * Gummel-Poon stand-ins keep the parameters the SPICE card states.
+ * Gummel-Poon stand-ins, and the junction FETs' Spectre `jfet`, keep the
+ * parameters the SPICE card states.
  * Extraction omits the latter from Spectre runs. Null for a switch's model,
  * which Spectre writes as a behavioral definition.
  */
@@ -76,9 +77,13 @@ export function spectreModelCard(
 ): string | null {
   if (model.type === "nmos" || model.type === "pmos")
     return `model ${model.name} bsim4 type=${model.type === "nmos" ? "n" : "p"}`;
-  if (!["D", "NPN", "PNP"].includes(model.type)) return null;
+  if (!["D", "NPN", "PNP", "NJF", "PJF"].includes(model.type)) return null;
   const kind =
-    model.type === "D" ? "diode" : `bjt type=${model.type.toLowerCase()}`;
+    model.type === "D"
+      ? "diode"
+      : model.type === "NJF" || model.type === "PJF"
+        ? `jfet type=${model.type === "NJF" ? "n" : "p"}`
+        : `bjt type=${model.type.toLowerCase()}`;
   const parameters = model.parameters
     .map((p) => `${p.name.toLowerCase()}=${p.rawValue}`)
     .join(" ");
