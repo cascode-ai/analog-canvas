@@ -61,7 +61,22 @@ describe("netlist-crawler structural conversion", () => {
     expect(text).toContain("Qn c b e NPN");
     expect(text).toContain("d a k DIODE");
   });
+  it("reads the reviewed native JFET stand-ins and writes a J card back", () => {
+    const text = converted(
+      "model NJF jfet type=n vto=-2 beta=1e-3 lambda=0.01\nmodel PJF jfet type=p vto=-2 beta=1e-3 lambda=0.01\nJ1 (d g s) NJF m=2\nhigh (d g s) PJF area=3",
+    );
+    expect(text).toContain(".model NJF njf vto=-2 beta=1e-3 lambda=0.01");
+    expect(text).toContain(".model PJF pjf vto=-2 beta=1e-3 lambda=0.01");
+    expect(text).toContain("J1 d g s NJF m=2");
+    expect(text).toContain("Jhigh d g s PJF area=3");
+    expect(converted("J1 d g s NJF m=2", "spice")).toContain(
+      "J1 (d g s) NJF m=2",
+    );
+  });
   it.each([
+    "model J jfet",
+    "model J jfet type=npn",
+    "model J jfet type=n is=1e-14",
     "model P bjt type=p",
     "model P bjt",
     "model P bjt type=pnp ikf=1",

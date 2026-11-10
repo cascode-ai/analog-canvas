@@ -354,9 +354,13 @@ export function printVacaskWithLocations(
     } else if (
       builtInModelContract(definitionBody(definition))?.family === "passive"
     ) {
-      classes.add("resistor");
-      classes.add("inductor");
-      classes.add("capacitor");
+      // A passive body loads the primitives it holds: the crystal's R, L
+      // and C, the potentiometer's two resistors.
+      for (const element of generatedBehavioralDefinition(
+        definitionBody(definition),
+      ).elements)
+        if (element.kind !== "voltage" && element.kind !== "current")
+          classes.add(element.kind);
     }
   }
   for (const deviceClass of classes) {

@@ -59,7 +59,10 @@ export type BuiltInModelRecipe =
         | "differential-output-quantizer";
     }
   | { readonly family: "comparator"; readonly implementation: "comparator" }
-  | { readonly family: "passive"; readonly implementation: "crystal" }
+  | {
+      readonly family: "passive";
+      readonly implementation: "crystal" | "potentiometer";
+    }
   | { readonly family: "opamp"; readonly implementation: "opamp" };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
@@ -233,6 +236,24 @@ const crystal: readonly DeviceParameterDefinition[] = [
     "Electrode and holder capacitance across the pins; parallel resonance lies just above fs.",
   ),
 ];
+// A potentiometer's track, end 1 to end 2, with the wiper W a fraction `pos`
+// of the way from end 1.
+const potentiometer: readonly DeviceParameterDefinition[] = [
+  parameter(
+    "r",
+    "Total resistance",
+    "10k",
+    "Ohm",
+    "Resistance of the whole track, end 1 to end 2.",
+  ),
+  parameter(
+    "pos",
+    "Wiper position",
+    "0.5",
+    "",
+    "Wiper position from end 1 (0) to end 2 (1): end 1 to W is r·pos, W to end 2 is r·(1−pos), each at least 1 mΩ.",
+  ),
+];
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.
 const comparator: readonly DeviceParameterDefinition[] = [
@@ -326,6 +347,7 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
     ),
   ),
   crystal: { family: "passive", implementation: "crystal" },
+  potentiometer: { family: "passive", implementation: "potentiometer" },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
@@ -372,7 +394,9 @@ function contract(target: string): BuiltInModelContract | undefined {
           : family === "opamp"
             ? opamp
             : family === "passive"
-              ? crystal
+              ? implementation === "crystal"
+                ? crystal
+                : potentiometer
               : target === ADDER_TARGET
                 ? ADDER_SIGN_PARAMETERS
                 : target === "opamp_differential"

@@ -893,6 +893,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "led",
+    name: "LED or Laser Diode",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A light-emitting or laser diode does not appear on the reviewed page; it is the reviewed Diode body and leads, unchanged, with two outgoing light arrows drawn as the Variable Resistor's adjustment arrow is.",
+    pinOrder: ["A", "K"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE D card does not say the diode emits light, so an imported D card keeps the plain Diode symbol.",
+    assetPath: "led.json",
+    assetHash:
+      "c49c1043ae7a0d5e96ae2eb0e969adfde72b63f389d779a15211ec3d59e60281",
+  },
+  {
     symbolId: "externally-controlled-switch",
     name: "Externally Controlled Switch",
     category: "switch",
@@ -1175,6 +1192,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "microphone",
+    name: "Microphone",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A microphone does not appear on the reviewed page; it is drawn as textbooks draw it, a circle with a bar along one side, its leads leaving the bar's ends on the Independent Voltage Source's pins with the same polarity marks.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE V card does not say the source is a microphone, so an imported V card keeps the circular voltage source.",
+    assetPath: "microphone.json",
+    assetHash:
+      "0f2809eb08b91e7a2f06be9d99d845b0a3ce69007b8e74700c30764088b54fb1",
+  },
+  {
     symbolId: "nand-gate",
     name: "NAND Gate",
     category: "logic",
@@ -1256,6 +1290,21 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterPath: "scripts/lib/derived-logic-gate.mjs",
       converterVersion: 1,
     },
+  },
+  {
+    symbolId: "njfet",
+    name: "N-Channel JFET",
+    category: "transistor",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reviewed pages draw no junction FET. It is drawn as textbooks draw one: a vertical channel bar, the drain and source leaving its ends to the right on the MOS's D and S pins, and the gate lead from the MOS's G pin with its arrow pointing into the channel, in the reviewed MOS and BJT stroke weights and the MOS source arrowhead. It does not claim an exact textbook witness.",
+    pinOrder: ["D", "G", "S"],
+    palette: true,
+    automaticMappings: ["spice:J:njf"],
+    assetPath: "njfet.json",
+    assetHash:
+      "1cbe637694d68288e12520bf3a82100dd41cec6eeffeb115145276e06d5733df",
   },
   {
     symbolId: "nmos",
@@ -2250,6 +2299,21 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "pjfet",
+    name: "P-Channel JFET",
+    category: "transistor",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reviewed pages draw no junction FET. It is drawn as textbooks draw one: a vertical channel bar, the drain and source leaving its ends to the right on the MOS's D and S pins, and the gate lead from the MOS's G pin with its arrow pointing out of the channel, in the reviewed MOS and BJT stroke weights and the MOS source arrowhead. It does not claim an exact textbook witness.",
+    pinOrder: ["D", "G", "S"],
+    palette: true,
+    automaticMappings: ["spice:J:pjf"],
+    assetPath: "pjfet.json",
+    assetHash:
+      "e079ffac71a8b8d0e19f9c722e183c4ca1a4ee33a2b39e9f4f53e7b561f0d879",
+  },
+  {
     symbolId: "pmos",
     name: "PMOS",
     category: "transistor",
@@ -2350,6 +2414,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "potentiometer",
+    name: "Potentiometer",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A potentiometer does not appear on the reviewed page; it is the reviewed Resistor body on the Resistor's pins with a wiper arrow, the Variable Resistor's arrowhead, pointing onto it from a third pin W.",
+    pinOrder: ["1", "W", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no potentiometer card; it prints as a call of the generated body, end 1 to W r*pos and W to end 2 r*(1-pos).",
+    assetPath: "potentiometer.json",
+    assetHash:
+      "a7f604401b6dd5c790e99506c9d7e4e74fc4181b18c87632f9e07777c7b6e7ce",
+  },
+  {
     symbolId: "resistor",
     name: "Resistor",
     category: "passive",
@@ -2421,6 +2502,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     assetPath: "spdt-switch.json",
     assetHash:
       "619b00cf2fdb0a6b81830a245018425fcabb38641eec39fe2bb21fd4a285e92d",
+  },
+  {
+    symbolId: "speaker",
+    name: "Speaker",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A loudspeaker does not appear on the reviewed page; it is drawn as textbooks draw it, a small magnet rectangle with its cone flaring to one side, its leads on the Resistor's pins.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE R card does not say the resistor is a speaker, so an imported R card keeps the Resistor symbol.",
+    assetPath: "speaker.json",
+    assetHash:
+      "8ed7bf95b794493de170c9875ed862cd51227c086e025e9251258f9b60538c5a",
   },
   {
     symbolId: "chopper",
@@ -8278,6 +8376,194 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "led",
+    name: "LED or Laser Diode",
+    viewBox: {
+      x: -24,
+      y: -18,
+      width: 48,
+      height: 28,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -8.333334,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -8.333334,
+            y: -6.75,
+          },
+          {
+            x: -8.333334,
+            y: 6.75,
+          },
+          {
+            x: 5.833334,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: -7.333334,
+        },
+        to: {
+          x: 6.666666,
+          y: 7.333334,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -5,
+          y: -9,
+        },
+        to: {
+          x: -1,
+          y: -13,
+        },
+        part: "light-arrow-1-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 1,
+            y: -15,
+          },
+          {
+            x: -2.6,
+            y: -13.8,
+          },
+          {
+            x: -0.2,
+            y: -11.4,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-1-head",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 1,
+          y: -9,
+        },
+        to: {
+          x: 5,
+          y: -13,
+        },
+        part: "light-arrow-2-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 7,
+            y: -15,
+          },
+          {
+            x: 3.4,
+            y: -13.8,
+          },
+          {
+            x: 5.8,
+            y: -11.4,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-2-head",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "externally-controlled-switch",
     name: "Externally Controlled Switch",
     viewBox: {
@@ -9442,6 +9728,162 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "microphone",
+    name: "Microphone",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 44,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 8,
+          y: 0,
+        },
+        radius: 8,
+        part: "capsule",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10,
+        },
+        to: {
+          x: 0,
+          y: 10,
+        },
+        part: "diaphragm",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.058139,
+          y: -14.534884,
+        },
+        to: {
+          x: -11.918605,
+          y: -14.534884,
+        },
+        part: "upright-polarity-positive-horizontal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -15.988372,
+          y: -18.604651,
+        },
+        to: {
+          x: -15.988372,
+          y: -10.465117,
+        },
+        part: "upright-polarity-positive-vertical",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20.058139,
+          y: 13.372093,
+        },
+        to: {
+          x: -11.918605,
+          y: 13.372093,
+        },
+        part: "upright-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "nand-gate",
     name: "NAND Gate",
     viewBox: {
@@ -9925,6 +10367,156 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "njfet",
+    name: "N-Channel JFET",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 38,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "D",
+        role: "drain",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "G",
+        role: "gate",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "S",
+        role: "source",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -20,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 20,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4,
+          y: -12.5,
+        },
+        to: {
+          x: -4,
+          y: 12.5,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -5.2,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -14.502325,
+            y: -4.069767,
+          },
+          {
+            x: -14.502325,
+            y: 4.069767,
+          },
+          {
+            x: -5.2,
+            y: 0,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
       },
     ],
     variants: [],
@@ -17454,6 +18046,156 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "pjfet",
+    name: "P-Channel JFET",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 38,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "D",
+        role: "drain",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "G",
+        role: "gate",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "S",
+        role: "source",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -20,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 20,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4,
+          y: -12.5,
+        },
+        to: {
+          x: -4,
+          y: 12.5,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -5.2,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -5.2,
+            y: -4.069767,
+          },
+          {
+            x: -5.2,
+            y: 4.069767,
+          },
+          {
+            x: -14.502325,
+            y: 0,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "pmos",
     name: "PMOS",
     viewBox: {
@@ -18007,6 +18749,115 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "potentiometer",
+    name: "Potentiometer",
+    viewBox: {
+      x: -10,
+      y: -24,
+      width: 34,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "W",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "path",
+        data: "M 0 -20 L 0 -8.72093 L 5.372093 -6.395349 L -4.604651 -4.069767 L 5.372093 -1.162791 L -4.988372 1.744186 L 5.372093 4.651163 L -4.604651 7.55814 L 0 8.72093 L 0 20",
+        bounds: {
+          x: -4.988372,
+          y: -20,
+          width: 10.360465,
+          height: 40,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 12,
+        },
+        part: "track",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 20,
+          y: 0,
+        },
+        to: {
+          x: 10,
+          y: 0,
+        },
+        part: "wiper-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        part: "wiper-head",
+        fill: "foreground",
+        stroke: "none",
+        points: [
+          {
+            x: 6,
+            y: 0,
+          },
+          {
+            x: 11.656854,
+            y: -2.828427,
+          },
+          {
+            x: 11.656854,
+            y: 2.828427,
+          },
+        ],
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "resistor",
     name: "Resistor",
     viewBox: {
@@ -18426,6 +19277,124 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 20,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "speaker",
+    name: "Speaker",
+    viewBox: {
+      x: -8,
+      y: -24,
+      width: 24,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "path",
+        data: "M -3 -6 L 3 -6 L 3 6 L -3 6 Z",
+        part: "magnet",
+        bounds: {
+          x: -3,
+          y: -6,
+          width: 6,
+          height: 12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "polyline",
+        part: "cone",
+        points: [
+          {
+            x: 3,
+            y: -6,
+          },
+          {
+            x: 11,
+            y: -14,
+          },
+          {
+            x: 11,
+            y: 14,
+          },
+          {
+            x: 3,
+            y: 6,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -6,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 6,
+        },
+        to: {
+          x: 0,
+          y: 20,
         },
         style: {
           strokeRole: "normal",

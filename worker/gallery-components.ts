@@ -37,7 +37,7 @@ export function galleryComponentCount(project: CircuitProject): number {
  * block; a block with a behavioral body (an op-amp, a gate not bound to a
  * Cell) counts as one block. Ports, supply and ground markers and parts the
  * sheet does not draw are not counted, as for the part count. Its
- * transistors are its MOS and BJT parts.
+ * transistors are its MOS, BJT and JFET parts.
  *
  * Kept per entry beside this rule's version (gallery-store-stats.ts), so a
  * changed rule leaves exactly the stale counts for the scheduled pass.
@@ -48,6 +48,7 @@ export const GALLERY_DEVICE_KINDS = [
   "nmos",
   "pmos",
   "bjt",
+  "jfet",
   "resistor",
   "capacitor",
   "inductor",
@@ -69,6 +70,7 @@ const SOURCE_CLASSES = new Set([
 ]);
 const DIRECT_CLASSES = new Set([
   "bjt",
+  "jfet",
   "resistor",
   "capacitor",
   "inductor",

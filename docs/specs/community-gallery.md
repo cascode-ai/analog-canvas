@@ -315,9 +315,9 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
     (0, 1–5, 6–10, 11–20, 21–50, 51+) and `weeks` (the last 16, Monday UTC,
     people and AI).
   - Devices are the drawn parts of the top Cell and of each called Cell, once
-    per call: NMOS, PMOS, BJT, resistor, capacitor, inductor, diode, source,
+    per call: NMOS, PMOS, BJT, JFET, resistor, capacitor, inductor, diode, source,
     switch, block (a behavioral body), other; Ports, markers and undrawn parts
-    are not counted. Transistors are its MOS and BJT parts. Kept beside their
+    are not counted. Transistors are its MOS, BJT and JFET parts. Kept beside their
     rule version, not backed up, counted by the scheduled pass (100 per
     store a tick), again after an edit, and on an account's own read of its
     still uncounted circuits; null while unreadable.

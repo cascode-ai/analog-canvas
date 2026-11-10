@@ -11,6 +11,8 @@ it.each([
   ["PNP", "pnp", "Q1 c b e device"],
   ["NPN", "npn", "Q1 c b e device"],
   ["D", "diode", "D1 a k device"],
+  ["NJF", "njfet", "J1 d g s device"],
+  ["PJF", "pjfet", "J1 d g s device"],
 ])(
   "imports %s model cards with attached or separated parentheses",
   async (type, symbol, card) => {

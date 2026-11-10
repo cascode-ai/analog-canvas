@@ -580,7 +580,7 @@ function spectreInstance(s: Statement, ctx: Context): string {
   const declared = ctx.models.get(kind);
   const isSubckt =
     ctx.subckts.has(kind) || !!reviewedExternalBindingForMaster(master!);
-  const conventional = /^[MDQX]/iu.exec(name!)?.[0].toUpperCase();
+  const conventional = /^[MDQJX]/iu.exec(name!)?.[0].toUpperCase();
   if (!isSubckt && !declared && !conventional && !ctx.externalSubckts.has(kind))
     refuse(
       s,
@@ -590,6 +590,7 @@ function spectreInstance(s: Statement, ctx: Context): string {
   const designator = isSubckt ? "X" : (declared ?? conventional ?? "X");
   if (designator === "M") arity(4);
   else if (designator === "D") arity(2);
+  else if (designator === "J") arity(3);
   else if (designator === "Q" && ![3, 4].includes(nodes.length))
     refuse(s, "BJT requires three or four nodes.", "PIN_ARITY");
   return output(designator, `${master} ${emitParameters(p, s)}`);
@@ -703,7 +704,8 @@ function spiceInstance(s: Statement): string {
       emitParameters(parameters(rest, s), s),
     );
   }
-  const nodeCount = kind === "M" ? 4 : kind === "D" ? 2 : kind === "Q" ? 3 : 0;
+  const nodeCount =
+    kind === "M" ? 4 : kind === "D" ? 2 : kind === "Q" || kind === "J" ? 3 : 0;
   if (nodeCount && f.length >= nodeCount + 2) {
     // Four-terminal BJTs are not distinguishable from an optional area without
     // consulting model declarations. Reject that ambiguous shape here.
@@ -774,6 +776,27 @@ function translate(s: Statement, ctx: Context): string[] {
     }
     if (head === "model") {
       const native = f[2]?.toLowerCase();
+      if (native === "jfet") {
+        // Reviewed export subset: the Shichman-Hodges pinch-off voltage,
+        // transconductance coefficient and channel-length modulation have
+        // the same names and units in SPICE's NJF/PJF.
+        const p = parameters(f.slice(3), s);
+        const type = take(p, "type", s).toLowerCase();
+        if (type !== "n" && type !== "p")
+          refuse(s, "A jfet model needs type=n or type=p.");
+        const mapped: Parameters = new Map();
+        for (const key of ["vto", "beta", "lambda"]) {
+          const entry = p.get(key);
+          if (entry) {
+            mapped.set(key, entry);
+            p.delete(key);
+          }
+        }
+        noParameters(p, s);
+        return [
+          `.model ${f[1]} ${type === "n" ? "njf" : "pjf"}${mapped.size ? " " + emitParameters(mapped, s) : ""}`,
+        ];
+      }
       if (native === "bjt" || native === "diode") {
         // Reviewed export subset: the classical junction (IS, N) and
         // Gummel-Poon bipolar (IS, BF, VAF) parameters have the same names
@@ -1108,9 +1131,11 @@ export function convertNetlist(
           ? "M"
           : ["npn", "pnp"].includes(modelClass)
             ? "Q"
-            : modelClass === "d"
-              ? "D"
-              : undefined;
+            : ["njf", "pjf"].includes(modelClass)
+              ? "J"
+              : modelClass === "d"
+                ? "D"
+                : undefined;
         if (designator) ctx.models.set(f[1].toLowerCase(), designator);
       }
       if (
@@ -1120,7 +1145,7 @@ export function convertNetlist(
         f[2]
       ) {
         const designator =
-          { bsim4: "M", bjt: "Q", diode: "D" }[f[2].toLowerCase()] ??
+          { bsim4: "M", bjt: "Q", diode: "D", jfet: "J" }[f[2].toLowerCase()] ??
           (ctx.externalModels && isExternalNativeMos(f[2]) ? "M" : undefined);
         // Only the editor's import calls a binned card by its group's name.
         if (designator)

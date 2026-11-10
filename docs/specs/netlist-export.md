@@ -135,8 +135,8 @@ derive from `parameters`.
 Bodies live in [analog blocks](../../packages/netlist/src/ideal-analog-block-models.ts),
 [signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts) and
 [generated models](../../packages/netlist/src/generated-models.ts). Every Block
-but the crystal declares fixed `VDD`/`VSS` ports; logic ports follow Symbol
-pins.
+but the crystal and the potentiometer declares fixed `VDD`/`VSS` ports; logic
+ports follow Symbol pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
   differential op-amp (unlimited) are frequency-independent E/G sources that
@@ -201,8 +201,14 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   defaults 25 Ω, 12.7 mH, 20 fF and 5 pF, a 10 MHz fundamental
   (fs = 1/(2π√(lm·cm))). SPICE has no crystal card, so the part is an `X` call
   of that body; its Reference takes `X` like every call.
+- Potentiometer (`potentiometer`: `n1 nw n2` for pins 1, W, 2, no supplies)
+  is two resistors, `max(r·pos, 1m)` from end 1 to the wiper and
+  `max(r·(1−pos), 1m)` from the wiper to end 2, defaults `r` = 10 kΩ and
+  `pos` = 0.5; the 1 mΩ floor keeps a wiper at either end well conditioned. It
+  is an `X` call of that body, as the crystal is.
 - SPICE and VACASK include all bodies; Spectre includes comparator,
-  combinational gates (`bsource` with RC delay) and the crystal; DFF,
+  combinational gates (`bsource` with RC delay), the crystal and the
+  potentiometer; DFF,
   multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.
   That call's name is the reader's interface: where a Cell, or an external
   subcircuit or model source, in the netlist defines it, an unbound part
@@ -235,15 +241,22 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 - BJTs in Abstract or Custom bind to `NPN`/`PNP` with cards
   `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` and
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (information `GENERIC_BJT_MODEL`).
+- JFETs (`J<ref> d g s`) in every Process bind to `NJF`/`PJF` with cards
+  `.model NJF NJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)` and
+  `.model PJF PJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)` (information
+  `GENERIC_JFET_MODEL`); SPICE's PJF takes VTO negative as NJF does.
 - A same-name model in the imported SPICE suppresses the card everywhere; one in
   a folder's files only for that folder's runs. The stand-in card itself, as the
   export writes it in SPICE or Spectre (type and parameters, in any case or
   order), suppresses nothing: a netlist the editor wrote, imported again, holds
   it (#1789). VACASK prints `sp_diode`/`sp_bjt`
   (`type=±1`). Spectre export carries native stand-ins with the same parameters:
-  `model DIODE diode is=1e-14 n=1`, `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`
-  and `model PNP bjt type=pnp is=1e-16 bf=50 vaf=50`. Spectre run decks carry none
-  of these stand-ins; their model libraries remain the authority.
+  `model DIODE diode is=1e-14 n=1`, `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`,
+  `model PNP bjt type=pnp is=1e-16 bf=50 vaf=50` and
+  `model NJF jfet type=n vto=-2 beta=1e-3 lambda=0.01` (`PJF` `type=p`). VACASK
+  has no qualified JFET mapping and refuses `NJF`/`PJF` with
+  `VACASK_UNSUPPORTED_MODEL`. Spectre run decks carry none of these stand-ins;
+  their model libraries remain the authority.
 - A netlist handed out (panel, copy, save, `SPICE+RNL`, `Spectre+RNL`) carries
   BSIM4 stand-ins for generic `NMOS`/`PMOS` in each Cell naming them
   (information `GENERIC_MOS_MODEL`), so it reads back with each part's channel

@@ -346,6 +346,7 @@ export function printInstanceCard(
     case "mos":
     case "diode":
     case "bjt":
+    case "jfet":
     case "switch":
     case "hierarchical":
       master = owned(instance.target!, "target");
@@ -366,7 +367,7 @@ export function printInstanceCard(
           reference,
           ...nodes,
           ...(master?.fields.some((f) => f.kind === "target") ||
-          ["mos", "diode", "bjt", "switch", "hierarchical"].includes(
+          ["mos", "diode", "bjt", "jfet", "switch", "hierarchical"].includes(
             instance.deviceClass,
           )
             ? [master!]
