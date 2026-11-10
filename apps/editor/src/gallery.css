@@ -1410,6 +1410,11 @@ button.gallery-download-aside {
   text-overflow: ellipsis;
 }
 
+/* The last count, held while the wall's new one loads (#2160). */
+.gallery-count-panel[aria-busy="true"] .gallery-count-label {
+  opacity: 0.55;
+}
+
 .gallery-count-panel::-webkit-details-marker {
   display: none;
 }

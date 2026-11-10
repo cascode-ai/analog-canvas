@@ -360,6 +360,16 @@ describe("GalleryCountPanel", () => {
     expect(render(1, true)).toContain("1 filtered circuit");
     // No total (older API, still loading): say nothing rather than guess.
     expect(render(null)).toBe("");
+    // The last wall's count, held while a new one loads (#2160).
+    const held = renderToStaticMarkup(
+      createElement(GalleryCountPanel, {
+        total: 78,
+        filtered: true,
+        busy: true,
+      }),
+    );
+    expect(held).toContain("78 filtered circuits");
+    expect(held).toContain('aria-busy="true"');
   });
 
   it("adds a visible-match clause while a search narrows the wall", () => {

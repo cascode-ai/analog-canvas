@@ -68,6 +68,12 @@ export function GalleryTagGroups({
   const groups = [...TAG_GROUPS.map(([name]) => name), "Custom & legacy"].sort(
     compareGalleryLabels,
   );
+  // New counts on their way keep the last ones, dimmed, until they arrive
+  // (#2160); only the first load has none to show.
+  const countsUnknown =
+    countsLoading &&
+    tags.length === 0 &&
+    Object.keys(groupCounts ?? {}).length === 0;
   return (
     <div className="gallery-tag-groups" aria-busy={countsLoading}>
       {groups.map((name) => {
@@ -115,7 +121,7 @@ export function GalleryTagGroups({
                   {name}
                 </span>
                 <span className="gallery-sidebar-count" aria-hidden="true">
-                  {countsLoading ? "…" : circuitCount}
+                  {countsUnknown ? "…" : circuitCount}
                 </span>
               </button>
               <button
@@ -160,7 +166,7 @@ export function GalleryTagGroups({
                     {galleryTagLabel(tag)}
                   </span>
                   <span className="gallery-sidebar-count">
-                    {countsLoading ? "…" : count}
+                    {countsUnknown ? "…" : count}
                   </span>
                 </button>
               ))}

@@ -423,8 +423,41 @@ export function GalleryFeed({
         : state.nextCursor === null
           ? visibleEntries.length
           : null;
+  // While another combination loads, the counts beside the held wall stay
+  // until its own arrive (#2160); the first load has none to hold.
+  const liveCounts = {
+    unavailable: state.status === "unavailable",
+    total: state.total,
+    filtered: galleryFiltersNarrowQuery(filters),
+    searched: searchAnswered,
+    search: searchingLoaded
+      ? {
+          visible: visibleEntries.length,
+          settled: state.nextCursor === null && state.status === "ready",
+        }
+      : null,
+    authors: datasetWall && !narrowedToAuthor ? [] : authors,
+    partial: localAuthors && state.nextCursor !== null,
+    datasets,
+    datasetShare,
+    quickCounts,
+    quickCountsPartial,
+    attentionKindCounts,
+    componentRangeCounts,
+  };
+  const heldCountsRef = useRef<typeof liveCounts | null>(null);
+  const countsSettled = state.status !== "loading";
+  if (countsSettled) heldCountsRef.current = liveCounts;
+  const counts = countsSettled ? liveCounts : heldCountsRef.current;
+  const countsHeld = !countsSettled && counts !== null;
   const lastDownloadCountRef = useRef<number | null>(null);
   if (!downloadPending) lastDownloadCountRef.current = downloadCount;
+  const countText = (value: number, partial: boolean) =>
+    counts === null
+      ? "…"
+      : counts.unavailable
+        ? "—"
+        : `${value.toLocaleString()}${partial ? "+" : ""}`;
   const sizeFilters = GALLERY_COMPONENT_RANGES.map((range) => {
     const chosen = selectedParts.includes(range.key);
     const span =
@@ -454,12 +487,11 @@ export function GalleryFeed({
           {chosen ? "✓" : ""}
         </span>
         <span className="gallery-tag-name">{range.label}</span>
-        <span className="gallery-sidebar-count">
-          {state.status === "loading"
-            ? "…"
-            : state.status === "unavailable"
-              ? "—"
-              : `${(componentRangeCounts[range.key] ?? 0).toLocaleString()}${quickCountsPartial ? "+" : ""}`}
+        <span className="gallery-sidebar-count" data-held={countsHeld}>
+          {countText(
+            counts?.componentRangeCounts[range.key] ?? 0,
+            counts?.quickCountsPartial === true,
+          )}
         </span>
       </button>
     );
@@ -467,15 +499,17 @@ export function GalleryFeed({
   const quickCount = (key: keyof typeof loadedQuickCounts) => (
     <span
       className="gallery-sidebar-count"
+      data-held={countsHeld}
       title={
-        quickCountsPartial ? "Matches in circuits loaded so far" : undefined
+        counts?.quickCountsPartial
+          ? "Matches in circuits loaded so far"
+          : undefined
       }
     >
-      {state.status === "loading"
-        ? "…"
-        : state.status === "unavailable"
-          ? "—"
-          : `${quickCounts[key].toLocaleString()}${quickCountsPartial ? "+" : ""}`}
+      {countText(
+        counts?.quickCounts[key] ?? 0,
+        counts?.quickCountsPartial === true,
+      )}
     </span>
   );
   const duplicates = new Map(
@@ -544,29 +578,22 @@ export function GalleryFeed({
             describes the community wall and leaves with it. */}
         {view === "gallery" ? (
           <GalleryCountPanel
-            total={state.total}
-            filtered={galleryFiltersNarrowQuery(filters)}
-            authors={datasetWall && !narrowedToAuthor ? [] : authors}
-            partial={localAuthors && state.nextCursor !== null}
+            total={counts?.total ?? null}
+            busy={countsHeld}
+            filtered={counts?.filtered ?? false}
+            authors={counts?.authors ?? []}
+            partial={counts?.partial ?? false}
             author={narrowedName}
             onSelectAuthor={selectContributor}
             onShowAllAuthors={() => selectAuthor(null)}
-            datasets={datasets}
-            datasetShare={datasetShare}
+            datasets={counts?.datasets ?? []}
+            datasetShare={counts?.datasetShare ?? null}
             currentDataset={source}
             onSelectDataset={selectDataset}
             hideDatasets={hideDatasets}
             onToggleDatasets={toggleDatasets}
-            searched={searchAnswered}
-            search={
-              searchingLoaded
-                ? {
-                    visible: visibleEntries.length,
-                    settled:
-                      state.nextCursor === null && state.status === "ready",
-                  }
-                : null
-            }
+            searched={counts?.searched ?? false}
+            search={counts?.search ?? null}
           />
         ) : null}
         {/* Kept mounted on the shelf, so a running download goes on. */}
@@ -608,13 +635,13 @@ export function GalleryFeed({
                 isOwner={isOwner}
                 attentionOnly={attentionOnly}
                 attentionKind={attentionKind}
-                attentionKindCounts={attentionKindCounts}
+                attentionKindCounts={counts?.attentionKindCounts ?? {}}
                 aiFilter={aiFilter}
                 showDatasets={
                   // Shown while the wall loads, so it never pops in later.
                   !hideDatasets &&
                   (state.status === "loading" ||
-                    quickCounts.datasets > 0 ||
+                    (counts?.quickCounts.datasets ?? 0) > 0 ||
                     aiFilter === "dataset")
                 }
                 netlistableOnly={netlistableOnly}

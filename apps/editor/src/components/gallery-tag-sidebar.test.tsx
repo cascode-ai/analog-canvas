@@ -78,3 +78,27 @@ it("leaves an origin out of the Tags list and its Clear count", () => {
   expect(render(["virtuoso-exported", "ota"])).toContain("Clear 1 selected");
   expect(render([])).not.toContain("gallery-tag-option-virtuoso-exported");
 });
+
+it("holds the last tag counts while new ones load; only the first load shows none (#2160)", () => {
+  const render = (tags: { tag: string; count: number }[]) =>
+    renderToStaticMarkup(
+      createElement(GalleryTagSidebar, {
+        tags,
+        groupCounts: tags.length ? { Amplifiers: 5 } : {},
+        countsLoading: true,
+        selected: [],
+        onChange: () => {},
+        search: "bandgap",
+        onSearchChange: () => {},
+        quickFilters: null,
+      }),
+    );
+  const held = render([{ tag: "amplifier", count: 5 }]);
+  expect(held).toContain('class="gallery-tag-groups" aria-busy="true"');
+  expect(held).toContain(
+    'Amplifiers</span><span class="gallery-sidebar-count" aria-hidden="true">5</span>',
+  );
+  expect(render([])).toContain(
+    'Amplifiers</span><span class="gallery-sidebar-count" aria-hidden="true">…</span>',
+  );
+});
