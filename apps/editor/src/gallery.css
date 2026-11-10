@@ -1410,6 +1410,13 @@ button.gallery-download-aside {
   text-overflow: ellipsis;
 }
 
+.gallery-count-icon {
+  display: none;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
 /* The last count, held while the wall's new one loads (#2160). */
 .gallery-count-panel[aria-busy="true"] .gallery-count-label {
   opacity: 0.55;
@@ -2188,11 +2195,32 @@ div.gallery-contributor-status {
   }
 }
 
-/* A phone has no room for the count beside the tabs and the tools; the
-   Download button says how many circuits the wall holds (#2189). */
+/* A phone has no room for the count beside the tabs and the tools: the
+   Download button says how many circuits the wall holds, and the count's
+   contributor menu stays behind an icon, opening across the row (#2189). */
 @media (max-width: 480px) {
+  .gallery-view-tabs {
+    position: relative;
+  }
   .gallery-view-tabs .gallery-contributor-menu {
+    position: static;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+  .gallery-view-tabs .gallery-count-label {
     display: none;
+  }
+  .gallery-view-tabs .gallery-count-icon {
+    display: block;
+  }
+  .gallery-view-tabs .gallery-count-panel {
+    gap: 4px;
+    padding-inline: 8px;
+  }
+  .gallery-view-tabs .gallery-contributor-popover {
+    left: 10px;
+    right: 10px;
+    width: auto;
   }
   /* The tabs that do not fit fade out at the strip's end: it scrolls. */
   .gallery-view-tablist {
