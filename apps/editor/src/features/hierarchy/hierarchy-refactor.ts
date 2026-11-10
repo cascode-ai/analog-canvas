@@ -11,6 +11,7 @@ import {
 } from "@icm/edit-engine";
 import {
   deriveProjectNetNameProjection,
+  resolveMosBulkConnection,
   resolveVisualAnchor,
   visibleInstanceBounds,
 } from "@icm/derived";
@@ -520,10 +521,103 @@ export function cellFromSelectionRefusal(
 }
 
 /**
+ * A copy keeps only the connections its own wires draw, but parts moving into
+ * a Cell keep every one they had: each Net they are on goes with them, wired
+ * or not, as do the bodies following a default, the names imported inner
+ * Nets carry and the pins marked unused (#2203).
+ */
+function carryConnections(
+  parent: SchematicDocument,
+  parts: ReadonlySet<string>,
+  clipboard: SchematicClipboard,
+): void {
+  const copied = new Map(clipboard.nets.map((net) => [net.id, net]));
+  const carried = new Set<string>();
+  const inner = new Set<string>();
+  for (const net of parent.nets) {
+    const inside = net.terminals.filter((item) => parts.has(item.instanceId));
+    if (!inside.length) continue;
+    carried.add(net.id);
+    if (inside.length === net.terminals.length) inner.add(net.id);
+    const target = copied.get(net.id);
+    if (!target) {
+      clipboard.nets.push({ id: net.id, terminals: structuredClone(inside) });
+      continue;
+    }
+    const held = new Set(
+      target.terminals.map((item) => `${item.instanceId}\0${item.pinName}`),
+    );
+    target.terminals.push(
+      ...inside.filter(
+        (item) => !held.has(`${item.instanceId}\0${item.pinName}`),
+      ),
+    );
+  }
+  // A body that followed the parent's default joins that Net explicitly, as
+  // a copy's body does, so the child's own default cannot move it.
+  const byId = new Map(clipboard.nets.map((net) => [net.id, net]));
+  for (const instance of parent.instances) {
+    if (!parts.has(instance.id)) continue;
+    const body = resolveMosBulkConnection(parent, instance);
+    const net = body?.net && !body.materialized && byId.get(body.net.id);
+    if (
+      net &&
+      !net.terminals.some(
+        (item) => item.instanceId === instance.id && item.pinName === "B",
+      )
+    )
+      net.terminals.push({ instanceId: instance.id, pinName: "B" });
+  }
+  // A global name an import declared, such as its ground 0, comes with the
+  // source record that owns it; a Pin names its own Net.
+  const declared = new Set(
+    parent.connectivityEvidence.flatMap((item) =>
+      item.kind === "name-claim" &&
+      item.owner.kind === "global-declaration" &&
+      carried.has(item.netId)
+        ? [`${item.netId}\0${item.owner.sourceNetId}`]
+        : [],
+    ),
+  );
+  const evidence = new Set(
+    clipboard.connectivityEvidence.map((item) => item.id),
+  );
+  clipboard.connectivityEvidence.push(
+    ...structuredClone(
+      parent.connectivityEvidence.filter((item) => {
+        if (evidence.has(item.id)) return false;
+        switch (item.kind) {
+          case "net-name-hint":
+            return inner.has(item.netId);
+          case "name-claim":
+            return (
+              item.owner.kind === "global-declaration" &&
+              carried.has(item.netId)
+            );
+          case "spice-source":
+            return declared.has(`${item.netId}\0${item.sourceNetId}`);
+          default:
+            return false;
+        }
+      }),
+    ),
+  );
+  const marks = new Set(clipboard.noConnects.map((item) => item.id));
+  clipboard.noConnects.push(
+    ...structuredClone(
+      parent.noConnects.filter(
+        (item) => parts.has(item.endpoint.instanceId) && !marks.has(item.id),
+      ),
+    ),
+  );
+}
+
+/**
  * Move the selected parts into a new Cell and put an instance of it in their
- * place. Inner Nets and wires move with the parts; each Net that also leaves
- * them becomes a Pin, joined in the parent to the Net it came from. Parent
- * parameters the parts use become the Cell's parameters, passed through.
+ * place. Every Net they are on moves with them, unrouted; each Net that also
+ * leaves them becomes a Pin, joined in the parent to the Net it came from.
+ * Parent parameters the parts use become the Cell's parameters, passed
+ * through.
  */
 export function planCellFromSelection(
   project: CircuitProject,
@@ -547,6 +641,7 @@ export function planCellFromSelection(
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
   const clipboard = copySelection(parent, [...parts], [], undefined, resolver);
   if (!clipboard) throw new Error("Nothing to move into the new Cell");
+  carryConnections(parent, parts, clipboard);
 
   // The parts keep their coordinates inside the new Cell.
   let draft: CircuitProject = {
@@ -592,17 +687,12 @@ export function planCellFromSelection(
   const grid = parent.presentation.grid;
   const rows = { left: 0, right: 0 };
   for (const pin of pins) {
-    const inside = (
-      parent.nets.find((net) => net.id === pin.netId)?.terminals ?? []
-    )
-      .filter((item) => parts.has(item.instanceId))
-      .map((item) => ({
-        kind: "terminal" as const,
-        instanceId: paste.idRemap.instances[item.instanceId] ?? item.instanceId,
-        pinName: item.pinName,
-      }));
-    const first = inside[0];
-    if (!first) continue;
+    // The parts brought the Net along; the Pin joins it.
+    const netId = paste.idRemap.nets[pin.netId];
+    const first = parent.nets
+      .find((net) => net.id === pin.netId)
+      ?.terminals.find((item) => parts.has(item.instanceId));
+    if (!netId || !first) continue;
     const output = pin.direction === "output";
     const row = output ? rows.right++ : rows.left++;
     const portId = freeInstanceId(requireCell(draft, childId), "pin");
@@ -632,20 +722,19 @@ export function planCellFromSelection(
           },
           terminalId: `terminal-${portId}`,
           name: pin.name,
-          netId: `net-${portId}`,
+          netId,
           direction: pin.direction,
           connectionEdits: [
             {
               kind: "connect_endpoints",
               from: port,
-              to: first,
-              newNetId: `net-${portId}`,
+              to: {
+                kind: "terminal",
+                instanceId:
+                  paste.idRemap.instances[first.instanceId] ?? first.instanceId,
+                pinName: first.pinName,
+              },
             },
-            ...inside.slice(1).map((endpoint) => ({
-              kind: "connect_endpoints" as const,
-              from: first,
-              to: endpoint,
-            })),
           ],
         },
       ),
