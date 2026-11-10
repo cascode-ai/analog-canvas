@@ -18,7 +18,7 @@ export function GalleryChrome({
   visitStats,
   editorHref = "/editor",
 }: {
-  subtitle: string;
+  subtitle?: string | undefined;
   visitStats?: { pv: number; uv: number } | null | undefined;
   editorHref?: string;
 }) {
@@ -64,9 +64,11 @@ export function GalleryChrome({
           <CrossedSwordsIcon />
           <span>Arena</span>
         </a>
-        <div className="app-brand-copy">
-          <p>{subtitle}</p>
-        </div>
+        {subtitle ? (
+          <div className="app-brand-copy">
+            <p>{subtitle}</p>
+          </div>
+        ) : null}
       </div>
       <div className="gallery-credit-group">
         <div className="tokenzhang-credit">
