@@ -29,6 +29,24 @@ export interface GalleryEntryContext {
   sourceDigest?: string;
 }
 
+/**
+ * The entry after Project Info saved its name and description, and its
+ * picture when one was uploaded: the entry has a reference image from then
+ * on, so a tab restored later asks for it instead of trusting the "none"
+ * it read before.
+ */
+export function withSavedDetails(
+  context: GalleryEntryContext,
+  details: { name: string; description: string },
+  referenceSaved: boolean,
+): GalleryEntryContext {
+  return {
+    ...context,
+    ...details,
+    ...(referenceSaved ? { hasReference: true } : {}),
+  };
+}
+
 interface GalleryEntryPayload {
   entry?: {
     name?: string;

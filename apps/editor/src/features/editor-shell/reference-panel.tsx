@@ -442,8 +442,15 @@ export interface ReferenceWindowProps {
   onImage: (file: File) => void;
   /** Whether a paste may be the image (no text field or circuit takes it). */
   takesPaste: (event: ClipboardEvent) => boolean;
-  /** Saved: the editor keeps the name and description with the drawing. */
-  onSaved: (fields: { name: string; description: string }) => void;
+  /**
+   * Saved: the editor keeps the name and description with the drawing, and
+   * notes when the picture became the entry's reference image.
+   */
+  onSaved: (fields: {
+    name: string;
+    description: string;
+    referenceSaved: boolean;
+  }) => void;
   fetchLike?: typeof fetch;
 }
 
@@ -600,6 +607,7 @@ export function ReferenceWindow({
     }
     setBusy(true);
     setNote(null);
+    let referenceSaved = false;
     if (entry && textDirty) {
       const response = await fetchLike(
         `/api/gallery/${encodeURIComponent(entry.id)}`,
@@ -628,10 +636,11 @@ export function ReferenceWindow({
         return;
       }
       uploaded.add(image.file);
+      referenceSaved = true;
     }
     setBusy(false);
     setNote("Saved");
-    onSaved(savedAs);
+    onSaved({ ...savedAs, referenceSaved });
   }
 
   if (!open) return null;

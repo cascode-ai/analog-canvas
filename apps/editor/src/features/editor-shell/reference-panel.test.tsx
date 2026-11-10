@@ -184,3 +184,67 @@ it("asks for a community entry's picture only when the entry says it has one (#2
   // A context kept from before the entry said so still asks.
   expect(await asked()).toEqual(["/api/gallery/a1b2c3d4e5/reference"]);
 });
+
+it("keeps an author's saved picture for a tab restored later", async () => {
+  // The upload is the server's; it answers as one that took the image.
+  vi.doMock("../../reference-image", async (importOriginal) => {
+    const real = await importOriginal<typeof import("../../reference-image")>();
+    return {
+      ...real,
+      uploadReferenceImage: vi.fn(async () => real.REFERENCE_SAVED),
+    };
+  });
+  try {
+    const { withSavedDetails } = await import("./gallery-example-commands");
+    const entry: GalleryEntryContext = {
+      id: "a1b2c3d4e5",
+      name: "Bandgap",
+      projectId: "p1",
+      ownerUserId: "u1",
+      author: "Carol",
+      description: "",
+      tags: [],
+      hasReference: false,
+    };
+    const saved: Parameters<ReferenceWindowProps["onSaved"]>[0][] = [];
+    const urls: string[] = [];
+    const fetchLike = (async (input: string) => {
+      urls.push(String(input));
+      return Response.json({ error: "not-found" }, { status: 404 });
+    }) as typeof fetch;
+    const file = new File(["png"], "figure.png", { type: "image/png" });
+    const { panel } = await show({
+      openings: 1,
+      entry,
+      session: { id: "u1", isAdmin: false, role: "user", isOwner: false },
+      image: { file, url: "blob:figure" },
+      onSaved: (fields) => saved.push(fields),
+      fetchLike,
+    });
+    await act(async () =>
+      panel()
+        .querySelector<HTMLButtonElement>('[data-testid="reference-save"]')!
+        .click(),
+    );
+    expect(saved).toEqual([
+      { name: "Bandgap", description: "", referenceSaved: true },
+    ]);
+    // The entry the editor keeps (and a refresh restores) now has a picture,
+    // so the window asks for it.
+    const kept = withSavedDetails(entry, saved[0]!, saved[0]!.referenceSaved);
+    expect(kept.hasReference).toBe(true);
+    await unmount?.();
+    unmount = null;
+    urls.length = 0;
+    await show({ entry: kept, fetchLike });
+    await act(async () => {});
+    expect(urls).toEqual(["/api/gallery/a1b2c3d4e5/reference"]);
+    // Text alone leaves what the entry said.
+    expect(
+      withSavedDetails(entry, { name: "B", description: "" }, false)
+        .hasReference,
+    ).toBe(false);
+  } finally {
+    vi.doUnmock("../../reference-image");
+  }
+});

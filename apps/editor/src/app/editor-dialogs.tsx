@@ -63,7 +63,10 @@ import {
   useOwnReferenceOpen,
   useOwnReferenceOpenings,
 } from "../features/editor-shell/own-reference";
-import type { GalleryEntryContext } from "../features/editor-shell/gallery-example-commands";
+import {
+  withSavedDetails,
+  type GalleryEntryContext,
+} from "../features/editor-shell/gallery-example-commands";
 import { CIRCUIT_CLIPBOARD_MIME } from "../features/clipboard/system-clipboard";
 import { isTypingTarget } from "./editor-runtime-helpers";
 // A paste is the reference image's unless a text field or a circuit takes it.
@@ -368,15 +371,19 @@ export function EditorDialogs({
   const referenceSaved = ({
     name,
     description,
+    referenceSaved: imageSaved,
   }: {
     name: string;
     description: string;
+    referenceSaved: boolean;
   }) => {
     renameProject(name);
     if (galleryEntryContext) {
       const savedId = galleryEntryContext.id;
       setGalleryEntryContext((current) =>
-        current?.id === savedId ? { ...current, name, description } : current,
+        current?.id === savedId
+          ? withSavedDetails(current, { name, description }, imageSaved)
+          : current,
       );
       galleryLoadGenerationRef.current += 1;
       setGalleryRefreshSignal((previous) => previous + 1);
