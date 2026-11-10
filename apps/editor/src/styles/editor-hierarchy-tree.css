@@ -157,10 +157,12 @@
   background: var(--icm-accent-soft);
   color: var(--icm-accent);
 }
-/* Only on hover: the open or focused row keeps its room for its name, and
-   keyboard users set Top from the row's menu. */
+/* Only on hover, yet always laid out: a row's tools keep their place at its
+   end, so its name is as wide with them as without and a click on it always
+   opens the row, never sets Top (#2175). Keyboard users set Top from the
+   row's menu. */
 .hierarchy-node:not(:hover) .hierarchy-set-top {
-  display: none;
+  visibility: hidden;
 }
 .hierarchy-uses {
   flex: 0 0 auto;
@@ -181,10 +183,11 @@
   display: flex;
   flex: 0 0 auto;
 }
-/* Actions show only on the row pointed at, focused or open. */
+/* Actions show only on the row pointed at, focused or open, in the room
+   every row keeps for them. */
 .hierarchy-node:not(:hover, :focus-within, [data-active])
   .hierarchy-row-actions {
-  display: none;
+  visibility: hidden;
 }
 .hierarchy-rename {
   flex: 1;
