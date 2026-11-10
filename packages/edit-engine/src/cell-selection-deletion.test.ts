@@ -2,7 +2,10 @@ import { createEmptyProject, createRoutePath } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { planCellSelectionDeletion } from "./cell-selection-deletion.js";
+import {
+  lockedDeletionStatus,
+  planCellSelectionDeletion,
+} from "./cell-selection-deletion.js";
 import { planRemoveCellTerminals } from "./cell-interface-change-planner.js";
 import { executeProjectTransaction } from "./project-transaction.js";
 import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
@@ -296,5 +299,109 @@ describe("Cell selection deletion", () => {
     const after = deleteParts(first, ["RB"]);
     expect(after.documents[0]!.instances).toEqual([]);
     railStaysNamed(after);
+  });
+});
+
+/** #2187: one unlocked and one locked rectangle beside a locked text. */
+function lockedSheet() {
+  const project = createEmptyProject("locks", "Locks");
+  const document = project.documents[0]!;
+  const box = (id: string, locked: boolean, x: number) => ({
+    id,
+    kind: "rectangle" as const,
+    locked,
+    zIndex: 0,
+    anchor: { kind: "free" as const, position: { x, y: 0 } },
+    center: { x, y: 0 },
+    width: 20,
+    height: 10,
+    rotation: 0 as const,
+    lineStyle: "solid" as const,
+  });
+  document.drafting = {
+    objects: [box("box", false, 0), box("box-locked", true, 100)],
+  };
+  document.annotations.push({
+    id: "text-locked",
+    kind: "route-marker",
+    content: { runs: [{ kind: "text", value: "I1" }] },
+    anchor: { kind: "free", position: { x: 0, y: 40 } },
+    alignment: "start",
+    rotation: 0,
+    locked: true,
+  });
+  return document;
+}
+
+describe("Deleting locked drawings and texts (#2187)", () => {
+  it("deletes the unlocked objects of a mixed selection and keeps the locked", () => {
+    const document = lockedSheet();
+    const { routing, locked } = planCellSelectionDeletion(
+      document,
+      resolver,
+      {
+        instanceIds: [],
+        routeIds: [],
+        junctionIds: [],
+        annotationIds: ["text-locked"],
+        draftingIds: ["box", "box-locked"],
+      },
+      1,
+    );
+    expect(locked).toEqual({
+      annotationIds: ["text-locked"],
+      draftingIds: ["box-locked"],
+    });
+    expect(lockedDeletionStatus(locked, true)).toBe(
+      "Deleted the unlocked objects and kept 1 locked drawing and 1 locked text; unlock them to delete",
+    );
+    const gate = gateRoutingOperationPlan(document, routing, {
+      symbolResolver: resolver,
+    });
+    if (!gate.ok) throw new Error(gate.message);
+    const after = gate.evaluated.finalDocument;
+    expect(after.drafting?.objects.map((object) => object.id)).toEqual([
+      "box-locked",
+    ]);
+    expect(after.annotations.map((annotation) => annotation.id)).toEqual([
+      "text-locked",
+    ]);
+  });
+
+  it("deletes nothing when everything selected is locked", () => {
+    const { routing, locked } = planCellSelectionDeletion(
+      lockedSheet(),
+      resolver,
+      {
+        instanceIds: [],
+        routeIds: [],
+        junctionIds: [],
+        draftingIds: ["box-locked"],
+      },
+      1,
+    );
+    expect(routing.edits).toEqual([]);
+    expect(lockedDeletionStatus(locked, false)).toBe(
+      "Kept 1 locked drawing; unlock it to delete",
+    );
+    expect(
+      lockedDeletionStatus({ annotationIds: [], draftingIds: [] }, false),
+    ).toBeNull();
+  });
+
+  it("refuses a locked drawing's removal in the transaction itself", () => {
+    const document = lockedSheet();
+    const result = executeTransaction(document, {
+      transactionId: "raw-remove",
+      documentId: document.id,
+      expectedRevision: document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: [{ kind: "remove_drafting_object", objectId: "box-locked" }],
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toContain(
+      "Drafting object is locked: box-locked",
+    );
   });
 });

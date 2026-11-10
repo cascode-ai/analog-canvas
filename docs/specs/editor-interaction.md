@@ -267,7 +267,9 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 - Engine instance-follow is the single-instance fallback and agrees on internal
   wiring (a component whose pins slide together travels whole).
 - `C` is modal copy placement with one preallocated clone mapping; Delete turns
-  the visual selection into one graph deletion plan.
+  the visual selection into one graph deletion plan. Locked drawings and texts
+  it names stay and the status counts them; a selection of only locked ones
+  deletes nothing and menus offer no Delete for it. Only Unlock frees them.
   [Project-aware copy](#project-aware-copy) owns copy identity.
 - Marquee: left-to-right is window (fully contained; Routes need their whole
   centerline), right-to-left crossing; a Junction is its point; Route tests use

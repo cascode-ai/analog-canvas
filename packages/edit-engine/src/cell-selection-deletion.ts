@@ -1,18 +1,102 @@
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import { instanceOwnedAnnotationIds } from "./instance-lifecycle.js";
 import {
   planRoutingDeletion,
   type RoutingDeletionSeed,
 } from "./routing-deletion-planner.js";
 
-/** GUI and Agent selection deletion share both graph closure and interface ownership. */
+/** Locked drawings and texts a selection names; deleting it keeps them. */
+export interface LockedSelectionObjects {
+  readonly annotationIds: readonly string[];
+  readonly draftingIds: readonly string[];
+}
+
+/**
+ * The selection's own locked drawings and texts. A label that goes with a
+ * selected part is the part's to take, so only free-standing ones count.
+ */
+export function lockedSelectionObjects(
+  document: SchematicDocument,
+  seed: Pick<
+    RoutingDeletionSeed,
+    "instanceIds" | "annotationIds" | "draftingIds"
+  >,
+): LockedSelectionObjects {
+  const owned = instanceOwnedAnnotationIds(document, seed.instanceIds);
+  const annotationIds = new Set(seed.annotationIds ?? []);
+  const draftingIds = new Set(seed.draftingIds ?? []);
+  return {
+    annotationIds: document.annotations
+      .filter(
+        (annotation) =>
+          annotation.locked &&
+          annotationIds.has(annotation.id) &&
+          !owned.has(annotation.id),
+      )
+      .map((annotation) => annotation.id),
+    draftingIds: (document.drafting?.objects ?? [])
+      .filter((object) => object.locked && draftingIds.has(object.id))
+      .map((object) => object.id),
+  };
+}
+
+/**
+ * What a person is told about the locked objects a deletion kept, or null;
+ * `deletedOthers` says whether the rest of the selection went.
+ */
+export function lockedDeletionStatus(
+  locked: LockedSelectionObjects,
+  deletedOthers: boolean,
+): string | null {
+  const counted = (count: number, noun: string) =>
+    count === 0 ? [] : [`${count} locked ${noun}${count === 1 ? "" : "s"}`];
+  const parts = [
+    ...counted(locked.draftingIds.length, "drawing"),
+    ...counted(locked.annotationIds.length, "text"),
+  ];
+  if (parts.length === 0) return null;
+  const single = locked.draftingIds.length + locked.annotationIds.length === 1;
+  const kept = `${parts.join(" and ")}; unlock ${single ? "it" : "them"} to delete`;
+  return deletedOthers
+    ? `Deleted the unlocked objects and kept ${kept}`
+    : `Kept ${kept}`;
+}
+
+/**
+ * GUI and Agent selection deletion share both graph closure and interface
+ * ownership. Locked drawings and texts the selection names stay: the plan
+ * deletes the rest and reports them in `locked`; only an Unlock lets them go.
+ */
 export function planCellSelectionDeletion(
   document: SchematicDocument,
   resolver: SymbolResolver,
   seed: RoutingDeletionSeed,
   sequence: number,
 ) {
-  const routing = planRoutingDeletion(document, resolver, seed, sequence);
+  const locked = lockedSelectionObjects(document, seed);
+  const keptAnnotations = new Set(locked.annotationIds);
+  const keptDrafting = new Set(locked.draftingIds);
+  const routing = planRoutingDeletion(
+    document,
+    resolver,
+    {
+      ...seed,
+      ...(seed.annotationIds
+        ? {
+            annotationIds: seed.annotationIds.filter(
+              (id) => !keptAnnotations.has(id),
+            ),
+          }
+        : {}),
+      ...(seed.draftingIds
+        ? {
+            draftingIds: seed.draftingIds.filter((id) => !keptDrafting.has(id)),
+          }
+        : {}),
+    },
+    sequence,
+  );
   // Any segment of a Power Rail deletes the whole rail and the label at its
   // far end, which the selection's own closure never reaches. A label that is
   // a Cell Pin takes its terminal along, so the plan's own removals count.
@@ -42,5 +126,5 @@ export function planCellSelectionDeletion(
           removedAnnotationIds.has(terminal.interfaceAnnotationId)),
     )
     .map((terminal) => terminal.id);
-  return { routing, terminalIds };
+  return { routing, terminalIds, locked };
 }

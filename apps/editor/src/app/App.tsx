@@ -8383,6 +8383,7 @@ function WorkspaceEditor({
           <EditorCanvasContextMenu
             canvasContextMenu={canvasContextMenu}
             setCanvasContextMenu={setCanvasContextMenu}
+            document={document}
             visualSelection={visualSelection}
             hasHierarchyEnterSelection={hasHierarchyEnterSelection}
             alignmentParticipantCount={alignmentParticipantCount}
