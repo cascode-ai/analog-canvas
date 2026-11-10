@@ -249,7 +249,9 @@ class Host:
 
     def hold(self):
         # A timer being stopped does not finish an already running tick.
-        deadline = time.monotonic() + 3
+        # Keep serving while a bounded sync tick finishes; the entrance's
+        # separate 3-second request drain starts only after this wait.
+        deadline = time.monotonic() + 90
         def busy(unit):
             status = self.systemctl('show', unit, '--property=ActiveState', '--value', check=False)
             return status.returncode != 0 or status.stdout.strip() not in (b'inactive', b'failed')
