@@ -7,6 +7,11 @@ export function useAuthoringDocument<T>(
   shared?: AuthoringDocument<T>,
 ) {
   const [document] = useState(() => shared ?? new AuthoringDocument(initial()));
-  const state = useSyncExternalStore(document.subscribe, document.snapshot);
+  // Static markup (a code panel rendered to text) reads the same snapshot.
+  const state = useSyncExternalStore(
+    document.subscribe,
+    document.snapshot,
+    document.snapshot,
+  );
   return { document, ...state };
 }
