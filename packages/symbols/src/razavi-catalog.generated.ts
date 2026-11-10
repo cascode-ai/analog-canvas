@@ -2440,6 +2440,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "619b00cf2fdb0a6b81830a245018425fcabb38641eec39fe2bb21fd4a285e92d",
   },
   {
+    symbolId: "speaker",
+    name: "Speaker",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A loudspeaker does not appear on the reviewed page; it is drawn as textbooks draw it, a small magnet rectangle with its cone flaring to one side, its leads on the Resistor's pins.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE R card does not say the resistor is a speaker, so an imported R card keeps the Resistor symbol.",
+    assetPath: "speaker.json",
+    assetHash:
+      "8ed7bf95b794493de170c9875ed862cd51227c086e025e9251258f9b60538c5a",
+  },
+  {
     symbolId: "chopper",
     name: "Chopper",
     category: "switch",
@@ -18631,6 +18648,124 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 20,
           y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "speaker",
+    name: "Speaker",
+    viewBox: {
+      x: -8,
+      y: -24,
+      width: 24,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "path",
+        data: "M -3 -6 L 3 -6 L 3 6 L -3 6 Z",
+        part: "magnet",
+        bounds: {
+          x: -3,
+          y: -6,
+          width: 6,
+          height: 12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "polyline",
+        part: "cone",
+        points: [
+          {
+            x: 3,
+            y: -6,
+          },
+          {
+            x: 11,
+            y: -14,
+          },
+          {
+            x: 11,
+            y: 14,
+          },
+          {
+            x: 3,
+            y: 6,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -6,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 6,
+        },
+        to: {
+          x: 0,
+          y: 20,
         },
         style: {
           strokeRole: "normal",

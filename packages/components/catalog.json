@@ -89,6 +89,7 @@
     "simple-spdt-switch",
     "simple-switch",
     "spdt-switch",
+    "speaker",
     "chopper",
     "variable-capacitor",
     "variable-inductor",
@@ -131,6 +132,7 @@
   "deviceOrder": [
     "resistor",
     "variable-resistor",
+    "speaker",
     "capacitor",
     "variable-capacitor",
     "inductor-compact",

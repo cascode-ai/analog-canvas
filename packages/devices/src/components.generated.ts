@@ -58,6 +58,33 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "speaker",
+    symbolId: "speaker",
+    deviceClass: "resistor",
+    referencePrefix: "R",
+    pinOrder: ["1", "2"],
+    targetPolicy: "builtin",
+    parameters: [
+      {
+        name: "value",
+        label: "Value",
+        required: true,
+        editor: "text",
+        unitHint: "Ohm",
+        placeholder: "8",
+        defaultValue: "8",
+        help: "Resistance standing in for the speaker's voice coil",
+        displayRole: "value",
+      },
+    ],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: true,
+    },
+  },
+  {
     id: "capacitor",
     symbolId: "capacitor",
     deviceClass: "capacitor",

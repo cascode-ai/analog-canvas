@@ -95,6 +95,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("diode")).toBe("Extended Devices");
     expect(symbolCategory("zener-diode")).toBe("Extended Devices");
     expect(symbolCategory("led")).toBe("Extended Devices");
+    expect(symbolCategory("speaker")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("externally-controlled-switch")).toBe("Switches");
@@ -264,6 +265,7 @@ describe("component insertion catalog", () => {
       "center-tap-inductor",
       "xfmr",
       "crystal",
+      "speaker",
       "depletion-nmos",
       "depletion-pmos",
       "ndmos",
@@ -343,6 +345,7 @@ describe("reach order inside a category", () => {
       "center-tap-inductor",
       "xfmr",
       "crystal",
+      "speaker",
       "depletion-nmos",
       "depletion-pmos",
       "ndmos",

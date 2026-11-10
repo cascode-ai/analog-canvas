@@ -179,6 +179,26 @@ describe("built-in device registry", () => {
     expect(subcircuitDescriptor("battery")).toBeUndefined();
   });
 
+  it("gives the Speaker the resistor contract at 8 ohms", () => {
+    const resistor = deviceDescriptor("resistor")!;
+    expect(deviceDescriptor("speaker")).toEqual({
+      ...resistor,
+      id: "speaker",
+      symbolId: "speaker",
+      parameters: [
+        {
+          ...resistor.parameters[0],
+          placeholder: "8",
+          defaultValue: "8",
+          help: "Resistance standing in for the speaker's voice coil",
+        },
+      ],
+    });
+    expect(referencePolicyForSymbol("speaker")).toEqual(
+      referencePolicyForSymbol("resistor"),
+    );
+  });
+
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
     expect(builtInSubcircuitDescriptors).toHaveLength(69);
     expect(

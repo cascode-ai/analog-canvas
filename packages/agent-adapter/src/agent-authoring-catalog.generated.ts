@@ -3014,6 +3014,50 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "speaker",
+      name: "Speaker",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "8",
+        },
+      ],
+      bounds: {
+        x: -3,
+        y: -20,
+        width: 14,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "chopper",
       name: "Chopper",
       category: "switch",

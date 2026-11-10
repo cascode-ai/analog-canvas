@@ -363,6 +363,33 @@ describe("copy/export netlist projection", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "exports a Speaker as the resistor it is in %s",
+    (format) => {
+      const project = createEmptyProject("speaker-project", "Speaker");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "R1",
+        symbolId: "speaker",
+        reference: "R1",
+        placement: null,
+        netlist: { parameters: { value: "8" } },
+      });
+      document.nets = [
+        { id: "a", terminals: [{ instanceId: "R1", pinName: "1" }] },
+        { id: "b", terminals: [{ instanceId: "R1", pinName: "2" }] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /^R1\s+\S+\s+\S+\s+8$/mu
+          : /^R1\s+\(\S+ \S+\)\s+resistor r=8$/mu,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "exports an imported source whose function or AC clause stands without a DC value (%s)",
     async (format) => {
       const source = `
