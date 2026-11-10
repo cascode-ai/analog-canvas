@@ -17,6 +17,12 @@ import { prepareImportSources } from "../features/netlist-export/convert-import-
 
 const MAX_DIFFERENCES = 200;
 
+export interface ReviewSource {
+  entryPath: string;
+  version: string;
+  files: readonly SpiceSourceInput[];
+}
+
 function statementKey({ fileId, start, end }: SourceSpan) {
   return `${fileId}:${start.offset}:${end.offset}`;
 }
@@ -72,15 +78,24 @@ async function prepareReference(
   return prepareImportSources(inputs);
 }
 
+async function compileReference(source: ReviewSource) {
+  const prepared = await prepareReference(source.files, source.entryPath);
+  const compiled = await compileSpiceSources(
+    prepared.inputs,
+    source.entryPath,
+    {
+      includeRoot: "workspace",
+    },
+  );
+  return { ...compiled, prepared };
+}
+
 /** Compare the selected Cell and its descendants using verify's structural comparator. */
 export async function compareReviewSource(
   project: CircuitProject,
   documentId: string,
-  source: {
-    entryPath: string;
-    version: string;
-    files: readonly SpiceSourceInput[];
-  },
+  source: ReviewSource,
+  original = source,
 ) {
   const unavailable = (reasons: string[]) => ({
     sourceVersion: source.version,
@@ -106,30 +121,30 @@ export async function compareReviewSource(
       ...actualDesign.diagnostics.slice(0, 12).map(({ message }) => message),
     ]);
 
-  let prepared;
+  const actualPath = "canvas-review.sp";
+  const actualFile = printDesignNetlist("spice", actualDesign.ir);
+  let actual, reference, baseline;
   try {
-    prepared = await prepareReference(source.files, source.entryPath);
+    [actual, reference, baseline] = await Promise.all([
+      compileSpiceSources(
+        [
+          {
+            path: actualPath,
+            bytes: new TextEncoder().encode(actualFile.text),
+          },
+        ],
+        actualPath,
+      ),
+      compileReference(source),
+      original.version !== source.version
+        ? compileReference(original)
+        : undefined,
+    ]);
   } catch (error) {
     return unavailable([
       error instanceof Error ? error.message : String(error),
     ]);
   }
-  const actualPath = "canvas-review.sp";
-  const actualFile = printDesignNetlist("spice", actualDesign.ir);
-  const [actual, reference] = await Promise.all([
-    compileSpiceSources(
-      [
-        {
-          path: actualPath,
-          bytes: new TextEncoder().encode(actualFile.text),
-        },
-      ],
-      actualPath,
-    ),
-    compileSpiceSources(prepared.inputs, source.entryPath, {
-      includeRoot: "workspace",
-    }),
-  ]);
   if (
     !actual.successful ||
     !actual.ir ||
@@ -178,6 +193,7 @@ export async function compareReviewSource(
         ),
     ),
   };
+  const actualModelTypes = drawingModelTypes(project, actualDesign.ir);
   const result = compareCircuitIR(
     actual.ir,
     expected,
@@ -185,28 +201,46 @@ export async function compareReviewSource(
     expectedRoot,
     {
       referenceSpans: true,
-      actualModelTypes: drawingModelTypes(project, actualDesign.ir),
+      actualModelTypes,
     },
   );
   const files = new Map(
     reference.bundle.files.map(({ id, path }) => [id, path]),
   );
   const comparedDocuments = new Set(actualDesign.ir.cells.map(({ id }) => id));
-  const reasons = [
-    ...result.reasons,
-    ...prepared.diagnostics.map(({ message }) => message),
-  ];
-  const conversionIncomplete = prepared.diagnostics.length > 0;
-  const status = conversionIncomplete
+  const extraReasons = reference.prepared.diagnostics.map(
+    ({ message }) => message,
+  );
+  if (baseline) {
+    if (!baseline.successful || !baseline.ir)
+      extraReasons.push(
+        "The delivered model declarations could not be checked",
+      );
+    const modelNames = (source: typeof reference) =>
+      new Set([
+        ...(source.ir?.models.map(({ name }) => name.toLowerCase()) ?? []),
+        ...[...source.prepared.modelTypes.keys()].map((name) =>
+          name.toLowerCase(),
+        ),
+      ]);
+    const referenceNames = modelNames(reference);
+    for (const name of modelNames(baseline)) {
+      if (actualModelTypes.has(name) && !referenceNames.has(name))
+        extraReasons.push(
+          `The revised source no longer declares the used model ${name}`,
+        );
+    }
+  }
+  const status = extraReasons.length
     ? ("inconclusive" as const)
     : result.status;
   return {
     ...result,
     status,
-    summary: conversionIncomplete
-      ? `Structural comparison is incomplete. ${result.summary}`
+    summary: extraReasons.length
+      ? "Structural comparison is incomplete"
       : result.summary,
-    reasons,
+    reasons: [...result.reasons, ...extraReasons],
     sourceVersion: source.version,
     drawingChanged:
       status === "equal" &&
@@ -222,7 +256,7 @@ export async function compareReviewSource(
         const source =
           path &&
           expectedSource &&
-          prepared.originalLocation(path, expectedSource.start.line);
+          reference.prepared.originalLocation(path, expectedSource.start.line);
         return source ? { ...difference, source } : difference;
       }),
   };
