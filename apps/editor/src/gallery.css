@@ -2142,14 +2142,18 @@ div.gallery-contributor-status {
   .gallery-view-tabs {
     padding-inline: 10px;
   }
-  .gallery-view-tablist {
-    flex-shrink: 0;
-  }
   .gallery-view-tab {
     padding: 8px 10px;
   }
+  /* The count gives way first, down to its first figures, then the tabs. */
   .gallery-contributor-menu {
-    min-width: 0;
+    min-width: 52px;
+    flex-shrink: 100;
+  }
+  .gallery-count-panel {
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: hidden;
   }
   /* Only the icon, and Download's number: the count keeps its room. */
   .gallery-order-label,
@@ -2162,6 +2166,37 @@ div.gallery-contributor-status {
   .gallery-download {
     gap: 4px;
     margin-left: 4px;
+  }
+  /* Still one row, its height kept (#2189): where the tabs and the wall's
+     tools do not fit, the tabs give way first and scroll sideways inside
+     their own strip, so Order and Download stay on screen and the page never
+     scrolls sideways. The strip reaches over the row's rule, as the open
+     tab does. */
+  .gallery-view-tablist {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-bottom: -1px;
+    padding-bottom: 1px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .gallery-view-tablist::-webkit-scrollbar {
+    display: none;
+  }
+  .gallery-view-tab {
+    flex-shrink: 0;
+  }
+}
+
+/* A phone has no room for the count beside the tabs and the tools; the
+   Download button says how many circuits the wall holds (#2189). */
+@media (max-width: 480px) {
+  .gallery-view-tabs .gallery-contributor-menu {
+    display: none;
+  }
+  /* The tabs that do not fit fade out at the strip's end: it scrolls. */
+  .gallery-view-tablist {
+    mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
   }
 }
 
