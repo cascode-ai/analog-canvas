@@ -135,8 +135,8 @@ derive from `parameters`.
 Bodies live in [analog blocks](../../packages/netlist/src/ideal-analog-block-models.ts),
 [signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts) and
 [generated models](../../packages/netlist/src/generated-models.ts). Every Block
-but the crystal declares fixed `VDD`/`VSS` ports; logic ports follow Symbol
-pins.
+but the crystal and the potentiometer declares fixed `VDD`/`VSS` ports; logic
+ports follow Symbol pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
   differential op-amp (unlimited) are frequency-independent E/G sources that
@@ -201,8 +201,14 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   defaults 25 Ω, 12.7 mH, 20 fF and 5 pF, a 10 MHz fundamental
   (fs = 1/(2π√(lm·cm))). SPICE has no crystal card, so the part is an `X` call
   of that body; its Reference takes `X` like every call.
+- Potentiometer (`potentiometer`: `n1 nw n2` for pins 1, W, 2, no supplies)
+  is two resistors, `max(r·pos, 1m)` from end 1 to the wiper and
+  `max(r·(1−pos), 1m)` from the wiper to end 2, defaults `r` = 10 kΩ and
+  `pos` = 0.5; the 1 mΩ floor keeps a wiper at either end well conditioned. It
+  is an `X` call of that body, as the crystal is.
 - SPICE and VACASK include all bodies; Spectre includes comparator,
-  combinational gates (`bsource` with RC delay) and the crystal; DFF,
+  combinational gates (`bsource` with RC delay), the crystal and the
+  potentiometer; DFF,
   multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.
   That call's name is the reader's interface: where a Cell, or an external
   subcircuit or model source, in the netlist defines it, an unbound part

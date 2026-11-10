@@ -86,6 +86,7 @@
     "pnp",
     "port",
     "port-filled",
+    "potentiometer",
     "resistor",
     "simple-spdt-switch",
     "simple-switch",

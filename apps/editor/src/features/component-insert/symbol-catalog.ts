@@ -60,6 +60,7 @@ export function symbolCategory(symbolId: string): string {
       "crystal",
       "speaker",
       "microphone",
+      "potentiometer",
     ].includes(symbolId)
   ) {
     return EXTENDED_DEVICE_CATEGORY;
@@ -224,6 +225,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",
   microphone:
     "Microphone — electrically an independent voltage source (DC, AC, SIN…)",
+  potentiometer:
+    "Potentiometer — total resistance r, wiper W at fraction pos from end 1",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -298,6 +301,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "d-flip-flop-q",
   "delay-cell",
   "variable-resistor",
+  "potentiometer",
   "variable-capacitor",
   "variable-inductor",
   "diode",

@@ -70,7 +70,7 @@ describe("the RNL symbol list", () => {
       builtInSymbols
         .map((symbol) => symbol.id)
         .filter((id) => !rnlSymbolFor(id)),
-    ).toEqual(["led", "microphone", "speaker"]);
+    ).toEqual(["led", "microphone", "potentiometer", "speaker"]);
   });
 
   it("takes the chopper and appearance variants from Analog Canvas's package", () => {

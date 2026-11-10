@@ -97,6 +97,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("led")).toBe("Extended Devices");
     expect(symbolCategory("speaker")).toBe("Extended Devices");
     expect(symbolCategory("microphone")).toBe("Extended Devices");
+    expect(symbolCategory("potentiometer")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("externally-controlled-switch")).toBe("Switches");
@@ -257,6 +258,7 @@ describe("component insertion catalog", () => {
 
     expect(extended?.symbols.map((symbol) => symbol.id)).toEqual([
       "variable-resistor",
+      "potentiometer",
       "variable-capacitor",
       "variable-inductor",
       "diode",
@@ -338,6 +340,7 @@ describe("reach order inside a category", () => {
     expect(ids("Transistors")).toEqual(["nmos", "pmos", "npn", "pnp"]);
     expect(ids("Extended Devices")).toEqual([
       "variable-resistor",
+      "potentiometer",
       "variable-capacitor",
       "variable-inductor",
       "diode",

@@ -2988,6 +2988,65 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "potentiometer",
+      name: "Potentiometer",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "r",
+          default: "10k",
+        },
+        {
+          name: "pos",
+          default: "0.5",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -4.99,
+        y: -20,
+        width: 24.99,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "W",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "resistor",
       name: "Resistor",
       category: "passive",

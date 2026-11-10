@@ -2384,6 +2384,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "potentiometer",
+    name: "Potentiometer",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A potentiometer does not appear on the reviewed page; it is the reviewed Resistor body on the Resistor's pins with a wiper arrow, the Variable Resistor's arrowhead, pointing onto it from a third pin W.",
+    pinOrder: ["1", "W", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no potentiometer card; it prints as a call of the generated body, end 1 to W r*pos and W to end 2 r*(1-pos).",
+    assetPath: "potentiometer.json",
+    assetHash:
+      "a7f604401b6dd5c790e99506c9d7e4e74fc4181b18c87632f9e07777c7b6e7ce",
+  },
+  {
     symbolId: "resistor",
     name: "Resistor",
     category: "passive",
@@ -18396,6 +18413,115 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "potentiometer",
+    name: "Potentiometer",
+    viewBox: {
+      x: -10,
+      y: -24,
+      width: 34,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "W",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "path",
+        data: "M 0 -20 L 0 -8.72093 L 5.372093 -6.395349 L -4.604651 -4.069767 L 5.372093 -1.162791 L -4.988372 1.744186 L 5.372093 4.651163 L -4.604651 7.55814 L 0 8.72093 L 0 20",
+        bounds: {
+          x: -4.988372,
+          y: -20,
+          width: 10.360465,
+          height: 40,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 12,
+        },
+        part: "track",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 20,
+          y: 0,
+        },
+        to: {
+          x: 10,
+          y: 0,
+        },
+        part: "wiper-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        part: "wiper-head",
+        fill: "foreground",
+        stroke: "none",
+        points: [
+          {
+            x: 6,
+            y: 0,
+          },
+          {
+            x: 11.656854,
+            y: -2.828427,
+          },
+          {
+            x: 11.656854,
+            y: 2.828427,
+          },
+        ],
       },
     ],
     variants: [],

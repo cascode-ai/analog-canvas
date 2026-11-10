@@ -2819,6 +2819,16 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "potentiometer",
+      symbolId: "potentiometer",
+      target: "potentiometer",
+      ports: [
+        { name: "n1", direction: "passive", pinName: "1" },
+        { name: "nw", direction: "passive", pinName: "W" },
+        { name: "n2", direction: "passive", pinName: "2" },
+      ],
+    },
+    {
       id: "voltage-amplifier",
       symbolId: "voltage-amplifier",
       target: "voltage_amplifier",
