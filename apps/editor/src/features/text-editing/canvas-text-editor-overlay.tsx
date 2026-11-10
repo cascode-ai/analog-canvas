@@ -82,6 +82,34 @@ function unobscuredView(viewBox: GridRect, obscured: CanvasInsets): GridRect {
   };
 }
 
+/**
+ * The Document area the canvas actually shows. The canvas fits its camera
+ * (`xMidYMid meet`), so a window reshaped after Fit view shows more drawing
+ * beside or above the camera than the camera holds. The panel and the docks'
+ * insets, measured from the canvas element's edges, belong to this area: laid
+ * out against the camera alone, a short landscape window squeezed the panel
+ * into a narrow column (#2207).
+ */
+export function shownCanvasView(
+  viewBox: GridRect,
+  canvas: { width: number; height: number } | null,
+): GridRect {
+  if (!canvas || !(viewBox.width > 0) || !(viewBox.height > 0)) return viewBox;
+  const pixelsPerUnit = Math.min(
+    canvas.width / viewBox.width,
+    canvas.height / viewBox.height,
+  );
+  if (!(pixelsPerUnit > 0)) return viewBox;
+  const width = canvas.width / pixelsPerUnit;
+  const height = canvas.height / pixelsPerUnit;
+  return {
+    x: viewBox.x - (width - viewBox.width) / 2,
+    y: viewBox.y - (height - viewBox.height) / 2,
+    width,
+    height,
+  };
+}
+
 export interface CanvasTextEditorFrame {
   /** Where the panel sits, in Document units. */
   x: number;
@@ -410,9 +438,10 @@ export function CanvasTextEditorOverlay({
       };
     }
   })();
+  const shownView = shownCanvasView(viewBox, canvasSize);
   const frame = resolveCanvasTextEditorFrame(
     bounds,
-    viewBox,
+    shownView,
     session.sizeScale,
     pixelsPerUnit,
     measuredLayoutHeight === null
@@ -424,7 +453,7 @@ export function CanvasTextEditorOverlay({
   );
   const inlineFrame = resolveInlineTextEditorFrame(
     bounds,
-    viewBox,
+    shownView,
     pixelsPerUnit,
     obscured,
   );
