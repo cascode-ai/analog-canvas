@@ -868,7 +868,27 @@ describe("newest-first gallery feed", () => {
     // Other words are worked out anew.
     expect(await search("mirror")).toEqual(["Current mirror"]);
     expect(scans()).toHaveLength(2);
-    // A change to the Gallery answers at once.
+    // A like or a netlist mark changes no answer: the same words stay
+    // answered, while the order by likes still follows the new like.
+    env.gallerySql.exec(
+      "INSERT INTO gallery_likes (entry_id, user_id, liked_at, hearts) VALUES (?, 'reader', '2026-11-10T00:00:00.000Z', 1)",
+      ids[2]!,
+    );
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET netlistable = 1 - netlistable WHERE id = ?",
+      ids[0]!,
+    );
+    const byLikes = (
+      (await (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery?q=bandgap&order=likes`),
+        )
+      ).json()) as { entries: { name: string }[] }
+    ).entries.map((entry) => entry.name);
+    expect(byLikes).toEqual(["Bandgap core", "Bandgap reference"]);
+    expect(scans()).toHaveLength(2);
+    // A change to an entry's words answers at once.
     env.gallerySql.exec(
       "UPDATE gallery_entries SET name = 'Bandgap LNA' WHERE id = ?",
       ids[3]!,
@@ -879,6 +899,16 @@ describe("newest-first gallery feed", () => {
       "Bandgap reference",
     ]);
     expect(scans()).toHaveLength(3);
+    // So does an entry leaving the wall.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET status = 'recycled' WHERE id = ?",
+      ids[3]!,
+    );
+    expect(await search("bandgap")).toEqual([
+      "Bandgap core",
+      "Bandgap reference",
+    ]);
+    expect(scans()).toHaveLength(4);
   });
 
   it("ranks public contributors by circuit count and excludes hidden or blank bylines", async () => {

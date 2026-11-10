@@ -1,21 +1,31 @@
 import type { SqlStorage } from "./gallery-store";
 
+/** The Gallery's backup revision: imports, maintenance and likes move it. */
+function galleryRevision(sql: SqlStorage): number {
+  return sql
+    .exec<{ revision: number }>(
+      "SELECT revision FROM backup_revisions WHERE scope = 'gallery'",
+    )
+    .one().revision;
+}
+
 /**
  * One DO's answers worked out from its Gallery rows, each kept until the
- * Gallery's revision moves; restart/restore discards the entire cache.
+ * revision they follow moves (by default the Gallery's, which every write
+ * moves); restart/restore discards the entire cache.
  */
 export class GalleryRevisionCache<T> {
   private revision: number | undefined;
   private characters = 0;
   private readonly values = new Map<string, { value: T; characters: number }>();
 
+  constructor(
+    private readonly revisionOf: (sql: SqlStorage) => number = galleryRevision,
+  ) {}
+
   read(sql: SqlStorage, key: string, calculate: () => T): T {
-    // The transaction-owned revision includes imports, maintenance and likes.
-    const revision = sql
-      .exec<{ revision: number }>(
-        "SELECT revision FROM backup_revisions WHERE scope = 'gallery'",
-      )
-      .one().revision;
+    // A transaction-owned revision: a rolled-back write leaves it alone.
+    const revision = this.revisionOf(sql);
     if (this.revision !== revision) {
       this.values.clear();
       this.characters = 0;

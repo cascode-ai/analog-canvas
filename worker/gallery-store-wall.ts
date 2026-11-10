@@ -272,12 +272,47 @@ function feedConditions(
 }
 
 /**
+ * What a search's answer can follow, counted (#2160): an entry arriving or
+ * leaving, or changing its id, words (name, byline, description, tags) or
+ * status. A like, a netlist mark or a preview changes none, so the answer
+ * stays. A trigger counts it in the write's own transaction.
+ */
+export function installSearchRevision(sql: SqlStorage): void {
+  sql.exec(`CREATE TABLE IF NOT EXISTS gallery_search_revision (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    revision INTEGER NOT NULL
+  )`);
+  sql.exec(
+    "INSERT OR IGNORE INTO gallery_search_revision (id, revision) VALUES (1, 0)",
+  );
+  for (const [name, event] of [
+    ["insert", "INSERT"],
+    ["delete", "DELETE"],
+    ["update", "UPDATE OF id, name, author, description, tags, status"],
+  ])
+    sql.exec(`CREATE TRIGGER IF NOT EXISTS gallery_search_revision_${name}
+      AFTER ${event} ON gallery_entries
+      BEGIN
+        UPDATE gallery_search_revision SET revision = revision + 1 WHERE id = 1;
+      END`);
+}
+
+function searchRevision(sql: SqlStorage): number {
+  return sql
+    .exec<{ revision: number }>(
+      "SELECT revision FROM gallery_search_revision WHERE id = 1",
+    )
+    .one().revision;
+}
+
+/**
  * The public circuits a search answers, as a JSON array of IDs. Read from
  * metadata alone, never Project Code or previews, with the same rule the
  * browser narrows loaded circuits by; worked out once per request, however
  * many of its counts ask, and kept for the next reader of the same words
- * until the Gallery changes (#2160): public metadata only, the same for
- * every viewer.
+ * until an entry's words or status change (#2160): public metadata only,
+ * the same for every viewer. It is membership alone: every order, count
+ * and page is worked out from it per request, so likes need not clear it.
  */
 function searchMatches(
   sql: SqlStorage,
@@ -287,7 +322,11 @@ function searchMatches(
   const known = searchMatchesByRequest.get(body);
   if (known !== undefined) return known;
   let cache = searchMatchesBySql.get(sql);
-  if (!cache) searchMatchesBySql.set(sql, (cache = new GalleryRevisionCache()));
+  if (!cache)
+    searchMatchesBySql.set(
+      sql,
+      (cache = new GalleryRevisionCache<string>(searchRevision)),
+    );
   const matches = cache.read(sql, normalizeGallerySearchText(search), () =>
     matchingPublicIds(sql, search),
   );

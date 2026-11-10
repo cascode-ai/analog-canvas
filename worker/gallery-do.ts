@@ -49,6 +49,7 @@ import {
   ownerData,
   tagCounts,
   toggleLike,
+  installSearchRevision,
   type GalleryWallStatistics,
 } from "./gallery-store-wall";
 import {
@@ -371,6 +372,8 @@ export class GalleryDO {
     installBookmarks(this.sql);
     // Each community entry's reference image, if its author gave one.
     installReferences(this.sql);
+    // What a cached search answer follows (#2160).
+    installSearchRevision(this.sql);
     // A tile's whole card, by id: a page's tiles and the Owner's lists read
     // it here, never the row, whose card fields sit behind its Project and
     // preview (about 100 kB, some 25 pages each; 30 cold tiles took about
