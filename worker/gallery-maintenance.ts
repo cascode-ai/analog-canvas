@@ -29,6 +29,7 @@ import { withGalleryStore } from "./gallery-datasets";
 import {
   GALLERY_SOURCES,
   gallerySourceByKey,
+  gallerySourceOfEntryId,
   type GallerySource,
 } from "./gallery-sources";
 import { GALLERY_MAX_PROJECT_BYTES, type GalleryEnv } from "./gallery-store";
@@ -685,10 +686,22 @@ export async function routeGalleryMaintenance(
         { status: 400, headers: noStore },
       );
     const id = url.searchParams.get("id");
+    // `source=<key>` pages a reference dataset's store; an id names its own.
+    const sourceKey = url.searchParams.get("source");
+    const source = id
+      ? gallerySourceOfEntryId(id)
+      : sourceKey && sourceKey !== "community"
+        ? gallerySourceByKey(sourceKey)
+        : null;
+    if (!id && sourceKey && sourceKey !== "community" && !source)
+      return Response.json(
+        { error: "unknown-source" },
+        { status: 400, headers: noStore },
+      );
     const { status, payload } = await callGallery<{
       entries?: (Record<string, unknown> & { projectText: string })[];
       nextCursor?: string | null;
-    }>(env, "netlist-sources", {
+    }>(source ? withGalleryStore(env, source) : env, "netlist-sources", {
       id,
       after: url.searchParams.get("after"),
       limit: url.searchParams.get("limit"),
