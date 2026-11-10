@@ -44,7 +44,8 @@ forwarded-account contract; voting replication is a separate delivery.
 | User Components and Dataset publications                   | [Origin-owned replicas](regional-resources.md), preserving IDs, revisions and permissions  |
 | Completed simulation metadata and retained files           | Immutable result references; transfer and verify file bytes before announcing availability |
 | Active simulations and Agent/topology sessions             | Owned by their executing region; never replay a job by replicating its status              |
-| Visitor statistics, caches, browser recovery               | Regional; not part of the account/Project merge                                            |
+| Visitor statistics                                        | [Local collection and a shared authority](regional-analytics.md); not an account/Project merge |
+| Caches, browser recovery                                   | Regional                                                                                   |
 | Arena Battles, Votes and History                           | Outside this Canvas implementation; requires the Arena-side contract                       |
 
 Gallery-only backups omit private Cloud Projects. Store backups include those

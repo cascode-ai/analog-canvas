@@ -1,0 +1,21 @@
+[Unit]
+Description=Deliver durable Canvas analytics and cache the global summary
+After=canvas-cn-formal.service
+Requisite=canvas-cn-formal.service
+
+[Service]
+Type=oneshot
+User=canvas-formal
+Group=canvas-formal
+LoadCredential=sync-admin-token:/etc/analog-canvas-formal/sync-admin-token
+StateDirectory=canvas-cn-analytics-sync
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /opt/analog-canvas/current-formal/analytics-sync-tick.py --credentials %d --state /var/lib/canvas-cn-analytics-sync/monitor.json
+TimeoutStartSec=90
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+IPAddressDeny=any
+IPAddressAllow=localhost
+UMask=0077

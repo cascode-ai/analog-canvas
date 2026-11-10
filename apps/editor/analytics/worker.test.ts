@@ -9,6 +9,7 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 
 function sqliteState(db = new DatabaseSync(":memory:")) {
+  let transaction = 0;
   return {
     storage: {
       sql: {
@@ -36,7 +37,16 @@ function sqliteState(db = new DatabaseSync(":memory:")) {
         },
       },
       transactionSync<T>(callback: () => T): T {
-        return callback();
+        const name = `analytics_test_${++transaction}`;
+        db.exec(`SAVEPOINT ${name}`);
+        try {
+          const result = callback();
+          db.exec(`RELEASE ${name}`);
+          return result;
+        } catch (error) {
+          db.exec(`ROLLBACK TO ${name}; RELEASE ${name}`);
+          throw error;
+        }
       },
     },
   };
@@ -75,6 +85,214 @@ function rows(db: DatabaseSync, query: string) {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+async function sync(analytics: AnalyticsDO, operation: string, body?: unknown) {
+  return analytics.fetch(
+    new Request(`https://analytics.internal/sync/${operation}`, {
+      method: body === undefined ? "GET" : "POST",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }),
+  );
+}
+
+describe("regional analytics", () => {
+  it("deduplicates a still-valid cookie collected before expiry but delivered after ordinary hash retirement", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const source = new AnalyticsDO(sqliteState()),
+      collector = new AnalyticsDO(sqliteState());
+    await sync(source, "prepare", {});
+    await hit(source, HASH_A);
+    await sync(collector, "activate", { summary: await summary(source) });
+    await sync(
+      source,
+      "seed",
+      await (await sync(collector, "baseline")).json(),
+    );
+    vi.setSystemTime(DAY_ONE + 364 * DAY_MS);
+    await hit(collector, HASH_A);
+    const batch = await (await sync(collector, "batch")).json();
+    vi.setSystemTime(DAY_ONE + 370 * DAY_MS);
+    const receipt = await (await sync(source, "receive", batch)).json();
+    expect(receipt.summary.totals).toEqual({ pv: 2, uv: 1 });
+  });
+
+  it("retires identities on authority sync traffic while preserving historic counts", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const source = new AnalyticsDO(sqliteState());
+    await sync(source, "prepare", {});
+    await hit(source, HASH_A);
+    vi.setSystemTime(DAY_ONE + 7 * DAY_MS);
+    expect((await (await sync(source, "summary")).json()).totals).toEqual({
+      pv: 1,
+      uv: 1,
+    });
+    const snapshot = await (
+      await source.fetch(new Request("https://analytics.internal/backup"))
+    ).json();
+    expect(snapshot.tables.daily_visitors).toEqual([]);
+    expect(snapshot.tables.daily_visitor_counts).toEqual([
+      { day: Math.floor(DAY_ONE / DAY_MS), visitors: 1 },
+    ]);
+    vi.setSystemTime(DAY_ONE + 374 * DAY_MS);
+    expect((await (await sync(source, "summary")).json()).totals).toEqual({
+      pv: 1,
+      uv: 1,
+    });
+    const retired = await (
+      await source.fetch(new Request("https://analytics.internal/backup"))
+    ).json();
+    expect(retired.tables.visitors).toEqual([]);
+  });
+
+  it("retains an over-age batch for reconciliation instead of inventing historical visitor counts", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const source = new AnalyticsDO(sqliteState()),
+      collector = new AnalyticsDO(sqliteState());
+    await sync(source, "prepare", {});
+    await sync(collector, "activate", { summary: await summary(source) });
+    await sync(
+      source,
+      "seed",
+      await (await sync(collector, "baseline")).json(),
+    );
+    await hit(collector, HASH_A);
+    const batch = await (await sync(collector, "batch")).json();
+    vi.setSystemTime(DAY_ONE + 8 * DAY_MS);
+    expect((await sync(source, "receive", batch)).status).toBe(409);
+    expect((await summary(source)).totals).toEqual({ pv: 0, uv: 0 });
+    expect(await (await sync(collector, "status")).json()).toMatchObject({
+      pending: 1,
+      acknowledged: 0,
+    });
+  });
+
+  it("deduplicates a legacy visitor already present overseas and refuses a baseline from before the shared daily window", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const source = new AnalyticsDO(sqliteState()),
+      collector = new AnalyticsDO(sqliteState());
+    await hit(source, HASH_A, { source: "social:github" });
+    await hit(collector, HASH_A, { source: "direct-or-unknown" });
+    await sync(source, "prepare", {});
+    await sync(collector, "activate", { summary: await summary(source) });
+    const baseline = await (await sync(collector, "baseline")).json();
+    const old = structuredClone(baseline);
+    old.snapshot.tables.daily_views[0].day -= 1;
+    old.snapshot.tables.daily_visitors[0].day -= 1;
+    old.snapshot.tables.visitors[0].last_seen_day -= 1;
+    expect((await sync(source, "seed", old)).status).toBe(409);
+    expect((await summary(source)).totals).toEqual({ pv: 1, uv: 1 });
+    expect((await sync(source, "seed", baseline)).status).toBe(200);
+    const report = await summary(source);
+    expect(report.totals).toEqual({ pv: 2, uv: 1 });
+    expect(report.today).toMatchObject({ pv: 2, uv: 1 });
+    expect(report.sources).toEqual([{ source: "social:github", pv: 2, uv: 1 }]);
+  });
+
+  it("adds the frozen China baseline once without replacing overseas history", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const overseas = new AnalyticsDO(sqliteState());
+    await hit(overseas, HASH_A);
+    await sync(overseas, "prepare", {});
+    const china = new AnalyticsDO(sqliteState());
+    await hit(china, HASH_B);
+    await hit(china, HASH_B, { path: "/editor" });
+    await hit(china, HASH_B, { path: "/editor" });
+    await sync(china, "activate", { summary: await summary(overseas) });
+    const baseline = await (await sync(china, "baseline")).json();
+    expect((await sync(overseas, "seed", baseline)).status).toBe(200);
+    expect((await sync(overseas, "seed", baseline)).status).toBe(200);
+    const result = await summary(overseas);
+    expect(result.totals).toEqual({ pv: 4, uv: 2 });
+    expect(result.today).toMatchObject({ pv: 4, uv: 2 });
+    expect(result.paths).toContainEqual({ path: "/editor", pv: 2, uv: 0 });
+  });
+
+  it("counts a batch once after a lost acknowledgement and deduplicates returning browsers across regions", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const overseas = new AnalyticsDO(sqliteState());
+    await hit(overseas, HASH_A);
+    expect((await sync(overseas, "prepare", {})).status).toBe(200);
+    const china = new AnalyticsDO(sqliteState());
+    await sync(china, "activate", { summary: await summary(overseas) });
+    const baseline = await (await sync(china, "baseline")).json();
+    expect((await sync(overseas, "seed", baseline)).status).toBe(200);
+    await hit(china, HASH_A);
+    await hit(china, HASH_B);
+    const batch = await (await sync(china, "batch")).json();
+    const delivered = await sync(overseas, "receive", batch);
+    expect(delivered.status).toBe(200);
+    const receipt = await delivered.json();
+    expect(receipt.summary.totals).toEqual({ pv: 3, uv: 2 });
+    const repeated = await sync(overseas, "receive", batch);
+    expect(repeated.status).toBe(200);
+    expect((await repeated.json()).summary.totals).toEqual({ pv: 3, uv: 2 });
+    expect(
+      (
+        await Promise.all([
+          sync(china, "ack", receipt),
+          sync(china, "ack", receipt),
+        ])
+      ).map((response) => response.status),
+    ).toEqual([200, 200]);
+    expect((await sync(china, "ack", receipt)).status).toBe(200);
+    expect((await summary(china)).totals).toEqual({ pv: 3, uv: 2 });
+    expect(await (await sync(china, "status")).json()).toMatchObject({
+      pending: 0,
+      acknowledged: 2,
+    });
+    batch.events[0].payload.path = "/changed";
+    expect((await sync(overseas, "receive", batch)).status).toBe(409);
+    expect((await summary(overseas)).totals).toEqual({ pv: 3, uv: 2 });
+  });
+
+  it("keeps the collection date across a delayed delivery and rolls back an invalid batch in full", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const overseas = new AnalyticsDO(sqliteState());
+    await hit(overseas, HASH_A);
+    await sync(overseas, "prepare", {});
+    const china = new AnalyticsDO(sqliteState());
+    await sync(china, "activate", { summary: await summary(overseas) });
+    await sync(overseas, "seed", await (await sync(china, "baseline")).json());
+    await hit(china, HASH_A);
+    await hit(china, HASH_B);
+    const batch = await (await sync(china, "batch")).json();
+    vi.setSystemTime(DAY_ONE + 2 * DAY_MS);
+    await hit(overseas, HASH_A);
+    const invalid = structuredClone(batch);
+    invalid.events[1].payload.path = 42;
+    expect((await sync(overseas, "receive", invalid)).status).toBe(400);
+    expect((await summary(overseas)).totals).toEqual({ pv: 2, uv: 1 });
+    expect((await sync(overseas, "receive", batch)).status).toBe(200);
+    const report = await summary(overseas);
+    expect(report.days.at(-3)).toMatchObject({ pv: 3, uv: 2 });
+    expect(report.today).toMatchObject({ pv: 1, uv: 1 });
+  });
+
+  it("keeps collection durable and retries the same batch while serving the last global summary", async () => {
+    vi.useFakeTimers({ now: DAY_ONE });
+    const overseas = new AnalyticsDO(sqliteState());
+    await hit(overseas, HASH_A);
+    const global = await summary(overseas);
+    const state = sqliteState();
+    const china = new AnalyticsDO(state);
+    expect((await sync(china, "activate", { summary: global })).status).toBe(
+      200,
+    );
+    await hit(china, HASH_A);
+    const first = await (await sync(china, "batch")).json();
+    expect(first.after).toBe(0);
+    expect(first.events).toHaveLength(1);
+    await hit(china, HASH_B);
+    const restarted = new AnalyticsDO(state);
+    expect(await (await sync(restarted, "batch")).json()).toEqual(first);
+    expect((await summary(restarted)).totals).toEqual({ pv: 1, uv: 1 });
+    expect(await (await sync(restarted, "status")).json()).toMatchObject({
+      mode: "collector",
+      pending: 2,
+      acknowledged: 0,
+    });
+  });
 });
 
 describe("visitor counting", () => {

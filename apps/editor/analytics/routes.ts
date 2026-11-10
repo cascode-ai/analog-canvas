@@ -1,4 +1,5 @@
 import { bearerMatches } from "../../../worker/bearer";
+import { routeAnalyticsSync } from "./sync-routes";
 import {
   ANALYTICS_PERSISTENCE_IDENTITY,
   hasOptedOut,
@@ -26,6 +27,10 @@ export type AnalyticsRouteEnv = {
   ANALYTICS: DurableObjectNamespaceLike;
   ANALYTICS_KEY: string | undefined;
   PROJECT_SYNC_TOKEN?: string;
+  PROJECT_SYNC_ADMIN_TOKEN?: string;
+  PROJECT_SYNC_PEER_TOKEN?: string;
+  PROJECT_SYNC_PEER_URL?: string;
+  PROJECT_REGION?: string;
 };
 
 type RequestCf = {
@@ -109,6 +114,8 @@ export async function routeAnalyticsRequest(
   if (url.pathname === TRACK_ROUTE && request.method === "POST") {
     return trackPageView(request, env);
   }
+  const syncResponse = await routeAnalyticsSync(request, env);
+  if (syncResponse) return syncResponse;
   if (url.pathname === PAGE_LOAD_ROUTE && request.method === "POST") {
     return trackPageLoad(request, env);
   }

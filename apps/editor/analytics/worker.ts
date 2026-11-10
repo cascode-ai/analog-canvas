@@ -1,3 +1,11 @@
+import {
+  AnalyticsReplication,
+  ANALYTICS_SYNC_TABLES,
+  ANALYTICS_SYNC_RETENTION_DAYS,
+  AnalyticsSyncError,
+} from "./replication";
+import { seedLegacyAnalytics } from "./legacy-baseline";
+
 /**
  * These values locate the already-deployed analytics namespace and identify
  * returning browsers. Changing one starts a separate data or visitor history.
@@ -29,8 +37,8 @@ export const VISITOR_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 /** Thirteen months, the longest those rules allow. */
 export const OPT_OUT_COOKIE_MAX_AGE = 60 * 60 * 24 * 396;
 /**
- * A visitor id unseen this long can never come back: its cookie, never
- * renewed, has expired. It is deleted, and the total keeps counting it.
+ * Baseline expiry after the non-renewing cookie expires. The authority
+ * adds its delivery allowance before retiring the hash; totals keep it.
  */
 const VISITOR_ID_RETENTION_DAYS = 366;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -65,11 +73,11 @@ type SqlResult<T> = {
   toArray(): T[];
 };
 
-type SqlStorage = {
+export type SqlStorage = {
   exec<T>(query: string, ...bindings: unknown[]): SqlResult<T>;
 };
 
-type DurableObjectStateLike = {
+export type DurableObjectStateLike = {
   storage: {
     sql: SqlStorage;
     transactionSync<T>(callback: () => T): T;
@@ -154,10 +162,29 @@ const META = {
 
 export class AnalyticsDO {
   private readonly sql: SqlStorage;
+  private readonly replication: AnalyticsReplication;
 
   constructor(private readonly state: DurableObjectStateLike) {
     this.sql = state.storage.sql;
     this.initializeSchema();
+    this.replication = new AnalyticsReplication(state, {
+      snapshot: () => this.backupSnapshot(false),
+      summary: () => this.readAnalyticsSummary(),
+      apply: (event) => {
+        if (event.kind === "hit" && isValidEvent(event.payload))
+          this.recordHit(event.payload, event.collectedAt);
+        else if (event.kind === "load" && isValidLoadEvent(event.payload))
+          this.recordLoad(event.payload, event.collectedAt);
+        else throw new AnalyticsSyncError("invalid-event", 400);
+      },
+      seed: (snapshot, minimumDay) =>
+        seedLegacyAnalytics(
+          this.sql,
+          snapshot,
+          LOAD_TIME_BUCKETS_MS.length,
+          minimumDay,
+        ),
+    });
   }
 
   private initializeSchema(): void {
@@ -250,17 +277,22 @@ export class AnalyticsDO {
    */
   private rollUpFinishedDays(today: number): void {
     if (this.meta(META.rolledUpDay) === String(today)) return;
+    const allowance =
+      this.replication.mode() === "authority"
+        ? ANALYTICS_SYNC_RETENTION_DAYS - 1
+        : 0;
+    const retireBefore = today - allowance;
     this.state.storage.transactionSync(() => {
       this.sql.exec(
         `INSERT INTO daily_visitor_counts(day, visitors)
          SELECT day, COUNT(*) FROM daily_visitors WHERE day < ? GROUP BY day
          ON CONFLICT(day) DO UPDATE SET visitors = visitors + excluded.visitors`,
-        today,
+        retireBefore,
       );
-      this.sql.exec("DELETE FROM daily_visitors WHERE day < ?", today);
+      this.sql.exec("DELETE FROM daily_visitors WHERE day < ?", retireBefore);
       this.sql.exec(
         "DELETE FROM visitors WHERE last_seen_day < ?",
-        today - VISITOR_ID_RETENTION_DAYS,
+        today - VISITOR_ID_RETENTION_DAYS - allowance,
       );
       this.sql.exec(
         "DELETE FROM load_times WHERE day < ?",
@@ -295,6 +327,11 @@ export class AnalyticsDO {
     if (request.method === "GET" && url.pathname === "/backup") {
       return this.backup();
     }
+    // Background traffic alone must honor the authority retention policy.
+    if (this.replication.mode() === "authority")
+      this.rollUpFinishedDays(utcDay(Date.now()));
+    const syncResponse = await this.replication.fetch(request);
+    if (syncResponse) return syncResponse;
     // The day's first request, counted or not, retires the finished days.
     this.rollUpFinishedDays(utcDay(Date.now()));
     if (request.method === "POST" && url.pathname === "/hit") {
@@ -308,7 +345,10 @@ export class AnalyticsDO {
         );
       }
       this.recordHit(event, Date.now());
-      return Response.json({ ...this.readStats(), scope: "all" });
+      return Response.json({
+        ...(this.replication.summary()?.totals ?? this.readStats()),
+        scope: "all",
+      });
     }
     if (request.method === "POST" && url.pathname === "/load") {
       const event = (await request
@@ -324,15 +364,20 @@ export class AnalyticsDO {
       return new Response(null, { status: 204 });
     }
     if (request.method === "GET" && url.pathname === "/stats") {
-      return Response.json({ ...this.readStats(), scope: "all" });
+      return Response.json({
+        ...(this.replication.summary()?.totals ?? this.readStats()),
+        scope: "all",
+      });
     }
     if (request.method === "GET" && url.pathname === "/analytics") {
-      return Response.json(this.readAnalyticsSummary());
+      return Response.json(
+        this.replication.summary() ?? this.readAnalyticsSummary(),
+      );
     }
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  private backup(): Response {
+  private backupSnapshot(includeSync = true) {
     const tables = [
       "visitors",
       "daily_views",
@@ -344,8 +389,9 @@ export class AnalyticsDO {
       "analytics_points",
       "daily_visitor_counts",
       "load_times",
+      ...(includeSync ? ANALYTICS_SYNC_TABLES : []),
     ];
-    const snapshot = this.state.storage.transactionSync(() => {
+    return this.state.storage.transactionSync(() => {
       // Bound native-query results before copying any table into JS memory.
       let rowCount = 0;
       let rowBytes = 0;
@@ -385,6 +431,10 @@ export class AnalyticsDO {
         ),
       };
     });
+  }
+
+  private backup(): Response {
+    const snapshot = this.backupSnapshot();
     if (!snapshot)
       return Response.json({ error: "backup-too-large" }, { status: 413 });
     const body = JSON.stringify(snapshot);
@@ -458,6 +508,7 @@ export class AnalyticsDO {
         );
         this.trimPoints();
       }
+      this.replication.enqueue("hit", event, now);
     });
   }
 
@@ -549,6 +600,7 @@ export class AnalyticsDO {
           loadTimeBucket(ms),
         );
       }
+      this.replication.enqueue("load", event, now);
     });
   }
 
@@ -759,22 +811,31 @@ function isValidLoadTime(ms: unknown): ms is number {
   );
 }
 
-function isValidLoadEvent(event: PageLoadEvent | null): event is PageLoadEvent {
+function isValidLoadEvent(value: unknown): value is PageLoadEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Partial<PageLoadEvent>;
   return Boolean(
     event &&
+    typeof event.country === "string" &&
     /^[A-Z0-9]{2}$/.test(event.country) &&
     isValidLoadTime(event.ttfb) &&
     isValidLoadTime(event.shown),
   );
 }
 
-function isValidEvent(event: PageViewEvent | null): event is PageViewEvent {
+function isValidEvent(value: unknown): value is PageViewEvent {
+  if (!value || typeof value !== "object") return false;
+  const event = value as Partial<PageViewEvent>;
   return Boolean(
     event &&
+    typeof event.visitorHash === "string" &&
     /^[0-9a-f]{64}$/.test(event.visitorHash) &&
+    typeof event.path === "string" &&
     event.path.startsWith("/") &&
     event.path.length <= 120 &&
+    typeof event.country === "string" &&
     /^[A-Z0-9]{2}$/.test(event.country) &&
+    typeof event.source === "string" &&
     event.source.length > 0 &&
     event.source.length <= 120 &&
     (event.lat == null ||

@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch Canvas analytics synchronization independently
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=30s
+AccuracySec=1s
+Unit=canvas-cn-analytics-alert.service
+
+[Install]
+WantedBy=timers.target

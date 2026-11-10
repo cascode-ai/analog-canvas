@@ -1,0 +1,11 @@
+[Unit]
+Description=Synchronize Canvas visitor statistics in the background
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=30s
+AccuracySec=1s
+Unit=canvas-cn-analytics-sync.service
+
+[Install]
+WantedBy=timers.target

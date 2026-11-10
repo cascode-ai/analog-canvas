@@ -49,7 +49,9 @@ their likes and reviews use writer-owned replicas.
   `resource-version-unsupported`. Version 1 was never received in Production,
   so the two never mix.
 - Resource snapshots contain only their allowlisted resource tables. Private
-  Cloud Projects, sessions, credentials, live jobs and analytics are excluded.
+  Cloud Projects, sessions, credentials and live jobs are excluded.
+  Analytics uses its own [collection protocol](regional-analytics.md), never
+  publication snapshots.
   `gallery_entries.submitter_email` and `submitter_provider` never leave their
   region; a snapshot naming them is invalid and copies keep the column default.
   Owner IDs and private testbenches replicate; existing resource permissions

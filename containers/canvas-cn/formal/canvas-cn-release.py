@@ -25,7 +25,7 @@ import urllib.request
 SHA = re.compile(r'^[0-9a-f]{40}$')
 SAFE_PATH = re.compile(r'^(?!.*\.\.)[A-Za-z0-9_@+\-./]+$')
 SWITCHES = {'project-writes-enabled', 'resource-writes-enabled'}
-SYNC_TIMERS = ['canvas-cn-project-sync.timer', 'canvas-cn-resource-sync.timer']
+SYNC_TIMERS = ['canvas-cn-project-sync.timer', 'canvas-cn-resource-sync.timer', 'canvas-cn-analytics-sync.timer']
 # Only these timers start by themselves when a release first ships them;
 # replication timers stay an operator's decision.
 AUTO_TIMERS = {'canvas-cn-scheduled.timer', 'canvas-cn-release.timer',

@@ -82,6 +82,7 @@ def observe_sync_health(path, state, previous, health, now):
 def run(args):
     scope = getattr(args, 'scope', 'Project')
     service = {'Publication': 'canvas-cn-resource-sync.service',
+               'Analytics': 'canvas-cn-analytics-sync.service',
                'Release': 'canvas-cn-release.service'}.get(scope, 'canvas-cn-project-sync.service')
     endpoint = urllib.parse.urlsplit(args.mail_endpoint)
     local_test = endpoint.scheme == 'http' and endpoint.hostname == '127.0.0.1' and endpoint.path == '/emails'
@@ -179,7 +180,7 @@ def main():
         parser.add_argument('--' + flag, required=True)
     parser.add_argument('--mail-endpoint', default='https://api.resend.com/emails')
     parser.add_argument('--test', action='store_true')
-    parser.add_argument('--scope', choices=['Project', 'Publication', 'Release'], default='Project')
+    parser.add_argument('--scope', choices=['Project', 'Publication', 'Release', 'Analytics'], default='Project')
     parser.add_argument('--stale-seconds', type=int, default=120)
     args = parser.parse_args()
     try:
