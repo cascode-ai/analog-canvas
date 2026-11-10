@@ -549,6 +549,8 @@ export function fileOperationScopes(
         request.artifact === "project" ? "project.download" : "visual.download",
       ];
     case "review":
+      if (request.input.action === "locate")
+        return ["project.import", "editor.semantic-control"];
       return request.input.action === "prepare-save" ||
         request.input.action === "finish-save"
         ? ["project.import", "project.download"]

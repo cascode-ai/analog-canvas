@@ -113,6 +113,7 @@ import type {
   CircuitProject,
   DerivedPoint,
   GridRect,
+  ObjectLocator,
   Point,
   Rotation,
   SchematicDocument,
@@ -5320,6 +5321,7 @@ function WorkspaceEditor({
     isCloudManagementInFlight,
     renameShelfProject,
     localDelivery,
+    copyReviewFeedback,
     deleteShelfProject,
   } = useProjectTabSessions({
     hierarchyExpanded,
@@ -5372,6 +5374,11 @@ function WorkspaceEditor({
     openLocalProjectRef,
     reviewWorkspaceRef,
     localReviewRef,
+    locateReviewObject: (locator) =>
+      agentSemanticIntentRef.current({
+        documentId: locator.documentId,
+        intent: { kind: "select", locator },
+      }).ok,
     setAgentFileCandidate,
     setAnalogSimulationState,
     codeDraftDirty,
@@ -5913,6 +5920,41 @@ function WorkspaceEditor({
         openProjectInTabRef={openProjectInTabRef}
         agentFileCandidate={agentFileCandidate}
         localDelivery={localDelivery}
+        reviewFeedback={(() => {
+          if (
+            !localDelivery ||
+            !("taskRef" in localDelivery) ||
+            !localDelivery.taskRef
+          )
+            return undefined;
+          const instance =
+            selectedIds.length === 1
+              ? document.instances.find(({ id }) => id === selectedIds[0])
+              : undefined;
+          const net =
+            selectedHighlightIsActive && selectedHighlightNetId
+              ? document.nets.find(({ id }) => id === selectedHighlightNetId)
+              : undefined;
+          const object = net ?? instance;
+          if (!object) return undefined;
+          const sourceRef = net ? undefined : instance?.sourceRef;
+          const label = net
+            ? (logicalNets.byBaseNetId.get(net.id)?.name ?? net.id)
+            : (instance?.reference ?? object.id);
+          const locator: ObjectLocator = {
+            documentId: document.id,
+            hierarchyPath: documentStack,
+            kind: net ? "net" : "instance",
+            objectId: object.id,
+            ...(sourceRef ? { sourceRef } : {}),
+          };
+          return {
+            identity: JSON.stringify([project.id, locator]),
+            label: `${document.name} · ${label}`,
+            copy: (comment: string) =>
+              copyReviewFeedback(locator, label, comment),
+          };
+        })()}
         cloudBinding={cloudBinding}
         replaceGuard={replaceGuard}
         replaceGuardSaving={replaceGuardSaving}
