@@ -5,12 +5,15 @@ import { parseProject } from "@icm/project-protocol";
  * A stored Project's SPICE netlist, or why it cannot be written. `instances`
  * names each top-level device's first line (from 0), as the editor's
  * Project Code locates them, so a reader can find it in the drawing.
+ * `diagnostics` carries the export's findings except its info notes, as the
+ * netlist read pages report them, so one circuit's read misses nothing.
  */
 export function spiceNetlistOf(projectText: string):
   | {
       format: "spice";
       text: string;
       instances: { instanceId: string; line: number }[];
+      diagnostics: { severity: string; code: string; message: string }[];
     }
   | { format: "spice"; blocked: string[] } {
   try {
@@ -30,6 +33,9 @@ export function spiceNetlistOf(projectText: string):
     return {
       format: "spice",
       text,
+      diagnostics: result.diagnostics
+        .filter((diagnostic) => diagnostic.severity !== "info")
+        .map(({ severity, code, message }) => ({ severity, code, message })),
       instances: result.locations.instances
         .filter((place) => place.documentId === project.topDocumentId)
         .map((place) => ({

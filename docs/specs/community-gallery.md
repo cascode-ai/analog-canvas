@@ -134,9 +134,9 @@ entries, keyset cursor, limit ≤60.
 
 - `GET /api/gallery/<id>` returns canonical `projectText`; `?summary=1`
   the entry alone (with `&netlist=spice`, its netlist alone). `?netlist=spice` adds
-  `netlist: {format: "spice", text, instances: [{instanceId, line}]}` (each
-  top-level device's first line, from 0, as the editor's Project Code locates
-  it), or `{format: "spice", blocked}` with the error messages when the
+  `netlist: {format: "spice", text, instances: [{instanceId, line}], diagnostics: [{severity, code, message}]}`
+  (`instances`: each top-level device's first line, from 0, as the editor's
+  Project Code locates it; `diagnostics`: every finding but info notes), or `{format: "spice", blocked}` with the error messages when the
   drawing does not extract. Folders only for testbench
   readers
   ([Testbench privacy](#testbench-privacy)).
