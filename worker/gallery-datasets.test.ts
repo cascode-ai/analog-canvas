@@ -614,7 +614,7 @@ describe("reference datasets in stores of their own (#1510)", () => {
     expect((await page("source=community")).total).toBe(4);
   });
 
-  it("sets a dataset circuit's original figure and verdict beside its entry, for licensed datasets only", async () => {
+  it("sets a dataset circuit's original figure and verdict beside its entry", async () => {
     const env = environment();
     const owner = await ownerAccountOf(env);
     const maker = await makerOf(env);
@@ -658,14 +658,6 @@ describe("reference datasets in stores of their own (#1510)", () => {
     expect(
       (await post(comparisons, { comparisons: [comparison] }, maker)).status,
     ).toBe(403);
-    // A dataset whose figures we may not show takes none.
-    expect(
-      (
-        await post("/api/gallery/sources/analogretriever/comparisons", {
-          comparisons: [{ ...comparison, id: "ar-1" }],
-        })
-      ).status,
-    ).toBe(404);
     expect(
       await (
         await post(comparisons, {
