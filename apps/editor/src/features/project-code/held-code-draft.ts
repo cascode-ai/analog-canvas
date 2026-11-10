@@ -24,6 +24,7 @@ export function useHeldCodeDraft(sessionId: string) {
   const { value } = useSyncExternalStore(
     held.document.subscribe,
     held.document.snapshot,
+    held.document.snapshot,
   );
   return { document: held.document, dirty: value !== null };
 }

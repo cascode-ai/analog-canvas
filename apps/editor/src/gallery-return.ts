@@ -5,7 +5,7 @@
  * paging down to it, instead of starting at the first tile.
  */
 
-export const GALLERY_RETURN_KEY = "icm.gallery.return";
+const GALLERY_RETURN_KEY = "icm.gallery.return";
 
 /** How far past the loaded count the wall pages before it gives up. */
 const RETURN_PAGING_MARGIN = 120;
