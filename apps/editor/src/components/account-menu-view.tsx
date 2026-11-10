@@ -87,8 +87,7 @@ export default function AccountMenuView({
   const regionalHref = (choice?: string) => {
     const params = new URLSearchParams();
     if (resume) params.set("return", resume);
-    if (choice === "select") params.set("select", "true");
-    else if (choice) params.set("provider", choice);
+    if (choice) params.set("provider", choice);
     return loginUrl + (params.size ? "?" + params : "");
   };
   const loginHref = loginUrl ? regionalHref() : null;
@@ -108,15 +107,6 @@ export default function AccountMenuView({
         >
           {user.displayName}
         </a>
-        {loginUrl ? (
-          <a
-            className="account-switch-back"
-            data-testid="account-switch-login"
-            href={regionalHref("select")}
-          >
-            Switch account
-          </a>
-        ) : null}
         {user.switchedFrom ? (
           <button
             type="button"

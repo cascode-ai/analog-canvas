@@ -27,8 +27,9 @@ serves local authorization. Resource replication is owned by
 - Regional sign-in lists the authority's enabled GitHub, Google and email
   methods. Choosing a method starts that authentication even when an authority
   session exists; only an explicit continuation reuses the current account.
-  Signed-in regional users can open the same chooser to switch accounts.
-  Cancelling selection preserves the current regional session. Successful
+  Signed-in users have the same account-name entry as overseas, without an
+  additional regional Switch account link. Changing accounts uses the account
+  page's ordinary sign-out and sign-in flow. Successful
   authentication uses the authority's ordinary browser session and returns to
   the original regional page; provider identities remain separate.
 - Handoff codes are short-lived, single-use, browser-bound and redeemable only

@@ -422,8 +422,9 @@ describe("loadAccountState", () => {
     };
     const account = { providers, user };
     expect(markupFor(account)).toContain(">Ada</a>");
-    expect(markupFor(account)).toContain(
-      'href="/api/auth/regional/start?select=true"',
+    expect(markupFor(account)).toContain('href="/account"');
+    expect(markupFor(account)).not.toContain(
+      'data-testid="account-switch-login"',
     );
     const signedOut = markupFor({ ...account, user: null });
     expect(signedOut).toContain('href="/api/auth/regional/start"');

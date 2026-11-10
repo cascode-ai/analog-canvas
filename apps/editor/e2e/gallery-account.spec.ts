@@ -19,18 +19,18 @@ import { regionalAccounts } from "./regional-auth-fixture";
 
 const ALL_PROVIDERS = { github: true, google: true, email: true };
 
-test("regional sign-in offers email and can switch an existing account without silently reusing it", async ({
+test("regional sign-in offers email and changes accounts through sign-out without silently reusing one", async ({
   page,
   baseURL,
 }) => {
   const accounts = await regionalAccounts(baseURL!);
-  const enterCode = async (email: string) => {
+  const enterCode = async (email: string, returnPath = "/account") => {
     await page.getByLabel("邮箱", { exact: true }).fill(email);
     await page.getByRole("button", { name: "发送验证码" }).click();
     await expect(page.getByRole("status")).toHaveText("验证码已发送。");
     await page.getByLabel("验证码", { exact: true }).fill(accounts.emailCode());
     await page.getByRole("button", { name: "验证并继续" }).click();
-    await expect(page).toHaveURL(accounts.origin + "/account");
+    await expect(page).toHaveURL(accounts.origin + returnPath);
   };
   try {
     await page.goto(accounts.origin + "/account");
@@ -38,16 +38,24 @@ test("regional sign-in offers email and can switch an existing account without s
     await page.getByTestId("signin-email").click();
     await enterCode("first-choice@example.test");
     await expect(page.getByTestId("account-name")).toHaveText("first-choice");
-    await page.getByTestId("account-switch-login").click();
+    // The compatibility chooser remains reachable without a header shortcut.
+    await page.goto(
+      accounts.origin +
+        "/api/auth/regional/start?select=true&return=%2Faccount",
+    );
     await expect(
       page.getByRole("link", { name: "Continue with current account" }),
     ).toBeVisible();
-    // Cancelling selection preserves the already-established domestic session.
     await page.goto(accounts.origin + "/account");
     await expect(page.getByTestId("account-name")).toHaveText("first-choice");
-    await page.getByTestId("account-switch-login").click();
-    await enterCode("second-choice@example.test");
+    await page.getByTestId("account-tab-settings").click();
+    await page.getByTestId("account-signout").click();
+    await expect(page).toHaveURL(accounts.origin + "/");
+    await page.getByTestId("account-signin").locator("summary").click();
+    await page.getByTestId("signin-email").click();
+    await enterCode("second-choice@example.test", "/");
     await expect(page.getByTestId("account-name")).toHaveText("second-choice");
+    await page.getByTestId("account-name").click();
     await page.getByTestId("account-tab-settings").click();
     await page.getByTestId("account-signout").click();
     await page.getByTestId("account-signin").locator("summary").click();
