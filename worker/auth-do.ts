@@ -25,7 +25,7 @@ import {
   AccountDeletions,
   deletionRequestId,
 } from "./account-deletions";
-import { purgeTrustedDevices } from "./agent-device-trust";
+import { purgeTrustedDevices } from "./agent-device-directory";
 import type { AgentSessionNamespaceLike } from "./agent-session-runtime";
 import {
   coordinatesProjectDeletion,

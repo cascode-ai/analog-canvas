@@ -53,10 +53,8 @@ import {
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
 } from "./agent-session";
-import {
-  AgentDeviceTrustDirectory,
-  purgeTrustedDevices,
-} from "./agent-device-trust";
+import { AgentDeviceTrustDirectory } from "./agent-device-trust";
+import { purgeTrustedDevices } from "./agent-device-directory";
 
 const limits: Partial<AgentSessionLimits> = {
   claimTtlMs: 60_000,

@@ -15,7 +15,7 @@ import {
   type SessionUser,
 } from "./auth";
 import { REGIONAL_LEASE_MS } from "./regional-auth-contract";
-import { sha256Text } from "./agent-session-runtime";
+import { sha256Text } from "./sha256-text";
 
 const ORIGIN = "https://canvas.test";
 const REGIONAL_ORIGIN = "https://cn.canvas.test";

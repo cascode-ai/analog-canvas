@@ -4,7 +4,7 @@ import {
   type ArenaService,
 } from "./arena-account";
 import type { SessionUser } from "./auth-do";
-import { purgeTrustedDevices } from "./agent-device-trust";
+import { purgeTrustedDevices } from "./agent-device-directory";
 import type { AgentSessionNamespaceLike } from "./agent-session-runtime";
 import { GALLERY_SOURCES, galleryStoreName } from "./gallery-sources";
 import type { GalleryNamespaceLike, SqlStorage } from "./gallery-store";

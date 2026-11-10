@@ -12,7 +12,7 @@ import {
 import { GalleryDO } from "./gallery-do";
 import { RegionalProjectDO } from "./regional-projects";
 import { accounts, config, secret } from "./regional-auth.test-support";
-import { sha256Text } from "./agent-session-runtime";
+import { sha256Text } from "./sha256-text";
 import { RegionalSessionDO } from "./regional-session";
 
 afterEach(() => vi.unstubAllGlobals());

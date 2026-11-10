@@ -52,7 +52,6 @@ import {
   redeemClaimResponse,
   relayHeaders,
   requestLedgerKey,
-  sha256Text,
   simulationOperationScopes,
   projectOperationAccess,
   transportStatus,
@@ -63,12 +62,13 @@ import {
   type WebSocketPairConstructor,
 } from "./agent-session-runtime";
 import { AgentArtifacts } from "./agent-artifacts";
+import { DEVICE_TRUST_INTERNAL } from "./agent-device-directory";
 import {
   AgentDeviceTrustDirectory,
-  DEVICE_TRUST_INTERNAL,
   DeviceTrustClient,
   type DeviceTrustLink,
 } from "./agent-device-trust";
+import { sha256Text } from "./sha256-text";
 
 // requestId is session-wide; identical payloads in different Project bindings
 // must never replay an earlier Project's cached result.
