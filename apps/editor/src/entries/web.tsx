@@ -31,7 +31,12 @@ import type { WebEditorApp } from "./web-editor";
 import { configureWebServiceWorker } from "./web-service-worker";
 import { localhostExamplesEnabled } from "../gallery-source";
 import { arenaEntryRedirect } from "../arena-entry-address";
-import { saveAfterSignInRedirect } from "../document/save-after-sign-in";
+import {
+  forgetSaveOnSignIn,
+  saveAfterSignInRedirect,
+  settleSaveOnEditorOpen,
+} from "../document/save-after-sign-in";
+import { requestSignIn } from "../components/sign-in-request";
 import { isPhoneViewing } from "../phone-viewing";
 import { galleryEntryIdOfPath, isEditorPath } from "../page-routes";
 import {
@@ -48,7 +53,8 @@ export function mountWebEditor() {
     return;
   }
   // A GitHub or Google sign-in begun from a signed-out Save ends here, on
-  // the Gallery: the editor's tabs resume and the Save continues (#2161).
+  // the Gallery: the editor's tabs resume and the Save continues, or the
+  // editor says the sign-in failed (#2161).
   const savePath = saveAfterSignInRedirect(window.location);
   if (savePath) {
     window.location.replace(savePath);
@@ -77,6 +83,14 @@ export function mountWebEditor() {
   const startPath = window.location.pathname;
   // `/editor` and `/g/<id>`; a path no page serves is none of them (#2159).
   const editorRoute = isEditorPath(startPath);
+  // A sign-in begun from a Save has ended once the editor opens; one that
+  // failed says so in the sign-in choices, and the Save is pressed again.
+  if (editorRoute && settleSaveOnEditorOpen(window.location).signInFailed)
+    requestSignIn();
+  // Back from a provider the person left unchosen: that Save will not run.
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) forgetSaveOnSignIn();
+  });
   // Unpaired Gallery visitors must not download the Editor/Agent runtime.
   // The editor routes load it with the editor; /privacy and a recovered
   // Agent session hold it above the page.
