@@ -554,7 +554,7 @@ export function GalleryFeed({
       }}
     >
       <GalleryChrome
-        subtitle={view === "shelf" ? "My shelf" : "Community gallery"}
+        subtitle={view === "shelf" ? "My shelf" : undefined}
         visitStats={visitStats}
       />
 
