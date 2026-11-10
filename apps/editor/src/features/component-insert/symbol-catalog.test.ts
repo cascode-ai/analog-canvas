@@ -94,6 +94,10 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("npn")).toBe("Transistors");
     expect(symbolCategory("diode")).toBe("Extended Devices");
     expect(symbolCategory("zener-diode")).toBe("Extended Devices");
+    expect(symbolCategory("led")).toBe("Extended Devices");
+    expect(symbolCategory("speaker")).toBe("Extended Devices");
+    expect(symbolCategory("microphone")).toBe("Extended Devices");
+    expect(symbolCategory("potentiometer")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("externally-controlled-switch")).toBe("Switches");
@@ -162,6 +166,21 @@ describe("component insertion catalog", () => {
     expect(groups.map((group) => group.category)).toEqual(["Extended Devices"]);
     expect(symbols.map((symbol) => symbol.id)).toEqual(["variable-resistor"]);
     expect(symbols[0]?.pins.map((pin) => pin.name)).toEqual(["P1", "P2"]);
+  });
+
+  it("finds the LED as an LED and as a laser diode", () => {
+    for (const query of ["led", "laser"]) {
+      const symbols = flattenComponentCatalog(
+        componentCatalog("razavi-textbook-v1", query),
+      );
+      expect(symbols.map((symbol) => symbol.id)).toContain("led");
+      expect(symbols.find((symbol) => symbol.id === "led")?.pins).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "A" }),
+          expect.objectContaining({ name: "K" }),
+        ]),
+      );
+    }
   });
 
   it("offers both transconductance blocks in Analog Blocks without a unary plus", () => {
@@ -239,14 +258,18 @@ describe("component insertion catalog", () => {
 
     expect(extended?.symbols.map((symbol) => symbol.id)).toEqual([
       "variable-resistor",
+      "potentiometer",
       "variable-capacitor",
       "variable-inductor",
       "diode",
       "zener-diode",
+      "led",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
       "crystal",
+      "speaker",
+      "microphone",
       "depletion-nmos",
       "depletion-pmos",
       "ndmos",
@@ -263,6 +286,7 @@ describe("component insertion catalog", () => {
       "D-PMOS",
     );
     expect(libraryDisplayName("zener-diode", "Zener Diode")).toBe("Zener");
+    expect(libraryDisplayName("led", "LED or Laser Diode")).toBe("LED");
     expect(libraryDisplayName("port-filled", "Bias Voltage Port")).toBe(
       "Bias Voltage Port",
     );
@@ -323,14 +347,18 @@ describe("reach order inside a category", () => {
     ]);
     expect(ids("Extended Devices")).toEqual([
       "variable-resistor",
+      "potentiometer",
       "variable-capacitor",
       "variable-inductor",
       "diode",
       "zener-diode",
+      "led",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
       "crystal",
+      "speaker",
+      "microphone",
       "depletion-nmos",
       "depletion-pmos",
       "ndmos",

@@ -53,10 +53,14 @@ export function symbolCategory(symbolId: string): string {
       "variable-inductor",
       "diode",
       "zener-diode",
+      "led",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
       "crystal",
+      "speaker",
+      "microphone",
+      "potentiometer",
     ].includes(symbolId)
   ) {
     return EXTENDED_DEVICE_CATEGORY;
@@ -180,6 +184,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   ccvs: "CCVS",
   port: "Cell Pin",
   "zener-diode": "Zener",
+  led: "LED",
   "center-tap-inductor": "CT Coil",
 };
 
@@ -216,6 +221,12 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   port: "A terminal on this Cell interface — the parent circuit connects to it",
   "port-filled":
     "A solid bias-voltage port, typically used for VB-style bias nodes",
+  led: "Light-emitting or laser diode — electrically the Diode",
+  speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",
+  microphone:
+    "Microphone — electrically an independent voltage source (DC, AC, SIN…)",
+  potentiometer:
+    "Potentiometer — total resistance r, wiper W at fraction pos from end 1",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -292,14 +303,18 @@ const SYMBOL_ORDER: readonly string[] = [
   "d-flip-flop-q",
   "delay-cell",
   "variable-resistor",
+  "potentiometer",
   "variable-capacitor",
   "variable-inductor",
   "diode",
   "zener-diode",
+  "led",
   "tcoil",
   "center-tap-inductor",
   "xfmr",
   "crystal",
+  "speaker",
+  "microphone",
   "depletion-nmos",
   "depletion-pmos",
   "ndmos",

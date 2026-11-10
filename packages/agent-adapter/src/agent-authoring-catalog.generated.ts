@@ -1351,6 +1351,45 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "led",
+      name: "LED or Laser Diode",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      bounds: {
+        x: -20,
+        y: -15,
+        width: 40,
+        height: 22.34,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "externally-controlled-switch",
       name: "Externally Controlled Switch",
       category: "switch",
@@ -1810,6 +1849,112 @@ export const agentRazaviAuthoringCatalog = {
           at: {
             x: 20,
             y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "microphone",
+      name: "Microphone",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "dc",
+          default: "1",
+        },
+        {
+          name: "waveform",
+          default: "dc",
+          choices: ["dc", "pulse", "sin", "pwl"],
+        },
+        {
+          name: "pwlPoints",
+        },
+        {
+          name: "acMagnitude",
+        },
+        {
+          name: "acPhase",
+        },
+        {
+          name: "low",
+          default: "0",
+        },
+        {
+          name: "high",
+          default: "1",
+        },
+        {
+          name: "delay",
+          default: "0",
+        },
+        {
+          name: "rise",
+          default: "1ps",
+        },
+        {
+          name: "fall",
+          default: "1ps",
+        },
+        {
+          name: "width",
+          default: "5ns",
+        },
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "offset",
+          default: "0",
+        },
+        {
+          name: "amplitude",
+          default: "1",
+        },
+        {
+          name: "frequency",
+          default: "1k",
+        },
+        {
+          name: "damping",
+          default: "0",
+        },
+        {
+          name: "phase",
+          default: "0",
+        },
+      ],
+      bounds: {
+        x: -20.06,
+        y: -20,
+        width: 36.06,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
           },
         },
       ],
@@ -2957,6 +3102,65 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "potentiometer",
+      name: "Potentiometer",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "r",
+          default: "10k",
+        },
+        {
+          name: "pos",
+          default: "0.5",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -4.99,
+        y: -20,
+        width: 24.99,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "W",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "resistor",
       name: "Resistor",
       category: "passive",
@@ -3083,6 +3287,50 @@ export const agentRazaviAuthoringCatalog = {
           at: {
             x: 20,
             y: 10,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "speaker",
+      name: "Speaker",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "8",
+        },
+      ],
+      bounds: {
+        x: -3,
+        y: -20,
+        width: 14,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
           },
         },
       ],

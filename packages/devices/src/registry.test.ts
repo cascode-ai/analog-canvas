@@ -179,8 +179,39 @@ describe("built-in device registry", () => {
     expect(subcircuitDescriptor("battery")).toBeUndefined();
   });
 
+  it("gives the Speaker the resistor contract at 8 ohms", () => {
+    const resistor = deviceDescriptor("resistor")!;
+    expect(deviceDescriptor("speaker")).toEqual({
+      ...resistor,
+      id: "speaker",
+      symbolId: "speaker",
+      parameters: [
+        {
+          ...resistor.parameters[0],
+          placeholder: "8",
+          defaultValue: "8",
+          help: "Resistance standing in for the speaker's voice coil",
+        },
+      ],
+    });
+    expect(referencePolicyForSymbol("speaker")).toEqual(
+      referencePolicyForSymbol("resistor"),
+    );
+  });
+
+  it("gives the Microphone the voltage-source contract, V-prefixed", () => {
+    expect(deviceDescriptor("microphone")).toEqual({
+      ...deviceDescriptor("voltage-source"),
+      id: "microphone",
+      symbolId: "microphone",
+    });
+    expect(referencePolicyForSymbol("microphone")).toEqual(
+      referencePolicyForSymbol("voltage-source"),
+    );
+  });
+
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(69);
+    expect(builtInSubcircuitDescriptors).toHaveLength(70);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({
