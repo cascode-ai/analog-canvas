@@ -93,7 +93,7 @@ interface ReplaceGuardState {
 }
 
 /** What a Cloud Save that did not save says, in the status bar and dialogs. */
-export function cloudSaveFailureText(
+function cloudSaveFailureText(
   outcome: Exclude<CloudProjectSaveOutcome, { status: "saved" }>,
   limit: number,
 ): string {

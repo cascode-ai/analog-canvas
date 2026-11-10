@@ -225,9 +225,17 @@ export function classifyWheelSource(event: WheelSourceShape): WheelSource {
     // At a page zoom other than 100% Chromium divides a detent's deltaY by
     // the zoom (100 → 111.1 at 90%) and derives wheelDeltaY from it at the
     // wheel's 1.2 ratio (133), so neither the multiple of 120 nor a whole
-    // deltaY survives; the ratio does (#2169).
-    if (Math.abs(Math.abs(wheelDeltaY) - 1.2 * Math.abs(event.deltaY)) <= 1)
-      return "mouse";
+    // deltaY survives (#2169). A detent-sized, single-axis step at that
+    // ratio is no evidence of a surface, so it stays "unknown" — which
+    // zooms unless a trackpad gesture is under way — rather than "mouse",
+    // which would wipe a surface's evidence for the steps that follow.
+    if (
+      event.deltaX === 0 &&
+      Math.abs(wheelDeltaY) >= 60 &&
+      Math.abs(Math.abs(wheelDeltaY) - 1.2 * Math.abs(event.deltaY)) <=
+        0.02 * Math.abs(wheelDeltaY)
+    )
+      return "unknown";
   }
   // Two axes at once is a surface, not a wheel.
   if (event.deltaX !== 0) return "trackpad";

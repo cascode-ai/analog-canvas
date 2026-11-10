@@ -176,7 +176,7 @@ export function supplyPinsEdit(
  * never change. The same way, as the reference draws it, is the default.
  */
 const MIRRORABLE_WINDINGS = new Set(["xfmr"]);
-export const MIRRORED_WINDINGS_VARIANT = "mirrored";
+const MIRRORED_WINDINGS_VARIANT = "mirrored";
 
 export function componentWindingsMirrored(
   instance: Pick<Instance, "symbolId" | "symbolVariantId">,
