@@ -10,6 +10,7 @@ import {
 
 import "../../styles/review-page.css";
 import "./reference-panel.css";
+import type { EmbeddedReviewSource } from "../../agent/embedded-review-source";
 import { canvasInsetsFromOverlays } from "../../canvas/fit-view";
 import type { SessionUser } from "../../components/account";
 import { MarkablePicture } from "../../components/review-picture";
@@ -418,16 +419,9 @@ export interface ReferenceWindowProps {
   reviewFeedback?:
     | { identity: string; label: string; copy(comment: string): Promise<void> }
     | undefined;
-  localDelivery?:
-    | {
-        source?: import("@icm/agent-adapter").AgentLocalSource;
-        embeddedSource?: import("@icm/agent-adapter").EmbeddedReviewSource;
-        rnlAppearance?: import("@icm/rnl").RnlAppearance;
-        modified?: boolean;
-        recovered?: boolean;
-        reviewStatus?: string;
-      }
-    | undefined;
+  /** The netlist the drawing was imported from; `check` says how the drawing stands against it. */
+  importedSource?:
+    (EmbeddedReviewSource & { check(): Promise<string> }) | undefined;
   open: boolean;
   /** How often the person has asked for the window (File, status bar). */
   openings?: number;
@@ -454,6 +448,62 @@ export interface ReferenceWindowProps {
   fetchLike?: typeof fetch;
 }
 
+/** How the drawing stands against its netlist, compared again after each edit. */
+function ImportedSourceStatus({ check }: { check: () => Promise<string> }) {
+  const [status, setStatus] = useState("");
+  useEffect(() => {
+    let current = true;
+    setStatus("Comparing with the imported netlist…");
+    // A burst of edits compares once, after the last.
+    const timer = setTimeout(() => {
+      check().then(
+        (text) => {
+          if (current) setStatus(text);
+        },
+        (error: unknown) => {
+          if (current)
+            setStatus(error instanceof Error ? error.message : String(error));
+        },
+      );
+    }, 300);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [check]);
+  return <p data-testid="local-source-status">{status}</p>;
+}
+
+/** The netlist a Project was imported from, compared only while shown. */
+function ImportedSource({
+  source,
+}: {
+  source: NonNullable<ReferenceWindowProps["importedSource"]>;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="reference-local-source"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>Imported source</summary>
+      <p>{source.entryPath}</p>
+      <p>Source version (SHA-256)</p>
+      <code data-testid="local-source-version">{source.version}</code>
+      <ul>
+        {source.files.map(({ path, sha256 }) => (
+          <li key={path}>
+            <span>{path}</span>
+            <br />
+            <code>{sha256}</code>
+          </li>
+        ))}
+      </ul>
+      {open ? <ImportedSourceStatus check={source.check} /> : null}
+    </details>
+  );
+}
+
 function ReviewFeedback({
   label,
   copy,
@@ -466,7 +516,7 @@ function ReviewFeedback({
     setBusy(true);
     try {
       await copy(comment);
-      setStatus("Copied. Paste it into the original Agent chat.");
+      setStatus("Copied. Paste it into the Agent chat.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Copy failed");
     } finally {
@@ -525,7 +575,7 @@ export function ReferenceWindow({
   onImage,
   takesPaste,
   onSaved,
-  localDelivery,
+  importedSource,
   reviewFeedback,
   fetchLike = fetch,
 }: ReferenceWindowProps) {
@@ -673,8 +723,7 @@ export function ReferenceWindow({
       shows={
         shown !== null ||
         reviewFeedback !== undefined ||
-        localDelivery?.source !== undefined ||
-        localDelivery?.embeddedSource !== undefined
+        importedSource !== undefined
       }
       actions={
         <button
@@ -753,84 +802,11 @@ export function ReferenceWindow({
         {reviewFeedback ? (
           <ReviewFeedback key={reviewFeedback.identity} {...reviewFeedback} />
         ) : null}
-        {localDelivery?.source ? (
-          <details className="reference-local-source">
-            <summary>Imported source</summary>
-            <p>{localDelivery.source.entryPath}</p>
-            <p>Source version (SHA-256)</p>
-            <code data-testid="local-source-version">
-              {localDelivery.source.version}
-            </code>
-            {localDelivery.reviewStatus ? (
-              <p data-testid="local-review-status">
-                {localDelivery.reviewStatus}
-              </p>
-            ) : null}
-            {localDelivery.rnlAppearance ? (
-              <p data-testid="local-source-appearance">
-                {localDelivery.rnlAppearance === "canvas" &&
-                !localDelivery.source.diagnostics.some(
-                  ({ code }) => code === "RNL_IMPORT_SOURCE_APPEARANCE",
-                )
-                  ? "Canvas appearance"
-                  : "Source appearance"}
-              </p>
-            ) : null}
-            <p>
-              {localDelivery.modified
-                ? "Edited since import"
-                : "At imported revision"}
-            </p>
-            {localDelivery.recovered ? (
-              <p>Restored from this browser's saved tab snapshot.</p>
-            ) : null}
-            <p>
-              {localDelivery.source.electrical === "verified"
-                ? "Drawing checked against the imported netlist."
-                : "Drawing correspondence has not been verified."}
-            </p>
-            {localDelivery.source.diagnostics.length > 0 ? (
-              <ul aria-label="Import diagnostics">
-                {[
-                  ...new Set(
-                    localDelivery.source.diagnostics.map(
-                      ({ message }) => message,
-                    ),
-                  ),
-                ].map((message) => (
-                  <li key={message}>{message}</li>
-                ))}
-              </ul>
-            ) : null}
-            <ul>
-              {localDelivery.source.files.map((file) => (
-                <li key={file.path}>
-                  <span>{file.path}</span>
-                  <br />
-                  <code>{file.sha256}</code>
-                </li>
-              ))}
-            </ul>
-          </details>
-        ) : null}
-        {localDelivery?.embeddedSource ? (
-          <details className="reference-local-source">
-            <summary>Embedded netlist source</summary>
-            <p>{localDelivery.embeddedSource.entryPath}</p>
-            <p>Embedded source version (SHA-256)</p>
-            <code data-testid="embedded-source-version">
-              {localDelivery.embeddedSource.version}
-            </code>
-            <ul>
-              {localDelivery.embeddedSource.files.map(({ path, sha256 }) => (
-                <li key={path}>
-                  <span>{path}</span>
-                  <br />
-                  <code>{sha256}</code>
-                </li>
-              ))}
-            </ul>
-          </details>
+        {importedSource ? (
+          <ImportedSource
+            key={importedSource.version}
+            source={importedSource}
+          />
         ) : null}
         {entry ? (
           <dl className="reference-panel-facts">

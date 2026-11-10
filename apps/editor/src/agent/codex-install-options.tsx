@@ -1,4 +1,5 @@
 import {
+  AGENT_REVIEW_SKILL,
   codexSiteArchiveSetup,
   type AgentMcpBootstrapManifest,
 } from "@icm/agent-adapter";
@@ -84,7 +85,7 @@ export function CodexInstallOptions() {
                   setCopiedCommand("");
                 }}
               />
-              Include the Canvas review shortcut ($canvas-review)
+              Include the Canvas review shortcut (${AGENT_REVIEW_SKILL.name})
             </label>
           ) : null}
           <textarea

@@ -41,8 +41,9 @@ export interface StructuralComparisonOptions {
   parameters?: boolean | undefined;
   /** One device bound to the same name another way: model card or call. */
   bindings?: boolean | undefined;
-  /** Off, .model bodies, .param and preserved statements are ignored
-   * instead of making the result inconclusive. */
+  /** Off, .model bodies, .param, Cell parameters and preserved statements
+   * are left out and listed in `notes` instead of making the result
+   * inconclusive, and a parameter expression compares by its text. */
   declarations?: boolean | undefined;
   /** Preserve the exact original spans for a source writeback report. */
   referenceSpans?: boolean | undefined;
@@ -57,6 +58,8 @@ export interface StructuralComparison {
   summary: string;
   differences: StructuralDifference[];
   reasons: string[];
+  /** What the reference holds that a comparison without declarations left out. */
+  notes: string[];
   comparedCells: number;
 }
 
@@ -131,6 +134,68 @@ function targetName(instance: Instance): string | undefined {
 /** A .model card that only declares its type: `.model nch nmos`. */
 function declaresTypeOnly(model: CircuitIR["models"][number]): boolean {
   return model.rawParameters.replace(/[()\s]/gu, "") === "";
+}
+
+/** A title line and .end say nothing about the circuit. */
+function describesCircuit(
+  statement: CircuitIR["preservedStatements"][number],
+): boolean {
+  return !(
+    statement.kind === "directive" &&
+    (statement.name === "title" || statement.name === "end")
+  );
+}
+
+/** The reference's declarations a comparison without them leaves out, by kind. */
+function uncomparedDeclarations(ir: CircuitIR): string[] {
+  const line = (label: string, items: readonly string[]) => {
+    const unique = [...new Set(items)];
+    if (!unique.length) return [];
+    const shown = unique.slice(0, 8).join(", ");
+    return [
+      `${label}: ${shown}${unique.length > 8 ? `, and ${unique.length - 8} more` : ""}`,
+    ];
+  };
+  const preserved = ir.preservedStatements.filter(describesCircuit);
+  const includes = preserved.filter(
+    ({ kind, name }) =>
+      kind === "library" ||
+      (kind === "directive" && ["include", "inc", "lib"].includes(name)),
+  );
+  return [
+    ...line(
+      "Includes not read",
+      includes.map(({ rawText }) => rawText.trim().slice(0, 160)),
+    ),
+    ...line(
+      "Model cards not compared",
+      ir.models
+        .filter((model) => !declaresTypeOnly(model))
+        .map(({ name }) => name),
+    ),
+    ...line("Parameters not compared", [
+      ...ir.parameters.map(({ name }) => name),
+      ...ir.cells.flatMap((cell) =>
+        cell.parameters.map(({ name }) => `${cell.name}.${name}`),
+      ),
+    ]),
+    ...line(
+      "Statements not compared",
+      preserved
+        .filter((statement) => !includes.includes(statement))
+        .map(({ name }) => `.${name}`),
+    ),
+  ];
+}
+
+/** A parameter value as compared: its exact literal, or, with declarations
+ * out of scope, the text of an expression. */
+function comparedValue(
+  value: string | undefined,
+  literalValue: string | null,
+): string | null {
+  if (literalValue !== null || value === undefined) return literalValue;
+  return `text:${value.replace(/\s+/gu, "").toLowerCase()}`;
 }
 
 function summarize(comparison: Omit<StructuralComparison, "summary">): string {
@@ -213,15 +278,9 @@ export function compareCircuitIR(
     if (ir.unresolvedStatements.length)
       structural(`${label}: unparsed statements need manual comparison`);
     if (options.declarations === false) continue;
-    // A title line and .end say nothing about the circuit; nearly every
-    // file has them, and they made every comparison inconclusive.
-    const preserved = ir.preservedStatements.some(
-      (statement) =>
-        !(
-          statement.kind === "directive" &&
-          (statement.name === "title" || statement.name === "end")
-        ),
-    );
+    // Nearly every file has a title line and .end, and they made every
+    // comparison inconclusive.
+    const preserved = ir.preservedStatements.some(describesCircuit);
     // Conditionals and includes can add devices; bodies and .param cannot.
     if (preserved)
       structural(
@@ -277,6 +336,7 @@ export function compareCircuitIR(
     }
     if (
       options.parameters !== false &&
+      options.declarations !== false &&
       (a.parameters.length || e.parameters.length)
     )
       reasons.add(`${en}: parameterized hierarchy needs manual comparison`);
@@ -567,8 +627,9 @@ export function compareCircuitIR(
         const evn =
           ev === undefined ? absentLiteral(ei, param) : literal(ei, param, ev);
         if (
-          (av !== undefined && avn === null) ||
-          (ev !== undefined && evn === null)
+          options.declarations !== false &&
+          ((av !== undefined && avn === null) ||
+            (ev !== undefined && evn === null))
         ) {
           reasons.add(
             `${en}/${ref}/${param}: expression, nonliteral or over-budget literal needs manual comparison`,
@@ -577,7 +638,7 @@ export function compareCircuitIR(
         }
         // Compare exact decimal identities, but retain source evidence instead
         // of reporting rounded values (which could even look equal).
-        if (avn !== evn)
+        if (comparedValue(av, avn) !== comparedValue(ev, evn))
           difference(
             "parameter",
             en,
@@ -638,6 +699,8 @@ export function compareCircuitIR(
         : "equal",
     differences,
     reasons: [...reasons],
+    notes:
+      options.declarations === false ? uncomparedDeclarations(expected) : [],
     comparedCells,
   } satisfies Omit<StructuralComparison, "summary">;
   return { ...comparison, summary: summarize(comparison) };

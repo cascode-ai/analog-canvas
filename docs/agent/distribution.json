@@ -537,6 +537,29 @@
       "requires": []
     }
   ],
+  "skills": [
+    {
+      "name": "canvas-review",
+      "source": "docs/agent/skills/canvas-review",
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "reads": [
+        {
+          "document": "reference/quickstart"
+        },
+        {
+          "document": "reference/mcp-tools",
+          "section": "From a netlist to a review"
+        }
+      ],
+      "hosts": {
+        "codex": "0.17.97",
+        "claudeCode": "0.17.104"
+      }
+    }
+  ],
   "templates": {
     "apiHelp": "docs/agent/http-kit/api-help.json",
     "connect": "docs/agent/entrypoints/connect.md",

@@ -2,6 +2,7 @@ import type { CircuitProject } from "@icm/model";
 import { findBuiltInBodies } from "@icm/netlist";
 import {
   convertNetlist,
+  decodeSourceContent,
   isSpectreSource,
   type SpiceBuiltInBody,
   type SpiceDiagnostic,
@@ -194,4 +195,34 @@ export function prepareImportSources(
       return locate ? locate(line) : { path, line };
     },
   };
+}
+
+/**
+ * The line of a source record's original text that a line of its parsed text
+ * came from. Converting the original again must give the parsed text the
+ * record holds; otherwise the lines cannot be matched.
+ */
+export function originalSourceLine(
+  record: CircuitProject["source"]["files"][number],
+  line: number,
+): number | undefined {
+  if (!record.originalContent) return line;
+  try {
+    const prepared = prepareImportSources([
+      {
+        path: record.path,
+        bytes: new TextEncoder().encode(record.originalContent.text),
+      },
+    ]);
+    const parsed = prepared.inputs.find(({ path }) => path === record.path);
+    if (
+      !parsed ||
+      decodeSourceContent(parsed.bytes).text !== record.content?.text
+    )
+      return undefined;
+    const location = prepared.originalLocation(record.path, line);
+    return location?.path === record.path ? location.line : undefined;
+  } catch {
+    return undefined;
+  }
 }

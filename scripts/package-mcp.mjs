@@ -6,7 +6,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { build } from "vite";
@@ -71,12 +71,17 @@ await writeFile(
 );
 await chmod(executable, 0o755).catch(() => undefined);
 
-const skill = "canvas-review";
-const skillSource = resolve(root, "docs/agent/codex/skills", skill);
-const skillOutput = resolve(output, "skills", skill);
-await mkdir(resolve(skillOutput, "agents"), { recursive: true });
-for (const member of ["SKILL.md", "agents/openai.yaml"])
-  await copyFile(resolve(skillSource, member), resolve(skillOutput, member));
+// The registry names each optional Skill and its files; the installer reads
+// them from these archive paths.
+const { skills } = JSON.parse(
+  await readFile(resolve(root, "docs/agent/distribution.json"), "utf8"),
+);
+for (const skill of skills)
+  for (const member of skill.files) {
+    const target = resolve(output, "skills", skill.name, member);
+    await mkdir(dirname(target), { recursive: true });
+    await copyFile(resolve(root, skill.source, member), target);
+  }
 
 await writeFile(
   resolve(output, "package.json"),

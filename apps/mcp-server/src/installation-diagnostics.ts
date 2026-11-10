@@ -1,3 +1,5 @@
+import { AGENT_REVIEW_SKILL } from "@icm/agent-adapter";
+
 export type InstallationStage =
   | "arguments"
   | "runtime"
@@ -42,7 +44,7 @@ export function installationFailureAt(
   const failures = {
     arguments: [
       "INSTALL_ARGUMENTS_INVALID",
-      "Use --install --origin <exact HTTPS origin> --host codex|config; Codex also accepts --skill canvas-review",
+      `Use --install --origin <exact HTTPS origin> --host codex|config, optionally with --skill ${AGENT_REVIEW_SKILL.name}`,
       "stop",
     ],
     runtime: [

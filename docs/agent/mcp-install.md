@@ -41,15 +41,18 @@ path). Updating is explicit. Without installer support, use the manifest's confi
 launch configuration; never infer flags from another version or assume an old
 package has the installer.
 
-In the web editor, open **Agent → Codex setup**. On a site serving the
-verified archive, select **Include the Canvas review shortcut** to install MCP
-and the optional skill with one command (`hosts.codex.reviewCommand`). It
-installs the skill under `~/.agents/skills/canvas-review` and preserves a
-skill already at that path. The MCP registration is per site and the skill
-can use any matching registration. Invoke `$canvas-review` in a Codex chat,
-or pick it through `/skills` in Codex CLI. Include the source path and,
-optionally, the Cell and Web or image preference. Plain-language requests
-continue to use the same MCP workflow.
+The optional `canvas-review` Skill installs with MCP in one command on a site
+serving the verified archive: `hosts.codex.reviewCommand` for Codex (in the
+web editor, **Agent → Codex setup** → **Include the Canvas review shortcut**)
+and `hosts.claudeCode.reviewCommand` for Claude Code. It goes under
+`~/.agents/skills/canvas-review` or `~/.claude/skills/canvas-review`. A later
+run updates a copy the installer wrote; a Skill it did not write, or one
+edited since, stays and the installer stops with `SKILL_PATH_OCCUPIED`. The
+MCP registration is per site and the Skill can use any matching registration.
+Invoke `$canvas-review` in Codex (or pick it through `/skills` in Codex CLI)
+or `/canvas-review` in Claude Code. Include the source path and, optionally,
+the Cell and Web or image preference. Plain-language requests continue to use
+the same MCP workflow.
 
 Configuration success does not mean tools are loaded in this conversation:
 verify callable tools and `connection_status({refresh:false})` (version, API

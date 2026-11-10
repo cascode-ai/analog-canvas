@@ -6,7 +6,7 @@ import {
   SimulationFileResultSchema,
 } from "@icm/simulation-service/files";
 import { ProblemSchema } from "@icm/simulation-service/contract";
-import { GridRectSchema, ObjectLocatorSchema } from "@icm/model";
+import { GridRectSchema } from "@icm/model";
 
 import { AGENT_API_VERSION } from "./schema.js";
 
@@ -152,9 +152,6 @@ export const AgentReviewTargetSchema = z.strictObject({
 const AgentReviewReceiptSchema = AgentReviewTargetSchema.extend({
   sourceStatus:
     AgentLocalProjectReceiptSchema.shape.document.shape.sourceStatus,
-  modified: z.boolean().optional(),
-  recovered: z.boolean().optional(),
-  unsaved: z.boolean().optional(),
   unplacedInstances: z.number().int().nonnegative(),
   bounds: GridRectSchema.optional(),
 });
@@ -170,62 +167,18 @@ export function matchesAgentReviewTarget(
   );
 }
 
-const LocalReviewTargetSchema = AgentReviewTargetSchema.extend({
-  workspaceId: StableIdSchema,
-  sourceVersion: Sha256Schema,
-});
-export type LocalReviewTarget = z.infer<typeof LocalReviewTargetSchema>;
-
-const EmbeddedReviewSourceSchema = z.strictObject({
-  entryPath: z.string().min(1),
-  version: Sha256Schema,
-  files: z.array(
-    z.strictObject({ path: z.string().min(1), sha256: Sha256Schema }),
-  ),
-});
-export type EmbeddedReviewSource = z.infer<typeof EmbeddedReviewSourceSchema>;
-
-const LocalReviewDeliverySchema = z.strictObject({
-  target: LocalReviewTargetSchema,
-  projectRevision: Sha256Schema,
-  copy: z.enum(["working", "original"]),
-  status: z.enum(["awaiting-drawing", "ready"]),
-  unsaved: z.boolean(),
-  embeddedSource: EmbeddedReviewSourceSchema.optional(),
-});
-export type LocalReviewDelivery = z.infer<typeof LocalReviewDeliverySchema>;
-
-const ReadLocalReviewSchema = z.strictObject({ action: z.literal("read") });
-const MarkLocalReviewReadySchema = z.strictObject({
-  action: z.literal("mark-ready"),
-  expected: LocalReviewTargetSchema,
-  projectRevision: Sha256Schema,
-});
-const OpenLocalReviewOriginalSchema = MarkLocalReviewReadySchema.extend({
-  action: z.literal("open-original"),
-});
-const CompareLocalReviewSchema = MarkLocalReviewReadySchema.extend({
-  action: z.literal("changes"),
-});
-const ReviewSourceFilesSchema = z.strictObject({
-  entryPath: z.string().min(1).max(512),
-  files: z.array(AgentFileBlobSchema).min(1).max(AGENT_FILE_RESOURCE_MAX_FILES),
-});
-export type ReviewSourceFiles = z.infer<typeof ReviewSourceFilesSchema>;
-export const VerifyReviewSourceSchema = CompareLocalReviewSchema.omit({
-  action: true,
-}).extend({
-  rootPath: z.string().min(1),
-  entryPath: z.string().min(1),
-});
 const ComparisonStatusSchema = z.enum(["equal", "different", "inconclusive"]);
+/** The drawing against the delivered netlist, over the whole design. */
 const ReviewComparisonSchema = z.strictObject({
   sourceVersion: Sha256Schema,
   status: ComparisonStatusSchema,
   topology: ComparisonStatusSchema,
   summary: z.string(),
   comparedCells: z.number().int().nonnegative(),
+  /** Why the result is inconclusive. */
   reasons: z.array(z.string()),
+  /** What the comparison left out, such as model cards and includes. */
+  notes: z.array(z.string()),
   differences: z
     .array(
       z.strictObject({
@@ -244,31 +197,30 @@ const ReviewComparisonSchema = z.strictObject({
     )
     .max(200),
   detailsTruncated: z.boolean(),
-  drawingChanged: z.boolean(),
 });
-const LocateLocalReviewObjectSchema = MarkLocalReviewReadySchema.extend({
-  action: z.literal("locate"),
-  locator: ObjectLocatorSchema.extend({ kind: z.enum(["instance", "net"]) }),
-});
-const PrepareLocalReviewSaveSchema = MarkLocalReviewReadySchema.extend({
-  action: z.literal("prepare-save"),
-});
-const FinishLocalReviewSaveSchema = z.strictObject({
-  action: z.literal("finish-save"),
-  saveId: StableIdSchema,
-});
+export type ReviewComparison = z.infer<typeof ReviewComparisonSchema>;
 
-export const LocalReviewDeliveryArgsSchema = z.discriminatedUnion("action", [
-  ReadLocalReviewSchema,
-  MarkLocalReviewReadySchema,
-  OpenLocalReviewOriginalSchema,
-  CompareLocalReviewSchema,
-  LocateLocalReviewObjectSchema,
-  PrepareLocalReviewSaveSchema.extend({
-    action: z.literal("save"),
-    outputPath: z.string().min(1).describe("A new local .icproj.json file"),
+/** A delivered working copy as it is now; Canvas keeps no review state. */
+const LocalReviewDeliverySchema = z.strictObject({
+  workspaceId: StableIdSchema,
+  source: z.strictObject({
+    entryPath: z.string().min(1),
+    version: Sha256Schema,
   }),
-]);
+  /** Cells whose drawing still lacks an Instance or a connection. */
+  incompleteCells: z.array(
+    z.strictObject({
+      documentId: StableIdSchema,
+      name: z.string(),
+      unplacedInstances: z.number().int().nonnegative(),
+      /** Null where the Cell's import reference is unavailable. */
+      unroutedConnections: z.number().int().nonnegative().nullable(),
+    }),
+  ),
+});
+export type LocalReviewDelivery = z.infer<typeof LocalReviewDeliverySchema>;
+
+export const LocalReviewDeliveryArgsSchema = z.strictObject({});
 
 export const AgentFileDownloadOptionsSchema = z
   .strictObject({
@@ -385,17 +337,6 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("review"),
-      input: z.discriminatedUnion("action", [
-        ReadLocalReviewSchema,
-        MarkLocalReviewReadySchema,
-        OpenLocalReviewOriginalSchema,
-        CompareLocalReviewSchema.extend({
-          reference: ReviewSourceFilesSchema.optional(),
-        }),
-        LocateLocalReviewObjectSchema,
-        PrepareLocalReviewSaveSchema,
-        FinishLocalReviewSaveSchema,
-      ]),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("inspect"),
@@ -519,27 +460,8 @@ export const AgentFileResourceResponseSchema = z.union([
   FileResponseBaseSchema.extend({
     operation: z.literal("review"),
     ok: z.literal(true),
-    result: z.discriminatedUnion("action", [
-      z.strictObject({
-        action: z.enum(["read", "mark-ready", "open-original", "locate"]),
-        delivery: LocalReviewDeliverySchema,
-      }),
-      z.strictObject({
-        action: z.literal("changes"),
-        delivery: LocalReviewDeliverySchema,
-        comparison: ReviewComparisonSchema,
-      }),
-      z.strictObject({
-        action: z.literal("prepare-save"),
-        delivery: LocalReviewDeliverySchema,
-        saveId: StableIdSchema,
-        artifact: AgentFileBlobSchema,
-      }),
-      z.strictObject({
-        action: z.literal("finish-save"),
-        canvasSaved: z.boolean(),
-      }),
-    ]),
+    delivery: LocalReviewDeliverySchema,
+    comparison: ReviewComparisonSchema,
   }),
   FileResponseBaseSchema.extend({
     operation: z.enum([

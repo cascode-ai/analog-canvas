@@ -1094,10 +1094,18 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
       }),
       env,
     );
-  const paired = async (scopes: AgentSessionScope[]) => {
+  let pairings = 0;
+  const paired = async (
+    scopes: AgentSessionScope[],
+    body: object = {
+      apiVersion: "3.0",
+      requestId: "claim-review",
+      operation: "review",
+    },
+  ) => {
     const create = await post("/api/agent/sessions", {
       projectId: "project",
-      projectSessionId: `workspace-${scopes.length}`,
+      projectSessionId: `workspace-${++pairings}`,
       documentIds: ["main"],
       scopes,
     });
@@ -1116,12 +1124,7 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
     sockets.set(session.sessionId, [browser.socket]);
     const review = await post(
       `/api/agent/sessions/${session.sessionId}/files`,
-      {
-        apiVersion: "3.0",
-        requestId: "claim-review",
-        operation: "review",
-        input: { action: "finish-save", saveId: "candidate" },
-      },
+      body,
       agentToken,
     );
     return { review: review!, families: browser.families };
@@ -1134,12 +1137,30 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
     ok: false,
     error: { code: "REVIEW_WORKSPACE_REQUIRED" },
   });
-  const ungranted = await paired(["project.download"]);
-  expect(ungranted.review.status).toBe(403);
-  expect(ungranted.families).toEqual([]);
-  expect(await ungranted.review.json()).toMatchObject({
-    error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+  // A review action an adapter before 0.17.104 sends is refused unforwarded.
+  const retired = await paired(["project.import", "project.download"], {
+    apiVersion: "3.0",
+    requestId: "claim-review-read",
+    operation: "review",
+    input: { action: "read" },
   });
+  expect(retired.review.status).toBe(400);
+  expect(retired.families).toEqual([]);
+  expect(await retired.review.json()).toMatchObject({
+    error: { code: "FILE_CONTENT_INVALID" },
+  });
+  // A review reads the netlist back, as a Project download does.
+  for (const scopes of [
+    ["project.download"],
+    ["project.import"],
+  ] satisfies AgentSessionScope[][]) {
+    const ungranted = await paired(scopes);
+    expect(ungranted.review.status).toBe(403);
+    expect(ungranted.families).toEqual([]);
+    expect(await ungranted.review.json()).toMatchObject({
+      error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+    });
+  }
 });
 
 /** A live editor whose Project and Cell carry the session's identities. */

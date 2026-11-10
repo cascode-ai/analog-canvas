@@ -226,10 +226,11 @@ reconciles, never blindly replays.
   Project's authored Testbench: listing or reading it needs `project.download`,
   saving it `project.import` (+ connectivity edit if it edits the circuit),
   never `simulation.run`. `gallery.publish` is independent of edit scopes;
-  older sessions need a new connection for it. `review` confirms a delivered
-  local review copy with the scopes `fileOperationScopes` gives each action;
-  the editor answers it only for that copy's tab, whether the session came
-  from `open_canvas` or a Claim.
+  older sessions need a new connection for it. `review` reads a Project
+  imported from a netlist back against that netlist, so it needs
+  `project.import` and `project.download`; the editor answers it for the
+  session's tab, whether the session came from `open_canvas`, a trusted
+  device or a Claim.
 - A trusted-device task holds `TRUSTED_REVIEW_SCOPES` and none of the Project
   operations `projectOperationAccess` marks `reachesAccount` (Cloud Projects,
   Gallery, the component library); both live in

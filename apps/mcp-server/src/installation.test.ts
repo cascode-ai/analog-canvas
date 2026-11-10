@@ -5,7 +5,6 @@ import {
   writeFile,
   readFile,
   mkdir,
-  rename,
   rm,
   symlink,
 } from "node:fs/promises";
@@ -420,25 +419,37 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');
       await expect(
         installMcp(reviewArgs, { home: directory, codex }),
       ).resolves.toMatchObject({
-        skill: { status: "already-present", path: skill },
+        skill: { status: "already-current", path: skill },
       });
-      await writeFile(skillFile, "My review guidance\n");
+      // Claude Code (the generic installation) loads the same Skill from its
+      // own profile. Each refusal case: install-skill.test.ts.
+      const claudeSkill = join(directory, ".claude", "skills", "canvas-review");
+      const claudeArgs = [
+        "--origin",
+        launch.env.ANALOG_CANVAS_API_URL,
+        "--host",
+        "config",
+        "--skill",
+        "canvas-review",
+      ];
       await expect(
-        installMcp(reviewArgs, { home: directory, codex }),
+        installMcp(claudeArgs, { home: directory, codex }),
       ).resolves.toMatchObject({
-        skill: { status: "already-present", path: skill },
+        skill: { status: "installed", path: claudeSkill },
       });
-      expect(await readFile(skillFile, "utf8")).toBe("My review guidance\n");
-      await rename(skill, `${skill}.user-copy`);
-      await mkdir(join(skill, "SKILL.md"), { recursive: true });
+      expect(await readFile(join(claudeSkill, "SKILL.md"), "utf8")).toBe(
+        "Bundled review guidance\n",
+      );
+      // A copy the user edited stays, and the installation says why.
+      await writeFile(join(claudeSkill, "SKILL.md"), "My review guidance\n");
       await expect(
-        installMcp(reviewArgs, { home: directory, codex }),
+        installMcp(claudeArgs, { home: directory, codex }),
       ).rejects.toMatchObject({
         diagnostic: { stage: "skill-config", code: "SKILL_PATH_OCCUPIED" },
       });
-      expect(
-        await readFile(join(`${skill}.user-copy`, "SKILL.md"), "utf8"),
-      ).toBe("My review guidance\n");
+      expect(await readFile(join(claudeSkill, "SKILL.md"), "utf8")).toBe(
+        "My review guidance\n",
+      );
       configured = await readFile(config, "utf8");
       expect(configured).toContain(localBlock);
       expect(configured.match(/ANALOG_CANVAS_API_URL =/gu)).toHaveLength(2);

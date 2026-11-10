@@ -220,8 +220,8 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   await expect(page.getByTestId("local-source-version")).toHaveText(
     source.version,
   );
-  await expect(page.getByTestId("local-source-appearance")).toHaveText(
-    "Canvas appearance",
+  await expect(page.getByTestId("local-source-status")).toHaveText(
+    "Matches the imported netlist",
   );
   await expect(page.getByText("draw.rnl", { exact: true })).toBeVisible();
   const initial = await tool("get_context", {});
@@ -259,7 +259,6 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
     review: {
       ...deliveredTarget,
       workspaceGeneration: expect.any(String),
-      modified: false,
       unplacedInstances: 0,
     },
   });
@@ -350,12 +349,13 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
     review: {
       ...target,
       revision: reused.delivery.document.revision,
-      modified: true,
     },
   });
-  await expect(
-    page.getByText("Edited since import", { exact: true }),
-  ).toBeVisible();
+  // A part placed but not wired blocks the structural export, and the
+  // status says the drawing could not be compared rather than guessing.
+  await expect(page.getByTestId("local-source-status")).toHaveText(
+    /^Not fully compared with the imported netlist: The current structural export is blocked; /u,
+  );
   await page.reload();
   expect(await tool("open_canvas", {})).toMatchObject({ ok: true, sessionId });
   expect(await deliver()).toMatchObject({
@@ -382,7 +382,6 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
       workspaceId,
       revision: editedTarget.revision,
       sourceVersion: source.version,
-      recovered: true,
     },
   });
   expect(recoveredPicture.review.workspaceGeneration).not.toBe(
@@ -495,7 +494,7 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   await tool("disconnect", {});
 });
 
-test("copies an object review reference and locates only its reviewed revision", async ({
+test("copies a review comment on an object as plain text", async ({
   context,
   baseURL,
   accountName: _accountName,
@@ -505,7 +504,7 @@ test("copies an object review reference and locates only its reviewed revision",
   const { entryPath, packagePath, packageText } =
     await prepareReviewSource(rootPath);
   await writeFile(packagePath, packageText);
-  const { page, tool, taskRef } = await openFileTask(
+  const { page, tool } = await openFileTask(
     context,
     baseURL!,
     testInfo.outputPath("connector.json"),
@@ -528,18 +527,24 @@ test("copies an object review reference and locates only its reviewed revision",
     ({ id }) => id === loaded.delivery.document.id,
   )!;
   const resistor = cell.instances.find(({ reference }) => reference === "R1")!;
-  const locator = {
-    documentId: cell.id,
-    hierarchyPath: [],
-    kind: "instance",
-    objectId: resistor.id,
-  };
   const selection = await tool("circuit_view", {
-    actions: [{ kind: "focus", intent: { kind: "select", locator } }],
+    actions: [
+      {
+        kind: "focus",
+        intent: {
+          kind: "select",
+          locator: {
+            documentId: cell.id,
+            hierarchyPath: [],
+            kind: "instance",
+            objectId: resistor.id,
+          },
+        },
+      },
+    ],
   });
   expect(selection).toMatchObject({ ok: true });
-  const resistorHit = page.getByTestId("hit-R1");
-  await expect(resistorHit).toHaveClass(/selected/u);
+  await expect(page.getByTestId("hit-R1")).toHaveClass(/selected/u);
 
   const panel = page.getByRole("button", {
     name: "Review feedback",
@@ -550,44 +555,36 @@ test("copies an object review reference and locates only its reviewed revision",
       .getByRole("button", { name: "Project Info", exact: true })
       .click();
   await panel.click();
-  await page.getByLabel("Review comment").fill("Check the connection at R1.");
-  const copied = page.getByText(
-    "Copied. Paste it into the original Agent chat.",
-    {
-      exact: true,
-    },
-  );
-  await page
-    .getByRole("button", { name: "Copy review feedback", exact: true })
-    .click();
+  const comment = page.getByLabel("Review comment");
+  const copy = page.getByRole("button", {
+    name: "Copy review feedback",
+    exact: true,
+  });
+  const copied = page.getByText("Copied. Paste it into the Agent chat.", {
+    exact: true,
+  });
+  // The system clipboard may hand the lines back with CRLF.
+  const clipboard = async () =>
+    (await page.evaluate(() => navigator.clipboard.readText())).replaceAll(
+      "\r\n",
+      "\n",
+    );
+  await comment.fill("Check the connection at R1.");
+  await copy.click();
   await expect(copied).toBeVisible();
-  const feedback = await page.evaluate(() => navigator.clipboard.readText());
-  expect(feedback).toContain("Check the connection at R1.");
-  expect(feedback).toContain("R1");
-  expect(feedback).toContain("Original source location unavailable");
-  const reference = JSON.parse(
-    feedback.match(/\x60\x60\x60json\r?\n([\s\S]*?)\r?\n\x60\x60\x60/u)![1]!,
+  // An RNL-annotated file converts through its drawing package, so its
+  // line cannot be matched and is left out (plain Spectre: unit test).
+  expect(await clipboard()).toBe(
+    [
+      "Canvas review feedback",
+      `Cell: ${cell.name}`,
+      `Object: R1 (instance ${resistor.id})`,
+      "",
+      "Check the connection at R1.",
+    ].join("\n"),
   );
-  const read = await tool("review_delivery", { action: "read" });
-  expect(reference).toMatchObject({
-    taskRef,
-    action: "locate",
-    expected: read.delivery.target,
-    projectRevision: read.delivery.projectRevision,
-    locator,
-  });
-  await tool("circuit_view", {
-    actions: [{ kind: "focus", intent: { kind: "clear-focus" } }],
-  });
-  await expect(resistorHit).not.toHaveClass(/selected/u);
-  expect(await tool("review_delivery", reference)).toMatchObject({
-    ok: true,
-    action: "locate",
-    delivery: { projectRevision: reference.projectRevision },
-  });
-  await expect(resistorHit).toHaveClass(/selected/u);
-  await panel.click();
-  await page.getByLabel("Review comment").fill("Draft from the older drawing.");
+  // An edit elsewhere keeps the comment being written for the same object.
+  await comment.fill("Draft that outlives an edit.");
   expect(
     await tool("apply_actions", {
       actions: [
@@ -599,47 +596,31 @@ test("copies an object review reference and locates only its reviewed revision",
       ],
     }),
   ).toMatchObject({ ok: true, applied: true });
-  expect(await tool("review_delivery", reference)).toMatchObject({
-    ok: false,
-    error: { code: "REVIEW_TARGET_CHANGED" },
-  });
-  await expect(page.getByLabel("Review comment")).toHaveCount(0);
+  await expect(comment).toHaveValue("Draft that outlives an edit.");
+
   const net = cell.nets.find(({ id }) =>
     cell.routes.some(({ netId }) => netId === id),
   )!;
-  const highlight = {
-    kind: "focus",
-    intent: { kind: "highlight-net", netId: net.id },
-  };
-  expect(await tool("circuit_view", { actions: [highlight] })).toMatchObject({
-    ok: true,
-  });
+  expect(
+    await tool("circuit_view", {
+      actions: [
+        { kind: "focus", intent: { kind: "highlight-net", netId: net.id } },
+      ],
+    }),
+  ).toMatchObject({ ok: true });
   await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
-  await expect(resistorHit).not.toHaveClass(/selected/u);
   await panel.click();
-  await page.getByLabel("Review comment").fill("Check the highlighted Net.");
-  await page
-    .getByRole("button", { name: "Copy review feedback", exact: true })
-    .click();
+  await comment.fill("Check the highlighted Net.");
+  await copy.click();
   await expect(copied).toBeVisible();
-  const netFeedback = await page.evaluate(() => navigator.clipboard.readText());
-  const netReference = JSON.parse(
-    netFeedback.match(/\x60\x60\x60json\r?\n([\s\S]*?)\r?\n\x60\x60\x60/u)![1]!,
-  );
-  expect(netReference.locator).toMatchObject({ kind: "net", objectId: net.id });
-  await tool("circuit_view", {
-    actions: [{ kind: "focus", intent: { kind: "clear-focus" } }],
-  });
-  await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
-  expect(await tool("review_delivery", netReference)).toMatchObject({
-    ok: true,
-    action: "locate",
-  });
-  await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+  const netFeedback = await clipboard();
+  expect(netFeedback).toContain(`(net ${net.id})`);
+  expect(netFeedback).not.toContain("Source:");
+  expect(netFeedback.endsWith("\n\nCheck the highlighted Net.")).toBe(true);
   await tool("disconnect", {});
 });
 
-test("reads an electrical change against the delivered include and verifies the revised files", async ({
+test("reads the whole design against the delivered netlist, whichever Cell is open", async ({
   context,
   baseURL,
   accountName: _accountName,
@@ -675,6 +656,7 @@ test("reads an electrical change against the delivered include and verifies the 
     entryPath,
   });
   expect(loaded).toMatchObject({ ok: true });
+  const { version } = loaded.delivery.source;
   const exportedPath = testInfo.outputPath("fixture.icproj.json");
   expect(
     await tool("export_file", {
@@ -683,57 +665,39 @@ test("reads an electrical change against the delivered include and verifies the 
     }),
   ).toMatchObject({ ok: true });
   const project = parseProject(await readFile(exportedPath, "utf8"));
-  const cell = project.documents.find(({ name }) => name === "load")!;
+  const load = project.documents.find(({ name }) => name === "load")!;
+  const top = project.documents.find(({ name }) => name === "dut")!;
+  const unchanged = await tool("review_delivery", {});
+  expect(unchanged, JSON.stringify(unchanged)).toMatchObject({
+    ok: true,
+    delivery: {
+      workspaceId: loaded.delivery.workspaceId,
+      source: { entryPath, version },
+      incompleteCells: expect.any(Array),
+    },
+    comparison: { status: "equal", sourceVersion: version, differences: [] },
+  });
+  // The child Cell is open; edits in it and in the top Cell both count.
   expect(
     await tool("circuit_view", {
-      documentId: cell.id,
+      documentId: load.id,
       actions: [{ kind: "focus", intent: { kind: "activate-document" } }],
     }),
   ).toMatchObject({ ok: true });
-  const readTarget = async () => {
-    const read = await tool("review_delivery", { action: "read" });
-    expect(read).toMatchObject({
-      ok: true,
-      delivery: { target: { documentId: cell.id } },
-    });
-    return {
-      expected: read.delivery.target,
-      projectRevision: read.delivery.projectRevision,
-    };
-  };
-  const before = await readTarget();
-  expect(
-    await tool("apply_actions", {
-      documentId: cell.id,
-      actions: [
-        {
-          kind: "move",
-          target: { kind: "instance", reference: "R1" },
-          position: { x: 200, y: 120 },
-        },
-      ],
-    }),
-  ).toMatchObject({ ok: true, applied: true });
-  const geometry = await tool("review_delivery", {
-    action: "changes",
-    ...(await readTarget()),
-  });
-  expect(geometry, JSON.stringify(geometry)).toMatchObject({
-    ok: true,
-    comparison: { status: "equal", differences: [], drawingChanged: true },
-  });
-  expect(
-    await tool("review_delivery", { action: "changes", ...before }),
-  ).toMatchObject({
-    ok: false,
-    error: { code: "REVIEW_TARGET_CHANGED" },
-  });
   const pin = (instance: string, name: string) => ({
     kind: "pin",
     instance,
     pin: name,
   });
   const batches = [
+    // Moving a part changes no electrical fact.
+    [
+      {
+        kind: "move",
+        target: { kind: "instance", reference: "R1" },
+        position: { x: 200, y: 120 },
+      },
+    ],
     [
       {
         kind: "set-property",
@@ -769,28 +733,41 @@ test("reads an electrical change against the delivered include and verifies the 
       { kind: "connect", from: pin("R4", "1"), to: pin("R1", "1") },
       { kind: "connect", from: pin("R4", "2"), to: pin("R5", "2") },
     ],
-  ];
-  for (const actions of batches) {
-    const changed = await tool("apply_actions", {
-      documentId: cell.id,
-      actions,
-    });
+  ].map((actions) => ({ documentId: load.id, actions }));
+  batches.push(
+    {
+      documentId: top.id,
+      actions: [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          reference: "R9",
+          position: { x: 400, y: 400 },
+          parameters: { value: "9k" },
+        },
+      ],
+    },
+    {
+      documentId: top.id,
+      actions: [
+        { kind: "connect", from: pin("R9", "1"), to: pin("X1", "A") },
+        { kind: "connect", from: pin("R9", "2"), to: pin("X1", "B") },
+      ],
+    },
+  );
+  for (const batch of batches) {
+    const changed = await tool("apply_actions", batch);
     expect(changed, JSON.stringify(changed)).toMatchObject({
       ok: true,
       applied: true,
     });
   }
-  const target = await readTarget();
-  const changes = await tool("review_delivery", {
-    action: "changes",
-    ...target,
-  });
+  const changes = await tool("review_delivery", {});
   expect(changes, JSON.stringify(changes)).toMatchObject({
     ok: true,
-    action: "changes",
     comparison: {
       status: "different",
-      sourceVersion: loaded.delivery.source.version,
+      sourceVersion: version,
       differences: expect.arrayContaining([
         expect.objectContaining({
           kind: "parameter",
@@ -821,49 +798,26 @@ test("reads an electrical change against the delivered include and verifies the 
             ],
           }),
         }),
+        expect.objectContaining({
+          kind: "device",
+          cell: "dut",
+          object: "r9",
+          actual: expect.objectContaining({
+            terminals: [
+              { name: "1", net: "A" },
+              { name: "2", net: "B" },
+            ],
+          }),
+        }),
       ]),
     },
   });
+  // Canvas only reads; the Agent writes the source files.
   expect(await readFile(childPath, "utf8")).toBe(child);
-  expect(
-    await tool("verify", {
-      expectedSource: { rootPath, entryPath, ...target },
-    }),
-  ).toMatchObject({
-    comparison: {
-      sourceVersion: loaded.delivery.source.version,
-      status: "different",
-    },
-  });
-  await writeFile(
-    childPath,
-    child
-      .replace("1k", "2k")
-      .replace("R2 (A B)", "R2 (A C)")
-      .replace("R3 (A C) resistor r=5k", "R4 (A C) resistor r=4k"),
-  );
-  const verified = await tool("verify", {
-    expectedSource: { rootPath, entryPath, ...target },
-  });
-  expect(verified, JSON.stringify(verified)).toMatchObject({
-    comparison: { status: "equal" },
-  });
-  const reopened = await tool("import_file", {
-    action: "open-local",
-    rootPath,
-    entryPath,
-  });
-  expect(reopened).toMatchObject({
-    ok: true,
-    delivery: { modified: false, document: { sourceStatus: "in-sync" } },
-  });
-  expect(reopened.delivery.source.version).not.toBe(
-    loaded.delivery.source.version,
-  );
   await tool("disconnect", {});
 });
 
-test("freezes a ready original and acknowledges a saved whole Project", async ({
+test("reads a saved Project against the netlist it was imported from", async ({
   context,
   baseURL,
   accountName: _accountName,
@@ -875,202 +829,43 @@ test("freezes a ready original and acknowledges a saved whole Project", async ({
   const { page, tool } = await openFileTask(
     context,
     baseURL!,
-    testInfo.outputPath("legacy-connector.json"),
+    testInfo.outputPath("connector.json"),
   );
-  const deliver = (path = entryPath) =>
+  const deliver = (path: string) =>
     tool("import_file", { action: "open-local", rootPath, entryPath: path });
-  const loaded = await deliver();
+  const loaded = await deliver(entryPath);
   expect(loaded).toMatchObject({ ok: true });
-  const { source, workspaceId, projectId, document } = loaded.delivery;
-  const target = {
-    workspaceId,
-    projectId,
-    documentId: document.id,
-    revision: document.revision,
-    sourceVersion: source.version,
-  };
-  const firstReview = await tool("review_delivery", { action: "read" });
-  expect(firstReview, JSON.stringify(firstReview.error)).toMatchObject({
-    ok: true,
-    delivery: {
-      target,
-      status: "awaiting-drawing",
-      copy: "working",
-      unsaved: true,
-    },
-  });
-  const originalRequest = {
-    expected: firstReview.delivery.target,
-    projectRevision: firstReview.delivery.projectRevision,
-  };
-  const ready = await tool("review_delivery", {
-    action: "mark-ready",
-    ...originalRequest,
-  });
-  expect(ready).toMatchObject({
-    ok: true,
-    delivery: { status: "ready", unsaved: true },
-  });
-  const initialReviewContext = await tool("get_context", { refresh: true });
-
+  const { version } = loaded.delivery.source;
   expect(
-    await tool("apply_actions", {
-      actions: [
-        {
-          kind: "place-component",
-          symbol: "resistor",
-          reference: "R2",
-          position: { x: 200, y: 200 },
-        },
-      ],
+    await tool("export_file", {
+      artifact: "project",
+      outputPath: join(rootPath, "saved.icproj.json"),
     }),
-  ).toMatchObject({ ok: true, applied: true });
-  if (!(await page.getByTestId("local-review-status").isVisible())) {
-    await page
-      .getByRole("button", { name: "Project Info", exact: true })
-      .click();
-    await page.getByText("Imported source", { exact: true }).click();
-  }
-  const outputPath = join(rootPath, "review-saved.icproj.json");
-  await expect(
-    tool("review_delivery", { action: "save", ...originalRequest, outputPath }),
-  ).resolves.toMatchObject({
-    ok: false,
-    error: { code: "REVIEW_TARGET_CHANGED" },
-  });
-  await expect(readFile(outputPath)).rejects.toMatchObject({ code: "ENOENT" });
-  const currentReview = await tool("review_delivery", { action: "read" });
-  const currentRequest = {
-    expected: currentReview.delivery.target,
-    projectRevision: currentReview.delivery.projectRevision,
-  };
-  const saved = await tool("review_delivery", {
-    action: "save",
-    ...currentRequest,
-    outputPath,
-  });
-  expect(saved, JSON.stringify(saved.error)).toMatchObject({
-    ok: true,
-    outputPath,
-    canvasSaved: true,
-    savedProjectRevision: currentRequest.projectRevision,
-    savedTarget: currentRequest.expected,
-  });
-  const savedText = await readFile(outputPath, "utf8");
-  expect(
-    parseProject(savedText)
-      .documents.flatMap(({ instances }) => instances)
-      .some(({ reference }) => reference === "R2"),
-  ).toBe(true);
-  await expect(page.getByTestId("local-review-status")).toHaveText(
-    "Ready for review · Saved",
-  );
-  await expect(
-    tool("review_delivery", { action: "save", ...currentRequest, outputPath }),
-  ).resolves.toMatchObject({
-    ok: false,
-    error: { code: "REVIEW_SAVE_PATH_EXISTS" },
-  });
-  expect(await readFile(outputPath, "utf8")).toBe(savedText);
-  const frozen = await tool("review_delivery", {
-    action: "open-original",
-    ...currentRequest,
-  });
-  expect(frozen, JSON.stringify(frozen.error)).toMatchObject({
-    ok: true,
-    delivery: {
-      copy: "original",
-      unsaved: true,
-      status: "ready",
-      target: { sourceVersion: source.version, documentId: target.documentId },
-    },
-  });
-  expect(frozen.delivery.target.workspaceId).not.toBe(workspaceId);
-  expect(frozen.delivery.target.projectId).not.toBe(target.projectId);
-  expect(await tool("get_context", { refresh: true })).toMatchObject({
-    projectId: frozen.delivery.target.projectId,
-    instanceCount: initialReviewContext.instanceCount,
-  });
-  const originalExport = await tool("export_file", {
-    artifact: "project",
-    outputPath: testInfo.outputPath("frozen-original.icproj.json"),
-  });
-  const originalProject = parseProject(
-    await readFile(originalExport.outputPath, "utf8"),
-  );
-  expect(
-    originalProject.documents
-      .flatMap(({ instances }) => instances)
-      .some(({ reference }) => reference === "R2"),
-  ).toBe(false);
-  expect(await deliver()).toMatchObject({
-    ok: true,
-    delivery: { workspaceId, modified: true },
-  });
-  const reopenedSaved = await deliver("review-saved.icproj.json");
-  expect(reopenedSaved).toMatchObject({
+  ).toMatchObject({ ok: true });
+  const reopened = await deliver("saved.icproj.json");
+  expect(reopened, JSON.stringify(reopened.error)).toMatchObject({
     ok: true,
     delivery: { source: { format: "project" } },
   });
-  expect(reopenedSaved.delivery.source.version).not.toBe(source.version);
-  expect(await tool("review_delivery", { action: "read" })).toMatchObject({
+  expect(reopened.delivery.source.version).not.toBe(version);
+  expect(await tool("review_delivery", {})).toMatchObject({
     ok: true,
     delivery: {
-      embeddedSource: {
-        entryPath,
-        version: source.version,
-        files: expect.arrayContaining([
-          expect.objectContaining({ path: "draw.rnl" }),
-        ]),
-      },
+      workspaceId: reopened.delivery.workspaceId,
+      source: { entryPath, version },
     },
+    comparison: { status: "equal", sourceVersion: version },
   });
-  const embedded = page.getByText("Embedded netlist source", { exact: true });
-  if (!(await embedded.isVisible()))
+  // Project Info names the netlist, not the Project file.
+  const imported = page.getByText("Imported source", { exact: true });
+  if (!(await imported.isVisible()))
     await page
       .getByRole("button", { name: "Project Info", exact: true })
       .click();
-  await embedded.click();
-  await expect(page.getByTestId("embedded-source-version")).toHaveText(
-    source.version,
-  );
-
-  await writeFile(
-    join(rootPath, "plain.sp"),
-    "* plain\n.subckt plain A B\nR1 A B 1k\n.ends\n",
-  );
-  expect(await deliver("plain.sp")).toMatchObject({ ok: true });
-  const undrawnReview = await tool("review_delivery", { action: "read" });
-  expect(undrawnReview).toMatchObject({
-    ok: true,
-    delivery: { status: "awaiting-drawing" },
-  });
-  await expect(
-    tool("review_delivery", {
-      action: "mark-ready",
-      expected: undrawnReview.delivery.target,
-      projectRevision: undrawnReview.delivery.projectRevision,
-    }),
-  ).resolves.toMatchObject({ ok: false, error: { code: "REVIEW_NOT_READY" } });
-  expect(
-    await tool("apply_actions", {
-      actions: [
-        {
-          kind: "move",
-          target: { kind: "instance", reference: "R1" },
-          position: { x: 240, y: 120 },
-        },
-      ],
-    }),
-  ).toMatchObject({ ok: true, applied: true });
-  const cosmetic = await tool("review_delivery", { action: "read" });
-  await expect(
-    tool("review_delivery", {
-      action: "mark-ready",
-      expected: cosmetic.delivery.target,
-      projectRevision: cosmetic.delivery.projectRevision,
-    }),
-  ).resolves.toMatchObject({ ok: false, error: { code: "REVIEW_NOT_READY" } });
+  await imported.click();
+  await expect(page.getByTestId("local-source-version")).toHaveText(version);
+  await expect(page.getByText("draw.rnl", { exact: true })).toBeVisible();
+  await tool("disconnect", {});
 });
 
 test("delivers a Virtuoso netlist whose foundry library stays external, typed by the Agent", async ({
@@ -1080,8 +875,8 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
 }, testInfo) => {
   // A Virtuoso netlist names its foundry's library by an absolute path: it
   // stays external and unread, and the Agent gives its models' device types.
-  // A task of its own keeps the deliveries above within one session's
-  // request rate.
+  // A local card, a parameter and an analysis ride along unchanged. A task
+  // of its own keeps the deliveries above within one session's request rate.
   const rootPath = testInfo.outputPath("virtuoso");
   await mkdir(rootPath, { recursive: true });
   await writeFile(
@@ -1089,12 +884,20 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
     [
       "simulator lang=spectre",
       'include "/pdk/tsmc28/models/spectre/toplevel.scs" section=tt',
+      'include "models.scs"',
+      "parameters wn=1u",
       "subckt inv (in out vdd vss)",
       "M1 (out in vdd vdd) pch_mac w=2u l=30n",
-      "M0 (out in vss vss) nch_mac w=1u l=30n",
+      "M0 (out in vss vss) nch_mac w=wn l=30n",
+      "M2 (out in vss vss) nlocal w=1u l=30n",
       "ends inv",
+      "tran tran step=10p stop=10n",
       "",
     ].join("\n"),
+  );
+  await writeFile(
+    join(rootPath, "models.scs"),
+    "simulator lang=spectre\nmodel nlocal bsim3v3 type=n\n",
   );
   const { tool } = await openFileTask(
     context,
@@ -1122,12 +925,28 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
     delivery: {
       source: {
         format: "spectre",
-        files: [{ path: "top.scs" }],
+        files: [{ path: "top.scs" }, { path: "models.scs" }],
         diagnostics: expect.arrayContaining([
           expect.objectContaining({ code: "SPICE_SOURCE_INCLUDE_EXTERNAL" }),
           expect.objectContaining({ code: "LOCAL_MODEL_TYPES_GIVEN" }),
+          expect.objectContaining({ code: "SPICE_CONVERSION_MODEL_EXTERNAL" }),
         ]),
       },
+    },
+  });
+  // What the review leaves out is named, and the drawing still gets a verdict.
+  const review = await tool("review_delivery", {});
+  expect(review, JSON.stringify(review)).toMatchObject({
+    ok: true,
+    delivery: { source: { version: typed.delivery.source.version } },
+    comparison: {
+      status: "equal",
+      notes: expect.arrayContaining([
+        expect.stringMatching(/^Includes not read: .*toplevel\.scs/u),
+        expect.stringMatching(/^Parameters not compared: wn/u),
+        expect.stringMatching(/^Statements not compared: .*tran/u),
+        expect.stringContaining("bsim3v3 model nlocal"),
+      ]),
     },
   });
   await tool("disconnect", {});
@@ -1426,13 +1245,14 @@ test("confirms a review copy delivered into a tab paired by Claim", async ({
   });
   expect(loaded, JSON.stringify(loaded.error)).toMatchObject({ ok: true });
   // Canvas, not the kind of pairing, decides that this tab holds a delivery.
-  const review = await tool("review_delivery", { action: "read" });
+  const review = await tool("review_delivery", {});
   expect(review, JSON.stringify(review.error)).toMatchObject({
     ok: true,
     delivery: {
-      target: { workspaceId: loaded.delivery.workspaceId },
-      copy: "working",
+      workspaceId: loaded.delivery.workspaceId,
+      source: { entryPath, version: loaded.delivery.source.version },
     },
+    comparison: { status: "equal" },
   });
   expect(review.taskRef).toBeUndefined();
   await tool("disconnect", {});

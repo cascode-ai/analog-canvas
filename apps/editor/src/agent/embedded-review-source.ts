@@ -2,21 +2,22 @@ import {
   AGENT_FILE_RESOURCE_MAX_FILES,
   AGENT_FILE_RESOURCE_MAX_BYTES,
   localSourceIdentity,
-  type EmbeddedReviewSource,
 } from "@icm/agent-adapter";
 import { deriveStableId, type CircuitProject } from "@icm/model";
 import { localSourceReferences, normalizeSourcePath } from "@icm/spice";
-export { matchesAgentReviewTarget } from "@icm/agent-adapter";
+
+/** The netlist a Project was imported from, as Project Info names it. */
+export interface EmbeddedReviewSource {
+  entryPath: string;
+  version: string;
+  files: { path: string; sha256: string }[];
+}
 
 async function digestBytes(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
-}
-
-export function reviewRevision(token: string): Promise<string> {
-  return digestBytes(new TextEncoder().encode(token));
 }
 
 type SourceRecord = CircuitProject["source"]["files"][number];
@@ -95,10 +96,12 @@ export async function embeddedReviewBundle(source: CircuitProject["source"]) {
   return {
     entryPath,
     files,
-    version: await reviewRevision(
-      localSourceIdentity(
-        entryPath,
-        files.map(({ path, sha256 }) => ({ name: path, sha256 })),
+    version: await digestBytes(
+      new TextEncoder().encode(
+        localSourceIdentity(
+          entryPath,
+          files.map(({ path, sha256 }) => ({ name: path, sha256 })),
+        ),
       ),
     ),
   };

@@ -1327,11 +1327,7 @@ export class AgentSessionDO {
       if (trace) trace.result = result as RequestTrace["result"];
       // Export blobs are explicitly one-shot: the DO retains only an unavailable
       // idempotency marker, never their bytes. Candidate summaries are safe to cache.
-      if (
-        fileRequest.operation === "download" ||
-        (fileRequest.operation === "review" &&
-          fileRequest.input.action === "prepare-save")
-      ) {
+      if (fileRequest.operation === "download") {
         machine.completeRequestWithoutResult(fileRequest.requestId, Date.now());
       } else {
         machine.completeRequest(fileRequest.requestId, result, Date.now());

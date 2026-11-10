@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "68e79ecede2d3bab3d1b9e021212490894a41a47ce8329819df672fc9546b8ef",
+  "registrySha256": "74f01ee105179a1fc57e856456940ce10e6056c3e33a3d9ef18c0f2542a2d6a5",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -85,7 +85,7 @@
     },
     {
       "source": "docs/agent/mcp-install.md",
-      "sha256": "47ffadec6f5aba7c08112e4526dfa63f2230118c1d0a1cbb3bf19e4003f2efe5"
+      "sha256": "2c7964d4972a9862781a322d8396eabcbf8bfa08333da8b7aa4601365fb04d27"
     },
     {
       "source": "docs/agent/api-usage.md",
@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "97474d246db77e770ef402c1118d69405417d0b908aaa625edb987c97ad03235"
+      "sha256": "94a74be252fabee05a1fc38485415ebf31dbd3d1e06f4dd9f1628f3bff2ff5b3"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -128,8 +128,16 @@
       "sha256": "39b0ca5199393bde0dbaaae23833fd90c566bc47ca87f482b501e42bfc7b4d13"
     },
     {
+      "source": "docs/agent/skills/canvas-review/SKILL.md",
+      "sha256": "37f94d27d4986b09c20126d65740f59bec186a3f0b9b8212e3054c3997ecad58"
+    },
+    {
+      "source": "docs/agent/skills/canvas-review/agents/openai.yaml",
+      "sha256": "61f1ee6a7c1d1990a7b3d4d48b51da760e0b8aedbe2ace6766a955e5c18af222"
+    },
+    {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "53893d98edf10f32c3ccd8532439cd9e3c591fa5b6835bbf932b751eabf8b73a"
+      "sha256": "aa588fec68f89f34f4f938c831df57cec8b3311471e4c4d43841b4ff1599ddd1"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -612,6 +620,29 @@
       "task": "Discover tool operation and limitations"
     }
   },
+  "skills": [
+    {
+      "name": "canvas-review",
+      "source": "docs/agent/skills/canvas-review",
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "reads": [
+        {
+          "document": "reference/quickstart"
+        },
+        {
+          "document": "reference/mcp-tools",
+          "section": "From a netlist to a review"
+        }
+      ],
+      "hosts": {
+        "codex": "0.17.97",
+        "claudeCode": "0.17.104"
+      }
+    }
+  ],
   "outputs": [
     {
       "file": "apps/mcp-server/src/resources.generated.ts",
@@ -644,7 +675,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "cd27c039074c1893586afeb1d1f6232137ae10dd86d5417f7dcd93c6e8dd8934"
+      "sha256": "105cc89aa627d3cdbb9068398aa30116683303b9a763a3cfe8e18dd619ab88a0"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -679,6 +710,13 @@
       "sha256": "607fc22fcb3714a120ed7fa9a429482ea0e76b296ccfe9d831bf84c5976ef81c"
     },
     {
+      "file": "packages/agent-adapter/src/agent-skills.generated.ts",
+      "sources": [
+        "docs/agent/distribution.json"
+      ],
+      "sha256": "f606c003dd1028aeab5f168aedc7f13129f705eabbacb59fd22f239ad96ec84f"
+    },
+    {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",
       "sources": [
         "docs/agent/distribution.json",
@@ -693,7 +731,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "2c67c8c3dca10d2747412c27ed04f0699218e9c9ae795cb894cbaa6e3810b3e2"
+      "sha256": "cb62aa3f079e3a4397265ffb1bb607b8a621784f18ac7143e12efa2413e5f9b3"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",
