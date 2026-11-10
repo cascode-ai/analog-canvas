@@ -2830,6 +2830,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "sine-voltage-source",
+    name: "Sine Voltage Source",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A sine-wave source does not appear on the reviewed page as its own symbol; it is the reviewed Independent Voltage Source's circle, leads and pins with a one-period sine wave inside in place of the polarity marks, as textbooks draw an AC source.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE V card with a SIN waveform reads back as the circular voltage source, which carries the same waveform.",
+    assetPath: "sine-voltage-source.json",
+    assetHash:
+      "3ebea33c09074b69915f983efe266f9301ca857077afb29c660aca68f68f9067",
+  },
+  {
     symbolId: "vcvs",
     name: "Voltage-Controlled Voltage Source",
     category: "source",
@@ -21105,6 +21122,109 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 13.372093,
         },
         part: "upright-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "sine-voltage-source",
+    name: "Sine Voltage Source",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -6 0 C -4 -6 -2 -6 0 0 C 2 6 4 6 6 0",
+        part: "sine-wave",
+        bounds: {
+          x: -6,
+          y: -4.5,
+          width: 12,
+          height: 9,
+        },
         style: {
           strokeRole: "normal",
           lineCap: "butt",

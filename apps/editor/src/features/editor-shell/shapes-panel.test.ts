@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(90);
+    expect(symbols).toHaveLength(91);
     expect(markup).toContain("Official components");
     expect(markup).toContain('aria-label="Place NoConn"');
     expect(markup).toContain(">NoConn</span>");
@@ -38,7 +38,7 @@ describe("shapes quick-place", () => {
       ["Transistors", 4],
       ["Passives", 4],
       ["Power and Ports", 7],
-      ["Sources", 6],
+      ["Sources", 7],
       ["Switches", 7],
       ["Analog Blocks", 13],
       ["Logic Gates", 12],
@@ -80,6 +80,7 @@ describe("shapes quick-place", () => {
         ?.symbols.map((symbol) => symbol.id),
     ).toEqual([
       "voltage-source",
+      "sine-voltage-source",
       "current-source",
       "vcvs",
       "vccs",

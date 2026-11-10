@@ -221,6 +221,24 @@ describe("built-in device registry", () => {
     );
   });
 
+  it("gives the Sine Voltage Source the voltage-source contract, SIN by default", () => {
+    const source = deviceDescriptor("voltage-source")!;
+    expect(deviceDescriptor("sine-voltage-source")).toEqual({
+      ...source,
+      id: "sine-voltage-source",
+      symbolId: "sine-voltage-source",
+      sourceWaveformDefault: "sin",
+      parameters: source.parameters.map((parameter) =>
+        parameter.name === "waveform"
+          ? { ...parameter, defaultValue: "sin" }
+          : parameter,
+      ),
+    });
+    expect(referencePolicyForSymbol("sine-voltage-source")).toEqual(
+      referencePolicyForSymbol("voltage-source"),
+    );
+  });
+
   it("gives the Microphone the voltage-source contract, V-prefixed", () => {
     expect(deviceDescriptor("microphone")).toEqual({
       ...deviceDescriptor("voltage-source"),

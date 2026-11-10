@@ -98,6 +98,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("schottky-diode")).toBe("Extended Devices");
     expect(symbolCategory("polarized-capacitor")).toBe("Extended Devices");
     expect(symbolCategory("photoresistor")).toBe("Extended Devices");
+    expect(symbolCategory("sine-voltage-source")).toBe("Sources");
     expect(symbolCategory("speaker")).toBe("Extended Devices");
     expect(symbolCategory("microphone")).toBe("Extended Devices");
     expect(symbolCategory("potentiometer")).toBe("Extended Devices");
@@ -302,6 +303,9 @@ describe("component insertion catalog", () => {
       libraryDisplayName("polarized-capacitor", "Polarized Capacitor"),
     ).toBe("Pol Cap");
     expect(libraryDisplayName("photoresistor", "Photoresistor")).toBe("LDR");
+    expect(
+      libraryDisplayName("sine-voltage-source", "Sine Voltage Source"),
+    ).toBe("Sine Src");
     expect(libraryDisplayName("potentiometer", "Potentiometer")).toBe("Pot");
     expect(libraryDisplayName("microphone", "Microphone")).toBe("Mic");
     expect(libraryDisplayName("port-filled", "Bias Voltage Port")).toBe(

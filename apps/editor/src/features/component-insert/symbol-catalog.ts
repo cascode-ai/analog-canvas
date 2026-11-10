@@ -140,6 +140,7 @@ export function symbolCategory(symbolId: string): string {
   if (
     [
       "voltage-source",
+      "sine-voltage-source",
       "pulse-voltage-source",
       "current-source",
       "vcvs",
@@ -193,6 +194,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   "schottky-diode": "Schottky",
   "polarized-capacitor": "Pol Cap",
   photoresistor: "LDR",
+  "sine-voltage-source": "Sine Src",
   potentiometer: "Pot",
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
@@ -232,6 +234,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "port-filled":
     "A solid bias-voltage port, typically used for VB-style bias nodes",
   led: "Light-emitting or laser diode — electrically the Diode",
+  "sine-voltage-source":
+    "Sine voltage source — the Independent Voltage Source with SIN as its waveform",
   photoresistor:
     "Photoresistor (light-dependent resistor) — electrically the Resistor",
   "polarized-capacitor":
@@ -292,6 +296,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "inductor",
   // Independent sources lead; controlled sources follow in electrical order.
   "voltage-source",
+  "sine-voltage-source",
   "current-source",
   "vcvs",
   "vccs",

@@ -3976,6 +3976,112 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "sine-voltage-source",
+      name: "Sine Voltage Source",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "dc",
+          default: "1",
+        },
+        {
+          name: "waveform",
+          default: "sin",
+          choices: ["dc", "pulse", "sin", "pwl"],
+        },
+        {
+          name: "pwlPoints",
+        },
+        {
+          name: "acMagnitude",
+        },
+        {
+          name: "acPhase",
+        },
+        {
+          name: "low",
+          default: "0",
+        },
+        {
+          name: "high",
+          default: "1",
+        },
+        {
+          name: "delay",
+          default: "0",
+        },
+        {
+          name: "rise",
+          default: "1ps",
+        },
+        {
+          name: "fall",
+          default: "1ps",
+        },
+        {
+          name: "width",
+          default: "5ns",
+        },
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "offset",
+          default: "0",
+        },
+        {
+          name: "amplitude",
+          default: "1",
+        },
+        {
+          name: "frequency",
+          default: "1k",
+        },
+        {
+          name: "damping",
+          default: "0",
+        },
+        {
+          name: "phase",
+          default: "0",
+        },
+      ],
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "vcvs",
       name: "Voltage-Controlled Voltage Source",
       category: "source",
