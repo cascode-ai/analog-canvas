@@ -1,3 +1,6 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -36,5 +39,46 @@ describe("SelectionFilterPopover", () => {
         />,
       ),
     ).toBe("");
+  });
+
+  it("stands under the chrome as it is, wrapped tabs included (#2194)", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    // jsdom lays nothing out: a phone's wrapped chrome ends at y = 140,
+    // below the fixed top the popover used to take.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const chrome = window.document.createElement("header");
+    chrome.className = "app-chrome";
+    chrome.getBoundingClientRect = () => ({ bottom: 140 }) as DOMRect;
+    const host = window.document.createElement("div");
+    window.document.body.append(chrome, host);
+    const root = createRoot(host);
+    try {
+      await act(async () =>
+        root.render(
+          <SelectionFilterPopover
+            open
+            filter={DEFAULT_SELECTION_FILTER}
+            onChange={vi.fn()}
+            onClose={vi.fn()}
+          />,
+        ),
+      );
+      const popover = host.querySelector<HTMLElement>(
+        '[data-testid="selection-filter-popover"]',
+      )!;
+      expect(popover.style.getPropertyValue("--selection-filter-top")).toBe(
+        "148px",
+      );
+    } finally {
+      await act(async () => root.unmount());
+      window.document.body.replaceChildren();
+      vi.unstubAllGlobals();
+    }
   });
 });
