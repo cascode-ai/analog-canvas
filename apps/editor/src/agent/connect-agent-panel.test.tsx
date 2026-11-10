@@ -286,4 +286,38 @@ describe("ConnectAgentPanel", () => {
     expect(markup).not.toContain("<details");
     expect(markup).not.toContain("Scopes:");
   });
+
+  it("names a trusted task and offers to stop trusting its device", () => {
+    const trusted = { trustedDevice: true, onUntrustDevice: vi.fn() };
+    const dialog = renderToStaticMarkup(
+      <ConnectAgentPanel {...baseProps({ status: "connected", ...trusted })} />,
+    );
+    expect(dialog).toContain("Connected · Trusted device");
+    expect(dialog).toContain('data-testid="agent-untrust-device"');
+    expect(dialog).toContain("Stop trusting this device");
+    // Collapsed Properties show the state; the action waits under Manage.
+    const properties = (expanded: boolean) =>
+      renderToStaticMarkup(
+        <AgentPropertiesSection
+          {...baseProps({ status: "connected", ...trusted })}
+          expanded={expanded}
+          onToggleDetails={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+    expect(properties(false)).toContain("Connected · Trusted device");
+    expect(properties(false)).not.toContain("agent-untrust-device");
+    expect(properties(true)).toContain('data-testid="agent-untrust-device"');
+    // An ended task, or one approved once, has no device trust to stop.
+    const ended = renderToStaticMarkup(
+      <ConnectAgentPanel {...baseProps({ status: "expired", ...trusted })} />,
+    );
+    expect(ended).not.toContain("Trusted device");
+    expect(ended).not.toContain("agent-untrust-device");
+    expect(
+      renderToStaticMarkup(
+        <ConnectAgentPanel {...baseProps({ status: "connected" })} />,
+      ),
+    ).not.toContain("Trusted device");
+  });
 });

@@ -15,6 +15,7 @@ import {
   type SessionUser,
 } from "./auth";
 import { REGIONAL_LEASE_MS } from "./regional-auth-contract";
+import { sha256Text } from "./sha256-text";
 
 const ORIGIN = "https://canvas.test";
 const REGIONAL_ORIGIN = "https://cn.canvas.test";
@@ -426,10 +427,19 @@ describe("emailed sign-in code", () => {
         },
       }),
     });
+    const trustRequests: string[] = [];
     const auth = harness({
       RESEND_API_KEY: "rk",
       GALLERY: namespace({ entries: 2, likes: 3, projects: 1 }),
       COMPONENT_LIBRARY: namespace({ deleted: 1 }),
+      AGENT_SESSION: {
+        getByName: (name) => ({
+          fetch: async (input, init) => {
+            trustRequests.push(`${init?.method} ${name} ${String(input)}`);
+            return Response.json({ devices: [] });
+          },
+        }),
+      },
     });
     const cookie = await emailSignIn(auth, "leaving@example.com");
     const otherCookie = await emailSignIn(auth, "staying@example.com");
@@ -469,6 +479,10 @@ describe("emailed sign-in code", () => {
         body: { userId: leaving!.id },
       },
     ]);
+    // The devices it trusted for Agent tasks on this site are forgotten too.
+    expect(trustRequests).toEqual([
+      `DELETE agent-device-trust-${await sha256Text(JSON.stringify([ORIGIN, leaving!.id]))} https://agent-session.internal/device-trust/all`,
+    ]);
     expect(await me(auth, cookie)).toBeNull();
     expect((await me(auth, otherCookie))?.email).toBe("staying@example.com");
     // Signing in again starts a new, empty account.
@@ -498,6 +512,26 @@ describe("emailed sign-in code", () => {
     expect(failed.status).toBe(503);
     expect(await failed.json()).toEqual({ error: "gallery-delete-failed" });
     // Still signed in, so trying again works once the Gallery is back.
+    expect((await me(auth, cookie))?.email).toBe("leaving@example.com");
+  });
+
+  it("keeps the account when its trusted Agent devices cannot be forgotten", async () => {
+    const auth = harness({
+      RESEND_API_KEY: "rk",
+      AGENT_SESSION: {
+        getByName: () => ({
+          fetch: async () => new Response(null, { status: 503 }),
+        }),
+      },
+    });
+    const cookie = await emailSignIn(auth, "leaving@example.com");
+    const failed = await auth.call("/api/auth/account/delete", {
+      method: "POST",
+      cookie,
+      body: JSON.stringify({ confirm: "delete-account" }),
+    });
+    expect(failed.status).toBe(503);
+    expect(await failed.json()).toEqual({ error: "devices-delete-failed" });
     expect((await me(auth, cookie))?.email).toBe("leaving@example.com");
   });
 

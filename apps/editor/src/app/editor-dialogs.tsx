@@ -12,6 +12,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { claimNow } from "../agent/claim-clock";
+import { agentConnectionControls } from "../agent/workspace-agent";
 import { planProjectCellImport } from "@icm/edit-engine";
 import type { runErcChecks } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -799,22 +800,9 @@ export function EditorDialogs({
           agentSession &&
           agentPanelOpen
             ? {
+                ...agentConnectionControls(agentSession),
                 open: agentPanelOpen,
-                status: agentSession.status,
-                pendingOperation: agentSession.pendingOperation,
-                claimCode: agentSession.claimCode,
-                claimExpiresAt: agentSession.claimExpiresAt,
-                scopes: agentSession.scopes,
-                expiresAt: agentSession.expiresAt,
-                error: agentSession.error,
-                backgroundRequests: agentSession.backgroundRequests,
-                adapterVersion: agentSession.adapterVersion,
                 now: claimNow(),
-                onPause: () => void agentSession.pause(),
-                onResume: () => void agentSession.resume(),
-                onReconnect: agentSession.reconnect,
-                onNewConnection: () => void agentSession.newConnection(),
-                onRevoke: () => void agentSession.revoke(),
                 onClose: () => setAgentPanelOpen(false),
               }
             : null

@@ -16,6 +16,7 @@ export interface AgentSessionRecoveryRecord {
   readonly projectId: string;
   readonly projectSessionId: string;
   readonly scopes: readonly AgentSessionScope[];
+  /** A trusted device opened the task: the relay's approval names it so. */
   readonly localReviewOnly?: true;
   readonly expiresAt: number;
 }

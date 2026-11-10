@@ -22,7 +22,10 @@ import {
   exposeAgentPairing,
 } from "./headless-pairing";
 import { PUBLIC_AGENT_UI_ENABLED } from "./public-agent-ui";
-import type { AgentConnectionStatus } from "./connect-agent-panel";
+import type {
+  AgentConnectionStatus,
+  ConnectAgentPanelProps,
+} from "./connect-agent-panel";
 import type {
   UseAgentSessionOptions,
   UseAgentSessionResult,
@@ -94,6 +97,7 @@ function workspaceAgentSession({
     error: loadError,
     backgroundRequests: false,
     adapterVersion: null,
+    trustedDevice: false,
     transportDiagnostics: [],
     pause: nothing,
     resume: nothing,
@@ -101,6 +105,7 @@ function workspaceAgentSession({
     reconnect: ignore,
     newConnection: requestConnection,
     revoke: nothing,
+    untrustDevice: nothing,
   };
   return connectRequested && UNCONNECTED.includes(base.status)
     ? {
@@ -207,6 +212,30 @@ export function useWorkspaceAgentRuntime(): AgentRuntime | null {
 export function useWorkspaceAgentConnection(): UseAgentSessionResult | null {
   const shared = useContext(WorkspaceAgent);
   return shared?.enabled ? shared.session : null;
+}
+
+/** What every Agent connection surface shows of a session and does with it. */
+export function agentConnectionControls(
+  session: UseAgentSessionResult,
+): Omit<ConnectAgentPanelProps, "open" | "now" | "onClose"> {
+  return {
+    status: session.status,
+    pendingOperation: session.pendingOperation,
+    claimCode: session.claimCode,
+    claimExpiresAt: session.claimExpiresAt,
+    scopes: session.scopes,
+    expiresAt: session.expiresAt,
+    error: session.error,
+    backgroundRequests: session.backgroundRequests,
+    adapterVersion: session.adapterVersion,
+    trustedDevice: session.trustedDevice,
+    onPause: () => void session.pause(),
+    onResume: () => void session.resume(),
+    onReconnect: session.reconnect,
+    onNewConnection: () => void session.newConnection(),
+    onRevoke: () => void session.revoke(),
+    onUntrustDevice: () => void session.untrustDevice(),
+  };
 }
 
 /**

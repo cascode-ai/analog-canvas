@@ -121,7 +121,7 @@ export class RegionalSessionDO {
       url.pathname === ACCOUNT_DELETION_TICK &&
       request.method === "POST"
     )
-      return this.tickAccountDeletion();
+      return this.tickAccountDeletion(this.config);
     if (
       url.origin === "https://auth" &&
       isRegionalSecurityRoute(request.method, url.pathname)
@@ -448,7 +448,7 @@ export class RegionalSessionDO {
     });
   }
 
-  private async tickAccountDeletion(): Promise<Response> {
+  private async tickAccountDeletion(config: RegionalConfig): Promise<Response> {
     const after = this.sql
       .exec<{ sequence: number }>(
         "SELECT sequence FROM regional_deletion_cursor WHERE singleton=1",
@@ -456,7 +456,7 @@ export class RegionalSessionDO {
       .one().sequence;
     const result = await this.authority("deletions", { after });
     // Compatible with the authority release before this endpoint was added.
-    if (result.status === 404 && this.config?.accountDeletion !== true)
+    if (result.status === 404 && config.accountDeletion !== true)
       return answer({ status: "disabled" });
     const job = result.body?.job as
       { sequence?: unknown; userId?: unknown } | null | undefined;
@@ -465,7 +465,11 @@ export class RegionalSessionDO {
     if (!job || !validAccountId(job.userId) || job.sequence !== after + 1)
       return answer({ status: "retry" }, 503);
     this.revokeAccount(job.userId);
-    if (!(await purgeAccountResources(this.env, job.userId)))
+    if (
+      !(await purgeAccountResources(this.env, job.userId, {
+        site: config.clientOrigin,
+      }))
+    )
       return answer({ status: "retry" }, 503);
     const acknowledgement = await this.authority("deletions", {
       acknowledge: job.sequence,

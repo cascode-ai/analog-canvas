@@ -119,8 +119,11 @@ edits; it chooses no topology and yields no edits on conflict
 
 - `/files` (File Resource): bounded Project/formal-artifact download,
   Project, structural-SPICE and local-circuit candidate staging, locating a
-  delivered local circuit by its source version, simulation workspaces and
-  artifacts. A local-circuit stage may give the device types of models whose
+  delivered local circuit by its source version, confirming its review copy
+  (`review`, actions in the
+  [File Resource schema](../../packages/agent-adapter/src/file-resource.ts)),
+  simulation workspaces and artifacts. A local-circuit stage may give the
+  device types of models whose
   cards the sources lack; a card the sources give decides. Staging never
   changes the browser Project; replacement needs explicit human approval.
 - `/simulation`: prepare/run through the shared SimulationService
@@ -154,8 +157,9 @@ edits; it chooses no topology and yields no edits on conflict
     `refresh`, `fix-input` or `retry`.
   - Scopes: Cloud Cell ops `project.import`; code reads `project.download`;
     writes their Circuit edit scopes; Gallery reads `circuit.snapshot`;
-    publication `gallery.publish` (no edit scope implies it). No second Cloud
-    store or write path.
+    publication `gallery.publish` (no edit scope implies it);
+    [trusted-device tasks](web-agent-session.md#permissions-and-limits) have
+    their own limit. No second Cloud store or write path.
 - No arbitrary host files or code execution; authored SPICE runs only in the
   isolated executor.
 

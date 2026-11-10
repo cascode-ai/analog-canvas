@@ -1,6 +1,6 @@
 /** One owner for asynchronous connection controls, shared by both UI surfaces. */
 export type ConnectionOperationKind =
-  "creating" | "disconnecting" | "pausing" | "resuming";
+  "creating" | "disconnecting" | "pausing" | "resuming" | "untrusting";
 
 export class ConnectionOperation {
   pending = true;

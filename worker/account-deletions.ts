@@ -4,6 +4,8 @@ import {
   type ArenaService,
 } from "./arena-account";
 import type { SessionUser } from "./auth-do";
+import { purgeTrustedDevices } from "./agent-device-directory";
+import type { AgentSessionNamespaceLike } from "./agent-session-runtime";
 import { GALLERY_SOURCES, galleryStoreName } from "./gallery-sources";
 import type { GalleryNamespaceLike, SqlStorage } from "./gallery-store";
 import { answer, digest } from "./regional-auth-contract";
@@ -18,6 +20,8 @@ export type AccountResourceBindings = {
   PROJECTS_STORE_NAME?: "projects" | "gallery";
   PROJECT_REGION_USERS?: string;
   PROJECT_SYNC_EXPANSION?: string;
+  /** Agent sessions, which hold each site's trusted-device directories. */
+  AGENT_SESSION?: AgentSessionNamespaceLike;
 };
 
 type Job = {
@@ -145,7 +149,9 @@ export class AccountDeletions {
       )
       .toArray()[0];
     if (!job) return answer({ status: "caught-up" });
-    const cleaned = await purgeAccountResources(env, job.user_id);
+    const cleaned = await purgeAccountResources(env, job.user_id, {
+      site: origin,
+    });
     if (
       !cleaned ||
       (job.arena_account &&
@@ -160,11 +166,14 @@ export class AccountDeletions {
   }
 }
 
-/** These targets are bindings, so the browser cannot supply a store or owner. */
+/**
+ * These targets are bindings, so the browser cannot supply a store or owner.
+ * A site's own deletion also forgets the devices the account trusted there.
+ */
 export async function purgeAccountResources(
   env: AccountResourceBindings,
   userId: string,
-  replay = false,
+  { replay = false, site }: { replay?: boolean; site?: string } = {},
 ): Promise<boolean> {
   const gallery = ["gallery", ...GALLERY_SOURCES.map(galleryStoreName)].map(
     (name) => env.GALLERY?.getByName(name),
@@ -191,5 +200,8 @@ export async function purgeAccountResources(
   };
   const first = await Promise.all(targets.slice(0, 4).map(clean));
   const rest = await Promise.all(targets.slice(4).map(clean));
-  return first.every(Boolean) && rest.every(Boolean);
+  const devices =
+    site === undefined ||
+    (await purgeTrustedDevices(env.AGENT_SESSION, site, userId));
+  return first.every(Boolean) && rest.every(Boolean) && devices;
 }

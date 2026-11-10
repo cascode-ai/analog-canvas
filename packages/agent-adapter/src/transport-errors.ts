@@ -129,6 +129,12 @@ export const AGENT_TRANSPORT_ERRORS: Record<
     category: "request-rejected",
     message: "The token does not grant this operation",
   },
+  TRUSTED_TASK_LOCAL_ONLY: {
+    status: 403,
+    category: "request-rejected",
+    message:
+      "A task opened from a trusted device reads and edits its local review copy only. Ask the user to do this in Canvas, or open a new task that the user approves once in the browser, which acts with their account.",
+  },
   EDITOR_OFFLINE: {
     status: 503,
     category: "editor-offline",

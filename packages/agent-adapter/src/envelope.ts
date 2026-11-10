@@ -27,6 +27,10 @@ export const AgentSessionStatusResponseSchema = z.strictObject({
   projectId: z.string().min(1),
   contextRevision: z.string().min(1).optional(),
   documentIds: z.array(z.string().min(1)),
+  /**
+   * Reported for a trusted-device task alone: its grant is the local review
+   * set, narrower than the scopes its launch asked for.
+   */
   scopes: z.array(AgentSessionScopeSchema).optional(),
   authorization: z.enum(["active", "paused"]),
   editor: z.enum(["attached", "detached"]),
@@ -247,6 +251,7 @@ export const AgentTransportErrorCodeSchema = z.enum([
   "TOKEN_INVALID",
   "TOKEN_EXPIRED",
   "TOKEN_SCOPE_INSUFFICIENT",
+  "TRUSTED_TASK_LOCAL_ONLY",
   // Transport and editor state
   "EDITOR_OFFLINE",
   "EDITOR_DISCONNECTED",

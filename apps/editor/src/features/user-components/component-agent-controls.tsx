@@ -1,6 +1,9 @@
 import { lazy, Suspense, useRef, useState } from "react";
 import { useDismissDetails } from "../../components/dismiss-details";
-import { useWorkspaceAgentConnection } from "../../agent/workspace-agent";
+import {
+  agentConnectionControls,
+  useWorkspaceAgentConnection,
+} from "../../agent/workspace-agent";
 import { claimNow } from "../../agent/claim-clock";
 import type { ComponentAuthoringWorkspace } from "./component-authoring-workspace";
 
@@ -53,21 +56,9 @@ export function ComponentAgentControls({
       {connectionOpen ? (
         <Suspense fallback={null}>
           <ConnectionPanel
+            {...agentConnectionControls(session)}
             open
-            status={session.status}
-            pendingOperation={session.pendingOperation}
-            claimCode={session.claimCode}
-            claimExpiresAt={session.claimExpiresAt}
-            scopes={session.scopes}
-            expiresAt={session.expiresAt}
-            error={session.error}
-            backgroundRequests={session.backgroundRequests}
             now={claimNow()}
-            onPause={() => void session.pause()}
-            onResume={() => void session.resume()}
-            onReconnect={session.reconnect}
-            onNewConnection={() => void session.newConnection()}
-            onRevoke={() => void session.revoke()}
             onClose={() => setConnectionOpen(false)}
           />
         </Suspense>

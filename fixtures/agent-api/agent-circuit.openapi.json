@@ -1101,6 +1101,7 @@
                   "TOKEN_INVALID",
                   "TOKEN_EXPIRED",
                   "TOKEN_SCOPE_INSUFFICIENT",
+                  "TRUSTED_TASK_LOCAL_ONLY",
                   "EDITOR_OFFLINE",
                   "EDITOR_DISCONNECTED",
                   "REQUEST_TOO_LARGE",
