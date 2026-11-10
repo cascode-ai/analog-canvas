@@ -8,6 +8,7 @@ import {
   GENERIC_NPN_MODEL,
   GENERIC_PJF_MODEL,
   GENERIC_PNP_MODEL,
+  GENERIC_SCHOTTKY_MODEL,
 } from "@icm/netlist";
 export const NETLIST_PROFILE_IDS = [
   "abstract",
@@ -162,6 +163,7 @@ export const NETLIST_DEVICE_FAMILIES = [
   "njfet",
   "pjfet",
   "diode",
+  "schottky-diode",
   "switch",
 ] as const;
 export type NetlistDeviceFamily = (typeof NETLIST_DEVICE_FAMILIES)[number];
@@ -181,12 +183,13 @@ const GENERIC_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   nmos: "NMOS",
   pmos: "PMOS",
   // The netlist defines these itself while nothing else does. No Process
-  // ships a JFET, so every one takes NJF and PJF.
+  // ships a JFET or a Schottky diode, so every one takes NJF, PJF and DSCH.
   npn: GENERIC_NPN_MODEL.name,
   pnp: GENERIC_PNP_MODEL.name,
   njfet: GENERIC_NJF_MODEL.name,
   pjfet: GENERIC_PJF_MODEL.name,
   diode: GENERIC_DIODE_MODEL.name,
+  "schottky-diode": GENERIC_SCHOTTKY_MODEL.name,
   switch: "SW",
 };
 const SKY130_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
@@ -224,6 +227,8 @@ export function netlistDeviceFamily(
   // A Zener's model is its own: BV builds one, or the author names one. The
   // diode family's generic model has no breakdown and would refuse BV.
   if (symbolId === "zener-diode") return undefined;
+  // A Schottky diode is a diode with its own generic barrier model.
+  if (symbolId === "schottky-diode") return "schottky-diode";
   const descriptor = deviceDescriptor(symbolId);
   if (descriptor?.mosBulkClass) return descriptor.mosBulkClass;
   if (descriptor?.deviceClass === "bjt")

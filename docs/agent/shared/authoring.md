@@ -173,8 +173,9 @@ their IDs, never resolved to the first.
   gate bound to a cell or Cell until its model is cleared.
 - Generic models, reported as netlist information: diodes in Abstract, SKY130,
   IHP SG13G2 or Custom bind `DIODE`, one `.model DIODE D(IS=1e-14 N=1)` per Cell
-  (`GENERIC_DIODE_MODEL`); BJTs in Abstract or Custom, or `set-model`
-  `NPN`/`PNP`, get `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` /
+  (`GENERIC_DIODE_MODEL`), Schottky diodes `DSCH`,
+  `.model DSCH D(IS=1e-8 N=1.05 RS=1)` (`GENERIC_SCHOTTKY_MODEL`); BJTs in
+  Abstract or Custom, or `set-model` `NPN`/`PNP`, get `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` /
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (`GENERIC_BJT_MODEL`); generic
   `NMOS`/`PMOS` get BSIM4 stand-ins in a netlist handed out,
   `.model NMOS nmos level=54` / `.model PMOS pmos level=54` in SPICE and

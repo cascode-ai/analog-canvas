@@ -95,6 +95,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("diode")).toBe("Extended Devices");
     expect(symbolCategory("zener-diode")).toBe("Extended Devices");
     expect(symbolCategory("led")).toBe("Extended Devices");
+    expect(symbolCategory("schottky-diode")).toBe("Extended Devices");
     expect(symbolCategory("speaker")).toBe("Extended Devices");
     expect(symbolCategory("microphone")).toBe("Extended Devices");
     expect(symbolCategory("potentiometer")).toBe("Extended Devices");
@@ -264,6 +265,7 @@ describe("component insertion catalog", () => {
       "diode",
       "zener-diode",
       "led",
+      "schottky-diode",
       "njfet",
       "pjfet",
       "tcoil",
@@ -289,6 +291,9 @@ describe("component insertion catalog", () => {
     );
     expect(libraryDisplayName("zener-diode", "Zener Diode")).toBe("Zener");
     expect(libraryDisplayName("led", "LED or Laser Diode")).toBe("LED");
+    expect(libraryDisplayName("schottky-diode", "Schottky Diode")).toBe(
+      "Schottky",
+    );
     expect(libraryDisplayName("potentiometer", "Potentiometer")).toBe("Pot");
     expect(libraryDisplayName("microphone", "Microphone")).toBe("Mic");
     expect(libraryDisplayName("port-filled", "Bias Voltage Port")).toBe(
@@ -350,6 +355,7 @@ describe("reach order inside a category", () => {
       "diode",
       "zener-diode",
       "led",
+      "schottky-diode",
       "njfet",
       "pjfet",
       "tcoil",

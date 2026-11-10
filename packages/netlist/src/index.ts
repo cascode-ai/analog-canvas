@@ -5,6 +5,7 @@ export {
   GENERIC_NPN_MODEL,
   GENERIC_PJF_MODEL,
   GENERIC_PNP_MODEL,
+  GENERIC_SCHOTTKY_MODEL,
 } from "./extract-generic-models.js";
 export * from "./export.js";
 export type { BodyPortOrder } from "./body-port-order.js";

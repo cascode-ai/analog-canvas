@@ -654,6 +654,21 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "schottky-diode",
+    symbolId: "schottky-diode",
+    deviceClass: "diode",
+    referencePrefix: "D",
+    pinOrder: ["A", "K"],
+    targetPolicy: "required-model",
+    parameters: [],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: true,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: true,
+    },
+  },
+  {
     id: "npn",
     symbolId: "npn",
     deviceClass: "bjt",

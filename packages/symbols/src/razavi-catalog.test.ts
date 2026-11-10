@@ -1629,6 +1629,38 @@ describe("Razavi symbol catalog", () => {
       });
   });
 
+  it("draws the Schottky diode as the Diode with an S-hooked cathode bar", () => {
+    const diode = requireRazaviCatalogSymbol("diode");
+    const schottky = requireRazaviCatalogSymbol("schottky-diode");
+    expect(schottky.pins).toEqual(diode.pins);
+    expect(getRazaviCatalogEntry("schottky-diode")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["A", "K"],
+      palette: true,
+    });
+    const bar = diode.primitives[2];
+    if (bar?.kind !== "line") throw new Error("missing diode bar");
+    // Leads and triangle unchanged; only the bar gains its hooks.
+    expect(schottky.primitives.filter((_, index) => index !== 2)).toEqual(
+      diode.primitives.filter((_, index) => index !== 2),
+    );
+    const cathode = schottky.primitives[2];
+    if (cathode?.kind !== "polyline") throw new Error("missing S cathode");
+    expect(cathode.style).toEqual(bar.style);
+    const [tipTop, top, barTop, barBottom, bottom, tipBottom] = cathode.points;
+    expect([barTop, barBottom]).toEqual([bar.from, bar.to]);
+    // The top hook turns away from the triangle, the bottom one back toward it.
+    expect(top!.y).toBe(barTop!.y);
+    expect(top!.x).toBeGreaterThan(barTop!.x);
+    expect(tipTop!.x).toBe(top!.x);
+    expect(tipTop!.y).toBeGreaterThan(top!.y);
+    expect(bottom!.y).toBe(barBottom!.y);
+    expect(bottom!.x).toBeLessThan(barBottom!.x);
+    expect(tipBottom!.x).toBe(bottom!.x);
+    expect(tipBottom!.y).toBeLessThan(bottom!.y);
+  });
+
   it("draws the JFETs on the MOS pins, the gate arrow into or out of the channel", () => {
     const nmos = requireRazaviCatalogSymbol("nmos");
     const pmos = requireRazaviCatalogSymbol("pmos");

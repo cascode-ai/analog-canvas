@@ -237,7 +237,8 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 - Diodes in a Process without its own (Abstract, SKY130, IHP SG13G2, Custom)
   bind to `DIODE`; Zeners never do and report `MISSING_MODEL_TARGET`. Each Cell
   naming `DIODE` carries `.model DIODE D(IS=1e-14 N=1)` (information
-  `GENERIC_DIODE_MODEL`).
+  `GENERIC_DIODE_MODEL`). Schottky diodes in every Process bind to `DSCH`,
+  `.model DSCH D(IS=1e-8 N=1.05 RS=1)` (information `GENERIC_SCHOTTKY_MODEL`).
 - BJTs in Abstract or Custom bind to `NPN`/`PNP` with cards
   `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` and
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (information `GENERIC_BJT_MODEL`).
@@ -251,7 +252,7 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   order), suppresses nothing: a netlist the editor wrote, imported again, holds
   it (#1789). VACASK prints `sp_diode`/`sp_bjt`
   (`type=±1`). Spectre export carries native stand-ins with the same parameters:
-  `model DIODE diode is=1e-14 n=1`, `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`,
+  `model DIODE diode is=1e-14 n=1` (`DSCH` likewise), `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`,
   `model PNP bjt type=pnp is=1e-16 bf=50 vaf=50` and
   `model NJF jfet type=n vto=-2 beta=1e-3 lambda=0.01` (`PJF` `type=p`). VACASK
   has no qualified JFET mapping and refuses `NJF`/`PJF` with

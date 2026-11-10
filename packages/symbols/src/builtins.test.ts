@@ -34,6 +34,7 @@ const PRODUCT_IDS = [
   "quantizer",
   "diode",
   "led",
+  "schottky-diode",
   "externally-controlled-switch",
   "ground",
   "ideal-switch",
