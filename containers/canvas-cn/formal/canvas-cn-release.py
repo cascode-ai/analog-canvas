@@ -10,6 +10,7 @@ changes state directories, credentials or switches; a failed install leaves
 the previous release serving and reports through its monitor file.
 """
 import argparse
+import importlib.util
 import concurrent.futures
 import hashlib
 import json
@@ -21,11 +22,16 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+_maintenance_spec = importlib.util.spec_from_file_location('canvas_maintenance', pathlib.Path(__file__).with_name('maintenance.py'))
+_maintenance = importlib.util.module_from_spec(_maintenance_spec)
+_maintenance_spec.loader.exec_module(_maintenance)
+Snapshot, entrance = _maintenance.Snapshot, _maintenance.entrance
 
 SHA = re.compile(r'^[0-9a-f]{40}$')
 SAFE_PATH = re.compile(r'^(?!.*\.\.)[A-Za-z0-9_@+\-./]+$')
 SWITCHES = {'project-writes-enabled', 'resource-writes-enabled'}
-SYNC_TIMERS = ['canvas-cn-project-sync.timer', 'canvas-cn-resource-sync.timer', 'canvas-cn-analytics-sync.timer']
+SYNC_TIMERS = ['canvas-cn-project-sync.timer', 'canvas-cn-resource-sync.timer',
+               'canvas-cn-analytics-sync.timer', 'canvas-cn-scheduled.timer']
 # Only these timers start by themselves when a release first ships them;
 # replication timers stay an operator's decision.
 AUTO_TIMERS = {'canvas-cn-scheduled.timer', 'canvas-cn-release.timer',
@@ -222,8 +228,10 @@ def carry_previous_assets(current, target):
 class Host:
     """The privileged operations; replaced in tests."""
 
-    def __init__(self, run=subprocess.run):
+    def __init__(self, run=subprocess.run, maintenance_dir=pathlib.Path('/var/lib/canvas-cn-maintenance')):
         self.run = run
+        self.snapshot = None
+        self.maintenance_dir = pathlib.Path(maintenance_dir)
 
     def systemctl(self, *args, check=True):
         return self.run(['systemctl', *args], check=check, capture_output=True)
@@ -232,7 +240,73 @@ class Host:
         return self.systemctl('is-active', '--quiet', unit, check=False).returncode == 0
 
     def backup(self, release):
-        self.run(['bash', str(release / 'formal-backup.sh')], check=True, capture_output=True)
+        if not pathlib.Path('/run/canvas-cn-ingress/control.sock').is_socket():
+            raise ReleaseError('entrance-not-installed')
+        if entrance('status')['uncertain']:
+            raise ReleaseError('uncertain-write')
+        self.snapshot = Snapshot()
+        self.snapshot.prepare()
+
+    def hold(self):
+        # A timer being stopped does not finish an already running tick.
+        deadline = time.monotonic() + 3
+        def busy(unit):
+            status = self.systemctl('show', unit, '--property=ActiveState', '--value', check=False)
+            return status.returncode != 0 or status.stdout.strip() not in (b'inactive', b'failed')
+        while any(busy(timer.replace('.timer', '.service')) for timer in SYNC_TIMERS):
+            if time.monotonic() >= deadline:
+                raise ReleaseError('background-busy')
+            time.sleep(.05)
+        try:
+            entrance('hold')
+        except RuntimeError:
+            if entrance('status')['uncertain']:
+                raise ReleaseError('uncertain-write')
+            raise
+
+    def pause_background(self):
+        directory = self.maintenance_dir
+        directory.mkdir(mode=0o700, exist_ok=True)
+        paused = [timer for timer in SYNC_TIMERS if self.active(timer)]
+        save(directory / 'paused.json', paused)
+        for timer in paused:
+            self.systemctl('stop', timer)
+
+    def resume_background(self):
+        record = self.maintenance_dir / 'paused.json'
+        if not record.exists():
+            return
+        paused = json.loads(record.read_text())
+        if not isinstance(paused, list) or any(timer not in SYNC_TIMERS for timer in paused):
+            raise ReleaseError('invalid-paused-timers')
+        for timer in paused:
+            self.systemctl('start', timer)
+        record.unlink()
+
+    def capture(self, serving):
+        self.snapshot.capture(serving / 'release.json')
+
+    def resume(self):
+        entrance('resume')
+
+    def finish_backup(self):
+        self.snapshot.publish()
+
+    def discard_backup(self):
+        if self.snapshot and not self.snapshot.captured:
+            self.snapshot.discard()
+
+    def recover_entrance(self, local, credentials):
+        if not pathlib.Path('/run/canvas-cn-ingress/control.sock').is_socket():
+            return
+        if not entrance('status')['holding'] and not (self.maintenance_dir / 'paused.json').exists():
+            return
+        if not self.active('canvas-cn-formal.service'):
+            self.systemctl('start', 'canvas-cn-formal.service')
+        if not smoke(local, credentials, attempts=3, delay=.1):
+            raise ReleaseError('release-failed')
+        entrance('resume')
+        self.resume_background()
 
     def nginx_reload(self):
         self.run(['nginx', '-t'], check=True, capture_output=True)
@@ -360,11 +434,16 @@ def tick(args, host=None, fetcher=None, now=None):
     installed = json.loads(record.read_text()).get('commit') if record.is_file() else None
     credentials = pathlib.Path(args.credentials)
     site = pathlib.Path(NGINX_SITE)
+    # An interrupted runner may have left requests held and the verified old
+    # runtime stopped. Resume only after real backend checks, never a fake 200.
+    if (serving / VERIFIED).exists():
+        host.recover_entrance(args.local, credentials)
     if not (serving / VERIFIED).exists():
         # A runner stopped between switch and smoke left this release unproved.
         previous = state.get('previous')
         if smoke(args.local, credentials, attempts=args.smoke_attempts):
             (serving / VERIFIED).write_text('')
+            host.recover_entrance(args.local, credentials)
         elif previous and pathlib.Path(previous).is_dir() and pathlib.Path(previous) != serving:
             previous = pathlib.Path(previous)
             restored_site = nginx_config(previous, public_settings())
@@ -373,6 +452,7 @@ def tick(args, host=None, fetcher=None, now=None):
                 host.nginx_reload()
             switch(current, previous)
             host.systemctl('restart', 'canvas-cn-formal.service', check=False)
+            host.recover_entrance(args.local, credentials)
             return {'health': 'failed', 'reason': 'release-rolled-back', 'status': 'rolled-back',
                     'serving': None, 'lastAttemptAt': now, 'failedCommit': installed,
                     'failedReason': 'release-rolled-back'}
@@ -433,14 +513,14 @@ def tick(args, host=None, fetcher=None, now=None):
     unit_dir = pathlib.Path(args.unit_dir)
     saved_units = {p.name: p.read_bytes() for p in unit_dir.glob('canvas-cn-*') if p.is_file()}
     nginx_before = site.read_bytes() if site.exists() else None
-    paused = [timer for timer in SYNC_TIMERS if host.active(timer)]
-    for timer in paused:
-        host.systemctl('stop', timer, check=False)
+    host.pause_background()
     changed, added, operator_restarted = [], [], False
     try:
         try:
             host.backup(target)
-        except Exception:
+        except Exception as error:
+            if isinstance(error, ReleaseError) and error.reason == 'uncertain-write':
+                return dict(result, health='failed', reason='release-failed', status='uncertain-write')
             # Nothing is switched yet; do not stop the runtime again each minute.
             return dict(result, health='failed', reason='release-failed', status='backup-failed',
                         failedCommit=commit, failedReason='release-failed')
@@ -448,8 +528,16 @@ def tick(args, host=None, fetcher=None, now=None):
         if read_current(fetcher) != published or not verified_overseas(fetcher, published):
             return dict(result, status='source-changed', pending={})
         try:
+            host.hold()
+        except Exception as error:
+            if isinstance(error, ReleaseError) and error.reason == 'uncertain-write':
+                return dict(result, health='failed', reason='release-failed', status='uncertain-write')
+            return dict(result, status='handover-deferred', pending=pending)
+        try:
             # Persisted before switching, so an interrupted runner can roll back.
             save(state_path, dict(state, previous=str(serving), installing=commit))
+            host.systemctl('stop', 'canvas-cn-formal.service')
+            host.capture(serving)
             install_units(target, unit_dir, host, changed, added)
             nginx_new = nginx_config(target, public_settings())
             if nginx_new != nginx_before:
@@ -459,12 +547,20 @@ def tick(args, host=None, fetcher=None, now=None):
             if 'canvas-cn-operator.service' in changed:
                 operator_restarted = True
                 host.systemctl('restart', 'canvas-cn-operator.service')
-            host.systemctl('restart', 'canvas-cn-formal.service')
+            host.systemctl('start', 'canvas-cn-formal.service')
             ok = smoke(args.local, credentials, attempts=args.smoke_attempts)
         except Exception:
             ok = False
         if ok:
             (target / VERIFIED).write_text('')
+            host.resume()
+            try:
+                host.finish_backup()
+            except Exception:
+                # Code is healthy and accepting writes. Never roll it back for
+                # an archive/compression error; keep the captured staging tree.
+                return dict(result, health='failed', reason='release-failed',
+                            status='archive-failed', serving=commit, previous=str(serving))
             for unit in added:
                 if unit in AUTO_TIMERS:
                     host.systemctl('enable', '--now', unit, check=False)
@@ -472,6 +568,7 @@ def tick(args, host=None, fetcher=None, now=None):
             return dict(result, status='installed', serving=commit, previous=str(serving),
                         downloadedBytes=downloaded, lastCaughtUpAt=now)
         # Restore the serving release exactly: link, units, nginx site, processes.
+        host.systemctl('stop', 'canvas-cn-formal.service', check=False)
         switch(current, serving)
         for name in changed + added:
             if name not in saved_units:
@@ -492,11 +589,13 @@ def tick(args, host=None, fetcher=None, now=None):
             host.systemctl('restart', 'canvas-cn-operator.service', check=False)
         host.systemctl('restart', 'canvas-cn-formal.service', check=False)
         restored = smoke(args.local, credentials, attempts=args.smoke_attempts)
+        if restored:
+            host.resume()
         return dict(result, health='failed', reason='release-rolled-back' if restored else 'release-failed',
                     status='rolled-back', failedCommit=commit, failedReason='release-rolled-back')
     finally:
-        for timer in paused:
-            host.systemctl('start', timer, check=False)
+        host.discard_backup()
+        host.resume_background()
 
 
 def prune(releases, keep, count):

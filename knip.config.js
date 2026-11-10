@@ -49,6 +49,8 @@ export default {
         "worker/index.ts!",
         "worker/regional-entry.ts!",
         "containers/canvas-cn/formal/egress.mjs!",
+        // Independent host service, loaded by systemd rather than the Worker.
+        "containers/canvas-cn/formal/ingress.mjs!",
         // Invoked by scripts/regional-release.mjs inside the candidate build.
         "containers/canvas-cn/formal/prepare-artifacts.mjs!",
         // Loaded by the standalone workerd login profile's config.capnp.

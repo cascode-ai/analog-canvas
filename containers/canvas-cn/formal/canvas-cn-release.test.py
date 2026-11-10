@@ -8,6 +8,7 @@ import pathlib
 import tempfile
 import unittest
 import urllib.error
+from types import SimpleNamespace
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location(
@@ -70,6 +71,33 @@ class FakeHost:
 
     def backup(self, target):
         self.calls.append(('backup', target.name))
+
+    def hold(self):
+        self.calls.append(('hold',))
+
+    def capture(self, serving):
+        self.calls.append(('capture', serving.name))
+
+    def resume(self):
+        self.calls.append(('resume',))
+
+    def finish_backup(self):
+        self.calls.append(('archive',))
+
+    def discard_backup(self):
+        pass
+
+    def recover_entrance(self, local, credentials):
+        pass
+
+    def pause_background(self):
+        self.paused = [timer for timer in release.SYNC_TIMERS if self.active(timer)]
+        for timer in self.paused:
+            self.systemctl('stop', timer, check=False)
+
+    def resume_background(self):
+        for timer in getattr(self, 'paused', []):
+            self.systemctl('start', timer, check=False)
 
     def nginx_reload(self):
         self.calls.append(('nginx',))
@@ -256,8 +284,11 @@ class ReleaseTest(unittest.TestCase):
         # Only the replication timer that was running is paused and restarted.
         self.assertIn(('systemctl', 'start', 'canvas-cn-project-sync.timer'), host.calls)
         self.assertNotIn(('systemctl', 'start', 'canvas-cn-resource-sync.timer'), host.calls)
-        self.assertLess(host.calls.index(('backup', NEW)),
-                        host.calls.index(('systemctl', 'restart', 'canvas-cn-formal.service')))
+        lifecycle = [call for call in host.calls if call[0] in ('hold', 'capture', 'resume', 'archive') or
+                     (call[0] == 'systemctl' and call[-1] == 'canvas-cn-formal.service')]
+        self.assertEqual(lifecycle, [('hold',), ('systemctl', 'stop', 'canvas-cn-formal.service'),
+                                    ('capture', OLD), ('systemctl', 'start', 'canvas-cn-formal.service'),
+                                    ('resume',), ('archive',)])
         again = release.tick(self.args(), host, production, now=1800)
         self.assertEqual(again['status'], 'current')
 
@@ -345,6 +376,25 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual((result['status'], result['failedCommit']), ('backup-failed', NEW))
         self.assertEqual(self.current.resolve().name, OLD)
 
+    def test_uncertain_writes_report_failure_without_stopping_the_serving_release(self):
+        host = FakeHost()
+        host.backup = lambda target: (_ for _ in ()).throw(release.ReleaseError('uncertain-write'))
+        result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
+        self.assertEqual((result['health'], result['status']), ('failed', 'uncertain-write'))
+        self.assertEqual(self.current.resolve().name, OLD)
+        self.assertNotIn(('systemctl', 'stop', 'canvas-cn-formal.service'), host.calls)
+
+    def test_a_failed_candidate_restores_old_code_before_resuming_held_requests(self):
+        host = FakeHost()
+        answers = iter([False, True])
+        release.smoke = lambda *args, **kwargs: next(answers)
+        result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'rolled-back')
+        self.assertEqual(self.current.resolve().name, OLD)
+        self.assertEqual(host.calls.count(('resume',)), 1)
+        self.assertGreater(host.calls.index(('resume',)),
+                           host.calls.index(('systemctl', 'restart', 'canvas-cn-formal.service')))
+
     def test_retries_a_dropped_read_and_keeps_verified_files_between_ticks(self):
         production = FakeProduction(self.files)
         served = production.get
@@ -424,6 +474,39 @@ class ReleaseTest(unittest.TestCase):
         pathlib.Path(self.args().state).write_text(json.dumps(result))
         refused = release.tick(self.args(0), FakeHost(), FakeProduction(self.files), now=1100)
         self.assertEqual(refused['status'], 'refused')
+
+
+class HostDrainTest(unittest.TestCase):
+    def test_an_uncertain_write_fences_before_copying_data(self):
+        with patch.object(pathlib.Path, 'is_socket', return_value=True), \
+                patch.object(release, 'entrance', return_value={'uncertain': True}), \
+                patch.object(release, 'Snapshot') as snapshot:
+            with self.assertRaisesRegex(release.ReleaseError, 'uncertain-write'):
+                release.Host().backup(pathlib.Path('/candidate'))
+            snapshot.assert_not_called()
+
+    def test_a_new_installer_restores_only_timers_paused_by_the_interrupted_one(self):
+        calls = []
+        def run(args, **kwargs):
+            calls.append(tuple(args))
+            if 'is-active' in args:
+                return SimpleNamespace(returncode=0 if args[-1] == 'canvas-cn-project-sync.timer' else 3)
+            return SimpleNamespace(returncode=0)
+        with tempfile.TemporaryDirectory() as directory:
+            release.Host(run=run, maintenance_dir=directory).pause_background()
+            # New process, no in-memory list from the interrupted installer.
+            release.Host(run=run, maintenance_dir=directory).resume_background()
+        starts = [call for call in calls if 'start' in call]
+        self.assertEqual(starts, [('systemctl', 'start', 'canvas-cn-project-sync.timer')])
+
+    def test_running_oneshot_job_defers_handover(self):
+        host = release.Host(run=lambda args, **kwargs: SimpleNamespace(
+            returncode=0 if 'show' in args else 3, stdout=b'activating\n'))
+        with patch.object(release.time, 'monotonic', side_effect=[0, 4]), \
+                patch.object(release, 'entrance') as entrance:
+            with self.assertRaisesRegex(release.ReleaseError, 'background-busy'):
+                host.hold()
+            entrance.assert_not_called()
 
 
 if __name__ == '__main__':

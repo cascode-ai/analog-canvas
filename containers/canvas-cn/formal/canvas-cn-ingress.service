@@ -1,0 +1,26 @@
+[Unit]
+Description=Persistent domestic Canvas entrance
+After=network.target
+
+[Service]
+Type=exec
+DynamicUser=yes
+RuntimeDirectory=canvas-cn-ingress
+RuntimeDirectoryMode=0700
+StateDirectory=canvas-cn-ingress
+StateDirectoryMode=0700
+# Bootstrap pins this independent entrance; business releases do not restart it.
+ExecStart=/opt/analog-canvas/runtime/node-v24.22.1-linux-x64/bin/node /opt/analog-canvas/ingress/ingress.mjs
+Restart=on-failure
+RestartSec=1
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+UMask=0077
+MemoryMax=256M
+TasksMax=32
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
