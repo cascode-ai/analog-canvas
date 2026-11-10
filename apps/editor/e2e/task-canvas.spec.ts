@@ -537,6 +537,8 @@ test("copies an object review reference and locates only its reviewed revision",
     actions: [{ kind: "focus", intent: { kind: "select", locator } }],
   });
   expect(selection).toMatchObject({ ok: true });
+  const resistorHit = page.getByTestId("hit-R1");
+  await expect(resistorHit).toHaveClass(/selected/u);
 
   const panel = page.getByRole("button", {
     name: "Review feedback",
@@ -554,6 +556,7 @@ test("copies an object review reference and locates only its reviewed revision",
   const feedback = await page.evaluate(() => navigator.clipboard.readText());
   expect(feedback).toContain("Check the connection at R1.");
   expect(feedback).toContain("R1");
+  expect(feedback).toContain("Original source location unavailable");
   const reference = JSON.parse(
     feedback.match(/\x60\x60\x60json\r?\n([\s\S]*?)\r?\n\x60\x60\x60/u)![1]!,
   );
@@ -568,19 +571,22 @@ test("copies an object review reference and locates only its reviewed revision",
   await tool("circuit_view", {
     actions: [{ kind: "focus", intent: { kind: "clear-focus" } }],
   });
+  await expect(resistorHit).not.toHaveClass(/selected/u);
   expect(await tool("review_delivery", reference)).toMatchObject({
     ok: true,
     action: "locate",
     delivery: { projectRevision: reference.projectRevision },
   });
+  await expect(resistorHit).toHaveClass(/selected/u);
+  await panel.click();
+  await page.getByLabel("Review comment").fill("Draft from the older drawing.");
   expect(
     await tool("apply_actions", {
       actions: [
         {
-          kind: "place-component",
-          symbol: "resistor",
-          reference: "R2",
-          position: { x: 200, y: 200 },
+          kind: "set-property",
+          target: { kind: "instance", reference: "R1" },
+          set: { value: "2k" },
         },
       ],
     }),
@@ -589,6 +595,38 @@ test("copies an object review reference and locates only its reviewed revision",
     ok: false,
     error: { code: "REVIEW_TARGET_CHANGED" },
   });
+  await expect(page.getByLabel("Review comment")).toHaveCount(0);
+  const net = cell.nets.find(({ id }) =>
+    cell.routes.some(({ netId }) => netId === id),
+  )!;
+  const highlight = {
+    kind: "focus",
+    intent: { kind: "highlight-net", netId: net.id },
+  };
+  expect(await tool("circuit_view", { actions: [highlight] })).toMatchObject({
+    ok: true,
+  });
+  await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+  await expect(resistorHit).not.toHaveClass(/selected/u);
+  await panel.click();
+  await page.getByLabel("Review comment").fill("Check the highlighted Net.");
+  await page
+    .getByRole("button", { name: "Copy review feedback", exact: true })
+    .click();
+  const netFeedback = await page.evaluate(() => navigator.clipboard.readText());
+  const netReference = JSON.parse(
+    netFeedback.match(/\x60\x60\x60json\r?\n([\s\S]*?)\r?\n\x60\x60\x60/u)![1]!,
+  );
+  expect(netReference.locator).toMatchObject({ kind: "net", objectId: net.id });
+  await tool("circuit_view", {
+    actions: [{ kind: "focus", intent: { kind: "clear-focus" } }],
+  });
+  await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
+  expect(await tool("review_delivery", netReference)).toMatchObject({
+    ok: true,
+    action: "locate",
+  });
+  await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
   await tool("disconnect", {});
 });
 

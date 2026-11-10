@@ -630,6 +630,24 @@ export function ReferenceWindow({
             {localDelivery.recovered ? (
               <p>Restored from this browser's saved tab snapshot.</p>
             ) : null}
+            <p>
+              {localDelivery.source.electrical === "verified"
+                ? "Drawing checked against the imported netlist."
+                : "Drawing correspondence has not been verified."}
+            </p>
+            {localDelivery.source.diagnostics.length > 0 ? (
+              <ul aria-label="Import diagnostics">
+                {[
+                  ...new Set(
+                    localDelivery.source.diagnostics.map(
+                      ({ message }) => message,
+                    ),
+                  ),
+                ].map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            ) : null}
             <ul>
               {localDelivery.source.files.map((file) => (
                 <li key={file.path}>

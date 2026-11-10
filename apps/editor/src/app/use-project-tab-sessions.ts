@@ -69,6 +69,7 @@ import type { useEditorPanels } from "../features/editor-shell/use-editor-panels
 import type { usePropertiesEditor } from "../features/properties/use-properties-editor";
 import type { useSelectionController } from "../features/selection/selection-controller";
 import type { resolveTextEditingTarget } from "../features/text-editing/text-editing";
+import { writeClipboardText } from "../hosts/clipboard-text";
 import type { useInteractionState } from "../interaction/interaction-state";
 import type { PlacementOrientationOperation } from "../interaction/shortcut-orientation";
 import { materializeRazaviProjectBulkConnections } from "../presentation/razavi-presentation";
@@ -1109,6 +1110,7 @@ export function useProjectTabSessions({
   }) => {
     const matches = (local: LocalDelivery | undefined) =>
       local?.source.version === sourceVersion &&
+      (!taskRef || !local.taskRef || local.taskRef === taskRef) &&
       // Earlier RNL tabs did not record which appearance was requested.
       (local.source.format !== "rnl" || local.rnlAppearance === rnlAppearance);
     const existing = projectTabs
@@ -1116,7 +1118,7 @@ export function useProjectTabSessions({
       .find(
         ({ session }) =>
           session.localDelivery?.copy !== "original" &&
-          matches(session.localDelivery),
+          matches(localDeliveryOf(session.controller)),
       );
     let disposition: AgentLocalProjectReceipt["disposition"] = "reused";
     let controller = existing?.session.controller;
@@ -1345,64 +1347,71 @@ export function useProjectTabSessions({
     if (workspaceWriteError.current)
       throw new Error(workspaceWriteError.current);
   }
+  async function reviewFeedbackText(
+    snapshot: CircuitProject,
+    taskRef: string,
+    locator: ObjectLocator,
+    label: string,
+    comment: string,
+  ) {
+    const controller = editorDocumentController;
+    const local = localDeliveryOf(controller);
+    const delivery = await localReviewRef.current(controller, {
+      action: "read",
+    });
+    if (
+      taskRef !== localDeliveryOf(controller)?.taskRef ||
+      typeof delivery === "string" ||
+      controller.project !== snapshot ||
+      delivery.target.documentId !== locator.documentId
+    )
+      throw new Error("The reviewed drawing changed. Select the target again.");
+    const { sourceRef, ...address } = locator;
+    const file = snapshot.source.files.find(
+      ({ id }) => id === sourceRef?.fileId,
+    );
+    const sourceFiles = delivery.embeddedSource?.files ?? local?.source.files;
+    const location =
+      sourceRef &&
+      file &&
+      !file.originalContent &&
+      sourceFiles?.some(
+        ({ path, sha256 }) =>
+          path === file.path && file.hash === `sha256:${sha256}`,
+      )
+        ? `${file.path}:${sourceRef.start.line}`
+        : "Original source location unavailable";
+    const cell = controller.document.name;
+    const reference = {
+      taskRef,
+      action: "locate",
+      expected: delivery.target,
+      projectRevision: delivery.projectRevision,
+      locator: address,
+    };
+    return [
+      `Canvas review feedback for ${snapshot.name} / ${cell} / ${label}`,
+      location,
+      "",
+      "Canvas review reference",
+      "```json",
+      JSON.stringify(reference, null, 2),
+      "```",
+      "",
+      comment.trim(),
+    ].join("\n");
+  }
+
   return {
-    async copyReviewFeedback(
+    copyReviewFeedback(
+      snapshot: CircuitProject,
+      taskRef: string,
       locator: ObjectLocator,
       label: string,
       comment: string,
     ) {
-      const controller = editorDocumentController;
-      const snapshot = controller.project;
-      const local = localDeliveryOf(controller);
-      const taskRef = local?.taskRef;
-      const delivery = await localReviewRef.current(controller, {
-        action: "read",
-      });
-      if (
-        !taskRef ||
-        taskRef !== localDeliveryOf(controller)?.taskRef ||
-        typeof delivery === "string" ||
-        controller.project !== snapshot ||
-        delivery.target.documentId !== locator.documentId
-      )
-        throw new Error(
-          "The reviewed drawing changed. Select the target again.",
-        );
-      const { sourceRef, ...address } = locator;
-      const file = snapshot.source.files.find(
-        ({ id }) => id === sourceRef?.fileId,
-      );
-      const sourceFiles = delivery.embeddedSource?.files ?? local?.source.files;
-      const location =
-        sourceRef &&
-        file &&
-        !file.originalContent &&
-        sourceFiles?.some(
-          ({ path, sha256 }) =>
-            path === file.path && file.hash === `sha256:${sha256}`,
-        )
-          ? `${file.path}:${sourceRef.start.line}`
-          : "Original source location unavailable";
-      const cell = controller.document.name;
-      const reference = {
-        taskRef,
-        action: "locate",
-        expected: delivery.target,
-        projectRevision: delivery.projectRevision,
-        locator: address,
-      };
-      await navigator.clipboard.writeText(
-        [
-          `Canvas review feedback for ${snapshot.name} / ${cell} / ${label}`,
-          location,
-          "",
-          "Canvas review reference",
-          "```json",
-          JSON.stringify(reference, null, 2),
-          "```",
-          "",
-          comment.trim(),
-        ].join("\n"),
+      return writeClipboardText(
+        reviewFeedbackText(snapshot, taskRef, locator, label, comment),
       );
     },
     localDelivery: (() => {
