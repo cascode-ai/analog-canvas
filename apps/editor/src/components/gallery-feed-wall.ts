@@ -469,6 +469,9 @@ export function useGalleryWall({
     state,
     setState,
     heldWall,
+    // Whether the wall held is the answer to the current query, rather than
+    // to the one before it while the new one is about to be asked.
+    answersQuery: loadedQueryRef.current === galleryFeedQueryKey(feedQuery),
     shownWallRef,
     sentinelRef,
     toggleLike,

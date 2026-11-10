@@ -233,6 +233,7 @@ export function GalleryFeed({
     state,
     setState,
     heldWall,
+    answersQuery,
     shownWallRef,
     sentinelRef,
     toggleLike,
@@ -333,8 +334,26 @@ export function GalleryFeed({
         galleryEntryMatchesQuery(entry, normalizedSearchQuery),
       )
     : entries;
-  const refreshing = state.status === "loading" && heldWall.length > 0;
-  shownWallRef.current = refreshing ? heldWall : visibleEntries;
+  // Words not yet answered by the server: still being typed, or about to be
+  // asked. Meanwhile the wall shown before them stays, dimmed, when they
+  // match nothing loaded, rather than blanking until the answer (#2160).
+  const wordsPending =
+    searchingLoaded && (searchQuery.trim() !== serverSearch || !answersQuery);
+  const answeredWallRef = useRef<GalleryFeedEntry[]>([]);
+  if (state.status === "ready" && !wordsPending)
+    answeredWallRef.current = visibleEntries;
+  const holdingAnswered =
+    state.status === "ready" &&
+    wordsPending &&
+    visibleEntries.length === 0 &&
+    answeredWallRef.current.length > 0;
+  const loadingHeld = state.status === "loading" && heldWall.length > 0;
+  const refreshing = loadingHeld || holdingAnswered;
+  shownWallRef.current = loadingHeld
+    ? heldWall
+    : holdingAnswered
+      ? answeredWallRef.current
+      : visibleEntries;
 
   const { linkedId, focusFailure } = useGalleryFocusLink({
     preload,
@@ -754,7 +773,7 @@ export function GalleryFeed({
                 aria-busy={refreshing}
                 inert={refreshing}
               >
-                {searchingLoaded && state.status === "ready" ? (
+                {searchingLoaded && state.status === "ready" && !refreshing ? (
                   <GallerySearchProgress
                     checked={entries.length}
                     total={state.total}
