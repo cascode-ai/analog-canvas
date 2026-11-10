@@ -50,8 +50,10 @@ and diagnostics never enter a formal artifact.
   holds (e.g. Hangul, emoji) is written as a blank of about its width and
   the PDF still saves, but the export never reports it complete: the editor
   status and the Agent download's `warnings` name the characters left out
-  and point to SVG or PNG, which keep them. Invisible characters (joiners,
-  variation selectors) are not named.
+  and point to SVG or PNG, which keep them. A download request without
+  `includeWarnings` (clients released before `warnings`, which refuse a
+  field they do not know) is refused instead, naming them. Invisible
+  characters (joiners, variation selectors) are not named.
 - Canonical SVG resolves scripts to numeric font sizes and explicit baseline
   displacement, and the next visible run restores the parent baseline; never
   `baseline-shift` or percentage `font-size` (Office-class importers mishandle

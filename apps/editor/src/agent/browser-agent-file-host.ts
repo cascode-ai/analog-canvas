@@ -725,11 +725,21 @@ export class BrowserAgentFileHost {
           bytes: png.bytes,
         };
       } else {
-        const { vectorizeFormalSvgInBrowser } = await importChunk(
-          "PDF export",
-          () => import("@icm/exporters/browser-pdf"),
-        );
+        const { vectorizeFormalSvgInBrowser, omittedGlyphsRefusal } =
+          await importChunk(
+            "PDF export",
+            () => import("@icm/exporters/browser-pdf"),
+          );
         const pdf = await vectorizeFormalSvgInBrowser(source);
+        // A client released before `warnings` refuses a response field it
+        // does not know: one that has not asked for them gets the
+        // characters named in a refusal instead (#2179).
+        if (pdf.notice && !request.includeWarnings)
+          return this.error(
+            request,
+            "PDF_CHARACTERS_LEFT_OUT",
+            omittedGlyphsRefusal(pdf.omitted),
+          );
         artifact = {
           name: "schematic.pdf",
           mediaType: "application/pdf",

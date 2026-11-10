@@ -299,6 +299,8 @@ function formalSvgElement(source: FormalExportSource): {
   return { host, svg };
 }
 
+export { omittedGlyphsRefusal } from "./font-coverage.js";
+
 /** A vector PDF, and what it could not write. */
 export interface VectorPdfExport {
   bytes: Uint8Array;

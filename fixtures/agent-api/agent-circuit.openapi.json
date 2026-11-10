@@ -20418,6 +20418,10 @@
               "operation": {
                 "type": "string",
                 "const": "download"
+              },
+              "includeWarnings": {
+                "type": "boolean",
+                "const": true
               }
             },
             "required": [

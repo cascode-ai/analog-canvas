@@ -92,8 +92,8 @@ export function unwritableGlyphs(
   );
 }
 
-/** The export's account of the characters a PDF was saved without. */
-export function omittedGlyphsNotice(glyphs: readonly string[]): string {
+/** "한 (U+D55C) and 2 more", and the pronoun that refers to them. */
+function namedGlyphs(glyphs: readonly string[]) {
   const named = glyphs.slice(0, 3).map((glyph) => {
     const point = (glyph.codePointAt(0) ?? 0).toString(16).toUpperCase();
     return `${glyph} (U+${point.padStart(4, "0")})`;
@@ -104,6 +104,20 @@ export function omittedGlyphsNotice(glyphs: readonly string[]): string {
     : named.length > 1
       ? `${named.slice(0, -1).join(", ")} and ${named.at(-1)}`
       : named.join("");
-  const them = glyphs.length === 1 ? "it" : "them";
+  return { list, them: glyphs.length === 1 ? "it" : "them" };
+}
+
+/** The export's account of the characters a PDF was saved without. */
+export function omittedGlyphsNotice(glyphs: readonly string[]): string {
+  const { list, them } = namedGlyphs(glyphs);
   return `PDF saved without ${list}: no PDF font has ${them}. Export SVG or PNG to keep ${them}.`;
+}
+
+/**
+ * The refusal an Agent client gets in place of such a PDF when it cannot
+ * read the response's warnings (#2179).
+ */
+export function omittedGlyphsRefusal(glyphs: readonly string[]): string {
+  const { list, them } = namedGlyphs(glyphs);
+  return `The PDF would leave out ${list}: no PDF font has ${them}. Export SVG or PNG to keep ${them}, or update the Agent client to receive the PDF with a warning.`;
 }
