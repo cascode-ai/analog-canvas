@@ -118,6 +118,43 @@ export class RegionalSessionDO {
     const url = new URL(request.url);
     if (
       url.origin === "https://auth" &&
+      request.method === "POST" &&
+      [
+        "/internal/resource-action-authorize",
+        "/internal/resource-action-verify",
+      ].includes(url.pathname)
+    ) {
+      const body = await readBody(request);
+      if (!body) return answer({ error: "invalid-request" }, 400);
+      let grant: string | undefined;
+      if (url.pathname.endsWith("authorize")) {
+        const token = cookie(request, REGIONAL_SESSION_COOKIE);
+        if (!validNonce(token)) return answer({ error: "unauthorized" }, 401);
+        const row = this.sql
+          .exec<SessionRow>(
+            "SELECT * FROM regional_sessions WHERE token_hash=? AND expires_at>? AND lease_until>?",
+            await digest(token),
+            this.now(),
+            this.now(),
+          )
+          .toArray()[0];
+        if (!row) return answer({ error: "unauthorized" }, 401);
+        grant = row.grant;
+      }
+      const result = await this.authority(
+        grant ? "action-authorize" : "action-verify",
+        {
+          binding: body.binding,
+          ...(grant ? { grant } : { token: body.token }),
+        },
+      );
+      return answer(
+        result.body ?? { error: "authorization-unavailable" },
+        result.status || 503,
+      );
+    }
+    if (
+      url.origin === "https://auth" &&
       url.pathname === ACCOUNT_DELETION_TICK &&
       request.method === "POST"
     )
@@ -400,7 +437,9 @@ export class RegionalSessionDO {
       | "deletions"
       | "owner-token"
       | "security"
-      | "providers",
+      | "providers"
+      | "action-authorize"
+      | "action-verify",
     body: unknown,
   ): Promise<{ status: number; body: Record<string, unknown> | null }> {
     const config = this.config;

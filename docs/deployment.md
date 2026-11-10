@@ -95,6 +95,9 @@ Environment secrets are reachable only from `main` (and `v*` tags).
 - `cloudflare-production`: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
   `GH_OAUTH_CLIENT_ID`, `GOOGLE_CLIENT_ID`, `GALLERY_BACKUP_TOKEN`,
   `STORE_BACKUP_TOKEN`, `SIMULATION_UPSTREAM_TOKEN`.
+  Regional action routing also syncs `RESOURCE_ACTION_PEER` and
+  `RESOURCE_SYNC_PEER_TOKEN` when present; they name the fixed domestic peer and
+  its existing inbound publication-sync credential.
 - `cloudflare-preview` (Simulator host and Preview retirement workflows):
   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SIMULATION_UPSTREAM_TOKEN`,
   `SIM_HOST_SSH_KEY`, and `CLOUDFLARE_TUNNEL_API_TOKEN` (needed before

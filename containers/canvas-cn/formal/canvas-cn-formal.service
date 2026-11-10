@@ -24,6 +24,7 @@ LoadCredential=project-writes-enabled:/etc/analog-canvas-formal/project-writes-e
 LoadCredential=regional-client.json:/etc/analog-canvas-formal/regional-client.json
 LoadCredential=resource-admin-token:/etc/analog-canvas-formal/resource-admin-token
 LoadCredential=resource-inbound-token:/etc/analog-canvas-formal/resource-inbound-token
+LoadCredential=resource-outbound-token:/etc/analog-canvas-formal/resource-outbound-token
 LoadCredential=resource-writes-enabled:/etc/analog-canvas-formal/resource-writes-enabled
 LoadCredential=simulation-smoke-token:/etc/analog-canvas-formal/simulation-smoke-token
 LoadCredential=sync-admin-token:/etc/analog-canvas-formal/sync-admin-token

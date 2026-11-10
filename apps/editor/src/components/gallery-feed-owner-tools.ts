@@ -10,6 +10,8 @@ import {
 } from "../gallery-client";
 import type { GalleryDuplicateReport } from "../gallery-duplicates";
 import { queueGallerySimulationChecks } from "../gallery-simulation-checks";
+import { galleryLifecycleRequest } from "../gallery-lifecycle-request";
+import { requestFailureOf } from "../request-failure";
 
 export function useGalleryOwnerTools({
   isOwner,
@@ -38,12 +40,13 @@ export function useGalleryOwnerTools({
   async function withdrawEntry(entry: GalleryFeedEntry): Promise<void> {
     setOwnerBusy(entry.id);
     setOwnerNotice(null);
+    let failureMessage: string | undefined;
     try {
-      const response = await fetch(`/api/gallery/${entry.id}/recycle`, {
-        method: "POST",
-        credentials: "same-origin",
-      });
-      if (!response.ok) throw new Error();
+      const response = await galleryLifecycleRequest(entry.id, "recycle");
+      if (!response.ok) {
+        failureMessage = (await requestFailureOf(response)).message;
+        throw new Error();
+      }
       removeManagedEntry(entry);
       announceGalleryChange({ entryId: entry.id });
       setOwnerNotice({
@@ -55,7 +58,9 @@ export function useGalleryOwnerTools({
     } catch {
       setOwnerNotice({
         ok: false,
-        text: `Could not withdraw “${entry.name}”. Try again.`,
+        text:
+          failureMessage ??
+          `Could not confirm withdrawal of “${entry.name}”. Try again.`,
       });
     } finally {
       setOwnerBusy(null);

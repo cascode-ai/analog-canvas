@@ -62,6 +62,11 @@ export default {
       const browserAuth =
         destination.origin === identity.origin &&
         isRegionalAuthorityBrowserRoute(request.method, destination.pathname);
+      const resourceCatchup =
+        destination.origin === peer.origin &&
+        request.method === "GET" &&
+        destination.pathname === "/api/resource-sync/gallery/changes" &&
+        /^\?after=\d+$/.test(destination.search);
       const allowed = new Set([
         `POST ${new URL("/api/analytics-sync/seed", peer)}`,
         `POST ${new URL("/api/analytics-sync/receive", peer)}`,
@@ -78,11 +83,16 @@ export default {
         `POST ${new URL("/api/auth/regional/owner-token", identity)}`,
         `POST ${new URL("/api/auth/regional/security", identity)}`,
         `POST ${new URL("/api/auth/regional/providers", identity)}`,
+        `POST ${new URL("/api/auth/regional/action-authorize", identity)}`,
+        `POST ${new URL("/api/auth/regional/action-verify", identity)}`,
+        `POST ${new URL("/api/resource-actions/lifecycle", peer)}`,
       ]);
       if (
         peer.protocol !== "https:" ||
         identity.protocol !== "https:" ||
-        (!browserAuth && !allowed.has(`${request.method} ${request.url}`))
+        (!browserAuth &&
+          !resourceCatchup &&
+          !allowed.has(`${request.method} ${request.url}`))
       )
         return new Response("Regional destination refused", { status: 403 });
       const headers = new Headers(request.headers);

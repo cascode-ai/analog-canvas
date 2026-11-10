@@ -66,6 +66,10 @@ export class RegionalAuthority {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_grants (
       grant_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL,
       audience TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
+    sql.exec(`CREATE TABLE IF NOT EXISTS regional_action_capabilities (
+      token_hash TEXT PRIMARY KEY, binding TEXT NOT NULL, user_id TEXT NOT NULL,
+      reference_kind TEXT NOT NULL, reference_hash TEXT NOT NULL,
+      expires_at INTEGER NOT NULL) WITHOUT ROWID`);
     // Gallery blocks are retired, and with them the restriction revisions.
     sql.exec("DROP TABLE IF EXISTS regional_security_clock");
     for (const table of ["regional_codes", "regional_grants"]) {
@@ -87,6 +91,20 @@ export class RegionalAuthority {
         return answer({ error: "unauthorized" }, 401);
       const body = await readBody(request);
       if (!body) return answer({ error: "invalid-request" }, 400);
+      if (url.pathname === REGIONAL_PREFIX + "action-authorize") {
+        const grant = validNonce(body.grant)
+          ? await this.currentGrant(body.grant)
+          : null;
+        if (!grant) return answer({ error: "invalid-grant" }, 401);
+        return this.issueAction(
+          body.binding,
+          grant.user.id,
+          "grant",
+          await digest(String(body.grant)),
+        );
+      }
+      if (url.pathname === REGIONAL_PREFIX + "action-verify")
+        return this.verifyAction(body);
       if (url.pathname === REGIONAL_PREFIX + "providers")
         return answer({
           ...this.providers,
@@ -294,10 +312,14 @@ export class RegionalAuthority {
   }
 
   private async currentGrant(value: string) {
+    return this.currentGrantHash(await digest(value));
+  }
+
+  private async currentGrantHash(hash: string) {
     const row = this.sql
       .exec<GrantRow>(
         "SELECT * FROM regional_grants WHERE grant_hash = ? AND audience = ? AND expires_at > ?",
-        await digest(value),
+        hash,
         this.config.clientOrigin,
         this.now(),
       )
@@ -321,6 +343,72 @@ export class RegionalAuthority {
         switchedFrom: { id: actor.id, displayName: actor.displayName },
       },
     };
+  }
+
+  /** Called only through the trusted AUTH binding, after normal cookie resolution. */
+  async authorizeSourceAction(request: Request): Promise<Response> {
+    const body = await readBody(request);
+    const hash = await sourceSessionHash(cookie(request, "icm_session") ?? "");
+    const user = await this.session(hash);
+    if (!user) return answer({ error: "unauthorized" }, 401);
+    return this.issueAction(body?.binding, user.id, "session", hash);
+  }
+
+  private async issueAction(
+    binding: unknown,
+    userId: string,
+    kind: string,
+    reference: string,
+  ): Promise<Response> {
+    if (!validNonce(binding)) return answer({ error: "invalid-binding" }, 400);
+    this.sql.exec(
+      "DELETE FROM regional_action_capabilities WHERE expires_at<=?",
+      this.now(),
+    );
+    const count = this.sql
+      .exec<{ n: number }>(
+        "SELECT COUNT(*) AS n FROM regional_action_capabilities",
+      )
+      .toArray()[0]!.n;
+    if (count >= 5000) return answer({ error: "authorization-busy" }, 503);
+    const token = nonce();
+    this.sql.exec(
+      "INSERT INTO regional_action_capabilities VALUES (?,?,?,?,?,?)",
+      await digest(token),
+      binding,
+      userId,
+      kind,
+      reference,
+      this.now() + 60_000,
+    );
+    return answer({ token });
+  }
+
+  /** A capability names one command; a fresh session/grant check still decides its actor. */
+  async verifyAction(body: Record<string, unknown>): Promise<Response> {
+    if (!validNonce(body.token) || !validNonce(body.binding))
+      return answer({ error: "unauthorized" }, 401);
+    const row = this.sql
+      .exec<{
+        user_id: string;
+        reference_kind: string;
+        reference_hash: string;
+      }>(
+        "SELECT * FROM regional_action_capabilities WHERE token_hash=? AND binding=? AND expires_at>?",
+        await digest(body.token),
+        body.binding,
+        this.now(),
+      )
+      .toArray()[0];
+    const user =
+      row?.reference_kind === "grant"
+        ? (await this.currentGrantHash(row.reference_hash))?.user
+        : row
+          ? await this.session(row.reference_hash)
+          : null;
+    if (!user || user.id !== row?.user_id)
+      return answer({ error: "unauthorized" }, 401);
+    return answer({ user });
   }
 
   private async deleteAccount(

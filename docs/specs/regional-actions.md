@@ -3,8 +3,33 @@
 Status: `accepted`
 
 Primary owner: Gallery, Component Library, Auth and regional replication.
-This is the required behavior; cross-region commands and the additional
-replication scopes below remain to be delivered.
+This is the required behavior. The opt-in Gallery withdrawal/restoration slice
+implements command delegation; the remaining actions and additional replication
+scopes below remain to be delivered.
+
+## Gallery lifecycle delivery
+
+- `RESOURCE_ACTION_PEER` is a fixed HTTPS service origin, independent of browser
+  geographic routing. `RESOURCE_SYNC_PEER_TOKEN` permits ordered catch-up only;
+  it grants no command authority. Without the peer setting, legacy routing stays.
+- AUTH issues a 60-second opaque capability bound to one command digest and its
+  destination. Redemption revalidates the original session or regional grant,
+  including its current subject. A session change invalidates the capability.
+- The writer commits withdrawal/restoration and its per-account command receipt
+  together. Keep at most 10,000 receipts per account; exhaustion refuses new
+  commands before mutation. Receipts are retained with the writer's backups;
+  do not discard them during rollback or reset an identity to bypass the limit.
+  Recovery uses the native Durable Object history or a full stopped-state ECS
+  capture. A Gallery content export alone does not include command receipts.
+- The browser retains an uncertain command ID in session storage (memory when
+  storage is unavailable). A successful action clears that entry's pending IDs.
+  Older clients without IDs remain accepted but cannot reconcile a lost response
+  as the same command.
+- After foreign commit, the entrance catches up in cursor order, bounded to 64
+  receipts and 20 seconds. An unconfirmed reply or pending propagation remains a
+  retry with the same command ID, never a successful local read of stale state.
+  If a later action superseded a retry's recorded status, reconcile it and report
+  the conflict without repeating the earlier mutation.
 
 ## Rules
 

@@ -8,6 +8,40 @@ import {
   recycledRetentionNote,
 } from "./my-submissions";
 
+it("retries an uncertain lifecycle request with the same identity and gives a later action a new one", async () => {
+  const keys: (string | null)[] = [];
+  let attempts = 0;
+  const fetcher: typeof fetch = async (_input, init) => {
+    keys.push(new Headers(init?.headers).get("idempotency-key"));
+    if (++attempts === 1) throw new TypeError("lost response");
+    return Response.json({ status: "recycled" });
+  };
+  expect(
+    (await setMyEntryRecycled("retry-circuit", "recycle", fetcher)).ok,
+  ).toBe(false);
+  expect(
+    (await setMyEntryRecycled("retry-circuit", "recycle", fetcher)).ok,
+  ).toBe(true);
+  await setMyEntryRecycled("retry-circuit", "restore", fetcher);
+  expect(keys[0]).toBeTruthy();
+  expect(keys[1]).toBe(keys[0]);
+  expect(keys[2]).not.toBe(keys[0]);
+});
+
+it("distinguishes a saved action waiting for replication from a refused action", async () => {
+  const outcome = await setMyEntryRecycled(
+    "pending-circuit",
+    "recycle",
+    async () =>
+      Response.json({ error: "action-propagation-pending" }, { status: 503 }),
+  );
+  expect(outcome).toEqual({
+    ok: false,
+    message:
+      "The change was saved. Synchronization is still finishing; retry to confirm.",
+  });
+});
+
 it("reports offline actions and accepts successful empty replies", async () => {
   for (const run of [
     deleteMyEntry,

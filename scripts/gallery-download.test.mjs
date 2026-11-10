@@ -11,6 +11,7 @@ import {
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -20,7 +21,9 @@ import {
   wholeEntry,
 } from "./gallery-download.mjs";
 
-const script = new URL("./gallery-download.mjs", import.meta.url).pathname;
+const script = fileURLToPath(
+  new URL("./gallery-download.mjs", import.meta.url),
+);
 
 describe("a Gallery wall link", () => {
   it("names the list API's filters, netlist as netlistable", () => {

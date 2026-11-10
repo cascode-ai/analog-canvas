@@ -73,6 +73,8 @@ function canonicalAuthorityRequest(
       "security",
       "providers",
       "deletions",
+      "action-authorize",
+      "action-verify",
     ].some((action) => url.pathname === REGIONAL_PREFIX + action);
   if (!rpc && !isRegionalAuthorityBrowserRoute(request.method, url.pathname))
     return null;
@@ -632,7 +634,14 @@ export class AuthDO {
       request = canonical;
     }
     const url = new URL(request.url);
-    if (url.pathname.startsWith(REGIONAL_PREFIX)) {
+    const actionRpc =
+      url.origin === "https://auth" &&
+      request.method === "POST" &&
+      [
+        "/internal/resource-action-authorize",
+        "/internal/resource-action-verify",
+      ].includes(url.pathname);
+    if (url.pathname.startsWith(REGIONAL_PREFIX) || actionRpc) {
       const config = regional;
       if (!config) return noStoreJson({ error: "not-found" }, 404);
       this.regionalAuthority ??= new RegionalAuthority(
@@ -664,6 +673,11 @@ export class AuthDO {
         (request) => this.fetch(request),
         this.deletions,
       );
+      if (actionRpc) {
+        if (url.pathname === "/internal/resource-action-authorize")
+          return this.regionalAuthority.authorizeSourceAction(request);
+        return this.regionalAuthority.verifyAction(await request.json());
+      }
       return this.regionalAuthority.fetch(request);
     }
     if (

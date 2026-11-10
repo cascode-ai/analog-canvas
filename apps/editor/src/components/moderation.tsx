@@ -7,6 +7,8 @@ import { fetchSessionUser, type SessionUser } from "./account";
 import { EntryCard } from "./entry-card";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
+import { galleryLifecycleRequest } from "../gallery-lifecycle-request";
+import { requestFailureOf } from "../request-failure";
 
 /** Post-publication curation. Operational maintenance belongs in scripts. */
 type ModerationState =
@@ -95,22 +97,26 @@ function ModerationCollection({
       onChanged();
     };
     let binned = false;
+    let failureMessage: string | undefined;
     try {
       // Only what is in the bin can be deleted, so a rejected circuit goes
       // there first: one click either way.
       if (action === "delete" && rejected) {
-        if (!(await call(`/api/gallery/${id}/recycle`, "POST")).ok)
+        const moved = await galleryLifecycleRequest(id, "recycle");
+        if (!moved.ok) {
+          failureMessage = (await requestFailureOf(moved)).message;
           throw new Error("Could not move this entry to the bin.");
+        }
         binned = true;
       }
-      const response = await call(
+      const response =
         action === "delete"
-          ? `/api/gallery/${id}`
-          : `/api/gallery/${id}/${action}`,
-        action === "delete" ? "DELETE" : "POST",
-      );
-      if (!response.ok)
+          ? await call(`/api/gallery/${id}`, "DELETE")
+          : await galleryLifecycleRequest(id, action);
+      if (!response.ok) {
+        failureMessage = (await requestFailureOf(response)).message;
         throw new Error("Could not update this entry. Please try again.");
+      }
       gone();
     } catch {
       if (binned) {
@@ -121,7 +127,8 @@ function ModerationCollection({
       } else {
         setActionError({
           id,
-          message: "Could not update this entry. Please try again.",
+          message:
+            failureMessage ?? "Could not update this entry. Please try again.",
         });
       }
     } finally {

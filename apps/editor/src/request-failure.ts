@@ -50,6 +50,24 @@ export async function requestFailureOf(
     .json()
     .catch(() => null)) as { error?: unknown; resetAt?: unknown } | null;
   const { status } = response;
+  if (body?.error === "action-superseded")
+    return {
+      failure: "server-error",
+      message:
+        "The earlier operation completed, but the circuit's status has changed since. Refresh to see its current state.",
+    };
+  if (body?.error === "action-propagation-pending")
+    return {
+      failure: "server-error",
+      message:
+        "The change was saved. Synchronization is still finishing; retry to confirm.",
+    };
+  if (body?.error === "action-unconfirmed")
+    return {
+      failure: "server-error",
+      message:
+        "The result is not confirmed. Retry to check the same operation.",
+    };
   if (await isDailyAllowanceRefusal(response)) {
     const resetAt = typeof body?.resetAt === "string" ? body.resetAt : "";
     return {
