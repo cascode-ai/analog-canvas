@@ -66,8 +66,11 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   `reason`). Its label is the current results' count (`Download 78`), which
   follows every filter and search; it is disabled at zero and while the
   count loads. A press fixes the query; the button then shows its progress
-  (`32 / 78`) with Cancel beside it while the wall stays usable, and the end
-  saves the file and offers `Download ZIP` again, or `N failed · Retry`.
+  (`32 / 78`) with Cancel beside it while the wall stays usable. A complete
+  run saves the file and offers `Download ZIP` again. A run with failures
+  saves nothing by itself: it shows `N failed · Retry` and `Download partial
+ZIP (M of N)`, whose file is named `…-partial.zip` and whose manifest
+  lists the failed circuits.
   It lists oldest first and reads at most 10 requests a second, 4 at once;
   network, 408, 429 (every reader waits its `Retry-After`) and 5xx failures
   are retried, circuits still failing are named, a list failure saves

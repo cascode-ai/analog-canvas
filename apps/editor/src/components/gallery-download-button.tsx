@@ -4,9 +4,11 @@
  * every public circuit when nothing narrows them, as one .zip of Project
  * files with a manifest. Its count is the wall's own and follows every
  * filter (#2173). A press fixes the query it saves; its progress takes the
- * button's place with a Cancel beside it while the wall stays usable. The
- * end saves the file, or says which circuits failed with a Retry, and the
- * button counts the current wall again. The archive code loads on first use.
+ * button's place with a Cancel beside it while the wall stays usable. A
+ * complete run saves the file; one with failures saves nothing by itself,
+ * says which circuits failed with a Retry and offers the partial package,
+ * named so, on its own press. Then the button counts the current wall
+ * again. The archive code loads on first use.
  */
 import { useEffect, useState } from "react";
 
@@ -36,9 +38,11 @@ export type GalleryDownloadRun =
   | {
       kind: "done";
       job: GalleryDownloadJob;
-      /** The saved archive; null when nothing was saved. */
+      /** The archive; null when nothing could go in it. */
       url: string | null;
       fileName: string;
+      /** Circuits listed, and those in the archive. */
+      listed: number;
       count: number;
       failed: GalleryZipFailure[];
     }
@@ -158,21 +162,8 @@ export function GalleryDownloadView({
         </button>
       ) : run.kind === "done" ? (
         <span className="gallery-download-aside" role="status">
-          {run.url ? (
-            <a
-              href={run.url}
-              download={run.fileName}
-              data-testid="gallery-download-file"
-              title={`${run.fileName}: ${run.count.toLocaleString()} ${run.count === 1 ? "circuit" : "circuits"}${failed ? `, ${failed.length.toLocaleString()} missing (listed in manifest.json)` : ""}`}
-            >
-              Download ZIP
-            </a>
-          ) : failed ? null : (
-            <span data-testid="gallery-download-nothing">Nothing matched</span>
-          )}
           {failed ? (
             <>
-              {run.url ? " · " : null}
               <span
                 className="gallery-download-error"
                 data-testid="gallery-download-failed"
@@ -188,8 +179,34 @@ export function GalleryDownloadView({
               >
                 Retry
               </button>
+              {/* A partial package only on its own, plainly named press. */}
+              {run.url ? (
+                <>
+                  {" · "}
+                  <a
+                    href={run.url}
+                    download={run.fileName}
+                    data-testid="gallery-download-partial"
+                    title={`${run.fileName}: the missing circuits are listed in manifest.json`}
+                  >
+                    Download partial ZIP ({run.count.toLocaleString()} of{" "}
+                    {run.listed.toLocaleString()})
+                  </a>
+                </>
+              ) : null}
             </>
-          ) : null}
+          ) : run.url ? (
+            <a
+              href={run.url}
+              download={run.fileName}
+              data-testid="gallery-download-file"
+              title={`${run.fileName}: ${run.count.toLocaleString()} ${run.count === 1 ? "circuit" : "circuits"}`}
+            >
+              Download ZIP
+            </a>
+          ) : (
+            <span data-testid="gallery-download-nothing">Nothing matched</span>
+          )}
         </span>
       ) : run.kind === "error" ? (
         <span className="gallery-download-aside" role="status">
@@ -269,9 +286,10 @@ export function GalleryDownloadButton({
               : previous,
           ),
       });
-      let url: string | null = null;
-      if (result.zip) {
-        url = URL.createObjectURL(result.zip);
+      const url = result.zip ? URL.createObjectURL(result.zip) : null;
+      // Only a complete package saves itself; a partial one waits for its
+      // own press (#2148).
+      if (url && result.failed.length === 0) {
         const link = document.createElement("a");
         link.href = url;
         link.download = result.fileName;
@@ -282,6 +300,7 @@ export function GalleryDownloadButton({
         job,
         url,
         fileName: result.fileName,
+        listed: result.listed,
         count: result.count,
         failed: result.failed,
       });

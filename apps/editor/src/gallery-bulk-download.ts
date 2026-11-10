@@ -395,7 +395,11 @@ export async function downloadGalleryZip(
   );
   return {
     zip: writer.finish(),
-    fileName,
+    // An archive missing circuits says so in its name, never passing for
+    // the whole package (#2148).
+    fileName: failed.length
+      ? fileName.replace(/\.zip$/u, "-partial.zip")
+      : fileName,
     listed: listed.length,
     count: entries.length,
     failed,

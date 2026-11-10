@@ -76,7 +76,8 @@ it("never calls a partial archive complete, and offers Retry", () => {
     kind: "done",
     job,
     url: "blob:zip",
-    fileName: "analog-canvas-gallery-circuitthink-2026-11-10.zip",
+    fileName: "analog-canvas-gallery-circuitthink-2026-11-10-partial.zip",
+    listed: 78,
     count: 75,
     failed: [
       { id: "ct-1", name: "A", reason: "404 not-found" },
@@ -84,7 +85,11 @@ it("never calls a partial archive complete, and offers Retry", () => {
       { id: "ct-3", name: "C", reason: "network error" },
     ],
   });
-  expect(partial).toContain(">Download ZIP</a>");
+  // Only an explicit, plainly named partial package; never "Download ZIP".
+  expect(partial).not.toContain("Download ZIP");
+  expect(partial).toMatch(
+    /<a href="blob:zip" download="analog-canvas-gallery-circuitthink-2026-11-10-partial.zip"[^>]*>Download partial ZIP \(75 of 78\)<\/a>/u,
+  );
   expect(partial).toContain(">3 failed</span>");
   expect(partial).toContain('title="Not saved: ct-1, ct-2, ct-3"');
   expect(partial).toContain('data-testid="gallery-download-retry"');
@@ -113,6 +118,8 @@ it("stays out of sight off the community wall while nothing runs", () => {
 
 it("saves the query fixed at the press, then counts the current wall again (#2173)", async () => {
   const requests: string[] = [];
+  // ct-2 is gone at first: its read answers 404, which is not retried.
+  const failing = new Set(["ct-2"]);
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string) => {
@@ -126,9 +133,10 @@ it("saves the query fixed at the press, then counts the current wall again (#217
           nextCursor: null,
           total: 2,
         });
-      if (input === "/api/gallery/ct-1?download=1")
+      const id = /^\/api\/gallery\/([\w-]+)\?download=1$/u.exec(input)?.[1];
+      if (id && !failing.has(id))
         return Response.json({
-          entry: { id: "ct-1", name: "Mirror" },
+          entry: { id, name: id },
           projectText: '{"format":"icproj"}',
         });
       return Response.json({ error: "not-found" }, { status: 404 });
@@ -174,12 +182,41 @@ it("saves the query fixed at the press, then counts the current wall again (#217
   expect(requests[0]).toBe(
     "/api/gallery?source=circuitthink&order=oldest&limit=60",
   );
-  // The archive holds what could be read and saves itself at once.
-  expect(saved).toEqual([
-    expect.stringMatching(/^analog-canvas-gallery-circuitthink-.*\.zip$/u),
-  ]);
-  expect(host.textContent).toContain("Download ZIP");
+  // A package missing a circuit does not save itself: it waits for its own,
+  // plainly named press.
+  expect(saved).toEqual([]);
+  expect(host.textContent).not.toContain("Download ZIP");
+  const partial = host.querySelector<HTMLAnchorElement>(
+    '[data-testid="gallery-download-partial"]',
+  )!;
+  expect(partial.textContent).toBe("Download partial ZIP (1 of 2)");
+  expect(partial.download).toMatch(
+    /^analog-canvas-gallery-circuitthink-.*-partial\.zip$/u,
+  );
+  partial.click();
+  expect(saved).toEqual([partial.download]);
   expect(button().textContent).toBe("Download2");
+  // Retried whole, the package saves itself under its plain name.
+  failing.clear();
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="gallery-download-retry"]',
+      )!
+      .click(),
+  );
+  await vi.waitFor(
+    () =>
+      expect(
+        host.querySelector('[data-testid="gallery-download-file"]')
+          ?.textContent,
+      ).toBe("Download ZIP"),
+    { timeout: 5000 },
+  );
+  expect(saved.at(-1)).toMatch(
+    /^analog-canvas-gallery-circuitthink-\d{4}-\d\d-\d\d\.zip$/u,
+  );
+  expect(host.textContent).not.toMatch(/failed|partial/u);
   // Other filters: the button counts them, and the old run says nothing.
   await render({ source: "circuitthink", q: "zzzz" }, 0);
   expect(button().textContent).toBe("Download0");

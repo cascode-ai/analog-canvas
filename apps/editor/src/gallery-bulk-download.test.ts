@@ -278,6 +278,8 @@ it("stays at ten requests a second over four readers, retries what is transient 
   expect(manifest.count).toBe(9);
   expect(manifest.failed).toEqual(result.failed);
   expect(manifest.sources).toEqual([]);
+  // Missing circuits, the name says it is partial.
+  expect(result.fileName).toMatch(/^analog-canvas-gallery-.*-partial\.zip$/u);
 });
 
 it("holds every reader, waiting ones too, for a 429's Retry-After", async () => {
