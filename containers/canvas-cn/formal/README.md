@@ -13,8 +13,9 @@ host.
 - `config.capnp`, `canvas-cn-scheduled.timer` and the credential block of
   `canvas-cn-formal.service` are generated from `region.jsonc`; never edit
   them by hand.
-- `canvas-cn-release.py` installs releases; `formal-backup.sh` takes the
-  stopped-state backup it runs first; `scheduled-tick.py` runs Production's
+- `canvas-cn-release.py` installs releases; `maintenance.py` captures the
+  stopped-state backup; `formal-backup.sh` invokes its daily handover;
+  `scheduled-tick.py` runs Production's
   scheduled work; `sync-tick.py`, `resource-sync-tick.py` and `sync-alert.py`
   drive and watch replication. Each has a Python test beside it.
 - Namespace keys in `region.jsonc` and state paths are persistent identities.
@@ -50,6 +51,42 @@ host.
    Replication timers are enabled by an operator.
 
 The browser entrance is `127.0.0.1:8082` (an SSH forward during the trial).
+Public and trial nginx listeners forward business requests through the
+independently installed `canvas-cn-ingress.service` on loopback port 8793.
+Its root-accessible Unix control socket is never proxied publicly. Install
+its pinned Node 24.22.1 Linux x64 runtime (archive SHA-256
+`6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6`)
+and `ingress.mjs` at `/opt/analog-canvas/ingress/ingress.mjs` before enabling
+this release runner. Business deployments do not restart the entrance.
+Bootstrap with the legacy release timer paused: start and verify the entrance,
+reload nginx, and wait for all old nginx workers and their direct backend
+connections to end before the first handover. Do not force a worker shutdown
+deadline or assume reload moved an existing WebSocket to the new entrance.
+Restore the release timer after the verified runner is installed.
+Only successful content-hashed public build files bypass the Worker; retired
+names return an uncached 404. No API or account response is cached there.
+
+During handover the entrance holds at most 512 new requests for at most 15
+seconds, never replays a sent request, and cancels handover if accepted ordinary
+requests have not drained within 3 seconds. It then ends event streams and
+WebSockets so their clients can reconnect to the same domestic entrance.
+Release only queued requests after actual runtime readiness; genuine failures
+remain failures. Normal release acceptance targets are at most 5 seconds of
+additional request waiting and 10 seconds of Agent recovery, measured on the
+host rather than inferred from a successful version update.
+An abandoned browser request still drains its accepted upstream operation.
+An uncertain write response fences maintenance in
+`/var/lib/canvas-cn-ingress/uncertain-write`, surviving entrance restarts;
+reconcile the affected operation before deliberately clearing that marker and
+restarting the entrance. Never clear it simply to allow a release.
+The marker records only a timestamp and route category. Even an incomplete
+upstream write may fence maintenance when acceptance cannot be ruled out;
+nginx buffers incoming request bodies before forwarding. A fence reports an
+`uncertain-write` release failure before any backup seed is prepared.
+Paused background timers are recorded before stopping in
+`/var/lib/canvas-cn-maintenance/paused.json`; recovery restores that exact set
+after real runtime readiness, including an interrupted daily backup.
+
 Keep `analog-canvas-origin.tokenzhang.com` on the overseas Worker. Pin the
 Project and publication peers, `identity-url` and `transportOrigin` to that
 host before splitting browser DNS. The release runner uses it by default.
@@ -99,8 +136,14 @@ the previous AAAA route and allow cached answers to expire.
   uncertain runs are never retried elsewhere. `simulation-smoke-token` only
   authorizes the deployment check on `/api/simulate`.
 - The formal backup timer and release runner serialize snapshots with release
-  installation. The backup stops the runtime while reading state and artifacts,
-  restarts it before compression, and publishes each finished archive atomically.
+  installation. Seed a private incomplete copy while serving; it is not a backup.
+  Pause scheduled and synchronization timers, wait for their active ticks, and
+  hold the entrance before stopping the sole writer. Reconcile the copy with
+  checksums and deletions while stopped, then start the selected release and
+  verify it before resuming requests. There is one stop/start per handover.
+  Compress and publish the captured copy atomically after service resumes.
+  Never restore data as part of a code rollback. An archive failure retains
+  the incomplete capture and must not roll back an already healthy release.
   Keep the newest 20 local archives. Schedule the host's off-host file backup
   after the formal timer and restore from its completed archives under
   `/var/backups/analog-canvas-formal`. Check `state.sha256` before extracting.
@@ -139,7 +182,6 @@ Publication replication is opt-in on each side. On the source set
 
 The [Project contract](../../../docs/specs/regional-projects.md) owns
 journal retention, abandoned quota reservations and regional recovery.
-
 
 ## Visitor statistics
 
