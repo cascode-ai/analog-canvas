@@ -804,6 +804,8 @@
   inset: auto;
   box-sizing: border-box;
   width: min(14.5rem, calc(100vw - 1rem));
+  max-height: calc(100dvh - 1rem);
+  overflow: auto;
   margin: 0;
   padding: 0.65rem;
   border: 1px solid var(--icm-border);

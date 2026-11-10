@@ -49,6 +49,10 @@ import {
   parseCanvasColor,
   ROTATION_OPTIONS,
 } from "./component-property-fields";
+import {
+  colorPopoverPlacement,
+  type ScreenBox,
+} from "./color-popover-placement";
 import { COMMON_COLOR_PRESETS } from "./color-presets";
 import { NO_INTERNAL_MARK } from "./component-visual-variants";
 import type { CurrentControlOption } from "./current-control-options";
@@ -1145,6 +1149,7 @@ class ForegroundColorWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const button = document.createElement("span");
     button.className = "cm-property-inline-color";
+    button.dataset.colorPath = this.path;
     button.contentEditable = "false";
     button.setAttribute("role", "button");
     button.setAttribute("aria-label", `Edit ${this.label.toLowerCase()} color`);
@@ -1325,27 +1330,80 @@ function showForegroundColorPopover(
   });
   popover.append(header, presets, custom);
   popover.append(reset);
+  // The settings follow their swatch while open (#2181): a resized or
+  // rotated window, or a scrolled panel, places them again; a swatch
+  // scrolled out of sight closes them. An edit redraws the swatch, so it is
+  // found again by its path.
+  let frame = 0;
+  let followed = anchor;
+  const place = (): void => {
+    frame = 0;
+    if (!popover.isConnected) return stopFollowing();
+    const swatch = followed.isConnected
+      ? followed
+      : view.dom.querySelector<HTMLElement>(
+          `[data-color-path="${CSS.escape(path)}"]`,
+        );
+    if (swatch) followed = swatch;
+    const box = popover.getBoundingClientRect();
+    const placement = swatch
+      ? colorPopoverPlacement({
+          anchor: swatch.getBoundingClientRect(),
+          size: { width: box.width, height: box.height },
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          visible: visibleArea(swatch),
+        })
+      : null;
+    if (!placement) return close();
+    popover.style.left = `${placement.left}px`;
+    popover.style.top = `${placement.top}px`;
+    popover.style.visibility = "visible";
+  };
+  const schedule = (): void => {
+    frame ||= requestAnimationFrame(place);
+  };
+  const stopFollowing = (): void => {
+    cancelAnimationFrame(frame);
+    window.removeEventListener("resize", schedule);
+    window.removeEventListener("scroll", schedule, true);
+    window.visualViewport?.removeEventListener("resize", schedule);
+  };
   popover.addEventListener("toggle", () => {
-    if (!popover.matches(":popover-open")) popover.remove();
+    if (popover.matches(":popover-open")) return;
+    stopFollowing();
+    popover.remove();
   });
   document.body.append(popover);
   popover.style.visibility = "hidden";
   popover.showPopover();
-  const anchorRect = anchor.getBoundingClientRect();
-  const popoverRect = popover.getBoundingClientRect();
-  const gap = 6;
-  const left = Math.min(
-    window.innerWidth - popoverRect.width - 8,
-    Math.max(8, anchorRect.right - popoverRect.width),
-  );
-  const below = anchorRect.bottom + gap;
-  const top =
-    below + popoverRect.height <= window.innerHeight - 8
-      ? below
-      : Math.max(8, anchorRect.top - popoverRect.height - gap);
-  popover.style.left = `${left}px`;
-  popover.style.top = `${top}px`;
-  popover.style.visibility = "visible";
+  place();
+  window.addEventListener("resize", schedule);
+  window.addEventListener("scroll", schedule, true);
+  window.visualViewport?.addEventListener("resize", schedule);
+}
+
+/** The part of the viewport a swatch's scrolling ancestors show. */
+function visibleArea(element: HTMLElement): ScreenBox {
+  const area = {
+    left: 0,
+    top: 0,
+    right: window.innerWidth,
+    bottom: window.innerHeight,
+  };
+  for (
+    let parent = element.parentElement;
+    parent && parent !== document.body;
+    parent = parent.parentElement
+  ) {
+    const { overflowX, overflowY } = getComputedStyle(parent);
+    if (overflowX === "visible" && overflowY === "visible") continue;
+    const rect = parent.getBoundingClientRect();
+    area.left = Math.max(area.left, rect.left);
+    area.top = Math.max(area.top, rect.top);
+    area.right = Math.min(area.right, rect.right);
+    area.bottom = Math.min(area.bottom, rect.bottom);
+  }
+  return area;
 }
 
 function parseRgbTuple(source: string): [number, number, number] | null {
