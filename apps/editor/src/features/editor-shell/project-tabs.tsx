@@ -127,16 +127,21 @@ export function ProjectTabs({
   const selecting = useRef<{ id: string; promise: Promise<boolean> } | null>(
     null,
   );
-  const selectTab = (id: string): void => {
-    if (busy) return;
-    finishRename(nameInput.current?.value ?? null);
-    setClosing(null);
-    if (id !== activeId && heldBy?.()) return unlessHeld(() => selectTab(id));
+  const switchTab = (id: string): void => {
     const request = { id, promise: onSelect(id) };
     selecting.current = request;
     void request.promise.finally(() => {
       if (selecting.current === request) selecting.current = null;
     });
+  };
+  const selectTab = (id: string): void => {
+    if (busy) return;
+    finishRename(nameInput.current?.value ?? null);
+    setClosing(null);
+    // Discard runs the switch itself: asked again, this render's hold would
+    // still name the draft it has just dropped (#2180).
+    if (id !== activeId && heldBy?.()) return unlessHeld(() => switchTab(id));
+    switchTab(id);
   };
   const closeTrigger = useRef<HTMLButtonElement | null>(null);
   const closeTarget = tabs.find((tab) => tab.id === closing);
