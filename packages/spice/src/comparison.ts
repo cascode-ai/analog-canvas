@@ -2,6 +2,7 @@ import {
   reviewedExternalBindingForMaster,
   type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
+import type { SourceSpan } from "@icm/model";
 
 import { canonicalSpiceNumber } from "./expression.js";
 import type { CircuitCellIR, CircuitIR } from "./ir.js";
@@ -30,6 +31,7 @@ export interface StructuralDifference {
   object: string;
   expected: unknown;
   actual: unknown;
+  expectedSource?: SourceSpan;
 }
 /** Checks besides topology; each is on unless set to false. */
 export interface StructuralComparisonOptions {
@@ -42,6 +44,8 @@ export interface StructuralComparisonOptions {
   /** Off, .model bodies, .param and preserved statements are ignored
    * instead of making the result inconclusive. */
   declarations?: boolean | undefined;
+  /** Preserve the exact original spans for a source writeback report. */
+  referenceSpans?: boolean | undefined;
 }
 export interface StructuralComparison {
   status: "equal" | "different" | "inconclusive";
@@ -188,9 +192,17 @@ export function compareCircuitIR(
     object: string,
     a: unknown,
     e: unknown,
+    expectedSource?: SourceSpan,
   ) => {
     if (!same(a, e))
-      differences.push({ kind, cell, object, expected: e, actual: a });
+      differences.push({
+        kind,
+        cell,
+        object,
+        expected: e,
+        actual: a,
+        ...(options.referenceSpans && expectedSource ? { expectedSource } : {}),
+      });
   };
   for (const [label, ir] of [
     ["actual", actual],
@@ -265,9 +277,23 @@ export function compareCircuitIR(
     const actualPorts = a.ports.map((p) => lower(p.name));
     const expectedPorts = e.ports.map((p) => lower(p.name));
     if (!same(actualPorts.toSorted(), expectedPorts.toSorted()))
-      difference("interface", en, "ports", actualPorts, expectedPorts);
+      difference(
+        "interface",
+        en,
+        "ports",
+        actualPorts,
+        expectedPorts,
+        e.sourceRef,
+      );
     else if (options.portOrder !== false)
-      difference("port-order", en, "ports", actualPorts, expectedPorts);
+      difference(
+        "port-order",
+        en,
+        "ports",
+        actualPorts,
+        expectedPorts,
+        e.sourceRef,
+      );
     const devicesOf = (cell: CircuitCellIR) => {
       const devices = new Map<string, Instance>();
       for (const instance of cell.instances) {
@@ -352,11 +378,16 @@ export function compareCircuitIR(
     ) => {
       const nodes = new Map<string, string[]>();
       const endpoints = new Map<string, string>();
-      const add = (endpoint: string, netId: string) => {
+      const sources =
+        cell === e && options.referenceSpans
+          ? new Map<string, SourceSpan>()
+          : undefined;
+      const add = (endpoint: string, netId: string, source: SourceSpan) => {
         const list = nodes.get(netId) ?? [];
         list.push(endpoint);
         nodes.set(netId, list);
         endpoints.set(endpoint, netId);
+        sources?.set(endpoint, source);
       };
       const named = new Map<string, Instance>();
       for (const [name, instance] of devices) {
@@ -367,11 +398,16 @@ export function compareCircuitIR(
           const position = turned.has(instance)
             ? 1 - pin.position
             : pin.position;
-          add(`${canonical}:${pins?.[position] ?? position}`, pin.netId);
+          add(
+            `${canonical}:${pins?.[position] ?? position}`,
+            pin.netId,
+            instance.sourceRef,
+          );
         }
       }
-      for (const p of cell.ports) add(`port:${lower(p.name)}`, p.netId);
-      return { devices: named, endpoints, nodes };
+      for (const p of cell.ports)
+        add(`port:${lower(p.name)}`, p.netId, p.sourceRef ?? cell.sourceRef);
+      return { devices: named, endpoints, nodes, sources };
     };
     // A paired device goes by the reference's name on both sides.
     const actualName = (name: string) => partner.get(name) ?? name;
@@ -457,7 +493,24 @@ export function compareCircuitIR(
       const ai = ap.devices.get(ref),
         ei = ep.devices.get(ref);
       if (!ai || !ei) {
-        difference("device", en, ref, Boolean(ai), Boolean(ei));
+        const added =
+          ai && options.referenceSpans
+            ? {
+                reference: ai.name,
+                target: ai.target,
+                parameters: Object.fromEntries(
+                  Object.entries(ai.parameters).map(([key, value]) => [
+                    key,
+                    value.rawText,
+                  ]),
+                ),
+                terminals: ai.terminals.map(({ name, position, netId }) => ({
+                  name: name ?? position,
+                  net: a.nets.find(({ id }) => id === netId)?.name ?? netId,
+                })),
+              }
+            : Boolean(ai);
+        difference("device", en, ref, added, Boolean(ei), ei?.sourceRef);
         continue;
       }
       const actualTarget = target(ai);
@@ -467,8 +520,23 @@ export function compareCircuitIR(
         // The same model or subcircuit name, bound as a card or a call.
         if (name !== undefined && name === targetName(ei)) {
           if (options.bindings !== false)
-            difference("binding", en, ref, ai.target.kind, ei.target.kind);
-        } else difference("target", en, ref, actualTarget, expectedTarget);
+            difference(
+              "binding",
+              en,
+              ref,
+              ai.target.kind,
+              ei.target.kind,
+              ei.sourceRef,
+            );
+        } else
+          difference(
+            "target",
+            en,
+            ref,
+            actualTarget,
+            expectedTarget,
+            ei.sourceRef,
+          );
       }
       if (ai.target.kind === "subcircuit" && ei.target.kind === "subcircuit")
         pair(
@@ -505,6 +573,7 @@ export function compareCircuitIR(
             `${ref}.${param}`,
             av ?? null,
             ev ?? null,
+            ei.sourceRef,
           );
       }
     }
@@ -520,6 +589,7 @@ export function compareCircuitIR(
         endpoint,
         aid ? [...(ap.nodes.get(aid) ?? [])].sort() : null,
         eid ? [...(ep.nodes.get(eid) ?? [])].sort() : null,
+        ep.sources?.get(endpoint),
       );
       const scope = (cell: CircuitCellIR, id: string | undefined) => {
         const net = cell.nets.find((n) => n.id === id);
@@ -529,7 +599,14 @@ export function compareCircuitIR(
             ? ["local"]
             : null;
       };
-      difference("scope", en, endpoint, scope(a, aid), scope(e, eid));
+      difference(
+        "scope",
+        en,
+        endpoint,
+        scope(a, aid),
+        scope(e, eid),
+        ep.sources?.get(endpoint),
+      );
     }
   };
   pair(actualRoot, expectedRoot, new Set());

@@ -172,6 +172,24 @@ performance are not tested.
 
 Tool descriptions cover each action; these are the extra rules.
 
+For a local review writeback, read `review_delivery`, then call it with
+`action:"changes"` and the returned `target` as `expected` and
+`projectRevision`. The comparison covers the selected Cell and its descendants
+and uses the original dependency bytes held in the delivered Project. It
+names their `sourceVersion`. Difference locations point into those original
+files. An added Instance has terminals
+and its Cell but no original line. An equal comparison can report
+`drawingChanged:true`.
+
+Before writing files, call `verify` with
+`expectedSource:{rootPath,entryPath,expected,projectRevision}` and check that
+`comparison.sourceVersion` matches the change list. Review conflicts with the
+user. Edit the original files, then repeat `verify` against the same draft.
+A changed review target needs
+a fresh read. Confirm `comparison.status:"equal"` before claiming structural
+agreement and delivering the next version with `open-local`. Report incomplete
+or truncated comparisons and keep the working copy available.
+
 - `disconnect` revokes the session; Project/Cell switches and Gallery
   navigation do not. `PROJECT_CONTEXT_STALE` needs refreshed context and a new
   plan, not a Claim; `NO_ACTIVE_PROJECT` means the browser is in Gallery. The

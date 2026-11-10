@@ -16,7 +16,9 @@ export function isReadOnlyFileRequest(
 ): boolean {
   return (
     request.operation === "inspect" ||
-    (request.operation === "review" && request.input.action === "read") ||
+    (request.operation === "review" &&
+      (request.input.action === "read" ||
+        request.input.action === "changes")) ||
     (request.operation === "simulation-input" &&
       ["list", "read", "artifact", "transfer-capabilities"].includes(
         request.input.action,

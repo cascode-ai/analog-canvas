@@ -1003,6 +1003,7 @@ export function useProjectTabSessions({
       });
       return saved ? { ...delivery, unsaved: false } : "REVIEW_TARGET_CHANGED";
     }
+    if (command.action === "changes") return delivery;
     if (command.action === "prepare-save")
       return projectSwitchBlockerRef.current() ? "REVIEW_NOT_READY" : delivery;
     if (command.action === "mark-ready") {

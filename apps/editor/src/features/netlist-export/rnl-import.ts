@@ -327,6 +327,36 @@ export async function planRnlImport(request: {
   }
 }
 
+export function readRnlHost(
+  runtime: RnlRuntime,
+  inputs: readonly SpiceSourceInput[],
+  entryPath: string,
+  dialect: "spice" | "spectre",
+) {
+  return runtime.snapshot({
+    entry: entryPath,
+    files: Object.fromEntries(
+      inputs.map(({ path, bytes }) => [path, new TextDecoder().decode(bytes)]),
+    ),
+    dialect,
+    parts: { drawing: false, host: true, model: true },
+  });
+}
+
+/** Native subcircuit bindings from the host circuit, independent of drawing. */
+export function rnlSubcircuitNames(snapshot: RnlSnapshot): string[] {
+  return [
+    ...new Set(
+      snapshot.levels.flatMap(
+        ({ host }) =>
+          host?.instances.flatMap(({ master, subckt }) =>
+            subckt && master ? [master] : [],
+          ) ?? [],
+      ),
+    ),
+  ];
+}
+
 async function buildImportPlan({
   inputs,
   entryPath,
@@ -343,29 +373,8 @@ async function buildImportPlan({
   const entry = inputs.find((input) => input.path === entryPath);
   if (!entry) return failedPlan(`RNL import has no file ${entryPath}`);
   const dialect = isSpectreSource(entry) ? "spectre" : "spice";
-  const snapshot = await runtime.snapshot({
-    entry: entryPath,
-    files: Object.fromEntries(
-      inputs.map((input) => [
-        input.path,
-        new TextDecoder().decode(input.bytes),
-      ]),
-    ),
-    dialect,
-    parts: { drawing: false, host: true, model: true },
-  });
-  // The host graph reads the native circuit, independent of which symbols
-  // are drawn. Its subcircuit calls retain their exact masters and order.
-  const externalSubcircuitNames = [
-    ...new Set(
-      snapshot.levels.flatMap(
-        ({ host }) =>
-          host?.instances.flatMap(({ master, subckt }) =>
-            subckt && master ? [master] : [],
-          ) ?? [],
-      ),
-    ),
-  ];
+  const snapshot = await readRnlHost(runtime, inputs, entryPath, dialect);
+  const externalSubcircuitNames = rnlSubcircuitNames(snapshot);
   const symbolMappings = drawnExternalSymbolMappings(snapshot);
   const prepared = prepareImportSources(inputs, externalSubcircuitNames);
   const libraryBodies = undrawnBodies(

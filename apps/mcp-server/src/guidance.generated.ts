@@ -53,7 +53,7 @@ export const agentToolHelp = {
   export_file:
     "Export Project or formal Canvas SVG/PNG/PDF to outputPath. Visual export needs documentId. Use includeReview for the live receipt, bounds for an SVG/PNG detail, or expected to require the same workspace and revision. For simulation data use simulation_files sync/download or prepare-plot. simulation-plot returns SIMULATION_PLOT_RETIRED.",
   review_delivery:
-    "Confirm the active local review copy. Read, mark-ready after verifying the drawing, open-original from the first review-ready snapshot, or explicitly save a whole Project to a new local .icproj.json. Use the read receipt's expected target and Project revision.",
+    "Confirm the active local review copy. Read, mark-ready, open-original, save a whole Project to a new local .icproj.json, or list electrical changes from the delivered source. Use the expected target and Project revision.",
   import_file:
     "open-local delivers a local Project, RNL, SPICE or Spectre entry and its relative dependencies to Canvas Web. Pass taskRef, rootPath and entryPath, and modelTypes for models whose cards an external library holds. RNL reuses the layout with Canvas Pin, Ground and bulk styling. For authored styling pass rnlAppearance:source. Returns the live Project, Cell, revision, source version and drawing/electrical status. Other actions stage, inspect, open or discard a candidate, import-cell into the selected Cell, or request human approval for whole-Project replacement.",
   get_context:
@@ -67,7 +67,7 @@ export const agentToolHelp = {
   advanced_transact:
     "Full transactions: exactly one of edits, structureEdits, wireIntent, semanticIntent, command. Client supplies IDs/revisions; reconcile stale conflicts. Contracts optional.",
   verify:
-    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Its information list names findings a count would hide: MOS bodies given a supply nobody wired (MOS_BODY_DEFAULT_SUPPLY, MOS_BODY_OTHER_SUPPLY); generated Net names stay counted in total. Optional expectedNetlist compares structural SPICE through the existing export: summary and topology first, then port-order, binding and parameter differences; compare:{portOrder:false,...} skips one. details adds bounded differences. Expressions/model bodies are inconclusive, never electrical acceptance.",
+    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export. expectedSource compares the delivered Project with a local entry and its dependencies at a pinned review revision. Check comparison.status, including port order, bindings and parameters. Expressions and model bodies may need manual comparison.",
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:

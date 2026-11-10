@@ -204,6 +204,48 @@ const MarkLocalReviewReadySchema = z.strictObject({
 const OpenLocalReviewOriginalSchema = MarkLocalReviewReadySchema.extend({
   action: z.literal("open-original"),
 });
+const CompareLocalReviewSchema = MarkLocalReviewReadySchema.extend({
+  action: z.literal("changes"),
+});
+const ReviewSourceFilesSchema = z.strictObject({
+  entryPath: z.string().min(1).max(512),
+  files: z.array(AgentFileBlobSchema).min(1).max(AGENT_FILE_RESOURCE_MAX_FILES),
+});
+export type ReviewSourceFiles = z.infer<typeof ReviewSourceFilesSchema>;
+export const VerifyReviewSourceSchema = CompareLocalReviewSchema.omit({
+  action: true,
+}).extend({
+  rootPath: z.string().min(1),
+  entryPath: z.string().min(1),
+});
+const ComparisonStatusSchema = z.enum(["equal", "different", "inconclusive"]);
+const ReviewComparisonSchema = z.strictObject({
+  sourceVersion: Sha256Schema,
+  status: ComparisonStatusSchema,
+  topology: ComparisonStatusSchema,
+  summary: z.string(),
+  comparedCells: z.number().int().nonnegative(),
+  reasons: z.array(z.string()),
+  differences: z
+    .array(
+      z.strictObject({
+        kind: z.string(),
+        cell: z.string(),
+        object: z.string(),
+        expected: z.unknown(),
+        actual: z.unknown(),
+        source: z
+          .strictObject({
+            path: z.string().min(1),
+            line: z.number().int().positive(),
+          })
+          .optional(),
+      }),
+    )
+    .max(200),
+  detailsTruncated: z.boolean(),
+  drawingChanged: z.boolean(),
+});
 const PrepareLocalReviewSaveSchema = MarkLocalReviewReadySchema.extend({
   action: z.literal("prepare-save"),
 });
@@ -216,6 +258,7 @@ export const LocalReviewDeliveryArgsSchema = z.discriminatedUnion("action", [
   ReadLocalReviewSchema,
   MarkLocalReviewReadySchema,
   OpenLocalReviewOriginalSchema,
+  CompareLocalReviewSchema,
   PrepareLocalReviewSaveSchema.extend({
     action: z.literal("save"),
     outputPath: z.string().min(1).describe("A new local .icproj.json file"),
@@ -335,6 +378,9 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
         ReadLocalReviewSchema,
         MarkLocalReviewReadySchema,
         OpenLocalReviewOriginalSchema,
+        CompareLocalReviewSchema.extend({
+          reference: ReviewSourceFilesSchema.optional(),
+        }),
         PrepareLocalReviewSaveSchema,
         FinishLocalReviewSaveSchema,
       ]),
@@ -456,6 +502,11 @@ export const AgentFileResourceResponseSchema = z.union([
       z.strictObject({
         action: z.enum(["read", "mark-ready", "open-original"]),
         delivery: LocalReviewDeliverySchema,
+      }),
+      z.strictObject({
+        action: z.literal("changes"),
+        delivery: LocalReviewDeliverySchema,
+        comparison: ReviewComparisonSchema,
       }),
       z.strictObject({
         action: z.literal("prepare-save"),
