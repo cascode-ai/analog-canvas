@@ -5,6 +5,7 @@ import {
   createSimulationFolder,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
+import { deviceDescriptor } from "@icm/devices";
 import { importSpiceSources } from "@icm/spice";
 import { analyzeDesignNetlist } from "./extract.js";
 import { printDesignNetlist } from "./printers.js";
@@ -358,6 +359,48 @@ describe("copy/export netlist projection", () => {
       } else {
         expect(result.file.text).toMatch(/^B1\s+\S+\s+\S+\s+vsource\s+/mu);
         expect(result.file.text).toContain("dc=1.8");
+      }
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "exports a placed Sine Voltage Source as a SIN source in %s",
+    (format) => {
+      // As placed: each catalog default, the waveform among them.
+      const placed = Object.fromEntries(
+        deviceDescriptor("sine-voltage-source")!.parameters.flatMap(
+          (parameter) =>
+            parameter.defaultValue === undefined
+              ? []
+              : [[parameter.name, parameter.defaultValue]],
+        ),
+      );
+      expect(placed.waveform).toBe("sin");
+      // An older or Agent record without the waveform still means SIN.
+      const unstated: Record<string, string> = { ...placed };
+      delete unstated.waveform;
+      for (const parameters of [placed, unstated]) {
+        const project = createEmptyProject("sine-project", "Sine");
+        const document = project.documents[0]!;
+        document.instances.push({
+          id: "V1",
+          symbolId: "sine-voltage-source",
+          reference: "V1",
+          placement: null,
+          netlist: { parameters },
+        });
+        document.nets = [
+          { id: "positive", terminals: [{ instanceId: "V1", pinName: "+" }] },
+          { id: "negative", terminals: [{ instanceId: "V1", pinName: "-" }] },
+        ];
+        const result = createDesignNetlistExport(project, { format });
+        expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+        if (result.status !== "ready") return;
+        if (format === "spice")
+          expect(result.file.text).toMatch(
+            /^V1\s+\S+\s+\S+\s+DC 1 SIN\(0 1 1k 0 0 0\)$/mu,
+          );
+        else expect(result.file.text).toContain("type=sine");
       }
     },
   );

@@ -78,6 +78,7 @@ const PRODUCT_IDS = [
   "pulse-voltage-source",
   "voltage-controlled-switch",
   "voltage-source",
+  "sine-voltage-source",
   "vcvs",
   "ccvs",
   "xnor-gate",

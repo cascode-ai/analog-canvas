@@ -1629,6 +1629,34 @@ describe("Razavi symbol catalog", () => {
       });
   });
 
+  it("draws the sine source as the voltage source's circle with a sine inside, unmarked", () => {
+    const source = requireRazaviCatalogSymbol("voltage-source");
+    const sine = requireRazaviCatalogSymbol("sine-voltage-source");
+    expect(sine.pins).toEqual(source.pins);
+    expect(getRazaviCatalogEntry("sine-voltage-source")).toMatchObject({
+      category: "source",
+      provenance: "house",
+      pinOrder: ["+", "-"],
+      palette: true,
+    });
+    const unmarked = source.primitives.filter(
+      (primitive) => !primitive.part?.startsWith("upright-polarity"),
+    );
+    expect(sine.primitives.filter((p) => p.part !== "sine-wave")).toEqual(
+      unmarked,
+    );
+    const wave = sine.primitives.find((p) => p.part === "sine-wave");
+    const circle = source.primitives[0];
+    if (wave?.kind !== "path" || circle?.kind !== "circle")
+      throw new Error("missing wave");
+    // One period, centred, inside the circle.
+    expect(wave.bounds!.x + wave.bounds!.width / 2).toBe(0);
+    expect(wave.bounds!.y + wave.bounds!.height / 2).toBe(0);
+    expect(
+      Math.hypot(wave.bounds!.width, wave.bounds!.height) / 2,
+    ).toBeLessThan(circle.radius);
+  });
+
   it("draws the photoresistor as the Resistor with two light arrows pointing at it", () => {
     const resistor = requireRazaviCatalogSymbol("resistor");
     const photo = requireRazaviCatalogSymbol("photoresistor");

@@ -96,6 +96,7 @@ describe("the RNL symbol list", () => {
       "potentiometer",
       "photoresistor",
       "speaker",
+      "sine-voltage-source",
     ]);
   });
 
