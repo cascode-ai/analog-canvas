@@ -3,6 +3,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 
+import type { GalleryEntryContext } from "./gallery-example-commands";
 import type { ReferenceWindowProps } from "./reference-panel";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -151,4 +152,35 @@ it("moves a window off docks that open beside it", async () => {
   // A narrow canvas narrows it, down to its smallest.
   expect(clearOfDocks(box, { left: 0, right: 300 }).width).toBe(300 - 24);
   expect(clearOfDocks(box, { left: 0, right: 200 }).width).toBe(240);
+});
+
+it("asks for a community entry's picture only when the entry says it has one (#2163)", async () => {
+  const asked = async (hasReference?: boolean) => {
+    const urls: string[] = [];
+    const entry: GalleryEntryContext = {
+      id: "a1b2c3d4e5",
+      name: "Bandgap",
+      projectId: "p1",
+      ownerUserId: "u1",
+      author: "Carol",
+      description: "",
+      tags: [],
+      ...(hasReference === undefined ? {} : { hasReference }),
+    };
+    await show({
+      entry,
+      fetchLike: (async (input: string) => {
+        urls.push(String(input));
+        return Response.json({ error: "not-found" }, { status: 404 });
+      }) as typeof fetch,
+    });
+    await act(async () => {});
+    await unmount?.();
+    unmount = null;
+    return urls;
+  };
+  expect(await asked(false)).toEqual([]);
+  expect(await asked(true)).toEqual(["/api/gallery/a1b2c3d4e5/reference"]);
+  // A context kept from before the entry said so still asks.
+  expect(await asked()).toEqual(["/api/gallery/a1b2c3d4e5/reference"]);
 });

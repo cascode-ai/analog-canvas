@@ -42,7 +42,7 @@ import {
   type ReviewMark,
   type ShownReview,
 } from "../review-queue";
-import { fetchSessionUser } from "./account";
+import { fetchSessionUser, readSessionUser } from "./account";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
 import { useCollapsedSidebar } from "./gallery-tag-sidebar";
@@ -132,19 +132,25 @@ export function ReviewPage({
   useEffect(() => {
     let cancelled = false;
     setLoad({ status: "loading" });
-    void Promise.all(
-      REVIEW_STORES.map(async (store) => {
-        const response = await fetchLike(`/api/gallery/review/${store}/queue`, {
-          credentials: "same-origin",
-        });
-        if (response.status === 401) return null;
-        if (!response.ok) throw new Error(String(response.status));
-        const { entries } = (await response.json()) as {
-          entries: Omit<ReviewCard, "scope">[];
-        };
-        return entries.map((entry) => ({ ...entry, scope: store }));
-      }),
-    )
+    const queue = async (store: string) => {
+      const response = await fetchLike(`/api/gallery/review/${store}/queue`, {
+        credentials: "same-origin",
+      });
+      if (response.status === 401) return null;
+      if (!response.ok) throw new Error(String(response.status));
+      const { entries } = (await response.json()) as {
+        entries: Omit<ReviewCard, "scope">[];
+      };
+      return entries.map((entry) => ({ ...entry, scope: store }));
+    };
+    // Review takes an account: a page that knows its reader is signed out
+    // asks for no queue and says so at once (#2163).
+    void readSessionUser()
+      .then((session) =>
+        session.available && !session.user
+          ? [null]
+          : Promise.all(REVIEW_STORES.map(queue)),
+      )
       .then((lists): Load => {
         if (lists.some((list) => list === null))
           return { status: "signed-out" };

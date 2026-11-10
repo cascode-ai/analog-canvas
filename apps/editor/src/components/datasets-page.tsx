@@ -41,7 +41,7 @@ import {
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryReviewTabs, ReviewModeSwitch } from "./review-tabs";
 import { ReviewSummary } from "./review-summary";
-import { fetchSessionUser } from "./account";
+import { fetchSessionUser, readSessionUser } from "./account";
 import { MarkablePicture } from "./review-picture";
 
 type Load =
@@ -135,22 +135,30 @@ export function DatasetsPage({
   useEffect(() => {
     if (load.status !== "ready") return;
     let cancelled = false;
-    void Promise.all(
-      COMPARISON_SOURCES.map((source) =>
-        fetchLike(`/api/gallery/sources/${source.key}/bookmarks`, {
-          credentials: "same-origin",
-        })
-          .then((response) =>
-            response.ok
-              ? (response.json() as Promise<{ ids: string[] }>)
-              : null,
-          )
-          .catch(() => null),
-      ),
-    ).then((lists) => {
-      if (!cancelled)
-        setSaved(new Set(lists.flatMap((list) => list?.ids ?? [])));
-    });
+    // A reader the page knows is signed out keeps none: none is asked for
+    // (#2163).
+    void readSessionUser()
+      .then((session) =>
+        session.available && !session.user
+          ? []
+          : Promise.all(
+              COMPARISON_SOURCES.map((source) =>
+                fetchLike(`/api/gallery/sources/${source.key}/bookmarks`, {
+                  credentials: "same-origin",
+                })
+                  .then((response) =>
+                    response.ok
+                      ? (response.json() as Promise<{ ids: string[] }>)
+                      : null,
+                  )
+                  .catch(() => null),
+              ),
+            ),
+      )
+      .then((lists) => {
+        if (!cancelled)
+          setSaved(new Set(lists.flatMap((list) => list?.ids ?? [])));
+      });
     return () => {
       cancelled = true;
     };

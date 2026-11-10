@@ -18,6 +18,11 @@ export interface GalleryEntryContext {
   /** The entry's AI mark; the update dialog starts from it. */
   aiGenerated?: boolean;
   /**
+   * Whether its author gave a reference image, as the entry said when read;
+   * absent when not known, as in a context kept from before it was said.
+   */
+  hasReference?: boolean;
+  /**
    * SHA-256 of the stored text this copy was opened from, so a later visit
    * can tell whether the Gallery has changed the entry since.
    */
@@ -31,6 +36,7 @@ interface GalleryEntryPayload {
     description?: string;
     tags?: string[];
     aiGenerated?: boolean;
+    hasReference?: boolean;
   };
   ownerUserId?: string | null;
   projectText?: string;
@@ -161,6 +167,9 @@ export function createGalleryExampleCommands({
       description: payload.entry?.description ?? "",
       tags: payload.entry?.tags ?? [],
       aiGenerated: payload.entry?.aiGenerated === true,
+      ...(payload.entry
+        ? { hasReference: payload.entry.hasReference === true }
+        : {}),
       ...(sourceDigest ? { sourceDigest } : {}),
     };
     if (inTab) {

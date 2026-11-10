@@ -24,11 +24,14 @@ import { REFERENCE_SHEET_QUERY, type OwnReferenceImage } from "./own-reference";
  * has none (or the reader may not see it).
  */
 async function referenceOf(
-  id: string,
+  { id, hasReference }: Pick<GalleryEntryContext, "id" | "hasReference">,
   fetchLike: typeof fetch,
 ): Promise<{ blob: Blob; label: string | null } | null> {
   const source = gallerySourceOfEntryId(id);
   if (source && !source.comparisons) return null;
+  // A community entry that said it has no picture is not asked for one
+  // (#2163); one that did not say is.
+  if (!source && hasReference === false) return null;
   const response = await fetchLike(
     source
       ? `/api/gallery/sources/${source.key}/comparisons/${encodeURIComponent(id)}/figure`
@@ -543,7 +546,7 @@ export function ReferenceWindow({
     if (!entry) return;
     let cancelled = false;
     let url: string | null = null;
-    void referenceOf(entry.id, fetchLike).then((found) => {
+    void referenceOf(entry, fetchLike).then((found) => {
       if (cancelled) return;
       if (found) url = URL.createObjectURL(found.blob);
       setFigure(found && url ? { src: url, label: found.label } : null);

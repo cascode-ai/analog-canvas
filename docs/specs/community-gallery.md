@@ -21,7 +21,9 @@ restrictive CSP.
   reference images and `maintenance/netlists`. Writes (publish, update,
   likes, reference images, moderation) need a session, and so do the review
   routes, whose queue is a reviewer's own. Bundled editor examples are not
-  Gallery content.
+  Gallery content. A page that knows its reader is signed out (`/api/auth/me`
+  says no user) sends none of these reads (review queues, My shelf's
+  Projects, dataset bookmarks) and shows its sign-in prompt at once.
 - "Public" means on the wall; admin, owner-only and write routes keep
   stricter checks. Previews are `private`; the edge cache holds immutable
   bytes; sessions are cached one minute per isolate.
@@ -644,8 +646,9 @@ passes, issues, fixes, circuits, changes, addressed}]}`: everything each
   it is put the same way after the entry saves; a failure leaves the entry
   published and the notice says how to attach it.
 - Anyone reads it: `GET …/reference[?v=<revision>]` (immutable when
-  `v` names it). The wall marks such entries (`hasReference: true`, a
-  Reference word mark on the tile). The community review queue names it (`reference:
+  `v` names it). The wall and `GET /api/gallery/<id>`'s `entry` mark such
+  entries (`hasReference: true`; a Reference word mark on the tile); the
+  editor asks for the picture only when its entry says so. The community review queue names it (`reference:
 {revision}`), lists such entries first, and `/review` sets it beside the
   drawing. The `reviews` backup scope holds them.
 

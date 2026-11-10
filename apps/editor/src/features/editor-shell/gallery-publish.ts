@@ -101,6 +101,7 @@ export async function loadGalleryPublicationContext(
       description?: string;
       tags?: string[];
       aiGenerated?: boolean;
+      hasReference?: boolean;
     };
     ownerUserId?: string | null;
   };
@@ -113,6 +114,7 @@ export async function loadGalleryPublicationContext(
     description: payload.entry.description ?? "",
     tags: payload.entry.tags ?? [],
     aiGenerated: payload.entry.aiGenerated === true,
+    hasReference: payload.entry.hasReference === true,
   };
 }
 
