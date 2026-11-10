@@ -8,6 +8,9 @@ import {
 
 export type BrowserOpener = (url: string) => Promise<void>;
 
+const attribute = (value: string) =>
+  value.replace(/[&"<>]/gu, (character) => `&#${character.charCodeAt(0)};`);
+
 export const openSystemBrowser: BrowserOpener = (url) =>
   new Promise<void>((resolve, reject) => {
     if (process.platform === "win32") {
@@ -86,7 +89,12 @@ export async function handOffToBrowser(
   ${
     device
       ? `<input type="hidden" name="deviceKey" value="${device.publicKey}">
-  <input type="hidden" name="deviceProof" value="${device.signature}">`
+  <input type="hidden" name="deviceProof" value="${device.signature}">${
+    device.name
+      ? `
+  <input type="hidden" name="deviceName" value="${attribute(device.name)}">`
+      : ""
+  }`
       : ""
   }
   <noscript><button>Continue to Analog Canvas</button></noscript>

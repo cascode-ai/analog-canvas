@@ -5,6 +5,7 @@ import {
   AGENT_MCP_VERSION,
   AgentSessionScopeSchema,
   agentSiteSessionId,
+  agentTransportErrorMessage,
 } from "@icm/agent-adapter";
 import {
   BROWSER_LAUNCH_GRANT_PREFIX,
@@ -52,6 +53,8 @@ type LaunchReceipt = {
   projectRead: "not-read" | "ready" | "failed";
   sessionId?: string;
   recovery?: "previous-project-unconfirmed";
+  /** A trusted device opened the task: it reviews local copies only. */
+  trusted?: true;
 };
 
 type Binding = {
@@ -60,6 +63,8 @@ type Binding = {
   openedAt: number;
   ready: boolean;
   paused: boolean;
+  /** The relay reports the narrower grant of a trusted-device task. */
+  trusted: boolean;
 };
 
 type Task = {
@@ -68,6 +73,8 @@ type Task = {
   used: boolean;
   ended?: CanvasTaskError;
   inFlight: number;
+  /** The user approves each browser session of this task, trusted device or not. */
+  approval?: "once";
 };
 
 function failed(result: unknown): boolean {
@@ -90,11 +97,28 @@ export class CanvasTaskError extends Error {
 const OPEN_CALL_WAIT_MS = 18_000;
 const RECONNECT_GRACE_MS = 3_500;
 
-function revoked(): CanvasTaskError {
+/**
+ * The relay says how a trusted-device task ended and whether its device is
+ * still trusted; any other task gets the generic advice.
+ */
+function revoked(relayMessage?: string): CanvasTaskError {
   return new CanvasTaskError(
     "SESSION_REVOKED",
-    "The user revoked this Canvas task in the browser. Ask before reconnecting: open_canvas without a taskRef starts a new task that needs a fresh approval.",
+    relayMessage &&
+      relayMessage !== agentTransportErrorMessage("SESSION_REVOKED")
+      ? relayMessage
+      : "The user ended this Canvas task in the browser. Ask before reconnecting: open_canvas without a taskRef starts a new task, which the user approves in the browser unless they trust this device.",
   );
+}
+
+/** The relay's own revocation message, when the failed call carried one. */
+function revocationMessage(result: unknown): string | undefined {
+  const error = (
+    result as { error?: { code?: unknown; message?: unknown } } | null
+  )?.error;
+  return error?.code === "SESSION_REVOKED" && typeof error.message === "string"
+    ? error.message
+    : undefined;
 }
 
 /** Each task owns a browser session, client, and its own operation state. */
@@ -152,7 +176,8 @@ export class WebTasks {
         const status = await task.binding.operation.client
           .status(failed(result) ? { refresh: true } : {})
           .catch(() => null);
-        if (status?.state === "revoked") task.ended = revoked();
+        if (status?.state === "revoked")
+          task.ended = revoked(revocationMessage(result));
       }
       if (task.ended && !disconnect && failed(result)) throw task.ended;
       return result;
@@ -161,12 +186,13 @@ export class WebTasks {
     }
   }
 
-  async open(existingRef?: string): Promise<unknown> {
+  async open(existingRef?: string, approval?: "once"): Promise<unknown> {
     const taskRef = existingRef ?? randomUUID();
     const task: Task = existingRef
       ? this.task(existingRef)
       : { used: false, inFlight: 0 };
     if (!existingRef) this.tasks.set(taskRef, task);
+    if (approval) task.approval = approval;
     if (task.opening) return task.opening;
     if (task.inFlight)
       throw new CanvasTaskError(
@@ -246,7 +272,7 @@ export class WebTasks {
         }
       }
       if (!binding) {
-        binding = await this.start(taskRef);
+        binding = await this.start(taskRef, task.approval);
         task.binding = binding;
         receipt.sessionId = binding.sessionId;
         receipt.browser = "requested";
@@ -283,6 +309,7 @@ export class WebTasks {
         );
       const connection = await this.readProject(binding);
       receipt.projectRead = "ready";
+      if (binding.trusted) receipt.trusted = true;
       binding.ready = true;
       task.used = true;
       return {
@@ -329,7 +356,7 @@ export class WebTasks {
     }
   }
 
-  private async start(taskRef: string): Promise<Binding> {
+  private async start(taskRef: string, approval?: "once"): Promise<Binding> {
     const url = new URL(this.origin);
     if (
       url.protocol !== "https:" &&
@@ -388,13 +415,16 @@ export class WebTasks {
     // This bearer has no editor attached and the grant has no editor authority.
     await client.redeem(launch.claimCode);
     try {
-      const device = this.deviceKeyPath
-        ? await browserDeviceProof(
-            this.deviceKeyPath,
-            this.origin,
-            launch,
-          ).catch(() => undefined)
-        : undefined;
+      // Without the device proof the browser offers the one-time approval,
+      // which grants the signed-in account's ordinary scopes.
+      const device =
+        this.deviceKeyPath && approval !== "once"
+          ? await browserDeviceProof(
+              this.deviceKeyPath,
+              this.origin,
+              launch,
+            ).catch(() => undefined)
+          : undefined;
       await handOffToBrowser(this.origin, launch, this.openBrowser, device);
     } catch {
       await client.retireDetached().catch(() => undefined);
@@ -409,6 +439,7 @@ export class WebTasks {
       openedAt,
       ready: false,
       paused: false,
+      trusted: false,
     };
   }
 
@@ -473,6 +504,7 @@ export class WebTasks {
         "The Canvas relay could not verify this task's binding.",
       );
     binding.paused = observation.authorization === "paused";
+    binding.trusted = observation.scopes !== undefined;
     if (binding.paused)
       throw new CanvasTaskError(
         "SESSION_PAUSED",

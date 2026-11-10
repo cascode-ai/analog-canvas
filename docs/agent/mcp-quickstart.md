@@ -5,9 +5,15 @@
 `open_canvas({})` opens a dedicated Canvas tab for a new task at the configured
 origin. The browser offers **Allow Agent access** for this task and **Trust this
 device** for a signed-in account. On the same site, the same installation and
-account can then authorize new review tasks automatically. Each task gets its
-own working copy and credentials. **Account → Settings → Trusted Canvas
-devices** can revoke a device and end its trusted tasks. A successful
+account can then open new review tasks without a click; their replies say
+`trusted: true`. A trusted task reads and edits local review copies only: a
+Cloud, Gallery, component-library or simulation call answers
+`TRUSTED_TASK_LOCAL_ONLY`. Ask the user to do it in Canvas, or open a separate
+task with `open_canvas({approval:"once"})`: the user approves it in the
+browser and it acts with their account. Each task gets
+its own working copy and credentials. **Stop trusting this device** in the
+tab's Agent panel, or **Account → Settings → Trusted Canvas devices**, ends a
+device's trust and its trusted tasks. A successful
 reply includes `taskRef`, `sessionId` and the live Project and Cell context.
 Wait for `projectRead: "ready"` before editing. Pass that `taskRef` on every
 Canvas tool call in this task, including another `open_canvas` to reuse the tab
@@ -15,9 +21,10 @@ or reopen after closing. If approval is pending, continue with the returned
 reference after the user approves. Task references last for the running MCP
 process. After a reopen with `recovery: "previous-project-unconfirmed"`,
 verify the target Project and revision before continuing earlier work.
-`SESSION_REVOKED` means the user revoked the task in the browser: ask before
+`SESSION_REVOKED` means the user ended the task in the browser: ask before
 reconnecting, then call `open_canvas({})` for a new task. Canvas checks device
-trust again or shows the one-time approval.
+trust again or shows the one-time approval. A trusted task's message says
+whether its device is still trusted.
 
 Use the manual connection for a page the user paired using a Claim. Run it
 in a separate MCP process from dedicated Canvas tasks.

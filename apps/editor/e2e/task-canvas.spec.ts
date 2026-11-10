@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import { parseProject } from "@icm/project-protocol";
 import { assembleServer } from "../../mcp-server/src/server.js";
+import { openEditor } from "./editor-fixtures.js";
 import { regionalAccounts } from "./regional-auth-fixture.js";
 
 const test = base.extend<{ accountName: string | null }>({
@@ -1383,4 +1384,110 @@ test("opens and reuses only the Canvas authorized for each Agent task", async ({
     },
   });
   expect(pages).toHaveLength(3);
+});
+
+test("confirms a review copy delivered into a tab paired by Claim", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  const rootPath = testInfo.outputPath("claim-source");
+  const { entryPath, packagePath, packageText } =
+    await prepareReviewSource(rootPath);
+  await writeFile(packagePath, packageText);
+  await openEditor(page);
+  await page.getByTestId("open-agent").click();
+  const message = page
+    .getByTestId("connect-agent-panel")
+    .getByTestId("agent-copy-text");
+  await expect
+    .poll(async () => /^Claim: .+$/mu.test(await message.inputValue()), {
+      timeout: 30_000,
+    })
+    .toBe(true);
+  const claim = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await message.inputValue())![1]!,
+  ) as { claimCode: string };
+  const server = assembleServer({
+    apiBaseUrl: baseURL!,
+    connectorPath: testInfo.outputPath("claim-connector.json"),
+  });
+  const tool = async (name: string, args: object) => {
+    const result = await server.handler.callTool(name, args);
+    const block = result.content[0];
+    if (block?.type !== "text" || !block.text)
+      throw new Error("Expected a tool receipt");
+    return JSON.parse(block.text);
+  };
+  expect(await tool("connect", claim)).toMatchObject({ ok: true });
+  const loaded = await tool("import_file", {
+    action: "open-local",
+    rootPath,
+    entryPath,
+  });
+  expect(loaded, JSON.stringify(loaded.error)).toMatchObject({ ok: true });
+  // Canvas, not the kind of pairing, decides that this tab holds a delivery.
+  const review = await tool("review_delivery", { action: "read" });
+  expect(review, JSON.stringify(review.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      target: { workspaceId: loaded.delivery.workspaceId },
+      copy: "working",
+    },
+  });
+  expect(review.taskRef).toBeUndefined();
+  await tool("disconnect", {});
+});
+
+test("offers only the one-time approval when the Agent asks for it", async ({
+  context,
+  baseURL,
+}, testInfo) => {
+  const pages: Page[] = [];
+  const server = assembleServer({
+    apiBaseUrl: baseURL!,
+    connectorPath: testInfo.outputPath("connector.json"),
+    openBrowser: async (url) => {
+      const page = await context.newPage();
+      pages.push(page);
+      await page.goto(url);
+    },
+  });
+  const tool = async (name: string, args: object) => {
+    const result = await server.handler.callTool(name, args);
+    const block = result.content[0];
+    if (block?.type !== "text" || !block.text)
+      throw new Error("Expected a tool receipt");
+    return JSON.parse(block.text);
+  };
+  const open = async (args: object) => {
+    const count = pages.length;
+    const opening = tool("open_canvas", args);
+    await expect.poll(() => pages.length).toBe(count + 1);
+    const page = pages[count]!;
+    await expect(
+      page.getByRole("button", { name: "Allow Agent access" }),
+    ).toBeVisible();
+    const trust = await page
+      .getByRole("button", { name: "Trust this device" })
+      .count();
+    await page.getByRole("button", { name: "Allow Agent access" }).click();
+    return { receipt: await opening, trust };
+  };
+  // This installation proves itself, so Canvas offers to trust it.
+  const usual = await open({});
+  expect(usual.trust).toBe(1);
+  expect(usual.receipt).toMatchObject({ ok: true, projectRead: "ready" });
+  // A one-time approval sends no proof: there is nothing to trust.
+  const once = await open({ approval: "once" });
+  expect(once.trust).toBe(0);
+  expect(once.receipt).toMatchObject({
+    ok: true,
+    authorization: "active",
+    projectRead: "ready",
+  });
+  // Neither task was opened by a trusted device.
+  expect(usual.receipt.trusted).toBeUndefined();
+  expect(once.receipt.trusted).toBeUndefined();
+  for (const { receipt } of [usual, once])
+    await tool("disconnect", { taskRef: receipt.taskRef });
 });

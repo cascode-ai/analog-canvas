@@ -77,9 +77,9 @@ remains unreachable or HTTP requests cannot run, report that blocker and one
 next action. Never include claims, tokens, raw environment dumps or Project
 data in diagnostics.
 
-For a new task in Codex or Claude Code, call `open_canvas` in the system
-browser. Follow the [quickstart](mcp-quickstart.md) for approval, task
-references and reconnects. The connector requires Node, the system browser,
+For a new task in Codex or Claude Code, call `open_canvas`: it opens Canvas
+in the system browser. Follow the [quickstart](mcp-quickstart.md) for
+approval, trusted devices, task references and reconnects. The connector requires Node, the system browser,
 and access to the configured Canvas site and relay. Offline drawing uses the
 [optional local engine](https://github.com/cascode-ai/analog-canvas/blob/main/docs/agent/local-workspace.md).
 

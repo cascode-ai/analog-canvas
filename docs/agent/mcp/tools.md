@@ -311,8 +311,9 @@ in the drawing. Report unresolved mappings, missing geometry and any
 inconclusive comparison. Do not substitute devices or change the circuit to
 make an image render. A clean image is not an electrical check.
 
-For a dedicated Web task, call `review_delivery` with `action:"read"` after
-opening and selecting the requested Cell. Use the live receipt's `target` as
+In the tab holding the delivered working copy, whether a Web task or a tab
+paired by Claim, call `review_delivery` with `action:"read"` after opening
+and selecting the requested Cell. Use the live receipt's `target` as
 `expected` and pass `projectRevision` for subsequent review actions. After
 checking the complete drawing, `mark-ready` records the first review-ready
 Project as the original. A bare import stays pending until the drawing is
