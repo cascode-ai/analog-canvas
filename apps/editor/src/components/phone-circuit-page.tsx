@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { usePageTitle } from "../app/use-page-title";
 import { isDailyAllowanceRefusal } from "../daily-allowance";
 import { galleryPreviewUrl } from "../gallery-client";
+import { galleryDateLabel } from "../gallery-date";
 import { openEditorOnPhone } from "../phone-viewing";
 import { GalleryChrome } from "./gallery-chrome";
 
@@ -87,7 +88,8 @@ export function PhoneCircuitView({
   onShowNetlist: () => void;
   onCopyLink: () => void;
 }) {
-  const day = entry.createdAt.slice(0, 10);
+  // The wall's date, "Oct 19, 2026" (#2164).
+  const day = galleryDateLabel(entry.createdAt);
   return (
     <main className="phone-circuit" data-testid="phone-circuit">
       <h1>{entry.name}</h1>
@@ -143,8 +145,7 @@ export function PhoneCircuitView({
         <p className="phone-circuit-note">{netlist.message}</p>
       ) : null}
       <p className="phone-circuit-note">
-        To edit, copy or simulate this circuit, open its link on a computer or a
-        tablet.
+        To edit or copy this circuit, open its link on a computer or a tablet.
       </p>
       <EditorAnyway />
     </main>

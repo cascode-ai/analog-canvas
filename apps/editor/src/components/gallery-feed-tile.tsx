@@ -7,6 +7,7 @@ import { TilePreview } from "./tile-preview";
 import { galleryPreviewUrl, type GalleryFeedEntry } from "../gallery-client";
 import type { BundledGalleryTile } from "./gallery-bundled-fallback";
 import { galleryTagLabel } from "../gallery-tag-label";
+import { galleryDateLabel } from "../gallery-date";
 import { galleryOriginTagMark } from "../gallery-origin-tags";
 import { gallerySourceOfEntryId, type GallerySource } from "../gallery-sources";
 
@@ -46,17 +47,6 @@ export function HeartIcon({ filled }: { filled: boolean }) {
       <path d="M12 20.5 4.2 13a4.8 4.8 0 0 1 6.8-6.8l1 1 1-1A4.8 4.8 0 0 1 19.8 13Z" />
     </svg>
   );
-}
-
-function savedAtLabel(createdAt: string): string {
-  const parsed = new Date(createdAt);
-  return Number.isNaN(parsed.getTime())
-    ? createdAt
-    : parsed.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
 }
 
 export function GalleryWallTile({
@@ -228,7 +218,7 @@ export function GalleryWallTile({
                 {" · "}
               </>
             ) : null}
-            {savedAtLabel(entry.createdAt)}
+            {galleryDateLabel(entry.createdAt)}
             {" · "}
             <button
               type="button"
