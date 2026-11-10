@@ -499,6 +499,13 @@
   height: 100%;
   min-height: 0;
 }
+/* The RNL view's hint, code and findings are the panel's own rows, as SPICE's
+   and Spectre's are, so its code area grows and stops as theirs does. In a
+   block of its own the viewport had no height for its editor, which fills its
+   box by flexing (#2144), and the panel showed a blank box (#2213). */
+.rnl-netlist {
+  display: contents;
+}
 .netlist-device-mapping {
   display: grid;
   /* Two model columns while they fit; one once the panel is dragged narrow,
