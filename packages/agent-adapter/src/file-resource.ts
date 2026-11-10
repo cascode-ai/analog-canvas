@@ -213,7 +213,8 @@ const LocalReviewDeliverySchema = z.strictObject({
       documentId: StableIdSchema,
       name: z.string(),
       unplacedInstances: z.number().int().nonnegative(),
-      unroutedConnections: z.number().int().nonnegative(),
+      /** Null where the Cell's import reference is unavailable. */
+      unroutedConnections: z.number().int().nonnegative().nullable(),
     }),
   ),
 });

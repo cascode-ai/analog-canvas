@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "2ad929b9c4311f3d2a05ce1b5ea0e6e8f5a46bdb14c98901c9c455f698785971"
+      "sha256": "94a74be252fabee05a1fc38485415ebf31dbd3d1e06f4dd9f1628f3bff2ff5b3"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -129,7 +129,7 @@
     },
     {
       "source": "docs/agent/skills/canvas-review/SKILL.md",
-      "sha256": "1bab86b45ce843b146c00d5ec4a980a34f06a1826a29d3169db5cb91a22d0e1a"
+      "sha256": "37f94d27d4986b09c20126d65740f59bec186a3f0b9b8212e3054c3997ecad58"
     },
     {
       "source": "docs/agent/skills/canvas-review/agents/openai.yaml",
@@ -137,7 +137,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "9942d2a4d4275bf073712515645434cb7130c933f4a7acb1d48ac35c989f382f"
+      "sha256": "aa588fec68f89f34f4f938c831df57cec8b3311471e4c4d43841b4ff1599ddd1"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -675,7 +675,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "1c0cf646ea005885c1e25b93940051087bc6c7c2530bead1ad68a67e4571a616"
+      "sha256": "105cc89aa627d3cdbb9068398aa30116683303b9a763a3cfe8e18dd619ab88a0"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -731,7 +731,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "6e8e98f39422f54e92142daf25405887582b2e29fe25d1b86b59258f3c76a2dd"
+      "sha256": "cb62aa3f079e3a4397265ffb1bb607b8a621784f18ac7143e12efa2413e5f9b3"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

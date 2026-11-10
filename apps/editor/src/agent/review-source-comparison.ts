@@ -29,7 +29,11 @@ export interface ReviewSource {
   files: readonly SpiceSourceInput[];
 }
 
-/** Cells whose drawing still lacks an Instance or a connection the import gave. */
+/**
+ * Cells whose drawing still lacks an Instance or a connection the import gave.
+ * An imported Cell whose import reference is gone cannot count the
+ * connections, and says so with null.
+ */
 export function incompleteCells(
   project: CircuitProject,
   resolver: SymbolResolver,
@@ -38,9 +42,13 @@ export function incompleteCells(
     const unplacedInstances = document.instances.filter(
       ({ placement }) => !placement,
     ).length;
-    const unroutedConnections = assessImportReference(document, resolver).guides
-      .length;
-    return unplacedInstances || unroutedConnections
+    const assessment = assessImportReference(document, resolver);
+    const unroutedConnections = assessment.issues.some(
+      ({ code }) => code === "IMPORT_REFERENCE_UNAVAILABLE",
+    )
+      ? null
+      : assessment.guides.length;
+    return unplacedInstances || unroutedConnections !== 0
       ? [
           {
             documentId: document.id,
@@ -259,4 +267,27 @@ export async function compareReviewSource(
         return location ? { ...difference, source: location } : difference;
       }),
   };
+}
+
+/**
+ * Project Info's line for an imported Project: the same comparison the Agent
+ * reads, and whether the layout was edited when the circuit still matches.
+ */
+export async function importedSourceStatus(
+  project: CircuitProject,
+  source: ReviewSource,
+): Promise<string> {
+  const { status, summary, reasons } = await compareReviewSource(
+    project,
+    source,
+  );
+  if (status === "different")
+    return `Electrically differs from the imported netlist: ${summary}`;
+  if (status === "inconclusive")
+    return `Not fully compared with the imported netlist: ${reasons.slice(0, 2).join("; ") || summary}`;
+  return project.documents.every(
+    ({ sourceStatus }) => sourceStatus === "in-sync",
+  )
+    ? "Matches the imported netlist"
+    : "Layout edited; electrically matches the imported netlist";
 }

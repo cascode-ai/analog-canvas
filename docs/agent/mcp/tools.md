@@ -235,7 +235,8 @@ and the source version derived from the entry and sorted path/hash pairs.
 Delivered netlists retain original hashes in Project source records, including
 drawing packages. Converted fragments use `derived-sha256:` and stay out of
 the version. A native Project delivery uses the bytes of the Project file.
-Project Info → Imported source shows the same version in the tab. Compare
+Project Info → Imported source shows the netlist the Project was imported
+from, which for a netlist delivery has the same version. Compare
 `source.drawing`, `source.electrical` and `source.diagnostics` separately.
 `electrical:"verified"` records an RNL import equivalence check against the
 structural source, independent of simulation. Parsed source positions refer
@@ -244,9 +245,8 @@ to the converted representation when a native source was converted.
 RNL opens with Canvas appearance. Pass `rnlAppearance:"source"` to keep the
 authored appearance. Repeat the call with the same appearance to locate a
 matching open copy with its current edits. Both appearances report the same
-source version for identical bytes. Project Info shows the appearance of
-the open copy. To keep working in a tab opened before the appearance choice
-was available, reuse its workspace with `open_canvas`.
+source version for identical bytes. To keep working in a tab opened before
+the appearance choice was available, reuse its workspace with `open_canvas`.
 `previousRevision:"recovered-snapshot"` refers to the browser's restored
 snapshot, and `"unconfirmed"` to a fresh import whose earlier working
 revision is unavailable. A foreground delivery binds the task to the returned
@@ -300,7 +300,8 @@ no review state:
 - `delivery.source`: entry and version of the netlist the Project was
   imported from, which for a netlist delivery is the delivered version;
 - `delivery.incompleteCells`: Cells still missing a placed Instance or a
-  drawn connection the import gave;
+  drawn connection the import gave (`unroutedConnections:null` where the
+  Cell's import reference is gone and cannot count them);
 - `comparison`: the whole design, from the top Cell, against that netlist
   with verify's comparator. Differences give the original file and line; an
   added Instance has none. Unread includes, model cards, parameters,

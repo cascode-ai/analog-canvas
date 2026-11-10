@@ -17,6 +17,7 @@ import {
 } from "@icm/model";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -95,16 +96,6 @@ interface LocalDelivery {
   rnlAppearance?: RnlAppearance;
   importedRevision: string;
   recovered: boolean;
-}
-
-/** Whether the drawing was edited since import, over all of its Cells. */
-function importStatus(project: CircuitProject): string {
-  const statuses = new Set(project.documents.map((d) => d.sourceStatus));
-  return statuses.has("connectivity-modified")
-    ? "Devices or connections edited since import"
-    : statuses.has("geometry-only-changed")
-      ? "Layout edited since import; devices and connections unchanged"
-      : "Unedited since import";
 }
 
 interface ProjectTabSessionsOptions {
@@ -322,6 +313,21 @@ export function useProjectTabSessions({
       obsolete = true;
     };
   }, [project.source]);
+  // One comparison per drawing revision, run only while Project Info asks.
+  const checkImportedSource = useMemo(
+    () => async () => {
+      if (import.meta.env?.ICM_DESKTOP) return "";
+      const { embeddedReviewBundle } =
+        await import("../agent/embedded-review-source");
+      const { importedSourceStatus } =
+        await import("../agent/review-source-comparison");
+      const source = await embeddedReviewBundle(project.source);
+      return source
+        ? importedSourceStatus(project, source)
+        : "The imported netlist could not be verified";
+    },
+    [project],
+  );
   function localDeliveryOf(
     controller: EditorDocumentController,
   ): LocalDelivery | undefined {
@@ -1181,8 +1187,8 @@ export function useProjectTabSessions({
         source && {
           entryPath: source.entryPath,
           version: source.version,
-          files: source.files.map(({ path, sha256 }) => ({ path, sha256 })),
-          status: importStatus(project),
+          files: source.files,
+          check: checkImportedSource,
         }
       );
     })(),

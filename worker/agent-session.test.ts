@@ -1094,10 +1094,18 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
       }),
       env,
     );
-  const paired = async (scopes: AgentSessionScope[]) => {
+  let pairings = 0;
+  const paired = async (
+    scopes: AgentSessionScope[],
+    body: object = {
+      apiVersion: "3.0",
+      requestId: "claim-review",
+      operation: "review",
+    },
+  ) => {
     const create = await post("/api/agent/sessions", {
       projectId: "project",
-      projectSessionId: `workspace-${scopes.join("+")}`,
+      projectSessionId: `workspace-${++pairings}`,
       documentIds: ["main"],
       scopes,
     });
@@ -1116,11 +1124,7 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
     sockets.set(session.sessionId, [browser.socket]);
     const review = await post(
       `/api/agent/sessions/${session.sessionId}/files`,
-      {
-        apiVersion: "3.0",
-        requestId: "claim-review",
-        operation: "review",
-      },
+      body,
       agentToken,
     );
     return { review: review!, families: browser.families };
@@ -1132,6 +1136,18 @@ it("lets a Claim session ask its editor for a review delivery", async () => {
     operation: "review",
     ok: false,
     error: { code: "REVIEW_WORKSPACE_REQUIRED" },
+  });
+  // A review action an adapter before 0.17.104 sends is refused unforwarded.
+  const retired = await paired(["project.import", "project.download"], {
+    apiVersion: "3.0",
+    requestId: "claim-review-read",
+    operation: "review",
+    input: { action: "read" },
+  });
+  expect(retired.review.status).toBe(400);
+  expect(retired.families).toEqual([]);
+  expect(await retired.review.json()).toMatchObject({
+    error: { code: "FILE_CONTENT_INVALID" },
   });
   // A review reads the netlist back, as a Project download does.
   for (const scopes of [

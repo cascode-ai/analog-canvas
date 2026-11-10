@@ -110,6 +110,21 @@ describe("shared simulation argument normalization", () => {
     },
   );
 
+  it.each([
+    ["review_delivery", { action: "read" }],
+    ["review_delivery", { action: "save", outputPath: "saved.icproj.json" }],
+    ["verify", { expectedSource: { rootPath: ".", entryPath: "amp.sp" } }],
+  ])(
+    "refuses the review input %s took before 0.17.104: %j",
+    async (tool, args) => {
+      const result = (await executeOperation(tool, args, {} as never)) as any;
+      expect(result.error.code).toBe("INVALID_TOOL_INPUT");
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({ code: "unrecognized_keys" }),
+      );
+    },
+  );
+
   it("retains illegal fields for strict validation rather than dropping them", async () => {
     const result = (await executeOperation(
       "simulation_source",

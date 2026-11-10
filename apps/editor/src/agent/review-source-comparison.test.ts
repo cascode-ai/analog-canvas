@@ -7,6 +7,7 @@ import { embeddedReviewBundle } from "./embedded-review-source";
 import { importLocalCircuit } from "./import-local-circuit";
 import {
   compareReviewSource,
+  importedSourceStatus,
   incompleteCells,
 } from "./review-source-comparison";
 
@@ -192,5 +193,30 @@ describe("Canvas review of an imported netlist", () => {
     expect(
       incompleteCells(unplaced, resolver).find(({ name }) => name === "inv"),
     ).toMatchObject({ unplacedInstances: 1 });
+    // Without its import reference a Cell cannot count undrawn connections.
+    const lost = structuredClone(project);
+    delete lost.documents.find(({ name }) => name === "buf")!.importReference;
+    expect(
+      incompleteCells(lost, resolver).find(({ name }) => name === "buf"),
+    ).toMatchObject({ unroutedConnections: null });
+  });
+
+  it("names in one line how the drawing stands against its netlist", async () => {
+    const { project, source } = await delivered();
+    await expect(importedSourceStatus(project, source)).resolves.toBe(
+      "Matches the imported netlist",
+    );
+    const moved = structuredClone(project);
+    moved.documents[0]!.sourceStatus = "geometry-only-changed";
+    await expect(importedSourceStatus(moved, source)).resolves.toBe(
+      "Layout edited; electrically matches the imported netlist",
+    );
+    // A changed value is electrical, however the edit was recorded.
+    await expect(
+      importedSourceStatus(
+        withParameter(moved, "buf", "C0", "value", "20f"),
+        source,
+      ),
+    ).resolves.toMatch(/^Electrically differs from the imported netlist: /u);
   });
 });

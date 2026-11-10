@@ -221,7 +221,7 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
     source.version,
   );
   await expect(page.getByTestId("local-source-status")).toHaveText(
-    "Unedited since import",
+    "Matches the imported netlist",
   );
   await expect(page.getByText("draw.rnl", { exact: true })).toBeVisible();
   const initial = await tool("get_context", {});
@@ -351,8 +351,10 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
       revision: reused.delivery.document.revision,
     },
   });
+  // A part placed but not wired blocks the structural export, and the
+  // status says the drawing could not be compared rather than guessing.
   await expect(page.getByTestId("local-source-status")).toHaveText(
-    "Devices or connections edited since import",
+    /^Not fully compared with the imported netlist: The current structural export is blocked; /u,
   );
   await page.reload();
   expect(await tool("open_canvas", {})).toMatchObject({ ok: true, sessionId });
@@ -570,7 +572,8 @@ test("copies a review comment on an object as plain text", async ({
   await comment.fill("Check the connection at R1.");
   await copy.click();
   await expect(copied).toBeVisible();
-  // A converted Spectre file has no original line to name.
+  // An RNL-annotated file converts through its drawing package, so its
+  // line cannot be matched and is left out (plain Spectre: unit test).
   expect(await clipboard()).toBe(
     [
       "Canvas review feedback",
@@ -872,8 +875,8 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
 }, testInfo) => {
   // A Virtuoso netlist names its foundry's library by an absolute path: it
   // stays external and unread, and the Agent gives its models' device types.
-  // A task of its own keeps the deliveries above within one session's
-  // request rate.
+  // A local card, a parameter and an analysis ride along unchanged. A task
+  // of its own keeps the deliveries above within one session's request rate.
   const rootPath = testInfo.outputPath("virtuoso");
   await mkdir(rootPath, { recursive: true });
   await writeFile(
@@ -881,12 +884,20 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
     [
       "simulator lang=spectre",
       'include "/pdk/tsmc28/models/spectre/toplevel.scs" section=tt',
+      'include "models.scs"',
+      "parameters wn=1u",
       "subckt inv (in out vdd vss)",
       "M1 (out in vdd vdd) pch_mac w=2u l=30n",
-      "M0 (out in vss vss) nch_mac w=1u l=30n",
+      "M0 (out in vss vss) nch_mac w=wn l=30n",
+      "M2 (out in vss vss) nlocal w=1u l=30n",
       "ends inv",
+      "tran tran step=10p stop=10n",
       "",
     ].join("\n"),
+  );
+  await writeFile(
+    join(rootPath, "models.scs"),
+    "simulator lang=spectre\nmodel nlocal bsim3v3 type=n\n",
   );
   const { tool } = await openFileTask(
     context,
@@ -914,15 +925,16 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
     delivery: {
       source: {
         format: "spectre",
-        files: [{ path: "top.scs" }],
+        files: [{ path: "top.scs" }, { path: "models.scs" }],
         diagnostics: expect.arrayContaining([
           expect.objectContaining({ code: "SPICE_SOURCE_INCLUDE_EXTERNAL" }),
           expect.objectContaining({ code: "LOCAL_MODEL_TYPES_GIVEN" }),
+          expect.objectContaining({ code: "SPICE_CONVERSION_MODEL_EXTERNAL" }),
         ]),
       },
     },
   });
-  // The unread library is named, and the drawing still gets a verdict.
+  // What the review leaves out is named, and the drawing still gets a verdict.
   const review = await tool("review_delivery", {});
   expect(review, JSON.stringify(review)).toMatchObject({
     ok: true,
@@ -931,6 +943,9 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
       status: "equal",
       notes: expect.arrayContaining([
         expect.stringMatching(/^Includes not read: .*toplevel\.scs/u),
+        expect.stringMatching(/^Parameters not compared: wn/u),
+        expect.stringMatching(/^Statements not compared: .*tran/u),
+        expect.stringContaining("bsim3v3 model nlocal"),
       ]),
     },
   });

@@ -67,7 +67,7 @@ export const agentToolHelp = {
   advanced_transact:
     "Full transactions: exactly one of edits, structureEdits, wireIntent, semanticIntent, command. Client supplies IDs/revisions; reconcile stale conflicts. Contracts optional.",
   verify:
-    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Its information list names findings a count would hide: MOS bodies given a supply nobody wired (MOS_BODY_DEFAULT_SUPPLY, MOS_BODY_OTHER_SUPPLY); generated Net names stay counted in total. Optional expectedNetlist compares structural SPICE through the existing export: summary and topology first, then port-order, binding and parameter differences; compare:{portOrder:false,...} skips one, and declarations:false lists declarations in notes and compares expressions by text. details adds bounded differences. Never electrical acceptance.",
+    "Fresh Snapshot and diagnostic counts for milestones, not every edit. Optional expectedNetlist compares structural SPICE through the existing export. Check comparison.status, including port order, bindings and parameters. Expressions and model bodies may need manual comparison; compare:{declarations:false} lists them in notes and compares expressions by text.",
   render:
     "Render the current document to SVG and return it as an image content block (image/svg+xml) plus a compact text summary (revision, sha256, byteLength).",
   simulation_folder:

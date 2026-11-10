@@ -86,6 +86,21 @@ it("leaves an edited copy, another Skill of that name or another entry alone", a
     "My review guidance\n",
   );
 
+  // A file of the user's own beside an unedited copy keeps the whole folder.
+  await rm(path, { recursive: true });
+  await installReviewSkill(home, "codex", bundle("First guidance\n"));
+  await mkdir(join(path, "notes"));
+  await writeFile(join(path, "notes", "mine.md"), "My notes\n");
+  await expect(
+    installReviewSkill(home, "codex", bundle("Newer guidance\n")),
+  ).rejects.toMatchObject(occupied);
+  expect(await readFile(join(path, "notes", "mine.md"), "utf8")).toBe(
+    "My notes\n",
+  );
+  expect(await readFile(join(path, "SKILL.md"), "utf8")).toBe(
+    "First guidance\n",
+  );
+
   await rm(path, { recursive: true });
   await mkdir(path);
   await writeFile(join(path, "SKILL.md"), "Someone else's canvas-review\n");

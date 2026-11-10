@@ -10,6 +10,7 @@ import {
 
 import "../../styles/review-page.css";
 import "./reference-panel.css";
+import type { EmbeddedReviewSource } from "../../agent/embedded-review-source";
 import { canvasInsetsFromOverlays } from "../../canvas/fit-view";
 import type { SessionUser } from "../../components/account";
 import { MarkablePicture } from "../../components/review-picture";
@@ -418,15 +419,9 @@ export interface ReferenceWindowProps {
   reviewFeedback?:
     | { identity: string; label: string; copy(comment: string): Promise<void> }
     | undefined;
-  /** The netlist the drawing was imported from, and whether it was edited since. */
+  /** The netlist the drawing was imported from; `check` says how the drawing stands against it. */
   importedSource?:
-    | {
-        entryPath: string;
-        version: string;
-        files: readonly { path: string; sha256: string }[];
-        status: string;
-      }
-    | undefined;
+    (EmbeddedReviewSource & { check(): Promise<string> }) | undefined;
   open: boolean;
   /** How often the person has asked for the window (File, status bar). */
   openings?: number;
@@ -451,6 +446,62 @@ export interface ReferenceWindowProps {
     referenceSaved: boolean;
   }) => void;
   fetchLike?: typeof fetch;
+}
+
+/** How the drawing stands against its netlist, compared again after each edit. */
+function ImportedSourceStatus({ check }: { check: () => Promise<string> }) {
+  const [status, setStatus] = useState("");
+  useEffect(() => {
+    let current = true;
+    setStatus("Comparing with the imported netlist…");
+    // A burst of edits compares once, after the last.
+    const timer = setTimeout(() => {
+      check().then(
+        (text) => {
+          if (current) setStatus(text);
+        },
+        (error: unknown) => {
+          if (current)
+            setStatus(error instanceof Error ? error.message : String(error));
+        },
+      );
+    }, 300);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [check]);
+  return <p data-testid="local-source-status">{status}</p>;
+}
+
+/** The netlist a Project was imported from, compared only while shown. */
+function ImportedSource({
+  source,
+}: {
+  source: NonNullable<ReferenceWindowProps["importedSource"]>;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="reference-local-source"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>Imported source</summary>
+      <p>{source.entryPath}</p>
+      <p>Source version (SHA-256)</p>
+      <code data-testid="local-source-version">{source.version}</code>
+      <ul>
+        {source.files.map(({ path, sha256 }) => (
+          <li key={path}>
+            <span>{path}</span>
+            <br />
+            <code>{sha256}</code>
+          </li>
+        ))}
+      </ul>
+      {open ? <ImportedSourceStatus check={source.check} /> : null}
+    </details>
+  );
 }
 
 function ReviewFeedback({
@@ -672,8 +723,7 @@ export function ReferenceWindow({
       shows={
         shown !== null ||
         reviewFeedback !== undefined ||
-        localDelivery?.source !== undefined ||
-        localDelivery?.embeddedSource !== undefined
+        importedSource !== undefined
       }
       actions={
         <button
@@ -753,24 +803,10 @@ export function ReferenceWindow({
           <ReviewFeedback key={reviewFeedback.identity} {...reviewFeedback} />
         ) : null}
         {importedSource ? (
-          <details className="reference-local-source">
-            <summary>Imported source</summary>
-            <p>{importedSource.entryPath}</p>
-            <p>Source version (SHA-256)</p>
-            <code data-testid="local-source-version">
-              {importedSource.version}
-            </code>
-            <ul>
-              {importedSource.files.map(({ path, sha256 }) => (
-                <li key={path}>
-                  <span>{path}</span>
-                  <br />
-                  <code>{sha256}</code>
-                </li>
-              ))}
-            </ul>
-            <p data-testid="local-source-status">{importedSource.status}</p>
-          </details>
+          <ImportedSource
+            key={importedSource.version}
+            source={importedSource}
+          />
         ) : null}
         {entry ? (
           <dl className="reference-panel-facts">

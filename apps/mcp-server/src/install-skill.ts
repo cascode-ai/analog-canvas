@@ -3,6 +3,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rename,
   rm,
@@ -16,7 +17,7 @@ import { InstallationFailure } from "./installation-diagnostics.js";
 const PROFILES = { codex: ".agents", config: ".claude" } as const;
 const MARKER = ".analog-canvas-skill.json";
 const MARKER_FORMAT = "analog-canvas-skill-v1";
-/** What the 0.17.97-0.17.100 archives installed, before the marker existed. */
+/** What the 0.17.97-0.17.103 archives installed, before the marker existed. */
 const UNMARKED_RELEASE: Record<string, string> = {
   "SKILL.md":
     "b8d79ef7fb7d87cb148cb61ee456bbd016e3a9336ffb43267f95192ffaa13bb9",
@@ -37,9 +38,22 @@ async function readIfPresent(path: string) {
   }
 }
 
+/** Every file under `root`, as relative POSIX paths; links count as files. */
+async function filesUnder(root: string, folder = ""): Promise<string[]> {
+  const entries = await readdir(join(root, folder), { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map((entry) => {
+      const file = folder ? `${folder}/${entry.name}` : entry.name;
+      return entry.isDirectory() ? filesUnder(root, file) : [file];
+    }),
+  );
+  return nested.flat();
+}
+
 /**
  * The digests of this installer's unedited copy at `path`; null when nothing
- * is there; "other" for anything else, including an edited copy.
+ * is there; "other" for anything else, including an edited copy or one with
+ * files of the user's own.
  */
 async function installedCopy(
   path: string,
@@ -76,6 +90,11 @@ async function installedCopy(
     const bytes = await readIfPresent(join(path, file));
     if (!bytes || sha256(bytes) !== digest) return "other";
   }
+  // An update replaces the folder, so it must hold nothing else.
+  if (
+    (await filesUnder(path)).some((file) => file !== MARKER && !written[file])
+  )
+    return "other";
   return written;
 }
 
