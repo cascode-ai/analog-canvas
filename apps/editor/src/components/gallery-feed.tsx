@@ -5,6 +5,7 @@ import "../styles/gallery-entry.css";
 import {
   announceGalleryChange,
   galleryAuthorsOf,
+  galleryFeedQueryKey,
   galleryQueryFromFilters,
   galleryNarrowedByline,
   loadGalleryFeed,
@@ -18,6 +19,7 @@ import {
   type GalleryLandingPreload,
 } from "../gallery-client";
 import { galleryEntryMatchesQuery } from "../gallery-search";
+import { galleryTileOpened, rememberGalleryReturn } from "../gallery-return";
 import { galleryFiltersNarrowQuery } from "../gallery-filters";
 import {
   GALLERY_COMPONENT_RANGES,
@@ -51,6 +53,7 @@ import { GalleryDownloadButton } from "./gallery-download-button";
 import {
   galleryOrderPreference,
   galleryShuffleSeed,
+  keepGallerySeed,
   newGalleryShuffleSeed,
   rememberGalleryOrder,
   type GalleryOrder,
@@ -174,7 +177,7 @@ export function GalleryFeed({
   function chooseOrder(next: GalleryOrder): void {
     rememberGalleryOrder(next);
     // Random again shuffles anew.
-    if (next === "random") setSeed(newGalleryShuffleSeed());
+    if (next === "random") setSeed(keepGallerySeed(newGalleryShuffleSeed()));
     setOrder(next);
   }
   // One query for the first page, every later page and the landing preload.
@@ -238,6 +241,7 @@ export function GalleryFeed({
     sentinelRef,
     toggleLike,
     removeManagedEntry,
+    loadNextPage,
     retryNextPage,
   } = useGalleryWall({
     active: view === "gallery",
@@ -360,6 +364,8 @@ export function GalleryFeed({
     state,
     setState,
     visibleEntries,
+    wallKey: galleryFeedQueryKey(feedQuery),
+    loadNextPage,
   });
   const localAuthors = searchingLoaded || !state.authors;
   const authors = localAuthors
@@ -548,7 +554,20 @@ export function GalleryFeed({
   );
 
   return (
-    <main className="gallery-shell" data-testid="gallery-feed">
+    <main
+      className="gallery-shell"
+      data-testid="gallery-feed"
+      onClickCapture={(event) => {
+        // Opening a circuit remembers it, so coming back finds it again.
+        const entryId = galleryTileOpened(event.target);
+        if (entryId)
+          rememberGalleryReturn({
+            wall: galleryFeedQueryKey(feedQuery),
+            entryId,
+            loaded: entries.length,
+          });
+      }}
+    >
       <GalleryChrome
         subtitle={view === "shelf" ? "My shelf" : "Community gallery"}
         visitStats={visitStats}

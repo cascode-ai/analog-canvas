@@ -7,7 +7,9 @@ import {
   GALLERY_ORDER_KEY,
   GALLERY_SEED_GLOBAL,
   galleryOrderPreference,
+  GALLERY_SEED_KEY,
   galleryShuffleSeed,
+  keepGallerySeed,
   rememberGalleryOrder,
 } from "./gallery-order";
 
@@ -52,6 +54,17 @@ describe("the Gallery's order (#1615)", () => {
     const own = galleryShuffleSeed();
     expect(own).toMatch(/^[a-z0-9]{1,16}$/u);
     expect(galleryShuffleSeed()).toBe(own);
+  });
+
+  it("keeps the tab's shuffle, so coming back finds the same wall", () => {
+    const store = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => void store.set(key, value),
+    };
+    keepGallerySeed("kept42", storage);
+    expect(store.get(GALLERY_SEED_KEY)).toBe("kept42");
+    expect(galleryShuffleSeed(storage)).toBe("kept42");
   });
 
   it("names the order on its button and checks it in the menu", () => {

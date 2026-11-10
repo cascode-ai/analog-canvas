@@ -14,6 +14,12 @@ import {
   galleryFocusPlacement,
   withoutGalleryFocus,
 } from "../gallery-focus";
+import {
+  forgetGalleryReturn,
+  galleryReturnStep,
+  galleryReturnTo,
+  type GalleryReturn,
+} from "../gallery-return";
 import { isRequestFailure, type RequestFailure } from "../request-failure";
 
 export function useGalleryFocusLink({
@@ -21,11 +27,17 @@ export function useGalleryFocusLink({
   state,
   setState,
   visibleEntries,
+  wallKey,
+  loadNextPage,
 }: {
   preload: GalleryLandingPreload | undefined;
   state: GalleryFeedState;
   setState: Dispatch<SetStateAction<GalleryFeedState>>;
   visibleEntries: GalleryFeedEntry[];
+  /** The wall's query key: a return is found only on the wall it left. */
+  wallKey: string;
+  /** Asks for the next page; false when none could start now. */
+  loadNextPage: () => boolean;
 }) {
   // A "View in Gallery" link names one circuit. The wall shows it at once: in
   // its place when the first page holds it, otherwise first on the wall,
@@ -56,7 +68,49 @@ export function useGalleryFocusLink({
       cancelled = true;
     };
   }, [focusId, preload]);
+  // Coming back from a circuit opened on this wall finds it again: the wall
+  // pages down to it, then brings it into view and rings it. Undefined until
+  // the first answer says which wall this is.
+  const [returning, setReturning] = useState<GalleryReturn | null>();
   useEffect(() => {
+    if (state.status !== "ready") return;
+    let target = returning;
+    if (target === undefined) {
+      const record = galleryReturnTo(wallKey);
+      // A "View in Gallery" link to another circuit wins over the return.
+      target =
+        record && (focusId === null || focusId === record.entryId)
+          ? record
+          : null;
+      setReturning(target);
+    }
+    if (!target) return;
+    const step = galleryReturnStep(
+      target,
+      visibleEntries.map((entry) => entry.id),
+      state.nextCursor !== null,
+    );
+    if (step === "page") {
+      loadNextPage();
+      return;
+    }
+    setReturning(null);
+    if (step === "stop") return;
+    forgetGalleryReturn();
+    if (focusId === target.entryId) {
+      setFocusId(null);
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + withoutGalleryFocus(window.location.search),
+      );
+    }
+    setLinkedId(target.entryId);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- loadNextPage and the wall key are read when the wall answers; a new page re-runs this
+  }, [state, visibleEntries, returning, focusId]);
+  useEffect(() => {
+    // A return being found holds a link until it is found or given up.
+    if (returning !== null) return;
     if (focusId === null || state.status !== "ready") return;
     const placement = galleryFocusPlacement(
       visibleEntries.map((entry) => entry.id),
@@ -81,7 +135,7 @@ export function useGalleryFocusLink({
       }));
     setLinkedId(focusId);
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- setState is the wall's useState setter, the same function on every render
-  }, [focusId, focusEntry, state, visibleEntries]);
+  }, [focusId, focusEntry, state, visibleEntries, returning]);
   useEffect(() => {
     if (linkedId === null) return;
     // Masonry measures tiles and moves them as previews arrive, so a single

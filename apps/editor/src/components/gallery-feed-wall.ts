@@ -476,6 +476,11 @@ export function useGalleryWall({
     sentinelRef,
     toggleLike,
     removeManagedEntry,
+    /** Asks for the next page; false when none could start now. */
+    loadNextPage: () =>
+      state.status === "ready" &&
+      state.nextCursor !== null &&
+      loadPageAfterRef.current(state.nextCursor),
     retryNextPage: () => {
       if (state.nextCursor === null) return;
       // The reason stays unless a request has started in its place.

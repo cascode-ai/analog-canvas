@@ -12,7 +12,11 @@ import {
   GALLERY_EARLY_FILTERS_KEY,
   galleryEarlyUrls,
 } from "./gallery-early-fetch";
-import { GALLERY_ORDER_KEY, type GalleryOrder } from "./gallery-order";
+import {
+  GALLERY_ORDER_KEY,
+  GALLERY_SEED_KEY,
+  type GalleryOrder,
+} from "./gallery-order";
 import {
   GALLERY_FILTERS_KEY,
   isPageReload,
@@ -66,6 +70,7 @@ describe("the landing page's early Gallery requests (#1592)", () => {
     order: string | null = null,
     hostname = "analog-canvas.tokenzhang.com",
     timing = loadedBy("navigate"),
+    seed: string | null = null,
   ) => {
     const window: Record<string, unknown> = {};
     const fetch = vi.fn(() => Promise.resolve(new Response("{}")));
@@ -74,7 +79,13 @@ describe("the landing page's early Gallery requests (#1592)", () => {
       location: { pathname, search, hostname },
       // The filters live for the tab, the order for the browser.
       sessionStorage: {
-        getItem: (key: string) => (key === GALLERY_FILTERS_KEY ? stored : null),
+        getItem: (key: string) =>
+          key === GALLERY_FILTERS_KEY
+            ? stored
+            : key === GALLERY_SEED_KEY
+              ? seed
+              : null,
+        setItem: () => {},
       },
       localStorage: {
         getItem: (key: string) => (key === GALLERY_ORDER_KEY ? order : null),
@@ -115,6 +126,11 @@ describe("the landing page's early Gallery requests (#1592)", () => {
     );
     for (const path of ["/editor", "/g/abc", "/analytics"])
       expect(run(path).fetch).not.toHaveBeenCalled();
+    // The tab's kept shuffle: coming back asks for the same wall.
+    expect(
+      run("/", "", null, null, undefined, undefined, "kept42").window
+        .__icmGallerySeed,
+    ).toBe("kept42");
   });
 
   it("start only for a wall that opens unfiltered, so none is wasted", () => {
