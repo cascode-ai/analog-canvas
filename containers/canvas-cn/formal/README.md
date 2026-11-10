@@ -60,10 +60,16 @@ The release owns the public nginx template. Use its release runner with
 port 8443 against the private runtime. At cutover set the shared-domain
 origins and restart `canvas-cn-formal.service` to load them, then use
 `--public-mode open --filing-number '京ICP备…号-1'`
-with the issued number. The browser home page links that number to the MIIT
-site. `--public-mode off` removes the public listener. Run these commands
-under the formal release lock and keep public settings on the host. A release
-from before the public template serves only the private listener.
+with the issued number. Public HTTPS listens on IPv4 and IPv6 port 443.
+The browser home page links that number to the MIIT site. `--public-mode off`
+removes the public listener. Run these commands under the formal release lock
+and keep public settings on the host. A release from before the public
+template serves only the private listener.
+
+When upgrading an already open IPv4-only host, reapply `--public-mode open`
+with the current release runner and the existing filing number before adding
+Hangzhou to mainland AAAA answers. Before removing the IPv6 listener, restore
+the previous AAAA route and allow cached answers to expire.
 
 ## Operating rules
 
