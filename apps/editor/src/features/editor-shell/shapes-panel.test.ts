@@ -35,7 +35,7 @@ describe("shapes quick-place", () => {
     expect(
       groups.map((group) => [group.category, group.symbols.length]),
     ).toEqual([
-      ["Transistors", 6],
+      ["Transistors", 4],
       ["Passives", 4],
       ["Power and Ports", 7],
       ["Sources", 6],
@@ -44,7 +44,7 @@ describe("shapes quick-place", () => {
       ["Logic Gates", 12],
       ["Signal Flow", 6],
       ["Annotations", 9],
-      ["Extended Devices", 17],
+      ["Extended Devices", 19],
     ]);
     const categoryTestIds = [
       "transistors",
@@ -110,7 +110,7 @@ describe("shapes quick-place", () => {
       groups
         .find((group) => group.category === "Transistors")
         ?.symbols.map((symbol) => symbol.id),
-    ).toEqual(["nmos", "pmos", "npn", "pnp", "njfet", "pjfet"]);
+    ).toEqual(["nmos", "pmos", "npn", "pnp"]);
     expect(markup).toContain(">NJFET</span>");
     expect(markup).toContain(">PJFET</span>");
     expect(markup).toContain('aria-label="Place N-channel DMOS"');

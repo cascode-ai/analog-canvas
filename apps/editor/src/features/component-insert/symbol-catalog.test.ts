@@ -264,6 +264,8 @@ describe("component insertion catalog", () => {
       "diode",
       "zener-diode",
       "led",
+      "njfet",
+      "pjfet",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
@@ -287,6 +289,8 @@ describe("component insertion catalog", () => {
     );
     expect(libraryDisplayName("zener-diode", "Zener Diode")).toBe("Zener");
     expect(libraryDisplayName("led", "LED or Laser Diode")).toBe("LED");
+    expect(libraryDisplayName("potentiometer", "Potentiometer")).toBe("Pot");
+    expect(libraryDisplayName("microphone", "Microphone")).toBe("Mic");
     expect(libraryDisplayName("port-filled", "Bias Voltage Port")).toBe(
       "Bias Voltage Port",
     );
@@ -342,8 +346,6 @@ describe("reach order inside a category", () => {
       "pmos",
       "npn",
       "pnp",
-      "njfet",
-      "pjfet",
     ]);
     expect(ids("Extended Devices")).toEqual([
       "variable-resistor",
@@ -353,6 +355,8 @@ describe("reach order inside a category", () => {
       "diode",
       "zener-diode",
       "led",
+      "njfet",
+      "pjfet",
       "tcoil",
       "center-tap-inductor",
       "xfmr",

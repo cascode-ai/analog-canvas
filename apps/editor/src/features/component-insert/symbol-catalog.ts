@@ -44,7 +44,7 @@ export interface ComponentCatalogGroup {
 
 export function symbolCategory(symbolId: string): string {
   if (isAnnotationPaletteSymbol(symbolId)) return ANNOTATION_CATEGORY;
-  // Keep diode and adjustable-passive tiles in Extended Devices,
+  // Keep diode, JFET and adjustable-passive tiles in Extended Devices,
   // leaving the everyday transistor and passive groups compact.
   if (
     [
@@ -54,6 +54,8 @@ export function symbolCategory(symbolId: string): string {
       "diode",
       "zener-diode",
       "led",
+      "njfet",
+      "pjfet",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
@@ -67,7 +69,7 @@ export function symbolCategory(symbolId: string): string {
   }
   const expanded = expandedDeviceCatalogEntry(symbolId);
   if (expanded) return expanded.category;
-  if (["nmos", "pmos", "npn", "pnp", "njfet", "pjfet"].includes(symbolId)) {
+  if (["nmos", "pmos", "npn", "pnp"].includes(symbolId)) {
     return "Transistors";
   }
   if (
@@ -185,6 +187,8 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   port: "Cell Pin",
   "zener-diode": "Zener",
   led: "LED",
+  potentiometer: "Pot",
+  microphone: "Mic",
   "center-tap-inductor": "CT Coil",
 };
 
@@ -269,8 +273,6 @@ const SYMBOL_ORDER: readonly string[] = [
   "pmos",
   "npn",
   "pnp",
-  "njfet",
-  "pjfet",
   // Passives in the order they are taught and reached for, not alphabetical.
   "resistor",
   "capacitor",
@@ -309,6 +311,8 @@ const SYMBOL_ORDER: readonly string[] = [
   "diode",
   "zener-diode",
   "led",
+  "njfet",
+  "pjfet",
   "tcoil",
   "center-tap-inductor",
   "xfmr",
