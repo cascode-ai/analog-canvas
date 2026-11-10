@@ -204,6 +204,12 @@ body {
   overflow: visible;
 }
 
+/* What the chrome drops down (a menu, the Shelf, a tab's menu or close
+   confirmation) stands above the notice column under it (#2182). */
+.app-chrome:has(details[open], .context-menu, .project-tab-close-decision) {
+  z-index: 46;
+}
+
 .app-chrome-main {
   display: flex;
   flex-wrap: nowrap;

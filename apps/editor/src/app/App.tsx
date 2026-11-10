@@ -5660,16 +5660,6 @@ function WorkspaceEditor({
   });
   return (
     <main className="app-shell">
-      {powerPoint.notice}
-      {office.notice}
-      {publishedNotice ? (
-        <Suspense fallback={null}>
-          <GalleryPublishedNotice
-            notice={publishedNotice}
-            onDismiss={() => setPublishedNotice(null)}
-          />
-        </Suspense>
-      ) : null}
       {capabilities.community ? (
         <Suspense fallback={null}>
           <GalleryTopologyTaskNotice
@@ -5896,6 +5886,20 @@ function WorkspaceEditor({
         />
       ) : null}
       <EditorDialogs
+        notices={
+          <>
+            {powerPoint.notice}
+            {office.notice}
+            {publishedNotice ? (
+              <Suspense fallback={null}>
+                <GalleryPublishedNotice
+                  notice={publishedNotice}
+                  onDismiss={() => setPublishedNotice(null)}
+                />
+              </Suspense>
+            ) : null}
+          </>
+        }
         cellPropertiesId={cellPropertiesId}
         setCellPropertiesId={setCellPropertiesId}
         importCellOpen={importCellOpen}

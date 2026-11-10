@@ -256,19 +256,44 @@
   cursor: default;
 }
 
-/* Recovery banners float over the canvas so they never resize it. */
-/* Above the floating panels (Project Info, Agent), below menus and modals. */
-.recovery-banner {
+/* Notices stand in one column under the chrome (EditorNotices), floating
+   over the canvas so they never resize it, each at its own height so none
+   covers another (#2182). Above the floating panels (Project Info), below
+   modals; what the chrome drops down rises above them (.app-chrome). */
+.editor-notices {
   position: fixed;
   z-index: 45;
-  top: 4.6rem;
+  top: var(--editor-notices-top, 4.6rem);
   left: 50%;
   translate: -50% 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  width: min(40.5rem, 100vw);
+  max-height: calc(100dvh - var(--editor-notices-top, 4.6rem));
+  /* Room for the notices' shadows inside the scrolling column. */
+  padding: 0 1.25rem 1.25rem;
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.editor-notices:empty {
+  display: none;
+}
+
+.editor-notices > * {
+  pointer-events: auto;
+}
+
+.recovery-banner {
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-  max-width: min(38rem, calc(100vw - 2.5rem));
+  max-width: 100%;
   padding: 0.7rem 1rem;
   border: 1px solid var(--icm-border);
   border-radius: var(--icm-radius-lg);

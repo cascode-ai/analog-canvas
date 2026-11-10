@@ -1,8 +1,9 @@
-import { Suspense, type ComponentProps } from "react";
+import { Suspense, type ComponentProps, type ReactNode } from "react";
 
 import type { AgentFileCandidateSummary } from "@icm/agent-adapter";
 
 import { ChunkLoadBanner } from "../components/chunk-load-fallback";
+import { EditorNotices } from "../components/editor-notices";
 import { NewDeployBanner } from "../components/new-deploy-banner";
 import {
   RecoveryAvailableBanner,
@@ -25,6 +26,8 @@ import {
 } from "./lazy-editor-dialogs";
 
 export interface EditorDialogLayerProps {
+  /** Brief outcomes that stand first in the notice column. */
+  notices?: ReactNode;
   chunkLoadFailure: ComponentProps<typeof ChunkLoadBanner> | null;
   recoveryFailure: ComponentProps<typeof RecoveryFailureBanner> | null;
   recoveryAvailable: ComponentProps<typeof RecoveryAvailableBanner> | null;
@@ -50,6 +53,7 @@ export interface EditorDialogLayerProps {
 
 /** All modal/overlay UI kept outside the persistent editor workspace. */
 export function EditorDialogLayer({
+  notices,
   chunkLoadFailure,
   recoveryFailure,
   recoveryAvailable,
@@ -71,16 +75,19 @@ export function EditorDialogLayer({
   return (
     <>
       <Suspense fallback={null}>
-        {chunkLoadFailure ? <ChunkLoadBanner {...chunkLoadFailure} /> : null}
-        <NewDeployBanner />
-        {recoveryFailure ? (
-          <RecoveryFailureBanner {...recoveryFailure} />
-        ) : null}
-        {recoveryAvailable ? (
-          <RecoveryAvailableBanner {...recoveryAvailable} />
-        ) : workspaceReopen ? (
-          <WorkspaceReopenBanner {...workspaceReopen} />
-        ) : null}
+        <EditorNotices>
+          {notices}
+          {chunkLoadFailure ? <ChunkLoadBanner {...chunkLoadFailure} /> : null}
+          <NewDeployBanner />
+          {recoveryFailure ? (
+            <RecoveryFailureBanner {...recoveryFailure} />
+          ) : null}
+          {recoveryAvailable ? (
+            <RecoveryAvailableBanner {...recoveryAvailable} />
+          ) : workspaceReopen ? (
+            <WorkspaceReopenBanner {...workspaceReopen} />
+          ) : null}
+        </EditorNotices>
         {recentRecovery ? (
           <LazyRecentRecoveryDialog {...recentRecovery} />
         ) : null}
