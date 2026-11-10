@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "68e79ecede2d3bab3d1b9e021212490894a41a47ce8329819df672fc9546b8ef",
+  "registrySha256": "c4ae73ad9601c314de21024949af62b7ad2af0ff048579209d8cdb6706ca4a26",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -85,7 +85,7 @@
     },
     {
       "source": "docs/agent/mcp-install.md",
-      "sha256": "47ffadec6f5aba7c08112e4526dfa63f2230118c1d0a1cbb3bf19e4003f2efe5"
+      "sha256": "2c7964d4972a9862781a322d8396eabcbf8bfa08333da8b7aa4601365fb04d27"
     },
     {
       "source": "docs/agent/api-usage.md",
@@ -126,6 +126,14 @@
     {
       "source": "docs/agent/local-workspace.md",
       "sha256": "39b0ca5199393bde0dbaaae23833fd90c566bc47ca87f482b501e42bfc7b4d13"
+    },
+    {
+      "source": "docs/agent/skills/canvas-review/SKILL.md",
+      "sha256": "de4ceb867f59a8f0d0fc0ce284270ca2a9bca26a7f38c1bb872b741a448c2137"
+    },
+    {
+      "source": "docs/agent/skills/canvas-review/agents/openai.yaml",
+      "sha256": "61f1ee6a7c1d1990a7b3d4d48b51da760e0b8aedbe2ace6766a955e5c18af222"
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
@@ -612,6 +620,29 @@
       "task": "Discover tool operation and limitations"
     }
   },
+  "skills": [
+    {
+      "name": "canvas-review",
+      "source": "docs/agent/skills/canvas-review",
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "reads": [
+        {
+          "document": "reference/quickstart"
+        },
+        {
+          "document": "reference/mcp-tools",
+          "section": "From a netlist to a review"
+        }
+      ],
+      "hosts": {
+        "codex": "0.17.97",
+        "claudeCode": "0.17.103"
+      }
+    }
+  ],
   "outputs": [
     {
       "file": "apps/mcp-server/src/resources.generated.ts",
@@ -644,7 +675,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "cd27c039074c1893586afeb1d1f6232137ae10dd86d5417f7dcd93c6e8dd8934"
+      "sha256": "94b4dccf0bef2f7f42eec503edd99985144a7c278300088a68e8d837ee679c90"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -677,6 +708,13 @@
         "docs/agent/circuit-style-knowledge.md"
       ],
       "sha256": "607fc22fcb3714a120ed7fa9a429482ea0e76b296ccfe9d831bf84c5976ef81c"
+    },
+    {
+      "file": "packages/agent-adapter/src/agent-skills.generated.ts",
+      "sources": [
+        "docs/agent/distribution.json"
+      ],
+      "sha256": "32b4040646558fd5eda82b50d8be807c1376146ce589bfa77bf38c0eae966bb8"
     },
     {
       "file": "packages/agent-adapter/src/agent-api-help.generated.ts",

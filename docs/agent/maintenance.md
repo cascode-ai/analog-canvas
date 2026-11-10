@@ -3,9 +3,11 @@
 Maintainer-only. Check the [consumer matrix](README.md) before adding a
 document or changing its audience.
 
-Package the opt-in Codex host entrypoint and its metadata from `codex/skills/`
-using `scripts/package-mcp.mjs`. Link to existing MCP resources for workflow
-guidance. The runtime registry owns those resources.
+Optional host Skills live under `skills/` and are listed in the registry's
+`skills`: their files, the documents and sections they read (generation fails
+when one is missing) and the first release whose installer serves each host.
+`scripts/package-mcp.mjs` packages the listed files. A Skill links to MCP
+resources for workflow guidance; the runtime registry owns those resources.
 
 ## Edit and distribute
 

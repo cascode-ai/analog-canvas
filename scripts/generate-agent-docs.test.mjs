@@ -66,6 +66,25 @@ test("required dependencies exist, are delivered to consumers, and are acyclic",
     assert.throws(() => validateRegistry(copy));
   }
 });
+test("a Skill fails generation when what it reads or ships goes missing", async () => {
+  for (const change of [
+    (r) => (r.skills[0].reads[1].section = "A renamed section"),
+    (r) => (r.skills[0].reads[0].document = "reference/absent"),
+    (r) => (r.skills[0].files = ["agents/openai.yaml"]),
+    (r) => delete r.skills[0].hosts.claudeCode,
+    (r) => (r.skills[0].source = "docs/agent/../secret"),
+    (r) => r.skills.push(r.skills[0]),
+  ]) {
+    const copy = structuredClone(registry);
+    change(copy);
+    await assert.rejects(compile(copy));
+  }
+  const skills = (await compile(registry)).get(
+    "packages/agent-adapter/src/agent-skills.generated.ts",
+  );
+  assert.match(skills, /name: "canvas-review"/);
+  assert.match(skills, /claudeCode: "\d+\.\d+\.\d+"/);
+});
 test("missing sources fail before emitting any files", async () => {
   const copy = structuredClone(registry);
   copy.documents[0].source = "docs/agent/missing.md";

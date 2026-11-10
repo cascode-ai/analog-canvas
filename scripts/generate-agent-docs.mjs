@@ -92,6 +92,28 @@ export function validateRegistry(registry) {
     )
       throw Error(`Missing template consumer/task: ${key}`);
   }
+  const skillNames = new Set();
+  for (const skill of registry.skills) {
+    if (
+      !/^[a-z][a-z\d-]{0,63}$/u.test(skill.name) ||
+      skillNames.has(skill.name)
+    )
+      throw Error(`Duplicate/invalid skill: ${skill.name}`);
+    skillNames.add(skill.name);
+    if (!safe(skill.source) || !skill.source.startsWith("docs/agent/skills/"))
+      throw Error(`Unsafe skill source: ${skill.name}`);
+    if (!skill.files.includes("SKILL.md") || !skill.files.every(safe))
+      throw Error(`Invalid skill files: ${skill.name}`);
+    // The first release whose archive and installer carry it, per host.
+    for (const host of ["codex", "claudeCode"])
+      if (!/^\d+\.\d+\.\d+$/u.test(skill.hosts[host] ?? ""))
+        throw Error(`Missing ${host} release for skill: ${skill.name}`);
+    for (const { document } of skill.reads) {
+      const target = registry.documents.find((d) => d.id === document);
+      if (!target?.uri || !target.consumers.includes("mcp"))
+        throw Error(`Skill ${skill.name} reads an undistributed ${document}`);
+    }
+  }
 }
 
 /**
@@ -150,6 +172,30 @@ export async function compile(registry, repoRoot = root) {
       await access(path.join(repoRoot, resolved)).catch(() => {
         throw Error(`Broken link in ${d.source}: ${href}`);
       });
+    }
+  }
+  // A Skill names the sections it reads; renaming one fails here, not in a
+  // user's chat.
+  for (const skill of registry.skills) {
+    for (const file of skill.files)
+      await read(path.posix.join(skill.source, file));
+    const guidance = await read(path.posix.join(skill.source, "SKILL.md"));
+    for (const { document, section } of skill.reads) {
+      const target = registry.documents.find((d) => d.id === document);
+      if (!guidance.includes(`\`${target.uri}\``))
+        throw Error(`Skill ${skill.name} does not name ${target.uri}`);
+      if (
+        section !== undefined &&
+        (!guidance.includes(`**${section}**`) ||
+          !docs
+            .get(document)
+            .split("\n")
+            .some(
+              (line) =>
+                /^#{1,6} /u.test(line) && line.replace(/^#+ /u, "") === section,
+            ))
+      )
+        throw Error(`Skill ${skill.name} reads a missing section: ${section}`);
     }
   }
   // Runtime guides must be self-contained in their versioned distribution.
@@ -230,6 +276,10 @@ export async function compile(registry, repoRoot = root) {
     "packages/agent-adapter/src/agent-docs.generated.ts",
     `export const agentKitVersion=${JSON.stringify(registry.kitVersion)};\nexport const agentKitFiles:readonly {path:string;content:string}[]=${JSON.stringify(kit)};`,
   );
+  await ts(
+    "packages/agent-adapter/src/agent-skills.generated.ts",
+    `/** Optional host Skills the MCP archive carries, with the first release whose installer serves each host. */\nexport const agentSkills=${JSON.stringify(registry.skills.map(({ name, files, hosts }) => ({ name, files, hosts })))} as const;`,
+  );
   const help = JSON.parse(await read(registry.templates.toolHelp));
   await ts(
     "packages/agent-adapter/src/agent-api-help.generated.ts",
@@ -265,6 +315,7 @@ export async function compile(registry, repoRoot = root) {
     "packages/agent-adapter/src/agent-docs.generated.ts": registry.documents
       .filter((d) => d.kitPath && d.consumers.includes("http-kit"))
       .map((d) => d.source),
+    "packages/agent-adapter/src/agent-skills.generated.ts": [],
     "apps/mcp-server/src/guidance.generated.ts": [
       registry.templates.instructions,
       registry.templates.toolHelp,
@@ -294,6 +345,7 @@ export async function compile(registry, repoRoot = root) {
       kitPath: d.kitPath,
     })),
     templates: registry.templateConsumers,
+    skills: registry.skills,
     outputs: [...outputs].map(([file, text]) => ({
       file,
       sources: ["docs/agent/distribution.json", ...inputs[file]],

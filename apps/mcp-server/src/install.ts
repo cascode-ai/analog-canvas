@@ -4,8 +4,8 @@ import { createReadStream, realpathSync } from "node:fs";
 import { mkdir, readFile, writeFile, rename, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { agentMcpServerName } from "@icm/agent-adapter";
-import { installCodexReviewSkill } from "./install-codex-skill.js";
+import { AGENT_REVIEW_SKILL, agentMcpServerName } from "@icm/agent-adapter";
+import { installReviewSkill } from "./install-skill.js";
 import { codexMcpConfig } from "./installation-config.js";
 import { probeInstalledMcp } from "./installation-probe.js";
 import {
@@ -248,11 +248,12 @@ export async function installMcp(
     const origin = installationOrigin(options.get("--origin") ?? "");
     const serverName = agentMcpServerName(origin);
     const host = options.get("--host") ?? "config";
-    if (!["codex", "config"].includes(host))
+    if (host !== "codex" && host !== "config")
       throw Error("Supported installation hosts: codex, config");
+    // Codex loads it from ~/.agents/skills, Claude Code (config) from ~/.claude/skills.
     const skillOption = options.get("--skill");
-    if (skillOption && (host !== "codex" || skillOption !== "canvas-review"))
-      throw Error("Use --host codex --skill canvas-review");
+    if (skillOption && skillOption !== AGENT_REVIEW_SKILL.name)
+      throw Error(`Use --skill ${AGENT_REVIEW_SKILL.name}`);
     stage = "manifest";
     const declaration = installationDeclaration(
       JSON.parse(
@@ -303,7 +304,7 @@ export async function installMcp(
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const archive = join(directory, "package.tgz");
     const executable = join(directory, "analog-canvas-mcp.mjs");
-    let skillFiles: { guidance: Buffer; metadata: Buffer } | undefined;
+    let skillFiles: Record<string, Buffer> | undefined;
     try {
       // The verified package stays beside the installation it came from.
       await writeFile(archive, bytes, { mode: 0o600, flag: "wx" });
@@ -329,17 +330,17 @@ export async function installMcp(
           fromArchive(bytes, ["-xO", headlessEntry], 24_000_000),
           { mode: 0o600, flag: "wx" },
         );
-      if (skillOption) {
-        const prefix = "package/skills/canvas-review";
-        skillFiles = {
-          guidance: fromArchive(bytes, ["-xO", `${prefix}/SKILL.md`], 64_000),
-          metadata: fromArchive(
-            bytes,
-            ["-xO", `${prefix}/agents/openai.yaml`],
-            16_000,
-          ),
-        };
-      }
+      if (skillOption)
+        skillFiles = Object.fromEntries(
+          AGENT_REVIEW_SKILL.files.map((file) => [
+            file,
+            fromArchive(
+              bytes,
+              ["-xO", `package/skills/${AGENT_REVIEW_SKILL.name}/${file}`],
+              64_000,
+            ),
+          ]),
+        );
     } catch (error) {
       // A failed extraction leaves no half-made installation behind.
       await rm(directory, { recursive: true, force: true });
@@ -401,7 +402,7 @@ export async function installMcp(
     }
     stage = "skill-config";
     const skill = skillFiles
-      ? await installCodexReviewSkill(home, skillFiles)
+      ? await installReviewSkill(home, host, skillFiles)
       : undefined;
     return {
       installed: true,

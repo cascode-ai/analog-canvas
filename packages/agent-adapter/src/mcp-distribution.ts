@@ -1,6 +1,21 @@
 import distribution from "../../../config/agent-mcp-distribution.json" with { type: "json" };
 import { agentMcpServerName } from "./agent-site.js";
+import { agentSkills } from "./agent-skills.generated.js";
 import { verifiedArchiveLaunchArgs } from "./mcp-bootstrap-command.js";
+
+/** The review Skill the archive carries; its name is the installer's `--skill`. */
+export const AGENT_REVIEW_SKILL = agentSkills[0];
+
+function releaseAtLeast(version: string, first: string) {
+  const have = version.split(".").map(Number);
+  const need = first.split(".").map(Number);
+  for (let part = 0; part < 3; part++)
+    if (have[part] !== need[part]) return (have[part] ?? 0) > (need[part] ?? 0);
+  return true;
+}
+
+const withReviewSkill = (command: string) =>
+  `${command} --skill ${AGENT_REVIEW_SKILL.name}`;
 
 export const AGENT_MCP_BOOTSTRAP_FORMAT = "analog-canvas-mcp-bootstrap-v1";
 // Packaging injects only the version. Embedding the full distribution object
@@ -30,7 +45,11 @@ export interface AgentMcpBootstrapManifest {
   };
   hosts: {
     codex: { command: string; reviewCommand?: string };
-    claudeCode: { command: string; windowsCommand: string };
+    claudeCode: {
+      command: string;
+      windowsCommand: string;
+      reviewCommand?: string;
+    };
     cursor: {
       config: {
         mcpServers: Record<
@@ -98,7 +117,7 @@ export function codexSiteArchiveSetup(
     origin,
     "codex",
   );
-  const reviewCommand = `${command} --skill canvas-review`;
+  const reviewCommand = withReviewSkill(command);
   return {
     command,
     ...(manifest.hosts?.codex?.reviewCommand === reviewCommand
@@ -137,13 +156,10 @@ export function agentMcpBootstrapManifest(
   const codexCommand = installCommand(installer, origin, "codex");
   // Immutable <=0.15.1 packages do not contain --install. Publishing a newer
   // package enables its entry point; never advertise unsupported old binaries.
-  const [major = 0, minor = 0, patch = 0] = distribution.version
-    .split(".")
-    .map(Number);
-  const localInstallation =
-    major > 0 || minor > 15 || (minor === 15 && patch >= 2);
-  const archiveIncludesReviewSkill =
-    major > 0 || minor > 17 || (minor === 17 && patch >= 97);
+  const localInstallation = releaseAtLeast(distribution.version, "0.15.2");
+  const skillFor = (host: keyof typeof AGENT_REVIEW_SKILL.hosts) =>
+    serveReleaseArchive &&
+    releaseAtLeast(distribution.version, AGENT_REVIEW_SKILL.hosts[host]);
 
   return {
     format: AGENT_MCP_BOOTSTRAP_FORMAT,
@@ -163,10 +179,8 @@ export function agentMcpBootstrapManifest(
         command: localInstallation
           ? codexCommand
           : `codex mcp add ${serverName} --env ANALOG_CANVAS_API_URL=${origin} -- ${launchText}`,
-        ...(archiveIncludesReviewSkill && serveReleaseArchive
-          ? {
-              reviewCommand: `${codexCommand} --skill canvas-review`,
-            }
+        ...(skillFor("codex")
+          ? { reviewCommand: withReviewSkill(codexCommand) }
           : {}),
       },
       // The verified installer returns the exact `claude mcp add` command
@@ -178,6 +192,9 @@ export function agentMcpBootstrapManifest(
         windowsCommand: localInstallation
           ? configCommand
           : `claude mcp add ${serverName} --scope user --env ANALOG_CANVAS_API_URL=${origin} -- cmd /c ${launchText}`,
+        ...(skillFor("claudeCode")
+          ? { reviewCommand: withReviewSkill(configCommand) }
+          : {}),
       },
       cursor: {
         config: {
