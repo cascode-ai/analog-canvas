@@ -53,33 +53,14 @@
     // answers every miss with the shell at status 200, so a browser
     // expecting JavaScript would get HTML.
     "not_found_handling": "single-page-application",
-    "run_worker_first": [
-      "/api/*",
-      "/assets/*",
-      "/downloads/mcp/*",
-      "/",
-      "/g/*",
-      // Selection boards (docs/specs/selection-boards.md), served whole by the Worker.
-      "/boards",
-      "/boards/*",
-      "/robots.txt",
-      "/sitemap.xml",
-      "/llms.txt",
-      // The Schematic Arena's pages, forwarded to the Arena Worker below,
-      // and their former address, which redirects to them.
-      "/schematic",
-      "/schematic/*",
-      "/arena",
-      "/arena/*",
-      // Chip Arena's visitor statistics on chip-arena.com, forwarded there;
-      // on Analog Canvas's host the Worker hands it back to the assets.
-      "/analytics",
-      // Every other path too: the asset layer answers a path with no file
-      // with the app shell at 200, and only the Worker can tell a page the
-      // app serves (apps/editor/src/page-routes.ts) from a path no page
-      // serves, which it answers 404 (#2159).
-      "/*",
-    ],
+    // Every request reaches the Worker first: /api, the Gallery shell and
+    // its direct documents, selection boards, the MCP downloads, the
+    // Schematic Arena and Chip Arena pages it forwards, and every other path,
+    // where only the Worker can tell a page the app serves
+    // (apps/editor/src/page-routes.ts) from a path no page serves, which it
+    // answers 404 (#2159). Wrangler refuses a path list holding "/*" beside
+    // the paths it covers.
+    "run_worker_first": true,
   },
   // AnalogArena (Arcadia-1/chip-arena) has no route of its own: this
   // Worker forwards /schematic… and /api/arena/… to it with the signed-in
