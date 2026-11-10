@@ -393,6 +393,58 @@
   font-size: var(--icm-font-xs);
 }
 
+/* Too narrow for one line (a phone): each Pin takes two, its name and order
+   buttons on the first, its direction and side below the name (#2176). */
+.cell-pin-table {
+  container-type: inline-size;
+}
+
+@container (max-width: 28rem) {
+  .cell-props-row.cell-pin-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--icm-space-2);
+    padding-block: var(--icm-space-1);
+  }
+
+  /* The break between the two lines. */
+  .cell-props-row.cell-pin-row::after {
+    order: 3;
+    flex-basis: 100%;
+    content: "";
+  }
+
+  .cell-pin-row > .cell-pin-order {
+    flex: 0 0 1.25rem;
+  }
+
+  .cell-pin-row > .cell-pin-name {
+    flex: 1 1 0;
+    order: 1;
+  }
+
+  .cell-pin-row > .cell-pin-actions {
+    order: 2;
+  }
+
+  .cell-pin-table .cell-props-row.cell-pin-row > .cell-pin-actions {
+    visibility: visible;
+  }
+
+  .cell-pin-row > .cell-pin-direction,
+  .cell-pin-row > .cell-pin-side,
+  .cell-pin-row > .cell-pin-added-note {
+    flex: 1 1 0;
+    order: 4;
+    min-width: 0;
+  }
+
+  .cell-pin-row > .cell-pin-direction,
+  .cell-pin-row > .cell-pin-added-note {
+    margin-left: calc(1.25rem + var(--icm-space-2));
+  }
+}
+
 .cell-props-row-actions {
   display: flex;
   justify-content: flex-end;

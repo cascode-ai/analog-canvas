@@ -446,16 +446,28 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
               </header>
               {ports.length ? (
                 <div
-                  className="cell-props-table"
+                  className="cell-props-table cell-pin-table"
                   role="table"
                   aria-label="Formal port order"
                 >
                   <div className="cell-props-row cell-pin-row" role="row">
-                    <span role="columnheader">#</span>
-                    <span role="columnheader">Name</span>
-                    <span role="columnheader">Direction</span>
-                    <span role="columnheader">Side</span>
-                    <span role="columnheader" aria-label="Order" />
+                    <span role="columnheader" className="cell-pin-order">
+                      #
+                    </span>
+                    <span role="columnheader" className="cell-pin-name">
+                      Name
+                    </span>
+                    <span role="columnheader" className="cell-pin-direction">
+                      Direction
+                    </span>
+                    <span role="columnheader" className="cell-pin-side">
+                      Side
+                    </span>
+                    <span
+                      role="columnheader"
+                      className="cell-pin-actions"
+                      aria-label="Order"
+                    />
                   </div>
                   {pinRows.map((row, position) => {
                     if (row.kind === "added")
@@ -521,7 +533,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                             </small>
                           ) : null}
                         </span>
-                        <span role="cell">
+                        <span role="cell" className="cell-pin-direction">
                           <select
                             aria-label={`Formal port ${port.name} direction`}
                             value={mixed ? "" : port.direction}
@@ -545,7 +557,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                             ))}
                           </select>
                         </span>
-                        <span role="cell">
+                        <span role="cell" className="cell-pin-side">
                           <select
                             aria-label={`Cell symbol ${port.name} pin side`}
                             value={placement?.side ?? "auto"}
@@ -565,7 +577,10 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                             ))}
                           </select>
                         </span>
-                        <span role="cell" className="cell-props-row-actions">
+                        <span
+                          role="cell"
+                          className="cell-props-row-actions cell-pin-actions"
+                        >
                           {/* A supply's place is the netlist's: it leads. */}
                           {row.supply ? null : (
                             <>
