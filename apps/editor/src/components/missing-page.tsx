@@ -17,12 +17,15 @@ function MissingPage({
   note,
   testId,
   visitStats,
+  editorLink = false,
 }: {
   title: string;
   heading: string;
   note: string;
   testId: string;
   visitStats: VisitStats;
+  /** Whether to offer the editor, whose tabs this window may hold. */
+  editorLink?: boolean;
 }) {
   usePageTitle(title);
   return (
@@ -33,6 +36,11 @@ function MissingPage({
         <p className="phone-circuit-note">{note}</p>
         <div className="phone-circuit-actions">
           <a href="/">Back to the Gallery</a>
+          {editorLink ? (
+            <a href="/editor?resume=1" data-testid="missing-open-editor">
+              Open the editor
+            </a>
+          ) : null}
         </div>
       </main>
     </div>
@@ -52,6 +60,7 @@ export function GalleryEntryMissing({
       note="It was withdrawn, or the link is wrong."
       testId="gallery-entry-missing"
       visitStats={visitStats}
+      editorLink
     />
   );
 }

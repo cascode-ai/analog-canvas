@@ -145,7 +145,7 @@ export function ReviewPage({
     };
     // Review takes an account: a page that knows its reader is signed out
     // asks for no queue and says so at once (#2163).
-    void readSessionUser()
+    void readSessionUser(fetchLike)
       .then((session) =>
         session.available && !session.user
           ? [null]

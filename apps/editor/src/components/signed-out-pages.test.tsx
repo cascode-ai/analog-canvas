@@ -52,6 +52,8 @@ it("/review asks for no queue", async () => {
       createElement(ReviewPage, {
         fetchLike: (async (input: string) => {
           queues.push(String(input));
+          if (String(input) === "/api/auth/me")
+            return Response.json({ user: null });
           return Response.json({ error: "unauthorized" }, { status: 401 });
         }) as typeof fetch,
       }),

@@ -54,6 +54,7 @@ import {
 } from "./use-native-project-tabs";
 import type { useProjectTabSessions } from "./use-project-tab-sessions";
 import type { useSimulationSurface } from "./use-simulation-surface";
+import { galleryEntryIdOfPath } from "../page-routes";
 
 type ProjectFileLifecycle = ReturnType<typeof useProjectFileLifecycle>;
 type EditorPanels = ReturnType<typeof useEditorPanels>;
@@ -282,9 +283,7 @@ export function EditorMenuBar({
     typeof window === "undefined" ? null : new URL(window.location.href),
   ).current;
   const cloudId = address?.searchParams.get("project");
-  const galleryId = address?.pathname.match(
-    /^\/g\/([A-Za-z0-9-]{1,64})\/?$/u,
-  )?.[1];
+  const galleryId = address ? galleryEntryIdOfPath(address.pathname) : null;
   if (
     projectTabs.tabs.some(
       (tab) =>

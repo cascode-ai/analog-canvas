@@ -113,7 +113,7 @@ describe("a path no page serves (#2159)", () => {
     "/no-such-page",
     "/favicon.ico",
     "/editor/extra",
-    "/g/not_an_id",
+    "/g/not.an.id",
     "/g/abc123/extra",
   ])("%s answers 404 with a page home, not the app", async (path) => {
     const response = await get(path);

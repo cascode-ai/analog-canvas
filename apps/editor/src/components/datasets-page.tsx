@@ -137,7 +137,7 @@ export function DatasetsPage({
     let cancelled = false;
     // A reader the page knows is signed out keeps none: none is asked for
     // (#2163).
-    void readSessionUser()
+    void readSessionUser(fetchLike)
       .then((session) =>
         session.available && !session.user
           ? []

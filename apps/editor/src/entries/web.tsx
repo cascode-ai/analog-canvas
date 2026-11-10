@@ -174,24 +174,31 @@ export function mountWebEditor() {
   // set behind one loading screen. Two nested lazy stages revealed a second
   // fallback, which React keeps for at least 300 ms though its code was
   // already preloaded (#1645).
+  const loadEditorWorkspace = guardedRouteChunk(() =>
+    Promise.all([
+      import("../app/App"),
+      import("./web-editor"),
+      agentRuntimeOnLoad(),
+    ]).then(([app, editor]) => ({
+      default: function EditorRoute(
+        props: ComponentProps<typeof WebEditorApp>,
+      ) {
+        return (
+          <app.WorkspaceAgentProvider>
+            <editor.WebEditorApp {...props} />
+          </app.WorkspaceAgentProvider>
+        );
+      },
+    })),
+  );
+  // On the editor's routes the download starts now, beside a `/g/<id>`
+  // link's presence check, not once the check has answered (#2159).
+  const editorWorkspaceChunk =
+    editorRoute && !isPhoneViewing() ? loadEditorWorkspace() : null;
+  // React reads it later; a failure is its to show, not an unhandled one.
+  editorWorkspaceChunk?.catch(() => {});
   const EditorWorkspace = lazy(
-    guardedRouteChunk(() =>
-      Promise.all([
-        import("../app/App"),
-        import("./web-editor"),
-        agentRuntimeOnLoad(),
-      ]).then(([app, editor]) => ({
-        default: function EditorRoute(
-          props: ComponentProps<typeof WebEditorApp>,
-        ) {
-          return (
-            <app.WorkspaceAgentProvider>
-              <editor.WebEditorApp {...props} />
-            </app.WorkspaceAgentProvider>
-          );
-        },
-      })),
-    ),
+    () => editorWorkspaceChunk ?? loadEditorWorkspace(),
   );
 
   const AnalyticsPage = lazy(
@@ -294,8 +301,8 @@ export function mountWebEditor() {
     ),
   );
 
-  // A `/g/<id>` link on a computer asks, beside the editor's download,
-  // whether the Gallery holds that circuit (#2159).
+  // A `/g/<id>` link on a computer asks, beside the editor's download
+  // started above, whether the Gallery holds that circuit (#2159).
   const startEntryId = galleryEntryIdOfPath(startPath);
   const startEntryPresence =
     startEntryId && !isPhoneViewing()

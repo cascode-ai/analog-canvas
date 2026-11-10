@@ -30,7 +30,7 @@ it("names every page the app serves, and nothing else (#2159)", () => {
     "/favicon.ico",
     "/editor/extra",
     "/g/",
-    "/g/not_an_id",
+    "/g/not.an.id",
     "/g/efx8jakksk/extra",
     "/reviews",
     "/office/taskpane.html",
@@ -39,6 +39,8 @@ it("names every page the app serves, and nothing else (#2159)", () => {
   expect(isEditorPath("/g/efx8jakksk")).toBe(true);
   expect(isEditorPath("/datasets")).toBe(false);
   expect(galleryEntryIdOfPath("/g/ag-308/")).toBe("ag-308");
+  // A dataset's own id may hold `_`, as worker/gallery-sources.ts reads it.
+  expect(galleryEntryIdOfPath("/g/amsnet-a_b")).toBe("amsnet-a_b");
   expect(galleryEntryIdOfPath("/editor")).toBeNull();
 });
 

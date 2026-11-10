@@ -20,9 +20,12 @@ const NAMED_PAGES = [
 
 const NAMED_PAGE = new RegExp(`^/(?:${NAMED_PAGES.join("|")})?/?$`, "u");
 
-/** The id a `/g/<id>` path names, or null. */
+/**
+ * The id a `/g/<id>` path names, or null: a community id, or a dataset's
+ * prefix and its own id, which may hold `_` (worker/gallery-sources.ts).
+ */
 export function galleryEntryIdOfPath(pathname: string): string | null {
-  return /^\/g\/([A-Za-z0-9-]{1,64})\/?$/u.exec(pathname)?.[1] ?? null;
+  return /^\/g\/([A-Za-z0-9_-]{1,64})\/?$/u.exec(pathname)?.[1] ?? null;
 }
 
 /** `/` or a named page: a page that is not the editor. */
