@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 
+import type { SaveProblem } from "../document/use-project-file-lifecycle";
+import { CloudSaveSignIn } from "./cloud-save-sign-in";
+
 export interface ReplaceGuardDialogProps {
   /** What is about to replace the dirty work, e.g. "Open amp.icproj.json". */
   intent: string;
@@ -11,9 +14,16 @@ export interface ReplaceGuardDialogProps {
    */
   cloudProjectLimit: number;
   saving: boolean;
+  /** Why the last Save did not continue, said here and not only behind the
+   * dialog in the status bar. */
+  problem?: SaveProblem | null | undefined;
   onCancel(): void;
   onSaveAndContinue(): void;
   onDiscard(): void;
+  /** Signed out: Stay, and open the page's sign-in choices. */
+  onSignIn?(): void;
+  /** Signed out: export the Project file, then continue. */
+  onExportAndContinue?(): void;
 }
 
 /**
@@ -28,10 +38,17 @@ export function ReplaceGuardDialog({
   nativeSave = false,
   cloudProjectLimit,
   saving,
+  problem = null,
   onCancel,
   onSaveAndContinue,
   onDiscard,
+  onSignIn,
+  onExportAndContinue,
 }: ReplaceGuardDialogProps) {
+  const signedOut =
+    problem?.kind === "signed-out" && onSignIn && onExportAndContinue
+      ? { onSignIn, onExportAndContinue }
+      : null;
   const cancelRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     const frame = requestAnimationFrame(() => cancelRef.current?.focus());
@@ -84,26 +101,45 @@ export function ReplaceGuardDialog({
               Continuing to <strong>{intent}</strong> will drop your latest
               edits.
             </p>
-            <p className="replace-guard-hint">
-              {nativeSave ? (
-                <>
-                  Save updates this Project's file. A new Project asks where to
-                  save it.
-                </>
-              ) : exportOnly ? (
-                <>
-                  Export a Project file before continuing. This preview does not
-                  save files in place.
-                </>
-              ) : (
-                <>
-                  Save keeps this Project in Cloud Projects (up to{" "}
-                  {cloudProjectLimit}). Prefer a file?{" "}
-                  <strong>File → Export Project File…</strong> downloads{" "}
-                  <code>.icproj.json</code>.
-                </>
-              )}
-            </p>
+            {signedOut ? null : (
+              <p className="replace-guard-hint">
+                {nativeSave ? (
+                  <>
+                    Save updates this Project's file. A new Project asks where
+                    to save it.
+                  </>
+                ) : exportOnly ? (
+                  <>
+                    Export a Project file before continuing. This preview does
+                    not save files in place.
+                  </>
+                ) : (
+                  <>
+                    Save keeps this Project in Cloud Projects (up to{" "}
+                    {cloudProjectLimit}). Prefer a file?{" "}
+                    <strong>File → Export Project File…</strong> downloads{" "}
+                    <code>.icproj.json</code>.
+                  </>
+                )}
+              </p>
+            )}
+            {problem?.kind === "failed" ? (
+              <p
+                className="replace-guard-warning"
+                role="alert"
+                data-testid="replace-guard-problem"
+              >
+                {problem.message}
+              </p>
+            ) : null}
+            {signedOut ? (
+              <CloudSaveSignIn
+                onSignIn={signedOut.onSignIn}
+                onExport={signedOut.onExportAndContinue}
+                exportLabel={saving ? "Exporting…" : "Export and continue"}
+                busy={saving}
+              />
+            ) : null}
           </div>
         </div>
         <div className="replace-guard-actions">
@@ -124,24 +160,26 @@ export function ReplaceGuardDialog({
           >
             Stay
           </button>
-          <button
-            type="button"
-            className="replace-guard-save"
-            onClick={onSaveAndContinue}
-            disabled={saving}
-          >
-            {nativeSave
-              ? saving
-                ? "Saving…"
-                : "Save and continue"
-              : exportOnly
+          {signedOut ? null : (
+            <button
+              type="button"
+              className="replace-guard-save"
+              onClick={onSaveAndContinue}
+              disabled={saving}
+            >
+              {nativeSave
                 ? saving
-                  ? "Exporting…"
-                  : "Export and continue"
-                : saving
-                  ? "Saving to Cloud…"
-                  : "Save to Cloud and continue"}
-          </button>
+                  ? "Saving…"
+                  : "Save and continue"
+                : exportOnly
+                  ? saving
+                    ? "Exporting…"
+                    : "Export and continue"
+                  : saving
+                    ? "Saving to Cloud…"
+                    : "Save to Cloud and continue"}
+            </button>
+          )}
         </div>
       </section>
     </div>

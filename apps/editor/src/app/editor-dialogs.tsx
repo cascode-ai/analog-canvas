@@ -47,6 +47,7 @@ import type { createProjectStructureCommands } from "../features/hierarchy/proje
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { primeGalleryPreview } from "../gallery-client";
 import { dismissWorkspaceReopen } from "../document/workspace-reopen";
+import { requestSignIn } from "../components/sign-in-request";
 // The reference window beside the canvas: loaded apart from the editor's
 // first payload.
 const ReferenceWindow = lazy(() =>
@@ -177,6 +178,7 @@ export function EditorDialogs({
   cancelReplaceGuard,
   confirmReplaceGuard,
   saveAndContinueReplaceGuard,
+  exportAndContinueReplaceGuard,
   dismissStartupRecovery,
   restoreRecoverySession,
   downloadRecoveryBackup,
@@ -295,6 +297,7 @@ export function EditorDialogs({
   cancelReplaceGuard: ProjectFileLifecycle["cancelReplaceGuard"];
   confirmReplaceGuard: ProjectFileLifecycle["confirmReplaceGuard"];
   saveAndContinueReplaceGuard: ProjectFileLifecycle["saveAndContinueReplaceGuard"];
+  exportAndContinueReplaceGuard: ProjectFileLifecycle["exportAndContinueReplaceGuard"];
   dismissStartupRecovery: ProjectFileLifecycle["dismissStartupRecovery"];
   restoreRecoverySession: ProjectFileLifecycle["restoreRecoverySession"];
   downloadRecoveryBackup: ProjectFileLifecycle["downloadRecoveryBackup"];
@@ -486,9 +489,16 @@ export function EditorDialogs({
                 exportOnly: projectStore === null,
                 nativeSave: nativeProjectStore !== undefined,
                 saving: replaceGuardSaving,
+                problem: replaceGuard.problem,
                 onCancel: cancelReplaceGuard,
                 onSaveAndContinue: saveAndContinueReplaceGuard,
                 onDiscard: confirmReplaceGuard,
+                onSignIn: () => {
+                  // The sign-in choices sit under this dialog: Stay first.
+                  cancelReplaceGuard();
+                  requestSignIn();
+                },
+                onExportAndContinue: exportAndContinueReplaceGuard,
               }
             : null
         }

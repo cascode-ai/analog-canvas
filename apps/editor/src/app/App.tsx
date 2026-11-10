@@ -1291,6 +1291,7 @@ function WorkspaceEditor({
     cancelReplaceGuard,
     confirmReplaceGuard,
     saveAndContinueReplaceGuard,
+    exportAndContinueReplaceGuard,
     dismissStartupRecovery,
     createNewProject,
     revertToSavedProjectBaseline,
@@ -5977,6 +5978,7 @@ function WorkspaceEditor({
         cancelReplaceGuard={cancelReplaceGuard}
         confirmReplaceGuard={confirmReplaceGuard}
         saveAndContinueReplaceGuard={saveAndContinueReplaceGuard}
+        exportAndContinueReplaceGuard={exportAndContinueReplaceGuard}
         dismissStartupRecovery={dismissStartupRecovery}
         restoreRecoverySession={restoreRecoverySession}
         downloadRecoveryBackup={downloadRecoveryBackup}

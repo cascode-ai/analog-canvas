@@ -200,6 +200,58 @@
   background: #fef3c7;
 }
 
+/* A signed-out Save's two ways on: an account, or the Project as a file. */
+.cloud-save-sign-in {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.cloud-save-sign-in p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cloud-save-sign-in-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cloud-save-sign-in-actions button {
+  height: var(--icm-control-h);
+  padding: 0 0.85rem;
+  border: 1px solid var(--icm-border);
+  border-radius: var(--icm-radius-sm);
+  background: var(--icm-surface);
+  color: var(--icm-text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cloud-save-sign-in-actions button:hover:not(:disabled) {
+  background: var(--icm-surface-hover);
+}
+
+.cloud-save-sign-in-actions .cloud-save-sign-in-primary {
+  border-color: var(--icm-accent);
+  background: var(--icm-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.cloud-save-sign-in-actions .cloud-save-sign-in-primary:hover:not(:disabled) {
+  background: var(--icm-accent);
+  filter: brightness(1.05);
+}
+
+.cloud-save-sign-in-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 /* Recovery banners float over the canvas so they never resize it. */
 /* Above the floating panels (Project Info, Agent), below menus and modals. */
 .recovery-banner {

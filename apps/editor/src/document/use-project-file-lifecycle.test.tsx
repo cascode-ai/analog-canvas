@@ -208,10 +208,43 @@ it("keeps edits made during Save and continue, and can save them on retry", asyn
   expect(editor.current.file.hasUnsavedChanges()).toBe(true);
   expect(editor.current.file.replaceGuard).not.toBeNull();
   expect(editor.statuses.at(-1)).toContain("newer edits remain unsaved");
+  expect(editor.current.file.replaceGuard?.problem).toEqual({
+    kind: "failed",
+    message: "Saved, but newer edits remain unsaved. Save again to continue.",
+  });
   await act(async () => editor.current.file.saveAndContinueReplaceGuard());
   expect(written.at(-1)?.name).toBe("Edited while saving");
   expect(editor.current.doc.project.name).toBe("B");
   expect(editor.current.file.replaceGuard).toBeNull();
+});
+
+it("tells the dialog why Save and continue stopped (#2155)", async () => {
+  const outcomes: CloudProjectSaveOutcome[] = [
+    { status: "signed-out" },
+    { status: "unreachable", message: "offline" },
+  ];
+  const editor = await mount(cloudStore(async () => outcomes.shift()!));
+  await editor.rename("Before save");
+  await editor.guard();
+  await act(async () => editor.current.file.saveAndContinueReplaceGuard());
+  expect(editor.current.file.replaceGuard?.problem).toEqual({
+    kind: "signed-out",
+  });
+  await act(async () => editor.current.file.saveAndContinueReplaceGuard());
+  expect(editor.current.file.replaceGuard?.problem).toEqual({
+    kind: "failed",
+    message: "Cloud Projects unavailable; work remains local (offline)",
+  });
+  // Nothing was replaced meanwhile.
+  expect(editor.current.doc.project.name).toBe("Before save");
+
+  // Signed out, the Project file is the way on.
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:project");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  await act(async () => editor.current.file.exportAndContinueReplaceGuard());
+  expect(editor.current.file.replaceGuard).toBeNull();
+  expect(editor.current.doc.project.name).toBe("B");
 });
 
 it("asks before New Project replaces an unsaved one-part sketch (#2147)", async () => {
