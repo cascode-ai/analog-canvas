@@ -63,6 +63,9 @@ export default {
         destination.origin === identity.origin &&
         isRegionalAuthorityBrowserRoute(request.method, destination.pathname);
       const allowed = new Set([
+        `POST ${new URL("/api/analytics-sync/seed", peer)}`,
+        `POST ${new URL("/api/analytics-sync/receive", peer)}`,
+        `GET ${new URL("/api/analytics-sync/summary", peer)}`,
         `GET ${new URL("/api/project-sync/status", peer)}`,
         `POST ${new URL("/api/project-sync/events", peer)}`,
         `POST ${new URL("/api/project-sync/quota", peer)}`,

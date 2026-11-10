@@ -133,3 +133,27 @@ Publication replication is opt-in on each side. On the source set
 
 The [Project contract](../../../docs/specs/regional-projects.md) owns
 journal retention, abandoned quota reservations and regional recovery.
+
+
+## Visitor statistics
+
+Analytics replication is opt-in. Use the existing peer token to prepare the
+source at `POST /api/analytics-sync/prepare`, then read its authenticated
+`GET /api/analytics-sync/summary`. After verified backups, pass that summary
+as `{summary}` to the region's admin-authenticated
+`POST /api/analytics-sync/activate`. Activation freezes the local baseline and
+starts durable collection; save `GET /api/analytics-sync/baseline` privately
+before the first admin-authenticated `POST /api/analytics-sync/tick`.
+
+After that tick succeeds and the existing statistics APIs agree, enable
+`canvas-cn-analytics-sync.timer` and `canvas-cn-analytics-alert.timer`.
+The monitor at `/var/lib/canvas-cn-analytics-sync/monitor.json` contains only
+counters. Failed delivery keeps the immutable batch; do not advance its
+acknowledgement or delete its queue. Alerting uses the existing mail service.
+If the importer refuses historical data, preserve it and reconcile before
+opening traffic; never discard the baseline to bypass the refusal.
+
+The [analytics contract](../../../docs/specs/regional-analytics.md) owns
+retention and recovery. After activation, rollback targets must understand
+analytics collection and receipts. Never restore an old snapshot over live
+counters or re-import it under a new stream identity.

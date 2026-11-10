@@ -7,7 +7,8 @@ Proposed regional deployment contract:
 [China identity and synchronization](china-regional-identity-sync.md),
 [regional login](regional-login.md),
 [regional Cloud Projects](regional-projects.md),
-[regional publications](regional-resources.md).
+[regional publications](regional-resources.md),
+[regional visitor statistics](regional-analytics.md).
 
 | Specification                                                      | Covers                                                                |
 | ------------------------------------------------------------------ | --------------------------------------------------------------------- |

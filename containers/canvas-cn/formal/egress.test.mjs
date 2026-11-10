@@ -7,6 +7,15 @@ const env = {
 };
 afterEach(() => vi.unstubAllGlobals());
 
+it("delivers analytics batches only to the fixed peer and refuses management destinations", async () => {
+  const requests=[];
+  vi.stubGlobal("fetch",async request=>{requests.push(request.url);return Response.json({accepted:true});});
+  expect((await egress.fetch(new Request("https://project-peer.test/api/analytics-sync/receive",{method:"POST",body:"{}"}),env)).status).toBe(200);
+  expect((await egress.fetch(new Request("https://other.test/api/analytics-sync/receive",{method:"POST",body:"{}"}),env)).status).toBe(403);
+  expect((await egress.fetch(new Request("https://project-peer.test/api/analytics-sync/activate",{method:"POST",body:"{}"}),env)).status).toBe(403);
+  expect(requests).toEqual(["https://project-peer.test/api/analytics-sync/receive"]);
+});
+
 it.each([undefined, "Canvas-acceptance-client/1"])(
   "identifies service requests without replacing an existing User-Agent (%s)",
   async (userAgent) => {

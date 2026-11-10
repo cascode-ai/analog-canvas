@@ -170,11 +170,13 @@ export function PrivacyPage() {
           To count a returning visitor only once, the site sets one cookie of
           its own, <code>canvas_vid</code>, holding a random number. It lasts a
           year from your first visit and is not renewed. The server keeps only a
-          hash of that number, with the last day it was seen, and deletes it
-          once the cookie can no longer exist; each day&rsquo;s list of visitors
-          becomes a plain count the next day. The site does not store your IP
-          address for statistics, shares nothing, and shows the statistics only
-          as totals.
+          hash of that number, with the last day it was seen, for up to 372 days
+          after that day to allow delayed regional reports. Daily visitor hashes
+          are kept for seven UTC days to avoid counting the same browser twice
+          across regions, then become plain counts. Regional collection is
+          synchronized in the background; undelivered records stay queued until
+          confirmed or reconciled. The site does not store your IP address for
+          statistics, shares nothing, and shows the statistics only as totals.
         </p>
         <p>
           If your browser asks sites not to track it (Do Not Track or Global

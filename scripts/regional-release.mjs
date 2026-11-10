@@ -44,6 +44,7 @@ export const RELEASE_SOURCES = [
   "sync-tick.py",
   "sync-alert.py",
   "resource-sync-tick.py",
+  "analytics-sync-tick.py",
 ];
 
 const slash = (path) => path.replaceAll("\\", "/");
