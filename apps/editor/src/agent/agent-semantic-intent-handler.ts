@@ -10,6 +10,7 @@ import {
 } from "@icm/derived";
 import type { CircuitProject, RouteEndpoint } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import { hierarchyPathReaches } from "../document/editor-session";
 
 export interface AgentSemanticIntentHandlerDependencies {
   project: CircuitProject;
@@ -129,26 +130,16 @@ export function createAgentSemanticIntentHandler({
             "A semantic locator must address the transaction Document",
           );
         }
-        const expectedHierarchyPath = findHierarchyPath(
-          connectivityIndex,
-          project.topDocumentId,
-          targetDocument.id,
-        );
         if (
-          !expectedHierarchyPath ||
-          expectedHierarchyPath.length !== locator.hierarchyPath.length ||
-          expectedHierarchyPath.some(
-            (frame, index) =>
-              frame.parentDocumentId !==
-                locator.hierarchyPath[index]?.parentDocumentId ||
-              frame.instanceId !== locator.hierarchyPath[index]?.instanceId ||
-              frame.childDocumentId !==
-                locator.hierarchyPath[index]?.childDocumentId,
+          !hierarchyPathReaches(
+            project,
+            targetDocument.id,
+            locator.hierarchyPath,
           )
         ) {
           return fail(
             "LOCATOR_MISMATCH",
-            "The locator hierarchy path is not reachable from this Project top Cell",
+            "The locator hierarchy path does not reach this Cell",
           );
         }
         const exists = (() => {

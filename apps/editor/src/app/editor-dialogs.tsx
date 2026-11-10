@@ -165,6 +165,7 @@ export function EditorDialogs({
   openProjectInTabRef,
   agentFileCandidate,
   localDelivery,
+  reviewFeedback,
   cloudBinding,
   replaceGuard,
   replaceGuardSaving,
@@ -282,6 +283,7 @@ export function EditorDialogs({
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
   agentFileCandidate: AgentProjectResources["agentFileCandidate"];
   localDelivery: ReferenceWindowProps["localDelivery"];
+  reviewFeedback: ReferenceWindowProps["reviewFeedback"];
   cloudBinding: ProjectFileLifecycle["cloudBinding"];
   replaceGuard: ProjectFileLifecycle["replaceGuard"];
   replaceGuardSaving: ProjectFileLifecycle["replaceGuardSaving"];
@@ -405,6 +407,7 @@ export function EditorDialogs({
           takesPaste={ownReferenceTakesPaste}
           onSaved={referenceSaved}
           localDelivery={localDelivery}
+          reviewFeedback={reviewFeedback}
         />
       </Suspense>
       <EditorDialogLayer

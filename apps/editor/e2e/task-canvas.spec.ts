@@ -494,6 +494,150 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   await tool("disconnect", {});
 });
 
+test("copies an object review reference and locates only its reviewed revision", async ({
+  context,
+  baseURL,
+  accountName: _accountName,
+}, testInfo) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const rootPath = testInfo.outputPath("source");
+  const { entryPath, packagePath, packageText } =
+    await prepareReviewSource(rootPath);
+  await writeFile(packagePath, packageText);
+  const { page, tool, taskRef } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("connector.json"),
+  );
+  const loaded = await tool("import_file", {
+    action: "open-local",
+    rootPath,
+    entryPath,
+  });
+  expect(loaded).toMatchObject({ ok: true });
+  const snapshotPath = testInfo.outputPath("fixture.icproj.json");
+  expect(
+    await tool("export_file", {
+      artifact: "project",
+      outputPath: snapshotPath,
+    }),
+  ).toMatchObject({ ok: true });
+  const project = parseProject(await readFile(snapshotPath, "utf8"));
+  const cell = project.documents.find(
+    ({ id }) => id === loaded.delivery.document.id,
+  )!;
+  const resistor = cell.instances.find(({ reference }) => reference === "R1")!;
+  const locator = {
+    documentId: cell.id,
+    hierarchyPath: [],
+    kind: "instance",
+    objectId: resistor.id,
+  };
+  const selection = await tool("circuit_view", {
+    actions: [{ kind: "focus", intent: { kind: "select", locator } }],
+  });
+  expect(selection).toMatchObject({ ok: true });
+  const resistorHit = page.getByTestId("hit-R1");
+  await expect(resistorHit).toHaveClass(/selected/u);
+
+  const panel = page.getByRole("button", {
+    name: "Review feedback",
+    exact: true,
+  });
+  if (!(await panel.isVisible()))
+    await page
+      .getByRole("button", { name: "Project Info", exact: true })
+      .click();
+  await panel.click();
+  await page.getByLabel("Review comment").fill("Check the connection at R1.");
+  const copied = page.getByText(
+    "Copied. Paste it into the original Agent chat.",
+    {
+      exact: true,
+    },
+  );
+  await page
+    .getByRole("button", { name: "Copy review feedback", exact: true })
+    .click();
+  await expect(copied).toBeVisible();
+  const feedback = await page.evaluate(() => navigator.clipboard.readText());
+  expect(feedback).toContain("Check the connection at R1.");
+  expect(feedback).toContain("R1");
+  expect(feedback).toContain("Original source location unavailable");
+  const reference = JSON.parse(
+    feedback.match(/\x60\x60\x60json\r?\n([\s\S]*?)\r?\n\x60\x60\x60/u)![1]!,
+  );
+  const read = await tool("review_delivery", { action: "read" });
+  expect(reference).toMatchObject({
+    taskRef,
+    action: "locate",
+    expected: read.delivery.target,
+    projectRevision: read.delivery.projectRevision,
+    locator,
+  });
+  await tool("circuit_view", {
+    actions: [{ kind: "focus", intent: { kind: "clear-focus" } }],
+  });
+  await expect(resistorHit).not.toHaveClass(/selected/u);
+  expect(await tool("review_delivery", reference)).toMatchObject({
+    ok: true,
+    action: "locate",
+    delivery: { projectRevision: reference.projectRevision },
+  });
+  await expect(resistorHit).toHaveClass(/selected/u);
+  await panel.click();
+  await page.getByLabel("Review comment").fill("Draft from the older drawing.");
+  expect(
+    await tool("apply_actions", {
+      actions: [
+        {
+          kind: "set-property",
+          target: { kind: "instance", reference: "R1" },
+          set: { value: "2k" },
+        },
+      ],
+    }),
+  ).toMatchObject({ ok: true, applied: true });
+  expect(await tool("review_delivery", reference)).toMatchObject({
+    ok: false,
+    error: { code: "REVIEW_TARGET_CHANGED" },
+  });
+  await expect(page.getByLabel("Review comment")).toHaveCount(0);
+  const net = cell.nets.find(({ id }) =>
+    cell.routes.some(({ netId }) => netId === id),
+  )!;
+  const highlight = {
+    kind: "focus",
+    intent: { kind: "highlight-net", netId: net.id },
+  };
+  expect(await tool("circuit_view", { actions: [highlight] })).toMatchObject({
+    ok: true,
+  });
+  await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+  await expect(resistorHit).not.toHaveClass(/selected/u);
+  await panel.click();
+  await page.getByLabel("Review comment").fill("Check the highlighted Net.");
+  await page
+    .getByRole("button", { name: "Copy review feedback", exact: true })
+    .click();
+  await expect(copied).toBeVisible();
+  const netFeedback = await page.evaluate(() => navigator.clipboard.readText());
+  const netReference = JSON.parse(
+    netFeedback.match(/\x60\x60\x60json\r?\n([\s\S]*?)\r?\n\x60\x60\x60/u)![1]!,
+  );
+  expect(netReference.locator).toMatchObject({ kind: "net", objectId: net.id });
+  await tool("circuit_view", {
+    actions: [{ kind: "focus", intent: { kind: "clear-focus" } }],
+  });
+  await expect(page.getByTestId("net-highlight-overlay")).toHaveCount(0);
+  expect(await tool("review_delivery", netReference)).toMatchObject({
+    ok: true,
+    action: "locate",
+  });
+  await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
+  await tool("disconnect", {});
+});
+
 test("freezes a ready original and acknowledges a saved whole Project", async ({
   context,
   baseURL,

@@ -27,7 +27,10 @@ import {
   type CameraRectInput,
   type CanvasView,
 } from "../../canvas/fit-view";
-import { referencedDocumentId } from "../../document/editor-session";
+import {
+  hierarchyPathReaches,
+  referencedDocumentId,
+} from "../../document/editor-session";
 import { endpointNetId } from "../wiring/route-interaction-geometry";
 
 type Instance = SchematicDocument["instances"][number];
@@ -177,22 +180,11 @@ export function createEditorNavigationController({
       setStatus(`Document not found: ${locator.documentId}`);
       return;
     }
-    const pathValid =
-      locator.hierarchyPath.at(-1)?.childDocumentId === locator.documentId &&
-      locator.hierarchyPath.every((frame, index, path) => {
-        const parent = project.documents.find(
-          (cell) => cell.id === frame.parentDocumentId,
-        );
-        const instance = parent?.instances.find(
-          (item) => item.id === frame.instanceId,
-        );
-        return (
-          instance &&
-          referencedDocumentId(project, instance) === frame.childDocumentId &&
-          (index === 0 ||
-            path[index - 1]!.childDocumentId === frame.parentDocumentId)
-        );
-      });
+    const pathValid = hierarchyPathReaches(
+      project,
+      locator.documentId,
+      locator.hierarchyPath,
+    );
     const hierarchyPath = pathValid ? locator.hierarchyPath : [];
     documentViewBoxes.current.set(document.id, viewBox);
     const opened = openDocument(locator.documentId);

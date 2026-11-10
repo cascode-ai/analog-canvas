@@ -20511,6 +20511,11 @@
               },
               "rnlAppearance": {
                 "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema21"
+              },
+              "taskRef": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               }
             },
             "required": [
@@ -20588,6 +20593,129 @@
                       "action",
                       "expected",
                       "projectRevision"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "const": "locate"
+                      },
+                      "expected": {
+                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema24"
+                      },
+                      "projectRevision": {
+                        "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema18"
+                      },
+                      "locator": {
+                        "type": "object",
+                        "properties": {
+                          "documentId": {
+                            "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                          },
+                          "hierarchyPath": {
+                            "maxItems": 32,
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema25"
+                            }
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "instance",
+                              "net"
+                            ]
+                          },
+                          "objectId": {
+                            "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                          },
+                          "endpoint": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "terminal"
+                                  },
+                                  "instanceId": {
+                                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                                  },
+                                  "pinName": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "memberId": {
+                                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "instanceId",
+                                  "pinName"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "const": "junction"
+                                  },
+                                  "junctionId": {
+                                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                                  },
+                                  "memberId": {
+                                    "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "junctionId"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "sourceRef": {
+                            "type": "object",
+                            "properties": {
+                              "fileId": {
+                                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+                              },
+                              "start": {
+                                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema26"
+                              },
+                              "end": {
+                                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema26"
+                              }
+                            },
+                            "required": [
+                              "fileId",
+                              "start",
+                              "end"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "documentId",
+                          "hierarchyPath",
+                          "kind",
+                          "objectId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "action",
+                      "expected",
+                      "projectRevision",
+                      "locator"
                     ],
                     "additionalProperties": false
                   },
@@ -20789,6 +20917,11 @@
               },
               "background": {
                 "type": "boolean"
+              },
+              "taskRef": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               }
             },
             "required": [
@@ -21199,6 +21332,52 @@
               "structureRevision",
               "revision",
               "sourceVersion"
+            ],
+            "additionalProperties": false
+          },
+          "__schema25": {
+            "type": "object",
+            "properties": {
+              "parentDocumentId": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+              },
+              "instanceId": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+              },
+              "childDocumentId": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema12"
+              }
+            },
+            "required": [
+              "parentDocumentId",
+              "instanceId",
+              "childDocumentId"
+            ],
+            "additionalProperties": false
+          },
+          "__schema26": {
+            "type": "object",
+            "properties": {
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "line": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              },
+              "column": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "offset",
+              "line",
+              "column"
             ],
             "additionalProperties": false
           }
@@ -22186,7 +22365,8 @@
                         "enum": [
                           "read",
                           "mark-ready",
-                          "open-original"
+                          "open-original",
+                          "locate"
                         ]
                       },
                       "delivery": {
