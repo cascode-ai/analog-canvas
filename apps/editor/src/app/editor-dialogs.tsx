@@ -61,6 +61,7 @@ import {
   keepOwnReferenceImage,
   useOwnReferenceImage,
   useOwnReferenceOpen,
+  useOwnReferenceOpenings,
 } from "../features/editor-shell/own-reference";
 import type { GalleryEntryContext } from "../features/editor-shell/gallery-example-commands";
 import { CIRCUIT_CLIPBOARD_MIME } from "../features/clipboard/system-clipboard";
@@ -355,6 +356,7 @@ export function EditorDialogs({
   recordGalleryPublication: ReturnType<typeof useGalleryPublicationRecord>;
 }) {
   const ownReferenceOpen = useOwnReferenceOpen();
+  const ownReferenceOpenings = useOwnReferenceOpenings();
   const ownReference = useOwnReferenceImage(projectSessionId);
   const keepReferenceImage = useCallback(
     (file: File) => keepOwnReferenceImage(projectSessionId, file),
@@ -410,6 +412,7 @@ export function EditorDialogs({
         <ReferenceWindow
           key={`${projectSessionId}:${galleryEntry?.id ?? ""}`}
           open={ownReferenceOpen}
+          openings={ownReferenceOpenings}
           onClose={closeOwnReference}
           entry={galleryEntry}
           session={publishSession}

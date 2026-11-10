@@ -121,6 +121,34 @@ export function canvasInsetsFromOverlays(
 }
 
 /**
+ * The insets with a window floating beside the right-hand docks, such as
+ * Project Info open with its picture: standing within `reach` of the
+ * canvas's visible right side, it is avoided as a dock is, so a fit does
+ * not land the drawing under it (#2158). Elsewhere it is the person's to
+ * move, as any floating panel.
+ */
+export function insetsBesideFloatingWindow(
+  canvas: { x: number; y: number; width: number; height: number },
+  insets: CanvasInsets,
+  floating: { x: number; y: number; width: number; height: number } | null,
+  reach = 32,
+): CanvasInsets {
+  if (!floating || floating.width <= 0 || floating.height <= 0) return insets;
+  const visibleRight = canvas.x + canvas.width - insets.right;
+  if (floating.x + floating.width < visibleRight - reach) return insets;
+  if (floating.x <= canvas.x + insets.left) return insets;
+  if (
+    floating.y + floating.height <= canvas.y ||
+    floating.y >= canvas.y + canvas.height
+  )
+    return insets;
+  return {
+    ...insets,
+    right: Math.max(insets.right, canvas.x + canvas.width - floating.x),
+  };
+}
+
+/**
  * Fit the Document into the part of the canvas nobody is standing on.
  *
  * The canvas element spans the whole workspace and the Properties dock floats

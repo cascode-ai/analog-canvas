@@ -6,6 +6,7 @@ import {
   canvasInsetsFromOverlays,
   fitCameraToBounds,
   fitCameraToVisibleBounds,
+  insetsBesideFloatingWindow,
   normalizeCameraRect,
   panCameraByScreenPixels,
   zoomCameraAtAnchor,
@@ -200,6 +201,30 @@ describe("fit around floating panels", () => {
         { x: 760, y: 82, width: 0, height: 780 },
       ]),
     ).toEqual({ left: 0, right: 0, top: 0, bottom: 0 });
+  });
+
+  it("keeps the drawing out from under Project Info beside the docks (#2158)", () => {
+    const dock = { left: 0, right: 350, top: 0, bottom: 0 };
+    // Open with its picture, 12 px left of the open Properties dock.
+    expect(
+      insetsBesideFloatingWindow(canvas, dock, {
+        x: 30,
+        y: 430,
+        width: 368,
+        height: 420,
+      }),
+    ).toEqual({ ...dock, right: 730 });
+    // Moved away from that side, it is the person's to move.
+    expect(
+      insetsBesideFloatingWindow(canvas, dock, {
+        x: 20,
+        y: 430,
+        width: 300,
+        height: 420,
+      }),
+    ).toEqual(dock);
+    // Folded or closed, nothing is measured.
+    expect(insetsBesideFloatingWindow(canvas, dock, null)).toEqual(dock);
   });
 
   it("centres the drawing in what is left, not under the panel", () => {

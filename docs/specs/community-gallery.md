@@ -154,8 +154,13 @@ entries, keyset cursor, limit ≤60.
   loopback hosts (`localhost`, `127.0.0.1`, `[::1]`) use Examples and request no
   Gallery data; `dev:replica` uses its mirror.
 - Every drawing shows Project Info floating over the canvas's bottom-right
-  corner from the start: its name, a Gallery entry's contributor, its
-  description and its reference picture. Closing it is
+  corner, left of the docks, from the start: its name, a Gallery entry's
+  contributor, its description and its reference picture. Without a picture
+  (or a review's details) it starts folded to its title bar and unfolds when
+  one arrives; a fold or unfold by hand, or opening it from the status bar or
+  the File menu (which unfolds it), holds from then on. A dock opening under
+  it moves it aside, and Fit View keeps the drawing clear of it while it is
+  open beside the docks. Closing it is
   remembered in this browser; Project Info in the status bar or the File menu
   opens it again. The picture is a
   pasted screenshot (⌘V / Ctrl+V, unless a text field or a circuit takes the

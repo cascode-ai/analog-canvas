@@ -138,6 +138,7 @@ import {
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
   canvasInsetsFromOverlays,
+  insetsBesideFloatingWindow,
   type CameraRectInput,
   type CanvasInsets,
 } from "../canvas/fit-view";
@@ -3929,9 +3930,16 @@ function WorkspaceEditor({
     const overlays = [
       ...window.document.querySelectorAll("[data-canvas-overlay]"),
     ].map((element) => element.getBoundingClientRect());
+    const floating = window.document
+      .querySelector("[data-floating-window]")
+      ?.getBoundingClientRect();
     return {
       viewport: { width: canvasRect.width, height: canvasRect.height },
-      insets: canvasInsetsFromOverlays(canvasRect, overlays),
+      insets: insetsBesideFloatingWindow(
+        canvasRect,
+        canvasInsetsFromOverlays(canvasRect, overlays),
+        floating ?? null,
+      ),
     };
   }
 

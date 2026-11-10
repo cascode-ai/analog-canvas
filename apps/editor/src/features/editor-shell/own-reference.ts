@@ -42,8 +42,13 @@ const subscribe = (listener: () => void) => {
   return () => listeners.delete(listener);
 };
 
+// How often the person has asked for the window (File or the status bar):
+// each time it shows unfolded, whatever it showed before.
+let openings = 0;
+
 export const openOwnReference = () => {
   open = true;
+  openings += 1;
   rememberClosed(false);
   changed();
 };
@@ -65,6 +70,14 @@ export function useOwnReferenceOpen(): boolean {
     subscribe,
     () => open,
     () => false,
+  );
+}
+
+export function useOwnReferenceOpenings(): number {
+  return useSyncExternalStore(
+    subscribe,
+    () => openings,
+    () => 0,
   );
 }
 
