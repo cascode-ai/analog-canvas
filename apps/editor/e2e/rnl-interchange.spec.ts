@@ -210,6 +210,33 @@ test("rejects changed Canvas package bytes and retries with the locked asset", a
 });
 
 for (const mode of ["spice+rnl", "spectre+rnl"] as const)
+  test(`shows the ${mode} netlist in a code box its editor fills (#2213)`, async ({
+    page,
+  }) => {
+    await openProject(page, exampleProject("two-stage-op-amp.icproj.json"));
+    const panel = await showNetlistPanel(page);
+    await panel.getByLabel("Netlist format").selectOption(mode);
+    const rnl = panel.getByLabel("RNL netlist", { exact: true });
+    await expect(
+      rnl.getByLabel("RNL netlist code", { exact: true }),
+    ).toContainText('@RNL(type="header")');
+    // The written lines are in the editor either way; a box of no height
+    // shows none of them, a blank panel (#2213).
+    const heights = await rnl.evaluate((element) => {
+      const height = (selector: string) =>
+        element.querySelector(selector)!.getBoundingClientRect().height;
+      return {
+        viewport: height(".netlist-code-viewport"),
+        editor: height(".project-source-editor"),
+        scroller: height(".cm-scroller"),
+      };
+    });
+    expect(heights.viewport).toBeGreaterThanOrEqual(214);
+    expect(Math.abs(heights.editor - heights.viewport)).toBeLessThanOrEqual(1);
+    expect(heights.scroller).toBeGreaterThan(200);
+  });
+
+for (const mode of ["spice+rnl", "spectre+rnl"] as const)
   test(`imports bipolar devices, a diode and mirrored labels from ${mode}`, async ({
     page,
   }) => {

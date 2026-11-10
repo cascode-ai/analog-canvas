@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { segmentDragPreviewPolyline } from "./segment-drag-preview";
 import { resolveWireDraftShape } from "./wire-draft-shape";
-import { prepareNetLabelDraft } from "../text-editing/net-label-draft";
+import { placedNetLabelDraft } from "../text-editing/net-label-draft";
 import {
   wireDraftTargetIdsForSuffix,
   wirePassThroughContacts,
@@ -388,13 +388,13 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       return;
     }
     try {
-      const prepared = prepareNetLabelDraft(
-        wire.labelEditing.content,
+      const prepared = placedNetLabelDraft(
+        wire.labelEditing,
         options.document.presentation,
       );
       const source = prepareNamedWireSource(wire.source, prepared.name);
       options.acceptWireLabel(
-        { ...wire.labelEditing, content: prepared.content },
+        { ...wire.labelEditing, content: prepared.content, applied: prepared },
         source,
       );
       options.setStatus("Wire name accepted · Continue routing");
@@ -489,10 +489,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             proposal.routeId,
             {
               ...wire.label,
-              ...prepareNetLabelDraft(
-                wire.label.content,
-                options.document.presentation,
-              ),
+              ...placedNetLabelDraft(wire.label, options.document.presentation),
             },
             {
               symbolResolver: options.resolver,
