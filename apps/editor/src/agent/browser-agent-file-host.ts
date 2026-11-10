@@ -37,6 +37,7 @@ import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formul
 import { importChunk } from "../components/chunk-import";
 import { simulationFileEngine } from "../features/simulation/file-engine";
 import { createBrowserSimulationArtifactStore } from "../features/simulation/browser-simulation-artifact-store";
+import type { ReviewSource } from "./review-source-comparison";
 
 type StoredCandidate = {
   project: CircuitProject;
@@ -526,7 +527,18 @@ export class BrowserAgentFileHost {
     }
     if (input.action === "changes") {
       const { embeddedReviewBundle } = await import("./embedded-review-source");
-      let source;
+      const original = await embeddedReviewBundle(project.source);
+      if (
+        !original ||
+        original.version !==
+          (delivery.embeddedSource?.version ?? delivery.target.sourceVersion)
+      )
+        return this.error(
+          request,
+          "REVIEW_SOURCE_UNAVAILABLE",
+          "The delivered original netlist and dependencies could not be verified",
+        );
+      let source: ReviewSource = original;
       if (input.reference) {
         const decoded = await this.decodeFiles(input.reference);
         if (!decoded.ok)
@@ -546,18 +558,6 @@ export class BrowserAgentFileHost {
             ),
           ),
         };
-      } else {
-        source = await embeddedReviewBundle(project.source);
-        if (
-          !source ||
-          source.version !==
-            (delivery.embeddedSource?.version ?? delivery.target.sourceVersion)
-        )
-          return this.error(
-            request,
-            "REVIEW_SOURCE_UNAVAILABLE",
-            "The delivered original netlist and dependencies could not be verified",
-          );
       }
       const { compareReviewSource } =
         await import("./review-source-comparison");
@@ -565,6 +565,7 @@ export class BrowserAgentFileHost {
         project,
         delivery.target.documentId,
         source,
+        original,
       );
       if (
         project !== this.options.getProject() ||
