@@ -7,13 +7,105 @@ const env = {
 };
 afterEach(() => vi.unstubAllGlobals());
 
+it("allows narrow resource command authorization and ordered catch-up only at fixed peers", async () => {
+  vi.stubGlobal("fetch", async () => Response.json({ ok: true }));
+  expect(
+    (
+      await egress.fetch(
+        new Request(
+          "https://canvas-origin.test/api/auth/regional/action-authorize",
+          { method: "POST", body: "{}" },
+        ),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await egress.fetch(
+        new Request(
+          "https://project-peer.test/api/resource-actions/lifecycle",
+          { method: "POST", body: "{}" },
+        ),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await egress.fetch(
+        new Request(
+          "https://project-peer.test/api/resource-sync/gallery/changes?after=4",
+        ),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await egress.fetch(
+        new Request(
+          "https://project-peer.test/api/resource-sync/gallery/seed",
+          { method: "POST" },
+        ),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://untrusted.test/api/resource-actions/lifecycle", {
+          method: "POST",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+});
+
 it("delivers analytics batches only to the fixed peer and refuses management destinations", async () => {
-  const requests=[];
-  vi.stubGlobal("fetch",async request=>{requests.push(request.url);return Response.json({accepted:true});});
-  expect((await egress.fetch(new Request("https://project-peer.test/api/analytics-sync/receive",{method:"POST",body:"{}"}),env)).status).toBe(200);
-  expect((await egress.fetch(new Request("https://other.test/api/analytics-sync/receive",{method:"POST",body:"{}"}),env)).status).toBe(403);
-  expect((await egress.fetch(new Request("https://project-peer.test/api/analytics-sync/activate",{method:"POST",body:"{}"}),env)).status).toBe(403);
-  expect(requests).toEqual(["https://project-peer.test/api/analytics-sync/receive"]);
+  const requests = [];
+  vi.stubGlobal("fetch", async (request) => {
+    requests.push(request.url);
+    return Response.json({ accepted: true });
+  });
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://project-peer.test/api/analytics-sync/receive", {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://other.test/api/analytics-sync/receive", {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://project-peer.test/api/analytics-sync/activate", {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+  expect(requests).toEqual([
+    "https://project-peer.test/api/analytics-sync/receive",
+  ]);
 });
 
 it.each([undefined, "Canvas-acceptance-client/1"])(

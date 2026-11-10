@@ -37,6 +37,8 @@ const config :Workerd.Config = (
         (name = "SIMULATION_UPSTREAM_TOKEN", text = embed "/operator-token"),
         (name = "VACASK_UPSTREAM_TOKEN", text = embed "/operator-token"),
         (name = "RESOURCE_SYNC_TOKEN", text = embed "/resource-inbound-token"),
+        (name = "RESOURCE_SYNC_PEER_TOKEN", text = embed "/resource-outbound-token"),
+        (name = "RESOURCE_ACTION_PEER", text = embed "/peer-origin"),
         (name = "RESOURCE_SYNC_ADMIN_TOKEN", text = embed "/resource-admin-token"),
         (name = "PROJECT_REGION_USERS", text = embed "/project-region-users.json"),
         (name = "PROJECT_SYNC_EXPANSION", text = embed "/project-sync-expansion"),

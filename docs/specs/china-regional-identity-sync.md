@@ -13,6 +13,8 @@ Project reads and acknowledged saves use regional storage; asynchronous
 replication carries changes. This extends [persistence](persistence-and-recovery.md),
 not the Project file format. [Arena](analog-arena.md) retains its own owner and
 forwarded-account contract; voting replication is a separate delivery.
+The [regional action contract](regional-actions.md) owns equal permissions across
+entrances and the outstanding bookmark, Board and per-entry count coverage.
 
 ## Identity and authorization
 
@@ -35,18 +37,18 @@ forwarded-account contract; voting replication is a separate delivery.
 
 ## Replicated and regional data
 
-| Resource                                                   | Replication rule                                                                           |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Account IDs, verified identities, roles, blocks, deletions | Authority-originated security records                                                      |
-| Private Cloud Projects and their retained history          | Regional writes; preserve ownership, lineage and conflict branches                         |
-| Gallery publications, versions, moderation                 | [Origin-owned replicas](regional-resources.md); private saves never publish automatically  |
-| Gallery likes and reviews                                  | [Writer-owned replicas](regional-resources.md), either region may write                    |
-| User Components and Dataset publications                   | [Origin-owned replicas](regional-resources.md), preserving IDs, revisions and permissions  |
-| Completed simulation metadata and retained files           | Immutable result references; transfer and verify file bytes before announcing availability |
-| Active simulations and Agent/topology sessions             | Owned by their executing region; never replay a job by replicating its status              |
-| Visitor statistics                                        | [Local collection and a shared authority](regional-analytics.md); not an account/Project merge |
-| Caches, browser recovery                                   | Regional                                                                                   |
-| Arena Battles, Votes and History                           | Outside this Canvas implementation; requires the Arena-side contract                       |
+| Resource                                                   | Replication rule                                                                               |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Account IDs, verified identities, roles, blocks, deletions | Authority-originated security records                                                          |
+| Private Cloud Projects and their retained history          | Regional writes; preserve ownership, lineage and conflict branches                             |
+| Gallery publications, versions, moderation                 | [Origin-owned replicas](regional-resources.md); private saves never publish automatically      |
+| Gallery likes and reviews                                  | [Writer-owned replicas](regional-resources.md), either region may write                        |
+| User Components and Dataset publications                   | [Origin-owned replicas](regional-resources.md), preserving IDs, revisions and permissions      |
+| Completed simulation metadata and retained files           | Immutable result references; transfer and verify file bytes before announcing availability     |
+| Active simulations and Agent/topology sessions             | Owned by their executing region; never replay a job by replicating its status                  |
+| Visitor statistics                                         | [Local collection and a shared authority](regional-analytics.md); not an account/Project merge |
+| Caches, browser recovery                                   | Regional                                                                                       |
+| Arena Battles, Votes and History                           | Outside this Canvas implementation; requires the Arena-side contract                           |
 
 Gallery-only backups omit private Cloud Projects. Store backups include those
 Projects but do not constitute an Auth, Component Library or simulation-file

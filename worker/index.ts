@@ -20,6 +20,10 @@ import { routeGalleryRequest } from "./gallery";
 import { pumpProjectSync } from "./project-sync";
 import { routeResourceSync, type ResourceSyncEnv } from "./resource-sync";
 import { withResourceReplication } from "./resource-replica";
+import {
+  routeRegionalResourceActions,
+  type ResourceActionEnv,
+} from "./regional-resource-actions";
 export { RegionalProjectDO } from "./regional-projects";
 import { routeBoardsRequest } from "./boards";
 import {
@@ -88,6 +92,7 @@ export { AgentSessionDO } from "./agent-session";
 export { SimulationControlDO } from "./simulation-control-do";
 
 type Env = TopologyTaskEnv &
+  ResourceActionEnv &
   RegionalReleaseEnv &
   ResourceSyncEnv &
   GalleryEnv &
@@ -195,6 +200,11 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (recoveryResponse) return recoveryResponse;
   const resourceSyncResponse = await routeResourceSync(request, env);
   if (resourceSyncResponse) return resourceSyncResponse;
+  const resourceActionResponse = await routeRegionalResourceActions(
+    request,
+    env,
+  );
+  if (resourceActionResponse) return resourceActionResponse;
 
   const topologyResponse = await routeTopologyTaskRequest(request, env);
   if (topologyResponse) return topologyResponse;

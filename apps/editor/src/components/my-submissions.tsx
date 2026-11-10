@@ -11,6 +11,7 @@ import {
   UNREADABLE_REPLY,
 } from "../request-failure";
 import { readSessionUser } from "./account";
+import { galleryLifecycleRequest } from "../gallery-lifecycle-request";
 import { EntryCard } from "./entry-card";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
@@ -140,10 +141,7 @@ export async function setMyEntryRecycled(
   fetchLike: typeof fetch = fetch,
 ): Promise<MineActionOutcome> {
   try {
-    const response = await fetchLike(`/api/gallery/${id}/${action}`, {
-      method: "POST",
-      credentials: "same-origin",
-    });
+    const response = await galleryLifecycleRequest(id, action, fetchLike);
     if (response.ok) announceGalleryChange({ entryId: id });
     return mineActionOutcome(response);
   } catch {

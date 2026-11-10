@@ -44,12 +44,31 @@ function retrySeconds(response: Response, body: unknown): number {
  */
 export async function requestFailureOf(
   response: Response,
+  fallback?: string,
 ): Promise<RequestFailure> {
   const body = (await response
     .clone()
     .json()
     .catch(() => null)) as { error?: unknown; resetAt?: unknown } | null;
   const { status } = response;
+  if (body?.error === "action-superseded")
+    return {
+      failure: "server-error",
+      message:
+        "The earlier operation completed, but the circuit's status has changed since. Refresh to see its current state.",
+    };
+  if (body?.error === "action-propagation-pending")
+    return {
+      failure: "server-error",
+      message:
+        "The change was saved. Synchronization is still finishing; retry to confirm.",
+    };
+  if (body?.error === "action-unconfirmed")
+    return {
+      failure: "server-error",
+      message:
+        "The result is not confirmed. Retry to check the same operation.",
+    };
   if (await isDailyAllowanceRefusal(response)) {
     const resetAt = typeof body?.resetAt === "string" ? body.resetAt : "";
     return {
@@ -68,8 +87,9 @@ export async function requestFailureOf(
   return {
     failure: "server-error",
     message:
-      status >= 500
+      fallback ??
+      (status >= 500
         ? `The server could not answer (${status}). Try again later.`
-        : `The server refused the request (${status}).`,
+        : `The server refused the request (${status}).`),
   };
 }

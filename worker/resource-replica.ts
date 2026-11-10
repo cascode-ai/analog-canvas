@@ -333,6 +333,9 @@ export class ResourceReplica {
       )
       .toArray()[0];
   }
+  originOf(id: string) {
+    return this.key(id)?.origin ?? this.region;
+  }
   status() {
     return {
       ...this.head(),
@@ -844,6 +847,7 @@ export function withResourceReplication<
             stream: string;
             after: number;
             envelope: unknown;
+            id: string;
           };
           const replica = String(body.stream).endsWith(
             INTERACTION_STREAM_SUFFIX,
@@ -852,6 +856,8 @@ export function withResourceReplication<
             : this.resourceReplica;
           if (!replica) return fail("resource-sync-disabled", 404);
           switch (operation) {
+            case "/resource-sync/location":
+              return Response.json({ origin: replica.originOf(body.id) });
             case "/resource-sync/status":
               return Response.json(replica.status());
             case "/resource-sync/seed":

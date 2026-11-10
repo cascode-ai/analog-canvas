@@ -19,6 +19,7 @@ import {
   type SqlStorage,
   svgPreviewDimensions,
 } from "./gallery-store";
+import { lifecycleCommand } from "./gallery-lifecycle-command";
 import {
   SOL_FROM_ASTRA_MIGRATION,
   moveSolFromAstra,
@@ -607,6 +608,8 @@ export class GalleryDO {
         );
     }
     switch (operation) {
+      case "lifecycle-command":
+        return lifecycleCommand(this.state, body);
       case "submit":
         return submit(this.state, body);
       case "import-entry":

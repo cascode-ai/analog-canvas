@@ -78,6 +78,8 @@
     "SIMULATION_UPSTREAM_TOKEN": "operator-token",
     "VACASK_UPSTREAM_TOKEN": "operator-token",
     "RESOURCE_SYNC_TOKEN": "resource-inbound-token",
+    "RESOURCE_SYNC_PEER_TOKEN": "resource-outbound-token",
+    "RESOURCE_ACTION_PEER": "peer-origin",
     "RESOURCE_SYNC_ADMIN_TOKEN": "resource-admin-token",
     "PROJECT_REGION_USERS": "project-region-users.json",
     "PROJECT_SYNC_EXPANSION": "project-sync-expansion",
