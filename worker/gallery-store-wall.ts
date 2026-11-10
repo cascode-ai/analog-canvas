@@ -27,7 +27,7 @@ import {
 } from "./gallery-store";
 import { SIMULATION_CHECK_PASSES } from "./gallery-store-simulation-checks";
 import { fixersOf } from "./gallery-store-fixes";
-import type { GalleryWallStatisticsCache } from "./gallery-store-wall-cache";
+import { GalleryRevisionCache } from "./gallery-store-wall-cache";
 
 /** Longest search a reader may send; longer text is cut, not refused. */
 const GALLERY_MAX_SEARCH_LENGTH = 200;
@@ -275,7 +275,9 @@ function feedConditions(
  * The public circuits a search answers, as a JSON array of IDs. Read from
  * metadata alone, never Project Code or previews, with the same rule the
  * browser narrows loaded circuits by; worked out once per request, however
- * many of its counts ask.
+ * many of its counts ask, and kept for the next reader of the same words
+ * until the Gallery changes (#2160): public metadata only, the same for
+ * every viewer.
  */
 function searchMatches(
   sql: SqlStorage,
@@ -284,6 +286,19 @@ function searchMatches(
 ): string {
   const known = searchMatchesByRequest.get(body);
   if (known !== undefined) return known;
+  let cache = searchMatchesBySql.get(sql);
+  if (!cache) searchMatchesBySql.set(sql, (cache = new GalleryRevisionCache()));
+  const matches = cache.read(sql, normalizeGallerySearchText(search), () =>
+    matchingPublicIds(sql, search),
+  );
+  searchMatchesByRequest.set(body, matches);
+  return matches;
+}
+
+function matchingPublicIds(sql: SqlStorage, search: string): string {
+  // Off the card index alone: a row's description and tags sit beside or
+  // behind its Project and preview (about 100 kB), and a plan reading them
+  // off the rows walks that text for every public entry (#2160).
   const rows = sql
     .exec<{
       id: string;
@@ -293,10 +308,11 @@ function searchMatches(
       tags: string | null;
     }>(
       `SELECT e.id, e.name, e.author, e.description, e.tags
-         FROM gallery_entries e WHERE e.status = 'public'`,
+         FROM gallery_entries e INDEXED BY idx_gallery_entries_card
+        WHERE e.status = 'public'`,
     )
     .toArray();
-  const matches = JSON.stringify(
+  return JSON.stringify(
     rows
       .filter((row) =>
         galleryEntryMatchesQuery(
@@ -311,11 +327,14 @@ function searchMatches(
       )
       .map((row) => row.id),
   );
-  searchMatchesByRequest.set(body, matches);
-  return matches;
 }
 
 const searchMatchesByRequest = new WeakMap<object, string>();
+/** Each store's searches, as long as its storage lives. */
+const searchMatchesBySql = new WeakMap<
+  SqlStorage,
+  GalleryRevisionCache<string>
+>();
 
 /**
  * The wall's orders (#1615): a shuffle, the default, that a seed keeps steady
@@ -487,7 +506,7 @@ function wallStatistics(sql: SqlStorage, body: Record<string, unknown>) {
 export function list(
   sql: SqlStorage,
   body: Record<string, unknown>,
-  cache?: GalleryWallStatisticsCache,
+  cache?: GalleryRevisionCache<GalleryWallStatistics>,
 ): Response {
   const limit = wallPageLimit(body);
   const cursor = typeof body.cursor === "string" ? body.cursor : null;

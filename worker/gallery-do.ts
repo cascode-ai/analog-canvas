@@ -49,6 +49,7 @@ import {
   ownerData,
   tagCounts,
   toggleLike,
+  type GalleryWallStatistics,
 } from "./gallery-store-wall";
 import {
   cloudProjectCreate,
@@ -106,7 +107,7 @@ import {
   schemaBackup,
   schemaRestore,
 } from "./gallery-store-backup";
-import { GalleryWallStatisticsCache } from "./gallery-store-wall-cache";
+import { GalleryRevisionCache } from "./gallery-store-wall-cache";
 import {
   comparisonCount,
   comparisonPart,
@@ -171,7 +172,8 @@ const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
 export class GalleryDO {
   private readonly regionalProjects: RegionalProjectDO | undefined;
   private readonly sql: SqlStorage;
-  private readonly wallStatisticsCache = new GalleryWallStatisticsCache();
+  private readonly wallStatisticsCache =
+    new GalleryRevisionCache<GalleryWallStatistics>();
   /**
    * This start of the object. A restart — a deploy, or a point-in-time
    * restore that also rewinds the revisions — restarts a capture too.

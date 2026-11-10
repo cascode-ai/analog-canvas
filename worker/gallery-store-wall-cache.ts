@@ -1,20 +1,15 @@
 import type { SqlStorage } from "./gallery-store";
-import type { GalleryWallStatistics } from "./gallery-store-wall";
 
-/** One DO's dataset statistics; restart/restore discards the entire cache. */
-export class GalleryWallStatisticsCache {
+/**
+ * One DO's answers worked out from its Gallery rows, each kept until the
+ * Gallery's revision moves; restart/restore discards the entire cache.
+ */
+export class GalleryRevisionCache<T> {
   private revision: number | undefined;
   private characters = 0;
-  private readonly values = new Map<
-    string,
-    { statistics: GalleryWallStatistics; characters: number }
-  >();
+  private readonly values = new Map<string, { value: T; characters: number }>();
 
-  read(
-    sql: SqlStorage,
-    key: string,
-    calculate: () => GalleryWallStatistics,
-  ): GalleryWallStatistics {
+  read(sql: SqlStorage, key: string, calculate: () => T): T {
     // The transaction-owned revision includes imports, maintenance and likes.
     const revision = sql
       .exec<{ revision: number }>(
@@ -30,20 +25,20 @@ export class GalleryWallStatisticsCache {
     if (known) {
       this.values.delete(key);
       this.values.set(key, known);
-      return known.statistics;
+      return known.value;
     }
-    const statistics = calculate();
-    const characters = key.length + JSON.stringify(statistics).length;
+    const value = calculate();
+    const characters = key.length + JSON.stringify(value).length;
     // Bound both arbitrary filter combinations and unusually large aggregates.
     const budget = 1_048_576;
-    if (characters > budget) return statistics;
+    if (characters > budget) return value;
     while (this.values.size >= 128 || this.characters + characters > budget) {
       const oldest = this.values.keys().next().value!;
       this.characters -= this.values.get(oldest)!.characters;
       this.values.delete(oldest);
     }
-    this.values.set(key, { statistics, characters });
+    this.values.set(key, { value, characters });
     this.characters += characters;
-    return statistics;
+    return value;
   }
 }
