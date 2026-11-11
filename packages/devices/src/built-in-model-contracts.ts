@@ -242,14 +242,18 @@ const crystal: readonly DeviceParameterDefinition[] = [
 ];
 // A potentiometer's track, end 1 to end 2, with the wiper W a fraction `pos`
 // of the way from end 1.
+// Its value is the track's, shown bare as a resistor's.
 const potentiometer: readonly DeviceParameterDefinition[] = [
-  parameter(
-    "r",
-    "Total resistance",
-    "10k",
-    "Ohm",
-    "Resistance of the whole track, end 1 to end 2.",
-  ),
+  {
+    ...parameter(
+      "r",
+      "Total resistance",
+      "10k",
+      "Ohm",
+      "Resistance of the whole track, end 1 to end 2.",
+    ),
+    displayRole: "value",
+  },
   parameter(
     "pos",
     "Wiper position",

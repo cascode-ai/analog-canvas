@@ -292,3 +292,106 @@ describe("bound parameters through the editor", () => {
     expect(texts()).not.toContain("L = 50u");
   });
 });
+
+describe("a built-in block's value", () => {
+  const texts = (controller: EditorDocumentController) =>
+    controller.document.annotations
+      .filter((a) => a.visible !== false)
+      .map((a) =>
+        flattenRichText(
+          resolveAnnotationText(
+            controller.document,
+            a,
+            undefined,
+            controller.resolver,
+          ),
+        ),
+      );
+
+  it("shows a potentiometer's total resistance as a resistor shows its value, and edits r through it", async () => {
+    const { controller, client } = liveAgentEditor({
+      project: emptyAgentProject("Potentiometer value"),
+    });
+    await client.connect("session-1.code");
+    expect(
+      await client.applyActions([
+        {
+          kind: "place-component",
+          symbol: "potentiometer",
+          position: { x: 100, y: 100 },
+          showValue: true,
+        },
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          position: { x: 300, y: 100 },
+          parameters: { value: "10k" },
+          showValue: true,
+        },
+      ]),
+    ).toMatchObject({ ok: true });
+    const [pot, resistor] = controller.document.instances;
+    const valueOf = (id: string) =>
+      controller.document.annotations.find(
+        (a) =>
+          a.binding?.kind === "instance-value" && a.binding.instanceId === id,
+      )!;
+    expect(texts(controller)).toEqual(["X1", "10k", "R1", "10k"]);
+    // The same bold value text in the same slot under the name.
+    const potValue = valueOf(pot!.id);
+    const resistorValue = valueOf(resistor!.id);
+    expect(
+      resolveAnnotationText(
+        controller.document,
+        potValue,
+        undefined,
+        controller.resolver,
+      ),
+    ).toEqual(
+      resolveAnnotationText(
+        controller.document,
+        resistorValue,
+        undefined,
+        controller.resolver,
+      ),
+    );
+    expect(potValue.binding).toEqual({
+      kind: "instance-value",
+      instanceId: pot!.id,
+    });
+    expect(
+      await client.applyActions([
+        {
+          kind: "set-text",
+          target: { kind: "annotation", id: potValue.id },
+          text: "22k",
+        },
+      ]),
+    ).toMatchObject({ ok: true });
+    expect(controller.document.instances[0]!.netlist?.parameters.r).toBe("22k");
+    expect(texts(controller)).toContain("22k");
+    expect(
+      await client.applyActions([
+        {
+          kind: "set-instance-display",
+          instanceIds: [pot!.id],
+          showValue: false,
+        },
+      ]),
+    ).toMatchObject({ ok: true });
+    expect(texts(controller)).toEqual(["X1", "R1", "10k"]);
+    expect(
+      await client.applyActions([
+        {
+          kind: "set-instance-display",
+          instanceIds: [pot!.id],
+          showValue: true,
+        },
+      ]),
+    ).toMatchObject({ ok: true });
+    expect(texts(controller)).toContain("22k");
+    expect(
+      renderDocumentSvg(controller.document, controller.resolver),
+    ).toContain("22k");
+  });
+});

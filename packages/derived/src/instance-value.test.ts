@@ -4,6 +4,7 @@ import {
   displayableInstanceParameter,
   displayableInstanceValue,
   instanceCarriesReference,
+  instanceSupportsValueAnnotation,
 } from "./instance-value.js";
 
 function instance(
@@ -146,6 +147,26 @@ describe("displayableInstanceValue", () => {
       kind: "displayable",
       content: { runs: [bold("3n")] },
     });
+  });
+
+  it("shows a built-in block's value-role parameter as a resistor's value", () => {
+    const block = (symbolId: string, parameters: Record<string, string>) => ({
+      symbolId,
+      netlist: { parameters },
+    });
+    expect(
+      displayableInstanceValue(
+        block("potentiometer", { r: "10k", pos: "0.3" }),
+      ),
+    ).toEqual({ kind: "displayable", content: { runs: [bold("10k")] } });
+    expect(instanceSupportsValueAnnotation({ symbolId: "potentiometer" })).toBe(
+      true,
+    );
+    // A block with no value-role parameter still has none to show.
+    expect(
+      displayableInstanceValue(block("crystal", { rm: "25", lm: "12.7m" }))
+        .kind,
+    ).toBe("undisplayable");
   });
 
   it("does not invent units for independent source values", () => {
