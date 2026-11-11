@@ -5633,6 +5633,59 @@ it.each(["spice", "spectre"] as const)(
 );
 
 it.each(["spice", "spectre"] as const)(
+  "takes no Cell Pin for the supplies an unwired MOS body prints in a Cell no Cell calls, through %s+RNL",
+  async (format) => {
+    // As above, in a copy of GainStage that nothing calls: the file prints
+    // it with the same VDD and VSS pins, which its drawing does not show.
+    const project = parseProject(
+      readFileSync(
+        resolve(
+          import.meta.dirname,
+          "../../../../../fixtures/projects/hierarchical-gain-stage/project.icproj.json",
+        ),
+        "utf8",
+      ),
+    );
+    for (const instance of project.documents.flatMap((cell) => cell.instances))
+      if (instance.id === "M1")
+        instance.netlist = {
+          binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+          parameters: { w: "1u", l: "1u" },
+        };
+      else if (instance.id === "R1")
+        instance.netlist = {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        };
+    const stage = project.documents.find(
+      (cell) => cell.netlist?.name === "GainStage",
+    )!;
+    const spare = structuredClone(stage);
+    spare.id = "cell-spare-stage";
+    spare.name = "SpareStage";
+    spare.netlist!.name = "SpareStage";
+    project.documents.push(spare);
+    const exported = createRnlExport(project, { format });
+    expect(exported.status === "ready" && exported.request.netlist).toMatch(
+      /subckt SpareStage \(?VDD VSS /,
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const pins = (from: CircuitProject) =>
+      from.documents
+        .map(
+          (cell) =>
+            `${cell.netlist?.name}: ${(cell.netlist?.terminals ?? [])
+              .map((terminal) => terminal.name)
+              .sort()
+              .join(" ")}`,
+        )
+        .sort();
+    expect(pins(plan.project)).toEqual(pins(project));
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
   "keeps a body supply pin its callers pass another node through %s+RNL",
   async (format) => {
     // As above, but the file passes GainStage's VSS a body bias of its
@@ -6744,11 +6797,10 @@ it.each(["spice", "spectre"] as const)(
       };
     };
     const apart = await cellB(false);
-    // b's Library inverter is no call of a Cell: its rails stay Cell Pins,
-    // and dut's call X1, a Cell's, does not make them unwired supplies.
-    expect(apart.interfaces.map((item) => item.instanceIds.length)).toEqual([
-      1, 1,
-    ]);
+    // b draws no Cell Pin: the VDD and VSS its inverter's unwired rails
+    // print go again, as for any Cell (#1787), whether or not dut's call is
+    // X1 too.
+    expect(apart.interfaces).toEqual([]);
     expect(await cellB(true)).toEqual(apart);
   },
 );
