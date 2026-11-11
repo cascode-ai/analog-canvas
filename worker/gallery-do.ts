@@ -20,6 +20,7 @@ import {
   svgPreviewDimensions,
 } from "./gallery-store";
 import { lifecycleCommand } from "./gallery-lifecycle-command";
+import { reviewCommand } from "./gallery-review-command";
 import {
   SOL_FROM_ASTRA_MIGRATION,
   moveSolFromAstra,
@@ -608,6 +609,9 @@ export class GalleryDO {
         );
     }
     switch (operation) {
+      case "review-command":
+      case "review-command-state":
+        return reviewCommand(this.state, body, operation === "review-command");
       case "lifecycle-command":
         return lifecycleCommand(this.state, body);
       case "submit":

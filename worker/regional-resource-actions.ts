@@ -10,6 +10,7 @@ import type { GalleryEntrySummary } from "./gallery-store";
 import { gallerySourceOfEntryId, gallerySourceByKey } from "./gallery-sources";
 import { galleryDetails } from "./gallery-details-request";
 import { routeRegionalComponentActions } from "./regional-component-actions";
+import { routeRegionalReviewActions } from "./regional-review-actions";
 
 export type ResourceActionEnv = GalleryEnv &
   ResourceSyncEnv & {
@@ -21,6 +22,8 @@ export async function routeRegionalResourceActions(
   request: Request,
   env: ResourceActionEnv,
 ): Promise<Response | null> {
+  const review = await routeRegionalReviewActions(request, env);
+  if (review) return review;
   const component = await routeRegionalComponentActions(request, env);
   if (component) return component;
   const url = new URL(request.url);
