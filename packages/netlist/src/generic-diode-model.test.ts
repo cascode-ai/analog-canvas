@@ -14,7 +14,7 @@ function diodeProject(
   diodes: ReadonlyArray<{
     id: string;
     reference: string;
-    symbolId?: "diode" | "zener-diode";
+    symbolId?: "diode" | "zener-diode" | "led";
     model?: string;
   }>,
 ) {
@@ -103,6 +103,20 @@ describe("the generic diode model (#1310)", () => {
     expect(result.file.text.split(CARD)).toHaveLength(2);
     expect(genericFindings(result).map((item) => item.message)).toEqual([
       "D1 and D2 use the generic diode model DIODE (IS=1e-14, N=1); set a model for a real device. It has no breakdown, so D2 does not act as a Zener until given a Zener model",
+    ]);
+  });
+
+  it("prints an LED as the diode it is, on the same generic card", () => {
+    const result = spice(
+      diodeProject([
+        { id: "d1", reference: "D1" },
+        { id: "d2", reference: "D2", symbolId: "led" },
+      ]),
+    );
+    expect(result.file.text).toContain("D2 anode cathode DIODE");
+    expect(result.file.text.split(CARD)).toHaveLength(2);
+    expect(genericFindings(result).map((item) => item.message)).toEqual([
+      "D1 and D2 use the generic diode model DIODE (IS=1e-14, N=1); set a model for a real device",
     ]);
   });
 

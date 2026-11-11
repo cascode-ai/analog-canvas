@@ -133,6 +133,32 @@ export function definitionBody(definition: {
 }
 
 /**
+ * The potentiometer's track: end 1 to the wiper r·pos, the wiper to end 2
+ * r·(1−pos). Each leg is at least 1 mΩ, so a wiper at either end stays a
+ * well-conditioned resistor rather than one a simulator shrinks to nothing.
+ */
+function potentiometerModel(target: string): BehavioralModel {
+  const model = builtInModelContract(target)!;
+  const [end1, wiper, end2] = model.ports.map((port) => port.name) as [
+    string,
+    string,
+    string,
+  ];
+  return {
+    name: target,
+    ports: [end1, wiper, end2],
+    comment: "Potentiometer: end 1 to wiper r*pos, wiper to end 2 r*(1-pos)",
+    parameters: Object.entries(builtInModelDefaults(target)).map(
+      ([name, defaultValue]) => ({ name, defaultValue }),
+    ),
+    elements: [
+      passive("resistor", "R1", end1, wiper, "max(r*pos,1m)", true),
+      passive("resistor", "R2", wiper, end2, "max(r*(1-pos),1m)", true),
+    ],
+  };
+}
+
+/**
  * One family dispatch; printers never own model equations or defaults.
  * `ports` prints the same body with its ports in another order (see
  * `withBodyPortOrder`); its elements name ports, never positions. `name`
@@ -159,7 +185,10 @@ function familyDefinition(target: string): BehavioralModel {
   const model = builtInModelContract(target);
   if (model?.family === "logic") return idealLogicModel(target);
   if (model?.family === "signal") return idealSignalModel(target);
-  if (model?.family === "passive") return crystalModel(target);
+  if (model?.family === "passive")
+    return model.implementation === "crystal"
+      ? crystalModel(target)
+      : potentiometerModel(target);
   throw new Error(`No generated behavioral model: ${target}`);
 }
 

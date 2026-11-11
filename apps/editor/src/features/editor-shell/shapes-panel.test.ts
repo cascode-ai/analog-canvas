@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(81);
+    expect(symbols).toHaveLength(87);
     expect(markup).toContain("Official components");
     expect(markup).toContain('aria-label="Place NoConn"');
     expect(markup).toContain(">NoConn</span>");
@@ -44,7 +44,7 @@ describe("shapes quick-place", () => {
       ["Logic Gates", 12],
       ["Signal Flow", 6],
       ["Annotations", 9],
-      ["Extended Devices", 13],
+      ["Extended Devices", 19],
     ]);
     const categoryTestIds = [
       "transistors",
@@ -106,6 +106,13 @@ describe("shapes quick-place", () => {
     expect(markup).toContain(
       'aria-label="Place Differential Transconductance (gₘ)"',
     );
+    expect(
+      groups
+        .find((group) => group.category === "Transistors")
+        ?.symbols.map((symbol) => symbol.id),
+    ).toEqual(["nmos", "pmos", "npn", "pnp"]);
+    expect(markup).toContain(">NJFET</span>");
+    expect(markup).toContain(">PJFET</span>");
     expect(markup).toContain('aria-label="Place N-channel DMOS"');
     expect(markup).toContain('aria-label="Place P-channel DMOS"');
     expect(markup).toContain('aria-label="Place Bias Voltage Port"');

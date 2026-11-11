@@ -5,6 +5,7 @@ import "../styles/gallery-entry.css";
 import {
   announceGalleryChange,
   galleryAuthorsOf,
+  galleryFeedQueryKey,
   galleryQueryFromFilters,
   galleryNarrowedByline,
   loadGalleryFeed,
@@ -18,6 +19,7 @@ import {
   type GalleryLandingPreload,
 } from "../gallery-client";
 import { galleryEntryMatchesQuery } from "../gallery-search";
+import { galleryTileOpened, rememberGalleryReturn } from "../gallery-return";
 import { galleryFiltersNarrowQuery } from "../gallery-filters";
 import {
   GALLERY_COMPONENT_RANGES,
@@ -47,10 +49,10 @@ import { GalleryTagSidebar } from "./gallery-tag-sidebar";
 import { Masonry } from "./masonry";
 import { GallerySourceNote, useGalleryDatasets } from "./gallery-datasets";
 import { GalleryOrderMenu } from "./gallery-order-menu";
-import { GalleryDownloadButton } from "./gallery-download-button";
 import {
   galleryOrderPreference,
   galleryShuffleSeed,
+  keepGallerySeed,
   newGalleryShuffleSeed,
   rememberGalleryOrder,
   type GalleryOrder,
@@ -174,7 +176,7 @@ export function GalleryFeed({
   function chooseOrder(next: GalleryOrder): void {
     rememberGalleryOrder(next);
     // Random again shuffles anew.
-    if (next === "random") setSeed(newGalleryShuffleSeed());
+    if (next === "random") setSeed(keepGallerySeed(newGalleryShuffleSeed()));
     setOrder(next);
   }
   // One query for the first page, every later page and the landing preload.
@@ -238,6 +240,7 @@ export function GalleryFeed({
     sentinelRef,
     toggleLike,
     removeManagedEntry,
+    loadNextPage,
     retryNextPage,
   } = useGalleryWall({
     active: view === "gallery",
@@ -360,6 +363,8 @@ export function GalleryFeed({
     state,
     setState,
     visibleEntries,
+    wallKey: galleryFeedQueryKey(feedQuery),
+    loadNextPage,
   });
   const localAuthors = searchingLoaded || !state.authors;
   const authors = localAuthors
@@ -430,18 +435,6 @@ export function GalleryFeed({
   const componentRangeCounts: Record<string, number> = localQuickCounts
     ? countComponentRanges(visibleEntries)
     : (state.filterCounts?.componentRanges ?? {});
-  // What Download saves (#2173): the wall's current results, once the server
-  // has counted them; words still being typed are not asked yet.
-  const downloadPending =
-    state.status === "loading" || searchQuery.trim() !== serverSearch;
-  const downloadCount =
-    state.status !== "ready"
-      ? null
-      : !normalizedSearchQuery || searchAnswered
-        ? state.total
-        : state.nextCursor === null
-          ? visibleEntries.length
-          : null;
   // While another combination loads, the counts beside the held wall stay
   // until its own arrive (#2160); the first load has none to hold.
   const liveCounts = {
@@ -469,8 +462,6 @@ export function GalleryFeed({
   if (countsSettled) heldCountsRef.current = liveCounts;
   const counts = countsSettled ? liveCounts : heldCountsRef.current;
   const countsHeld = !countsSettled && counts !== null;
-  const lastDownloadCountRef = useRef<number | null>(null);
-  if (!downloadPending) lastDownloadCountRef.current = downloadCount;
   const countText = (value: number, partial: boolean) =>
     counts === null
       ? "…"
@@ -548,9 +539,22 @@ export function GalleryFeed({
   );
 
   return (
-    <main className="gallery-shell" data-testid="gallery-feed">
+    <main
+      className="gallery-shell"
+      data-testid="gallery-feed"
+      onClickCapture={(event) => {
+        // Opening a circuit remembers it, so coming back finds it again.
+        const entryId = galleryTileOpened(event.target);
+        if (entryId)
+          rememberGalleryReturn({
+            wall: galleryFeedQueryKey(feedQuery),
+            entryId,
+            loaded: entries.length,
+          });
+      }}
+    >
       <GalleryChrome
-        subtitle={view === "shelf" ? "My shelf" : "Community gallery"}
+        subtitle={view === "shelf" ? "My shelf" : undefined}
         visitStats={visitStats}
       />
 
@@ -615,13 +619,6 @@ export function GalleryFeed({
             search={counts?.search ?? null}
           />
         ) : null}
-        {/* Kept mounted on the shelf, so a running download goes on. */}
-        <GalleryDownloadButton
-          query={feedQuery}
-          count={downloadPending ? lastDownloadCountRef.current : downloadCount}
-          pending={downloadPending}
-          hidden={view !== "gallery"}
-        />
       </div>
       {view === "shelf" ? (
         <Suspense

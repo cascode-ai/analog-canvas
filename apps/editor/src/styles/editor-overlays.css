@@ -398,14 +398,17 @@
   color: var(--icm-text);
 }
 
+/* Under the chrome as it stands, wrapped tabs included, and in front of
+   the passive notices that share that place (#2194). It closes as soon as
+   anything else, a chrome menu included, is pressed; modals stay above. */
 .selection-filter-popover {
   position: fixed;
-  z-index: 12;
-  top: 7.25rem;
+  z-index: 46;
+  top: var(--selection-filter-top, 7.25rem);
   right: var(--icm-space-4);
   display: grid;
   width: min(300px, calc(100vw - var(--icm-space-6)));
-  max-height: calc(100vh - 9rem);
+  max-height: calc(100dvh - var(--selection-filter-top, 7.25rem) - 1rem);
   gap: var(--icm-space-3);
   padding: var(--icm-space-4);
   overflow: auto;

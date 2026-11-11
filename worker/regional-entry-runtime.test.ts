@@ -96,7 +96,10 @@ it("limits API floods by the proxy's address and ignores a client's own header",
     }),
   });
   const ask = (headers: Record<string, string>) =>
-    entry.fetch(new Request(`${origin}/api/gallery`, { headers }), env);
+    entry.fetch(
+      new Request(`${origin}/api/agent/mcp-manifest.json`, { headers }),
+      env,
+    );
   // A client-chosen address never selects a fresh allowance.
   expect((await ask({ "x-real-ip": "198.51.100.7" })).status).toBe(200);
   expect(
@@ -109,6 +112,17 @@ it("limits API floods by the proxy's address and ignores a client's own header",
   ).toBe(429);
   // Loopback services without a proxy address are not counted.
   expect((await ask({})).status).toBe(200);
+  // Gallery downloads do not use the exhausted API allowance in this region.
+  expect(
+    (
+      await entry.fetch(
+        new Request(`${origin}/api/gallery`, {
+          headers: { "x-real-ip": "198.51.100.7" },
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(200);
 });
 
 it("runs Production's scheduled work only for the loopback timer's credential", async () => {

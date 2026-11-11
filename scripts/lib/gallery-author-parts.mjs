@@ -10,7 +10,7 @@ export function claimedTransistors(name) {
 }
 
 /**
- * MOS and bipolar symbols a one-Cell drawing draws, or null for a hierarchy,
+ * MOS, bipolar and JFET symbols a one-Cell drawing draws, or null for a hierarchy,
  * whose transistor total depends on how often each Cell is placed.
  */
 export function drawnTransistors(projectText) {
@@ -24,7 +24,7 @@ export function drawnTransistors(projectText) {
     ]),
   );
   return (top?.instances ?? []).filter((instance) =>
-    ["mos", "bjt"].includes(deviceClass.get(instance.type)),
+    ["mos", "bjt", "jfet"].includes(deviceClass.get(instance.type)),
   ).length;
 }
 

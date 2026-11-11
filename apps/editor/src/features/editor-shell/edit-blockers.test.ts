@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  discardableHoldReason,
+  discardableHold,
   editInProgressReason,
   projectHoldReason,
 } from "./edit-blockers";
@@ -12,6 +12,8 @@ const idle = {
   textEditing: false,
   textOnScreen: false,
   codeDraftDirty: false,
+  netlistDraft: false,
+  projectCodeDraft: false,
   saving: false,
   replaceGuard: false,
   recoveryDialogOpen: false,
@@ -42,20 +44,32 @@ describe("edit blockers (#1462)", () => {
   it("holds a Project for a Document settings draft, never for the panel alone (#2180)", () => {
     // Opened unedited, or edited validly (applied at once): nothing to keep.
     expect(projectHoldReason(idle)).toBeNull();
-    expect(discardableHoldReason(idle)).toBeNull();
+    expect(discardableHold(idle)).toBeNull();
     // An invalid or refused edit is not applied: the tab strip offers to
     // drop it beside the action.
     const draft = { ...idle, documentSettingsDraft: true };
     expect(projectHoldReason(draft)).toBe(
       "Document settings hold a draft that is not applied",
     );
-    expect(discardableHoldReason(draft)).toBe(
-      "Document settings hold a draft that is not applied",
-    );
+    expect(discardableHold(draft)).toEqual({
+      reason: "Document settings hold a draft that is not applied",
+      drafts: ["document-settings"],
+    });
     // Dropping it would not free the Project while something else holds it.
-    expect(discardableHoldReason({ ...draft, saving: true })).toBeNull();
-    expect(
-      discardableHoldReason({ ...draft, codeDraftDirty: true }),
-    ).toBeNull();
+    expect(discardableHold({ ...draft, saving: true })).toBeNull();
+    expect(discardableHold({ ...draft, codeDraftDirty: true })).toBeNull();
+  });
+
+  it("offers to drop a Netlist or Project Code draft its closed panel holds (#2193, #2201)", () => {
+    const held = { ...idle, netlistDraft: true, projectCodeDraft: true };
+    expect(projectHoldReason(held)).toBe(
+      "the Netlist holds a draft that is not applied",
+    );
+    expect(discardableHold(held)).toEqual({
+      reason: "the Netlist holds a draft that is not applied",
+      drafts: ["netlist", "project-code"],
+    });
+    // A draft only its open panel holds is finished there.
+    expect(discardableHold({ ...held, codeDraftDirty: true })).toBeNull();
   });
 });

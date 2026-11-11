@@ -69,6 +69,8 @@ const KIND: Record<string, string> = {
   pmos: "pmos",
   npn: "npn",
   pnp: "pnp",
+  njfet: "njfet",
+  pjfet: "pjfet",
   resistor: "res",
   capacitor: "cap",
   inductor: "ind",
@@ -79,6 +81,8 @@ function pinRole(symbolId: string, pinName: string): string | null {
   if (symbolId === "nmos" || symbolId === "pmos")
     return pinName === "G" ? "g" : pinName === "B" ? null : "ds";
   if (symbolId === "npn" || symbolId === "pnp") return pinName.toLowerCase();
+  if (symbolId === "njfet" || symbolId === "pjfet")
+    return pinName === "G" ? "g" : "ds";
   if (KIND[symbolId]) return "t";
   return null;
 }

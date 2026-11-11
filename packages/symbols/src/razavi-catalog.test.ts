@@ -1629,6 +1629,60 @@ describe("Razavi symbol catalog", () => {
       });
   });
 
+  it("draws the JFETs on the MOS pins, the gate arrow into or out of the channel", () => {
+    const nmos = requireRazaviCatalogSymbol("nmos");
+    const pmos = requireRazaviCatalogSymbol("pmos");
+    const at = (symbol: typeof nmos) =>
+      symbol.pins
+        .filter((pin) => pin.name !== "B")
+        .map((pin) => [pin.name, pin.at, pin.direction]);
+    const njfet = requireRazaviCatalogSymbol("njfet");
+    const pjfet = requireRazaviCatalogSymbol("pjfet");
+    // A depletion-MOS stand-in swaps for a JFET without moving a wire.
+    expect(at(njfet)).toEqual(at(nmos));
+    expect(at(pjfet)).toEqual(at(pmos));
+    for (const symbol of [njfet, pjfet]) {
+      expect(getRazaviCatalogEntry(symbol.id)).toMatchObject({
+        category: "transistor",
+        provenance: "house",
+        pinOrder: ["D", "G", "S"],
+        palette: true,
+      });
+      expect(getRazaviCatalogEntry(symbol.id)?.visualAuthority).toBeUndefined();
+      expect(symbol.pins.map((pin) => pin.presentation.leadLength)).toEqual([
+        10, 10, 10,
+      ]);
+    }
+    const channel = (symbol: typeof njfet) => {
+      const bar = symbol.primitives.find(
+        (primitive) =>
+          primitive.kind === "line" &&
+          primitive.style?.strokeRole === "emphasis",
+      );
+      if (bar?.kind !== "line") throw new Error("missing channel bar");
+      expect(bar.from.x).toBe(bar.to.x);
+      return bar.from.x;
+    };
+    // The arrow's tip is the vertex farthest from its base, on the gate row.
+    const tip = (symbol: typeof njfet) => {
+      const arrow = symbol.primitives.at(-1);
+      if (arrow?.kind !== "polygon") throw new Error("missing gate arrow");
+      expect(arrow).toMatchObject({ fill: "foreground", stroke: "none" });
+      const apex = arrow.points.find((point) => point.y === 0)!;
+      const base = arrow.points.filter((point) => point !== apex);
+      expect(base.map((point) => point.x)).toEqual([base[0]!.x, base[0]!.x]);
+      return { apex: apex.x, base: base[0]!.x };
+    };
+    const n = tip(njfet);
+    const p = tip(pjfet);
+    // n-channel points into the channel, p-channel out of it, same arrow.
+    expect(n.apex).toBeGreaterThan(n.base);
+    expect(p.apex).toBeLessThan(p.base);
+    expect(n.apex - n.base).toBeCloseTo(p.base - p.apex, 6);
+    expect(Math.max(n.apex, p.base)).toBeLessThan(channel(njfet));
+    expect(channel(pjfet)).toBe(channel(njfet));
+  });
+
   it("uses calibrated MOS and source arrowheads with external voltage polarity marks", () => {
     const voltage = requireRazaviCatalogSymbol("voltage-source");
     expect(voltage.primitives).toEqual(

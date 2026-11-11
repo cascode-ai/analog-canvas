@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+import { useBelowChrome } from "../../components/below-chrome";
+
 import {
   ALL_SELECTION_FILTER,
   DEFAULT_SELECTION_FILTER,
@@ -53,6 +55,9 @@ export function SelectionFilterPopover({
   onClose: () => void;
 }) {
   const rootRef = useRef<HTMLElement | null>(null);
+  // Under the chrome as it stands: on a phone the wrapped tabs reached over
+  // its header, and Close landed on New project tab (#2194).
+  useBelowChrome(rootRef, "--selection-filter-top", { active: open });
 
   useEffect(() => {
     if (!open) return;

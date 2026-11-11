@@ -37,7 +37,8 @@ restrictive CSP.
 - `robots.txt` and `llms.txt` (`worker/usage-policy.ts`) state the usage
   policy: every public circuit is free to read, download in bulk, mirror and
   use for any purpose, AI training included; circuits from reference datasets
-  keep their dataset's license; clients stay under the flood limit.
+  keep their dataset's license; public Gallery reads have no request-rate cap
+  or daily download quota.
   `robots.txt` admits every crawler with `Content-Signal: search=yes,
 ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   the list and entry API and no other resource while public Gallery
@@ -51,37 +52,26 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   `--url` with a wall link's filters (the link's `netlist` is the list's
   `netlistable`; a link needing a signed-in reader is refused). It writes
   `index.json` (the list's entries) and `entries/<id>.json`
-  (`{entry, projectText}`, each written whole through a temporary file), at
-  most 600 requests a minute. A rerun keeps a file only if it parses with its
+  (`{entry, projectText}`, each written whole through a temporary file).
+  Downloads start without fixed pacing, 32 in parallel by default;
+  `--concurrency N` accepts any positive safe integer. There is no total-count
+  or runtime cap; `--max N` is an optional reader-selected subset.
+  A rerun keeps a file only if it parses with its
   id and a non-empty `projectText`. It ends with downloaded, kept and failed
   counts and exits 1 when the list or any circuit failed; a `--source` that
   `GET /api/gallery/sources` does not list is refused.
-- The wall's Download button, in its count row, the same for every reader
-  and signed out too (no menu or choice of scope), saves the wall's current
-  results (its own list query; every public circuit when no filter narrows
-  it) as one `.zip`: `<id>.icproj.json` (the circuit's `projectText`) and
-  `manifest.json` (`query`, `generatedAt`, `origin`, `usage`, `sources` with
-  each dataset's license, `count`, `entries` with `id`, `name`, `author`,
-  `source`, `previewRevision` and `file`, and `failed` with `id`, `name` and
-  `reason`). Its label is the current results' count (`Download 78`), which
-  follows every filter and search; it is disabled at zero and while the
-  count loads. A press fixes the query; the button then shows its progress
-  (`32 / 78`) with Cancel beside it while the wall stays usable. A complete
-  run saves the file and offers `Download ZIP` again. A run with failures
-  saves nothing by itself: it shows `N failed · Retry` and
-  `Download partial ZIP (M of N)`, whose file is named `…-partial.zip` and
-  whose manifest lists the failed circuits.
-  It lists oldest first and reads at most 10 requests a second, 4 at once;
-  network, 408, 429 (every reader waits its `Retry-After`) and 5xx failures
-  are retried, circuits still failing are named, a list failure saves
-  nothing and so do zero matches. The archive code loads on first use.
+- Bulk download is available through the public HTTP API and download script;
+  the Gallery wall has no bulk-download button or menu.
 - No account is blocked for how it reads or writes; the account blocks and
   trap circuits of before 2026-11-09 are retired with their records.
-- `/api/*` has a flood limit of 1200 requests a minute per client address
-  (Workers rate limiting, `API_RATE_LIMITER`). Past it:
+- Gallery `GET` and `HEAD` requests (`/api/gallery` and `/api/gallery/…`)
+  bypass the API flood limiter, including Projects, previews, reference
+  images and bulk netlists. Private and owner-only routes still authenticate.
+  Other `/api/*` requests keep a flood limit of 1200 requests a minute per
+  client address (Workers rate limiting, `API_RATE_LIMITER`). Past it:
   `429 {"error":"too-many-requests","retryAfterSeconds":60,"usage":…}` with
-  `Retry-After: 60`. It is neither a quota nor a daily allowance; clients
-  show their daily-limit messages only for other `429`s. Uncounted: the
+  `Retry-After: 60`. It is neither a download quota nor a daily allowance.
+  Also uncounted: the
   Owner's backup and smoke credentials, requests with no client address, and
   `/api/arena/…`, which is forwarded unchanged. A failing limiter lets
   requests through.
@@ -144,9 +134,9 @@ entries, keyset cursor, limit ≤60.
 
 - `GET /api/gallery/<id>` returns canonical `projectText`; `?summary=1`
   the entry alone (with `&netlist=spice`, its netlist alone). `?netlist=spice` adds
-  `netlist: {format: "spice", text, instances: [{instanceId, line}]}` (each
-  top-level device's first line, from 0, as the editor's Project Code locates
-  it), or `{format: "spice", blocked}` with the error messages when the
+  `netlist: {format: "spice", text, instances: [{instanceId, line}], diagnostics: [{severity, code, message}]}`
+  (`instances`: each top-level device's first line, from 0, as the editor's
+  Project Code locates it; `diagnostics`: every finding but info notes), or `{format: "spice", blocked}` with the error messages when the
   drawing does not extract. Folders only for testbench
   readers
   ([Testbench privacy](#testbench-privacy)).
@@ -308,9 +298,9 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
     (0, 1–5, 6–10, 11–20, 21–50, 51+) and `weeks` (the last 16, Monday UTC,
     people and AI).
   - Devices are the drawn parts of the top Cell and of each called Cell, once
-    per call: NMOS, PMOS, BJT, resistor, capacitor, inductor, diode, source,
+    per call: NMOS, PMOS, BJT, JFET, resistor, capacitor, inductor, diode, source,
     switch, block (a behavioral body), other; Ports, markers and undrawn parts
-    are not counted. Transistors are its MOS and BJT parts. Kept beside their
+    are not counted. Transistors are its MOS, BJT and JFET parts. Kept beside their
     rule version, not backed up, counted by the scheduled pass (100 per
     store a tick), again after an edit, and on an account's own read of its
     still uncounted circuits; null while unreadable.
@@ -730,7 +720,7 @@ else 401.
 - `GET|POST /api/admin/recovery`: point-in-time recovery
   ([deployment](../deployment.md#point-in-time-recovery)).
 - `GET /api/gallery/maintenance/netlists` (anyone): public entries in id order (`format=spice|spectre`,
-  `limit=1..200`, `after`, or `id`) with metadata, stored mark, netlist (or
+  `limit=1..200`, `after`, or `id`; `source=<key>` pages a reference dataset, a dataset id reads from its own store, unknown key 400 `unknown-source`) with metadata, stored mark, netlist (or
   `null`) and diagnostics; pages end at 8,000,000 characters of Project Code.
 - `POST …/schema-current`: `{apply: false}` validates; `{apply: true}` converges
   every Project to `CURRENT_PROJECT_FILE_VERSION` only if all are valid.

@@ -4,7 +4,9 @@ import {
 } from "@icm/devices";
 import {
   GENERIC_DIODE_MODEL,
+  GENERIC_NJF_MODEL,
   GENERIC_NPN_MODEL,
+  GENERIC_PJF_MODEL,
   GENERIC_PNP_MODEL,
 } from "@icm/netlist";
 export const NETLIST_PROFILE_IDS = [
@@ -157,6 +159,8 @@ export const NETLIST_DEVICE_FAMILIES = [
   "current-source",
   "npn",
   "pnp",
+  "njfet",
+  "pjfet",
   "diode",
   "switch",
 ] as const;
@@ -176,9 +180,12 @@ export interface NetlistExportProfile {
 const GENERIC_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   nmos: "NMOS",
   pmos: "PMOS",
-  // The netlist defines these three itself while nothing else does.
+  // The netlist defines these itself while nothing else does. No Process
+  // ships a JFET, so every one takes NJF and PJF.
   npn: GENERIC_NPN_MODEL.name,
   pnp: GENERIC_PNP_MODEL.name,
+  njfet: GENERIC_NJF_MODEL.name,
+  pjfet: GENERIC_PJF_MODEL.name,
   diode: GENERIC_DIODE_MODEL.name,
   switch: "SW",
 };
@@ -221,6 +228,8 @@ export function netlistDeviceFamily(
   if (descriptor?.mosBulkClass) return descriptor.mosBulkClass;
   if (descriptor?.deviceClass === "bjt")
     return symbolId === "pnp" ? "pnp" : "npn";
+  if (descriptor?.deviceClass === "jfet")
+    return symbolId === "pjfet" ? "pjfet" : "njfet";
   if (
     descriptor &&
     (NETLIST_DEVICE_FAMILIES as readonly string[]).includes(

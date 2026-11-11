@@ -471,6 +471,44 @@ describe("Gallery netlist read", () => {
     expect(second.page.nextCursor).toBeNull();
   });
 
+  it("pages a reference dataset's netlists by its key, or one by its id", async () => {
+    const env = environment();
+    const owner = await ownerAccountOf(env);
+    await submitOne(env, "Community");
+    const imported = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/sources/amsnet/entries`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: owner,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          entries: ["amsnet-1", "amsnet-2"].map((id) => ({
+            id,
+            name: id,
+            projectText: projectText(id),
+          })),
+        }),
+      }),
+    );
+    expect(imported.status).toBe(200);
+    const dataset = await read(env, "?source=amsnet", {});
+    expect(dataset.status).toBe(200);
+    expect(dataset.page.entries.map((entry) => entry.id)).toEqual([
+      "amsnet-1",
+      "amsnet-2",
+    ]);
+    expect(dataset.page.entries[0]!.netlist).toEqual(expect.any(String));
+    expect((await read(env, "?id=amsnet-2", {})).page.entries).toHaveLength(1);
+    const community = await read(env, "?source=community", {});
+    expect(community.page.entries.map((entry) => entry.name)).toEqual([
+      "Community",
+    ]);
+    expect((await read(env, "?source=nope", {})).status).toBe(400);
+  });
+
   it("serves anyone, and refuses writes, unknown formats and entries off the wall", async () => {
     const env = environment();
     expect((await read(env, "", {})).status).toBe(200);

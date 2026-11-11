@@ -1,7 +1,9 @@
 export * from "./extract.js";
 export {
   GENERIC_DIODE_MODEL,
+  GENERIC_NJF_MODEL,
   GENERIC_NPN_MODEL,
+  GENERIC_PJF_MODEL,
   GENERIC_PNP_MODEL,
 } from "./extract-generic-models.js";
 export * from "./export.js";

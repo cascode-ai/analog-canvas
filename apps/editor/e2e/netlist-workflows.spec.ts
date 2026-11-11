@@ -116,17 +116,18 @@ test("keeps rejected SPICE import diagnostics in a historical report", async ({
 }) => {
   await page.goto("/editor");
   await openMenu(page, "File");
-  // A JFET has no symbol in the approved catalog. (The mixed-device acceptance
-  // netlist used to be refused for its switch; that card imports now.)
+  // A MESFET has no symbol in the approved catalog. (The mixed-device
+  // acceptance netlist used to be refused for its switch, and this test's
+  // JFET for itself; both cards import now.)
   await page.getByTestId("spice-files").setInputFiles({
-    name: "jfet.spi",
+    name: "mesfet.spi",
     mimeType: "text/plain",
     buffer: Buffer.from(
       [
         ".subckt top d g s",
-        "J1 d g s jm",
+        "Z1 d g s zm",
         ".ends top",
-        ".model jm njf",
+        ".model zm nmf",
         "",
       ].join("\n"),
     ),

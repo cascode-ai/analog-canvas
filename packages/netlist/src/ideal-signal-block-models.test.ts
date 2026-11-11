@@ -393,6 +393,38 @@ describe("generated block bodies", () => {
     );
   });
 
+  it("export a potentiometer as a call of its two-resistor body", () => {
+    const project = blockCell("potentiometer");
+    project.documents[0]!.instances[0]!.netlist!.parameters = {
+      r: "10k",
+      pos: "0.25",
+    };
+    const [spice, spectre] = (["spice", "spectre"] as const).map((format) => {
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      return result.status === "ready" ? result.file.text : "";
+    });
+    expect(spice).toContain(
+      [
+        ".subckt potentiometer n1 nw n2 params: r=10k pos=0.5",
+        "R1 n1 nw {max(r*pos,1m)}",
+        "R2 nw n2 {max(r*(1-pos),1m)}",
+        ".ends potentiometer",
+      ].join("\n"),
+    );
+    expect(spice).toMatch(/^X1 n1 nw n2 potentiometer pos=0.25 r=10k$/mu);
+    expect(spectre).toContain(
+      [
+        "subckt potentiometer (n1 nw n2)",
+        "parameters r=10k pos=0.5",
+        "R1 (n1 nw) resistor r=max(r*pos,1m)",
+        "R2 (nw n2) resistor r=max(r*(1-pos),1m)",
+        "ends potentiometer",
+      ].join("\n"),
+    );
+    expect(spectre).toMatch(/^X1 \(n1 nw n2\) potentiometer pos=0.25 r=10k$/mu);
+  });
+
   it.each(["multiplier", "adc", "dac", "adc-differential", "dac-differential"])(
     "export the %s ready in SPICE, and to Spectre with a warning",
     (symbolId) => {

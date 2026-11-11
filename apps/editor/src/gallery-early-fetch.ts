@@ -8,6 +8,7 @@
 import {
   GALLERY_ORDER_KEY,
   GALLERY_SEED_GLOBAL,
+  GALLERY_SEED_KEY,
   STORED_GALLERY_ORDERS,
   type GalleryOrder,
 } from "./gallery-order";
@@ -88,7 +89,11 @@ export function galleryEarlyFetchScript(): string {
     `var order="random";try{var kept=localStorage.getItem(${JSON.stringify(GALLERY_ORDER_KEY)});` +
     `if(${JSON.stringify(STORED_GALLERY_ORDERS)}.indexOf(kept)>=0)order=kept}catch(e){}` +
     `var feed=${JSON.stringify(keptOrderUrls)}[order];if(order==="random"){` +
-    `var seed=Math.random().toString(36).slice(2,10)||"s0";window.${GALLERY_SEED_GLOBAL}=seed;` +
+    // The tab keeps its shuffle, so coming back to the wall finds it as left.
+    `var seed=null;try{seed=sessionStorage.getItem(${JSON.stringify(GALLERY_SEED_KEY)})}catch(e){}` +
+    `if(!/^[a-z0-9]{1,16}$/.test(seed||"")){seed=Math.random().toString(36).slice(2,10)||"s0";` +
+    `try{sessionStorage.setItem(${JSON.stringify(GALLERY_SEED_KEY)},seed)}catch(e){}}` +
+    `window.${GALLERY_SEED_GLOBAL}=seed;` +
     `feed=${JSON.stringify(shuffledUrl)}+seed}` +
     `[feed,${JSON.stringify(tagsUrl)}].forEach(function(url){` +
     `var response=fetch(url,{credentials:"same-origin"});` +

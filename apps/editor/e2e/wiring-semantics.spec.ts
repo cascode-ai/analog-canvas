@@ -65,25 +65,38 @@ for (const [scale, targetKind] of [
           }))
         : { x: 305, y: 400 };
     // Use the real wheel camera path, anchored at the destination. This
-    // exercises its live CTM rather than faking the React viewBox state.
-    await canvas.evaluate(
-      (element, { target, scale }) => {
-        const svg = element as SVGSVGElement;
-        const matrix = svg.getScreenCTM()!;
-        const anchor = new DOMPoint(target.x, target.y).matrixTransform(matrix);
-        svg.dispatchEvent(
-          new WheelEvent("wheel", {
-            clientX: anchor.x,
-            clientY: anchor.y,
-            ctrlKey: true,
-            deltaY: Math.log(matrix.a / scale) / 0.01,
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
-      },
-      { target, scale },
-    );
+    // exercises its live CTM rather than faking the React viewBox state. One
+    // Ctrl+wheel step zooms at most e^0.2 (#2191), so step until the scale
+    // is reached.
+    const zoom = () =>
+      canvas.evaluate(
+        (element) => (element as SVGSVGElement).getScreenCTM()!.a,
+      );
+    for (let step = 0; step < 40; step += 1) {
+      const before = await zoom();
+      const remaining = Math.log(before / scale) / 0.01;
+      if (Math.abs(remaining) < 0.5) break;
+      await canvas.evaluate(
+        (element, { target, deltaY }) => {
+          const svg = element as SVGSVGElement;
+          const anchor = new DOMPoint(target.x, target.y).matrixTransform(
+            svg.getScreenCTM()!,
+          );
+          svg.dispatchEvent(
+            new WheelEvent("wheel", {
+              clientX: anchor.x,
+              clientY: anchor.y,
+              ctrlKey: true,
+              deltaY,
+              bubbles: true,
+              cancelable: true,
+            }),
+          );
+        },
+        { target, deltaY: Math.max(-20, Math.min(20, remaining)) },
+      );
+      await expect.poll(zoom).not.toBe(before);
+    }
     await expect
       .poll(() =>
         canvas.evaluate(

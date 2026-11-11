@@ -11,8 +11,18 @@ export interface EditInProgress {
   /** A canvas text edit, and whether its label is on screen to finish. */
   textEditing: boolean;
   textOnScreen: boolean;
+  /** An open code panel (Testbench, Instances) holds a draft of its own. */
   codeDraftDirty: boolean;
+  /**
+   * The Netlist or Project Code draft, held by the editor so it outlives its
+   * panel (#2193, #2201): it holds the Project even with the panel closed.
+   */
+  netlistDraft: boolean;
+  projectCodeDraft: boolean;
 }
+
+/** A draft the tab strip can drop beside a Project switch (#2180). */
+export type DiscardableDraft = "document-settings" | "netlist" | "project-code";
 
 /** What else holds the Project: a save, or a dialog about it. */
 export interface ProjectHeld extends EditInProgress {
@@ -45,6 +55,8 @@ export function editInProgressReason(state: EditInProgress): string | null {
       "a label's text is being edited on the canvas",
     ],
     [state.codeDraftDirty, "a code panel holds a draft that is not applied"],
+    [state.netlistDraft, "the Netlist holds a draft that is not applied"],
+    [state.projectCodeDraft, "Project Code holds a draft that is not applied"],
   ]);
 }
 
@@ -65,13 +77,28 @@ export function projectHoldReason(state: ProjectHeld): string | null {
 }
 
 /**
- * The hold a person can drop where they asked for a Project switch, or null:
- * a Document settings draft, when nothing else holds the Project (#2180).
- * Other holds finish where they are, or have their own dialog.
+ * The hold a person can drop where they asked for a Project switch, and the
+ * drafts dropping it discards, or null: a Document settings, Netlist or
+ * Project Code draft, when nothing else holds the Project (#2180). Other
+ * holds finish where they are, or have their own dialog.
  */
-export function discardableHoldReason(state: ProjectHeld): string | null {
-  if (!state.documentSettingsDraft) return null;
-  return projectHoldReason({ ...state, documentSettingsDraft: false }) === null
-    ? projectHoldReason(state)
-    : null;
+export function discardableHold(
+  state: ProjectHeld,
+): { reason: string; drafts: DiscardableDraft[] } | null {
+  const drafts = (
+    [
+      [state.documentSettingsDraft, "document-settings"],
+      [state.netlistDraft, "netlist"],
+      [state.projectCodeDraft, "project-code"],
+    ] as const
+  ).flatMap(([held, draft]) => (held ? [draft] : []));
+  if (!drafts.length) return null;
+  const reason = projectHoldReason(state);
+  const rest = projectHoldReason({
+    ...state,
+    documentSettingsDraft: false,
+    netlistDraft: false,
+    projectCodeDraft: false,
+  });
+  return reason && rest === null ? { reason, drafts } : null;
 }

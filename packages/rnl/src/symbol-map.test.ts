@@ -34,7 +34,7 @@ function registration(symbolId: string): readonly [number, number] {
   });
   const device = deviceDescriptor(symbolId);
   let point = { x: 0, y: 0 };
-  if (device?.deviceClass === "mos")
+  if (device?.deviceClass === "mos" || device?.deviceClass === "jfet")
     point = { x: at.get("D")!.x, y: at.get("G")!.y };
   else if (device?.deviceClass === "bjt")
     point = { x: at.get("C")!.x, y: at.get("B")!.y };
@@ -57,17 +57,38 @@ function registration(symbolId: string): readonly [number, number] {
 describe("the RNL symbol list", () => {
   it("reads the model type each symbol's card declares", () => {
     expect(
-      ["nmos", "pdmos", "diode", "zener-diode", "npn", "pnp", "resistor"].map(
-        (symbolId) => symbolModelType(symbolId),
-      ),
-    ).toEqual(["nmos", "pmos", "d", "d", "npn", "pnp", undefined]);
+      [
+        "nmos",
+        "pdmos",
+        "diode",
+        "zener-diode",
+        "npn",
+        "pnp",
+        "njfet",
+        "pjfet",
+        "resistor",
+      ].map((symbolId) => symbolModelType(symbolId)),
+    ).toEqual([
+      "nmos",
+      "pmos",
+      "d",
+      "d",
+      "npn",
+      "pnp",
+      "njf",
+      "pjf",
+      undefined,
+    ]);
   });
-  it("draws every Analog Canvas symbol", () => {
+  it("draws every Analog Canvas symbol but those awaiting an extensions version", () => {
+    // RNL's standard series has none of these, and drawing them needs an
+    // analog-canvas-extensions version not yet published; until then a part
+    // of theirs stops RNL export with RNL_NO_SYMBOL.
     expect(
       builtInSymbols
         .map((symbol) => symbol.id)
         .filter((id) => !rnlSymbolFor(id)),
-    ).toEqual([]);
+    ).toEqual(["led", "microphone", "potentiometer", "speaker"]);
   });
 
   it("takes the chopper and appearance variants from Analog Canvas's package", () => {

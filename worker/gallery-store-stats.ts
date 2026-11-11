@@ -56,7 +56,7 @@ export function forgetTransistorCount(sql: SqlStorage, entryId: string): void {
 export const CURRENT_TRANSISTORS = `LEFT JOIN gallery_entry_transistors t
   ON t.entry_id = e.id AND t.rule_version = ${DEVICE_COUNT_RULE_VERSION}`;
 
-const TRANSISTOR_KINDS = new Set<string>(["nmos", "pmos", "bjt"]);
+const TRANSISTOR_KINDS = new Set<string>(["nmos", "pmos", "bjt", "jfet"]);
 
 /** Count and keep the devices of these entries, one Project at a time. */
 function countTransistors(sql: SqlStorage, ids: readonly string[]): void {

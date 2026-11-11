@@ -106,7 +106,7 @@ const DEVICE_PARTS: readonly { key: string; label: string; kinds: string[] }[] =
     {
       key: "other",
       label: "Other",
-      kinds: ["inductor", "diode", "switch", "other"],
+      kinds: ["jfet", "inductor", "diode", "switch", "other"],
     },
   ];
 
@@ -114,6 +114,7 @@ const KIND_LABELS: Record<string, string> = {
   nmos: "NMOS",
   pmos: "PMOS",
   bjt: "BJT",
+  jfet: "JFET",
   resistor: "Resistors",
   capacitor: "Capacitors",
   inductor: "Inductors",

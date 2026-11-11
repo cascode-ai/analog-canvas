@@ -236,6 +236,7 @@ import { LazyProjectCodePanel as ProjectCodePanel } from "./lazy-editor-dialogs"
 import { TestbenchPanel } from "../features/testbench/testbench-panel";
 import { LazyExamplesPanel as ExamplesPanel } from "./lazy-editor-dialogs";
 import { recoverSourceDrafts } from "../features/simulation/source-draft-cache";
+import { useHeldCodeDraft } from "../features/project-code/held-code-draft";
 import { useProjectCheck } from "./use-project-check";
 import { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import {
@@ -1238,10 +1239,16 @@ function WorkspaceEditor({
     setProjectPanel,
     projectRunHistory,
   });
-  const [codeDraftDirty, setCodeDraftDirty] = useState(false);
+  const [panelCodeDraftDirty, setPanelCodeDraftDirty] = useState(false);
   const noteCodeDraftDirty = useCallback((dirty: boolean) => {
-    setCodeDraftDirty(dirty);
+    setPanelCodeDraftDirty(dirty);
   }, []);
+  // Netlist and Project Code drafts outlive their panels and hold the Project
+  // as open ones do, until Apply or Reload (#2193, #2201).
+  const netlistDraft = useHeldCodeDraft(projectSessionId);
+  const projectCodeDraft = useHeldCodeDraft(projectSessionId);
+  const codeDraftDirty =
+    panelCodeDraftDirty || netlistDraft.dirty || projectCodeDraft.dirty;
   const openGalleryProjectInTabRef = useRef<
     (
       project: CircuitProject,
@@ -5419,6 +5426,11 @@ function WorkspaceEditor({
     setAgentFileCandidate,
     setAnalogSimulationState,
     codeDraftDirty,
+    codeDrafts: {
+      panel: panelCodeDraftDirty,
+      netlist: netlistDraft.dirty,
+      projectCode: projectCodeDraft.dirty,
+    },
     captureAuthoredProject,
     captureFileSession,
     restoreFileSession,
@@ -5788,6 +5800,12 @@ function WorkspaceEditor({
         createTabSession={createTabSession}
         projectTabs={projectTabs}
         discardableSwitchHold={discardableSwitchHold}
+        discardHeldCodeDrafts={(drafts) => {
+          if (drafts.includes("netlist")) netlistDraft.document.set(null);
+          if (drafts.includes("project-code"))
+            projectCodeDraft.document.set(null);
+        }}
+        showProjectPanel={showProjectPanel}
         recentNativeFiles={recentNativeFiles}
         nativeBusy={nativeBusy}
         setNativeBusy={setNativeBusy}
@@ -6387,7 +6405,7 @@ function WorkspaceEditor({
                   />
                 ) : projectPanel === "netlist" ? (
                   <NetlistCodePanel
-                    onDirtyChange={noteCodeDraftDirty}
+                    draftDocument={netlistDraft.document}
                     key={projectSessionId}
                     onApply={(edits) =>
                       commitStructure("edit-netlist-code", edits)
@@ -6473,7 +6491,7 @@ function WorkspaceEditor({
                   <ProjectCodePanel
                     key={projectSessionId}
                     serializeProject={snapshotSerializer.serialize}
-                    onDirtyChange={noteCodeDraftDirty}
+                    draftDocument={projectCodeDraft.document}
                     project={project}
                     selection={{
                       documentId: document.id,

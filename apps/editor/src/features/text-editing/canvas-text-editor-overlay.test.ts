@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   canvasInsetsOnScreen,
   resolveCanvasTextEditorFrame,
+  shownCanvasView,
 } from "./canvas-text-editor-overlay";
 
 const target = { x: 100, y: 200, width: 200, height: 30 };
@@ -228,5 +229,45 @@ describe("canvas text editor frame", () => {
     expect(frame.x).toBeGreaterThanOrEqual(28);
     expect(frame.y).toBeGreaterThanOrEqual(38);
     expect(frame.x + frame.width).toBeLessThanOrEqual(20 + 960 - 8);
+  });
+});
+
+describe("the area the canvas shows (#2207)", () => {
+  it("lays the panel out across a short landscape window, not the camera's strip", () => {
+    // Fit view in a tall window, then the window turns 640x264 (canvas).
+    const fitted = camera(900, 744);
+    const canvas = { width: 640, height: 264 };
+    const pixelsPerUnit = Math.min(640 / 900, 264 / 744);
+    const shown = shownCanvasView(fitted, canvas);
+    expect(shown.width * pixelsPerUnit).toBeCloseTo(640, 6);
+    expect(shown.height * pixelsPerUnit).toBeCloseTo(264, 6);
+    expect(shown.x + shown.width / 2).toBeCloseTo(450, 6);
+    const docks = { left: 0, right: 0, top: 0, bottom: 0 };
+    const squeezed = resolveCanvasTextEditorFrame(
+      target,
+      fitted,
+      1,
+      pixelsPerUnit,
+      null,
+      docks,
+    );
+    const laidOut = resolveCanvasTextEditorFrame(
+      target,
+      shown,
+      1,
+      pixelsPerUnit,
+      null,
+      docks,
+    );
+    // The camera's strip is about 320 px wide on screen; the window is 640.
+    expect(laidOut.layoutWidth).toBeGreaterThan(squeezed.layoutWidth);
+    expect(laidOut.x + laidOut.width).toBeLessThanOrEqual(
+      shown.x + shown.width,
+    );
+    expect(laidOut.x).toBeGreaterThanOrEqual(shown.x);
+  });
+
+  it("is the camera itself before the canvas is measured", () => {
+    expect(shownCanvasView(camera(900, 744), null)).toEqual(camera(900, 744));
   });
 });
