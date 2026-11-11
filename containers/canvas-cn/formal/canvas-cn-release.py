@@ -355,16 +355,26 @@ def smoke(local, credentials, attempts=30, delay=2):
         ('/api/agent/mcp-manifest.json', None, lambda r, b: json.loads(b).get('version')),
         ('/api/project-sync/status', inbound, lambda r, b: json.loads(b).get('origin') == 'cn'),
     ]
-    for attempt in range(attempts):
+    # Keep the legacy attempts * delay startup budget, but sample readiness
+    # promptly rather than holding healthy requests for a full retry interval.
+    # urllib timeouts bound socket operations; late complete bodies still fail.
+    deadline = time.monotonic() + attempts * delay
+    while time.monotonic() < deadline:
         try:
             for path, token, ok in checks:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
                 headers = {'Authorization': 'Bearer ' + token} if token else {}
-                with opener.open(urllib.request.Request(local + path, headers=headers), timeout=20) as response:
-                    if response.status != 200 or not ok(response, response.read(1024 * 1024)):
+                with opener.open(urllib.request.Request(local + path, headers=headers), timeout=min(20, remaining)) as response:
+                    body = response.read(1024 * 1024)
+                    if time.monotonic() >= deadline:
+                        return False
+                    if response.status != 200 or not ok(response, body):
                         raise ValueError(path)
             return True
         except (OSError, ValueError, urllib.error.URLError):
-            time.sleep(delay)
+            time.sleep(min(.1, max(0, deadline - time.monotonic())))
     return False
 
 
