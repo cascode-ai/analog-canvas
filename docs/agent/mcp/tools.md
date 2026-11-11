@@ -170,6 +170,15 @@ model bodies and preserved statements are `inconclusive`, and unresolved
 statements always are (a type-only `.model nch nmos` is compared). Port
 directions, model internals and performance are not tested.
 
+`review_delivery` uses the comparator against the imported source. Differences
+identify the original file and line when available. Unread includes, model
+cards, parameters, analyses and import warnings go into `notes` without
+deciding `status`. Expression parameters compare by their text.
+If the review returns `REVIEW_WORKSPACE_REQUIRED`, confirm the intended
+workspace is active. For a Project without an imported netlist or for
+`REVIEW_SOURCE_UNAVAILABLE`, deliver the visual review and report that the
+source comparison and import-based completeness count are unavailable.
+
 ## Projects, files and Gallery
 
 Tool descriptions cover each action; these are the extra rules.
@@ -210,49 +219,6 @@ Tool descriptions cover each action; these are the extra rules.
 - `project_code` and `netlist_code` reads return the requested export plus
   each Cell in `cells`, so one broken Cell cannot hide another.
 
-`import_file` with `action:"open-local"`, `taskRef`, `rootPath` and
-`entryPath` opens a local Project, SPICE, Spectre or RNL-annotated netlist in
-Canvas Web. Choose the smallest local root containing the entry and its
-referenced files. Preserve paths relative to that root. The adapter follows
-local SPICE/Spectre includes and explicit RNL package paths. A transfer accepts
-up to 24 files and 10 MB. An unresolved dependency, a relative one outside the
-root, or an RNL package outside it stops delivery with its reference. An
-include named by an absolute, drive or URL path (a foundry's library, such as
-`include "/pdk/.../toplevel.scs" section=tt`) stays in the file as written and
-is neither read nor sent (`SPICE_SOURCE_INCLUDE_EXTERNAL`). A model whose card
-it holds keeps its name; give its device type in `modelTypes`
-(`{"nch_mac":"nmos","pch_mac":"pmos"}`; `nmos`, `pmos`, `npn`, `pnp` or
-`d`) instead of editing the files. A card the sources give decides, then an
-RNL drawing's symbol; `LOCAL_MODEL_TYPES_GIVEN` lists the types used. A
-Spectre MOS card the import does not convert (`bsim3v3`, `psp103`, …) draws
-its parts by its `type=`, unconverted (`SPICE_CONVERSION_MODEL_EXTERNAL`). A
-refusal keeps its error and recovery hint and also reports `timingMs` for the
-stages it ran.
-
-The load receipt names the task, session, workspace, Project and Cell. It
-reports the structure and Cell revisions, original-byte SHA-256 of each file,
-and the source version derived from the entry and sorted path/hash pairs.
-Delivered netlists retain original hashes in Project source records, including
-drawing packages. Converted fragments use `derived-sha256:` and stay out of
-the version. A native Project delivery uses the bytes of the Project file.
-`review_delivery` reports the original netlist source version from the Project.
-For a netlist delivery it matches the load receipt. Compare
-`source.drawing`, `source.electrical` and `source.diagnostics` separately.
-`electrical:"verified"` records an RNL import equivalence check against the
-structural source, independent of simulation. Parsed source positions refer
-to the converted representation when a native source was converted.
-
-RNL opens with Canvas appearance. Pass `rnlAppearance:"source"` to keep the
-authored appearance. Repeat the call with the same appearance to locate a
-matching open copy with its current edits. Both appearances report the same
-source version for identical bytes. To keep working in a tab opened before
-the appearance choice was available, reuse its workspace with `open_canvas`.
-`previousRevision:"recovered-snapshot"` refers to the browser's restored
-snapshot, and `"unconfirmed"` to a fresh import whose earlier working
-revision is unavailable. A foreground delivery binds the task to the returned
-`workspaceId`. Bind explicitly for a background delivery. `timingMs.transfer` estimates transport and
-staging overhead apart from the editor's measured import.
-
 `export_file` downloads a local artifact; its `warnings`, when present, say
 what the artifact leaves out (a PDF names characters no PDF font holds, which
 SVG and PNG keep). `import_file` staging validates a
@@ -270,74 +236,108 @@ bulk (resolve missing bulk first). Geometry is not arranged.
 `request-approval` is only for replacing the whole browser Project at the
 human's wish. After a Project switch, refresh status and context.
 
+### Import a local source
+
+`import_file` with `action:"open-local"`, `taskRef`, `rootPath` and
+`entryPath` opens a local Project or netlist in Canvas Web. Choose the smallest
+root containing the entry and its dependencies. Keep relative paths. The
+adapter follows local SPICE/Spectre includes and explicit drawing package paths.
+A transfer accepts up to 24 files and 10 MB. Missing dependencies or paths
+outside the root stop delivery with the reference. For drawing package errors
+or authored appearance, see
+[Review an RNL import](analog-canvas://reference/mcp-tools?section=Review%20an%20RNL%20import).
+
+An absolute, drive or URL include stays in the file and is neither read nor
+sent (`SPICE_SOURCE_INCLUDE_EXTERNAL`). Keep external model names and supply
+their device types in `modelTypes` (values `nmos`, `pmos`, `npn`, `pnp` or
+`d`). A supplied model card takes precedence, followed by the authored drawing
+symbol. `LOCAL_MODEL_TYPES_GIVEN` lists types used. A Spectre MOS card the
+importer cannot convert draws by its `type=` (`SPICE_CONVERSION_MODEL_EXTERNAL`).
+A refusal reports its error, recovery hint and `timingMs` for completed stages.
+
+The load receipt includes task, session, workspace, Project, Cell and revisions, plus
+original-byte SHA-256 hashes and a source version derived from the entry and
+sorted path/hash pairs. `review_delivery` reports the original netlist source
+version from the Project. For a netlist delivery it matches the load receipt.
+Source records retain original hashes including drawing
+packages. Converted fragments use `derived-sha256:` and stay out of the version.
+Native Projects use the Project file bytes. Parsed positions refer to the
+converted representation when the source was converted.
+
+A foreground delivery binds the task to the returned `workspaceId`. Bind
+explicitly for a background delivery. `previousRevision:"recovered-snapshot"`
+means a restored copy, and `"unconfirmed"` a fresh import with no confirmed
+earlier revision. `timingMs.transfer` separates transport and staging overhead
+from the editor's import time.
+
 ### From a netlist to a review
 
 #### Start a review
 
-Use `open_canvas` for a dedicated task. Keep its `taskRef` on subsequent calls.
-Use `import_file` with `action:"open-local"` and the source path to load the
-entry and dependencies; reuse the returned working copy. For source-root
-options or import diagnostics, read [Projects, files and Gallery](#projects-files-and-gallery).
+Use `import_file({action:"open-local",taskRef,rootPath,entryPath})` to open
+the entry and its dependencies. Reuse the returned working copy. For a root,
+dependency or model-mapping question, see [Import a local source](#import-a-local-source).
 
-Reuse usable Canvas or RNL geometry. For missing geometry or an explicit
-redraw, read [Draw a review](#draw-a-review). Check the render's critical
-connections, labels and pin landings before reporting it ready.
+Reuse usable imported geometry. For missing geometry or an explicit redraw,
+read [Draw a review](#draw-a-review).
+Read [Review an RNL import](#review-an-rnl-import) for an RNL import issue or a
+request for authored appearance.
 
-`review_delivery` reads the task's tab as it is now, whether a Web task, a
-trusted one or a tab paired by Claim. It takes no arguments, and Canvas keeps
-no review state:
+Check critical connections, labels, junctions and pin landings in the
+requested Cell with `render` or the requested image.
+Read `review_delivery({taskRef})` on the final revision (omit `taskRef` when
+paired by Claim). Report `delivery.source` entry and version,
+`delivery.incompleteCells` and `comparison` status, differences and notes.
+`unroutedConnections:null` means the import reference cannot count them.
+Comparison covers the whole design from the top Cell. Report reasons for
+`inconclusive` and flag truncated differences. For manual comparison, an
+unavailable source or interpreting differences, see
+[Comparing with a reference netlist](#comparing-with-a-reference-netlist).
 
-- `delivery.source`: entry and version of the netlist the Project was
-  imported from, which for a netlist delivery is the delivered version;
-- `delivery.incompleteCells`: Cells still missing a placed Instance or a
-  drawn connection the import gave (`unroutedConnections:null` where the
-  Cell's import reference is gone and cannot count them);
-- `comparison`: the whole design, from the top Cell, against that netlist
-  with verify's comparator. Differences give the original file and line; an
-  added Instance has none. Unread includes, model cards, parameters,
-  analyses and import warnings are listed in `notes` and do not decide
-  `status`; an expression parameter compares by its text. Report an
-  `inconclusive` result with its `reasons`, and truncated details.
-
-Default to Web: fit the requested Cell with `circuit_view` and return the
-existing task's location, source version and unresolved issues. Read
-[Review images and presentation changes](#review-images-and-presentation-changes)
-only for an image, presentation switch or recovery. Read
-[Review feedback and source changes](#review-feedback-and-source-changes)
-when the user gives feedback or requests a source edit.
-Simulation tools and guides are needed only for a requested simulation.
+Default to Web. Activate and fit the requested Cell with `circuit_view` and
+return the task's location. For an image or a presentation switch, read
+[Export a review image](#export-a-review-image).
+For comments or edits to the source, read
+[Review feedback and source changes](#review-feedback-and-source-changes).
 
 #### Draw a review
 
-Decide how to draw separately from how to present. Reuse a usable Canvas
-Project or the layout and routing from an existing RNL drawing. Check that
-known Cell Pins and Ground use native symbols and MOS bulk branches are
-dashed in Canvas appearance. Use source appearance when the user wants the
-authored styling. An explicit redraw calls for a new layout. For a local
-source, `open_canvas` and `import_file` `open-local` bring the exact entry and
-dependencies into the task; the user need not prepare a tab. For a plain
-netlist, inspect the imported Instances, models, terminals and Nets. Arrange
-the parts and read the authoring sections [Pin geometry and the normal path](../shared/authoring.md#pin-geometry-and-the-normal-path)
-and [Wiring](../shared/authoring.md#wiring): place tray
-Instances or adjust the initial layout, then route the missing connections.
-If the user asks for RNL or works in RNL files, author the drawing comments,
-validate them with upstream RNL tooling, then deliver the annotated entry
-with `open-local`. Keep the electrical lines and dependency files intact.
+Inspect imported Instances, models, terminals and Nets in Canvas. Place
+unplaced Instances or adjust the existing layout. Plan a new layout for a
+requested redraw. Read placed endpoints with `inspect` target `pins`, then
+wire missing connections in batches. Label critical Nets and use selective
+color to make crossing paths traceable. For route colors, use route IDs from
+the target Nets with `set_route_style_override`. Preserve device bindings and
+electrical connectivity.
 
-Check electrical correspondence and visual completeness separately. Compare
-with the [reference netlist](#comparing-with-a-reference-netlist) where the
-format is supported. Check the critical connections, labels and pin landings
-in the drawing. Report unresolved mappings, missing geometry and any
-inconclusive comparison. Do not substitute devices or change the circuit to
-make an image render. A clean image is not an electrical check.
+Use native Cell Pins and Ground symbols and dashed MOS bulk branches in
+Canvas appearance. Consult [Pin geometry and the normal path](../shared/authoring.md#pin-geometry-and-the-normal-path)
+for an unfamiliar placement or pin, and [Wiring](../shared/authoring.md#wiring)
+for a routing or label detail.
 
-With MCP, read `analog-canvas://reference/authoring?section=Wiring` and
-use the same exact-heading selector for pin geometry. Read other sections
-only for the relevant device or operation, such as MOS bodies or Cell Pins.
+#### Review an RNL import
+
+The import receipt identifies an RNL source with `source.format:"rnl"`.
+Check `source.drawing`, `source.electrical` and `source.diagnostics`
+separately. `electrical:"verified"` records structural import equivalence.
+Inspect the drawing and run the usual review check for missing geometry.
+
+Canvas appearance is the default. Use `rnlAppearance:"source"` when the user
+requests the authored appearance. Repeating the import with the same
+appearance locates the existing working copy. Both appearances use the same
+version for identical bytes. To keep a tab opened before the appearance choice
+was available, reuse its workspace with `open_canvas({taskRef})`.
+If a package is missing or outside the root, see [Import a local source](#import-a-local-source)
+and use the package reference in the diagnostic.
+
+Use an RNL authoring or validation guide when the user requests RNL output,
+edits to RNL records, RNL validation or RNL-specific diagnosis. A Canvas
+review of an existing imported drawing uses the Canvas workflow.
 
 #### Review feedback and source changes
 
-Write changes back to the source files yourself. To check the revised text,
+When the user requests a source edit, write changes to the source files. To
+check the revised text,
 compare it with Canvas's netlist (`netlist_code` read) or, for structural
 SPICE, pass it to `verify` as `expectedNetlist`. A repeat `open-local` with
 the same source and appearance returns the existing copy with its edits.
@@ -353,6 +353,12 @@ available. Use `circuit_view` with an object ID to show it.
 
 #### Review images and presentation changes
 
+See [Export a review image](#export-a-review-image) for an image or a switch
+between image and Web presentations. For a stale or restored copy, see
+[Recover a review task](../mcp-quickstart.md#recover-a-review-task).
+
+#### Export a review image
+
 - For a chat image, use `export_file` with `artifact:"png"`,
   `includeReview:true`, the Cell's `documentId` and a local `outputPath`,
   and show the resulting image. Use a new path for each revision and crop. Canvas
@@ -365,20 +371,18 @@ available. Use `circuit_view` with an object ID to show it.
   receipt's `projectId`, `workspaceId`, `workspaceGeneration`, `documentId`,
   `structureRevision`, `revision` and `sourceVersion` (when
   present) as `expected` to export the same revision.
-- For Web, reuse `open_canvas({taskRef})` and wait for `projectRead:"ready"`.
-  Activate the recorded workspace if needed, then use `circuit_view` to open
-  the Cell and fit or select the requested objects. Confirm with
+- For Web with an image or a switch back to Web, use the active task. Reuse
+  `open_canvas({taskRef})` if the tab needs reopening and wait for
+  `projectRead:"ready"`. Activate the recorded workspace if needed, then
+  use `circuit_view` to open and fit the Cell. Confirm the image's revision with
   `project_cells({taskRef,action:"workspace",request:{action:"list",includeReview:true}})`:
   compare the active workspace, its Project and structure revision, and
   its `review` generation, active Cell and source version with the picture
   receipt. Compare that Cell's revision in `cells`. If the list cannot confirm
-  these fields, do not claim it shows the same revision. Switching presentation
-  does not reimport or redraw.
-- After a human edit, a request for the old image revision returns
-  `REVIEW_TARGET_CHANGED`. Read the live revision, label the change and export
-  the current image. A restored working copy has a new `workspaceGeneration`;
-  read its current state and label the recovery. Do not present a cached
-  image as current when the live Canvas cannot be confirmed.
+  these fields, do not claim it shows the same revision. Use the existing
+  working copy for a presentation change. For image-only delivery, return
+  the image. For `REVIEW_TARGET_CHANGED` or a restored workspace, see
+  [Recover a review task](../mcp-quickstart.md#recover-a-review-task).
 
 ## Timing and batch CLI
 

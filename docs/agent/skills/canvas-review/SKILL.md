@@ -1,27 +1,26 @@
 ---
 name: canvas-review
-description: Open a local netlist or Canvas Project for review in Analog Canvas. Use for an explicit Canvas review request with a source path and an optional Cell and Web or image preference.
+description: Review a local netlist, pasted netlist or Canvas Project in Analog Canvas.
 disable-model-invocation: true
 ---
 
-Use the Analog Canvas MCP registered for the user's editor origin. Read
-`analog-canvas://reference/quickstart?section=Connect` and
+Use the Analog Canvas MCP for the user's editor origin. For a dedicated task,
+read `analog-canvas://reference/quickstart?section=Open%20a%20review%20task`.
+For a supplied Claim or an older adapter without that section, read
+`analog-canvas://reference/quickstart?section=Connect`. For the review, read
 `analog-canvas://reference/mcp-tools?section=Start%20a%20review`.
-Read linked sections only when their task branch applies; use the MCP
-`section` selector with the exact heading title instead of the whole manual. Use their current tool
-arguments, task rules and delivery receipts.
+Read linked sections by exact heading only when their branch applies.
 
-Take the source path, Cell and presentation from the request. If the source
-is missing, ask for it. Default to Web when the user does not specify a
-presentation. When the user only wants an image, show the exported image and
-skip the Web hand-off. Follow the guide to open the task, import the source
-and choose the drawing path.
+Use the given source path or stage pasted netlist text in a scratch file.
+Ask for a source if none was supplied. Draw plain netlists in Canvas and reuse
+usable imported drawings. An existing RNL drawing is reviewed in Canvas.
+Use the RNL Skill only for requested RNL output, edits, validation or
+RNL-specific diagnosis.
 
-When a trusted task answers `TRUSTED_TASK_LOCAL_ONLY`, tell the user what it
-needed and take the quickstart's next step; do not retry the call in that
-task.
+For `TRUSTED_TASK_LOCAL_ONLY`, follow the quickstart's recovery branch without
+retrying the call in that task.
 
-Before reporting the drawing ready, read `review_delivery` and report its
-source version, incomplete Cells, comparison status, differences and notes.
-Return the Web location or requested image and any unresolved issues. Change
-the source files, save or publish only at the user's request.
+Check the requested Cell's rendering and read `review_delivery` before
+reporting the source version, incomplete Cells, comparison status, differences,
+notes and unresolved issues. Default to Web. For image-only delivery, show
+the image. Change source files, save or publish only at the user's request.

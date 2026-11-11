@@ -50,7 +50,7 @@ run updates a copy the installer wrote; a Skill it did not write, or one
 edited since, stays and the installer stops with `SKILL_PATH_OCCUPIED`. The
 MCP registration is per site and the Skill can use any matching registration.
 Invoke `$canvas-review` in Codex (or pick it through `/skills` in Codex CLI)
-or `/canvas-review` in Claude Code. Include the source path and, optionally,
+or `/canvas-review` in Claude Code. Supply a source path or paste the netlist. Optionally include
 the Cell and Web or image preference. Plain-language requests continue to use
 the same MCP workflow.
 
