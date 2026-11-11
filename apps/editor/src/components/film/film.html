@@ -1181,7 +1181,7 @@
 
           <div class="veil" id="veil"></div>
           <div class="big" id="big">
-            <div class="num"><span id="num">0</span><b>+</b></div>
+            <div class="num"><span id="num">7,000</span><b>+</b></div>
             <div class="lab">circuits in the Gallery</div>
             <div class="sub">
               Schematics paired with netlists, drawn by people, by AI, and from
@@ -2155,13 +2155,23 @@
             agCard.setAttribute("opacity", v);
           },
         );
+        // The count climbs in round thousands, slowing as it arrives, so every
+        // frame of it reads as a true "N,000+".
+        const COUNT = Array.from(
+          { length: D.total / 1000 },
+          (_, k) =>
+            TL.count[0] +
+            (TL.count[1] - TL.count[0]) *
+              Math.pow(k / (D.total / 1000 - 1), 1.6),
+        );
         K(
           [
-            [TL.count[0], 0],
-            [TL.count[1], D.total, ez.expo],
+            [TL.count[0], TL.count[0]],
+            [TL.count[1], TL.count[1], ez.lin],
           ],
-          (v) => {
-            $("#num").textContent = Math.round(v).toLocaleString("en-US");
+          (t) => {
+            const thousands = Math.max(1, COUNT.filter((at) => at <= t).length);
+            $("#num").textContent = (thousands * 1000).toLocaleString("en-US");
           },
         );
 
@@ -2210,7 +2220,7 @@
         show($("#verdict"), TL.rvOk, 1e9);
         show($("#veil"), ...TL.big);
         show($("#big"), TL.big[0] + 0.15, TL.big[1]);
-        show($("#big"), TL.count[1] - 0.12, 1e9, "plus");
+        show($("#big"), TL.count[0], 1e9, "plus");
         show($("#p-log"), ...TL.log);
         show($("#l0"), TL.log[0] + 0.25, 1e9);
         show($("#l0"), TL.place[0], 1e9, "done");
@@ -3027,11 +3037,17 @@
           gliss(g, at, 3, 12, TL.fly[1] - TL.fly[0], 0.03),
         );
         ev(TL.fly[1], (g, at) => celesta(g, at, 86, 0.055));
-        for (let i = 0; i < 15; i++)
-          ev(
-            TL.count[0] + (TL.count[1] - TL.count[0]) * Math.pow(i / 15, 1.6),
-            (g, at) => pizz(g, at, step(i) + 12, 0.045),
-          );
+        // One plucked note a thousand, up the D major chord.
+        COUNT.forEach((t, k) =>
+          ev(t, (g, at) =>
+            pizz(
+              g,
+              at,
+              step([0, 2, 4][k % 3] + 7 * Math.floor(k / 3)) + 12,
+              0.045,
+            ),
+          ),
+        );
         ev(TL.count[1], (g, at) => celesta(g, at, 98, 0.07));
         ev(36.1, (g, at) => celesta(g, at, 81, 0.04));
         ev(36.9, (g, at) => celesta(g, at, 86, 0.04));
