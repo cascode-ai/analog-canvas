@@ -93,39 +93,6 @@ function installCommand(
   return `${installer} --install --origin ${JSON.stringify(origin)} --host ${host}`;
 }
 
-export function codexSiteArchiveSetup(
-  origin: string,
-  manifest: AgentMcpBootstrapManifest,
-): AgentMcpBootstrapManifest["hosts"]["codex"] | undefined {
-  const version = manifest?.version;
-  const sha256 = manifest?.distribution?.sha256;
-  const downloadUrl = `${origin}/downloads/mcp/analog-canvas-mcp-server-${version}.tgz`;
-  if (
-    manifest?.format !== AGENT_MCP_BOOTSTRAP_FORMAT ||
-    manifest.installation?.available !== true ||
-    typeof version !== "string" ||
-    !/^\d+\.\d+\.\d+$/u.test(version) ||
-    typeof sha256 !== "string" ||
-    !/^[a-f0-9]{64}$/u.test(sha256) ||
-    manifest.name !== agentMcpServerName(origin) ||
-    manifest.distribution.downloadUrl !== downloadUrl
-  )
-    return;
-  // Only copy commands built for the origin serving this editor.
-  const command = installCommand(
-    verifiedArchiveInstaller(downloadUrl, sha256),
-    origin,
-    "codex",
-  );
-  const reviewCommand = withReviewSkill(command);
-  return {
-    command,
-    ...(manifest.hosts?.codex?.reviewCommand === reviewCommand
-      ? { reviewCommand }
-      : {}),
-  };
-}
-
 export function agentMcpBootstrapManifest(
   publicOrigin: string,
   serveReleaseArchive = false,

@@ -13,7 +13,7 @@ use the authorized raw HTTP path under the [connection rules](shared/session.md#
 Check the Node that will launch the adapter before downloading/executing it.
 If it is absent or below the manifest requirement, use raw HTTP without
 upgrading the system runtime. The generic installation command returns a local
-launch object; select `hosts.codex` only for a confirmed Codex host. Other
+launch object. Use `hosts.codex.command` for a confirmed Codex host. Other
 hosts use their documented registration boundary, preserving unrelated settings.
 
 When `installation.available` is true, follow its verified installation: check
@@ -42,9 +42,8 @@ launch configuration; never infer flags from another version or assume an old
 package has the installer.
 
 The optional `canvas-review` Skill installs with MCP in one command on a site
-serving the verified archive: `hosts.codex.reviewCommand` for Codex (in the
-web editor, **Agent → Codex setup** → **Include the Canvas review shortcut**)
-and `hosts.claudeCode.reviewCommand` for Claude Code. It goes under
+serving the verified archive. Use `hosts.codex.reviewCommand` for Codex and
+`hosts.claudeCode.reviewCommand` for Claude Code. It goes under
 `~/.agents/skills/canvas-review` or `~/.claude/skills/canvas-review`. A later
 run updates a copy the installer wrote; a Skill it did not write, or one
 edited since, stays and the installer stops with `SKILL_PATH_OCCUPIED`. The

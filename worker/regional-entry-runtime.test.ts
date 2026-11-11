@@ -1,5 +1,4 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { codexSiteArchiveSetup } from "@icm/agent-adapter";
 import distribution from "../config/agent-mcp-distribution.json" with { type: "json" };
 import canvas from "./index";
 import * as regionalModule from "./regional-entry";
@@ -47,20 +46,16 @@ it("advertises the verified release archive from the regional editor origin", as
   expect(manifest.installation.command).toMatch(/^node /u);
   expect(manifest.installation.command).toContain(downloadUrl);
   expect(manifest.installation.command).toContain(distribution.release.sha256);
-  expect(manifest.hosts.codex.command).toContain(downloadUrl);
-  expect(codexSiteArchiveSetup(origin, manifest)).toEqual(manifest.hosts.codex);
-  expect(
-    codexSiteArchiveSetup("https://another-editor.example", manifest),
-  ).toBeUndefined();
-  const forged = {
-    ...manifest,
-    hosts: {
-      codex: { command: "foreign command", reviewCommand: "foreign shortcut" },
-    },
-  };
-  expect(codexSiteArchiveSetup(origin, forged)).toEqual({
-    command: manifest.hosts.codex.command,
-  });
+  const codexCommand = manifest.hosts.codex.command;
+  expect(codexCommand).toMatch(/^node /u);
+  expect(codexCommand).toContain(downloadUrl);
+  expect(codexCommand).toContain(distribution.release.sha256);
+  expect(codexCommand).toContain(
+    `--install --origin ${JSON.stringify(origin)} --host codex`,
+  );
+  expect(manifest.hosts.codex.reviewCommand).toBe(
+    `${codexCommand} --skill canvas-review`,
+  );
 });
 
 it("exports only entrypoints workerd accepts: the handler and classes", () => {

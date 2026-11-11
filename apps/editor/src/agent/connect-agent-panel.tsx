@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AgentSessionScope } from "@icm/agent-adapter";
 import type { ConnectionOperationKind } from "./connection-operation";
 import { claimNow } from "./claim-clock";
-import { CodexInstallOptions } from "./codex-install-options";
 
 /** Browser authorization hand-off and compact Properties status controls. */
 
@@ -384,7 +383,6 @@ export function ConnectAgentPanel(props: ConnectAgentPanelProps): ReactNode {
           </p>
         ) : null}
 
-        <CodexInstallOptions />
         <ClaimHandOff
           {...props}
           now={clock}
