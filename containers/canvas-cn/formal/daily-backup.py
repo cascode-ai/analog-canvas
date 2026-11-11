@@ -23,18 +23,23 @@ def daily(host=None):
         host.capture(serving)
         host.systemctl('start', 'canvas-cn-formal.service')
         stopped = False
-        if not release.smoke('http://127.0.0.1:8792', credentials, attempts=3, delay=.1):
+        if not release.smoke('http://127.0.0.1:8792', credentials):
             raise RuntimeError('backup-runtime-not-ready')
         host.resume()
         held = False
+        host.resume_background()
         host.finish_backup()
     finally:
-        if stopped:
-            host.systemctl('start', 'canvas-cn-formal.service')
-        if held and release.smoke('http://127.0.0.1:8792', credentials, attempts=3, delay=.1):
-            host.resume()
-        host.discard_backup()
-        host.resume_background()
+        try:
+            if stopped:
+                host.systemctl('start', 'canvas-cn-formal.service')
+            if held and release.smoke('http://127.0.0.1:8792', credentials):
+                host.resume()
+        finally:
+            try:
+                host.discard_backup()
+            finally:
+                host.resume_background()
 
 
 if __name__ == '__main__':
