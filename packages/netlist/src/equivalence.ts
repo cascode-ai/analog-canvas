@@ -91,7 +91,12 @@ function parameters(values: DesignNetlistParameter[]): string {
         // References inside behavioral expressions cannot be renamed as strings.
         if (/(?:\b[vi]\s*\(|@)/iu.test(rawValue))
           throw new Error("Behavioral references need manual comparison");
-        const number = numericValue(rawValue);
+        // A number in braces is that number: SPICE writes `{20u}` where
+        // Spectre, which has no braces, writes `20u`.
+        const braced = /^\{([^{}]*)\}$/u.exec(rawValue.trim())?.[1];
+        const number =
+          numericValue(rawValue) ??
+          (braced === undefined ? null : numericValue(braced.trim()));
         return [
           name,
           number !== null ? ["number", number] : ["text", rawValue.trim()],

@@ -264,6 +264,41 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "keeps a Cell's parameter default written in braces the same circuit through %s+RNL, which Spectre prints bare",
+  async (format) => {
+    const project = createEmptyProject("braced", "Braced default", "dut");
+    const dut = project.documents[0]!;
+    dut.netlist = {
+      name: "dut",
+      formalParameters: [{ name: "P_R1", defaultValue: "{20k}" }],
+      terminals: [],
+    };
+    dut.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "{P_R1}" },
+      },
+    });
+    for (const pinName of ["1", "2"])
+      dut.noConnects.push({
+        id: `nc-${pinName}`,
+        endpoint: { kind: "terminal", instanceId: "R1", pinName },
+      });
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const before = projectElectricalGraph(project);
+    const after = projectElectricalGraph(plan.project);
+    if (before.status !== "ready" || after.status !== "ready")
+      throw Error("graph was not ready");
+    expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
+  },
+);
+
 /**
  * Library blocks X1, X2… in Cell `dut`, by default a D flip-flop and a DAC,
  * each pin wired straight across to a Cell Pin level with it: blocks a
