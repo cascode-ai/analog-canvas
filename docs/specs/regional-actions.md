@@ -4,7 +4,7 @@ Status: `accepted`
 
 Primary owner: Gallery, Component Library, Auth and regional replication.
 This is the required behavior. The opt-in command route covers Community Gallery withdrawal, restoration,
-deletion, curation and name/description edits, plus User Component save/status and Community/Dataset review resolution. The other actions and
+deletion, curation and name/description edits, plus drawing updates/fixes/takeover, references, version restore, rejection, Dataset imports/comparisons, User Component save/status and Community/Dataset review resolution. The other actions and
 additional replication scopes below remain to be delivered. Per-entry opens use
 the region components in [regional publications](regional-resources.md).
 
@@ -16,6 +16,9 @@ the region components in [regional publications](regional-resources.md).
 - AUTH issues a 60-second opaque capability bound to one command digest and its
   destination. Redemption revalidates the original session or regional grant,
   including its current subject. A session change invalidates the capability.
+  Dataset import alone also accepts an Owner token: AUTH revalidates the current
+  token and Owner role before issuing and redeeming the bounded capability. The
+  publication peer never receives the original Owner token.
 - The writer commits the mutation and its per-account command receipt together. Keep at most 10,000 receipts per account; exhaustion refuses new
   commands before mutation. Receipts are retained with the writer's backups;
   do not discard them during rollback or reset an identity to bypass the limit.
@@ -39,6 +42,28 @@ the region components in [regional publications](regional-resources.md).
   Without an explicit command ID, derive one from the actor, resource, operation
   and validated revision-bound input. A repeated request reconciles its receipt;
   a later revision reports supersession without reapplying the old write.
+- Drawing updates/fixes/AI takeover, version restores, reference replacement/removal,
+  rejection and Dataset imports/comparisons rerun the existing route's validation
+  at the publication writer. The writer records the successful store result in the
+  same transaction as the publication and any colocated private Project binding.
+  A retry compares publication state and Project links before acknowledging it;
+  a changed link or superseded publication is a conflict, never a repeated edit.
+  These routes derive a deterministic payload-bound ID for older callers; an
+  explicit new intent ID is needed to repeat the same payload after later changes.
+- Dataset batches keep the existing per-item result shape. Each of at most ten
+  items has its own writer and receipt; a failed or pending item is reported as
+  such, while other items may succeed. A single publication command is bounded
+  to 3 MiB. Unsupported Dataset routes retain their original restrictions.
+- A foreign Community drawing update first catches up the private Project stream
+  at its writer, then commits publication and binding together. Its entrance catches
+  up both ordered streams before success and compares the resulting links. Each
+  catch-up is bounded to 64 events and 20 seconds. Conflicted private saves are
+  retained under the Project conflict protocol, not overwritten by publication.
+- Optional rejection email uses a durable delivery ID and frozen provider payload.
+  Confirmed delivery is never resent. An uncertain send may retry the same provider
+  idempotency key for at most 23 hours (inside its 24-hour retention); after that it
+  remains unconfirmed rather than risking duplicate mail. Sent payload bytes are
+  discarded; expired pending payloads are cleared on subsequent delivery attempts.
 - After foreign commit, the entrance catches up in cursor order, bounded to 64
   receipts and 20 seconds. An unconfirmed reply or pending propagation remains a
   retry with the same command ID, never a successful local read of stale state.

@@ -12,14 +12,35 @@ import { routeComponentLibraryRequest } from "./component-library";
 import { routeGalleryRequest } from "./gallery";
 import { routeResourceSync } from "./resource-sync";
 import { routeRegionalResourceActions } from "./regional-resource-actions";
-export async function pair() {
+import { routeProjectSync } from "./project-sync";
+import { routeCloudProjects } from "./gallery-cloud-projects";
+export async function pair(options: { projects?: boolean } = {}) {
   const auth = accounts();
   const cookie = await makerOf(auth.source);
   const cnCookie = await auth.connect(cookie);
+  const { user } = await (
+    await auth.source.authDurable.fetch(
+      new Request(ORIGIN + "/api/auth/me", { headers: { cookie } }),
+    )
+  ).json();
   const make = (region: "cn" | "overseas") => {
     const state = sqliteState();
     const env = {
       ...(region === "cn" ? auth.resources : auth.source),
+      ...(options.projects
+        ? {
+            PROJECT_REGION: region,
+            PROJECT_REGION_USERS: JSON.stringify([user.id]),
+            PROJECT_WRITES_ENABLED: "true",
+            PROJECTS_STORE_NAME: "gallery" as const,
+            PROJECT_SYNC_TOKEN:
+              region === "cn" ? "cn-projects" : "source-projects",
+            PROJECT_SYNC_PEER_TOKEN:
+              region === "cn" ? "source-projects" : "cn-projects",
+            PROJECT_SYNC_PEER_URL:
+              region === "cn" ? transportOrigin : "https://china.test",
+          }
+        : {}),
       RESOURCE_REGION: region,
       RESOURCE_WRITES_ENABLED: "true",
       RESOURCE_ACTION_PEER:
@@ -62,9 +83,12 @@ export async function pair() {
           })(),
       }),
     };
+    if (options.projects) Object.assign(env, { PROJECTS: env.GALLERY });
     const route = async (request: Request): Promise<Response> =>
       (await routeRegionalResourceActions(request, env)) ??
       (await routeResourceSync(request, env)) ??
+      (await routeProjectSync(request, env)) ??
+      (await routeCloudProjects(request, env, new URL(request.url))) ??
       (await routeGalleryRequest(request, env)) ??
       (await routeComponentLibraryRequest(request, {
         ...env,
@@ -142,7 +166,7 @@ export async function pair() {
       return response;
     },
   );
-  const publish = async (site: typeof cn) => {
+  const publish = async (site: typeof cn, publishingCookie?: string) => {
     const response = await site.route(
       submissionRequest(
         {
@@ -150,7 +174,7 @@ export async function pair() {
           projectText: wiredProjectText(),
           tags: [],
         },
-        { cookie: site === cn ? cnCookie : cookie },
+        { cookie: publishingCookie ?? (site === cn ? cnCookie : cookie) },
       ),
     );
     expect(response.status).toBe(201);

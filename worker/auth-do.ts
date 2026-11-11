@@ -1,3 +1,4 @@
+import { deliverRejection } from "./rejection-delivery";
 // Gallery accounts and sign-in (roadmap phase G2), dark-shipped.
 //
 // One AuthDO singleton owns users and sessions behind `/api/auth/*`:
@@ -2063,4 +2064,3 @@ export class AuthDO {
     return response;
   }
 }
-import { deliverRejection } from "./rejection-delivery";

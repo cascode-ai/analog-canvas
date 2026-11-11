@@ -1,4 +1,8 @@
 import {
+  catchUpPublicationProjects,
+  publicationProjectHead,
+} from "./publication-project-catchup";
+import {
   sessionUserOf,
   ownerTokenUserOf,
   hasBearer,
@@ -82,9 +86,17 @@ export async function executeRegionalPublicationCommand(
     commandId: command.commandId,
     binding: await digest(JSON.stringify(command)),
     entryId: command.entryId,
+    ...(typeof (command.body as { cloudProjectId?: unknown } | null)
+      ?.cloudProjectId === "string"
+      ? {
+          projectId: (command.body as { cloudProjectId: string })
+            .cloudProjectId,
+        }
+      : {}),
   };
   const original = env.GALLERY;
-  let witness: string | null = null;
+  let witness: string | null = null,
+    projectWitness: string | null = null;
   const authenticated = {
     ...env,
     AUTH: {
@@ -126,6 +138,9 @@ export async function executeRegionalPublicationCommand(
               body: JSON.stringify({ ...body, publicationReceipt: receipt }),
             });
             witness = response.headers.get("x-canvas-publication-state");
+            projectWitness = response.headers.get(
+              "x-canvas-publication-project-state",
+            );
             return response;
           }
           return original.getByName(name).fetch(input, init);
@@ -148,6 +163,8 @@ export async function executeRegionalPublicationCommand(
       authenticated,
     )) ?? fail("not-found", 404);
   if (witness) response.headers.set("x-canvas-publication-state", witness);
+  if (projectWitness)
+    response.headers.set("x-canvas-publication-project-state", projectWitness);
   return response;
 }
 
@@ -311,6 +328,16 @@ export async function routeRegionalPublicationActions(
     if (!incoming) command.target = origin;
     if (incoming || origin === env.RESOURCE_REGION) {
       if (origin !== env.RESOURCE_REGION) return fail("wrong-writer", 409);
+      const bindingMutation =
+        !source &&
+        command.method === "PUT" &&
+        !command.path.includes("/reference");
+      if (
+        incoming &&
+        bindingMutation &&
+        !(await catchUpPublicationProjects(env))
+      )
+        return fail("project-propagation-pending", 503);
       const response = await executeRegionalPublicationCommand(
         request,
         env,
@@ -332,8 +359,12 @@ export async function routeRegionalPublicationActions(
         result: await response.json(),
         status: response.status,
         state,
+        projectState: response.headers.get(
+          "x-canvas-publication-project-state",
+        ),
         epoch: head.epoch,
         sequence: head.sequence,
+        projectHead: bindingMutation ? await publicationProjectHead(env) : null,
       });
     }
     const authorized = await auth("authorize", {
@@ -362,8 +393,10 @@ export async function routeRegionalPublicationActions(
     const result = (await readSyncJson(response, MAX)) as {
       result: unknown;
       uncommitted?: boolean;
+      projectHead?: { epoch: string; sequence: number } | null;
       status: number;
       state: string;
+      projectState: string;
       epoch: string;
       sequence: number;
     };
@@ -393,8 +426,25 @@ export async function routeRegionalPublicationActions(
         .state !== result.state
     )
       return fail("action-superseded", 409);
+    if (
+      result.projectHead &&
+      !(await catchUpPublicationProjects(env, result.projectHead))
+    )
+      return fail("project-propagation-pending", 503);
+    const bindings = await (
+      await call("publication-state", {
+        id: command.entryId,
+        projectId: (command.body as { cloudProjectId?: unknown } | null)
+          ?.cloudProjectId,
+      })
+    ).json();
+    if (bindings.projectState !== result.projectState)
+      return fail("publication-link-conflict", 409);
     return answer(result.result, result.status);
-  } catch {
+  } catch (error) {
+    if (!incoming && error instanceof RangeError) return fail("too-large", 413);
+    if (!incoming && error instanceof SyntaxError)
+      return fail("invalid-fields", 400);
     return fail(
       committed ? "action-propagation-pending" : "action-unconfirmed",
       503,

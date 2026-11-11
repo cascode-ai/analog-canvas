@@ -525,22 +525,43 @@ export class RegionalProjectDO {
     operation: "submit" | "replace-entry",
     body: Record<string, unknown>,
   ): Response {
-    const expansion = projectExpansion(this.env.PROJECT_SYNC_EXPANSION);
-    const users = projectRegionUsers(this.env.PROJECT_REGION_USERS, expansion);
-    if (
-      expansion !== "off" &&
-      this.env.PROJECT_REGION === "overseas" &&
-      !this.baselineInstalled
-    ) {
-      installProjectBaseline(this.sql, expansion === "copy" ? users : null);
-      this.baselineInstalled = true;
+    try {
+      const expansion = projectExpansion(this.env.PROJECT_SYNC_EXPANSION);
+      const users = projectRegionUsers(
+        this.env.PROJECT_REGION_USERS,
+        expansion,
+      );
+      if (
+        expansion !== "off" &&
+        this.env.PROJECT_REGION === "overseas" &&
+        !this.baselineInstalled
+      ) {
+        // Installation participates in the caller's transaction. Do not flip the
+        // in-memory flag before that outer transaction has actually committed.
+        installProjectBaseline(this.sql, expansion === "copy" ? users : null);
+      }
+      return this.publish(
+        operation,
+        body,
+        users,
+        protectedProjectIds(this.env.PROJECT_PROTECTED_IDS),
+      );
+    } catch (error) {
+      if (error instanceof ProjectWriteRefused) return error.response;
+      if (error instanceof ProjectSyncCapacityError)
+        return Response.json(
+          { error: "replication-capacity" },
+          { status: 507 },
+        );
+      if (error instanceof ProjectSyncFenceError)
+        return Response.json({ error: "restore-fenced" }, { status: 503 });
+      if (error instanceof ProjectBaselineConflict)
+        return Response.json(
+          { error: "baseline-owner-conflict" },
+          { status: 409 },
+        );
+      throw error;
     }
-    return this.publish(
-      operation,
-      body,
-      users,
-      protectedProjectIds(this.env.PROJECT_PROTECTED_IDS),
-    );
   }
 
   /** Gallery and its affected private bindings commit with their journal entries. */

@@ -1,6 +1,7 @@
 import {
   publicationCommand,
   publicationFingerprint,
+  publicationProjectBindings,
   type PublicationReceipt,
 } from "./gallery-publication-command";
 // Community example gallery: publish-first with an admin recycle bin.
@@ -650,6 +651,11 @@ export class GalleryDO {
       case "publication-state":
         return Response.json({
           state: publicationFingerprint(this.sql, String(body.id)),
+          projectState: publicationProjectBindings(
+            this.sql,
+            String(body.id),
+            typeof body.projectId === "string" ? body.projectId : undefined,
+          ),
         });
       case "review-command":
       case "review-command-state":

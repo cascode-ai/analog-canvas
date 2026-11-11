@@ -12,6 +12,10 @@ export async function deliverRejection(
   sql.exec(`CREATE TABLE IF NOT EXISTS gallery_rejection_deliveries (
     id TEXT PRIMARY KEY, payload TEXT NOT NULL, first_attempt INTEGER NOT NULL, sent INTEGER NOT NULL DEFAULT 0)`);
   sql.exec(
+    "UPDATE gallery_rejection_deliveries SET payload='' WHERE first_attempt<=?",
+    now - 23 * 60 * 60 * 1000,
+  );
+  sql.exec(
     "INSERT OR IGNORE INTO gallery_rejection_deliveries (id,payload,first_attempt) VALUES (?,?,?)",
     id,
     JSON.stringify(notice),
@@ -30,6 +34,9 @@ export async function deliverRejection(
     "gallery-rejection/" + id,
   );
   if (sent)
-    sql.exec("UPDATE gallery_rejection_deliveries SET sent=1 WHERE id=?", id);
+    sql.exec(
+      "UPDATE gallery_rejection_deliveries SET sent=1,payload='' WHERE id=?",
+      id,
+    );
   return sent;
 }

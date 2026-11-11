@@ -1,7 +1,10 @@
+import { AI_SEATS } from "./auth";
 import { afterEach, expect, it, vi } from "vitest";
 import { pair } from "./regional-resource-actions.test-support";
 import {
   wiredProjectText,
+  saveRequest,
+  seatOf,
   signIn,
   adminOf,
   ownerAccountOf,
@@ -421,4 +424,168 @@ it("reimports foreign Dataset items and their comparisons with per-item retry re
     }),
   );
   expect((await bearerImport()).status).toBe(401);
+});
+
+it("commits a foreign drawing and its local Cloud Project binding together before reporting success", async () => {
+  const { cn, overseas, publish, cookie, cnCookie, loseNextReply } = await pair(
+    { projects: true },
+  );
+  const id = await publish(overseas);
+  const saved = await overseas.route(saveRequest(cookie, "Private draft"));
+  expect(saved.status, await saved.clone().text()).toBe(201);
+  const draft = (await saved.json()).project;
+  const event = await overseas.env.GALLERY.getByName("gallery").fetch(
+    "https://projects/sync-events",
+    { method: "POST", body: JSON.stringify({ after: 0 }) },
+  );
+  for (const item of (await event.json()).events)
+    expect(
+      (
+        await cn.route(
+          new Request(ORIGIN + "/api/project-sync/events", {
+            method: "POST",
+            headers: { authorization: "Bearer cn-projects" },
+            body: JSON.stringify({ event: item }),
+          }),
+        )
+      ).status,
+    ).toBe(200);
+  const open = async (site: typeof cn) =>
+    (await (await site.call("/api/projects/" + draft.id)).json()).project;
+  const before = await open(cn);
+  // The domestic editor changes its private draft before publishing it abroad.
+  const update = await cn.route(
+    new Request(ORIGIN + "/api/projects/" + draft.id, {
+      method: "PUT",
+      headers: {
+        origin: ORIGIN,
+        cookie: cnCookie,
+        "if-match": before.saveToken,
+      },
+      body: JSON.stringify({
+        name: "Domestic private draft",
+        projectText: wiredProjectText("Private changed"),
+      }),
+    }),
+  );
+  expect(update.status, await update.clone().text()).toBe(200);
+  const body = {
+    name: "Published draft",
+    description: "",
+    tags: [],
+    projectText: wiredProjectText("Published drawing"),
+    cloudProjectId: draft.id,
+    expectedGalleryEntryId: null,
+  };
+  loseNextReply();
+  expect(
+    (await cn.call("/api/gallery/" + id, "PUT", "bind-draft", body)).status,
+  ).toBe(503);
+  const result = await cn.call("/api/gallery/" + id, "PUT", "bind-draft", body);
+  expect(result.status, await result.clone().text()).toBe(200);
+  expect(await open(cn)).toMatchObject({
+    name: "Domestic private draft",
+    galleryEntryId: id,
+  });
+  expect(await open(overseas)).toMatchObject({
+    name: "Domestic private draft",
+    galleryEntryId: id,
+  });
+  expect(
+    (await (await overseas.call("/api/gallery/" + id + "/versions")).json())
+      .versions,
+  ).toHaveLength(1);
+  // Another publication intentionally moves the draft binding. The old command cannot claim its binding still exists.
+  const other = await publish(overseas);
+  expect(
+    (
+      await cn.call("/api/gallery/" + other, "PUT", "move-binding", {
+        ...body,
+        expectedGalleryEntryId: id,
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (await cn.call("/api/gallery/" + id, "PUT", "bind-draft", body)).status,
+  ).toBe(409);
+  expect(await open(cn)).toMatchObject({ galleryEntryId: other });
+});
+
+it("reports a superseded drawing instead of replaying it over a later writer edit", async () => {
+  const { cn, overseas, publish, beforeNextCatchup } = await pair();
+  const id = await publish(overseas);
+  const body = {
+    name: "First edit",
+    description: "",
+    projectText: wiredProjectText("First", 300),
+  };
+  beforeNextCatchup(async () => {
+    expect(
+      (
+        await overseas.call("/api/gallery/" + id, "PUT", "later-edit", {
+          ...body,
+          name: "Later writer edit",
+          projectText: wiredProjectText("Later", 400),
+        })
+      ).status,
+    ).toBe(200);
+  });
+  expect(
+    (await cn.call("/api/gallery/" + id, "PUT", "first-edit", body)).status,
+  ).toBe(409);
+  expect(
+    (await cn.call("/api/gallery/" + id, "PUT", "first-edit", body)).status,
+  ).toBe(409);
+  expect(
+    (await (await overseas.call("/api/gallery/" + id)).json()).entry.name,
+  ).toBe("Later writer edit");
+  expect(
+    (await (await overseas.call("/api/gallery/" + id + "/versions")).json())
+      .versions,
+  ).toHaveLength(2);
+});
+
+it("takes over a China-written AI drawing from overseas without granting a human the same ownership", async () => {
+  const { cn, overseas, auth, publish, loseNextReply } = await pair();
+  const first = await seatOf(auth.source, 0),
+    second = await seatOf(auth.source, 1);
+  const originalActor = (await adminOf(auth.source)).replace(
+    "icm_session=",
+    "icm_owner_session=",
+  );
+  const id = await publish(
+    cn,
+    await auth.connect(first + "; " + originalActor),
+  );
+  const body = {
+    name: "AI takeover",
+    description: "",
+    projectText: wiredProjectText("AI repaired"),
+    takeOver: true,
+  };
+  expect(
+    (await overseas.call("/api/gallery/" + id, "PUT", "human-takeover", body))
+      .status,
+  ).toBe(403);
+  const update = () =>
+    overseas.route(
+      new Request(ORIGIN + "/api/gallery/" + id, {
+        method: "PUT",
+        headers: {
+          origin: ORIGIN,
+          cookie: second,
+          "idempotency-key": "ai-takeover",
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+  loseNextReply();
+  expect((await update()).status).toBe(503);
+  expect((await update()).status).toBe(200);
+  expect(
+    (await (await overseas.call("/api/gallery/" + id)).json()).ownerUserId,
+  ).toBe(AI_SEATS[1]!.userId);
+  expect(
+    (await (await cn.call("/api/gallery/" + id + "/versions")).json()).versions,
+  ).toHaveLength(1);
 });
