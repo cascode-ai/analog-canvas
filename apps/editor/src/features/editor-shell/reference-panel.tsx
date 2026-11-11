@@ -1,3 +1,4 @@
+import { galleryDetailsRequest } from "../../gallery-details-request";
 import {
   useEffect,
   useRef,
@@ -683,14 +684,11 @@ export function ReferenceWindow({
     setNote(null);
     let referenceSaved = false;
     if (entry && textDirty) {
-      const response = await fetchLike(
-        `/api/gallery/${encodeURIComponent(entry.id)}`,
-        {
-          method: "PATCH",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(savedAs),
-        },
+      const response = await galleryDetailsRequest(
+        entry.id,
+        session?.id ?? "",
+        savedAs,
+        fetchLike,
       ).catch(() => null);
       if (!response?.ok) {
         setBusy(false);

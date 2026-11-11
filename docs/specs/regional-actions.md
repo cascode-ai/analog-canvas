@@ -4,7 +4,7 @@ Status: `accepted`
 
 Primary owner: Gallery, Component Library, Auth and regional replication.
 This is the required behavior. The opt-in command route covers Community Gallery withdrawal, restoration,
-deletion and curation, plus User Component save/status. The other actions and
+deletion, curation and name/description edits, plus User Component save/status. The other actions and
 additional replication scopes below remain to be delivered.
 
 ## Command delivery
@@ -26,6 +26,10 @@ additional replication scopes below remain to be delivered.
   storage is unavailable). A successful action clears that entry's pending IDs.
   Older clients without IDs remain accepted but cannot reconcile a lost response
   as the same command.
+- Name/description edits retain their existing last-write behavior for new commands.
+  The Reference window retains a payload-bound command ID across retries/reloads;
+  reconciliation never reapplies an edit over later metadata or drawing changes.
+  Older metadata clients without IDs retain the legacy retry limitation above.
 - Component writes and curation retain their required revision preconditions.
   Without an explicit command ID, derive one from the actor, resource, operation
   and validated revision-bound input. A repeated request reconciles its receipt;

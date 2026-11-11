@@ -8,6 +8,7 @@ import { catchUpResource } from "./resource-action-catchup";
 import { readCurationRequest, validCurationRequest } from "./gallery-curation";
 import type { GalleryEntrySummary } from "./gallery-store";
 import { gallerySourceOfEntryId, gallerySourceByKey } from "./gallery-sources";
+import { galleryDetails } from "./gallery-details-request";
 import { routeRegionalComponentActions } from "./regional-component-actions";
 
 export type ResourceActionEnv = GalleryEnv &
@@ -33,7 +34,13 @@ export async function routeRegionalResourceActions(
     !incoming &&
     (!match ||
       request.method !==
-        (match[2] === "curation" ? "PATCH" : match[2] ? "POST" : "DELETE"))
+        (match[2] === "curation"
+          ? "PATCH"
+          : match[2]
+            ? "POST"
+            : request.method === "PATCH"
+              ? "PATCH"
+              : "DELETE"))
   )
     return null;
   if (
@@ -92,7 +99,7 @@ export async function routeRegionalResourceActions(
         !body ||
         typeof body.id !== "string" ||
         !/^[A-Za-z0-9_-]{3,64}$/.test(body.id) ||
-        !["recycle", "restore", "delete", "curation"].includes(
+        !["recycle", "restore", "delete", "curation", "details"].includes(
           String(body.action),
         ) ||
         typeof body.commandId !== "string" ||
@@ -105,12 +112,14 @@ export async function routeRegionalResourceActions(
         action: String(body.action),
         commandId: body.commandId,
         target: env.RESOURCE_REGION,
-        ...(body.action === "curation"
+        ...(body.action === "curation" || body.action === "details"
           ? { input: body.input as Record<string, unknown> }
           : {}),
       };
       if (command.action === "curation" && !validCurationRequest(command.input))
         return fail("invalid-curation", 400);
+      if (command.action === "details" && !galleryDetails(command.input))
+        return fail("invalid-fields", 400);
       if (gallerySourceOfEntryId(command.id))
         return fail("dataset-read-only", 403);
       const verified = await auth("verify", {
@@ -137,9 +146,17 @@ export async function routeRegionalResourceActions(
             : {}),
         };
       }
+      const details = !match![2] && request.method === "PATCH";
+      if (details) {
+        const parsed = galleryDetails(
+          await readSyncJson(request, 65536).catch(() => null),
+        );
+        if (!parsed) return fail("invalid-fields", 400);
+        input = parsed;
+      }
       const key =
         request.headers.get("idempotency-key") ??
-        (input
+        (input && !details
           ? await digest(
               JSON.stringify({
                 actor: user.id,
@@ -158,7 +175,7 @@ export async function routeRegionalResourceActions(
       if (!location.ok) return location;
       command = {
         id: match![1]!,
-        action: match![2] ?? "delete",
+        action: match![2] ?? (details ? "details" : "delete"),
         commandId: key,
         target: (await location.json()).origin,
         ...(input ? { input } : {}),
@@ -222,6 +239,7 @@ export async function routeRegionalResourceActions(
       epoch: string;
       sequence: number;
       entry?: GalleryEntrySummary;
+      details?: { name: string; description: string };
     };
     if (
       result.id !== command.id ||
@@ -241,7 +259,9 @@ export async function routeRegionalResourceActions(
     )
       return fail("action-propagation-pending", 503);
     const current = await call(
-      command.action === "curation" ? "any-entry" : "preview-access",
+      ["curation", "details"].includes(command.action)
+        ? "any-entry"
+        : "preview-access",
       { id: result.id },
     );
     if (!current.ok && current.status !== 404)
@@ -251,6 +271,12 @@ export async function routeRegionalResourceActions(
     if (matches && current.ok) {
       const latest = await current.json();
       matches = latest.status === result.status;
+      if (command.action === "details")
+        matches =
+          matches &&
+          !!result.details &&
+          latest.entry?.name === result.details.name &&
+          latest.entry?.description === result.details.description;
       if (command.action === "curation")
         matches =
           matches &&
@@ -273,7 +299,9 @@ function lifecycleAnswer(result: {
   id: string;
   status: string;
   entry?: GalleryEntrySummary;
+  details?: { name: string; description: string };
 }): Response {
+  if (result.details) return answer({ id: result.id, ...result.details });
   if (result.entry) return answer({ entry: result.entry });
   return answer(
     result.status === "deleted"
