@@ -190,7 +190,6 @@
       .hl b {
         font-weight: 700;
         color: #7dbbff;
-        transition: color 0.34s;
       }
 
       .brand {
@@ -433,8 +432,23 @@
       .row.cur .ln {
         border-right: 2px solid var(--accent);
       }
-      .code.spectre .ln {
+      .code.spectre .ln,
+      .code.src .ln {
         width: auto;
+      }
+      /* A review opens with the whole source on the page: a line turns to ink
+         as its part lands on the sheet. */
+      .code.src .row {
+        opacity: 0.36;
+        transition:
+          opacity 0.25s,
+          background 0.15s;
+      }
+      .code.src .row.in {
+        opacity: 1;
+      }
+      .code.src .row.cur .ln {
+        border-right: 0;
       }
       .code .k {
         font-weight: 700;
@@ -511,31 +525,35 @@
         font-weight: 700;
       }
 
+      /* Small cards that land in a row: files under the netlist, the verdict
+         under a review, features under a caption. */
       .chips {
-        position: absolute;
-        right: 7cqw;
-        bottom: 12cqh;
         display: flex;
-        gap: 12px;
+        flex-wrap: wrap;
+        gap: 10px;
       }
-      .portrait .chips {
+      .under {
+        position: absolute;
         left: 0;
         right: 0;
-        bottom: 11cqh;
-        justify-content: center;
+        top: calc(100% + 12px);
+        justify-content: flex-end;
+      }
+      .feats {
+        margin-top: 2.2cqh;
       }
       .chip {
         font-family: var(--font-mono);
         font-weight: 600;
-        font-size: clamp(13px, 2.3cqh, 21px);
+        font-size: clamp(12px, 2.1cqh, 19px);
         color: var(--ink);
         background: #fff;
         border: 1px solid var(--line);
-        border-radius: 12px;
-        padding: 0.6em 0.85em;
+        border-radius: 10px;
+        padding: 0.5em 0.75em;
         box-shadow: 0 8px 24px rgb(15 15 15 / 9%);
         opacity: 0;
-        transform: translateY(16px) scale(0.94);
+        transform: translateY(12px) scale(0.94);
         transition:
           opacity 0.3s,
           transform 0.6s var(--ease);
@@ -544,15 +562,36 @@
         font-style: normal;
         color: var(--accent);
       }
+      .chip.ok {
+        color: #12813c;
+        border-color: #bfe3cb;
+        background: #f1faf4;
+      }
       .chips.on .chip {
         opacity: 1;
         transform: none;
       }
       .chips.on .chip:nth-child(2) {
-        transition-delay: 0.09s;
+        transition-delay: 0.1s;
       }
       .chips.on .chip:nth-child(3) {
-        transition-delay: 0.18s;
+        transition-delay: 0.2s;
+      }
+      .chips.on .chip:nth-child(4) {
+        transition-delay: 0.3s;
+      }
+      .chips.on .chip:nth-child(5) {
+        transition-delay: 0.4s;
+      }
+      .portrait .under {
+        justify-content: center;
+      }
+      .portrait .feats {
+        margin-top: 1.2cqh;
+        gap: 6px;
+      }
+      .portrait .chip {
+        font-size: clamp(11px, 1.5cqh, 15px);
       }
 
       .veil {
@@ -621,33 +660,16 @@
       }
       .sub {
         margin-top: 1.6cqh;
+        padding: 0 6cqw;
         color: var(--muted);
         font-weight: 500;
         font-size: min(2.7cqh, 3.6cqw);
+        text-wrap: balance;
       }
-
-      .cursor {
-        position: absolute;
-        left: 0;
-        top: 0;
-        display: flex;
-        align-items: flex-start;
-        gap: 2px;
-        opacity: 0;
-        transition: opacity 0.25s;
-        will-change: transform;
-      }
-      .cursor.on {
-        opacity: 1;
-      }
-      .cursor span {
-        margin-top: 18px;
-        font: 700 12px/1 var(--font-body);
-        color: #fff;
-        background: var(--ai);
-        padding: 5px 9px;
-        border-radius: 999px;
-        box-shadow: 0 4px 14px rgb(106 60 191 / 35%);
+      .sub.open {
+        margin-top: 0.9cqh;
+        color: var(--ink);
+        font-weight: 600;
       }
 
       .end {
@@ -1035,45 +1057,54 @@
             </div>
           </div>
 
-          <div class="cap" id="c-draw">
-            <div class="kick">Draw</div>
-            <h2 class="rv"><span>Textbook-grade schematics.</span></h2>
+          <div class="cap" id="c-edit">
+            <div class="kick">Edit</div>
+            <h2 class="rv"><span>Draw. The netlist follows.</span></h2>
+            <p class="rv">
+              <span>Clean textbook style. Every part writes its own line.</span>
+            </p>
+          </div>
+          <div class="cap" id="c-flow">
+            <div class="kick">Edit</div>
+            <h2 class="rv"><span>Straight into your design flow.</span></h2>
             <p class="rv">
               <span
-                >Parts snap to the grid. Wires know a junction from a
-                crossing.</span
+                >SPICE or Spectre with real PDK devices. Vector SVG and
+                PDF.</span
               >
             </p>
           </div>
-          <div class="cap" id="c-net">
-            <div class="kick">Netlist</div>
-            <h2 class="rv"><span>The netlist writes itself.</span></h2>
-            <p class="rv">
-              <span>SPICE or Spectre in one click, with real PDK devices.</span>
-            </p>
-          </div>
-          <div class="cap" id="c-cell">
-            <div class="kick">Cells</div>
-            <h2 class="rv"><span>Your circuit becomes a block.</span></h2>
+          <div class="cap" id="c-rev">
+            <div class="kick">Review</div>
+            <h2 class="rv"><span>Netlist in. Schematic out.</span></h2>
             <p class="rv">
               <span
-                >Behind the op-amp symbol: the transistors you just drew.</span
+                >Parts and nets are mapped from the netlist's own data, then
+                compared with it.</span
               >
             </p>
           </div>
-          <div class="cap" id="c-exp">
-            <div class="kick">Export</div>
-            <h2 class="rv"><span>Vector export. Zoom all you like.</span></h2>
-            <p class="rv"><span>SVG and PDF for the paper. PNG at 3×.</span></p>
+          <div class="cap" id="c-kit">
+            <div class="kick">Toolkit</div>
+            <h2 class="rv"><span>The EDA basics, built in.</span></h2>
+            <div class="chips feats" id="feats">
+              <span class="chip">Hierarchy</span
+              ><span class="chip">PDK devices</span
+              ><span class="chip">Parameters</span><span class="chip">ERC</span
+              ><span class="chip">Testbench</span>
+            </div>
           </div>
           <div class="cap plate" id="c-next">
             <h2 class="rv"><span>The next one goes to an AI.</span></h2>
           </div>
           <div class="cap" id="c-ai">
             <div class="kick ai">Agents</div>
-            <h2 class="rv"><span>Agents draw here too.</span></h2>
+            <h2 class="rv"><span>Fully open to AI.</span></h2>
             <p class="rv">
-              <span>Over MCP, with the same edits you make by hand.</span>
+              <span
+                >Agents draw, read and check over MCP, with the same edits you
+                make by hand.</span
+              >
             </p>
           </div>
           <div class="cap" id="c-ai2">
@@ -1096,6 +1127,26 @@
             <div class="pb">
               <pre class="code spice" id="nl-spice"></pre>
               <pre class="code spectre" id="nl-spectre"></pre>
+            </div>
+            <div class="chips under" id="files">
+              <span class="chip">ota<i>.sp</i></span
+              ><span class="chip">ota<i>.scs</i></span
+              ><span class="chip">ota<i>.svg</i></span
+              ><span class="chip">ota<i>.pdf</i></span>
+            </div>
+          </div>
+
+          <div class="panel nl" id="p-rv">
+            <div class="ph">
+              <span class="pt">dut.scs</span
+              ><span class="tag">Source netlist</span>
+            </div>
+            <div class="pb">
+              <pre class="code src" id="rv-src"></pre>
+            </div>
+            <div class="chips under" id="verdict">
+              <span class="chip">5 devices · 6 nets</span
+              ><span class="chip ok">✓ topology equal</span>
             </div>
           </div>
 
@@ -1128,29 +1179,17 @@
             </div>
           </div>
 
-          <div class="chips" id="chips">
-            <span class="chip">ldo<i>.svg</i></span
-            ><span class="chip">ldo<i>.pdf</i></span
-            ><span class="chip">ldo<i>.png</i></span>
-          </div>
-
           <div class="veil" id="veil"></div>
           <div class="big" id="big">
             <div class="num"><span id="num">0</span><b>+</b></div>
             <div class="lab">circuits in the Gallery</div>
-            <div class="sub">Free to read, download in bulk and train on.</div>
-          </div>
-
-          <div class="cursor" id="cur">
-            <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
-              <path
-                d="M4 2.5l15.5 8.6-7 1.7-3.6 6.5z"
-                fill="#6a3cbf"
-                stroke="#fff"
-                stroke-width="1.6"
-                stroke-linejoin="round"
-              /></svg
-            ><span>Agent</span>
+            <div class="sub">
+              Schematics paired with netlists, drawn by people, by AI, and from
+              open datasets.
+            </div>
+            <div class="sub open">
+              Free to read, download in bulk and use for any purpose.
+            </div>
           </div>
 
           <div class="end" id="end">
@@ -1275,6 +1314,16 @@
               "M4 (OUT net0 VDD VDD) sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1",
               "ends ota",
             ],
+            // The source a review starts from: the regulator that calls the OTA.
+            review: [
+              "subckt dut (VDD VSS Vref Vout)",
+              "CL (Vout VSS) capacitor c=1p",
+              "MP (Vout net0 VDD VDD) sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1",
+              "R1 (Vout net1) resistor r=1k",
+              "R2 (net1 VSS) resistor r=1k",
+              "X1 (VDD VSS net1 Vref net0) ota",
+              "ends dut",
+            ],
           },
           total: 7000,
           wall: { src: "%%WALL%%", cols: 8, rows: 6, cw: 440, ch: 330, n: 46 },
@@ -1309,19 +1358,24 @@
           brand: [3.2, 5.05],
           tile: 3.1,
           iris: [5.0, 5.95],
-          draw: 6.2,
-          capDraw: [6.5, 12.3],
-          pulse: 10.5,
-          net: [12.5, 20.1],
-          capNet: [12.8, 20.0],
-          type: 13.3,
-          spectre: 17.9,
-          fly: [20.6, 21.95],
-          ldo: 21.9,
-          capCell: [20.9, 25.4],
-          punch: [25.6, 26.25, 27.25, 27.95],
-          capExp: [25.9, 29.5],
-          chips: [27.9, 29.5],
+          // Edit: the drawing and its netlist grow together.
+          nl: [6.0, 17.5],
+          draw: 6.4,
+          capEdit: [6.5, 12.3],
+          pulse: 12.0,
+          capFlow: [12.6, 17.4],
+          spectre: 13.7,
+          files: 15.0,
+          // Review: a source netlist becomes a drawing, line by line.
+          rv: [18.0, 29.6],
+          map: [19.0, 0.55],
+          rvWire: [22.4, 24.0],
+          rvOk: 24.4,
+          capRev: [18.2, 26.3],
+          // Toolkit: hierarchy first, the rest as a row of names.
+          capKit: [26.6, 29.6],
+          fly: [26.7, 27.9],
+          feats: 27.1,
           wall: [29.9, 32.2],
           cards: 29.7,
           big: [32.3, 35.5],
@@ -1338,7 +1392,7 @@
           out: [49.8, 51.8],
           end: 51.1,
         };
-        const SCENES = [0, 5.0, 12.3, 20.3, 25.5, 29.7, 38.2, 49.8];
+        const SCENES = [0, 5.0, 17.5, 26.5, 29.7, 38.2, 49.8];
 
         const tracks = [],
           shows = [];
@@ -1622,37 +1676,17 @@
             );
           return end;
         }
-        /* An agent works through the sheet in reading order: every part, then every wire, then the text. */
-        const cursorKeys = [];
-        function seq(art, P, [p0, p1], [w0, w1], [x0, x1]) {
-          const I = [...art.insts].sort((a, b) => a.x - b.x || a.y - b.y),
-            dp = (p1 - p0) / I.length;
-          I.forEach((i, k) => {
-            popIn(i, p0 + k * dp);
-            cursorKeys.push([i.t + dp * 0.6, P.w(i.x, i.y), ez.io]);
-          });
+        // Wires drawn one after another, left to right.
+        function route(art, [w0, w1]) {
           const minx = (w) => Math.min(...w.pts.map((p) => p[0]));
-          const Wr = [...art.wires].sort(
+          const order = [...art.wires].sort(
               (a, b) => minx(a) - minx(b) || a.pts[0][1] - b.pts[0][1],
             ),
-            dw = (w1 - w0) / Wr.length;
-          Wr.forEach((w, k) => {
-            drawWire(w, w0 + k * dw, w0 + k * dw + Math.max(dw * 1.8, 0.16));
-            const e = w.pts[w.pts.length - 1];
-            cursorKeys.push([w.t0 + dw * 0.9, P.w(e[0], e[1]), ez.io]);
-          });
+            dw = (w1 - w0) / order.length;
+          order.forEach((w, k) =>
+            drawWire(w, w0 + k * dw, w0 + k * dw + Math.max(dw * 1.8, 0.16)),
+          );
           showDots(art, w1, 0);
-          const X = [...art.texts].sort(
-              (a, b) =>
-                (a.kind === "draft-text") - (b.kind === "draft-text") ||
-                a.x - b.x,
-            ),
-            dx = (x1 - x0) / X.length;
-          X.forEach((x, k) => {
-            fadeText(x, x0 + k * dx);
-            if (k % 3 === 0)
-              cursorKeys.push([x0 + k * dx + dx, P.w(x.x, x.y), ez.io]);
-          });
           if (art.ink)
             K(
               [
@@ -1663,8 +1697,22 @@
                 art.ink.style.opacity = v;
               },
             );
+          return order;
+        }
+        /* An agent works through the sheet in reading order: every part, then every wire, then the text. */
+        function seq(art, [p0, p1], wire, [x0, x1]) {
+          const I = [...art.insts].sort((a, b) => a.x - b.x || a.y - b.y),
+            dp = (p1 - p0) / I.length;
+          I.forEach((i, k) => popIn(i, p0 + k * dp));
           art.placed = I;
-          art.wired = Wr;
+          art.wired = route(art, wire);
+          const X = [...art.texts].sort(
+              (a, b) =>
+                (a.kind === "draft-text") - (b.kind === "draft-text") ||
+                a.x - b.x,
+            ),
+            dx = (x1 - x0) / X.length;
+          X.forEach((x, k) => fadeText(x, x0 + k * dx));
         }
 
         /* ---------- build the film ---------- */
@@ -1725,33 +1773,32 @@
           },
         );
 
-        // Scene: draw.
-        const seedOta = [M1.x, M1.y];
-        wave(A_OTA, seedOta, TL.draw, 68, ["M1"]);
+        // Scene: edit. The drawing and its netlist are two views of one thing:
+        // each part that lands on the sheet writes its own line.
+        const inkDry = wave(A_OTA, [M1.x, M1.y], TL.draw, 45, ["M1"]);
 
-        // Scene: netlist. Halos sit under the parts they mark.
-        const haloOf = {};
-        for (const i of A_OTA.insts) {
-          const big = /mos|source/.test(i.sym);
-          haloOf[i.id] = E("rect", {
-            class: "halo",
-            x: i.x - (big ? 30 : 18),
-            y: i.y - (big ? 28 : 18),
-            width: big ? 60 : 36,
-            height: big ? 56 : 36,
-            rx: 7,
-          });
-          gOta.insertBefore(haloOf[i.id], gOta.firstChild);
+        // Halos sit under the parts a netlist line names.
+        function halos(art, g) {
+          const of = {};
+          for (const i of art.insts) {
+            const amp = /opamp/.test(i.sym),
+              [w, h] = amp
+                ? [84, 76]
+                : /mos|source/.test(i.sym)
+                  ? [60, 56]
+                  : [36, 36];
+            of[i.id] = E("rect", {
+              class: "halo",
+              x: i.x - w / 2 - (amp ? 5 : 0),
+              y: i.y - h / 2,
+              width: w,
+              height: h,
+              rx: 7,
+            });
+            g.insertBefore(of[i.id], g.firstChild);
+          }
+          return of;
         }
-        const NLMAP = [
-          ["pP", "pN", "pO", "vdd", "gnd"],
-          ["ISS"],
-          ["M1"],
-          ["M2"],
-          ["M3"],
-          ["M4"],
-          [],
-        ];
         function tokens(line) {
           const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
           const parts = line.split(/(\s+)/);
@@ -1771,56 +1818,113 @@
           });
           return out;
         }
-        const nlRows = [];
+        function codeRow(pre, txt) {
+          const row = document.createElement("span");
+          row.className = "row";
+          const ln = document.createElement("span");
+          ln.className = "ln";
+          ln.innerHTML = tokens(txt);
+          row.appendChild(ln);
+          pre.appendChild(row);
+          return { row, ln, txt };
+        }
+        const nlRows = D.nl.spice.map((txt, k) => ({
+          ...codeRow($("#nl-spice"), txt),
+          ids: [[], ["ISS"], ["M1"], ["M2"], ["M3"], ["M4"], []][k],
+        }));
+        for (const txt of D.nl.spectre) codeRow($("#nl-spectre"), txt);
         {
-          let t = TL.type;
-          const codeRow = (pre, txt) => {
-            const row = document.createElement("span");
-            row.className = "row";
-            const ln = document.createElement("span");
-            ln.className = "ln";
-            ln.innerHTML = tokens(txt);
-            row.appendChild(ln);
-            pre.appendChild(row);
-            return { row, ln };
-          };
-          D.nl.spice.forEach((txt, i) => {
-            const { row, ln } = codeRow($("#nl-spice"), txt);
-            const dur = Math.max(0.26, txt.length * 0.0082),
-              a = t,
-              b = t + dur;
-            t = b + 0.15;
-            nlRows.push({ row, a, b, ids: NLMAP[i] || [] });
+          // The header is typed first, then each device's line when the device
+          // lands, and the last line when the ink is dry.
+          const lands = (r) => byId(A_OTA, r.ids[0]).t;
+          let free = TL.draw - 0.1;
+          const type = (r, at) => {
+            r.a = Math.max(at, free);
+            r.b = r.a + Math.max(0.26, r.txt.length * 0.0082);
+            free = r.a + 0.6;
             K(
               [
-                [a, 0],
-                [b, txt.length, ez.lin],
+                [r.a, 0],
+                [r.b, r.txt.length, ez.lin],
               ],
               (v) => {
-                ln.style.width = Math.round(v) + "ch";
+                r.ln.style.width = Math.round(v) + "ch";
               },
             );
-          });
-          for (const txt of D.nl.spectre) codeRow($("#nl-spectre"), txt);
+          };
+          type(nlRows[0], free);
+          for (const r of nlRows
+            .slice(1, -1)
+            .sort((p, q) => lands(p) - lands(q)))
+            type(r, lands(r));
+          type(nlRows.at(-1), inkDry);
         }
-        const nlEnd = nlRows[nlRows.length - 1].b + 0.5;
-        let nlCur = -2;
+
+        // Scene: review. The source netlist is on the page from the start. Each
+        // line turns to ink as the parts it names land on the sheet, then the
+        // nets are routed and the drawing is compared with its source.
+        const rvRows = D.nl.review.map((txt, k) => ({
+          ...codeRow($("#rv-src"), txt),
+          a: TL.map[0] + k * TL.map[1],
+          b: TL.map[0] + (k + 1) * TL.map[1],
+          ids: [
+            ["pR", "pO", "vdd", "g1", "g2"],
+            ["CL"],
+            ["MP"],
+            ["R1"],
+            ["R2"],
+            ["A1"],
+            [],
+          ][k],
+        }));
+        for (const r of rvRows) {
+          show(r.row, r.a, 1e9, "in");
+          for (const id of r.ids) popIn(byId(A_LDO, id), r.a);
+        }
+        for (const x of A_LDO.texts)
+          fadeText(x, nearestInst(A_LDO, x).t + 0.22);
+        route(A_LDO, TL.rvWire);
+        // The block carries the name its netlist line gives it.
+        const x1 = $('[data-object-id="instance-label-A1"] tspan tspan', gLdo);
+        if (x1) x1.textContent = "X";
+
+        // The line being written or mapped lights the parts it names.
+        const sheets = [
+          { rows: nlRows, art: A_OTA, halo: halos(A_OTA, gOta) },
+          {
+            rows: rvRows,
+            art: A_LDO,
+            halo: halos(A_LDO, gLdo),
+            // The hierarchy beat comes back to the line that calls the OTA.
+            again: [TL.fly[0], TL.fly[1] + 1, 5],
+          },
+        ];
         function syncNetlist(T) {
-          let idx = -1;
-          if (T >= TL.type && T < nlEnd)
-            for (let i = 0; i < nlRows.length; i++)
-              if (T >= nlRows[i].a) idx = i;
-          if (idx === nlCur) return;
-          nlCur = idx;
-          nlRows.forEach((r, i) => r.row.classList.toggle("cur", i === idx));
-          const on = new Set(idx >= 0 ? nlRows[idx].ids : []);
-          for (const i of A_OTA.insts) {
-            i.el.classList.toggle("hl", on.has(i.id));
-            haloOf[i.id].classList.toggle("on", on.has(i.id));
+          for (const s of sheets) {
+            let cur = -1;
+            s.rows.forEach((r, k) => {
+              if (
+                T >= r.a &&
+                T < r.b + 0.45 &&
+                (cur < 0 || r.a > s.rows[cur].a)
+              )
+                cur = k;
+            });
+            if (cur < 0 && s.again && T >= s.again[0] && T < s.again[1])
+              cur = s.again[2];
+            if (cur === s.cur) continue;
+            s.cur = cur;
+            s.rows.forEach((r, k) => r.row.classList.toggle("cur", k === cur));
+            const on = new Set(cur >= 0 ? s.rows[cur].ids : []);
+            for (const i of s.art.insts) {
+              i.el.classList.toggle("hl", on.has(i.id));
+              s.halo[i.id].classList.toggle("on", on.has(i.id));
+            }
           }
         }
 
-        // Scene: the circuit becomes a block. A copy of the drawing flies into the op-amp triangle.
+        // The toolkit beat opens with hierarchy: the op-amp in this drawing is
+        // the circuit drawn a moment ago, and a copy of it flies into the triangle.
         const A1 = byId(A_LDO, "A1");
         const a1c = P_LDO.w(A1.x - 5, A1.y),
           otaC = [
@@ -1856,7 +1960,6 @@
             clone.setAttribute("opacity", v);
           },
         );
-        const fx = $("#fx");
         const ring = E(
           "circle",
           {
@@ -1868,59 +1971,16 @@
             "stroke-width": 3,
             opacity: 0,
           },
-          fx,
+          $("#fx"),
         );
         K(
           [
-            [TL.ldo - 0.1, 0],
-            [TL.ldo + 0.8, 1, ez.expo],
+            [TL.fly[1] - 0.1, 0],
+            [TL.fly[1] + 0.8, 1, ez.expo],
           ],
           (p) => {
             ring.setAttribute("r", 30 + 120 * p);
             ring.setAttribute("opacity", p <= 0 || p >= 1 ? 0 : 0.7 * (1 - p));
-          },
-        );
-        wave(A_LDO, [A1.x, A1.y], TL.ldo, 105);
-
-        // Scene: export. Crop marks frame the drawing.
-        const lb = [
-            P_LDO.box[0] + P_LDO.box[2] * 0.09,
-            P_LDO.box[1] + P_LDO.box[3] * 0.09,
-            P_LDO.box[2] * 0.82,
-            P_LDO.box[3] * 0.82,
-          ],
-          cm = 30,
-          pad = 0;
-        const marks = E(
-          "path",
-          {
-            d: [
-              [lb[0] - pad, lb[1] - pad, 1, 1],
-              [lb[0] + lb[2] + pad, lb[1] - pad, -1, 1],
-              [lb[0] - pad, lb[1] + lb[3] + pad, 1, -1],
-              [lb[0] + lb[2] + pad, lb[1] + lb[3] + pad, -1, -1],
-            ]
-              .map(
-                ([x, y, sx, sy]) => `M${x + sx * cm} ${y}H${x}V${y + sy * cm}`,
-              )
-              .join(""),
-            fill: "none",
-            stroke: "#2383e2",
-            "stroke-width": 3,
-            "stroke-linecap": "round",
-            opacity: 0,
-          },
-          fx,
-        );
-        K(
-          [
-            [TL.chips[0] - 0.2, 0],
-            [TL.chips[0] + 0.15, 1],
-            [TL.chips[1], 1],
-            [TL.chips[1] + 0.3, 0],
-          ],
-          (v) => {
-            marks.setAttribute("opacity", v);
           },
         );
 
@@ -2106,16 +2166,7 @@
         );
 
         // Scene: an agent draws.
-        seq(A_AG, P_AG, TL.place, TL.wire, TL.text);
-        cursorKeys.sort((a, b) => a[0] - b[0]);
-        cursorKeys.unshift([
-          TL.place[0] - 0.5,
-          P_AG.w(VB.ag[0] + VB.ag[2] * 0.1, VB.ag[1] + VB.ag[3] * 0.5),
-        ]);
-        let curW = cursorKeys[0][1];
-        K(cursorKeys, (v) => {
-          curW = v;
-        });
+        seq(A_AG, TL.place, TL.wire, TL.text);
         $(".tp").textContent = A_AG.insts.length;
         $("#ai2-parts").textContent = A_AG.insts.length;
         $(".tw").textContent = A_AG.wires.length;
@@ -2139,21 +2190,24 @@
         show($("#h2"), ...TL.h2);
         show($("#brand"), ...TL.brand);
         show($("#bug"), [
-          [TL.capDraw[0], TL.cards],
+          [TL.capEdit[0], TL.cards],
           [TL.zoomAi[1] - 0.4, TL.out[0]],
         ]);
         show(stage, TL.iris[1] - 0.05, TL.cards + 0.3, "lit");
         show(stage, TL.cards + 0.3, 1e9, "wall");
-        show($("#c-draw"), ...TL.capDraw);
-        show($("#c-net"), ...TL.capNet);
-        show($("#c-cell"), ...TL.capCell);
-        show($("#c-exp"), ...TL.capExp);
+        show($("#c-edit"), ...TL.capEdit);
+        show($("#c-flow"), ...TL.capFlow);
+        show($("#c-rev"), ...TL.capRev);
+        show($("#c-kit"), ...TL.capKit);
+        show($("#feats"), TL.feats, 1e9);
         show($("#c-next"), ...TL.capNext);
         show($("#c-ai"), ...TL.capAi);
         show($("#c-ai2"), ...TL.capAi2);
-        show($("#p-nl"), ...TL.net);
+        show($("#p-nl"), ...TL.nl);
         show($("#p-nl"), TL.spectre, 1e9, "fmt2");
-        show($("#chips"), ...TL.chips);
+        show($("#files"), TL.files, 1e9);
+        show($("#p-rv"), ...TL.rv);
+        show($("#verdict"), TL.rvOk, 1e9);
         show($("#veil"), ...TL.big);
         show($("#big"), TL.big[0] + 0.15, TL.big[1]);
         show($("#big"), TL.count[1] - 0.12, 1e9, "plus");
@@ -2168,7 +2222,6 @@
         show($("#l3"), TL.text[1], 1e9, "done");
         show($("#l4"), TL.verify[0], 1e9);
         show($("#l4"), TL.verify[1], 1e9, "done");
-        show($("#cur"), TL.place[0] - 0.3, TL.text[1] + 0.3);
         show($("#end"), TL.end, 1e9);
 
         /* ---------- camera ---------- */
@@ -2184,12 +2237,7 @@
         const R = {
           logo: [m1c[0] - TS / 2, m1c[1] - TS / 2, TS, TS],
           ota: grow(P_OTA.box, 0.84),
-          ldo: grow(P_LDO.box, 0.86),
-          mp: (() => {
-            const a = P_LDO.w(296, 168),
-              b = P_LDO.w(404, 232);
-            return [a[0], a[1], b[0] - a[0], b[1] - a[1]];
-          })(),
+          ldo: grow(P_LDO.box, 0.9),
           ag: [T_AG.x - 24, T_AG.y - 24, TW + 48, TH + 48],
           wall: () => {
             const cx = T_LDO.x + TW / 2,
@@ -2217,7 +2265,7 @@
               : [W * 0.04, H * 0.09, W * 0.56, H * 0.63];
           if (name === "code")
             return portrait
-              ? [W * 0.06, H * 0.21, W * 0.88, H * 0.36]
+              ? [W * 0.06, H * 0.275, W * 0.88, H * 0.33]
               : [W * 0.03, H * 0.1, W * 0.46, H * 0.62];
           return portrait
             ? [W * 0.06, H * 0.22, W * 0.88, H * 0.6]
@@ -2226,16 +2274,10 @@
         const CAM = [
           [0, "logo", "logo"],
           [TL.iris[0], "logo", "logo"],
-          [TL.iris[0] + 1.8, "ota", "full", ez.ioq],
-          [12.3, ["ota", 0.96], "full", ez.lin],
-          [13.3, "ota", "code", ez.io],
-          [20.3, ["ota", 0.97], "code", ez.lin],
-          [22.1, "ldo", "full", ez.io],
-          [TL.punch[0], ["ldo", 0.97], "full", ez.lin],
-          [TL.punch[1], "mp", "full", ez.ioq],
-          [TL.punch[2], ["mp", 0.93], "full", ez.lin],
-          [TL.punch[3], "ldo", "full", ez.io],
-          [TL.wall[0], ["ldo", 0.98], "full", ez.lin],
+          [TL.iris[0] + 1.9, "ota", "code", ez.ioq],
+          [17.5, ["ota", 0.96], "code", ez.lin],
+          [19.0, "ldo", "code", ez.io],
+          [TL.wall[0], ["ldo", 0.96], "code", ez.lin],
           [TL.wall[1], "wall", "all", ez.io],
           [TL.zoomAi[0], ["wall", 1.07], "all", ez.lin],
           [TL.zoomAi[1], "ag", "panel", ez.io],
@@ -2339,14 +2381,14 @@
         // conductor would for a small room: the level of the scene a note starts in.
         const LEVELS = [
           [0, 1.5],
-          [5, 2.2],
-          [12.5, 1.9],
-          [20, 1.7],
-          [25, 2.2],
-          [30, 1.15],
-          [32.5, 1.4],
-          [37.5, 2.8],
-          [49.8, 1.3],
+          [2 * BAR, 2.2],
+          [5 * BAR, 1.9],
+          [8 * BAR, 1.7],
+          [10 * BAR, 2.2],
+          [12 * BAR, 1.15],
+          [13 * BAR, 1.4],
+          [15 * BAR, 2.8],
+          [TL.out[0], 1.3],
         ];
         const levelAt = (t) => LEVELS.findLast(([from]) => t >= from)[1];
         function out(node, g, wet) {
@@ -2440,8 +2482,8 @@
             lfo = c.createOscillator(),
             depth = c.createGain(),
             vol = o.vol ?? 0.02,
-            a = Math.min(o.a ?? 0.22, dur * 0.45),
-            r = Math.min(o.r ?? 0.4, dur * 0.45);
+            r = Math.min(o.r ?? 0.4, dur * 0.45),
+            a = Math.min(o.a ?? 0.22, dur - r);
           f.type = "lowpass";
           f.frequency.value = o.lp ?? 2600;
           f.Q.value = 0.5;
@@ -2755,12 +2797,12 @@
             light = b === 10 || b === 11,
             build = b === 12,
             tutti = b === 13 || b === 14,
-            play = b >= 15;
+            agent = b >= 15;
           // Violas and cellos hold the harmony.
           if (!build) {
             const vol = tutti
               ? 0.02
-              : light || play
+              : light || agent
                 ? 0.01
                 : b >= 5
                   ? 0.015
@@ -2786,13 +2828,13 @@
               true,
             );
           else if (!build)
-            for (const k of play ? [0, 2] : [0, 2, 3])
+            for (const k of agent ? [0, 2] : [0, 2, 3])
               ev(t + k * BEAT, (g, at) => {
                 pizz(g, at, bass + 12, 0.075);
                 pizz(g, at, bass, 0.05);
               });
           // The harp spreads each chord in eighths.
-          if (!build && !play)
+          if (!build && !agent)
             for (let k = 0; k < 8; k++)
               ev(t + (k * BEAT) / 2, (g, at) =>
                 harp(
@@ -2825,7 +2867,7 @@
             );
           if (tutti) ev(t, (g, at) => timpani(g, at, bass, 0.34));
           // While the Agent draws, pizzicato answers on the off beats.
-          if (play)
+          if (agent)
             for (const k of [1, 3])
               ev(t + k * BEAT, (g, at) => {
                 for (const m of inner) pizz(g, at, m + 12, 0.035);
@@ -2844,7 +2886,7 @@
           );
           if (b >= 6) sing(b, (g, at, d, m) => flute(g, at, d, m + 12, 0.022));
         }
-        // Export: a lighter air on the celesta.
+        // Bars 10 and 11: a lighter air on the celesta.
         [
           [25.0, 78],
           [25.625, 74],
@@ -2906,7 +2948,7 @@
           });
           sing(b, (g, at, d, m) => horn(g, at, d, m - 12, 0.038));
         }
-        ev(35 + 2 * BEAT, (g, at) => timpani(g, at, 45, 0.3));
+        ev(35 + 2 * BEAT, (g, at) => timpani(g, at, 38, 0.3));
         // The Agent's scene belongs to the celesta.
         for (let b = 15; b < 20; b++) {
           const [, x, y, z] = HARM[b];
@@ -2966,19 +3008,25 @@
           for (let i = 0; i < n; i++)
             ev(r.a + ((r.b - r.a) * i) / n, (g, at) => wood(g, at, 0.011));
         }
+        // The flip to Spectre over bar 5's G major, the four files on bar 6's D.
         ev(TL.spectre, (g, at) => {
           celesta(g, at, 86, 0.045);
-          celesta(g, at + 0.09, 90, 0.045);
+          celesta(g, at + 0.09, 91, 0.045);
         });
+        [74, 78, 81, 86].forEach((m, i) =>
+          ev(TL.files + 0.05 + i * 0.1, (g, at) => celesta(g, at, m, 0.045)),
+        );
+        // A review: a tick as each line lands its parts, a chime on the verdict
+        // over bar 9's A major.
+        for (const r of rvRows.slice(0, -1))
+          ev(r.a, (g, at) => wood(g, at, 0.016));
+        [85, 88, 93].forEach((m, i) =>
+          ev(TL.rvOk + i * 0.1, (g, at) => celesta(g, at, m, 0.05)),
+        );
         ev(TL.fly[0], (g, at) =>
           gliss(g, at, 3, 12, TL.fly[1] - TL.fly[0], 0.03),
         );
-        ev(TL.ldo, (g, at) => celesta(g, at, 86, 0.055));
-        ev(TL.punch[0], (g, at) => swell(g, at, 0.65, 0.07));
-        ev(TL.punch[1], (g, at) => timpani(g, at, 38, 0.2));
-        [78, 81, 86].forEach((m, i) =>
-          ev(TL.chips[0] + 0.05 + i * 0.09, (g, at) => celesta(g, at, m, 0.05)),
-        );
+        ev(TL.fly[1], (g, at) => celesta(g, at, 86, 0.055));
         for (let i = 0; i < 15; i++)
           ev(
             TL.count[0] + (TL.count[1] - TL.count[0]) * Math.pow(i / 15, 1.6),
@@ -2991,8 +3039,8 @@
           if (k % 3 === 0) ev(i.t, (g, at) => wood(g, at, 0.014));
         });
         ev(TL.verify[1], (g, at) => {
-          gliss(g, at, 7, 8, 0.35, 0.04);
-          celesta(g, at + 0.35, 98, 0.07);
+          gliss(g, at, 4, 8, 0.35, 0.04);
+          celesta(g, at + 0.35, 93, 0.07);
         });
         SND.sort((a, b) => a.t - b.t);
 
@@ -3008,6 +3056,8 @@
           none: false,
           asked: false,
           woke: -1e9,
+          heard: -1,
+          still: 0,
         };
         function audio() {
           if (AC || snd.none) return AC;
@@ -3016,10 +3066,10 @@
             seed = 1;
             mix = graph(AC);
             AC.addEventListener("statechange", () => {
-              if (AC.state === "running") {
-                snd.asked = false;
-                sndStart();
-              } else sndStop();
+              // A stop the film did not ask for is answered by starting again.
+              if (AC.state === "running") snd.asked = false;
+              else sndStop();
+              sndStart();
             });
           } catch (e) {
             // No audio here: the film plays silent.
@@ -3037,10 +3087,12 @@
           busOf(mix);
           snd.off = AC.currentTime - T;
           snd.live = true;
-          sp = SND.findIndex((e) => e.t >= T);
+          snd.still = 0;
+          // A clock that takes a moment to start must not cost the first notes.
+          sp = SND.findIndex((e) => e.t >= T - 0.1);
           if (sp < 0) sp = SND.length;
           for (const e of SND)
-            if (e.sus && e.t < T && e.t + e.dur > T + 0.25)
+            if (e.sus && e.t < T - 0.1 && e.t + e.dur > T + 0.25)
               sound(mix, e, AC.currentTime + 0.02, e.t + e.dur - T);
         }
         function sndStop() {
@@ -3066,18 +3118,33 @@
               sound(mix, e, Math.max(AC.currentTime, at), e.dur);
           }
         }
-        // Any gesture in the film lets held audio start. The one that wakes it
-        // while the film plays is spent on that, so a click on the picture
-        // brings the sound in instead of pausing.
-        function wakeSound(e) {
-          if (!audio() || AC.state === "running") return;
-          resume();
-          if (playing && !snd.asked) {
-            snd.asked = true;
-            snd.woke = e.timeStamp;
+        // An audio clock that says it runs but stands still must not hold the picture.
+        function stalled(dt) {
+          if (AC.currentTime !== snd.heard) {
+            snd.heard = AC.currentTime;
+            snd.still = 0;
+            return false;
           }
+          if ((snd.still += dt) < 0.5) return false;
+          sndStop();
+          return true;
         }
-        const wokeSound = (e) => e.timeStamp - snd.woke < 800;
+        // A gesture lets held audio start. While the film plays, the first
+        // gesture the browser counts is spent on that: a click on the picture
+        // brings the sound in instead of pausing. A swipe or Escape is not one.
+        function wakeSound(e) {
+          if (!playing || !audio() || AC.state === "running") return;
+          resume();
+          if (snd.asked || navigator.userActivation?.isActive === false) return;
+          snd.asked = true;
+          snd.woke = e.timeStamp;
+        }
+        // True once, for the click or key press that ends the waking gesture.
+        function spentOnSound(e) {
+          const spent = e.timeStamp - snd.woke < 800;
+          if (spent) snd.woke = -1e9;
+          return spent;
+        }
         async function renderScore(rate = 44100) {
           const ctx = new OfflineAudioContext(
             2,
@@ -3100,7 +3167,6 @@
         const fill = $("#fill"),
           prog = $("#prog i"),
           timeEl = $("#time"),
-          cur = $("#cur"),
           scrub = $("#scrub");
         const fmt = (t) =>
           `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
@@ -3128,7 +3194,6 @@
             "transform",
             `translate(${c.tx} ${c.ty}) scale(${c.s})`,
           );
-          cur.style.transform = `translate(${curW[0] * c.s + c.tx}px, ${curW[1] * c.s + c.ty}px)`;
           const f = (T / DUR) * 100;
           fill.style.width = f + "%";
           prog.style.width = f + "%";
@@ -3143,10 +3208,11 @@
           if (playing) {
             // While the score sounds, the audio clock drives the picture, so the
             // two cannot drift; otherwise the picture keeps its own time.
-            if (snd.live && AC.state === "running") {
+            const dt = Math.min(0.1, (now - lastNow) / 1000);
+            if (snd.live && AC.state === "running" && !stalled(dt)) {
               T = Math.min(DUR, Math.max(T, AC.currentTime - snd.off));
               sndPump();
-            } else T = Math.min(DUR, T + Math.min(0.1, (now - lastNow) / 1000));
+            } else T = Math.min(DUR, T + dt);
             dirty = true;
             if (T >= DUR) setPlaying(false);
           }
@@ -3199,14 +3265,19 @@
           const cw = probe.getBoundingClientRect().width / 1000;
           probe.remove();
           const n =
-            Math.max(...D.nl.spice.concat(D.nl.spectre).map((s) => s.length)) +
-            1;
+            Math.max(
+              ...Object.values(D.nl)
+                .flat()
+                .map((s) => s.length),
+            ) + 1;
           const fs = Math.min(16, w / (n * cw));
-          $("#p-nl").style.setProperty(
-            "--mono",
-            Math.max(10.5, fs).toFixed(2) + "px",
-          );
-          $("#p-nl").classList.toggle("clip", fs < 10.5);
+          for (const panel of $$(".panel.nl")) {
+            panel.style.setProperty(
+              "--mono",
+              Math.max(10.5, fs).toFixed(2) + "px",
+            );
+            panel.classList.toggle("clip", fs < 10.5);
+          }
         }
         new ResizeObserver(() => {
           const r = stage.getBoundingClientRect();
@@ -3229,7 +3300,7 @@
         for (const type of ["pointerdown", "pointerup", "touchend", "keydown"])
           addEventListener(type, wakeSound, true);
         stage.addEventListener("click", (e) => {
-          if (e.target.closest("a,button") || wokeSound(e)) return;
+          if (e.target.closest("a,button") || spentOnSound(e)) return;
           toggle();
         });
         // A hidden tab stops drawing but not sounding: stop the score there and pick it up, in step, on return.
@@ -3272,7 +3343,7 @@
           if (e.target.closest && e.target.closest("button,a,#scrub")) return;
           if (e.key === " ") {
             e.preventDefault();
-            if (!wokeSound(e)) toggle();
+            if (!spentOnSound(e)) toggle();
           }
           if (e.key === "ArrowRight")
             seek(SCENES.find((t) => t > T + 0.05) ?? DUR);
