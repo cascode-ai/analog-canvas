@@ -4513,6 +4513,7 @@ export const agentRazaviAuthoringCatalog = {
       parameters: [
         {
           name: "bv",
+          default: "5.1",
         },
         {
           name: "ibv",
