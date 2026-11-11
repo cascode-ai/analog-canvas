@@ -123,16 +123,37 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Shards resolve workspace sources and start with the plan; tests that need
+  # the shared build run in core_unit_built (docs/testing/README.md#pull-request-checks).
   core_unit:
     name: Core unit (${{ matrix.shard }})
-    needs: [changes, core_build]
+    needs: changes
     if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
+        shard: [1/5, 2/5, 3/5, 4/5, 5/5]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Unit and integration tests
+        run: pnpm ci:unit --shard=${{ matrix.shard }}
+
+  core_unit_built:
+    name: Core unit (built packages)
+    needs: [changes, core_build]
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -148,10 +169,10 @@ jobs:
           artifact-ids: ${{ needs.core_build.outputs.artifact_id }}
           merge-multiple: true
       - run: node scripts/ci-package-build.mjs verify
-      - name: Unit and integration tests
+      - name: Tests of built entry points
         env:
           ICM_CI_PACKAGE_BUILD: "1"
-        run: pnpm ci:unit --shard=${{ matrix.shard }}
+        run: pnpm ci:unit:built
 
   core_release:
     name: Core release
@@ -215,7 +236,15 @@ jobs:
   # preview release), not on every merge: no merge ships it.
   core:
     name: Core contracts
-    needs: [changes, core_build, core_static, core_unit, core_release]
+    needs:
+      [
+        changes,
+        core_build,
+        core_static,
+        core_unit,
+        core_unit_built,
+        core_release,
+      ]
     if: always() && github.event_name == 'merge_group' && !(needs.changes.result == 'success' && needs.changes.outputs.heavy == 'false' && needs.changes.outputs.mode == 'documentation')
     runs-on: ubuntu-latest
     steps:

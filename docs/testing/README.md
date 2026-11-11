@@ -123,17 +123,24 @@ The merge queue runs two required checks once on the PR merged with current
 smoke, packaging, performance budgets) and `Browser tests` (specs mapped to
 changed product paths). The primary CI workflow plans PR scope and checks
 Test-Impact trailers; the additional environment workflows below also run on
-affected PRs. They are separate from the two required queue checks. Core
-accepts only successful planning, build preparation and all three parallel
-check branches; failed, cancelled or unexpected skipped prerequisites fail it.
-The primary workflow's PR and documentation-only skips remain unchanged.
+affected PRs. They are separate from the two required queue checks. `Core
+contracts` accepts only when every prerequisite job succeeds; a failed,
+cancelled or unexpectedly skipped one fails it. The primary workflow's PR and
+documentation-only skips remain unchanged.
 
 Queue formatting checks use the merged candidate's changed files within the
 normal formatting scope. Formatter configuration, ignore rules or lockfile
 changes, or an untrusted base/configuration, require the full formatting check.
-All other static contracts still run in full. Shared package output must match
-the candidate, platform, toolchain, source inputs and file digests; local
-standalone tests continue to build their own dependencies.
+All other static contracts still run in full.
+
+Unit shards start with the plan and resolve workspace sources through Vitest.
+Any test that resolves a workspace package outside Vitest's own resolver (a
+child Node process or a bundler such as esbuild) reads `packages/*/dist` and
+belongs to the `standalone` Vitest project
+([vitest.config.ts](../../vitest.config.ts)). CI runs that project once against
+the shared package build (`pnpm ci:unit:built`), whose output must match the
+candidate, platform, toolchain, source inputs and file digests; locally it
+builds its own dependencies.
 
 ## Environment-dependent execution
 

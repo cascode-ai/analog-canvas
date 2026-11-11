@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import vitestConfig from "../vitest.config.ts";
 import { permitsCondition, workflow } from "./test-support/workflow.mjs";
 
 const { jobs } = await workflow(".github/workflows/ci.yml");
@@ -29,6 +30,7 @@ describe("CI workflow", () => {
       "core_release",
       "core_static",
       "core_unit",
+      "core_unit_built",
     ]);
     expect(
       stepRunning(jobs.core, "node scripts/check-core-results.mjs").env,
@@ -65,10 +67,10 @@ describe("CI workflow", () => {
     expect(permits("merge_group", "success", { heavy: "true" })).toBe(true);
   });
 
-  it("allows static and shared build together, then unit and release together", () => {
-    for (const id of ["core_static", "core_build"])
+  it("starts static, shared build and unit shards with the plan; built-package consumers after the build", () => {
+    for (const id of ["core_static", "core_build", "core_unit"])
       expect(dependencies(jobs[id])).toEqual(["changes"]);
-    for (const id of ["core_unit", "core_release"]) {
+    for (const id of ["core_unit_built", "core_release"]) {
       expect(dependencies(jobs[id])).toEqual(["changes", "core_build"]);
       expect(
         jobs[id].steps.find(
@@ -129,7 +131,7 @@ describe("CI workflow", () => {
     expect(producer.with.name).toBe(
       "core-packages-${{ github.sha }}-${{ github.run_attempt }}",
     );
-    for (const id of ["core_unit", "core_release"])
+    for (const id of ["core_unit_built", "core_release"])
       expect(
         jobs[id].steps.find(
           (step) => step.uses === "actions/download-artifact@v4",
@@ -140,24 +142,48 @@ describe("CI workflow", () => {
       });
   });
 
-  it("runs every unit shard without filtering tests or masking a failed shard", () => {
+  it("runs every unit shard and the built-entry tests without masking a failure", () => {
     const unit = jobs.core_unit;
     expect(unit.strategy.matrix.shard).toEqual([
-      "1/6",
-      "2/6",
-      "3/6",
-      "4/6",
-      "5/6",
-      "6/6",
+      "1/5",
+      "2/5",
+      "3/5",
+      "4/5",
+      "5/5",
     ]);
     expect(unit.strategy["fail-fast"]).toBe("false");
-    for (const item of [unit, ...unit.steps])
+    const built = jobs.core_unit_built;
+    for (const item of [unit, ...unit.steps, built, ...built.steps])
       expect([undefined, "false"]).toContain(item["continue-on-error"]);
+    // Shards resolve sources: no shared build to wait for or to trust.
     expect(
       stepRunning(unit, "pnpm ci:unit --shard=${{ matrix.shard }}").env,
-    ).toMatchObject({ ICM_CI_PACKAGE_BUILD: "1" });
+    ).toBeUndefined();
     expect(
-      stepRunning(unit, "node scripts/ci-package-build.mjs verify"),
+      unit.steps.some((step) => step.uses === "actions/download-artifact@v4"),
+    ).toBe(false);
+    expect(stepRunning(built, "pnpm ci:unit:built").env).toMatchObject({
+      ICM_CI_PACKAGE_BUILD: "1",
+    });
+    expect(
+      stepRunning(built, "node scripts/ci-package-build.mjs verify"),
     ).toBeDefined();
+  });
+
+  it("runs every Vitest project once, the built-entry project only on the shared build", () => {
+    const projects = (script) =>
+      [...script.matchAll(/--project (\S+)/gu)].map((match) => match[1]);
+    const sharded = projects(scripts["ci:unit"]);
+    const built = projects(scripts["ci:unit:built"]);
+    expect(built).toEqual(["standalone"]);
+    expect([...sharded, ...built].sort()).toEqual(
+      vitestConfig.test.projects.map((project) => project.test.name).sort(),
+    );
+    const standalone = vitestConfig.test.projects.find(
+      (project) => project.test.name === "standalone",
+    );
+    expect(standalone.test.globalSetup).toEqual([
+      "./scripts/test-standalone-setup.mjs",
+    ]);
   });
 });

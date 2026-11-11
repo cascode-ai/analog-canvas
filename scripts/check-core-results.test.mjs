@@ -13,6 +13,7 @@ const passing = {
   core_build: { result: "success" },
   core_static: { result: "success" },
   core_unit: { result: "success" },
+  core_unit_built: { result: "success" },
   core_release: { result: "success" },
 };
 
