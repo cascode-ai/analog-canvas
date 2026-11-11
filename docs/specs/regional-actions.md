@@ -3,7 +3,7 @@
 Status: `accepted`
 
 Primary owner: Gallery, Component Library, Auth and regional replication.
-This is the required behavior. The opt-in Gallery withdrawal/restoration slice
+This is the required behavior. The opt-in Gallery withdrawal/restoration/deletion slice
 implements command delegation; the remaining actions and additional replication
 scopes below remain to be delivered.
 
@@ -15,12 +15,14 @@ scopes below remain to be delivered.
 - AUTH issues a 60-second opaque capability bound to one command digest and its
   destination. Redemption revalidates the original session or regional grant,
   including its current subject. A session change invalidates the capability.
-- The writer commits withdrawal/restoration and its per-account command receipt
+- The writer commits withdrawal/restoration/deletion and its per-account command receipt
   together. Keep at most 10,000 receipts per account; exhaustion refuses new
   commands before mutation. Receipts are retained with the writer's backups;
   do not discard them during rollback or reset an identity to bypass the limit.
   Recovery uses the native Durable Object history or a full stopped-state ECS
   capture. A Gallery content export alone does not include command receipts.
+  A deletion receipt survives the removed entry; its authenticated actor can
+  reconcile the exact command after a lost reply. Other actors gain no access.
 - The browser retains an uncertain command ID in session storage (memory when
   storage is unavailable). A successful action clears that entry's pending IDs.
   Older clients without IDs remain accepted but cannot reconcile a lost response

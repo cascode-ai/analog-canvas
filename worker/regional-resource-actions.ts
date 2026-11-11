@@ -21,10 +21,14 @@ export async function routeRegionalResourceActions(
   const peerPath = "/api/resource-actions/lifecycle";
   const incoming = url.pathname === peerPath;
   const match =
-    /^\/api\/gallery\/([A-Za-z0-9_-]{3,64})\/(recycle|restore)$/.exec(
+    /^\/api\/gallery\/([A-Za-z0-9_-]{3,64})(?:\/(recycle|restore))?$/.exec(
       url.pathname,
     );
-  if (!incoming && (!match || request.method !== "POST")) return null;
+  if (
+    !incoming &&
+    (!match || request.method !== (match[2] ? "POST" : "DELETE"))
+  )
+    return null;
   if (
     !incoming &&
     (gallerySourceOfEntryId(match![1]!) ||
@@ -33,7 +37,8 @@ export async function routeRegionalResourceActions(
     return null;
   if (!env.RESOURCE_ACTION_PEER || !env.RESOURCE_REGION)
     return incoming ? fail("not-found", 404) : null;
-  if (request.method !== "POST") return fail("method-not-allowed", 405);
+  if (incoming && request.method !== "POST")
+    return fail("method-not-allowed", 405);
   let peer: URL;
   try {
     peer = new URL(env.RESOURCE_ACTION_PEER);
@@ -76,7 +81,7 @@ export async function routeRegionalResourceActions(
         !body ||
         typeof body.id !== "string" ||
         !/^[A-Za-z0-9_-]{3,64}$/.test(body.id) ||
-        !["recycle", "restore"].includes(String(body.action)) ||
+        !["recycle", "restore", "delete"].includes(String(body.action)) ||
         typeof body.commandId !== "string" ||
         !/^[A-Za-z0-9_-]{1,128}$/.test(body.commandId) ||
         body.target !== env.RESOURCE_REGION
@@ -110,7 +115,7 @@ export async function routeRegionalResourceActions(
       if (!location.ok) return location;
       command = {
         id: match![1]!,
-        action: match![2]!,
+        action: match![2] ?? "delete",
         commandId: key,
         target: (await location.json()).origin,
       };
@@ -135,7 +140,7 @@ export async function routeRegionalResourceActions(
       if (!incoming)
         return outcome.superseded
           ? fail("action-superseded", 409)
-          : answer({ id: outcome.id, status: outcome.status });
+          : lifecycleAnswer(outcome);
       const status = await call("resource-sync/status", { stream: "gallery" });
       const head = await status.json();
       return answer({
@@ -192,11 +197,13 @@ export async function routeRegionalResourceActions(
         const current = await call("preview-access", { id: result.id });
         if (!current.ok && current.status !== 404)
           return fail("action-propagation-pending", 503);
-        return result.superseded ||
-          !current.ok ||
-          (await current.json()).status !== result.status
+        const matches =
+          result.status === "deleted"
+            ? current.status === 404
+            : current.ok && (await current.json()).status === result.status;
+        return result.superseded || !matches
           ? fail("action-superseded", 409)
-          : answer({ id: result.id, status: result.status });
+          : lifecycleAnswer(result);
       }
       if (received && received.epoch !== result.epoch)
         return fail("action-propagation-pending", 503);
@@ -237,6 +244,14 @@ export async function routeRegionalResourceActions(
       503,
     );
   }
+}
+
+function lifecycleAnswer(result: { id: string; status: string }): Response {
+  return answer(
+    result.status === "deleted"
+      ? { id: result.id, deleted: true }
+      : { id: result.id, status: result.status },
+  );
 }
 
 function answer(body: unknown, status = 200): Response {

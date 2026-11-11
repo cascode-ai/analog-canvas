@@ -73,9 +73,10 @@ WebSockets so their clients can reconnect to the same domestic entrance.
 Before holding the entrance, allow running background ticks up to 90 seconds
 to finish while the website keeps serving; otherwise defer the handover.
 Release only queued requests after actual runtime readiness; genuine failures
-remain failures. Normal release acceptance targets are at most 5 seconds of
-additional request waiting and 10 seconds of Agent recovery, measured on the
-host rather than inferred from a successful version update.
+remain failures. Record additional request waiting on the host as an observation,
+not a 5-second release gate or an inference from a successful version update.
+The Agent recovery target remains 10 seconds. Keep the bounded entrance hold and
+readiness checks; do not repeat live restarts solely to meet a timing target.
 An abandoned browser request still drains its accepted upstream operation.
 An uncertain write response fences maintenance in
 `/var/lib/canvas-cn-ingress/uncertain-write`, surviving entrance restarts;

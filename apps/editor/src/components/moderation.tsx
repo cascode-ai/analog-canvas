@@ -87,8 +87,6 @@ function ModerationCollection({
     setBusy(id);
     setActionError(null);
     setNotice(null);
-    const call = (path: string, method: "POST" | "DELETE") =>
-      fetch(path, { method, credentials: "same-origin" });
     const gone = () => {
       setEntries(
         (current) => current?.filter((entry) => entry.id !== id) ?? null,
@@ -114,10 +112,7 @@ function ModerationCollection({
         }
         binned = true;
       }
-      const response =
-        action === "delete"
-          ? await call(`/api/gallery/${id}`, "DELETE")
-          : await galleryLifecycleRequest(id, action);
+      const response = await galleryLifecycleRequest(id, action);
       if (!response.ok) {
         failureMessage = (
           await requestFailureOf(
