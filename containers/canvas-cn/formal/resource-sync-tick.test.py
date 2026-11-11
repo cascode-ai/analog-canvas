@@ -160,7 +160,8 @@ class PumpTest(unittest.TestCase):
             self.assertEqual((state['health'], state['reason'], state['status']), ('error', 'blocked', 'blocked'))
             streams = state['streams']
             self.assertEqual(set(streams), {'gallery', 'components', 'ds', 'bomb', 'gallery-interactions',
-                                            'ds-interactions', 'bomb-interactions', 'gallery-opens', 'ds-opens', 'bomb-opens'})
+                                            'ds-interactions', 'bomb-interactions', 'gallery-opens', 'ds-opens', 'bomb-opens',
+                                            'gallery-activity', 'ds-activity', 'bomb-activity'})
             self.assertEqual(streams['components'], {'status': 'blocked', 'reason': 'resource-schema-newer',
                                                      'cursor': {'cn': None, 'overseas': 0}})
             self.assertEqual(streams['bomb']['status'], 'blocked')

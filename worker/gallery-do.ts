@@ -1,3 +1,13 @@
+import {
+  maintenanceCommand,
+  maintenanceState,
+} from "./gallery-maintenance-command";
+import {
+  publicationCommand,
+  publicationFingerprint,
+  publicationProjectBindings,
+  type PublicationReceipt,
+} from "./gallery-publication-command";
 // Community example gallery: publish-first with an admin recycle bin.
 //
 // Trust boundary: the only accepted input is Project JSON that passes the
@@ -14,6 +24,7 @@
 // independently so browsing survives an entry the current window can no
 // longer open.
 
+import { prepareLikeCommand, applyLikeCommand } from "./gallery-like-command";
 import {
   type DurableObjectStateLike,
   type SqlStorage,
@@ -573,6 +584,39 @@ export class GalleryDO {
       )
     )
       return Response.json({ error: "account-deleted" }, { status: 403 });
+    if (
+      [
+        "replace-entry",
+        "reference-set",
+        "reference-delete",
+        "restore-version",
+        "reject",
+        "import-entry",
+        "comparison-import",
+      ].includes(operation) &&
+      body.publicationReceipt
+    ) {
+      return publicationCommand(
+        this.state,
+        body.publicationReceipt as PublicationReceipt,
+        () => {
+          if (operation === "reference-set")
+            return setReference(this.sql, body);
+          if (operation === "reference-delete")
+            return deleteReference(this.sql, body);
+          if (operation === "restore-version")
+            return restoreVersion(this.state, body);
+          if (operation === "reject") return reject(this.sql, body);
+          if (operation === "import-entry")
+            return importEntry(this.state, body);
+          if (operation === "comparison-import")
+            return importComparison(this.sql, body);
+          return this.regionalProjects
+            ? this.regionalProjects.publication("replace-entry", body)
+            : replaceEntry(this.state, body);
+        },
+      );
+    }
     let participating = false;
     if (this.regionalProjects) {
       try {
@@ -609,6 +653,26 @@ export class GalleryDO {
         );
     }
     switch (operation) {
+      case "maintenance-command":
+        return maintenanceCommand(this.state, body);
+      case "maintenance-state":
+        return Response.json({
+          state: maintenanceState(this.sql, body.command),
+        });
+      case "publication-state":
+        return Response.json({
+          state: publicationFingerprint(this.sql, String(body.id)),
+          projectState: publicationProjectBindings(
+            this.sql,
+            String(body.id),
+            typeof body.projectId === "string" ? body.projectId : undefined,
+          ),
+        });
+      case "like-command-prepare":
+        return prepareLikeCommand(this.state, body);
+      case "like-command":
+      case "like-command-state":
+        return applyLikeCommand(this.state, body, operation === "like-command");
       case "review-command":
       case "review-command-state":
         return reviewCommand(this.state, body, operation === "review-command");
@@ -742,7 +806,7 @@ export class GalleryDO {
       case "simulation-check-record":
         return recordSimulationCheck(this.state, body);
       case "simulation-checks-progress":
-        return simulationCheckProgress(this.sql);
+        return simulationCheckProgress(this.sql, body.ownedOnly === true);
       case "curate":
         return curate(this.state, body);
       case "tags":

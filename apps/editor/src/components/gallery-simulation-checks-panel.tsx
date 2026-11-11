@@ -34,8 +34,13 @@ export function GallerySimulationChecks() {
   async function verifyAll(): Promise<void> {
     setBusy(true);
     setFailure(null);
-    if (!(await queueGallerySimulationChecks(fetch, { all: true })))
+    const queued = await queueGallerySimulationChecks(fetch, { all: true });
+    if (!queued)
       setFailure("Could not queue the simulation checks. Try again.");
+    else if (queued.failures?.length)
+      setFailure(
+        `${queued.queued.length} checks were accepted; other requests remain unconfirmed. Try again to finish.`,
+      );
     const next = await loadGallerySimulationChecks(fetch);
     if (next) setProgress(next);
     setBusy(false);

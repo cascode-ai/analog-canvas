@@ -21,6 +21,42 @@ const OWNER = sessionUser({
   isAdmin: true,
 });
 
+test("retries an uncertain rejection after reload without sending a second notification command", async ({
+  page,
+}) => {
+  await signIn(page, OWNER);
+  await mockGallery(page, [ENTRY]);
+  await mockPreviews(page);
+  const commands: { key: string | undefined; body: unknown }[] = [];
+  await page.route(`**/api/gallery/${ENTRY.id}/reject`, async (route) => {
+    commands.push({
+      key: route.request().headers()["idempotency-key"],
+      body: route.request().postDataJSON(),
+    });
+    await route.fulfill(
+      commands.length === 1
+        ? { status: 503, json: { error: "peer-unavailable" } }
+        : { json: { id: ENTRY.id, status: "rejected", emailed: true } },
+    );
+  });
+  await page.goto("/");
+  const reject = async () => {
+    await page.getByTestId(`gallery-owner-reject-${ENTRY.id}`).click();
+    await page.getByTestId("gallery-owner-reject-note").fill("Label the ports");
+    await page.getByTestId("gallery-owner-reject-confirm").click();
+  };
+  await reject();
+  await expect(page.getByTestId("gallery-owner-notice")).toContainText(
+    "Could not reject",
+  );
+  await page.reload();
+  await reject();
+  await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toHaveCount(0);
+  expect(commands).toHaveLength(2);
+  expect(commands[0]?.key).toBeTruthy();
+  expect(commands[1]).toEqual(commands[0]);
+});
+
 test("the Owner withdraws an entry from its tile menu and rejects another with an author-visible reason", async ({
   page,
 }) => {

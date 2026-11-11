@@ -1,6 +1,8 @@
 // A reference image as PUT /api/gallery/<id>/reference takes it: PNG, JPEG
 // or WebP of at most 480 KB, else redrawn as WebP of at most 1600 px.
 
+import { galleryPublicationRequest } from "./gallery-publication-request";
+
 const LIMIT = 480 * 1024;
 const TYPES = ["image/png", "image/jpeg", "image/webp"];
 
@@ -61,7 +63,7 @@ export async function putReferenceImage(
 ): Promise<{ revision: string } | { message: string }> {
   const image = await referenceImageOf(file);
   if (!image) return { message: "That file is not an image we can use." };
-  const response = await fetchLike(
+  const response = await galleryPublicationRequest(
     `/api/gallery/${encodeURIComponent(entryId)}/reference`,
     {
       method: "PUT",
@@ -69,6 +71,7 @@ export async function putReferenceImage(
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ image, rights: true }),
     },
+    fetchLike,
   ).catch(() => null);
   const saved = response?.ok
     ? ((await response.json().catch(() => null)) as {

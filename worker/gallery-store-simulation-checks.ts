@@ -1,4 +1,5 @@
 import { locallyOwnedResources } from "./resource-replica";
+import { publicationResult } from "./gallery-publication-command";
 // The Gallery's simulation checks (#1545): the queue the Owner fills, one
 // entry at a time, and each entry's latest verdict. The verdict is a column
 // of the entry, private like its testbench; the runs themselves are the
@@ -213,7 +214,7 @@ export function queueSimulationChecks(
       noTestbench.push(row.id);
     }
     const found = new Set(rows.map((row) => row.id));
-    return Response.json({
+    return publicationResult({
       queued,
       noTestbench,
       missing: named.filter((id) => !found.has(id)),
@@ -358,7 +359,10 @@ export function recordSimulationCheck(
  * The Owner's view of the checks: how many wait, the one running, how the
  * checked entries stand, and the latest verdicts.
  */
-export function simulationCheckProgress(sql: SqlStorage): Response {
+export function simulationCheckProgress(
+  sql: SqlStorage,
+  ownedOnly = false,
+): Response {
   const current = sql
     .exec<{ entry_id: string; name: string; folder_index: number }>(
       `SELECT q.entry_id, e.name, q.folder_index
@@ -374,7 +378,7 @@ export function simulationCheckProgress(sql: SqlStorage): Response {
       .exec<{ verdict: string; count: number }>(
         `SELECT json_extract(simulation_check_json, '$.status') AS verdict,
            COUNT(*) AS count
-         FROM gallery_entries WHERE simulation_check_json IS NOT NULL
+         FROM gallery_entries WHERE simulation_check_json IS NOT NULL AND ${ownedOnly ? locallyOwnedResources(sql) : "1=1"}
          GROUP BY verdict`,
       )
       .toArray()
@@ -388,7 +392,7 @@ export function simulationCheckProgress(sql: SqlStorage): Response {
       simulation_check_json: string;
     }>(
       `SELECT id, name, author, simulation_check_json FROM gallery_entries
-       WHERE simulation_check_json IS NOT NULL
+       WHERE simulation_check_json IS NOT NULL AND ${ownedOnly ? locallyOwnedResources(sql) : "1=1"}
        ORDER BY json_extract(simulation_check_json, '$.checkedAt') DESC, id
        LIMIT 100`,
     )

@@ -137,9 +137,38 @@ export function renameOwner(
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
 
+  const revision = body.bylineRevision;
+  if (
+    revision !== undefined &&
+    (!Number.isSafeInteger(revision) || Number(revision) < 1)
+  )
+    return Response.json({ error: "invalid-fields" }, { status: 400 });
+  sql.exec(`CREATE TABLE IF NOT EXISTS gallery_byline_revisions (
+    owner_user_id TEXT PRIMARY KEY, revision INTEGER NOT NULL, display_name TEXT NOT NULL
+  ) WITHOUT ROWID`);
+
   let entries = 0;
   let versions = 0;
   state.storage.transactionSync(() => {
+    if (revision !== undefined) {
+      const previous =
+        sql
+          .exec<{ revision: number }>(
+            "SELECT revision FROM gallery_byline_revisions WHERE owner_user_id=?",
+            ownerUserId,
+          )
+          .toArray()[0]?.revision ?? 0;
+      if (previous >= Number(revision)) return;
+    }
+    sql.exec(
+      `INSERT INTO gallery_byline_revisions VALUES (?,?,?)
+       ON CONFLICT(owner_user_id) DO UPDATE SET
+         revision=COALESCE(?,gallery_byline_revisions.revision), display_name=excluded.display_name`,
+      ownerUserId,
+      revision ?? 0,
+      displayName,
+      revision ?? null,
+    );
     entries = sql
       .exec<{ count: number }>(
         `SELECT COUNT(*) AS count FROM gallery_entries
@@ -171,4 +200,47 @@ export function renameOwner(
     );
   });
   return Response.json({ ownerUserId, displayName, entries, versions });
+}
+
+/** An older regional session cannot republish a superseded profile name. */
+export function currentProfileByline(
+  sql: SqlStorage,
+  ownerUserId: unknown,
+  fallback: string,
+): string {
+  if (
+    typeof ownerUserId !== "string" ||
+    AI_SEATS.some((seat) => seat.userId === ownerUserId)
+  )
+    return fallback;
+  if (
+    !sql
+      .exec(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='gallery_byline_revisions'",
+      )
+      .toArray().length
+  )
+    return fallback;
+  return (
+    sql
+      .exec<{ display_name: string }>(
+        "SELECT display_name FROM gallery_byline_revisions WHERE owner_user_id=?",
+        ownerUserId,
+      )
+      .toArray()[0]?.display_name ?? fallback
+  );
+}
+
+export function forgetProfileByline(sql: SqlStorage, ownerUserId: string) {
+  if (
+    sql
+      .exec(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='gallery_byline_revisions'",
+      )
+      .toArray().length
+  )
+    sql.exec(
+      "DELETE FROM gallery_byline_revisions WHERE owner_user_id=?",
+      ownerUserId,
+    );
 }

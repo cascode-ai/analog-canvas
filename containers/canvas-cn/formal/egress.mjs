@@ -65,8 +65,19 @@ export default {
       const resourceCatchup =
         destination.origin === peer.origin &&
         request.method === "GET" &&
-        destination.pathname === "/api/resource-sync/gallery/changes" &&
-        /^\?after=\d+$/.test(destination.search);
+        /^\/api\/resource-sync\/(?:components|(?:gallery|analoggenie|circuitthink|amsnet|analogretriever)(?:-interactions|-opens|-activity)?)\/(?:changes|status)$/.test(
+          destination.pathname,
+        ) &&
+        (destination.pathname.endsWith("/status")
+          ? !destination.search
+          : /^\?after=\d+$/.test(destination.search));
+      const datasetLocation =
+        destination.origin === peer.origin &&
+        request.method === "GET" &&
+        /^\/api\/resource-sync\/(analoggenie|circuitthink|amsnet|analogretriever)\/location$/.test(
+          destination.pathname,
+        ) &&
+        /^\?id=[A-Za-z0-9_-]{3,64}$/.test(destination.search);
       const allowed = new Set([
         `POST ${new URL("/api/analytics-sync/seed", peer)}`,
         `POST ${new URL("/api/analytics-sync/receive", peer)}`,
@@ -84,14 +95,28 @@ export default {
         `POST ${new URL("/api/auth/regional/security", identity)}`,
         `POST ${new URL("/api/auth/regional/providers", identity)}`,
         `POST ${new URL("/api/auth/regional/action-authorize", identity)}`,
+        `POST ${new URL("/api/auth/regional/owner-action-authorize", identity)}`,
         `POST ${new URL("/api/auth/regional/action-verify", identity)}`,
-        `POST ${new URL("/api/resource-actions/lifecycle", peer)}`,
+        `POST ${new URL("/api/auth/regional/bylines", identity)}`,
+        ...[
+          "lifecycle",
+          "component",
+          "review-resolution",
+          "like",
+          "publication",
+          "board",
+          "maintenance",
+        ].map(
+          (action) =>
+            `POST ${new URL("/api/resource-actions/" + action, peer)}`,
+        ),
       ]);
       if (
         peer.protocol !== "https:" ||
         identity.protocol !== "https:" ||
         (!browserAuth &&
           !resourceCatchup &&
+          !datasetLocation &&
           !allowed.has(`${request.method} ${request.url}`))
       )
         return new Response("Regional destination refused", { status: 403 });
@@ -105,7 +130,14 @@ export default {
         new Request(request, {
           headers,
           redirect: "manual",
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(
+            [
+              "/api/resource-actions/publication",
+              "/api/resource-actions/maintenance",
+            ].includes(destination.pathname)
+              ? 45000
+              : 15000,
+          ),
         }),
       );
       return !browserAuth && response.status >= 300 && response.status < 400

@@ -1,5 +1,6 @@
 import { sha256Hex } from "@icm/derived";
 import { OPEN_STREAM_SUFFIX, RegionalOpenCounts } from "./regional-open-counts";
+import { ACTIVITY_STREAM_SUFFIX, RegionalActivity } from "./regional-activity";
 import {
   lookupAccounts,
   type AccountLookup,
@@ -337,6 +338,24 @@ export class ResourceReplica {
   originOf(id: string) {
     return this.key(id)?.origin ?? this.region;
   }
+  locationOf(id: string) {
+    const key = this.key(id);
+    // Ownership keys survive row deletion; legacy unseeded rows also belong
+    // to this region. Absence is distinct from originOf's legacy fallback.
+    const known =
+      Boolean(key) ||
+      this.tables.some(
+        (table) =>
+          this.sql
+            .exec(
+              `SELECT 1 FROM ${table.name} WHERE ${identity(table.key)}=? LIMIT 1`,
+              id,
+            )
+            .toArray().length > 0,
+      );
+    return { origin: key?.origin ?? this.region, known };
+  }
+
   status() {
     return {
       ...this.head(),
@@ -808,6 +827,7 @@ export function withResourceReplication<
     readonly resourceReplica?: ResourceReplica;
     readonly interactionReplica?: ResourceReplica;
     readonly openCounts?: RegionalOpenCounts;
+    readonly activity?: RegionalActivity;
     constructor(...args: any[]) {
       super(...args);
       const config = args[1] as (ReplicaConfig & IdentityEnv) | undefined;
@@ -832,17 +852,37 @@ export function withResourceReplication<
           check,
         );
         this.openCounts = new RegionalOpenCounts(args[0], region);
+        this.activity = new RegionalActivity(args[0], region, check);
       }
     }
     override async fetch(request: Request): Promise<Response> {
       try {
         const operation = new URL(request.url).pathname;
+        if (this.activity && request.method === "POST") {
+          if (operation === "/toggle-bookmark")
+            return this.activity.bookmark(await request.json());
+          if (operation === "/activity-board-location")
+            return this.activity.boardLocation(
+              String((await request.json()).id),
+            );
+          if (operation === "/activity-board-command")
+            return this.activity.boards.command(await request.json());
+          if (operation === "/activity-board-references")
+            return this.activity.boards.referencesPresent(
+              (await request.json()).ids,
+            );
+          if (operation === "/bookmarks")
+            return this.activity.bookmarks(
+              String((await request.json()).userId),
+            );
+        }
         if (operation === "/retire-account" && request.method === "POST") {
           const { userId, replay } = (await request.clone().json()) as {
             userId?: unknown;
             replay?: unknown;
           };
           if (!validAccountId(userId)) return fail("invalid-user", 400);
+          this.activity?.retire(userId);
           this.resourceReplica?.retireOwner(userId, replay === true);
           this.interactionReplica?.retireOwner(userId, replay === true);
         }
@@ -853,6 +893,11 @@ export function withResourceReplication<
             envelope: unknown;
             id: string;
           };
+          if (String(body.stream).endsWith(ACTIVITY_STREAM_SUFFIX))
+            return (
+              this.activity?.handle(operation, body) ??
+              fail("resource-sync-disabled", 404)
+            );
           if (String(body.stream).endsWith(OPEN_STREAM_SUFFIX))
             return (
               this.openCounts?.handle(operation, body) ??
@@ -866,7 +911,7 @@ export function withResourceReplication<
           if (!replica) return fail("resource-sync-disabled", 404);
           switch (operation) {
             case "/resource-sync/location":
-              return Response.json({ origin: replica.originOf(body.id) });
+              return Response.json(replica.locationOf(body.id));
             case "/resource-sync/status":
               return Response.json(replica.status());
             case "/resource-sync/seed":

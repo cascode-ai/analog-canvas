@@ -36,6 +36,7 @@ const gallerySpecs = [
   "publish",
   "wall",
 ].map((name) => `apps/editor/e2e/gallery-${name}.spec.ts`);
+gallerySpecs.unshift("apps/editor/e2e/boards-regional-retry.spec.ts");
 gallerySpecs.push("apps/editor/e2e/local-examples.spec.ts");
 
 function ciPlan(paths, options) {
@@ -293,7 +294,7 @@ describe("CI validation planning", () => {
         "apps/editor/e2e/component-insert.spec.ts",
         "apps/editor/e2e/component-properties-catalog.spec.ts",
         ...gallerySpecs,
-      ],
+      ].sort(),
     });
   });
 
@@ -505,12 +506,14 @@ describe("CI validation planning", () => {
       "apps/editor/src/lib/new-helper.ts",
     ]);
     expect(plan.mode).toBe("fallback");
-    expect(plan.e2eArgs).toEqual([
-      placementSmoke,
-      newCircuitSmoke,
-      ...gallerySpecs,
-      "apps/editor/e2e/runtime-crash-safety.spec.ts",
-    ]);
+    expect(plan.e2eArgs).toEqual(
+      [
+        placementSmoke,
+        newCircuitSmoke,
+        ...gallerySpecs,
+        "apps/editor/e2e/runtime-crash-safety.spec.ts",
+      ].sort(),
+    );
     expect(plan.reasons).toContain(
       "uncovered browser impact: apps/editor/src/lib/new-helper.ts",
     );

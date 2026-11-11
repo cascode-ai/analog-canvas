@@ -36,6 +36,9 @@ accounts and previews stay the [Gallery's](community-gallery.md).
 - A locked board refuses every change but unlock. The page offers no lock (only the API does) and shows unlock on a locked board; it edits the title and slots in place and puts the latest change, with the whole log, at its top.
 - Changes in one request apply all or none, as one revision; an open page
   reloads the board when the revision moves.
+- Both entrances use the same Board and permissions. Local reads, writer-routed
+  commands, revision preconditions and uncertain-response reconciliation follow
+  [regional activity](regional-activity.md).
 - Board pages and previews are `noindex`, never cached by shared caches, and
   send no referrer to another site.
 

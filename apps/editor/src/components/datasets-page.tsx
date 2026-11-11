@@ -11,6 +11,7 @@ import {
 import "../styles/gallery-entry.css";
 import "../styles/datasets-page.css";
 import { galleryPreviewUrl } from "../gallery-client";
+import { bookmarkRequest } from "../bookmark-request";
 import { COMPARISON_SOURCES, gallerySourceByKey } from "../gallery-sources";
 import {
   FAMILIES,
@@ -132,14 +133,19 @@ export function DatasetsPage({
 
   // The circuits this reader keeps for reference, from each dataset.
   const [saved, setSaved] = useState<ReadonlySet<string>>(new Set());
+  const bookmarkAccount = useRef("");
+  const bookmarkVersions = useRef<Record<string, string>>({});
   useEffect(() => {
     if (load.status !== "ready") return;
     let cancelled = false;
     // A reader the page knows is signed out keeps none: none is asked for
     // (#2163).
     void readSessionUser(fetchLike)
-      .then((session) =>
-        session.available && !session.user
+      .then((session) => {
+        bookmarkAccount.current = session.available
+          ? (session.user?.id ?? "")
+          : "";
+        return session.available && !session.user
           ? []
           : Promise.all(
               COMPARISON_SOURCES.map((source) =>
@@ -148,16 +154,24 @@ export function DatasetsPage({
                 })
                   .then((response) =>
                     response.ok
-                      ? (response.json() as Promise<{ ids: string[] }>)
+                      ? (response.json() as Promise<{
+                          ids: string[];
+                          versions?: Record<string, string>;
+                        }>)
                       : null,
                   )
                   .catch(() => null),
               ),
-            ),
-      )
+            );
+      })
       .then((lists) => {
-        if (!cancelled)
+        if (!cancelled) {
+          bookmarkVersions.current = Object.assign(
+            {},
+            ...lists.map((list) => list?.versions ?? {}),
+          );
           setSaved(new Set(lists.flatMap((list) => list?.ids ?? [])));
+        }
       });
     return () => {
       cancelled = true;
@@ -165,15 +179,22 @@ export function DatasetsPage({
   }, [load.status, fetchLike]);
   const toggleSaved = useCallback(
     async (id: string) => {
-      const response = await fetchLike(
-        `/api/gallery/${encodeURIComponent(id)}/bookmark`,
-        { method: "POST", credentials: "same-origin" },
+      const response = await bookmarkRequest(
+        id,
+        bookmarkAccount.current,
+        !saved.has(id),
+        bookmarkVersions.current[id] ?? null,
+        fetchLike,
       ).catch(() => null);
       if (!response?.ok) {
         setToast("It could not be saved.");
         return;
       }
-      const { saved: kept } = (await response.json()) as { saved: boolean };
+      const { saved: kept, version } = (await response.json()) as {
+        saved: boolean;
+        version?: string | null;
+      };
+      if (version) bookmarkVersions.current[id] = version;
       setSaved((current) => {
         const next = new Set(current);
         if (kept) next.add(id);
@@ -182,7 +203,7 @@ export function DatasetsPage({
       });
       setToast(kept ? "Saved for reference" : "Removed from Saved");
     },
-    [fetchLike],
+    [fetchLike, saved],
   );
   const loaded = load.status === "ready" ? load.rows : null;
   const rows = useMemo(

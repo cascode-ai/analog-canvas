@@ -1,3 +1,4 @@
+import { publicationResult } from "./gallery-publication-command";
 import { locallyOwnedResources } from "./resource-replica";
 // Moderation: curation, duplicate cleanup, rejection, the recycle bin, and
 // deleting an entry or a whole account's data.
@@ -21,6 +22,7 @@ import {
   wrapTags,
 } from "./gallery-store";
 import { snapshotEntry } from "./gallery-store-versions";
+import { forgetProfileByline } from "./gallery-store-bylines";
 
 /**
  * Recycle-bin retention. The quota deliberately refunds a withdrawal
@@ -179,7 +181,7 @@ export function recycleDuplicates(
         row.id,
       );
     }
-    return Response.json({
+    return publicationResult({
       kept: rows[0]!.id,
       recycled: rows.slice(1).map((row) => row.id),
     });
@@ -263,7 +265,7 @@ export function reject(
     ownerUserId: row.owner_user_id,
     submitterEmail: row.submitter_email,
   };
-  return Response.json({ id, status: "rejected", author });
+  return publicationResult({ id, status: "rejected", author });
 }
 
 /**
@@ -306,6 +308,15 @@ export function deleteAccount(
   const sql = state.storage.sql;
   if (!userId) return Response.json({ error: "missing-user" }, { status: 400 });
   return state.storage.transactionSync(() => {
+    forgetProfileByline(sql, userId);
+    if (
+      sql
+        .exec(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='gallery_like_intents'",
+        )
+        .toArray().length
+    )
+      sql.exec("DELETE FROM gallery_like_intents WHERE user_id=?", userId);
     // Copies of the other region's publications are removed by their origin.
     const entries = sql
       .exec<{

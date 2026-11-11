@@ -1,3 +1,4 @@
+import { publicationResult } from "./gallery-publication-command";
 // Reference images: a picture a community circuit's author (or the Owner)
 // uploads as what the drawing was drawn from, such as a textbook figure.
 // /review sets it beside the drawing, as a dataset's original figure.
@@ -65,7 +66,7 @@ export function setReference(sql: SqlStorage, body: unknown): Response {
     String(body.uploaderId ?? ""),
     new Date().toISOString(),
   );
-  return Response.json({ revision });
+  return publicationResult({ revision });
 }
 
 export function deleteReference(sql: SqlStorage, body: unknown): Response {
@@ -77,7 +78,7 @@ export function deleteReference(sql: SqlStorage, body: unknown): Response {
     "DELETE FROM entry_references WHERE entry_id = ?",
     String(body.entryId),
   );
-  return Response.json({ ok: true });
+  return publicationResult({ ok: true });
 }
 
 /** A public entry's reference image. */

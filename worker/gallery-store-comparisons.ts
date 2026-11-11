@@ -1,3 +1,4 @@
+import { publicationResult } from "./gallery-publication-command";
 // Dataset comparisons: each dataset circuit's original figure and the
 // verdict of comparing its netlist with our redraw's. A row belongs to an
 // entry of the same store and is listed while that entry is public. The
@@ -60,7 +61,9 @@ const FIGURE_MAGIC: Record<string, (bytes: Uint8Array) => boolean> = {
     String.fromCharCode(...b.subarray(8, 12)) === "WEBP",
 };
 
-export function decodedFigure(value: unknown): { type: string; data: string } | null {
+export function decodedFigure(
+  value: unknown,
+): { type: string; data: string } | null {
   if (!isRecord(value)) return null;
   const type = String(value.type ?? "");
   const data = typeof value.data === "string" ? value.data : "";
@@ -161,7 +164,7 @@ export function importComparison(sql: SqlStorage, body: unknown): Response {
     sha256Hex(`${figure.type}\u0000${figure.data}`).slice(0, 16),
     new Date().toISOString(),
   );
-  return Response.json({ ok: true, created: !stored });
+  return publicationResult({ ok: true, created: !stored });
 }
 
 /** Every comparison whose entry is public, with the entry's card fields. */

@@ -101,7 +101,7 @@ def run(args):
     registry = json.loads(pathlib.Path(args.sources).read_text(encoding='utf-8'))
     stores = ['gallery'] + [s['key'] for s in registry['sources']]
     streams = (['gallery', 'components'] + stores[1:] + [s + '-interactions' for s in stores]
-               + [s + '-opens' for s in stores])
+               + [s + '-opens' for s in stores] + [s + '-activity' for s in stores])
     sides = [(endpoint(config[k + 'Origin']), pathlib.Path(config[k + 'TokenFile']).read_text().strip())
              for k in ['local', 'peer']]
     if sides[0][0] == sides[1][0] or any(not token or '\n' in token or '\r' in token for _, token in sides):

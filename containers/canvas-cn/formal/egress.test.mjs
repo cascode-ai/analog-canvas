@@ -7,6 +7,125 @@ const env = {
 };
 afterEach(() => vi.unstubAllGlobals());
 
+it("looks up only a Dataset writer at the fixed peer", async () => {
+  vi.stubGlobal("fetch", async () =>
+    Response.json({ known: true, origin: "cn" }),
+  );
+  expect(
+    (
+      await egress.fetch(
+        new Request(
+          "https://project-peer.test/api/resource-sync/analoggenie/location?id=ag-401",
+        ),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await egress.fetch(
+        new Request(
+          "https://project-peer.test/api/resource-sync/analoggenie/location?id=ag-401&url=https://other.test",
+        ),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+});
+
+it("carries owner command authorization only to the fixed identity endpoint", async () => {
+  vi.stubGlobal("fetch", async () => Response.json({ capability: "opaque" }));
+  const path = "/api/auth/regional/owner-action-authorize";
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://canvas-origin.test" + path, {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://project-peer.test" + path, {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+});
+
+it("carries supported regional actions and their private catch-up without opening other peer paths", async () => {
+  vi.stubGlobal("fetch", async () => Response.json({ ok: true }));
+  for (const action of [
+    "like",
+    "review-resolution",
+    "component",
+    "publication",
+    "board",
+    "maintenance",
+  ]) {
+    expect(
+      (
+        await egress.fetch(
+          new Request(
+            `https://project-peer.test/api/resource-actions/${action}`,
+            { method: "POST", body: "{}" },
+          ),
+          env,
+        )
+      ).status,
+    ).toBe(200);
+  }
+  for (const stream of [
+    "components",
+    "gallery-interactions",
+    "analoggenie",
+    "amsnet-interactions",
+    "gallery-activity",
+    "circuitthink-activity",
+    "analogretriever-opens",
+  ]) {
+    expect(
+      (
+        await egress.fetch(
+          new Request(
+            `https://project-peer.test/api/resource-sync/${stream}/changes?after=12`,
+          ),
+          env,
+        )
+      ).status,
+    ).toBe(200);
+  }
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://canvas-origin.test/api/auth/regional/bylines", {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  for (const path of [
+    "/api/resource-actions/unknown",
+    "/api/resource-sync/unknown/changes?after=0",
+    "/api/resource-sync/gallery/changes?after=0&url=https://other.test",
+    "/api/resource-sync/gallery/receive",
+  ]) {
+    expect(
+      (await egress.fetch(new Request("https://project-peer.test" + path), env))
+        .status,
+    ).toBe(403);
+  }
+});
+
 it("allows narrow resource command authorization and ordered catch-up only at fixed peers", async () => {
   vi.stubGlobal("fetch", async () => Response.json({ ok: true }));
   expect(

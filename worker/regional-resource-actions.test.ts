@@ -1,25 +1,200 @@
+import { pair } from "./regional-resource-actions.test-support";
 import { afterEach, expect, it, vi } from "vitest";
-import { accounts, transportOrigin } from "./regional-auth.test-support";
 import {
-  makerOf,
   signIn,
   adminOf,
   ownerAccountOf,
   ORIGIN,
-  sqliteState,
-  submissionRequest,
   wiredProjectText,
 } from "./gallery.test-support";
-import { GalleryDO, ComponentLibraryDO } from "./index";
-import { routeComponentLibraryRequest } from "./component-library";
 import { builtInSymbols } from "@icm/symbols";
 import { deviceDescriptor } from "@icm/devices";
-import { routeGalleryRequest } from "./gallery";
-import { routeResourceSync } from "./resource-sync";
-import { routeRegionalResourceActions } from "./regional-resource-actions";
 import { digest } from "./regional-auth-contract";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("unlikes through the other entrance and reconciles a lost reply without toggling again", async () => {
+  const { cn, overseas, publish, loseNextReply } = await pair();
+  const id = await publish(overseas);
+  const path = `/api/gallery/${id}/like`;
+  expect((await overseas.call(path, "POST", "first-like")).status).toBe(200);
+  const changed = await overseas.store.fetch(
+    new Request("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream: "gallery-interactions", after: 0 }),
+    }),
+  );
+  await cn.store.fetch(
+    new Request("https://store/resource-sync/receive", {
+      method: "POST",
+      body: JSON.stringify({
+        stream: "gallery-interactions",
+        envelope: await changed.json(),
+      }),
+    }),
+  );
+  loseNextReply();
+  expect((await cn.call(path, "POST", "foreign-unlike")).status).toBe(503);
+  overseas.restart();
+  cn.restart();
+  const retry = await cn.call(path, "POST", "foreign-unlike");
+  expect(retry.status, await retry.clone().text()).toBe(200);
+  expect(await retry.json()).toEqual({ likes: 0, likedByViewer: false });
+  expect(await (await cn.call(path, "POST", "foreign-unlike")).json()).toEqual({
+    likes: 0,
+    likedByViewer: false,
+  });
+  // A new like can move the writer; the old command must still reconcile at its original writer.
+  expect(await (await cn.call(path, "POST", "new-like")).json()).toEqual({
+    likes: 1,
+    likedByViewer: true,
+  });
+  const old = await cn.call(path, "POST", "foreign-unlike");
+  expect(old.status).toBe(409);
+  expect(
+    (
+      await (await cn.call("/api/gallery?source=community")).json()
+    ).entries.find((entry: { id: string }) => entry.id === id).likes,
+  ).toBe(1);
+});
+
+it("keeps a prepared like command intact when its retry enters through the other region", async () => {
+  const { cn, overseas, publish, loseNextReply, auth } = await pair();
+  const id = await publish(cn);
+  const path = `/api/gallery/${id}/like`;
+  const prepare = await cn.call(path + "/intent", "POST", "travelling-like");
+  expect(prepare.status).toBe(200);
+  const command = await prepare.json();
+  const other = await signIn(auth.source.authDurable, "like-other@example.com");
+  const switched = await overseas.route(
+    new Request(ORIGIN + path, {
+      method: "POST",
+      headers: {
+        cookie: other,
+        origin: ORIGIN,
+        "idempotency-key": "travelling-like",
+      },
+      body: JSON.stringify({ command }),
+    }),
+  );
+  expect(switched.status).toBe(403);
+  loseNextReply();
+  expect(
+    (await overseas.call(path, "POST", "travelling-like", { command })).status,
+  ).toBe(503);
+  cn.restart();
+  const retry = await cn.call(path, "POST", "travelling-like", { command });
+  expect(await retry.json()).toEqual({ likes: 1, likedByViewer: true });
+  expect(
+    (await overseas.call(path, "POST", "travelling-like", { command })).status,
+  ).toBe(200);
+  expect(
+    (
+      await overseas.call(path, "POST", "travelling-like", {
+        command: { ...command, take: true },
+      })
+    ).status,
+  ).toBe(400);
+});
+
+it("changes the Owner's Dataset hearts across writers and refuses stale or forged intents", async () => {
+  const { cn, overseas, auth } = await pair();
+  const owner = await ownerAccountOf(auth.source),
+    domesticOwner = await auth.connect(owner);
+  const send = (
+    site: typeof cn,
+    path: string,
+    key: string,
+    body?: unknown,
+    cookie = site === cn ? domesticOwner : owner,
+  ) =>
+    site.route(
+      new Request(ORIGIN + path, {
+        method: "POST",
+        headers: { cookie, origin: ORIGIN, "idempotency-key": key },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+    );
+  const transfer = async (from: typeof cn, to: typeof cn, stream: string) => {
+    const target = to.env.GALLERY.getByName("source:analoggenie");
+    const status = await target.fetch("https://store/resource-sync/status", {
+      method: "POST",
+      body: JSON.stringify({ stream }),
+    });
+    const after = (await status.json()).received?.sequence ?? 0;
+    const changes = await from.env.GALLERY.getByName(
+      "source:analoggenie",
+    ).fetch("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream, after }),
+    });
+    expect(
+      (
+        await target.fetch("https://store/resource-sync/receive", {
+          method: "POST",
+          body: JSON.stringify({ stream, envelope: await changes.json() }),
+        })
+      ).status,
+    ).toBe(200);
+  };
+  expect(
+    (
+      await send(
+        overseas,
+        "/api/gallery/sources/analoggenie/entries",
+        "import",
+        {
+          entries: [
+            { id: "ag-309", name: "Hearts", projectText: wiredProjectText() },
+          ],
+        },
+      )
+    ).status,
+  ).toBe(200);
+  await transfer(overseas, cn, "analoggenie");
+  const path = "/api/gallery/ag-309/like";
+  expect(await (await send(cn, path, "heart-one")).json()).toEqual({
+    likes: 1,
+    likedByViewer: true,
+  });
+  await transfer(cn, overseas, "analoggenie-interactions");
+  expect(await (await send(overseas, path, "heart-two")).json()).toEqual({
+    likes: 2,
+    likedByViewer: true,
+  });
+  const command = await (
+    await send(overseas, path + "/intent?take=1", "take-one")
+  ).json();
+  expect(
+    await (
+      await send(overseas, path + "?take=1", "take-one", { command })
+    ).json(),
+  ).toEqual({ likes: 1, likedByViewer: true });
+  expect(
+    await (await send(cn, path + "?take=1", "take-one", { command })).json(),
+  ).toEqual({ likes: 1, likedByViewer: true });
+  const stale = await (
+    await send(overseas, path + "/intent", "stale-heart")
+  ).json();
+  expect((await send(cn, path, "newer-heart")).status).toBe(200);
+  expect(
+    (await send(overseas, path, "stale-heart", { command: stale })).status,
+  ).toBe(409);
+  expect((await cn.call(path, "POST", "take-one", { command })).status).toBe(
+    400,
+  );
+  expect(
+    (await send(cn, path + "?take=1", "take-one", { command }, "")).status,
+  ).toBe(401);
+  const peer = await overseas.route(
+    new Request(ORIGIN + "/api/resource-actions/like", {
+      method: "POST",
+      headers: { authorization: "Bearer source-sync" },
+      body: JSON.stringify({ ...command, target: "overseas" }),
+    }),
+  );
+  expect(peer.status).toBe(401);
+});
 
 it("resolves a China-written Dataset review through the overseas entrance in its own stream", async () => {
   const { cn, overseas, auth } = await pair();
@@ -71,7 +246,6 @@ it("resolves a China-written Dataset review through the overseas entrance in its
       ).status,
     ).toBe(200);
   };
-  await transfer("analoggenie");
   const revision = (await (await cn.call("/api/gallery/ag-308")).json()).entry
     .previewRevision;
   const created = await cn.call(
@@ -284,194 +458,6 @@ it("renames a foreign Gallery entry once across a lost reply and keeps later met
     "Later name",
   );
 });
-
-async function pair() {
-  const auth = accounts();
-  const cookie = await makerOf(auth.source);
-  const cnCookie = await auth.connect(cookie);
-  const make = (region: "cn" | "overseas") => {
-    const state = sqliteState();
-    const env = {
-      ...(region === "cn" ? auth.resources : auth.source),
-      RESOURCE_REGION: region,
-      RESOURCE_WRITES_ENABLED: "true",
-      RESOURCE_ACTION_PEER:
-        region === "cn" ? transportOrigin : "https://china.test",
-      RESOURCE_SYNC_TOKEN: region === "cn" ? "cn-sync" : "source-sync",
-      RESOURCE_SYNC_PEER_TOKEN: region === "cn" ? "source-sync" : "cn-sync",
-      PROJECT_IDENTITY_URL: transportOrigin + "/api/auth/regional/identities",
-      PROJECT_IDENTITY_TOKEN: "isolated-regional-account-service-secret",
-    };
-    let store = new GalleryDO(state, env);
-    const datasets = new Map<
-      string,
-      {
-        state: ReturnType<typeof sqliteState>;
-        store: InstanceType<typeof GalleryDO>;
-      }
-    >();
-    const componentState = sqliteState();
-    let components = new ComponentLibraryDO(componentState, env);
-    const componentBinding = {
-      getByName: () => ({
-        fetch: (input: string, init?: RequestInit) =>
-          components.fetch(new Request(input, init)),
-      }),
-    };
-    Object.assign(env, { COMPONENT_LIBRARY: componentBinding });
-    env.GALLERY = {
-      getByName: (name: string) => ({
-        fetch: (input: string, init?: RequestInit) =>
-          (() => {
-            if (name === "gallery")
-              return store.fetch(new Request(input, init));
-            let dataset = datasets.get(name);
-            if (!dataset) {
-              const state = sqliteState();
-              dataset = { state, store: new GalleryDO(state, env) };
-              datasets.set(name, dataset);
-            }
-            return dataset.store.fetch(new Request(input, init));
-          })(),
-      }),
-    };
-    const route = async (request: Request): Promise<Response> =>
-      (await routeRegionalResourceActions(request, env)) ??
-      (await routeResourceSync(request, env)) ??
-      (await routeGalleryRequest(request, env)) ??
-      (await routeComponentLibraryRequest(request, {
-        ...env,
-        COMPONENT_LIBRARY: componentBinding,
-      }))!;
-    const call = (path: string, method = "GET", key?: string, body?: unknown) =>
-      route(
-        new Request(ORIGIN + path, {
-          method,
-          headers: {
-            origin: ORIGIN,
-            cookie: region === "cn" ? cnCookie : cookie,
-            ...(key ? { "idempotency-key": key } : {}),
-          },
-          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        }),
-      );
-    return {
-      env,
-      get store() {
-        return store;
-      },
-      get components() {
-        return components;
-      },
-      legacyComponentDefinition: (id: string, definition: unknown) => {
-        componentState.storage.sql.exec(
-          "UPDATE components SET definition=? WHERE id=?",
-          JSON.stringify(definition),
-          id,
-        );
-      },
-      route,
-      call,
-      restart: () => {
-        store = new GalleryDO(state, env);
-        for (const dataset of datasets.values())
-          dataset.store = new GalleryDO(dataset.state, env);
-        components = new ComponentLibraryDO(componentState, env);
-      },
-    };
-  };
-  const overseas = make("overseas"),
-    cn = make("cn");
-  let loseReply = false;
-  let loseCatchup = false;
-  let beforeCatchup: (() => Promise<void>) | undefined;
-  vi.stubGlobal(
-    "fetch",
-    async (input: RequestInfo | URL, init?: RequestInit) => {
-      const request = new Request(input, init),
-        url = new URL(request.url);
-      if (url.pathname.startsWith("/api/auth/"))
-        return auth.source.authDurable.fetch(request);
-      if (loseCatchup && url.pathname.endsWith("/changes")) {
-        loseCatchup = false;
-        throw new TypeError("Catch-up connection lost");
-      }
-      if (beforeCatchup && url.pathname.endsWith("/changes")) {
-        const run = beforeCatchup;
-        beforeCatchup = undefined;
-        await run();
-      }
-      const response = await (
-        url.origin === transportOrigin ? overseas : cn
-      ).route(request);
-      if (
-        loseReply &&
-        url.pathname.startsWith("/api/resource-actions/") &&
-        response.ok
-      ) {
-        loseReply = false;
-        throw new TypeError("Connection lost after commit");
-      }
-      return response;
-    },
-  );
-  const publish = async (site: typeof cn) => {
-    const response = await site.route(
-      submissionRequest(
-        {
-          name: "Regional lifecycle",
-          projectText: wiredProjectText(),
-          tags: [],
-        },
-        { cookie: site === cn ? cnCookie : cookie },
-      ),
-    );
-    expect(response.status).toBe(201);
-    const { id } = await response.json();
-    const peer = site === cn ? overseas : cn;
-    const status = await peer.store.fetch(
-      new Request("https://store/resource-sync/status", {
-        method: "POST",
-        body: JSON.stringify({ stream: "gallery" }),
-      }),
-    );
-    const after = (await status.json()).received?.sequence ?? 0;
-    const change = await site.store.fetch(
-      new Request("https://store/resource-sync/changes", {
-        method: "POST",
-        body: JSON.stringify({ stream: "gallery", after }),
-      }),
-    );
-    const imported = await peer.store.fetch(
-      new Request("https://store/resource-sync/receive", {
-        method: "POST",
-        body: JSON.stringify({
-          stream: "gallery",
-          envelope: await change.json(),
-        }),
-      }),
-    );
-    expect(imported.status).toBe(200);
-    return id as string;
-  };
-  return {
-    cn,
-    overseas,
-    publish,
-    auth,
-    cookie,
-    cnCookie,
-    loseNextReply: () => {
-      loseReply = true;
-    },
-    loseNextCatchup: () => {
-      loseCatchup = true;
-    },
-    beforeNextCatchup: (run: () => Promise<void>) => {
-      beforeCatchup = run;
-    },
-  };
-}
 
 it("updates a foreign User Component with the same revision checks and confirms local visibility", async () => {
   const { overseas, cn } = await pair();

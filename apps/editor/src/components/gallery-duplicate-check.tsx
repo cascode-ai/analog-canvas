@@ -5,6 +5,8 @@ import type { GalleryFeedEntry } from "../gallery-client";
 import {
   defaultDuplicateSurvivor,
   recycleDuplicateGroup,
+  DuplicateCleanupIncomplete,
+  pendingDuplicateSurvivor,
 } from "../gallery-duplicate-cleanup";
 
 export function GalleryDuplicateCheck({
@@ -27,7 +29,9 @@ export function GalleryDuplicateCheck({
   );
   const [removedCount, setRemovedCount] = useState(0);
   const keepId = (group: GalleryFeedEntry[]) =>
-    survivors[group[0]!.id] ?? defaultDuplicateSurvivor(group);
+    survivors[group[0]?.id ?? ""] ??
+    pendingDuplicateSurvivor(group) ??
+    defaultDuplicateSurvivor(group);
   const clean = async (groups: GalleryFeedEntry[][]) => {
     if (!report?.complete || cleaning || running) return;
     setCleaning(true);
@@ -48,9 +52,33 @@ export function GalleryDuplicateCheck({
           onReport(remaining);
           setRemovedCount((count) => count + recycled.length);
         } catch (error) {
+          let errorKey = group[0]?.id ?? keepId(group);
+          if (
+            error instanceof DuplicateCleanupIncomplete &&
+            error.recycled.length
+          ) {
+            removed.push(...error.recycled);
+            const pending = group.filter(
+              (entry) => !error.recycled.includes(entry.id),
+            );
+            errorKey = pending[0]?.id ?? keepId(group);
+            setSurvivors((current) => ({
+              ...current,
+              [errorKey]: keepId(group),
+            }));
+            remaining = {
+              ...remaining,
+              groups: remaining.groups.map((item) =>
+                item === group ? pending : item,
+              ),
+            };
+            setReport(remaining);
+            onReport(remaining);
+            setRemovedCount((count) => count + error.recycled.length);
+          }
           setCleanupErrors((errors) => ({
             ...errors,
-            [group[0]!.id]:
+            [errorKey]:
               error instanceof Error
                 ? error.message
                 : "Could not remove this group.",

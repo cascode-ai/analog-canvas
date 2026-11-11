@@ -3,6 +3,7 @@
  * the tag counts beside it, refreshes, likes, and entries taken off it.
  */
 import { useEffect, useRef, useState } from "react";
+import { galleryLikeRequest } from "../gallery-like-request";
 import {
   announceGalleryChange,
   removeGalleryAuthorEntry,
@@ -245,13 +246,7 @@ export function useGalleryWall({
   async function toggleLike(entryId: string, take = false): Promise<void> {
     let response: Response;
     try {
-      response = await fetch(
-        `/api/gallery/${entryId}/like${take ? "?take=1" : ""}`,
-        {
-          method: "POST",
-          credentials: "same-origin",
-        },
-      );
+      response = await galleryLikeRequest(entryId, take);
     } catch {
       return;
     }

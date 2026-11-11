@@ -6,6 +6,7 @@ import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { isDailyAllowanceRefusal } from "../../daily-allowance";
 import { requestFailureOf } from "../../request-failure";
+import { galleryPublicationRequest } from "../../gallery-publication-request";
 
 /**
  * Client for the documented gallery submissions endpoint
@@ -205,7 +206,12 @@ async function sendGalleryProject(
 ): Promise<GalleryPublishOutcome> {
   let response: Response;
   try {
-    response = await fetchLike(url, {
+    const request =
+      method === "PUT"
+        ? (path: string, init: RequestInit) =>
+            galleryPublicationRequest(path, init, fetchLike)
+        : fetchLike;
+    response = await request(url, {
       method,
       // The session cookie is the credential; there is nothing else to send.
       credentials: "same-origin",

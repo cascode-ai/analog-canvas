@@ -12,6 +12,7 @@ import "../styles/datasets-page.css";
 import "../styles/review-page.css";
 import "./gallery-tag-groups.css";
 import { galleryPreviewUrl } from "../gallery-client";
+import { galleryLikeRequest } from "../gallery-like-request";
 import { gallerySourceByKey } from "../gallery-sources";
 import { verdictOf, type ComparisonVerdict } from "../dataset-comparisons";
 import {
@@ -494,10 +495,9 @@ export function ReviewPage({
   const toggleLike = useCallback(
     async (take = false) => {
       if (!card) return;
-      const response = await fetchLike(
-        `/api/gallery/${encodeURIComponent(card.id)}/like${take ? "?take=1" : ""}`,
-        { method: "POST", credentials: "same-origin" },
-      ).catch(() => null);
+      const response = await galleryLikeRequest(card.id, take, fetchLike).catch(
+        () => null,
+      );
       if (!response?.ok) {
         setMessage("The like could not be saved.");
         return;

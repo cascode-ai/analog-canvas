@@ -396,6 +396,21 @@ export async function routeGalleryRequest(
   // The preview gate's one-minute cache must not supply list permissions.
   let session: Promise<SessionUser | null> | undefined;
   const readSession = () => (session ??= sessionUserOf(request, env));
+  if (
+    segments.length === 1 &&
+    segments[0] === "bookmarks" &&
+    request.method === "GET"
+  ) {
+    const user = await readSession();
+    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const { status, payload } = await callGallery(env, "bookmarks", {
+      userId: user.id,
+    });
+    return Response.json(payload, {
+      status,
+      headers: { "cache-control": "no-store" },
+    });
+  }
   // Every Gallery read is open to everyone, signed in or not; writes keep
   // their own checks (docs/specs/community-gallery.md#reader-access).
 
@@ -417,10 +432,28 @@ export async function routeGalleryRequest(
     const user = await sessionUserOf(request, env);
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
     const kept = gallerySourceOfEntryId(segments[0]!);
+    const bookmark = (await request.json().catch(() => null)) as {
+      saved?: unknown;
+      expectedVersion?: unknown;
+      accountId?: unknown;
+    } | null;
+    if (bookmark?.accountId !== undefined && bookmark.accountId !== user.id)
+      return Response.json({ error: "account-changed" }, { status: 409 });
     const { status, payload } = await callGallery(
       kept ? withGalleryStore(env, kept) : env,
       "toggle-bookmark",
-      { id: segments[0], userId: user.id, at: new Date().toISOString() },
+      {
+        id: segments[0],
+        userId: user.id,
+        at: new Date().toISOString(),
+        ...(bookmark?.saved === undefined ? {} : { saved: bookmark.saved }),
+        ...(bookmark?.expectedVersion === undefined
+          ? {}
+          : { expectedVersion: bookmark.expectedVersion }),
+        ...(request.headers.get("idempotency-key")
+          ? { commandId: request.headers.get("idempotency-key") }
+          : {}),
+      },
     );
     return Response.json(payload, { status });
   }
