@@ -16,6 +16,7 @@ const NAMED_PAGES = [
   "mine",
   "datasets",
   "review",
+  "film",
 ] as const;
 
 const NAMED_PAGE = new RegExp(`^/(?:${NAMED_PAGES.join("|")})?/?$`, "u");

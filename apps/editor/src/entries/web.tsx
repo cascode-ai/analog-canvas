@@ -285,6 +285,14 @@ export function mountWebEditor() {
     ),
   );
 
+  const FilmPage = lazy(
+    guardedRouteChunk(() =>
+      import("../components/film-page").then((module) => ({
+        default: module.FilmPage,
+      })),
+    ),
+  );
+
   const GalleryEntryMissing = lazy(
     guardedRouteChunk(() =>
       import("../components/missing-page").then((module) => ({
@@ -401,6 +409,15 @@ export function mountWebEditor() {
           fallback={<div className="analytics-loading">Loading review…</div>}
         >
           <ReviewPage visitStats={stats} />
+        </Suspense>
+      );
+    }
+    if (/^\/film\/?$/.test(path)) {
+      return (
+        <Suspense
+          fallback={<div className="analytics-loading">Loading the film…</div>}
+        >
+          <FilmPage />
         </Suspense>
       );
     }

@@ -1,0 +1,3265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Analog Canvas Film</title>
+    <style>
+      %%LABEL_FACES%%
+    </style>
+    <style>
+      /* Layout: one continuous sheet seen through a moving camera; type sits in screen space as lower-thirds.
+   A dark stage opens and closes the film; the product lives on its own white canvas in between. */
+      :root {
+        --night: #0c0c0b;
+        --night-2: #1d1c1a;
+        --paper: #ffffff;
+        --chrome: #f7f6f3;
+        --ink: #111110;
+        --text: #37352f;
+        --muted: #63625f;
+        --line: #e6e5e1;
+        --accent: #2383e2;
+        --accent-soft: rgb(35 131 226 / 13%);
+        --ai: #6a3cbf;
+        --ai-soft: #efe7fb;
+        --ok: #2f9e44;
+        --font-display:
+          "Metropolis", "PingFang SC", "HarmonyOS Sans SC", "MiSans",
+          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", ui-sans-serif,
+          system-ui, sans-serif;
+        --font-body:
+          ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "PingFang SC", "Microsoft YaHei", Helvetica, Arial, sans-serif;
+        --font-mono:
+          "AC Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
+        color-scheme: light;
+      }
+      @font-face {
+        font-family: "AC Mono";
+        font-weight: 300 800;
+        font-style: normal;
+        src: url(%%FONT_MONO%%) format("woff2");
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--night);
+        color: var(--text);
+        font-family: var(--font-body);
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+      }
+      #app {
+        position: relative;
+        height: 100%;
+        overflow: hidden;
+      }
+      #stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        container-type: size;
+        cursor: pointer;
+        background: radial-gradient(
+          ellipse at 50% 40%,
+          var(--night-2) 0%,
+          var(--night) 72%
+        );
+        --logo-cy: 40cqh;
+        --logo-half: 13cqh;
+      }
+      #stage.lit {
+        background: var(--paper);
+      }
+      #stage.wall {
+        background: var(--chrome);
+      }
+      #stage.portrait {
+        --logo-cy: 36cqh;
+        --logo-half: 15cqw;
+      }
+      #wsvg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .art {
+        font-size: 15.116px;
+        fill: #000;
+      }
+      .art text {
+        font-family:
+          "Metropolis", "DejaVu Sans", Arial, "Helvetica Neue", Helvetica,
+          sans-serif;
+      }
+      .art g[data-symbol-id] g[stroke] {
+        transition: stroke 0.18s;
+      }
+      .art g.hl > g > g[stroke] {
+        stroke: var(--accent);
+      }
+      .art g.hl polygon[fill="#000"],
+      .art g.hl circle[fill="#000"] {
+        fill: var(--accent);
+      }
+      .art circle.pulse {
+        fill: var(--accent);
+      }
+      .halo {
+        fill: var(--accent-soft);
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      .halo.on {
+        opacity: 1;
+      }
+
+      /* ---- screen-space type ---- */
+      #ov {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        padding-left: max(16px, env(safe-area-inset-left, 0px));
+        padding-right: max(16px, env(safe-area-inset-right, 0px));
+      }
+      .rv {
+        display: block;
+        overflow: hidden;
+        padding-block: 0.16em;
+        margin-block: -0.16em;
+      }
+      .rv > span {
+        display: block;
+        transform: translateY(118%);
+        transition: transform 0.95s var(--ease);
+      }
+      .on .rv > span {
+        transform: none;
+      }
+      .on p.rv > span,
+      .on .pr .rv > span {
+        transition-delay: 0.1s;
+      }
+
+      .hook {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.6cqh;
+        text-align: center;
+      }
+      .hl {
+        position: relative;
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: #fff;
+        white-space: nowrap;
+        line-height: 1.16;
+        letter-spacing: -0.012em;
+        font-size: min(9cqh, 7.2cqw);
+        opacity: 0;
+        transition: opacity 0.28s;
+      }
+      .en .hl {
+        font-size: min(7cqh, 4.9cqw);
+      }
+      .hl.on {
+        opacity: 1;
+        transition-duration: 0.01s;
+      }
+      .hl .tx {
+        background: linear-gradient(var(--accent), var(--accent)) no-repeat 0
+          58%/0% 0.085em;
+        transition: background-size 0.36s cubic-bezier(0.7, 0, 0.2, 1);
+      }
+      .hook.strike .hl .tx {
+        background-size: 100% 0.085em;
+      }
+      .pbr {
+        display: none;
+      }
+      .portrait .pbr {
+        display: inline;
+      }
+      .portrait .hl {
+        font-size: min(6.4cqh, 11.6cqw);
+        line-height: 1.2;
+      }
+      .portrait.en .hl {
+        font-size: min(4.6cqh, 7.7cqw);
+      }
+      .portrait .hook {
+        gap: 2.6cqh;
+      }
+      .hl b {
+        font-weight: 700;
+        color: #7dbbff;
+        transition: color 0.34s;
+      }
+      .hook.strike .hl,
+      .hook.strike .hl b {
+        color: rgba(255, 255, 255, 0.4);
+        transition: color 0.34s;
+      }
+
+      .brand {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(var(--logo-cy) + var(--logo-half) + 3.6cqh);
+        text-align: center;
+        opacity: 0;
+        transition: opacity 0.25s;
+      }
+      .brand.on {
+        opacity: 1;
+        transition-duration: 0.01s;
+      }
+      .wm {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: -0.012em;
+        font-size: min(6.2cqh, 7cqw);
+        line-height: 1.1;
+      }
+      .pr {
+        margin-top: 1.5cqh;
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: min(3.9cqh, 4.8cqw);
+      }
+
+      .cap {
+        position: absolute;
+        left: 6cqw;
+        bottom: 10.5cqh;
+        max-width: 64cqw;
+        opacity: 0;
+        transition: opacity 0.28s;
+      }
+      .cap.on {
+        opacity: 1;
+        transition-duration: 0.01s;
+      }
+      .cap h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        letter-spacing: -0.014em;
+        line-height: 1.12;
+        font-size: min(7cqh, 5.1cqw);
+        text-wrap: balance;
+      }
+      .cap p {
+        margin: 1.6cqh 0 0;
+        color: var(--muted);
+        font-size: min(3cqh, 2.1cqw);
+        line-height: 1.4;
+        font-weight: 500;
+      }
+      .kick {
+        display: flex;
+        align-items: center;
+        gap: 0.75em;
+        margin-bottom: 1.5cqh;
+        font: 600 min(1.9cqh, 1.5cqw)/1 var(--font-mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .kick::before {
+        content: "";
+        width: 0.7em;
+        height: 0.7em;
+        border-radius: 50%;
+        background: currentColor;
+      }
+      .kick.ai {
+        color: var(--ai);
+      }
+      .cap.plate {
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        padding: 2.2cqh 2.6cqw;
+        box-shadow: 0 18px 48px rgb(15 15 15 / 12%);
+      }
+      .portrait .cap {
+        left: 6cqw;
+        right: 6cqw;
+        top: 7.5cqh;
+        bottom: auto;
+        max-width: none;
+      }
+      .portrait .kick {
+        font-size: min(1.5cqh, 3cqw);
+        margin-bottom: 1cqh;
+      }
+      .portrait .cap h2 {
+        font-size: min(4.5cqh, 8.2cqw);
+      }
+      .portrait .cap p {
+        font-size: min(2.1cqh, 4.1cqw);
+        margin-top: 1cqh;
+      }
+      .portrait .cap.plate {
+        padding: 1.6cqh 4cqw;
+      }
+
+      /* ---- panels ---- */
+      .panel {
+        position: absolute;
+        right: 4cqw;
+        top: 41cqh;
+        width: 34cqw;
+        border-radius: 16px;
+        container-type: inline-size;
+        opacity: 0;
+        transform: translateY(calc(-50% + 26px));
+        transition:
+          opacity 0.35s,
+          transform 0.7s var(--ease);
+      }
+      .panel.on {
+        opacity: 1;
+        transform: translateY(-50%);
+      }
+      .portrait .panel {
+        left: 6cqw;
+        right: 6cqw;
+        width: auto;
+        top: 74cqh;
+      }
+      .nl {
+        width: 44cqw;
+        background: rgba(255, 255, 255, 0.97);
+        border: 1px solid var(--line);
+        box-shadow:
+          0 18px 48px rgb(15 15 15 / 12%),
+          0 1px 2px rgb(15 15 15 / 4%);
+      }
+      .ph {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 11px 16px;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .seg {
+        display: inline-flex;
+        background: #f1f1ef;
+        border-radius: 8px;
+        padding: 2px;
+      }
+      .seg b {
+        font-weight: 600;
+        padding: 3px 9px;
+        border-radius: 6px;
+        color: var(--muted);
+        transition:
+          background 0.25s,
+          color 0.25s;
+      }
+      .seg .s1,
+      .fmt2 .seg .s2 {
+        background: #fff;
+        color: var(--ink);
+        box-shadow: 0 1px 2px rgb(15 15 15 / 8%);
+      }
+      .fmt2 .seg .s1 {
+        background: transparent;
+        color: var(--muted);
+        box-shadow: none;
+      }
+      .pt {
+        font-family: var(--font-mono);
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .tag {
+        margin-left: auto;
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 11px;
+        color: var(--accent);
+        background: var(--accent-soft);
+        padding: 3px 8px;
+        border-radius: 6px;
+      }
+      .pb {
+        position: relative;
+        padding: 14px 16px 16px;
+      }
+      .code {
+        margin: 0;
+        font-family: var(--font-mono);
+        font-size: var(--mono, 12px);
+        line-height: 1.75;
+        color: var(--ink);
+        transition: opacity 0.3s;
+      }
+      .code.spectre {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        top: 14px;
+        opacity: 0;
+      }
+      .fmt2 .code.spice {
+        opacity: 0;
+      }
+      .fmt2 .code.spectre {
+        opacity: 1;
+      }
+      .clip .code {
+        overflow: hidden;
+        -webkit-mask-image: linear-gradient(90deg, #000 86%, transparent);
+        mask-image: linear-gradient(90deg, #000 86%, transparent);
+      }
+      .row {
+        display: block;
+        margin-inline: -6px;
+        padding-inline: 6px;
+        border-radius: 5px;
+        transition: background 0.15s;
+      }
+      .row.cur {
+        background: var(--accent-soft);
+      }
+      .ln {
+        display: block;
+        white-space: pre;
+        overflow: hidden;
+        height: 1.75em;
+        width: 0;
+      }
+      .row.cur .ln {
+        border-right: 2px solid var(--accent);
+      }
+      .code.spectre .ln {
+        width: auto;
+      }
+      .code .k {
+        font-weight: 700;
+      }
+      .code .m {
+        color: var(--accent);
+      }
+      .code .p {
+        color: #8a8985;
+      }
+
+      .log {
+        background: rgba(20, 19, 24, 0.94);
+        color: #e9e7f2;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 22px 60px rgb(15 10 40 / 30%);
+      }
+      .log .ph {
+        border-bottom-color: rgba(255, 255, 255, 0.09);
+        color: #e9e7f2;
+      }
+      .log .pt {
+        color: #b9a8ea;
+      }
+      .dotai {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #a98bf5;
+        box-shadow: 0 0 0 4px rgb(169 139 245 / 22%);
+      }
+      .lr {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        font-family: var(--font-mono);
+        font-size: clamp(11px, 3.35cqi, 17px);
+        line-height: 2.15;
+        opacity: 0;
+        transform: translateY(6px);
+        transition:
+          opacity 0.25s,
+          transform 0.4s var(--ease);
+      }
+      .lr.on {
+        opacity: 1;
+        transform: none;
+      }
+      .lr code {
+        font-family: inherit;
+        font-weight: 600;
+        color: #fff;
+      }
+      .lr code::before {
+        content: "▸ ";
+        color: #a98bf5;
+      }
+      .lr em {
+        margin-left: auto;
+        font-style: normal;
+        color: #a7a4b6;
+        white-space: nowrap;
+      }
+      .lr em::after {
+        content: " …";
+        color: #a98bf5;
+      }
+      .lr.done em::after {
+        content: " ✓";
+        color: #62d481;
+      }
+      .lr.ok.done em {
+        color: #62d481;
+        font-weight: 700;
+      }
+
+      .chips {
+        position: absolute;
+        right: 7cqw;
+        bottom: 12cqh;
+        display: flex;
+        gap: 12px;
+      }
+      .portrait .chips {
+        left: 0;
+        right: 0;
+        bottom: 11cqh;
+        justify-content: center;
+      }
+      .chip {
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: clamp(13px, 2.3cqh, 21px);
+        color: var(--ink);
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0.6em 0.85em;
+        box-shadow: 0 8px 24px rgb(15 15 15 / 9%);
+        opacity: 0;
+        transform: translateY(16px) scale(0.94);
+        transition:
+          opacity 0.3s,
+          transform 0.6s var(--ease);
+      }
+      .chip i {
+        font-style: normal;
+        color: var(--accent);
+      }
+      .chips.on .chip {
+        opacity: 1;
+        transform: none;
+      }
+      .chips.on .chip:nth-child(2) {
+        transition-delay: 0.09s;
+      }
+      .chips.on .chip:nth-child(3) {
+        transition-delay: 0.18s;
+      }
+
+      .veil {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          ellipse at 50% 46%,
+          rgba(255, 255, 255, 0.97) 0%,
+          rgba(255, 255, 255, 0.9) 34%,
+          rgba(255, 255, 255, 0.55) 100%
+        );
+        opacity: 0;
+        transition: opacity 0.5s;
+      }
+      .veil.on {
+        opacity: 1;
+      }
+      .big {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        opacity: 0;
+        transform: scale(0.96);
+        transition:
+          opacity 0.3s,
+          transform 0.9s var(--ease);
+      }
+      .big.on {
+        opacity: 1;
+        transform: none;
+      }
+      .num {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        font-size: min(30cqh, 22cqw);
+        line-height: 1;
+        letter-spacing: -0.03em;
+        font-variant-numeric: tabular-nums;
+      }
+      .num b {
+        display: inline-block;
+        font-weight: 700;
+        color: var(--accent);
+        opacity: 0;
+        transform: scale(0.3) translateY(0.2em);
+        transition:
+          opacity 0.2s,
+          transform 0.7s var(--ease);
+      }
+      .big.plus .num b {
+        opacity: 1;
+        transform: none;
+      }
+      .lab {
+        margin-top: 1.2cqh;
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--ink);
+        font-size: min(5cqh, 5.6cqw);
+        letter-spacing: -0.01em;
+      }
+      .sub {
+        margin-top: 1.6cqh;
+        color: var(--muted);
+        font-weight: 500;
+        font-size: min(2.7cqh, 3.6cqw);
+      }
+
+      .cursor {
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: flex;
+        align-items: flex-start;
+        gap: 2px;
+        opacity: 0;
+        transition: opacity 0.25s;
+        will-change: transform;
+      }
+      .cursor.on {
+        opacity: 1;
+      }
+      .cursor span {
+        margin-top: 18px;
+        font: 700 12px/1 var(--font-body);
+        color: #fff;
+        background: var(--ai);
+        padding: 5px 9px;
+        border-radius: 999px;
+        box-shadow: 0 4px 14px rgb(106 60 191 / 35%);
+      }
+
+      .end {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 0 6cqw;
+        background: radial-gradient(
+          ellipse at 50% 40%,
+          rgba(29, 28, 26, 0.97) 0%,
+          rgba(12, 12, 11, 0.985) 72%
+        );
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.9s,
+          visibility 0s 0.9s;
+      }
+      .end.on {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.9s;
+      }
+      .end .logo {
+        width: min(13cqh, 19cqw);
+        height: min(13cqh, 19cqw);
+        opacity: 0;
+        transform: scale(0.8);
+        transition:
+          opacity 0.5s 0.25s,
+          transform 0.9s var(--ease) 0.25s;
+      }
+      .end.on .logo {
+        opacity: 1;
+        transform: none;
+      }
+      .end .ew {
+        margin-top: 2.2cqh;
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: min(2.8cqh, 4.2cqw);
+        letter-spacing: 0.02em;
+      }
+      .end .eh {
+        margin-top: 2.4cqh;
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: #fff;
+        font-size: min(12cqh, 10.5cqw);
+        line-height: 1.08;
+        letter-spacing: -0.02em;
+      }
+      .end .eh .rv > span {
+        transition-delay: 0.45s;
+      }
+      .end .ep {
+        margin-top: 2.4cqh;
+        color: rgba(255, 255, 255, 0.62);
+        font-weight: 500;
+        font-size: min(2.9cqh, 3.9cqw);
+        opacity: 0;
+        transition: opacity 0.6s 0.9s;
+      }
+      .end.on .ep {
+        opacity: 1;
+      }
+      .cta {
+        margin-top: 4.4cqh;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+        opacity: 0;
+        transform: translateY(12px);
+        transition:
+          opacity 0.6s 1.1s,
+          transform 0.8s var(--ease) 1.1s;
+      }
+      .end.on .cta {
+        opacity: 1;
+        transform: none;
+      }
+      .btn {
+        pointer-events: none;
+        font: 600 clamp(14px, 2.3cqh, 20px)/1 var(--font-body);
+        color: #fff;
+        text-decoration: none;
+        padding: 0.85em 1.35em;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+      }
+      .end.on .btn {
+        pointer-events: auto;
+      }
+      .btn.pri {
+        background: #fff;
+        color: var(--ink);
+        border-color: #fff;
+      }
+      .btn:hover {
+        border-color: #fff;
+      }
+      .btn:focus-visible,
+      #bar button:focus-visible,
+      #scrub:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      .url {
+        margin-top: 3cqh;
+        font-family: var(--font-mono);
+        font-size: clamp(12px, 1.9cqh, 16px);
+        color: rgba(255, 255, 255, 0.45);
+        user-select: all;
+        pointer-events: auto;
+        opacity: 0;
+        transition: opacity 0.6s 1.3s;
+      }
+      .end.on .url {
+        opacity: 1;
+      }
+
+      .vig {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(
+          ellipse at 50% 44%,
+          transparent 56%,
+          rgba(24, 20, 10, 0.055) 100%
+        );
+        opacity: 0;
+        transition: opacity 0.8s;
+      }
+      #stage.lit .vig,
+      #stage.wall .vig {
+        opacity: 1;
+      }
+      .bug {
+        position: absolute;
+        left: 6cqw;
+        top: 4.2cqh;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font: 700 min(2.1cqh, 15px)/1 var(--font-display);
+        color: var(--ink);
+        opacity: 0;
+        transition: opacity 0.5s;
+      }
+      .bug.on {
+        opacity: 0.92;
+      }
+      .bug svg {
+        width: 1.7em;
+        height: 1.7em;
+      }
+      .portrait .bug {
+        top: 2.6cqh;
+        font-size: min(1.7cqh, 13px);
+      }
+      .sndchip {
+        all: unset;
+        box-sizing: border-box;
+        pointer-events: auto;
+        cursor: pointer;
+        position: absolute;
+        right: 6cqw;
+        top: 3.4cqh;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 14px 9px 12px;
+        border-radius: 999px;
+        background: rgba(24, 24, 23, 0.84);
+        color: #fff;
+        font: 600 13px/1 var(--font-body);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+        transition:
+          opacity 0.3s,
+          transform 0.4s var(--ease);
+      }
+      .sndchip.off {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-8px);
+        visibility: hidden;
+        transition:
+          opacity 0.3s,
+          transform 0.4s var(--ease),
+          visibility 0s 0.4s;
+      }
+      .sndchip::before {
+        content: "";
+        position: absolute;
+        inset: -2px;
+        border-radius: 999px;
+        border: 2px solid rgba(125, 187, 255, 0.9);
+        opacity: 0;
+        animation: ring 2.2s ease-out 3;
+      }
+      @keyframes ring {
+        0% {
+          opacity: 0.9;
+          transform: scale(1);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.22, 1.5);
+        }
+      }
+      .sndchip:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+      }
+      .portrait .sndchip {
+        top: 2.1cqh;
+        right: 5cqw;
+        padding: 7px 12px 7px 10px;
+        font-size: 12px;
+      }
+      /* ---- controls ---- */
+      #bar {
+        position: absolute;
+        left: 50%;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        transform: translateX(-50%);
+        z-index: 5;
+        width: min(
+          560px,
+          calc(
+            100% - 32px - env(safe-area-inset-left, 0px) -
+              env(safe-area-inset-right, 0px)
+          )
+        );
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(24, 24, 23, 0.8);
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        transition: opacity 0.35s;
+      }
+      #app.idle #bar {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #app.idle #bar:focus-within {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      #bar button {
+        all: unset;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        min-width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        font: 600 12px/1 var(--font-body);
+        color: #fff;
+      }
+      #bar button:hover {
+        background: rgba(255, 255, 255, 0.14);
+      }
+      #bl {
+        padding: 0 8px;
+      }
+      #scrub {
+        position: relative;
+        flex: 1;
+        height: 28px;
+        cursor: pointer;
+        touch-action: none;
+        min-width: 0;
+      }
+      #scrub::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 13px;
+        height: 2px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.22);
+      }
+      #fill {
+        position: absolute;
+        left: 0;
+        top: 13px;
+        height: 2px;
+        border-radius: 2px;
+        background: #fff;
+        width: 0;
+      }
+      #fill::after {
+        content: "";
+        position: absolute;
+        right: -5px;
+        top: -4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #fff;
+      }
+      #ticks i {
+        position: absolute;
+        top: 11px;
+        width: 2px;
+        height: 6px;
+        margin-left: -1px;
+        background: rgba(255, 255, 255, 0.5);
+        border-radius: 1px;
+      }
+      #time {
+        font: 500 11px/1 var(--font-mono);
+        color: rgba(255, 255, 255, 0.75);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      #prog {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+        z-index: 4;
+        background: transparent;
+      }
+      #prog i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: var(--accent);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .rv > span,
+        .panel,
+        .chip,
+        .big,
+        .end .logo,
+        .cta {
+          transition-duration: 0.01s !important;
+          transition-delay: 0s !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage">
+        <svg id="wsvg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <pattern
+              id="dots"
+              x="-6.5"
+              y="-6.5"
+              width="13"
+              height="13"
+              patternUnits="userSpaceOnUse"
+            >
+              <circle cx="6.5" cy="6.5" r=".95" fill="#c4c7c9" />
+            </pattern>
+          </defs>
+          <g id="world">
+            <rect id="paper" fill="#fff" opacity="0" />
+            <rect
+              id="dotsr"
+              fill="url(#dots)"
+              x="-4000"
+              y="-4000"
+              width="16000"
+              height="14000"
+              opacity="0"
+            />
+            <rect
+              id="wallbg"
+              fill="#f7f6f3"
+              x="-9000"
+              y="-9000"
+              width="26000"
+              height="24000"
+              opacity="0"
+            />
+            <g id="cards"></g>
+            <g id="art-ota" class="art" data-vb="%%OTA_VB%%">%%OTA%%</g>
+            <g id="art-ldo" class="art" data-vb="%%LDO_VB%%">%%LDO%%</g>
+            <rect
+              id="dim"
+              fill="#f7f6f3"
+              x="-9000"
+              y="-9000"
+              width="26000"
+              height="24000"
+              opacity="0"
+            />
+            <g id="agcard"></g>
+            <g id="art-ag" class="art" data-vb="%%AG_VB%%">%%AG%%</g>
+            <use id="clone" opacity="0" />
+            <g id="fx"></g>
+          </g>
+        </svg>
+
+        <div class="vig"></div>
+        <div id="ov">
+          <div class="bug" id="bug">
+            <svg viewBox="-24 -24 48 48" aria-hidden="true">
+              <use href="#logo-mark" /></svg
+            ><span>Analog Canvas</span>
+          </div>
+          <div class="hook" id="hook">
+            <div class="hl" id="h1">
+              <span class="rv"
+                ><span><span class="tx" data-i="hook1"></span></span
+              ></span>
+            </div>
+            <div class="hl" id="h2">
+              <span class="rv"
+                ><span><span class="tx" data-i="hook2"></span></span
+              ></span>
+            </div>
+          </div>
+          <div class="brand" id="brand">
+            <div class="wm">
+              <span class="rv"><span>Analog Canvas</span></span>
+            </div>
+            <div class="pr">
+              <span class="rv"><span data-i="promise"></span></span>
+            </div>
+          </div>
+
+          <div class="cap" id="c-draw">
+            <div class="kick" data-i="k_draw"></div>
+            <h2 class="rv"><span data-i="c_draw_h"></span></h2>
+            <p class="rv"><span data-i="c_draw_p"></span></p>
+          </div>
+          <div class="cap" id="c-net">
+            <div class="kick" data-i="k_net"></div>
+            <h2 class="rv"><span data-i="c_net_h"></span></h2>
+            <p class="rv"><span data-i="c_net_p"></span></p>
+          </div>
+          <div class="cap" id="c-cell">
+            <div class="kick" data-i="k_cell"></div>
+            <h2 class="rv"><span data-i="c_cell_h"></span></h2>
+            <p class="rv"><span data-i="c_cell_p"></span></p>
+          </div>
+          <div class="cap" id="c-exp">
+            <div class="kick" data-i="k_exp"></div>
+            <h2 class="rv"><span data-i="c_exp_h"></span></h2>
+            <p class="rv"><span data-i="c_exp_p"></span></p>
+          </div>
+          <div class="cap plate" id="c-next">
+            <h2 class="rv"><span data-i="c_next_h"></span></h2>
+          </div>
+          <div class="cap" id="c-ai">
+            <div class="kick ai" data-i="k_ai"></div>
+            <h2 class="rv"><span data-i="c_ai_h"></span></h2>
+            <p class="rv"><span data-i="c_ai_p"></span></p>
+          </div>
+          <div class="cap" id="c-ai2">
+            <div class="kick ai" data-i="k_ai"></div>
+            <h2 class="rv"><span data-i="c_ai2_h"></span></h2>
+            <p class="rv"><span data-i="c_ai2_p"></span></p>
+          </div>
+
+          <div class="panel nl" id="p-nl">
+            <div class="ph">
+              <span class="seg"
+                ><b class="s1">SPICE</b><b class="s2">Spectre</b></span
+              ><span class="pt">ota</span><span class="tag">SKY130</span>
+            </div>
+            <div class="pb">
+              <pre class="code spice" id="nl-spice"></pre>
+              <pre class="code spectre" id="nl-spectre"></pre>
+            </div>
+          </div>
+
+          <div class="panel log" id="p-log">
+            <div class="ph">
+              <span class="dotai"></span><span class="pt">Agent · MCP</span>
+            </div>
+            <div class="pb">
+              <div class="lr" id="l0"><code>connect</code><em>ok</em></div>
+              <div class="lr" id="l1">
+                <code>circuit_place</code
+                ><em
+                  ><span id="n-parts">0</span> /
+                  <span class="tp"></span> parts</em
+                >
+              </div>
+              <div class="lr" id="l2">
+                <code>circuit_wire</code
+                ><em
+                  ><span id="n-wires">0</span> /
+                  <span class="tw"></span> wires</em
+                >
+              </div>
+              <div class="lr" id="l3">
+                <code>circuit_text</code><em>labels, formulas</em>
+              </div>
+              <div class="lr ok" id="l4">
+                <code>verify</code><em>topology: equal</em>
+              </div>
+            </div>
+          </div>
+
+          <div class="chips" id="chips">
+            <span class="chip">ldo<i>.svg</i></span
+            ><span class="chip">ldo<i>.pdf</i></span
+            ><span class="chip">ldo<i>.png</i></span>
+          </div>
+
+          <button class="sndchip" id="sc" type="button">
+            <svg width="15" height="14" viewBox="0 0 15 14" aria-hidden="true">
+              <path
+                fill="none"
+                stroke="#fff"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M2 5h2.6L8 2.2v9.6L4.6 9H2zM10 4.6a3.4 3.4 0 0 1 0 4.8M11.6 3a5.6 5.6 0 0 1 0 8"
+              /></svg
+            ><span data-i="sound"></span>
+          </button>
+          <div class="veil" id="veil"></div>
+          <div class="big" id="big">
+            <div class="num"><span id="num">0</span><b>+</b></div>
+            <div class="lab" data-i="num_label"></div>
+            <div class="sub" data-i="num_sub"></div>
+          </div>
+
+          <div class="cursor" id="cur">
+            <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+              <path
+                d="M4 2.5l15.5 8.6-7 1.7-3.6 6.5z"
+                fill="#6a3cbf"
+                stroke="#fff"
+                stroke-width="1.6"
+                stroke-linejoin="round"
+              /></svg
+            ><span data-i="agent"></span>
+          </div>
+
+          <div class="end" id="end">
+            <svg class="logo" viewBox="-24 -24 48 48" aria-hidden="true">
+              <g id="logo-mark">
+                <rect
+                  x="-23.25"
+                  y="-23.25"
+                  width="46.5"
+                  height="46.5"
+                  rx="8"
+                  fill="#fff"
+                />
+                <g
+                  transform="translate(-2.7265 -0.551) scale(0.95) translate(4.709302 0)"
+                  fill="none"
+                  stroke="#000"
+                  stroke-width="2.2"
+                >
+                  <polyline points="-4.244186,-6.976744 10,-6.976744 10,-20" />
+                  <polygon
+                    points="-11.802326,-9.593023 -11.802326,9.593023 -8.895349,9.593023 -8.895349,-9.593023"
+                    fill="#000"
+                    stroke-width=".6"
+                  />
+                  <polygon
+                    points="-6.569767,-12.5 -6.569767,12.5 -3.662791,12.5 -3.662791,-12.5"
+                    fill="#000"
+                    stroke-width=".6"
+                  />
+                  <line x1="-8.895349" y1="0" x2="-20" y2="0" />
+                  <polyline points="-3.662791,6.976744 10,6.976744 10,20" />
+                  <polygon
+                    points="10.581395,6.976744 1.27907,2.906977 1.27907,11.046512"
+                    fill="#000"
+                    stroke-width=".6"
+                  />
+                </g>
+              </g>
+            </svg>
+            <div class="ew">Analog Canvas</div>
+            <div class="eh">
+              <span class="rv"><span data-i="end_h"></span></span>
+            </div>
+            <div class="ep" data-i="end_p"></div>
+            <div class="cta">
+              <a
+                class="btn pri"
+                href="%%SITE%%/editor"
+                target="%%LINK_TARGET%%"
+                rel="noopener"
+                data-i="cta1"
+              ></a
+              ><a
+                class="btn"
+                href="%%SITE%%/"
+                target="%%LINK_TARGET%%"
+                rel="noopener"
+                data-i="cta2"
+              ></a>
+            </div>
+            <div class="url">analog-canvas.tokenzhang.com</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="prog"><i></i></div>
+      <div id="bar">
+        <button id="bp" type="button" aria-label="Pause">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path id="bpi" fill="#fff" d="M3 1.5h3v11H3zM8 1.5h3v11H8z" />
+          </svg>
+        </button>
+        <div
+          id="scrub"
+          role="slider"
+          tabindex="0"
+          aria-label="Timeline"
+          aria-valuemin="0"
+          aria-valuemax="57"
+          aria-valuenow="0"
+        >
+          <div id="fill"></div>
+          <div id="ticks"></div>
+        </div>
+        <span id="time">0:00 / 0:57</span>
+        <button id="bs" type="button" aria-label="Turn sound on">
+          <svg width="15" height="14" viewBox="0 0 15 14" aria-hidden="true">
+            <path
+              id="bsi"
+              fill="none"
+              stroke="#fff"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M2 5h2.6L8 2.2v9.6L4.6 9H2zM10.2 5.2l3 3.6M13.2 5.2l-3 3.6"
+            />
+          </svg>
+        </button>
+        <button id="bl" type="button" aria-label="Switch language">EN</button>
+        <button id="br" type="button" aria-label="Replay">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path
+              fill="none"
+              stroke="#fff"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M2.2 7a4.8 4.8 0 1 0 1.5-3.5M2.2 1.6v2.6h2.6"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        const D = {
+          nl: {
+            spice: [
+              ".subckt ota VDD VSS IN+ IN- OUT",
+              "ISS net1 VSS DC 1m",
+              "XM1 net0 IN+ net1 VSS sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1",
+              "XM2 OUT IN- net1 VSS sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1",
+              "XM3 net0 net0 VDD VDD sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1",
+              "XM4 OUT net0 VDD VDD sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1",
+              ".ends ota",
+            ],
+            spectre: [
+              "subckt ota (VDD VSS IN\\+ IN\\- OUT)",
+              "ISS (net1 VSS) isource dc=1m",
+              "M1 (net0 IN\\+ net1 VSS) sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1",
+              "M2 (OUT IN\\- net1 VSS) sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=1",
+              "M3 (net0 net0 VDD VDD) sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1",
+              "M4 (OUT net0 VDD VDD) sky130_fd_pr__pfet_01v8 l=0.15 w=1 nf=1 m=1",
+              "ends ota",
+            ],
+          },
+          total: 7000,
+          wall: { src: "%%WALL%%", cols: 8, rows: 6, cw: 440, ch: 330, n: 46 },
+        };
+        const STR = {
+          zh: {
+            hook1: '电路图，<br class="pbr">画了<b>一下午</b>。',
+            hook2: '网表，<br class="pbr">还要<b>再敲一遍</b>？',
+            promise: "画一次，图和网表都有。",
+            c_draw_h: "教科书级的原理图",
+            c_draw_p: "器件吸附网格，连线自动分清节点和交叉。",
+            c_net_h: "网表，自己长出来",
+            c_net_p: "SPICE、Spectre 一键切换，直接带 PDK 器件。",
+            c_cell_h: "画好的电路，秒变模块",
+            c_cell_p: "运放符号背后，就是你刚画的晶体管。",
+            c_exp_h: "矢量导出，放大不糊",
+            c_exp_p: "SVG、PDF 直接进论文，PNG 三倍清晰。",
+            num_label: "个电路，都在 Gallery",
+            num_sub: "免费浏览 · 整库下载 · 可以拿去训练模型",
+            c_next_h: "下一张，交给 AI。",
+            c_ai_h: "AI 也能上手画",
+            c_ai_p: "通过 MCP 接入，用的是和你一样的编辑操作。",
+            c_ai2_h: "这张图，是 AI 画的",
+            c_ai2_p: "{parts} 个器件，连接关系对着网表逐一核对，一处不差。",
+            end_h: "画一次，就够了。",
+            end_p: "免费 · 开源 · 打开浏览器就能用",
+            cta1: "打开编辑器",
+            cta2: "逛逛 Gallery",
+            agent: "AI",
+            lang: "EN",
+            k_draw: "画图",
+            k_net: "网表",
+            k_cell: "模块",
+            k_exp: "导出",
+            k_ai: "AI 画图",
+            sound: "开声音",
+          },
+          en: {
+            hook1: '<b>An afternoon</b> <br class="pbr">on one schematic.',
+            hook2: 'Now <b>retype it</b> <br class="pbr">as a netlist?',
+            promise: "Draw once. Get both.",
+            c_draw_h: "Textbook-grade schematics.",
+            c_draw_p:
+              "Parts snap to the grid. Wires know a junction from a crossing.",
+            c_net_h: "The netlist writes itself.",
+            c_net_p: "SPICE or Spectre in one click, with real PDK devices.",
+            c_cell_h: "Your circuit becomes a block.",
+            c_cell_p:
+              "Behind the op-amp symbol: the transistors you just drew.",
+            c_exp_h: "Vector export. Zoom all you like.",
+            c_exp_p: "SVG and PDF for the paper. PNG at 3×.",
+            num_label: "circuits in the Gallery",
+            num_sub: "Free to read, download in bulk and train on.",
+            c_next_h: "The next one goes to an AI.",
+            c_ai_h: "Agents draw here too.",
+            c_ai_p: "Over MCP, with the same edits you make by hand.",
+            c_ai2_h: "An AI drew this one.",
+            c_ai2_p:
+              "{parts} parts. Every connection checked against the netlist.",
+            end_h: "Draw it once.",
+            end_p: "Free. Open source. Runs in your browser.",
+            cta1: "Open the editor",
+            cta2: "Browse the Gallery",
+            agent: "Agent",
+            lang: "中文",
+            k_draw: "Draw",
+            k_net: "Netlist",
+            k_cell: "Cells",
+            k_exp: "Export",
+            k_ai: "Agents",
+            sound: "Sound on",
+          },
+        };
+
+        const $ = (s, r = document) => r.querySelector(s),
+          $$ = (s, r = document) => [...r.querySelectorAll(s)];
+        const NS = "http://www.w3.org/2000/svg";
+        const E = (tag, attrs, parent) => {
+          const e = document.createElementNS(NS, tag);
+          for (const k in attrs) e.setAttribute(k, attrs[k]);
+          if (parent) parent.appendChild(e);
+          return e;
+        };
+        const lerp = (a, b, p) => a + (b - a) * p;
+        const ez = {
+          lin: (x) => x,
+          out: (x) => 1 - Math.pow(1 - x, 3),
+          io: (x) =>
+            x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2,
+          expo: (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x)),
+          ioq: (x) =>
+            x < 0.5 ? 8 * x * x * x * x : 1 - Math.pow(-2 * x + 2, 4) / 2,
+          back: (x) => 1 + 2.4 * Math.pow(x - 1, 3) + 1.4 * Math.pow(x - 1, 2),
+        };
+
+        /* ---------- timeline ---------- */
+        const DUR = 57;
+        const TL = {
+          h1: [0, 2.95],
+          h2: [1.45, 2.95],
+          strike: [2.45, 3.2],
+          brand: [3.2, 5.05],
+          tile: 3.1,
+          iris: [5.0, 5.95],
+          draw: 6.2,
+          capDraw: [6.5, 12.3],
+          pulse: 10.5,
+          net: [12.5, 20.1],
+          capNet: [12.8, 20.0],
+          type: 13.3,
+          spectre: 17.9,
+          fly: [20.6, 21.95],
+          ldo: 21.9,
+          capCell: [20.9, 25.4],
+          punch: [25.6, 26.25, 27.25, 27.95],
+          capExp: [25.9, 29.5],
+          chips: [27.9, 29.5],
+          wall: [29.9, 32.2],
+          cards: 29.7,
+          big: [32.3, 35.5],
+          count: [32.5, 34.0],
+          capNext: [36.0, 38.3],
+          zoomAi: [38.2, 40.0],
+          log: [39.5, 49.7],
+          place: [40.1, 42.7],
+          wire: [42.7, 45.8],
+          text: [45.8, 46.9],
+          verify: [47.1, 47.8],
+          capAi: [39.7, 46.8],
+          capAi2: [47.2, 49.7],
+          out: [49.8, 51.8],
+          end: 51.1,
+        };
+        const SCENES = [0, 5.0, 12.3, 20.3, 25.5, 29.7, 38.2, 49.8];
+
+        const tracks = [],
+          shows = [];
+        function K(keys, apply) {
+          tracks.push({ keys, apply, last: undefined });
+        }
+        function val(keys, T) {
+          const n = keys.length;
+          if (T <= keys[0][0]) return keys[0][1];
+          if (T >= keys[n - 1][0]) return keys[n - 1][1];
+          for (let i = 1; i < n; i++)
+            if (T < keys[i][0]) {
+              const [t0, v0] = keys[i - 1],
+                [t1, v1, e] = keys[i];
+              const p = (e || ez.out)((T - t0) / (t1 - t0));
+              return Array.isArray(v0)
+                ? v0.map((a, j) => lerp(a, v1[j], p))
+                : lerp(v0, v1, p);
+            }
+        }
+        function show(el, t0, t1, cls = "on") {
+          shows.push({
+            el,
+            win: Array.isArray(t0) ? t0 : [[t0, t1]],
+            cls: Array.isArray(t0) ? t1 || "on" : cls,
+            last: null,
+          });
+        }
+
+        /* ---------- world layout ---------- */
+        const stage = $("#stage"),
+          world = $("#world"),
+          app = $("#app");
+        const PX = 880,
+          PY = 660,
+          TW = 800,
+          TH = 600,
+          COLS = 7,
+          ROWS = 7,
+          S_H = 1.3,
+          PITCH = 10 * S_H;
+        const tile = (c, r) => ({ x: c * PX, y: r * PY, c, r });
+        const T_OTA = tile(2, 3),
+          T_LDO = tile(3, 3),
+          T_AG = tile(4, 2);
+        function setT(g, vb, s, tx, ty) {
+          g.setAttribute("transform", `translate(${tx} ${ty}) scale(${s})`);
+          return {
+            s,
+            tx,
+            ty,
+            w: (x, y) => [tx + x * s, ty + y * s],
+            box: [tx + vb[0] * s, ty + vb[1] * s, vb[2] * s, vb[3] * s],
+          };
+        }
+        function placeHero(g, vb, t) {
+          const snap = (v) => Math.round(v / PITCH) * PITCH;
+          return setT(
+            g,
+            vb,
+            S_H,
+            snap(t.x + (TW - vb[2] * S_H) / 2 - vb[0] * S_H),
+            snap(t.y + (TH - vb[3] * S_H) / 2 - vb[1] * S_H),
+          );
+        }
+        function placeFit(g, vb, t, pad, k) {
+          const s =
+            Math.min((TW - 2 * pad) / vb[2], (TH - 2 * pad) / vb[3]) * k;
+          return setT(
+            g,
+            vb,
+            s,
+            t.x + (TW - vb[2] * s) / 2 - vb[0] * s,
+            t.y + (TH - vb[3] * s) / 2 - vb[1] * s,
+          );
+        }
+        const gOta = $("#art-ota"),
+          gLdo = $("#art-ldo"),
+          gAg = $("#art-ag");
+        const vbOf = (g) => g.dataset.vb.trim().split(/\s+/).map(Number);
+        const VB = { ota: vbOf(gOta), ldo: vbOf(gLdo), ag: vbOf(gAg) };
+        const P_OTA = placeHero(gOta, VB.ota, T_OTA),
+          P_LDO = placeHero(gLdo, VB.ldo, T_LDO),
+          P_AG = placeFit(gAg, VB.ag, T_AG, 34, 0.96);
+
+        function parseArt(g) {
+          const insts = $$("g[data-symbol-id]", g).map((el) => {
+            const m = /translate\(([-\d.]+)[ ,]+([-\d.]+)\)/.exec(
+              el.firstElementChild.getAttribute("transform"),
+            );
+            return {
+              el,
+              id: el.dataset.objectId,
+              sym: el.dataset.symbolId,
+              x: +m[1],
+              y: +m[2],
+            };
+          });
+          const wires = $$("polyline[data-net-id]", g).map((el) => {
+            const pts = el
+              .getAttribute("points")
+              .trim()
+              .split(/\s+/)
+              .map((p) => p.split(",").map(Number));
+            let len = 0;
+            for (let i = 1; i < pts.length; i++)
+              len += Math.hypot(
+                pts[i][0] - pts[i - 1][0],
+                pts[i][1] - pts[i - 1][1],
+              );
+            el.setAttribute("stroke", "#000");
+            el.setAttribute("stroke-width", "1.6");
+            el.style.strokeDasharray = len + 1;
+            el.style.strokeDashoffset = len + 1;
+            return { el, pts, len: len + 1 };
+          });
+          const dots = $$('g[data-layer="junctions"] circle', g).map((el) => ({
+            el,
+            x: +el.getAttribute("cx"),
+            y: +el.getAttribute("cy"),
+            r: +el.getAttribute("r"),
+          }));
+          const ink = $('path[data-role="conductor-ink"]', g);
+          if (ink) ink.style.opacity = 0;
+          const texts = $$("[data-kind]", g)
+            .filter((el) => !el.parentElement.closest("[data-kind]"))
+            .map((el) => {
+              const t =
+                el.tagName.toLowerCase() === "text"
+                  ? el
+                  : el.querySelector("text");
+              return {
+                el,
+                kind: el.dataset.kind,
+                x: t ? +t.getAttribute("x") : 0,
+                y: t ? +t.getAttribute("y") : 0,
+              };
+            });
+          return { insts, wires, dots, ink, texts };
+        }
+        const A_OTA = parseArt(gOta),
+          A_LDO = parseArt(gLdo),
+          A_AG = parseArt(gAg);
+        const byId = (art, id) => art.insts.find((i) => i.id === id);
+
+        function popIn(i, t) {
+          K(
+            [
+              [t, 0],
+              [t + 0.34, 1, ez.back],
+            ],
+            (p) => {
+              const s = 0.62 + 0.38 * p;
+              i.el.setAttribute(
+                "transform",
+                `translate(${i.x} ${i.y}) scale(${s}) translate(${-i.x} ${-i.y})`,
+              );
+            },
+          );
+          K(
+            [
+              [t, 0],
+              [t + 0.13, 1],
+            ],
+            (v) => {
+              i.el.style.opacity = v;
+            },
+          );
+          i.t = t;
+        }
+        function drawWire(w, t0, t1) {
+          w.t0 = t0;
+          w.t1 = t1;
+          K(
+            [
+              [t0, w.len],
+              [t1, 0, ez.io],
+            ],
+            (v) => {
+              w.el.style.strokeDashoffset = v;
+            },
+          );
+        }
+        function dotTime(d, wires, fallback) {
+          const ts = [];
+          for (const w of wires) {
+            const n = w.pts.length,
+              near = (p) =>
+                Math.abs(p[0] - d.x) < 0.6 && Math.abs(p[1] - d.y) < 0.6;
+            if (near(w.pts[0])) ts.push(w.t0);
+            else if (near(w.pts[n - 1])) ts.push(w.t1);
+            else if (w.pts.some(near)) ts.push((w.t0 + w.t1) / 2);
+          }
+          ts.sort((a, b) => a - b);
+          return ts.length > 1 ? ts[1] : ts.length ? ts[0] : fallback;
+        }
+        function showDots(art, fallback, pulseAt) {
+          for (const d of art.dots) {
+            const t = dotTime(d, art.wires, fallback);
+            const keys = [
+              [t, 0],
+              [t + 0.24, d.r, ez.back],
+            ];
+            if (pulseAt) {
+              keys.push(
+                [pulseAt, d.r],
+                [pulseAt + 0.2, d.r * 2.1],
+                [pulseAt + 0.6, d.r, ez.io],
+              );
+              show(d.el, pulseAt, pulseAt + 0.75, "pulse");
+            }
+            K(keys, (v) => {
+              d.el.setAttribute("r", Math.max(0, v));
+            });
+          }
+        }
+        function fadeText(x, t) {
+          K(
+            [
+              [t, 0],
+              [t + 0.28, 1],
+            ],
+            (v) => {
+              x.el.style.opacity = v;
+            },
+          );
+        }
+        function nearestInst(art, x) {
+          let best = null,
+            bd = 1e9;
+          for (const i of art.insts) {
+            const d = Math.hypot(i.x - x.x, i.y - x.y);
+            if (d < bd) {
+              bd = d;
+              best = i;
+            }
+          }
+          return best;
+        }
+        /* Ink spreads from a seed point: parts land as the front reaches them, wires grow away from it. */
+        function wave(art, seed, t0, speed, skip = []) {
+          const tAt = (x, y) =>
+            t0 + Math.hypot(x - seed[0], y - seed[1]) / speed;
+          let end = t0;
+          for (const i of art.insts) {
+            if (skip.includes(i.id)) continue;
+            const t = Math.max(t0, tAt(i.x, i.y) - 0.14);
+            popIn(i, t);
+            end = Math.max(end, t + 0.34);
+          }
+          for (const w of art.wires) {
+            const a = w.pts[0],
+              b = w.pts[w.pts.length - 1];
+            const da = Math.hypot(a[0] - seed[0], a[1] - seed[1]),
+              db = Math.hypot(b[0] - seed[0], b[1] - seed[1]);
+            if (db < da) {
+              w.pts.reverse();
+              w.el.setAttribute(
+                "points",
+                w.pts.map((p) => p.join(",")).join(" "),
+              );
+            }
+            const ts = t0 + Math.min(da, db) / speed;
+            drawWire(w, ts, ts + Math.max(0.16, w.len / (speed * 1.5)));
+            end = Math.max(end, w.t1);
+          }
+          showDots(art, t0, art === A_OTA ? TL.pulse : 0);
+          for (const x of art.texts) {
+            const i = nearestInst(art, x);
+            fadeText(x, (i && !skip.includes(i.id) ? i.t : t0) + 0.22);
+          }
+          if (art.ink)
+            K(
+              [
+                [end + 0.05, 0],
+                [end + 0.06, 1],
+              ],
+              (v) => {
+                art.ink.style.opacity = v;
+              },
+            );
+          return end;
+        }
+        /* An agent works through the sheet in reading order: every part, then every wire, then the text. */
+        const cursorKeys = [];
+        function seq(art, P, [p0, p1], [w0, w1], [x0, x1]) {
+          const I = [...art.insts].sort((a, b) => a.x - b.x || a.y - b.y),
+            dp = (p1 - p0) / I.length;
+          I.forEach((i, k) => {
+            popIn(i, p0 + k * dp);
+            cursorKeys.push([i.t + dp * 0.6, P.w(i.x, i.y), ez.io]);
+          });
+          const minx = (w) => Math.min(...w.pts.map((p) => p[0]));
+          const Wr = [...art.wires].sort(
+              (a, b) => minx(a) - minx(b) || a.pts[0][1] - b.pts[0][1],
+            ),
+            dw = (w1 - w0) / Wr.length;
+          Wr.forEach((w, k) => {
+            drawWire(w, w0 + k * dw, w0 + k * dw + Math.max(dw * 1.8, 0.16));
+            const e = w.pts[w.pts.length - 1];
+            cursorKeys.push([w.t0 + dw * 0.9, P.w(e[0], e[1]), ez.io]);
+          });
+          showDots(art, w1, 0);
+          const X = [...art.texts].sort(
+              (a, b) =>
+                (a.kind === "draft-text") - (b.kind === "draft-text") ||
+                a.x - b.x,
+            ),
+            dx = (x1 - x0) / X.length;
+          X.forEach((x, k) => {
+            fadeText(x, x0 + k * dx);
+            if (k % 3 === 0)
+              cursorKeys.push([x0 + k * dx + dx, P.w(x.x, x.y), ez.io]);
+          });
+          if (art.ink)
+            K(
+              [
+                [w1 + 0.4, 0],
+                [w1 + 0.41, 1],
+              ],
+              (v) => {
+                art.ink.style.opacity = v;
+              },
+            );
+          art.placed = I;
+          art.wired = Wr;
+        }
+
+        /* ---------- build the film ---------- */
+        // The logo's transistor is M1 of the first circuit.
+        const M1 = byId(A_OTA, "M1");
+        const m1c = P_OTA.w(M1.x - 4.7, M1.y),
+          TS = 54 * S_H;
+        const paper = $("#paper"),
+          st = { f: 0.55, p: 0 };
+        K(
+          [
+            [TL.tile, 0.55],
+            [TL.tile + 0.5, 1, ez.back],
+          ],
+          (v) => {
+            st.f = v;
+          },
+        );
+        K(
+          [
+            [TL.tile, 0],
+            [TL.tile + 0.2, 1],
+          ],
+          (v) => {
+            paper.setAttribute("opacity", v);
+          },
+        );
+        K(
+          [
+            [TL.iris[0], 0],
+            [TL.iris[1], 1, ez.ioq],
+          ],
+          (v) => {
+            st.p = v;
+          },
+        );
+        function updatePaper() {
+          const half = lerp((TS * st.f) / 2, 14000, st.p);
+          paper.setAttribute("x", m1c[0] - half);
+          paper.setAttribute("y", m1c[1] - half);
+          paper.setAttribute("width", half * 2);
+          paper.setAttribute("height", half * 2);
+          paper.setAttribute(
+            "rx",
+            lerp(TS * 0.17 * st.f, 0, Math.min(1, st.p * 4)),
+          );
+        }
+        popIn(M1, TL.tile);
+        K(
+          [
+            [TL.iris[1] - 0.35, 0],
+            [TL.iris[1] + 0.4, 1],
+            [TL.cards, 1],
+            [TL.cards + 0.7, 0],
+          ],
+          (v) => {
+            $("#dotsr").setAttribute("opacity", v);
+          },
+        );
+
+        // Scene: draw.
+        const seedOta = [M1.x, M1.y];
+        wave(A_OTA, seedOta, TL.draw, 68, ["M1"]);
+
+        // Scene: netlist. Halos sit under the parts they mark.
+        const haloOf = {};
+        for (const i of A_OTA.insts) {
+          const big = /mos|source/.test(i.sym);
+          haloOf[i.id] = E("rect", {
+            class: "halo",
+            x: i.x - (big ? 30 : 18),
+            y: i.y - (big ? 28 : 18),
+            width: big ? 60 : 36,
+            height: big ? 56 : 36,
+            rx: 7,
+          });
+          gOta.insertBefore(haloOf[i.id], gOta.firstChild);
+        }
+        const NLMAP = [
+          ["pP", "pN", "pO", "vdd", "gnd"],
+          ["ISS"],
+          ["M1"],
+          ["M2"],
+          ["M3"],
+          ["M4"],
+          [],
+        ];
+        function tokens(line) {
+          const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+          const parts = line.split(/(\s+)/);
+          let out = "",
+            seenModel = false;
+          parts.forEach((tk, k) => {
+            if (/^\s*$/.test(tk)) {
+              out += tk;
+              return;
+            }
+            if (k === 0) out += `<span class="k">${esc(tk)}</span>`;
+            else if (/^sky130/.test(tk)) {
+              out += `<span class="m">${esc(tk)}</span>`;
+              seenModel = true;
+            } else if (seenModel) out += `<span class="p">${esc(tk)}</span>`;
+            else out += esc(tk);
+          });
+          return out;
+        }
+        const nlRows = [];
+        {
+          let t = TL.type;
+          const codeRow = (pre, txt) => {
+            const row = document.createElement("span");
+            row.className = "row";
+            const ln = document.createElement("span");
+            ln.className = "ln";
+            ln.innerHTML = tokens(txt);
+            row.appendChild(ln);
+            pre.appendChild(row);
+            return { row, ln };
+          };
+          D.nl.spice.forEach((txt, i) => {
+            const { row, ln } = codeRow($("#nl-spice"), txt);
+            const dur = Math.max(0.26, txt.length * 0.0082),
+              a = t,
+              b = t + dur;
+            t = b + 0.15;
+            nlRows.push({ row, a, b, ids: NLMAP[i] || [] });
+            K(
+              [
+                [a, 0],
+                [b, txt.length, ez.lin],
+              ],
+              (v) => {
+                ln.style.width = Math.round(v) + "ch";
+              },
+            );
+          });
+          for (const txt of D.nl.spectre) codeRow($("#nl-spectre"), txt);
+        }
+        const nlEnd = nlRows[nlRows.length - 1].b + 0.5;
+        let nlCur = -2;
+        function syncNetlist(T) {
+          let idx = -1;
+          if (T >= TL.type && T < nlEnd)
+            for (let i = 0; i < nlRows.length; i++)
+              if (T >= nlRows[i].a) idx = i;
+          if (idx === nlCur) return;
+          nlCur = idx;
+          nlRows.forEach((r, i) => r.row.classList.toggle("cur", i === idx));
+          const on = new Set(idx >= 0 ? nlRows[idx].ids : []);
+          for (const i of A_OTA.insts) {
+            i.el.classList.toggle("hl", on.has(i.id));
+            haloOf[i.id].classList.toggle("on", on.has(i.id));
+          }
+        }
+
+        // Scene: the circuit becomes a block. A copy of the drawing flies into the op-amp triangle.
+        const A1 = byId(A_LDO, "A1");
+        const a1c = P_LDO.w(A1.x - 5, A1.y),
+          otaC = [
+            P_OTA.box[0] + P_OTA.box[2] / 2,
+            P_OTA.box[1] + P_OTA.box[3] / 2,
+          ];
+        const clone = $("#clone");
+        clone.setAttribute("href", "#art-ota");
+        const kFly = (60 * P_LDO.s) / P_OTA.box[3];
+        K(
+          [
+            [TL.fly[0], 0],
+            [TL.fly[1], 1, ez.io],
+          ],
+          (p) => {
+            const s = lerp(1, kFly, p),
+              cx = lerp(otaC[0], a1c[0], p),
+              cy = lerp(otaC[1], a1c[1], p) - Math.sin(p * Math.PI) * 60;
+            clone.setAttribute(
+              "transform",
+              `translate(${cx} ${cy}) scale(${s}) translate(${-otaC[0]} ${-otaC[1]})`,
+            );
+          },
+        );
+        K(
+          [
+            [TL.fly[0], 0],
+            [TL.fly[0] + 0.08, 0.92],
+            [TL.fly[1] - 0.3, 0.92],
+            [TL.fly[1], 0],
+          ],
+          (v) => {
+            clone.setAttribute("opacity", v);
+          },
+        );
+        const fx = $("#fx");
+        const ring = E(
+          "circle",
+          {
+            cx: a1c[0],
+            cy: a1c[1],
+            r: 0,
+            fill: "none",
+            stroke: "#2383e2",
+            "stroke-width": 3,
+            opacity: 0,
+          },
+          fx,
+        );
+        K(
+          [
+            [TL.ldo - 0.1, 0],
+            [TL.ldo + 0.8, 1, ez.expo],
+          ],
+          (p) => {
+            ring.setAttribute("r", 30 + 120 * p);
+            ring.setAttribute("opacity", p <= 0 || p >= 1 ? 0 : 0.7 * (1 - p));
+          },
+        );
+        wave(A_LDO, [A1.x, A1.y], TL.ldo, 105);
+
+        // Scene: export. Crop marks frame the drawing.
+        const lb = [
+            P_LDO.box[0] + P_LDO.box[2] * 0.09,
+            P_LDO.box[1] + P_LDO.box[3] * 0.09,
+            P_LDO.box[2] * 0.82,
+            P_LDO.box[3] * 0.82,
+          ],
+          cm = 30,
+          pad = 0;
+        const marks = E(
+          "path",
+          {
+            d: [
+              [lb[0] - pad, lb[1] - pad, 1, 1],
+              [lb[0] + lb[2] + pad, lb[1] - pad, -1, 1],
+              [lb[0] - pad, lb[1] + lb[3] + pad, 1, -1],
+              [lb[0] + lb[2] + pad, lb[1] + lb[3] + pad, -1, -1],
+            ]
+              .map(
+                ([x, y, sx, sy]) => `M${x + sx * cm} ${y}H${x}V${y + sy * cm}`,
+              )
+              .join(""),
+            fill: "none",
+            stroke: "#2383e2",
+            "stroke-width": 3,
+            "stroke-linecap": "round",
+            opacity: 0,
+          },
+          fx,
+        );
+        K(
+          [
+            [TL.chips[0] - 0.2, 0],
+            [TL.chips[0] + 0.15, 1],
+            [TL.chips[1], 1],
+            [TL.chips[1] + 0.3, 0],
+          ],
+          (v) => {
+            marks.setAttribute("opacity", v);
+          },
+        );
+
+        // Scene: the Gallery wall.
+        const cards = $("#cards");
+        const cardRect = (t, extra = {}) =>
+          E(
+            "rect",
+            Object.assign(
+              {
+                x: t.x,
+                y: t.y,
+                width: TW,
+                height: TH,
+                rx: 18,
+                fill: "#fff",
+                stroke: "#e6e5e1",
+                "stroke-width": 2,
+              },
+              extra,
+            ),
+            cards,
+          );
+        const heroCards = [
+          cardRect(T_OTA, { opacity: 0 }),
+          cardRect(T_LDO, { opacity: 0 }),
+        ];
+        K(
+          [
+            [TL.cards, 0],
+            [TL.cards + 0.6, 1],
+          ],
+          (v) => {
+            heroCards.forEach((c) => c.setAttribute("opacity", v));
+            $("#wallbg").setAttribute("opacity", v);
+          },
+        );
+        E(
+          "image",
+          {
+            id: "wall",
+            href: D.wall.src,
+            width: D.wall.cols * D.wall.cw,
+            height: D.wall.rows * D.wall.ch,
+          },
+          $("#wsvg defs"),
+        );
+        const slots = [];
+        for (let r = 0; r < ROWS; r++)
+          for (let c = 0; c < COLS; c++) {
+            if ([T_OTA, T_LDO, T_AG].some((t) => t.c === c && t.r === r))
+              continue;
+            slots.push({
+              c,
+              r,
+              d: Math.hypot(c - T_LDO.c, (r - T_LDO.r) * 1.15),
+            });
+          }
+        slots.sort((a, b) => a.d - b.d);
+        slots.forEach((sl, k) => {
+          const n = k % D.wall.n,
+            t = tile(sl.c, sl.r);
+          const g = E("g", { opacity: 0 }, cards);
+          E(
+            "rect",
+            {
+              x: t.x,
+              y: t.y,
+              width: TW,
+              height: TH,
+              rx: 18,
+              fill: "#fff",
+              stroke: "#e6e5e1",
+              "stroke-width": 2,
+            },
+            g,
+          );
+          const win = E(
+            "svg",
+            {
+              x: t.x + 44,
+              y: t.y + 40,
+              width: TW - 88,
+              height: TH - 80,
+              preserveAspectRatio: "xMidYMid meet",
+              viewBox: `${(n % D.wall.cols) * D.wall.cw} ${Math.floor(n / D.wall.cols) * D.wall.ch} ${D.wall.cw} ${D.wall.ch}`,
+            },
+            g,
+          );
+          E("use", { href: "#wall" }, win);
+          const t0 = TL.cards + 0.55 + sl.d * 0.24;
+          K(
+            [
+              [t0, 0],
+              [t0 + 0.6, 1],
+            ],
+            (p) => {
+              g.setAttribute("opacity", p);
+              g.setAttribute("transform", `translate(0 ${(1 - p) * 46})`);
+            },
+          );
+        });
+        const slot = E("g", { opacity: 0 }, cards);
+        const slotR = E(
+          "rect",
+          {
+            x: T_AG.x + 6,
+            y: T_AG.y + 6,
+            width: TW - 12,
+            height: TH - 12,
+            rx: 16,
+            fill: "#faf7ff",
+            stroke: "#6a3cbf",
+            "stroke-width": 5,
+            "stroke-dasharray": "22 16",
+          },
+          slot,
+        );
+        E(
+          "path",
+          {
+            d: `M${T_AG.x + TW / 2 - 44} ${T_AG.y + TH / 2}h88M${T_AG.x + TW / 2} ${T_AG.y + TH / 2 - 44}v88`,
+            stroke: "#6a3cbf",
+            "stroke-width": 12,
+            "stroke-linecap": "round",
+            fill: "none",
+          },
+          slot,
+        );
+        K(
+          [
+            [TL.cards + 1.4, 0],
+            [TL.cards + 2, 1],
+            [TL.zoomAi[0] + 1.1, 1],
+            [TL.zoomAi[0] + 1.6, 0],
+          ],
+          (v) => {
+            slot.setAttribute("opacity", v);
+          },
+        );
+        K(
+          [
+            [36.1, 5],
+            [36.5, 16, ez.io],
+            [36.9, 5, ez.io],
+            [37.3, 16, ez.io],
+            [37.7, 5, ez.io],
+          ],
+          (v) => {
+            slotR.setAttribute("stroke-width", v);
+          },
+        );
+        const agCard = cardRect(T_AG, { opacity: 0 });
+        $("#agcard").appendChild(agCard);
+        K(
+          [
+            [TL.zoomAi[0] + 0.7, 0],
+            [TL.zoomAi[0] + 1.7, 0.96],
+            [TL.out[0] + 0.1, 0.96],
+            [TL.out[0] + 1.1, 0],
+          ],
+          (v) => {
+            $("#dim").setAttribute("opacity", v);
+          },
+        );
+        K(
+          [
+            [TL.zoomAi[0] + 1.1, 0],
+            [TL.zoomAi[0] + 1.7, 1],
+          ],
+          (v) => {
+            agCard.setAttribute("opacity", v);
+          },
+        );
+        K(
+          [
+            [TL.count[0], 0],
+            [TL.count[1], D.total, ez.expo],
+          ],
+          (v) => {
+            $("#num").textContent = Math.round(v).toLocaleString("en-US");
+          },
+        );
+
+        // Scene: an agent draws.
+        seq(A_AG, P_AG, TL.place, TL.wire, TL.text);
+        cursorKeys.sort((a, b) => a[0] - b[0]);
+        cursorKeys.unshift([
+          TL.place[0] - 0.5,
+          P_AG.w(VB.ag[0] + VB.ag[2] * 0.1, VB.ag[1] + VB.ag[3] * 0.5),
+        ]);
+        let curW = cursorKeys[0][1];
+        K(cursorKeys, (v) => {
+          curW = v;
+        });
+        $(".tp").textContent = A_AG.insts.length;
+        $(".tw").textContent = A_AG.wires.length;
+        let nP = -1,
+          nW = -1;
+        function syncAgent(T) {
+          const p = A_AG.placed.filter((i) => i.t <= T).length,
+            w = A_AG.wired.filter((x) => x.t0 <= T).length;
+          if (p !== nP) {
+            nP = p;
+            $("#n-parts").textContent = p;
+          }
+          if (w !== nW) {
+            nW = w;
+            $("#n-wires").textContent = w;
+          }
+        }
+
+        /* ---------- screen-space cues ---------- */
+        show($("#h1"), ...TL.h1);
+        show($("#h2"), ...TL.h2);
+        show($("#hook"), ...TL.strike, "strike");
+        show($("#brand"), ...TL.brand);
+        show($("#bug"), [
+          [TL.capDraw[0], TL.cards],
+          [TL.zoomAi[1] - 0.4, TL.out[0]],
+        ]);
+        show(stage, TL.iris[1] - 0.05, TL.cards + 0.3, "lit");
+        show(stage, TL.cards + 0.3, 1e9, "wall");
+        show($("#c-draw"), ...TL.capDraw);
+        show($("#c-net"), ...TL.capNet);
+        show($("#c-cell"), ...TL.capCell);
+        show($("#c-exp"), ...TL.capExp);
+        show($("#c-next"), ...TL.capNext);
+        show($("#c-ai"), ...TL.capAi);
+        show($("#c-ai2"), ...TL.capAi2);
+        show($("#p-nl"), ...TL.net);
+        show($("#p-nl"), TL.spectre, 1e9, "fmt2");
+        show($("#chips"), ...TL.chips);
+        show($("#veil"), ...TL.big);
+        show($("#big"), TL.big[0] + 0.15, TL.big[1]);
+        show($("#big"), TL.count[1] - 0.12, 1e9, "plus");
+        show($("#p-log"), ...TL.log);
+        show($("#l0"), TL.log[0] + 0.25, 1e9);
+        show($("#l0"), TL.place[0], 1e9, "done");
+        show($("#l1"), TL.place[0], 1e9);
+        show($("#l1"), TL.place[1], 1e9, "done");
+        show($("#l2"), TL.wire[0], 1e9);
+        show($("#l2"), TL.wire[1], 1e9, "done");
+        show($("#l3"), TL.text[0], 1e9);
+        show($("#l3"), TL.text[1], 1e9, "done");
+        show($("#l4"), TL.verify[0], 1e9);
+        show($("#l4"), TL.verify[1], 1e9, "done");
+        show($("#cur"), TL.place[0] - 0.3, TL.text[1] + 0.3);
+        show($("#end"), TL.end, 1e9);
+
+        /* ---------- camera ---------- */
+        let W = 1,
+          H = 1,
+          portrait = false;
+        const grow = (r, f) => [
+          r[0] + (r[2] * (1 - f)) / 2,
+          r[1] + (r[3] * (1 - f)) / 2,
+          r[2] * f,
+          r[3] * f,
+        ];
+        const R = {
+          logo: [m1c[0] - TS / 2, m1c[1] - TS / 2, TS, TS],
+          ota: grow(P_OTA.box, 0.84),
+          ldo: grow(P_LDO.box, 0.86),
+          mp: (() => {
+            const a = P_LDO.w(296, 168),
+              b = P_LDO.w(404, 232);
+            return [a[0], a[1], b[0] - a[0], b[1] - a[1]];
+          })(),
+          ag: [T_AG.x - 24, T_AG.y - 24, TW + 48, TH + 48],
+          wall: () => {
+            const cx = T_LDO.x + TW / 2,
+              cy = T_LDO.y + TH / 2;
+            return portrait
+              ? [
+                  cx + 0.18 * PX - 0.95 * PX,
+                  cy - 0.3 * PY - 2.4 * PY,
+                  1.9 * PX,
+                  4.8 * PY,
+                ]
+              : [cx - 2.6 * PX, cy - 1.45 * PY, 5.2 * PX, 2.9 * PY];
+          },
+        };
+        function area(name) {
+          if (name === "logo") {
+            const m = portrait ? W * 0.3 : H * 0.26,
+              cy = H * (portrait ? 0.36 : 0.4);
+            return [W / 2 - m / 2, cy - m / 2, m, m];
+          }
+          if (name === "all") return [0, 0, W, H];
+          if (name === "panel")
+            return portrait
+              ? [W * 0.06, H * 0.2, W * 0.88, H * 0.36]
+              : [W * 0.04, H * 0.09, W * 0.56, H * 0.63];
+          if (name === "code")
+            return portrait
+              ? [W * 0.06, H * 0.21, W * 0.88, H * 0.36]
+              : [W * 0.03, H * 0.1, W * 0.46, H * 0.62];
+          return portrait
+            ? [W * 0.06, H * 0.22, W * 0.88, H * 0.6]
+            : [W * 0.07, H * 0.09, W * 0.86, H * 0.63];
+        }
+        const CAM = [
+          [0, "logo", "logo"],
+          [TL.iris[0], "logo", "logo"],
+          [TL.iris[0] + 1.8, "ota", "full", ez.ioq],
+          [12.3, ["ota", 0.96], "full", ez.lin],
+          [13.3, "ota", "code", ez.io],
+          [20.3, ["ota", 0.97], "code", ez.lin],
+          [22.1, "ldo", "full", ez.io],
+          [TL.punch[0], ["ldo", 0.97], "full", ez.lin],
+          [TL.punch[1], "mp", "full", ez.ioq],
+          [TL.punch[2], ["mp", 0.93], "full", ez.lin],
+          [TL.punch[3], "ldo", "full", ez.io],
+          [TL.wall[0], ["ldo", 0.98], "full", ez.lin],
+          [TL.wall[1], "wall", "all", ez.io],
+          [TL.zoomAi[0], ["wall", 1.07], "all", ez.lin],
+          [TL.zoomAi[1], "ag", "panel", ez.io],
+          [TL.out[0], ["ag", 0.96], "panel", ez.lin],
+          [TL.out[1], "wall", "all", ez.io],
+          [DUR, ["wall", 1.08], "all", ez.lin],
+        ];
+        function camState(k) {
+          const spec = k[1],
+            name = Array.isArray(spec) ? spec[0] : spec,
+            f = Array.isArray(spec) ? spec[1] : 1;
+          let r = R[name];
+          if (typeof r === "function") r = r();
+          r = grow(r, f);
+          const a = area(k[2]),
+            s = Math.min(a[2] / r[2], a[3] / r[3]);
+          return {
+            cx: r[0] + r[2] / 2,
+            cy: r[1] + r[3] / 2,
+            s,
+            sx: a[0] + a[2] / 2,
+            sy: a[1] + a[3] / 2,
+          };
+        }
+        function camAt(T) {
+          let i = 1;
+          while (i < CAM.length - 1 && T > CAM[i][0]) i++;
+          const k0 = CAM[i - 1],
+            k1 = CAM[i],
+            A = camState(k0),
+            B = camState(k1);
+          const p = (k1[3] || ez.io)(
+            Math.min(1, Math.max(0, (T - k0[0]) / (k1[0] - k0[0]))),
+          );
+          const s = Math.exp(lerp(Math.log(A.s), Math.log(B.s), p));
+          // Pan as a camera flying in or out would: the centre moves with 1/scale.
+          const q =
+            Math.abs(Math.log(B.s / A.s)) < 0.05
+              ? p
+              : (1 / s - 1 / A.s) / (1 / B.s - 1 / A.s);
+          const cx = lerp(A.cx, B.cx, q),
+            cy = lerp(A.cy, B.cy, q),
+            sx = lerp(A.sx, B.sx, p),
+            sy = lerp(A.sy, B.sy, p);
+          return { s, tx: sx - cx * s, ty: sy - cy * s };
+        }
+
+        /* ---------- sound: a synthesized score, scheduled against the film clock ---------- */
+        // 96 BPM: one bar is 2.5 s, so the scene cuts at 5, 12.5, 30, 32.5 and 50 s land on bar lines.
+        const BEAT = 0.625,
+          BAR = 2.5,
+          hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+        const SND = [];
+        const ev = (t, go, dur = 0, sus = false) =>
+          SND.push({ t, go, dur, sus });
+        let seed = 1;
+        const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        function graph(ctx) {
+          const master = ctx.createGain();
+          master.gain.value = 0.8;
+          const comp = ctx.createDynamicsCompressor();
+          comp.threshold.value = -16;
+          comp.knee.value = 12;
+          comp.ratio.value = 3.5;
+          comp.attack.value = 0.004;
+          comp.release.value = 0.22;
+          master.connect(comp);
+          comp.connect(ctx.destination);
+          const n = Math.floor(ctx.sampleRate * 2.8),
+            ir = ctx.createBuffer(2, n, ctx.sampleRate);
+          for (let c = 0; c < 2; c++) {
+            const d = ir.getChannelData(c);
+            for (let i = 0; i < n; i++)
+              d[i] = (rnd() * 2 - 1) * Math.pow(1 - i / n, 2.8);
+          }
+          const rev = ctx.createConvolver();
+          rev.buffer = ir;
+          const rg = ctx.createGain();
+          rg.gain.value = 0.3;
+          rev.connect(rg);
+          rg.connect(master);
+          const del = ctx.createDelay(1.5);
+          del.delayTime.value = BEAT * 0.75;
+          const fb = ctx.createGain();
+          fb.gain.value = 0.3;
+          const lp = ctx.createBiquadFilter();
+          lp.type = "lowpass";
+          lp.frequency.value = 2600;
+          del.connect(lp);
+          lp.connect(fb);
+          fb.connect(del);
+          const dg = ctx.createGain();
+          dg.gain.value = 0.26;
+          lp.connect(dg);
+          dg.connect(master);
+          const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+          {
+            const d = noise.getChannelData(0);
+            for (let i = 0; i < d.length; i++) d[i] = rnd() * 2 - 1;
+          }
+          return { ctx, master, rev, del, noise, bus: null };
+        }
+        function busOf(g) {
+          const b = {
+            dry: g.ctx.createGain(),
+            wet: g.ctx.createGain(),
+            echo: g.ctx.createGain(),
+          };
+          b.dry.connect(g.master);
+          b.wet.connect(g.rev);
+          b.echo.connect(g.del);
+          g.bus = b;
+        }
+        function out(node, g, wet, echo) {
+          node.connect(g.bus.dry);
+          if (wet) {
+            const s = g.ctx.createGain();
+            s.gain.value = wet;
+            node.connect(s);
+            s.connect(g.bus.wet);
+          }
+          if (echo) {
+            const s = g.ctx.createGain();
+            s.gain.value = echo;
+            node.connect(s);
+            s.connect(g.bus.echo);
+          }
+        }
+        function tone(g, at, o) {
+          const c = g.ctx,
+            osc = c.createOscillator(),
+            v = c.createGain(),
+            dur = Math.max(0.03, o.dur),
+            a = Math.min(o.a ?? 0.006, dur * 0.5);
+          osc.type = o.type || "sine";
+          osc.frequency.setValueAtTime(o.f, at);
+          if (o.f2)
+            osc.frequency.exponentialRampToValueAtTime(
+              o.f2,
+              at + (o.glide || dur),
+            );
+          if (o.det) osc.detune.value = o.det;
+          v.gain.setValueAtTime(0.0001, at);
+          v.gain.linearRampToValueAtTime(o.vol, at + a);
+          if (o.decay) v.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+          else {
+            v.gain.setValueAtTime(
+              o.vol,
+              at + Math.max(a, dur - Math.min(o.r ?? 0.12, dur * 0.5)),
+            );
+            v.gain.linearRampToValueAtTime(0.0001, at + dur);
+          }
+          let n = osc;
+          if (o.lp) {
+            const f = c.createBiquadFilter();
+            f.type = "lowpass";
+            f.frequency.setValueAtTime(o.lp, at);
+            if (o.lp2)
+              f.frequency.exponentialRampToValueAtTime(o.lp2, at + dur);
+            f.Q.value = o.q ?? 0.7;
+            osc.connect(f);
+            n = f;
+          }
+          n.connect(v);
+          out(v, g, o.wet, o.echo);
+          osc.start(at);
+          osc.stop(at + dur + 0.05);
+        }
+        function hiss(g, at, o) {
+          const c = g.ctx,
+            s = c.createBufferSource(),
+            f = c.createBiquadFilter(),
+            v = c.createGain(),
+            dur = Math.max(0.02, o.dur);
+          s.buffer = g.noise;
+          s.loop = true;
+          f.type = o.type || "highpass";
+          f.frequency.setValueAtTime(o.f, at);
+          if (o.f2) f.frequency.exponentialRampToValueAtTime(o.f2, at + dur);
+          f.Q.value = o.q ?? 0.8;
+          v.gain.setValueAtTime(0.0001, at);
+          if (o.rise) {
+            v.gain.exponentialRampToValueAtTime(o.vol, at + dur * 0.95);
+            v.gain.linearRampToValueAtTime(0.0001, at + dur);
+          } else {
+            v.gain.linearRampToValueAtTime(o.vol, at + (o.a ?? 0.003));
+            v.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+          }
+          s.connect(f);
+          f.connect(v);
+          out(v, g, o.wet, 0);
+          s.start(at, rnd() * 1.5);
+          s.stop(at + dur + 0.05);
+        }
+        const kick = (g, at, vol = 0.4) => {
+          tone(g, at, {
+            f: 150,
+            f2: 45,
+            glide: 0.11,
+            dur: 0.3,
+            vol,
+            decay: true,
+          });
+          hiss(g, at, { dur: 0.025, vol: vol * 0.3, f: 2200 });
+        };
+        const hat = (g, at, vol = 0.08) =>
+          hiss(g, at, { dur: 0.05, vol, f: 7500 });
+        const clap = (g, at, vol = 0.13) =>
+          hiss(g, at, {
+            dur: 0.17,
+            vol,
+            type: "bandpass",
+            f: 1700,
+            q: 0.9,
+            wet: 0.5,
+          });
+        const pluck = (g, at, m, vol = 0.09, echo = 0.5) => {
+          tone(g, at, {
+            f: hz(m),
+            type: "triangle",
+            dur: 0.34,
+            vol,
+            decay: true,
+            lp: 4600,
+            lp2: 1300,
+            echo,
+            wet: 0.2,
+          });
+          tone(g, at, {
+            f: hz(m),
+            type: "sawtooth",
+            dur: 0.2,
+            vol: vol * 0.35,
+            decay: true,
+            lp: 3600,
+            lp2: 900,
+            echo: echo * 0.6,
+          });
+        };
+        const bell = (g, at, m, vol = 0.09) => {
+          tone(g, at, { f: hz(m), dur: 1.5, vol, decay: true, wet: 0.7 });
+          tone(g, at, {
+            f: hz(m) * 2.76,
+            dur: 0.5,
+            vol: vol * 0.22,
+            decay: true,
+            wet: 0.5,
+          });
+        };
+        const boom = (g, at, vol = 0.55) => {
+          tone(g, at, {
+            f: 95,
+            f2: 34,
+            glide: 0.5,
+            dur: 1.4,
+            vol: vol * 0.55,
+            decay: true,
+            wet: 0.3,
+          });
+          tone(g, at, {
+            f: 220,
+            f2: 80,
+            glide: 0.2,
+            dur: 0.4,
+            vol: vol * 0.5,
+            type: "triangle",
+            decay: true,
+            wet: 0.4,
+          });
+          hiss(g, at, {
+            dur: 0.9,
+            vol: vol * 0.3,
+            type: "lowpass",
+            f: 1800,
+            f2: 200,
+            wet: 0.6,
+          });
+          hiss(g, at, {
+            dur: 0.09,
+            vol: vol * 0.3,
+            type: "bandpass",
+            f: 1400,
+            q: 0.7,
+            wet: 0.5,
+          });
+        };
+        const stab = (g, at, notes, vol = 0.065) => {
+          for (const m of notes)
+            tone(g, at, {
+              f: hz(m),
+              type: "sawtooth",
+              dur: 1.1,
+              vol,
+              decay: true,
+              lp: 3000,
+              lp2: 600,
+              wet: 0.7,
+              echo: 0.3,
+            });
+        };
+        const crash = (g, at, vol = 0.11) =>
+          hiss(g, at, { dur: 1.8, vol, f: 5200, wet: 0.6 });
+        const whoosh = (g, at, dur, up = true, vol = 0.085) =>
+          hiss(g, at, {
+            dur,
+            vol,
+            type: "bandpass",
+            f: up ? 300 : 5200,
+            f2: up ? 6000 : 300,
+            q: 1.2,
+            rise: up,
+            wet: 0.5,
+          });
+        const riser = (g, at, dur, vol = 0.11) =>
+          hiss(g, at, { dur, vol, f: 500, f2: 9000, rise: true, wet: 0.4 });
+        const tick = (g, at, vol = 0.014, f = 2400) =>
+          tone(g, at, {
+            f,
+            dur: 0.02,
+            vol,
+            decay: true,
+            type: "square",
+            lp: 5000,
+          });
+        const chord = (g, at, dur, notes, vol = 0.04) => {
+          for (const m of notes)
+            for (const det of [-7, 7])
+              tone(g, at, {
+                f: hz(m),
+                type: "sawtooth",
+                det,
+                dur,
+                vol,
+                a: Math.min(0.5, dur * 0.3),
+                r: Math.min(0.8, dur * 0.4),
+                lp: 1900,
+                wet: 0.5,
+              });
+        };
+        const bass = (g, at, dur, m, vol = 0.14) => {
+          tone(g, at, { f: hz(m), dur, vol, a: 0.01, r: 0.08 });
+          tone(g, at, {
+            f: hz(m),
+            type: "sawtooth",
+            dur,
+            vol: vol * 0.45,
+            a: 0.01,
+            r: 0.08,
+            lp: 1000,
+          });
+        };
+
+        // The score: Am – F – C – G, one bar each.
+        const CH = [
+          { b: 45, n: [57, 60, 64, 67] },
+          { b: 41, n: [57, 60, 64, 65] },
+          { b: 48, n: [55, 60, 64, 67] },
+          { b: 43, n: [55, 59, 62, 67] },
+        ];
+        ev(
+          0,
+          (g, at, d) =>
+            tone(g, at, {
+              f: hz(33),
+              dur: d,
+              vol: 0.05,
+              a: 0.4,
+              r: 0.6,
+              wet: 0.3,
+            }),
+          5,
+          true,
+        );
+        ev(
+          0,
+          (g, at, d) =>
+            tone(g, at, {
+              f: hz(57),
+              type: "sawtooth",
+              dur: d,
+              vol: 0.035,
+              a: 1.5,
+              r: 0.8,
+              lp: 900,
+              wet: 0.6,
+            }),
+          5,
+          true,
+        );
+        ev(TL.h1[0] + 0.05, (g, at) => {
+          boom(g, at, 0.36);
+          stab(g, at, [57, 64, 69]);
+        });
+        ev(TL.h2[0], (g, at) => {
+          boom(g, at, 0.36);
+          stab(g, at, [53, 60, 65, 69]);
+        });
+        ev(TL.strike[0], (g, at) => whoosh(g, at, 0.42, true, 0.09));
+        ev(TL.tile, (g, at) => bell(g, at, 88, 0.08));
+        ev(3.5, (g, at, d) => riser(g, at, d, 0.1), 1.5);
+        ev(TL.iris[0], (g, at) => {
+          boom(g, at, 0.55);
+          crash(g, at, 0.09);
+          stab(g, at, [57, 60, 64, 72], 0.045);
+        });
+        for (let b = 2; b < 20; b++) {
+          const t = b * BAR,
+            c = CH[(b - 2) % 4],
+            build = b === 12,
+            full = b === 13 || b === 14,
+            quiet = b === 10 || b === 11,
+            ai = b >= 15;
+          ev(
+            t,
+            (g, at, d) => chord(g, at, d, c.n, quiet ? 0.05 : 0.04),
+            BAR,
+            true,
+          );
+          if (!build) {
+            const steps = b >= 8 ? 16 : 8;
+            for (let s = 0; s < steps; s++) {
+              const m =
+                c.n[[0, 2, 1, 3, 2, 3, 1, 2][s % 8]] +
+                12 +
+                (s % 8 === 7 ? 12 : 0);
+              ev(t + (s * BAR) / steps, (g, at) =>
+                pluck(g, at, m, ai ? 0.065 : quiet ? 0.055 : 0.085),
+              );
+            }
+          }
+          if (b >= 5 && !quiet && !build) {
+            for (const k of ai ? [0, 2.5] : [0, 1, 2, 3])
+              ev(t + k * BEAT, (g, at) => kick(g, at));
+            for (let k = 0; k < 8; k++)
+              ev(t + (k * BEAT) / 2, (g, at) =>
+                hat(g, at, k % 2 ? 0.09 : 0.05),
+              );
+            if (ai) ev(t + 2 * BEAT, (g, at) => clap(g, at, 0.1));
+            else if (b >= 8) {
+              ev(t + BEAT, (g, at) => clap(g, at));
+              ev(t + 3 * BEAT, (g, at) => clap(g, at));
+            }
+            for (const k of full ? [0, 1.5, 2, 3, 3.5] : [0, 1.5, 2.5])
+              ev(t + k * BEAT, (g, at) =>
+                bass(g, at, BEAT * (full ? 0.45 : 0.9), c.b),
+              );
+          } else
+            ev(t, (g, at, d) => bass(g, at, d, c.b, 0.09), BAR * 0.96, true);
+        }
+        // Bar 12 builds into the number.
+        ev(30, (g, at, d) => riser(g, at, d, 0.13), 2.45);
+        for (let k = 0; k < 4; k++)
+          ev(30 + k * BEAT * 0.5, (g, at) => clap(g, at, 0.05 + k * 0.006));
+        for (let k = 0; k < 10; k++)
+          ev(31.25 + k * 0.125, (g, at) => clap(g, at, 0.07 + k * 0.006));
+        ev(32.5, (g, at) => {
+          boom(g, at, 0.6);
+          crash(g, at, 0.12);
+        });
+        // The ending resolves to C.
+        ev(TL.out[0], (g, at) => whoosh(g, at, 1.2, false, 0.075));
+        ev(TL.end, (g, at) => boom(g, at, 0.5));
+        ev(
+          TL.end,
+          (g, at, d) => chord(g, at, d, [48, 55, 60, 62, 64, 67], 0.03),
+          5.6,
+          true,
+        );
+        ev(TL.end, (g, at, d) => bass(g, at, d, 36, 0.1), 4.6, true);
+        ev(TL.end + 0.5, (g, at) => bell(g, at, 91, 0.07));
+        ev(TL.end + 1.25, (g, at) => bell(g, at, 96, 0.055));
+        // Sound effects that follow the picture.
+        for (const r of nlRows) {
+          const n = Math.max(3, Math.round((r.b - r.a) / 0.045));
+          for (let i = 0; i < n; i++)
+            ev(r.a + ((r.b - r.a) * i) / n, (g, at) =>
+              tick(g, at, 0.013, 2200 + (i % 3) * 300),
+            );
+        }
+        ev(TL.spectre, (g, at) => {
+          pluck(g, at, 84, 0.055);
+          pluck(g, at + 0.09, 88, 0.055);
+        });
+        ev(
+          TL.fly[0],
+          (g, at, d) => whoosh(g, at, d, true, 0.06),
+          TL.fly[1] - TL.fly[0],
+        );
+        ev(TL.ldo, (g, at) => bell(g, at, 84, 0.06));
+        ev(TL.punch[0], (g, at) => whoosh(g, at, 0.65, true, 0.09));
+        ev(TL.punch[1], (g, at) => boom(g, at, 0.32));
+        [76, 79, 84].forEach((m, i) =>
+          ev(TL.chips[0] + 0.05 + i * 0.09, (g, at) => pluck(g, at, m, 0.065)),
+        );
+        for (let i = 0; i < 18; i++)
+          ev(
+            TL.count[0] + (TL.count[1] - TL.count[0]) * Math.pow(i / 18, 1.7),
+            (g, at) => tick(g, at, 0.02, 3200),
+          );
+        ev(TL.count[1], (g, at) => bell(g, at, 91, 0.085));
+        ev(36.1, (g, at) => pluck(g, at, 81, 0.05));
+        ev(36.9, (g, at) => pluck(g, at, 84, 0.05));
+        A_AG.placed.forEach((i, k) =>
+          ev(i.t, (g, at) =>
+            pluck(g, at, [72, 76, 79, 81, 84][(k * 3) % 5], 0.028, 0.3),
+          ),
+        );
+        A_AG.wired.forEach((w, k) => {
+          if (k % 2 === 0) ev(w.t0, (g, at) => tick(g, at, 0.011, 3000));
+        });
+        ev(TL.verify[1], (g, at) => {
+          bell(g, at, 84, 0.08);
+          bell(g, at + 0.08, 88, 0.07);
+          bell(g, at + 0.16, 91, 0.07);
+        });
+        SND.sort((a, b) => a.t - b.t);
+
+        let AC = null,
+          mix = null,
+          sp = 0;
+        const snd = { on: false, live: false, off: 0, stall: 0 };
+        // Made inside the click that asks for sound, as browsers require.
+        function audio() {
+          if (!AC) {
+            AC = new (window.AudioContext || window.webkitAudioContext)();
+            seed = 1;
+            mix = graph(AC);
+          }
+          AC.resume();
+        }
+        function sndStart() {
+          if (!snd.on || !playing || snd.live || scrubbing || document.hidden)
+            return;
+          audio();
+          busOf(mix);
+          snd.off = AC.currentTime - T;
+          snd.live = true;
+          snd.stall = 0;
+          sp = SND.findIndex((e) => e.t >= T);
+          if (sp < 0) sp = SND.length;
+          for (const e of SND)
+            if (e.sus && e.t < T && e.t + e.dur > T + 0.25)
+              e.go(mix, AC.currentTime + 0.02, e.t + e.dur - T);
+        }
+        function sndStop() {
+          if (!snd.live) return;
+          snd.live = false;
+          const b = mix.bus,
+            t = AC.currentTime;
+          for (const k of ["dry", "wet", "echo"])
+            b[k].gain.setTargetAtTime(0, t, 0.02);
+          setTimeout(() => {
+            for (const k of ["dry", "wet", "echo"]) b[k].disconnect();
+          }, 400);
+          // Let the reverb ring out, then stop the clock until sound is wanted again.
+          setTimeout(() => {
+            if (!snd.live) AC.suspend();
+          }, 3200);
+        }
+        function sndPump() {
+          while (sp < SND.length && SND[sp].t < T + 0.3) {
+            const e = SND[sp++],
+              at = e.t + snd.off;
+            // A stalled page must not play what it missed all at once.
+            if (at > AC.currentTime - 0.1)
+              e.go(mix, Math.max(AC.currentTime, at), e.dur);
+          }
+        }
+        function setSound(on, fromStart = false) {
+          snd.on = on;
+          $("#bsi").setAttribute(
+            "d",
+            on
+              ? "M2 5h2.6L8 2.2v9.6L4.6 9H2zM10 4.6a3.4 3.4 0 0 1 0 4.8M11.6 3a5.6 5.6 0 0 1 0 8"
+              : "M2 5h2.6L8 2.2v9.6L4.6 9H2zM10.2 5.2l3 3.6M13.2 5.2l-3 3.6",
+          );
+          $("#sc").classList.toggle("off", on);
+          $("#bs").setAttribute(
+            "aria-label",
+            on ? "Turn sound off" : "Turn sound on",
+          );
+          if (!on) return sndStop();
+          audio();
+          // Only the "sound on" chip takes the viewer back to the start; the switch in the bar just switches.
+          if (fromStart) {
+            if (T < 12 || T >= DUR - 0.05) seek(0);
+            if (!playing) setPlaying(true);
+          }
+          sndStart();
+        }
+        async function renderScore(rate = 44100) {
+          const ctx = new OfflineAudioContext(
+            2,
+            Math.ceil(rate * (DUR + 1.5)),
+            rate,
+          );
+          seed = 1;
+          const g = graph(ctx);
+          busOf(g);
+          for (const e of SND) e.go(g, e.t, e.dur);
+          return ctx.startRendering();
+        }
+
+        /* ---------- playback ---------- */
+        let T = 0,
+          playing = false,
+          lastNow = 0,
+          dirty = true,
+          lang = "en",
+          scrubbing = false;
+        const fill = $("#fill"),
+          prog = $("#prog i"),
+          timeEl = $("#time"),
+          cur = $("#cur"),
+          scrub = $("#scrub");
+        const fmt = (t) =>
+          `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+        let lastSec = -1;
+        function render() {
+          for (const tr of tracks) {
+            const v = val(tr.keys, T);
+            if (v !== tr.last || Array.isArray(v)) {
+              tr.last = v;
+              tr.apply(v);
+            }
+          }
+          for (const s of shows) {
+            const on = s.win.some(([a, b]) => T >= a && T < b);
+            if (on !== s.last) {
+              s.last = on;
+              s.el.classList.toggle(s.cls, on);
+            }
+          }
+          updatePaper();
+          syncNetlist(T);
+          syncAgent(T);
+          const c = camAt(T);
+          world.setAttribute(
+            "transform",
+            `translate(${c.tx} ${c.ty}) scale(${c.s})`,
+          );
+          cur.style.transform = `translate(${curW[0] * c.s + c.tx}px, ${curW[1] * c.s + c.ty}px)`;
+          const f = (T / DUR) * 100;
+          fill.style.width = f + "%";
+          prog.style.width = f + "%";
+          const sec = Math.floor(T);
+          if (sec !== lastSec) {
+            lastSec = sec;
+            timeEl.textContent = `${fmt(T)} / ${fmt(DUR)}`;
+            scrub.setAttribute("aria-valuenow", sec);
+          }
+        }
+        function frame(now) {
+          if (playing) {
+            // With sound on, the audio clock drives the picture, so the two cannot drift.
+            if (snd.live && AC.state === "running") {
+              T = Math.min(DUR, Math.max(T, AC.currentTime - snd.off));
+              snd.stall = 0;
+              sndPump();
+            } else {
+              // A browser that will not start audio leaves the film playing silent.
+              if (snd.live && (snd.stall += (now - lastNow) / 1000) > 0.8)
+                setSound(false);
+              if (!snd.live)
+                T = Math.min(DUR, T + Math.min(0.1, (now - lastNow) / 1000));
+            }
+            dirty = true;
+            if (T >= DUR) setPlaying(false);
+          }
+          lastNow = now;
+          if (dirty) {
+            dirty = false;
+            render();
+          }
+          requestAnimationFrame(frame);
+        }
+        let idleTimer = 0;
+        function wake() {
+          app.classList.remove("idle");
+          clearTimeout(idleTimer);
+          if (playing)
+            idleTimer = setTimeout(() => app.classList.add("idle"), 2400);
+        }
+        function setPlaying(v) {
+          playing = v;
+          $("#bpi").setAttribute(
+            "d",
+            v ? "M3 1.5h3v11H3zM8 1.5h3v11H8z" : "M3.5 1.2l8.5 5.8-8.5 5.8z",
+          );
+          wake();
+          $("#bp").setAttribute("aria-label", v ? "Pause" : "Play");
+          if (v) sndStart();
+          else sndStop();
+        }
+        function seek(t) {
+          T = Math.min(DUR, Math.max(0, t));
+          dirty = true;
+          if (snd.live && !scrubbing) {
+            sndStop();
+            sndStart();
+          }
+        }
+        function toggle() {
+          if (!playing && T >= DUR - 0.05) seek(0);
+          setPlaying(!playing);
+        }
+        function setLang(l) {
+          lang = l;
+          document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
+          stage.classList.toggle("zh", l === "zh");
+          stage.classList.toggle("en", l !== "zh");
+          for (const el of $$("[data-i]"))
+            el.innerHTML = STR[l][el.dataset.i].replace(
+              "{parts}",
+              A_AG.insts.length,
+            );
+          $("#bl").textContent = STR[l].lang;
+        }
+        function fitMono() {
+          const pb = $("#p-nl .pb"),
+            w = pb.clientWidth - 32;
+          if (w <= 0) return;
+          const probe = document.createElement("span");
+          probe.style.cssText =
+            "position:absolute;visibility:hidden;white-space:pre;font:100px var(--font-mono)";
+          probe.textContent = "0".repeat(10);
+          pb.appendChild(probe);
+          const cw = probe.getBoundingClientRect().width / 1000;
+          probe.remove();
+          const n =
+            Math.max(...D.nl.spice.concat(D.nl.spectre).map((s) => s.length)) +
+            1;
+          const fs = Math.min(16, w / (n * cw));
+          $("#p-nl").style.setProperty(
+            "--mono",
+            Math.max(10.5, fs).toFixed(2) + "px",
+          );
+          $("#p-nl").classList.toggle("clip", fs < 10.5);
+        }
+        new ResizeObserver(() => {
+          const r = stage.getBoundingClientRect();
+          W = r.width || 1;
+          H = r.height || 1;
+          portrait = W / H < 0.9;
+          stage.classList.toggle("portrait", portrait);
+          fitMono();
+          dirty = true;
+        }).observe(stage);
+
+        {
+          const ticks = $("#ticks");
+          for (const t of SCENES.slice(1)) {
+            const i = document.createElement("i");
+            i.style.left = (t / DUR) * 100 + "%";
+            ticks.appendChild(i);
+          }
+        }
+        stage.addEventListener("click", (e) => {
+          if (e.target.closest("a,button")) return;
+          toggle();
+        });
+        $("#bs").addEventListener("click", () => setSound(!snd.on));
+        $("#sc").addEventListener("click", (e) => {
+          e.currentTarget.blur();
+          setSound(true, true);
+        });
+        // A hidden tab stops drawing but not sounding: stop the score there and pick it up, in step, on return.
+        document.addEventListener("visibilitychange", () => {
+          if (document.hidden) sndStop();
+          else sndStart();
+        });
+        $("#bp").addEventListener("click", toggle);
+        $("#br").addEventListener("click", () => {
+          seek(0);
+          setPlaying(true);
+        });
+        $("#bl").addEventListener("click", () => {
+          setLang(lang === "zh" ? "en" : "zh");
+          try {
+            localStorage.setItem("icm.film.lang.v1", lang);
+          } catch (e) {}
+          wake();
+        });
+        const scrubTo = (e) => {
+          const r = scrub.getBoundingClientRect();
+          seek(((e.clientX - r.left) / r.width) * DUR);
+        };
+        scrub.addEventListener("pointerdown", (e) => {
+          scrub.setPointerCapture(e.pointerId);
+          scrubbing = true;
+          sndStop();
+          scrubTo(e);
+          wake();
+        });
+        const scrubEnd = () => {
+          if (scrubbing) {
+            scrubbing = false;
+            sndStart();
+          }
+        };
+        scrub.addEventListener("pointerup", scrubEnd);
+        scrub.addEventListener("pointercancel", scrubEnd);
+        scrub.addEventListener("pointermove", (e) => {
+          if (scrub.hasPointerCapture(e.pointerId)) scrubTo(e);
+        });
+        scrub.addEventListener("keydown", (e) => {
+          if (e.key === "ArrowLeft") seek(T - 2);
+          if (e.key === "ArrowRight") seek(T + 2);
+        });
+        addEventListener("keydown", (e) => {
+          if (e.target.closest && e.target.closest("button,a,#scrub")) return;
+          if (e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+          if (e.key === "m" || e.key === "M") setSound(!snd.on);
+          if (e.key === "ArrowRight")
+            seek(SCENES.find((t) => t > T + 0.05) ?? DUR);
+          if (e.key === "ArrowLeft")
+            seek([...SCENES].reverse().find((t) => t < T - 0.6) ?? 0);
+        });
+        addEventListener("pointermove", wake);
+        addEventListener("pointerdown", wake);
+
+        let saved = null;
+        try {
+          saved = localStorage.getItem("icm.film.lang.v1");
+        } catch (e) {}
+        if (saved !== "zh" && saved !== "en") saved = null;
+        // In a frame on the site, the page around it holds the address and the language hash.
+        let host = "",
+          hash = location.hash;
+        if (window.parent !== window)
+          try {
+            host = window.parent.location.host;
+            hash = window.parent.location.hash || hash;
+          } catch (e) {}
+        if (host) $(".url").textContent = host;
+        const h = hash.replace("#", "");
+        setLang(
+          h === "zh" || h === "en"
+            ? h
+            : saved || (/^zh/i.test(navigator.language || "") ? "zh" : "en"),
+        );
+        window.__film = {
+          seek,
+          setPlaying,
+          setLang,
+          setSound,
+          renderScore,
+          get t() {
+            return T;
+          },
+          DUR,
+        };
+        if (document.fonts && document.fonts.ready)
+          document.fonts.ready.then(() => {
+            fitMono();
+            dirty = true;
+          });
+        const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (still) {
+          seek(DUR);
+          setPlaying(false);
+        } else setPlaying(true);
+        requestAnimationFrame((now) => {
+          lastNow = now;
+          frame(now);
+        });
+      })();
+    </script>
+  </body>
+</html>

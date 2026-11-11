@@ -23,6 +23,7 @@ it("names every page the app serves, and nothing else (#2159)", () => {
     "/mine",
     "/datasets",
     "/review",
+    "/film",
   ])
     expect(isAppPagePath(path), path).toBe(true);
   for (const path of [
