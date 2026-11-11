@@ -928,6 +928,27 @@ function exportCell(
   // A wire that runs through a contact without ending there (a T joint) is
   // joined there in Analog Canvas; RNL joins only at the vertices a wire
   // lists, so the contact's point or pin goes into its list where it passes.
+  // A junction other routes end at is joined only to them: Analog Canvas
+  // joins only what a route reaches, so a route drawn over it passes it, as
+  // the import reads a wire listing it as two routes ending there. A body
+  // tie, dashed, ends on the wire it ties to without splitting it.
+  const dashed = (route: (typeof document.routes)[number]) =>
+    (route.styleOverride?.lineStyle ??
+      (route.presentation === "bulk-dashed" ? "dashed" : undefined)) ===
+    "dashed";
+  const reachedJunctions = new Set(
+    document.routes
+      .filter((route) => !dashed(route))
+      .flatMap((route) => [
+        route.start,
+        ...route.legs.flatMap((leg) =>
+          leg.to.kind === "endpoint" ? [leg.to.endpoint] : [],
+        ),
+      ])
+      .flatMap((endpoint) =>
+        endpoint.kind === "junction" ? [endpoint.junctionId] : [],
+      ),
+  );
   const through = new Map<
     StableId,
     { point: { x: number; y: number }; vertex: Vertex }[]
@@ -935,6 +956,15 @@ function exportCell(
   for (const contact of evidence.contacts) {
     const own = contact.endpoints.map(vertex).find((item) => item);
     if (!own) continue;
+    if (
+      contact.endpoints.every((endpoint) => endpoint.kind === "junction") &&
+      contact.endpoints.some(
+        (endpoint) =>
+          endpoint.kind === "junction" &&
+          reachedJunctions.has(endpoint.junctionId),
+      )
+    )
+      continue;
     const touches = (endpoint: RouteEndpoint) =>
       contact.endpoints.some((item) => sameEndpoint(item, endpoint));
     const routeIds = new Set(

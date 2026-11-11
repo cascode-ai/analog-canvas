@@ -2729,6 +2729,111 @@ it.each(["spice", "spectre"] as const)(
 );
 
 it.each(["spice", "spectre"] as const)(
+  "keeps a rail that runs over a junction other wires end at one route, through %s+RNL",
+  async (format) => {
+    // Analog Canvas joins only what a route reaches: a rail drawn over the
+    // junction another rail ends at is not joined there, and stays whole.
+    const project = createEmptyProject("rails", "Rails", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    for (const [id, x] of [
+      ["R1", 100],
+      ["R2", 300],
+    ] as const)
+      document.instances.push({
+        id,
+        reference: id,
+        symbolId: "resistor",
+        placement: { position: { x, y: 200 }, rotation: 0, mirror: "none" },
+        netlist: { parameters: { value: "1k" } },
+      });
+    document.nets.push(
+      {
+        id: "vdd",
+        terminals: [
+          { instanceId: "R1", pinName: "1" },
+          { instanceId: "R2", pinName: "1" },
+        ],
+      },
+      {
+        id: "out",
+        terminals: [
+          { instanceId: "R1", pinName: "2" },
+          { instanceId: "R2", pinName: "2" },
+        ],
+      },
+    );
+    document.netlist!.terminals.push(
+      {
+        id: "t-vdd",
+        name: "VDD",
+        netId: "vdd",
+        direction: "inout",
+        interfaceInstanceIds: [],
+      },
+      {
+        id: "t-out",
+        name: "OUT",
+        netId: "out",
+        direction: "inout",
+        interfaceInstanceIds: [],
+      },
+    );
+    const junction = (id: string, x: number) => ({
+      id,
+      netId: "vdd",
+      position: { x, y: 100 },
+    });
+    document.junctions.push(
+      junction("JA", 50),
+      junction("JB", 100),
+      junction("JC", 200),
+      junction("JD", 300),
+    );
+    const rail = (
+      id: string,
+      start: RouteBranch["start"],
+      end: RouteBranch["start"],
+    ) =>
+      createRoutePath({
+        id,
+        netId: "vdd",
+        start,
+        end,
+        bends: [],
+        modes: ["manual"],
+        presentation: "power-rail",
+      });
+    const on = (junctionId: string) =>
+      ({ kind: "junction", junctionId }) as const;
+    const pin = (instanceId: string) =>
+      ({ kind: "terminal", instanceId, pinName: "1" }) as const;
+    document.routes.push(
+      // Each runs over a junction the other ends at.
+      rail("over", on("JA"), on("JC")),
+      rail("next", on("JB"), on("JD")),
+      rail("drop1", on("JB"), pin("R1")),
+      rail("drop2", on("JD"), pin("R2")),
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    const back = plan.project.documents[0]!;
+    const x = (endpoint: RouteBranch["start"]) =>
+      endpoint.kind === "junction"
+        ? back.junctions.find((item) => item.id === endpoint.junctionId)
+            ?.position.x
+        : endpoint.instanceId;
+    const spans = back.routes
+      .map((route) => {
+        const end = route.legs.at(-1)!.to;
+        return `${x(route.start)}-${end.kind === "endpoint" ? x(end.endpoint) : "?"}`;
+      })
+      .sort();
+    expect(spans).toEqual(["100-300", "100-R1", "300-R2", "50-200"]);
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
   "keeps a body tie that runs between junctions a body tie, through %s+RNL",
   async (format) => {
     const project = createEmptyProject("body-tie", "Body tie", "dut");
