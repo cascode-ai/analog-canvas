@@ -34,6 +34,10 @@ Gallery, Store and Reviews captures; their inventories remain unchanged.
 
 Use the same fenced paging and changed-key reconciliation below. Board event
 cursors contain a positive integer `seq`; other table cursors contain strings.
+Automated activity pages accept `limit=1..100` (default 1). A batch stops before
+512 KiB of row JSON; a larger existing record remains readable alone. Its cursor
+names the last returned row; continue until the empty page with a null cursor.
+Exact-key reads and other scopes keep one-row pages.
 Administrators can read the community scope with
 `schema-backup?scope=activity&table=…`. The export changes no business rows and
 enables no replication. `schema-restore` does not restore these tables; retain
@@ -63,7 +67,7 @@ component catalog and private Cloud Projects are outside it.
 
 ## Consistent capture protocol
 
-The read-only backup endpoint retains one-row pages and existing credentials.
+The read-only backup endpoint retains existing credentials and default one-row pages.
 `table=inventory` also returns `changeCursor: {epoch, revision}`. Normal writes
 maintain a scope-specific index of changed keys, including deleted keys; it
 contains no Project contents and does not alter business rows.
