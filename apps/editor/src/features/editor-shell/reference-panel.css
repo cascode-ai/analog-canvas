@@ -99,16 +99,46 @@
   font-weight: 600;
 }
 
-.reference-local-source {
-  overflow-wrap: anywhere;
+.reference-review-feedback {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
 }
 
-.reference-panel-about:has(.reference-local-source[open]) {
+.reference-panel-about:has(.reference-review-feedback[data-open="true"]) {
   max-height: 72%;
 }
 
-.reference-local-source ul {
+.reference-review-feedback > button {
+  justify-self: start;
+}
+
+.reference-review-actions,
+.reference-review-note-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reference-review-note-heading {
+  justify-content: space-between;
+}
+
+.reference-review-notes {
+  display: grid;
+  gap: 6px;
+  margin: 0;
   padding-inline-start: 1.25rem;
+}
+
+.reference-review-notes li {
+  padding-top: 6px;
+  border-top: 1px solid var(--icm-border);
+}
+
+.reference-review-feedback textarea {
+  border-color: var(--icm-border);
 }
 
 .reference-panel-about p {
@@ -253,7 +283,8 @@
   color: var(--icm-text-muted);
 }
 
-.reference-panel-foot .is-primary {
+.reference-panel-foot .is-primary,
+.reference-review-actions .is-primary {
   padding: 4px 14px;
   border: 1px solid var(--icm-accent);
   border-radius: var(--icm-radius-sm);
@@ -264,7 +295,8 @@
   cursor: pointer;
 }
 
-.reference-panel-foot .is-primary:disabled {
+.reference-panel-foot .is-primary:disabled,
+.reference-review-actions .is-primary:disabled {
   opacity: 0.6;
   cursor: default;
 }

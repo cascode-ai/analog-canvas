@@ -268,26 +268,3 @@ export async function compareReviewSource(
       }),
   };
 }
-
-/**
- * Project Info's line for an imported Project: the same comparison the Agent
- * reads, and whether the layout was edited when the circuit still matches.
- */
-export async function importedSourceStatus(
-  project: CircuitProject,
-  source: ReviewSource,
-): Promise<string> {
-  const { status, summary, reasons } = await compareReviewSource(
-    project,
-    source,
-  );
-  if (status === "different")
-    return `Electrically differs from the imported netlist: ${summary}`;
-  if (status === "inconclusive")
-    return `Not fully compared with the imported netlist: ${reasons.slice(0, 2).join("; ") || summary}`;
-  return project.documents.every(
-    ({ sourceStatus }) => sourceStatus === "in-sync",
-  )
-    ? "Matches the imported netlist"
-    : "Layout edited; electrically matches the imported netlist";
-}

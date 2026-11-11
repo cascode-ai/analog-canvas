@@ -6,13 +6,6 @@ import {
 import { deriveStableId, type CircuitProject } from "@icm/model";
 import { localSourceReferences, normalizeSourcePath } from "@icm/spice";
 
-/** The netlist a Project was imported from, as Project Info names it. */
-export interface EmbeddedReviewSource {
-  entryPath: string;
-  version: string;
-  files: { path: string; sha256: string }[];
-}
-
 async function digestBytes(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) =>
@@ -105,18 +98,4 @@ export async function embeddedReviewBundle(source: CircuitProject["source"]) {
       ),
     ),
   };
-}
-
-/** Original records survive a native Project save, unlike the tab receipt. */
-export async function embeddedReviewSource(
-  source: CircuitProject["source"],
-): Promise<EmbeddedReviewSource | undefined> {
-  const bundle = await embeddedReviewBundle(source);
-  return (
-    bundle && {
-      entryPath: bundle.entryPath,
-      version: bundle.version,
-      files: bundle.files.map(({ path, sha256 }) => ({ path, sha256 })),
-    }
-  );
 }

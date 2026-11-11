@@ -84,9 +84,14 @@ it("opens with a review's details, as with a picture", async () => {
   editorPage();
   const { panel } = await show({
     reviewFeedback: {
-      identity: "review-1",
-      label: "Review of RC filter",
-      copy: async () => {},
+      projectId: "project-1",
+      structureRevision: 0,
+      cellId: "filter-1",
+      cellName: "RC filter",
+      cellRevision: 0,
+      hierarchyPath: [],
+      sourceVersion: "filter-source",
+      objects: [],
     },
   });
   expect(panel().classList).not.toContain("folded");
@@ -106,9 +111,14 @@ it("keeps the person's own folding", async () => {
   await render({
     openings: 1,
     reviewFeedback: {
-      identity: "review-1",
-      label: "Review of RC filter",
-      copy: async () => {},
+      projectId: "project-1",
+      structureRevision: 0,
+      cellId: "filter-1",
+      cellName: "RC filter",
+      cellRevision: 0,
+      hierarchyPath: [],
+      sourceVersion: "filter-source",
+      objects: [],
     },
   });
   expect(panel().classList).toContain("folded");

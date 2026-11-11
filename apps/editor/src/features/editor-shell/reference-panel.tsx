@@ -10,14 +10,20 @@ import {
 
 import "../../styles/review-page.css";
 import "./reference-panel.css";
-import type { EmbeddedReviewSource } from "../../agent/embedded-review-source";
 import { canvasInsetsFromOverlays } from "../../canvas/fit-view";
 import type { SessionUser } from "../../components/account";
 import { MarkablePicture } from "../../components/review-picture";
 import { gallerySourceOfEntryId } from "../../gallery-sources";
+import { writeClipboardText } from "../../hosts/clipboard-text";
 import { REFERENCE_SAVED, uploadReferenceImage } from "../../reference-image";
 import type { GalleryEntryContext } from "./gallery-example-commands";
 import { REFERENCE_SHEET_QUERY, type OwnReferenceImage } from "./own-reference";
+import {
+  reviewFeedbackLabel,
+  reviewFeedbackText,
+  type ReviewFeedbackTarget,
+  type ReviewNote,
+} from "./review-feedback";
 
 /**
  * The figure a Gallery drawing was drawn from: a dataset's original figure,
@@ -416,12 +422,7 @@ const imageAmong = (files: FileList | null | undefined) =>
 const uploaded = new WeakSet<File>();
 
 export interface ReferenceWindowProps {
-  reviewFeedback?:
-    | { identity: string; label: string; copy(comment: string): Promise<void> }
-    | undefined;
-  /** The netlist the drawing was imported from; `check` says how the drawing stands against it. */
-  importedSource?:
-    (EmbeddedReviewSource & { check(): Promise<string> }) | undefined;
+  reviewFeedback?: ReviewFeedbackTarget | undefined;
   open: boolean;
   /** How often the person has asked for the window (File, status bar). */
   openings?: number;
@@ -448,105 +449,124 @@ export interface ReferenceWindowProps {
   fetchLike?: typeof fetch;
 }
 
-/** How the drawing stands against its netlist, compared again after each edit. */
-function ImportedSourceStatus({ check }: { check: () => Promise<string> }) {
-  const [status, setStatus] = useState("");
-  useEffect(() => {
-    let current = true;
-    setStatus("Comparing with the imported netlist…");
-    // A burst of edits compares once, after the last.
-    const timer = setTimeout(() => {
-      check().then(
-        (text) => {
-          if (current) setStatus(text);
-        },
-        (error: unknown) => {
-          if (current)
-            setStatus(error instanceof Error ? error.message : String(error));
-        },
-      );
-    }, 300);
-    return () => {
-      current = false;
-      clearTimeout(timer);
-    };
-  }, [check]);
-  return <p data-testid="local-source-status">{status}</p>;
-}
-
-/** The netlist a Project was imported from, compared only while shown. */
-function ImportedSource({
-  source,
-}: {
-  source: NonNullable<ReferenceWindowProps["importedSource"]>;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <details
-      className="reference-local-source"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary>Imported source</summary>
-      <p>{source.entryPath}</p>
-      <p>Source version (SHA-256)</p>
-      <code data-testid="local-source-version">{source.version}</code>
-      <ul>
-        {source.files.map(({ path, sha256 }) => (
-          <li key={path}>
-            <span>{path}</span>
-            <br />
-            <code>{sha256}</code>
-          </li>
-        ))}
-      </ul>
-      {open ? <ImportedSourceStatus check={source.check} /> : null}
-    </details>
-  );
+interface ReviewDraft {
+  open: boolean;
+  comment: ReviewNote | null;
+  notes: (ReviewNote & { id: string })[];
 }
 
 function ReviewFeedback({
-  label,
-  copy,
-}: NonNullable<ReferenceWindowProps["reviewFeedback"]>) {
-  const [open, setOpen] = useState(false);
-  const [comment, setComment] = useState("");
+  target,
+  draft,
+  onChange,
+}: {
+  target: ReviewFeedbackTarget;
+  draft: ReviewDraft;
+  onChange(draft: ReviewDraft): void;
+}) {
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const { comment, notes, open } = draft;
+  const active = comment?.comment.trim() ? comment : null;
+  const currentTarget = comment?.target ?? target;
+
   async function copyFeedback() {
+    const items = active ? [...notes, active] : notes;
     setBusy(true);
     try {
-      await copy(comment);
-      setStatus("Copied. Paste it into the Agent chat.");
+      await writeClipboardText(reviewFeedbackText(items));
+      setStatus(
+        items.length === 1
+          ? "Copied. Paste it into the Agent chat."
+          : `Copied ${items.length} notes. Paste them into the Agent chat.`,
+      );
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Copy failed");
     } finally {
       setBusy(false);
     }
   }
+
   return (
-    <div className="reference-local-source">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <div className="reference-review-feedback" data-open={open}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => onChange({ ...draft, open: !open })}
+      >
         Review feedback
       </button>
       {open ? (
         <>
-          <p>{label}</p>
+          <p aria-live="polite">{reviewFeedbackLabel(currentTarget)}</p>
           <textarea
             className="reference-description"
             aria-label="Review comment"
-            value={comment}
-            onChange={(event) => setComment(event.currentTarget.value)}
-          />
-          <button
-            type="button"
-            disabled={busy || !comment.trim()}
-            onClick={() => {
-              void copyFeedback();
+            placeholder="Write a review note"
+            rows={2}
+            disabled={busy}
+            value={comment?.comment ?? ""}
+            onChange={(event) => {
+              const text = event.currentTarget.value;
+              setStatus("");
+              onChange({
+                ...draft,
+                comment: text ? { target: currentTarget, comment: text } : null,
+              });
             }}
-          >
-            Copy review feedback
-          </button>
-          <p role="status">{status}</p>
+          />
+          <div className="reference-review-actions">
+            <button
+              type="button"
+              disabled={busy || !active}
+              onClick={() => {
+                if (!active) return;
+                setStatus("");
+                onChange({
+                  ...draft,
+                  comment: null,
+                  notes: [...notes, { ...active, id: crypto.randomUUID() }],
+                });
+              }}
+            >
+              Add note
+            </button>
+            <button
+              type="button"
+              className="is-primary"
+              disabled={busy || (!active && !notes.length)}
+              onClick={() => void copyFeedback()}
+            >
+              Copy review feedback
+            </button>
+          </div>
+          {notes.length ? (
+            <ol className="reference-review-notes" aria-label="Review notes">
+              {notes.map((item, index) => (
+                <li key={item.id}>
+                  <div className="reference-review-note-heading">
+                    <strong>{reviewFeedbackLabel(item.target)}</strong>
+                    <button
+                      type="button"
+                      aria-label={`Remove note ${index + 1}`}
+                      disabled={busy}
+                      onClick={() => {
+                        setStatus("");
+                        onChange({
+                          ...draft,
+                          notes: notes.filter(({ id }) => id !== item.id),
+                        });
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <p>{item.comment}</p>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+          {status ? <p role="status">{status}</p> : null}
         </>
       ) : null}
     </div>
@@ -575,10 +595,14 @@ export function ReferenceWindow({
   onImage,
   takesPaste,
   onSaved,
-  importedSource,
   reviewFeedback,
   fetchLike = fetch,
 }: ReferenceWindowProps) {
+  const [reviewDraft, setReviewDraft] = useState<ReviewDraft>({
+    open: false,
+    comment: null,
+    notes: [],
+  });
   const dataset = entry ? gallerySourceOfEntryId(entry.id) : null;
   const owner =
     entry !== null &&
@@ -720,11 +744,7 @@ export function ReferenceWindow({
       title="Project Info"
       onClose={onClose}
       openings={openings}
-      shows={
-        shown !== null ||
-        reviewFeedback !== undefined ||
-        importedSource !== undefined
-      }
+      shows={shown !== null || reviewFeedback !== undefined}
       actions={
         <button
           type="button"
@@ -800,12 +820,10 @@ export function ReferenceWindow({
           </>
         )}
         {reviewFeedback ? (
-          <ReviewFeedback key={reviewFeedback.identity} {...reviewFeedback} />
-        ) : null}
-        {importedSource ? (
-          <ImportedSource
-            key={importedSource.version}
-            source={importedSource}
+          <ReviewFeedback
+            target={reviewFeedback}
+            draft={reviewDraft}
+            onChange={setReviewDraft}
           />
         ) : null}
         {entry ? (

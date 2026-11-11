@@ -7,7 +7,6 @@ import { embeddedReviewBundle } from "./embedded-review-source";
 import { importLocalCircuit } from "./import-local-circuit";
 import {
   compareReviewSource,
-  importedSourceStatus,
   incompleteCells,
 } from "./review-source-comparison";
 
@@ -201,22 +200,18 @@ describe("Canvas review of an imported netlist", () => {
     ).toMatchObject({ unroutedConnections: null });
   });
 
-  it("names in one line how the drawing stands against its netlist", async () => {
+  it("compares electrical changes separately from layout changes", async () => {
     const { project, source } = await delivered();
-    await expect(importedSourceStatus(project, source)).resolves.toBe(
-      "Matches the imported netlist",
-    );
     const moved = structuredClone(project);
     moved.documents[0]!.sourceStatus = "geometry-only-changed";
-    await expect(importedSourceStatus(moved, source)).resolves.toBe(
-      "Layout edited; electrically matches the imported netlist",
-    );
-    // A changed value is electrical, however the edit was recorded.
+    await expect(compareReviewSource(moved, source)).resolves.toMatchObject({
+      status: "equal",
+    });
     await expect(
-      importedSourceStatus(
+      compareReviewSource(
         withParameter(moved, "buf", "C0", "value", "20f"),
         source,
       ),
-    ).resolves.toMatch(/^Electrically differs from the imported netlist: /u);
+    ).resolves.toMatchObject({ status: "different" });
   });
 });

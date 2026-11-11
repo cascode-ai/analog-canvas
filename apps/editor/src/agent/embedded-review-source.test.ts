@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import { deriveStableId, type CircuitProject } from "@icm/model";
 import { localSourceIdentity } from "@icm/agent-adapter";
-import { embeddedReviewSource } from "./embedded-review-source";
+import { embeddedReviewBundle } from "./embedded-review-source";
 
 function sourceRecord(path: string, text: string) {
   const sha256 = createHash("sha256").update(text).digest("hex");
@@ -49,7 +49,7 @@ it("verifies the original dependency closure without absorbing copied source rec
       ),
     )
     .digest("hex");
-  expect(await embeddedReviewSource(source)).toEqual({
+  expect(await embeddedReviewBundle(source)).toMatchObject({
     entryPath: entry.path,
     version,
     files: expected,
@@ -59,6 +59,6 @@ it("verifies the original dependency closure without absorbing copied source rec
     content: { ...drawing.content, text: "different bytes" },
   };
   expect(
-    await embeddedReviewSource({ ...source, files: [entry, changed, design] }),
+    await embeddedReviewBundle({ ...source, files: [entry, changed, design] }),
   ).toBeUndefined();
 });
