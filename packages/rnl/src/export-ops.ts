@@ -48,11 +48,9 @@ import {
   subcircuitDescriptor,
 } from "@icm/devices";
 
-import {
-  blockSymbols,
-  blockTerminals,
-  type RnlSymbolDefinition,
-} from "./block-symbols.js";
+import type { Op, Vertex } from "@rich-netlist/runtime";
+
+import { blockSymbols, blockTerminals } from "./block-symbols.js";
 import { draftingLayer, draftingShapes, drawingGroup } from "./drawing-ops.js";
 import {
   composeOrient,
@@ -67,7 +65,6 @@ import {
   type RnlPoint,
 } from "./place.js";
 import { rnlName } from "./rnl-name.js";
-import type { RnlShape } from "./shapes.js";
 import {
   RNL_SYMBOLS,
   rnlSymbolFor,
@@ -77,90 +74,15 @@ import {
 } from "./symbol-map.js";
 import { symbolForCall } from "./call-symbols.js";
 import { inlineRnlDefinition } from "./inline-symbols.js";
-import { plainLines, rnlTextLines, type RnlRun } from "./text.js";
+import { plainLines, rnlTextLines } from "./text.js";
 
 /**
- * A vertex of a wire as an RNL edit transaction names it: a terminal, a named
- * point, a role of a usage, or a coordinate (rnl-dev
- * `notes/rnl-editor-interface/spec-draft.md`, 3.5).
+ * One operation of an RNL edit transaction, as the rnl runtime's writer takes
+ * it (https://github.com/rich-netlist/rnl/blob/main/crates/rnl-edit/README.md).
+ * The export names every op's level: `subckt:<name>`, or `file` for the file
+ * level.
  */
-export type RnlVertex =
-  | { terminal: string }
-  | { point: string }
-  | { usage: string; role: string }
-  | { at: RnlPoint };
-
-/**
- * One operation of an RNL edit transaction (the same draft, 4.1, and
- * `ops-draft-blocks-and-drawings.md` beside it). `level` is `subckt:<name>`,
- * or `file` for the file level.
- */
-export type RnlOp = { level: string } & (
-  | {
-      op: "set";
-      object: string;
-      /** Absent leaves the part to RNL's own symbol rules or stand-in box. */
-      symbol?: string;
-      /** Its colour, written as a `@SET-STYLE` of these properties. */
-      style?: Record<string, string>;
-      at?: RnlPoint;
-      orient?: RnlOrient;
-    }
-  | {
-      op: "add-usage";
-      /** Absent for a usage nothing refers to, such as one of meaning only. */
-      name?: string;
-      definition: string;
-      attach: Record<string, string | RnlPoint>;
-      /** Written `@ATTACH(k=v, …)`, in the order given. */
-      params?: Record<string, string | number | boolean>;
-      symbol?: string;
-      style?: Record<string, string>;
-      at?: RnlPoint;
-      orient?: RnlOrient;
-    }
-  | { op: "add-point"; name: string; at: RnlPoint; junction?: true }
-  | {
-      op: "add-wire";
-      /** Its name, for a label hung on it to attach to (13.3). */
-      name?: string;
-      nets: string[];
-      via: RnlVertex[];
-      mode: "straight";
-      style?: Record<string, string>;
-    }
-  | { op: "remove-from"; items: string[]; set: string }
-  | { op: "use-package"; name: string; version: string }
-  | {
-      op: "add-text";
-      /** Its name in the level, for a text of a drawing object's group. */
-      name?: string;
-      /** The part, usage or net it is attached to; absent for a text on a point. */
-      attach?: string;
-      /** Its key on that object (`#M1::name`); never for a net or a point. */
-      key?: string;
-      lines: RnlRun[][];
-      /** An absolute anchor, in scene coordinates. */
-      at?: RnlPoint;
-      /** The anchor from the attached object's own point (13.3). */
-      offset?: RnlPoint;
-      halign: "start" | "middle" | "end";
-      valign?: "baseline" | "middle";
-      rotate?: 90 | 180 | 270;
-      /** Text height, the em, in scene units. */
-      size: number;
-      style?: Record<string, string | boolean>;
-    }
-  | ({
-      op: "add-shape";
-      /** Drawn under the circuit, or over it (11.6). */
-      layer: "bottom" | "top";
-      /** Its name in the level, for a shape of a drawing object's group. */
-      name?: string;
-    } & RnlShape)
-  /** A symbol, defined in the level; `set` on `#` makes it a Cell's look. */
-  | ({ op: "define-symbol" } & RnlSymbolDefinition)
-);
+export type RnlOp = Op & { level: string };
 
 export interface RnlExportDiagnostic {
   /** An error leaves the drawing out of the export; a warning only reports. */
@@ -1029,7 +951,7 @@ function exportCell(
     ops.push(op);
   }
 
-  const vertex = (endpoint: RouteEndpoint): RnlVertex | undefined => {
+  const vertex = (endpoint: RouteEndpoint): Vertex | undefined => {
     if (endpoint.kind === "junction") {
       const point = pointOf.get(endpoint.junctionId);
       return point ? { point } : undefined;
@@ -1048,7 +970,7 @@ function exportCell(
   // lists, so the contact's point or pin goes into its list where it passes.
   const through = new Map<
     StableId,
-    { point: { x: number; y: number }; vertex: RnlVertex }[]
+    { point: { x: number; y: number }; vertex: Vertex }[]
   >();
   for (const contact of evidence.contacts) {
     const own = contact.endpoints.map(vertex).find((item) => item);
@@ -1100,7 +1022,7 @@ function exportCell(
         leg.to.kind === "bend"
           ? {
               place: leg.to.position,
-              vertex: { at: toRnlPoint(leg.to.position) } as RnlVertex,
+              vertex: { at: toRnlPoint(leg.to.position) } as Vertex,
             }
           : {
               place: pointOfEndpoint(leg.to.endpoint),
@@ -1108,7 +1030,7 @@ function exportCell(
             },
       ),
     ];
-    const via: (RnlVertex | undefined)[] = [];
+    const via: (Vertex | undefined)[] = [];
     corners.forEach((corner, index) => {
       via.push(corner.vertex);
       const next = corners[index + 1];
@@ -1146,7 +1068,7 @@ function exportCell(
       op: "add-wire",
       ...(wire ? { name: wire } : {}),
       nets: [rnlName("&", net)],
-      via: via as RnlVertex[],
+      via: via as Vertex[],
       mode: "straight",
       ...(Object.keys(style).length ? { style } : {}),
     });
@@ -1188,7 +1110,7 @@ function exportCell(
           level,
           op: "add-wire",
           nets: [rnlName("&", net)],
-          via: via as RnlVertex[],
+          via: via as Vertex[],
           mode: "straight",
         });
     }

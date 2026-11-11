@@ -40,6 +40,7 @@ import {
   type SchematicDocument,
   type StableId,
 } from "@icm/model";
+import type { Snapshot } from "@rich-netlist/runtime";
 
 type Junction = SchematicDocument["junctions"][number];
 
@@ -67,162 +68,35 @@ import {
   type RnlSymbol,
 } from "./symbol-map.js";
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
-import { acRichText, type RnlRun } from "./text.js";
+import { acRichText } from "./text.js";
 import { applyNativeRnlAppearance } from "./native-terminals.js";
 
 export type RnlAppearance = "canvas" | "source";
 
 /**
- * The parts of the rnl runtime's snapshot the import reads (its
- * `snapshot.d.ts`; rnl-dev `notes/rnl-editor-interface/spec-draft.md`, 3):
+ * The rnl runtime's snapshot
+ * (https://github.com/rich-netlist/rnl/blob/main/crates/rnl-view/README.md#snapshots):
  * the host circuit to check against and the model to draw from. Scene
  * coordinates, y up; ids written as RNL writes them.
  */
-export interface RnlSnapshot {
-  dialect: string;
-  packages: readonly { name: string; version: string }[];
-  levels: readonly RnlLevelSnapshot[];
-  diagnostics: readonly { severity: string; message: string }[];
-  failed: string | null;
-}
-
-type Slot<T> = { readonly value: T | null };
+export type RnlSnapshot = Snapshot;
+export type RnlLevelSnapshot = Snapshot["levels"][number];
+type LevelModel = NonNullable<RnlLevelSnapshot["model"]>;
 type Point = readonly [number, number];
 
-export interface RnlLevelSnapshot {
-  /** `subckt:NAME` or `file:PATH`. */
-  id: string;
-  kind: string;
-  name: string;
-  host?: {
-    ports: readonly string[];
-    instances: readonly {
-      id: string;
-      subckt: boolean;
-      master: string | null;
-      terminals: readonly { n: number; name: string | null; net: string }[];
-    }[];
-    nets: readonly { id: string; global: boolean; port: boolean }[];
-  };
-  model?: {
-    symbols: readonly RnlSymbolRef[];
-    objects: readonly RnlObjectView[];
-    points: readonly {
-      id: string;
-      at: Slot<Point>;
-      junction: boolean;
-    }[];
-    wires: readonly RnlWireView[];
-    texts: readonly RnlTextView[];
-    /** A subcircuit's own symbol, by its id in `symbols`. */
-    symbol?: Slot<string>;
-    /** The scene's graphics (13.4), in the order written. */
-    shapes?: readonly RnlShapeView[];
-  };
-}
-
-function hasCanvasTypesetting(model: NonNullable<RnlLevelSnapshot["model"]>) {
+function hasCanvasTypesetting(model: LevelModel) {
   return model.objects.some(
     (object) =>
       object.kind === "usage" && object.definition === "$CANVAS_TYPESETTING",
   );
 }
 
-export interface RnlShapeView {
-  id: string;
-  /** line, rectangle, circle, ellipse, arc or bezier. */
-  shape: string;
-  /** A centred shape's centre, else its points. */
-  points: readonly Point[];
-  params: Readonly<Record<string, string | number>>;
-  style: Readonly<Record<string, string | number | boolean>>;
-  /** bottom, middle or top. */
-  layer: string;
-}
-
-export interface RnlSymbolRef {
-  id: string;
-  name: string;
-  package: string | null;
-  level: string | null;
-  /** The viewer's own stand-in box. */
-  default: boolean;
-  /** A symbol the document defines, as it defines it; null for a package's. */
-  definition?: RnlSymbolDefinitionView | null;
-}
-
-export interface RnlSymbolDefinitionView {
-  box: Point | readonly [number, number, number, number];
-  pins: readonly {
-    /** Each a port's name or a terminal's number, as text. */
-    terminals: readonly string[];
-    at: Point;
-    /** The exit direction in degrees: 0 right, 90 up, 180 left, 270 down. */
-    dir: number | null;
-    /** What it shows beside the pin, if anything. */
-    label?: unknown;
-  }[];
-  prims: readonly {
-    shape: string;
-    points: readonly Point[];
-    params?: Readonly<Record<string, string | number>>;
-    style?: Readonly<Record<string, string | number | boolean>>;
-  }[];
-}
-
-export interface RnlObjectView {
-  id: string;
-  kind: string;
-  host: readonly string[];
-  definition: string | null;
-  attach: Readonly<Record<string, string | Point>> | null;
-  /** A usage's parameters as its statement writes them, defaults left out. */
-  params?: Readonly<
-    Record<string, string | number | boolean | readonly unknown[]>
-  >;
-  symbol: Slot<string>;
-  at: Slot<Point>;
-  orient: Slot<string>;
-  /** The style properties the document's records give it, such as `linecolor`. */
-  style?: Readonly<Record<string, string | number | boolean>>;
-  pins: readonly {
-    terminals: readonly string[];
-    at: Point;
-    dir: number | null;
-    nets: readonly string[];
-  }[];
-}
-
-export type RnlSnapshotVertex =
-  | { terminal: string }
-  | { point: string }
-  | { usage: string; role: string }
-  | { at: Point };
-
-export interface RnlWireView {
-  id: string;
-  nets: readonly string[];
-  via: readonly RnlSnapshotVertex[];
-  points: readonly Point[];
-  mode: string;
-  style: Readonly<Record<string, string | number | boolean>>;
-}
-
-export interface RnlTextView {
-  id: string;
-  attach: string | null;
-  key: string | null;
-  markup: Slot<string>;
-  /** False for a label its symbol alone gives. */
-  written: boolean;
-  lines: readonly (readonly RnlRun[])[];
-  anchor: Point;
-  halign: string;
-  valign: string;
-  rotate: number;
-  size: number | null;
-  style: Readonly<Record<string, string | number | boolean>>;
-}
+type RnlShapeView = LevelModel["shapes"][number];
+export type RnlSymbolRef = LevelModel["symbols"][number];
+export type RnlSymbolDefinitionView = NonNullable<RnlSymbolRef["definition"]>;
+export type RnlObjectView = LevelModel["objects"][number];
+type RnlSnapshotVertex = LevelModel["wires"][number]["via"][number];
+type RnlTextView = LevelModel["texts"][number];
 
 export interface RnlImportDiagnostic {
   /** An error leaves the drawing out; a warning keeps what could be drawn. */
@@ -1049,7 +923,7 @@ function applyLevel(
   project: CircuitProject,
   document: SchematicDocument,
   level: RnlLevelSnapshot,
-  model: NonNullable<RnlLevelSnapshot["model"]>,
+  model: LevelModel,
   diagnostics: RnlImportDiagnostic[],
   hiddenLabels: RnlHiddenLabels[],
   parameterTexts: RnlParameterText[],
@@ -2682,7 +2556,7 @@ type OpenPort = {
 function importTexts(
   document: SchematicDocument,
   level: RnlLevelSnapshot,
-  model: NonNullable<RnlLevelSnapshot["model"]>,
+  model: LevelModel,
   {
     consumed,
     glyphOf,
@@ -3595,7 +3469,7 @@ function headStyle(
 function regroupDrawings(
   document: SchematicDocument,
   level: RnlLevelSnapshot,
-  model: NonNullable<RnlLevelSnapshot["model"]>,
+  model: LevelModel,
 ): number {
   const objects = document.drafting?.objects;
   if (!objects?.length) return 0;

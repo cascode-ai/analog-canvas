@@ -1,20 +1,21 @@
 import type { RnlSnapshot, RnlWriteRequest } from "@icm/rnl";
+import type { Written } from "@rich-netlist/runtime";
 
 import { importChunk } from "../../components/chunk-import";
 import { withCanvasPackage, type RnlWorkspace } from "./rnl-core";
 import { canvasPackageLock, decodeCanvasPackage } from "./rnl-canvas-package";
 
-/** A finding of the rnl runtime about the file it wrote (rnl standard, ch. 7). */
-export interface RnlRuntimeDiagnostic {
-  /** "error", "warning" or "hint". */
-  severity: string;
-  message: string;
-}
+type RuntimeDiagnostic = Written["document"]["diagnostics"][number];
 
-/** The rnl runtime's written file, and the Document it builds from it. */
+/**
+ * What the editor reads of the runtime's written file: its text, and the
+ * findings of the Document it builds from it (rnl standard, ch. 7).
+ */
 export interface RnlWritten {
-  text: string;
-  document: { diagnostics: readonly RnlRuntimeDiagnostic[] };
+  text: Written["text"];
+  document: {
+    diagnostics: readonly Pick<RuntimeDiagnostic, "severity" | "message">[];
+  };
 }
 
 /**
@@ -32,7 +33,8 @@ export interface RnlRuntime {
   ): Promise<RnlWritten>;
   /**
    * How the runtime reads a rich netlist: each level's host circuit and the
-   * drawing its RNL makes of it (rnl-dev `spec-draft.md`, 3).
+   * drawing its RNL makes of it
+   * (https://github.com/rich-netlist/rnl/blob/main/crates/rnl-view/README.md#snapshots).
    */
   snapshot(
     request: RnlWorkspace & {
@@ -104,13 +106,8 @@ export function loadRnlRuntime(): Promise<RnlRuntime | null> {
     );
     const core = withCanvasPackage(startCore(), packages);
     return {
-      // The Worker takes the request as JSON, where this editor's readonly
-      // points and the runtime's point arrays are the same thing.
-      write: (request) =>
-        core.write(request as unknown as Parameters<typeof core.write>[0]),
-      // The import reads the part of the snapshot it declares.
-      snapshot: (request) =>
-        core.snapshot(request) as unknown as Promise<RnlSnapshot>,
+      write: (request) => core.write(request),
+      snapshot: (request) => core.snapshot(request),
     } satisfies RnlRuntime;
   })().catch((error: unknown) => {
     started = null;
