@@ -39,7 +39,11 @@ import { withHostedSimulation } from "./hosted-simulation-access";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import { RegionalAuthority } from "./regional-auth-authority";
-import { ProfileBylines, applyProfileByline } from "./profile-bylines";
+import {
+  ProfileBylines,
+  applyProfileByline,
+  PROFILE_BYLINE_TICK,
+} from "./profile-bylines";
 import {
   digest,
   isRegionalAuthorityBrowserRoute,
@@ -694,6 +698,14 @@ export class AuthDO {
       }
       return this.regionalAuthority.fetch(request);
     }
+    if (
+      url.origin === "https://auth" &&
+      url.pathname === PROFILE_BYLINE_TICK &&
+      request.method === "POST"
+    )
+      return this.profileBylines
+        ? this.profileBylines.tick(this.env.GALLERY)
+        : noStoreJson({ error: "byline-unavailable" }, 503);
     if (
       url.origin === "https://auth" &&
       url.pathname === ACCOUNT_DELETION_TICK &&
