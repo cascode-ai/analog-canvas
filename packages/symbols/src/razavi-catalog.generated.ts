@@ -2516,6 +2516,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "447f54afa0991f8a1c7ab8fd10252a40952e8872d8b971fa153b1849ac18fad6",
   },
   {
+    symbolId: "shockley-diode",
+    name: "Shockley Diode",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A Shockley (four-layer) diode does not appear on the reviewed page; it is the reviewed Diode body, leads and pins, unchanged, with the cathode bar's foot turned back toward the anode, the four-layer mark textbooks draw.",
+    pinOrder: ["A", "K"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no four-layer diode card; it prints as a call of the generated two-transistor body with its gate inside, breaking over at vbo.",
+    assetPath: "shockley-diode.json",
+    assetHash:
+      "6cfcc450b534fcc93f945e479b110b7ee4ceed8cd3c87ae9d8bbc01269cc8df8",
+  },
+  {
     symbolId: "photoresistor",
     name: "Photoresistor",
     category: "passive",
@@ -19677,6 +19694,127 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           },
         ],
         part: "anode-gate",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "shockley-diode",
+    name: "Shockley Diode",
+    viewBox: {
+      x: -24,
+      y: -10,
+      width: 48,
+      height: 20,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -8.333334,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -8.333334,
+            y: -6.75,
+          },
+          {
+            x: -8.333334,
+            y: 6.75,
+          },
+          {
+            x: 5.833334,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: 6.666666,
+            y: -7.333334,
+          },
+          {
+            x: 6.666666,
+            y: 7.333334,
+          },
+          {
+            x: 0,
+            y: 7.333334,
+          },
+        ],
+        part: "four-layer-cathode",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
         style: {
           strokeRole: "normal",
           lineCap: "butt",

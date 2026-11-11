@@ -222,6 +222,11 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
     `Q1 nk g a qp` and `Q2 g nk k qn`, with `RGK nk k 1Meg` holding the inner
     gate while both are off and `CGK nk k 10p` giving the switch a finite
     speed; it fires once A is a diode drop above G.
+  - Shockley diode (`shockley`: `a k`): the same pair with the gate inside,
+    `Q1 p2 n1 a qp`, `Q2 n1 p2 k qn`, the centre junction's avalanche as
+    `VBO n1 nz {vbo-1.9}` and `DBO nz p2 dj`, `RGK p2 k 1k` and
+    `CGK p2 k 10p`; default `vbo` = 10 V. It breaks over at about `vbo`
+    (about 0.65 mA) and holds at about 0.8 V down to about 0.8 mA.
 - SPICE and VACASK include all bodies; Spectre includes comparator,
   combinational gates (`bsource` with RC delay), the crystal, the
   potentiometer and the semiconductor devices; DFF,

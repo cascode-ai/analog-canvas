@@ -97,6 +97,7 @@ describe("the RNL symbol list", () => {
       "potentiometer",
       "ujt",
       "put",
+      "shockley-diode",
       "photoresistor",
       "speaker",
       "sine-voltage-source",

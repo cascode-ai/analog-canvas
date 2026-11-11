@@ -314,6 +314,7 @@ describe("a Library part never calls an author's definition because of its name 
     "potentiometer",
     "ujt",
     "put",
+    "shockley-diode",
   ])(
     "writes %s's yielding body under its reserved name in VACASK and in the authoring analysis",
     (symbolId) => {

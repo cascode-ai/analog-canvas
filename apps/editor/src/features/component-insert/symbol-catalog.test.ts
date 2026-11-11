@@ -105,6 +105,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("potentiometer")).toBe("Extended Devices");
     expect(symbolCategory("ujt")).toBe("Extended Devices");
     expect(symbolCategory("put")).toBe("Extended Devices");
+    expect(symbolCategory("shockley-diode")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("externally-controlled-switch")).toBe("Switches");
@@ -274,6 +275,7 @@ describe("component insertion catalog", () => {
       "zener-diode",
       "led",
       "schottky-diode",
+      "shockley-diode",
       "put",
       "njfet",
       "pjfet",
@@ -376,6 +378,7 @@ describe("reach order inside a category", () => {
       "zener-diode",
       "led",
       "schottky-diode",
+      "shockley-diode",
       "put",
       "njfet",
       "pjfet",

@@ -57,6 +57,7 @@ export function symbolCategory(symbolId: string): string {
       "zener-diode",
       "led",
       "schottky-diode",
+      "shockley-diode",
       "put",
       "njfet",
       "pjfet",
@@ -201,6 +202,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   potentiometer: "Pot",
   ujt: "UJT",
   put: "PUT",
+  "shockley-diode": "Shockley",
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
 };
@@ -255,6 +257,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Potentiometer — total resistance r, wiper W at fraction pos from end 1",
   ujt: "Unijunction transistor — base bar rbb split at eta, emitter diode onto it",
   put: "Programmable unijunction transistor — fires when A rises a diode drop above G",
+  "shockley-diode":
+    "Shockley (four-layer) diode — blocks until vbo, then latches on",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -339,6 +343,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "zener-diode",
   "led",
   "schottky-diode",
+  "shockley-diode",
   "put",
   "njfet",
   "pjfet",

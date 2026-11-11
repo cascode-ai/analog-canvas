@@ -30,6 +30,12 @@ import type { NetlistFormat } from "./net-name-codec.js";
  *   (cathode) gate to K keeps that node defined while both are off, and
  *   10 pF across it gives the regenerative switch a finite speed a
  *   transient can follow. It fires once the anode is a diode drop above G.
+ * - `shockley` (`a k`): the same two transistors with the gate inside, and
+ *   the centre junction's avalanche as a diode behind a source of
+ *   vbo − 1.9 V, so the anode breaks over at about vbo: through Q1's
+ *   emitter, that diode and 1 kΩ from the inner p gate to K, until Q2
+ *   turns on and the pair latches. It holds at about 0.8 V down to about
+ *   0.8 mA; 10 pF across the 1 kΩ, as in the PUT.
  */
 export function semiconductorDeviceCell(
   target: string,
@@ -41,7 +47,7 @@ export function semiconductorDeviceCell(
   const expression = (text: string) =>
     format === "spice" ? `{${text}}` : text;
   const part = (
-    deviceClass: "resistor" | "capacitor" | "diode" | "bjt",
+    deviceClass: "resistor" | "capacitor" | "diode" | "bjt" | "voltage-source",
     reference: string,
     nodes: readonly (readonly [string, string])[],
     value: { target: string } | { value: string },
@@ -53,7 +59,14 @@ export function semiconductorDeviceCell(
     target: "target" in value ? value.target : null,
     nodes: nodes.map(([pinName, netName]) => ({ pinName, netName })),
     parameters:
-      "value" in value ? [{ name: "value", rawValue: value.value }] : [],
+      "value" in value
+        ? [
+            {
+              name: deviceClass === "voltage-source" ? "dc" : "value",
+              rawValue: value.value,
+            },
+          ]
+        : [],
   });
   const generic = (
     name: string,
@@ -99,6 +112,72 @@ export function semiconductorDeviceCell(
       ),
     ];
     models = [generic("de", GENERIC_DIODE_MODEL)];
+  } else if (model.implementation === "shockley") {
+    const [a, k] = ports as [string, string];
+    internal = ["n1", "p2", "nz"];
+    instances = [
+      part(
+        "bjt",
+        "Q1",
+        [
+          ["C", "p2"],
+          ["B", "n1"],
+          ["E", a],
+        ],
+        { target: "qp" },
+      ),
+      part(
+        "bjt",
+        "Q2",
+        [
+          ["C", "n1"],
+          ["B", "p2"],
+          ["E", k],
+        ],
+        { target: "qn" },
+      ),
+      part(
+        "voltage-source",
+        "VBO",
+        [
+          ["+", "n1"],
+          ["-", "nz"],
+        ],
+        { value: expression("vbo-1.9") },
+      ),
+      part(
+        "diode",
+        "DBO",
+        [
+          ["A", "nz"],
+          ["K", "p2"],
+        ],
+        { target: "dj" },
+      ),
+      part(
+        "resistor",
+        "RGK",
+        [
+          ["1", "p2"],
+          ["2", k],
+        ],
+        { value: "1k" },
+      ),
+      part(
+        "capacitor",
+        "CGK",
+        [
+          ["1", "p2"],
+          ["2", k],
+        ],
+        { value: "10p" },
+      ),
+    ];
+    models = [
+      generic("qn", GENERIC_NPN_MODEL),
+      generic("qp", GENERIC_PNP_MODEL),
+      generic("dj", GENERIC_DIODE_MODEL),
+    ];
   } else {
     const [a, g, k] = ports as [string, string, string];
     internal = ["nk"];

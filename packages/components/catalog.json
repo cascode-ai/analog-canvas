@@ -94,6 +94,7 @@
     "potentiometer",
     "ujt",
     "put",
+    "shockley-diode",
     "photoresistor",
     "resistor",
     "simple-spdt-switch",
