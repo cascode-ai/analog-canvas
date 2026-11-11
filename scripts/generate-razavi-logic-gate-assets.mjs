@@ -13,6 +13,7 @@ import {
   anchorLogicBody,
   closeSplitGateBody,
 } from "./lib/anchor-logic-body.mjs";
+import { supplyPinsOn, withSupplyPins } from "./lib/supply-pins.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -162,6 +163,24 @@ for (const definition of definitions.values()) {
   anchorLogicBody(definition);
 }
 
+// A gate's supplies, drawn when an Instance shows them (#1941): VDD above and
+// VSS below the middle of its body, one grid row clear of the input leads,
+// each on a lead from the body's edge. An XOR's body starts a curve later.
+const SUPPLY_PIN_Y = 20;
+for (const [symbolId, definition] of definitions) {
+  const body = definition.primitives
+    .filter((primitive) => primitive.kind === "path")
+    .sort((a, b) => b.bounds.width - a.bounds.width)[0];
+  const x = symbolId.startsWith("x") ? 0 : -10;
+  definitions.set(
+    symbolId,
+    withSupplyPins(
+      definition,
+      supplyPinsOn(body, { x, y: -SUPPLY_PIN_Y }, { x, y: SUPPLY_PIN_Y }),
+    ),
+  );
+}
+
 const assetSources = new Map();
 for (const symbolId of familyIds) {
   assetSources.set(
@@ -227,7 +246,7 @@ for (const symbolId of familyIds) {
       "fixtures/visual-reference/razavi-reference-v1/manifest.json",
     referencePath: `fixtures/visual-reference/razavi-reference-v1/${evidencePath(referenceIds[0])}`,
     converterPath: "scripts/generate-razavi-logic-gate-assets.mjs",
-    converterVersion: 3,
+    converterVersion: 4,
     bodyNormalization: "left-grid-anchor",
   };
 }

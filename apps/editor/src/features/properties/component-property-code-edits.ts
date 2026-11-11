@@ -326,8 +326,8 @@ export function planComponentPropertyCodeEdits(
       });
     }
   }
-  // An op-amp's supply pins stay as chosen across its forms (#1833); the
-  // choice alone changes only its variant, as a source's shape does.
+  // A block's supply pins stay as chosen across its forms (#1833): lettering,
+  // input swap, input count. The choice alone changes only its variant.
   const supplyPins = value.appearance.supplyPins;
   if (nextSymbolId !== instance.symbolId)
     edits.push({

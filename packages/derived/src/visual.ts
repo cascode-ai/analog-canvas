@@ -2,6 +2,7 @@ import { registerDocumentCache } from "./document-caches.js";
 import { routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
+  adaptiveSignalFlowBounds,
   resolveAdaptiveSignalFlowBlockLayout,
   resolveInstanceSymbol,
   resolveSignalFlowPinAt,
@@ -287,7 +288,13 @@ export function visibleSymbolInkBounds(
     resolved.definition,
     signalFlowParameters,
   );
-  if (adaptive) return adaptive.bounds;
+  // Supply leads a variant draws reach past the grown body (#1941).
+  if (adaptive)
+    return adaptiveSignalFlowBounds(
+      resolved.definition,
+      adaptive,
+      resolved.variant?.hiddenPrimitiveParts,
+    );
   const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
   const hiddenPins = new Set(resolved.variant?.hiddenPinNames ?? []);
   const primitives = [

@@ -16,11 +16,10 @@ import {
   ANALOG_TRIANGLE_PATH,
   ANALOG_TRIANGLE_OUTPUT_X,
   ANALOG_TRIANGLE_VIEWBOX,
-  OPAMP_SIGNAL_PINS_VARIANT,
-  OPAMP_SUPPLY_LEAD_PARTS as SUPPLY_LEAD_PARTS,
-  OPAMP_SUPPLY_PINS_VARIANT,
-  OPAMP_SUPPLY_ROLES as SUPPLY_ROLES,
+  ANALOG_TRIANGLE_SUPPLY_PINS,
+  DIFFERENTIAL_TRIANGLE_SUPPLY_PINS,
 } from "./lib/analog-triangle.mjs";
+import { withSupplyPins, withoutSupplyPins } from "./lib/supply-pins.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -196,56 +195,13 @@ symbol.primitives.push(
   ),
 );
 // Its supplies are pins a drawing may show (#1833): VDD above and VSS below,
-// each on a lead from the slanted edge to the body's extent, so a wire leaves
-// clear of the body. The textbook draws neither, so neither is drawn unless
-// an Instance shows them; the netlist meets each supply either way. They
+// each on a lead from the slanted edge to the body's extent. The textbook
+// draws neither, so neither is drawn unless an Instance shows them. They
 // follow the signal pins and marks, whose positions the forms derived below
-// read.
-const SUPPLY_PIN_X = 0;
-const supplyContactY = Number(
-  (
-    ((OPAMP_BODY_APEX_X - SUPPLY_PIN_X) /
-      (OPAMP_BODY_APEX_X - OPAMP_BODY_LEFT_X)) *
-    ANALOG_TRIANGLE.bottomY
-  ).toFixed(6),
-);
-for (const [name, role, side, direction] of [
-  ["VDD", "positive-supply", -1, "north"],
-  ["VSS", "negative-supply", 1, "south"],
-]) {
-  const at = { x: SUPPLY_PIN_X, y: side * ANALOG_TRIANGLE.bottomY };
-  symbol.pins.push({
-    name,
-    role,
-    at,
-    direction,
-    presentation: {
-      visibility: "visible",
-      leadLength: ANALOG_BLOCK_LEAD_LENGTH,
-    },
-  });
-  symbol.primitives.push({
-    ...line({ from: { x: SUPPLY_PIN_X, y: side * supplyContactY }, to: at }),
-    part: SUPPLY_LEAD_PARTS[name],
-  });
-}
-symbol.defaultVariantId = OPAMP_SIGNAL_PINS_VARIANT;
-symbol.variants = [
-  {
-    id: OPAMP_SIGNAL_PINS_VARIANT,
-    hiddenPinNames: ["VDD", "VSS"],
-    hiddenPrimitiveParts: Object.values(SUPPLY_LEAD_PARTS),
-    additionalPrimitives: [],
-  },
-  {
-    id: OPAMP_SUPPLY_PINS_VARIANT,
-    hiddenPinNames: [],
-    hiddenPrimitiveParts: [],
-    additionalPrimitives: [],
-  },
-];
-/** The op-amp's own pins, without the supplies only it may show. */
-const signalPins = symbol.pins.filter((pin) => !SUPPLY_ROLES.has(pin.role));
+// read; every form on this triangle draws them in the same place.
+Object.assign(symbol, withSupplyPins(symbol, ANALOG_TRIANGLE_SUPPLY_PINS));
+/** The op-amp's own pins, without its supplies. */
+const signalPins = withoutSupplyPins(symbol).pins;
 const assetSource = normalize(
   await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
 );
@@ -426,7 +382,9 @@ const differentialSymbols = [
     "Differential Op Amp (crossed outputs)",
     false,
   ),
-];
+].map((candidate) =>
+  withSupplyPins(candidate, DIFFERENTIAL_TRIANGLE_SUPPLY_PINS),
+);
 const differentialSources = new Map(
   await Promise.all(
     differentialSymbols.map(async (candidate) => [
@@ -446,7 +404,7 @@ const generation = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 7,
+  converterVersion: 8,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialGeneration = {
@@ -456,7 +414,7 @@ const differentialGeneration = {
   referencePath:
     "fixtures/visual-reference/razavi-reference-v1/differential-opamp-vector-source.json",
   converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-  converterVersion: 9,
+  converterVersion: 10,
   bodyNormalization: "equilateral-triangle",
 };
 const differentialAuthorityPaths = [
@@ -487,7 +445,9 @@ for (const [id, source] of differentialSources) {
 const comparatorOutputs = [];
 for (const id of ["comparator", "comparator-unmarked"]) {
   const path = resolve(root, `packages/components/definitions/${id}.json`);
-  const previous = JSON.parse(await readComponentProjection(path));
+  const previous = withoutSupplyPins(
+    JSON.parse(await readComponentProjection(path)),
+  );
   const next = {
     ...previous,
     viewBox: symbol.viewBox,
@@ -514,7 +474,14 @@ for (const id of ["comparator", "comparator-unmarked"]) {
     ],
   };
   const source = normalize(
-    await format(JSON.stringify(next, null, 2), { parser: "json" }),
+    await format(
+      JSON.stringify(
+        withSupplyPins(next, ANALOG_TRIANGLE_SUPPLY_PINS),
+        null,
+        2,
+      ),
+      { parser: "json" },
+    ),
   );
   comparatorOutputs.push([path, source]);
   const entry = catalog.entries.find((candidate) => candidate.symbolId === id);
@@ -543,7 +510,14 @@ for (const unmarked of [false, true]) {
     ),
   );
   const source = normalize(
-    await format(JSON.stringify(next, null, 2), { parser: "json" }),
+    await format(
+      JSON.stringify(
+        withSupplyPins(next, DIFFERENTIAL_TRIANGLE_SUPPLY_PINS),
+        null,
+        2,
+      ),
+      { parser: "json" },
+    ),
   );
   comparatorOutputs.push([
     resolve(root, `packages/components/definitions/${id}.json`),
@@ -556,7 +530,7 @@ for (const unmarked of [false, true]) {
     kind: "derived-differential-comparator",
     sourceSymbolId: "comparator",
     converterPath: "scripts/generate-razavi-opamp-asset.mjs",
-    converterVersion: 1,
+    converterVersion: 2,
   };
 }
 const catalogSource = normalize(

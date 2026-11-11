@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { format } from "prettier";
 
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
+import { supplyPinsOn, withSupplyPins } from "./lib/supply-pins.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -525,6 +526,36 @@ for (const [symbolId, definition] of Object.entries(definitions)) {
   ) {
     fail(`${symbolId} is provisional but lacks an in-family source`);
   }
+}
+
+// The supplies of the blocks that take them, drawn when an Instance shows
+// them (#1941): VDD above and VSS below, each on a lead from the body to the
+// first grid row clear of it. A circle's B input leaves its bottom, so its VSS
+// stands beside B; a transconductor's grows with its body (signal-flow-layout).
+const supplyPlacements = {
+  adder: [
+    { x: 0, y: -CIRCLE_PIN_SPAN },
+    { x: 10, y: CIRCLE_PIN_SPAN },
+  ],
+  multiplier: [
+    { x: 0, y: -CIRCLE_PIN_SPAN },
+    { x: 10, y: CIRCLE_PIN_SPAN },
+  ],
+  transconductance: [
+    { x: 0, y: -40 },
+    { x: 0, y: 40 },
+  ],
+};
+for (const [symbolId, [vdd, vss]] of Object.entries(supplyPlacements)) {
+  const definition = definitions[symbolId];
+  definitions[symbolId] = withSupplyPins(
+    definition,
+    supplyPinsOn(
+      definition.primitives.find((primitive) => primitive.part === "body"),
+      vdd,
+      vss,
+    ),
+  );
 }
 
 const catalog = JSON.parse(await readComponentProjection(catalogPath));

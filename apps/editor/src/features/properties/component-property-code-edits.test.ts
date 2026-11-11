@@ -519,7 +519,7 @@ describe("planComponentPropertyCodeEdits", () => {
     ).not.toHaveProperty("windingsMirrored");
   });
 
-  it("shows an op-amp's supply pins and keeps them shown as its form changes (#1833)", () => {
+  it("shows an op-amp's supply pins and keeps them shown as its form changes (#1833, #1941)", () => {
     const resolver = new InMemorySymbolResolver(builtInSymbols);
     let document = createEmptyDocument("main", "Main");
     document.instances.push({
@@ -582,11 +582,76 @@ describe("planComponentPropertyCodeEdits", () => {
     expect(
       componentPropertyCodeValue({
         resolver,
-        instance: { id: "C1", symbolId: "comparator", placement: null },
+        instance: { id: "R1", symbolId: "resistor", placement: null },
         referenceVisible: true,
         valueVisible: false,
       }).appearance,
     ).not.toHaveProperty("supplyPins");
+  });
+
+  it("keeps a gate's and a comparator's supply pins shown across their forms (#1941)", () => {
+    const document = createEmptyDocument("main", "Main");
+    const gate = {
+      id: "X1",
+      symbolId: "nand-gate",
+      symbolVariantId: "supply-pins",
+      placement: null,
+      netlist: {
+        binding: {
+          kind: "unresolved-subcircuit" as const,
+          name: "nand_gate",
+        },
+        parameters: {},
+      },
+    };
+    const gateValue = componentPropertyCodeValue({
+      resolver: new InMemorySymbolResolver(builtInSymbols),
+      instance: gate,
+      referenceVisible: null,
+      valueVisible: null,
+      details: { parameters: [] },
+    });
+    expect(gateValue.appearance.supplyPins).toBe(true);
+    expect(
+      planComponentPropertyCodeEdits(document, gate, {
+        ...gateValue,
+        inputs: 3,
+      })[0],
+    ).toEqual({
+      kind: "set_instance_symbol",
+      instanceId: "X1",
+      symbolId: "nand-gate-3",
+      symbolVariantId: "supply-pins",
+    });
+    const comparator = {
+      id: "X2",
+      symbolId: "comparator",
+      symbolVariantId: "supply-pins",
+      placement: null,
+    };
+    const comparatorValue = componentPropertyCodeValue({
+      resolver: new InMemorySymbolResolver(builtInSymbols),
+      instance: comparator,
+      referenceVisible: true,
+      valueVisible: false,
+    });
+    expect(
+      planComponentPropertyCodeEdits(document, comparator, {
+        placement: null,
+        appearance: {
+          ...comparatorValue.appearance,
+          inputPolarity: false,
+          inputsSwapped: true,
+        },
+      }),
+    ).toEqual([
+      {
+        kind: "set_instance_symbol",
+        instanceId: "X2",
+        symbolId: "comparator-unmarked-inputs-swapped",
+        symbolVariantId: "supply-pins",
+      },
+    ]);
   });
 
   it("combines comparator mark visibility with input swapping in one edit", () => {

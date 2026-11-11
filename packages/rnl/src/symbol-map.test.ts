@@ -228,10 +228,16 @@ describe("the RNL symbol list", () => {
           Math.round(sy * 1e6) / 1e6 + 0,
         ]);
       }
+      // A drawing stencil with no undrawn terminal, as RNL's two-terminal
+      // Delay Cell, has none for a hidden supply to take (#1941).
       expect(
         entry.undrawnPins.map((pin) => pin.acPin).sort(),
         entry.symbol,
-      ).toEqual([...hidden].sort());
+      ).toEqual(
+        entry.terminals.some((terminal) => !terminal.drawn)
+          ? [...hidden].sort()
+          : [],
+      );
     }
   });
 

@@ -109,7 +109,15 @@ describe("SymbolArtwork pin-name previews", () => {
       <SymbolArtwork symbol={symbol} className="test-artwork" />,
     );
 
-    expect(symbol.pins.map((pin) => pin.name)).toEqual(["IN+", "IN-", "OUT"]);
+    expect(symbol.pins.map((pin) => pin.name)).toEqual([
+      "IN+",
+      "IN-",
+      "OUT",
+      "VDD",
+      "VSS",
+    ]);
+    // A Library tile draws the default variant: no supply leads (#1941).
+    expect(markup).not.toContain('y2="-40"');
     expect(markup).toContain('x1="-30" y1="10" x2="-20" y2="10"');
     expect(markup).toContain('x1="-30" y1="-10" x2="-20" y2="-10"');
     expect(markup).toContain('x1="-10" y1="7" x2="-10" y2="13"');

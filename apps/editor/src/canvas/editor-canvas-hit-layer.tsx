@@ -25,6 +25,7 @@ import {
 } from "@icm/model";
 import {
   getRazaviCatalogEntry,
+  adaptiveSignalFlowSupplyLeads,
   resolveAdaptiveSignalFlowBlockLayout,
   type ResolvedSymbol,
   type SymbolPrimitive,
@@ -109,6 +110,11 @@ function analogBlockHitPrimitives(
         from: { x: bodyRight, y: center.y },
         to: { x: center.x + pinSpan, y: center.y },
       },
+      ...adaptiveSignalFlowSupplyLeads(
+        resolved.definition,
+        adaptive,
+        resolved.variant?.hiddenPrimitiveParts,
+      ).map(({ from, to }): SymbolPrimitive => ({ kind: "line", from, to })),
     ];
   }
 

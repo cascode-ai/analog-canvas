@@ -161,6 +161,9 @@ describe("component insertion catalog", () => {
       ["IN-", { x: -40, y: -10 }],
       ["OUT+", { x: 30, y: 10 }],
       ["OUT-", { x: 30, y: -10 }],
+      // Drawn only where a part shows its supplies (#1941).
+      ["VDD", { x: -10, y: -30 }],
+      ["VSS", { x: -10, y: 30 }],
     ]);
     expect(differential.primitives).toContainEqual(
       expect.objectContaining({ part: "hysteresis-step" }),
@@ -201,6 +204,8 @@ describe("component insertion catalog", () => {
           pins: [
             expect.objectContaining({ name: "A" }),
             expect.objectContaining({ name: "Y" }),
+            expect.objectContaining({ name: "VDD" }),
+            expect.objectContaining({ name: "VSS" }),
           ],
           formulaPresentation: expect.objectContaining({
             defaultFormula: "g_m",
@@ -219,6 +224,8 @@ describe("component insertion catalog", () => {
           expect.objectContaining({ name: "IN+" }),
           expect.objectContaining({ name: "IN-" }),
           expect.objectContaining({ name: "OUT" }),
+          expect.objectContaining({ name: "VDD" }),
+          expect.objectContaining({ name: "VSS" }),
         ],
         formulaPresentation: expect.objectContaining({
           defaultFormula: "g_m",

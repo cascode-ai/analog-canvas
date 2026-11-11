@@ -62,6 +62,32 @@
           "visibility": "visible",
           "leadLength": 10
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": -20,
+          "y": -30
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": -20,
+          "y": 30
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -250,9 +276,57 @@
           "lineCap": "round",
           "lineJoin": "round"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": -24.226497
+        },
+        "to": {
+          "x": -20,
+          "y": -30
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 24.226497
+        },
+        "to": {
+          "x": -20,
+          "y": 30
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "subcircuit": {
@@ -298,7 +372,7 @@
     "name": "FD Amp Wide",
     "category": "analog-block",
     "reviewStatus": "reviewed",
-    "pinOrder": ["IN+", "IN-", "OUT+", "OUT-"],
+    "pinOrder": ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
@@ -317,7 +391,7 @@
       "kind": "derived-wide-amplifier",
       "sourceSymbolId": "opamp-differential",
       "converterPath": "scripts/generate-component-library.mjs",
-      "converterVersion": 1
+      "converterVersion": 2
     }
   }
 }

@@ -91,6 +91,32 @@
           "textStyle": "math-symbol",
           "textSizeScale": 0.68
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": 0,
+          "y": -40
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": -20,
+          "y": 50
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -184,9 +210,57 @@
           "lineCap": "butt",
           "lineJoin": "miter"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -25
+        },
+        "to": {
+          "x": 0,
+          "y": -40
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 35
+        },
+        "to": {
+          "x": -20,
+          "y": 50
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "catalog": {
@@ -195,7 +269,7 @@
     "name": "D Flip-Flop (Reset)",
     "category": "logic",
     "reviewStatus": "reviewed",
-    "pinOrder": ["D", "CK", "RST", "Q", "QBAR"],
+    "pinOrder": ["D", "CK", "RST", "Q", "QBAR", "VDD", "VSS"],
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
@@ -213,7 +287,7 @@
       "kind": "derived-reset-pin",
       "sourceSymbolId": "d-flip-flop",
       "converterPath": "scripts/generate-razavi-buffer-dff-assets.mjs",
-      "converterVersion": 1
+      "converterVersion": 2
     }
   },
   "subcircuit": {

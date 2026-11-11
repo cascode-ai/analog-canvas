@@ -38,6 +38,8 @@ import process from "node:process";
 
 import { format } from "prettier";
 
+import { supplyPinsOn, withSupplyPins } from "./lib/supply-pins.mjs";
+
 const root = resolve(import.meta.dirname, "..");
 const assetRoot = resolve(root, "packages/components/definitions");
 const catalogPath = resolve(assetRoot, "../catalog.json");
@@ -282,8 +284,26 @@ const CONVERTERS = [
 const catalog = JSON.parse(await readComponentProjection(catalogPath));
 const outputs = [];
 
+/**
+ * A single-ended converter's supplies, drawn when an Instance shows them
+ * (#1941): VDD above and VSS below, on leads from its flat edges to the next
+ * grid row. The differential forms keep their own.
+ */
+const SUPPLY_PIN_Y = BODY_HALF_HEIGHT + 10;
+const withSupplies = (symbol) =>
+  withSupplyPins(
+    symbol,
+    supplyPinsOn(
+      symbol.primitives.find((primitive) => primitive.kind === "polygon"),
+      { x: 0, y: -SUPPLY_PIN_Y },
+      { x: 0, y: SUPPLY_PIN_Y },
+    ),
+  );
+
 for (const converter of CONVERTERS) {
-  const symbol = converterSymbol(converter);
+  const symbol = converter.differential
+    ? converterSymbol(converter)
+    : withSupplies(converterSymbol(converter));
   const source = normalize(
     await format(JSON.stringify(symbol, null, 2), { parser: "json" }),
   );

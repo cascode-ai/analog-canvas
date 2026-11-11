@@ -30,18 +30,32 @@ export const ANALOG_TRIANGLE_BOUNDS = {
 };
 
 /**
- * An op-amp's supplies, drawn when an Instance shows them (#1833): the roles
- * of their pins, the parts of their leads, and the variants that hide them
- * (the default) or draw them. A form derived from the op-amp keeps them where
- * the op-amp draws them.
+ * VDD and VSS at `x` when an Instance shows them (#1833, #1941): on the
+ * body's extent, each on a lead from where the slanted edge crosses `x`.
  */
-export const OPAMP_SUPPLY_ROLES = new Set([
-  "positive-supply",
-  "negative-supply",
-]);
-export const OPAMP_SUPPLY_LEAD_PARTS = { VDD: "vdd-lead", VSS: "vss-lead" };
-export const OPAMP_SIGNAL_PINS_VARIANT = "signal-pins";
-export const OPAMP_SUPPLY_PINS_VARIANT = "supply-pins";
+export function analogTriangleSupplyPins(x) {
+  const contactY = Number(
+    (
+      ((ANALOG_TRIANGLE.apexX - x) /
+        (ANALOG_TRIANGLE.apexX - ANALOG_TRIANGLE.leftX)) *
+      ANALOG_TRIANGLE.bottomY
+    ).toFixed(6),
+  );
+  return {
+    vdd: { at: { x, y: ANALOG_TRIANGLE.topY }, contact: { x, y: -contactY } },
+    vss: { at: { x, y: ANALOG_TRIANGLE.bottomY }, contact: { x, y: contactY } },
+  };
+}
+
+/** A single-ended form's: at x 0, 30 - 10√3 from the slanted edges. */
+export const ANALOG_TRIANGLE_SUPPLY_PINS = analogTriangleSupplyPins(0);
+
+/**
+ * A compact differential form's outputs leave the slanted edges a grid row
+ * either side of the axis, so its supplies stand one grid column further
+ * back, clear of where they leave.
+ */
+export const DIFFERENTIAL_TRIANGLE_SUPPLY_PINS = analogTriangleSupplyPins(-10);
 
 export const ANALOG_TRIANGLE_VIEWBOX = {
   x: -44,

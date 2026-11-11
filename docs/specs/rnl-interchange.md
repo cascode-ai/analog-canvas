@@ -132,10 +132,12 @@ the RNL language and its runtime belong to rnl.
   - on top, at the inputs and at a differential op-amp's outputs. An Analog
     Canvas variant with − on top is that symbol flipped top to bottom: it is
     written as the symbol turned by its own orientation after `MX`.
-- An op-amp's VDD and VSS are its symbol's undrawn `vp` and `vn`. RNL fails a
-  wire to a terminal with no pin (9.2.4), so a wire on a shown supply pin is
-  left out with `RNL_PIN_NOT_DRAWN`; the netlist still joins it, and it reads
-  back as that supply's Net.
+- A block's VDD and VSS are its RNL symbol's undrawn `vp` and `vn`, or a
+  stencil the file defines its supply terminals (RNL's import-only
+  two-terminal Delay Cell stencil has none). RNL fails a wire to a terminal
+  with no pin (9.2.4), so a wire on a shown supply pin is left out with
+  `RNL_PIN_NOT_DRAWN`; the netlist still joins it, and it reads back as that
+  supply's Net.
 - The header pins the standard series, `rnl-std` 0.3, and declares with its
   version each package the drawing uses that `rnl-std` does not bring in by
   itself, such as `rnl-std-functional` for an op-amp. A tool without that

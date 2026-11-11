@@ -75,6 +75,32 @@
           "visibility": "visible",
           "leadLength": 8
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -189,9 +215,57 @@
           "lineCap": "butt",
           "lineJoin": "miter"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -14.494679
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 14.554466
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "catalog": {
@@ -202,7 +276,7 @@
     "reviewStatus": "reviewed",
     "provenance": "house",
     "houseReason": "4-input product derivation from the calibrated two-input xor-gate; the cited reference does not contain this exact arity.",
-    "pinOrder": ["A", "B", "C", "D", "Y"],
+    "pinOrder": ["A", "B", "C", "D", "Y", "VDD", "VSS"],
     "palette": false,
     "automaticMappings": [],
     "manualOnlyReason": "Select through the XOR Gate input-count property; behavioral SPICE realization requires an explicit subcircuit or PDK mapping.",

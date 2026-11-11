@@ -6,6 +6,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  adaptiveSignalFlowBounds,
   resolveAdaptiveSignalFlowBlockLayout,
   type ResolvedSymbol,
   type SignalFlowLayoutParameters,
@@ -33,7 +34,13 @@ export function visibleSymbolLocalBounds(
     resolved.definition,
     signalFlowParameters,
   );
-  if (adaptive) return adaptive.bounds;
+  // Supply leads a variant draws reach past the grown body (#1941).
+  if (adaptive)
+    return adaptiveSignalFlowBounds(
+      resolved.definition,
+      adaptive,
+      resolved.variant?.hiddenPrimitiveParts,
+    );
   const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
   const hiddenPins = new Set(resolved.variant?.hiddenPinNames ?? []);
   const primitives = [

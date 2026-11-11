@@ -36,6 +36,32 @@
           "visibility": "visible",
           "leadLength": 6
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": -10,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": -10,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -86,9 +112,57 @@
           "lineCap": "butt",
           "lineJoin": "miter"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": -7.960516
+        },
+        "to": {
+          "x": -10,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": 8.683668
+        },
+        "to": {
+          "x": -10,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "catalog": {
@@ -97,7 +171,7 @@
     "name": "Buffer",
     "category": "logic",
     "reviewStatus": "reviewed",
-    "pinOrder": ["A", "Y"],
+    "pinOrder": ["A", "Y", "VDD", "VSS"],
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "Behavioral logic symbol; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
@@ -116,7 +190,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/buffer-vector-source.json",
       "converterPath": "scripts/generate-razavi-buffer-dff-assets.mjs",
-      "converterVersion": 3,
+      "converterVersion": 4,
       "bodyNormalization": "left-grid-anchor"
     }
   },
