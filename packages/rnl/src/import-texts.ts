@@ -510,7 +510,9 @@ export function importTexts(
             kind: "route" as const,
             routeId: leg.route.id,
             legId: leg.route.legs[leg.index]!.id,
-            t: Math.round(leg.t * 1e9) / 1e9,
+            // The share as it falls, not to some digits: rounded, a label
+            // 80 along a wire of 230 would stand 1e-8 off its place.
+            t: leg.t,
             normalOffset: Math.round(leg.normalOffset * 1e6) / 1e6 + 0,
             direction: "forward" as const,
             orientation: "follow" as const,
@@ -546,17 +548,41 @@ export function importTexts(
           : portPin?.placement
             ? { id: portPin.id, at: portPin.placement.position }
             : undefined;
+      // One that names its net is bound to the net's name, which it claims
+      // as a supply, as the editor keeps one, so the net's rails are rails.
+      const supply = document.importReference?.nets.find(
+        (item) => item.id === netId,
+      );
+      const supplyName =
+        says?.bind === "net" && supply
+          ? spelledAs(shown, supply.name, supply.scope, format)
+            ? shown
+            : supply.name
+          : undefined;
       const binding = port
-        ? { kind: "cell-terminal-name" as const, terminalId: port.id }
-        : undefined;
+        ? shown === port.name
+          ? { kind: "cell-terminal-name" as const, terminalId: port.id }
+          : undefined
+        : supply && supplyName === shown
+          ? { kind: "net-name" as const, netId }
+          : undefined;
+      if (binding?.kind === "net-name")
+        document.connectivityEvidence.push({
+          id: deriveStableId("connectivity-evidence", document.id, id),
+          kind: "name-claim",
+          netId,
+          name: shown,
+          scope: supply!.scope,
+          powerDomain: "vdd",
+          owner: { kind: "power-marker", objectId: id },
+        });
       document.annotations.push({
         id,
         kind: "power-label",
         netId,
         // Otherwise not bound to its net: a binding takes its name from a
-        // claim the junction would have to own, which the netlist import
-        // has not made.
-        ...(binding && shown === port?.name
+        // claim, which only a label naming its net makes.
+        ...(binding
           ? {
               binding,
               ...formatted({ kind: "power-label", netId, binding }, content),

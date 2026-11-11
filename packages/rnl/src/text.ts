@@ -26,15 +26,26 @@ export function rnlTextLines(text: RichTextDocument): {
 } {
   const lines: Run[][] = [[]];
   let formulas = 0;
-  const push = (line: Run[], run: Run) => {
+  // Neighbouring runs of one style join, but not across two scripts:
+  // Analog Canvas sets each script apart from the one before it, so two
+  // stay two runs, which RNL writes as two scripts.
+  let scripts = 0;
+  const scriptOf = new WeakMap<Run, number>();
+  const push = (line: Run[], run: Run, script: number) => {
     const last = line.at(-1);
     if (
       run.kind === "text" &&
       last?.kind === "text" &&
-      sameStyle(last.style, run.style)
-    )
-      line[line.length - 1] = { ...last, text: last.text + run.text };
-    else line.push(run);
+      sameStyle(last.style, run.style) &&
+      scriptOf.get(last) === script
+    ) {
+      const joined = { ...last, text: last.text + run.text };
+      scriptOf.set(joined, script);
+      line[line.length - 1] = joined;
+    } else {
+      scriptOf.set(run, script);
+      line.push(run);
+    }
   };
   const walk = (
     runs: readonly RichTextRun[],
@@ -42,18 +53,23 @@ export function rnlTextLines(text: RichTextDocument): {
     casing: Casing,
     out: () => Run[],
     lineBreak: () => void,
+    script = 0,
   ) => {
     for (const run of runs) {
       switch (run.kind) {
         case "text":
-          push(out(), { kind: "text", text: cased(run.value, casing), style });
+          push(
+            out(),
+            { kind: "text", text: cased(run.value, casing), style },
+            script,
+          );
           break;
         case "line-break":
           lineBreak();
           break;
         case "math":
           formulas += 1;
-          push(out(), { kind: "text", text: run.latex, style });
+          push(out(), { kind: "text", text: run.latex, style }, script);
           break;
         case "span":
           walk(
@@ -64,6 +80,9 @@ export function rnlTextLines(text: RichTextDocument): {
               : casing,
             out,
             lineBreak,
+            run.style === "subscript" || run.style === "superscript"
+              ? ++scripts
+              : script,
           );
           break;
         case "fraction": {

@@ -114,7 +114,10 @@ export function removeAddedPins(
   const trial = structuredClone(project);
   removeEachAddedPin(trial, undrawnPins);
   const printed = (from: CircuitProject) => {
-    const result = createDesignNetlistExport(from, { format: "spice" });
+    const result = createDesignNetlistExport(from, {
+      format: "spice",
+      uncalledCells: true,
+    });
     return result.status === "ready" ? result.file.text : null;
   };
   const now = printed(project);
@@ -136,6 +139,7 @@ export function printsFileCircuit(
     format: snapshot.dialect === "spectre" ? "spectre" : "spice",
     bodyPortOrder: rnlBodyPortOrder(project),
     includeIr: true,
+    uncalledCells: true,
   });
   if (result.status !== "ready" || !result.ir) return false;
   // Nets as both sides spell them: RNL's `&VSS`, Spectre's `Vin\+`.
@@ -238,7 +242,10 @@ export function unpinUndrawnPorts(
     }
   if (!ports.length) return;
   const printed = (from: CircuitProject) => {
-    const result = createDesignNetlistExport(from, { format: "spice" });
+    const result = createDesignNetlistExport(from, {
+      format: "spice",
+      uncalledCells: true,
+    });
     return result.status === "ready" ? result.file.text : null;
   };
   const now = printed(project);
@@ -293,6 +300,7 @@ function removeEachAddedPin(
         // this one's pins as they are.
         const printed = analyzeDesignNetlistForAuthoring(trial, {
           groundPin: "pin",
+          uncalledCells: true,
         }).ir?.cells.find((cell) => cell.id === document.id);
         if (!printed?.ports.some((port) => port.name === terminal.name))
           continue;

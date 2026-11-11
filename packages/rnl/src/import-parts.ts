@@ -1,5 +1,6 @@
 import { createReferenceIndex } from "@icm/devices";
 import { type Instance, type SchematicDocument } from "@icm/model";
+import { externalSubcircuitSymbolId } from "@icm/symbols";
 
 import { callSymbolFromDefinition } from "./call-symbols.js";
 import { acOrientation } from "./orientation.js";
@@ -21,6 +22,7 @@ import {
   paintOf,
   cellSymbolOf,
   cellArtwork,
+  externalArtwork,
 } from "./import-symbols.js";
 import { type LevelScope, type RnlHiddenLabels } from "./import-scope.js";
 
@@ -167,6 +169,25 @@ export function placeParts(scope: LevelScope): PlacedParts {
         `${cell.name}'s block is drawn as a box: RNL draws it otherwise, or off the grid`,
       );
   };
+  const drawnExternals = new Set<string>();
+  const drawExternal = (
+    definitionId: string,
+    drawn: RnlSymbolDefinitionView,
+  ) => {
+    if (drawnExternals.has(definitionId)) return;
+    drawnExternals.add(definitionId);
+    const definition = project.externalSubcircuitDefinitions.find(
+      (item) => item.id === definitionId,
+    );
+    const artwork = definition && externalArtwork(definition, drawn);
+    if (!artwork) return;
+    project.componentDefinitions = [
+      ...(project.componentDefinitions ?? []).filter(
+        (item) => item.symbol.id !== artwork.symbol.id,
+      ),
+      artwork,
+    ];
+  };
   const own = model.symbol?.value ? symbols.get(model.symbol.value) : null;
   if (own?.definition) layOut(document, own.definition);
 
@@ -287,6 +308,15 @@ export function placeParts(scope: LevelScope): PlacedParts {
         ? project.documents.find((item) => item.id === binding.childDocumentId)
         : undefined;
     if (child && symbol?.definition) layOut(child, symbol.definition);
+    // An external subcircuit's call drawn with the symbol the file defines
+    // for it: its block takes that artwork, each pin where the symbol has it.
+    if (
+      !mapped &&
+      symbol?.definition &&
+      binding?.kind === "external-subcircuit" &&
+      instance.symbolId === externalSubcircuitSymbolId(binding.definitionId)
+    )
+      drawExternal(binding.definitionId, symbol.definition);
   }
   if (unplaced.length)
     warn(

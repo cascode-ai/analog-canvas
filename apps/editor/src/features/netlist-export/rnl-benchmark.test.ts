@@ -20,6 +20,7 @@ import {
   compareElectricalGraphs,
   createDesignNetlistExport,
   projectElectricalGraph,
+  sameElectricalCircuit,
 } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { renderDocumentSvg } from "@icm/render-svg";
@@ -647,10 +648,16 @@ async function roundTrip(
   project = compared.project;
   const a = projectElectricalGraph(project);
   const b = projectElectricalGraph(back);
+  // Equal as the import's own guard reads it (`sameElectricalCircuit`): the
+  // comparison's "equal", or, past its size limit or with no devices, the
+  // same printed cards, which only ever prove it.
   result.electrical =
     a.status === "ready" && b.status === "ready"
       ? compareElectricalGraphs(a.graph, b.graph)
-      : `${a.status}/${b.status}`;
+      : sameElectricalCircuit(a, b)
+        ? "equal"
+        : `${a.status}/${b.status}`;
+  if (a.status !== "ready") result.electricalReason = a.reason;
   const netlist = netlistComparison(project, back, format);
   result.netlist = netlist;
   // Listed at every level that imported, so a circuit failing L2 still shows

@@ -91,7 +91,12 @@ function parameters(values: DesignNetlistParameter[]): string {
         // References inside behavioral expressions cannot be renamed as strings.
         if (/(?:\b[vi]\s*\(|@)/iu.test(rawValue))
           throw new Error("Behavioral references need manual comparison");
-        const number = numericValue(rawValue);
+        // A number in braces is that number: SPICE writes `{20u}` where
+        // Spectre, which has no braces, writes `20u`.
+        const braced = /^\{([^{}]*)\}$/u.exec(rawValue.trim())?.[1];
+        const number =
+          numericValue(rawValue) ??
+          (braced === undefined ? null : numericValue(braced.trim()));
         return [
           name,
           number !== null ? ["number", number] : ["text", rawValue.trim()],
@@ -318,15 +323,14 @@ export function electricalGraphFromIR(
             ? cells.get(instance.target)
             : undefined;
         if (child) {
+          // A call passes its nodes in its Cell's port order, as the card
+          // prints them; a node keeps the Pin's own name where the port is
+          // spelt for the dialect (Spectre's IN\+ for IN+).
+          if (instance.nodes.length !== child.ports.length)
+            throw new Error("Incomplete hierarchy interface");
           expand(
             child,
-            child.ports.map((port) => {
-              const node = instance.nodes.find(
-                (item) => item.pinName === port.name,
-              );
-              if (!node) throw new Error("Incomplete hierarchy interface");
-              return net(node.netName);
-            }),
+            instance.nodes.map((node) => net(node.netName)),
             path,
             [...instancePath, instance.id],
             [...referencePath, instance.reference],

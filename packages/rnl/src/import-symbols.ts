@@ -6,10 +6,18 @@ import {
 } from "@icm/devices";
 import {
   type ComponentDefinition,
+  type ExternalSubcircuitDefinition,
   type Instance,
   type SchematicDocument,
 } from "@icm/model";
-import { builtInSymbols, createHierarchicalBlockSymbol } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createBlockSymbol,
+  createHierarchicalBlockSymbol,
+  externalSubcircuitSymbolId,
+  type SymbolDefinition,
+  type SymbolPrimitive,
+} from "@icm/symbols";
 
 import { callSymbolFromDefinition } from "./call-symbols.js";
 import {
@@ -17,6 +25,7 @@ import {
   inverseOrient as inverse,
   type RnlOrient,
 } from "./orientation.js";
+import { AC_UNITS_PER_RNL_UNIT } from "./place.js";
 import { RNL_SYMBOLS, type RnlSymbol } from "./symbol-map.js";
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
 import {
@@ -304,8 +313,46 @@ export function cellArtwork(
   if (!definition.prims.length) return null;
   if (definition.prims.some((prim) => prim.shape !== "line")) return null;
   const block = createHierarchicalBlockSymbol(cell);
-  const terminals = cell.netlist?.terminals ?? [];
-  if (!block) return null;
+  return block
+    ? blockArtwork(block, cell.netlist?.terminals ?? [], definition, false)
+    : null;
+}
+
+/**
+ * An external subcircuit's block drawn as the symbol the file defines for
+ * it (the export defines one in the file level for every call): its
+ * generated pins, each where the file has it, and the file's artwork, its
+ * box included. Null where the artwork has a shape Analog Canvas does not
+ * draw in a symbol (an ellipse, an arc), which leaves the generated block.
+ */
+export function externalArtwork(
+  definition: ExternalSubcircuitDefinition,
+  drawn: RnlSymbolDefinitionView,
+): ComponentDefinition | null {
+  if (!drawn.prims.length) return null;
+  const block = createBlockSymbol({
+    id: externalSubcircuitSymbolId(definition.id),
+    name: definition.name,
+    terminals: definition.terminals,
+    presentation: definition.presentation,
+  });
+  return blockArtwork(block, definition.terminals, drawn, drawn.box_written);
+}
+
+/**
+ * A generated block with the pins and artwork of a symbol the file defines:
+ * each pin the file draws where it draws it (by terminal number or name),
+ * the others where the block has them; the box the file writes, where
+ * `box` says to take it.
+ */
+function blockArtwork(
+  block: SymbolDefinition,
+  terminals: readonly { name: string }[],
+  definition: RnlSymbolDefinitionView,
+  box: boolean,
+): ComponentDefinition | null {
+  const primitives = symbolPrimitives(definition.prims);
+  if (!primitives) return null;
   const pins = block.pins.map((pin) => {
     const drawn = definition.pins.find((item) => {
       const key = item.terminals[0] ?? "";
@@ -325,29 +372,107 @@ export function cellArtwork(
       presentation: { ...pin.presentation, showName: Boolean(drawn.label) },
     };
   });
-  const primitives = definition.prims.map((prim) => {
+  const [x1, y1, x2, y2] = definition.box;
+  const [a, b] = [acPoint([x1, y1]), acPoint([x2, y2])];
+  const viewBox = {
+    x: Math.min(a.x, b.x),
+    y: Math.min(a.y, b.y),
+    width: Math.abs(b.x - a.x),
+    height: Math.abs(b.y - a.y),
+  };
+  return {
+    symbol: {
+      ...block,
+      pins,
+      primitives,
+      ...(box && viewBox.width > 0 && viewBox.height > 0 ? { viewBox } : {}),
+    },
+  } as ComponentDefinition;
+}
+
+/**
+ * A symbol's graphics as Analog Canvas primitives: a line of two points as
+ * a line, a closed one as an outline, any other as a path; a rectangle as
+ * its outline; a circle; a Bézier as a path of cubic legs. A filled shape is
+ * filled with the foreground, an unstroked one draws no line. Null where a
+ * shape has no such primitive (an ellipse, an arc).
+ */
+function symbolPrimitives(
+  prims: RnlSymbolDefinitionView["prims"],
+): SymbolPrimitive[] | null {
+  const primitives: SymbolPrimitive[] = [];
+  const xy = ({ x, y }: { x: number; y: number }) => `${x} ${y}`;
+  const path = (
+    points: readonly { x: number; y: number }[],
+    cubic: boolean,
+  ) => {
+    const [start, ...rest] = points;
+    const legs: string[] = [];
+    if (cubic)
+      for (let index = 0; index < rest.length; index += 3)
+        legs.push(
+          `C ${xy(rest[index]!)} ${xy(rest[index + 1]!)} ${xy(rest[index + 2]!)}`,
+        );
+    else for (const point of rest) legs.push(`L ${xy(point)}`);
+    return {
+      kind: "path" as const,
+      data: [`M ${xy(start!)}`, ...legs].join(" "),
+      style: {
+        lineCap: "butt" as const,
+        lineJoin: "miter" as const,
+        strokeRole: "normal" as const,
+      },
+    };
+  };
+  for (const prim of prims) {
     const points = prim.points.map(acPoint);
-    const [first, last] = [points[0]!, points.at(-1)!];
-    if (points.length === 2)
-      return { kind: "line" as const, from: first, to: last };
-    return points.length > 3 && first.x === last.x && first.y === last.y
-      ? {
-          kind: "polygon" as const,
+    const filled =
+      prim.params["fill"] !== undefined && prim.params["fill"] !== "none";
+    const stroked = prim.style["linestyle"] !== "none";
+    const paint = {
+      fill: filled ? ("foreground" as const) : ("none" as const),
+      stroke: stroked ? ("foreground" as const) : ("none" as const),
+    };
+    const [first, last] = [points[0], points.at(-1)];
+    if (!first || !last) return null;
+    if (prim.shape === "line") {
+      if (points.length === 2)
+        primitives.push({ kind: "line", from: first, to: last });
+      else if (points.length > 3 && first.x === last.x && first.y === last.y)
+        primitives.push({
+          kind: "polygon",
           points: points.slice(0, -1),
-          fill: "none" as const,
-          stroke: "foreground" as const,
-        }
-      : {
-          kind: "path" as const,
-          data: points
-            .map(({ x, y }, index) => `${index ? "L" : "M"} ${x} ${y}`)
-            .join(" "),
-          style: {
-            lineCap: "butt" as const,
-            lineJoin: "miter" as const,
-            strokeRole: "normal" as const,
-          },
-        };
-  });
-  return { symbol: { ...block, pins, primitives } } as ComponentDefinition;
+          ...paint,
+        });
+      else primitives.push(path(points, false));
+    } else if (prim.shape === "rectangle") {
+      const width = Number(prim.params["width"]) * AC_UNITS_PER_RNL_UNIT;
+      const height = Number(prim.params["height"]) * AC_UNITS_PER_RNL_UNIT;
+      if (!(width > 0) || !(height > 0)) return null;
+      const [left, right] = [first.x - width / 2, first.x + width / 2];
+      const [top, bottom] = [first.y - height / 2, first.y + height / 2];
+      primitives.push({
+        kind: "polygon",
+        points: [
+          { x: left, y: top },
+          { x: right, y: top },
+          { x: right, y: bottom },
+          { x: left, y: bottom },
+        ],
+        ...paint,
+      });
+    } else if (prim.shape === "circle") {
+      const radius = Number(prim.params["radius"]) * AC_UNITS_PER_RNL_UNIT;
+      if (!(radius > 0)) return null;
+      primitives.push({
+        kind: "circle",
+        center: first,
+        radius,
+        ...paint,
+      });
+    } else if (prim.shape === "bezier" && points.length % 3 === 1)
+      primitives.push(path(points, true));
+    else return null;
+  }
+  return primitives;
 }
