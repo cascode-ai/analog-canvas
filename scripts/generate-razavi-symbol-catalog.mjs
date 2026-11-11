@@ -193,6 +193,12 @@ for (const entry of catalog.entries) {
   ) {
     fail(`${entry.symbolId} is unreachable and lacks a manual-only reason`);
   }
+  if (
+    entry.drawnReferencePrefix !== undefined &&
+    !/^[A-WYZ]$/.test(entry.drawnReferencePrefix)
+  ) {
+    fail(`${entry.symbolId}: a drawn reference prefix is one letter, not X`);
+  }
   const provenance = entry.provenance ?? "razavi-reference-v1";
   if (provenance !== "razavi-reference-v1" && provenance !== "house") {
     fail(`invalid provenance for ${entry.symbolId}`);

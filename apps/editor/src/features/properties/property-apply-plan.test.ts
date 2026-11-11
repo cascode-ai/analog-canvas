@@ -4,7 +4,7 @@ import {
   executeProjectTransaction,
   executeTransaction,
 } from "@icm/edit-engine";
-import { createEmptyProject, type Instance } from "@icm/model";
+import { createEmptyProject, flattenRichText, type Instance } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import { planPropertyApply } from "./property-apply-plan";
@@ -106,6 +106,63 @@ describe("planPropertyApply", () => {
     const shown = apply(hidden, true);
     expect(shown).not.toBe(hidden);
     expect(label(shown)?.visible).not.toBe(false);
+  });
+
+  it("draws a UJT renamed Q3 by a display alias and keeps its X Reference", () => {
+    const project = createEmptyProject("ujt-name", "UJT name");
+    const document = project.documents[0]!;
+    // Drawn before UJTs were drawn Q: its label still follows X1.
+    const instance: Instance = {
+      id: "ujt",
+      reference: "X1",
+      symbolId: "ujt",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: {} },
+    };
+    document.instances.push(instance);
+    document.annotations.push({
+      id: "instance-label-ujt",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "ujt" },
+      anchor: {
+        kind: "object",
+        objectId: "ujt",
+        localOffset: { x: 25, y: 0 },
+        fallbackPosition: { x: 125, y: 100 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    const rename = (name: "displayName" | "netlistName", text: string) => {
+      const plan = planPropertyApply(
+        { project, document, resolver, instance },
+        { placement: null, appearance: { color: "auto" }, [name]: text },
+      );
+      if (plan.kind !== "edits") throw new Error(JSON.stringify(plan));
+      return plan.edits;
+    };
+    for (const name of ["displayName", "netlistName"] as const) {
+      const edits = rename(name, "Q3");
+      expect(edits.some((edit) => edit.kind === "set_instance_reference")).toBe(
+        false,
+      );
+      const label = edits.find(
+        (edit) => edit.kind === "upsert_schematic_annotation",
+      );
+      expect(label).toMatchObject({
+        annotation: { id: "instance-label-ujt" },
+      });
+      if (label?.kind !== "upsert_schematic_annotation") throw new Error();
+      expect(label.annotation.binding).toBeUndefined();
+      expect(flattenRichText(label.annotation.content!)).toBe("Q3");
+    }
+    // An X name is still its Reference.
+    expect(rename("netlistName", "X4")).toContainEqual({
+      kind: "set_instance_reference",
+      instanceId: "ujt",
+      reference: "X4",
+    });
   });
 
   it("renames a copied Cell Pin's formal name though it has no canvas label", () => {

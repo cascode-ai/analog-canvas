@@ -171,6 +171,7 @@
     "provenance": "house",
     "houseReason": "A unijunction transistor does not appear on the reviewed page; it is the N-Channel JFET's channel bar and leads on its D and S pins, as base B2 and base B1, with the emitter entering the bar at a slant below its middle and the JFET's filled arrowhead on it pointing into the bar.",
     "pinOrder": ["E", "B1", "B2"],
+    "drawnReferencePrefix": "Q",
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "SPICE has no unijunction card; it prints as a call of the generated body, the base bar split rbb*eta to B1 and rbb*(1-eta) to B2 with the emitter diode onto the split.",

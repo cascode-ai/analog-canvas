@@ -131,6 +131,7 @@
     "provenance": "house",
     "houseReason": "A Shockley (four-layer) diode does not appear on the reviewed page; it is the reviewed Diode body, leads and pins, unchanged, with the cathode bar's foot turned back toward the anode, the four-layer mark textbooks draw.",
     "pinOrder": ["A", "K"],
+    "drawnReferencePrefix": "D",
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "SPICE has no four-layer diode card; it prints as a call of the generated two-transistor body with its gate inside, breaking over at vbo.",

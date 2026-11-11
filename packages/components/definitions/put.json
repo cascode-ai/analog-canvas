@@ -160,6 +160,7 @@
     "provenance": "house",
     "houseReason": "A programmable unijunction transistor does not appear on the reviewed page; it is the reviewed Diode body, leads and A/K pins, unchanged, as a thyristor is drawn, with the anode gate G leaving the triangle's upper edge near the anode.",
     "pinOrder": ["A", "G", "K"],
+    "drawnReferencePrefix": "Q",
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "SPICE has no PUT card; it prints as a call of the generated two-transistor body, a PNP from the anode with its base on G and an NPN from G to the cathode.",

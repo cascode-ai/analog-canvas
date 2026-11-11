@@ -581,6 +581,69 @@ describe("default instance display annotations", () => {
   });
 });
 
+describe("blocks drawn by their textbook letter", () => {
+  it("draws a UJT as the next free Q, and a retained one gets no second name", () => {
+    const document = createEmptyDocument("main", "Main");
+    const place = (id: string, symbolId: string, reference: string) => ({
+      id,
+      symbolId,
+      reference,
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    });
+    document.instances.push(place("q1", "npn", "Q1"));
+    const style = resolveSchematicStyleProfile(
+      document.presentation.styleProfileId,
+    );
+    const ujt = place("ujt", "ujt", "X1");
+    const [label] = defaultInstanceDisplayAnnotations(
+      document,
+      ujt,
+      resolver,
+      style,
+    );
+    expect(label?.binding).toBeUndefined();
+    expect(flattenRichText(label!.content!)).toBe("Q2");
+    document.instances.push(ujt);
+    document.annotations.push(label!);
+    const diode = place("diode", "shockley-diode", "X2");
+    expect(
+      defaultInstanceDisplayAnnotations(document, diode, resolver, style).map(
+        (annotation) => flattenRichText(annotation.content!),
+      ),
+    ).toEqual(["D1"]);
+    expect(
+      defaultInstanceDisplayAnnotations(
+        document,
+        place("put", "put", "X3"),
+        resolver,
+        style,
+      ).map((annotation) => flattenRichText(annotation.content!)),
+    ).toEqual(["Q3"]);
+    // A retained UJT whose label follows X1 is not given a Q as well.
+    const kept = { ...label!, id: "older-label", content: undefined };
+    expect(
+      missingDefaultInstanceDisplayAnnotations(
+        {
+          ...document,
+          annotations: [
+            {
+              ...kept,
+              binding: { kind: "instance-reference", instanceId: "ujt" },
+            },
+          ],
+        },
+        ujt,
+        resolver,
+        style,
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe("blocks that carry no designator", () => {
   const styleProfile = (document: ReturnType<typeof createEmptyDocument>) =>
     resolveSchematicStyleProfile(document.presentation.styleProfileId);

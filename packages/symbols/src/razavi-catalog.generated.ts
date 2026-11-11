@@ -2490,6 +2490,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     houseReason:
       "A unijunction transistor does not appear on the reviewed page; it is the N-Channel JFET's channel bar and leads on its D and S pins, as base B2 and base B1, with the emitter entering the bar at a slant below its middle and the JFET's filled arrowhead on it pointing into the bar.",
     pinOrder: ["E", "B1", "B2"],
+    drawnReferencePrefix: "Q",
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
@@ -2507,6 +2508,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     houseReason:
       "A programmable unijunction transistor does not appear on the reviewed page; it is the reviewed Diode body, leads and A/K pins, unchanged, as a thyristor is drawn, with the anode gate G leaving the triangle's upper edge near the anode.",
     pinOrder: ["A", "G", "K"],
+    drawnReferencePrefix: "Q",
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
@@ -2524,6 +2526,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     houseReason:
       "A Shockley (four-layer) diode does not appear on the reviewed page; it is the reviewed Diode body, leads and pins, unchanged, with the cathode bar's foot turned back toward the anode, the four-layer mark textbooks draw.",
     pinOrder: ["A", "K"],
+    drawnReferencePrefix: "D",
     palette: true,
     automaticMappings: [],
     manualOnlyReason:

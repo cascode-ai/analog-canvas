@@ -33,7 +33,9 @@ import { createDraftText, defaultDraftTextDocument } from "@icm/model";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
+  drawnReferencePrefix,
   hierarchicalSymbolId,
+  isDrawnReferenceName,
   type SymbolResolver,
 } from "@icm/symbols";
 
@@ -189,6 +191,15 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   ): void => {
     if (placementRequest.kind !== "symbol") return;
     const customDefinition = placementRequest.componentDefinition;
+    // A UJT named Q1 is drawn Q1 and takes the next free X Reference.
+    const drawnName =
+      placementRequest.referenceText &&
+      isDrawnReferenceName(
+        placementRequest.referenceText,
+        drawnReferencePrefix(symbolId),
+      )
+        ? placementRequest.referenceText.trim()
+        : undefined;
     const instance = createNewInstance(
       options.document,
       {
@@ -210,7 +221,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
             ),
       },
       {
-        reference: placementRequest.referenceText ?? undefined,
+        reference: drawnName
+          ? undefined
+          : (placementRequest.referenceText ?? undefined),
         project: customDefinition
           ? { componentDefinitions: [customDefinition] }
           : options.project,
@@ -225,6 +238,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       {
         showDesignator: placementRequest.showReference,
         showValue: placementRequest.showValue,
+        ...(drawnName ? { drawnName } : {}),
       },
     );
     let connectionPlan: ReturnType<typeof planInsertedInstanceConnections>;
