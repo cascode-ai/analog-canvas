@@ -212,7 +212,7 @@ export function windingsMirroredEdit(
  * op-amp's input rows is the default.
  */
 const WIDENABLE_CHOPPERS = new Set(["chopper"]);
-export const WIDE_CHOPPER_VARIANT = "wide";
+const WIDE_CHOPPER_VARIANT = "wide";
 
 export function componentChopperWide(
   instance: Pick<Instance, "symbolId" | "symbolVariantId">,
