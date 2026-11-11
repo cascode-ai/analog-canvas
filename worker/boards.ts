@@ -144,7 +144,7 @@ async function editor(
 }
 
 /** What the page may offer this reader; the board keeps who made it to itself. */
-function withViewer(
+export function withViewer(
   payload: Record<string, unknown>,
   user: SessionUser | null,
 ) {
@@ -157,6 +157,7 @@ function withViewer(
     viewer: user
       ? {
           signedIn: true,
+          accountId: user.id,
           name: user.displayName,
           canEdit: true,
           canUnlock: user.isAdmin || madeIt,
@@ -173,7 +174,7 @@ function withViewer(
 }
 
 /** Each change as the store takes it, its entries named by id; null when one names none. */
-function storeChanges(raw: unknown): Record<string, unknown>[] | null {
+export function storeChanges(raw: unknown): Record<string, unknown>[] | null {
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > 200) return null;
   const changes: Record<string, unknown>[] = [];
   for (const change of raw) {

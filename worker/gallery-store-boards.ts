@@ -74,6 +74,13 @@ export function installBoards(sql: SqlStorage): void {
   sql.exec(
     "CREATE INDEX IF NOT EXISTS idx_board_events_board ON board_events(board_id, seq)",
   );
+  if (
+    !sql
+      .exec<{ name: string }>("PRAGMA table_info(board_events)")
+      .toArray()
+      .some((c) => c.name === "source_seq")
+  )
+    sql.exec("ALTER TABLE board_events ADD COLUMN source_seq INTEGER");
   const itemColumns = sql
     .exec<{ name: string }>("PRAGMA table_info(board_items)")
     .toArray()
@@ -584,8 +591,8 @@ export function boardRead(sql: SqlStorage, id: string): Response {
       });
     const events = sql
       .exec<EventRow>(
-        `SELECT seq, at, actor_name, action, item_id, entry_id, previous_entry_id, detail
-         FROM board_events WHERE board_id = ? ORDER BY seq DESC LIMIT ?`,
+        `SELECT COALESCE(source_seq,seq) AS seq, at, actor_name, action, item_id, entry_id, previous_entry_id, detail
+         FROM board_events WHERE board_id = ? ORDER BY COALESCE(source_seq,seq) DESC LIMIT ?`,
         id,
         BOARD_EVENTS_READ,
       )

@@ -11,6 +11,7 @@ import { gallerySourceOfEntryId, gallerySourceByKey } from "./gallery-sources";
 import { galleryDetails } from "./gallery-details-request";
 import { routeRegionalComponentActions } from "./regional-component-actions";
 import { routeRegionalReviewActions } from "./regional-review-actions";
+import { routeRegionalBoardActions } from "./regional-board-actions";
 
 export type ResourceActionEnv = GalleryEnv &
   ResourceSyncEnv & {
@@ -22,6 +23,8 @@ export async function routeRegionalResourceActions(
   request: Request,
   env: ResourceActionEnv,
 ): Promise<Response | null> {
+  const board = await routeRegionalBoardActions(request, env);
+  if (board) return board;
   const review = await routeRegionalReviewActions(request, env);
   if (review) return review;
   const component = await routeRegionalComponentActions(request, env);

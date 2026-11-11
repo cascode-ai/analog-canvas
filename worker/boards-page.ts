@@ -191,6 +191,24 @@ const CHROME = String.raw`<header class="chrome">
 </header>`;
 
 const SHARED = String.raw`
+var pendingBoardCommands = {};
+async function boardCommand(path, body, account) {
+  var storageKey = "canvas-board-command:" + account + ":" + path;
+  var command = pendingBoardCommands[storageKey];
+  if (!command) { try { command = JSON.parse(sessionStorage.getItem(storageKey) || "null"); } catch (_) {} }
+  if (!command || typeof command.key !== "string" || typeof command.body !== "string") {
+    body.accountId = account;
+    command = { key: crypto.randomUUID(), body: JSON.stringify(body) };
+  }
+  pendingBoardCommands[storageKey] = command;
+  try { sessionStorage.setItem(storageKey, JSON.stringify(command)); } catch (_) {}
+  var response = await fetch(path, { method: "POST", headers: { "content-type": "application/json", "idempotency-key": command.key }, body: command.body });
+  if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429)) {
+    delete pendingBoardCommands[storageKey];
+    try { sessionStorage.removeItem(storageKey); } catch (_) {}
+  }
+  return response;
+}
 var MESSAGES = {
   "entry-not-public": "找不到这个条目，或它不在公开的 Gallery 上",
   "entry-already-on-board": "这道题已经在板上了",
@@ -321,7 +339,7 @@ async function change(changes, done) {
   if (busy) return;
   busy = true; say("保存中 …");
   try {
-    var response = await fetch(api + "/changes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ changes: changes }) });
+    var response = await boardCommand(api + "/changes", { changes: changes, expectedRevision: state.board.revision }, state.viewer.accountId);
     var payload = await response.json().catch(function () { return {}; });
     if (!response.ok) { say(message(payload), true); return; }
     state = payload; render(); say(done || "已保存");
@@ -640,8 +658,7 @@ function $(name) { return document.getElementById(name); }
   form.addEventListener("submit", async function (event) {
     event.preventDefault();
     go.disabled = true; $("status").textContent = "新建中 …"; $("status").className = "status";
-    var response = await fetch("/api/boards", { method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ title: title.value.trim(), slots: Number(slots.value), entries: splitEntries(entries.value) }) });
+    var response = await boardCommand("/api/boards", { title: title.value.trim(), slots: Number(slots.value), entries: splitEntries(entries.value) }, user.id);
     var payload = await response.json().catch(function () { return {}; });
     if (!response.ok) { $("status").textContent = message(payload); $("status").className = "status bad"; go.disabled = false; return; }
     location.href = "/boards/" + payload.board.id;

@@ -81,7 +81,8 @@ the region components in [regional publications](regional-resources.md).
 - Private Statistics bookmarks follow the account across regions, including
   removal. They remain private, distinct from public likes and Project favorites.
   Selection Boards retain their IDs, revisions, entries, locks and audit history
-  across entrances, under the [Board permissions](selection-boards.md).
+  across entrances, under the [Board permissions](selection-boards.md) and
+  [private activity protocol](regional-activity.md).
 - Per-entry open counts converge without overwriting a region's accepted counts
   or adding the same delivery twice. They are separate from site-wide
   [visitor statistics](regional-analytics.md). Existing per-region publication
