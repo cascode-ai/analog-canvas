@@ -10,6 +10,7 @@ import { basename, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  datasetSource,
   entryId,
   importBatches,
   keptDrawing,
@@ -72,6 +73,9 @@ describe("dataset import batches from a draw:batch run (#1498)", () => {
   it("gives each entry the source's prefix and a safe id", () => {
     expect(entryId("ar", "chai/0012")).toBe("ar-chai-0012");
     expect(entryId("ag", "308")).toBe("ag-308");
+    expect(entryId(datasetSource(root, "image2net").prefix, "12")).toBe(
+      "i2n-12",
+    );
     expect(() => entryId("ag", "///")).toThrow(/nothing usable/u);
     expect(() => parseArguments(["run"])).toThrow(/usage/u);
   });

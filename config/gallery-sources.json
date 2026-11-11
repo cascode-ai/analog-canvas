@@ -39,6 +39,16 @@
       "comparisons": true,
       "homepage": "https://github.com/yihan-wa/AnalogRetriever",
       "paper": "https://arxiv.org/abs/2604.23195"
+    },
+    {
+      "key": "image2net",
+      "prefix": "i2n",
+      "name": "Image2Net",
+      "byline": "Image2Net (redrawn)",
+      "license": "Apache-2.0",
+      "comparisons": true,
+      "homepage": "https://github.com/LAD021/ci2n_datasets",
+      "paper": "https://arxiv.org/abs/2508.13157"
     }
   ]
 }

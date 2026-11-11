@@ -10,6 +10,7 @@
   --ds-notation: #8a8985;
   --ds-error: #d03b3b;
   --ds-unclear: #fab219;
+  --ds-figure-only: #c5cdd6;
 }
 
 .datasets-body {
@@ -294,6 +295,10 @@
   background: var(--ds-unclear);
 }
 
+.v-figure-only {
+  background: var(--ds-figure-only);
+}
+
 .datasets-legend {
   display: grid;
   max-width: 520px;
@@ -354,6 +359,10 @@
 
 .datasets-icon.v-unclear {
   color: #4a3500;
+}
+
+.datasets-icon.v-figure-only {
+  color: #3a4552;
 }
 
 .datasets-bars {

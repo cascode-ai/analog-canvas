@@ -7,7 +7,15 @@ import { publicationResult } from "./gallery-publication-command";
 import { sha256Hex } from "@icm/derived";
 import { type SqlStorage, isRecord } from "./gallery-store";
 
-const COMPARISON_VERDICTS = ["match", "notation", "error", "unclear"] as const;
+const COMPARISON_VERDICTS = [
+  "match",
+  "notation",
+  "error",
+  "unclear",
+  "figure-only",
+] as const;
+/** Verdicts without a category: agreement, and no dataset netlist to compare. */
+const UNCATEGORIZED_VERDICTS: readonly string[] = ["match", "figure-only"];
 const COMPARISON_FAMILIES = [
   "MOS",
   "BJT",
@@ -103,7 +111,7 @@ export function checkedComparison(
     detail === null ||
     reason === null ||
     sourceNetlist === null ||
-    (verdict !== "match" && !category) ||
+    (!UNCATEGORIZED_VERDICTS.includes(verdict) && !category) ||
     !Array.isArray(families) ||
     !families.every((family) =>
       (COMPARISON_FAMILIES as readonly unknown[]).includes(family),

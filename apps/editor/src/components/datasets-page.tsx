@@ -20,6 +20,7 @@ import {
   SORTS,
   VERDICTS,
   VIEWS,
+  accuracyOf,
   comparisonFigureUrl,
   comparisonLink,
   countBy,
@@ -366,12 +367,10 @@ function VerdictIcon({ verdict }: { verdict: ComparisonVerdict }) {
 
 /** The page's opening: its title and its numbers over every dataset. */
 function Hero({ rows }: { rows: DatasetComparison[] }) {
-  const of = (key: ComparisonVerdict) =>
-    rows.filter((row) => row.verdict === key).length;
   const stats: [string, string][] = [
     ["circuits", num(rows.length)],
     ["datasets", String(COMPARISON_SOURCES.length)],
-    ["accuracy", `${percent(of("match") + of("notation"), rows.length)}%`],
+    ["accuracy", `${accuracyOf(rows).accuracy}%`],
   ];
   return (
     <header className="ds-hero">
@@ -405,8 +404,7 @@ function boardLine(rows: DatasetComparison[]) {
   return {
     total: rows.length,
     of,
-    accuracy: percent(of("match") + of("notation"), rows.length),
-    strict: percent(of("match"), rows.length),
+    ...accuracyOf(rows),
   };
 }
 
@@ -890,7 +888,7 @@ function ComparisonRow({
           </a>
         </span>
       </div>
-      {row.verdict === "match" ? null : (
+      {!row.category ? null : (
         <div className="reason">
           <b>{row.category}</b>
           {row.detail && row.detail !== row.category ? ` — ${row.detail}` : ""}

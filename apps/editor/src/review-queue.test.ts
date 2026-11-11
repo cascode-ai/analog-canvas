@@ -192,6 +192,7 @@ describe("review queue", () => {
     expect(scopeFromSearch("?scope=analoggenie")).toBe("analoggenie");
     expect(scopeFromSearch("?scope=amsnet")).toBe("amsnet");
     expect(scopeFromSearch("?scope=analogretriever")).toBe("analogretriever");
+    expect(scopeFromSearch("?scope=image2net")).toBe("image2net");
     expect(scopeFromSearch("?scope=nope")).toBe("random");
     expect(scopeFromSearch("")).toBe("random");
   });

@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { GALLERY_SOURCES } from "./gallery-sources";
 import {
   type Harness,
   ORIGIN,
@@ -76,7 +77,8 @@ it("reads only community entries for human pages while keeping the first page's 
   const calls = env.galleryStoreCalls.filter(
     (call) => call.operation === "list",
   );
-  expect(calls).toHaveLength(5);
+  // The community store and every dataset's.
+  expect(calls).toHaveLength(GALLERY_SOURCES.length + 1);
   expect(calls.find((call) => call.store === "gallery")?.body).toMatchObject({
     entries: true,
     statistics: true,

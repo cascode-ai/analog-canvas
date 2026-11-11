@@ -65,7 +65,7 @@ export default {
       const resourceCatchup =
         destination.origin === peer.origin &&
         request.method === "GET" &&
-        /^\/api\/resource-sync\/(?:components|(?:gallery|analoggenie|circuitthink|amsnet|analogretriever)(?:-interactions|-opens|-activity)?)\/(?:changes|status)$/.test(
+        /^\/api\/resource-sync\/(?:components|(?:gallery|analoggenie|circuitthink|amsnet|analogretriever|image2net)(?:-interactions|-opens|-activity)?)\/(?:changes|status)$/.test(
           destination.pathname,
         ) &&
         (destination.pathname.endsWith("/status")
@@ -74,7 +74,7 @@ export default {
       const datasetLocation =
         destination.origin === peer.origin &&
         request.method === "GET" &&
-        /^\/api\/resource-sync\/(analoggenie|circuitthink|amsnet|analogretriever)\/location$/.test(
+        /^\/api\/resource-sync\/(analoggenie|circuitthink|amsnet|analogretriever|image2net)\/location$/.test(
           destination.pathname,
         ) &&
         /^\?id=[A-Za-z0-9_-]{3,64}$/.test(destination.search);

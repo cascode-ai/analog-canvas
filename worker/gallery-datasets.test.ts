@@ -739,5 +739,27 @@ describe("reference datasets in stores of their own (#1510)", () => {
         figureRevision: revision,
       }),
     ]);
+
+    // A figure the dataset gives no netlist for takes no netlist and no category.
+    expect(
+      await (
+        await post(comparisons, {
+          comparisons: [{ id: "ag-309", verdict: "figure-only", figure }],
+        })
+      ).json(),
+    ).toMatchObject({ results: [{ id: "ag-309", ok: true, created: true }] });
+    expect(
+      ((await (await call(comparisons)).json()) as typeof listed).comparisons,
+    ).toContainEqual(
+      expect.objectContaining({
+        id: "ag-309",
+        verdict: "figure-only",
+        category: "",
+      }),
+    );
+    expect(await (await call(`${comparisons}/ag-309`)).json()).toEqual({
+      id: "ag-309",
+      sourceNetlist: "",
+    });
   });
 });

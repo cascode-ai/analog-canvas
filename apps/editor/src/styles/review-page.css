@@ -482,6 +482,13 @@
   --tint-bg: #fffaee;
 }
 
+.review-verdict.is-figure-only {
+  --tint: #8795a5;
+  --tint-edge: #dde2e8;
+  --tint-bg: #f6f8fa;
+  padding-block: 6px;
+}
+
 .review-verdict-head {
   display: flex;
   flex-wrap: wrap;
