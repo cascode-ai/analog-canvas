@@ -267,6 +267,22 @@ for (const entry of sourceCatalog.entries) {
   symbols.push(authoringSymbol(await reviewedDefinition(entry), base.category));
 }
 
+// The op-amps with + on top are the palette Op Amp S and Op Amp after Swap
+// inputs in Properties: a person reaches them there, so an Agent places them
+// too. Their supplies are where the palette op-amps have them.
+for (const [symbolId, sourceSymbolId] of [
+  ["opamp-inputs-swapped", "opamp"],
+  ["opamp-wide-inputs-swapped", "opamp-wide"],
+]) {
+  const entry = sourceCatalog.entries.find(
+    (candidate) => candidate.symbolId === symbolId,
+  );
+  const base = symbols.find((symbol) => symbol.symbolId === sourceSymbolId);
+  if (entry?.reviewStatus !== "reviewed" || !base)
+    fail(`input-swapped op-amp is no palette op-amp's Swap: ${symbolId}`);
+  symbols.push(authoringSymbol(await reviewedDefinition(entry), base.category));
+}
+
 // The palette's extended devices (DMOS, depletion MOS) are a reviewed MOS
 // symbol with a drift region or a channel bar drawn on: a person picks them
 // from the same palette, so an Agent places them too (#1425).

@@ -5638,6 +5638,214 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "opamp-inputs-swapped",
+      name: "Operational Amplifier (swapped inputs)",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "VDD",
+        },
+        {
+          name: "vlow",
+          default: "VSS",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
+      symbolId: "opamp-wide-inputs-swapped",
+      name: "Op Amp Wide (swapped inputs)",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "VDD",
+        },
+        {
+          name: "vlow",
+          default: "VSS",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: -20,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 20,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
       symbolId: "depletion-nmos",
       name: "Depletion NMOS",
       category: "transistor",

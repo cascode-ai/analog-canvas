@@ -161,6 +161,9 @@ their IDs, never resolved to the first.
   (`LIBRARY_PART_NAME_COLLISION` when that name is taken too, or for a Spectre
   call-only part). Only `set-model` reaches the Project's own.
 
+- `opamp-inputs-swapped` / `opamp-wide-inputs-swapped` are `opamp` /
+  `opamp-wide` with IN+ on top (supplies unchanged): place one where the
+  non-inverting input arrives from above.
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the
