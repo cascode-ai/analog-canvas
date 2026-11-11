@@ -2215,6 +2215,7 @@
           curW = v;
         });
         $(".tp").textContent = A_AG.insts.length;
+        $("#ai2-parts").textContent = A_AG.insts.length;
         $(".tw").textContent = A_AG.wires.length;
         let nP = -1,
           nW = -1;
@@ -3138,7 +3139,6 @@
         addEventListener("pointermove", wake);
         addEventListener("pointerdown", wake);
 
-        $("#ai2-parts").textContent = A_AG.insts.length;
         // In a frame on the site, the page around it holds the address.
         let host = "";
         if (window.parent !== window)
