@@ -1,9 +1,14 @@
 import { createHash } from "node:crypto";
 import type { CircuitProject } from "@icm/model";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { importSpiceSources } from "@icm/spice";
 import { expect, it } from "vitest";
 import { importLocalCircuit } from "../../agent/import-local-circuit";
-import { reviewFeedbackTarget, reviewFeedbackText } from "./review-feedback";
+import {
+  reviewFeedbackLabel,
+  reviewFeedbackTarget,
+  reviewFeedbackText,
+} from "./review-feedback";
 
 function importedCell(project: CircuitProject, name: string) {
   return project.documents.find((document) => document.name === name)!;
@@ -102,4 +107,64 @@ it("names the line of a Spectre file as delivered, not as converted", async () =
   await expect(
     reviewFeedbackText([{ target, comment: "Check this resistor." }]),
   ).resolves.toContain("Source: amp.scs:5");
+});
+
+it("shows the printed netlist names for selected unnamed Nets and copies their IDs", async () => {
+  const path = "chain.sp";
+  const loaded = await importSpiceSources(
+    [
+      {
+        path,
+        bytes: new TextEncoder().encode(
+          ".subckt chain A B\nR1 A middle1 1k\nR2 middle1 middle2 2k\nR3 middle2 B 3k\n.ends chain\n",
+        ),
+      },
+    ],
+    path,
+  );
+  const project = loaded.project!;
+  const cell = importedCell(project, "chain");
+  const first = cell.instances.find(({ reference }) => reference === "R1")!;
+  const last = cell.instances.find(({ reference }) => reference === "R3")!;
+  const firstNet = cell.nets.find(({ terminals }) =>
+    terminals.some(
+      ({ instanceId, pinName }) => instanceId === first.id && pinName === "2",
+    ),
+  )!;
+  const lastNet = cell.nets.find(({ terminals }) =>
+    terminals.some(
+      ({ instanceId, pinName }) => instanceId === last.id && pinName === "1",
+    ),
+  )!;
+  const netIds = [firstNet.id, lastNet.id];
+  cell.connectivityEvidence = cell.connectivityEvidence.filter(
+    ({ netId }) => !netIds.includes(netId),
+  );
+  const exported = createDesignNetlistExport(project, {
+    rootDocumentId: cell.id,
+  });
+  if (exported.status !== "ready") throw new Error("Expected a ready netlist");
+  const firstName = /^R1 A (net\d+) 1k$/mu.exec(exported.file.text)?.[1];
+  const lastName = /^R3 (net\d+) B 3k$/mu.exec(exported.file.text)?.[1];
+  expect(firstName).toBeDefined();
+  expect(lastName).toBeDefined();
+  expect(firstName).not.toBe(lastName);
+
+  const target = reviewFeedbackTarget({
+    project,
+    cell,
+    hierarchyPath: [],
+    sourceVersion: "chain-v1",
+    instanceIds: [],
+    netIds,
+    netName: () => undefined,
+  });
+  const label = reviewFeedbackLabel(target);
+  expect(label).toContain(`Net ${firstName}`);
+  expect(label).toContain(`Net ${lastName}`);
+  const feedback = await reviewFeedbackText([
+    { target, comment: "Review the middle Nets." },
+  ]);
+  expect(feedback).toContain(`Object: ${firstName} (net ${firstNet.id})`);
+  expect(feedback).toContain(`Object: ${lastName} (net ${lastNet.id})`);
 });

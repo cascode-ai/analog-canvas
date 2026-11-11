@@ -22,16 +22,35 @@ export function designNetlistNetName(
   netId: string,
   options: Pick<DesignNetlistAnalysisOptions, "format" | "namingProfile"> = {},
 ): string | null {
+  return (
+    designNetlistNetNames(project, documentId, [netId], options).get(netId) ??
+    null
+  );
+}
+
+/** Read the selected Nets' names with one analysis of the Cell per mode. */
+export function designNetlistNetNames(
+  project: CircuitProject,
+  documentId: string,
+  netIds: readonly string[],
+  options: Pick<DesignNetlistAnalysisOptions, "format" | "namingProfile"> = {},
+): ReadonlyMap<string, string> {
+  const names = new Map<string, string>();
+  if (netIds.length === 0) return names;
   const source = project.documents.find(
     (document) => document.id === documentId,
   );
-  if (!source) return null;
+  if (!source) return names;
   // The netlist joins supply markers by name before it names Nets, so the
   // Net it writes is the group that joining makes.
-  const logicalId = resolveCommittedDocumentLogicalNets(
+  const logical = resolveCommittedDocumentLogicalNets(
     withNetlistPowerMarkerClaims(source, project),
-  ).byBaseNetId.get(netId)?.id;
-  if (!logicalId) return null;
+  );
+  const pending = new Map<string, string>();
+  for (const netId of netIds) {
+    const logicalId = logical.byBaseNetId.get(netId)?.id;
+    if (logicalId) pending.set(netId, logicalId);
+  }
   const analysisOptions = {
     groundPin: "pin" as const,
     ...options,
@@ -41,12 +60,20 @@ export function designNetlistNetName(
     analyzeDesignNetlist,
     analyzeDesignNetlistForAuthoring,
   ]) {
-    const name = analyze(project, analysisOptions)
-      .ir?.cells.find((cell) => cell.id === documentId)
-      ?.nets.find((net) => net.id === logicalId)?.name;
-    if (name) return name;
+    if (pending.size === 0) break;
+    const cell = analyze(project, analysisOptions).ir?.cells.find(
+      ({ id }) => id === documentId,
+    );
+    if (!cell) continue;
+    const namesById = new Map(cell.nets.map(({ id, name }) => [id, name]));
+    for (const [netId, logicalId] of pending) {
+      const name = namesById.get(logicalId);
+      if (!name) continue;
+      names.set(netId, name);
+      pending.delete(netId);
+    }
   }
-  return null;
+  return names;
 }
 
 /**

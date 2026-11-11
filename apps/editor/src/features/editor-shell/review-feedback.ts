@@ -3,6 +3,10 @@ import type {
   HierarchyFrame,
   SchematicDocument,
 } from "@icm/model";
+import {
+  designNetlistNetNames,
+  type DesignNetlistAnalysisOptions,
+} from "@icm/netlist";
 
 type SourceRecord = CircuitProject["source"]["files"][number];
 
@@ -38,14 +42,19 @@ export function reviewFeedbackTarget({
   instanceIds,
   netIds,
   netName,
+  netlistOptions,
 }: {
-  project: Pick<CircuitProject, "id" | "structureRevision" | "source">;
+  project: CircuitProject;
   cell: SchematicDocument;
   hierarchyPath: readonly HierarchyFrame[];
   sourceVersion: string;
   instanceIds: readonly string[];
   netIds: readonly string[];
   netName(id: string): string | undefined;
+  netlistOptions?: Pick<
+    DesignNetlistAnalysisOptions,
+    "format" | "namingProfile"
+  >;
 }): ReviewFeedbackTarget {
   const instances = new Set(instanceIds);
   const nets = new Set(netIds);
@@ -72,12 +81,18 @@ export function reviewFeedbackTarget({
     }
     objects.push(object);
   }
+  const exportedNames = designNetlistNetNames(
+    project,
+    cell.id,
+    [...nets].filter((id) => !netName(id)),
+    netlistOptions,
+  );
   for (const net of cell.nets) {
     if (nets.has(net.id))
       objects.push({
         kind: "net",
         id: net.id,
-        label: netName(net.id) ?? net.id,
+        label: netName(net.id) ?? exportedNames.get(net.id) ?? "(unnamed)",
       });
   }
   return {

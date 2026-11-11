@@ -331,6 +331,7 @@ import {
   useEditorAgentConnection,
   type AgentReviewWorkspaceReader,
 } from "./use-agent-hosts";
+import { useOwnReferenceOpen } from "../features/editor-shell/own-reference";
 import { reviewFeedbackTarget } from "../features/editor-shell/review-feedback";
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
@@ -5458,8 +5459,9 @@ function WorkspaceEditor({
     nativeWorkspaceSaving,
   });
   const highlightedReviewNetId = highlightedNet?.netId;
+  const reviewPanelOpen = useOwnReferenceOpen();
   const reviewTarget = useMemo(() => {
-    if (!reviewSourceVersion) return undefined;
+    if (!reviewPanelOpen || !reviewSourceVersion) return undefined;
     // An Instance is a target itself. Only explicitly picked wiring adds Nets.
     const netIds = selectionNetIds(
       document,
@@ -5481,8 +5483,13 @@ function WorkspaceEditor({
       instanceIds: visualSelection.instanceIds,
       netIds: netIds.map((id) => logicalNets.byBaseNetId.get(id)?.id ?? id),
       netName: (id) => logicalNets.byBaseNetId.get(id)?.name,
+      netlistOptions: {
+        format: netlistPreferences.format,
+        namingProfile: netlistNamingProfile,
+      },
     });
   }, [
+    reviewPanelOpen,
     reviewSourceVersion,
     document,
     resolver,
@@ -5492,6 +5499,8 @@ function WorkspaceEditor({
     project,
     documentStack,
     logicalNets,
+    netlistPreferences.format,
+    netlistNamingProfile,
   ]);
   useGalleryTabEntry({
     initialGalleryEntryId,
