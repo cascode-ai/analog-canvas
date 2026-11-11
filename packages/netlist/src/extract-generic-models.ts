@@ -1,5 +1,6 @@
-// Generic DIODE, DSCH, NPN, PNP, NJF and PJF cards for a Process without its
-// own, and the findings on parts that lean on a generic model.
+// Generic DIODE, DSCH, NPN, PNP, NJF, PJF, NMOS_DEP and PMOS_DEP cards for a
+// Process without its own, and the findings on parts that lean on a generic
+// model.
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type {
   DesignNetlistInstance,
@@ -269,6 +270,34 @@ export const GENERIC_PMOS_MODEL: DesignNetlistModel = {
 };
 
 /**
+ * The models a depletion MOS takes in every Process, none of which ships
+ * one: each depletion NMOS and PMOS placed from the library binds to
+ * `NMOS_DEP` and `PMOS_DEP`, carried and replaced as the JFETs' cards are, in
+ * a run's SPICE deck too. They are the generic BSIM4 with its threshold moved
+ * past zero, on for VGS = 0 (VTH0 -1 for n-channel, +1 for p-channel), so
+ * they take the nf every MOS carries, which a level-1 card refuses; not any
+ * real device.
+ */
+export const GENERIC_NMOS_DEPLETION_MODEL: DesignNetlistModel = {
+  name: "NMOS_DEP",
+  type: "nmos",
+  parameters: [
+    { name: "level", rawValue: "54" },
+    { name: "vth0", rawValue: "-1" },
+  ],
+  authoredName: true,
+};
+export const GENERIC_PMOS_DEPLETION_MODEL: DesignNetlistModel = {
+  name: "PMOS_DEP",
+  type: "pmos",
+  parameters: [
+    { name: "level", rawValue: "54" },
+    { name: "vth0", rawValue: "1" },
+  ],
+  authoredName: true,
+};
+
+/**
  * The generic targets the editor binds that a SPICE netlist names but does
  * not define (#1420): Abstract's NMOS and PMOS, and SW for a voltage-
  * controlled switch. No one card suits every simulator, as a level-1 card
@@ -351,6 +380,38 @@ export function reportGenericMos(
     "GENERIC_MOS_MODEL",
     `${partList(uses)}, which the netlist defines with ${named.length === 1 ? "a stand-in model" : "stand-in models"}, BSIM4 with its defaults rather than any real device, so it reads back and runs in ngspice and Spectre; set a model for a real device before simulating`,
     named.flatMap(({ parts }) => parts.map((part) => part.id)),
+    "info",
+  );
+}
+
+/**
+ * Which depletion MOS run on the generic cards, one finding for the Cell as
+ * for its JFETs: information, since the netlist runs, but on stand-in
+ * transistors, not on devices anyone chose.
+ */
+export function reportGenericDepletionMos(
+  document: SchematicDocument,
+  used: ReadonlyArray<{
+    model: DesignNetlistModel;
+    parts: readonly DesignNetlistInstance[];
+  }>,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const uses = used.map(({ model, parts }) => {
+    const names = namedParts(document, parts).map((part) => part.name);
+    const values = model.parameters
+      .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
+      .join(", ");
+    return `${partList(names)} ${names.length === 1 ? "uses" : "use"} the generic depletion MOS model ${model.name} (BSIM4, ${values})`;
+  });
+  diagnostic(
+    diagnostics,
+    document.id,
+    "GENERIC_DEPLETION_MOS_MODEL",
+    `${uses.join(", ")}; set a model for a real device`,
+    used.flatMap(({ parts }) =>
+      namedParts(document, parts).map((part) => part.id),
+    ),
     "info",
   );
 }

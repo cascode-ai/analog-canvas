@@ -62,9 +62,11 @@ import {
 import {
   GENERIC_DIODE_MODEL,
   GENERIC_NJF_MODEL,
+  GENERIC_NMOS_DEPLETION_MODEL,
   GENERIC_NMOS_MODEL,
   GENERIC_NPN_MODEL,
   GENERIC_PJF_MODEL,
+  GENERIC_PMOS_DEPLETION_MODEL,
   GENERIC_PMOS_MODEL,
   GENERIC_PNP_MODEL,
   GENERIC_SCHOTTKY_MODEL,
@@ -73,6 +75,7 @@ import {
   reportGenericSchottkys,
   reportUndefinedGenericModels,
   reportGenericBjts,
+  reportGenericDepletionMos,
   reportGenericJfets,
   reportGenericMos,
 } from "./extract-generic-models.js";
@@ -491,6 +494,17 @@ export function extractCell(
     .filter(({ parts }) => parts.length);
   if (genericJfets.length)
     reportGenericJfets(document, genericJfets, diagnostics);
+  const genericDepletion = [
+    GENERIC_NMOS_DEPLETION_MODEL,
+    GENERIC_PMOS_DEPLETION_MODEL,
+  ]
+    .map((model) => ({
+      model,
+      parts: carryGenericCard(model, "mos", !options.run),
+    }))
+    .filter(({ parts }) => parts.length);
+  if (genericDepletion.length)
+    reportGenericDepletionMos(document, genericDepletion, diagnostics);
   // A netlist handed out carries the MOS stand-ins, in either dialect, so it
   // reads back with each part's channel; a run's deck does not (#1420).
   const genericMos = options.run
