@@ -677,12 +677,6 @@ test("a member withdraws their own entry from its tile, then restores or deletes
   // The standard chrome is present, not a bare paragraph.
   await expect(page.getByTestId("gallery-editor-link")).toBeVisible();
   await expect(page.getByTestId("gallery-editor-switch")).toBeVisible();
-  // Its Film link plays the one-minute film; the header has no Arena link.
-  await expect(page.getByTestId("header-film-link")).toHaveAttribute(
-    "href",
-    "/film",
-  );
-  await expect(page.locator('.gallery-chrome a[href="/arena"]')).toHaveCount(0);
   // A rejected circuit says why, and only the Owner can bring it back.
   await expect(page.getByTestId("mine-reason-mine-1")).toContainText(
     "Label the ports",

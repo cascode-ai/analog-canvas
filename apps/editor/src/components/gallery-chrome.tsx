@@ -56,7 +56,7 @@ export function GalleryChrome({
         <a
           className="gallery-film-link"
           href="/film"
-          data-testid="header-film-link"
+          data-testid="gallery-film-link"
           title="Watch the one-minute film"
         >
           <svg viewBox="0 0 16 16" aria-hidden="true">

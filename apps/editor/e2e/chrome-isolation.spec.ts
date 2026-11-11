@@ -114,7 +114,7 @@ test("compacts the editor header at half width and keeps the account role in its
   await expect(page.getByTestId("header-gallery-link")).toBeVisible();
   // The editor's header has no Arena or Film link.
   await expect(page.locator('.app-chrome a[href="/arena"]')).toHaveCount(0);
-  await expect(page.getByTestId("header-film-link")).toHaveCount(0);
+  await expect(page.locator('.app-chrome a[href="/film"]')).toHaveCount(0);
   await expect(page.getByTestId("account-name")).toBeVisible();
   await expect(page.getByTestId("account-owner")).toBeHidden();
 

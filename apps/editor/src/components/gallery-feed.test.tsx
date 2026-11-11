@@ -518,7 +518,7 @@ describe("GalleryFeed", () => {
     expect(markup).toContain('data-testid="gallery-editor-switch"');
     expect(markup).not.toContain("gallery-new-circuit");
     // Film beside it plays the one-minute film; the header has no Arena link.
-    expect(markup).toContain('data-testid="header-film-link"');
+    expect(markup).toContain('data-testid="gallery-film-link"');
     expect(markup).toContain('href="/film"');
     expect(markup).not.toContain('href="/arena"');
     expect(markup).toContain('data-testid="gallery-report-bug"');

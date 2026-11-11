@@ -367,8 +367,7 @@ export function useRestoredTabLinks({
 }
 
 /**
- * Leaves the editor for the Gallery wall or AnalogArena, keeping a recovery
- * copy.
+ * Leaves the editor for the Gallery wall, keeping a recovery copy.
  */
 export function createLeaveEditor({
   project,
@@ -391,7 +390,8 @@ export function createLeaveEditor({
   dropDiscardedWork: ProjectTabSessions["dropDiscardedWork"];
   allowNextBrowserUnload: ReturnType<typeof useUnsavedWorkGuard>;
 }) {
-  // The header's Gallery link and the daily-limit card leave the same way: through the guard for unsaved work, with a recovery copy kept.
+  // The header's Gallery link leaves through the guard for unsaved work, with
+  // a recovery copy kept.
   const leaveFor = (intent: string, path: string) => (): void => {
     void guardDirtyReplacement(
       intent,
