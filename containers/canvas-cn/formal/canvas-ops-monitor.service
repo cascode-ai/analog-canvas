@@ -1,0 +1,20 @@
+[Unit]
+Description=Canvas host capacity, network, backup and TLS monitor
+After=network-online.target
+
+[Service]
+Type=oneshot
+LoadCredential=mail.json:/etc/analog-canvas-formal/sync-alert.json
+StateDirectory=canvas-ops-monitor
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 "@RELEASE@/host_monitor.py" --state-dir /var/lib/canvas-ops-monitor --config %d/mail.json
+TimeoutStartSec=45
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+CapabilityBoundingSet=
+UMask=0077

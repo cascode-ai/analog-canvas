@@ -301,6 +301,49 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(result['status'], 'current')
         self.assertEqual(production.requests, ['/regional-release/current.json'])
 
+    def test_updates_the_existing_host_monitor_without_enabling_a_second_timer(self):
+        (self.units / 'canvas-ops-monitor.service').write_bytes(b'legacy monitor')
+        self.files['host_monitor.py'] = b'monitor'
+        self.files['observations.py'] = b'observations'
+        self.files['canvas-ops-monitor.service'] = b'ExecStart=/usr/bin/python3 "@RELEASE@/host_monitor.py"'
+        self.files['canvas-ops-monitor.timer'] = b'existing schedule'
+        host = FakeHost({'canvas-ops-monitor.timer'})
+        result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual((self.units / 'canvas-ops-monitor.service').read_text(),
+                         f'ExecStart=/usr/bin/python3 "{self.releases.parent / "monitor-releases" / NEW}/host_monitor.py"')
+        self.assertEqual((self.units / 'canvas-ops-monitor.timer').read_bytes(), b'existing schedule')
+        self.assertNotIn(('systemctl', 'enable', '--now', 'canvas-ops-monitor.timer'), host.calls)
+        self.assertNotIn(('systemctl', 'restart', 'canvas-ops-monitor.service'), host.calls)
+
+    def test_failed_release_restores_the_previous_monitor_unit(self):
+        unit = self.units / 'canvas-ops-monitor.service'
+        unit.write_bytes(b'legacy monitor')
+        self.files['host_monitor.py'] = b'monitor'
+        self.files['observations.py'] = b'observations'
+        self.files['canvas-ops-monitor.service'] = b'candidate monitor'
+        self.files['canvas-ops-monitor.timer'] = b'candidate timer'
+        result = release.tick(self.args(0), FakeHost(broken_nginx=True),
+                              FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'rolled-back')
+        self.assertEqual(unit.read_bytes(), b'legacy monitor')
+        self.assertFalse((self.units / 'canvas-ops-monitor.timer').exists())
+
+    def test_older_release_retains_the_pinned_monitor_source_when_pruning(self):
+        pinned = self.releases.parent / 'monitor-releases' / ('c' * 40)
+        pinned.mkdir(parents=True)
+        (pinned / 'host_monitor.py').write_text('monitor')
+        unit = self.units / 'canvas-ops-monitor.service'
+        unit.write_text(f'ExecStart=/usr/bin/python3 "{pinned}/host_monitor.py"')
+        args = self.args(0)
+        args.keep = 0
+        result = release.tick(args, FakeHost(), FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'installed')
+        # This is also the pre-monitor installer's pruning algorithm.
+        release.prune(self.releases, keep={self.current.resolve()}, count=0)
+        self.assertTrue((pinned / 'host_monitor.py').is_file())
+        self.assertIn(str(pinned), unit.read_text())
+
     def test_keeps_the_staged_tls_listener_and_filing_number_across_releases(self):
         self.public_config.write_text(json.dumps({'mode': 'stage', 'filingNumber': '京ICP备12345678号-1'}))
         result = release.tick(self.args(0), FakeHost(), FakeProduction(self.files), now=1000)

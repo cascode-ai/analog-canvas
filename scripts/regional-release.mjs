@@ -48,6 +48,10 @@ export const RELEASE_SOURCES = [
   "sync-alert.py",
   "resource-sync-tick.py",
   "analytics-sync-tick.py",
+  "host_monitor.py",
+  "observations.py",
+  "canvas-ops-monitor.service",
+  "canvas-ops-monitor.timer",
 ];
 
 const slash = (path) => path.replaceAll("\\", "/");
