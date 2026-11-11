@@ -1,11 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import { createEmptyDocument, plainNameDocument } from "@icm/model";
-import { executeTransaction } from "@icm/edit-engine";
+import {
+  buildProjectConnectivityIndex,
+  isVisibleEndpoint,
+  resolveEndpointPoint,
+  resolveRouteGeometry,
+  runErcChecks,
+} from "@icm/derived";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createRoutePath,
+  plainNameDocument,
+} from "@icm/model";
+import {
+  executeTransaction,
+  planPinChangeRouteClearance,
+} from "@icm/edit-engine";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { componentPropertyCodeValue } from "./component-property-code";
+import { chopperWideLabelEdits } from "./component-visual-variants";
 import { configurableLogicGateIds } from "./logic-gate-input-count";
 
 describe("planComponentPropertyCodeEdits", () => {
@@ -517,6 +534,228 @@ describe("planComponentPropertyCodeEdits", () => {
         valueVisible: false,
       }).appearance,
     ).not.toHaveProperty("windingsMirrored");
+  });
+
+  it("draws a wired chopper wide and back, its wires following its pins and its netlist unchanged (#2170)", () => {
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    const project = createEmptyProject("chop", "Chop", "main");
+    let document = project.documents[0]!;
+    document.instances.push({
+      id: "CH1",
+      symbolId: "chopper",
+      reference: "CH1",
+      placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+    });
+    // Its clock label, under the box as a new chopper's stands.
+    document.annotations.push({
+      id: "instance-label-CH1",
+      kind: "instance-label",
+      content: { runs: [{ kind: "text", value: "Φ" }] },
+      anchor: {
+        kind: "object",
+        objectId: "CH1",
+        localOffset: { x: 0, y: 45 },
+        fallbackPosition: { x: 200, y: 245 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    const labelOffset = () =>
+      document.annotations[0]!.anchor.kind === "object"
+        ? document.annotations[0]!.anchor.localOffset
+        : undefined;
+    // Each pin is fed from a Cell Pin 60 out from its side.
+    for (const [pinName, x, y] of [
+      ["INP", 120, 120],
+      ["INN", 120, 280],
+      ["OUTP", 280, 120],
+      ["OUTN", 280, 280],
+    ] as const) {
+      const port = `P-${pinName}`;
+      const netId = `net-${pinName}`;
+      document.instances.push({
+        id: port,
+        symbolId: "port",
+        placement: { position: { x, y }, rotation: 0, mirror: "none" },
+      });
+      document.netlist!.terminals.push({
+        id: `terminal-${pinName}`,
+        name: pinName,
+        netId,
+        direction: "inout",
+        interfaceInstanceIds: [port],
+      });
+      document.nets.push({
+        id: netId,
+        terminals: [
+          { instanceId: "CH1", pinName },
+          { instanceId: port, pinName: "P" },
+        ],
+      });
+      document.routes.push(
+        createRoutePath({
+          id: `wire-${pinName}`,
+          netId,
+          start: { kind: "terminal", instanceId: port, pinName: "P" },
+          end: { kind: "terminal", instanceId: "CH1", pinName },
+          bends: [],
+          modes: ["auto"],
+        }),
+      );
+    }
+    const nets = structuredClone(document.nets);
+    const netlists = () =>
+      (["spice", "spectre"] as const).map((format) => {
+        const result = createDesignNetlistExport(
+          { ...project, documents: [document] },
+          { format },
+        );
+        return result.status === "ready" ? result.file.text : result.status;
+      });
+    const narrowNetlists = netlists();
+    expect(narrowNetlists.every((text) => text.includes("CH1"))).toBe(true);
+    const wide = (next: boolean) => {
+      const edits = planComponentPropertyCodeEdits(
+        document,
+        document.instances[0]!,
+        { placement: null, appearance: { color: "auto", wide: next } },
+      );
+      if (!edits.length) return edits;
+      edits.push(...planPinChangeRouteClearance(document, resolver, edits));
+      const applied = executeTransaction(
+        document,
+        {
+          transactionId: `chopper-wide-${next}`,
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "test" },
+          edits,
+        },
+        { symbolResolver: resolver },
+      );
+      if (!applied.ok) throw new Error(applied.error.message);
+      document = applied.document;
+      return edits;
+    };
+    const value = () =>
+      componentPropertyCodeValue({
+        instance: document.instances[0]!,
+        referenceVisible: true,
+        valueVisible: false,
+      }).appearance.wide;
+    // Where each wire meets the chopper, and that it is drawn there.
+    const ends = () =>
+      document.routes.map((route) => {
+        const end = route.legs.at(-1)!.to;
+        const endpoint = end.kind === "endpoint" ? end.endpoint : route.start;
+        const point = resolveEndpointPoint(document, resolver, endpoint);
+        const geometry = resolveRouteGeometry(document, resolver, route);
+        return {
+          endpoint,
+          at: point,
+          drawnTo: geometry?.segments.at(-1)?.to,
+          visible: isVisibleEndpoint(document, resolver, endpoint),
+        };
+      });
+    const unconnected = () =>
+      runErcChecks(
+        { ...project, documents: [document] },
+        buildProjectConnectivityIndex(
+          { ...project, documents: [document] },
+          resolver,
+        ),
+        resolver,
+      ).filter(
+        (item) =>
+          item.code === "ERC_UNCONNECTED_PIN" ||
+          item.code === "ERC_OVERLAPPING_NETS",
+      );
+
+    expect(value()).toBe(false);
+    expect(wide(true)).toContainEqual({
+      kind: "set_instance_symbol",
+      instanceId: "CH1",
+      symbolId: "chopper",
+      symbolVariantId: "wide",
+    });
+    expect(value()).toBe(true);
+    expect(document.nets).toEqual(nets);
+    // Each wire still ends on its pin, now at the box's corners.
+    expect(
+      ends().map(({ endpoint, at, drawnTo, visible }) => ({
+        endpoint,
+        at,
+        drawnTo,
+        visible,
+      })),
+    ).toEqual(
+      (
+        [
+          ["INP", 180, 160],
+          ["INN", 180, 240],
+          ["OUTP", 220, 160],
+          ["OUTN", 220, 240],
+        ] as const
+      ).map(([pinName, x, y]) => ({
+        endpoint: { kind: "terminal", instanceId: "CH1", pinName },
+        at: { x, y },
+        drawnTo: { x, y },
+        visible: true,
+      })),
+    );
+    expect(unconnected()).toEqual([]);
+    expect(netlists()).toEqual(narrowNetlists);
+    // Its label stands centred a row further under the taller box.
+    expect(labelOffset()).toEqual({ x: 0, y: 65 });
+    expect(wide(true)).toEqual([]);
+
+    wide(false);
+    expect(document.instances[0]!.symbolVariantId).toBeUndefined();
+    expect(document.nets).toEqual(nets);
+    expect(ends().map(({ at }) => at)).toEqual([
+      { x: 180, y: 190 },
+      { x: 180, y: 210 },
+      { x: 220, y: 190 },
+      { x: 220, y: 210 },
+    ]);
+    expect(unconnected()).toEqual([]);
+    expect(netlists()).toEqual(narrowNetlists);
+    expect(labelOffset()).toEqual({ x: 0, y: 45 });
+    // Turned a quarter, its label beside the box stays where it is.
+    expect(
+      chopperWideLabelEdits(
+        document,
+        {
+          ...document.instances[0]!,
+          placement: {
+            position: { x: 200, y: 200 },
+            rotation: 90,
+            mirror: "none",
+          },
+        },
+        true,
+      ),
+    ).toEqual([]);
+    // A label above, nudged aside, stands centred a row above the wide box.
+    const above = structuredClone(document);
+    const label = above.annotations[0]!;
+    if (label.anchor.kind !== "object") throw new Error("label unanchored");
+    label.anchor.localOffset = { x: 5, y: -45 };
+    const [moved] = chopperWideLabelEdits(above, above.instances[0]!, true);
+    expect(
+      moved?.kind === "upsert_schematic_annotation" &&
+        moved.annotation.anchor.kind === "object" &&
+        moved.annotation.anchor.localOffset,
+    ).toEqual({ x: 0, y: -65 });
+    // Only a chopper offers the choice.
+    expect(
+      componentPropertyCodeValue({
+        instance: { id: "S1", symbolId: "simple-switch", placement: null },
+        referenceVisible: true,
+        valueVisible: false,
+      }).appearance,
+    ).not.toHaveProperty("wide");
   });
 
   it("shows an op-amp's supply pins and keeps them shown as its form changes (#1833, #1941)", () => {

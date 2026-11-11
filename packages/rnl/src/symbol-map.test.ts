@@ -3,8 +3,13 @@ import { describe, expect, it } from "vitest";
 import { deviceDescriptor, subcircuitDescriptor } from "@icm/devices";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
-import { builtInSymbols } from "@icm/symbols";
+import {
+  builtInSymbols,
+  variantHiddenPinNames,
+  variantPinAt,
+} from "@icm/symbols";
 
+import { inlineRnlDefinition } from "./inline-symbols.js";
 import { orientPoint } from "./orientation.js";
 import { toRnlPoint } from "./place.js";
 import {
@@ -98,6 +103,36 @@ describe("the RNL symbol list", () => {
       package: "rnl-std-functional",
     });
     expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");
+  });
+
+  it("draws the wide chopper with its own symbol, defined in the file (#2170)", () => {
+    const narrow = rnlSymbolFor("chopper")!;
+    const wide = rnlSymbolFor("chopper", "wide")!;
+    expect(wide).toMatchObject({
+      symbol: "$CANVAS_CHOPPER_WIDE",
+      inline: true,
+      package: "",
+      ac: "chopper",
+      variant: "wide",
+      terminals: narrow.terminals,
+      undrawnPins: narrow.undrawnPins,
+    });
+    // The pins keep their terminals and move to the box's corners.
+    expect(wide.pins.map((pin) => [pin.acPin, pin.terminal, pin.at])).toEqual([
+      ["INP", 1, [-2, 4]],
+      ["INN", 2, [-2, -4]],
+      ["OUTP", 3, [2, 4]],
+      ["OUTN", 4, [2, -4]],
+    ]);
+    const definition = inlineRnlDefinition(wide);
+    expect(definition.box).toEqual([-2.4, -4.4, 2.4, 4.4]);
+    expect(definition.prims).toHaveLength(7);
+    // The narrow chopper still comes from the published package.
+    expect(narrow).toMatchObject({
+      symbol: "$CANVAS_CHOPPER",
+      package: "analog-canvas-extensions",
+    });
+    expect(narrow.inline).toBeUndefined();
   });
 
   it("preserves controlled-source circles and diamonds and reads legacy aliases", () => {
@@ -202,11 +237,14 @@ describe("the RNL symbol list", () => {
         )
           ? null
           : symbol.defaultVariantId);
-      const hidden = new Set(
-        symbol.variants?.find((variant) => variant.id === variantId)
-          ?.hiddenPinNames ?? [],
+      const variant = symbol.variants?.find(
+        (candidate) => candidate.id === variantId,
       );
-      const shown = symbol.pins.filter((pin) => !hidden.has(pin.name));
+      // A pin the variant moves is shown where it moves it (#2170).
+      const hidden = variantHiddenPinNames(variant);
+      const shown = symbol.pins
+        .filter((pin) => !hidden.has(pin.name))
+        .map((pin) => ({ ...pin, at: variantPinAt(variant, pin) }));
       expect(entry.pins.map((pin) => pin.acPin).sort(), entry.symbol).toEqual(
         shown.map((pin) => pin.name).sort(),
       );

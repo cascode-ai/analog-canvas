@@ -4,7 +4,11 @@ import {
 } from "@icm/derived";
 import { transformPoint } from "@icm/model";
 import type { Instance, Point, SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import {
+  variantHidesPin,
+  variantPinAt,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 /**
  * A pin that came close to a wire without touching it.
@@ -79,13 +83,13 @@ export function findPlacementNearMisses(
     // describe something invisible — same visibility rule as placement
     // contact resolution.
     if (
-      resolved.variant?.hiddenPinNames.includes(pin.name) ||
+      variantHidesPin(resolved.variant, pin.name) ||
       pin.presentation.visibility === "implicit"
     ) {
       continue;
     }
     const at = transformPoint(
-      pin.at,
+      variantPinAt(resolved.variant, pin),
       instance.placement.position,
       instance.placement,
     );

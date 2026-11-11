@@ -102,7 +102,9 @@ the RNL language and its runtime belong to rnl.
   registration point and turned by one of RNL's eight orientations. RNL's
   standard 4-input gates put their inputs on whole grid points, Analog
   Canvas's 0.8 apart, so its own (`$CANVAS_AND_4INPUT` and the rest) keep
-  each wire as drawn.
+  each wire as drawn. The wide chopper, which no package draws, is defined
+  in the file (`$CANVAS_CHOPPER_WIDE`) with the `$CANVAS_CHOPPER` terminals,
+  its pins at the box's corners, and reads back wide.
 - RNL binds a symbol's pin to the terminal at that position of the instance
   line. A subcircuit call that prints a library symbol's pins elsewhere, such
   as a gate Cell whose ports start with its supplies, is drawn with the same

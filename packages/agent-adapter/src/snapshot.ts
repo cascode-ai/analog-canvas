@@ -26,6 +26,7 @@ import type {
 } from "@icm/model";
 import {
   resolveInstanceSymbol,
+  variantHiddenPinNames,
   type SymbolPin,
   type SymbolResolver,
 } from "@icm/symbols";
@@ -560,7 +561,7 @@ export function selectAgentInstances(
           }
         }
       }
-      const hidden = new Set(resolved?.variant?.hiddenPinNames ?? []);
+      const hidden = variantHiddenPinNames(resolved?.variant);
       const parameters = Object.fromEntries(
         Object.entries(instance.netlist?.parameters ?? {}).sort(
           ([left], [right]) => left.localeCompare(right, "en"),

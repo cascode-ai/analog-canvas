@@ -4,7 +4,7 @@ import type { BodyPortOrder } from "@icm/netlist";
 import { builtInSymbols, type SymbolDefinition } from "@icm/symbols";
 
 import list from "./symbol-list.json";
-import { inlineRnlSymbols } from "./inline-symbols.js";
+import { inlineRnlSymbols, inlineRnlVariantSymbols } from "./inline-symbols.js";
 import type { RnlOrient } from "./orientation.js";
 import type { RnlPoint } from "./place.js";
 
@@ -104,30 +104,33 @@ interface ListEntry {
 
 const point = (values: readonly number[]): RnlPoint => [values[0]!, values[1]!];
 
-export const RNL_SYMBOLS: readonly RnlSymbol[] = [
-  ...(list as ListEntry[]).map((entry) => ({
-    symbol: entry.symbol,
-    orient: entry.orient,
-    importOnly: entry.import_only ?? false,
-    definition: entry.definition,
-    package: entry.package,
-    ac: entry.ac,
-    variant: entry.variant,
-    terminals: entry.terminals,
-    offset: point(entry.offset),
-    pins: entry.pins.map((pin) => ({
-      terminal: pin.terminal,
-      acPin: pin.ac_pin,
-      at: point(pin.at),
-      dir: pin.dir,
-    })),
-    undrawnPins: entry.undrawn_pins.map((pin) => ({
-      terminal: pin.terminal,
-      acPin: pin.ac_pin,
-    })),
-    acNetlistOrder: entry.ac_netlist_order,
+const LISTED: readonly RnlSymbol[] = (list as ListEntry[]).map((entry) => ({
+  symbol: entry.symbol,
+  orient: entry.orient,
+  importOnly: entry.import_only ?? false,
+  definition: entry.definition,
+  package: entry.package,
+  ac: entry.ac,
+  variant: entry.variant,
+  terminals: entry.terminals,
+  offset: point(entry.offset),
+  pins: entry.pins.map((pin) => ({
+    terminal: pin.terminal,
+    acPin: pin.ac_pin,
+    at: point(pin.at),
+    dir: pin.dir,
   })),
+  undrawnPins: entry.undrawn_pins.map((pin) => ({
+    terminal: pin.terminal,
+    acPin: pin.ac_pin,
+  })),
+  acNetlistOrder: entry.ac_netlist_order,
+}));
+
+export const RNL_SYMBOLS: readonly RnlSymbol[] = [
+  ...LISTED,
   ...inlineRnlSymbols,
+  ...inlineRnlVariantSymbols(LISTED),
 ];
 
 /** The terminal an Analog Canvas pin connects, drawn or hidden by the variant. */

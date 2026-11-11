@@ -2649,7 +2649,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     reviewStatus: "reviewed",
     provenance: "house",
     houseReason:
-      "A chopper does not appear on the reviewed page; it is drawn here as chopper-stabilized amplifiers draw it, a crossed box as tall as the op-amp body and about a quarter as wide, its pins on the op-amp's input rows.",
+      "A chopper does not appear on the reviewed page; it is drawn here as chopper-stabilized amplifiers draw it, a crossed box as tall as the op-amp body and about a quarter as wide, its pins on the op-amp's input rows. Its wide variant draws the box 80 tall with a pin at each corner, as papers draw a chopper between a differential pair's two branches, 80 apart at the house pitch.",
     pinOrder: ["INP", "INN", "OUTP", "OUTN"],
     palette: true,
     automaticMappings: [],
@@ -2657,7 +2657,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "Four switches on one clock, straight while it is high and crossed while it is low; SPICE has no single chopper primitive.",
     assetPath: "chopper.json",
     assetHash:
-      "5042e5a4b1d2784b28b0ded160f49c3b69bb7057f95a0e502aef625f63498208",
+      "be4e25bf653bc716b49b363f0658b58bcf7006e1d487a5c41acea4efe3fbed0f",
   },
   {
     symbolId: "variable-capacitor",
@@ -24066,6 +24066,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+        part: "lead",
       },
       {
         kind: "line",
@@ -24082,6 +24083,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+        part: "lead",
       },
       {
         kind: "line",
@@ -24098,6 +24100,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+        part: "lead",
       },
       {
         kind: "line",
@@ -24114,6 +24117,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+        part: "lead",
       },
       {
         kind: "path",
@@ -24130,6 +24134,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineJoin: "miter",
           miterLimit: 4,
         },
+        part: "box",
       },
       {
         kind: "line",
@@ -24146,6 +24151,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+        part: "cross",
       },
       {
         kind: "line",
@@ -24162,9 +24168,171 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           lineCap: "butt",
           lineJoin: "miter",
         },
+        part: "cross",
       },
     ],
-    variants: [],
+    variants: [
+      {
+        id: "wide",
+        hiddenPinNames: ["INP", "INN", "OUTP", "OUTN"],
+        auxiliaryPins: [
+          {
+            name: "INP",
+            at: {
+              x: -20,
+              y: -40,
+            },
+            direction: "west",
+          },
+          {
+            name: "INN",
+            at: {
+              x: -20,
+              y: 40,
+            },
+            direction: "west",
+          },
+          {
+            name: "OUTP",
+            at: {
+              x: 20,
+              y: -40,
+            },
+            direction: "east",
+          },
+          {
+            name: "OUTN",
+            at: {
+              x: 20,
+              y: 40,
+            },
+            direction: "east",
+          },
+        ],
+        hiddenPrimitiveParts: ["lead", "box", "cross"],
+        additionalPrimitives: [
+          {
+            kind: "line",
+            from: {
+              x: -20,
+              y: -40,
+            },
+            to: {
+              x: -8,
+              y: -40,
+            },
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+            part: "wide-lead",
+          },
+          {
+            kind: "line",
+            from: {
+              x: -20,
+              y: 40,
+            },
+            to: {
+              x: -8,
+              y: 40,
+            },
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+            part: "wide-lead",
+          },
+          {
+            kind: "line",
+            from: {
+              x: 8,
+              y: -40,
+            },
+            to: {
+              x: 20,
+              y: -40,
+            },
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+            part: "wide-lead",
+          },
+          {
+            kind: "line",
+            from: {
+              x: 8,
+              y: 40,
+            },
+            to: {
+              x: 20,
+              y: 40,
+            },
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+            part: "wide-lead",
+          },
+          {
+            kind: "path",
+            data: "M -8 -40 L 8 -40 L 8 40 L -8 40 Z",
+            bounds: {
+              x: -8,
+              y: -40,
+              width: 16,
+              height: 80,
+            },
+            style: {
+              strokeRole: "emphasis",
+              lineCap: "butt",
+              lineJoin: "miter",
+              miterLimit: 4,
+            },
+            part: "wide-box",
+          },
+          {
+            kind: "line",
+            from: {
+              x: -8,
+              y: -40,
+            },
+            to: {
+              x: 8,
+              y: 40,
+            },
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+            part: "wide-cross",
+          },
+          {
+            kind: "line",
+            from: {
+              x: 8,
+              y: -40,
+            },
+            to: {
+              x: -8,
+              y: 40,
+            },
+            style: {
+              strokeRole: "normal",
+              lineCap: "butt",
+              lineJoin: "miter",
+            },
+            part: "wide-cross",
+          },
+        ],
+      },
+    ],
   },
   {
     schemaVersion: 1,

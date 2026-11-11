@@ -1,5 +1,5 @@
 import type { DesignNetlistInstance, DesignNetlistNode } from "@icm/netlist";
-import { builtInSymbols } from "@icm/symbols";
+import { builtInSymbols, relocatedPin } from "@icm/symbols";
 
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
 import { toRnlPoint } from "./place.js";
@@ -29,9 +29,15 @@ function callSymbol(
 ): RnlSymbol | null {
   const artwork = builtInSymbols.find((symbol) => symbol.id === row.ac);
   if (!artwork) return null;
+  const variant = row.variant
+    ? artwork.variants.find((candidate) => candidate.id === row.variant)
+    : undefined;
   const at = (terminal: number) => order.indexOf(terminal) + 1;
   const pins = row.pins.map((pin) => {
-    const own = artwork.pins.find((item) => item.name === pin.acPin);
+    // Where the variant draws it: the wide chopper's corners (#2170).
+    const own =
+      relocatedPin(variant, pin.acPin) ??
+      artwork.pins.find((item) => item.name === pin.acPin);
     return own
       ? {
           ...pin,

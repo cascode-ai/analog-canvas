@@ -13,7 +13,11 @@ import type {
   SchematicDocument,
   SymbolLocalPoint,
 } from "@icm/model";
-import { resolveSignalFlowPinAt, type SymbolResolver } from "@icm/symbols";
+import {
+  relocatedPin,
+  resolveSignalFlowPinAt,
+  type SymbolResolver,
+} from "@icm/symbols";
 import { mosBulkShouldBeVisible } from "./mos-bulk.js";
 import {
   resolveCommittedDocumentLogicalNets,
@@ -266,9 +270,10 @@ export function endpointKey(endpoint: RouteEndpoint): string {
 /**
  * Returns whether an endpoint participates in the visible wiring graph.
  * Electrical Net membership is intentionally not consulted or mutated here.
- * A variant-hidden pin is an implicit presentation terminal. A base
- * `conditional` pin stays visible until a context-aware policy explicitly
- * proves that hiding it is safe.
+ * A variant-hidden pin is an implicit presentation terminal, unless the
+ * variant moves it elsewhere on its art. A base `conditional` pin stays
+ * visible until a context-aware policy explicitly proves that hiding it is
+ * safe.
  */
 export function isVisibleEndpoint(
   document: SchematicDocument,
@@ -289,6 +294,8 @@ export function isVisibleEndpoint(
   );
   if (!resolved) return false;
   if (resolved.variant?.hiddenPinNames.includes(endpoint.pinName)) {
+    // A pin the variant moves is drawn where it moved to (#2170).
+    if (relocatedPin(resolved.variant, endpoint.pinName)) return true;
     return Boolean(
       endpoint.pinName === "B" &&
       resolved.variant.auxiliaryPins?.some((pin) => pin.name === "B") &&

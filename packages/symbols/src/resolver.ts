@@ -1,5 +1,5 @@
 import { SymbolDefinitionSchema } from "./schema.js";
-import type { SymbolDefinition, SymbolVariant } from "./schema.js";
+import type { SymbolDefinition, SymbolPin, SymbolVariant } from "./schema.js";
 import {
   freezeSnapshot,
   isFrozenSnapshot,
@@ -84,6 +84,54 @@ export function withShownSupplies<
     ...points.map((point) => point.y),
   );
   return { ...box, x, y, width: right - x, height: bottom - y };
+}
+
+type AuxiliaryPin = NonNullable<SymbolVariant["auxiliaryPins"]>[number];
+
+/**
+ * A pin its variant moves rather than hides: hidden where the base symbol
+ * has it and offered back at another spot, as the wide chopper's corners
+ * (#2170). It is drawn there whatever it connects to. A 3-terminal MOS body
+ * offered back is shown only while its bulk asks to be (mosBulkShouldBeVisible),
+ * so a "B" is never a move.
+ */
+export function relocatedPin(
+  variant: SymbolVariant | undefined,
+  pinName: string,
+): AuxiliaryPin | undefined {
+  if (pinName === "B" || !variant?.hiddenPinNames.includes(pinName))
+    return undefined;
+  return variant.auxiliaryPins?.find((pin) => pin.name === pinName);
+}
+
+/** Whether a variant leaves a pin undrawn: hidden, and not moved elsewhere. */
+export function variantHidesPin(
+  variant: SymbolVariant | undefined,
+  pinName: string,
+): boolean {
+  return (
+    Boolean(variant?.hiddenPinNames.includes(pinName)) &&
+    !relocatedPin(variant, pinName)
+  );
+}
+
+/** The pins a variant leaves undrawn: those it hides and does not move. */
+export function variantHiddenPinNames(
+  variant: SymbolVariant | undefined,
+): Set<string> {
+  return new Set(
+    (variant?.hiddenPinNames ?? []).filter(
+      (name) => !relocatedPin(variant, name),
+    ),
+  );
+}
+
+/** Where a variant draws a pin, in the symbol's own frame. */
+export function variantPinAt(
+  variant: SymbolVariant | undefined,
+  pin: SymbolPin,
+): SymbolPin["at"] {
+  return relocatedPin(variant, pin.name)?.at ?? pin.at;
 }
 
 const validatedSymbols = new WeakMap<SymbolDefinition, SymbolDefinition>();

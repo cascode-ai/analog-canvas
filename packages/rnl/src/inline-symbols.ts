@@ -2,8 +2,13 @@ import {
   DIFFERENTIAL_COMPARATOR_TARGET,
   subcircuitDescriptor,
 } from "@icm/devices";
-import { builtInSymbols } from "@icm/symbols";
-import { razaviTextbookProfile } from "@icm/derived";
+import {
+  builtInSymbols,
+  relocatedPin,
+  type SymbolDefinition,
+  type SymbolVariant,
+} from "@icm/symbols";
+import { razaviTextbookProfile, visibleSymbolInkBounds } from "@icm/derived";
 
 import { toRnlPoint } from "./place.js";
 import { rnlLength, symbolShapes } from "./shapes.js";
@@ -90,21 +95,101 @@ export const inlineRnlSymbols: readonly RnlSymbol[] = builtInSymbols.flatMap(
 );
 
 /**
+ * The variants a package row draws in their base form, defined in the file
+ * itself instead, since the published package is fixed: the wide chopper
+ * (#2170). Each keeps its row's terminals, its pins where the variant moves
+ * them.
+ */
+const INLINE_VARIANTS: Readonly<Record<string, readonly string[]>> = {
+  chopper: ["wide"],
+};
+
+const DIRECTION_DEGREES = { east: 0, north: 90, west: 180, south: 270 };
+
+function variantOf(row: Pick<RnlSymbol, "ac" | "variant">): {
+  symbol: SymbolDefinition;
+  variant: SymbolVariant | undefined;
+} {
+  const symbol = builtInSymbols.find((candidate) => candidate.id === row.ac)!;
+  return {
+    symbol,
+    variant: row.variant
+      ? symbol.variants.find((candidate) => candidate.id === row.variant)
+      : undefined,
+  };
+}
+
+export function inlineRnlVariantSymbols(
+  rows: readonly RnlSymbol[],
+): RnlSymbol[] {
+  return Object.entries(INLINE_VARIANTS).flatMap(([ac, variants]) => {
+    const base = rows.find(
+      (row) => row.ac === ac && row.variant === null && !row.importOnly,
+    );
+    if (
+      !base ||
+      base.offset.some((value) => value !== 0) ||
+      base.orient !== "R0"
+    )
+      throw new Error(`No plain RNL row to draw ${ac}'s variants from`);
+    return variants.map((id) => {
+      const { variant } = variantOf({ ac, variant: id });
+      if (!variant) throw new Error(`Unknown variant ${ac}/${id}`);
+      return {
+        ...base,
+        symbol: `${base.symbol}_${id.toUpperCase().replaceAll("-", "_")}`,
+        package: "",
+        inline: true,
+        variant: id,
+        pins: base.pins.map((pin) => {
+          const moved = relocatedPin(variant, pin.acPin);
+          return moved
+            ? {
+                ...pin,
+                at: toRnlPoint(moved.at),
+                dir: DIRECTION_DEGREES[moved.direction],
+              }
+            : pin;
+        }),
+      };
+    });
+  });
+}
+
+/**
+ * A symbol the file defines for a body's own interface, binding the call's
+ * terminals in its own order; a package row's variant binds them as its row
+ * does.
+ */
+export function inlineInterface(row: RnlSymbol): boolean {
+  return row.inline === true && row.variant === null;
+}
+
+/**
  * Exact candidate artwork and positional pins, using the existing define-symbol
  * op: the artwork as the row's variant draws it, with no lead of a hidden
  * supply. `withHiddenLeads` keeps them, as files written from #1939 to #1941
- * draw an op-amp's call symbol.
+ * draw an op-amp's call symbol. A variant the file defines in its own right,
+ * as the wide chopper, draws its own art in its own box (#2170).
  */
 export function inlineRnlDefinition(row: RnlSymbol, withHiddenLeads = false) {
-  const symbol = builtInSymbols.find((candidate) => candidate.id === row.ac)!;
-  const hidden = withHiddenLeads
-    ? []
-    : (symbol.variants.find(
-        (variant) => variant.id === (row.variant ?? symbol.defaultVariantId),
-      )?.hiddenPrimitiveParts ?? []);
-  const drawn = symbol.primitives.filter(
-    (primitive) => !primitive.part || !hidden.includes(primitive.part),
-  );
+  const { symbol, variant } = variantOf(row);
+  const own =
+    variant && INLINE_VARIANTS[symbol.id]?.includes(variant.id)
+      ? variant
+      : undefined;
+  const hidden = own
+    ? (own.hiddenPrimitiveParts ?? [])
+    : withHiddenLeads
+      ? []
+      : (symbol.variants.find(
+          (candidate) =>
+            candidate.id === (row.variant ?? symbol.defaultVariantId),
+        )?.hiddenPrimitiveParts ?? []);
+  const drawn = [
+    ...symbol.primitives,
+    ...(own?.additionalPrimitives ?? []),
+  ].filter((primitive) => !primitive.part || !hidden.includes(primitive.part));
   const prims = drawn.flatMap((primitive) => {
     const shapes = symbolShapes([primitive]);
     if (!shapes)
@@ -117,7 +202,10 @@ export function inlineRnlDefinition(row: RnlSymbol, withHiddenLeads = false) {
       style: { ...shape.style, linewidth: rnlLength(width) },
     }));
   });
-  const { x, y, width, height } = symbol.viewBox;
+  // A variant's box is its ink with its symbol's own viewBox margin.
+  const { x, y, width, height } = own
+    ? variantBox(symbol, own)
+    : symbol.viewBox;
   const [left, top] = toRnlPoint({ x, y });
   const [right, bottom] = toRnlPoint({ x: x + width, y: y + height });
   return {
@@ -186,4 +274,21 @@ function sameProperties(
     entries.length === Object.keys(actual ?? {}).length &&
     entries.every(([key, value]) => actual?.[key] === value)
   );
+}
+
+/** A variant's ink, its pins included, inside its symbol's viewBox margin. */
+function variantBox(symbol: SymbolDefinition, variant: SymbolVariant) {
+  const ink = visibleSymbolInkBounds({ definition: symbol, variant });
+  const base = visibleSymbolInkBounds({ definition: symbol });
+  const left = base.x - symbol.viewBox.x;
+  const top = base.y - symbol.viewBox.y;
+  const right = symbol.viewBox.x + symbol.viewBox.width - (base.x + base.width);
+  const bottom =
+    symbol.viewBox.y + symbol.viewBox.height - (base.y + base.height);
+  return {
+    x: ink.x - left,
+    y: ink.y - top,
+    width: ink.width + left + right,
+    height: ink.height + top + bottom,
+  };
 }

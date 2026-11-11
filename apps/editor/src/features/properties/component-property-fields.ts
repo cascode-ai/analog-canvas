@@ -196,6 +196,13 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     description: "",
     help: "Draw the secondary winding looping away from the primary, as a mirror image, instead of the same way. Only the drawing changes: pins, dots and the netlist stay the same.",
   },
+  {
+    path: "appearance.wide",
+    label: "Wide",
+    kind: "boolean",
+    description: "",
+    help: "Draw the chopper 80 tall with a pin at each corner, to sit between a differential pair's branches, instead of on an op-amp's input rows. Wires follow their pins; the netlist stays the same.",
+  },
 ];
 
 export function colorToRgb(value: string): [number, number, number] {

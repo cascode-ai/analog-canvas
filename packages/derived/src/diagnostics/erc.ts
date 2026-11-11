@@ -7,7 +7,7 @@ import {
   routeEnd,
 } from "@icm/model";
 import type { CircuitProject, RouteEndpoint } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { variantHiddenPinNames, type SymbolResolver } from "@icm/symbols";
 
 import type { ProjectConnectivityIndex } from "../connectivity-index.js";
 import { createEndpointConnectivityClassifier } from "../endpoint-connectivity.js";
@@ -590,7 +590,7 @@ export function runErcChecks(
         instance.symbolVariantId,
       );
       if (!resolved) continue;
-      const hidden = new Set(resolved.variant?.hiddenPinNames ?? []);
+      const hidden = variantHiddenPinNames(resolved.variant);
       for (const pin of resolved.definition.pins) {
         const members =
           document.netlist?.terminals.find(
@@ -1083,7 +1083,7 @@ function reportShortedTwoPinParts(
       instance.symbolVariantId,
     );
     if (!resolved) continue;
-    const hidden = new Set(resolved.variant?.hiddenPinNames ?? []);
+    const hidden = variantHiddenPinNames(resolved.variant);
     const pins = resolved.definition.pins.filter(
       (pin) => !hidden.has(pin.name),
     );
@@ -1478,7 +1478,7 @@ function reportPinsTouchingAnotherNet(
       instance.symbolVariantId,
     );
     if (!resolved) continue;
-    const hidden = new Set(resolved.variant?.hiddenPinNames ?? []);
+    const hidden = variantHiddenPinNames(resolved.variant);
     for (const pin of resolved.definition.pins) {
       if (hidden.has(pin.name)) continue;
       const key = `${instance.id}\u0000${pin.name}`;

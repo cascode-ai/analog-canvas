@@ -4523,7 +4523,52 @@ export const agentRazaviAuthoringCatalog = {
           },
         },
       ],
-      variants: [],
+      variants: [
+        {
+          id: "wide",
+          hiddenPinNames: ["INP", "INN", "OUTP", "OUTN"],
+          auxiliaryPins: [
+            {
+              name: "INP",
+              direction: "west",
+              at: {
+                x: -20,
+                y: -40,
+              },
+            },
+            {
+              name: "INN",
+              direction: "west",
+              at: {
+                x: -20,
+                y: 40,
+              },
+            },
+            {
+              name: "OUTP",
+              direction: "east",
+              at: {
+                x: 20,
+                y: -40,
+              },
+            },
+            {
+              name: "OUTN",
+              direction: "east",
+              at: {
+                x: 20,
+                y: 40,
+              },
+            },
+          ],
+          bounds: {
+            x: -20,
+            y: -40,
+            width: 40,
+            height: 80,
+          },
+        },
+      ],
     },
     {
       symbolId: "variable-capacitor",
