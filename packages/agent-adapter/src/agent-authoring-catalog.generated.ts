@@ -266,6 +266,50 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "polarized-capacitor",
+      name: "Polarized Capacitor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1p",
+        },
+      ],
+      bounds: {
+        x: -11,
+        y: -20,
+        width: 19.06,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "closed-switch",
       name: "Closed Switch",
       category: "switch",
@@ -1390,6 +1434,45 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "schottky-diode",
+      name: "Schottky Diode",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      bounds: {
+        x: -20,
+        y: -7.34,
+        width: 40,
+        height: 14.68,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "externally-controlled-switch",
       name: "Externally Controlled Switch",
       category: "switch",
@@ -1934,6 +2017,45 @@ export const agentRazaviAuthoringCatalog = {
         x: -20.06,
         y: -20,
         width: 36.06,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "ammeter",
+      name: "Ammeter",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
         height: 40,
       },
       pins: [
@@ -3161,6 +3283,204 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "ujt",
+      name: "Unijunction Transistor",
+      category: "transistor",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "rbb",
+          default: "7k",
+        },
+        {
+          name: "eta",
+          default: "0.65",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "E",
+          role: "emitter",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 10,
+          },
+        },
+        {
+          name: "B1",
+          role: "base",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
+        },
+        {
+          name: "B2",
+          role: "base",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "put",
+      name: "Programmable Unijunction Transistor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 40,
+        height: 27.34,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: -20,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "shockley-diode",
+      name: "Shockley Diode",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "vbo",
+          default: "10",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -7.34,
+        width: 40,
+        height: 14.68,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "photoresistor",
+      name: "Photoresistor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "1k",
+        },
+      ],
+      bounds: {
+        x: -15,
+        y: -20,
+        width: 20.38,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "resistor",
       name: "Resistor",
       category: "passive",
@@ -3849,6 +4169,112 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "sine-voltage-source",
+      name: "Sine Voltage Source",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "dc",
+          default: "1",
+        },
+        {
+          name: "waveform",
+          default: "sin",
+          choices: ["dc", "pulse", "sin", "pwl"],
+        },
+        {
+          name: "pwlPoints",
+        },
+        {
+          name: "acMagnitude",
+        },
+        {
+          name: "acPhase",
+        },
+        {
+          name: "low",
+          default: "0",
+        },
+        {
+          name: "high",
+          default: "1",
+        },
+        {
+          name: "delay",
+          default: "0",
+        },
+        {
+          name: "rise",
+          default: "1ps",
+        },
+        {
+          name: "fall",
+          default: "1ps",
+        },
+        {
+          name: "width",
+          default: "5ns",
+        },
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "offset",
+          default: "0",
+        },
+        {
+          name: "amplitude",
+          default: "1",
+        },
+        {
+          name: "frequency",
+          default: "1k",
+        },
+        {
+          name: "damping",
+          default: "0",
+        },
+        {
+          name: "phase",
+          default: "0",
+        },
+      ],
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "vcvs",
       name: "Voltage-Controlled Voltage Source",
       category: "source",
@@ -4087,6 +4513,7 @@ export const agentRazaviAuthoringCatalog = {
       parameters: [
         {
           name: "bv",
+          default: "5.1",
         },
         {
           name: "ibv",
@@ -5209,6 +5636,214 @@ export const agentRazaviAuthoringCatalog = {
         },
       ],
       variants: [],
+    },
+    {
+      symbolId: "opamp-inputs-swapped",
+      name: "Operational Amplifier (swapped inputs)",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "VDD",
+        },
+        {
+          name: "vlow",
+          default: "VSS",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
+      symbolId: "opamp-wide-inputs-swapped",
+      name: "Op Amp Wide (swapped inputs)",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "VDD",
+        },
+        {
+          name: "vlow",
+          default: "VSS",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: -20,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 20,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
     },
     {
       symbolId: "depletion-nmos",

@@ -423,11 +423,19 @@ export function extractDeviceInstance(
       }
     }
   }
+  // A source that declares no parameters is a fixed 0 V one, the ammeter: it
+  // prints `V<ref> a b DC 0` whatever its record holds, so the current
+  // through it can be read and nothing else changes.
+  const fixedZeroSource =
+    definition.deviceClass === "voltage-source" &&
+    definition.parameters.length === 0;
   const projectedParameters =
     definition.deviceClass === "voltage-source" ||
     definition.deviceClass === "current-source"
       ? normalizeIndependentSource(
-          authoredParameters,
+          fixedZeroSource
+            ? [{ name: "dc", rawValue: "0" }]
+            : authoredParameters,
           definition.sourceWaveformDefault ?? "dc",
         )
       : null;

@@ -29,6 +29,11 @@ export interface RazaviSymbolCatalogEntry {
     calibrationPath?: string;
   };
   pinOrder: string[];
+  /**
+   * The letter a block is drawn with while its Reference stays the X call
+   * SPICE needs: a unijunction X1 is drawn Q1, by a display alias.
+   */
+  drawnReferencePrefix?: string;
   palette: boolean;
   automaticMappings: string[];
   manualOnlyReason?: string;
@@ -162,6 +167,25 @@ export function getRazaviCatalogEntry(
   symbolId: string,
 ): RazaviSymbolCatalogEntry | undefined {
   return entriesById.get(symbolId);
+}
+
+/**
+ * The letter a built-in block is drawn with while its Reference stays its X
+ * call: a UJT or PUT is drawn Q1, a Shockley diode D1, by a display alias.
+ */
+export function drawnReferencePrefix(symbolId: string): string | undefined {
+  return entriesById.get(symbolId)?.drawnReferencePrefix;
+}
+
+/** Whether `name` is one such a block is drawn with rather than its Reference. */
+export function isDrawnReferenceName(
+  name: string,
+  prefix: string | undefined,
+): boolean {
+  return (
+    prefix !== undefined &&
+    name.trim().toUpperCase().startsWith(prefix.toUpperCase())
+  );
 }
 
 export function isRazaviProductSymbolId(symbolId: string): boolean {

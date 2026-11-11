@@ -187,6 +187,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "polarized-capacitor",
+    name: "Polarized Capacitor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A polarized (electrolytic) capacitor does not appear on the reviewed page; it is the reviewed Capacitor's straight plate, leads and pins, with the other plate curved and a + mark beside the straight plate, as textbooks draw an electrolytic.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE C card does not say the capacitor is polarized, so an imported C card keeps the plain Capacitor symbol.",
+    assetPath: "polarized-capacitor.json",
+    assetHash:
+      "58597e4339d330679151798ffcae3054a710261eb7f37de879c30d2c915f632a",
+  },
+  {
     symbolId: "closed-switch",
     name: "Closed Switch",
     category: "switch",
@@ -910,6 +927,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "c49c1043ae7a0d5e96ae2eb0e969adfde72b63f389d779a15211ec3d59e60281",
   },
   {
+    symbolId: "schottky-diode",
+    name: "Schottky Diode",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A Schottky diode does not appear on the reviewed page; it is the reviewed Diode body and leads, unchanged, with the cathode bar hooked into the S shape textbooks draw for a metal-semiconductor junction.",
+    pinOrder: ["A", "K"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE D card does not say the junction is a Schottky barrier, so an imported D card keeps the plain Diode symbol.",
+    assetPath: "schottky-diode.json",
+    assetHash:
+      "4cde938cfb578d4417a2fc71dcb59593b6b8d5b2ebf97021ee6ca5256315c385",
+  },
+  {
     symbolId: "externally-controlled-switch",
     name: "Externally Controlled Switch",
     category: "switch",
@@ -1207,6 +1241,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     assetPath: "microphone.json",
     assetHash:
       "0f2809eb08b91e7a2f06be9d99d845b0a3ce69007b8e74700c30764088b54fb1",
+  },
+  {
+    symbolId: "ammeter",
+    name: "Ammeter",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An ammeter does not appear on the reviewed page; it is drawn as textbooks draw a meter, the reviewed Independent Voltage Source's circle, leads and pins with an A inside and no polarity marks.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A 0 V SPICE V card does not say it is a meter, so an imported one keeps the circular voltage source.",
+    assetPath: "ammeter.json",
+    assetHash:
+      "c0cca28ab27ef7fb5c2077c9505f91d04764c53c75ceeb221ca1b76dc45dce70",
   },
   {
     symbolId: "nand-gate",
@@ -2431,6 +2482,77 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "a7f604401b6dd5c790e99506c9d7e4e74fc4181b18c87632f9e07777c7b6e7ce",
   },
   {
+    symbolId: "ujt",
+    name: "Unijunction Transistor",
+    category: "transistor",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A unijunction transistor does not appear on the reviewed page; it is the N-Channel JFET's channel bar and leads on its D and S pins, as base B2 and base B1, with the emitter entering the bar at a slant below its middle and the JFET's filled arrowhead on it pointing into the bar.",
+    pinOrder: ["E", "B1", "B2"],
+    drawnReferencePrefix: "Q",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no unijunction card; it prints as a call of the generated body, the base bar split rbb*eta to B1 and rbb*(1-eta) to B2 with the emitter diode onto the split.",
+    assetPath: "ujt.json",
+    assetHash:
+      "25f9e0a418d595631103b18cd13d4ccc52b791449b4a4466a77103e8ade31529",
+  },
+  {
+    symbolId: "put",
+    name: "Programmable Unijunction Transistor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A programmable unijunction transistor does not appear on the reviewed page; it is the reviewed Diode body, leads and A/K pins, unchanged, as a thyristor is drawn, with the anode gate G leaving the triangle's upper edge near the anode.",
+    pinOrder: ["A", "G", "K"],
+    drawnReferencePrefix: "Q",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no PUT card; it prints as a call of the generated two-transistor body, a PNP from the anode with its base on G and an NPN from G to the cathode.",
+    assetPath: "put.json",
+    assetHash:
+      "447f54afa0991f8a1c7ab8fd10252a40952e8872d8b971fa153b1849ac18fad6",
+  },
+  {
+    symbolId: "shockley-diode",
+    name: "Shockley Diode",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A Shockley (four-layer) diode does not appear on the reviewed page; it is the reviewed Diode body, leads and pins, unchanged, with the cathode bar's foot turned back toward the anode, the four-layer mark textbooks draw.",
+    pinOrder: ["A", "K"],
+    drawnReferencePrefix: "D",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no four-layer diode card; it prints as a call of the generated two-transistor body with its gate inside, breaking over at vbo.",
+    assetPath: "shockley-diode.json",
+    assetHash:
+      "6cfcc450b534fcc93f945e479b110b7ee4ceed8cd3c87ae9d8bbc01269cc8df8",
+  },
+  {
+    symbolId: "photoresistor",
+    name: "Photoresistor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A photoresistor (light-dependent resistor) does not appear on the reviewed page; it is the reviewed Resistor body, leads and pins, unchanged, with two incoming light arrows drawn as the LED's outgoing ones are, turned to point at the body.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE R card does not say the resistor senses light, so an imported R card keeps the plain Resistor symbol.",
+    assetPath: "photoresistor.json",
+    assetHash:
+      "1c00907a1f4d22919c4d411312e71828b45ed9ed6e1cce822a563bb0cae1becc",
+  },
+  {
     symbolId: "resistor",
     name: "Resistor",
     category: "passive",
@@ -2777,6 +2899,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterPath: "scripts/generate-razavi-peripheral-assets.mjs",
       converterVersion: 2,
     },
+  },
+  {
+    symbolId: "sine-voltage-source",
+    name: "Sine Voltage Source",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A sine-wave source does not appear on the reviewed page as its own symbol; it is the reviewed Independent Voltage Source's circle, leads and pins with a one-period sine wave inside in place of the polarity marks, as textbooks draw an AC source.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE V card with a SIN waveform reads back as the circular voltage source, which carries the same waveform.",
+    assetPath: "sine-voltage-source.json",
+    assetHash:
+      "3ebea33c09074b69915f983efe266f9301ca857077afb29c660aca68f68f9067",
   },
   {
     symbolId: "vcvs",
@@ -3918,6 +4057,146 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 0,
           y: 20,
         },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "polarized-capacitor",
+    name: "Polarized Capacitor",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 8.05064,
+          y: -3.233605,
+        },
+        to: {
+          x: -8.05064,
+          y: -3.233605,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -8.05064 6.5 C -2.7 2.144804 2.7 2.144804 8.05064 6.5",
+        part: "curved-plate",
+        bounds: {
+          x: -8.05064,
+          y: 3.233605,
+          width: 16.10128,
+          height: 3.266395,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -3.233605,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 3.233605,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -11,
+          y: -9,
+        },
+        to: {
+          x: -5,
+          y: -9,
+        },
+        part: "positive-mark-horizontal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -8,
+          y: -12,
+        },
+        to: {
+          x: -8,
+          y: -6,
+        },
+        part: "positive-mark-vertical",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -8564,6 +8843,139 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "schottky-diode",
+    name: "Schottky Diode",
+    viewBox: {
+      x: -24,
+      y: -10,
+      width: 48,
+      height: 20,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -8.333334,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -8.333334,
+            y: -6.75,
+          },
+          {
+            x: -8.333334,
+            y: 6.75,
+          },
+          {
+            x: 5.833334,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: 10,
+            y: -4.333334,
+          },
+          {
+            x: 10,
+            y: -7.333334,
+          },
+          {
+            x: 6.666666,
+            y: -7.333334,
+          },
+          {
+            x: 6.666666,
+            y: 7.333334,
+          },
+          {
+            x: 3.333334,
+            y: 7.333334,
+          },
+          {
+            x: 3.333334,
+            y: 4.333334,
+          },
+        ],
+        part: "schottky-cathode",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "externally-controlled-switch",
     name: "Externally Controlled Switch",
     viewBox: {
@@ -9868,6 +10280,133 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         from: {
           x: 0,
           y: 10,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "ammeter",
+    name: "Ammeter",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: 5.25,
+          },
+          {
+            x: 0,
+            y: -5.25,
+          },
+          {
+            x: 4,
+            y: 5.25,
+          },
+        ],
+        part: "upright-letter-a",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -2.666667,
+          y: 1.75,
+        },
+        to: {
+          x: 2.666667,
+          y: 1.75,
+        },
+        part: "upright-letter-a",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
         },
         to: {
           x: 0,
@@ -18858,6 +19397,570 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "ujt",
+    name: "Unijunction Transistor",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 38,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "E",
+        role: "emitter",
+        at: {
+          x: -20,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B1",
+        role: "base",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B2",
+        role: "base",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -20,
+          },
+        ],
+        part: "base-2",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 20,
+          },
+        ],
+        part: "base-1",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4,
+          y: -12.5,
+        },
+        to: {
+          x: -4,
+          y: 12.5,
+        },
+        part: "base-bar",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -20,
+            y: 10,
+          },
+          {
+            x: -14,
+            y: 10,
+          },
+          {
+            x: -4.96,
+            y: 3.22,
+          },
+        ],
+        part: "emitter",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -4.96,
+            y: 3.22,
+          },
+          {
+            x: -8.46,
+            y: 10.22,
+          },
+          {
+            x: -12.66,
+            y: 4.62,
+          },
+        ],
+        part: "emitter-arrow",
+        fill: "foreground",
+        stroke: "none",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "put",
+    name: "Programmable Unijunction Transistor",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 48,
+      height: 34,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "G",
+        role: "gate",
+        at: {
+          x: -10,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -8.333334,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -8.333334,
+            y: -6.75,
+          },
+          {
+            x: -8.333334,
+            y: 6.75,
+          },
+          {
+            x: 5.833334,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: -7.333334,
+        },
+        to: {
+          x: 6.666666,
+          y: 7.333334,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -10,
+            y: -20,
+          },
+          {
+            x: -10,
+            y: -12,
+          },
+          {
+            x: -5.5,
+            y: -5.4,
+          },
+        ],
+        part: "anode-gate",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "shockley-diode",
+    name: "Shockley Diode",
+    viewBox: {
+      x: -24,
+      y: -10,
+      width: 48,
+      height: 20,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -8.333334,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -8.333334,
+            y: -6.75,
+          },
+          {
+            x: -8.333334,
+            y: 6.75,
+          },
+          {
+            x: 5.833334,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: 6.666666,
+            y: -7.333334,
+          },
+          {
+            x: 6.666666,
+            y: 7.333334,
+          },
+          {
+            x: 0,
+            y: 7.333334,
+          },
+        ],
+        part: "four-layer-cathode",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "photoresistor",
+    name: "Photoresistor",
+    viewBox: {
+      x: -18,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "path",
+        data: "M 0 -20 L 0 -8.72093 L 5.372093 -6.395349 L -4.604651 -4.069767 L 5.372093 -1.162791 L -4.988372 1.744186 L 5.372093 4.651163 L -4.604651 7.55814 L 0 8.72093 L 0 20",
+        bounds: {
+          x: -4.988372,
+          y: -20,
+          width: 10.360465,
+          height: 40,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 12,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -15,
+          y: -9,
+        },
+        to: {
+          x: -11,
+          y: -5,
+        },
+        part: "light-arrow-1-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -9,
+            y: -3,
+          },
+          {
+            x: -10.2,
+            y: -6.6,
+          },
+          {
+            x: -12.6,
+            y: -4.2,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-1-head",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -15,
+          y: -3,
+        },
+        to: {
+          x: -11,
+          y: 1,
+        },
+        part: "light-arrow-2-shaft",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -9,
+            y: 3,
+          },
+          {
+            x: -10.2,
+            y: -0.5999999999999996,
+          },
+          {
+            x: -12.6,
+            y: 1.7999999999999998,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-2-head",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
     id: "resistor",
     name: "Resistor",
     viewBox: {
@@ -20649,6 +21752,109 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 13.372093,
         },
         part: "upright-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "sine-voltage-source",
+    name: "Sine Voltage Source",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -6 0 C -4 -6 -2 -6 0 0 C 2 6 4 6 6 0",
+        part: "sine-wave",
+        bounds: {
+          x: -6,
+          y: -4.5,
+          width: 12,
+          height: 9,
+        },
         style: {
           strokeRole: "normal",
           lineCap: "butt",

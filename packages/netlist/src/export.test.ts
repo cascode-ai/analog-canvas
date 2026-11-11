@@ -5,6 +5,7 @@ import {
   createSimulationFolder,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
+import { deviceDescriptor } from "@icm/devices";
 import { importSpiceSources } from "@icm/spice";
 import { analyzeDesignNetlist } from "./extract.js";
 import { printDesignNetlist } from "./printers.js";
@@ -363,6 +364,76 @@ describe("copy/export netlist projection", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "exports an Ammeter as a 0 V source whatever its record holds, in %s",
+    (format) => {
+      const project = createEmptyProject("ammeter-project", "Ammeter");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "A1",
+        symbolId: "ammeter",
+        reference: "A1",
+        placement: null,
+        // A stray value (pasted, or from an Agent) changes nothing.
+        netlist: { parameters: { dc: "5", acMagnitude: "1" } },
+      });
+      document.nets = [
+        { id: "in", terminals: [{ instanceId: "A1", pinName: "+" }] },
+        { id: "out", terminals: [{ instanceId: "A1", pinName: "-" }] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /^VA1 \S+ \S+ DC 0$/mu
+          : /^A1 \(\S+ \S+\) vsource dc=0$/mu,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "exports a placed Sine Voltage Source as a SIN source in %s",
+    (format) => {
+      // As placed: each catalog default, the waveform among them.
+      const placed = Object.fromEntries(
+        deviceDescriptor("sine-voltage-source")!.parameters.flatMap(
+          (parameter) =>
+            parameter.defaultValue === undefined
+              ? []
+              : [[parameter.name, parameter.defaultValue]],
+        ),
+      );
+      expect(placed.waveform).toBe("sin");
+      // An older or Agent record without the waveform still means SIN.
+      const unstated: Record<string, string> = { ...placed };
+      delete unstated.waveform;
+      for (const parameters of [placed, unstated]) {
+        const project = createEmptyProject("sine-project", "Sine");
+        const document = project.documents[0]!;
+        document.instances.push({
+          id: "V1",
+          symbolId: "sine-voltage-source",
+          reference: "V1",
+          placement: null,
+          netlist: { parameters },
+        });
+        document.nets = [
+          { id: "positive", terminals: [{ instanceId: "V1", pinName: "+" }] },
+          { id: "negative", terminals: [{ instanceId: "V1", pinName: "-" }] },
+        ];
+        const result = createDesignNetlistExport(project, { format });
+        expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+        if (result.status !== "ready") return;
+        if (format === "spice")
+          expect(result.file.text).toMatch(
+            /^V1\s+\S+\s+\S+\s+DC 1 SIN\(0 1 1k 0 0 0\)$/mu,
+          );
+        else expect(result.file.text).toContain("type=sine");
+      }
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "exports a Microphone as an independent voltage source with its stimulus in %s",
     (format) => {
       const project = createEmptyProject("microphone-project", "Microphone");
@@ -424,6 +495,60 @@ describe("copy/export netlist projection", () => {
         format === "spice"
           ? /^R1\s+\S+\s+\S+\s+8$/mu
           : /^R1\s+\(\S+ \S+\)\s+resistor r=8$/mu,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "exports a Photoresistor as the resistor it is in %s",
+    (format) => {
+      const project = createEmptyProject("photo-project", "Photoresistor");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "R1",
+        symbolId: "photoresistor",
+        reference: "R1",
+        placement: null,
+        netlist: { parameters: { value: "10k" } },
+      });
+      document.nets = [
+        { id: "a", terminals: [{ instanceId: "R1", pinName: "1" }] },
+        { id: "b", terminals: [{ instanceId: "R1", pinName: "2" }] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /^R1\s+\S+\s+\S+\s+10k$/mu
+          : /^R1\s+\(\S+ \S+\)\s+resistor r=10k$/mu,
+      );
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "exports a Polarized Capacitor as the capacitor it is in %s",
+    (format) => {
+      const project = createEmptyProject("polarized-project", "Polarized");
+      const document = project.documents[0]!;
+      document.instances.push({
+        id: "C1",
+        symbolId: "polarized-capacitor",
+        reference: "C1",
+        placement: null,
+        netlist: { parameters: { value: "10u" } },
+      });
+      document.nets = [
+        { id: "a", terminals: [{ instanceId: "C1", pinName: "1" }] },
+        { id: "b", terminals: [{ instanceId: "C1", pinName: "2" }] },
+      ];
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      expect(result.file.text).toMatch(
+        format === "spice"
+          ? /^C1\s+\S+\s+\S+\s+10u$/mu
+          : /^C1\s+\(\S+ \S+\)\s+capacitor c=10u$/mu,
       );
     },
   );

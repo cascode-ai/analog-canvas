@@ -7,6 +7,7 @@ import {
   initialComponentParameterValues,
   updateComponentParameterValues,
 } from "./component-parameters";
+import { placedInstanceNetlist } from "./placed-instance-netlist";
 import { deviceDescriptor } from "@icm/devices";
 
 describe("component parameter catalogue", () => {
@@ -44,6 +45,12 @@ describe("component parameter catalogue", () => {
       });
     },
   );
+  it("places a Zener with a 5.1 V breakdown, so it exports as placed", () => {
+    // BV builds the Zener's own model; without one export stops at it.
+    expect(placedInstanceNetlist("zener-diode", {})).toEqual({
+      parameters: { bv: "5.1" },
+    });
+  });
   it("exposes a parallel multiplier for both bipolar transistor polarities", () => {
     for (const symbolId of ["npn", "pnp"]) {
       expect(componentParameters(symbolId)).toMatchObject([

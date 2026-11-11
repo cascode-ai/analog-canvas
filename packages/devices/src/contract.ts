@@ -63,6 +63,12 @@ export interface DeviceParameterDefinition {
   readonly defaultValue?: string;
   readonly displayRole:
     "value" | "width" | "length" | "multiplier" | "finger-count" | "none";
+  /**
+   * The textbook name a value prints before itself, its first letter with
+   * the rest subscripted (`VBO` reads V_BO = 10), where the bare value would
+   * not say what it is. Absent, the value prints bare, as a resistor's does.
+   */
+  readonly valueName?: string;
 }
 
 /**

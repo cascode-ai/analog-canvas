@@ -19,7 +19,7 @@ import type {
   RichTextDocument,
   SchematicDocument,
 } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { drawnReferencePrefix, type SymbolResolver } from "@icm/symbols";
 
 /** A selected part that carries a name: a Cell Pin's, or its Reference. */
 interface NamedPart {
@@ -87,7 +87,10 @@ function namedParts(
     if (terminal)
       return [{ instanceId, name: terminal.name, terminalId: terminal.id }];
     if (!instance.reference) return [];
-    const deviceLetter = referenceDeviceLetter(instance.symbolId);
+    // A UJT's Q1 alias takes a Q Reference's look (Q₁).
+    const deviceLetter =
+      referenceDeviceLetter(instance.symbolId) ??
+      drawnReferencePrefix(instance.symbolId);
     return [
       {
         instanceId,

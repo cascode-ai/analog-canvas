@@ -42,7 +42,9 @@ SchematicDocument + Symbol Resolver + optional bounds → validate
   polarity marks stay upright, except free drawing text at a quarter turn
   (`rotation` 90 or 270, no polarity), which reads down or up the page,
   turned about its anchor with its box. Negative-polarity bars stay horizontal, marked
-  by `upright-*-polarity-negative` parts; adder signs are Instance notation
+  by `upright-*-polarity-negative` parts. An `upright-*` mark's line and
+  polyline strokes share its part name and keep upright about the middle of
+  their joint extent (the ammeter's A); adder signs are Instance notation
   ([Razavi](razavi-visual-contract.md#signal-flow-adder-signs)).
 - The Document persists `styleProfileId`, placement, annotations and
   presentation intent; scenes, XML, grid, viewport and overlays are

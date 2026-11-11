@@ -14,6 +14,7 @@ import {
 
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import type { NetlistFormat } from "./net-name-codec.js";
+import { semiconductorDeviceCell } from "./semiconductor-device-models.js";
 
 /**
  * The master a built-in block's call names. An authored target wins: any
@@ -96,11 +97,15 @@ function controlledSource(
  * exceed those rails. The single-ended op-amp is limited and has bodies of
  * its own (generated-models.ts); the fully differential op-amp's outputs sit
  * about `vocm` (ground by default), held there as an ideal CMFB holds them.
+ * A unijunction, PUT or Shockley diode is a body of primitive cards the
+ * same way (semiconductor-device-models.ts).
  */
 export function idealAnalogBlockCell(
   target: string,
   format: NetlistFormat,
 ): DesignNetlistCell | null {
+  const device = semiconductorDeviceCell(target, format);
+  if (device) return device;
   // Every adder body shares the adder's model entry; its signs choose the
   // body and are never a SPICE parameter of it.
   const adderSigns = adderBodySigns(target);

@@ -55,7 +55,9 @@ their IDs, never resolved to the first.
 - References follow the GUI: a device's starts with its prefix (R, C, M, …), a
   `place-cell` instance's with X; omitted, the next free name is taken (`R1`,
   `X2`; a block that emits nothing gets none). A wrong prefix or a used name is
-  rejected with a free name and nothing is placed. To draw another name (op-amp
+  rejected with a free name and nothing is placed. A UJT or PUT is drawn Q1
+  and a Shockley diode D1 by a display alias while its Reference is `X1`; a Q
+  or D `reference` or `set-reference` sets that alias. To draw another name (op-amp
   `X1` as A1) use `set-display-alias {target, text}` (`text:null` restores);
   it survives Project Code and Copy. A Port takes one the same way; a Net
   label takes one by `annotationId` (Net `VEA_OUT` drawn `VEA,OUT`), and its
@@ -75,6 +77,8 @@ their IDs, never resolved to the first.
   parameters. Omitted keys stay; an unsupported key rejects the whole action.
   Show Value uses authored values: scalar parts keep their value, MOS keeps
   its W/L fraction, and geometry R/C shows `W=… L=…` with its non-unit multiplier.
+  A block's value goes by its textbook name where the number alone says
+  nothing: a Shockley diode shows `V_BO = 10`, a UJT `R_BB = 7k`.
   A separate multiplier label shows only while that summary is hidden.
 - A placed Cell shows its Cell name and hides `X1`; `set-instance-display`
   `showReference:true` shows `X1` above it (to tell which block is `x1` in
@@ -161,6 +165,9 @@ their IDs, never resolved to the first.
   (`LIBRARY_PART_NAME_COLLISION` when that name is taken too, or for a Spectre
   call-only part). Only `set-model` reaches the Project's own.
 
+- `opamp-inputs-swapped` / `opamp-wide-inputs-swapped` are `opamp` /
+  `opamp-wide` with IN+ on top (supplies unchanged): place one where the
+  non-inverting input arrives from above.
 - A fully differential amplifier is `opamp-differential-crossed` (compact) or
   `opamp-differential-wide-crossed` by default: each row pairs + with − (IN−
   with OUT+ above, IN+ with OUT− below), so feedback from an output to the
@@ -173,9 +180,12 @@ their IDs, never resolved to the first.
   gate bound to a cell or Cell until its model is cleared.
 - Generic models, reported as netlist information: diodes in Abstract, SKY130,
   IHP SG13G2 or Custom bind `DIODE`, one `.model DIODE D(IS=1e-14 N=1)` per Cell
-  (`GENERIC_DIODE_MODEL`); BJTs in Abstract or Custom, or `set-model`
-  `NPN`/`PNP`, get `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` /
-  `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (`GENERIC_BJT_MODEL`); generic
+  (`GENERIC_DIODE_MODEL`), Schottky diodes `DSCH`,
+  `.model DSCH D(IS=1e-8 N=1.05 RS=1)` (`GENERIC_SCHOTTKY_MODEL`); BJTs in
+  Abstract or Custom, or `set-model` `NPN`/`PNP`, get `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` /
+  `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (`GENERIC_BJT_MODEL`); depletion
+  MOS `NMOS_DEP`/`PMOS_DEP`, BSIM4 with `vth0=-1`/`vth0=1`
+  (`GENERIC_DEPLETION_MOS_MODEL`); generic
   `NMOS`/`PMOS` get BSIM4 stand-ins in a netlist handed out,
   `.model NMOS nmos level=54` / `.model PMOS pmos level=54` in SPICE and
   `model NMOS bsim4 type=n` / `model PMOS bsim4 type=p` in Spectre

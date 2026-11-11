@@ -186,7 +186,7 @@ describe("netlist authoring preferences", () => {
     );
   });
 
-  it("gives preferences saved before the JFETs their stand-ins, keeping every other choice", () => {
+  it("gives preferences saved before the JFETs, Schottky diode and depletion MOS their stand-ins, keeping every other choice", () => {
     const saved = createDefaultNetlistExportPreferences();
     saved.selected = "custom";
     saved.profiles.custom.devices.npn.target = "my_npn";
@@ -196,12 +196,24 @@ describe("netlist authoring preferences", () => {
       const devices: Record<string, unknown> = older.profiles[id].devices;
       delete devices.njfet;
       delete devices.pjfet;
+      delete devices["schottky-diode"];
+      delete devices["depletion-nmos"];
+      delete devices["depletion-pmos"];
     }
     const restored = readNetlistExportPreferences(JSON.stringify(older));
     expect(restored).toEqual(saved);
     for (const id of NETLIST_PROFILE_IDS) {
       expect(restored.profiles[id].devices.njfet.target).toBe("NJF");
       expect(restored.profiles[id].devices.pjfet.target).toBe("PJF");
+      expect(restored.profiles[id].devices["schottky-diode"].target).toBe(
+        "DSCH",
+      );
+      expect(restored.profiles[id].devices["depletion-nmos"].target).toBe(
+        "NMOS_DEP",
+      );
+      expect(restored.profiles[id].devices["depletion-pmos"].target).toBe(
+        "PMOS_DEP",
+      );
     }
   });
 

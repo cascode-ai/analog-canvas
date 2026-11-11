@@ -12,11 +12,13 @@ import {
   LINEAR_CONTROLLED_SOURCE_KINDS,
   controlledSourceExpressionDocument,
   defaultControlledSourceExpression,
+  flattenRichText,
+  labelTextDocument,
   plainNameDocument,
   roleLabelFormat,
 } from "@icm/model";
 import type { Annotation, SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { drawnReferencePrefix, type SymbolResolver } from "@icm/symbols";
 
 import {
   defaultInstanceLabel,
@@ -39,6 +41,49 @@ export interface DefaultInstanceDisplayOptions {
    * placement asks for it; a GUI drop keeps the rows its preview showed.
    */
   readonly clearOfWiring?: boolean;
+  /**
+   * The name a block drawn by another letter than its X Reference shows
+   * (a UJT's Q1): the one its placement asked for. Left out, the next free
+   * one.
+   */
+  readonly drawnName?: string;
+}
+
+/**
+ * The first `prefix` name no part of the drawing shows yet: not a Reference
+ * (a BJT's Q1) and not a display alias (another UJT drawn Q2).
+ */
+function nextDrawnName(
+  document: Pick<SchematicDocument, "instances" | "annotations">,
+  prefix: string,
+): string {
+  const shown = new Set([
+    ...document.instances.flatMap((instance) =>
+      instance.reference ? [instance.reference.toLowerCase()] : [],
+    ),
+    ...document.annotations.flatMap((annotation) =>
+      annotation.kind === "instance-label" &&
+      !annotation.binding &&
+      annotation.content
+        ? [flattenRichText(annotation.content).trim().toLowerCase()]
+        : [],
+    ),
+  ]);
+  let suffix = 1;
+  while (shown.has(`${prefix}${suffix}`.toLowerCase())) suffix += 1;
+  return `${prefix}${suffix}`;
+}
+
+/** A name label drawn with `name`, in a Reference's look (Q₁). */
+function drawnNameContent(
+  name: string,
+  prefix: string,
+  presentation: SchematicDocument["presentation"],
+) {
+  return (
+    roleLabelFormat("device-reference", name, { deviceLetter: prefix }) ??
+    labelTextDocument(name, presentation)
+  );
 }
 
 /** Find the visual annotation, without mistaking older hidden defaults for it. */
@@ -176,6 +221,19 @@ export function defaultInstanceDisplayAnnotations(
             instance.symbolId as "vcvs" | "vccs" | "cccs" | "ccvs",
             instance.reference?.match(/\d+$/u)?.[0] ?? "1",
           ),
+        ),
+      });
+    } else if (drawnReferencePrefix(instance.symbolId)) {
+      // A UJT, PUT or Shockley diode is drawn Q1 or D1, as textbooks name
+      // it, while its Reference stays the X call SPICE needs.
+      const prefix = drawnReferencePrefix(instance.symbolId)!;
+      annotations.push({
+        ...label,
+        binding: undefined,
+        content: drawnNameContent(
+          options.drawnName ?? nextDrawnName(document, prefix),
+          prefix,
+          document.presentation,
         ),
       });
     } else {
@@ -348,6 +406,17 @@ function isSameDefaultProjection(
     candidate.binding?.kind === "instance-reference" &&
     existing.anchor.kind === "object" &&
     existing.anchor.objectId === candidate.binding.instanceId
+  )
+    return true;
+  // A part's drawn name (a UJT's Q1) stands for its name label however that
+  // label shows the name.
+  if (
+    candidate.kind === "instance-label" &&
+    !candidate.binding &&
+    existing.kind === "instance-label" &&
+    existing.anchor.kind === "object" &&
+    candidate.anchor.kind === "object" &&
+    existing.anchor.objectId === candidate.anchor.objectId
   )
     return true;
   const existingBinding = existing.binding;

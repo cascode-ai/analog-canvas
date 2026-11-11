@@ -4,6 +4,7 @@ import {
   displayableInstanceParameter,
   displayableInstanceValue,
   instanceCarriesReference,
+  instanceSupportsValueAnnotation,
 } from "./instance-value.js";
 
 function instance(
@@ -146,6 +147,58 @@ describe("displayableInstanceValue", () => {
       kind: "displayable",
       content: { runs: [bold("3n")] },
     });
+  });
+
+  it("shows a built-in block's value-role parameter as a resistor's value", () => {
+    const block = (symbolId: string, parameters: Record<string, string>) => ({
+      symbolId,
+      netlist: { parameters },
+    });
+    expect(
+      displayableInstanceValue(
+        block("potentiometer", { r: "10k", pos: "0.3" }),
+      ),
+    ).toEqual({ kind: "displayable", content: { runs: [bold("10k")] } });
+    expect(instanceSupportsValueAnnotation({ symbolId: "potentiometer" })).toBe(
+      true,
+    );
+    // A value the bare number would not name prints its textbook name first,
+    // as a winding's does: V_BO = 10, R_BB = 7k.
+    const named = (letter: string, subscript: string, rest: string) => ({
+      kind: "displayable",
+      content: {
+        runs: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [
+              { kind: "text", value: letter },
+              {
+                kind: "span",
+                style: "subscript",
+                children: [{ kind: "text", value: subscript }],
+              },
+              { kind: "text", value: rest },
+            ],
+          },
+        ],
+      },
+    });
+    expect(
+      displayableInstanceValue(block("shockley-diode", { vbo: "10" })),
+    ).toEqual(named("V", "BO", " = 10"));
+    expect(
+      displayableInstanceValue(block("ujt", { rbb: "7k", eta: "0.65" })),
+    ).toEqual(named("R", "BB", " = 7k"));
+    // A block with no value-role parameter still has none to show: a PUT's
+    // peak point is its gate's.
+    expect(displayableInstanceValue(block("put", {})).kind).toBe(
+      "undisplayable",
+    );
+    expect(
+      displayableInstanceValue(block("crystal", { rm: "25", lm: "12.7m" }))
+        .kind,
+    ).toBe("undisplayable");
   });
 
   it("does not invent units for independent source values", () => {

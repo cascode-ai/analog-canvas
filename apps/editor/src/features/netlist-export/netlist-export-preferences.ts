@@ -94,7 +94,8 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   )
     profiles.custom = template;
   for (const id of RETIRED_NETLIST_PROFILE_IDS) delete stored[id as string];
-  // A device family added since the profile was saved (the JFETs) takes its
+  // A device family added since the profile was saved (the JFETs, the
+  // Schottky diode, the depletion MOS) takes its
   // defaults; every family the author already has stays as they left it.
   for (const id of NETLIST_PROFILE_IDS) {
     const devices = profiles[id]?.devices as

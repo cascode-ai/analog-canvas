@@ -48,11 +48,11 @@ function boldDocument(value: string): RichTextDocument {
 }
 
 /**
- * A magnetic device's parameter under its textbook name: the letter, then
- * the rest as its subscript (L₁, L₂, C_B, L_p), followed by any value. A
- * one-letter name such as K stays as it is.
+ * A parameter under its textbook name: the letter, then the rest as its
+ * subscript (a magnetic device's L₁, L₂, C_B, L_p; a block's V_BO),
+ * followed by any value. A one-letter name such as K stays as it is.
  */
-function magneticParameterDocument(label: string, rest = ""): RichTextDocument {
+function textbookNameDocument(label: string, rest = ""): RichTextDocument {
   const match = /^([A-Za-z])([A-Za-z0-9]+)$/u.exec(label);
   if (!match) return boldDocument(`${label}${rest}`);
   return {
@@ -117,7 +117,7 @@ export function displayableInstanceParameter(
   const magnetic = contract.magnetic;
   const named = (rest = "") =>
     magnetic
-      ? magneticParameterDocument(label, rest)
+      ? textbookNameDocument(label, rest)
       : boldDocument(`${label}${rest}`);
   // A multiplier reads as a count of devices, "×8", not "M = 8".
   const counted = (value: string) =>
@@ -277,8 +277,12 @@ export function displayableInstanceValue(
       reason: `${definition.deviceClass} value parameter is empty`,
     };
   }
+  // A block's value whose bare number would not say what it is prints its
+  // textbook name first, as a winding's does: V_BO = 10.
   return {
     kind: "displayable",
-    content: boldDocument(valueText),
+    content: value.valueName
+      ? textbookNameDocument(value.valueName, ` = ${valueText}`)
+      : boldDocument(valueText),
   };
 }

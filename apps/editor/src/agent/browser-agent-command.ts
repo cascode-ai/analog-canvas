@@ -87,6 +87,8 @@ import {
 import {
   builtInSymbols,
   createProjectSymbolResolver,
+  drawnReferencePrefix,
+  isDrawnReferenceName,
   type SymbolResolver,
 } from "@icm/symbols";
 import {
@@ -896,6 +898,20 @@ export function planBrowserAgentCommand(
           changesInterface = true;
           continue;
         }
+        // A UJT asked for as Q1 is drawn Q1 and named the next free X: a Q
+        // Reference would block its netlist call.
+        let drawnName: string | undefined;
+        if (
+          instance.reference &&
+          isDrawnReferenceName(
+            instance.reference,
+            drawnReferencePrefix(instance.symbolId),
+          )
+        ) {
+          drawnName = instance.reference.trim();
+          const { reference: _reference, ...unnamed } = instance;
+          instance = unnamed;
+        }
         instance = namedPlacement(project, document, placed, instance, index);
         placed.push(instance);
         const power = proposedStandalonePowerConnection(document, instance);
@@ -954,6 +970,7 @@ export function planBrowserAgentCommand(
                 : { showDesignator: display.showReference }),
               showValue: display?.showValue === true,
               clearOfWiring: true,
+              ...(drawnName ? { drawnName } : {}),
             },
           ).map((annotation): SchematicEdit => ({
             kind: "upsert_schematic_annotation",

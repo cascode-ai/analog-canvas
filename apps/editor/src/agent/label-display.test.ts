@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  flattenRichText,
   type Annotation,
   type RichTextDocument,
   type RichTextRun,
@@ -206,5 +207,65 @@ describe("an Agent sets how a name label looks (#1881)", () => {
     expect(label().formatOverride?.runs).toHaveLength(2);
     await apply(restyle(label(), asWritten("VDD")));
     expect(label().formatOverride).toEqual(asWritten("VDD"));
+  });
+});
+
+describe("a UJT, PUT or Shockley diode is drawn by its textbook letter", () => {
+  it("draws Q or D by a display alias while its Reference stays the X call", async () => {
+    const { apply, client, document, labelOf } = await editor();
+    const shown = (id: string) => flattenRichText(labelOf(id).content!);
+    const reference = (id: string) =>
+      document().instances.find((instance) => instance.id === id)!.reference;
+    await apply(
+      // A BJT already holds Q1, so the UJT is drawn the next free Q.
+      place("npn", "q", 0, "Q1"),
+      place("ujt", "ujt", 200),
+      place("put", "put", 400),
+      place("shockley-diode", "diode", 600),
+      // Asked for by its drawn name, it is drawn so and named the next X.
+      place("ujt", "named", 800, "Q7"),
+    );
+    expect(["ujt", "put", "diode", "named"].map(shown)).toEqual([
+      "Q2",
+      "Q3",
+      "D1",
+      "Q7",
+    ]);
+    expect(["ujt", "put", "diode", "named"].map(reference)).toEqual([
+      "X1",
+      "X2",
+      "X3",
+      "X4",
+    ]);
+    // In a Reference's look, Q over a subscript 2.
+    expect(labelOf("ujt").content?.runs).toHaveLength(2);
+    expect(labelOf("ujt").binding).toBeUndefined();
+
+    // A Q name sets the alias, an X name the Reference.
+    await apply({
+      kind: "set-reference",
+      target: { kind: "instance", id: "ujt" },
+      reference: "Q5",
+    });
+    expect([shown("ujt"), reference("ujt")]).toEqual(["Q5", "X1"]);
+    await apply({
+      kind: "set-reference",
+      target: { kind: "instance", id: "diode" },
+      reference: "X9",
+    });
+    expect(reference("diode")).toBe("X9");
+    expect(shown("diode")).toBe("D1");
+    // Any other letter still blocks the netlist and is refused.
+    expect(
+      (
+        await client.applyActions([
+          {
+            kind: "set-reference",
+            target: { kind: "instance", id: "put" },
+            reference: "U1",
+          },
+        ])
+      ).ok,
+    ).toBe(false);
   });
 });

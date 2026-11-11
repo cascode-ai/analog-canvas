@@ -129,14 +129,18 @@ derive from `parameters`.
 - MOS pin order is D/G/S/B; hidden pins stay. Decorative symbols have no
   definition; an unsupported electrical Symbol blocks. Sources export only from
   a structural specification, never a display string.
+- An independent voltage source that declares no parameters (the ammeter) is
+  `DC 0` whatever its record holds: SPICE `VA1 a b DC 0`, Spectre
+  `A1 (a b) vsource dc=0`, so the current through it can be probed.
 
 ### Ideal blocks
 
 Bodies live in [analog blocks](../../packages/netlist/src/ideal-analog-block-models.ts),
-[signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts) and
+[signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts),
+[semiconductor devices](../../packages/netlist/src/semiconductor-device-models.ts) and
 [generated models](../../packages/netlist/src/generated-models.ts). Every Block
-but the crystal and the potentiometer declares fixed `VDD`/`VSS` ports; logic
-ports follow Symbol pins.
+but the crystal, the potentiometer and the semiconductor devices declares
+fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
   differential op-amp (unlimited) are frequency-independent E/G sources that
@@ -206,9 +210,26 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `max(r·(1−pos), 1m)` from the wiper to end 2, defaults `r` = 10 kΩ and
   `pos` = 0.5; the 1 mΩ floor keeps a wiper at either end well conditioned. It
   is an `X` call of that body, as the crystal is.
+- Semiconductor devices SPICE has no card for are `X` calls of textbook
+  equivalent circuits, no supplies, each body carrying its own model cards
+  with the generic cards' parameters (`de` the DIODE card, `qn`/`qp` the
+  NPN/PNP cards), so a Project model of any name never reaches them:
+  - Unijunction (`ujt`: `e b1 b2`): `RB1 nb b1 {rbb*eta}`,
+    `RB2 b2 nb {rbb*(1-eta)}` and the emitter diode `DE e nb`; defaults
+    `rbb` = 7 kΩ, `eta` = 0.65. No conductivity modulation, so no negative
+    resistance past the peak point.
+  - PUT (`put`: `a g k`, no parameters): the two-transistor thyristor,
+    `Q1 nk g a qp` and `Q2 g nk k qn`, with `RGK nk k 1Meg` holding the inner
+    gate while both are off and `CGK nk k 10p` giving the switch a finite
+    speed; it fires once A is a diode drop above G.
+  - Shockley diode (`shockley`: `a k`): the same pair with the gate inside,
+    `Q1 p2 n1 a qp`, `Q2 n1 p2 k qn`, the centre junction's avalanche as
+    `VBO n1 nz {vbo-1.9}` and `DBO nz p2 dj`, `RGK p2 k 1k` and
+    `CGK p2 k 10p`; default `vbo` = 10 V. It breaks over at about `vbo`
+    (about 0.65 mA) and holds at about 0.8 V down to about 0.8 mA.
 - SPICE and VACASK include all bodies; Spectre includes comparator,
-  combinational gates (`bsource` with RC delay), the crystal and the
-  potentiometer; DFF,
+  combinational gates (`bsource` with RC delay), the crystal, the
+  potentiometer and the semiconductor devices; DFF,
   multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.
   That call's name is the reader's interface: where a Cell, or an external
   subcircuit or model source, in the netlist defines it, an unbound part
@@ -235,9 +256,12 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 ### Generic models
 
 - Diodes in a Process without its own (Abstract, SKY130, IHP SG13G2, Custom)
-  bind to `DIODE`; Zeners never do and report `MISSING_MODEL_TARGET`. Each Cell
+  bind to `DIODE`; Zeners never do: one is placed with `bv` 5.1, which builds
+  its own SPICE model, and one with neither `bv` nor a model reports
+  `MISSING_MODEL_TARGET`. Each Cell
   naming `DIODE` carries `.model DIODE D(IS=1e-14 N=1)` (information
-  `GENERIC_DIODE_MODEL`).
+  `GENERIC_DIODE_MODEL`). Schottky diodes in every Process bind to `DSCH`,
+  `.model DSCH D(IS=1e-8 N=1.05 RS=1)` (information `GENERIC_SCHOTTKY_MODEL`).
 - BJTs in Abstract or Custom bind to `NPN`/`PNP` with cards
   `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` and
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (information `GENERIC_BJT_MODEL`).
@@ -245,13 +269,18 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `.model NJF NJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)` and
   `.model PJF PJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)` (information
   `GENERIC_JFET_MODEL`); SPICE's PJF takes VTO negative as NJF does.
+- Depletion MOS in every Process bind to `NMOS_DEP`/`PMOS_DEP`, BSIM4 with the
+  threshold moved past zero: `.model NMOS_DEP nmos level=54 vth0=-1` and
+  `.model PMOS_DEP pmos level=54 vth0=1` (information
+  `GENERIC_DEPLETION_MOS_MODEL`), carried in a run's SPICE deck too; Spectre
+  `model NMOS_DEP bsim4 type=n vth0=-1` (`PMOS_DEP` `type=p vth0=1`).
 - A same-name model in the imported SPICE suppresses the card everywhere; one in
   a folder's files only for that folder's runs. The stand-in card itself, as the
   export writes it in SPICE or Spectre (type and parameters, in any case or
   order), suppresses nothing: a netlist the editor wrote, imported again, holds
   it (#1789). VACASK prints `sp_diode`/`sp_bjt`
   (`type=±1`). Spectre export carries native stand-ins with the same parameters:
-  `model DIODE diode is=1e-14 n=1`, `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`,
+  `model DIODE diode is=1e-14 n=1` (`DSCH` likewise), `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`,
   `model PNP bjt type=pnp is=1e-16 bf=50 vaf=50` and
   `model NJF jfet type=n vto=-2 beta=1e-3 lambda=0.01` (`PJF` `type=p`). VACASK
   has no qualified JFET mapping and refuses `NJF`/`PJF` with

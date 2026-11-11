@@ -267,6 +267,9 @@ describe("authoring helper compilation", () => {
     "differential-transconductance",
     "adc",
     "dac",
+    // + on top: the palette op-amps after Swap inputs.
+    "opamp-inputs-swapped",
+    "opamp-wide-inputs-swapped",
   ])(
     "places the reviewed palette part %s, as the GUI palette does (#1303)",
     (symbol) => {

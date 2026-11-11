@@ -14,7 +14,7 @@ function diodeProject(
   diodes: ReadonlyArray<{
     id: string;
     reference: string;
-    symbolId?: "diode" | "zener-diode" | "led";
+    symbolId?: "diode" | "zener-diode" | "led" | "schottky-diode";
     model?: string;
   }>,
 ) {
@@ -118,6 +118,47 @@ describe("the generic diode model (#1310)", () => {
     expect(genericFindings(result).map((item) => item.message)).toEqual([
       "D1 and D2 use the generic diode model DIODE (IS=1e-14, N=1); set a model for a real device",
     ]);
+  });
+
+  it("gives a Schottky diode its own generic barrier card, in each dialect", () => {
+    const project = diodeProject([
+      { id: "d1", reference: "D1" },
+      { id: "d2", reference: "D2", symbolId: "schottky-diode", model: "DSCH" },
+    ]);
+    const result = spice(project);
+    expect(result.file.text).toContain("D2 anode cathode DSCH");
+    expect(result.file.text.split(CARD)).toHaveLength(2);
+    expect(
+      result.file.text.split(".model DSCH D(IS=1e-8 N=1.05 RS=1)"),
+    ).toHaveLength(2);
+    expect(genericFindings(result).map((item) => item.message)).toEqual([
+      "D1 uses the generic diode model DIODE (IS=1e-14, N=1); set a model for a real device",
+    ]);
+    expect(
+      result.diagnostics.filter(
+        (item) => item.code === "GENERIC_SCHOTTKY_MODEL",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "info",
+        objectIds: ["d2"],
+        message:
+          "D2 uses the generic Schottky model DSCH (IS=1e-8, N=1.05, RS=1); set a model for a real device",
+      }),
+    ]);
+    const spectre = createDesignNetlistExport(project, { format: "spectre" });
+    expect(spectre.status).toBe("ready");
+    if (spectre.status === "ready")
+      expect(spectre.file.text).toContain(
+        "model DSCH diode is=1e-8 n=1.05 rs=1",
+      );
+    const printed = printVacaskWithLocations(
+      analyzeDesignNetlist(project).ir!,
+      false,
+    );
+    expect(printed.ok && printed.text).toContain(
+      "model DSCH sp_diode is=1e-8 n=1.05 rs=1",
+    );
   });
 
   it("leaves a diode bound to any other model as it was", () => {

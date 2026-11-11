@@ -49,19 +49,26 @@ export function symbolCategory(symbolId: string): string {
   if (
     [
       "variable-resistor",
+      "photoresistor",
       "variable-capacitor",
+      "polarized-capacitor",
       "variable-inductor",
       "diode",
       "zener-diode",
       "led",
+      "schottky-diode",
+      "shockley-diode",
+      "put",
       "njfet",
       "pjfet",
+      "ujt",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
       "crystal",
       "speaker",
       "microphone",
+      "ammeter",
       "potentiometer",
     ].includes(symbolId)
   ) {
@@ -137,6 +144,7 @@ export function symbolCategory(symbolId: string): string {
   if (
     [
       "voltage-source",
+      "sine-voltage-source",
       "pulse-voltage-source",
       "current-source",
       "vcvs",
@@ -187,7 +195,14 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   port: "Cell Pin",
   "zener-diode": "Zener",
   led: "LED",
+  "schottky-diode": "Schottky",
+  "polarized-capacitor": "Pol Cap",
+  photoresistor: "LDR",
+  "sine-voltage-source": "Sine Src",
   potentiometer: "Pot",
+  ujt: "UJT",
+  put: "PUT",
+  "shockley-diode": "Shockley",
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
 };
@@ -226,11 +241,24 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "port-filled":
     "A solid bias-voltage port, typically used for VB-style bias nodes",
   led: "Light-emitting or laser diode — electrically the Diode",
+  "sine-voltage-source":
+    "Sine voltage source — the Independent Voltage Source with SIN as its waveform",
+  photoresistor:
+    "Photoresistor (light-dependent resistor) — electrically the Resistor",
+  "polarized-capacitor":
+    "Polarized (electrolytic) capacitor — electrically the Capacitor, + on pin 1",
+  "schottky-diode":
+    "Schottky barrier diode — electrically a diode, on the generic DSCH model",
   speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",
   microphone:
     "Microphone — electrically an independent voltage source (DC, AC, SIN…)",
+  ammeter: "Ammeter — a 0 V source in series; probe the current through it",
   potentiometer:
     "Potentiometer — total resistance r, wiper W at fraction pos from end 1",
+  ujt: "Unijunction transistor — base bar rbb split at eta, emitter diode onto it",
+  put: "Programmable unijunction transistor — fires when A rises a diode drop above G",
+  "shockley-diode":
+    "Shockley (four-layer) diode — blocks until vbo, then latches on",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -280,6 +308,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "inductor",
   // Independent sources lead; controlled sources follow in electrical order.
   "voltage-source",
+  "sine-voltage-source",
   "current-source",
   "vcvs",
   "vccs",
@@ -306,19 +335,26 @@ const SYMBOL_ORDER: readonly string[] = [
   "delay-cell",
   "variable-resistor",
   "potentiometer",
+  "photoresistor",
   "variable-capacitor",
+  "polarized-capacitor",
   "variable-inductor",
   "diode",
   "zener-diode",
   "led",
+  "schottky-diode",
+  "shockley-diode",
+  "put",
   "njfet",
   "pjfet",
+  "ujt",
   "tcoil",
   "center-tap-inductor",
   "xfmr",
   "crystal",
   "speaker",
   "microphone",
+  "ammeter",
   "depletion-nmos",
   "depletion-pmos",
   "ndmos",

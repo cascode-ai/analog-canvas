@@ -199,6 +199,65 @@ describe("built-in device registry", () => {
     );
   });
 
+  it("gives the Photoresistor the resistor contract", () => {
+    expect(deviceDescriptor("photoresistor")).toEqual({
+      ...deviceDescriptor("resistor"),
+      id: "photoresistor",
+      symbolId: "photoresistor",
+    });
+    expect(referencePolicyForSymbol("photoresistor")).toEqual(
+      referencePolicyForSymbol("resistor"),
+    );
+  });
+
+  it("gives the Polarized Capacitor the capacitor contract, + on pin 1", () => {
+    expect(deviceDescriptor("polarized-capacitor")).toEqual({
+      ...deviceDescriptor("capacitor"),
+      id: "polarized-capacitor",
+      symbolId: "polarized-capacitor",
+    });
+    expect(referencePolicyForSymbol("polarized-capacitor")).toEqual(
+      referencePolicyForSymbol("capacitor"),
+    );
+  });
+
+  it("gives the Sine Voltage Source the voltage-source contract, SIN by default", () => {
+    const source = deviceDescriptor("voltage-source")!;
+    expect(deviceDescriptor("sine-voltage-source")).toEqual({
+      ...source,
+      id: "sine-voltage-source",
+      symbolId: "sine-voltage-source",
+      sourceWaveformDefault: "sin",
+      parameters: source.parameters.map((parameter) =>
+        parameter.name === "waveform"
+          ? { ...parameter, defaultValue: "sin" }
+          : parameter,
+      ),
+    });
+    expect(referencePolicyForSymbol("sine-voltage-source")).toEqual(
+      referencePolicyForSymbol("voltage-source"),
+    );
+  });
+
+  it("gives the Ammeter a parameterless voltage-source contract, A-prefixed", () => {
+    expect(deviceDescriptor("ammeter")).toEqual({
+      ...deviceDescriptor("voltage-source"),
+      id: "ammeter",
+      symbolId: "ammeter",
+      referencePrefix: "A",
+      parameters: [],
+      capabilities: {
+        supportsModel: false,
+        supportsBulkBinding: false,
+        supportsValueAnnotation: false,
+      },
+    });
+    expect(referencePolicyForSymbol("ammeter")).toMatchObject({
+      kind: "required",
+      prefix: "A",
+    });
+  });
+
   it("gives the Microphone the voltage-source contract, V-prefixed", () => {
     expect(deviceDescriptor("microphone")).toEqual({
       ...deviceDescriptor("voltage-source"),
@@ -211,7 +270,7 @@ describe("built-in device registry", () => {
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(70);
+    expect(builtInSubcircuitDescriptors).toHaveLength(73);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({
@@ -228,6 +287,34 @@ describe("built-in device registry", () => {
     expect(referencePolicyForSymbol("opamp-differential")).toEqual({
       kind: "required",
       prefix: "X",
+    });
+    // A unijunction is a call of its generated body: no supplies, X1.
+    expect(subcircuitDescriptor("ujt")).toMatchObject({
+      target: "ujt",
+      ports: [
+        { name: "e", pinName: "E" },
+        { name: "b1", pinName: "B1" },
+        { name: "b2", pinName: "B2" },
+      ],
+    });
+    expect(referencePolicyForSymbol("ujt")).toEqual({
+      kind: "required",
+      prefix: "X",
+    });
+    expect(subcircuitDescriptor("put")).toMatchObject({
+      target: "put",
+      ports: [
+        { name: "a", pinName: "A" },
+        { name: "g", pinName: "G" },
+        { name: "k", pinName: "K" },
+      ],
+    });
+    expect(subcircuitDescriptor("shockley-diode")).toMatchObject({
+      target: "shockley",
+      ports: [
+        { name: "a", pinName: "A" },
+        { name: "k", pinName: "K" },
+      ],
     });
   });
 

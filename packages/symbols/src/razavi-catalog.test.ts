@@ -1629,6 +1629,172 @@ describe("Razavi symbol catalog", () => {
       });
   });
 
+  it("draws the sine source as the voltage source's circle with a sine inside, unmarked", () => {
+    const source = requireRazaviCatalogSymbol("voltage-source");
+    const sine = requireRazaviCatalogSymbol("sine-voltage-source");
+    expect(sine.pins).toEqual(source.pins);
+    expect(getRazaviCatalogEntry("sine-voltage-source")).toMatchObject({
+      category: "source",
+      provenance: "house",
+      pinOrder: ["+", "-"],
+      palette: true,
+    });
+    const unmarked = source.primitives.filter(
+      (primitive) => !primitive.part?.startsWith("upright-polarity"),
+    );
+    expect(sine.primitives.filter((p) => p.part !== "sine-wave")).toEqual(
+      unmarked,
+    );
+    const wave = sine.primitives.find((p) => p.part === "sine-wave");
+    const circle = source.primitives[0];
+    if (wave?.kind !== "path" || circle?.kind !== "circle")
+      throw new Error("missing wave");
+    // One period, centred, inside the circle.
+    expect(wave.bounds!.x + wave.bounds!.width / 2).toBe(0);
+    expect(wave.bounds!.y + wave.bounds!.height / 2).toBe(0);
+    expect(
+      Math.hypot(wave.bounds!.width, wave.bounds!.height) / 2,
+    ).toBeLessThan(circle.radius);
+  });
+
+  it("draws the ammeter as the voltage source's circle with an A inside, unmarked", () => {
+    const source = requireRazaviCatalogSymbol("voltage-source");
+    const ammeter = requireRazaviCatalogSymbol("ammeter");
+    expect(ammeter.pins).toEqual(source.pins);
+    expect(getRazaviCatalogEntry("ammeter")).toMatchObject({
+      category: "source",
+      provenance: "house",
+      pinOrder: ["+", "-"],
+      palette: true,
+    });
+    const unmarked = source.primitives.filter(
+      (primitive) => !primitive.part?.startsWith("upright-polarity"),
+    );
+    // The A is one upright mark, as the source's polarity marks are.
+    const marked = (p: (typeof ammeter.primitives)[number]) =>
+      p.part === "upright-letter-a";
+    expect(ammeter.primitives.filter((p) => !marked(p))).toEqual(unmarked);
+    const circle = source.primitives[0];
+    const [letter, bar] = ammeter.primitives.filter(marked);
+    if (
+      circle?.kind !== "circle" ||
+      letter?.kind !== "polyline" ||
+      bar?.kind !== "line"
+    )
+      throw new Error("missing letter");
+    // An A: two legs meeting at the top, a bar across them, inside the circle
+    // and centred on it, so it stands in the same place however it turns.
+    const [left, apex, right] = letter.points;
+    expect(apex!.y).toBeLessThan(left!.y);
+    expect(left!.x).toBe(-right!.x);
+    expect(apex!.y).toBe(-left!.y);
+    expect(bar.from.x).toBe(-bar.to.x);
+    for (const point of [...letter.points, bar.from, bar.to])
+      expect(Math.hypot(point.x, point.y)).toBeLessThan(circle.radius);
+  });
+
+  it("draws the photoresistor as the Resistor with two light arrows pointing at it", () => {
+    const resistor = requireRazaviCatalogSymbol("resistor");
+    const photo = requireRazaviCatalogSymbol("photoresistor");
+    expect(photo.pins).toEqual(resistor.pins);
+    expect(getRazaviCatalogEntry("photoresistor")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["1", "2"],
+      palette: true,
+    });
+    expect(photo.primitives[0]).toEqual(resistor.primitives[0]);
+    const body = resistor.primitives[0];
+    if (body?.kind !== "path" || !body.bounds) throw new Error("missing body");
+    const heads = photo.primitives.filter(
+      (primitive) => primitive.kind === "polygon",
+    );
+    const shafts = photo.primitives.filter(
+      (primitive) => primitive.kind === "line",
+    );
+    expect(heads).toHaveLength(2);
+    expect(shafts).toHaveLength(2);
+    // Incoming: each tip is the arrow's point nearest the body, left of it.
+    shafts.forEach((shaft, index) => {
+      const head = heads[index];
+      if (shaft.kind !== "line" || head?.kind !== "polygon")
+        throw new Error("arrow");
+      const tip = head.points[0]!;
+      expect(tip.x).toBeGreaterThan(shaft.to.x);
+      expect(shaft.to.x).toBeGreaterThan(shaft.from.x);
+      expect(tip.x).toBeLessThan(body.bounds!.x);
+      expect(head).toMatchObject({ fill: "foreground", stroke: "none" });
+    });
+  });
+
+  it("draws the polarized capacitor on the Capacitor's pins, + by the straight plate", () => {
+    const capacitor = requireRazaviCatalogSymbol("capacitor");
+    const polarized = requireRazaviCatalogSymbol("polarized-capacitor");
+    expect(polarized.pins).toEqual(capacitor.pins);
+    expect(getRazaviCatalogEntry("polarized-capacitor")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["1", "2"],
+      palette: true,
+    });
+    const [plate, , topLead, bottomLead] = capacitor.primitives;
+    // The straight plate and both leads are the Capacitor's.
+    expect(polarized.primitives.slice(0, 4)).toEqual([
+      plate,
+      expect.objectContaining({ kind: "path", part: "curved-plate" }),
+      topLead,
+      bottomLead,
+    ]);
+    const curved = polarized.primitives[1];
+    if (curved?.kind !== "path" || plate?.kind !== "line")
+      throw new Error("missing plates");
+    // The curved plate bows toward the straight one, its apex on the lead.
+    expect(curved.bounds?.y).toBeCloseTo(-plate.from.y, 6);
+    expect(curved.bounds?.width).toBeCloseTo(plate.from.x - plate.to.x, 6);
+    // The + mark sits beside pin 1's plate, clear of the lead.
+    const marks = polarized.primitives.filter((primitive) =>
+      primitive.part?.startsWith("positive-mark"),
+    );
+    expect(marks).toHaveLength(2);
+    for (const mark of marks) {
+      if (mark.kind !== "line") throw new Error("mark is a line");
+      expect(Math.max(mark.from.y, mark.to.y)).toBeLessThan(plate.from.y);
+      expect(Math.max(mark.from.x, mark.to.x)).toBeLessThan(0);
+    }
+  });
+
+  it("draws the Schottky diode as the Diode with an S-hooked cathode bar", () => {
+    const diode = requireRazaviCatalogSymbol("diode");
+    const schottky = requireRazaviCatalogSymbol("schottky-diode");
+    expect(schottky.pins).toEqual(diode.pins);
+    expect(getRazaviCatalogEntry("schottky-diode")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["A", "K"],
+      palette: true,
+    });
+    const bar = diode.primitives[2];
+    if (bar?.kind !== "line") throw new Error("missing diode bar");
+    // Leads and triangle unchanged; only the bar gains its hooks.
+    expect(schottky.primitives.filter((_, index) => index !== 2)).toEqual(
+      diode.primitives.filter((_, index) => index !== 2),
+    );
+    const cathode = schottky.primitives[2];
+    if (cathode?.kind !== "polyline") throw new Error("missing S cathode");
+    expect(cathode.style).toEqual(bar.style);
+    const [tipTop, top, barTop, barBottom, bottom, tipBottom] = cathode.points;
+    expect([barTop, barBottom]).toEqual([bar.from, bar.to]);
+    // The top hook turns away from the triangle, the bottom one back toward it.
+    expect(top!.y).toBe(barTop!.y);
+    expect(top!.x).toBeGreaterThan(barTop!.x);
+    expect(tipTop!.x).toBe(top!.x);
+    expect(tipTop!.y).toBeGreaterThan(top!.y);
+    expect(bottom!.y).toBe(barBottom!.y);
+    expect(bottom!.x).toBeLessThan(barBottom!.x);
+    expect(tipBottom!.x).toBe(bottom!.x);
+    expect(tipBottom!.y).toBeLessThan(bottom!.y);
+  });
+
   it("draws the JFETs on the MOS pins, the gate arrow into or out of the channel", () => {
     const nmos = requireRazaviCatalogSymbol("nmos");
     const pmos = requireRazaviCatalogSymbol("pmos");
@@ -1681,6 +1847,115 @@ describe("Razavi symbol catalog", () => {
     expect(n.apex - n.base).toBeCloseTo(p.base - p.apex, 6);
     expect(Math.max(n.apex, p.base)).toBeLessThan(channel(njfet));
     expect(channel(pjfet)).toBe(channel(njfet));
+  });
+
+  it("draws the unijunction as the JFET's bar on its D/S pins, the emitter arrow slanting into it", () => {
+    const njfet = requireRazaviCatalogSymbol("njfet");
+    const ujt = requireRazaviCatalogSymbol("ujt");
+    expect(getRazaviCatalogEntry("ujt")).toMatchObject({
+      category: "transistor",
+      provenance: "house",
+      pinOrder: ["E", "B1", "B2"],
+      palette: true,
+    });
+    const pin = (symbol: typeof ujt, name: string) =>
+      symbol.pins.find((item) => item.name === name)!;
+    // B2 and B1 leave the bar where the JFET's drain and source do.
+    expect(pin(ujt, "B2").at).toEqual(pin(njfet, "D").at);
+    expect(pin(ujt, "B1").at).toEqual(pin(njfet, "S").at);
+    expect(pin(ujt, "E")).toMatchObject({
+      at: { x: -20, y: 10 },
+      direction: "west",
+    });
+    const part = (name: string) =>
+      ujt.primitives.find((primitive) => primitive.part === name);
+    const bar = part("base-bar");
+    const arrow = part("emitter-arrow");
+    const emitter = part("emitter");
+    if (
+      bar?.kind !== "line" ||
+      arrow?.kind !== "polygon" ||
+      emitter?.kind !== "polyline"
+    )
+      throw new Error("missing unijunction parts");
+    expect(njfet.primitives).toContainEqual({ ...bar, part: undefined });
+    // The emitter runs in level from E, then slants up into the bar, its
+    // filled arrowhead's tip the emitter's end, just short of the bar.
+    const [start, bend, end] = emitter.points;
+    expect(bend!.y).toBe(start!.y);
+    expect(end!.y).toBeLessThan(bend!.y);
+    expect(arrow).toMatchObject({ fill: "foreground", stroke: "none" });
+    expect(arrow.points[0]).toEqual(end);
+    expect(bar.from.x - end!.x).toBeGreaterThan(0);
+    expect(bar.from.x - end!.x).toBeLessThan(1.5);
+    expect(end!.y).toBeGreaterThan(0);
+    expect(Math.max(...arrow.points.map((point) => point.x))).toBe(end!.x);
+  });
+
+  it("draws the PUT as the Diode with an anode gate off the triangle near the anode", () => {
+    const diode = requireRazaviCatalogSymbol("diode");
+    const put = requireRazaviCatalogSymbol("put");
+    expect(getRazaviCatalogEntry("put")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["A", "G", "K"],
+      palette: true,
+    });
+    expect(put.pins.filter((pin) => pin.name !== "G")).toEqual(diode.pins);
+    expect(
+      put.primitives.filter((primitive) => primitive.part !== "anode-gate"),
+    ).toEqual(diode.primitives);
+    const gate = put.primitives.find(
+      (primitive) => primitive.part === "anode-gate",
+    );
+    const triangle = diode.primitives.find(
+      (primitive) => primitive.kind === "polygon",
+    );
+    if (gate?.kind !== "polyline" || triangle?.kind !== "polygon")
+      throw new Error("missing anode gate");
+    const pin = put.pins.find((item) => item.name === "G")!;
+    expect(gate.points[0]).toEqual(pin.at);
+    // The gate ends on the triangle's upper edge, nearer the anode's side
+    // than the apex.
+    const [anodeTop, , apex] = triangle.points as [
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+    ];
+    const end = gate.points.at(-1)!;
+    const along = (end.x - anodeTop.x) / (apex.x - anodeTop.x);
+    expect(along).toBeGreaterThan(0);
+    expect(along).toBeLessThan(0.5);
+    expect(end.y).toBeCloseTo(anodeTop.y + along * (apex.y - anodeTop.y), 4);
+  });
+
+  it("draws the Shockley diode as the Diode with the cathode bar's foot turned back", () => {
+    const diode = requireRazaviCatalogSymbol("diode");
+    const shockley = requireRazaviCatalogSymbol("shockley-diode");
+    expect(getRazaviCatalogEntry("shockley-diode")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["A", "K"],
+      palette: true,
+    });
+    expect(shockley.pins).toEqual(diode.pins);
+    const isBar = (primitive: (typeof diode.primitives)[number]) =>
+      primitive.kind === "line" && primitive.style?.strokeRole === "emphasis";
+    const bar = diode.primitives.find(isBar);
+    const mark = shockley.primitives.find(
+      (primitive) => primitive.part === "four-layer-cathode",
+    );
+    if (bar?.kind !== "line" || mark?.kind !== "polyline")
+      throw new Error("missing cathode bar");
+    expect(
+      shockley.primitives.filter((primitive) => primitive !== mark),
+    ).toEqual(diode.primitives.filter((primitive) => !isBar(primitive)));
+    // The Diode's bar, then its foot runs back toward the anode.
+    const [top, foot, end] = mark.points;
+    expect([top, foot]).toEqual([bar.from, bar.to]);
+    expect(end!.y).toBe(foot!.y);
+    expect(end!.x).toBeLessThan(foot!.x);
+    expect(mark.style?.strokeRole).toBe("emphasis");
   });
 
   it("uses calibrated MOS and source arrowheads with external voltage polarity marks", () => {

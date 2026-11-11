@@ -646,8 +646,9 @@ function proposeInstanceValueCommit(
     if (labelOnly) {
       showValue = false;
     } else if (assignment) {
+      // A value printed under its textbook name (V_BO = 10) reads it back.
       if (
-        ![parameter, label].some(
+        ![parameter, label, definition?.valueName].some(
           (name) => name?.toLowerCase() === assignment[1]!.toLowerCase(),
         )
       )

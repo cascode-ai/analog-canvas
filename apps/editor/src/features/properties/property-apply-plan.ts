@@ -19,7 +19,11 @@ import {
   instanceParameterContract,
 } from "@icm/devices";
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import {
+  drawnReferencePrefix,
+  isDrawnReferenceName,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 import { snapCoordinate } from "../../snap/engine";
 import { instanceLabelAnnotationFor } from "../instance-display/default-instance-display";
@@ -29,6 +33,7 @@ import { withStruckLabelsArranged } from "../instance-display/struck-label-arran
 import type { ComponentPropertyCodeValue } from "./component-property-code";
 import { planComponentPropertyCodeEdits } from "./component-property-code-edits";
 import { planElectricalMarkerName } from "./electrical-marker-name";
+import { planDisplayAlias, shownPartName } from "./group-naming";
 import { planPropertyContactMove } from "./property-contact-move";
 import { planSwitchControl, switchControlOf } from "./switch-control";
 
@@ -78,7 +83,7 @@ export function planPropertyApply(
   const contract = input.parameters
     ? instanceParameterContract(project, instance)
     : undefined;
-  const value: ComponentPropertyCodeValue =
+  const canonical: ComponentPropertyCodeValue =
     contract && input.parameters
       ? {
           ...input,
@@ -88,6 +93,35 @@ export function planPropertyApply(
           ),
         }
       : input;
+  // A UJT, PUT or Shockley diode renamed Q2 or D2 is drawn so by a display
+  // alias: its Reference stays the X call a Q or D name would block.
+  const drawnPrefix = drawnReferencePrefix(instance.symbolId);
+  const drawn = (name: string | undefined) =>
+    name !== undefined && isDrawnReferenceName(name, drawnPrefix);
+  const shownName = instance.reference
+    ? shownPartName(
+        instanceLabelAnnotationFor(document, instance.id),
+        instance.reference,
+      )
+    : undefined;
+  const drawnName = [canonical.netlistName, canonical.displayName]
+    .filter(drawn)
+    .map((name) => name!.trim())
+    .find((name) => name !== shownName);
+  const {
+    netlistName: _netlistName,
+    displayName: _displayName,
+    ...unnamed
+  } = canonical;
+  const value: ComponentPropertyCodeValue = {
+    ...unnamed,
+    ...(canonical.netlistName !== undefined && !drawn(canonical.netlistName)
+      ? { netlistName: canonical.netlistName }
+      : {}),
+    ...(canonical.displayName !== undefined && !drawn(canonical.displayName)
+      ? { displayName: canonical.displayName }
+      : {}),
+  };
   // Formal Pin names own a Cell interface, never a display alias.
   const formalTerminal = document.netlist?.terminals.find((terminal) =>
     terminal.interfaceInstanceIds.includes(instance.id),
@@ -110,6 +144,25 @@ export function planPropertyApply(
     instance,
     formalTerminal ? nonNameValues : value,
   );
+  if (drawnName !== undefined) {
+    const alias = planDisplayAlias({
+      document,
+      instanceId: instance.id,
+      alias: drawnName,
+      labelFor: instanceLabelAnnotationFor,
+      newLabelFor: (current, instanceId) =>
+        instanceDisplayEdits(current, resolver, [instanceId], {
+          showReference: true,
+        }).flatMap((edit) =>
+          edit.kind === "upsert_schematic_annotation" &&
+          edit.annotation.kind === "instance-label"
+            ? [edit.annotation]
+            : [],
+        )[0],
+    });
+    if (!alias.ok) return { kind: "rejected", message: alias.message };
+    edits.push(...alias.edits);
+  }
   // Swapped inputs and other pin changes draw the wires they stretch clear
   // of other Nets (#1309).
   edits.push(...planPinChangeRouteClearance(document, resolver, edits));

@@ -95,9 +95,17 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("diode")).toBe("Extended Devices");
     expect(symbolCategory("zener-diode")).toBe("Extended Devices");
     expect(symbolCategory("led")).toBe("Extended Devices");
+    expect(symbolCategory("schottky-diode")).toBe("Extended Devices");
+    expect(symbolCategory("polarized-capacitor")).toBe("Extended Devices");
+    expect(symbolCategory("photoresistor")).toBe("Extended Devices");
+    expect(symbolCategory("sine-voltage-source")).toBe("Sources");
     expect(symbolCategory("speaker")).toBe("Extended Devices");
     expect(symbolCategory("microphone")).toBe("Extended Devices");
+    expect(symbolCategory("ammeter")).toBe("Extended Devices");
     expect(symbolCategory("potentiometer")).toBe("Extended Devices");
+    expect(symbolCategory("ujt")).toBe("Extended Devices");
+    expect(symbolCategory("put")).toBe("Extended Devices");
+    expect(symbolCategory("shockley-diode")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("externally-controlled-switch")).toBe("Switches");
@@ -259,19 +267,26 @@ describe("component insertion catalog", () => {
     expect(extended?.symbols.map((symbol) => symbol.id)).toEqual([
       "variable-resistor",
       "potentiometer",
+      "photoresistor",
       "variable-capacitor",
+      "polarized-capacitor",
       "variable-inductor",
       "diode",
       "zener-diode",
       "led",
+      "schottky-diode",
+      "shockley-diode",
+      "put",
       "njfet",
       "pjfet",
+      "ujt",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
       "crystal",
       "speaker",
       "microphone",
+      "ammeter",
       "depletion-nmos",
       "depletion-pmos",
       "ndmos",
@@ -289,6 +304,16 @@ describe("component insertion catalog", () => {
     );
     expect(libraryDisplayName("zener-diode", "Zener Diode")).toBe("Zener");
     expect(libraryDisplayName("led", "LED or Laser Diode")).toBe("LED");
+    expect(libraryDisplayName("schottky-diode", "Schottky Diode")).toBe(
+      "Schottky",
+    );
+    expect(
+      libraryDisplayName("polarized-capacitor", "Polarized Capacitor"),
+    ).toBe("Pol Cap");
+    expect(libraryDisplayName("photoresistor", "Photoresistor")).toBe("LDR");
+    expect(
+      libraryDisplayName("sine-voltage-source", "Sine Voltage Source"),
+    ).toBe("Sine Src");
     expect(libraryDisplayName("potentiometer", "Potentiometer")).toBe("Pot");
     expect(libraryDisplayName("microphone", "Microphone")).toBe("Mic");
     expect(libraryDisplayName("port-filled", "Bias Voltage Port")).toBe(
@@ -345,19 +370,26 @@ describe("reach order inside a category", () => {
     expect(ids("Extended Devices")).toEqual([
       "variable-resistor",
       "potentiometer",
+      "photoresistor",
       "variable-capacitor",
+      "polarized-capacitor",
       "variable-inductor",
       "diode",
       "zener-diode",
       "led",
+      "schottky-diode",
+      "shockley-diode",
+      "put",
       "njfet",
       "pjfet",
+      "ujt",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
       "crystal",
       "speaker",
       "microphone",
+      "ammeter",
       "depletion-nmos",
       "depletion-pmos",
       "ndmos",
