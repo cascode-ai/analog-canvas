@@ -1,6 +1,7 @@
 // Publishing: a submission, an entry's update, and the routes of a
 // publisher's quota, submissions and version history.
 
+import { galleryDetails } from "./gallery-details-request";
 import { designExtractsNetlist } from "@icm/netlist";
 import { galleryComponentCount } from "./gallery-components";
 import {
@@ -353,21 +354,12 @@ export async function handleEntryDetails(
     existing.payload.ownerUserId === user.id;
   if (!privileged && !owner)
     return Response.json({ error: "forbidden" }, { status: 403 });
-  const body = (await request.json().catch(() => null)) as {
-    name?: unknown;
-    description?: unknown;
-  } | null;
-  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
-  const description = fieldText(
-    body?.description,
-    GALLERY_MAX_DESCRIPTION_LENGTH,
-  );
-  if (!name || description === null)
+  const details = galleryDetails(await request.json().catch(() => null));
+  if (!details)
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   const { status, payload } = await callGallery(env, "entry-details", {
     id,
-    name,
-    description,
+    ...details,
     at: new Date().toISOString(),
   });
   return Response.json(payload, {

@@ -11,6 +11,58 @@ import type { ReferenceWindowProps } from "./reference-panel";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
+it("keeps a metadata save's command identity after a lost reply and a page reload", async () => {
+  const entry: GalleryEntryContext = {
+    id: "regional-metadata-test",
+    name: "Original",
+    description: "",
+    projectId: "p1",
+    ownerUserId: "u1",
+    author: "Author",
+    tags: [],
+    hasReference: false,
+  };
+  const keys: (string | null)[] = [];
+  const fetchLike: typeof fetch = async (_input, init) => {
+    keys.push(new Headers(init?.headers).get("idempotency-key"));
+    if (keys.length === 1) throw new TypeError("reply lost");
+    if (keys.length === 2)
+      return Response.json({ error: "action-superseded" }, { status: 409 });
+    return Response.json({ id: entry.id, name: "Renamed", description: "" });
+  };
+  const editAndSave = async () => {
+    const { panel } = await show({
+      openings: 1,
+      entry,
+      session: { id: "u1", isAdmin: false, role: "user", isOwner: false },
+      fetchLike,
+    });
+    await act(async () => {
+      const input = panel().querySelector<HTMLInputElement>(".reference-name")!;
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(input, "Renamed");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () =>
+      panel()
+        .querySelector<HTMLButtonElement>('[data-testid="reference-save"]')!
+        .click(),
+    );
+    await unmount?.();
+    unmount = null;
+  };
+  await editAndSave();
+  await editAndSave();
+  expect(keys[0]).toBeTruthy();
+  expect(keys[1]).toBe(keys[0]);
+  await editAndSave();
+  expect(keys[2]).toBe(keys[0]);
+  await editAndSave();
+  expect(keys[3]).not.toBe(keys[0]);
+});
+
 let unmount: (() => Promise<void>) | null = null;
 afterEach(async () => {
   await unmount?.();

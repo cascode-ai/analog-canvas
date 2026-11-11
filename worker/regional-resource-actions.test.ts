@@ -20,6 +20,104 @@ import { digest } from "./regional-auth-contract";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("keeps owner and moderator metadata permissions in the reverse direction", async () => {
+  const { cn, overseas, publish, auth, cnCookie } = await pair();
+  const id = await publish(cn);
+  const stranger = await signIn(
+    auth.source.authDurable,
+    "metadata-reviewer@example.com",
+  );
+  const patch = (cookie: string, origin = ORIGIN) =>
+    overseas.route(
+      new Request(ORIGIN + `/api/gallery/${id}`, {
+        method: "PATCH",
+        headers: { cookie, origin, "idempotency-key": "review-metadata" },
+        body: JSON.stringify({
+          name: "Moderator name",
+          description: "Moderated",
+        }),
+      }),
+    );
+  expect((await patch(stranger)).status).toBe(403);
+  expect(
+    (
+      await auth.source.authDurable.fetch(
+        new Request(ORIGIN + "/api/auth/users/role", {
+          method: "POST",
+          headers: { cookie: await adminOf(auth.source), origin: ORIGIN },
+          body: JSON.stringify({
+            email: "metadata-reviewer@example.com",
+            role: "moderator",
+          }),
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  expect((await patch(stranger, "https://unrelated.test")).status).toBe(403);
+  expect((await patch(stranger)).status).toBe(200);
+  expect((await (await cn.call(`/api/gallery/${id}`)).json()).entry.name).toBe(
+    "Moderator name",
+  );
+  expect(
+    (
+      await overseas.call(`/api/gallery/${id}`, "PATCH", "invalid-fields", {
+        name: " ",
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    (
+      await cn.route(
+        new Request(ORIGIN + `/api/gallery/${id}`, {
+          method: "PATCH",
+          headers: { cookie: cnCookie, origin: ORIGIN },
+          body: "{",
+        }),
+      )
+    ).status,
+  ).toBe(400);
+});
+
+it("renames a foreign Gallery entry once across a lost reply and keeps later metadata on retry", async () => {
+  const { cn, overseas, publish, loseNextReply } = await pair();
+  const id = await publish(overseas);
+  const input = { name: "Renamed in China", description: "A regional note" };
+  loseNextReply();
+  expect(
+    (await cn.call(`/api/gallery/${id}`, "PATCH", "rename-once", input)).status,
+  ).toBe(503);
+  overseas.restart();
+  const retry = await cn.call(
+    `/api/gallery/${id}`,
+    "PATCH",
+    "rename-once",
+    input,
+  );
+  expect(retry.status, await retry.clone().text()).toBe(200);
+  expect(await retry.json()).toEqual({ id, ...input });
+  expect(
+    (await (await cn.call(`/api/gallery/${id}`)).json()).entry,
+  ).toMatchObject(input);
+  const history = await (
+    await overseas.call(`/api/gallery/${id}/versions`)
+  ).json();
+  expect(history.versions).toHaveLength(1);
+  expect(
+    (
+      await overseas.call(`/api/gallery/${id}`, "PATCH", "later-rename", {
+        name: "Later name",
+        description: "",
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (await cn.call(`/api/gallery/${id}`, "PATCH", "rename-once", input)).status,
+  ).toBe(409);
+  expect((await (await cn.call(`/api/gallery/${id}`)).json()).entry.name).toBe(
+    "Later name",
+  );
+});
+
 async function pair() {
   const auth = accounts();
   const cookie = await makerOf(auth.source);
