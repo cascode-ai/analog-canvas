@@ -318,7 +318,10 @@ the RNL language and its runtime belong to rnl.
     `$CANVAS_*_CIRCLE`; legacy diamond aliases are read-only and export again
     as the standard symbols;
   - a Cell's block as the symbol the file defines for it: each pin's side and
-    place, and the body;
+    place, and the body; an external subcircuit's block as the symbol the
+    file level defines for its calls: each pin where the symbol has it, and
+    its lines, outlines, circles and curves (one with an ellipse or an arc
+    keeps the generated block);
   - Cell Pins, the importer's own, moved where RNL draws `$IO_PORT` (or a
     supply drawn on a port); ground glyphs on ground, supply glyphs claiming
     their net by its own name; a glyph anywhere else is drawn as a floating

@@ -890,6 +890,79 @@ it("keeps a library's bodies the file draws nothing of as the model source they 
   expect(netlist(plan.project)).toBe(netlist(project));
 });
 
+it.each(["spice", "spectre"] as const)(
+  "draws a part bound to a model source's subcircuit with its own artwork again, each pin where it was (%s+RNL)",
+  async (format) => {
+    const project = libraryBoundParts();
+    // X1 calls shaper, drawn as a Project symbol of its own: a triangle with
+    // leads, a mark and a box drawn with H and V legs.
+    project.componentDefinitions = [
+      {
+        symbol: {
+          schemaVersion: 1,
+          id: "shaper-art",
+          name: "Shaper",
+          viewBox: { x: -44, y: -34, width: 88, height: 68 },
+          pins: [
+            {
+              name: "IN",
+              role: "input",
+              at: { x: -40, y: -10 },
+              direction: "west",
+              presentation: { visibility: "visible", leadLength: 10 },
+            },
+            {
+              name: "OUT",
+              role: "output",
+              at: { x: 30, y: 0 },
+              direction: "east",
+              presentation: { visibility: "visible", leadLength: 10 },
+            },
+          ],
+          primitives: [
+            { kind: "line", from: { x: -40, y: -10 }, to: { x: -30, y: -10 } },
+            { kind: "line", from: { x: 20, y: 0 }, to: { x: 30, y: 0 } },
+            { kind: "path", data: "M -30 -30 L -30 30 L 20 0 Z" },
+            { kind: "circle", center: { x: -10, y: 0 }, radius: 4 },
+            { kind: "path", data: "M -20 -8 H -14 V 8 H -20 Z" },
+          ],
+          variants: [],
+        },
+      },
+    ] as unknown as CircuitProject["componentDefinitions"];
+    const part = project.documents[0]!.instances.find(
+      (instance) => instance.id === "X1",
+    )!;
+    part.symbolId = "shaper-art";
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.drawing).not.toBe("discarded");
+    const back = plan.project.documents[0]!.instances.find(
+      (instance) => instance.reference === "X1",
+    )!;
+    expect(back.placement).toEqual(part.placement);
+    const drawn = (item: CircuitProject, symbolId: string) => {
+      const definition = createProjectSymbolResolver(
+        item,
+        builtInSymbols,
+      ).resolve(symbolId)?.definition;
+      return {
+        pins: definition?.pins.map(({ name, at, direction }) => ({
+          name,
+          at,
+          direction,
+        })),
+        primitives: definition?.primitives.map((primitive) => primitive.kind),
+      };
+    };
+    expect(drawn(plan.project, back.symbolId)).toEqual({
+      pins: drawn(project, "shaper-art").pins,
+      // Leads and legs come back as lines and outlines, the mark as a circle.
+      primitives: ["line", "line", "polygon", "circle", "polygon"],
+    });
+  },
+);
+
 /**
  * Labels the import cannot tell from their text alone: a Cell Pin drawn as
  * a supply whose power label shows the Pin's name, a resistor whose name
