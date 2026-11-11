@@ -3,7 +3,7 @@ import { builtInSymbols } from "@icm/symbols";
 
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
 import { toRnlPoint } from "./place.js";
-import type { RnlSymbolRef } from "./rnl-import.js";
+import type { RnlSymbolRef } from "./rnl-snapshot.js";
 import { RNL_SYMBOLS, type RnlSymbol } from "./symbol-map.js";
 
 const DIRECTION = { east: 0, north: 90, west: 180, south: 270 } as const;

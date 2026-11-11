@@ -3,7 +3,7 @@ import type { DesignNetlistInstance } from "@icm/netlist";
 
 import { callSymbolFromDefinition, symbolForCall } from "./call-symbols.js";
 import { inlineRnlDefinition } from "./inline-symbols.js";
-import type { RnlSymbolRef } from "./rnl-import.js";
+import type { RnlSymbolRef } from "./rnl-snapshot.js";
 import { rnlSymbolFor } from "./symbol-map.js";
 
 const call = (

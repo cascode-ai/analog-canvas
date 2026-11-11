@@ -8,7 +8,7 @@ import { razaviTextbookProfile } from "@icm/derived";
 import { toRnlPoint } from "./place.js";
 import { rnlLength, symbolShapes } from "./shapes.js";
 import type { RnlSymbol } from "./symbol-map.js";
-import type { RnlSymbolDefinitionView } from "./rnl-import.js";
+import type { RnlSymbolDefinitionView } from "./rnl-snapshot.js";
 
 /**
  * The bodies no RNL package draws a symbol for. The first stencils list the
