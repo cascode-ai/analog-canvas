@@ -134,6 +134,14 @@ export const StyleOverridesSchema = z.strictObject({
  */
 export const ObjectDocumentStyleSchema = StyleOverridesSchema;
 
+/**
+ * The faces a Document may set all its text in instead of Metropolis
+ * (#1725): Times New Roman's metrics ("serif", Liberation Serif), Arial's
+ * ("sans", Liberation Sans) or LaTeX's ("latin-modern", Latin Modern Roman).
+ */
+export const DOCUMENT_TEXT_FACES = ["serif", "sans", "latin-modern"] as const;
+export type DocumentTextFace = (typeof DOCUMENT_TEXT_FACES)[number];
+
 export const PresentationIntentSchema = z.strictObject({
   styleProfileId: StableIdSchema,
   grid: z.number().int().positive(),
@@ -150,7 +158,7 @@ export const PresentationIntentSchema = z.strictObject({
   /** Slant of the leading character, independent of the subscript. */
   labelFirstLetterItalic: z.boolean().optional(),
   /** The one font of all the Document's text; absent means Metropolis. */
-  textFace: z.enum(["serif"]).optional(),
+  textFace: z.enum(DOCUMENT_TEXT_FACES).optional(),
   /**
    * How a wire crossing that is not a connection draws: "hop" arcs the
    * horizontal wire over the vertical one; absent means a plain cross.

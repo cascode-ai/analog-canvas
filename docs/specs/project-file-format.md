@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Portable file schema: `78`; normalized editor model schema: `58`.
+Portable file schema: `79`; normalized editor model schema: `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec);
 `packages/model` validates the decoded editor model.
@@ -17,12 +17,12 @@ preserves.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project file schema 24 through 78
--> migrate old files or decode 59–78 -> strict runtime model validation -> install unbound
-export -> validate -> encode file schema 78 -> readable canonical JSON -> download
+import text -> parse JSON -> require Project file schema 24 through 79
+-> migrate old files or decode 59–79 -> strict runtime model validation -> install unbound
+export -> validate -> encode file schema 79 -> readable canonical JSON -> download
 ```
 
-- `parseProject` reads schemas 24–78; writers always emit 78. Envelope
+- `parseProject` reads schemas 24–79; writers always emit 79. Envelope
   metadata uses `CURRENT_PROJECT_FILE_VERSION`, never the model version.
   Optional additions keep model 58; older envelopes cannot carry them.
   Member No Connect endpoints require file schema 77.
@@ -45,7 +45,7 @@ export -> validate -> encode file schema 78 -> readable canonical JSON -> downlo
   existing endpoint contact); parsing, Cloud open and recovery stay exact.
 - Canonical serialization ends with one newline and is byte-stable across
   serialize/parse/serialize. `fixtures/projects/compatibility-corpus.json`:
-  `current` entries are already canonical 78; `migrated` witnesses keep source
+  `current` entries are already canonical 79; `migrated` witnesses keep source
   bytes and version and load/save byte-stable; the rejected corpus names
   expected failures.
 - A migrated imported file is dirty; the browser-selected source is never
@@ -149,6 +149,10 @@ Cloud or recovery data.
   crossings as hops ([visual language](visual-language.md#formal-scene));
   absent means plain crossings, so other files keep their bytes. Earlier
   envelopes cannot carry it.
+
+- 79: `presentation.textFace` may also be `"sans"` (Liberation Sans) or
+  `"latin-modern"` (Latin Modern Roman); earlier envelopes carry only
+  `"serif"`. [Export](export.md) owns how each face is served and embedded.
 
 ## One connection source
 

@@ -2,24 +2,38 @@
 
 Called by generate-schematic-fonts.mjs; fontTools is a local generation dependency.
 No font files are modified here. Measurements use em so the two families' units
-per em need not agree. Italic faces retain their own advances.
+per em need not agree. Italic faces retain their own advances. A CFF face
+(Latin Modern Roman) is measured from its own outlines' bounds.
 """
 import json
 import sys
 from pathlib import Path
 
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.ttLib import TTFont
 
 primary_dir, fallback_dir, ranges_json, *rest = sys.argv[1:]
 ranges = json.loads(ranges_json)
-# The primary face's file for each style; Metropolis unless named (the
-# serif choice of #1725 passes Liberation Serif's).
+# The primary face's file for each style; Metropolis unless named (a
+# Document's chosen face, #1725, passes its own).
 primary_files = json.loads(rest[0]) if rest else {
     "plain": "Metropolis-Regular.ttf",
     "bold": "Metropolis-Bold.ttf",
     "italic": "Metropolis-RegularItalic.ttf",
     "boldItalic": "Metropolis-BoldItalic.ttf",
 }
+
+
+def horizontal_ink(font, glyph_name, advance):
+    """The outline's left and right edge in font units; an empty glyph inks
+    from 0 to its advance."""
+    if "glyf" in font:
+        glyph = font["glyf"][glyph_name]
+        return getattr(glyph, "xMin", 0), getattr(glyph, "xMax", advance)
+    glyph_set = font.getGlyphSet()
+    pen = BoundsPen(glyph_set)
+    glyph_set[glyph_name].draw(pen)
+    return (pen.bounds[0], pen.bounds[2]) if pen.bounds else (0, advance)
 
 
 def served(codepoint):
@@ -62,13 +76,10 @@ for style, (primary, fallback) in fonts.items():
         font = primary if point in primary.getBestCmap() else fallback
         glyph_name = font.getBestCmap()[point]
         advance, _ = font["hmtx"][glyph_name]
-        glyph = font["glyf"][glyph_name]
+        left, right = horizontal_ink(font, glyph_name, advance)
         units = font["head"].unitsPerEm
         advances.append(advance / units)
-        bearings.extend([
-            getattr(glyph, "xMin", 0) / units,
-            (advance - getattr(glyph, "xMax", advance)) / units,
-        ])
+        bearings.extend([left / units, (advance - right) / units])
     metrics[style] = {"advances": advances, "bearings": bearings}
 
 print(json.dumps({

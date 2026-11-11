@@ -3655,7 +3655,9 @@
             {
               "type": "string",
               "enum": [
-                "serif"
+                "serif",
+                "sans",
+                "latin-modern"
               ]
             },
             {
@@ -10754,7 +10756,9 @@
         "textFace": {
           "type": "string",
           "enum": [
-            "serif"
+            "serif",
+            "sans",
+            "latin-modern"
           ]
         },
         "crossingStyle": {

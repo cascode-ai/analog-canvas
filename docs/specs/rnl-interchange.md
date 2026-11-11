@@ -174,7 +174,9 @@ the RNL language and its runtime belong to rnl.
   (`$CANVAS_VARIANT`, since 0.4: an op-amp flipped top to bottom, not the
   inputs-swapped one), in each
   Cell's own record how the Cell sets names in labels and draws its wire
-  crossings (`$CANVAS_TYPESETTING` on `#`, `crossings="hop"` since 0.3) and,
+  crossings (`$CANVAS_TYPESETTING` on `#`, `crossings="hop"` since 0.3; of
+  the canvas fonts only `face="serif"`, the others awaiting an unpublished
+  extensions version) and,
   where the netlist must write it otherwise, the Cell's own name
   (`$CANVAS_CELL_NAME` on `#`, since 0.4: `Bootstrap switch` for the
   subcircuit `Bootstrap_switch`), each
