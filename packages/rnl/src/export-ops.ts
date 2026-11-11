@@ -80,7 +80,7 @@ import {
   type RnlSymbol,
 } from "./symbol-map.js";
 import { symbolForCall } from "./call-symbols.js";
-import { inlineRnlDefinition } from "./inline-symbols.js";
+import { inlineInterface, inlineRnlDefinition } from "./inline-symbols.js";
 import { plainLines, rnlTextLines } from "./text.js";
 
 /**
@@ -585,7 +585,7 @@ function exportCell(
     if (
       symbol &&
       call?.invocationKind === "subcircuit" &&
-      (!symbol.inline || gate?.ok)
+      (!inlineInterface(symbol) || gate?.ok)
     ) {
       // A Library block's call names its ports, as its contract does (a
       // DAC's VIN is its pin IN).
@@ -613,7 +613,8 @@ function exportCell(
     }
     // Elsewhere it binds the call's terminals in its own order.
     if (
-      symbol?.inline &&
+      symbol &&
+      inlineInterface(symbol) &&
       call &&
       !gate?.ok &&
       !context.calledParts.has(partKey(document, instance))

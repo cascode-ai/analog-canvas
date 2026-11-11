@@ -5106,6 +5106,43 @@ describe("RNL round trip of switches", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
+    "brings a wide chopper back wide, defined in the file itself (%s, #2170)",
+    async (format) => {
+      const project = switches();
+      const chopper = project.documents[0]!.instances.find(
+        (instance) => instance.id === "CH1",
+      )!;
+      chopper.symbolVariantId = "wide";
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported));
+      // The published package stays as it is: the file defines the symbol.
+      expect(exported.request.ops).toContainEqual(
+        expect.objectContaining({
+          op: "define-symbol",
+          name: "$CANVAS_CHOPPER_WIDE",
+        }),
+      );
+      const plan = await roundTrip(project, format);
+      expect(failures(plan)).toEqual([]);
+      const part = plan.project.documents
+        .flatMap((document) => document.instances)
+        .find((instance) => instance.reference === "CH1")!;
+      expect(part.symbolId).toBe("chopper");
+      expect(part.symbolVariantId).toBe("wide");
+      expect(rnlPart(part)).toEqual(rnlPart(chopper));
+      for (const spice of [false, true]) {
+        const options = { format: spice ? "spice" : format } as const;
+        const before = createDesignNetlistExport(project, options);
+        const after = createDesignNetlistExport(plan.project, options);
+        expect(after.status === "ready" && after.file.text).toBe(
+          before.status === "ready" && before.file.text,
+        );
+      }
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
     "brings a chopper bound to a Cell back bound to it, clocked by its label (%s, #1928)",
     async (format) => {
       const project = switches();

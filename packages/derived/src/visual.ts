@@ -4,9 +4,12 @@ import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   adaptiveSignalFlowBounds,
   resolveAdaptiveSignalFlowBlockLayout,
+  relocatedPin,
   resolveInstanceSymbol,
   resolveSignalFlowPinAt,
   withShownSupplies,
+  variantHidesPin,
+  variantPinAt,
 } from "@icm/symbols";
 import type {
   ResolvedSymbol,
@@ -221,10 +224,9 @@ function isExactPowerPinContact(
   };
   const powerPoint = resolveEndpointPoint(document, resolver, powerEndpoint);
   if (!powerPoint) return false;
-  const hiddenPins = new Set(otherSymbol.variant?.hiddenPinNames ?? []);
   return otherSymbol.definition.pins.some((pin) => {
     if (
-      hiddenPins.has(pin.name) ||
+      variantHidesPin(otherSymbol.variant, pin.name) ||
       pin.presentation.visibility === "implicit"
     ) {
       return false;
@@ -297,7 +299,6 @@ export function visibleSymbolInkBounds(
       resolved.variant?.hiddenPrimitiveParts,
     );
   const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
-  const hiddenPins = new Set(resolved.variant?.hiddenPinNames ?? []);
   const primitives = [
     ...resolved.definition.primitives,
     ...(resolved.variant?.additionalPrimitives ?? []),
@@ -310,8 +311,8 @@ export function visibleSymbolInkBounds(
   const points = [
     ...primitivePointSets.flatMap((entry) => entry ?? []),
     ...resolved.definition.pins
-      .filter((pin) => !hiddenPins.has(pin.name))
-      .map((pin) => pin.at),
+      .filter((pin) => !variantHidesPin(resolved.variant, pin.name))
+      .map((pin) => variantPinAt(resolved.variant, pin)),
   ];
   if (points.length === 0) return resolved.definition.viewBox;
   const x = Math.min(...points.map((point) => point.x));
@@ -354,23 +355,25 @@ function symbolOverlapLocalBounds(
   signalFlowParameters?: SignalFlowLayoutParameters,
 ): Rect {
   const box = visibleSymbolLocalBounds(resolved, signalFlowParameters);
-  const hiddenPins = new Set(resolved.variant?.hiddenPinNames ?? []);
   // The outermost pin each way, should a side carry several.
   let north = Infinity;
   let south = -Infinity;
   let west = Infinity;
   let east = -Infinity;
   for (const pin of resolved.definition.pins) {
-    if (hiddenPins.has(pin.name) || pin.presentation.visibility === "implicit")
+    if (
+      variantHidesPin(resolved.variant, pin.name) ||
+      pin.presentation.visibility === "implicit"
+    )
       continue;
-    const at = resolveSignalFlowPinAt(
-      resolved.definition,
-      pin,
-      signalFlowParameters,
-    );
-    if (pin.direction === "north") north = Math.min(north, at.y);
-    else if (pin.direction === "south") south = Math.max(south, at.y);
-    else if (pin.direction === "west") west = Math.min(west, at.x);
+    const moved = relocatedPin(resolved.variant, pin.name);
+    const at =
+      moved?.at ??
+      resolveSignalFlowPinAt(resolved.definition, pin, signalFlowParameters);
+    const direction = moved?.direction ?? pin.direction;
+    if (direction === "north") north = Math.min(north, at.y);
+    else if (direction === "south") south = Math.max(south, at.y);
+    else if (direction === "west") west = Math.min(west, at.x);
     else east = Math.max(east, at.x);
   }
   const top = north > box.y && north < box.y + box.height ? north : box.y;
@@ -1129,7 +1132,7 @@ export function diagnoseVisualQuality(
     if (!resolved) continue;
     for (const pin of resolved.definition.pins) {
       if (pin.presentation.visibility === "implicit") continue;
-      if (resolved.variant?.hiddenPinNames.includes(pin.name)) continue;
+      if (variantHidesPin(resolved.variant, pin.name)) continue;
       const key = `${instance.id}\0${pin.name}`;
       if (noConnectKeys.has(key)) continue;
       const terminalNetId = terminalNetIds.get(key);

@@ -29,6 +29,7 @@ import {
   componentSourceShape,
   componentSupplyPins,
   componentWindingsMirrored,
+  componentChopperWide,
   NO_INTERNAL_MARK,
   type SourceShape,
 } from "./component-visual-variants";
@@ -88,6 +89,8 @@ export interface ComponentPropertyCodeValue
     supplyPins?: boolean;
     /** A transformer's secondary looping away from its primary (#2170). */
     windingsMirrored?: boolean;
+    /** A chopper drawn 80 tall with its pins at the corners (#2170). */
+    wide?: boolean;
   };
 }
 
@@ -285,6 +288,7 @@ function parseAppearance(
     outputsSwapped: componentOutputsSwapped(context.instance.symbolId),
     supplyPins: componentSupplyPins(context.instance, context.resolver),
     windingsMirrored: componentWindingsMirrored(context.instance),
+    wide: componentChopperWide(context.instance),
   };
   const shape = componentSourceShape(context.instance);
   const supported = new Set<string>(["color"]);
@@ -340,6 +344,7 @@ export function componentPropertyCodeValue(
   const shape = componentSourceShape(instance);
   const supplyPins = componentSupplyPins(instance, context.resolver);
   const windingsMirrored = componentWindingsMirrored(instance);
+  const wide = componentChopperWide(instance);
   const display: ComponentPropertyDisplayCode = {};
   if (context.referenceVisible !== null) {
     display.visualAnnotation = context.referenceVisible;
@@ -435,6 +440,7 @@ export function componentPropertyCodeValue(
       ...(shape !== undefined ? { shape } : {}),
       ...(supplyPins !== undefined ? { supplyPins } : {}),
       ...(windingsMirrored !== undefined ? { windingsMirrored } : {}),
+      ...(wide !== undefined ? { wide } : {}),
     },
   };
 }
@@ -484,6 +490,7 @@ export function serializeComponentPropertyCode(
         ...(appearance.windingsMirrored !== undefined
           ? { windingsMirrored: appearance.windingsMirrored }
           : {}),
+        ...(appearance.wide !== undefined ? { wide: appearance.wide } : {}),
       },
       ...(display ? { display } : {}),
       ...(displayName !== undefined ? { displayName } : {}),
@@ -757,6 +764,7 @@ export function defaultComponentPropertyCode(
       ...(value.appearance.supplyPins !== undefined
         ? { supplyPins: false }
         : {}),
+      ...(value.appearance.wide !== undefined ? { wide: false } : {}),
     };
   if (value.parameters && context.details) {
     // Preserve unknown model overrides; only descriptor-owned defaults are known.

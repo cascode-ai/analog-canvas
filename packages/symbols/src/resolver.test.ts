@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
 
+import { builtInSymbols } from "./builtins.js";
 import { externalSubcircuitSymbolId } from "./hierarchical-block.js";
 import {
   createProjectSymbolResolver,
+  drawnPinNames,
   findUnsupportedProjectSymbolIds,
   InMemorySymbolResolver,
+  relocatedPin,
+  variantHiddenPinNames,
+  variantHidesPin,
+  variantPinAt,
 } from "./resolver.js";
 import { SymbolDefinitionSchema } from "./schema.js";
 
@@ -192,5 +198,48 @@ describe("Symbol Resolver boundary", () => {
         .resolve(externalSubcircuitSymbolId("external-ota"))
         ?.definition.pins.map((pin) => pin.name),
     ).toEqual(["INP", "OUT"]);
+  });
+});
+
+describe("a variant that moves its pins (#2170)", () => {
+  const catalog = new InMemorySymbolResolver(builtInSymbols);
+
+  it("draws the wide chopper's pins at its box's corners, on the grid", () => {
+    const narrow = catalog.resolve("chopper")!;
+    const wide = catalog.resolve("chopper", "wide")!;
+    expect(wide.definition).toBe(narrow.definition);
+    expect(drawnPinNames(wide)).toEqual(drawnPinNames(narrow));
+    expect(drawnPinNames(wide)).toEqual(["INP", "INN", "OUTP", "OUTN"]);
+    expect(
+      wide.definition.pins.map((pin) => [
+        pin.name,
+        variantPinAt(wide.variant, pin),
+        relocatedPin(wide.variant, pin.name)?.direction ?? pin.direction,
+      ]),
+    ).toEqual([
+      ["INP", { x: -20, y: -40 }, "west"],
+      ["INN", { x: -20, y: 40 }, "west"],
+      ["OUTP", { x: 20, y: -40 }, "east"],
+      ["OUTN", { x: 20, y: 40 }, "east"],
+    ]);
+    for (const pin of wide.definition.pins) {
+      expect(variantHidesPin(wide.variant, pin.name)).toBe(false);
+      const at = variantPinAt(wide.variant, pin);
+      expect(Number.isInteger(at.x / 10) && Number.isInteger(at.y / 10)).toBe(
+        true,
+      );
+    }
+    expect(variantHiddenPinNames(wide.variant)).toEqual(new Set());
+  });
+
+  it("keeps a 3-terminal MOS body hidden, offered back only by its bulk rule", () => {
+    const mos = catalog.resolve("nmos")!;
+    expect(mos.variant?.auxiliaryPins?.map((pin) => pin.name)).toEqual(["B"]);
+    expect(relocatedPin(mos.variant, "B")).toBeUndefined();
+    expect(variantHidesPin(mos.variant, "B")).toBe(true);
+    expect(variantHiddenPinNames(mos.variant)).toEqual(new Set(["B"]));
+    // An op-amp's hidden supplies are hidden, not moved.
+    const opamp = catalog.resolve("opamp")!;
+    expect(variantHidesPin(opamp.variant, "VDD")).toBe(true);
   });
 });

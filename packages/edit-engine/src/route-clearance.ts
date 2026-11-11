@@ -15,7 +15,11 @@ import {
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
-import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
+import {
+  resolveInstanceSymbol,
+  variantHiddenPinNames,
+  type SymbolResolver,
+} from "@icm/symbols";
 import { compileWireDraft } from "./wire-draft.js";
 import { signalEndpointMembers } from "./signal-endpoint.js";
 
@@ -309,7 +313,7 @@ export function createRouteClearance(
       interior: width > 0 && height > 0 ? { x, y, width, height } : null,
       strokes,
     });
-    const hidden = new Set(resolved.variant?.hiddenPinNames ?? []);
+    const hidden = variantHiddenPinNames(resolved.variant);
     for (const pin of resolved.definition.pins) {
       if (hidden.has(pin.name)) continue;
       const endpoint: RouteEndpoint = {

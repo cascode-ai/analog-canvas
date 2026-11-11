@@ -1,5 +1,10 @@
 import type { SchematicEdit } from "@icm/edit-engine";
-import { SUPPLY_PINS_VARIANT_ID, type Instance } from "@icm/model";
+import {
+  SUPPLY_PINS_VARIANT_ID,
+  transformPoint,
+  type Instance,
+  type SchematicDocument,
+} from "@icm/model";
 import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 import { differentialInputSibling } from "../editor-shell/differential-input-swap";
 import { differentialOutputSibling } from "../editor-shell/differential-output-swap";
@@ -198,6 +203,110 @@ export function windingsMirroredEdit(
     symbolId: instance.symbolId,
     symbolVariantId: mirrored ? MIRRORED_WINDINGS_VARIANT : null,
   };
+}
+
+/**
+ * A chopper drawn wide (#2170): its box 80 tall with a pin at each corner,
+ * to sit between a differential pair's two branches. Its "wide" variant, so
+ * pin names, wiring and the netlist never change; the narrow box on an
+ * op-amp's input rows is the default.
+ */
+const WIDENABLE_CHOPPERS = new Set(["chopper"]);
+const WIDE_CHOPPER_VARIANT = "wide";
+
+export function componentChopperWide(
+  instance: Pick<Instance, "symbolId" | "symbolVariantId">,
+): boolean | undefined {
+  if (!WIDENABLE_CHOPPERS.has(instance.symbolId)) return undefined;
+  return instance.symbolVariantId === WIDE_CHOPPER_VARIANT;
+}
+
+/** Draws a chopper wide, or back to narrow; none where already so. */
+export function chopperWideEdit(
+  instance: Pick<Instance, "id" | "symbolId" | "symbolVariantId">,
+  wide: boolean,
+): SchematicEdit | undefined {
+  const current = componentChopperWide(instance);
+  if (current === undefined || current === wide) return undefined;
+  return {
+    kind: "set_instance_symbol",
+    instanceId: instance.id,
+    symbolId: instance.symbolId,
+    symbolVariantId: wide ? WIDE_CHOPPER_VARIANT : null,
+  };
+}
+
+/** Half the chopper's box height, narrow and wide, in its own frame. */
+const CHOPPER_HALF_HEIGHT = { narrow: 30, wide: 40 } as const;
+/**
+ * How far from its centre, along the box, a chopper's label row stands: a
+ * new chopper's under its narrow box, and a grid square further from the
+ * wide one, whose corner leads and the wires leaving them run along its end.
+ */
+const CHOPPER_LABEL_ROW = { narrow: 45, wide: 65 } as const;
+
+/**
+ * The labels above or below a chopper, moved to their row as its box grows
+ * or shrinks (#2170) and centred on it, clear of the wires at its corners.
+ * Its clock label names no part, so arranging labels would leave it where
+ * the narrow box ended, drawn over by the wide one. A label moved further
+ * out keeps its extra distance; a label beside the box stays.
+ */
+export function chopperWideLabelEdits(
+  document: Pick<SchematicDocument, "annotations">,
+  instance: Pick<Instance, "id" | "symbolId" | "symbolVariantId" | "placement">,
+  wide: boolean,
+): SchematicEdit[] {
+  const current = componentChopperWide(instance);
+  const placement = instance.placement;
+  if (current === undefined || current === wide || !placement) return [];
+  const from = current ? "wide" : "narrow";
+  const to = wide ? "wide" : "narrow";
+  const half = CHOPPER_HALF_HEIGHT[from];
+  // The box's own downward direction on the sheet.
+  const down = transformPoint({ x: 0, y: 1 }, { x: 0, y: 0 }, placement);
+  return document.annotations.flatMap((annotation): SchematicEdit[] => {
+    const anchor = annotation.anchor;
+    if (
+      annotation.kind !== "instance-label" ||
+      anchor.kind !== "object" ||
+      anchor.objectId !== instance.id
+    )
+      return [];
+    const along = anchor.localOffset.x * down.x + anchor.localOffset.y * down.y;
+    const side = along > half ? 1 : along < -half ? -1 : 0;
+    if (!side) return [];
+    const distance = Math.max(
+      CHOPPER_LABEL_ROW[to],
+      side * along + CHOPPER_LABEL_ROW[to] - CHOPPER_LABEL_ROW[from],
+    );
+    const localOffset = {
+      x: down.x * side * distance + 0,
+      y: down.y * side * distance + 0,
+    };
+    return [
+      {
+        kind: "upsert_schematic_annotation",
+        annotation: {
+          ...annotation,
+          anchor: {
+            ...anchor,
+            localOffset,
+            fallbackPosition: {
+              x:
+                anchor.fallbackPosition.x +
+                localOffset.x -
+                anchor.localOffset.x,
+              y:
+                anchor.fallbackPosition.y +
+                localOffset.y -
+                anchor.localOffset.y,
+            },
+          },
+        },
+      },
+    ];
+  });
 }
 
 export function componentSourceShape(

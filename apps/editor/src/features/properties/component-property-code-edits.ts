@@ -24,6 +24,8 @@ import {
   NO_INTERNAL_MARK,
   supplyPinsEdit,
   windingsMirroredEdit,
+  chopperWideEdit,
+  chopperWideLabelEdits,
   symbolForInputPolarity,
   symbolForInputsSwapped,
   symbolForInternalMark,
@@ -347,6 +349,15 @@ export function planComponentPropertyCodeEdits(
       value.appearance.windingsMirrored,
     );
     if (edit) edits.push(edit);
+  }
+  // And a chopper's width: its pins move, its wires follow them (#2170).
+  if (value.appearance.wide !== undefined) {
+    const edit = chopperWideEdit(instance, value.appearance.wide);
+    if (edit)
+      edits.push(
+        edit,
+        ...chopperWideLabelEdits(document, instance, value.appearance.wide),
+      );
   }
   // A controlled source's outline is its variant; the part stays the same.
   if (value.appearance.shape !== undefined) {

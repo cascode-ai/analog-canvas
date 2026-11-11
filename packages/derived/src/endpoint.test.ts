@@ -14,6 +14,7 @@ import {
   resolveEndpointConnection,
   resolveEndpointOutwardDirection,
   resolveEndpointPoint,
+  visibleSymbolInkBounds,
 } from "./index.js";
 
 // Minimal custom symbol gives full control over pin directions, positions, and
@@ -54,6 +55,14 @@ const resolver = new InMemorySymbolResolver([
     ],
     variants: [
       { id: "hide-r", hiddenPinNames: ["R"] },
+      // Moves R up a row, as the wide chopper moves its pins (#2170).
+      {
+        id: "move-r",
+        hiddenPinNames: ["R"],
+        auxiliaryPins: [
+          { name: "R", at: { x: 20, y: -30 }, direction: "east" },
+        ],
+      },
       {
         id: "offset-r",
         hiddenPinNames: [],
@@ -123,6 +132,23 @@ describe("endpoint primitives", () => {
       expect(isVisibleEndpoint(document, resolver, terminal("I1", "L"))).toBe(
         true,
       );
+    });
+
+    it("sees a pin its variant moves, drawn where it moved (#2170)", () => {
+      const project = createEmptyProject("ep", "EP");
+      const document = project.documents[0]!;
+      document.instances = [{ ...placeDual(), symbolVariantId: "move-r" }];
+      expect(isVisibleEndpoint(document, resolver, terminal("I1", "R"))).toBe(
+        true,
+      );
+      expect(
+        resolveEndpointPoint(document, resolver, terminal("I1", "R")),
+      ).toEqual({ x: 120, y: 70 });
+      // Its body's bounds reach the pin where it is now.
+      const bounds = visibleSymbolInkBounds(
+        resolver.resolve("dual", "move-r")!,
+      );
+      expect(bounds.y).toBe(-30);
     });
 
     it("returns false when the instance or symbol cannot be resolved", () => {

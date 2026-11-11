@@ -12,6 +12,7 @@ import {
 import type { ResolvedRouteGeometry } from "@icm/derived";
 import {
   resolveInstanceSymbol,
+  variantHidesPin,
   type ResolvedSymbol,
   type SymbolResolver,
 } from "@icm/symbols";
@@ -61,7 +62,7 @@ function visiblePinLeads(
 ): PinLead[] {
   return resolved.definition.pins.flatMap((pin) => {
     if (pin.presentation.visibility === "implicit") return [];
-    if (resolved.variant?.hiddenPinNames.includes(pin.name)) return [];
+    if (variantHidesPin(resolved.variant, pin.name)) return [];
     const connection = resolveEndpointConnection(
       document,
       resolver,

@@ -11,6 +11,8 @@ import {
   withShownSupplies,
   type ResolvedSymbol,
   type SignalFlowLayoutParameters,
+  variantHidesPin,
+  variantPinAt,
 } from "@icm/symbols";
 
 function viewBoxCorners(viewBox: SymbolLocalRect): SymbolLocalPoint[] {
@@ -43,7 +45,6 @@ export function visibleSymbolLocalBounds(
       resolved.variant?.hiddenPrimitiveParts,
     );
   const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
-  const hiddenPins = new Set(resolved.variant?.hiddenPinNames ?? []);
   const primitives = [
     ...resolved.definition.primitives,
     ...(resolved.variant?.additionalPrimitives ?? []),
@@ -82,8 +83,8 @@ export function visibleSymbolLocalBounds(
 
   points.push(
     ...resolved.definition.pins
-      .filter((pin) => !hiddenPins.has(pin.name))
-      .map((pin) => pin.at),
+      .filter((pin) => !variantHidesPin(resolved.variant, pin.name))
+      .map((pin) => variantPinAt(resolved.variant, pin)),
   );
   if (points.length === 0) return resolved.definition.viewBox;
 

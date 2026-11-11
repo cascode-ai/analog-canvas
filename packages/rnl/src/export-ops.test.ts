@@ -710,10 +710,20 @@ describe("blocks' symbols", () => {
       ["ck", "OUTN", "OUTP", "INN", "INP"],
       "$CANVAS_CALL_CHOPPER__0_4_3_2_1",
     ],
+    // Drawn wide, its pins at the box's corners (#2170).
+    [
+      "chopper",
+      "CH1",
+      "#XCH1",
+      ["INP", "INN", "OUTP", "OUTN"],
+      ["ck", "OUTN", "OUTP", "INN", "INP"],
+      "$CANVAS_CALL_CHOPPER_WIDE__0_4_3_2_1",
+      "wide",
+    ],
     ["tcoil", "X1", "#X1", ["1", "2", "3"], ["3", "2", "1"], /_3_2_1$/u],
   ] as const)(
     "draws a %s bound to a Cell as itself, each pin where the call prints it (#1928)",
-    (symbolId, reference, object, pins, cellPins, order) => {
+    (symbolId, reference, object, pins, cellPins, order, variant?: string) => {
       const project = createEmptyProject("bound", "Bound", "top");
       const top = project.documents[0]!;
       top.netlist!.name = "top";
@@ -721,6 +731,7 @@ describe("blocks' symbols", () => {
         id: "part",
         symbolId,
         reference,
+        ...(variant ? { symbolVariantId: variant } : {}),
         placement: {
           position: { x: 100, y: 100 },
           rotation: 0,
@@ -764,6 +775,21 @@ describe("blocks' symbols", () => {
       expect(of(ops, "set").find((op) => op.object === object)?.symbol).toMatch(
         order,
       );
+      if (variant) {
+        const symbol = of(ops, "define-symbol").find(
+          (op) => op.name === order,
+        )!;
+        // INP, INN, OUTP, OUTN at the corners, on the call's terminals.
+        expect(
+          symbol.pins.map((pin) => [pin.terminals, pin.at, pin.direction]),
+        ).toEqual([
+          [[5], [-2, 4], "left"],
+          [[4], [-2, -4], "left"],
+          [[3], [2, 4], "right"],
+          [[2], [2, -4], "right"],
+        ]);
+        expect(symbol.box).toEqual([-2.4, -4.4, 2.4, 4.4]);
+      }
     },
   );
 

@@ -79,7 +79,8 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "lead"
       },
       {
         "kind": "line",
@@ -95,7 +96,8 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "lead"
       },
       {
         "kind": "line",
@@ -111,7 +113,8 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "lead"
       },
       {
         "kind": "line",
@@ -127,7 +130,8 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "lead"
       },
       {
         "kind": "path",
@@ -143,7 +147,8 @@
           "lineCap": "butt",
           "lineJoin": "miter",
           "miterLimit": 4
-        }
+        },
+        "part": "box"
       },
       {
         "kind": "line",
@@ -159,7 +164,8 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "cross"
       },
       {
         "kind": "line",
@@ -175,10 +181,172 @@
           "strokeRole": "normal",
           "lineCap": "butt",
           "lineJoin": "miter"
-        }
+        },
+        "part": "cross"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "wide",
+        "hiddenPinNames": ["INP", "INN", "OUTP", "OUTN"],
+        "auxiliaryPins": [
+          {
+            "name": "INP",
+            "at": {
+              "x": -20,
+              "y": -40
+            },
+            "direction": "west"
+          },
+          {
+            "name": "INN",
+            "at": {
+              "x": -20,
+              "y": 40
+            },
+            "direction": "west"
+          },
+          {
+            "name": "OUTP",
+            "at": {
+              "x": 20,
+              "y": -40
+            },
+            "direction": "east"
+          },
+          {
+            "name": "OUTN",
+            "at": {
+              "x": 20,
+              "y": 40
+            },
+            "direction": "east"
+          }
+        ],
+        "hiddenPrimitiveParts": ["lead", "box", "cross"],
+        "additionalPrimitives": [
+          {
+            "kind": "line",
+            "from": {
+              "x": -20,
+              "y": -40
+            },
+            "to": {
+              "x": -8,
+              "y": -40
+            },
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            },
+            "part": "wide-lead"
+          },
+          {
+            "kind": "line",
+            "from": {
+              "x": -20,
+              "y": 40
+            },
+            "to": {
+              "x": -8,
+              "y": 40
+            },
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            },
+            "part": "wide-lead"
+          },
+          {
+            "kind": "line",
+            "from": {
+              "x": 8,
+              "y": -40
+            },
+            "to": {
+              "x": 20,
+              "y": -40
+            },
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            },
+            "part": "wide-lead"
+          },
+          {
+            "kind": "line",
+            "from": {
+              "x": 8,
+              "y": 40
+            },
+            "to": {
+              "x": 20,
+              "y": 40
+            },
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            },
+            "part": "wide-lead"
+          },
+          {
+            "kind": "path",
+            "data": "M -8 -40 L 8 -40 L 8 40 L -8 40 Z",
+            "bounds": {
+              "x": -8,
+              "y": -40,
+              "width": 16,
+              "height": 80
+            },
+            "style": {
+              "strokeRole": "emphasis",
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "miterLimit": 4
+            },
+            "part": "wide-box"
+          },
+          {
+            "kind": "line",
+            "from": {
+              "x": -8,
+              "y": -40
+            },
+            "to": {
+              "x": 8,
+              "y": 40
+            },
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            },
+            "part": "wide-cross"
+          },
+          {
+            "kind": "line",
+            "from": {
+              "x": 8,
+              "y": -40
+            },
+            "to": {
+              "x": -8,
+              "y": 40
+            },
+            "style": {
+              "strokeRole": "normal",
+              "lineCap": "butt",
+              "lineJoin": "miter"
+            },
+            "part": "wide-cross"
+          }
+        ]
+      }
+    ]
   },
   "electrical": {
     "id": "chopper",
@@ -202,7 +370,7 @@
     "category": "switch",
     "reviewStatus": "reviewed",
     "provenance": "house",
-    "houseReason": "A chopper does not appear on the reviewed page; it is drawn here as chopper-stabilized amplifiers draw it, a crossed box as tall as the op-amp body and about a quarter as wide, its pins on the op-amp's input rows.",
+    "houseReason": "A chopper does not appear on the reviewed page; it is drawn here as chopper-stabilized amplifiers draw it, a crossed box as tall as the op-amp body and about a quarter as wide, its pins on the op-amp's input rows. Its wide variant draws the box 80 tall with a pin at each corner, as papers draw a chopper between a differential pair's two branches, 80 apart at the house pitch.",
     "pinOrder": ["INP", "INN", "OUTP", "OUTN"],
     "palette": true,
     "automaticMappings": [],
