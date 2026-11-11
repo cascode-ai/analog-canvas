@@ -1947,6 +1947,102 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["global", "local"] as const)(
+  "reads a power label of a %s net back as that net's supply, its rails rails",
+  async (scope) => {
+    // As the editor keeps a power label on a net it names: bound to the
+    // net's name, which it claims as a supply, so the net's rails draw bold.
+    const project = createEmptyProject("rails", "Rails", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    const name = scope === "global" ? "VDD" : "vdd";
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 300, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    document.nets.push({
+      id: "vdd",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+    document.noConnects.push({
+      id: "R12",
+      endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },
+    });
+    document.junctions.push(
+      { id: "JA", netId: "vdd", position: { x: 300, y: 120 } },
+      { id: "JB", netId: "vdd", position: { x: 400, y: 120 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "tap",
+        netId: "vdd",
+        start: { kind: "terminal", instanceId: "R1", pinName: "1" },
+        end: { kind: "junction", junctionId: "JA" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "rail",
+        netId: "vdd",
+        start: { kind: "junction", junctionId: "JA" },
+        end: { kind: "junction", junctionId: "JB" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "power-rail",
+      }),
+    );
+    document.annotations.push({
+      id: "vdd-label",
+      kind: "power-label",
+      netId: "vdd",
+      binding: { kind: "net-name", netId: "vdd" },
+      anchor: { kind: "free", position: { x: 410, y: 110 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "vdd-claim",
+      kind: "name-claim",
+      netId: "vdd",
+      name,
+      scope,
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "vdd-label" },
+    });
+    const supplied = (from: CircuitProject) => {
+      const cell = from.documents[0]!;
+      const label = cell.annotations.find((a) => a.kind === "power-label")!;
+      const rail = cell.routes.find((r) => r.presentation === "power-rail")!;
+      return {
+        binding: label.binding?.kind,
+        claim: cell.connectivityEvidence.flatMap((e) =>
+          e.kind === "name-claim" &&
+          e.owner.kind === "power-marker" &&
+          e.owner.objectId === label.id
+            ? [`${e.name} ${e.scope} ${e.powerDomain}`]
+            : [],
+        ),
+        rail: resolveDocumentLogicalNets(cell).byBaseNetId.get(rail.netId)
+          ?.powerDomain,
+      };
+    };
+    for (const format of ["spice", "spectre"] as const) {
+      const plan = await roundTrip(project, format);
+      expect(failures(plan)).toEqual([]);
+      expect(supplied(plan.project), format).toEqual(supplied(project));
+    }
+    expect(supplied(project)).toEqual({
+      binding: "net-name",
+      claim: [`${name} ${scope} vdd`],
+      rail: "vdd",
+    });
+  },
+);
+
 it.each(["spice", "spectre"] as const)(
   "reads a port drawn only as its power label back as that label through %s+RNL (#1783)",
   async (format) => {
