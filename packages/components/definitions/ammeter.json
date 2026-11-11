@@ -57,18 +57,18 @@
         "points": [
           {
             "x": -4,
-            "y": 5
+            "y": 5.25
           },
           {
             "x": 0,
-            "y": -5.5
+            "y": -5.25
           },
           {
             "x": 4,
-            "y": 5
+            "y": 5.25
           }
         ],
-        "part": "letter-a",
+        "part": "upright-letter-a",
         "style": {
           "strokeRole": "normal",
           "lineCap": "butt",
@@ -79,13 +79,13 @@
         "kind": "line",
         "from": {
           "x": -2.666667,
-          "y": 1.5
+          "y": 1.75
         },
         "to": {
           "x": 2.666667,
-          "y": 1.5
+          "y": 1.75
         },
-        "part": "letter-a-bar",
+        "part": "upright-letter-a",
         "style": {
           "strokeRole": "normal",
           "lineCap": "butt",

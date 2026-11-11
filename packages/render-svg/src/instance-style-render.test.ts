@@ -122,6 +122,58 @@ describe("instance style override rendering", () => {
       }
     },
   );
+  it("keeps the ammeter's A one upright letter, in place, however the part turns", () => {
+    const definition = builtInSymbols.find((s) => s.id === "ammeter")!;
+    const strokes = definition.primitives.filter(
+      (primitive) => primitive.part === "upright-letter-a",
+    );
+    const points = (svg: string) =>
+      [
+        ...svg.matchAll(
+          /<(?:polyline data-part="upright-letter-a" points="([^"]+)"|line data-part="upright-letter-a" x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)")/gu,
+        ),
+      ].map((match) =>
+        match[1]
+          ? match[1].split(" ").map((pair) => {
+              const [x, y] = pair.split(",").map(Number);
+              return { x: x!, y: y! };
+            })
+          : [
+              { x: Number(match[2]), y: Number(match[3]) },
+              { x: Number(match[4]), y: Number(match[5]) },
+            ],
+      );
+    const upright = strokes.map((stroke) =>
+      stroke.kind === "polyline"
+        ? stroke.points
+        : stroke.kind === "line"
+          ? [stroke.from, stroke.to]
+          : [],
+    );
+    expect(upright.flat()).toHaveLength(5);
+    for (const rotation of [0, 90, 180, 270] as const)
+      for (const mirror of [
+        "none",
+        "horizontal",
+        "vertical",
+        "both",
+      ] as const) {
+        const placement = { position: { x: 100, y: 80 }, rotation, mirror };
+        const doc = createEmptyDocument("doc-1", "Ammeter");
+        doc.instances.push({ id: "A1", symbolId: "ammeter", placement });
+        const drawn = points(renderDocumentSvg(doc, resolver));
+        expect(drawn).toHaveLength(upright.length);
+        // On the page every stroke is where the unturned A has it.
+        drawn.forEach((stroke, index) =>
+          stroke.forEach((point, at) => {
+            const world = transformPoint(point, placement.position, placement);
+            expect(world.x).toBeCloseTo(100 + upright[index]![at]!.x, 5);
+            expect(world.y).toBeCloseTo(80 + upright[index]![at]!.y, 5);
+          }),
+        );
+      }
+  });
+
   it("renders an instance with background override as a rect", () => {
     const doc = createEmptyDocument("doc-1", "Test");
     doc.instances.push({

@@ -1670,22 +1670,24 @@ describe("Razavi symbol catalog", () => {
     const unmarked = source.primitives.filter(
       (primitive) => !primitive.part?.startsWith("upright-polarity"),
     );
-    expect(
-      ammeter.primitives.filter((p) => !p.part?.startsWith("letter-a")),
-    ).toEqual(unmarked);
+    // The A is one upright mark, as the source's polarity marks are.
+    const marked = (p: (typeof ammeter.primitives)[number]) =>
+      p.part === "upright-letter-a";
+    expect(ammeter.primitives.filter((p) => !marked(p))).toEqual(unmarked);
     const circle = source.primitives[0];
-    const letter = ammeter.primitives.find((p) => p.part === "letter-a");
-    const bar = ammeter.primitives.find((p) => p.part === "letter-a-bar");
+    const [letter, bar] = ammeter.primitives.filter(marked);
     if (
       circle?.kind !== "circle" ||
       letter?.kind !== "polyline" ||
       bar?.kind !== "line"
     )
       throw new Error("missing letter");
-    // An A: two legs meeting at the top, a bar across them, inside the circle.
+    // An A: two legs meeting at the top, a bar across them, inside the circle
+    // and centred on it, so it stands in the same place however it turns.
     const [left, apex, right] = letter.points;
     expect(apex!.y).toBeLessThan(left!.y);
     expect(left!.x).toBe(-right!.x);
+    expect(apex!.y).toBe(-left!.y);
     expect(bar.from.x).toBe(-bar.to.x);
     for (const point of [...letter.points, bar.from, bar.to])
       expect(Math.hypot(point.x, point.y)).toBeLessThan(circle.radius);

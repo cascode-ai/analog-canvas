@@ -72,10 +72,15 @@ function renderPrimitive(
   profile: SchematicStyleProfile,
   foregroundOverride?: string,
   orientation?: Pick<Orientation, "rotation" | "mirror">,
+  uprightPivots?: ReadonlyMap<string, Point>,
 ): string {
   const fg = foregroundOverride ?? profile.foreground;
   const style = primitiveStyle(primitive, profile);
-  const rendered = screenUprightPrimitive(primitive, orientation);
+  const rendered = screenUprightPrimitive(
+    primitive,
+    orientation,
+    primitive.part ? uprightPivots?.get(primitive.part) : undefined,
+  );
   const uprightPart = rendered.part?.startsWith("upright-")
     ? ` data-part="${escapeXml(rendered.part)}"`
     : "";
@@ -83,7 +88,7 @@ function renderPrimitive(
     case "line":
       return `<line${uprightPart} x1="${rendered.from.x}" y1="${rendered.from.y}" x2="${rendered.to.x}" y2="${rendered.to.y}"${style}/>`;
     case "polyline":
-      return `<polyline points="${pointList(rendered.points)}"${style}/>`;
+      return `<polyline${uprightPart} points="${pointList(rendered.points)}"${style}/>`;
     case "circle":
       return `<circle cx="${rendered.center.x}" cy="${rendered.center.y}" r="${rendered.radius}"${rendered.fill === undefined ? "" : ` fill="${rendered.fill === "foreground" ? fg : "none"}"`}${rendered.stroke === undefined ? "" : ` stroke="${rendered.stroke === "foreground" ? fg : "none"}"`}${style}/>`;
     case "path":
@@ -96,22 +101,22 @@ function renderPrimitive(
 /**
  * Polarity marks are notation, not device geometry: they move with a source,
  * but a minus sign remains horizontal on the page. Pre-apply the inverse of
- * the instance orientation around each marked line's centre; the parent SVG
+ * the instance orientation around each mark's centre; the parent SVG
  * transform then restores the centre while cancelling rotation and mirror.
+ * The strokes of one mark share its part name and turn about the mark's
+ * centre together, so a letter drawn in strokes (the ammeter's A) stays one
+ * upright letter.
  */
-function screenUprightLine<T extends { from: Point; to: Point }>(
-  line: T,
+function screenUprightPoints(
+  points: readonly Point[],
   orientation: Pick<Orientation, "rotation" | "mirror">,
-): T {
-  const center = {
-    x: (line.from.x + line.to.x) / 2,
-    y: (line.from.y + line.to.y) / 2,
-  };
+  center: Point,
+): Point[] {
   const canonicalCoordinate = (value: number): number => {
     const rounded = Math.round(value * 1_000_000) / 1_000_000;
     return Object.is(rounded, -0) ? 0 : rounded;
   };
-  const inverseVector = (point: Point): Point => {
+  return points.map((point) => {
     const unrotated = inverseTransformPoint(
       { x: point.x - center.x, y: point.y - center.y },
       { x: 0, y: 0 },
@@ -121,26 +126,61 @@ function screenUprightLine<T extends { from: Point; to: Point }>(
       x: canonicalCoordinate(center.x + unrotated.x),
       y: canonicalCoordinate(center.y + unrotated.y),
     };
-  };
+  });
+}
+
+/** The middle of a mark's extent, which a single line's midpoint is. */
+function extentCenter(points: readonly Point[]): Point {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
   return {
-    ...line,
-    from: inverseVector(line.from),
-    to: inverseVector(line.to),
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
   };
+}
+
+function uprightStrokePoints(primitive: SymbolPrimitive): readonly Point[] {
+  if (!primitive.part?.startsWith("upright-")) return [];
+  if (primitive.kind === "line") return [primitive.from, primitive.to];
+  if (primitive.kind === "polyline") return primitive.points;
+  return [];
 }
 
 function screenUprightPrimitive(
   primitive: SymbolPrimitive,
   orientation?: Pick<Orientation, "rotation" | "mirror">,
+  pivot?: Point,
 ): SymbolPrimitive {
-  if (
-    primitive.kind !== "line" ||
-    !primitive.part?.startsWith("upright-") ||
-    orientation === undefined
-  ) {
-    return primitive;
+  const points = uprightStrokePoints(primitive);
+  if (!points.length || orientation === undefined) return primitive;
+  const [first, ...rest] = screenUprightPoints(
+    points,
+    orientation,
+    pivot ?? extentCenter(points),
+  );
+  if (primitive.kind === "line")
+    return { ...primitive, from: first!, to: rest[0]! };
+  if (primitive.kind === "polyline")
+    return { ...primitive, points: [first!, ...rest] };
+  return primitive;
+}
+
+/** The centre each upright mark turns about: the middle of all its strokes. */
+function uprightMarkPivots(
+  primitives: readonly SymbolPrimitive[],
+): ReadonlyMap<string, Point> {
+  const strokes = new Map<string, Point[]>();
+  for (const primitive of primitives) {
+    const points = uprightStrokePoints(primitive);
+    if (points.length && primitive.part)
+      strokes.set(primitive.part, [
+        ...(strokes.get(primitive.part) ?? []),
+        ...points,
+      ]);
   }
-  return screenUprightLine(primitive, orientation);
+  return new Map(
+    [...strokes].map(([part, points]) => [part, extentCenter(points)]),
+  );
 }
 
 function signalFlowFramePoints(body: {
@@ -196,10 +236,19 @@ export function renderSymbolDefinitionBody(
     ].join("");
   }
   const hidden = new Set(hiddenPrimitiveParts);
-  return [...definition.primitives, ...additionalPrimitives]
-    .filter((primitive) => !primitive.part || !hidden.has(primitive.part))
+  const shown = [...definition.primitives, ...additionalPrimitives].filter(
+    (primitive) => !primitive.part || !hidden.has(primitive.part),
+  );
+  const pivots = orientation ? uprightMarkPivots(shown) : undefined;
+  return shown
     .map((primitive) =>
-      renderPrimitive(primitive, profile, foregroundOverride, orientation),
+      renderPrimitive(
+        primitive,
+        profile,
+        foregroundOverride,
+        orientation,
+        pivots,
+      ),
     )
     .join("");
 }

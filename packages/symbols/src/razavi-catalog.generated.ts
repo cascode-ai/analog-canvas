@@ -1257,7 +1257,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A 0 V SPICE V card does not say it is a meter, so an imported one keeps the circular voltage source.",
     assetPath: "ammeter.json",
     assetHash:
-      "2702566375eb6751e50e61780fb016b825949343fe9db12c1c28de9172b0e299",
+      "c0cca28ab27ef7fb5c2077c9505f91d04764c53c75ceeb221ca1b76dc45dce70",
   },
   {
     symbolId: "nand-gate",
@@ -10348,18 +10348,18 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         points: [
           {
             x: -4,
-            y: 5,
+            y: 5.25,
           },
           {
             x: 0,
-            y: -5.5,
+            y: -5.25,
           },
           {
             x: 4,
-            y: 5,
+            y: 5.25,
           },
         ],
-        part: "letter-a",
+        part: "upright-letter-a",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -10370,13 +10370,13 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         kind: "line",
         from: {
           x: -2.666667,
-          y: 1.5,
+          y: 1.75,
         },
         to: {
           x: 2.666667,
-          y: 1.5,
+          y: 1.75,
         },
-        part: "letter-a-bar",
+        part: "upright-letter-a",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
