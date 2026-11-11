@@ -124,7 +124,8 @@ annotations and unlocked layout references.
   `cell-terminal-name` may carry a same-text `formatOverride`;
   `instance-value` resolves authored parameters through the selected model's
   contract. Show Value keeps scalar values and MOS W/L typography; geometry
-  R/C uses `W=… L=…` and the model's non-unit multiplier. Individual parameter
+  R/C uses `W=… L=…` and the model's non-unit multiplier; a value-role
+  parameter with a `valueName` prints it first (`V_BO = 10`). Individual parameter
   labels bind declared names. Missing definitions/values paint no stale text;
   placeholders never supply a value. Opening a Project creates no labels.
   Display toggles preserve anchors, styles and existing visibility semantics.

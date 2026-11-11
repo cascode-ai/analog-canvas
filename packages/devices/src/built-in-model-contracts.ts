@@ -264,14 +264,19 @@ const potentiometer: readonly DeviceParameterDefinition[] = [
 ];
 // A unijunction's base bar, B2 to B1, with the emitter junction meeting it
 // a fraction `eta` of the way up from B1.
+// Its value is R_BB.
 const ujt: readonly DeviceParameterDefinition[] = [
-  parameter(
-    "rbb",
-    "Interbase resistance",
-    "7k",
-    "Ohm",
-    "Resistance of the base bar from B2 to B1 with the emitter open.",
-  ),
+  {
+    ...parameter(
+      "rbb",
+      "Interbase resistance",
+      "7k",
+      "Ohm",
+      "Resistance of the base bar from B2 to B1 with the emitter open.",
+    ),
+    displayRole: "value",
+    valueName: "RBB",
+  },
   parameter(
     "eta",
     "Intrinsic standoff ratio",
@@ -280,15 +285,20 @@ const ujt: readonly DeviceParameterDefinition[] = [
     "Fraction of rbb between the emitter junction and B1: the emitter conducts once it is about eta·V(B2, B1) plus a diode drop above B1.",
   ),
 ];
-// A four-layer diode blocks forward until its breakover voltage.
+// A four-layer diode blocks forward until its breakover voltage, its value
+// V_BO.
 const shockley: readonly DeviceParameterDefinition[] = [
-  parameter(
-    "vbo",
-    "Breakover voltage",
-    "10",
-    "V",
-    "Forward voltage at which the diode switches on, at about 0.65 mA (1 V or more); it then holds at about 0.8 V until its current falls below about 0.8 mA.",
-  ),
+  {
+    ...parameter(
+      "vbo",
+      "Breakover voltage",
+      "10",
+      "V",
+      "Forward voltage at which the diode switches on, at about 0.65 mA (1 V or more); it then holds at about 0.8 V until its current falls below about 0.8 mA.",
+    ),
+    displayRole: "value",
+    valueName: "VBO",
+  },
 ];
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.

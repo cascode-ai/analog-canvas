@@ -75,6 +75,8 @@ their IDs, never resolved to the first.
   parameters. Omitted keys stay; an unsupported key rejects the whole action.
   Show Value uses authored values: scalar parts keep their value, MOS keeps
   its W/L fraction, and geometry R/C shows `W=… L=…` with its non-unit multiplier.
+  A block's value goes by its textbook name where the number alone says
+  nothing: a Shockley diode shows `V_BO = 10`, a UJT `R_BB = 7k`.
   A separate multiplier label shows only while that summary is hidden.
 - A placed Cell shows its Cell name and hides `X1`; `set-instance-display`
   `showReference:true` shows `X1` above it (to tell which block is `x1` in

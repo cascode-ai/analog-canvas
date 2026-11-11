@@ -394,4 +394,53 @@ describe("a built-in block's value", () => {
       renderDocumentSvg(controller.document, controller.resolver),
     ).toContain("22k");
   });
+
+  it("shows a Shockley diode's breakover voltage under its textbook name and reads an edit back", async () => {
+    const { controller, client } = liveAgentEditor({
+      project: emptyAgentProject("Shockley value"),
+    });
+    await client.connect("session-1.code");
+    expect(
+      await client.applyActions([
+        {
+          kind: "place-component",
+          symbol: "shockley-diode",
+          position: { x: 100, y: 100 },
+          showValue: true,
+        },
+        {
+          kind: "place-component",
+          symbol: "ujt",
+          position: { x: 300, y: 100 },
+          showValue: true,
+        },
+      ]),
+    ).toMatchObject({ ok: true });
+    expect(texts(controller)).toContain("VBO = 10");
+    expect(texts(controller)).toContain("RBB = 7k");
+    const diode = controller.document.instances[0]!;
+    const value = controller.document.annotations.find(
+      (a) =>
+        a.binding?.kind === "instance-value" &&
+        a.binding.instanceId === diode.id,
+    )!;
+    for (const [text, vbo] of [
+      ["VBO = 12", "12"],
+      ["30", "30"],
+    ] as const) {
+      expect(
+        await client.applyActions([
+          {
+            kind: "set-text",
+            target: { kind: "annotation", id: value.id },
+            text,
+          },
+        ]),
+      ).toMatchObject({ ok: true });
+      expect(controller.document.instances[0]!.netlist?.parameters.vbo).toBe(
+        vbo,
+      );
+    }
+    expect(texts(controller)).toContain("VBO = 30");
+  });
 });
