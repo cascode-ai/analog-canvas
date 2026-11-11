@@ -1,13 +1,18 @@
 import { globSync, readFileSync } from "node:fs";
 import { configDefaults, defineConfig } from "vitest/config";
 
-// These contracts launch plain Node CLIs or import their built entrypoints.
-// Keep their build preparation out of ordinary focused source-module tests.
+// Tests that need the shared package build: which ones belong here is the
+// rule in docs/testing/README.md#pull-request-checks.
 const standaloneTests = [
+  "containers/ngspice/entrypoint.test.mjs",
   "scripts/analyze-native-simulation-examples.test.mjs",
   "scripts/build-native-simulation-examples.test.mjs",
   "scripts/native-example-runner.test.mjs",
   "scripts/package-vacask-harness.test.mjs",
+  "scripts/package-vacask-image.test.mjs",
+  "scripts/resource-seed-runtime.test.mjs",
+  "scripts/simulation-control-runtime.test.mjs",
+  "scripts/vacask-model-symbols.test.mjs",
 ];
 
 const moduleTests = [
