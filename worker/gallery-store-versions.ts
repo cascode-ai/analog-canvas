@@ -1,3 +1,4 @@
+import { publicationResult } from "./gallery-publication-command";
 // An entry's version history: the snapshot each write keeps, its retention,
 // and reading and restoring a version.
 
@@ -253,5 +254,5 @@ export function restoreVersion(
       entry.id,
     );
   });
-  return Response.json({ id: entry.id, restored: true, previewRevision });
+  return publicationResult({ id: entry.id, restored: true, previewRevision });
 }

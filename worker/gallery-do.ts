@@ -1,3 +1,8 @@
+import {
+  publicationCommand,
+  publicationFingerprint,
+  type PublicationReceipt,
+} from "./gallery-publication-command";
 // Community example gallery: publish-first with an admin recycle bin.
 //
 // Trust boundary: the only accepted input is Project JSON that passes the
@@ -573,6 +578,39 @@ export class GalleryDO {
       )
     )
       return Response.json({ error: "account-deleted" }, { status: 403 });
+    if (
+      [
+        "replace-entry",
+        "reference-set",
+        "reference-delete",
+        "restore-version",
+        "reject",
+        "import-entry",
+        "comparison-import",
+      ].includes(operation) &&
+      body.publicationReceipt
+    ) {
+      return publicationCommand(
+        this.state,
+        body.publicationReceipt as PublicationReceipt,
+        () => {
+          if (operation === "reference-set")
+            return setReference(this.sql, body);
+          if (operation === "reference-delete")
+            return deleteReference(this.sql, body);
+          if (operation === "restore-version")
+            return restoreVersion(this.state, body);
+          if (operation === "reject") return reject(this.sql, body);
+          if (operation === "import-entry")
+            return importEntry(this.state, body);
+          if (operation === "comparison-import")
+            return importComparison(this.sql, body);
+          return this.regionalProjects
+            ? this.regionalProjects.publication("replace-entry", body)
+            : replaceEntry(this.state, body);
+        },
+      );
+    }
     let participating = false;
     if (this.regionalProjects) {
       try {
@@ -609,6 +647,10 @@ export class GalleryDO {
         );
     }
     switch (operation) {
+      case "publication-state":
+        return Response.json({
+          state: publicationFingerprint(this.sql, String(body.id)),
+        });
       case "review-command":
       case "review-command-state":
         return reviewCommand(this.state, body, operation === "review-command");

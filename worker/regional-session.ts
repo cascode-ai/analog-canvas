@@ -135,6 +135,19 @@ export class RegionalSessionDO {
     ) {
       const body = await readBody(request);
       if (!body) return answer({ error: "invalid-request" }, 400);
+      const ownerToken = /^Bearer (acot_[A-Za-z0-9_-]{1,128})$/.exec(
+        request.headers.get("authorization") ?? "",
+      )?.[1];
+      if (url.pathname.endsWith("authorize") && ownerToken) {
+        const result = await this.authority("owner-action-authorize", {
+          token: ownerToken,
+          binding: body.binding,
+        });
+        return answer(
+          result.body ?? { error: "authorization-unavailable" },
+          result.status || 503,
+        );
+      }
       let grant: string | undefined;
       if (url.pathname.endsWith("authorize")) {
         const token = cookie(request, REGIONAL_SESSION_COOKIE);
@@ -451,6 +464,7 @@ export class RegionalSessionDO {
       | "owner-token"
       | "security"
       | "providers"
+      | "owner-action-authorize"
       | "action-authorize"
       | "action-verify",
     body: unknown,

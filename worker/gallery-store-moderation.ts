@@ -1,3 +1,4 @@
+import { publicationResult } from "./gallery-publication-command";
 import { locallyOwnedResources } from "./resource-replica";
 // Moderation: curation, duplicate cleanup, rejection, the recycle bin, and
 // deleting an entry or a whole account's data.
@@ -264,7 +265,7 @@ export function reject(
     ownerUserId: row.owner_user_id,
     submitterEmail: row.submitter_email,
   };
-  return Response.json({ id, status: "rejected", author });
+  return publicationResult({ id, status: "rejected", author });
 }
 
 /**

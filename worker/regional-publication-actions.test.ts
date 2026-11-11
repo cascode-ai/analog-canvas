@@ -1,0 +1,424 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { pair } from "./regional-resource-actions.test-support";
+import {
+  wiredProjectText,
+  signIn,
+  adminOf,
+  ownerAccountOf,
+  ORIGIN,
+} from "./gallery.test-support";
+
+afterEach(() => vi.unstubAllGlobals());
+
+it("fixes a foreign Dataset drawing without changing its source attribution", async () => {
+  const { cn, overseas, auth, loseNextReply } = await pair();
+  const owner = await ownerAccountOf(auth.source),
+    cnOwner = await auth.connect(owner);
+  const send = (site: typeof cn, cookie: string, path: string, body: unknown) =>
+    site.route(
+      new Request(ORIGIN + path, {
+        method: path.endsWith("entries") ? "POST" : "PUT",
+        headers: {
+          origin: ORIGIN,
+          cookie,
+          "idempotency-key": "dataset-" + site.env.RESOURCE_REGION,
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+  const imported = await send(
+    overseas,
+    owner,
+    "/api/gallery/sources/analoggenie/entries",
+    {
+      entries: [
+        {
+          id: "ag-308",
+          name: "Dataset original",
+          projectText: wiredProjectText(),
+        },
+      ],
+    },
+  );
+  expect((await imported.json()).results[0].ok).toBe(true);
+  const source = overseas.env.GALLERY.getByName("source:analoggenie"),
+    target = cn.env.GALLERY.getByName("source:analoggenie");
+  const change = await source.fetch("https://store/resource-sync/changes", {
+    method: "POST",
+    body: JSON.stringify({ stream: "analoggenie", after: 0 }),
+  });
+  expect(
+    (
+      await target.fetch("https://store/resource-sync/receive", {
+        method: "POST",
+        body: JSON.stringify({
+          stream: "analoggenie",
+          envelope: await change.json(),
+        }),
+      })
+    ).status,
+  ).toBe(200);
+  loseNextReply();
+  expect(
+    (
+      await send(cn, cnOwner, "/api/gallery/ag-308", {
+        projectText: wiredProjectText("Dataset repair", 300),
+      })
+    ).status,
+  ).toBe(503);
+  const changed = await send(cn, cnOwner, "/api/gallery/ag-308", {
+    projectText: wiredProjectText("Dataset repair", 300),
+  });
+  expect(changed.status, await changed.clone().text()).toBe(200);
+  expect(
+    (await (await cn.call("/api/gallery/ag-308")).json()).entry,
+  ).toMatchObject({
+    name: "Dataset original",
+    author: "AnalogGenie (redrawn)",
+  });
+  expect(
+    (await (await overseas.call("/api/gallery/ag-308/versions")).json())
+      .versions,
+  ).toHaveLength(1);
+});
+
+it("sends a rejection notice at most once when a successful command reply is lost", async () => {
+  const { cn, overseas, publish, auth, loseNextReply } = await pair();
+  const id = await publish(overseas),
+    cookie = await auth.connect(await adminOf(auth.source));
+  const sent: unknown[] = [];
+  auth.source.authDurable.fetchLike = (async (
+    _input: unknown,
+    init?: RequestInit,
+  ) => {
+    sent.push(JSON.parse(String(init?.body)));
+    return Response.json({ id: "notice-1" });
+  }) as typeof fetch;
+  const reject = () =>
+    cn.route(
+      new Request(ORIGIN + `/api/gallery/${id}/reject`, {
+        method: "POST",
+        headers: { origin: ORIGIN, cookie, "idempotency-key": "notice-once" },
+        body: JSON.stringify({ reason: "Check the topology", notify: true }),
+      }),
+    );
+  loseNextReply();
+  expect((await reject()).status).toBe(503);
+  expect((await (await reject()).json()).emailed).toBe(true);
+  expect(sent).toHaveLength(1);
+});
+
+it("rejects a foreign publication as an administrator and preserves its reason on replay", async () => {
+  const { cn, overseas, publish, auth, loseNextReply } = await pair();
+  const id = await publish(overseas),
+    cookie = await auth.connect(await adminOf(auth.source));
+  const reject = (key = "reject-1") =>
+    cn.route(
+      new Request(ORIGIN + `/api/gallery/${id}/reject`, {
+        method: "POST",
+        headers: { origin: ORIGIN, cookie, "idempotency-key": key },
+        body: JSON.stringify({
+          reason: "Needs an electrical correction",
+          notify: false,
+        }),
+      }),
+    );
+  expect(
+    (
+      await cn.call(`/api/gallery/${id}/reject`, "POST", "not-admin", {
+        reason: "No",
+      })
+    ).status,
+  ).toBe(401);
+  loseNextReply();
+  expect((await reject()).status).toBe(503);
+  const retried = await reject();
+  expect(retried.status, await retried.clone().text()).toBe(200);
+  expect((await (await cn.call(`/api/gallery/${id}`)).json()).status).toBe(
+    "rejected",
+  );
+  expect((await reject()).status).toBe(200);
+});
+
+it("restores a foreign retained version once and refuses an unrelated account", async () => {
+  const { cn, overseas, publish, loseNextReply, auth } = await pair();
+  const id = await publish(overseas);
+  const body = {
+    name: "A later drawing",
+    description: "",
+    projectText: wiredProjectText("Later"),
+  };
+  expect(
+    (await overseas.call(`/api/gallery/${id}`, "PUT", "later-drawing", body))
+      .status,
+  ).toBe(200);
+  const versions = await (
+    await overseas.call(`/api/gallery/${id}/versions`)
+  ).json();
+  const version = versions.versions[0].versionId;
+  const stranger = await auth.connect(
+    await signIn(auth.source.authDurable, "restore-stranger@example.com"),
+  );
+  expect(
+    (
+      await cn.route(
+        new Request(ORIGIN + `/api/gallery/${id}/versions/${version}/restore`, {
+          method: "POST",
+          headers: { origin: ORIGIN, cookie: stranger },
+        }),
+      )
+    ).status,
+  ).toBe(401);
+  loseNextReply();
+  expect(
+    (
+      await cn.call(
+        `/api/gallery/${id}/versions/${version}/restore`,
+        "POST",
+        "restore-version",
+      )
+    ).status,
+  ).toBe(503);
+  const restored = await cn.call(
+    `/api/gallery/${id}/versions/${version}/restore`,
+    "POST",
+    "restore-version",
+  );
+  expect(restored.status, await restored.clone().text()).toBe(200);
+  expect((await (await cn.call(`/api/gallery/${id}`)).json()).entry.name).toBe(
+    "Regional lifecycle",
+  );
+  expect(
+    (await (await overseas.call(`/api/gallery/${id}/versions`)).json())
+      .versions,
+  ).toHaveLength(2);
+});
+
+it("changes and removes a foreign reference image without repeating a lost upload", async () => {
+  const { cn, overseas, publish, loseNextReply } = await pair();
+  const id = await publish(cn);
+  const body = {
+    rights: true,
+    image: {
+      type: "image/png",
+      data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4d8AAAAASUVORK5CYII=",
+    },
+  };
+  loseNextReply();
+  expect(
+    (
+      await overseas.call(
+        `/api/gallery/${id}/reference`,
+        "PUT",
+        "reference-1",
+        body,
+      )
+    ).status,
+  ).toBe(503);
+  const retried = await overseas.call(
+    `/api/gallery/${id}/reference`,
+    "PUT",
+    "reference-1",
+    body,
+  );
+  expect(retried.status, await retried.clone().text()).toBe(200);
+  expect((await overseas.call(`/api/gallery/${id}/reference`)).status).toBe(
+    200,
+  );
+  expect(
+    (
+      await overseas.call(
+        `/api/gallery/${id}/reference`,
+        "DELETE",
+        "remove-reference",
+      )
+    ).status,
+  ).toBe(200);
+  expect((await overseas.call(`/api/gallery/${id}/reference`)).status).toBe(
+    404,
+  );
+});
+
+it("updates a foreign drawing once after a lost reply and exposes the committed version at the entrance", async () => {
+  const { cn, overseas, publish, loseNextReply } = await pair();
+  const id = await publish(overseas);
+  const body = {
+    name: "Updated across regions",
+    description: "An owned update",
+    tags: ["amplifier"],
+    projectText: wiredProjectText("Updated across regions"),
+  };
+  loseNextReply();
+  expect(
+    (await cn.call(`/api/gallery/${id}`, "PUT", "drawing-1", body)).status,
+  ).toBe(503);
+  overseas.restart();
+  const retried = await cn.call(`/api/gallery/${id}`, "PUT", "drawing-1", body);
+  expect(retried.status, await retried.clone().text()).toBe(200);
+  expect((await (await cn.call(`/api/gallery/${id}`)).json()).entry.name).toBe(
+    "Updated across regions",
+  );
+  const versions = await (
+    await overseas.call(`/api/gallery/${id}/versions`)
+  ).json();
+  expect(versions.versions).toHaveLength(1);
+  expect(
+    (
+      await cn.call(`/api/gallery/${id}`, "PUT", "drawing-1", {
+        ...body,
+        name: "Changed reuse",
+      })
+    ).status,
+  ).toBe(409);
+});
+
+it("reimports foreign Dataset items and their comparisons with per-item retry receipts", async () => {
+  const { cn, overseas, auth, loseNextReply } = await pair();
+  const owner = await ownerAccountOf(auth.source),
+    cnOwner = await auth.connect(owner);
+  const send = (
+    site: typeof cn,
+    cookie: string,
+    kind: string,
+    key: string,
+    items: unknown[],
+  ) =>
+    site.route(
+      new Request(ORIGIN + "/api/gallery/sources/analoggenie/" + kind, {
+        method: "POST",
+        headers: { origin: ORIGIN, cookie, "idempotency-key": key },
+        body: JSON.stringify({ [kind]: items }),
+      }),
+    );
+  const original = {
+    id: "ag-401",
+    name: "Original dataset",
+    projectText: wiredProjectText(),
+  };
+  expect(
+    (
+      await (
+        await send(overseas, owner, "entries", "initial-import", [original])
+      ).json()
+    ).results[0].ok,
+  ).toBe(true);
+  const changes = await overseas.env.GALLERY.getByName(
+    "source:analoggenie",
+  ).fetch("https://store/resource-sync/changes", {
+    method: "POST",
+    body: JSON.stringify({ stream: "analoggenie", after: 0 }),
+  });
+  await cn.env.GALLERY.getByName("source:analoggenie").fetch(
+    "https://store/resource-sync/receive",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        stream: "analoggenie",
+        envelope: await changes.json(),
+      }),
+    },
+  );
+  const entries = [
+    {
+      ...original,
+      name: "Reimported",
+      projectText: wiredProjectText("Changed", 340),
+    },
+    { id: "not-a-dataset", name: "Invalid" },
+  ];
+  loseNextReply();
+  expect(
+    (await (await send(cn, cnOwner, "entries", "reimport", entries)).json())
+      .results[0].ok,
+  ).toBe(false);
+  expect(
+    (await (await send(cn, cnOwner, "entries", "reimport", entries)).json())
+      .results,
+  ).toMatchObject([
+    { id: "ag-401", ok: true, created: false },
+    { id: "not-a-dataset", ok: false, error: "invalid-id" },
+  ]);
+  expect((await (await cn.call("/api/gallery/ag-401")).json()).entry.name).toBe(
+    "Reimported",
+  );
+  expect(
+    (await (await overseas.call("/api/gallery/ag-401/versions")).json())
+      .versions,
+  ).toHaveLength(1);
+  const comparison = {
+    id: "ag-401",
+    verdict: "match",
+    sourceNetlist: "R1 in 0 1k",
+    figure: {
+      type: "image/png",
+      data: btoa(String.fromCharCode(0x89, 0x50, 0x4e, 0x47)),
+    },
+  };
+  loseNextReply();
+  expect(
+    (
+      await (
+        await send(cn, cnOwner, "comparisons", "comparison", [comparison])
+      ).json()
+    ).results[0].ok,
+  ).toBe(false);
+  expect(
+    (
+      await (
+        await send(cn, cnOwner, "comparisons", "comparison", [comparison])
+      ).json()
+    ).results[0],
+  ).toMatchObject({ ok: true, created: true });
+  const read = await cn.route(
+    new Request(
+      ORIGIN + "/api/gallery/sources/analoggenie/comparisons/ag-401",
+      { headers: { cookie: cnOwner } },
+    ),
+  );
+  expect(await read.json()).toMatchObject({ sourceNetlist: "R1 in 0 1k" });
+  const mint = await auth.source.authDurable.fetch(
+    new Request(ORIGIN + "/api/auth/owner-tokens", {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie: owner },
+      body: JSON.stringify({ label: "Regional import" }),
+    }),
+  );
+  const token = await mint.json();
+  const bearerImport = () =>
+    cn.route(
+      new Request(ORIGIN + "/api/gallery/sources/analoggenie/entries", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + token.token,
+          "idempotency-key": "bearer-import",
+        },
+        body: JSON.stringify({
+          entries: [{ ...original, name: "Owner token import" }],
+        }),
+      }),
+    );
+  loseNextReply();
+  expect((await (await bearerImport()).json()).results[0].ok).toBe(false);
+  expect((await (await bearerImport()).json()).results[0].ok).toBe(true);
+  expect((await (await cn.call("/api/gallery/ag-401")).json()).entry.name).toBe(
+    "Owner token import",
+  );
+  expect(
+    (
+      await cn.route(
+        new Request(ORIGIN + "/api/gallery/ag-401", {
+          method: "PUT",
+          headers: { authorization: "Bearer " + token.token },
+          body: JSON.stringify({ projectText: wiredProjectText() }),
+        }),
+      )
+    ).status,
+  ).toBe(401);
+  await auth.source.authDurable.fetch(
+    new Request(ORIGIN + "/api/auth/owner-tokens/" + token.id, {
+      method: "DELETE",
+      headers: { origin: ORIGIN, cookie: owner },
+    }),
+  );
+  expect((await bearerImport()).status).toBe(401);
+});

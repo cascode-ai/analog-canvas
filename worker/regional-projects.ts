@@ -520,6 +520,29 @@ export class RegionalProjectDO {
     return Response.json(payload, { status: response.status });
   }
 
+  /** Synchronous publication entry for the colocated command receipt transaction. */
+  publication(
+    operation: "submit" | "replace-entry",
+    body: Record<string, unknown>,
+  ): Response {
+    const expansion = projectExpansion(this.env.PROJECT_SYNC_EXPANSION);
+    const users = projectRegionUsers(this.env.PROJECT_REGION_USERS, expansion);
+    if (
+      expansion !== "off" &&
+      this.env.PROJECT_REGION === "overseas" &&
+      !this.baselineInstalled
+    ) {
+      installProjectBaseline(this.sql, expansion === "copy" ? users : null);
+      this.baselineInstalled = true;
+    }
+    return this.publish(
+      operation,
+      body,
+      users,
+      protectedProjectIds(this.env.PROJECT_PROTECTED_IDS),
+    );
+  }
+
   /** Gallery and its affected private bindings commit with their journal entries. */
   private publish(
     operation: "submit" | "replace-entry",

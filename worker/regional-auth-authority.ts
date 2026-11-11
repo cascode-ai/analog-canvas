@@ -105,6 +105,8 @@ export class RegionalAuthority {
           await digest(String(body.grant)),
         );
       }
+      if (url.pathname === REGIONAL_PREFIX + "owner-action-authorize")
+        return this.authorizeOwnerAction(body.token, body.binding);
       if (url.pathname === REGIONAL_PREFIX + "action-verify")
         return this.verifyAction(body);
       if (url.pathname === REGIONAL_PREFIX + "providers")
@@ -354,10 +356,30 @@ export class RegionalAuthority {
   /** Called only through the trusted AUTH binding, after normal cookie resolution. */
   async authorizeSourceAction(request: Request): Promise<Response> {
     const body = await readBody(request);
+    const bearer = /^Bearer (acot_[A-Za-z0-9_-]{1,128})$/.exec(
+      request.headers.get("authorization") ?? "",
+    );
+    if (bearer) return this.authorizeOwnerAction(bearer[1], body?.binding);
     const hash = await sourceSessionHash(cookie(request, "icm_session") ?? "");
     const user = await this.session(hash);
     if (!user) return answer({ error: "unauthorized" }, 401);
     return this.issueAction(body?.binding, user.id, "session", hash);
+  }
+
+  private async authorizeOwnerAction(
+    token: unknown,
+    binding: unknown,
+  ): Promise<Response> {
+    if (typeof token !== "string" || !/^acot_[A-Za-z0-9_-]{1,128}$/.test(token))
+      return answer({ error: "unauthorized" }, 401);
+    const user = await this.ownerToken(token);
+    if (!user?.isOwner) return answer({ error: "unauthorized" }, 401);
+    return this.issueAction(
+      binding,
+      user.id,
+      "owner-token",
+      await sourceSessionHash(token),
+    );
   }
 
   private async issueAction(
@@ -407,14 +429,27 @@ export class RegionalAuthority {
       )
       .toArray()[0];
     const user =
-      row?.reference_kind === "grant"
-        ? (await this.currentGrantHash(row.reference_hash))?.user
-        : row
-          ? await this.session(row.reference_hash)
-          : null;
+      row?.reference_kind === "owner-token"
+        ? this.ownerActionIdentity(row.reference_hash)
+        : row?.reference_kind === "grant"
+          ? (await this.currentGrantHash(row.reference_hash))?.user
+          : row
+            ? await this.session(row.reference_hash)
+            : null;
     if (!user || user.id !== row?.user_id)
       return answer({ error: "unauthorized" }, 401);
     return answer({ user });
+  }
+
+  private ownerActionIdentity(hash: string): SessionUser | null {
+    const row = this.sql
+      .exec<{ user_id: string }>(
+        "SELECT user_id FROM owner_tokens WHERE token_hash=?",
+        hash,
+      )
+      .toArray()[0];
+    const user = row ? this.identity(row.user_id) : null;
+    return user?.isOwner ? user : null;
   }
 
   private async deleteAccount(

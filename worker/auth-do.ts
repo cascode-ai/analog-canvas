@@ -75,6 +75,7 @@ function canonicalAuthorityRequest(
       "providers",
       "deletions",
       "bylines",
+      "owner-action-authorize",
       "action-authorize",
       "action-verify",
     ].some((action) => url.pathname === REGIONAL_PREFIX + action);
@@ -806,7 +807,8 @@ export class AuthDO {
    */
   private async sendRejectionNotice(request: Request): Promise<boolean> {
     const body = (await request.json().catch(() => null)) as
-      (Partial<RejectionAuthor> & { reason?: unknown }) | null;
+      | (Partial<RejectionAuthor> & { reason?: unknown; noticeId?: unknown })
+      | null;
     if (typeof body?.entryName !== "string" || typeof body.reason !== "string")
       return false;
     const userId =
@@ -826,6 +828,24 @@ export class AuthDO {
       body.entryName,
       body.reason,
     );
+    if (
+      typeof body.noticeId === "string" &&
+      /^[A-Za-z0-9_-]{1,128}$/.test(body.noticeId)
+    )
+      return deliverRejection(
+        this.sql,
+        body.noticeId,
+        { to, subject, text },
+        this.now().getTime(),
+        (notice, key) =>
+          this.sendEmail(
+            notice.to,
+            notice.subject,
+            notice.text,
+            SITE_USAGE_CONTACT,
+            key,
+          ),
+      );
     return this.sendEmail(to, subject, text, SITE_USAGE_CONTACT);
   }
 
@@ -835,6 +855,7 @@ export class AuthDO {
     subject: string,
     text: string,
     replyTo?: string,
+    idempotencyKey?: string,
   ): Promise<boolean> {
     if (!this.env.RESEND_API_KEY) return false;
     try {
@@ -843,6 +864,7 @@ export class AuthDO {
         headers: {
           authorization: `Bearer ${this.env.RESEND_API_KEY}`,
           "content-type": "application/json",
+          ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
         },
         body: JSON.stringify({
           from:
@@ -2041,3 +2063,4 @@ export class AuthDO {
     return response;
   }
 }
+import { deliverRejection } from "./rejection-delivery";

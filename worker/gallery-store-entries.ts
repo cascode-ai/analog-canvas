@@ -1,3 +1,4 @@
+import { publicationResult } from "./gallery-publication-command";
 // One entry: publishing, updating and importing it, reading it and its
 // preview, the daily publish quota and the daily allowance of opens.
 
@@ -379,11 +380,7 @@ export function importEntry(
         typeof body.createdAt === "string" ? body.createdAt : at,
       );
   });
-  return Response.json({
-    id,
-    created: !row,
-    previewRevision,
-  });
+  return publicationResult({ id, created: !row, previewRevision });
 }
 
 export function replaceEntry(
@@ -469,11 +466,7 @@ export function replaceEntry(
       row.id,
     );
   });
-  return Response.json({
-    id: row.id,
-    status: row.status,
-    previewRevision,
-  });
+  return publicationResult({ id: row.id, status: row.status, previewRevision });
 }
 
 /**
