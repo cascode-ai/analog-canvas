@@ -48,6 +48,7 @@ A drawing that only matches its netlist is not done.
   | Ports, Net labels, names | 20–40 from their pin |
   | Ground | 30 below its terminal |
   | Supply rail | 30–40 above the top row |
+  | Rail end past its outermost tap | 20 |
 
 - **Supplies:** find the actual Net on each source, drain and bulk pin before naming a
   rail. A top bus can be an input or internal source Net while `VDD` feeds separate bulk
