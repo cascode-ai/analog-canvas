@@ -3,6 +3,8 @@ import type { GalleryNamespaceLike } from "./gallery-store";
 import { answer } from "./regional-auth-contract";
 import { validAccountId } from "./retired-accounts";
 
+export const PROFILE_BYLINE_TICK = "/internal/profile-byline-tick";
+
 export type ProfileByline = {
   sequence: number;
   ownerUserId: string;
@@ -87,16 +89,35 @@ export class ProfileBylines {
       .one().sequence;
     const page = this.feed({ after });
     if (!page.ok) return page;
-    const jobs = (await page.json()).jobs as ProfileByline[];
+    const { jobs, head } = (await page.json()) as {
+      jobs: ProfileByline[];
+      head: number;
+    };
+    let sent = 0;
+    const progress = () => {
+      const cursor = this.sql
+        .exec<{ sequence: number }>(
+          "SELECT sequence FROM profile_byline_local_cursor WHERE id=1",
+        )
+        .one().sequence;
+      return { head, cursor, sent, caughtUp: cursor >= head };
+    };
     for (const job of jobs) {
       if (!(await applyProfileByline(gallery, job)))
-        return answer({ status: "byline-retry" }, 503);
+        return answer(
+          { status: "byline-retry", ...progress(), caughtUp: false },
+          503,
+        );
       this.sql.exec(
         "UPDATE profile_byline_local_cursor SET sequence=MAX(sequence,?) WHERE id=1",
         job.sequence,
       );
+      sent++;
     }
-    return answer({ status: jobs.length ? "sent" : "caught-up" });
+    return answer({
+      status: jobs.length ? "sent" : "caught-up",
+      ...progress(),
+    });
   }
 
   feed(body: Record<string, unknown>): Response {

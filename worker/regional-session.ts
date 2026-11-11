@@ -2,6 +2,7 @@ import type { SessionUser } from "./auth-do";
 import {
   applyProfileByline,
   isProfileByline,
+  PROFILE_BYLINE_TICK,
   type ProfileByline,
 } from "./profile-bylines";
 import { coordinatesProjectDeletion } from "./project-region-scope";
@@ -175,6 +176,14 @@ export class RegionalSessionDO {
         result.status || 503,
       );
     }
+    if (
+      url.origin === "https://auth" &&
+      url.pathname === PROFILE_BYLINE_TICK &&
+      request.method === "POST"
+    )
+      return this.env.GALLERY
+        ? this.tickBylines(true)
+        : answer({ error: "byline-unavailable" }, 503);
     if (
       url.origin === "https://auth" &&
       url.pathname === ACCOUNT_DELETION_TICK &&
@@ -554,7 +563,7 @@ export class RegionalSessionDO {
     return applyProfileByline(this.env.GALLERY, job);
   }
 
-  private async tickBylines(): Promise<Response> {
+  private async tickBylines(required = false): Promise<Response> {
     const after = this.sql
       .exec<{ sequence: number }>(
         "SELECT sequence FROM regional_byline_cursor WHERE singleton=1",
@@ -562,7 +571,8 @@ export class RegionalSessionDO {
       .one().sequence;
     const result = await this.authority("bylines", { after });
     // During a rolling upgrade the older authority has no byline feed yet.
-    if (result.status === 404) return answer({ status: "disabled" });
+    if (result.status === 404)
+      return answer({ status: "disabled" }, required ? 503 : 200);
     const jobs = result.body?.jobs;
     if (
       result.body?.version !== 1 ||
@@ -582,15 +592,32 @@ export class RegionalSessionDO {
         return answer({ status: "byline-retry" }, 503);
       previous = job.sequence;
     }
+    const head = Number(result.body.head);
+    let sent = 0;
+    const progress = () => {
+      const cursor = this.sql
+        .exec<{ sequence: number }>(
+          "SELECT sequence FROM regional_byline_cursor WHERE singleton=1",
+        )
+        .one().sequence;
+      return { head, cursor, sent, caughtUp: cursor >= head };
+    };
     for (const job of jobs as ProfileByline[]) {
       if (!(await this.applyByline(job)))
-        return answer({ status: "byline-retry" }, 503);
+        return answer(
+          { status: "byline-retry", ...progress(), caughtUp: false },
+          503,
+        );
       this.sql.exec(
         "UPDATE regional_byline_cursor SET sequence=MAX(sequence,?) WHERE singleton=1",
         job.sequence,
       );
+      sent++;
     }
-    return answer({ status: jobs.length ? "sent" : "caught-up" });
+    return answer({
+      status: jobs.length ? "sent" : "caught-up",
+      ...progress(),
+    });
   }
 
   private canCoordinateDeletion(user: SessionUser | null): boolean {

@@ -52,6 +52,10 @@ operations through either entrance and lists the delivered command coverage.
   effect before answering success. Activation seeds existing human names once.
   A storage trigger retains later profile changes even when an older runtime runs.
   The authority retries its own Gallery effects in that same maintenance cycle.
+  `POST /api/resource-sync/bylines/run`, authenticated with the resource-sync
+  admin token, advances only that region's byline cursor by at most 50 effects.
+  It reports `head`, durable `cursor`, processed `sent` count and `caughtUp`;
+  replay resumes the cursor without running account deletion or simulation checks.
   An accepted regional profile change whose byline is not yet materialized returns
   `503 byline-propagation-pending`; its committed intent remains retryable. A later
   profile revision supersedes an earlier in-flight response rather than reverting it.
