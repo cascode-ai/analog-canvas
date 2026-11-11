@@ -23,6 +23,6 @@
   "devDependencies": {
     "@icm/project-protocol": "workspace:*",
     "@icm/spice": "workspace:*",
-    "@rich-netlist/runtime": "0.5.2"
+    "@rich-netlist/runtime": "0.5.5"
   }
 }
