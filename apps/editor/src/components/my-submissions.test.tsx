@@ -28,6 +28,22 @@ it("retries an uncertain lifecycle request with the same identity and gives a la
   expect(keys[2]).not.toBe(keys[0]);
 });
 
+it("keeps a deletion's identity while its result is uncertain", async () => {
+  const keys: (string | null)[] = [];
+  const fetcher: typeof fetch = async (input, init) => {
+    expect(input).toBe("/api/gallery/delete-retry-circuit");
+    expect(init?.method).toBe("DELETE");
+    keys.push(new Headers(init?.headers).get("idempotency-key"));
+    return keys.length === 1
+      ? Response.json({ error: "action-propagation-pending" }, { status: 503 })
+      : Response.json({ id: "delete-retry-circuit", deleted: true });
+  };
+  expect((await deleteMyEntry("delete-retry-circuit", fetcher)).ok).toBe(false);
+  expect((await deleteMyEntry("delete-retry-circuit", fetcher)).ok).toBe(true);
+  expect(keys[0]).toBeTruthy();
+  expect(keys[1]).toBe(keys[0]);
+});
+
 it("distinguishes a saved action waiting for replication from a refused action", async () => {
   const outcome = await setMyEntryRecycled(
     "pending-circuit",

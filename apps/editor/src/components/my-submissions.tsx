@@ -125,10 +125,7 @@ export async function deleteMyEntry(
   fetchLike: typeof fetch = fetch,
 ): Promise<MineActionOutcome> {
   try {
-    const response = await fetchLike(`/api/gallery/${id}`, {
-      method: "DELETE",
-      credentials: "same-origin",
-    });
+    const response = await galleryLifecycleRequest(id, "delete", fetchLike);
     return mineActionOutcome(response);
   } catch {
     return { ok: false, message: OFFLINE_FAILURE.message };

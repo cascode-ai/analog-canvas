@@ -161,6 +161,35 @@ async function pair() {
   };
 }
 
+it("deletes a foreign publication through either entrance and reconciles a lost reply after restart", async () => {
+  const { cn, overseas, publish, loseNextReply } = await pair();
+  const id = await publish(overseas);
+  loseNextReply();
+  expect(
+    (await cn.call(`/api/gallery/${id}`, "DELETE", "delete-once")).status,
+  ).toBe(503);
+  overseas.restart();
+  const reconciled = await cn.call(
+    `/api/gallery/${id}`,
+    "DELETE",
+    "delete-once",
+  );
+  expect(reconciled.status, await reconciled.clone().text()).toBe(200);
+  expect(await reconciled.json()).toEqual({ id, deleted: true });
+  expect((await cn.call(`/api/gallery/${id}`)).status).toBe(404);
+  expect((await overseas.call(`/api/gallery/${id}`)).status).toBe(404);
+
+  const domesticId = await publish(cn);
+  const deleted = await overseas.call(
+    `/api/gallery/${domesticId}`,
+    "DELETE",
+    "reverse-delete",
+  );
+  expect(deleted.status, await deleted.clone().text()).toBe(200);
+  expect((await overseas.call(`/api/gallery/${domesticId}`)).status).toBe(404);
+  expect((await cn.call(`/api/gallery/${domesticId}`)).status).toBe(404);
+});
+
 it("withdraws and restores a foreign publication through either entrance, visible before success", async () => {
   const { cn, overseas, publish } = await pair();
   for (const [source, entrance] of [
@@ -187,6 +216,50 @@ it("withdraws and restores a foreign publication through either entrance, visibl
       (await (await entrance!.call(`/api/gallery/${id}`)).json()).status,
     ).toBe("public");
   }
+});
+
+it("keeps deletion ownership, curator bin requirements and command bindings across regions", async () => {
+  const { cn, overseas, publish, auth } = await pair();
+  const id = await publish(overseas);
+  const stranger = await auth.connect(
+    await signIn(auth.source.authDurable, "delete-stranger@example.com"),
+  );
+  const admin = await auth.connect(await adminOf(auth.source));
+  const remove = (cookie: string) =>
+    cn.route(
+      new Request(ORIGIN + `/api/gallery/${id}`, {
+        method: "DELETE",
+        headers: {
+          cookie,
+          origin: ORIGIN,
+          "idempotency-key": "guarded-delete",
+        },
+      }),
+    );
+  expect((await remove(stranger)).status).toBe(401);
+  const publicDelete = await remove(admin);
+  expect(publicDelete.status).toBe(409);
+  expect(await publicDelete.json()).toMatchObject({ error: "not-recycled" });
+  expect(
+    (await cn.call(`/api/gallery/${id}/recycle`, "POST", "before-delete"))
+      .status,
+  ).toBe(200);
+  expect((await remove(admin)).status).toBe(200);
+  expect((await cn.call(`/api/gallery/${id}`)).status).toBe(404);
+  // A receipt is per actor and bound to the original operation, even after deletion.
+  expect((await remove(stranger)).status).toBe(404);
+  const reused = await cn.route(
+    new Request(ORIGIN + `/api/gallery/${id}/restore`, {
+      method: "POST",
+      headers: {
+        cookie: admin,
+        origin: ORIGIN,
+        "idempotency-key": "guarded-delete",
+      },
+    }),
+  );
+  expect(reused.status).toBe(409);
+  expect(await reused.json()).toMatchObject({ error: "command-reused" });
 });
 
 it("recovers a lost command reply after restart without a second mutation", async () => {
