@@ -174,7 +174,9 @@ the RNL language and its runtime belong to rnl.
   netlist means: Spectre's escapes (`Vin\+`) are written plain (`Vin+`).
 - A wire is written as drawn: a power rail bold, a body tie dashed, and a
   color or line style set on the wire as set. A wire through a junction stays
-  one wire through it. A power label is written as a label of its net,
+  one wire through it, listing the junction only where it joins it: one
+  drawn over a junction other routes end at passes it, as the editor joins
+  only what a route reaches. A power label is written as a label of its net,
   named so the import knows it as a power label; an instance label free of any
   part and binding is named likewise. A net's or power label is
   attached where it hangs (13.3): on the wire of the route it hangs on,
@@ -398,7 +400,9 @@ the RNL language and its runtime belong to rnl.
   - in a level written with Canvas 0.2 (it has `$CANVAS_TYPESETTING`), what
     each label shows as `$CANVAS_LABEL` says, a label without one its own
     text; a power label that shows a Cell Pin's name is bound to that Pin and
-    hangs on the junction it stands beside, else on the Pin; a drawn name
+    hangs on the junction it stands beside, else on the Pin; one that shows
+    its net's name is bound to it and claims it as a supply, in the net's
+    scope, so its rails are rails; a drawn name
     still binds only where it reads as the part's name; a level another tool
     wrote is read from its texts as above;
   - in a level Analog Canvas wrote (`$CANVAS_TYPESETTING` or extension 0.1), a label
