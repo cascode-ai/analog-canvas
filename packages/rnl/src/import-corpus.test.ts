@@ -3,12 +3,7 @@ import { createDesignNetlistExport } from "@icm/netlist";
 import { convertNetlist, importSpiceSources } from "@icm/spice";
 import { startCore } from "@rich-netlist/runtime";
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  applyRnlSnapshot,
-  drawnModelTypes,
-  undrawnBodies,
-  type RnlSnapshot,
-} from "./index.js";
+import { applyRnlSnapshot, drawnModelTypes, undrawnBodies } from "./index.js";
 
 const core = startCore();
 afterAll(() => core.terminate());
@@ -37,12 +32,12 @@ function source(
 
 async function read(text: string, format: "spice" | "spectre") {
   const path = format === "spice" ? "case.sp" : "case.scs";
-  const snapshot = (await core.snapshot({
+  const snapshot = await core.snapshot({
     entry: path,
     files: { [path]: text },
     dialect: format,
     parts: { host: true, model: true },
-  })) as unknown as RnlSnapshot;
+  });
   expect(snapshot.failed).toBeNull();
   expect(
     snapshot.diagnostics.filter((item) => item.severity === "error"),
@@ -192,7 +187,9 @@ describe("hand-authored RNL import corpus", () => {
         model: {
           ...structuredClone(level.model!),
           symbols: [{ ...symbol, name: "$PNP" }],
-          objects: [{ ...object, symbol: { value: symbol.id } }],
+          objects: [
+            { ...object, symbol: { ...object.symbol, value: symbol.id } },
+          ],
         },
       },
     ];

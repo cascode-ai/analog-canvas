@@ -6,7 +6,7 @@ import { builtInSymbols } from "@icm/symbols";
 
 import { inlineRnlDefinition } from "./inline-symbols.js";
 import { toRnlPoint } from "./place.js";
-import type { RnlSymbolRef } from "./rnl-import.js";
+import type { RnlSymbolRef } from "./rnl-snapshot.js";
 import { rnlSymbolFor } from "./symbol-map.js";
 
 const call = (

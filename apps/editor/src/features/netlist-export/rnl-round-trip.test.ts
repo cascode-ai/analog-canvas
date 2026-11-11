@@ -39,13 +39,15 @@ import {
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import {
+  CANVAS_PACKAGE,
+  CANVAS_PACKAGE_VERSION,
   composeOrient,
   createRnlExport,
   rnlBodyPortOrder,
   rnlOrient,
   rnlPlace,
   rnlSymbolFor,
-  type RnlSnapshot,
+  RNL_STD_VERSION,
   type RnlWriteRequest,
 } from "@icm/rnl";
 import {
@@ -56,6 +58,7 @@ import {
   hierarchicalSymbolId,
   withProjectComponentDefinitions,
 } from "@icm/symbols";
+import type { Shape } from "@rich-netlist/runtime/core";
 import { createRnlTestCore } from "./rnl-core.test-support";
 
 import { labelCensus, labelDifferences } from "../../../e2e/label-census";
@@ -81,13 +84,7 @@ type ArrowEnd =
 // The rnl runtime's own core, in a worker thread: the editor's write and read.
 const core = await createRnlTestCore();
 afterAll(() => core.terminate());
-const runtime: RnlRuntime = {
-  // As JSON, this editor's readonly points are the runtime's point arrays.
-  write: (request) =>
-    core.write(request as unknown as Parameters<typeof core.write>[0]),
-  snapshot: (request) =>
-    core.snapshot(request) as unknown as Promise<RnlSnapshot>,
-};
+const runtime: RnlRuntime = core;
 
 const example = (name: string): CircuitProject =>
   parseProject(
@@ -468,7 +465,7 @@ const EXTENSIONS_06_PARTS = [
 ] as const;
 
 it.each(["spice", "spectre"] as const)(
-  "brings back each part analog-canvas-extensions 0.6 draws through %s+RNL",
+  "brings back each part the written Canvas package draws through %s+RNL",
   async (format) => {
     const project = calledBlocks([...EXTENSIONS_06_PARTS]);
     const exported = createRnlExport(project, { format });
@@ -481,7 +478,7 @@ it.each(["spice", "spectre"] as const)(
       svg: false,
     });
     expect(written.text).toContain(
-      'USE-PACKAGE(name="analog-canvas-extensions", version="0.6")',
+      `USE-PACKAGE(name="${CANVAS_PACKAGE}", version="${CANVAS_PACKAGE_VERSION}")`,
     );
     const plan = await importRnl(written.text, format);
     expect(failures(plan)).toEqual([]);
@@ -2824,9 +2821,7 @@ async function expectViewerLabels(
   const exported = createRnlExport(project, { format });
   if (exported.status !== "ready") throw new Error("export blocked");
   const written = await core.write({
-    write: exported.request as unknown as Parameters<
-      typeof core.write
-    >[0]["write"],
+    write: exported.request,
     svg: false,
     primitives: true,
   });
@@ -2871,7 +2866,7 @@ async function expectViewerLabels(
               style: { ...text.style, size: primitive.size },
             },
           ],
-        } as unknown as Parameters<typeof core.write>[0]["write"],
+        },
         svg: false,
         primitives: true,
       });
@@ -3994,41 +3989,46 @@ describe("RNL round trip", () => {
     });
     if (exported.status !== "ready") throw new Error("export blocked");
     const level = exported.request.ops.find((op) => op.op === "set")!.level;
-    const request = {
+    const shapes: Shape[] = [
+      {
+        shape: "ellipse",
+        points: [[100, -15]],
+        params: { width: 6, height: 6 },
+      },
+      {
+        shape: "ellipse",
+        points: [[110, -15]],
+        params: { width: 8, height: 4, fill: "linecolor" },
+      },
+      {
+        shape: "arc",
+        points: [
+          [120, -10],
+          [122, -12],
+          [124, -10],
+        ],
+        params: { arrow: "end" },
+      },
+      {
+        shape: "arc",
+        points: [
+          [130, -10],
+          [132, -8],
+          [134, -10],
+        ],
+      },
+    ];
+    const request: RnlWriteRequest = {
       ...exported.request,
       ops: [
         ...exported.request.ops,
-        ...[
-          {
-            shape: "ellipse",
-            points: [[100, -15]],
-            params: { width: 6, height: 6 },
-          },
-          {
-            shape: "ellipse",
-            points: [[110, -15]],
-            params: { width: 8, height: 4, fill: "linecolor" },
-          },
-          {
-            shape: "arc",
-            points: [
-              [120, -10],
-              [122, -12],
-              [124, -10],
-            ],
-            params: { arrow: "end" },
-          },
-          {
-            shape: "arc",
-            points: [
-              [130, -10],
-              [132, -8],
-              [134, -10],
-            ],
-          },
-        ].map((shape) => ({ level, op: "add-shape", ...shape })),
+        ...shapes.map((shape) => ({
+          level,
+          op: "add-shape" as const,
+          ...shape,
+        })),
       ],
-    } as unknown as typeof exported.request;
+    };
     const written = await runtime.write({ write: request, svg: false });
     const plan = await planRnlImport({
       inputs: [
@@ -5657,7 +5657,7 @@ describe("RNL round trip of 4-input gates", () => {
           `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
         );
       expect(written.text).toContain(
-        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.6")',
+        `@USE-PACKAGE(name="${CANVAS_PACKAGE}", version="${CANVAS_PACKAGE_VERSION}")`,
       );
       // RNL's standard gates have their inputs elsewhere; Analog Canvas's
       // own keep each wire level, in RNL as in the editor.
@@ -5716,8 +5716,8 @@ describe("RNL round trip of 4-input gates", () => {
         JSON.stringify(withoutCanvasMeaning(exported.request))
           .replaceAll("$CANVAS_", "$")
           .replace(
-            '"name":"analog-canvas-extensions","version":"0.6"',
-            '"name":"rnl-std-logic","version":"0.3"',
+            `"name":"${CANVAS_PACKAGE}","version":"${CANVAS_PACKAGE_VERSION}"`,
+            `"name":"rnl-std-logic","version":"${RNL_STD_VERSION}"`,
           ),
       ) as typeof exported.request;
       const written = await runtime.write({ write: request, svg: false });

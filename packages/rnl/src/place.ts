@@ -1,3 +1,5 @@
+import type { Point } from "@rich-netlist/runtime";
+
 import { orientPoint, type RnlOrient } from "./orientation.js";
 
 /**
@@ -7,7 +9,8 @@ import { orientPoint, type RnlOrient } from "./orientation.js";
  */
 export const AC_UNITS_PER_RNL_UNIT = 10;
 
-export type RnlPoint = readonly [x: number, y: number];
+/** A point in RNL scene coordinates, y up, as the runtime takes it. */
+export type RnlPoint = Point;
 
 /** Coordinates are kept to a millionth, which absorbs binary rounding. */
 function clean(value: number): number {
@@ -38,7 +41,7 @@ function fromRnlPoint([x, y]: RnlPoint): { x: number; y: number } {
 export function rnlPlace(
   position: { x: number; y: number },
   orient: RnlOrient,
-  offset: RnlPoint,
+  offset: Readonly<RnlPoint>,
 ): RnlPoint {
   const [x, y] = toRnlPoint(position);
   const [dx, dy] = orientPoint(orient, offset);
@@ -47,9 +50,9 @@ export function rnlPlace(
 
 /** The Analog Canvas origin of a part RNL places at `place`. */
 export function acPosition(
-  place: RnlPoint,
+  place: Readonly<RnlPoint>,
   orient: RnlOrient,
-  offset: RnlPoint,
+  offset: Readonly<RnlPoint>,
 ): { x: number; y: number } {
   const [dx, dy] = orientPoint(orient, offset);
   return fromRnlPoint([place[0] - dx, place[1] - dy]);

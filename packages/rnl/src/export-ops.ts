@@ -33,6 +33,8 @@ import {
   printedParameterConversion,
   restorePrintedParameter,
   spectreNumber,
+  spectreSourceFieldName,
+  spectreSourceFromText,
   plainBodyName,
   withNetlistPowerMarkerClaims,
   type DesignNetlistCell,
@@ -48,11 +50,9 @@ import {
   subcircuitDescriptor,
 } from "@icm/devices";
 
-import {
-  blockSymbols,
-  blockTerminals,
-  type RnlSymbolDefinition,
-} from "./block-symbols.js";
+import type { Op, Vertex } from "@rich-netlist/runtime";
+
+import { blockSymbols, blockTerminals } from "./block-symbols.js";
 import { draftingLayer, draftingShapes, drawingGroup } from "./drawing-ops.js";
 import {
   composeOrient,
@@ -67,7 +67,11 @@ import {
   type RnlPoint,
 } from "./place.js";
 import { rnlName } from "./rnl-name.js";
-import type { RnlShape } from "./shapes.js";
+import {
+  CANVAS_PACKAGE,
+  CANVAS_PACKAGE_VERSION,
+  RNL_STD_VERSION,
+} from "./rnl-packages.js";
 import {
   RNL_SYMBOLS,
   rnlSymbolFor,
@@ -77,90 +81,15 @@ import {
 } from "./symbol-map.js";
 import { symbolForCall } from "./call-symbols.js";
 import { inlineRnlDefinition } from "./inline-symbols.js";
-import { plainLines, rnlTextLines, type RnlRun } from "./text.js";
+import { plainLines, rnlTextLines } from "./text.js";
 
 /**
- * A vertex of a wire as an RNL edit transaction names it: a terminal, a named
- * point, a role of a usage, or a coordinate (rnl-dev
- * `notes/rnl-editor-interface/spec-draft.md`, 3.5).
+ * One operation of an RNL edit transaction, as the rnl runtime's writer takes
+ * it (https://github.com/rich-netlist/rnl/blob/main/crates/rnl-edit/README.md).
+ * The export names every op's level: `subckt:<name>`, or `file` for the file
+ * level.
  */
-export type RnlVertex =
-  | { terminal: string }
-  | { point: string }
-  | { usage: string; role: string }
-  | { at: RnlPoint };
-
-/**
- * One operation of an RNL edit transaction (the same draft, 4.1, and
- * `ops-draft-blocks-and-drawings.md` beside it). `level` is `subckt:<name>`,
- * or `file` for the file level.
- */
-export type RnlOp = { level: string } & (
-  | {
-      op: "set";
-      object: string;
-      /** Absent leaves the part to RNL's own symbol rules or stand-in box. */
-      symbol?: string;
-      /** Its colour, written as a `@SET-STYLE` of these properties. */
-      style?: Record<string, string>;
-      at?: RnlPoint;
-      orient?: RnlOrient;
-    }
-  | {
-      op: "add-usage";
-      /** Absent for a usage nothing refers to, such as one of meaning only. */
-      name?: string;
-      definition: string;
-      attach: Record<string, string | RnlPoint>;
-      /** Written `@ATTACH(k=v, …)`, in the order given. */
-      params?: Record<string, string | number | boolean>;
-      symbol?: string;
-      style?: Record<string, string>;
-      at?: RnlPoint;
-      orient?: RnlOrient;
-    }
-  | { op: "add-point"; name: string; at: RnlPoint; junction?: true }
-  | {
-      op: "add-wire";
-      /** Its name, for a label hung on it to attach to (13.3). */
-      name?: string;
-      nets: string[];
-      via: RnlVertex[];
-      mode: "straight";
-      style?: Record<string, string>;
-    }
-  | { op: "remove-from"; items: string[]; set: string }
-  | { op: "use-package"; name: string; version: string }
-  | {
-      op: "add-text";
-      /** Its name in the level, for a text of a drawing object's group. */
-      name?: string;
-      /** The part, usage or net it is attached to; absent for a text on a point. */
-      attach?: string;
-      /** Its key on that object (`#M1::name`); never for a net or a point. */
-      key?: string;
-      lines: RnlRun[][];
-      /** An absolute anchor, in scene coordinates. */
-      at?: RnlPoint;
-      /** The anchor from the attached object's own point (13.3). */
-      offset?: RnlPoint;
-      halign: "start" | "middle" | "end";
-      valign?: "baseline" | "middle";
-      rotate?: 90 | 180 | 270;
-      /** Text height, the em, in scene units. */
-      size: number;
-      style?: Record<string, string | boolean>;
-    }
-  | ({
-      op: "add-shape";
-      /** Drawn under the circuit, or over it (11.6). */
-      layer: "bottom" | "top";
-      /** Its name in the level, for a shape of a drawing object's group. */
-      name?: string;
-    } & RnlShape)
-  /** A symbol, defined in the level; `set` on `#` makes it a Cell's look. */
-  | ({ op: "define-symbol" } & RnlSymbolDefinition)
-);
+export type RnlOp = Op & { level: string };
 
 export interface RnlExportDiagnostic {
   /** An error leaves the drawing out of the export; a warning only reports. */
@@ -187,13 +116,9 @@ const USAGE_PREFIX: Readonly<Record<string, string>> = {
  * hold the symbols for every element SPICE and Spectre read natively, all but
  * subcircuit calls. A file names every other package it uses. The rules that
  * pick those symbols by default come with the netlist dialect's own standard
- * package; the export needs none, since it sets every symbol itself. The
- * split is rnl-dev's draft, not yet in the standard.
+ * package; the export needs none, since it sets every symbol itself.
  */
 const IMPLICIT_PACKAGES = new Set(["rnl-std-basic", "rnl-std-semiconductors"]);
-
-/** The standard series the export writes for; the header pins it (16.3). */
-const STD_VERSION = "0.3";
 
 /**
  * The standard package that clears the labels symbols bring with them (name,
@@ -201,13 +126,6 @@ const STD_VERSION = "0.3";
  * Formulas stay: Analog Canvas shows them.
  */
 const NO_LABELS_PACKAGE = "rnl-std-no-labels";
-
-/**
- * The package of Analog Canvas's appearance variants and chopper, and what
- * only Analog Canvas keeps of a drawing; not standard.
- */
-const AC_PACKAGE = "analog-canvas-extensions";
-const AC_PACKAGE_VERSION = "0.6";
 
 /**
  * The edit transaction's operations that draw a netlisted Project as Analog
@@ -266,7 +184,7 @@ export function rnlExportOps(
         ),
     );
   if (top && calledTop) {
-    packages.add(AC_PACKAGE);
+    packages.add(CANVAS_PACKAGE);
     ops.push({
       level: `subckt:${top.name}`,
       op: "add-usage",
@@ -282,7 +200,7 @@ export function rnlExportOps(
     level: top ? `subckt:${top.name}` : "",
     op: "use-package",
     name,
-    version: name === AC_PACKAGE ? AC_PACKAGE_VERSION : STD_VERSION,
+    version: name === CANVAS_PACKAGE ? CANVAS_PACKAGE_VERSION : RNL_STD_VERSION,
   }));
   const fileSymbols: RnlOp[] = [...blocks.externals.values()].map((symbol) => ({
     level: "file",
@@ -391,27 +309,6 @@ function canvasLabel(
   }
 }
 
-/** A source's fields as Spectre names them, where it names them otherwise. */
-const SPECTRE_SOURCE_NAMES: Readonly<Record<string, string>> = {
-  low: "val0",
-  high: "val1",
-  offset: "dc",
-  amplitude: "ampl",
-  frequency: "freq",
-  damping: "damp",
-  phase: "sinephase",
-  acmagnitude: "mag",
-  acphase: "phase",
-};
-
-/** The fields a source's Spectre card writes, by its waveform. */
-const SPECTRE_SOURCE_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  dc: ["dc"],
-  pulse: ["low", "high", "delay", "rise", "fall", "width", "period", "dc"],
-  sin: ["offset", "amplitude", "frequency", "delay", "damping", "phase"],
-  pwl: ["dc"],
-};
-
 /**
  * The parameters of a part the editor keeps and its card does not print: a
  * source's fields of the waveforms it is not set to, and its waveform where
@@ -478,24 +375,9 @@ function authoredTexts(
   const source =
     printed.deviceClass === "voltage-source" ||
     printed.deviceClass === "current-source";
-  if (
-    source &&
-    printed.parameters.some(
-      (p) =>
-        p.name.toLowerCase() === "dc" &&
-        /(?:AC|PULSE|SIN|PWL)/iu.test(p.rawValue),
-    )
-  )
-    return scaled;
+  if (source && spectreSourceFromText(printed.parameters)) return scaled;
   const waveform = source
     ? normalizeIndependentSource(printed.parameters).transient.kind
-    : null;
-  const fields = waveform
-    ? new Set([
-        ...(SPECTRE_SOURCE_FIELDS[waveform] ?? []),
-        "acmagnitude",
-        "acphase",
-      ])
     : null;
   const letter = { resistor: "r", capacitor: "c", inductor: "l" }[
     printed.deviceClass as string
@@ -506,16 +388,11 @@ function authoredTexts(
       spectreNumber(rawValue) === rawValue ||
       printedParameterConversion(printed, name) !== "identity" ||
       folded === "waveform" ||
-      (fields &&
-        !fields.has(folded) &&
-        (Object.hasOwn(SPECTRE_SOURCE_NAMES, folded) ||
-          Object.values(SPECTRE_SOURCE_FIELDS).some((list) =>
-            list.includes(folded),
-          )))
+      (waveform && spectreSourceFieldName(name, waveform) === null)
     )
       return [];
-    const written = source
-      ? (SPECTRE_SOURCE_NAMES[folded] ?? name)
+    const written = waveform
+      ? (spectreSourceFieldName(name, waveform) ?? name)
       : letter && name === "value"
         ? letter
         : name;
@@ -546,7 +423,7 @@ function exportCell(
   // How the Cell sets names in its labels, each setting other than Analog
   // Canvas's default, none included, so the import knows the Cell keeps
   // the default: in its own record, which reaches no other Cell.
-  packages.add(AC_PACKAGE);
+  packages.add(CANVAS_PACKAGE);
   ops.push({
     level,
     op: "add-usage",
@@ -780,11 +657,11 @@ function exportCell(
       }
       orient = result.orient;
     }
-    if (symbol?.package === AC_PACKAGE)
+    if (symbol?.package === CANVAS_PACKAGE)
       report(
         "warning",
         "RNL_NOT_STANDARD_SYMBOL",
-        `${describe(instance)} is drawn with ${symbol.symbol} from the ${AC_PACKAGE} package, not the standard package`,
+        `${describe(instance)} is drawn with ${symbol.symbol} from the ${CANVAS_PACKAGE} package, not the standard package`,
         [instance.id],
       );
     if (symbol && !symbol.inline) packages.add(symbol.package);
@@ -902,7 +779,7 @@ function exportCell(
           ),
       )
     ) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -914,7 +791,7 @@ function exportCell(
     // The part's own name, where the netlist spells it otherwise: SPICE
     // starts a subcircuit call's card with X, so M1 prints as XM1.
     if (instance.reference && instance.reference !== reference) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -926,7 +803,7 @@ function exportCell(
     // A part the author never named, which the netlist must name to print
     // its card (Canvas 0.4).
     if (!instance.reference) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -942,7 +819,7 @@ function exportCell(
       instance,
       context.format,
     )) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -954,7 +831,7 @@ function exportCell(
     // Each parameter the editor keeps that the card does not print, by the
     // editor's name for it (Canvas 0.4).
     for (const { name, text } of unprintedParameters(cell, instance)) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -1029,7 +906,7 @@ function exportCell(
     ops.push(op);
   }
 
-  const vertex = (endpoint: RouteEndpoint): RnlVertex | undefined => {
+  const vertex = (endpoint: RouteEndpoint): Vertex | undefined => {
     if (endpoint.kind === "junction") {
       const point = pointOf.get(endpoint.junctionId);
       return point ? { point } : undefined;
@@ -1048,7 +925,7 @@ function exportCell(
   // lists, so the contact's point or pin goes into its list where it passes.
   const through = new Map<
     StableId,
-    { point: { x: number; y: number }; vertex: RnlVertex }[]
+    { point: { x: number; y: number }; vertex: Vertex }[]
   >();
   for (const contact of evidence.contacts) {
     const own = contact.endpoints.map(vertex).find((item) => item);
@@ -1100,7 +977,7 @@ function exportCell(
         leg.to.kind === "bend"
           ? {
               place: leg.to.position,
-              vertex: { at: toRnlPoint(leg.to.position) } as RnlVertex,
+              vertex: { at: toRnlPoint(leg.to.position) } as Vertex,
             }
           : {
               place: pointOfEndpoint(leg.to.endpoint),
@@ -1108,7 +985,7 @@ function exportCell(
             },
       ),
     ];
-    const via: (RnlVertex | undefined)[] = [];
+    const via: (Vertex | undefined)[] = [];
     corners.forEach((corner, index) => {
       via.push(corner.vertex);
       const next = corners[index + 1];
@@ -1146,7 +1023,7 @@ function exportCell(
       op: "add-wire",
       ...(wire ? { name: wire } : {}),
       nets: [rnlName("&", net)],
-      via: via as RnlVertex[],
+      via: via as Vertex[],
       mode: "straight",
       ...(Object.keys(style).length ? { style } : {}),
     });
@@ -1188,7 +1065,7 @@ function exportCell(
           level,
           op: "add-wire",
           nets: [rnlName("&", net)],
-          via: via as RnlVertex[],
+          via: via as Vertex[],
           mode: "straight",
         });
     }
@@ -1359,7 +1236,7 @@ function exportTexts(
     const params = canvasLabel(binding);
     if (!params || said.has(label)) return;
     said.add(label);
-    context.packages.add(AC_PACKAGE);
+    context.packages.add(CANVAS_PACKAGE);
     ops.push({
       level,
       op: "add-usage",
@@ -1372,7 +1249,7 @@ function exportTexts(
   // text, named for it (Canvas 0.4); its size is written as well.
   const typeset = (text: string, token: string | undefined) => {
     if (!token) return;
-    context.packages.add(AC_PACKAGE);
+    context.packages.add(CANVAS_PACKAGE);
     ops.push({
       level,
       op: "add-usage",
@@ -1622,8 +1499,8 @@ function exportTexts(
       });
     if (object.anchor.kind === "route") alongWires.push(object.id);
     if (object.kind === "floating-symbol") {
-      // A symbol drawn as a picture: a usage of the point definition
-      // $FIGURE, which takes any symbol (rnl-dev ops draft, 3.4).
+      // A symbol drawn as a picture: a usage of the standard point
+      // definition $FIGURE, which takes any symbol.
       const symbol = rnlSymbolFor(object.symbolId, null);
       const turn = rnlOrient(object.transform);
       if (geometry.kind !== "floating-symbol" || !symbol || !turn.ok) {

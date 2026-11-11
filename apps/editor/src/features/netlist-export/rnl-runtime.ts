@@ -1,20 +1,25 @@
 import type { RnlSnapshot, RnlWriteRequest } from "@icm/rnl";
+import type { Written } from "@rich-netlist/runtime";
 
 import { importChunk } from "../../components/chunk-import";
 import { withCanvasPackage, type RnlWorkspace } from "./rnl-core";
-import { canvasPackageLock, decodeCanvasPackage } from "./rnl-canvas-package";
+import {
+  canvasPackageFile,
+  canvasPackageLock,
+  decodeCanvasPackage,
+} from "./rnl-canvas-package";
 
-/** A finding of the rnl runtime about the file it wrote (rnl standard, ch. 7). */
-export interface RnlRuntimeDiagnostic {
-  /** "error", "warning" or "hint". */
-  severity: string;
-  message: string;
-}
+type RuntimeDiagnostic = Written["document"]["diagnostics"][number];
 
-/** The rnl runtime's written file, and the Document it builds from it. */
+/**
+ * What the editor reads of the runtime's written file: its text, and the
+ * findings of the Document it builds from it (rnl standard, ch. 7).
+ */
 export interface RnlWritten {
-  text: string;
-  document: { diagnostics: readonly RnlRuntimeDiagnostic[] };
+  text: Written["text"];
+  document: {
+    diagnostics: readonly Pick<RuntimeDiagnostic, "severity" | "message">[];
+  };
 }
 
 /**
@@ -32,7 +37,8 @@ export interface RnlRuntime {
   ): Promise<RnlWritten>;
   /**
    * How the runtime reads a rich netlist: each level's host circuit and the
-   * drawing its RNL makes of it (rnl-dev `spec-draft.md`, 3).
+   * drawing its RNL makes of it
+   * (https://github.com/rich-netlist/rnl/blob/main/crates/rnl-view/README.md#snapshots).
    */
   snapshot(
     request: RnlWorkspace & {
@@ -44,17 +50,11 @@ export interface RnlRuntime {
   ): Promise<RnlSnapshot>;
 }
 
-/** Each locked Canvas package version's asset, by version. */
-const packageUrls: Readonly<
-  Record<string, () => Promise<{ default: string }>>
-> = {
-  "0.1": () => import("./analog-canvas-extensions-0.1.rnl?url"),
-  "0.2": () => import("./analog-canvas-extensions-0.2.rnl?url"),
-  "0.3": () => import("./analog-canvas-extensions-0.3.rnl?url"),
-  "0.4": () => import("./analog-canvas-extensions-0.4.rnl?url"),
-  "0.5": () => import("./analog-canvas-extensions-0.5.rnl?url"),
-  "0.6": () => import("./analog-canvas-extensions-0.6.rnl?url"),
-};
+/** The Canvas package assets the editor ships, by file name beside this module. */
+const packageUrls = import.meta.glob<string>(
+  "./analog-canvas-extensions-*.rnl",
+  { query: "?url", import: "default" },
+);
 
 /** A locked Canvas package version, from the editor's own asset. */
 async function loadCanvasPackage(version: string, url: string) {
@@ -91,10 +91,10 @@ export function loadRnlRuntime(): Promise<RnlRuntime | null> {
         import("@rich-netlist/runtime"),
         Promise.all(
           canvasPackageLock.versions.map(async ({ version }) => {
-            const asset = packageUrls[version];
+            const asset = packageUrls[`./${canvasPackageFile(version)}`];
             if (!asset)
               throw new Error(`Canvas package ${version} is not shipped`);
-            return { version, url: (await asset()).default };
+            return { version, url: await asset() };
           }),
         ),
       ]),
@@ -104,13 +104,8 @@ export function loadRnlRuntime(): Promise<RnlRuntime | null> {
     );
     const core = withCanvasPackage(startCore(), packages);
     return {
-      // The Worker takes the request as JSON, where this editor's readonly
-      // points and the runtime's point arrays are the same thing.
-      write: (request) =>
-        core.write(request as unknown as Parameters<typeof core.write>[0]),
-      // The import reads the part of the snapshot it declares.
-      snapshot: (request) =>
-        core.snapshot(request) as unknown as Promise<RnlSnapshot>,
+      write: (request) => core.write(request),
+      snapshot: (request) => core.snapshot(request),
     } satisfies RnlRuntime;
   })().catch((error: unknown) => {
     started = null;

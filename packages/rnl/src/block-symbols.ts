@@ -15,31 +15,19 @@ import {
   type SymbolDefinition,
   type SymbolResolver,
 } from "@icm/symbols";
+import type { Op, SymbolPin } from "@rich-netlist/runtime/core";
 
-import { toRnlPoint, type RnlPoint } from "./place.js";
+import { toRnlPoint } from "./place.js";
 import { rnlName } from "./rnl-name.js";
-import { symbolShapes, type RnlShape } from "./shapes.js";
+import { symbolShapes } from "./shapes.js";
 import { RNL_SYMBOLS, rnlSymbolForPart } from "./symbol-map.js";
-import { plainLines, rnlTextLines, type RnlRun } from "./text.js";
-
-/** A pin of a symbol an edit transaction defines (language standard 9.2.4). */
-export interface RnlSymbolPin {
-  /** Its terminal: a port's name, or a number where the port has none. */
-  terminals: (number | string)[];
-  at: RnlPoint;
-  direction?: "right" | "up" | "left" | "down";
-  /** The pin's name as shown, for display only. */
-  label?: { lines: RnlRun[][] };
-}
+import { plainLines, rnlTextLines } from "./text.js";
 
 /** A symbol an edit transaction defines, in its own frame (9.2). */
-export interface RnlSymbolDefinition {
-  /** `%name` in a Cell's own level, `$name` in the file level. */
-  name: string;
-  box: [number, number, number, number];
-  pins: RnlSymbolPin[];
-  prims: RnlShape[];
-}
+export type RnlSymbolDefinition = Omit<
+  Extract<Op, { op: "define-symbol" }>,
+  "op" | "level"
+>;
 
 const DIRECTION = {
   west: "left",
@@ -114,7 +102,7 @@ function definedSymbol(
   const prims = symbolShapes(definition.primitives);
   if (!prims) return null;
   const taken = new Set<number | string>();
-  const pins = definition.pins.flatMap((pin): RnlSymbolPin[] => {
+  const pins = definition.pins.flatMap((pin): SymbolPin[] => {
     const key = terminal(pin.name);
     // A port has one pin (9.2.4); a pin no port prints draws nothing.
     if (key === undefined || taken.has(key)) return [];

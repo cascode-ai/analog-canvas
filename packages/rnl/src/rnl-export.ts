@@ -6,6 +6,7 @@ import {
   type NetlistFileDescriptor,
   type NetlistFormat,
 } from "@icm/netlist";
+import type { WriteRequest } from "@rich-netlist/runtime";
 
 import {
   rnlExportOps,
@@ -15,19 +16,16 @@ import {
 import { rnlBodyPortOrder } from "./symbol-map.js";
 
 /**
- * What the rnl runtime's writer takes to write a drawing into its netlist:
- * the netlist as the SPICE+RNL or Spectre+RNL format prints it, and the edit
- * transaction's operations. The writer spells every RNL statement; this
- * editor never does.
+ * What the rnl runtime's writer takes to write a drawing into its netlist
+ * (its `WriteRequest.write`): the netlist as the SPICE+RNL or Spectre+RNL
+ * format prints it, bodies in their RNL symbols' port order, and the edit
+ * transaction's operations, written as `author` "analog-canvas" (the rnl
+ * standard, chapter 17). The writer spells every RNL statement; this editor
+ * never does.
  */
-export interface RnlWriteRequest {
-  dialect: NetlistFormat;
-  /** The netlist text, bodies in their RNL symbols' port order. */
-  netlist: string;
+export type RnlWriteRequest = Omit<WriteRequest["write"], "ops"> & {
   ops: RnlOp[];
-  /** Whose records these are (the rnl standard, chapter 17). */
-  author: "analog-canvas";
-}
+};
 
 export type RnlExport =
   | {

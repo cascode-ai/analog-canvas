@@ -29,8 +29,8 @@ const turned = (rotation: number): Orientation["rotation"] =>
 
 describe("orientations", () => {
   it("agrees with the table the RNL round-trip experiment verified", () => {
-    // rnl-dev tools/rnl-lang/scripts/icproj2rnl.py, ORIENTS: 13 drawings and
-    // 184 wires came back identical through it.
+    // The table of the first RNL round-trip experiment: 13 drawings and 184
+    // wires came back identical through it.
     const table: [Orientation["rotation"], Mirror, RnlOrient][] = [
       [0, "none", "R0"],
       [90, "none", "R270"],

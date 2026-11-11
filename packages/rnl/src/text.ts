@@ -1,20 +1,7 @@
 import type { RichTextDocument, RichTextRun } from "@icm/model";
+import type { Run, RunStyle } from "@rich-netlist/runtime";
 
-/** How a run of RNL text is styled (language standard 13.6): as rnl's Document has it. */
-export interface RnlRunStyle {
-  /** Each superscript adds 1, each subscript takes 1 away. */
-  level: number;
-  bold: boolean;
-  italic: boolean;
-  overline: boolean;
-}
-
-/** A run of RNL text, or a fraction of two runs of runs. */
-export type RnlRun =
-  | { kind: "text"; text: string; style: RnlRunStyle }
-  | { kind: "frac"; num: RnlRun[]; den: RnlRun[]; style: RnlRunStyle };
-
-const PLAIN: RnlRunStyle = {
+const PLAIN: RunStyle = {
   level: 0,
   bold: false,
   italic: false,
@@ -22,7 +9,7 @@ const PLAIN: RnlRunStyle = {
 };
 
 /** A plain one-line text as RNL lines of runs. */
-export const plainLines = (text: string): RnlRun[][] => [
+export const plainLines = (text: string): Run[][] => [
   [{ kind: "text", text, style: PLAIN }],
 ];
 
@@ -34,12 +21,12 @@ type Casing = "lowercase" | "uppercase" | null;
  * form here: its LaTeX source becomes plain text and is counted.
  */
 export function rnlTextLines(text: RichTextDocument): {
-  lines: RnlRun[][];
+  lines: Run[][];
   formulas: number;
 } {
-  const lines: RnlRun[][] = [[]];
+  const lines: Run[][] = [[]];
   let formulas = 0;
-  const push = (line: RnlRun[], run: RnlRun) => {
+  const push = (line: Run[], run: Run) => {
     const last = line.at(-1);
     if (
       run.kind === "text" &&
@@ -51,9 +38,9 @@ export function rnlTextLines(text: RichTextDocument): {
   };
   const walk = (
     runs: readonly RichTextRun[],
-    style: RnlRunStyle,
+    style: RunStyle,
     casing: Casing,
-    out: () => RnlRun[],
+    out: () => Run[],
     lineBreak: () => void,
   ) => {
     for (const run of runs) {
@@ -81,7 +68,7 @@ export function rnlTextLines(text: RichTextDocument): {
           break;
         case "fraction": {
           const part = (document: RichTextDocument) => {
-            const runs: RnlRun[] = [];
+            const runs: Run[] = [];
             walk(
               document.runs,
               PLAIN,
@@ -121,7 +108,7 @@ export function rnlTextLines(text: RichTextDocument): {
  * is nothing to show.
  */
 export function acRichText(
-  lines: readonly (readonly RnlRun[])[],
+  lines: readonly (readonly Run[])[],
 ): RichTextDocument | null {
   const runs: RichTextRun[] = [];
   lines.forEach((line, index) => {
@@ -149,7 +136,7 @@ export function acRichText(
  * keeps it, since a subscript wrapped in bold is no longer stacked with the
  * superscript after it.
  */
-function spanned(run: RichTextRun, style: RnlRunStyle): RichTextRun {
+function spanned(run: RichTextRun, style: RunStyle): RichTextRun {
   let out = run;
   if (style.italic) out = { kind: "span", style: "italic", children: [out] };
   if (style.bold) out = { kind: "span", style: "bold", children: [out] };
@@ -160,7 +147,7 @@ function spanned(run: RichTextRun, style: RnlRunStyle): RichTextRun {
   return out;
 }
 
-function styled(style: RnlRunStyle, mark: string): RnlRunStyle {
+function styled(style: RunStyle, mark: string): RunStyle {
   switch (mark) {
     case "italic":
       return { ...style, italic: true };
@@ -185,7 +172,7 @@ function cased(text: string, casing: Casing): string {
   return text;
 }
 
-function sameStyle(a: RnlRunStyle, b: RnlRunStyle): boolean {
+function sameStyle(a: RunStyle, b: RunStyle): boolean {
   return (
     a.level === b.level &&
     a.bold === b.bold &&
