@@ -42,6 +42,10 @@ Administrators can read the community scope with
 `schema-backup?scope=activity&table=…`. The export changes no business rows and
 enables no replication. `schema-restore` does not restore these tables; retain
 the original capture and reconcile both regions before any data migration.
+After regional open-count synchronization starts, `entryOpens` contains combined
+totals. This export does not include the per-region components or sync receipts;
+never import it as a region's local counts. Recover those with the full native
+state described in [regional publications](specs/regional-resources.md).
 
 ## Reviews capture
 

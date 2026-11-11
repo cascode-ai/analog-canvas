@@ -112,7 +112,7 @@ class PumpTest(unittest.TestCase):
     def test_one_failing_stream_does_not_stop_the_others(self):
         """Each stream keeps its own status; payloads cross gzipped and bounded."""
         cursors = {}
-        exported = {('overseas', 'gallery'): 1, ('cn', 'ds-interactions'): 1}
+        exported = {('overseas', 'gallery'): 1, ('cn', 'ds-interactions'): 1, ('overseas', 'ds-opens'): 1}
         encodings = []
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -160,7 +160,7 @@ class PumpTest(unittest.TestCase):
             self.assertEqual((state['health'], state['reason'], state['status']), ('error', 'blocked', 'blocked'))
             streams = state['streams']
             self.assertEqual(set(streams), {'gallery', 'components', 'ds', 'bomb', 'gallery-interactions',
-                                            'ds-interactions', 'bomb-interactions'})
+                                            'ds-interactions', 'bomb-interactions', 'gallery-opens', 'ds-opens', 'bomb-opens'})
             self.assertEqual(streams['components'], {'status': 'blocked', 'reason': 'resource-schema-newer',
                                                      'cursor': {'cn': None, 'overseas': 0}})
             self.assertEqual(streams['bomb']['status'], 'blocked')
@@ -168,9 +168,10 @@ class PumpTest(unittest.TestCase):
             self.assertEqual(streams['gallery'], {'status': 'caught-up', 'reason': None,
                                                   'cursor': {'cn': 1, 'overseas': 0}})
             self.assertEqual(streams['ds-interactions']['cursor'], {'cn': 0, 'overseas': 1})
+            self.assertEqual(streams['ds-opens']['cursor'], {'cn': 1, 'overseas': 0})
             for name in ['ds', 'gallery-interactions', 'ds-interactions', 'bomb-interactions']:
                 self.assertEqual(streams[name]['status'], 'caught-up')
-            self.assertEqual(state['transferred'], 2)
+            self.assertEqual(state['transferred'], 3)
             self.assertEqual(set(encodings), {'gzip'})
         finally:
             peers.close()

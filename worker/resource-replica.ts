@@ -1,4 +1,5 @@
 import { sha256Hex } from "@icm/derived";
+import { OPEN_STREAM_SUFFIX, RegionalOpenCounts } from "./regional-open-counts";
 import {
   lookupAccounts,
   type AccountLookup,
@@ -806,6 +807,7 @@ export function withResourceReplication<
   return class extends Base {
     readonly resourceReplica?: ResourceReplica;
     readonly interactionReplica?: ResourceReplica;
+    readonly openCounts?: RegionalOpenCounts;
     constructor(...args: any[]) {
       super(...args);
       const config = args[1] as (ReplicaConfig & IdentityEnv) | undefined;
@@ -821,7 +823,7 @@ export function withResourceReplication<
         writable,
         check,
       );
-      if (kind === "gallery")
+      if (kind === "gallery") {
         this.interactionReplica = new ResourceReplica(
           args[0],
           region,
@@ -829,6 +831,8 @@ export function withResourceReplication<
           writable,
           check,
         );
+        this.openCounts = new RegionalOpenCounts(args[0], region);
+      }
     }
     override async fetch(request: Request): Promise<Response> {
       try {
@@ -849,6 +853,11 @@ export function withResourceReplication<
             envelope: unknown;
             id: string;
           };
+          if (String(body.stream).endsWith(OPEN_STREAM_SUFFIX))
+            return (
+              this.openCounts?.handle(operation, body) ??
+              fail("resource-sync-disabled", 404)
+            );
           const replica = String(body.stream).endsWith(
             INTERACTION_STREAM_SUFFIX,
           )

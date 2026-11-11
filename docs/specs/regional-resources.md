@@ -32,6 +32,17 @@ operations through either entrance and lists the delivered command coverage.
   sequence as a no-op, so the receiver's cursor reaches the source tail.
 - Likes and reviews that exist when interaction replication first starts are
   indexed in the same transaction; no seeding step is required for them.
+- Each Gallery/Dataset store's `-opens` stream carries daily per-entry counts,
+  never visitor identities. Each region owns its monotonically increasing
+  component; the displayed total is their sum. An identical retry changes no
+  count. A lower component, changed epoch or out-of-order page is refused.
+  Counts accepted before activation initialize that region's component exactly
+  once, without replacing the other region's records. Opens accepted during
+  catch-up or a code rollback continue to advance the local component.
+  Pages carry at most 500 current components and 512 KiB, with independent
+  ordered cursors and receipts. Open-count envelopes are version 1; publication
+  snapshot versions are unchanged. Keep components, aggregate, epochs and receipts
+  together in a native Durable Object recovery or full stopped-state ECS backup.
 - Deleting an entry or account removes only locally written likes and locally
   owned publications; the other region removes its own, and its likes stay
   hidden with their missing entry until then.
@@ -109,7 +120,9 @@ operations through either entrance and lists the delivered command coverage.
 
 The HTTP entrance is `/api/resource-sync/{stream}/{status|changes|seed}`.
 Streams are `gallery`, `components`, the configured Dataset source keys, and
-`gallery-interactions` plus `{source}-interactions`. Peer and seeding
+`gallery-interactions` plus `{source}-interactions`, and `gallery-opens` plus
+`{source}-opens`. Open-count streams initialize automatically and have no seed
+operation. Peer and seeding
 credentials are separate. Peer credentials grant replication access only;
 browser sessions cannot use this entrance. Receiving requires
 `PROJECT_IDENTITY_URL` and `PROJECT_IDENTITY_TOKEN`.
