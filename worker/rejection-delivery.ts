@@ -1,13 +1,19 @@
 import type { SqlStorage } from "./gallery-store";
 
-type Notice = { to: string; subject: string; text: string };
+export type RejectionProviderBody = {
+  from: string;
+  to: string[];
+  subject: string;
+  text: string;
+  reply_to?: string;
+};
 /** Durable send receipt plus a frozen provider payload; never retry beyond its 24h dedupe window. */
 export async function deliverRejection(
   sql: SqlStorage,
   id: string,
-  notice: Notice,
+  notice: RejectionProviderBody,
   now: number,
-  send: (notice: Notice, key: string) => Promise<boolean>,
+  send: (notice: RejectionProviderBody, key: string) => Promise<boolean>,
 ): Promise<boolean> {
   sql.exec(`CREATE TABLE IF NOT EXISTS gallery_rejection_deliveries (
     id TEXT PRIMARY KEY, payload TEXT NOT NULL, first_attempt INTEGER NOT NULL, sent INTEGER NOT NULL DEFAULT 0)`);
@@ -29,10 +35,12 @@ export async function deliverRejection(
     .one();
   if (row.sent === 1) return true;
   if (now - row.first_attempt >= 23 * 60 * 60 * 1000) return false;
-  const sent = await send(
-    JSON.parse(row.payload) as Notice,
-    "gallery-rejection/" + id,
-  );
+  const payload = JSON.parse(row.payload) as RejectionProviderBody;
+  // An older incomplete receipt cannot safely reconstruct its provider body.
+  // Keep that send unconfirmed rather than retrying the key with changed bytes.
+  if (typeof payload.from !== "string" || !Array.isArray(payload.to))
+    return false;
+  const sent = await send(payload, "gallery-rejection/" + id);
   if (sent)
     sql.exec(
       "UPDATE gallery_rejection_deliveries SET sent=1,payload='' WHERE id=?",

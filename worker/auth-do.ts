@@ -1,4 +1,7 @@
-import { deliverRejection } from "./rejection-delivery";
+import {
+  deliverRejection,
+  type RejectionProviderBody,
+} from "./rejection-delivery";
 // Gallery accounts and sign-in (roadmap phase G2), dark-shipped.
 //
 // One AuthDO singleton owns users and sessions behind `/api/auth/*`:
@@ -836,16 +839,9 @@ export class AuthDO {
       return deliverRejection(
         this.sql,
         body.noticeId,
-        { to, subject, text },
+        this.emailBody(to, subject, text, SITE_USAGE_CONTACT),
         this.now().getTime(),
-        (notice, key) =>
-          this.sendEmail(
-            notice.to,
-            notice.subject,
-            notice.text,
-            SITE_USAGE_CONTACT,
-            key,
-          ),
+        (notice, key) => this.sendEmailBody(notice, key),
       );
     return this.sendEmail(to, subject, text, SITE_USAGE_CONTACT);
   }
@@ -858,6 +854,32 @@ export class AuthDO {
     replyTo?: string,
     idempotencyKey?: string,
   ): Promise<boolean> {
+    return this.sendEmailBody(
+      this.emailBody(to, subject, text, replyTo),
+      idempotencyKey,
+    );
+  }
+
+  private emailBody(
+    to: string,
+    subject: string,
+    text: string,
+    replyTo?: string,
+  ): RejectionProviderBody {
+    return {
+      from: this.env.AUTH_EMAIL_FROM ?? "Analog Canvas <onboarding@resend.dev>",
+      to: [to],
+      subject,
+      text,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+    };
+  }
+
+  /** A frozen provider body is sent unchanged even after sender configuration changes. */
+  private async sendEmailBody(
+    body: RejectionProviderBody,
+    idempotencyKey?: string,
+  ): Promise<boolean> {
     if (!this.env.RESEND_API_KEY) return false;
     try {
       const response = await this.fetchLike("https://api.resend.com/emails", {
@@ -867,14 +889,7 @@ export class AuthDO {
           "content-type": "application/json",
           ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
         },
-        body: JSON.stringify({
-          from:
-            this.env.AUTH_EMAIL_FROM ?? "Analog Canvas <onboarding@resend.dev>",
-          to: [to],
-          subject,
-          text,
-          ...(replyTo ? { reply_to: replyTo } : {}),
-        }),
+        body: JSON.stringify(body),
       });
       return response.ok;
     } catch {

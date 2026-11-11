@@ -24,6 +24,7 @@ import {
 // independently so browsing survives an entry the current window can no
 // longer open.
 
+import { prepareLikeCommand, applyLikeCommand } from "./gallery-like-command";
 import {
   type DurableObjectStateLike,
   type SqlStorage,
@@ -667,6 +668,11 @@ export class GalleryDO {
             typeof body.projectId === "string" ? body.projectId : undefined,
           ),
         });
+      case "like-command-prepare":
+        return prepareLikeCommand(this.state, body);
+      case "like-command":
+      case "like-command-state":
+        return applyLikeCommand(this.state, body, operation === "like-command");
       case "review-command":
       case "review-command-state":
         return reviewCommand(this.state, body, operation === "review-command");

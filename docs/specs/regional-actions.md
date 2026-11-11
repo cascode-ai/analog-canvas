@@ -4,8 +4,7 @@ Status: `accepted`
 
 Primary owner: Gallery, Component Library, Auth and regional replication.
 This is the required behavior. The opt-in command route covers Community Gallery withdrawal, restoration,
-deletion, curation and name/description edits, plus drawing updates/fixes/takeover, references, version restore, rejection, Dataset imports/comparisons, User Component save/status and Community/Dataset review resolution. The other actions and
-additional replication scopes below remain to be delivered. Per-entry opens use
+deletion, curation and name/description edits, plus drawing updates/fixes/takeover, references, version restore, rejection, Dataset imports/comparisons, User Component save/status, Community/Dataset review resolution, like changes and writer-routed maintenance. Per-entry opens use
 the region components in [regional publications](regional-resources.md).
 
 ## Command delivery
@@ -44,6 +43,12 @@ the region components in [regional publications](regional-resources.md).
   every removal outcome; partial success is HTTP 207, never a global atomicity
   claim. The existing cleanup report removes only confirmed rows and retains
   the other rows and chosen survivor for retry.
+  Each pending group retains its original IDs, revisions and command identity
+  across reloads; a smaller displayed group or another group's request cannot
+  replace that intent before reconciliation.
+  A corrected rescan starts a new intent only after every failed item was
+  definitively refused. Any uncertain or omitted item retains the original
+  intent, even when another writer makes the aggregate response HTTP 409.
 - Owner simulation-check requests dispatch explicit IDs to their writers;
   `all` selects each writer's own public testbenches. The queue and execution
   stay with that writer. A receipt records the accepted queue intent, so retrying
@@ -51,6 +56,14 @@ the region components in [regional publications](regional-resources.md).
   intentional rerun. Partial acceptance reports failed writers or IDs with HTTP
   207 and retains the browser's retry identity. Progress totals writer-owned
   results once; an unavailable writer makes the combined progress unavailable.
+- Like changes follow the interaction writer, including Dataset stores and the
+  Owner's heart increments/decrements. The browser first prepares an intent and
+  persists its command ID, writer and expected interaction state before mutation.
+  Retries carry that same intent even through another entrance. A changed state
+  refuses the command; receipt reconciliation never toggles again after a lost
+  response or a later writer change. Legacy requests without a prepared intent
+  retain entrance-local retry protection only. Each account may retain at most
+  10,000 entrance intents; exhaustion refuses preparation before mutation.
 - Component writes and curation retain their required revision preconditions.
   Without an explicit command ID, derive one from the actor, resource, operation
   and validated revision-bound input. A repeated request reconciles its receipt;
@@ -61,6 +74,11 @@ the region components in [regional publications](regional-resources.md).
   same transaction as the publication and any colocated private Project binding.
   A retry compares publication state and Project links before acknowledging it;
   a changed link or superseded publication is a conflict, never a repeated edit.
+  Missing Dataset rows do not claim a local writer. An authenticated peer lookup
+  resolves existing ownership (including tombstones and legacy China records)
+  before upsert. IDs absent in both regions are always created at the overseas
+  writer, so simultaneous imports cannot establish two independent publications.
+  An unreachable peer leaves new-ID ownership unconfirmed and refuses the write.
   These routes derive a deterministic payload-bound ID for older callers; an
   explicit new intent ID is needed to repeat the same payload after later changes.
 - Dataset batches keep the existing per-item result shape. Each of at most ten
@@ -72,7 +90,8 @@ the region components in [regional publications](regional-resources.md).
   up both ordered streams before success and compares the resulting links. Each
   catch-up is bounded to 64 events and 20 seconds. Conflicted private saves are
   retained under the Project conflict protocol, not overwritten by publication.
-- Optional rejection email uses a durable delivery ID and frozen provider payload.
+- Optional rejection email uses a durable delivery ID and frozen complete provider payload
+  (sender, recipients, subject, text and reply address).
   Confirmed delivery is never resent. An uncertain send may retry the same provider
   idempotency key for at most 23 hours (inside its 24-hour retention); after that it
   remains unconfirmed rather than risking duplicate mail. Sent payload bytes are

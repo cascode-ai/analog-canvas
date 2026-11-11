@@ -1,3 +1,4 @@
+import { routeGalleryRequest } from "./gallery";
 import { AI_SEATS } from "./auth";
 import { afterEach, expect, it, vi } from "vitest";
 import { pair } from "./regional-resource-actions.test-support";
@@ -588,4 +589,184 @@ it("takes over a China-written AI drawing from overseas without granting a human
   expect(
     (await (await cn.call("/api/gallery/" + id + "/versions")).json()).versions,
   ).toHaveLength(1);
+});
+
+it("resolves an uncopied Dataset publication before reimporting or adding its comparison", async () => {
+  const { cn, overseas, auth } = await pair();
+  const owner = await ownerAccountOf(auth.source),
+    cnOwner = await auth.connect(owner);
+  const send = (
+    site: typeof cn,
+    cookie: string,
+    kind: string,
+    key: string,
+    item: unknown,
+  ) =>
+    site.route(
+      new Request(ORIGIN + "/api/gallery/sources/analoggenie/" + kind, {
+        method: "POST",
+        headers: { origin: ORIGIN, cookie, "idempotency-key": key },
+        body: JSON.stringify({ [kind]: [item] }),
+      }),
+    );
+  const entry = {
+    id: "ag-701",
+    name: "Overseas original",
+    projectText: wiredProjectText(),
+  };
+  expect(
+    (await (await send(overseas, owner, "entries", "create-701", entry)).json())
+      .results[0],
+  ).toMatchObject({ ok: true, created: true });
+  // No initial resource copy: the entrance must discover the existing writer.
+  const comparison = {
+    id: entry.id,
+    verdict: "match",
+    sourceNetlist: "R1 a 0 1k",
+    figure: {
+      type: "image/png",
+      data: btoa(String.fromCharCode(0x89, 0x50, 0x4e, 0x47)),
+    },
+  };
+  expect(
+    (
+      await (
+        await send(cn, cnOwner, "comparisons", "compare-701", comparison)
+      ).json()
+    ).results[0],
+  ).toMatchObject({ ok: true, created: true });
+  expect(
+    (
+      await (
+        await send(cn, cnOwner, "entries", "replace-701", {
+          ...entry,
+          name: "Updated from China",
+        })
+      ).json()
+    ).results[0],
+  ).toMatchObject({ ok: true, created: false });
+  expect(
+    (await (await overseas.call("/api/gallery/ag-701")).json()).entry.name,
+  ).toBe("Updated from China");
+  expect(
+    (await (await overseas.call("/api/gallery/ag-701/versions")).json())
+      .versions,
+  ).toHaveLength(1);
+  const location = await cn.env.GALLERY.getByName("source:analoggenie").fetch(
+    "https://store/resource-sync/location",
+    {
+      method: "POST",
+      body: JSON.stringify({ stream: "analoggenie", id: entry.id }),
+    },
+  );
+  expect(await location.json()).toMatchObject({
+    known: true,
+    origin: "overseas",
+  });
+});
+
+it("gives simultaneous new Dataset imports one deterministic writer", async () => {
+  const { cn, overseas, auth } = await pair();
+  const owner = await ownerAccountOf(auth.source),
+    cnOwner = await auth.connect(owner);
+  const send = (site: typeof cn, cookie: string, name: string) =>
+    site.route(
+      new Request(ORIGIN + "/api/gallery/sources/analoggenie/entries", {
+        method: "POST",
+        headers: {
+          origin: ORIGIN,
+          cookie,
+          "idempotency-key": name.replace(/ /g, "-"),
+        },
+        body: JSON.stringify({
+          entries: [{ id: "ag-702", name, projectText: wiredProjectText() }],
+        }),
+      }),
+    );
+  const replies = await Promise.all([
+    send(cn, cnOwner, "China-create"),
+    send(overseas, owner, "Overseas-create"),
+  ]);
+  const results = await Promise.all(
+    replies.map(async (response) => (await response.json()).results[0]),
+  );
+  expect(results.filter((result) => result.ok && result.created)).toHaveLength(
+    1,
+  );
+  expect(results.filter((result) => result.ok && !result.created)).toHaveLength(
+    1,
+  );
+  for (const site of [cn, overseas]) {
+    const location = await site.env.GALLERY.getByName(
+      "source:analoggenie",
+    ).fetch("https://store/resource-sync/location", {
+      method: "POST",
+      body: JSON.stringify({ stream: "analoggenie", id: "ag-702" }),
+    });
+    expect(await location.json()).toMatchObject({
+      known: true,
+      origin: "overseas",
+    });
+  }
+  expect(
+    (await (await overseas.call("/api/gallery/ag-702/versions")).json())
+      .versions,
+  ).toHaveLength(1);
+});
+
+it("keeps a legacy China Dataset writer when overseas has not copied it", async () => {
+  const { cn, overseas, auth } = await pair();
+  const owner = await ownerAccountOf(auth.source),
+    cnOwner = await auth.connect(owner);
+  const request = (cookie: string, name: string) =>
+    new Request(ORIGIN + "/api/gallery/sources/analoggenie/entries", {
+      method: "POST",
+      headers: {
+        origin: ORIGIN,
+        cookie,
+        "idempotency-key": name.replace(/ /g, "-"),
+      },
+      body: JSON.stringify({
+        entries: [{ id: "ag-703", name, projectText: wiredProjectText() }],
+      }),
+    });
+  // The existing route models a record written before deterministic new-ID routing.
+  const legacy = await routeGalleryRequest(
+    request(cnOwner, "Legacy China"),
+    cn.env,
+  );
+  expect((await legacy!.json()).results[0]).toMatchObject({
+    ok: true,
+    created: true,
+  });
+  const updated = await overseas.route(request(owner, "Overseas correction"));
+  expect((await updated.json()).results[0]).toMatchObject({
+    ok: true,
+    created: false,
+  });
+  expect((await (await cn.call("/api/gallery/ag-703")).json()).entry.name).toBe(
+    "Overseas correction",
+  );
+  const location = await overseas.env.GALLERY.getByName(
+    "source:analoggenie",
+  ).fetch("https://store/resource-sync/location", {
+    method: "POST",
+    body: JSON.stringify({ stream: "analoggenie", id: "ag-703" }),
+  });
+  expect(await location.json()).toMatchObject({ known: true, origin: "cn" });
+  expect(
+    (await (await cn.call("/api/gallery/ag-703/versions")).json()).versions,
+  ).toHaveLength(1);
+  const url =
+    "https://china.test/api/resource-sync/analoggenie/location?id=ag-703";
+  expect((await cn.route(new Request(url))).status).toBe(401);
+  expect(
+    (
+      await cn.route(
+        new Request(url + "&extra=1", {
+          headers: { authorization: "Bearer cn-sync" },
+        }),
+      )
+    ).status,
+  ).toBe(400);
 });

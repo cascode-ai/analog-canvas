@@ -6,6 +6,7 @@ import {
   defaultDuplicateSurvivor,
   recycleDuplicateGroup,
   DuplicateCleanupIncomplete,
+  pendingDuplicateSurvivor,
 } from "../gallery-duplicate-cleanup";
 
 export function GalleryDuplicateCheck({
@@ -28,7 +29,9 @@ export function GalleryDuplicateCheck({
   );
   const [removedCount, setRemovedCount] = useState(0);
   const keepId = (group: GalleryFeedEntry[]) =>
-    survivors[group[0]!.id] ?? defaultDuplicateSurvivor(group);
+    survivors[group[0]?.id ?? ""] ??
+    pendingDuplicateSurvivor(group) ??
+    defaultDuplicateSurvivor(group);
   const clean = async (groups: GalleryFeedEntry[][]) => {
     if (!report?.complete || cleaning || running) return;
     setCleaning(true);

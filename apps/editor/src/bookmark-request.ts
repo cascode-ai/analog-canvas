@@ -25,6 +25,20 @@ export async function bookmarkRequest(
     } catch {
       /* Storage is optional; in-memory retries still work. */
     }
+  if (command) {
+    try {
+      const intent = JSON.parse(command.body) as {
+        accountId?: unknown;
+        saved?: unknown;
+      };
+      // The same desired state reconciles its uncertain command with its old
+      // precondition. A later Save/Remove is a new intent, never the old toggle.
+      if (intent.accountId !== account || intent.saved !== saved)
+        command = undefined;
+    } catch {
+      command = undefined;
+    }
+  }
   command ??= {
     key: crypto.randomUUID(),
     body: JSON.stringify({ accountId: account, saved, expectedVersion }),

@@ -53,7 +53,12 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   different.documents[0]!.instances[0]!.netlist!.parameters.value = "2k";
   const entries = [
     { ...ENTRY, id: "original", name: "Resistor pair" },
-    { ...ENTRY, id: "redrawn", name: "Completely different title" },
+    {
+      ...ENTRY,
+      id: "redrawn",
+      name: "Completely different title",
+      createdAt: "2026-11-11",
+    },
     { ...ENTRY, id: "third-copy", name: "Third copy" },
     { ...ENTRY, id: "unfinished", name: "Unfinished circuit" },
     {
@@ -83,6 +88,7 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   }> = [];
   let failOtherGroup = true;
   let partialFirstGroup = true;
+  let originalIntent: { body: string; key: string | undefined } | undefined;
   // Context routes also intercept the dedicated worker's fetch requests.
   await context.route("**/api/gallery**", (route) => {
     const url = new URL(route.request().url());
@@ -97,6 +103,10 @@ test("admin checks duplicates and cleans selected copies with partial failure re
       const removed = body.remove.map((entry: { id: string }) => entry.id);
       if (partialFirstGroup && body.keep.id === "redrawn") {
         partialFirstGroup = false;
+        originalIntent = {
+          body: JSON.stringify(body),
+          key: route.request().headers()["idempotency-key"],
+        };
         recycled.add("original");
         return route.fulfill({
           status: 207,
@@ -110,6 +120,15 @@ test("admin checks duplicates and cleans selected copies with partial failure re
           },
         });
       }
+      if (
+        body.keep.id === "redrawn" &&
+        (JSON.stringify(body) !== originalIntent?.body ||
+          route.request().headers()["idempotency-key"] !== originalIntent.key)
+      )
+        return route.fulfill({
+          status: 409,
+          json: { error: "duplicate-group-changed" },
+        });
       removed.forEach((id: string) => recycled.add(id));
       return route.fulfill({ json: { kept: body.keep.id, recycled: removed } });
     }
@@ -190,12 +209,25 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   await expect(
     panel.getByRole("link", { name: "Open recycle bin" }),
   ).toHaveAttribute("href", "/moderation");
+  // A new page only sees the remaining rows; reconciliation retains the original
+  // whole-group body and identity independently of the other group's request.
+  await page.goto("/");
+  await page.getByTestId("gallery-check-duplicates").click();
+  await expect(panel.getByRole("status")).toContainText(
+    "Scan finished: 5 checked · 2 extra copies in 2 groups · 1 unable to compare",
+  );
+  await expect(
+    panel.getByRole("radio", {
+      name: "Keep Completely different title",
+      exact: true,
+    }),
+  ).toBeChecked();
   failOtherGroup = false;
   await panel
     .getByRole("button", { name: "Remove all extra copies (2)", exact: true })
     .click();
   await expect(
-    panel.getByText("Moved 3 circuits to the recycle bin.", { exact: false }),
+    panel.getByText("Moved 2 circuits to the recycle bin.", { exact: false }),
   ).toBeVisible();
   await expect(panel.getByRole("alert")).toHaveCount(0);
   await expect(

@@ -75,7 +75,7 @@ function entryFor(path: string, method: string, body?: unknown): string | null {
 }
 
 /** Reuse the original route's validation at the writer under a fresh delegated identity. */
-export async function executeRegionalPublicationCommand(
+async function executeRegionalPublicationCommand(
   request: Request,
   env: ResourceActionEnv,
   command: PublicationCommand,
@@ -324,7 +324,54 @@ export async function routeRegionalPublicationActions(
       id: command.entryId,
     });
     if (!location.ok) return location;
-    const origin = (await location.json()).origin;
+    const local = (await location.json()) as { origin: string; known: boolean };
+    let origin = local.origin;
+    if (source && batchFor(command.path, command.method) && !local.known) {
+      // An import may arrive before the resource stream. Never interpret a
+      // missing local row as permission to establish a second writer.
+      if (!env.RESOURCE_SYNC_PEER_TOKEN) return fail("writer-unconfirmed", 503);
+      const response = await fetch(
+        `${peer.origin}/api/resource-sync/${stream}/location?id=${encodeURIComponent(command.entryId)}`,
+        {
+          redirect: "manual",
+          signal: AbortSignal.timeout(20_000),
+          headers: { authorization: "Bearer " + env.RESOURCE_SYNC_PEER_TOKEN },
+        },
+      );
+      if (!response.ok) return fail("writer-unconfirmed", 503);
+      const remote = (await readSyncJson(response, 4096)) as {
+        known?: unknown;
+        origin?: unknown;
+      } | null;
+      if (
+        !remote ||
+        typeof remote.known !== "boolean" ||
+        !["cn", "overseas"].includes(String(remote.origin))
+      )
+        return fail("writer-unconfirmed", 503);
+      // Recheck after the peer lookup: another command may have committed
+      // while this request awaited the network.
+      const refreshedResponse = await call("resource-sync/location", {
+        stream,
+        id: command.entryId,
+      });
+      if (!refreshedResponse.ok) return refreshedResponse;
+      const refreshed = (await refreshedResponse.json()) as {
+        known: boolean;
+        origin: string;
+      };
+      if (refreshed.known) {
+        if (remote.known && remote.origin !== refreshed.origin)
+          return fail("writer-conflict", 409);
+        origin = refreshed.origin;
+      } else {
+        if (remote.known && remote.origin === env.RESOURCE_REGION)
+          return fail("writer-state-missing", 503);
+        // A new Dataset ID has a stable writer, even when both entrances import
+        // concurrently. Existing China ownership, including tombstones, stays.
+        origin = remote.known ? String(remote.origin) : "overseas";
+      }
+    }
     if (!incoming) command.target = origin;
     if (incoming || origin === env.RESOURCE_REGION) {
       if (origin !== env.RESOURCE_REGION) return fail("wrong-writer", 409);

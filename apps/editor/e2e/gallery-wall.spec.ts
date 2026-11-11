@@ -40,6 +40,87 @@ const tile = (id: string, extra: object = {}) => ({
   ...extra,
 });
 
+test("a pending bookmark save does not replace a later remove after refresh", async ({
+  page,
+}) => {
+  await signIn(page, sessionUser());
+  let kept = false;
+  const writes: {
+    key: string;
+    body: { saved: boolean; expectedVersion: string | null };
+  }[] = [];
+  await page.route("**/api/gallery/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/comparisons"))
+      return route.fulfill({
+        json: {
+          comparisons: path.includes("analoggenie")
+            ? [
+                {
+                  id: "ag-1",
+                  name: "Bookmark circuit",
+                  verdict: "match",
+                  category: "",
+                  detail: "",
+                  reason: "",
+                  families: ["MOS"],
+                  components: 6,
+                  previewRevision: "p",
+                  figureRevision: "f",
+                },
+              ]
+            : [],
+        },
+      });
+    if (path.endsWith("/bookmarks"))
+      return route.fulfill({
+        json: {
+          ids: kept ? ["ag-1"] : [],
+          versions: kept ? { "ag-1": "1:cn" } : {},
+        },
+      });
+    if (path === "/api/gallery/ag-1/bookmark") {
+      const body = route.request().postDataJSON();
+      writes.push({ key: route.request().headers()["idempotency-key"]!, body });
+      if (body.saved) {
+        kept = true;
+        return route.fulfill({
+          status: 503,
+          json: { error: "response-unconfirmed" },
+        });
+      }
+      kept = false;
+      return route.fulfill({ json: { saved: false, version: "2:cn" } });
+    }
+    if (path.includes("preview") || path.includes("figure"))
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg"/>',
+      });
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/datasets");
+  const save = page.getByTitle("Save for reference", { exact: true });
+  await save.click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "It could not be saved." }),
+  ).toBeVisible();
+  await save.click();
+  await expect.poll(() => writes.length).toBe(2);
+  expect(writes[1]).toEqual(writes[0]);
+  await page.reload();
+  await page.getByTitle("Remove from Saved", { exact: true }).click();
+  await expect.poll(() => writes.length).toBe(3);
+  expect(writes[2]!.key).not.toBe(writes[0]!.key);
+  expect(writes[2]!.body).toMatchObject({
+    saved: false,
+    expectedVersion: "1:cn",
+  });
+  await expect(
+    page.getByTitle("Save for reference", { exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+});
+
 /** Answer each list request with what `answer` makes of its address
  * (nothing leaves it open), and every preview with a blank drawing. */
 async function serveWall(
@@ -679,6 +760,55 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await expect(page.getByTestId("gallery-feed")).toBeVisible();
 });
 
+test("retries an uncertain unlike after reload with its original operation", async ({
+  page,
+}) => {
+  await serveWall(page, () => ({
+    entries: [{ ...ENTRY, likes: 1, likedByViewer: true }],
+    nextCursor: null,
+  }));
+  let prepared = 0;
+  let command: object;
+  const attempts: { key: string | undefined; body: unknown }[] = [];
+  await page.route("**/api/gallery/*/like/intent", async (route) => {
+    prepared++;
+    command = {
+      entryId: ENTRY.id,
+      commandId: route.request().headers()["idempotency-key"],
+      target: "overseas",
+      expected: "a".repeat(64),
+      owner: false,
+      take: false,
+    };
+    await route.fulfill({ json: command });
+  });
+  await page.route("**/api/gallery/*/like", async (route) => {
+    attempts.push({
+      key: route.request().headers()["idempotency-key"],
+      body: route.request().postDataJSON(),
+    });
+    await route.fulfill(
+      attempts.length === 1
+        ? { status: 503, json: { error: "action-unconfirmed" } }
+        : { json: { likes: 0, likedByViewer: false } },
+    );
+  });
+  await page.goto("/");
+  await page.getByTestId(`gallery-like-${ENTRY.id}`).click();
+  await expect.poll(() => attempts.length).toBe(1);
+  await page.reload();
+  await page.getByTestId(`gallery-like-${ENTRY.id}`).click();
+  await expect(page.getByTestId(`gallery-like-${ENTRY.id}`)).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  expect(prepared).toBe(1);
+  expect(attempts).toHaveLength(2);
+  expect(attempts[0]!.key).toBeTruthy();
+  expect(attempts[1]).toEqual(attempts[0]);
+  expect(attempts[1]!.body).toEqual({ command: command! });
+});
+
 test("marks the circuits that extract or an AI made, and counts thumbs on every card", async ({
   page,
 }) => {
@@ -702,6 +832,18 @@ test("marks the circuits that extract or an AI made, and counts thumbs on every 
     nextCursor: null,
   }));
   let toggles = 0;
+  await page.route("**/api/gallery/*/like/intent", (route) =>
+    route.fulfill({
+      json: {
+        entryId: extractable.id,
+        commandId: route.request().headers()["idempotency-key"],
+        target: "cn",
+        expected: "b".repeat(64),
+        owner: false,
+        take: false,
+      },
+    }),
+  );
   await page.route("**/api/gallery/*/like", (route) => {
     toggles += 1;
     return route.fulfill({ json: { likes: 3, likedByViewer: true } });

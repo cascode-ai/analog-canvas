@@ -11,6 +11,7 @@ import {
 import type { GalleryDuplicateReport } from "../gallery-duplicates";
 import { queueGallerySimulationChecks } from "../gallery-simulation-checks";
 import { galleryLifecycleRequest } from "../gallery-lifecycle-request";
+import { galleryPublicationRequest } from "../gallery-publication-request";
 import { requestFailureOf } from "../request-failure";
 
 export function useGalleryOwnerTools({
@@ -72,12 +73,15 @@ export function useGalleryOwnerTools({
     setOwnerBusy(rejecting.id);
     setOwnerNotice(null);
     try {
-      const response = await fetch(`/api/gallery/${rejecting.id}/reject`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ reason: reason.trim(), notify }),
-      });
+      const response = await galleryPublicationRequest(
+        `/api/gallery/${rejecting.id}/reject`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ reason: reason.trim(), notify }),
+        },
+      );
       if (!response.ok) throw new Error();
       const { emailed } = (await response.json().catch(() => ({}))) as {
         emailed?: boolean;

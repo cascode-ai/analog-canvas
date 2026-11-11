@@ -338,6 +338,24 @@ export class ResourceReplica {
   originOf(id: string) {
     return this.key(id)?.origin ?? this.region;
   }
+  locationOf(id: string) {
+    const key = this.key(id);
+    // Ownership keys survive row deletion; legacy unseeded rows also belong
+    // to this region. Absence is distinct from originOf's legacy fallback.
+    const known =
+      Boolean(key) ||
+      this.tables.some(
+        (table) =>
+          this.sql
+            .exec(
+              `SELECT 1 FROM ${table.name} WHERE ${identity(table.key)}=? LIMIT 1`,
+              id,
+            )
+            .toArray().length > 0,
+      );
+    return { origin: key?.origin ?? this.region, known };
+  }
+
   status() {
     return {
       ...this.head(),
@@ -893,7 +911,7 @@ export function withResourceReplication<
           if (!replica) return fail("resource-sync-disabled", 404);
           switch (operation) {
             case "/resource-sync/location":
-              return Response.json({ origin: replica.originOf(body.id) });
+              return Response.json(replica.locationOf(body.id));
             case "/resource-sync/status":
               return Response.json(replica.status());
             case "/resource-sync/seed":

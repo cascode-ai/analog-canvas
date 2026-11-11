@@ -7,7 +7,11 @@ import {
   RESOURCE_MAX_BYTES,
   type ReplicaConfig,
 } from "./resource-replica";
-import { GALLERY_SOURCES, galleryStoreName } from "./gallery-sources";
+import {
+  GALLERY_SOURCES,
+  galleryStoreName,
+  gallerySourceOfEntryId,
+} from "./gallery-sources";
 type Namespace = {
   getByName(name: string): {
     fetch(url: string, init?: RequestInit): Promise<Response>;
@@ -31,7 +35,7 @@ export async function routeResourceSync(
   if (!env.RESOURCE_REGION || !env.RESOURCE_SYNC_TOKEN)
     return refuse("not-found", 404);
   const match =
-    /^\/api\/resource-sync\/([a-z0-9-]+)\/(status|changes|seed)$/.exec(
+    /^\/api\/resource-sync\/([a-z0-9-]+)\/(status|changes|seed|location)$/.exec(
       url.pathname,
     );
   if (!match) return refuse("not-found", 404);
@@ -67,6 +71,19 @@ export async function routeResourceSync(
           ? env.GALLERY?.getByName(galleryStoreName(source))
           : undefined;
   if (!store) return refuse("unknown-resource-store", 404);
+  let id: string | null = null;
+  if (operation === "location") {
+    if (!source || interactions || opens) return refuse("not-found", 404);
+    id = url.searchParams.get("id");
+    if (
+      !id ||
+      gallerySourceOfEntryId(id)?.key !== source.key ||
+      [...url.searchParams.keys()].length !== 1
+    )
+      return refuse("invalid-resource-id", 400);
+    if (request.method !== "GET") return refuse("method-not-allowed", 405);
+  }
+
   if (!(
     (request.method === "GET" && operation !== "seed") ||
     (request.method === "POST" && operation !== "status")
@@ -76,6 +93,7 @@ export async function routeResourceSync(
     const receiving = operation === "changes" && request.method === "POST";
     const body = {
       stream,
+      ...(id ? { id } : {}),
       after: Number(url.searchParams.get("after") ?? 0),
       ...(receiving
         ? { envelope: await readSyncJson(request, RESOURCE_MAX_BYTES * 2) }

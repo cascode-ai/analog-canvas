@@ -17,16 +17,42 @@ import { routeGalleryRequest } from "./gallery";
 import { routeBoardsRequest } from "./boards";
 import { routeResourceSync } from "./resource-sync";
 import { routeRegionalResourceActions } from "./regional-resource-actions";
+import type { GalleryNamespaceLike } from "./gallery-store";
 
 afterEach(() => vi.unstubAllGlobals());
 
 async function pair(enabled = true) {
-  const auth = accounts({
-    AUTH_REGIONAL_AUTHORITY: JSON.stringify({
-      ...JSON.parse(config),
-      accountDeletion: true,
-    }),
-  });
+  let sourceGallery: GalleryNamespaceLike;
+  let chinaGallery: GalleryNamespaceLike;
+  const auth = accounts(
+    {
+      GALLERY: {
+        getByName: (name) => ({
+          fetch: async (url, init) => {
+            const request = new Request(url, init);
+            return sourceGallery.getByName(name).fetch(request.url, {
+              method: request.method,
+              headers: request.headers,
+              ...(request.method === "GET" || request.method === "HEAD"
+                ? {}
+                : { body: await request.text() }),
+            });
+          },
+        }),
+      },
+      AUTH_REGIONAL_AUTHORITY: JSON.stringify({
+        ...JSON.parse(config),
+        accountDeletion: true,
+      }),
+    },
+    {
+      GALLERY: {
+        getByName: (name) => ({
+          fetch: (url, init) => chinaGallery.getByName(name).fetch(url, init),
+        }),
+      },
+    },
+  );
   const cookie = await makerOf(auth.source),
     admin = await adminOf(auth.source);
   const cnCookie = await auth.connect(cookie),
@@ -42,6 +68,7 @@ async function pair(enabled = true) {
         region === "cn" ? transportOrigin : "https://china.test",
       RESOURCE_SYNC_TOKEN: "activity-sync",
       RESOURCE_SYNC_PEER_TOKEN: "activity-sync",
+      STORE_BACKUP_TOKEN: "private-activity-backup",
       PROJECT_IDENTITY_URL: transportOrigin + "/api/auth/regional/identities",
       PROJECT_IDENTITY_TOKEN: "isolated-regional-account-service-secret",
     };
@@ -100,6 +127,8 @@ async function pair(enabled = true) {
   };
   const overseas = make("overseas"),
     cn = make("cn");
+  sourceGallery = overseas.env.GALLERY;
+  chinaGallery = cn.env.GALLERY;
   vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init),
       url = new URL(req.url);
@@ -178,6 +207,62 @@ it("keeps a private bookmark and its removal across both entrances and retries",
   expect(await (await cn.call("/api/gallery/bookmarks")).json()).toMatchObject({
     ids: [],
   });
+});
+
+it("retirement deletes local bookmark rows and exports tombstones without a later incoming activity sync", async () => {
+  const { overseas, cn, auth, publish, transfer } = await pair();
+  const id = await publish();
+  expect(
+    (
+      await overseas.call(
+        `/api/gallery/${id}/bookmark`,
+        "POST",
+        { saved: true, expectedVersion: null },
+        "before-retire",
+      )
+    ).status,
+  ).toBe(200);
+  await transfer(overseas, cn, "gallery-activity");
+  const inventory = async (site: typeof cn) => {
+    const response = await site.route(
+      new Request(
+        ORIGIN +
+          "/api/gallery/maintenance/automated-backup?scope=activity&table=entryBookmarks",
+        { headers: { authorization: "Bearer private-activity-backup" } },
+      ),
+    );
+    expect(response.status).toBe(200);
+    return (await response.json()).rows;
+  };
+  expect(await inventory(overseas)).toHaveLength(1);
+  expect(await inventory(cn)).toHaveLength(1);
+  expect(
+    (
+      await overseas.call("/api/auth/account/delete", "POST", {
+        confirm: "delete-account",
+        requestId: crypto.randomUUID(),
+      })
+    ).status,
+  ).toBe(202);
+  const tick = new Request("https://auth/internal/account-deletion-tick", {
+    method: "POST",
+  });
+  expect((await auth.source.authDurable.fetch(tick.clone())).status).toBe(200);
+  expect((await auth.region.fetch(tick)).status).toBe(200);
+  expect(await inventory(overseas)).toEqual([]);
+  expect(await inventory(cn)).toEqual([]);
+  for (const site of [overseas, cn]) {
+    const response = await site.route(
+      new Request(
+        ORIGIN + "/api/resource-sync/gallery-activity/changes?after=0",
+        { headers: { authorization: "Bearer activity-sync" } },
+      ),
+    );
+    const envelope = await response.json();
+    expect(JSON.parse(JSON.parse(envelope.payload).record.value).saved).toBe(
+      false,
+    );
+  }
 });
 
 it("edits a foreign Board once and preserves its items, locks and event identities", async () => {

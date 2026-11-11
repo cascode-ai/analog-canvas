@@ -13,6 +13,189 @@ import { digest } from "./regional-auth-contract";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("unlikes through the other entrance and reconciles a lost reply without toggling again", async () => {
+  const { cn, overseas, publish, loseNextReply } = await pair();
+  const id = await publish(overseas);
+  const path = `/api/gallery/${id}/like`;
+  expect((await overseas.call(path, "POST", "first-like")).status).toBe(200);
+  const changed = await overseas.store.fetch(
+    new Request("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream: "gallery-interactions", after: 0 }),
+    }),
+  );
+  await cn.store.fetch(
+    new Request("https://store/resource-sync/receive", {
+      method: "POST",
+      body: JSON.stringify({
+        stream: "gallery-interactions",
+        envelope: await changed.json(),
+      }),
+    }),
+  );
+  loseNextReply();
+  expect((await cn.call(path, "POST", "foreign-unlike")).status).toBe(503);
+  overseas.restart();
+  cn.restart();
+  const retry = await cn.call(path, "POST", "foreign-unlike");
+  expect(retry.status, await retry.clone().text()).toBe(200);
+  expect(await retry.json()).toEqual({ likes: 0, likedByViewer: false });
+  expect(await (await cn.call(path, "POST", "foreign-unlike")).json()).toEqual({
+    likes: 0,
+    likedByViewer: false,
+  });
+  // A new like can move the writer; the old command must still reconcile at its original writer.
+  expect(await (await cn.call(path, "POST", "new-like")).json()).toEqual({
+    likes: 1,
+    likedByViewer: true,
+  });
+  const old = await cn.call(path, "POST", "foreign-unlike");
+  expect(old.status).toBe(409);
+  expect(
+    (
+      await (await cn.call("/api/gallery?source=community")).json()
+    ).entries.find((entry: { id: string }) => entry.id === id).likes,
+  ).toBe(1);
+});
+
+it("keeps a prepared like command intact when its retry enters through the other region", async () => {
+  const { cn, overseas, publish, loseNextReply, auth } = await pair();
+  const id = await publish(cn);
+  const path = `/api/gallery/${id}/like`;
+  const prepare = await cn.call(path + "/intent", "POST", "travelling-like");
+  expect(prepare.status).toBe(200);
+  const command = await prepare.json();
+  const other = await signIn(auth.source.authDurable, "like-other@example.com");
+  const switched = await overseas.route(
+    new Request(ORIGIN + path, {
+      method: "POST",
+      headers: {
+        cookie: other,
+        origin: ORIGIN,
+        "idempotency-key": "travelling-like",
+      },
+      body: JSON.stringify({ command }),
+    }),
+  );
+  expect(switched.status).toBe(403);
+  loseNextReply();
+  expect(
+    (await overseas.call(path, "POST", "travelling-like", { command })).status,
+  ).toBe(503);
+  cn.restart();
+  const retry = await cn.call(path, "POST", "travelling-like", { command });
+  expect(await retry.json()).toEqual({ likes: 1, likedByViewer: true });
+  expect(
+    (await overseas.call(path, "POST", "travelling-like", { command })).status,
+  ).toBe(200);
+  expect(
+    (
+      await overseas.call(path, "POST", "travelling-like", {
+        command: { ...command, take: true },
+      })
+    ).status,
+  ).toBe(400);
+});
+
+it("changes the Owner's Dataset hearts across writers and refuses stale or forged intents", async () => {
+  const { cn, overseas, auth } = await pair();
+  const owner = await ownerAccountOf(auth.source),
+    domesticOwner = await auth.connect(owner);
+  const send = (
+    site: typeof cn,
+    path: string,
+    key: string,
+    body?: unknown,
+    cookie = site === cn ? domesticOwner : owner,
+  ) =>
+    site.route(
+      new Request(ORIGIN + path, {
+        method: "POST",
+        headers: { cookie, origin: ORIGIN, "idempotency-key": key },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+    );
+  const transfer = async (from: typeof cn, to: typeof cn, stream: string) => {
+    const target = to.env.GALLERY.getByName("source:analoggenie");
+    const status = await target.fetch("https://store/resource-sync/status", {
+      method: "POST",
+      body: JSON.stringify({ stream }),
+    });
+    const after = (await status.json()).received?.sequence ?? 0;
+    const changes = await from.env.GALLERY.getByName(
+      "source:analoggenie",
+    ).fetch("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream, after }),
+    });
+    expect(
+      (
+        await target.fetch("https://store/resource-sync/receive", {
+          method: "POST",
+          body: JSON.stringify({ stream, envelope: await changes.json() }),
+        })
+      ).status,
+    ).toBe(200);
+  };
+  expect(
+    (
+      await send(
+        overseas,
+        "/api/gallery/sources/analoggenie/entries",
+        "import",
+        {
+          entries: [
+            { id: "ag-309", name: "Hearts", projectText: wiredProjectText() },
+          ],
+        },
+      )
+    ).status,
+  ).toBe(200);
+  await transfer(overseas, cn, "analoggenie");
+  const path = "/api/gallery/ag-309/like";
+  expect(await (await send(cn, path, "heart-one")).json()).toEqual({
+    likes: 1,
+    likedByViewer: true,
+  });
+  await transfer(cn, overseas, "analoggenie-interactions");
+  expect(await (await send(overseas, path, "heart-two")).json()).toEqual({
+    likes: 2,
+    likedByViewer: true,
+  });
+  const command = await (
+    await send(overseas, path + "/intent?take=1", "take-one")
+  ).json();
+  expect(
+    await (
+      await send(overseas, path + "?take=1", "take-one", { command })
+    ).json(),
+  ).toEqual({ likes: 1, likedByViewer: true });
+  expect(
+    await (await send(cn, path + "?take=1", "take-one", { command })).json(),
+  ).toEqual({ likes: 1, likedByViewer: true });
+  const stale = await (
+    await send(overseas, path + "/intent", "stale-heart")
+  ).json();
+  expect((await send(cn, path, "newer-heart")).status).toBe(200);
+  expect(
+    (await send(overseas, path, "stale-heart", { command: stale })).status,
+  ).toBe(409);
+  expect((await cn.call(path, "POST", "take-one", { command })).status).toBe(
+    400,
+  );
+  expect(
+    (await send(cn, path + "?take=1", "take-one", { command }, "")).status,
+  ).toBe(401);
+  const peer = await overseas.route(
+    new Request(ORIGIN + "/api/resource-actions/like", {
+      method: "POST",
+      headers: { authorization: "Bearer source-sync" },
+      body: JSON.stringify({ ...command, target: "overseas" }),
+    }),
+  );
+  expect(peer.status).toBe(401);
+});
+
 it("resolves a China-written Dataset review through the overseas entrance in its own stream", async () => {
   const { cn, overseas, auth } = await pair();
   const ownerCookie = await ownerAccountOf(auth.source);
@@ -63,7 +246,6 @@ it("resolves a China-written Dataset review through the overseas entrance in its
       ).status,
     ).toBe(200);
   };
-  await transfer("analoggenie");
   const revision = (await (await cn.call("/api/gallery/ag-308")).json()).entry
     .previewRevision;
   const created = await cn.call(

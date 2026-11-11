@@ -632,11 +632,9 @@ class PeerEntranceTest(unittest.TestCase):
         }).decode('utf-8')
         peer = config.split('server_name canvas-hangzhou-origin.tokenzhang.com;', 1)[1]
         # The fixed service address differs from AUTH_REGIONAL_CLIENT.clientOrigin.
-        # Both peer APIs must reach the Worker's authentication, not invalid-host.
+        # Every peer API must reach the Worker's authentication, not invalid-host.
         hosts = re.findall(r'proxy_set_header Host ([^;]+);', peer)
-        self.assertEqual(hosts, [
-            'analog-canvas.tokenzhang.com', 'analog-canvas.tokenzhang.com',
-        ])
+        self.assertEqual(set(hosts), {'analog-canvas.tokenzhang.com'})
 
 
 if __name__ == '__main__':

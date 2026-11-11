@@ -213,11 +213,16 @@ export class RegionalActivity {
     return Response.json({ origin: this.boards.origin(id) });
   }
   retire(userId: string) {
-    this.boards.retire(userId, (id) => this.touchBoard(id));
-    this.sql.exec(
-      "DELETE FROM regional_activity_commands WHERE user_id=?",
-      userId,
-    );
+    this.state.storage.transactionSync(() => {
+      this.boards.retire(userId, (id) => this.touchBoard(id));
+      // Normal delete triggers retain removal tombstones in this region's
+      // activity stream, even if no later incoming synchronization occurs.
+      this.sql.exec("DELETE FROM entry_bookmarks WHERE user_id=?", userId);
+      this.sql.exec(
+        "DELETE FROM regional_activity_commands WHERE user_id=?",
+        userId,
+      );
+    });
   }
   status() {
     this.seed();
@@ -361,7 +366,6 @@ export class RegionalActivity {
       for (const id of accounts.deleted) {
         retireAccount(this.sql, id);
         this.retire(id);
-        this.sql.exec("DELETE FROM entry_bookmarks WHERE user_id=?", id);
       }
       if (
         !prior ||

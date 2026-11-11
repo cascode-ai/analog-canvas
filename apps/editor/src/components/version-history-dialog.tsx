@@ -8,6 +8,7 @@ import {
 import { VersionHistoryComparison } from "./version-history-comparison";
 
 import { announceGalleryChange } from "../gallery-client";
+import { galleryPublicationRequest } from "../gallery-publication-request";
 
 /**
  * Version history of one gallery entry, for reviewers and the entry's
@@ -49,9 +50,10 @@ async function restoreVersion(
   fetchLike: typeof fetch = fetch,
 ): Promise<{ previewRevision?: string } | null> {
   try {
-    const response = await fetchLike(
+    const response = await galleryPublicationRequest(
       `/api/gallery/${entryId}/versions/${versionId}/restore`,
       { method: "POST", credentials: "same-origin" },
+      fetchLike,
     );
     if (!response.ok) return null;
     const payload = (await response.json().catch(() => null)) as {

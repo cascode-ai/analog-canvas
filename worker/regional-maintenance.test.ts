@@ -1,6 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { pair } from "./regional-resource-actions.test-support";
 import {
+  recycleDuplicateGroup,
+  DuplicateCleanupIncomplete,
+} from "../apps/editor/src/gallery-duplicate-cleanup";
+import type { GalleryFeedEntry } from "../apps/editor/src/gallery-client";
+import {
   adminOf,
   ownerAccountOf,
   ORIGIN,
@@ -8,6 +13,61 @@ import {
 } from "./gallery.test-support";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("reconciles each original duplicate intent after partial display removal and another uncertain group", async () => {
+  const t = await pair();
+  const keep = await t.publish(t.cn),
+    local = await t.publish(t.cn),
+    foreign = await t.publish(t.overseas),
+    otherKeep = await t.publish(t.overseas),
+    otherRemove = await t.publish(t.overseas);
+  const cookie = await t.auth.connect(await adminOf(t.auth.source));
+  const entry = async (id: string) =>
+    (await (await t.cn.call(`/api/gallery/${id}`)).json())
+      .entry as GalleryFeedEntry;
+  const group = await Promise.all([keep, local, foreign].map(entry)),
+    other = await Promise.all([otherKeep, otherRemove].map(entry));
+  const delivered: { key: string | null; body: string }[] = [];
+  const fetchLike = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    headers.set("origin", ORIGIN);
+    headers.set("cookie", cookie);
+    delivered.push({
+      key: headers.get("idempotency-key"),
+      body: String(init?.body),
+    });
+    return t.cn.route(
+      new Request(new URL(String(input), ORIGIN), { ...init, headers }),
+    );
+  }) as typeof fetch;
+  t.loseNextReply();
+  let incomplete: unknown;
+  try {
+    await recycleDuplicateGroup(group, keep, fetchLike);
+  } catch (error) {
+    incomplete = error;
+  }
+  expect(incomplete).toBeInstanceOf(DuplicateCleanupIncomplete);
+  expect((incomplete as DuplicateCleanupIncomplete).recycled).toEqual([local]);
+  t.loseNextReply();
+  await expect(
+    recycleDuplicateGroup(other, otherKeep, fetchLike),
+  ).rejects.toThrow();
+  t.overseas.restart();
+  expect(
+    await recycleDuplicateGroup(
+      group.filter((e) => e.id !== local),
+      keep,
+      fetchLike,
+    ),
+  ).toEqual([foreign]);
+  expect(await recycleDuplicateGroup(other, otherKeep, fetchLike)).toEqual([
+    otherRemove,
+  ]);
+  expect(delivered[2]).toEqual(delivered[0]);
+  expect(delivered[3]).toEqual(delivered[1]);
+  expect(delivered[0]?.key).not.toBe(delivered[1]?.key);
+});
 
 it("recycles a foreign duplicate group atomically and reconciles a lost reply after restart", async () => {
   const t = await pair();

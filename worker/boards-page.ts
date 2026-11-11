@@ -194,11 +194,16 @@ const SHARED = String.raw`
 var pendingBoardCommands = {};
 async function boardCommand(path, body, account) {
   var storageKey = "canvas-board-command:" + account + ":" + path;
+  body.accountId = account;
+  var input = JSON.stringify(body);
+  function intentOf(text) {
+    try { var value = JSON.parse(text); delete value.expectedRevision; return JSON.stringify(value); }
+    catch (_) { return null; }
+  }
   var command = pendingBoardCommands[storageKey];
   if (!command) { try { command = JSON.parse(sessionStorage.getItem(storageKey) || "null"); } catch (_) {} }
-  if (!command || typeof command.key !== "string" || typeof command.body !== "string") {
-    body.accountId = account;
-    command = { key: crypto.randomUUID(), body: JSON.stringify(body) };
+  if (!command || typeof command.key !== "string" || intentOf(command.body) !== intentOf(input)) {
+    command = { key: crypto.randomUUID(), body: input };
   }
   pendingBoardCommands[storageKey] = command;
   try { sessionStorage.setItem(storageKey, JSON.stringify(command)); } catch (_) {}

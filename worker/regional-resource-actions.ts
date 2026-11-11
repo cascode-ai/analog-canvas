@@ -14,6 +14,7 @@ import { routeRegionalReviewActions } from "./regional-review-actions";
 import { routeRegionalBoardActions } from "./regional-board-actions";
 import { routeRegionalPublicationActions } from "./regional-publication-actions";
 import { routeRegionalMaintenance } from "./regional-maintenance";
+import { routeRegionalLikeActions } from "./regional-like-actions";
 
 export type ResourceActionEnv = GalleryEnv &
   ResourceSyncEnv & {
@@ -31,6 +32,8 @@ export async function routeRegionalResourceActions(
   if (maintenance) return maintenance;
   const publication = await routeRegionalPublicationActions(request, env);
   if (publication) return publication;
+  const like = await routeRegionalLikeActions(request, env);
+  if (like) return like;
   const review = await routeRegionalReviewActions(request, env);
   if (review) return review;
   const component = await routeRegionalComponentActions(request, env);
