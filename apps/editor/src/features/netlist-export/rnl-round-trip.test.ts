@@ -1947,6 +1947,94 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "puts a net label on its wire exactly where it stood, through %s+RNL",
+  async (format) => {
+    // 80 along a wire of 230: a share no fixed number of digits writes.
+    const project = createEmptyProject("labels", "Labels", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: -80, y: 200 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    document.nets.push({
+      id: "dx",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+    document.noConnects.push({
+      id: "R12",
+      endpoint: { kind: "terminal", instanceId: "R1", pinName: "2" },
+    });
+    document.junctions.push(
+      { id: "JA", netId: "dx", position: { x: -80, y: 100 } },
+      { id: "JB", netId: "dx", position: { x: 150, y: 100 } },
+    );
+    const wire = createRoutePath({
+      id: "wire",
+      netId: "dx",
+      start: { kind: "junction", junctionId: "JA" },
+      end: { kind: "junction", junctionId: "JB" },
+      bends: [],
+      modes: ["manual"],
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "tap",
+        netId: "dx",
+        start: { kind: "terminal", instanceId: "R1", pinName: "1" },
+        end: { kind: "junction", junctionId: "JA" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      wire,
+    );
+    document.annotations.push({
+      id: "dx-label",
+      kind: "net-label",
+      netId: "dx",
+      binding: { kind: "net-name", netId: "dx" },
+      anchor: {
+        kind: "route",
+        routeId: "wire",
+        legId: wire.legs[0]!.id,
+        t: 80 / 230,
+        normalOffset: -4,
+        direction: "forward",
+        orientation: "follow",
+        fallbackPosition: { x: 0, y: 96 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "dx-claim",
+      kind: "name-claim",
+      netId: "dx",
+      name: "dx",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "dx-label" },
+    });
+    const where = (from: CircuitProject) => {
+      const cell = from.documents[0]!;
+      const label = cell.annotations.find((a) => a.kind === "net-label")!;
+      return resolveAnnotationPresentation(
+        cell,
+        createProjectSymbolResolver(from, builtInSymbols),
+        label,
+        resolveDocumentStyleProfile(cell.presentation),
+      ).position;
+    };
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(where(plan.project)).toEqual(where(project));
+  },
+);
+
 it.each(["global", "local"] as const)(
   "reads a power label of a %s net back as that net's supply, its rails rails",
   async (scope) => {

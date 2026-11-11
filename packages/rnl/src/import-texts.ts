@@ -510,7 +510,9 @@ export function importTexts(
             kind: "route" as const,
             routeId: leg.route.id,
             legId: leg.route.legs[leg.index]!.id,
-            t: Math.round(leg.t * 1e9) / 1e9,
+            // The share as it falls, not to some digits: rounded, a label
+            // 80 along a wire of 230 would stand 1e-8 off its place.
+            t: leg.t,
             normalOffset: Math.round(leg.normalOffset * 1e6) / 1e6 + 0,
             direction: "forward" as const,
             orientation: "follow" as const,
