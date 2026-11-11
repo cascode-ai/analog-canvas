@@ -1,6 +1,5 @@
 import { AccountMenu } from "./account";
 import { BugReportLink } from "./bug-report-link";
-import { CrossedSwordsIcon } from "./crossed-swords-icon";
 import {
   SITE_CHANGE_LOG_PATH,
   SITE_PRIVACY_PATH,
@@ -53,16 +52,31 @@ export function GalleryChrome({
           </svg>
           <span>Editor</span>
         </a>
-        {/* AnalogArena, where drawings are judged side by side: /arena
-            hands the visitor to chip-arena.com, signed in as here. */}
+        {/* The one-minute film about Analog Canvas (/film). */}
         <a
-          className="gallery-arena-link"
-          href="/arena"
-          data-testid="gallery-arena-link"
-          title="Judge schematics side by side in AnalogArena"
+          className="gallery-film-link"
+          href="/film"
+          data-testid="gallery-film-link"
+          title="Watch the one-minute film"
         >
-          <CrossedSwordsIcon />
-          <span>Arena</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <circle
+              cx="8"
+              cy="8"
+              r="6.3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+            />
+            <path
+              d="M6.6 5.4v5.2L10.7 8Z"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>Film</span>
         </a>
         {subtitle ? (
           <div className="app-brand-copy">

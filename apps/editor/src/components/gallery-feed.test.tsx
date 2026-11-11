@@ -517,9 +517,10 @@ describe("GalleryFeed", () => {
     // Editor is the one way into the editor; there is no second New Circuit.
     expect(markup).toContain('data-testid="gallery-editor-switch"');
     expect(markup).not.toContain("gallery-new-circuit");
-    // Arena beside it hands the visitor to Chip Arena (#1577).
-    expect(markup).toContain('data-testid="gallery-arena-link"');
-    expect(markup).toContain('href="/arena"');
+    // Film beside it plays the one-minute film; the header has no Arena link.
+    expect(markup).toContain('data-testid="gallery-film-link"');
+    expect(markup).toContain('href="/film"');
+    expect(markup).not.toContain('href="/arena"');
     expect(markup).toContain('data-testid="gallery-report-bug"');
     expect(markup).toContain("Report bug");
     expect(markup).toContain('href="/editor"');

@@ -688,22 +688,20 @@ describe("handing a sign-in on to AnalogArena", () => {
     );
   });
 
-  it("brings the Arena gate's battle page to AnalogArena signed in, its vote source kept, and counts there on Analog Canvas's host", async () => {
-    // The editor's Arena gate (#1681) opens /schematic?from=canvas-gate in
-    // a window of its own and counts through Analog Canvas's host.
+  it("brings a Schematic Arena page to AnalogArena signed in, its query kept, and forwards Arena reads on Analog Canvas's host", async () => {
     const { accounts, at, forwarded, visit } = canvas();
     const cookie = await makerOf(accounts);
     const { path, response } = await browse(
       at,
-      `${CANVAS_ORIGIN}/schematic?from=canvas-gate`,
+      `${CANVAS_ORIGIN}/schematic?season=s1`,
       signedInOnCanvas(cookie),
     );
     expect(response.status).toBe(200);
-    expect(path.at(-1)).toBe(`${ARENA_ORIGIN}/schematic?from=canvas-gate`);
+    expect(path.at(-1)).toBe(`${ARENA_ORIGIN}/schematic?season=s1`);
     const id = await accountId(visit, cookie);
     expect(forwardedAccount(forwarded.at(-1))).toMatchObject({ id });
 
-    // Its count, and the Battles left (Arena's session), are read here.
+    // Arena's reads answer on Analog Canvas's host too, as the account.
     for (const path of ["/api/arena/battles/past", "/api/arena/session"]) {
       const read = await at(`${CANVAS_ORIGIN}${path}`, {
         headers: { Cookie: cookie },

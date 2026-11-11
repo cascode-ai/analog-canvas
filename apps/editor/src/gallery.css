@@ -72,8 +72,10 @@
   min-height: var(--icm-control-h);
 }
 
-/* The Gallery's one way into the editor, so it wears the primary blue. */
-.gallery-editor-link {
+/* The Gallery's one way into the editor, so it wears the primary blue; the
+   film beside it wears the same. */
+.gallery-editor-link,
+.gallery-film-link {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -91,51 +93,22 @@
 
 /* At rest it wears the soft blue of the header's other links, and lights up
    only under the pointer, as they do. */
-.gallery-editor-link:hover {
+.gallery-editor-link:hover,
+.gallery-film-link:hover {
   color: #fff;
   background: var(--icm-accent);
 }
 
-.gallery-editor-link:focus-visible {
+.gallery-editor-link:focus-visible,
+.gallery-film-link:focus-visible {
   outline: 2px solid var(--icm-accent);
   outline-offset: 2px;
 }
 
-.gallery-editor-link svg {
+.gallery-editor-link svg,
+.gallery-film-link svg {
   width: 15px;
   height: 15px;
-}
-
-/* Chip Arena beside the Editor, in the same soft blue. */
-.gallery-arena-link {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  height: var(--icm-control-h);
-  padding: 0 11px 0 9px;
-  border-radius: 999px;
-  color: var(--icm-accent);
-  background: var(--icm-accent-soft);
-  font-size: var(--icm-font-sm);
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.gallery-arena-link:hover {
-  color: #fff;
-  background: var(--icm-accent);
-}
-
-.gallery-arena-link:focus-visible {
-  outline: 2px solid var(--icm-accent);
-  outline-offset: 2px;
-}
-
-.gallery-arena-link svg {
-  width: 18px;
-  height: 18px;
 }
 
 .gallery-actions .account-signin summary {

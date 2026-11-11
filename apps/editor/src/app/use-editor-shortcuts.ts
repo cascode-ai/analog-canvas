@@ -1,6 +1,5 @@
 // The editor's keyboard shortcuts, and the outside press that closes open
 // menus and commits text being edited.
-import { arenaGateShown } from "../components/arena-gate-request";
 import {
   useEffect,
   useLayoutEffect,
@@ -306,8 +305,6 @@ function createEditorShortcutHandler({
   openNativeProject,
 }: EditorShortcutDependencies) {
   function onKeyDown(event: KeyboardEvent): void {
-    // The Arena gate over the editor owns every key, wherever focus is.
-    if (arenaGateShown()) return;
     if (versionHistoryOpen) return;
     if (
       event.target instanceof Element &&
