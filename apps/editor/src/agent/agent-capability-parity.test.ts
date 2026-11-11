@@ -2534,10 +2534,14 @@ describe("MCP → API → shared editor parity", () => {
         { kind: "edit-text", target: { kind: "annotation", id }, text: look },
       ]);
       expect(report.ok, report.message).toBe(true);
+      // The look sets no weight, so it is drawn bold as every other name and
+      // value is.
       expect(
         controller.document.annotations.find((a) => a.id === id)
           ?.formatOverride,
-      ).toEqual(look);
+      ).toEqual({
+        runs: [{ kind: "span", style: "bold", children: look.runs }],
+      });
     }
     expect(controller.document.netlist!.terminals[0]!.name).toBe("VIN");
     expect(

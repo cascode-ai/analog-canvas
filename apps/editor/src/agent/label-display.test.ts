@@ -18,6 +18,11 @@ const script = (
   style: "subscript" | "superscript",
   value: string,
 ): RichTextRun => ({ kind: "span", style, children: [text(value)] });
+// A name label's RichText that sets no weight is drawn bold, as every
+// other name is.
+const bold = (look: RichTextDocument): RichTextDocument => ({
+  runs: [{ kind: "span", style: "bold", children: look.runs }],
+});
 const asWritten = (value: string): RichTextDocument => ({
   runs: [text(value)],
 });
@@ -112,9 +117,9 @@ describe("an Agent sets how a name label looks (#1881)", () => {
       restyle(labelOf("rl"), asWritten("R_L")),
       restyle(labelOf("amp"), asWritten("AMP1")),
     );
-    expect(labelOf("cv1").formatOverride).toEqual(asWritten("CV1"));
-    expect(labelOf("rl").formatOverride).toEqual(asWritten("R_L"));
-    expect(labelOf("amp").content).toEqual(asWritten("AMP1"));
+    expect(labelOf("cv1").formatOverride).toEqual(bold(asWritten("CV1")));
+    expect(labelOf("rl").formatOverride).toEqual(bold(asWritten("R_L")));
+    expect(labelOf("amp").content).toEqual(bold(asWritten("AMP1")));
     expect(labelOf("amp").binding).toBeUndefined();
     expect([reference("cv1"), reference("rl"), reference("amp")]).toEqual([
       "CV1",
@@ -128,7 +133,28 @@ describe("an Agent sets how a name label looks (#1881)", () => {
       target: { kind: "instance", id: "cv1" },
       reference: "CV2",
     });
-    expect(labelOf("cv1").formatOverride).toEqual(asWritten("CV2"));
+    expect(labelOf("cv1").formatOverride).toEqual(bold(asWritten("CV2")));
+  });
+
+  it("draws a name the standard look cannot split, R₁‖R₂, in the bold of the names beside it", async () => {
+    const { apply, labelOf } = await editor();
+    await apply(place("resistor", "r12", 0, "R12"));
+    const parallel: RichTextDocument = {
+      runs: [
+        { kind: "span", style: "italic", children: [text("R")] },
+        script("subscript", "1"),
+        text("||"),
+        { kind: "span", style: "italic", children: [text("R")] },
+        script("subscript", "2"),
+      ],
+    };
+    await apply({
+      kind: "edit-text",
+      target: { kind: "annotation", id: labelOf("r12").id },
+      text: parallel,
+    });
+    // Before, the label was drawn regular beside bold names (ar-3758).
+    expect(labelOf("r12").content).toEqual(bold(parallel));
   });
 
   it("gives a Cell Pin its own look and refuses one that does not spell its name, naming the rule", async () => {
@@ -138,7 +164,7 @@ describe("an Agent sets how a name label looks (#1881)", () => {
       runs: [text("V"), script("superscript", "in")],
     };
     await apply(restyle(labelOf("pin"), look));
-    expect(labelOf("pin").formatOverride).toEqual(look);
+    expect(labelOf("pin").formatOverride).toEqual(bold(look));
     expect(document().netlist!.terminals.map((t) => t.name)).toEqual(["Vin"]);
 
     const before = document().revision;
@@ -160,7 +186,7 @@ describe("an Agent sets how a name label looks (#1881)", () => {
       runs: [text("V"), script("subscript", "in")],
     };
     await apply(restyle(label(), look));
-    expect(label().formatOverride).toEqual(look);
+    expect(label().formatOverride).toEqual(bold(look));
     expect(netName()).toBe("V_in");
 
     await apply({
@@ -170,7 +196,14 @@ describe("an Agent sets how a name label looks (#1881)", () => {
     });
     expect(netName()).toBe("V_out");
     expect(label().formatOverride).toEqual({
-      runs: [text("V"), script("subscript", "out")],
+      runs: [
+        { kind: "span", style: "bold", children: [text("V")] },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "span", style: "bold", children: [text("out")] }],
+        },
+      ],
     });
   });
 
@@ -181,13 +214,13 @@ describe("an Agent sets how a name label looks (#1881)", () => {
       runs: [text("V"), script("subscript", "in"), script("superscript", "+")],
     };
     await apply(restyle(label(), raised));
-    expect(label().formatOverride).toEqual(raised);
+    expect(label().formatOverride).toEqual(bold(raised));
     expect(netName()).toBe("Vin+");
 
     // One text run that spells the name is the label as written, not a name
     // to draw in its standard look.
     await apply(restyle(label(), asWritten("Vin+")));
-    expect(label().formatOverride).toEqual(asWritten("Vin+"));
+    expect(label().formatOverride).toEqual(bold(asWritten("Vin+")));
     expect(netName()).toBe("Vin+");
   });
 
@@ -206,7 +239,7 @@ describe("an Agent sets how a name label looks (#1881)", () => {
     // V over a DD subscript.
     expect(label().formatOverride?.runs).toHaveLength(2);
     await apply(restyle(label(), asWritten("VDD")));
-    expect(label().formatOverride).toEqual(asWritten("VDD"));
+    expect(label().formatOverride).toEqual(bold(asWritten("VDD")));
   });
 });
 

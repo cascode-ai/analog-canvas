@@ -38,9 +38,23 @@ function typedContent(
     throw new Error(
       "This text contains a formula or fraction; supply explicit RichText to replace it without losing its structure",
     );
-  return session.defaultBold && !JSON.stringify(rewritten).includes('"bold"')
-    ? { runs: [{ kind: "span", style: "bold", children: rewritten.runs }] }
-    : rewritten;
+  return withDefaultWeight(session.defaultBold, rewritten);
+}
+
+/**
+ * RichText that says nothing of weight takes the text's own: where the label
+ * is drawn bold (every name's standard look), the runs are recorded bold, as
+ * typed characters are. Only RichText that sets bold somewhere chooses its
+ * own weight. Without this a formula-like name an Agent writes as RichText
+ * (R₁‖R₂, g_mV_gs) was drawn regular beside bold names.
+ */
+export function withDefaultWeight(
+  defaultBold: boolean | undefined,
+  text: RichTextDocument,
+): RichTextDocument {
+  return defaultBold && !JSON.stringify(text).includes('"bold"')
+    ? { runs: [{ kind: "span", style: "bold", children: text.runs }] }
+    : text;
 }
 
 /**
@@ -83,17 +97,28 @@ export function planSetText(
             ? richTextPresentsIdentifier(command.text, name)
             : shown(flattenRichText(command.text));
       if (restyles) {
+        const look =
+          typeof command.text === "string"
+            ? command.text
+            : withDefaultWeight(
+                createTextEditingSession(
+                  { owner: "annotation", object: annotation },
+                  document,
+                  resolver,
+                ).defaultBold,
+                command.text,
+              );
         if (
-          typeof command.text === "string" ||
+          typeof look === "string" ||
           JSON.stringify(annotation.formatOverride ?? null) ===
-            JSON.stringify(command.text)
+            JSON.stringify(look)
         )
           return { edits: [] };
         return {
           edits: [
             {
               kind: "upsert_schematic_annotation",
-              annotation: { ...annotation, formatOverride: command.text },
+              annotation: { ...annotation, formatOverride: look },
             },
           ],
         };
@@ -133,7 +158,9 @@ export function planSetText(
   const content =
     typeof command.text === "string"
       ? typedContent(session, command.text)
-      : command.text;
+      : session.owner === "annotation"
+        ? withDefaultWeight(session.defaultBold, command.text)
+        : command.text;
   const proposal = proposeTextEditingCommit(
     document,
     updateTextEditingSession(session, { content }),

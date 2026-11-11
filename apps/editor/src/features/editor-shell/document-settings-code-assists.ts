@@ -9,6 +9,7 @@ import type {
   CanvasPropertyField,
   CanvasPropertyOptionPreview,
 } from "../properties/component-property-fields";
+import { DOCUMENT_FONT_LABELS, type DocumentFontCode } from "./document-font";
 import {
   createDocumentSettingsCodeParser,
   mosBulkDefaultNetIdFromCode,
@@ -16,23 +17,16 @@ import {
 } from "./document-settings-code";
 import { STYLE_KNOBS, STYLE_SCALE_OPTIONS } from "./style-knobs";
 
-/** The canvas-wide font choice; objects' Properties offer the same two. */
+/** The canvas-wide font choice; objects' Properties offer the same ones. */
 const DOCUMENT_FONT_FIELD: CanvasPropertyField = {
   path: "font",
   label: "Canvas font",
   kind: "choice",
-  options: [
-    {
-      value: "metropolis",
-      label: "Metropolis",
-      preview: { kind: "font", face: "metropolis" },
-    },
-    {
-      value: "serif",
-      label: "Times (Liberation Serif)",
-      preview: { kind: "font", face: "serif" },
-    },
-  ],
+  options: Object.entries(DOCUMENT_FONT_LABELS).map(([value, label]) => ({
+    value,
+    label,
+    preview: { kind: "font", face: value as DocumentFontCode },
+  })),
   description: "",
   help: "One font for every text on this canvas and in its SVG, PNG and PDF exports",
 };

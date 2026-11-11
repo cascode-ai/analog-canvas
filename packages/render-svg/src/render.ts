@@ -808,5 +808,5 @@ export function renderDocumentSvg(
     options.background === "transparent"
       ? ""
       : `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${profile.background}"/>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" role="img" aria-labelledby="title" data-style-profile="${profile.id}"${profile.typography.face === "serif" ? ' data-text-face="serif"' : ""}><title id="title">${title}</title>${background}<style>${schematicRoundPeriodFontFaceCssFor(scene.formalBody)}svg{font-size:${profile.typography.annotationFontSize}px;fill:${profile.foreground}}text{font-family:${profile.typography.fontFamily}}</style>${scene.formalBody}</svg>\n`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${width} ${height}" role="img" aria-labelledby="title" data-style-profile="${profile.id}"${profile.typography.face && profile.typography.face !== "metropolis" ? ` data-text-face="${profile.typography.face}"` : ""}><title id="title">${title}</title>${background}<style>${schematicRoundPeriodFontFaceCssFor(scene.formalBody)}svg{font-size:${profile.typography.annotationFontSize}px;fill:${profile.foreground}}text{font-family:${profile.typography.fontFamily}}</style>${scene.formalBody}</svg>\n`;
 }

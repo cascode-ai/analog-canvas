@@ -34,6 +34,30 @@ describe("Document font persistence (#1725)", () => {
     );
   });
 
+  it.each(["sans", "latin-modern"] as const)(
+    "keeps a Document's %s face through repeated saves",
+    (face) => {
+      const project = createEmptyProject("text-face", "Text face");
+      project.documents[0]!.presentation.textFace = face;
+      const text = serializeProject(project);
+      const reopened = parseProject(text);
+      expect(reopened.documents[0]!.presentation.textFace).toBe(face);
+      expect(serializeProject(reopened)).toBe(text);
+    },
+  );
+
+  it("refuses a face other than the serif in a file older than schema 79", () => {
+    const raw = JSON.parse(serializeProject(serifProject()));
+    raw.schemaVersion = 78;
+    expect(
+      parseProject(JSON.stringify(raw)).documents[0]!.presentation,
+    ).toEqual(expect.objectContaining({ textFace: "serif" }));
+    raw.documents[0].presentation.textFace = "latin-modern";
+    expect(() => parseProject(JSON.stringify(raw))).toThrow(
+      /A Document font other than the serif requires Project schema 79/u,
+    );
+  });
+
   it("refuses a face it does not know", () => {
     const raw = JSON.parse(serializeProject(serifProject()));
     raw.documents[0].presentation.textFace = "comic";

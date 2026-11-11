@@ -176,9 +176,16 @@ describe("set-text edits text as the canvas editor does", () => {
       const [edit] = edits(
         planSetText(document, { kind: "set-text", target, text }),
       ) as [Record<string, { content?: unknown }>];
+      // The look sets no weight, so it is drawn bold as every other name and
+      // value is.
       expect(edit).toMatchObject({
         kind: "upsert_schematic_annotation",
-        annotation: { id, formatOverride: text },
+        annotation: {
+          id,
+          formatOverride: {
+            runs: [{ kind: "span", style: "bold", children: text.runs }],
+          },
+        },
       });
       expect(edit.annotation!.content).toBeUndefined();
       // The same characters as a plain string leave the standard look.

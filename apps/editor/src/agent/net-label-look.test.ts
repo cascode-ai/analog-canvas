@@ -127,7 +127,10 @@ it("gives a plain Agent voltage-node label the GUI's standard look", () => {
   );
   if (authored?.kind !== "upsert_schematic_annotation")
     throw new Error("Expected a label edit");
-  expect(authored.annotation.formatOverride).toEqual(explicit);
+  // It sets no weight, so it is drawn bold as every other name is.
+  expect(authored.annotation.formatOverride).toEqual({
+    runs: [{ kind: "span", style: "bold", children: explicit.runs }],
+  });
 });
 
 it.each([

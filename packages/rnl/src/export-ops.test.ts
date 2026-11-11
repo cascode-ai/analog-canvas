@@ -68,6 +68,26 @@ const EXAMPLES = [
   "five-transistor-ota-sky130",
 ];
 
+describe("RNL export of the canvas font (#1725)", () => {
+  it.each([
+    ["serif", "serif"],
+    ["sans", undefined],
+    ["latin-modern", undefined],
+  ] as const)(
+    "writes face=%j only where Canvas 0.5 names it",
+    (textFace, written) => {
+      const project = example("simulation-common-source");
+      for (const document of project.documents)
+        document.presentation.textFace = textFace;
+      const typesetting = of(exported(project).ops, "add-usage").filter(
+        (op) => op.definition === "$CANVAS_TYPESETTING",
+      );
+      expect(typesetting.length).toBeGreaterThan(0);
+      for (const op of typesetting) expect(op.params?.face).toBe(written);
+    },
+  );
+});
+
 describe("RNL export of the simulation examples", () => {
   it.each(EXAMPLES)(
     "draws every part, glyph and wire of %s, naming only what it declares",

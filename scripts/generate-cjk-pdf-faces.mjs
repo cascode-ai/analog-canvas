@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * The CJK faces the PDF exporter embeds for characters Metropolis, the serif
- * and DejaVu Sans lack (#2179), cut from Noto Sans SC, and the table that
+ * The CJK faces the PDF exporter embeds for characters Metropolis, the chosen
+ * faces and DejaVu Sans lack (#2179), cut from Noto Sans SC, and the table that
  * says which face holds a character:
  *
  *   node scripts/generate-cjk-pdf-faces.mjs [--check]

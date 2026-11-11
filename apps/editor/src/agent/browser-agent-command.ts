@@ -101,7 +101,7 @@ import {
 } from "../features/clipboard/project-copy";
 import { planDetachedMove } from "../features/selection/detached-move";
 import { planSetProperties } from "./property-command";
-import { planAddText, planSetText } from "./text-command";
+import { planAddText, planSetText, withDefaultWeight } from "./text-command";
 import {
   planSelectionAlignment,
   type EdgeAlignmentMode,
@@ -1209,6 +1209,10 @@ export function planBrowserAgentCommand(
       // shows it in its look rather than as bare text (#1521).
       const plainText =
         !restyle && text.runs.length === 1 && text.runs[0]?.kind === "text";
+      // RichText that says nothing of weight is drawn in the role look's
+      // bold, as every other name label is: an Agent's V_in written with a
+      // subscript but no bold no longer sits regular beside bold names.
+      const look = withDefaultWeight(true, text);
       const name = restyle ? currentName : flattenRichText(text).trim();
       const logical = resolveDocumentLogicalNets(document);
       const net =
@@ -1229,7 +1233,7 @@ export function planBrowserAgentCommand(
             edits: [
               {
                 kind: "upsert_schematic_annotation",
-                annotation: { ...existing, formatOverride: text },
+                annotation: { ...existing, formatOverride: look },
               },
             ],
           };
@@ -1257,7 +1261,7 @@ export function planBrowserAgentCommand(
                 // Plain text is a semantic rename. The shared marker planner
                 // already preserves/customizes its look; only explicit RichText
                 // replaces that format rather than erasing it with bare text.
-                ...(plainText ? {} : { formatOverride: text }),
+                ...(plainText ? {} : { formatOverride: look }),
               },
             },
           ],
@@ -1283,7 +1287,7 @@ export function planBrowserAgentCommand(
               net.powerDomain === "none" ? "voltage-node" : "supply",
               name,
             )
-        : text;
+        : look;
       const nameRequest: Parameters<typeof planEnsureNamedNet>[1] = {
         candidateNetId: netId,
         name,

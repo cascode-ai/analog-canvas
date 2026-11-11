@@ -1,5 +1,7 @@
 import { type SchematicDocument, type StyleOverrides } from "@icm/model";
 
+import { type DocumentFontCode, isDocumentFont } from "./document-font";
+
 import {
   logicalNetChoiceForNet,
   logicalNetChoices,
@@ -14,8 +16,7 @@ export interface CanvasPreferenceCodeValue {
   scrollBehavior: "auto" | "zoom" | "pan";
 }
 
-/** The one font of every text on the canvas and in its exports (#1725). */
-export type DocumentFontCode = "metropolis" | "serif";
+export type { DocumentFontCode } from "./document-font";
 
 /** How wire crossings that are not connections draw on the canvas. */
 export type DocumentCrossingsCode = "plain" | "hop";
@@ -201,8 +202,11 @@ function parseSettingsCode(
   );
   if (rootError) return { ok: false, message: rootError };
   const font = raw.font ?? document.presentation.textFace ?? "metropolis";
-  if (font !== "metropolis" && font !== "serif")
-    return { ok: false, message: 'font must be "metropolis" or "serif"' };
+  if (!isDocumentFont(font))
+    return {
+      ok: false,
+      message: 'font must be "metropolis", "serif", "sans" or "latin-modern"',
+    };
   const crossings =
     raw.crossings ?? document.presentation.crossingStyle ?? "plain";
   if (crossings !== "plain" && crossings !== "hop")

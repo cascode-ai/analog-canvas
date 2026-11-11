@@ -72,27 +72,35 @@ describe("a PNG carries the schematic faces (#1413)", () => {
     expect(svg.endsWith("<text>R1</text></svg>")).toBe(true);
   });
 
-  it("inlines ICM Serif, not Metropolis, for a Document set in the serif (#1725)", async () => {
-    const drawn = stubRasterGlobals();
-    const fetched: string[] = [];
-    vi.stubGlobal("fetch", async (url: string) => {
-      fetched.push(url);
-      return new Response(new Uint8Array([119, 79, 70, 50]));
-    });
-    await rasterizeFormalSvgInBrowser({
-      ...labelled,
-      svg: labelled.svg.replace("<svg ", '<svg data-text-face="serif" '),
-    });
-    const rules = (await drawn[0]!.text()).match(/@font-face\{[^}]*\}/gu) ?? [];
-    expect(fetched).toHaveLength(8);
-    expect(
-      rules.filter((rule) => rule.includes('font-family:"ICM Serif"')),
-    ).toHaveLength(4);
-    expect(
-      rules.filter((rule) => rule.includes('font-family:"DejaVu Sans"')),
-    ).toHaveLength(4);
-    expect(rules.some((rule) => rule.includes("Metropolis"))).toBe(false);
-  });
+  it.each([
+    ["serif", "ICM Serif"],
+    ["sans", "ICM Sans"],
+    ["latin-modern", "ICM Modern"],
+  ])(
+    "inlines only the %s face, %s, and DejaVu (#1725)",
+    async (face, family) => {
+      const drawn = stubRasterGlobals();
+      const fetched: string[] = [];
+      vi.stubGlobal("fetch", async (url: string) => {
+        fetched.push(url);
+        return new Response(new Uint8Array([119, 79, 70, 50]));
+      });
+      await rasterizeFormalSvgInBrowser({
+        ...labelled,
+        svg: labelled.svg.replace("<svg ", `<svg data-text-face="${face}" `),
+      });
+      const rules =
+        (await drawn[0]!.text()).match(/@font-face\{[^}]*\}/gu) ?? [];
+      expect(fetched).toHaveLength(8);
+      expect(
+        rules.filter((rule) => rule.includes(`font-family:"${family}"`)),
+      ).toHaveLength(4);
+      expect(
+        rules.filter((rule) => rule.includes('font-family:"DejaVu Sans"')),
+      ).toHaveLength(4);
+      expect(rules.some((rule) => rule.includes("Metropolis"))).toBe(false);
+    },
+  );
 
   it("still draws, in the system's faces, when they cannot be read", async () => {
     vi.resetModules();
