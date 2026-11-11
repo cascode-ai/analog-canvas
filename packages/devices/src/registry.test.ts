@@ -270,7 +270,7 @@ describe("built-in device registry", () => {
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(71);
+    expect(builtInSubcircuitDescriptors).toHaveLength(72);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({
@@ -300,6 +300,14 @@ describe("built-in device registry", () => {
     expect(referencePolicyForSymbol("ujt")).toEqual({
       kind: "required",
       prefix: "X",
+    });
+    expect(subcircuitDescriptor("put")).toMatchObject({
+      target: "put",
+      ports: [
+        { name: "a", pinName: "A" },
+        { name: "g", pinName: "G" },
+        { name: "k", pinName: "K" },
+      ],
     });
   });
 

@@ -461,6 +461,41 @@ describe("generated block bodies", () => {
     expect(spectre).toMatch(/^X1 \(e b1 b2\) ujt eta=0.6 rbb=7k$/mu);
   });
 
+  it("export a PUT as a call of its two-transistor body on the generic cards", () => {
+    const project = blockCell("put");
+    const [spice, spectre] = (["spice", "spectre"] as const).map((format) => {
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      return result.status === "ready" ? result.file.text : "";
+    });
+    expect(spice).toContain(
+      [
+        ".subckt put a g k",
+        ".model qn NPN(IS=1e-16 BF=100 VAF=100)",
+        ".model qp PNP(IS=1e-16 BF=50 VAF=50)",
+        "Q1 nk g a qp",
+        "Q2 g nk k qn",
+        "RGK nk k 1Meg",
+        "CGK nk k 10p",
+        ".ends put",
+      ].join("\n"),
+    );
+    expect(spice).toMatch(/^X1 a g k put$/mu);
+    expect(spectre).toContain(
+      [
+        "subckt put (a g k)",
+        "model qn bjt type=npn is=1e-16 bf=100 vaf=100",
+        "model qp bjt type=pnp is=1e-16 bf=50 vaf=50",
+        "Q1 (nk g a) qp",
+        "Q2 (g nk k) qn",
+        "RGK (nk k) resistor r=1M",
+        "CGK (nk k) capacitor c=10p",
+        "ends put",
+      ].join("\n"),
+    );
+    expect(spectre).toMatch(/^X1 \(a g k\) put$/mu);
+  });
+
   it.each(["multiplier", "adc", "dac", "adc-differential", "dac-differential"])(
     "export the %s ready in SPICE, and to Spectre with a warning",
     (symbolId) => {

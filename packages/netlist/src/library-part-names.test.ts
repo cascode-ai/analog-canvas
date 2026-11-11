@@ -306,7 +306,15 @@ describe("a Library part never calls an author's definition because of its name 
     expect(partCall(project, "spice").target).toBe("icm_inverter");
   });
 
-  it.each(["inverter", "opamp", "adder", "crystal", "potentiometer", "ujt"])(
+  it.each([
+    "inverter",
+    "opamp",
+    "adder",
+    "crystal",
+    "potentiometer",
+    "ujt",
+    "put",
+  ])(
     "writes %s's yielding body under its reserved name in VACASK and in the authoring analysis",
     (symbolId) => {
       const project = unboundPart(symbolId);

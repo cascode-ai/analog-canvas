@@ -2499,6 +2499,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "25f9e0a418d595631103b18cd13d4ccc52b791449b4a4466a77103e8ade31529",
   },
   {
+    symbolId: "put",
+    name: "Programmable Unijunction Transistor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A programmable unijunction transistor does not appear on the reviewed page; it is the reviewed Diode body, leads and A/K pins, unchanged, as a thyristor is drawn, with the anode gate G leaving the triangle's upper edge near the anode.",
+    pinOrder: ["A", "G", "K"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no PUT card; it prints as a call of the generated two-transistor body, a PNP from the anode with its base on G and an NPN from G to the cathode.",
+    assetPath: "put.json",
+    assetHash:
+      "447f54afa0991f8a1c7ab8fd10252a40952e8872d8b971fa153b1849ac18fad6",
+  },
+  {
     symbolId: "photoresistor",
     name: "Photoresistor",
     category: "passive",
@@ -19515,6 +19532,156 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         part: "emitter-arrow",
         fill: "foreground",
         stroke: "none",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "put",
+    name: "Programmable Unijunction Transistor",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 48,
+      height: 34,
+    },
+    pins: [
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "G",
+        role: "gate",
+        at: {
+          x: -10,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -8.333334,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -8.333334,
+            y: -6.75,
+          },
+          {
+            x: -8.333334,
+            y: 6.75,
+          },
+          {
+            x: 5.833334,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: -7.333334,
+        },
+        to: {
+          x: 6.666666,
+          y: 7.333334,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -10,
+            y: -20,
+          },
+          {
+            x: -10,
+            y: -12,
+          },
+          {
+            x: -5.5,
+            y: -5.4,
+          },
+        ],
+        part: "anode-gate",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
       },
     ],
     variants: [],

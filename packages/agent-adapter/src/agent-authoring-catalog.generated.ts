@@ -3342,6 +3342,56 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "put",
+      name: "Programmable Unijunction Transistor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 40,
+        height: 27.34,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: -20,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "photoresistor",
       name: "Photoresistor",
       category: "passive",
