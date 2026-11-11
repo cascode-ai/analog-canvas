@@ -256,7 +256,9 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 ### Generic models
 
 - Diodes in a Process without its own (Abstract, SKY130, IHP SG13G2, Custom)
-  bind to `DIODE`; Zeners never do and report `MISSING_MODEL_TARGET`. Each Cell
+  bind to `DIODE`; Zeners never do: one is placed with `bv` 5.1, which builds
+  its own SPICE model, and one with neither `bv` nor a model reports
+  `MISSING_MODEL_TARGET`. Each Cell
   naming `DIODE` carries `.model DIODE D(IS=1e-14 N=1)` (information
   `GENERIC_DIODE_MODEL`). Schottky diodes in every Process bind to `DSCH`,
   `.model DSCH D(IS=1e-8 N=1.05 RS=1)` (information `GENERIC_SCHOTTKY_MODEL`).

@@ -675,6 +675,7 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
         editor: "text",
         unitHint: "V",
         placeholder: "5.1",
+        defaultValue: "5.1",
         help: "Positive reverse-breakdown voltage; creates a built-in ngspice diode model when no external model is selected",
         displayRole: "none",
       },
