@@ -235,8 +235,8 @@ and the source version derived from the entry and sorted path/hash pairs.
 Delivered netlists retain original hashes in Project source records, including
 drawing packages. Converted fragments use `derived-sha256:` and stay out of
 the version. A native Project delivery uses the bytes of the Project file.
-Project Info → Imported source shows the netlist the Project was imported
-from, which for a netlist delivery has the same version. Compare
+`review_delivery` reports the original netlist source version from the Project.
+For a netlist delivery it matches the load receipt. Compare
 `source.drawing`, `source.electrical` and `source.diagnostics` separately.
 `electrical:"verified"` records an RNL import equivalence check against the
 structural source, independent of simulation. Parsed source positions refer
@@ -342,10 +342,14 @@ compare it with Canvas's netlist (`netlist_code` read) or, for structural
 SPICE, pass it to `verify` as `expectedNetlist`. A repeat `open-local` with
 the same source and appearance returns the existing copy with its edits.
 
-To comment on an object, the user selects one Instance or highlights a Net,
-opens **Project Info → Review feedback** and copies the comment into the
-Agent chat. The text names the Cell, the object's name and ID, its netlist
-line when known, and the comment; `circuit_view` with that ID shows it.
+In **Project Info → Review feedback**, use the canvas selection to target
+Instances and Nets. Selected wires and Net labels target their Nets. With no
+selected object or Net highlight, the note targets the current Cell. The target
+is captured when typing begins. **Add note** keeps it while the user selects
+other targets. **Copy review feedback** copies all added notes and the current
+comment for pasting into the original Agent chat. Each note carries its Cell,
+source version, drawing revisions, hierarchy, object IDs and source lines when
+available. Use `circuit_view` with an object ID to show it.
 
 #### Review images and presentation changes
 

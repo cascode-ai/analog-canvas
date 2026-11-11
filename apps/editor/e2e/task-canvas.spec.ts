@@ -9,6 +9,7 @@ import {
 import { parseProject } from "@icm/project-protocol";
 import { assembleServer } from "../../mcp-server/src/server.js";
 import { openEditor } from "./editor-fixtures.js";
+import { clickRoute } from "./canvas-fixtures.js";
 import { regionalAccounts } from "./regional-auth-fixture.js";
 
 const test = base.extend<{ accountName: string | null }>({
@@ -216,14 +217,6 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
     "draw.rnl",
   ]);
   await page.getByRole("button", { name: "Project Info", exact: true }).click();
-  await page.getByText("Imported source", { exact: true }).click();
-  await expect(page.getByTestId("local-source-version")).toHaveText(
-    source.version,
-  );
-  await expect(page.getByTestId("local-source-status")).toHaveText(
-    "Matches the imported netlist",
-  );
-  await expect(page.getByText("draw.rnl", { exact: true })).toBeVisible();
   const initial = await tool("get_context", {});
   expect(initial).toMatchObject({
     projectId: loaded.delivery.projectId,
@@ -351,11 +344,16 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
       revision: reused.delivery.document.revision,
     },
   });
-  // A part placed but not wired blocks the structural export, and the
-  // status says the drawing could not be compared rather than guessing.
-  await expect(page.getByTestId("local-source-status")).toHaveText(
-    /^Not fully compared with the imported netlist: The current structural export is blocked; /u,
-  );
+  // A part placed but not wired still prevents an electrical comparison.
+  expect(await tool("review_delivery", {})).toMatchObject({
+    ok: true,
+    comparison: {
+      status: "inconclusive",
+      reasons: expect.arrayContaining([
+        "The current structural export is blocked",
+      ]),
+    },
+  });
   await page.reload();
   expect(await tool("open_canvas", {})).toMatchObject({ ok: true, sessionId });
   expect(await deliver()).toMatchObject({
@@ -494,7 +492,7 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
   await tool("disconnect", {});
 });
 
-test("copies a review comment on an object as plain text", async ({
+test("copies several review notes with their selected objects and source version", async ({
   context,
   baseURL,
   accountName: _accountName,
@@ -527,64 +525,52 @@ test("copies a review comment on an object as plain text", async ({
     ({ id }) => id === loaded.delivery.document.id,
   )!;
   const resistor = cell.instances.find(({ reference }) => reference === "R1")!;
-  const selection = await tool("circuit_view", {
-    actions: [
-      {
-        kind: "focus",
-        intent: {
-          kind: "select",
-          locator: {
-            documentId: cell.id,
-            hierarchyPath: [],
-            kind: "instance",
-            objectId: resistor.id,
-          },
-        },
-      },
-    ],
-  });
-  expect(selection).toMatchObject({ ok: true });
-  await expect(page.getByTestId("hit-R1")).toHaveClass(/selected/u);
+  const capacitor = cell.instances.find(({ reference }) => reference === "C0")!;
+  const net = cell.nets.find(({ id }) =>
+    cell.routes.some(({ netId }) => netId === id),
+  )!;
 
-  const panel = page.getByRole("button", {
-    name: "Review feedback",
+  const projectInfo = page.getByRole("button", {
+    name: "Project Info",
     exact: true,
   });
-  if (!(await panel.isVisible()))
-    await page
-      .getByRole("button", { name: "Project Info", exact: true })
-      .click();
-  await panel.click();
+  await projectInfo.click();
+  await expect(page.getByText("Imported source", { exact: true })).toHaveCount(
+    0,
+  );
+  await page
+    .getByRole("button", { name: "Review feedback", exact: true })
+    .click();
   const comment = page.getByLabel("Review comment");
+  const add = page.getByRole("button", { name: "Add note", exact: true });
   const copy = page.getByRole("button", {
     name: "Copy review feedback",
     exact: true,
   });
-  const copied = page.getByText("Copied. Paste it into the Agent chat.", {
-    exact: true,
-  });
-  // The system clipboard may hand the lines back with CRLF.
   const clipboard = async () =>
     (await page.evaluate(() => navigator.clipboard.readText())).replaceAll(
       "\r\n",
       "\n",
     );
-  await comment.fill("Check the connection at R1.");
-  await copy.click();
-  await expect(copied).toBeVisible();
-  // An RNL-annotated file converts through its drawing package, so its
-  // line cannot be matched and is left out (plain Spectre: unit test).
-  expect(await clipboard()).toBe(
-    [
-      "Canvas review feedback",
-      `Cell: ${cell.name}`,
-      `Object: R1 (instance ${resistor.id})`,
-      "",
-      "Check the connection at R1.",
-    ].join("\n"),
+  await comment.fill("Check the complete Cell.");
+  await add.click();
+
+  const closeInfo = page
+    .getByTestId("reference-panel")
+    .getByRole("button", { name: "Close", exact: true });
+  await closeInfo.click();
+  await page.getByTestId(`hit-${resistor.id}`).click();
+  await page.keyboard.press("Control+a");
+  await expect(page.getByTestId(`hit-${capacitor.id}`)).toHaveClass(
+    /selected/u,
   );
-  // An edit elsewhere keeps the comment being written for the same object.
-  await comment.fill("Draft that outlives an edit.");
+  await expect(page.getByTestId(`route-hit-${cell.routes[1]!.id}`)).toHaveClass(
+    /selected/u,
+  );
+  await projectInfo.click();
+  await comment.fill("Check these devices and this Net together.");
+
+  // An edit before adding the note must not advance its reviewed revision.
   expect(
     await tool("apply_actions", {
       actions: [
@@ -596,27 +582,39 @@ test("copies a review comment on an object as plain text", async ({
       ],
     }),
   ).toMatchObject({ ok: true, applied: true });
-  await expect(comment).toHaveValue("Draft that outlives an edit.");
-
-  const net = cell.nets.find(({ id }) =>
-    cell.routes.some(({ netId }) => netId === id),
-  )!;
-  expect(
-    await tool("circuit_view", {
-      actions: [
-        { kind: "focus", intent: { kind: "highlight-net", netId: net.id } },
-      ],
-    }),
-  ).toMatchObject({ ok: true });
-  await expect(page.getByTestId("net-highlight-overlay")).toBeVisible();
-  await panel.click();
-  await comment.fill("Check the highlighted Net.");
+  // Closing the panel and selecting a wire keeps the draft's original targets.
+  await closeInfo.click();
+  await page.keyboard.press("Control+d");
+  await clickRoute(page, cell.routes[1]!.id);
+  await projectInfo.click();
+  await expect(comment).toHaveValue(
+    "Check these devices and this Net together.",
+  );
+  await add.click();
+  await comment.fill("Check this Net.");
   await copy.click();
-  await expect(copied).toBeVisible();
-  const netFeedback = await clipboard();
-  expect(netFeedback).toContain(`(net ${net.id})`);
-  expect(netFeedback).not.toContain("Source:");
-  expect(netFeedback.endsWith("\n\nCheck the highlighted Net.")).toBe(true);
+  await expect(
+    page.getByText("Copied 3 notes. Paste them into the Agent chat.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const text = await clipboard();
+  expect(text).toContain(`Source version: ${loaded.delivery.source.version}`);
+  expect(text).toContain(
+    `Cell: ${cell.name} (${cell.id})\nCell revision: ${cell.revision}\n\nCheck the complete Cell.`,
+  );
+  const group = text.split("Note 2\n")[1]?.split("\n\nNote 3")[0] ?? "";
+  expect(group).toContain(`Cell revision: ${cell.revision}\n`);
+  expect(group).toContain(`Object: C0 (instance ${capacitor.id})`);
+  expect(group).toContain(`Object: R1 (instance ${resistor.id})`);
+  expect(group.match(new RegExp(`\\(net ${net.id}\\)`, "gu"))).toHaveLength(1);
+  expect(group).toContain("Check these devices and this Net together.");
+  const netNote = text.split("Note 3\n")[1] ?? "";
+  expect(netNote).toContain(`Object: OUT (net ${net.id})\n\nCheck this Net.`);
+  expect(netNote).not.toContain("(instance ");
+  expect(Number(/^Cell revision: (\d+)$/mu.exec(netNote)?.[1])).toBeGreaterThan(
+    cell.revision,
+  );
   await tool("disconnect", {});
 });
 
@@ -856,15 +854,16 @@ test("reads a saved Project against the netlist it was imported from", async ({
     },
     comparison: { status: "equal", sourceVersion: version },
   });
-  // Project Info names the netlist, not the Project file.
-  const imported = page.getByText("Imported source", { exact: true });
-  if (!(await imported.isVisible()))
+  // Reopening a native Project with its original netlist still allows review.
+  const feedback = page.getByRole("button", {
+    name: "Review feedback",
+    exact: true,
+  });
+  if (!(await feedback.isVisible()))
     await page
       .getByRole("button", { name: "Project Info", exact: true })
       .click();
-  await imported.click();
-  await expect(page.getByTestId("local-source-version")).toHaveText(version);
-  await expect(page.getByText("draw.rnl", { exact: true })).toBeVisible();
+  await expect(feedback).toBeVisible();
   await tool("disconnect", {});
 });
 

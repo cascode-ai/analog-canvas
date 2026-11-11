@@ -7,7 +7,6 @@ import type {
   AgentLocalSource,
 } from "@icm/agent-adapter";
 import type { OpenLocalProject } from "../agent/browser-agent-file-host";
-import type { EmbeddedReviewSource } from "../agent/embedded-review-source";
 import type { HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
@@ -17,7 +16,6 @@ import {
 } from "@icm/model";
 import {
   useEffect,
-  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -300,7 +298,7 @@ export function useProjectTabSessions({
   );
   const [recordedSource, setRecordedSource] = useState<{
     source: CircuitProject["source"];
-    evidence: EmbeddedReviewSource | undefined;
+    version: string | undefined;
   } | null>(null);
   useEffect(() => {
     if (import.meta.env?.ICM_DESKTOP) return;
@@ -308,29 +306,14 @@ export function useProjectTabSessions({
     if (!source.entry) return;
     let obsolete = false;
     void import("../agent/embedded-review-source")
-      .then(({ embeddedReviewSource }) => embeddedReviewSource(source))
-      .then((evidence) => {
-        if (!obsolete) setRecordedSource({ source, evidence });
+      .then(({ embeddedReviewBundle }) => embeddedReviewBundle(source))
+      .then((bundle) => {
+        if (!obsolete) setRecordedSource({ source, version: bundle?.version });
       });
     return () => {
       obsolete = true;
     };
   }, [project.source]);
-  // One comparison per drawing revision, run only while Project Info asks.
-  const checkImportedSource = useMemo(
-    () => async () => {
-      if (import.meta.env?.ICM_DESKTOP) return "";
-      const { embeddedReviewBundle } =
-        await import("../agent/embedded-review-source");
-      const { importedSourceStatus } =
-        await import("../agent/review-source-comparison");
-      const source = await embeddedReviewBundle(project.source);
-      return source
-        ? importedSourceStatus(project, source)
-        : "The imported netlist could not be verified";
-    },
-    [project],
-  );
   function localDeliveryOf(
     controller: EditorDocumentController,
   ): LocalDelivery | undefined {
@@ -1177,24 +1160,16 @@ export function useProjectTabSessions({
       throw new Error(workspaceWriteError.current);
   }
   return {
-    importedSource: (() => {
-      const local = localDeliveryOf(editorDocumentController);
+    reviewSourceVersion: (() => {
       const embedded =
         recordedSource?.source === project.source
-          ? recordedSource.evidence
+          ? recordedSource.version
           : undefined;
-      // Until the Project's own records are checked, a delivered netlist
-      // stands for them; a delivered Project file does not.
-      const source =
-        embedded ??
-        (local && local.source.format !== "project" ? local.source : undefined);
+      const local = localDeliveryOf(editorDocumentController);
+      // The delivered netlist can stand in while its records are checked.
       return (
-        source && {
-          entryPath: source.entryPath,
-          version: source.version,
-          files: source.files,
-          check: checkImportedSource,
-        }
+        embedded ??
+        (local?.source.format !== "project" ? local?.source.version : undefined)
       );
     })(),
     flushNativeWorkspace,

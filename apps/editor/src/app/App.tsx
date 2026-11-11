@@ -113,7 +113,6 @@ import type {
   CircuitProject,
   DerivedPoint,
   GridRect,
-  ObjectLocator,
   Point,
   Rotation,
   SchematicDocument,
@@ -332,8 +331,8 @@ import {
   useEditorAgentConnection,
   type AgentReviewWorkspaceReader,
 } from "./use-agent-hosts";
-import { reviewFeedbackText } from "../features/editor-shell/review-feedback";
-import { writeClipboardText } from "../hosts/clipboard-text";
+import { useOwnReferenceOpen } from "../features/editor-shell/own-reference";
+import { reviewFeedbackTarget } from "../features/editor-shell/review-feedback";
 import { recoveryStateLabel } from "../components/recovery-banners";
 import { PUBLIC_AGENT_UI_ENABLED } from "../agent/public-agent-ui";
 import {
@@ -5370,7 +5369,7 @@ function WorkspaceEditor({
     cloudManagementBusy,
     isCloudManagementInFlight,
     renameShelfProject,
-    importedSource,
+    reviewSourceVersion,
     deleteShelfProject,
   } = useProjectTabSessions({
     hierarchyExpanded,
@@ -5459,6 +5458,50 @@ function WorkspaceEditor({
     cancelAllTransientInteraction,
     nativeWorkspaceSaving,
   });
+  const highlightedReviewNetId = highlightedNet?.netId;
+  const reviewPanelOpen = useOwnReferenceOpen();
+  const reviewTarget = useMemo(() => {
+    if (!reviewPanelOpen || !reviewSourceVersion) return undefined;
+    // An Instance is a target itself. Only explicitly picked wiring adds Nets.
+    const netIds = selectionNetIds(
+      document,
+      resolver,
+      { ...visualSelection, instanceIds: [] },
+      selectedEndpoint,
+    );
+    if (
+      !visualSelection.instanceIds.length &&
+      !netIds.length &&
+      highlightedReviewNetId
+    )
+      netIds.push(highlightedReviewNetId);
+    return reviewFeedbackTarget({
+      project,
+      cell: document,
+      hierarchyPath: documentStack,
+      sourceVersion: reviewSourceVersion,
+      instanceIds: visualSelection.instanceIds,
+      netIds: netIds.map((id) => logicalNets.byBaseNetId.get(id)?.id ?? id),
+      netName: (id) => logicalNets.byBaseNetId.get(id)?.name,
+      netlistOptions: {
+        format: netlistPreferences.format,
+        namingProfile: netlistNamingProfile,
+      },
+    });
+  }, [
+    reviewPanelOpen,
+    reviewSourceVersion,
+    document,
+    resolver,
+    visualSelection,
+    selectedEndpoint,
+    highlightedReviewNetId,
+    project,
+    documentStack,
+    logicalNets,
+    netlistPreferences.format,
+    netlistNamingProfile,
+  ]);
   useGalleryTabEntry({
     initialGalleryEntryId,
     restoredWorkspace,
@@ -5978,48 +6021,7 @@ function WorkspaceEditor({
         publishQuota={publishQuota}
         openProjectInTabRef={openProjectInTabRef}
         agentFileCandidate={agentFileCandidate}
-        importedSource={importedSource}
-        reviewFeedback={(() => {
-          if (!importedSource) return undefined;
-          const instance =
-            selectedIds.length === 1
-              ? document.instances.find(({ id }) => id === selectedIds[0])
-              : undefined;
-          const netId = selectedHighlightIsActive
-            ? selectedHighlightNetId
-            : selectedIds.length === 0
-              ? highlightedNet?.netId
-              : undefined;
-          const net = netId
-            ? document.nets.find(({ id }) => id === netId)
-            : undefined;
-          const object = net ?? instance;
-          if (!object) return undefined;
-          const sourceRef = net ? undefined : instance?.sourceRef;
-          const label = net
-            ? (logicalNets.byBaseNetId.get(net.id)?.name ?? net.id)
-            : (instance?.reference ?? object.id);
-          const locator: ObjectLocator = {
-            documentId: document.id,
-            hierarchyPath: documentStack,
-            kind: net ? "net" : "instance",
-            objectId: object.id,
-            ...(sourceRef ? { sourceRef } : {}),
-          };
-          return {
-            // A comment in progress stays while its object stays selected.
-            identity: JSON.stringify([
-              projectSessionId,
-              document.id,
-              object.id,
-            ]),
-            label: `${document.name} · ${label}`,
-            copy: (comment: string) =>
-              writeClipboardText(
-                reviewFeedbackText(project, locator, label, comment),
-              ),
-          };
-        })()}
+        reviewFeedback={reviewTarget}
         cloudBinding={cloudBinding}
         replaceGuard={replaceGuard}
         replaceGuardSaving={replaceGuardSaving}
