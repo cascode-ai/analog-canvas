@@ -5621,18 +5621,17 @@ function WorkspaceEditor({
     noteProjectPublished,
   });
 
-  const { toGallery: leaveForGallery, toArena: leaveForArena } =
-    createLeaveEditor({
-      project,
-      stageRecovery,
-      flushRecovery,
-      captureAuthoredProject,
-      cloudBinding,
-      isDirtyWork,
-      guardDirtyReplacement,
-      dropDiscardedWork,
-      allowNextBrowserUnload,
-    });
+  const { toGallery: leaveForGallery } = createLeaveEditor({
+    project,
+    stageRecovery,
+    flushRecovery,
+    captureAuthoredProject,
+    cloudBinding,
+    isDirtyWork,
+    guardDirtyReplacement,
+    dropDiscardedWork,
+    allowNextBrowserUnload,
+  });
 
   const componentEditorProps: EditorComponentEditorProps = {
     project,
@@ -5859,7 +5858,6 @@ function WorkspaceEditor({
         closeNativeTabs={closeNativeTabs}
         saveNativeTab={saveNativeTab}
         leaveForGallery={leaveForGallery}
-        leaveForArena={leaveForArena}
         powerPointAction={powerPoint.action ?? office.action}
       />
       {newCellMode ? (

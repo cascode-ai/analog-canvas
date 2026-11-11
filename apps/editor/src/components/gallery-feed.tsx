@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { cloudShelfOpened } from "./arena-gate-request";
 import "../styles/gallery-entry.css";
 
 import {
@@ -584,9 +583,6 @@ export function GalleryFeed({
                   window.location.assign("/review");
                   return;
                 }
-                // Opening My shelf opens the Arena gate (#1681). A page
-                // loaded on the shelf opens none, so a reload ends a gate.
-                if (id === "shelf" && view !== "shelf") cloudShelfOpened();
                 updateFilters({ view: id });
               }}
             >

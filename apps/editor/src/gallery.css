@@ -106,8 +106,8 @@
   height: 15px;
 }
 
-/* Chip Arena beside the Editor, in the same soft blue. */
-.gallery-arena-link {
+/* The film beside the Editor, in the same soft blue. */
+.gallery-film-link {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -123,19 +123,19 @@
   white-space: nowrap;
 }
 
-.gallery-arena-link:hover {
+.gallery-film-link:hover {
   color: #fff;
   background: var(--icm-accent);
 }
 
-.gallery-arena-link:focus-visible {
+.gallery-film-link:focus-visible {
   outline: 2px solid var(--icm-accent);
   outline-offset: 2px;
 }
 
-.gallery-arena-link svg {
-  width: 18px;
-  height: 18px;
+.gallery-film-link svg {
+  width: 15px;
+  height: 15px;
 }
 
 .gallery-actions .account-signin summary {

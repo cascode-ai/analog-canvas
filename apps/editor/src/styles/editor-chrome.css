@@ -1263,12 +1263,6 @@
   fill: currentColor;
 }
 
-/* The Arena button's swords are a cartoon with its own colours, a size up. */
-.header-arena-link svg {
-  width: 18px;
-  height: 18px;
-}
-
 /* Project titles are variable-length content, never menubar layout inputs. */
 .app-chrome-main .app-brand,
 .app-chrome-main .gallery-home-link,
@@ -1646,8 +1640,7 @@
   }
 }
 
-/* The logo opens the Gallery too, so its own button goes first, and Arena's
-   with it: the Gallery header keeps the way to Arena. */
+/* The logo opens the Gallery too, so its own button goes first. */
 @media (max-width: 420px) {
   .app-chrome-main .header-gallery-link {
     display: none;

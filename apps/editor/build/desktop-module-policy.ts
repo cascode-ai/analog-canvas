@@ -5,7 +5,6 @@ export function isOnlineImplementation(id: string): boolean {
   const path = id.replaceAll("\\", "/").split("?")[0] ?? "";
   return (
     /\/src\/agent\//u.test(path) ||
-    /\/src\/components\/arena-gate(?:-panel)?\.[jt]sx?$/u.test(path) ||
     /\/src\/components\/(?:account|account-menu-view|version-history-dialog|gallery-version-project)\.[jt]sx?$/u.test(
       path,
     ) ||

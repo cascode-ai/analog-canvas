@@ -1,6 +1,5 @@
 // The editor's menus bound to its commands: the header with its project tabs,
 // File, Edit and Circuit menus and toolbars, and the canvas context menu.
-import { cloudShelfOpened } from "../components/arena-gate-request";
 import { takeChosenFiles } from "../components/chosen-files";
 import {
   useRef,
@@ -180,7 +179,6 @@ export function EditorMenuBar({
   closeNativeTabs,
   saveNativeTab,
   leaveForGallery,
-  leaveForArena,
   powerPointAction,
 }: {
   identity: EditorServices["identity"];
@@ -281,7 +279,6 @@ export function EditorMenuBar({
   closeNativeTabs: NativeProjectTabs["closeNativeTabs"];
   saveNativeTab: NativeProjectTabs["saveNativeTab"];
   leaveForGallery: () => void;
-  leaveForArena: () => void;
   /** A PowerPoint-launched session's save button; null otherwise. */
   powerPointAction?: ReactNode;
 }) {
@@ -434,7 +431,6 @@ export function EditorMenuBar({
               onDeleteShelf={deleteShelfProject}
               onShelfOpened={() => {
                 void reloadCloudProjects();
-                cloudShelfOpened();
               }}
               onOpenShelf={(id) => {
                 void openCloudProjectById(id, true);
@@ -461,7 +457,6 @@ export function EditorMenuBar({
       projectName={project.name}
       hasUnsavedWork={hasUnsavedChanges()}
       onOpenGallery={leaveForGallery}
-      onOpenArena={leaveForArena}
       fileCommands={{
         ...(NativeFileCommands ? { NativeFileCommands } : {}),
         ...(nativeProjectStore

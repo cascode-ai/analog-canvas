@@ -1,4 +1,3 @@
-import { gateAfterManualCloudSave } from "../components/arena-gate-request";
 import type { EditorExportDelivery } from "../hosts/export-delivery";
 import type { CloudProjectStore } from "../services/editor-services";
 import type {
@@ -503,9 +502,8 @@ export function useProjectFileLifecycle({
 
   /**
    * A Cloud Save the person asked for (File > Save, Ctrl/Cmd+S, Check and
-   * save). Once it completes, the Arena gate opens; the save never waits
-   * for it (#1681). Agent saves, the replace guard's Save and continue and
-   * Shelf renames call saveProjectToCloud and open no gate.
+   * save). Agent saves, the replace guard's Save and continue and Shelf
+   * renames call saveProjectToCloud directly.
    */
   function saveProjectToCloudByHand(
     candidate?: CircuitProject,
@@ -514,7 +512,7 @@ export function useProjectFileLifecycle({
       // Signed out, the person is asked how to keep the work instead of a
       // line in the status bar (#2161).
       if (outcome.status === "signed-out") setSaveSignInOpen(true);
-      return gateAfterManualCloudSave(outcome);
+      return outcome;
     });
   }
 

@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { cloudShelfOpened } from "./arena-gate-request";
 import { createPortal } from "react-dom";
 import "../styles/gallery-entry.css";
 
@@ -438,9 +437,6 @@ export function AccountDashboard({
     tabs.includes(initialTab) ? initialTab : "circuits",
   ]);
   const select = (next: AccountTab) => {
-    // Opening Cloud Projects opens the shelf, and with it the Arena gate
-    // (#1681). A page loaded on that tab opens none, so a reload ends a gate.
-    if (next === "projects" && tab !== next) cloudShelfOpened();
     setVisited((current) =>
       current.includes(next) ? current : [...current, next],
     );
