@@ -249,6 +249,11 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `.model NJF NJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)` and
   `.model PJF PJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)` (information
   `GENERIC_JFET_MODEL`); SPICE's PJF takes VTO negative as NJF does.
+- Depletion MOS in every Process bind to `NMOS_DEP`/`PMOS_DEP`, BSIM4 with the
+  threshold moved past zero: `.model NMOS_DEP nmos level=54 vth0=-1` and
+  `.model PMOS_DEP pmos level=54 vth0=1` (information
+  `GENERIC_DEPLETION_MOS_MODEL`), carried in a run's SPICE deck too; Spectre
+  `model NMOS_DEP bsim4 type=n vth0=-1` (`PMOS_DEP` `type=p vth0=1`).
 - A same-name model in the imported SPICE suppresses the card everywhere; one in
   a folder's files only for that folder's runs. The stand-in card itself, as the
   export writes it in SPICE or Spectre (type and parameters, in any case or

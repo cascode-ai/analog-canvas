@@ -5,8 +5,10 @@ import {
 import {
   GENERIC_DIODE_MODEL,
   GENERIC_NJF_MODEL,
+  GENERIC_NMOS_DEPLETION_MODEL,
   GENERIC_NPN_MODEL,
   GENERIC_PJF_MODEL,
+  GENERIC_PMOS_DEPLETION_MODEL,
   GENERIC_PNP_MODEL,
   GENERIC_SCHOTTKY_MODEL,
 } from "@icm/netlist";
@@ -153,6 +155,8 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
 export const NETLIST_DEVICE_FAMILIES = [
   "nmos",
   "pmos",
+  "depletion-nmos",
+  "depletion-pmos",
   "resistor",
   "capacitor",
   "inductor",
@@ -183,11 +187,14 @@ const GENERIC_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   nmos: "NMOS",
   pmos: "PMOS",
   // The netlist defines these itself while nothing else does. No Process
-  // ships a JFET or a Schottky diode, so every one takes NJF, PJF and DSCH.
+  // ships a JFET, a Schottky diode or a depletion MOS, so every one takes
+  // NJF, PJF, DSCH, NMOS_DEP and PMOS_DEP.
   npn: GENERIC_NPN_MODEL.name,
   pnp: GENERIC_PNP_MODEL.name,
   njfet: GENERIC_NJF_MODEL.name,
   pjfet: GENERIC_PJF_MODEL.name,
+  "depletion-nmos": GENERIC_NMOS_DEPLETION_MODEL.name,
+  "depletion-pmos": GENERIC_PMOS_DEPLETION_MODEL.name,
   diode: GENERIC_DIODE_MODEL.name,
   "schottky-diode": GENERIC_SCHOTTKY_MODEL.name,
   switch: "SW",
@@ -232,6 +239,10 @@ export function netlistDeviceFamily(
   // An ammeter is a 0 V source: a Process's source defaults (1.8 V) never
   // apply to it.
   if (symbolId === "ammeter") return undefined;
+  // A depletion MOS is on at VGS = 0: no Process's enhancement device fits
+  // it, so it is a family of its own with a generic depletion model.
+  if (symbolId === "depletion-nmos" || symbolId === "depletion-pmos")
+    return symbolId;
   const descriptor = deviceDescriptor(symbolId);
   if (descriptor?.mosBulkClass) return descriptor.mosBulkClass;
   if (descriptor?.deviceClass === "bjt")
@@ -293,7 +304,11 @@ export function createNetlistExportProfile(
               )
             : parameters,
           substrate:
-            family === "pmos" ? "VDD" : family === "nmos" ? "VSS" : "0",
+            family === "pmos" || family === "depletion-pmos"
+              ? "VDD"
+              : family === "nmos" || family === "depletion-nmos"
+                ? "VSS"
+                : "0",
         },
       ];
     }),

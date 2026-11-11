@@ -75,8 +75,15 @@ export function spiceModelCard(
 export function spectreModelCard(
   model: NonNullable<DesignNetlistCell["models"]>[number],
 ): string | null {
-  if (model.type === "nmos" || model.type === "pmos")
-    return `model ${model.name} bsim4 type=${model.type === "nmos" ? "n" : "p"}`;
+  if (model.type === "nmos" || model.type === "pmos") {
+    // Spectre's bsim4 is the level; any other parameter, a depletion
+    // stand-in's vth0, follows as the SPICE card states it.
+    const parameters = model.parameters
+      .filter((p) => p.name.toLowerCase() !== "level")
+      .map((p) => ` ${p.name.toLowerCase()}=${p.rawValue}`)
+      .join("");
+    return `model ${model.name} bsim4 type=${model.type === "nmos" ? "n" : "p"}${parameters}`;
+  }
   if (!["D", "NPN", "PNP", "NJF", "PJF"].includes(model.type)) return null;
   const kind =
     model.type === "D"
