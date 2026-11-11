@@ -477,7 +477,9 @@ means deleting the Cell.
   which create the name claim and bound text together (free text does not).
   Give `position` for a new label; its target is a Net or a pin (that pin's
   Net, on its wire). Plain text is a name drawn in its standard look (`VB1` as
-  V over B1); RichText (runs use `value`) sets its own look. A math run in a
+  V over B1); RichText (runs use `value`) sets its own look. A name label's
+  RichText with no `bold` anywhere is drawn bold like every other name, so
+  styling only italic and subscripts keeps one weight across the figure. A math run in a
   Port or Net label renames the Net to its LaTeX (`\phi_1`), which the netlist
   export refuses: write Greek as the Unicode letter (`φ1`). Deleting a label
   removes its claim, not wires. Name nodes that scripts reference.

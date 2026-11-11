@@ -155,7 +155,17 @@ describe("the Agent HTTP client reading the live editor", () => {
       expect(response).toEqual(live.lastAnswer());
       expect(portLabel(response)).toMatchObject({
         resolvedText: "Vin",
-        formatOverride: casedPortName(style),
+        // The look sets no weight, so the name is drawn bold as every
+        // other name is.
+        formatOverride: {
+          runs: [
+            {
+              kind: "span",
+              style: "bold",
+              children: casedPortName(style).runs,
+            },
+          ],
+        },
       });
     }
     live.breakWith((answer) =>
