@@ -174,9 +174,8 @@ jobs:
           ICM_CI_PACKAGE_BUILD: "1"
         run: pnpm ci:unit:built
 
-  # The editing-performance budgets take about 40 s, the longest release check;
-  # run beside Core release rather than inside it. They read only the shared
-  # package build.
+  # The editing-performance budgets, the longest release check, run beside
+  # Core release rather than inside it. They read only the shared package build.
   core_performance:
     name: Core performance
     needs: [changes, core_build]

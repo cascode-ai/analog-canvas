@@ -88,30 +88,30 @@ describe("CI workflow", () => {
     expect(stepRunning(jobs.core_static, "pnpm ci:static").env).toMatchObject({
       FORMAT_BASE_SHA: "${{ github.event.merge_group.base_sha }}",
     });
-    // Core release and Core performance together run every built release
-    // check exactly once, the editing budgets beside the rest.
-    const checks = ["core_release", "core_performance"].flatMap((id) =>
+    // Core release runs the built release checks in order, except the
+    // editing budgets, which Core performance runs beside it.
+    const checksOf = (id) =>
       jobs[id].steps.filter(
         (step) =>
           step.run?.startsWith("node scripts/") &&
           !step.run.startsWith("node scripts/ci-package-build"),
-      ),
+      );
+    const baseline = "node scripts/performance-baseline.mjs";
+    expect(checksOf("core_release").map((step) => step.run.trim())).toEqual(
+      scripts["release:verify:built"]
+        .split(" && ")
+        .filter((check) => check !== baseline),
     );
-    expect(checks.map((step) => step.run.trim()).toSorted()).toEqual(
-      scripts["release:verify:built"].split(" && ").toSorted(),
+    expect(checksOf("core_performance").map((step) => step.run.trim())).toEqual(
+      [baseline],
     );
-    expect(
-      stepRunning(
-        jobs.core_performance,
-        "node scripts/performance-baseline.mjs",
-      ),
-    ).toBeDefined();
     expect(
       stepRunning(
         jobs.core_performance,
         "node scripts/ci-package-build.mjs verify",
       ),
     ).toBeDefined();
+    const checks = ["core_release", "core_performance"].flatMap(checksOf);
     for (const step of [
       ...checks,
       stepRunning(jobs.core_release, "pnpm test:desktop-build"),
