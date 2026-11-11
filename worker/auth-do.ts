@@ -703,7 +703,7 @@ export class AuthDO {
       url.pathname === PROFILE_BYLINE_TICK &&
       request.method === "POST"
     )
-      return this.profileBylines
+      return this.profileBylines && this.env.GALLERY
         ? this.profileBylines.tick(this.env.GALLERY)
         : noStoreJson({ error: "byline-unavailable" }, 503);
     if (

@@ -78,18 +78,20 @@ it("drains only profile bylines in authenticated 50-row pages in both regions, p
     ...JSON.parse(config),
     accountDeletion: true,
   });
-  const restartSource = () => {
+  const restartSource = (withGallery = true) => {
     authority = new AuthDO(sourceState, {
-      ...sourceEnv,
+      AUTH: sourceAuth,
+      RESEND_API_KEY: "rk",
+      ...(withGallery ? { GALLERY: sourceGallery } : {}),
       AUTH_REGIONAL_AUTHORITY: enabled,
     });
   };
   restartSource();
   let regional: RegionalSessionDO;
-  const restartRegional = () => {
+  const restartRegional = (withGallery = true) => {
     regional = new RegionalSessionDO(regionalState, {
       AUTH_REGIONAL_CLIENT: enabled,
-      GALLERY: cnGallery,
+      ...(withGallery ? { GALLERY: cnGallery } : {}),
     });
     regional.fetchLike = (async (input, init) =>
       authority.fetch(new Request(input, init))) as typeof fetch;
@@ -148,6 +150,15 @@ it("drains only profile bylines in authenticated 50-row pages in both regions, p
   expect((await run("cn", "read-only"))?.status).toBe(401);
   expect((await run("overseas", ""))?.status).toBe(401);
   expect((await run("cn", "admin-only", "GET"))?.status).toBe(405);
+  restartSource(false);
+  restartRegional(false);
+  for (const region of ["cn", "overseas"] as const) {
+    const unavailable = await run(region);
+    expect(unavailable?.status).toBe(503);
+    expect(await unavailable?.json()).toEqual({ error: "byline-unavailable" });
+  }
+  restartSource();
+  restartRegional();
   for (const region of ["cn", "overseas"] as const) {
     const first = await run(region);
     expect(first?.status).toBe(200);

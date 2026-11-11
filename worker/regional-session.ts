@@ -181,7 +181,9 @@ export class RegionalSessionDO {
       url.pathname === PROFILE_BYLINE_TICK &&
       request.method === "POST"
     )
-      return this.tickBylines(true);
+      return this.env.GALLERY
+        ? this.tickBylines(true)
+        : answer({ error: "byline-unavailable" }, 503);
     if (
       url.origin === "https://auth" &&
       url.pathname === ACCOUNT_DELETION_TICK &&
