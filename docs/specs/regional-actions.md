@@ -5,7 +5,8 @@ Status: `accepted`
 Primary owner: Gallery, Component Library, Auth and regional replication.
 This is the required behavior. The opt-in command route covers Community Gallery withdrawal, restoration,
 deletion, curation and name/description edits, plus User Component save/status and Community/Dataset review resolution. The other actions and
-additional replication scopes below remain to be delivered.
+additional replication scopes below remain to be delivered. Per-entry opens use
+the region components in [regional publications](regional-resources.md).
 
 ## Command delivery
 

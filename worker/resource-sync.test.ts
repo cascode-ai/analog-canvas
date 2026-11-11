@@ -21,6 +21,210 @@ import { RegionalSessionDO } from "./regional-session";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("preserves both regions' existing opens and converges without counting a delivery twice", async () => {
+  const auth = environment();
+  const overseas = await region("overseas", auth, false);
+  const cn = await region("cn", auth, false);
+  for (const site of [overseas, cn]) {
+    expect(
+      (
+        await site.call(
+          "/api/gallery/sources/analoggenie/entries",
+          "POST",
+          {
+            entries: [
+              {
+                id: "ag-opens",
+                name: "Counted circuit",
+                projectText: projectText(),
+              },
+            ],
+          },
+          undefined,
+          true,
+        )
+      ).status,
+    ).toBe(200);
+  }
+  const open = async (site: typeof cn) =>
+    expect((await site.call("/api/gallery/ag-opens")).status).toBe(200);
+  await open(overseas);
+  await open(overseas);
+  await open(cn);
+  overseas.enable();
+  cn.enable();
+  const first = await transfer(overseas, cn, "analoggenie-opens");
+  await transfer(cn, overseas, "analoggenie-opens");
+  const total = async (site: typeof cn) => {
+    const response = await site.call(
+      "/api/gallery/owner-data",
+      "GET",
+      undefined,
+      undefined,
+      true,
+    );
+    expect(response.status).toBe(200);
+    return (await response.json()).mostOpened.find(
+      (row: { id: string }) => row.id === "ag-opens",
+    ).opens;
+  };
+  expect(await total(cn)).toBe(3);
+  expect(await total(overseas)).toBe(3);
+  cn.restart();
+  expect(
+    (
+      await cn.call(
+        "/api/resource-sync/analoggenie-opens/changes",
+        "POST",
+        first,
+        "peer-secret",
+      )
+    ).status,
+  ).toBe(200);
+  expect(await total(cn)).toBe(3);
+  await open(cn);
+  await open(overseas);
+  await transfer(cn, overseas, "analoggenie-opens");
+  await transfer(overseas, cn, "analoggenie-opens");
+  expect(await total(cn)).toBe(5);
+  expect(await total(overseas)).toBe(5);
+  const received = await cn.call(
+    "/api/resource-sync/analoggenie-opens/status",
+    "GET",
+    undefined,
+    "peer-secret",
+  );
+  const status = await received.json();
+  const regression = {
+    ...JSON.parse(first.payload),
+    after: status.received.sequence,
+    sequence: status.received.sequence + 1,
+  };
+  regression.rows[0].sequence = regression.sequence;
+  regression.rows[0].opens = 1;
+  const payload = JSON.stringify(regression);
+  const rejected = await cn.call(
+    "/api/resource-sync/analoggenie-opens/changes",
+    "POST",
+    { payload, digest: sha256Hex(payload) },
+    "peer-secret",
+  );
+  expect(rejected.status).toBe(409);
+  expect(await rejected.json()).toMatchObject({
+    error: "open-count-regression",
+  });
+  expect(await total(cn)).toBe(5);
+});
+
+it("pages historical opens while new opens continue, and keeps the peer stream private", async () => {
+  const auth = environment();
+  const source = await region("overseas", auth, false),
+    peer = await region("cn", auth);
+  const published = await source.call("/api/gallery/submissions", "POST", {
+    name: "Historical counts",
+    projectText: projectText(),
+  });
+  const { id } = await published.json();
+  // A pre-sync database fixture, not an alternate path for today's writes.
+  const sql = source.sql();
+  for (let n = 0; n < 501; n++) {
+    const day = new Date(Date.UTC(2024, 0, 1 + n)).toISOString().slice(0, 10);
+    sql.exec("INSERT INTO gallery_entry_opens VALUES (?,?,1)", id, day);
+  }
+  source.enable();
+  await source.call(
+    "/api/resource-sync/gallery/seed",
+    "POST",
+    {},
+    "admin-secret",
+  );
+  await transfer(source, peer, "gallery");
+  expect(
+    (await source.call("/api/resource-sync/gallery-opens/changes?after=0"))
+      .status,
+  ).toBe(401);
+  expect(
+    (
+      await source.call(
+        "/api/resource-sync/gallery-opens/changes?after=0",
+        "GET",
+        undefined,
+        "admin-secret",
+      )
+    ).status,
+  ).toBe(401);
+  const first = await transfer(source, peer, "gallery-opens");
+  expect(JSON.parse(first.payload).rows).toHaveLength(500);
+  // The Owner's read is a new accepted open while the last historical page waits.
+  expect(
+    (await source.call(`/api/gallery/${id}`, "GET", undefined, undefined, true))
+      .status,
+  ).toBe(200);
+  const second = await transfer(source, peer, "gallery-opens");
+  expect(JSON.parse(second.payload).rows).toHaveLength(2);
+  expect((await transfer(source, peer, "gallery-opens")).event).toBeNull();
+  const data = await peer.call(
+    "/api/gallery/owner-data",
+    "GET",
+    undefined,
+    undefined,
+    true,
+  );
+  expect((await data.json()).mostOpened).toContainEqual(
+    expect.objectContaining({ id, opens: 502 }),
+  );
+  // A rollback uses the old aggregate write path against the same durable DB.
+  delete peer.env.RESOURCE_REGION;
+  peer.restart();
+  expect(
+    (await peer.call(`/api/gallery/${id}`, "GET", undefined, undefined, true))
+      .status,
+  ).toBe(200);
+  peer.enable();
+  await transfer(peer, source, "gallery-opens");
+  const afterRollback = await source.call(
+    "/api/gallery/owner-data",
+    "GET",
+    undefined,
+    undefined,
+    true,
+  );
+  expect((await afterRollback.json()).mostOpened).toContainEqual(
+    expect.objectContaining({ id, opens: 503 }),
+  );
+  const before = await peer.call(
+    "/api/resource-sync/gallery-opens/status",
+    "GET",
+    undefined,
+    "peer-secret",
+  );
+  const stale = JSON.parse(second.payload);
+  stale.after = 0;
+  stale.sequence += 1;
+  stale.rows = [{ ...stale.rows[0], sequence: stale.sequence }];
+  const payload = JSON.stringify(stale);
+  expect(
+    (
+      await peer.call(
+        "/api/resource-sync/gallery-opens/changes",
+        "POST",
+        { payload, digest: sha256Hex(payload) },
+        "peer-secret",
+      )
+    ).status,
+  ).toBe(409);
+  expect(
+    await (
+      await peer.call(
+        "/api/resource-sync/gallery-opens/status",
+        "GET",
+        undefined,
+        "peer-secret",
+      )
+    ).json(),
+  ).toEqual(await before.json());
+});
+
 const IDENTITY_SECRET = "resource-identity-secret-0123456789abcdef";
 const AUTHORITY = JSON.stringify({
   origin: ORIGIN,

@@ -1,4 +1,5 @@
 import { bearerMatches } from "./bearer";
+import { OPEN_STREAM_SUFFIX } from "./regional-open-counts";
 import { readSyncJson } from "./project-sync-http";
 import {
   INTERACTION_STREAM_SUFFIX,
@@ -46,12 +47,15 @@ export async function routeResourceSync(
     return refuse("unauthorized", 401);
   // A Gallery store's likes and reviews travel in `<store>-interactions`.
   const interactions = stream.endsWith(INTERACTION_STREAM_SUFFIX);
+  const opens = stream.endsWith(OPEN_STREAM_SUFFIX);
   const name = interactions
     ? stream.slice(0, -INTERACTION_STREAM_SUFFIX.length)
-    : stream;
+    : opens
+      ? stream.slice(0, -OPEN_STREAM_SUFFIX.length)
+      : stream;
   const source = GALLERY_SOURCES.find((s) => s.key === name);
   const store =
-    name === "components" && !interactions
+    name === "components" && !interactions && !opens
       ? env.COMPONENT_LIBRARY?.getByName("components")
       : name === "gallery"
         ? env.GALLERY?.getByName("gallery")

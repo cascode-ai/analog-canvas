@@ -91,6 +91,12 @@ test("signed-out Save does not suppress ERC or visual check results", async ({
   await expect(page.getByTestId("project-diagnostics")).toContainText(
     "ERC_UNCONNECTED_PIN",
   );
+  // Signed-out Save now offers sign-in/download (#2161). Dismiss it as a
+  // reader would before using the diagnostics behind the modal.
+  await page
+    .getByTestId("save-sign-in-dialog")
+    .getByRole("button", { name: "Not now", exact: true })
+    .click();
   await page.getByTestId("diagnostic-observations-toggle").click();
   await expect(page.getByTestId("project-diagnostics")).toContainText(
     "VISUAL_SYMBOL_OVERLAP",
