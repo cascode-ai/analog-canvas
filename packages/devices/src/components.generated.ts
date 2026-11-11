@@ -3219,6 +3219,16 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "put",
+      symbolId: "put",
+      target: "put",
+      ports: [
+        { name: "a", direction: "passive", pinName: "A" },
+        { name: "g", direction: "passive", pinName: "G" },
+        { name: "k", direction: "passive", pinName: "K" },
+      ],
+    },
+    {
       id: "voltage-amplifier",
       symbolId: "voltage-amplifier",
       target: "voltage_amplifier",

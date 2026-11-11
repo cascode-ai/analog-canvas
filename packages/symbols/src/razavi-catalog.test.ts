@@ -1890,6 +1890,43 @@ describe("Razavi symbol catalog", () => {
     expect(Math.max(...arrow.points.map((point) => point.x))).toBe(end!.x);
   });
 
+  it("draws the PUT as the Diode with an anode gate off the triangle near the anode", () => {
+    const diode = requireRazaviCatalogSymbol("diode");
+    const put = requireRazaviCatalogSymbol("put");
+    expect(getRazaviCatalogEntry("put")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["A", "G", "K"],
+      palette: true,
+    });
+    expect(put.pins.filter((pin) => pin.name !== "G")).toEqual(diode.pins);
+    expect(
+      put.primitives.filter((primitive) => primitive.part !== "anode-gate"),
+    ).toEqual(diode.primitives);
+    const gate = put.primitives.find(
+      (primitive) => primitive.part === "anode-gate",
+    );
+    const triangle = diode.primitives.find(
+      (primitive) => primitive.kind === "polygon",
+    );
+    if (gate?.kind !== "polyline" || triangle?.kind !== "polygon")
+      throw new Error("missing anode gate");
+    const pin = put.pins.find((item) => item.name === "G")!;
+    expect(gate.points[0]).toEqual(pin.at);
+    // The gate ends on the triangle's upper edge, nearer the anode's side
+    // than the apex.
+    const [anodeTop, , apex] = triangle.points as [
+      { x: number; y: number },
+      { x: number; y: number },
+      { x: number; y: number },
+    ];
+    const end = gate.points.at(-1)!;
+    const along = (end.x - anodeTop.x) / (apex.x - anodeTop.x);
+    expect(along).toBeGreaterThan(0);
+    expect(along).toBeLessThan(0.5);
+    expect(end.y).toBeCloseTo(anodeTop.y + along * (apex.y - anodeTop.y), 4);
+  });
+
   it("uses calibrated MOS and source arrowheads with external voltage polarity marks", () => {
     const voltage = requireRazaviCatalogSymbol("voltage-source");
     expect(voltage.primitives).toEqual(

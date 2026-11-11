@@ -1,7 +1,11 @@
 import { deriveStableId } from "@icm/model";
 import { builtInModelContract } from "@icm/devices";
 
-import { GENERIC_DIODE_MODEL } from "./extract-generic-models.js";
+import {
+  GENERIC_DIODE_MODEL,
+  GENERIC_NPN_MODEL,
+  GENERIC_PNP_MODEL,
+} from "./extract-generic-models.js";
 import type {
   DesignNetlistCell,
   DesignNetlistInstance,
@@ -20,6 +24,12 @@ import type { NetlistFormat } from "./net-name-codec.js";
  *   to B1 and rbb·(1 − eta) to B2, and the emitter diode onto that point.
  *   It fires at the peak point eta·V(B2, B1) plus a diode drop; there is no
  *   conductivity modulation, so no negative resistance past it.
+ * - `put` (`a g k`): the two-transistor thyristor, a PNP from the anode
+ *   with its base on the anode gate and an NPN to the cathode collecting
+ *   from that gate, each driving the other's base. 1 MΩ from the inner
+ *   (cathode) gate to K keeps that node defined while both are off, and
+ *   10 pF across it gives the regenerative switch a finite speed a
+ *   transient can follow. It fires once the anode is a diode drop above G.
  */
 export function semiconductorDeviceCell(
   target: string,
@@ -31,7 +41,7 @@ export function semiconductorDeviceCell(
   const expression = (text: string) =>
     format === "spice" ? `{${text}}` : text;
   const part = (
-    deviceClass: "resistor" | "diode",
+    deviceClass: "resistor" | "capacitor" | "diode" | "bjt",
     reference: string,
     nodes: readonly (readonly [string, string])[],
     value: { target: string } | { value: string },
@@ -53,38 +63,90 @@ export function semiconductorDeviceCell(
     type: card.type,
     parameters: structuredClone(card.parameters),
   });
-  const [e, b1, b2] = ports as [string, string, string];
-  const internal = ["nb"];
-  const instances = [
-    part(
-      "resistor",
-      "RB1",
-      [
-        ["1", "nb"],
-        ["2", b1],
-      ],
-      { value: expression("rbb*eta") },
-    ),
-    part(
-      "resistor",
-      "RB2",
-      [
-        ["1", b2],
-        ["2", "nb"],
-      ],
-      { value: expression("rbb*(1-eta)") },
-    ),
-    part(
-      "diode",
-      "DE",
-      [
-        ["A", e],
-        ["K", "nb"],
-      ],
-      { target: "de" },
-    ),
-  ];
-  const models = [generic("de", GENERIC_DIODE_MODEL)];
+  let internal: string[];
+  let instances: DesignNetlistInstance[];
+  let models: DesignNetlistModel[];
+  if (model.implementation === "ujt") {
+    const [e, b1, b2] = ports as [string, string, string];
+    internal = ["nb"];
+    instances = [
+      part(
+        "resistor",
+        "RB1",
+        [
+          ["1", "nb"],
+          ["2", b1],
+        ],
+        { value: expression("rbb*eta") },
+      ),
+      part(
+        "resistor",
+        "RB2",
+        [
+          ["1", b2],
+          ["2", "nb"],
+        ],
+        { value: expression("rbb*(1-eta)") },
+      ),
+      part(
+        "diode",
+        "DE",
+        [
+          ["A", e],
+          ["K", "nb"],
+        ],
+        { target: "de" },
+      ),
+    ];
+    models = [generic("de", GENERIC_DIODE_MODEL)];
+  } else {
+    const [a, g, k] = ports as [string, string, string];
+    internal = ["nk"];
+    instances = [
+      part(
+        "bjt",
+        "Q1",
+        [
+          ["C", "nk"],
+          ["B", g],
+          ["E", a],
+        ],
+        { target: "qp" },
+      ),
+      part(
+        "bjt",
+        "Q2",
+        [
+          ["C", g],
+          ["B", "nk"],
+          ["E", k],
+        ],
+        { target: "qn" },
+      ),
+      part(
+        "resistor",
+        "RGK",
+        [
+          ["1", "nk"],
+          ["2", k],
+        ],
+        { value: "1Meg" },
+      ),
+      part(
+        "capacitor",
+        "CGK",
+        [
+          ["1", "nk"],
+          ["2", k],
+        ],
+        { value: "10p" },
+      ),
+    ];
+    models = [
+      generic("qn", GENERIC_NPN_MODEL),
+      generic("qp", GENERIC_PNP_MODEL),
+    ];
+  }
   return {
     origin: "generated-model",
     id: deriveStableId("netlist-semiconductor-device-cell", target),

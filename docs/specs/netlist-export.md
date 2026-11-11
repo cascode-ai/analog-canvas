@@ -212,12 +212,16 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   is an `X` call of that body, as the crystal is.
 - Semiconductor devices SPICE has no card for are `X` calls of textbook
   equivalent circuits, no supplies, each body carrying its own model cards
-  with the generic cards' parameters (`de` the DIODE card), so a Project model
-  of any name never reaches them:
+  with the generic cards' parameters (`de` the DIODE card, `qn`/`qp` the
+  NPN/PNP cards), so a Project model of any name never reaches them:
   - Unijunction (`ujt`: `e b1 b2`): `RB1 nb b1 {rbb*eta}`,
     `RB2 b2 nb {rbb*(1-eta)}` and the emitter diode `DE e nb`; defaults
     `rbb` = 7 kΩ, `eta` = 0.65. No conductivity modulation, so no negative
     resistance past the peak point.
+  - PUT (`put`: `a g k`, no parameters): the two-transistor thyristor,
+    `Q1 nk g a qp` and `Q2 g nk k qn`, with `RGK nk k 1Meg` holding the inner
+    gate while both are off and `CGK nk k 10p` giving the switch a finite
+    speed; it fires once A is a diode drop above G.
 - SPICE and VACASK include all bodies; Spectre includes comparator,
   combinational gates (`bsource` with RC delay), the crystal, the
   potentiometer and the semiconductor devices; DFF,

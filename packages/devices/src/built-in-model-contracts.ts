@@ -64,7 +64,10 @@ export type BuiltInModelRecipe =
       readonly implementation: "crystal" | "potentiometer";
     }
   | { readonly family: "opamp"; readonly implementation: "opamp" }
-  | { readonly family: "semiconductor"; readonly implementation: "ujt" };
+  | {
+      readonly family: "semiconductor";
+      readonly implementation: "ujt" | "put";
+    };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
   readonly target: string;
@@ -368,6 +371,7 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   crystal: { family: "passive", implementation: "crystal" },
   potentiometer: { family: "passive", implementation: "potentiometer" },
   ujt: { family: "semiconductor", implementation: "ujt" },
+  put: { family: "semiconductor", implementation: "put" },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
@@ -418,7 +422,10 @@ function contract(target: string): BuiltInModelContract | undefined {
                 ? crystal
                 : potentiometer
               : family === "semiconductor"
-                ? ujt
+                ? // A PUT's peak point is its gate's, set by the circuit.
+                  implementation === "ujt"
+                  ? ujt
+                  : []
                 : target === ADDER_TARGET
                   ? ADDER_SIGN_PARAMETERS
                   : target === "opamp_differential"
