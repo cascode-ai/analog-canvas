@@ -91,6 +91,42 @@ describe("rich text as RNL runs", () => {
     ]);
   });
 
+  it("keeps two neighbouring scripts two, as Analog Canvas sets each apart", () => {
+    const script = (value: string): RichTextRun => ({
+      kind: "span",
+      style: "subscript",
+      children: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value }],
+        },
+      ],
+    });
+    const sub = { ...plain, bold: true, level: -1 };
+    expect(rnlTextLines({ runs: [script("5"), script("B")] }).lines).toEqual([
+      [
+        { kind: "text", text: "5", style: sub },
+        { kind: "text", text: "B", style: sub },
+      ],
+    ]);
+    // One script holding two runs is one run.
+    expect(
+      rnlTextLines({
+        runs: [
+          {
+            kind: "span",
+            style: "subscript",
+            children: [
+              { kind: "text", value: "5" },
+              { kind: "text", value: "B" },
+            ],
+          },
+        ],
+      }).lines,
+    ).toEqual([[{ kind: "text", text: "5B", style: { ...plain, level: -1 } }]]);
+  });
+
   it("writes a fraction's parts as runs", () => {
     expect(
       rnlTextLines({
