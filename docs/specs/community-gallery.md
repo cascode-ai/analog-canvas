@@ -126,9 +126,10 @@ entries, keyset cursor, limit ≤60.
 - `GET /api/gallery/tags`: tags with counts under every filter except tags.
   Family groups are presentation only; unknown tags stay under Custom & legacy.
   `GET /api/gallery/authors`: the unfiltered ranking.
-- Filter preference (`view`, `author`, `tags`, `netlist`, `liked`) lives in the
-  URL and `icm.gallery-filters.v1`; a link naming any narrowing replaces it. `q`
-  lives only in the URL and any reload clears it.
+- Filter preference (`view`, `author`, `tags`, `liked`) lives in the URL and
+  `icm.gallery-filters.v1`; a link naming any narrowing replaces it. `q` and
+  `netlist` live only in the URL and any reload clears them, so the wall opens
+  on circuits with and without a netlist.
 
 ### Entry and preview
 

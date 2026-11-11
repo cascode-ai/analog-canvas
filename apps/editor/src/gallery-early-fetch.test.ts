@@ -144,11 +144,12 @@ describe("the landing page's early Gallery requests (#1592)", () => {
       // A reader who cleared every filter; a Shelf does not need wall data.
       ["", saved({}), true],
       ["", saved({ view: "shelf" }), false],
-      ["", saved({ withoutNetlist: true }), false],
+      // A netlist side is never restored, so the wall opens unfiltered.
+      ["", saved({ withoutNetlist: true }), true],
       ["", saved({ ai: "human" }), false],
       ["", saved({ ai: "dataset" }), false],
       ["", saved({ tags: ["amplifier"] }), false],
-      ["", saved({ netlistable: true }), false],
+      ["", saved({ netlistable: true }), true],
       ["", saved({ liked: true }), false],
       ["", saved({ attention: true }), false],
       ["", saved({ parts: ["6-10"] }), false],
@@ -182,6 +183,9 @@ describe("the landing page's early Gallery requests (#1592)", () => {
       ["?q=mirror", "back_forward", false, "mirror"],
       // Reloaded, the search is gone and the wall is the unfiltered one.
       ["?q=mirror", "reload", true, ""],
+      // So is the netlist side.
+      ["?q=mirror&netlist=1", "reload", true, ""],
+      ["?netlist=1", "back_forward", false, ""],
       // Every other filter stays, so the wall is still narrowed.
       ["?q=mirror&tags=bias", "reload", false, ""],
     ];

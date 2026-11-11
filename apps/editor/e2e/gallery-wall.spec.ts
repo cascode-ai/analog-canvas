@@ -1127,9 +1127,10 @@ test("a remembered narrowing loads the wall with its one early request", async (
   await page.goto("/");
   await expect(page.locator("a.gallery-tile")).toHaveCount(1);
   // The landing preload asked the remembered query before the wall's code
-  // arrived, and the wall took that answer instead of asking again.
+  // arrived, and the wall took that answer instead of asking again. The
+  // netlist side is never remembered, so it narrows nothing here.
   await page.waitForLoadState("networkidle");
-  expect(lists).toEqual(["?source=analoggenie&netlistable=0&ai=0&parts=6-10"]);
+  expect(lists).toEqual(["?source=analoggenie&ai=0&parts=6-10"]);
   expect(firstListAsked).toBeLessThan(wallCodeArrived);
 });
 
@@ -1228,7 +1229,7 @@ test("a search keeps what it found when the window comes back into focus", async
   await expect(progress).toHaveText("Searched all 31 circuits · 2 matches");
 });
 
-test("a reload clears the search and keeps every other filter; a shared search still opens (#1675)", async ({
+test("a reload clears the search and the netlist side, and keeps every other filter; a shared search still opens (#1675)", async ({
   page,
 }) => {
   await signIn(page, sessionUser({ displayName: "Reader" }));
@@ -1241,36 +1242,44 @@ test("a reload clears the search and keeps every other filter; a shared search s
     });
   });
   const search = page.getByTestId("gallery-search");
+  const human = page.getByTestId("gallery-filter-human");
   const netlist = page.getByTestId("gallery-filter-netlistable");
-  await page.goto("/?netlist=1&utm_source=share");
+  await page.goto("/?ai=0&netlist=1&utm_source=share");
+  await expect(netlist).toHaveAttribute("aria-pressed", "true");
   await search.fill("mirror");
   await expect(page).toHaveURL((url) => url.searchParams.get("q") === "mirror");
   await expect.poll(() => asked.at(-1)).toBe("mirror");
-  // The search is never remembered, so a later visit opens unsearched.
+  // Neither the search nor the netlist side is remembered, so a later visit
+  // opens unsearched on every circuit, with and without a netlist.
   const stored = () =>
     page.evaluate(() =>
       JSON.parse(sessionStorage.getItem("icm.gallery-filters.v1") ?? "{}"),
     );
-  expect(await stored()).toMatchObject({ netlistable: true });
+  expect(await stored()).toMatchObject({ ai: "human" });
   expect(await stored()).not.toHaveProperty("search");
+  expect(await stored()).not.toHaveProperty("netlistable");
   await page.goto("/");
-  await expect(netlist).toHaveAttribute("aria-pressed", "true");
+  await expect(human).toHaveAttribute("aria-pressed", "true");
+  await expect(netlist).toHaveAttribute("aria-pressed", "false");
   await expect(search).toHaveValue("");
 
   // A link that carries a search, opened fresh, shows that search.
-  await page.goto("/?netlist=1&q=mirror&utm_source=share");
+  await page.goto("/?ai=0&netlist=1&q=mirror&utm_source=share");
   await expect(search).toHaveValue("mirror");
+  await expect(netlist).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => asked.at(-1)).toBe("mirror");
 
-  // Reloaded, it opens unsearched and keeps everything else.
+  // Reloaded, it opens unsearched on both netlist sides and keeps the rest.
   await page.reload();
   await expect(search).toHaveValue("");
   await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toBeVisible();
-  await expect(netlist).toHaveAttribute("aria-pressed", "true");
+  await expect(human).toHaveAttribute("aria-pressed", "true");
+  await expect(netlist).toHaveAttribute("aria-pressed", "false");
   await expect(page).toHaveURL(
     (url) =>
       !url.searchParams.has("q") &&
-      url.searchParams.get("netlist") === "1" &&
+      !url.searchParams.has("netlist") &&
+      url.searchParams.get("ai") === "0" &&
       url.searchParams.get("utm_source") === "share",
   );
   expect(asked.at(-1)).toBe("");

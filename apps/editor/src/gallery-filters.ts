@@ -252,16 +252,29 @@ export function galleryFilterSearch(
   return query.length > 0 ? `?${query}` : "";
 }
 
-/** The preference as browser storage keeps it: every filter but the search. */
+/**
+ * The preference as browser storage keeps it: every filter but the search and
+ * the netlist side. The wall opens on every circuit, with and without a
+ * netlist; only a link (or Back to one) narrows it to one side.
+ */
 export function storedGalleryFilters(filters: GalleryFilterState): string {
-  const { search: _search, ...kept } = filters;
+  const {
+    search: _search,
+    netlistable: _netlistable,
+    withoutNetlist: _withoutNetlist,
+    ...kept
+  } = filters;
   return JSON.stringify(kept);
 }
 
-/** A location's query without the text search, every other parameter kept. */
-function withoutSearch(search: string): string {
+/**
+ * A reloaded location's query: without the text search and the netlist side,
+ * which a reload never keeps, every other parameter kept.
+ */
+function withoutReloadCleared(search: string): string {
   const params = new URLSearchParams(search);
   params.delete("q");
+  params.delete("netlist");
   return params.toString();
 }
 
@@ -289,11 +302,11 @@ export function parseStoredGalleryFilters(
     ownerUserId:
       ownerUserId.length > 0 ? ownerUserId.slice(0, MAX_FILTER_LENGTH) : null,
     tags: boundedTags(Array.isArray(record.tags) ? record.tags : []),
-    // An older store kept the search; it is no longer restored (#1675).
+    // An older store kept the search and the netlist side; neither is
+    // restored (#1675).
     search: "",
-    netlistable: record.netlistable === true,
-    withoutNetlist:
-      record.netlistable !== true && record.withoutNetlist === true,
+    netlistable: false,
+    withoutNetlist: false,
     withoutReference: record.withoutReference === true,
     ai: readAi(record.ai),
     liked: record.liked === true,
@@ -338,8 +351,9 @@ export function isPageReload(
  * — it is somebody's request for that slice — and otherwise the reader's own
  * last choice is restored, including the empty one they cleared on purpose.
  * A link to one circuit (`?entry=`) asks for the whole wall, where that
- * circuit is sure to be. A reload opens unsearched (#1675): the address's
- * `q` is read as absent, and every other choice it names stands.
+ * circuit is sure to be. A reload opens unsearched (#1675) and on both
+ * netlist sides: the address's `q` and `netlist` are read as absent, and every
+ * other choice it names stands.
  */
 export function resolveGalleryFilters(
   search: string,
@@ -347,7 +361,7 @@ export function resolveGalleryFilters(
   { reload = false }: { reload?: boolean } = {},
 ): GalleryFilterState {
   const { filters, narrowed, namesView } = parseGalleryFilterQuery(
-    reload ? withoutSearch(search) : search,
+    reload ? withoutReloadCleared(search) : search,
   );
   const stored = parseStoredGalleryFilters(storedRaw);
   const focused = galleryFocusEntryId(search);

@@ -50,19 +50,21 @@ const OPENS_UNFILTERED =
   // Conservatively defer any kept choice to the canonical filter reader.
   // Unknown future filters must not start a different, unfiltered request.
   `return Object.keys(s).every(function(k){var v=s[k];` +
-  `if(k==="search")return true;` +
+  // The search and the netlist side are never restored (resolveGalleryFilters).
+  `if(k==="search"||k==="netlistable"||k==="withoutNetlist")return true;` +
   `if(k==="view")return v==="gallery";` +
   `return v==null||v===false||v===""||(Array.isArray(v)&&v.length===0)})}`;
 
 /**
  * The address's query as the wall reads it: a reload drops the text search
- * (#1675, gallery-filters' resolveGalleryFilters), keeping everything else.
+ * (#1675) and the netlist side (gallery-filters' resolveGalleryFilters),
+ * keeping everything else.
  */
 const OPENING_SEARCH =
   `function(){var search=location.search;try{` +
   `var nav=performance.getEntriesByType("navigation")[0];` +
   `if(nav&&nav.type==="reload"){var params=new URLSearchParams(search);` +
-  `params.delete("q");search=params.toString()}}catch(e){}return search}`;
+  `params.delete("q");params.delete("netlist");search=params.toString()}}catch(e){}return search}`;
 
 type EarlyResponses = Record<string, Promise<Response>>;
 

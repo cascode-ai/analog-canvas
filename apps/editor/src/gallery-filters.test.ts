@@ -115,15 +115,21 @@ describe("gallery filter preferences", () => {
         ai: "human",
       }),
     ).toBe("?ai=0");
-    // Storage keeps them too, and never both sides of the netlist pair.
+    // Storage keeps the AI side, never a netlist side: the wall opens on
+    // circuits with and without a netlist unless a link names one.
     const stored = parseStoredGalleryFilters(
       JSON.stringify({ netlistable: true, withoutNetlist: true, ai: "human" }),
     );
     expect(stored).toMatchObject({
-      netlistable: true,
+      netlistable: false,
       withoutNetlist: false,
       ai: "human",
     });
+    expect(
+      JSON.parse(
+        storedGalleryFilters({ ...filters, netlistable: true, ai: "human" }),
+      ),
+    ).not.toHaveProperty("netlistable");
   });
 
   it("carries one attention reason, and only under Needs attention", () => {
@@ -225,7 +231,7 @@ describe("gallery filter preferences", () => {
     ).toBe("");
   });
 
-  it("opens a reload unsearched, keeping every other filter and view (#1675)", () => {
+  it("opens a reload unsearched and on both netlist sides, keeping every other filter and view (#1675)", () => {
     const link =
       "?view=shelf&author=alice&owner=account-alice&tags=bias&q=mirror&netlist=1&ai=0&liked=1&attention=1&reason=global-vdd&parts=6-10&source=analoggenie";
     expect(resolveGalleryFilters(link, null, { reload: true })).toEqual({
@@ -234,7 +240,7 @@ describe("gallery filter preferences", () => {
       ownerUserId: "account-alice",
       tags: ["bias"],
       search: "",
-      netlistable: true,
+      netlistable: false,
       withoutNetlist: false,
       withoutReference: false,
       ai: "human",
@@ -329,7 +335,7 @@ describe("gallery filter preferences", () => {
       ownerUserId: "account-alice",
       tags: ["bias"],
       search: "",
-      netlistable: true,
+      netlistable: false,
       withoutNetlist: false,
       withoutReference: false,
       ai: null,
