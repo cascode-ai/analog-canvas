@@ -89,6 +89,9 @@
         width: 100%;
         height: 100%;
         display: block;
+        /* Its own layer: a slow drift moves the drawn picture and draws nothing. */
+        transform-origin: 0 0;
+        will-change: transform;
       }
       .art {
         font-size: 15.116px;
@@ -808,6 +811,8 @@
         );
         opacity: 0;
         transition: opacity 0.8s;
+        /* Drawn once, on its own layer, not again with every frame under it. */
+        will-change: opacity;
       }
       #stage.lit .vig,
       #stage.wall .vig {
@@ -949,8 +954,11 @@
       #prog i {
         display: block;
         height: 100%;
-        width: 0;
         background: var(--accent);
+        /* Grows by scale, which the compositor does without drawing. */
+        transform: scaleX(0);
+        transform-origin: 0 0;
+        will-change: transform;
       }
       @media (prefers-reduced-motion: reduce) {
         .rv > span,
@@ -1749,7 +1757,12 @@
             st.p = v;
           },
         );
+        let paperAt = "";
         function updatePaper() {
+          // Untouched attributes leave the paper, and all it covers, undrawn.
+          const at = st.f + " " + st.p;
+          if (at === paperAt) return;
+          paperAt = at;
           const half = lerp((TS * st.f) / 2, 14000, st.p);
           paper.setAttribute("x", m1c[0] - half);
           paper.setAttribute("y", m1c[1] - half);
@@ -2323,7 +2336,20 @@
             cy = lerp(A.cy, B.cy, q),
             sx = lerp(A.sx, B.sx, p),
             sy = lerp(A.sy, B.sy, p);
-          return { s, tx: sx - cx * s, ty: sy - cy * s };
+          // A slow drift is a zoom about one point. The world stays drawn at the
+          // wider end of it and the layer is scaled instead (see render), so the
+          // screen is not drawn again for every frame of a move this small.
+          const flat = (S) => ({
+            s: S.s,
+            tx: S.sx - S.cx * S.s,
+            ty: S.sy - S.cy * S.s,
+          });
+          return {
+            s,
+            tx: sx - cx * s,
+            ty: sy - cy * s,
+            drawn: k1[3] === ez.lin ? flat(A.s < B.s ? A : B) : null,
+          };
         }
 
         /* ---------- sound: a synthesized orchestral score, scheduled against the film clock ---------- */
@@ -3168,7 +3194,9 @@
         const fill = $("#fill"),
           prog = $("#prog i"),
           timeEl = $("#time"),
-          scrub = $("#scrub");
+          scrub = $("#scrub"),
+          wsvg = $("#wsvg"),
+          cam = { drawn: "", drift: "" };
         const fmt = (t) =>
           `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
         let lastSec = -1;
@@ -3190,14 +3218,19 @@
           updatePaper();
           syncNetlist(T);
           syncAgent(T);
-          const c = camAt(T);
-          world.setAttribute(
-            "transform",
-            `translate(${c.tx} ${c.ty}) scale(${c.s})`,
-          );
+          const c = camAt(T),
+            d = c.drawn ?? c,
+            k = c.s / d.s,
+            drawn = `translate(${d.tx} ${d.ty}) scale(${d.s})`,
+            drift = c.drawn
+              ? `translate(${c.tx - k * d.tx}px, ${c.ty - k * d.ty}px) scale(${k})`
+              : "none";
+          if (drawn !== cam.drawn)
+            world.setAttribute("transform", (cam.drawn = drawn));
+          if (drift !== cam.drift) wsvg.style.transform = cam.drift = drift;
           const f = (T / DUR) * 100;
           fill.style.width = f + "%";
-          prog.style.width = f + "%";
+          prog.style.transform = `scaleX(${T / DUR})`;
           const sec = Math.floor(T);
           if (sec !== lastSec) {
             lastSec = sec;
@@ -3207,11 +3240,14 @@
         }
         function frame(now) {
           if (playing) {
-            // While the score sounds, the audio clock drives the picture, so the
-            // two cannot drift; otherwise the picture keeps its own time.
             const dt = Math.min(0.1, (now - lastNow) / 1000);
             if (snd.live && AC.state === "running" && !stalled(dt)) {
-              T = Math.min(DUR, Math.max(T, AC.currentTime - snd.off));
+              // The audio clock ticks in steps as coarse as the device's
+              // buffer, so it steers the picture and does not set it: a small
+              // gap closes gently, a large one (a stalled page) at once.
+              const gap = AC.currentTime - snd.off - (T + dt);
+              T += dt + (Math.abs(gap) > 0.12 ? gap : gap * 0.04);
+              T = Math.min(DUR, Math.max(0, T));
               sndPump();
             } else T = Math.min(DUR, T + dt);
             dirty = true;
