@@ -5,7 +5,95 @@ import {
   makerOf,
   route,
   saveRequest,
+  adminOf,
+  submitOne,
 } from "./gallery.test-support";
+import { routeBoardsRequest } from "./boards";
+
+it("captures private bookmarks, boards and open counts without exposing them to the Gallery credential", async () => {
+  const env = environment();
+  env.STORE_BACKUP_TOKEN = "store-only";
+  env.GALLERY_BACKUP_TOKEN = "gallery-only";
+  const cookie = await adminOf(env);
+  const id = await submitOne(env, "Backup fixture", { cookie });
+  const bookmark = () =>
+    route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/bookmark`, {
+        method: "POST",
+        headers: { cookie, origin: ORIGIN },
+      }),
+    );
+  expect((await bookmark()).status).toBe(200);
+  expect(
+    (await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))).status,
+  ).toBe(200);
+  const board = await routeBoardsRequest(
+    new Request(`${ORIGIN}/api/boards`, {
+      method: "POST",
+      headers: { cookie, origin: ORIGIN },
+      body: JSON.stringify({ title: "Backup board", entries: [id] }),
+    }),
+    env,
+  );
+  expect(board?.status).toBe(200);
+  const get = (
+    table: string,
+    token = "store-only",
+    extra: Record<string, string> = {},
+  ) =>
+    route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/maintenance/automated-backup?${new URLSearchParams({ scope: "activity", table, ...extra })}`,
+        { headers: { authorization: `Bearer ${token}` } },
+      ),
+    );
+  expect((await get("inventory", "gallery-only")).status).toBe(401);
+  const response = await get("inventory");
+  expect(response.status).toBe(200);
+  const start = await response.json();
+  expect(start.tables).toMatchObject({
+    entryBookmarks: 1,
+    selectionBoards: 1,
+    selectionBoardItems: 1,
+    entryOpens: 1,
+  });
+  const event = await (await get("selectionBoardEvents")).json();
+  expect(event.rows).toHaveLength(1);
+  expect(
+    (
+      await get("selectionBoardEvents", "store-only", {
+        after: event.nextCursor,
+      })
+    ).status,
+  ).toBe(200);
+  const bookmarks = await (await get("entryBookmarks")).json();
+  expect(bookmarks.rows[0].entry_id).toBe(id);
+  expect((await bookmark()).status).toBe(200);
+  const end = await (await get("inventory")).json();
+  const changed = await (
+    await get("changes", "store-only", {
+      after: JSON.stringify({
+        epoch: start.changeCursor.epoch,
+        since: start.changeCursor.revision,
+        until: end.changeCursor.revision,
+      }),
+    })
+  ).json();
+  expect(changed.changes).toEqual([
+    { table: "entryBookmarks", key: [bookmarks.rows[0].user_id, id] },
+  ]);
+  expect(
+    (
+      await (
+        await get("entryBookmarks", "store-only", {
+          key: JSON.stringify([bookmarks.rows[0].user_id, id]),
+        })
+      ).json()
+    ).rows,
+  ).toEqual([]);
+});
 
 describe("whole-store backup reconciliation over HTTP", () => {
   it("keeps private keys out of Gallery scope and rejects stale or malformed cursors", async () => {

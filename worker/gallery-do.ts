@@ -393,13 +393,12 @@ export class GalleryDO {
         applied_at TEXT NOT NULL
       ) WITHOUT ROWID
     `);
-    installBackupRevisions(this.sql);
     installBoards(this.sql);
     installTransistorCounts(this.sql);
     // Reads carry no daily allowance any more: drop what counted it.
     this.sql.exec("DROP TABLE IF EXISTS gallery_daily_opens");
     // How often each circuit was opened each day, for the Owner's numbers:
-    // counts only, never who. Not a backup table.
+    // counts only, never who. Included in the private activity backup scope.
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS gallery_entry_opens (
         entry_id TEXT NOT NULL,
@@ -408,6 +407,7 @@ export class GalleryDO {
         PRIMARY KEY (entry_id, day)
       ) WITHOUT ROWID
     `);
+    installBackupRevisions(this.sql);
     this.state.storage.transactionSync(() => {
       const applied = this.sql
         .exec<{ id: string }>(

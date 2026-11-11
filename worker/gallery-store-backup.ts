@@ -92,7 +92,11 @@ export function schemaBackup(
   // Worker's memory limit before Response.json has even serialized it, so
   // there is no single-response dump. An unnamed scope reads the narrower.
   const scope: BackupScope =
-    body.scope === "store" || body.scope === "reviews" ? body.scope : "gallery";
+    body.scope === "store" ||
+    body.scope === "reviews" ||
+    body.scope === "activity"
+      ? body.scope
+      : "gallery";
   const tables = Object.fromEntries(
     BACKUP_SCOPES[scope].map((key) => [key, BACKUP_TABLES[key]]),
   );
@@ -152,7 +156,11 @@ export function schemaBackup(
     (exact || after !== null) &&
     (!Array.isArray(after) ||
       after.length !== table.keys.length ||
-      after.some((key) => typeof key !== "string"))
+      after.some((key) =>
+        table.name === "board_events"
+          ? !Number.isSafeInteger(key) || Number(key) < 1
+          : typeof key !== "string",
+      ))
   ) {
     return Response.json({ error: "invalid-cursor" }, { status: 400 });
   }
@@ -165,7 +173,7 @@ export function schemaBackup(
   const rows = sql
     .exec<Record<string, unknown>>(
       `SELECT * FROM ${table.name}${after ? ` WHERE ${condition}` : ""} ORDER BY ${columns} LIMIT 1`,
-      ...((after as string[] | null) ?? []),
+      ...((after as (string | number)[] | null) ?? []),
     )
     .toArray();
   return Response.json({

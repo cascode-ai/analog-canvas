@@ -626,9 +626,12 @@ export async function routeGalleryMaintenance(
     // with private Cloud Projects. The Gallery credential also reads the
     // reviews scope, of the community store or a dataset's (`source`).
     const named = url.searchParams.get("scope");
-    const scope = named === "store" || named === "reviews" ? named : "gallery";
+    const scope =
+      named === "store" || named === "reviews" || named === "activity"
+        ? named
+        : "gallery";
     if (
-      scope === "store"
+      scope === "store" || scope === "activity"
         ? !hasStoreBackupToken(request, env)
         : !hasGalleryReadToken(request, env)
     )
@@ -638,7 +641,7 @@ export async function routeGalleryMaintenance(
       );
     const sourceKey = url.searchParams.get("source");
     const source = sourceKey ? gallerySourceByKey(sourceKey) : null;
-    if (sourceKey && (!source || scope !== "reviews"))
+    if (sourceKey && (!source || !["reviews", "activity"].includes(scope)))
       return Response.json(
         { error: "invalid-source" },
         { status: 400, headers: { "cache-control": "no-store" } },
@@ -738,7 +741,8 @@ export async function routeGalleryMaintenance(
     // The same one-row pages as the store credential reads; the whole store
     // no longer fits one response.
     const { status, payload } = await callGallery(env, "schema-backup", {
-      scope: "store",
+      scope:
+        url.searchParams.get("scope") === "activity" ? "activity" : "store",
       table: url.searchParams.get("table"),
       after: url.searchParams.get("after"),
       key: url.searchParams.get("key"),
