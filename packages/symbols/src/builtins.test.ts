@@ -65,6 +65,7 @@ const PRODUCT_IDS = [
   "port",
   "port-filled",
   "potentiometer",
+  "ujt",
   "photoresistor",
   "resistor",
   "simple-switch",

@@ -270,7 +270,7 @@ describe("built-in device registry", () => {
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(70);
+    expect(builtInSubcircuitDescriptors).toHaveLength(71);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({
@@ -285,6 +285,19 @@ describe("built-in device registry", () => {
       ],
     });
     expect(referencePolicyForSymbol("opamp-differential")).toEqual({
+      kind: "required",
+      prefix: "X",
+    });
+    // A unijunction is a call of its generated body: no supplies, X1.
+    expect(subcircuitDescriptor("ujt")).toMatchObject({
+      target: "ujt",
+      ports: [
+        { name: "e", pinName: "E" },
+        { name: "b1", pinName: "B1" },
+        { name: "b2", pinName: "B2" },
+      ],
+    });
+    expect(referencePolicyForSymbol("ujt")).toEqual({
       kind: "required",
       prefix: "X",
     });

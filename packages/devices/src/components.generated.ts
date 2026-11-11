@@ -3209,6 +3209,16 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "ujt",
+      symbolId: "ujt",
+      target: "ujt",
+      ports: [
+        { name: "e", direction: "passive", pinName: "E" },
+        { name: "b1", direction: "passive", pinName: "B1" },
+        { name: "b2", direction: "passive", pinName: "B2" },
+      ],
+    },
+    {
       id: "voltage-amplifier",
       symbolId: "voltage-amplifier",
       target: "voltage_amplifier",

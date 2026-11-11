@@ -3283,6 +3283,65 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "ujt",
+      name: "Unijunction Transistor",
+      category: "transistor",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "rbb",
+          default: "7k",
+        },
+        {
+          name: "eta",
+          default: "0.65",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "E",
+          role: "emitter",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 10,
+          },
+        },
+        {
+          name: "B1",
+          role: "base",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
+        },
+        {
+          name: "B2",
+          role: "base",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "photoresistor",
       name: "Photoresistor",
       category: "passive",

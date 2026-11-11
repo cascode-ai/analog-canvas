@@ -1847,6 +1847,49 @@ describe("Razavi symbol catalog", () => {
     expect(channel(pjfet)).toBe(channel(njfet));
   });
 
+  it("draws the unijunction as the JFET's bar on its D/S pins, the emitter arrow slanting into it", () => {
+    const njfet = requireRazaviCatalogSymbol("njfet");
+    const ujt = requireRazaviCatalogSymbol("ujt");
+    expect(getRazaviCatalogEntry("ujt")).toMatchObject({
+      category: "transistor",
+      provenance: "house",
+      pinOrder: ["E", "B1", "B2"],
+      palette: true,
+    });
+    const pin = (symbol: typeof ujt, name: string) =>
+      symbol.pins.find((item) => item.name === name)!;
+    // B2 and B1 leave the bar where the JFET's drain and source do.
+    expect(pin(ujt, "B2").at).toEqual(pin(njfet, "D").at);
+    expect(pin(ujt, "B1").at).toEqual(pin(njfet, "S").at);
+    expect(pin(ujt, "E")).toMatchObject({
+      at: { x: -20, y: 10 },
+      direction: "west",
+    });
+    const part = (name: string) =>
+      ujt.primitives.find((primitive) => primitive.part === name);
+    const bar = part("base-bar");
+    const arrow = part("emitter-arrow");
+    const emitter = part("emitter");
+    if (
+      bar?.kind !== "line" ||
+      arrow?.kind !== "polygon" ||
+      emitter?.kind !== "polyline"
+    )
+      throw new Error("missing unijunction parts");
+    expect(njfet.primitives).toContainEqual({ ...bar, part: undefined });
+    // The emitter runs in level from E, then slants up into the bar, its
+    // filled arrowhead's tip the emitter's end, just short of the bar.
+    const [start, bend, end] = emitter.points;
+    expect(bend!.y).toBe(start!.y);
+    expect(end!.y).toBeLessThan(bend!.y);
+    expect(arrow).toMatchObject({ fill: "foreground", stroke: "none" });
+    expect(arrow.points[0]).toEqual(end);
+    expect(bar.from.x - end!.x).toBeGreaterThan(0);
+    expect(bar.from.x - end!.x).toBeLessThan(1.5);
+    expect(end!.y).toBeGreaterThan(0);
+    expect(Math.max(...arrow.points.map((point) => point.x))).toBe(end!.x);
+  });
+
   it("uses calibrated MOS and source arrowheads with external voltage polarity marks", () => {
     const voltage = requireRazaviCatalogSymbol("voltage-source");
     expect(voltage.primitives).toEqual(

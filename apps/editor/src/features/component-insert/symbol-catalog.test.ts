@@ -103,6 +103,7 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("microphone")).toBe("Extended Devices");
     expect(symbolCategory("ammeter")).toBe("Extended Devices");
     expect(symbolCategory("potentiometer")).toBe("Extended Devices");
+    expect(symbolCategory("ujt")).toBe("Extended Devices");
     expect(symbolCategory("ideal-switch")).toBe("Switches");
     expect(symbolCategory("closed-switch")).toBe("Switches");
     expect(symbolCategory("externally-controlled-switch")).toBe("Switches");
@@ -274,6 +275,7 @@ describe("component insertion catalog", () => {
       "schottky-diode",
       "njfet",
       "pjfet",
+      "ujt",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
@@ -374,6 +376,7 @@ describe("reach order inside a category", () => {
       "schottky-diode",
       "njfet",
       "pjfet",
+      "ujt",
       "tcoil",
       "center-tap-inductor",
       "xfmr",

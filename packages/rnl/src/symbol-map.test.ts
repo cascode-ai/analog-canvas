@@ -95,6 +95,7 @@ describe("the RNL symbol list", () => {
       "microphone",
       "ammeter",
       "potentiometer",
+      "ujt",
       "photoresistor",
       "speaker",
       "sine-voltage-source",

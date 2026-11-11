@@ -2482,6 +2482,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "a7f604401b6dd5c790e99506c9d7e4e74fc4181b18c87632f9e07777c7b6e7ce",
   },
   {
+    symbolId: "ujt",
+    name: "Unijunction Transistor",
+    category: "transistor",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A unijunction transistor does not appear on the reviewed page; it is the N-Channel JFET's channel bar and leads on its D and S pins, as base B2 and base B1, with the emitter entering the bar at a slant below its middle and the JFET's filled arrowhead on it pointing into the bar.",
+    pinOrder: ["E", "B1", "B2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no unijunction card; it prints as a call of the generated body, the base bar split rbb*eta to B1 and rbb*(1-eta) to B2 with the emitter diode onto the split.",
+    assetPath: "ujt.json",
+    assetHash:
+      "25f9e0a418d595631103b18cd13d4ccc52b791449b4a4466a77103e8ade31529",
+  },
+  {
     symbolId: "photoresistor",
     name: "Photoresistor",
     category: "passive",
@@ -19337,6 +19354,167 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             y: 2.828427,
           },
         ],
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "ujt",
+    name: "Unijunction Transistor",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 38,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "E",
+        role: "emitter",
+        at: {
+          x: -20,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B1",
+        role: "base",
+        at: {
+          x: 10,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "B2",
+        role: "base",
+        at: {
+          x: 10,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -8,
+          },
+          {
+            x: 10,
+            y: -20,
+          },
+        ],
+        part: "base-2",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 8,
+          },
+          {
+            x: 10,
+            y: 20,
+          },
+        ],
+        part: "base-1",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4,
+          y: -12.5,
+        },
+        to: {
+          x: -4,
+          y: 12.5,
+        },
+        part: "base-bar",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -20,
+            y: 10,
+          },
+          {
+            x: -14,
+            y: 10,
+          },
+          {
+            x: -4.96,
+            y: 3.22,
+          },
+        ],
+        part: "emitter",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -4.96,
+            y: 3.22,
+          },
+          {
+            x: -8.46,
+            y: 10.22,
+          },
+          {
+            x: -12.66,
+            y: 4.62,
+          },
+        ],
+        part: "emitter-arrow",
+        fill: "foreground",
+        stroke: "none",
       },
     ],
     variants: [],

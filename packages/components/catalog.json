@@ -92,6 +92,7 @@
     "port",
     "port-filled",
     "potentiometer",
+    "ujt",
     "photoresistor",
     "resistor",
     "simple-spdt-switch",
