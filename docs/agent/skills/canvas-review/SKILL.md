@@ -5,8 +5,10 @@ disable-model-invocation: true
 ---
 
 Use the Analog Canvas MCP registered for the user's editor origin. Read
-`analog-canvas://reference/quickstart` and the **From a netlist to a review**
-section of `analog-canvas://reference/mcp-tools`. Use their current tool
+`analog-canvas://reference/quickstart?section=Connect` and
+`analog-canvas://reference/mcp-tools?section=Start%20a%20review`.
+Read linked sections only when their task branch applies; use the MCP
+`section` selector with the exact heading title instead of the whole manual. Use their current tool
 arguments, task rules and delivery receipts.
 
 Take the source path, Cell and presentation from the request. If the source

@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "74f01ee105179a1fc57e856456940ce10e6056c3e33a3d9ef18c0f2542a2d6a5",
+  "registrySha256": "53e1467f62c9b658090a9f0a008a992f61bc1537742fe102a410e1ca7c8fad5f",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "94a74be252fabee05a1fc38485415ebf31dbd3d1e06f4dd9f1628f3bff2ff5b3"
+      "sha256": "732b1a7069af6132b73544ea3caa54ad52d8140f7f87135d030a35cb2a641d53"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -129,11 +129,11 @@
     },
     {
       "source": "docs/agent/skills/canvas-review/SKILL.md",
-      "sha256": "37f94d27d4986b09c20126d65740f59bec186a3f0b9b8212e3054c3997ecad58"
+      "sha256": "af15e5a7dfe2a37e5a94b2a991ed515e017462378d0abe317f8930dcf48a0c17"
     },
     {
       "source": "docs/agent/skills/canvas-review/agents/openai.yaml",
-      "sha256": "61f1ee6a7c1d1990a7b3d4d48b51da760e0b8aedbe2ace6766a955e5c18af222"
+      "sha256": "1e5951b72c01306d01bf0b061d0379bd760b39176ffe17681c14a67ccc940d65"
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
@@ -145,7 +145,7 @@
     },
     {
       "source": "docs/agent/mcp/instructions.md",
-      "sha256": "192f1564382f644811d45d199b9fd74a2cca28757e868a797ee9bf0f0bd21971"
+      "sha256": "32b7dcdcbfacc176b8a832417104cc4bfe5972a811c01ab9caeab6bf07b772e5"
     },
     {
       "source": "docs/agent/entrypoints/connect.md",
@@ -630,11 +630,12 @@
       ],
       "reads": [
         {
-          "document": "reference/quickstart"
+          "document": "reference/quickstart",
+          "section": "Connect"
         },
         {
           "document": "reference/mcp-tools",
-          "section": "From a netlist to a review"
+          "section": "Start a review"
         }
       ],
       "hosts": {
@@ -675,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "e0900eff6b90806a21b09323b6fd6fb4f4955cb2489ac30c4dc30d62c99ac298"
+      "sha256": "5530bc2eda0b4690dd2eefc1e62c45bc82d9c05ab5d994fd1da447cd16f0cb5e"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -731,7 +732,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "cb62aa3f079e3a4397265ffb1bb607b8a621784f18ac7143e12efa2413e5f9b3"
+      "sha256": "9d359f6384f803de8fd2eac4cfe6f5fff727edb643d01cacd8fdbe73db8229d9"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

@@ -182,18 +182,20 @@ export async function compile(registry, repoRoot = root) {
     const guidance = await read(path.posix.join(skill.source, "SKILL.md"));
     for (const { document, section } of skill.reads) {
       const target = registry.documents.find((d) => d.id === document);
-      if (!guidance.includes(`\`${target.uri}\``))
+      const readUri = section
+        ? `${target.uri}?section=${encodeURIComponent(section)}`
+        : target.uri;
+      if (!guidance.includes(`\`${readUri}\``))
         throw Error(`Skill ${skill.name} does not name ${target.uri}`);
       if (
         section !== undefined &&
-        (!guidance.includes(`**${section}**`) ||
-          !docs
-            .get(document)
-            .split("\n")
-            .some(
-              (line) =>
-                /^#{1,6} /u.test(line) && line.replace(/^#+ /u, "") === section,
-            ))
+        !docs
+          .get(document)
+          .split("\n")
+          .some(
+            (line) =>
+              /^#{1,6} /u.test(line) && line.replace(/^#+ /u, "") === section,
+          )
       )
         throw Error(`Skill ${skill.name} reads a missing section: ${section}`);
     }
@@ -207,9 +209,46 @@ export async function compile(registry, repoRoot = root) {
       const compact = JSON.stringify(compactSchema(JSON.parse(original)));
       return compact.length < original.length ? compact : original;
     }
-    return docs
-      .get(d.id)
-      .replace(/\]\(([^\s)]+)([^)]*)\)/g, (whole, href, suffix) => {
+    const source = docs.get(d.id);
+    const reviewStart = source.indexOf("### From a netlist to a review");
+    const reviewEnd = source.indexOf("\n## ", reviewStart + 1);
+    return source.replace(
+      /\]\(([^\s)]+)([^)]*)\)/g,
+      (whole, href, suffix, offset) => {
+        if (
+          surface === "mcp" &&
+          d.id === "reference/mcp-tools" &&
+          offset > reviewStart &&
+          (reviewEnd < 0 || offset < reviewEnd) &&
+          href.includes("#") &&
+          !/^[a-z][a-z\d+.-]*:/i.test(href)
+        ) {
+          const [file, anchor] = href.split("#");
+          const target = file
+            ? registry.documents.find(
+                (x) =>
+                  x.source ===
+                  path.posix.normalize(
+                    path.posix.join(path.posix.dirname(d.source), file),
+                  ),
+              )
+            : d;
+          const titles =
+            target &&
+            [...docs.get(target.id).matchAll(/^#{1,6} (.+)$/gm)].map(
+              (match) => match[1],
+            );
+          const title = titles?.find(
+            (title) =>
+              title
+                .toLowerCase()
+                .replace(/[^\w -]/g, "")
+                .replace(/ /g, "-") === anchor,
+          );
+          if (!target?.uri || !title)
+            throw Error(`Unknown review section: ${href}`);
+          return `](${target.uri}?section=${encodeURIComponent(title)}${suffix})`;
+        }
         if (/^(?:[a-z][a-z\d+.-]*:|#)/i.test(href)) return whole;
         const [file, anchor = ""] = href.split("#");
         const resolved = path.posix.normalize(
@@ -231,7 +270,8 @@ export async function compile(registry, repoRoot = root) {
           return `](${relative}${anchor ? "#" + anchor : ""}${suffix})`;
         }
         throw Error(`Undistributed ${surface} link in ${d.source}: ${href}`);
-      });
+      },
+    );
   }
   const resources = registry.documents
     .filter((d) => d.uri)

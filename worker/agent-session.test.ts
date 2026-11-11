@@ -992,6 +992,14 @@ it("names the account and installation on the launch prompt as inert text", asyn
   );
   expect(prompt!.status).toBe(200);
   const html = await prompt!.text();
+  const styleNonce = /<style nonce="([^"]+)">/u.exec(html)?.[1];
+  expect(styleNonce).toBeTruthy();
+  expect(prompt!.headers.get("content-security-policy")).toContain(
+    `style-src 'nonce-${styleNonce}'`,
+  );
+  expect(prompt!.headers.get("content-security-policy")).not.toContain(
+    "unsafe-inline",
+  );
   expect(html).toContain("Trust this device");
   // The page reads the signed-in account itself; the name stays script data.
   expect(html).toContain('fetch("/api/auth/me"');
