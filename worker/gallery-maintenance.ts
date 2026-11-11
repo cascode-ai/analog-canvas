@@ -661,6 +661,7 @@ export async function routeGalleryMaintenance(
         table: url.searchParams.get("table"),
         after: url.searchParams.get("after"),
         key: url.searchParams.get("key"),
+        limit: url.searchParams.get("limit"),
       },
     );
     return Response.json(payload, {

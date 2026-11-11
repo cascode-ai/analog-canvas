@@ -165,24 +165,38 @@ export function schemaBackup(
     return Response.json({ error: "invalid-cursor" }, { status: 400 });
   }
   const columns = table.keys.join(", ");
+  const limit =
+    scope === "activity" && !exact && body.limit != null
+      ? Number(body.limit)
+      : 1;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+    return Response.json({ error: "invalid-limit" }, { status: 400 });
   const comparison = exact ? "=" : ">";
   const condition =
     table.keys.length === 1
       ? `${columns} ${comparison} ?`
       : `(${columns}) ${comparison} (${table.keys.map(() => "?").join(", ")})`;
-  const rows = sql
+  const selected = sql
     .exec<Record<string, unknown>>(
-      `SELECT * FROM ${table.name}${after ? ` WHERE ${condition}` : ""} ORDER BY ${columns} LIMIT 1`,
+      `SELECT * FROM ${table.name}${after ? ` WHERE ${condition}` : ""} ORDER BY ${columns} LIMIT ${limit}`,
       ...((after as (string | number)[] | null) ?? []),
     )
     .toArray();
+  const rows: Record<string, unknown>[] = [];
+  let bytes = 0;
+  for (const row of selected) {
+    bytes += new TextEncoder().encode(JSON.stringify(row)).length;
+    // An existing oversized row remains readable as its own legacy page.
+    if (rows.length && bytes > 512 * 1024) break;
+    rows.push(row);
+  }
   return Response.json({
     format: "analog-canvas-gallery-backup-page-v1",
     table: body.table,
     rows,
     nextCursor:
       rows.length && !exact
-        ? JSON.stringify(table.keys.map((key) => rows[0]![key]))
+        ? JSON.stringify(table.keys.map((key) => rows.at(-1)![key]))
         : null,
   });
 }

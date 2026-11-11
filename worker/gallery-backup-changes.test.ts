@@ -93,6 +93,25 @@ it("captures private bookmarks, boards and open counts without exposing them to 
       ).json()
     ).rows,
   ).toEqual([]);
+  const second = await submitOne(env, "Second capture fixture", { cookie });
+  await route(env, new Request(`${ORIGIN}/api/gallery/${second}`));
+  const batch = await (
+    await get("entryOpens", "store-only", { limit: "100" })
+  ).json();
+  expect(batch.rows).toHaveLength(2);
+  expect(
+    new Set(batch.rows.map((row: { entry_id: string }) => row.entry_id)),
+  ).toEqual(new Set([id, second]));
+  const rest = await (
+    await get("entryOpens", "store-only", {
+      limit: "100",
+      after: batch.nextCursor,
+    })
+  ).json();
+  expect(rest.rows).toEqual([]);
+  expect(rest.nextCursor).toBeNull();
+  // Existing collectors retain one-row pages unless explicitly requested.
+  expect((await (await get("entryOpens")).json()).rows).toHaveLength(1);
 });
 
 describe("whole-store backup reconciliation over HTTP", () => {
