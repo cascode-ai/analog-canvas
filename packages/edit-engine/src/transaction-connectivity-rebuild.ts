@@ -11,6 +11,8 @@ import {
   buildDocumentDerivedContext,
   deriveDocumentContactEvidence,
   endpointKey,
+  isMosBulkTerminal,
+  isVisibleEndpoint,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
@@ -177,6 +179,55 @@ function partitionNet(
   retargetMosBulkDefaultsAfterSplit(draft, net.id, ids, identity, changed);
 }
 
+/** A Net that holds no pin, wire or Junction (a label's own logical Net). */
+function memberless(document: SchematicDocument, netId: string): boolean {
+  const net = document.nets.find((candidate) => candidate.id === netId);
+  return (
+    (net?.terminals.length ?? 0) === 0 &&
+    !document.routes.some((route) => route.netId === netId) &&
+    !document.junctions.some((junction) => junction.netId === netId)
+  );
+}
+
+/**
+ * A cut releases its Net's unrouted intent, but not a pin no one can draw: a
+ * hidden supply pin (an op-amp's VDD) or a model's substrate has no geometry
+ * to keep it on its Net, so cutting any other wire would strand it on a Net of
+ * its own (#2254). It stays with the Net's largest surviving component. MOS
+ * bulks are left to the bulk reconciler, which follows the Cell defaults.
+ */
+function keepUndrawableMembersAfterCut(
+  draft: SchematicDocument,
+  groups: readonly string[][],
+  graph: ConnectionGraph,
+  endpoints: ReadonlyMap<string, RouteEndpoint>,
+  resolver: SymbolResolver | undefined,
+): void {
+  if (!resolver) return;
+  const undrawable = (key: string) => {
+    const endpoint = endpoints.get(key);
+    return (
+      endpoint?.kind === "terminal" &&
+      !isMosBulkTerminal(draft, endpoint) &&
+      !isVisibleEndpoint(draft, resolver, endpoint)
+    );
+  };
+  const stranded = groups.filter((group) => group.every(undrawable));
+  if (stranded.length === 0) return;
+  const drawn = groups
+    .filter((group) => !group.every(undrawable))
+    .flat()
+    .filter((key) => endpoints.has(key));
+  if (drawn.length === 0) return;
+  const largest = graph
+    .groups(drawn)
+    .reduce((best, group) => (group.length > best.length ? group : best));
+  graph.join([
+    largest[0]!,
+    ...stranded.flat().filter((key) => endpoints.has(key)),
+  ]);
+}
+
 /**
  * Materialize Base Nets once geometry is final, before contact/overlap cleanup.
  * Explicit unrouted intent survives, but a formerly routed edge is never
@@ -233,8 +284,11 @@ export function rebuildEditedConnectivity(
   // Preserve a bridge between their surviving representatives, not between
   // every member: doing the latter would resurrect a deleted physical wire.
   for (const net of before.nets) {
-    if (cutNetIds.has(net.id)) continue;
     const groups = sourceGroups(net.id);
+    if (cutNetIds.has(net.id)) {
+      keepUndrawableMembersAfterCut(draft, groups, graph, endpoints, resolver);
+      continue;
+    }
     const representatives = groups.flatMap((group) => {
       const key = group.find((key) => {
         const e = endpoints.get(key);
@@ -422,8 +476,12 @@ export function rebuildEditedConnectivity(
       }
     }
   }
-  // Route-owned names and formal interfaces follow their final conductor.
+  // Route-owned names and formal interfaces follow their final conductor. A
+  // Net with no pin, wire or Junction before or after has none to follow: a
+  // hidden process label on a part names its own empty Net, and moving it to
+  // the part's first Net gave a pin two names (#2254).
   for (const net of draft.nets)
-    retargetOwnerEvidenceAfterSplit(draft, net.id, changed);
+    if (!(memberless(before, net.id) && memberless(draft, net.id)))
+      retargetOwnerEvidenceAfterSplit(draft, net.id, changed);
   return { ok: true };
 }

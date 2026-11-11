@@ -170,7 +170,10 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
   rather than splice.
 - Wire Delete uses `cut_connection`, recomputing physical components so no
   evidence hides a disconnection; `remove_route_geometry` removes geometry only.
-  Route-anchored labels are removed by a typed edit first.
+  Route-anchored labels are removed by a typed edit first. A cut never strands
+  a pin no one can draw (a hidden supply pin, a model's substrate): it stays
+  with its Net's largest remaining component. A label naming a Net that holds
+  no pin, wire or Junction stays on it.
 - Transform, `C` copy, graph deletion, marker rename and whole-Net rename compile
   one transient `RoutingOperationPlan` (stable-ID closure, expected effect,
   typed edits, ID remap) validated by an independent before/after projection.
