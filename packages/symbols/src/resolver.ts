@@ -3,6 +3,7 @@ import type { SymbolDefinition, SymbolVariant } from "./schema.js";
 import {
   freezeSnapshot,
   isFrozenSnapshot,
+  isOptionalSupplyPin,
   projectCircuitSymbol,
   type CircuitProject,
 } from "@icm/model";
@@ -42,6 +43,47 @@ export function drawnPinNames(resolved: ResolvedSymbol): string[] {
         pin.presentation.visibility !== "implicit" && !hidden.has(pin.name),
     )
     .map((pin) => pin.name);
+}
+
+/**
+ * `box` grown to hold the supply pins a part draws on request and their
+ * leads (#1941), which may stand past its viewBox: a box a body path without
+ * declared bounds falls back to. The default variant draws none, so a part
+ * as placed keeps the box it had.
+ */
+export function withShownSupplies<
+  Box extends { x: number; y: number; width: number; height: number },
+>(box: Box, resolved: ResolvedSymbol): Box {
+  const hiddenPins = new Set(resolved.variant?.hiddenPinNames);
+  const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts);
+  const supplies = resolved.definition.pins.filter(
+    (pin) =>
+      isOptionalSupplyPin(resolved.definition, pin) &&
+      !hiddenPins.has(pin.name),
+  );
+  const leads = new Set(
+    supplies.map((pin) => `${pin.name.toLowerCase()}-lead`),
+  );
+  const points = [
+    ...supplies.map((pin) => pin.at),
+    ...resolved.definition.primitives.flatMap((primitive) =>
+      primitive.kind === "line" &&
+      primitive.part &&
+      leads.has(primitive.part) &&
+      !hiddenParts.has(primitive.part)
+        ? [primitive.from, primitive.to]
+        : [],
+    ),
+  ];
+  if (!points.length) return box;
+  const x = Math.min(box.x, ...points.map((point) => point.x));
+  const y = Math.min(box.y, ...points.map((point) => point.y));
+  const right = Math.max(box.x + box.width, ...points.map((point) => point.x));
+  const bottom = Math.max(
+    box.y + box.height,
+    ...points.map((point) => point.y),
+  );
+  return { ...box, x, y, width: right - x, height: bottom - y };
 }
 
 const validatedSymbols = new WeakMap<SymbolDefinition, SymbolDefinition>();

@@ -93,6 +93,46 @@ describe("editor canvas hit layer", () => {
     expect(markup).not.toContain('<rect data-testid="hit-U1"');
   });
 
+  it("lets a block's shown supply stubs select it, past its viewBox, and not hidden ones (#1941)", () => {
+    const document = createEmptyDocument("cell", "Cell");
+    const placement = {
+      position: { x: 100, y: 200 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    };
+    document.instances.push(
+      { id: "A1", symbolId: "adc", symbolVariantId: "supply-pins", placement },
+      { id: "A2", symbolId: "adc", placement },
+      {
+        id: "G1",
+        symbolId: "transconductance",
+        symbolVariantId: "supply-pins",
+        placement,
+        signalFlowParameters: { bodyHeight: 100 },
+      },
+    );
+    const markup = renderToStaticMarkup(
+      <EditorCanvasHitLayer
+        selection={emptySelectionProps(document)}
+        endpoints={emptyEndpointProps(document)}
+      />,
+    );
+    const target = (id: string) =>
+      markup.slice(
+        markup.indexOf(`data-testid="hit-${id}"`),
+        markup.indexOf("</g>", markup.indexOf(`data-testid="hit-${id}"`)),
+      );
+    // The ADC's VDD stub runs from its flat top to y -30, past its viewBox.
+    expect(target("A1")).toContain(
+      'class="analog-block-hit-area" x1="0" y1="-20" x2="0" y2="-30"',
+    );
+    expect(target("A2")).not.toContain('y2="-30"');
+    // A grown transconductor's leave its grown body.
+    expect(target("G1")).toContain(
+      'class="analog-block-hit-area" x1="0" y1="-37.5" x2="0" y2="-50"',
+    );
+  });
+
   it("renders a selected route from resolved geometry", () => {
     const document = createEmptyDocument("cell", "Cell");
     document.nets.push({ id: "net", terminals: [] });

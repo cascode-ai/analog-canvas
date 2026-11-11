@@ -13,10 +13,12 @@ import type {
 import { flattenRichText, transformPoint } from "@icm/model";
 import type { DerivedRect, Point, SchematicDocument } from "@icm/model";
 import {
+  adaptiveSignalFlowBounds,
   resolveAdaptiveSignalFlowBlockLayout,
   resolveInstanceSymbol,
+  withShownSupplies,
 } from "@icm/symbols";
-import type { SymbolDefinition, SymbolResolver } from "@icm/symbols";
+import type { ResolvedSymbol, SymbolResolver } from "@icm/symbols";
 
 import {
   drawnRouteMarkerPlacement,
@@ -32,20 +34,29 @@ import {
 } from "./route-render.js";
 
 function symbolBounds(
-  definition: SymbolDefinition,
+  resolved: ResolvedSymbol,
   instance: SchematicDocument["instances"][number],
 ): DerivedRect {
+  const definition = resolved.definition;
   const placement = instance.placement;
   if (!placement) {
     throw new Error(
       `Cannot derive bounds for unplaced instance: ${instance.id}`,
     );
   }
-  const viewBox = definition.viewBox;
-  const adaptiveBounds = resolveAdaptiveSignalFlowBlockLayout(
+  // A shown supply's stub may stand past the viewBox (#1941).
+  const viewBox = withShownSupplies(definition.viewBox, resolved);
+  const adaptive = resolveAdaptiveSignalFlowBlockLayout(
     definition,
     instance.signalFlowParameters,
-  )?.bounds;
+  );
+  const adaptiveBounds =
+    adaptive &&
+    adaptiveSignalFlowBounds(
+      definition,
+      adaptive,
+      resolved.variant?.hiddenPrimitiveParts,
+    );
   const localBounds = adaptiveBounds ?? viewBox;
   const left = Math.min(viewBox.x, localBounds.x);
   const top = Math.min(viewBox.y, localBounds.y);
@@ -148,7 +159,7 @@ export function deriveBounds(
     if (!resolved) {
       throw new Error(`Unresolved symbol: ${instance.symbolId}`);
     }
-    const instanceBox = symbolBounds(resolved.definition, instance);
+    const instanceBox = symbolBounds(resolved, instance);
     bounds.push(instanceBox);
   }
   for (const route of document.routes) {

@@ -255,7 +255,7 @@ it.each(["spice", "spectre"] as const)(
     own.netlist!.name = "delay_cell";
     project.documents.push(own);
     const exported = createRnlExport(project, { format });
-    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    if (exported.status !== "ready") throw new Error("export blocked");
     expect(exported.request.netlist).toMatch(/ icm_delay_cell\b/u);
     const result = await roundTrip(project, format);
     expect(failures(result)).toEqual([]);
@@ -2056,7 +2056,7 @@ it.each(
       owner: { kind: "power-marker", objectId: "GND1" },
     });
     const exported = createRnlExport(project, { format });
-    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    if (exported.status !== "ready") throw new Error("export blocked");
     const written = await runtime.write({
       write: exported.request,
       svg: false,
@@ -2926,7 +2926,7 @@ async function roundTrip(
   format: "spice" | "spectre" = "spice",
 ) {
   const exported = createRnlExport(project, { format });
-  if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+  if (exported.status !== "ready") throw new Error("export blocked");
   const written = await runtime.write({ write: exported.request, svg: false });
   return importRnl(written.text, format);
 }
@@ -4260,7 +4260,7 @@ describe("RNL round trip", () => {
     broken.junctions = [];
     project.documents.push(broken);
     const exported = createRnlExport(project, { format: "spice" });
-    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    if (exported.status !== "ready") throw new Error("export blocked");
     expect(exported.request.netlist).toMatch(/\.subckt rc_highpass/iu);
     expect(exported.request.netlist).not.toMatch(/rc_broken/iu);
     expect(
@@ -5318,7 +5318,7 @@ it.each(["spice", "spectre"] as const)(
           parameters: { value: "1k" },
         };
     const exported = createRnlExport(project, { format });
-    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    if (exported.status !== "ready") throw new Error("export blocked");
     const written = await runtime.write({
       write: exported.request,
       svg: false,
@@ -5562,7 +5562,7 @@ describe("RNL round trip of 4-input gates", () => {
       locked: false,
     });
     const exported = createRnlExport(project, { format: "spice" });
-    if (exported.status !== "ready") throw new Error(JSON.stringify(exported));
+    if (exported.status !== "ready") throw new Error("export blocked");
     expect(exported.request.netlist).not.toMatch(/SEL\[3\]/u);
     const { project: drawn } = await roundTrip(project, "spice");
     const pin = (from: CircuitProject) =>

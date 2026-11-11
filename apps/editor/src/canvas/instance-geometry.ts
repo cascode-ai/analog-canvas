@@ -8,6 +8,7 @@ import type {
 import {
   adaptiveSignalFlowBounds,
   resolveAdaptiveSignalFlowBlockLayout,
+  withShownSupplies,
   type ResolvedSymbol,
   type SignalFlowLayoutParameters,
 } from "@icm/symbols";
@@ -71,7 +72,9 @@ export function visibleSymbolLocalBounds(
         );
         break;
       case "path":
-        if (!primitive.bounds) return resolved.definition.viewBox;
+        // A shown supply's stub may stand past the viewBox (#1941).
+        if (!primitive.bounds)
+          return withShownSupplies(resolved.definition.viewBox, resolved);
         points.push(...viewBoxCorners(primitive.bounds));
         break;
     }

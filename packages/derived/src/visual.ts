@@ -6,6 +6,7 @@ import {
   resolveAdaptiveSignalFlowBlockLayout,
   resolveInstanceSymbol,
   resolveSignalFlowPinAt,
+  withShownSupplies,
 } from "@icm/symbols";
 import type {
   ResolvedSymbol,
@@ -303,7 +304,8 @@ export function visibleSymbolInkBounds(
   ].filter((primitive) => !primitive.part || !hiddenParts.has(primitive.part));
   const primitivePointSets = primitives.map(primitivePoints);
   if (primitivePointSets.some((points) => points === null)) {
-    return resolved.definition.viewBox;
+    // A shown supply's stub may stand past the viewBox (#1941).
+    return withShownSupplies(resolved.definition.viewBox, resolved);
   }
   const points = [
     ...primitivePointSets.flatMap((entry) => entry ?? []),

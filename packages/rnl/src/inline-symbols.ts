@@ -89,14 +89,19 @@ export const inlineRnlSymbols: readonly RnlSymbol[] = builtInSymbols.flatMap(
   },
 );
 
-/** Exact candidate artwork and positional pins, using the existing define-symbol op. */
-export function inlineRnlDefinition(row: RnlSymbol) {
+/**
+ * Exact candidate artwork and positional pins, using the existing define-symbol
+ * op: the artwork as the row's variant draws it, with no lead of a hidden
+ * supply. `withHiddenLeads` keeps them, as files written from #1939 to #1941
+ * draw an op-amp's call symbol.
+ */
+export function inlineRnlDefinition(row: RnlSymbol, withHiddenLeads = false) {
   const symbol = builtInSymbols.find((candidate) => candidate.id === row.ac)!;
-  // The artwork as the row's variant draws it: no lead of a hidden supply.
-  const hidden =
-    symbol.variants.find(
-      (variant) => variant.id === (row.variant ?? symbol.defaultVariantId),
-    )?.hiddenPrimitiveParts ?? [];
+  const hidden = withHiddenLeads
+    ? []
+    : (symbol.variants.find(
+        (variant) => variant.id === (row.variant ?? symbol.defaultVariantId),
+      )?.hiddenPrimitiveParts ?? []);
   const drawn = symbol.primitives.filter(
     (primitive) => !primitive.part || !hidden.includes(primitive.part),
   );
@@ -135,7 +140,18 @@ export function matchesInlineRnlSymbol(
   actual: RnlSymbolDefinitionView | null | undefined,
 ): boolean {
   if (!actual) return false;
-  const expected = inlineRnlDefinition(row);
+  // As written now, or with the hidden supply leads files written from
+  // #1939 to #1941 drew (#1941).
+  return [inlineRnlDefinition(row), inlineRnlDefinition(row, true)].some(
+    (expected) => matches(row, expected, actual),
+  );
+}
+
+function matches(
+  row: RnlSymbol,
+  expected: ReturnType<typeof inlineRnlDefinition>,
+  actual: RnlSymbolDefinitionView,
+): boolean {
   return (
     actual.pins.length === expected.pins.length &&
     actual.prims.length === expected.prims.length &&
