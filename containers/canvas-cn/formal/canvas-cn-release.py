@@ -39,6 +39,8 @@ AUTO_TIMERS = {'canvas-cn-scheduled.timer', 'canvas-cn-release.timer',
 NGINX_SITE = '/etc/nginx/conf.d/analog-canvas-formal.conf'
 PUBLIC_CONFIG = '/etc/analog-canvas-formal/public.json'
 PUBLIC_ORIGIN = 'https://analog-canvas.tokenzhang.com'
+UNIT_PATTERNS = ('canvas-cn-*.service', 'canvas-cn-*.timer',
+                 'canvas-ops-monitor.service', 'canvas-ops-monitor.timer')
 TRANSPORT_ORIGIN = 'https://analog-canvas-origin.tokenzhang.com'
 ICP_FILING = re.compile(r'[\u3400-\u9fff]ICP备[0-9]+号(?:-[0-9]+)?')
 # Written into a release only after it passed its smoke checks while serving.
@@ -323,15 +325,24 @@ def switch(link, target):
     os.replace(temporary, link)
 
 
+def unit_files(directory):
+    return sorted(p for pattern in UNIT_PATTERNS for p in directory.glob(pattern) if p.is_file())
+
+
 def install_units(release, unit_dir, host, changed, added):
     """Copy changed units, recording each before it is written."""
-    units = sorted(release.glob('canvas-cn-*.service')) + sorted(release.glob('canvas-cn-*.timer'))
-    for unit in (u for u in units if u.is_file()):
+    monitor = release.parent.parent / 'monitor-releases' / release.name
+    if (release / 'canvas-ops-monitor.service').is_file():
+        monitor.mkdir(parents=True, exist_ok=True)
+        for name in ('host_monitor.py', 'observations.py'):
+            shutil.copyfile(release / name, monitor / name)
+    for unit in unit_files(release):
         installed = unit_dir / unit.name
-        if installed.is_file() and installed.read_bytes() == unit.read_bytes():
+        contents = unit.read_bytes().replace(b'@RELEASE@', str(monitor.resolve()).encode())
+        if installed.is_file() and installed.read_bytes() == contents:
             continue
         (changed if installed.is_file() else added).append(unit.name)
-        shutil.copyfile(unit, installed)
+        installed.write_bytes(contents)
     if changed or added:
         host.systemctl('daemon-reload')
 
@@ -513,7 +524,7 @@ def tick(args, host=None, fetcher=None, now=None):
         shutil.rmtree(target)
     partial.rename(target)
     unit_dir = pathlib.Path(args.unit_dir)
-    saved_units = {p.name: p.read_bytes() for p in unit_dir.glob('canvas-cn-*') if p.is_file()}
+    saved_units = {p.name: p.read_bytes() for p in unit_files(unit_dir)}
     nginx_before = site.read_bytes() if site.exists() else None
     host.pause_background()
     changed, added, operator_restarted = [], [], False
@@ -568,6 +579,9 @@ def tick(args, host=None, fetcher=None, now=None):
                 if unit in AUTO_TIMERS:
                     host.systemctl('enable', '--now', unit, check=False)
             prune(releases, keep={target, serving}, count=args.keep)
+            monitors = releases.parent / 'monitor-releases'
+            if (target / 'canvas-ops-monitor.service').is_file() and monitors.is_dir():
+                prune(monitors, keep={monitors / commit}, count=2)
             return dict(result, status='installed', serving=commit, previous=str(serving),
                         downloadedBytes=downloaded, lastCaughtUpAt=now)
         # Restore the serving release exactly: link, units, nginx site, processes.

@@ -1,0 +1,11 @@
+[Unit]
+Description=Sample Canvas host health once per minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=canvas-ops-monitor.service
+
+[Install]
+WantedBy=timers.target

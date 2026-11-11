@@ -110,6 +110,27 @@ with the current release runner and the existing filing number before adding
 Hangzhou to mainland AAAA answers. Before removing the IPv6 listener, restore
 the previous AAAA route and allow cached answers to expire.
 
+## Host observations
+
+`host_monitor.py` and `observations.py` ship in the verified regional release.
+The existing `canvas-ops-monitor.timer` uses its existing state and mail
+credential; releases update its unit without enabling another schedule. Its
+service pins the verified source copy in sibling `monitor-releases/<commit>`,
+outside the website release cleanup, so old installers cannot delete it on
+rollback. New monitor installs retain two source versions. Failed installation restores the prior unit.
+On the first upgrade from an installer without this unit support, install the
+verified release's monitor sources and units under the release lock, using
+its installer's `install_units` routine, then reload systemd. Keep the existing
+schedule, credentials and notification history.
+
+Observations include non-loopback TCP listeners and changes to the release's
+runtime config, Worker bundle and sync service units (including overrides).
+Only SSH and dual-stack HTTPS are expected on non-loopback addresses. These
+checks report sustained drift after two minutes and never alter services,
+ports or credentials. Listener checks do not prove firewall reachability;
+public HTTPS must also be checked from outside the host. Only changed file
+names and port numbers enter the monitor state, never configuration bodies.
+
 ## Operating rules
 
 - The release monitor is `/var/lib/canvas-cn-release/monitor.json`. To retry
