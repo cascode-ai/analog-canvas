@@ -2,8 +2,13 @@ import {
   createEmptyDocument,
   createRoutePath,
   semanticTextDocument,
+  type RouteEndpoint,
+  type SchematicDocument,
 } from "@icm/model";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  resolveEndpointConnection,
+} from "@icm/derived";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 import { executeTransaction, type SchematicEdit } from "./transaction.js";
@@ -269,5 +274,205 @@ describe("a label on a part with several pins", () => {
     });
     expect(document.connectivityEvidence[0]!.netId).toBe("substrate");
     expect(changed).toEqual(new Set());
+  });
+});
+
+describe("pins no one can draw across a physical cut (#2254)", () => {
+  /** R1 and R2 hang from a rail; X1's hidden VDD is on the rail's Net. */
+  function railWithHiddenSupply() {
+    const document = createEmptyDocument("main", "Main");
+    document.presentation.grid = 10;
+    document.instances.push(
+      ...(["R1", "R2"] as const).map((id, index) => ({
+        id,
+        reference: id,
+        symbolId: "resistor",
+        placement: {
+          position: { x: 140, y: 300 + 100 * index },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+        netlist: { parameters: { value: "1k" } },
+      })),
+      {
+        id: "X1",
+        reference: "X1",
+        symbolId: "opamp",
+        placement: {
+          position: { x: 400, y: 500 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    const pin = (instanceId: string) => ({
+      kind: "terminal" as const,
+      instanceId,
+      pinName: "1",
+    });
+    document.nets.push({
+      id: "VDD",
+      terminals: [
+        { instanceId: "R1", pinName: "1" },
+        { instanceId: "R2", pinName: "1" },
+        { instanceId: "X1", pinName: "VDD" },
+      ],
+    });
+    const tapPoint = (instanceId: string) => {
+      const connection = resolveEndpointConnection(
+        document,
+        resolver,
+        pin(instanceId),
+      )!;
+      return {
+        x: connection.contactPoint.x + connection.outward!.x * 40,
+        y: connection.contactPoint.y + connection.outward!.y * 40,
+      };
+    };
+    const t1 = tapPoint("R1");
+    document.junctions.push(
+      {
+        id: "start",
+        netId: "VDD",
+        position: { x: t1.x, y: t1.y - 20 },
+        role: "route-anchor",
+      },
+      { id: "tap1", netId: "VDD", position: t1 },
+      {
+        id: "end",
+        netId: "VDD",
+        position: tapPoint("R2"),
+        role: "route-anchor",
+      },
+    );
+    const path = (
+      id: string,
+      start: RouteEndpoint,
+      end: RouteEndpoint,
+      presentation?: "power-rail",
+    ) =>
+      createRoutePath({
+        id,
+        netId: "VDD",
+        start,
+        end,
+        bends: [],
+        modes: ["manual"],
+        ...(presentation ? { presentation } : {}),
+      });
+    const junction = (junctionId: string) => ({
+      kind: "junction" as const,
+      junctionId,
+    });
+    document.routes.push(
+      path("rail-a", junction("start"), junction("tap1"), "power-rail"),
+      path("rail-b", junction("tap1"), junction("end"), "power-rail"),
+      path("tap-r1", pin("R1"), junction("tap1")),
+      path("tap-r2", pin("R2"), junction("end")),
+    );
+    return document;
+  }
+
+  const netOf = (
+    document: SchematicDocument,
+    instanceId: string,
+    pinName: string,
+  ) =>
+    document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === pinName,
+      ),
+    )?.id;
+
+  it("keeps an op-amp's hidden VDD on the rail when another tap is deleted", () => {
+    const document = railWithHiddenSupply();
+    const plan = planRoutingDeletion(
+      document,
+      resolver,
+      { instanceIds: [], routeIds: ["tap-r2"], junctionIds: [] },
+      1,
+    );
+    const result = gateRoutingOperationPlan(document, plan, {
+      symbolResolver: resolver,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    const after = result.evaluated.finalDocument;
+    // Only R2 leaves: its tap was the deleted wire.
+    expect(netOf(after, "X1", "VDD")).toBe(netOf(after, "R1", "1"));
+    expect(netOf(after, "R2", "1")).not.toBe(netOf(after, "R1", "1"));
+  });
+
+  it("leaves a hidden label on its own empty Net when a wire is deleted", () => {
+    // A process label on R1 names a Net that holds nothing (the part's
+    // substrate went elsewhere). Rebuilding after a cut moved it onto R1's
+    // first Net, which already had a name, and every edit was refused.
+    const document = railWithHiddenSupply();
+    document.nets.push(
+      { id: "a-signal", terminals: [{ instanceId: "R1", pinName: "2" }] },
+      { id: "substrate", terminals: [] },
+    );
+    document.annotations.push({
+      id: "signal-label",
+      kind: "net-label",
+      netId: "a-signal",
+      binding: { kind: "net-name", netId: "a-signal" },
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "signal-name",
+      kind: "name-claim",
+      netId: "a-signal",
+      name: "VIN",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "signal-label" },
+    });
+    document.annotations.push({
+      id: "substrate-label",
+      kind: "net-label",
+      netId: "substrate",
+      binding: { kind: "net-name", netId: "substrate" },
+      visible: false,
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "substrate-name",
+      kind: "name-claim",
+      netId: "substrate",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "net-label", annotationId: "substrate-label" },
+    });
+    const plan = planRoutingDeletion(
+      document,
+      resolver,
+      { instanceIds: [], routeIds: ["tap-r2"], junctionIds: [] },
+      1,
+    );
+    const result = gateRoutingOperationPlan(document, plan, {
+      symbolResolver: resolver,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+    const after = result.evaluated.finalDocument;
+    expect(
+      after.annotations.find((a) => a.id === "substrate-label")?.netId,
+    ).toBe("substrate");
+    expect(
+      after.connectivityEvidence.find((e) => e.id === "substrate-name")?.netId,
+    ).toBe("substrate");
   });
 });
