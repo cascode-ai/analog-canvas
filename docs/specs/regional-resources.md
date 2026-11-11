@@ -46,9 +46,25 @@ operations through either entrance and lists the delivered command coverage.
 - Deleting an entry or account removes only locally written likes and locally
   owned publications; the other region removes its own, and its likes stay
   hidden with their missing entry until then.
-- Aggregate byline maintenance, retention and automatic simulation checks operate
-  only on locally published resources. A copied byline changes with its next
-  publisher snapshot; a profile rename must not fail because foreign copies exist.
+- Profile renames commit a coalesced, ordered byline effect with the authority's
+  profile update. The domestic account-maintenance tick pulls at most 50 effects
+  through the authenticated authority transport; a domestic rename applies its
+  effect before answering success. Activation seeds existing human names once.
+  A storage trigger retains later profile changes even when an older runtime runs.
+  The authority retries its own Gallery effects in that same maintenance cycle.
+  An accepted regional profile change whose byline is not yet materialized returns
+  `503 byline-propagation-pending`; its committed intent remains retryable. A later
+  profile revision supersedes an earlier in-flight response rather than reverting it.
+  Each writer updates only its own publications and retained versions; those
+  updates reach copies through publication synchronization. Monotonic per-account
+  revisions reject older effects, including late replies, and the writer's latest
+  name overrides an older session's publication byline. Retired names are redacted
+  and deletion clears the local name cache. Preserve authority clock/effects,
+  consumer cursor and name revisions in native recovery, without resetting cursors.
+  A consumer cursor ahead of the restored authority head fails closed and requires
+  explicit recovery reconciliation; it must not silently discard the cursor.
+- Aggregate maintenance, retention and automatic simulation checks operate only
+  on locally published resources; foreign copies must not make a profile rename fail.
 - Both regions can publish new resources. An incoming publication ID already
   belonging to local data is a collision, including unseeded historical data;
   refuse it without overwriting. Imported snapshots do not produce outbound changes.

@@ -35,6 +35,7 @@ import { withHostedSimulation } from "./hosted-simulation-access";
 import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import { RegionalAuthority } from "./regional-auth-authority";
+import { ProfileBylines, applyProfileByline } from "./profile-bylines";
 import {
   digest,
   isRegionalAuthorityBrowserRoute,
@@ -73,6 +74,7 @@ function canonicalAuthorityRequest(
       "security",
       "providers",
       "deletions",
+      "bylines",
       "action-authorize",
       "action-verify",
     ].some((action) => url.pathname === REGIONAL_PREFIX + action);
@@ -476,6 +478,7 @@ export class AuthDO {
   private regionalAuthority?: RegionalAuthority;
   private readonly deletions: AccountDeletions;
   private readonly regional: RegionalConfig | null;
+  private readonly profileBylines?: ProfileBylines;
   private readonly regionalAccountRequests = new WeakMap<
     Request,
     SessionUser
@@ -624,6 +627,11 @@ export class AuthDO {
     this.sql.exec("DROP TABLE IF EXISTS account_blocks");
     this.sql.exec("DROP TABLE IF EXISTS trap_reads");
     this.ensureAiSeats(state);
+    if (this.regional) {
+      const bylines = new ProfileBylines(this.sql);
+      this.profileBylines = bylines;
+      state.storage.transactionSync(() => bylines.seed());
+    }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -672,6 +680,7 @@ export class AuthDO {
           ),
         (request) => this.fetch(request),
         this.deletions,
+        this.profileBylines,
       );
       if (actionRpc) {
         if (url.pathname === "/internal/resource-action-authorize")
@@ -685,10 +694,12 @@ export class AuthDO {
       url.pathname === ACCOUNT_DELETION_TICK &&
       request.method === "POST"
     ) {
-      return this.deletions.tick(
+      const deletion = await this.deletions.tick(
         this.env,
         regional?.origin ?? `https://${CANVAS_HOST}`,
       );
+      const bylines = await this.profileBylines?.tick(this.env.GALLERY);
+      return bylines && !bylines.ok ? bylines : deletion;
     }
     if (url.pathname === "/internal/session-user") {
       return noStoreJson({ user: await this.sessionUser(request) });
@@ -1498,6 +1509,33 @@ export class AuthDO {
     ) {
       return Response.json({ error: "invalid-display-name" }, { status: 400 });
     }
+    const bylines = this.profileBylines;
+    if (bylines) {
+      // The authoritative profile and its effects commit together; either writer
+      // may be temporarily unavailable without losing the accepted name intent.
+      const job = this.state.storage.transactionSync(() => {
+        if (this.deletions.has(user.id)) return null;
+        const changed = this.sql
+          .exec(
+            "UPDATE users SET display_name=? WHERE id=? RETURNING id",
+            displayName,
+            user.id,
+          )
+          .toArray();
+        if (!changed.length) return null;
+        bylines.changed(user.id, displayName);
+        return bylines.current(user.id);
+      });
+      if (!job) return noStoreJson({ error: "unauthorized" }, 401);
+      if (!(await applyProfileByline(this.env.GALLERY, job)))
+        return noStoreJson({ error: "byline-propagation-pending" }, 503);
+      const latest = bylines.current(user.id);
+      if (!latest || latest.deleted)
+        return noStoreJson({ error: "unauthorized" }, 401);
+      if (latest.sequence !== job.sequence)
+        return noStoreJson({ error: "profile-superseded" }, 409);
+      return noStoreJson({ user: { ...user, displayName } });
+    }
     if (this.env.GALLERY) {
       try {
         const galleryResponse = await this.env.GALLERY.getByName(
@@ -1516,11 +1554,19 @@ export class AuthDO {
     }
     // Gallery moves first. If it is unavailable the profile stays unchanged;
     // retrying is safe because the Gallery operation is idempotent.
-    this.sql.exec(
-      "UPDATE users SET display_name = ? WHERE id = ?",
-      displayName,
-      user.id,
-    );
+    const changed = this.state.storage.transactionSync(() => {
+      if (this.deletions.has(user.id)) return false;
+      const updated = this.sql
+        .exec(
+          "UPDATE users SET display_name = ? WHERE id = ? RETURNING id",
+          displayName,
+          user.id,
+        )
+        .toArray();
+      if (!updated.length) return false;
+      return true;
+    });
+    if (!changed) return noStoreJson({ error: "unauthorized" }, 401);
     return noStoreJson({ user: { ...user, displayName } });
   }
 

@@ -21,6 +21,7 @@ import {
   wrapTags,
 } from "./gallery-store";
 import { snapshotEntry } from "./gallery-store-versions";
+import { forgetProfileByline } from "./gallery-store-bylines";
 
 /**
  * Recycle-bin retention. The quota deliberately refunds a withdrawal
@@ -306,6 +307,7 @@ export function deleteAccount(
   const sql = state.storage.sql;
   if (!userId) return Response.json({ error: "missing-user" }, { status: 400 });
   return state.storage.transactionSync(() => {
+    forgetProfileByline(sql, userId);
     // Copies of the other region's publications are removed by their origin.
     const entries = sql
       .exec<{

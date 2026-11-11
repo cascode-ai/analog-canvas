@@ -1,4 +1,9 @@
 import type { SessionUser } from "./auth-do";
+import {
+  applyProfileByline,
+  isProfileByline,
+  type ProfileByline,
+} from "./profile-bylines";
 import { coordinatesProjectDeletion } from "./project-region-scope";
 import { withHostedSimulation } from "./hosted-simulation-access";
 import {
@@ -78,6 +83,10 @@ export class RegionalSessionDO {
     this.sql.exec(
       "INSERT OR IGNORE INTO regional_deletion_cursor VALUES (1, 0)",
     );
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_byline_cursor (
+      singleton INTEGER PRIMARY KEY CHECK(singleton=1), sequence INTEGER NOT NULL
+    )`);
+    this.sql.exec("INSERT OR IGNORE INTO regional_byline_cursor VALUES (1,0)");
     this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_pending (
       state_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
     if (
@@ -157,8 +166,11 @@ export class RegionalSessionDO {
       url.origin === "https://auth" &&
       url.pathname === ACCOUNT_DELETION_TICK &&
       request.method === "POST"
-    )
-      return this.tickAccountDeletion(this.config);
+    ) {
+      const deletion = await this.tickAccountDeletion(this.config);
+      const bylines = await this.tickBylines();
+      return bylines.ok ? deletion : bylines;
+    }
     if (
       url.origin === "https://auth" &&
       isRegionalSecurityRoute(request.method, url.pathname)
@@ -435,6 +447,7 @@ export class RegionalSessionDO {
       | "renew"
       | "account"
       | "deletions"
+      | "bylines"
       | "owner-token"
       | "security"
       | "providers"
@@ -520,6 +533,50 @@ export class RegionalSessionDO {
       job.sequence,
     );
     return answer({ status: "sent" });
+  }
+
+  private async applyByline(job: ProfileByline): Promise<boolean> {
+    if (job.deleted || retiredAccount(this.sql, job.ownerUserId)) return true;
+    return applyProfileByline(this.env.GALLERY, job);
+  }
+
+  private async tickBylines(): Promise<Response> {
+    const after = this.sql
+      .exec<{ sequence: number }>(
+        "SELECT sequence FROM regional_byline_cursor WHERE singleton=1",
+      )
+      .one().sequence;
+    const result = await this.authority("bylines", { after });
+    // During a rolling upgrade the older authority has no byline feed yet.
+    if (result.status === 404) return answer({ status: "disabled" });
+    const jobs = result.body?.jobs;
+    if (
+      result.body?.version !== 1 ||
+      !Array.isArray(jobs) ||
+      jobs.length > 50 ||
+      !Number.isSafeInteger(result.body.head) ||
+      Number(result.body.head) < after
+    )
+      return answer({ status: "byline-retry" }, 503);
+    let previous = after;
+    for (const job of jobs) {
+      if (
+        !isProfileByline(job) ||
+        job.sequence <= previous ||
+        job.sequence > Number(result.body.head)
+      )
+        return answer({ status: "byline-retry" }, 503);
+      previous = job.sequence;
+    }
+    for (const job of jobs as ProfileByline[]) {
+      if (!(await this.applyByline(job)))
+        return answer({ status: "byline-retry" }, 503);
+      this.sql.exec(
+        "UPDATE regional_byline_cursor SET sequence=MAX(sequence,?) WHERE singleton=1",
+        job.sequence,
+      );
+    }
+    return answer({ status: jobs.length ? "sent" : "caught-up" });
   }
 
   private canCoordinateDeletion(user: SessionUser | null): boolean {
@@ -706,6 +763,20 @@ export class RegionalSessionDO {
       )
       .toArray()[0];
     if (!updated) return answer({ error: "unauthorized" }, 401);
+    if (
+      path === "/api/auth/profile" &&
+      operation.status === 200 &&
+      this.env.GALLERY
+    ) {
+      const job = result.body?.byline;
+      if (
+        !isProfileByline(job) ||
+        job.ownerUserId !== lease.user.id ||
+        job.displayName !== lease.user.displayName ||
+        !(await this.applyByline(job))
+      )
+        return answer({ error: "byline-propagation-pending" }, 503);
+    }
     return answer(operation.body, operation.status);
   }
 

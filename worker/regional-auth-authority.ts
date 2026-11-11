@@ -4,6 +4,7 @@ import {
   type AccountDeletions,
 } from "./account-deletions";
 import { regionalLoginPage } from "./regional-login-page";
+import type { ProfileBylines } from "./profile-bylines";
 import {
   answer,
   authenticated,
@@ -59,6 +60,7 @@ export class RegionalAuthority {
     private readonly ownerToken: (token: string) => Promise<SessionUser | null>,
     private readonly security: (request: Request) => Promise<Response>,
     private readonly deletions: AccountDeletions,
+    private readonly profileBylines?: ProfileBylines,
   ) {
     sql.exec(`CREATE TABLE IF NOT EXISTS regional_codes (
       code_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL,
@@ -114,6 +116,10 @@ export class RegionalAuthority {
         });
       if (url.pathname === REGIONAL_PREFIX + "deletions")
         return this.deletions.feed(body);
+      if (url.pathname === REGIONAL_PREFIX + "bylines")
+        return (
+          this.profileBylines?.feed(body) ?? answer({ error: "not-found" }, 404)
+        );
       if (url.pathname === REGIONAL_PREFIX + "exchange")
         return this.exchange(body);
       if (url.pathname === REGIONAL_PREFIX + "renew") return this.renew(body);
@@ -520,6 +526,9 @@ export class RegionalAuthority {
       // Existing account lists have no count cap. Keep their response contract;
       // the bounded reader above applies to untrusted incoming RPC bodies.
       result,
+      ...(body.path === "/api/auth/profile" && response.ok
+        ? { byline: this.profileBylines?.current(current.user.id) }
+        : {}),
       user: current.user,
       expiresAt: this.now() + REGIONAL_LEASE_MS,
     });

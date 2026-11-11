@@ -31,6 +31,7 @@ import {
   simulationCheckWaiting,
 } from "./gallery-store-simulation-checks";
 import { sweepRecycledRows } from "./gallery-store-moderation";
+import { currentProfileByline } from "./gallery-store-bylines";
 import { storedProject, testbenchOf, withTestbench } from "./gallery-testbench";
 
 interface PreviewAccessRow {
@@ -164,7 +165,7 @@ export function submit(
       ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entry.id,
       entry.name,
-      entry.author,
+      currentProfileByline(sql, entry.owner_user_id, entry.author),
       entry.description,
       entry.created_at,
       entry.schema_version,
@@ -442,7 +443,11 @@ export function replaceEntry(
            curation_json = ?, ai_generated = COALESCE(?, ai_generated)
        WHERE id = ?`,
       String(body.name),
-      String(body.author),
+      currentProfileByline(
+        sql,
+        body.ownerUserId ?? row.owner_user_id,
+        String(body.author),
+      ),
       String(body.description),
       String(body.projectText),
       body.preserveTestbench === true
