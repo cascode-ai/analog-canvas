@@ -1927,6 +1927,35 @@ describe("Razavi symbol catalog", () => {
     expect(end.y).toBeCloseTo(anodeTop.y + along * (apex.y - anodeTop.y), 4);
   });
 
+  it("draws the Shockley diode as the Diode with the cathode bar's foot turned back", () => {
+    const diode = requireRazaviCatalogSymbol("diode");
+    const shockley = requireRazaviCatalogSymbol("shockley-diode");
+    expect(getRazaviCatalogEntry("shockley-diode")).toMatchObject({
+      category: "passive",
+      provenance: "house",
+      pinOrder: ["A", "K"],
+      palette: true,
+    });
+    expect(shockley.pins).toEqual(diode.pins);
+    const isBar = (primitive: (typeof diode.primitives)[number]) =>
+      primitive.kind === "line" && primitive.style?.strokeRole === "emphasis";
+    const bar = diode.primitives.find(isBar);
+    const mark = shockley.primitives.find(
+      (primitive) => primitive.part === "four-layer-cathode",
+    );
+    if (bar?.kind !== "line" || mark?.kind !== "polyline")
+      throw new Error("missing cathode bar");
+    expect(
+      shockley.primitives.filter((primitive) => primitive !== mark),
+    ).toEqual(diode.primitives.filter((primitive) => !isBar(primitive)));
+    // The Diode's bar, then its foot runs back toward the anode.
+    const [top, foot, end] = mark.points;
+    expect([top, foot]).toEqual([bar.from, bar.to]);
+    expect(end!.y).toBe(foot!.y);
+    expect(end!.x).toBeLessThan(foot!.x);
+    expect(mark.style?.strokeRole).toBe("emphasis");
+  });
+
   it("uses calibrated MOS and source arrowheads with external voltage polarity marks", () => {
     const voltage = requireRazaviCatalogSymbol("voltage-source");
     expect(voltage.primitives).toEqual(

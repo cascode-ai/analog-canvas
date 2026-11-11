@@ -496,6 +496,49 @@ describe("generated block bodies", () => {
     expect(spectre).toMatch(/^X1 \(a g k\) put$/mu);
   });
 
+  it("export a Shockley diode as a call of its two-transistor body breaking over at vbo", () => {
+    const project = blockCell("shockley-diode");
+    project.documents[0]!.instances[0]!.netlist!.parameters = { vbo: "20" };
+    const [spice, spectre] = (["spice", "spectre"] as const).map((format) => {
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      return result.status === "ready" ? result.file.text : "";
+    });
+    expect(spice).toContain(
+      [
+        ".subckt shockley a k params: vbo=10",
+        ".model qn NPN(IS=1e-16 BF=100 VAF=100)",
+        ".model qp PNP(IS=1e-16 BF=50 VAF=50)",
+        ".model dj D(IS=1e-14 N=1)",
+        "Q1 p2 n1 a qp",
+        "Q2 n1 p2 k qn",
+        "VBO n1 nz DC {vbo-1.9}",
+        "DBO nz p2 dj",
+        "RGK p2 k 1k",
+        "CGK p2 k 10p",
+        ".ends shockley",
+      ].join("\n"),
+    );
+    expect(spice).toMatch(/^X1 a k shockley vbo=20$/mu);
+    expect(spectre).toContain(
+      [
+        "subckt shockley (a k)",
+        "parameters vbo=10",
+        "model qn bjt type=npn is=1e-16 bf=100 vaf=100",
+        "model qp bjt type=pnp is=1e-16 bf=50 vaf=50",
+        "model dj diode is=1e-14 n=1",
+        "Q1 (p2 n1 a) qp",
+        "Q2 (n1 p2 k) qn",
+        "VBO (n1 nz) vsource dc=vbo-1.9",
+        "DBO (nz p2) dj",
+        "RGK (p2 k) resistor r=1k",
+        "CGK (p2 k) capacitor c=10p",
+        "ends shockley",
+      ].join("\n"),
+    );
+    expect(spectre).toMatch(/^X1 \(a k\) shockley vbo=20$/mu);
+  });
+
   it.each(["multiplier", "adc", "dac", "adc-differential", "dac-differential"])(
     "export the %s ready in SPICE, and to Spectre with a warning",
     (symbolId) => {

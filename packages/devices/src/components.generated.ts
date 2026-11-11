@@ -3229,6 +3229,15 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "shockley-diode",
+      symbolId: "shockley-diode",
+      target: "shockley",
+      ports: [
+        { name: "a", direction: "passive", pinName: "A" },
+        { name: "k", direction: "passive", pinName: "K" },
+      ],
+    },
+    {
       id: "voltage-amplifier",
       symbolId: "voltage-amplifier",
       target: "voltage_amplifier",

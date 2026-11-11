@@ -95,7 +95,7 @@ revision; it never silently changes `ngspice-46-core`.
   skipped with `SPICE_IMPORT_COUPLING_SKIPPED`.
 - A subcircuit that is a body Analog Canvas writes itself (an op-amp's, a
   comparator's, a logic gate's, an ideal block's, a crystal's, a
-  potentiometer's, a unijunction's, a PUT's) imports as no
+  potentiometer's, a unijunction's, a PUT's, a Shockley diode's) imports as no
   Cell; each call of it imports as the built-in block that writes it, bound
   as a placed block is, with the call's parameters as written and an adder's signs from
   the body's name. A body is told from an author's subcircuit of its name by

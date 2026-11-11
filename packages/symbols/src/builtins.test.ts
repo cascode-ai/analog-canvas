@@ -67,6 +67,7 @@ const PRODUCT_IDS = [
   "potentiometer",
   "ujt",
   "put",
+  "shockley-diode",
   "photoresistor",
   "resistor",
   "simple-switch",

@@ -270,7 +270,7 @@ describe("built-in device registry", () => {
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(72);
+    expect(builtInSubcircuitDescriptors).toHaveLength(73);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({
@@ -306,6 +306,13 @@ describe("built-in device registry", () => {
       ports: [
         { name: "a", pinName: "A" },
         { name: "g", pinName: "G" },
+        { name: "k", pinName: "K" },
+      ],
+    });
+    expect(subcircuitDescriptor("shockley-diode")).toMatchObject({
+      target: "shockley",
+      ports: [
+        { name: "a", pinName: "A" },
         { name: "k", pinName: "K" },
       ],
     });

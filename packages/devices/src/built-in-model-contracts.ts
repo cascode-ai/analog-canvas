@@ -66,7 +66,7 @@ export type BuiltInModelRecipe =
   | { readonly family: "opamp"; readonly implementation: "opamp" }
   | {
       readonly family: "semiconductor";
-      readonly implementation: "ujt" | "put";
+      readonly implementation: "ujt" | "put" | "shockley";
     };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
@@ -276,6 +276,16 @@ const ujt: readonly DeviceParameterDefinition[] = [
     "Fraction of rbb between the emitter junction and B1: the emitter conducts once it is about eta·V(B2, B1) plus a diode drop above B1.",
   ),
 ];
+// A four-layer diode blocks forward until its breakover voltage.
+const shockley: readonly DeviceParameterDefinition[] = [
+  parameter(
+    "vbo",
+    "Breakover voltage",
+    "10",
+    "V",
+    "Forward voltage at which the diode switches on, at about 0.65 mA (1 V or more); it then holds at about 0.8 V until its current falls below about 0.8 mA.",
+  ),
+];
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.
 const comparator: readonly DeviceParameterDefinition[] = [
@@ -372,6 +382,7 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   potentiometer: { family: "passive", implementation: "potentiometer" },
   ujt: { family: "semiconductor", implementation: "ujt" },
   put: { family: "semiconductor", implementation: "put" },
+  shockley: { family: "semiconductor", implementation: "shockley" },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
@@ -422,10 +433,12 @@ function contract(target: string): BuiltInModelContract | undefined {
                 ? crystal
                 : potentiometer
               : family === "semiconductor"
-                ? // A PUT's peak point is its gate's, set by the circuit.
-                  implementation === "ujt"
+                ? implementation === "ujt"
                   ? ujt
-                  : []
+                  : implementation === "shockley"
+                    ? shockley
+                    : // A PUT's peak point is its gate's, set by the circuit.
+                      []
                 : target === ADDER_TARGET
                   ? ADDER_SIGN_PARAMETERS
                   : target === "opamp_differential"
