@@ -484,7 +484,7 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   policy and `rootAsTopLevel` the deck Cell (`SIMULATION_DECK_GROUND`); the
   analyzer default keeps `0`.
 - Block `VDD`/`VSS`, and the supplies a Circuit Component maps to no pin of its
-  artwork, are hidden property terminals; an op-amp's may be drawn as
+  artwork, are hidden property terminals; a built-in block's may be drawn as
   [optional supply pins](symbol-dsl.md), and a wire on one binds it. An
   explicit binding wins: Properties,
   or the Agent's `set-terminal-net {target, pin, net}` (`apply_actions` also

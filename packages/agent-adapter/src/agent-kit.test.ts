@@ -255,13 +255,17 @@ describe("Agent operating Kit", () => {
         );
       for (const variant of symbol.variants) {
         const label = `${symbol.symbolId}/${variant.id}`;
-        covers(
-          variant.bounds,
-          visibleSymbolInkBounds(
-            resolver.resolve(symbol.symbolId, variant.id)!,
-          ),
-          label,
-        );
+        // As the symbol's, a growing frame's variant has no fixed extent.
+        if (resolved.definition.formulaPresentation?.adaptiveFrame)
+          expect(variant.bounds, label).toBeNull();
+        else
+          covers(
+            variant.bounds!,
+            visibleSymbolInkBounds(
+              resolver.resolve(symbol.symbolId, variant.id)!,
+            ),
+            label,
+          );
         lands(
           symbol.pins.filter(
             (pin) => !variant.hiddenPinNames.includes(pin.name),

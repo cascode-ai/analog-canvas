@@ -36,6 +36,32 @@
           "visibility": "visible",
           "leadLength": 10
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": 0,
+          "y": -30
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": 0,
+          "y": 30
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -102,9 +128,56 @@
           "lineCap": "butt",
           "lineJoin": "miter"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -20
+        },
+        "to": {
+          "x": 0,
+          "y": -30
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 20
+        },
+        "to": {
+          "x": 0,
+          "y": 30
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": [],
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
     "formulaPresentation": {
       "defaultFormula": "ADC",
       "supportsCoefficient": false,
@@ -113,7 +186,8 @@
         "y": 0
       },
       "fontSize": 12
-    }
+    },
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "subcircuit": {
@@ -151,7 +225,7 @@
     "reviewStatus": "reviewed",
     "provenance": "house",
     "houseReason": "The reference draws converter internals, never a block standing for one on a sheet. Drawn here as the arrow a data path is read through.",
-    "pinOrder": ["IN", "OUT"],
+    "pinOrder": ["IN", "OUT", "VDD", "VSS"],
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "A converter block stands for a subsystem; SPICE has no primitive for one.",

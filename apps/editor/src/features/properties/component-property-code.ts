@@ -84,7 +84,7 @@ export interface ComponentPropertyCodeValue
     outputsSwapped?: boolean;
     /** A controlled source drawn as a circle or a diamond. */
     shape?: SourceShape;
-    /** An op-amp's VDD and VSS drawn as pins to wire (#1833). */
+    /** A block's VDD and VSS drawn as pins to wire (#1833, #1941). */
     supplyPins?: boolean;
     /** A transformer's secondary looping away from its primary (#2170). */
     windingsMirrored?: boolean;

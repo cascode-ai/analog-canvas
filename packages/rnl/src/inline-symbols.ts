@@ -25,6 +25,14 @@ const INLINE_TARGETS = new Set([
   "dac_differential",
 ]);
 
+/** The pins a symbol's default variant hides. */
+const hiddenByDefault = (symbol: (typeof builtInSymbols)[number]) =>
+  new Set(
+    symbol.variants.find(
+      (candidate) => candidate.id === symbol.defaultVariantId,
+    )?.hiddenPinNames,
+  );
+
 /** Artwork with new electrical interfaces is defined in the file itself. */
 export const inlineRnlSymbols: readonly RnlSymbol[] = builtInSymbols.flatMap(
   (symbol): RnlSymbol[] => {
@@ -58,23 +66,46 @@ export const inlineRnlSymbols: readonly RnlSymbol[] = builtInSymbols.flatMap(
           name: terminalName(port),
           drawn: !port.supply,
         })),
-        pins: symbol.pins.map((pin) => ({
-          terminal: ports.findIndex((port) => port.pinName === pin.name) + 1,
-          acPin: pin.name,
-          at: toRnlPoint(pin.at),
-          dir: { east: 0, north: 90, west: 180, south: 270 }[pin.direction],
-        })),
-        undrawnPins: [],
+        // A supply pin the default variant hides is its supply's undrawn
+        // terminal, as on a library symbol (#1941).
+        pins: symbol.pins
+          .filter((pin) => !hiddenByDefault(symbol).has(pin.name))
+          .map((pin) => ({
+            terminal: ports.findIndex((port) => port.pinName === pin.name) + 1,
+            acPin: pin.name,
+            at: toRnlPoint(pin.at),
+            dir: { east: 0, north: 90, west: 180, south: 270 }[pin.direction],
+          })),
+        undrawnPins: symbol.pins
+          .filter((pin) => hiddenByDefault(symbol).has(pin.name))
+          .flatMap((pin) => {
+            const terminal =
+              ports.findIndex((port) => port.supply === pin.name) + 1;
+            return terminal ? [{ terminal, acPin: pin.name }] : [];
+          }),
         acNetlistOrder: descriptor.ports.map(terminalName),
       },
     ];
   },
 );
 
-/** Exact candidate artwork and positional pins, using the existing define-symbol op. */
-export function inlineRnlDefinition(row: RnlSymbol) {
+/**
+ * Exact candidate artwork and positional pins, using the existing define-symbol
+ * op: the artwork as the row's variant draws it, with no lead of a hidden
+ * supply. `withHiddenLeads` keeps them, as files written from #1939 to #1941
+ * draw an op-amp's call symbol.
+ */
+export function inlineRnlDefinition(row: RnlSymbol, withHiddenLeads = false) {
   const symbol = builtInSymbols.find((candidate) => candidate.id === row.ac)!;
-  const prims = symbol.primitives.flatMap((primitive) => {
+  const hidden = withHiddenLeads
+    ? []
+    : (symbol.variants.find(
+        (variant) => variant.id === (row.variant ?? symbol.defaultVariantId),
+      )?.hiddenPrimitiveParts ?? []);
+  const drawn = symbol.primitives.filter(
+    (primitive) => !primitive.part || !hidden.includes(primitive.part),
+  );
+  const prims = drawn.flatMap((primitive) => {
     const shapes = symbolShapes([primitive]);
     if (!shapes)
       throw new Error(`Cannot define inline RNL symbol ${symbol.id}`);
@@ -109,7 +140,18 @@ export function matchesInlineRnlSymbol(
   actual: RnlSymbolDefinitionView | null | undefined,
 ): boolean {
   if (!actual) return false;
-  const expected = inlineRnlDefinition(row);
+  // As written now, or with the hidden supply leads files written from
+  // #1939 to #1941 drew (#1941).
+  return [inlineRnlDefinition(row), inlineRnlDefinition(row, true)].some(
+    (expected) => matches(row, expected, actual),
+  );
+}
+
+function matches(
+  row: RnlSymbol,
+  expected: ReturnType<typeof inlineRnlDefinition>,
+  actual: RnlSymbolDefinitionView,
+): boolean {
   return (
     actual.pins.length === expected.pins.length &&
     actual.prims.length === expected.prims.length &&

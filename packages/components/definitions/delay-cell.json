@@ -36,6 +36,32 @@
           "visibility": "visible",
           "leadLength": 15
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -188,9 +214,57 @@
         ],
         "fill": "foreground",
         "stroke": "none"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -12
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 12
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "catalog": {
@@ -199,7 +273,7 @@
     "name": "Delay Cell",
     "category": "logic",
     "reviewStatus": "reviewed",
-    "pinOrder": ["A", "Y"],
+    "pinOrder": ["A", "Y", "VDD", "VSS"],
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "Manual placement; noninverting formula propagation delay or an explicit project Cell implementation, not pure transport delay.",
@@ -218,7 +292,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/delay-cell-vector-source.json",
       "converterPath": "scripts/generate-razavi-delay-cell-asset.mjs",
-      "converterVersion": 2
+      "converterVersion": 3
     }
   },
   "subcircuit": {

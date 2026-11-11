@@ -197,7 +197,7 @@ function endpointConnectionFailure(
 
   const pinNames = drawnPinNames(symbol);
   const label = instance.reference ?? instance.id;
-  // An op-amp's supply is a pin only where its Instance shows it (#1833); a
+  // A block's supply is a pin only where its Instance shows it (#1833); a
   // Circuit Component's mapped supply is never one.
   const pin = symbol.definition.pins.find(
     (candidate) => candidate.name === endpoint.pinName,

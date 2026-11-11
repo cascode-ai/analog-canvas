@@ -316,9 +316,15 @@ describe("Agent property actions are planned as Apply in Properties", () => {
         set: { inputs: "4" },
       },
     ]);
+    // Placed, a gate names its default variant, which hides its supplies
+    // (#1941); switched, it takes that default.
     const gate = (reference: string) => {
       const { symbolId, symbolVariantId, netlist } = instance(reference);
-      return { symbolId, symbolVariantId, netlist };
+      return {
+        symbolId,
+        symbolVariantId: symbolVariantId ?? "signal-pins",
+        netlist,
+      };
     };
     expect(gate("X1")).toEqual(gate("X3"));
     expect(gate("X2")).toEqual(gate("X4"));
@@ -1440,7 +1446,7 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     expect(text).toMatch(/^XL2 A2 B2 VSS VSS sky130_fd_pr__ind_05_125$/mu);
   });
 
-  it("shows an op-amp's supply pins as Properties does, wires one, and keeps a wired one shown (#1833)", async () => {
+  it("shows a block's supply pins as Properties does, wires one, and keeps a wired one shown (#1833, #1941)", async () => {
     // X2 keeps an old fill, a style Properties no longer offers.
     const fill = { background: "#FFF2CC" };
     const project = createEmptyProject("project-1", "Properties");
@@ -1517,6 +1523,22 @@ describe("Agent property actions are planned as Apply in Properties", () => {
         },
       ]),
     ).toContain("R1 (resistor) has no supply pins to show");
+    // A gate shows and wires its own the same way.
+    await apply([place("inverter", "X3", 600, 200)]);
+    await apply([
+      {
+        kind: "set-instance-display",
+        instanceIds: [instance("X3").id],
+        showSupplyPins: true,
+      },
+    ]);
+    await apply([
+      { ...wire, from: { kind: "pin", instance: "X3", pin: "VDD" } },
+    ]);
+    expect(instance("X3").symbolVariantId).toBe("supply-pins");
+    expect(netOf(controller.document, instance("X3").id, "VDD")).toBe(
+      netOf(controller.document, marker.id, "P"),
+    );
     // The action changes the variant alone, as the other display flags do:
     // the old fill stays, where any Apply in Properties retires it.
     await apply([

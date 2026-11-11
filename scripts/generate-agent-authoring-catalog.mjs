@@ -91,9 +91,53 @@ function primitivePoints(primitive) {
 }
 
 /**
+ * `box` grown by the supply pins the default variant hides and `variant`
+ * draws, and their leads, as withShownSupplies in @icm/symbols (#1941): a
+ * stub may stand past the viewBox a path without bounds falls back to.
+ */
+function withShownSupplies(definition, variant, box) {
+  const optional = new Set(
+    definition.variants.find(
+      (candidate) => candidate.id === definition.defaultVariantId,
+    )?.hiddenPinNames,
+  );
+  const hiddenPins = new Set(variant?.hiddenPinNames);
+  const hiddenParts = new Set(variant?.hiddenPrimitiveParts);
+  const supplies = definition.pins.filter(
+    (pin) =>
+      ["positive-supply", "negative-supply"].includes(pin.role) &&
+      optional.has(pin.name) &&
+      !hiddenPins.has(pin.name),
+  );
+  const leads = new Set(
+    supplies.map((pin) => `${pin.name.toLowerCase()}-lead`),
+  );
+  const points = [
+    ...supplies.map((pin) => pin.at),
+    ...definition.primitives.flatMap((primitive) =>
+      primitive.kind === "line" &&
+      leads.has(primitive.part) &&
+      !hiddenParts.has(primitive.part)
+        ? [primitive.from, primitive.to]
+        : [],
+    ),
+  ];
+  if (!points.length) return box;
+  const x = Math.min(box.x, ...points.map((point) => point.x));
+  const y = Math.min(box.y, ...points.map((point) => point.y));
+  return {
+    x,
+    y,
+    width: Math.max(box.x + box.width, ...points.map((point) => point.x)) - x,
+    height: Math.max(box.y + box.height, ...points.map((point) => point.y)) - y,
+  };
+}
+
+/**
  * The ink a part draws at rotation 0, as visibleSymbolInkBounds in
  * @icm/derived measures it and wire clearance treats it as the part's body:
- * the visible drawing and pins, or the viewBox where a path gives no bounds.
+ * the visible drawing and pins, or the viewBox where a path gives no bounds
+ * with any supply stubs it shows.
  * Rounded outward to hundredths; agent-kit.test.ts holds the two equal.
  * Null for a frame that grows with its formula: its extent is the typeset
  * text's, which only the editor measures.
@@ -108,14 +152,14 @@ function inkBounds(definition, variant) {
   ]
     .filter((primitive) => !primitive.part || !hiddenParts.has(primitive.part))
     .map(primitivePoints);
-  const points = sets.some((set) => set === null)
-    ? []
-    : [
-        ...sets.flat(),
-        ...definition.pins
-          .filter((pin) => !hiddenPins.has(pin.name))
-          .map((pin) => pin.at),
-      ];
+  if (sets.some((set) => set === null))
+    return withShownSupplies(definition, variant, definition.viewBox);
+  const points = [
+    ...sets.flat(),
+    ...definition.pins
+      .filter((pin) => !hiddenPins.has(pin.name))
+      .map((pin) => pin.at),
+  ];
   if (points.length === 0) return definition.viewBox;
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);

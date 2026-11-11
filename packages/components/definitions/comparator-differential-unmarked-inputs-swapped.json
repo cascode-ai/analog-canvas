@@ -62,6 +62,32 @@
           "visibility": "visible",
           "leadLength": 10
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": -10,
+          "y": -30
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": -10,
+          "y": 30
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -215,9 +241,57 @@
           "width": 16,
           "height": 14
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": -18.452995
+        },
+        "to": {
+          "x": -10,
+          "y": -30
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": 18.452995
+        },
+        "to": {
+          "x": -10,
+          "y": 30
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "subcircuit": {
@@ -265,7 +339,7 @@
     "reviewStatus": "reviewed",
     "provenance": "house",
     "houseReason": "User-requested complementary-output extension of the existing comparator using the shared differential triangle; no exact textbook witness is claimed.",
-    "pinOrder": ["IN+", "IN-", "OUT+", "OUT-"],
+    "pinOrder": ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
     "palette": false,
     "automaticMappings": [],
     "manualOnlyReason": "Ideal complementary-output comparator; an external implementation may be selected explicitly.",

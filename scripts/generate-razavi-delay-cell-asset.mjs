@@ -10,6 +10,7 @@ import { format } from "prettier";
 
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
 import { normalizeLogicPortLeads } from "./lib/normalize-logic-port-leads.mjs";
+import { supplyPinsOn, withSupplyPins } from "./lib/supply-pins.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -50,7 +51,19 @@ if (
 ) {
   fail("evidence contract mismatch");
 }
-const definition = normalizeLogicPortLeads(structuredClone(sourceDefinition));
+// Its supplies, drawn when an Instance shows them (#1941): VDD above and VSS
+// below the middle of its box, each on a lead to the next grid row.
+const signalDefinition = normalizeLogicPortLeads(
+  structuredClone(sourceDefinition),
+);
+const definition = withSupplyPins(
+  signalDefinition,
+  supplyPinsOn(
+    signalDefinition.primitives.find((primitive) => primitive.kind === "path"),
+    { x: 0, y: -20 },
+    { x: 0, y: 20 },
+  ),
+);
 
 const assetSource = normalize(
   await format(JSON.stringify(definition, null, 2), { parser: "json" }),
@@ -95,7 +108,7 @@ Object.assign(entry, {
     referencePath:
       "fixtures/visual-reference/razavi-reference-v1/delay-cell-vector-source.json",
     converterPath: "scripts/generate-razavi-delay-cell-asset.mjs",
-    converterVersion: 2,
+    converterVersion: 3,
   },
 });
 const catalogSource = normalize(

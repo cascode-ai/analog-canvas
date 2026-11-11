@@ -15,7 +15,9 @@ import {
   ANALOG_TRIANGLE_PATH,
   ANALOG_TRIANGLE_OUTPUT_X,
   ANALOG_TRIANGLE_VIEWBOX,
+  ANALOG_TRIANGLE_SUPPLY_PINS,
 } from "./lib/analog-triangle.mjs";
+import { withSupplyPins } from "./lib/supply-pins.mjs";
 import { normalizeSwitchLeads } from "./lib/normalize-switch-leads.mjs";
 
 /**
@@ -194,6 +196,8 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
   if (symbolId === "npn" || symbolId === "pnp") normalizeBjtLeads(symbol);
   if (symbolId === "voltage-amplifier") {
     normalizeVoltageAmplifierLeads(symbol);
+    // Its supplies, drawn as the op-amp's are when shown (#1941).
+    Object.assign(symbol, withSupplyPins(symbol, ANALOG_TRIANGLE_SUPPLY_PINS));
   }
   const assetPath = resolve(assetRoot, `${symbolId}.json`);
   const assetSource = normalize(
@@ -207,7 +211,8 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
     name,
     category,
     reviewStatus: "reviewed",
-    pinOrder,
+    // The evidence's pins, and the supplies an amplifier may show.
+    pinOrder: symbol.pins.map((pin) => pin.name),
     palette: true,
     automaticMappings,
     ...(automaticMappings.length === 0
@@ -239,7 +244,7 @@ for (const [symbolId, name, category, pinOrder, automaticMappings] of entries) {
         "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       referencePath: `fixtures/visual-reference/razavi-reference-v1/${symbolId}-vector-source.json`,
       converterPath: "scripts/generate-razavi-common-assets.mjs",
-      converterVersion: symbolId === "voltage-amplifier" ? 6 : 1,
+      converterVersion: symbolId === "voltage-amplifier" ? 7 : 1,
       ...(symbolId === "voltage-amplifier"
         ? {
             bodyNormalization: "equilateral-triangle",

@@ -337,7 +337,7 @@ export function applyInstanceLifecycleEdit(
         mappedPins.set(targetPin, sourcePin);
       }
       // A symbol hides a pin only where nothing is drawn to it: a wire or a
-      // No Connect mark on an op-amp's shown supply stays until removed
+      // No Connect mark on a block's shown supply stays until removed
       // (#1833).
       const drawn = new Set(drawnPinNames(resolved));
       const hides = (pinName: string) => !drawn.has(pinMap[pinName] ?? pinName);

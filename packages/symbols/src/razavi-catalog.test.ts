@@ -4,9 +4,11 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { builtInSymbols } from "./builtins.js";
+import { isOptionalSupplyPin } from "@icm/model";
+
 import {
   getRazaviCatalogEntry,
-  requireRazaviCatalogSymbol,
+  requireRazaviCatalogSymbol as catalogSymbol,
   razaviCatalogSymbols,
   razaviProductSymbols,
   razaviSemanticPrimitives,
@@ -136,6 +138,28 @@ const logicalPoint = (
         1_000_000,
     ) / 1_000_000,
 });
+
+/**
+ * A symbol as its signal artwork: without the supply pins and leads its
+ * default variant hides (#1833, #1941), which supply-pins.test.ts covers.
+ */
+function requireRazaviCatalogSymbol(symbolId: string) {
+  const symbol = catalogSymbol(symbolId);
+  const supplies = symbol.pins.filter((pin) =>
+    isOptionalSupplyPin(symbol, pin),
+  );
+  if (!supplies.length) return symbol;
+  const leads = new Set(
+    supplies.map((pin) => `${pin.name.toLowerCase()}-lead`),
+  );
+  return {
+    ...symbol,
+    pins: symbol.pins.filter((pin) => !supplies.includes(pin)),
+    primitives: symbol.primitives.filter(
+      (primitive) => !primitive.part || !leads.has(primitive.part),
+    ),
+  };
+}
 
 const canonicalMosBodyPrimitives = (symbolId: "nmos" | "pmos") =>
   requireRazaviCatalogSymbol(symbolId)
@@ -904,14 +928,10 @@ describe("Razavi symbol catalog", () => {
         if (triangleBlocks.has(symbolId)) {
           // The base and input ports are one grid apart; the fixed output
           // column also includes the altitude from the differential contact.
-          // An op-amp's supply runs from its slanted edge at x 0 to the
-          // body's extent: 30 - (30 - 10√3).
           const expectedLength =
             pin.direction === "east"
               ? 60 - (30 - Math.abs(pin.at.y)) * Math.sqrt(3)
-              : pin.direction === "west"
-                ? 10
-                : 10 * Math.sqrt(3);
+              : 10;
           expect(drawnLength, `${symbolId}.${pin.name} drawn lead`).toBeCloseTo(
             expectedLength,
             5,
@@ -1371,7 +1391,7 @@ describe("Razavi symbol catalog", () => {
   });
 
   it("preserves three-terminal pin contracts and polarity strokes in the equilateral op-amp", () => {
-    const opamp = requireRazaviCatalogSymbol("opamp");
+    const opamp = catalogSymbol("opamp");
     // Its supplies are pins too, hidden unless an Instance shows them (#1833).
     expect(opamp.pins).toMatchObject([
       { name: "IN+", at: { x: -40, y: 10 }, direction: "west" },

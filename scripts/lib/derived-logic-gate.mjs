@@ -1,3 +1,9 @@
+import {
+  supplyPinsOf,
+  withSupplyPins,
+  withoutSupplyPins,
+} from "./supply-pins.mjs";
+
 const curvedGateIds = new Set(["or-gate", "nor-gate", "xor-gate", "xnor-gate"]);
 const supportedGateIds = new Set(["nand-gate", ...curvedGateIds]);
 
@@ -82,7 +88,8 @@ function rearContourX(path, y) {
 
 /** Fixed-body house arities, generated from each reviewed two-input Symbol. */
 export function deriveMultiInputLogicGate(source, inputCount) {
-  const base = source?.symbol;
+  // Its supplies stay where the two-input gate draws them, after its own art.
+  const base = source?.symbol && withoutSupplyPins(source.symbol);
   if (!supportedGateIds.has(base?.id) || ![3, 4].includes(inputCount))
     throw new Error(
       "Expected a supported two-input logic gate and 3 or 4 inputs",
@@ -112,11 +119,14 @@ export function deriveMultiInputLogicGate(source, inputCount) {
       y,
     },
   }));
-  return {
-    ...structuredClone(base),
-    id: `${base.id}-${inputCount}`,
-    name: `${base.name} (${inputCount} inputs)`,
-    pins,
-    primitives: [...leads, ...structuredClone(body)],
-  };
+  return withSupplyPins(
+    {
+      ...structuredClone(base),
+      id: `${base.id}-${inputCount}`,
+      name: `${base.name} (${inputCount} inputs)`,
+      pins,
+      primitives: [...leads, ...structuredClone(body)],
+    },
+    supplyPinsOf(source.symbol),
+  );
 }

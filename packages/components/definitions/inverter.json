@@ -36,6 +36,32 @@
           "visibility": "visible",
           "leadLength": 9
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": -10,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": -10,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -101,9 +127,57 @@
           "lineCap": "butt",
           "lineJoin": "miter"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": -8.684724
+        },
+        "to": {
+          "x": -10,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": 7.959819
+        },
+        "to": {
+          "x": -10,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": []
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "catalog": {
@@ -112,7 +186,7 @@
     "name": "Inverter",
     "category": "logic",
     "reviewStatus": "reviewed",
-    "pinOrder": ["A", "Y"],
+    "pinOrder": ["A", "Y", "VDD", "VSS"],
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "Behavioral logic gate; structural SPICE realization requires an explicit subcircuit or PDK mapping.",
@@ -131,7 +205,7 @@
       "referenceManifestPath": "fixtures/visual-reference/razavi-reference-v1/manifest.json",
       "referencePath": "fixtures/visual-reference/razavi-reference-v1/logic-inverter-vector-source.json",
       "converterPath": "scripts/generate-razavi-logic-gate-assets.mjs",
-      "converterVersion": 3,
+      "converterVersion": 4,
       "bodyNormalization": "left-grid-anchor"
     }
   },

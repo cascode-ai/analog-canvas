@@ -43,7 +43,7 @@ import { repairBoundFormatOverrides } from "./transforms/bound-format-override.j
 import { repairMisdrawnReviewedBindings } from "./transforms/misdrawn-reviewed-binding.js";
 import { repairUnmodelledReviewedSizes } from "./transforms/reviewed-size.js";
 import { repairAmplifierPolaritySnapshots } from "./transforms/amplifier-polarity.js";
-import { repairOpampSupplyPinSnapshots } from "./transforms/opamp-supply-pins.js";
+import { repairSupplyPinSnapshots } from "./transforms/supply-pins.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
@@ -171,7 +171,7 @@ function checkedProject(
         ),
       })),
     };
-  const project = repairOpampSupplyPinSnapshots(
+  const project = repairSupplyPinSnapshots(
     repairAmplifierPolaritySnapshots(result.data),
   );
   const modelDiagnostics = collectProjectModelSources(

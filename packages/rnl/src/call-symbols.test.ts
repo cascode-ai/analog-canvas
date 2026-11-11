@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { DesignNetlistInstance } from "@icm/netlist";
 
 import { callSymbolFromDefinition, symbolForCall } from "./call-symbols.js";
+import { builtInSymbols } from "@icm/symbols";
+
 import { inlineRnlDefinition } from "./inline-symbols.js";
+import { toRnlPoint } from "./place.js";
 import type { RnlSymbolRef } from "./rnl-import.js";
 import { rnlSymbolFor } from "./symbol-map.js";
 
@@ -110,6 +113,8 @@ describe("library artwork on a call", () => {
   });
 });
 
+type RnlPrims = ReturnType<typeof inlineRnlDefinition>["prims"];
+
 describe("library artwork of a call read back", () => {
   const ordered = symbolForCall(rnlSymbolFor("inverter")!, call(supplyFirst));
   /** The symbol as the file defines it, as the runtime's snapshot reads it. */
@@ -117,6 +122,7 @@ describe("library artwork of a call read back", () => {
     of = ordered,
     name = of.symbol,
     edit = (pins: number[][]) => pins,
+    prims = (written: RnlPrims) => written,
   ) => {
     const definition = inlineRnlDefinition(of);
     const terminals = edit(definition.pins.map((pin) => pin.terminals));
@@ -133,7 +139,7 @@ describe("library artwork of a call read back", () => {
           at: pin.at,
           dir: of.pins[index]!.dir,
         })),
-        prims: definition.prims,
+        prims: prims(definition.prims),
       },
     } as unknown as RnlSymbolRef;
   };
@@ -153,6 +159,49 @@ describe("library artwork of a call read back", () => {
     expect(
       Object.fromEntries(row!.pins.map((pin) => [pin.acPin, pin.terminal])),
     ).toEqual({ A: 3, Y: 4 });
+  });
+
+  it("reads an op-amp back from the call symbol files written from #1939 to #1941 define, with its hidden supply leads", () => {
+    const opamp = symbolForCall(
+      rnlSymbolFor("opamp")!,
+      call([
+        { pinName: "VDD" },
+        { pinName: "VSS" },
+        { pinName: "inp", canvasPinName: "IN+" },
+        { pinName: "inn", canvasPinName: "IN-" },
+        { pinName: "out", canvasPinName: "OUT" },
+      ]),
+    );
+    expect(opamp.symbol).toBe("$CANVAS_CALL_OPAMP__0_0_1_2_5");
+    // Those files drew every primitive of the op-amp, its VDD and VSS leads
+    // last, in the width of its other leads.
+    const leads = builtInSymbols
+      .find((symbol) => symbol.id === "opamp")!
+      .primitives.flatMap((primitive) =>
+        primitive.kind === "line" &&
+        (primitive.part === "vdd-lead" || primitive.part === "vss-lead")
+          ? [[toRnlPoint(primitive.from), toRnlPoint(primitive.to)]]
+          : [],
+      );
+    expect(leads).toHaveLength(2);
+    const withLeads = (count: number) => (written: RnlPrims) => [
+      ...written,
+      ...leads.slice(0, count).map((points) => ({
+        ...written.find((prim) => prim.shape === "line")!,
+        points,
+      })),
+    ];
+    for (const stencil of [
+      defined(opamp),
+      defined(opamp, undefined, undefined, withLeads(2)),
+    ])
+      expect(callSymbolFromDefinition(stencil)?.ac).toBe("opamp");
+    // Exact artwork is still the evidence: one lead more or less is not ours.
+    expect(
+      callSymbolFromDefinition(
+        defined(opamp, undefined, undefined, withLeads(1)),
+      ),
+    ).toBeNull();
   });
 
   it("reads nothing back from a call symbol whose pins are moved", () => {
