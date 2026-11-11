@@ -143,6 +143,9 @@ the previous AAAA route and allow cached answers to expire.
   hold the entrance before stopping the sole writer. Reconcile the copy with
   checksums and deletions while stopped, then start the selected release and
   verify it before resuming requests. There is one stop/start per handover.
+  Daily backups use the release readiness budget. Restore paused timers as
+  soon as requests resume, so restart reconciliation is not held behind
+  compression. Cleanup failure must not skip timer restoration.
   Compress and publish the captured copy atomically after service resumes.
   Never restore data as part of a code rollback. An archive failure retains
   the incomplete capture and must not roll back an already healthy release.

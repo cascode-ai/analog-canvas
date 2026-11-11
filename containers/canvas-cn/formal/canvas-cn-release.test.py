@@ -284,6 +284,8 @@ class ReleaseTest(unittest.TestCase):
         self.assertNotIn(('systemctl', 'enable', '--now', 'canvas-cn-resource-sync.timer'), host.calls)
         # Only the replication timer that was running is paused and restarted.
         self.assertIn(('systemctl', 'start', 'canvas-cn-project-sync.timer'), host.calls)
+        self.assertLess(host.calls.index(('systemctl', 'start', 'canvas-cn-project-sync.timer')),
+                        host.calls.index(('archive',)))
         self.assertNotIn(('systemctl', 'start', 'canvas-cn-resource-sync.timer'), host.calls)
         lifecycle = [call for call in host.calls if call[0] in ('hold', 'capture', 'resume', 'archive') or
                      (call[0] == 'systemctl' and call[-1] == 'canvas-cn-formal.service')]

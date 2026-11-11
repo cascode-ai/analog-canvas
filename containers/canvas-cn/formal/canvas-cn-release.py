@@ -305,7 +305,7 @@ class Host:
             return
         if not self.active('canvas-cn-formal.service'):
             self.systemctl('start', 'canvas-cn-formal.service')
-        if not smoke(local, credentials, attempts=3, delay=.1):
+        if not smoke(local, credentials):
             raise ReleaseError('release-failed')
         entrance('resume')
         self.resume_background()
@@ -556,6 +556,7 @@ def tick(args, host=None, fetcher=None, now=None):
         if ok:
             (target / VERIFIED).write_text('')
             host.resume()
+            host.resume_background()
             try:
                 host.finish_backup()
             except Exception:
@@ -596,8 +597,10 @@ def tick(args, host=None, fetcher=None, now=None):
         return dict(result, health='failed', reason='release-rolled-back' if restored else 'release-failed',
                     status='rolled-back', failedCommit=commit, failedReason='release-rolled-back')
     finally:
-        host.discard_backup()
-        host.resume_background()
+        try:
+            host.discard_backup()
+        finally:
+            host.resume_background()
 
 
 def prune(releases, keep, count):
