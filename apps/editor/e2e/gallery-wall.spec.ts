@@ -1127,9 +1127,10 @@ test("a remembered narrowing loads the wall with its one early request", async (
   await page.goto("/");
   await expect(page.locator("a.gallery-tile")).toHaveCount(1);
   // The landing preload asked the remembered query before the wall's code
-  // arrived, and the wall took that answer instead of asking again.
+  // arrived, and the wall took that answer instead of asking again. The
+  // netlist side is never remembered, so it narrows nothing here.
   await page.waitForLoadState("networkidle");
-  expect(lists).toEqual(["?source=analoggenie&netlistable=0&ai=0&parts=6-10"]);
+  expect(lists).toEqual(["?source=analoggenie&ai=0&parts=6-10"]);
   expect(firstListAsked).toBeLessThan(wallCodeArrived);
 });
 
