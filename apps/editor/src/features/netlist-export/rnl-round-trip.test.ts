@@ -4912,6 +4912,96 @@ describe("RNL round trip of built-in blocks", () => {
       }
     },
   );
+
+  it.each(["spice", "spectre"] as const)(
+    "brings an op-amp bound to a Cell back drawn, the Cell's IN+ and IN- spelt as Spectre escapes them (%s)",
+    async (format) => {
+      // Cell ota takes the op-amp's pins in its own order; Spectre writes
+      // its ports IN\- and IN\+, which the call passes nodes to.
+      const project = createEmptyProject("opamp-cell", "Op-amp cell", "top");
+      const top = project.documents[0]!;
+      top.netlist!.name = "top";
+      const ota = createEmptyDocument("ota", "ota");
+      ota.netlist!.name = "ota";
+      const at = (x: number, y: number) =>
+        ({ position: { x, y }, rotation: 0, mirror: "none" }) as const;
+      const pin = (
+        document: typeof top,
+        name: string,
+        x: number,
+        y: number,
+        terminals: { instanceId: string; pinName: string }[] = [],
+      ) => {
+        document.instances.push({
+          id: `port-${name}`,
+          symbolId: "port",
+          placement: at(x, y),
+        });
+        document.nets.push({
+          id: `net-${name}`,
+          terminals: [
+            { instanceId: `port-${name}`, pinName: "P" },
+            ...terminals,
+          ],
+        });
+        document.netlist!.terminals.push({
+          id: `terminal-${name}`,
+          name,
+          netId: `net-${name}`,
+          direction: "inout",
+          interfaceInstanceIds: [`port-${name}`],
+        });
+      };
+      ota.instances.push({
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: at(200, 100),
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "20k" },
+        },
+      });
+      pin(ota, "OUT", 0, 0, [{ instanceId: "R1", pinName: "2" }]);
+      pin(ota, "IN-", 0, 40);
+      pin(ota, "IN+", 0, 80, [{ instanceId: "R1", pinName: "1" }]);
+      pin(ota, "VDD", 0, 120);
+      pin(ota, "VSS", 0, 160);
+      project.documents.push(ota);
+      top.instances.push({
+        id: "amp",
+        symbolId: "opamp",
+        reference: "X1",
+        placement: at(200, 200),
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: "ota" },
+          parameters: {},
+        },
+      });
+      pin(top, "IN", 0, 40, [{ instanceId: "amp", pinName: "IN+" }]);
+      pin(top, "OUT", 0, 80, [
+        { instanceId: "amp", pinName: "IN-" },
+        { instanceId: "amp", pinName: "OUT" },
+      ]);
+      const before = createDesignNetlistExport(project, { format });
+      if (before.status !== "ready") throw new Error(JSON.stringify(before));
+      const plan = await roundTrip(project, format);
+      expect(failures(plan)).toEqual([]);
+      expect(plan.drawing).not.toBe("discarded");
+      const amp = plan.project.documents
+        .flatMap((document) => document.instances)
+        .find((instance) => instance.reference === "X1")!;
+      expect(amp).toMatchObject({
+        symbolId: "opamp",
+        placement: top.instances.find((item) => item.id === "amp")!.placement,
+        netlist: { binding: { kind: "subcircuit" } },
+      });
+      const after = createDesignNetlistExport(plan.project, { format });
+      expect(after.status === "ready" && after.file.text).toBe(
+        before.file.text,
+      );
+    },
+  );
 });
 
 /**

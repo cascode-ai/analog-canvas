@@ -318,15 +318,14 @@ export function electricalGraphFromIR(
             ? cells.get(instance.target)
             : undefined;
         if (child) {
+          // A call passes its nodes in its Cell's port order, as the card
+          // prints them; a node keeps the Pin's own name where the port is
+          // spelt for the dialect (Spectre's IN\+ for IN+).
+          if (instance.nodes.length !== child.ports.length)
+            throw new Error("Incomplete hierarchy interface");
           expand(
             child,
-            child.ports.map((port) => {
-              const node = instance.nodes.find(
-                (item) => item.pinName === port.name,
-              );
-              if (!node) throw new Error("Incomplete hierarchy interface");
-              return net(node.netName);
-            }),
+            instance.nodes.map((node) => net(node.netName)),
             path,
             [...instancePath, instance.id],
             [...referencePath, instance.reference],
