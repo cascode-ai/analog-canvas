@@ -1,11 +1,14 @@
 import type { GalleryEnv } from "./gallery-store";
 import type { ResourceSyncEnv } from "./resource-sync";
 import { sessionUserOf, type SessionUser } from "./auth";
-import { digest, readBody, sessionIdentity } from "./regional-auth-contract";
+import { digest, sessionIdentity } from "./regional-auth-contract";
 import { sameOrigin } from "./same-origin";
 import { readSyncJson } from "./project-sync-http";
-import { RESOURCE_MAX_BYTES } from "./resource-replica";
+import { catchUpResource } from "./resource-action-catchup";
+import { readCurationRequest, validCurationRequest } from "./gallery-curation";
+import type { GalleryEntrySummary } from "./gallery-store";
 import { gallerySourceOfEntryId, gallerySourceByKey } from "./gallery-sources";
+import { routeRegionalComponentActions } from "./regional-component-actions";
 
 export type ResourceActionEnv = GalleryEnv &
   ResourceSyncEnv & {
@@ -17,16 +20,20 @@ export async function routeRegionalResourceActions(
   request: Request,
   env: ResourceActionEnv,
 ): Promise<Response | null> {
+  const component = await routeRegionalComponentActions(request, env);
+  if (component) return component;
   const url = new URL(request.url);
   const peerPath = "/api/resource-actions/lifecycle";
   const incoming = url.pathname === peerPath;
   const match =
-    /^\/api\/gallery\/([A-Za-z0-9_-]{3,64})(?:\/(recycle|restore))?$/.exec(
+    /^\/api\/gallery\/([A-Za-z0-9_-]{3,64})(?:\/(recycle|restore|curation))?$/.exec(
       url.pathname,
     );
   if (
     !incoming &&
-    (!match || request.method !== (match[2] ? "POST" : "DELETE"))
+    (!match ||
+      request.method !==
+        (match[2] === "curation" ? "PATCH" : match[2] ? "POST" : "DELETE"))
   )
     return null;
   if (
@@ -73,15 +80,21 @@ export async function routeRegionalResourceActions(
       action: string;
       commandId: string;
       target: string;
+      input?: Record<string, unknown>;
     };
     let user: SessionUser | null;
     if (incoming) {
-      const body = await readBody(request);
+      const body = (await readSyncJson(request, 65536)) as Record<
+        string,
+        unknown
+      > | null;
       if (
         !body ||
         typeof body.id !== "string" ||
         !/^[A-Za-z0-9_-]{3,64}$/.test(body.id) ||
-        !["recycle", "restore", "delete"].includes(String(body.action)) ||
+        !["recycle", "restore", "delete", "curation"].includes(
+          String(body.action),
+        ) ||
         typeof body.commandId !== "string" ||
         !/^[A-Za-z0-9_-]{1,128}$/.test(body.commandId) ||
         body.target !== env.RESOURCE_REGION
@@ -92,7 +105,12 @@ export async function routeRegionalResourceActions(
         action: String(body.action),
         commandId: body.commandId,
         target: env.RESOURCE_REGION,
+        ...(body.action === "curation"
+          ? { input: body.input as Record<string, unknown> }
+          : {}),
       };
+      if (command.action === "curation" && !validCurationRequest(command.input))
+        return fail("invalid-curation", 400);
       if (gallerySourceOfEntryId(command.id))
         return fail("dataset-read-only", 403);
       const verified = await auth("verify", {
@@ -105,7 +123,32 @@ export async function routeRegionalResourceActions(
       if (!sameOrigin(request)) return fail("forbidden", 403);
       user = await sessionUserOf(request, env);
       if (!user) return fail("unauthorized", 401);
-      const key = request.headers.get("idempotency-key") ?? crypto.randomUUID();
+      let input: Record<string, unknown> | undefined;
+      if (match![2] === "curation") {
+        const parsed = await readCurationRequest(request);
+        if (parsed instanceof Response) return parsed;
+        input = {
+          tags: parsed.tags,
+          attention: parsed.attention,
+          expectedPreviewRevision: parsed.expectedPreviewRevision,
+          expectedCurationRevision: parsed.expectedCurationRevision,
+          ...(parsed.source === "visual-audit"
+            ? { source: parsed.source }
+            : {}),
+        };
+      }
+      const key =
+        request.headers.get("idempotency-key") ??
+        (input
+          ? await digest(
+              JSON.stringify({
+                actor: user.id,
+                id: match![1],
+                action: "curation",
+                input,
+              }),
+            )
+          : crypto.randomUUID());
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(key))
         return fail("invalid-command-id", 400);
       const location = await call("resource-sync/location", {
@@ -118,6 +161,7 @@ export async function routeRegionalResourceActions(
         action: match![2] ?? "delete",
         commandId: key,
         target: (await location.json()).origin,
+        ...(input ? { input } : {}),
       };
     }
     if (!user) return fail("unauthorized", 401);
@@ -171,12 +215,13 @@ export async function routeRegionalResourceActions(
           "content-type": "application/json",
         },
       });
-    const result = (await readSyncJson(response, 8192)) as {
+    const result = (await readSyncJson(response, 65536)) as {
       id: string;
       status: string;
       superseded?: boolean;
       epoch: string;
       sequence: number;
+      entry?: GalleryEntrySummary;
     };
     if (
       result.id !== command.id ||
@@ -185,59 +230,37 @@ export async function routeRegionalResourceActions(
     )
       return fail("action-unconfirmed", 503);
     committed = true;
-    // Catch up through the existing ordered protocol; never apply an out-of-order command snapshot.
-    const until = Date.now() + 20_000;
-    for (let attempts = 0; attempts < 64 && Date.now() < until; attempts++) {
-      const status = await call("resource-sync/status", { stream: "gallery" });
-      const received = (await status.json()).received;
-      if (
-        received?.epoch === result.epoch &&
-        received.sequence >= result.sequence
-      ) {
-        const current = await call("preview-access", { id: result.id });
-        if (!current.ok && current.status !== 404)
-          return fail("action-propagation-pending", 503);
-        const matches =
-          result.status === "deleted"
-            ? current.status === 404
-            : current.ok && (await current.json()).status === result.status;
-        return result.superseded || !matches
-          ? fail("action-superseded", 409)
-          : lifecycleAnswer(result);
-      }
-      if (received && received.epoch !== result.epoch)
-        return fail("action-propagation-pending", 503);
-      if (!env.RESOURCE_SYNC_PEER_TOKEN)
-        return fail("action-propagation-pending", 503);
-      const next = await fetch(
-        peer.origin +
-          "/api/resource-sync/gallery/changes?after=" +
-          (received?.sequence ?? 0),
-        {
-          redirect: "manual",
-          signal: AbortSignal.timeout(Math.max(1, until - Date.now())),
-          headers: { authorization: "Bearer " + env.RESOURCE_SYNC_PEER_TOKEN },
-        },
-      );
-      if (!next.ok) return fail("action-propagation-pending", 503);
-      const envelope = await readSyncJson(next, RESOURCE_MAX_BYTES * 2);
-      const applied = await call("resource-sync/receive", {
-        stream: "gallery",
-        envelope,
-      });
-      if (!applied.ok) {
-        // The background runner can have committed a later receipt during this fetch.
-        const current = await (
-          await call("resource-sync/status", { stream: "gallery" })
-        ).json();
-        if (
-          current.received?.epoch !== result.epoch ||
-          current.received.sequence <= (received?.sequence ?? 0)
-        )
-          return fail("action-propagation-pending", 503);
-      }
+    if (
+      !(await catchUpResource(
+        call,
+        "gallery",
+        peer.origin,
+        env.RESOURCE_SYNC_PEER_TOKEN,
+        result,
+      ))
+    )
+      return fail("action-propagation-pending", 503);
+    const current = await call(
+      command.action === "curation" ? "any-entry" : "preview-access",
+      { id: result.id },
+    );
+    if (!current.ok && current.status !== 404)
+      return fail("action-propagation-pending", 503);
+    let matches =
+      result.status === "deleted" ? current.status === 404 : current.ok;
+    if (matches && current.ok) {
+      const latest = await current.json();
+      matches = latest.status === result.status;
+      if (command.action === "curation")
+        matches =
+          matches &&
+          !!result.entry &&
+          latest.entry?.curationRevision === result.entry.curationRevision &&
+          latest.entry?.previewRevision === result.entry.previewRevision;
     }
-    return fail("action-propagation-pending", 503);
+    return result.superseded || !matches
+      ? fail("action-superseded", 409)
+      : lifecycleAnswer(result);
   } catch {
     return fail(
       committed ? "action-propagation-pending" : "action-unconfirmed",
@@ -246,7 +269,12 @@ export async function routeRegionalResourceActions(
   }
 }
 
-function lifecycleAnswer(result: { id: string; status: string }): Response {
+function lifecycleAnswer(result: {
+  id: string;
+  status: string;
+  entry?: GalleryEntrySummary;
+}): Response {
+  if (result.entry) return answer({ entry: result.entry });
   return answer(
     result.status === "deleted"
       ? { id: result.id, deleted: true }

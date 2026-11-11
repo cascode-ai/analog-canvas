@@ -79,6 +79,12 @@ export class ComponentLibraryDO {
       request_digest TEXT NOT NULL, response_json TEXT NOT NULL, created_at TEXT NOT NULL,
       PRIMARY KEY (user_id, request_key)
     ) WITHOUT ROWID`);
+    // Regional receipts keep only the committed revision, never another copy of a definition.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS component_regional_receipts (
+      user_id TEXT NOT NULL, command_id TEXT NOT NULL, binding TEXT NOT NULL,
+      component_id TEXT NOT NULL, revision INTEGER NOT NULL, outcome TEXT,
+      PRIMARY KEY(user_id,command_id)
+    ) WITHOUT ROWID`);
     this.management = new ComponentManagement(this.sql);
     this.contentIndex = new ComponentPublicationIndex(this.sql);
     this.catalog = new ComponentCatalog(this.sql, (row) =>
@@ -210,6 +216,10 @@ export class ComponentLibraryDO {
           "DELETE FROM component_write_receipts WHERE user_id = ?",
           authorId,
         );
+        this.sql.exec(
+          "DELETE FROM component_regional_receipts WHERE user_id = ?",
+          authorId,
+        );
         return Response.json({ deleted: ids.length });
       });
     }
@@ -267,7 +277,83 @@ export class ComponentLibraryDO {
         .exec<Row>("SELECT * FROM components WHERE id = ?", id)
         .toArray()[0];
       const admin = body.admin === true;
+      const command = body.regionalCommand as
+        { id: string; binding: string } | undefined;
+      if (command) {
+        if (current && !admin && current.author_id !== body.userId)
+          return Response.json(
+            {
+              error:
+                "Only the author or an administrator can manage this component",
+            },
+            { status: 403 },
+          );
+        const previous = this.sql
+          .exec<{
+            binding: string;
+            component_id: string;
+            revision: number;
+            outcome: string | null;
+          }>(
+            "SELECT * FROM component_regional_receipts WHERE user_id=? AND command_id=?",
+            String(body.userId),
+            command.id,
+          )
+          .toArray()[0];
+        if (previous) {
+          if (
+            previous.binding !== command.binding ||
+            previous.component_id !== id
+          )
+            return Response.json({ error: "command-reused" }, { status: 409 });
+          if (!current)
+            return Response.json(
+              { error: "Component not found" },
+              { status: 404 },
+            );
+          return Response.json(
+            {
+              entry: this.entry(current),
+              ...(previous.outcome ? { outcome: previous.outcome } : {}),
+            },
+            {
+              headers: {
+                "x-regional-command-superseded": String(
+                  current.revision !== previous.revision,
+                ),
+              },
+            },
+          );
+        }
+        if (
+          this.sql
+            .exec<{ n: number }>(
+              "SELECT COUNT(*) AS n FROM component_regional_receipts WHERE user_id=?",
+              String(body.userId),
+            )
+            .toArray()[0]!.n >= 10000
+        )
+          return Response.json(
+            { error: "command-receipts-full" },
+            { status: 503 },
+          );
+      }
       const respond = (response: object, status = 200) => {
+        if (command && status >= 200 && status < 300) {
+          const result = response as {
+            entry: { revision: number };
+            outcome?: string;
+          };
+          this.sql.exec(
+            "INSERT INTO component_regional_receipts VALUES (?,?,?,?,?,?)",
+            String(body.userId),
+            command.id,
+            command.binding,
+            id,
+            result.entry.revision,
+            result.outcome ?? null,
+          );
+        }
         if (operation === "save" && digest)
           this.sql.exec(
             "INSERT INTO component_write_receipts (user_id, request_key, component_id, request_digest, response_json, created_at) VALUES (?,?,?,?,?,?)",

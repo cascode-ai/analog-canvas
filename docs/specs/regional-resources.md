@@ -8,8 +8,7 @@ Gallery, User Components and Dataset publications use origin-owned replicas;
 their likes and reviews use writer-owned replicas.
 [Private Projects](regional-projects.md) retain their separate two-writer protocol.
 The [regional action contract](regional-actions.md) requires the same authorized
-operations through either entrance. The opt-in command route covers Gallery
-withdrawal and restoration; the other actions remain to be delivered.
+operations through either entrance and lists the delivered command coverage.
 
 ## Rules
 

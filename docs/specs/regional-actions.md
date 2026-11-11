@@ -3,11 +3,11 @@
 Status: `accepted`
 
 Primary owner: Gallery, Component Library, Auth and regional replication.
-This is the required behavior. The opt-in Gallery withdrawal/restoration/deletion slice
-implements command delegation; the remaining actions and additional replication
-scopes below remain to be delivered.
+This is the required behavior. The opt-in command route covers Community Gallery withdrawal, restoration,
+deletion and curation, plus User Component save/status. The other actions and
+additional replication scopes below remain to be delivered.
 
-## Gallery lifecycle delivery
+## Command delivery
 
 - `RESOURCE_ACTION_PEER` is a fixed HTTPS service origin, independent of browser
   geographic routing. `RESOURCE_SYNC_PEER_TOKEN` permits ordered catch-up only;
@@ -15,8 +15,7 @@ scopes below remain to be delivered.
 - AUTH issues a 60-second opaque capability bound to one command digest and its
   destination. Redemption revalidates the original session or regional grant,
   including its current subject. A session change invalidates the capability.
-- The writer commits withdrawal/restoration/deletion and its per-account command receipt
-  together. Keep at most 10,000 receipts per account; exhaustion refuses new
+- The writer commits the mutation and its per-account command receipt together. Keep at most 10,000 receipts per account; exhaustion refuses new
   commands before mutation. Receipts are retained with the writer's backups;
   do not discard them during rollback or reset an identity to bypass the limit.
   Recovery uses the native Durable Object history or a full stopped-state ECS
@@ -27,6 +26,10 @@ scopes below remain to be delivered.
   storage is unavailable). A successful action clears that entry's pending IDs.
   Older clients without IDs remain accepted but cannot reconcile a lost response
   as the same command.
+- Component writes and curation retain their required revision preconditions.
+  Without an explicit command ID, derive one from the actor, resource, operation
+  and validated revision-bound input. A repeated request reconciles its receipt;
+  a later revision reports supersession without reapplying the old write.
 - After foreign commit, the entrance catches up in cursor order, bounded to 64
   receipts and 20 seconds. An unconfirmed reply or pending propagation remains a
   retry with the same command ID, never a successful local read of stale state.
