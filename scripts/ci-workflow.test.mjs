@@ -27,6 +27,7 @@ describe("CI workflow", () => {
     expect(dependencies(jobs.core)).toEqual([
       "changes",
       "core_build",
+      "core_performance",
       "core_release",
       "core_static",
       "core_unit",
@@ -70,7 +71,7 @@ describe("CI workflow", () => {
   it("starts static, shared build and unit shards with the plan; built-package consumers after the build", () => {
     for (const id of ["core_static", "core_build", "core_unit"])
       expect(dependencies(jobs[id])).toEqual(["changes"]);
-    for (const id of ["core_unit_built", "core_release"]) {
+    for (const id of ["core_unit_built", "core_performance", "core_release"]) {
       expect(dependencies(jobs[id])).toEqual(["changes", "core_build"]);
       expect(
         jobs[id].steps.find(
@@ -87,14 +88,30 @@ describe("CI workflow", () => {
     expect(stepRunning(jobs.core_static, "pnpm ci:static").env).toMatchObject({
       FORMAT_BASE_SHA: "${{ github.event.merge_group.base_sha }}",
     });
-    const checks = jobs.core_release.steps.filter(
-      (step) =>
-        step.run?.startsWith("node scripts/") &&
-        !step.run.startsWith("node scripts/ci-package-build"),
+    // Core release runs the built release checks in order, except the
+    // editing budgets, which Core performance runs beside it.
+    const checksOf = (id) =>
+      jobs[id].steps.filter(
+        (step) =>
+          step.run?.startsWith("node scripts/") &&
+          !step.run.startsWith("node scripts/ci-package-build"),
+      );
+    const baseline = "node scripts/performance-baseline.mjs";
+    expect(checksOf("core_release").map((step) => step.run.trim())).toEqual(
+      scripts["release:verify:built"]
+        .split(" && ")
+        .filter((check) => check !== baseline),
     );
-    expect(checks.map((step) => step.run.trim())).toEqual(
-      scripts["release:verify:built"].split(" && "),
+    expect(checksOf("core_performance").map((step) => step.run.trim())).toEqual(
+      [baseline],
     );
+    expect(
+      stepRunning(
+        jobs.core_performance,
+        "node scripts/ci-package-build.mjs verify",
+      ),
+    ).toBeDefined();
+    const checks = ["core_release", "core_performance"].flatMap(checksOf);
     for (const step of [
       ...checks,
       stepRunning(jobs.core_release, "pnpm test:desktop-build"),
@@ -131,7 +148,7 @@ describe("CI workflow", () => {
     expect(producer.with.name).toBe(
       "core-packages-${{ github.sha }}-${{ github.run_attempt }}",
     );
-    for (const id of ["core_unit_built", "core_release"])
+    for (const id of ["core_unit_built", "core_performance", "core_release"])
       expect(
         jobs[id].steps.find(
           (step) => step.uses === "actions/download-artifact@v4",

@@ -174,6 +174,33 @@ jobs:
           ICM_CI_PACKAGE_BUILD: "1"
         run: pnpm ci:unit:built
 
+  # The editing-performance budgets, the longest release check, run beside
+  # Core release rather than inside it. They read only the shared package build.
+  core_performance:
+    name: Core performance
+    needs: [changes, core_build]
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.core_build.outputs.artifact_id }}
+          merge-multiple: true
+      - run: node scripts/ci-package-build.mjs verify
+      - name: performance-baseline
+        timeout-minutes: 5
+        run: node scripts/performance-baseline.mjs
+
   core_release:
     name: Core release
     needs: [changes, core_build]
@@ -204,9 +231,6 @@ jobs:
       - name: editor-bundle-budget
         timeout-minutes: 5
         run: node scripts/editor-bundle-budget.mjs --check
-      - name: performance-baseline
-        timeout-minutes: 5
-        run: node scripts/performance-baseline.mjs
       - name: visual-golden
         timeout-minutes: 5
         run: node scripts/visual-golden.mjs --check
@@ -243,6 +267,7 @@ jobs:
         core_static,
         core_unit,
         core_unit_built,
+        core_performance,
         core_release,
       ]
     if: always() && github.event_name == 'merge_group' && !(needs.changes.result == 'success' && needs.changes.outputs.heavy == 'false' && needs.changes.outputs.mode == 'documentation')

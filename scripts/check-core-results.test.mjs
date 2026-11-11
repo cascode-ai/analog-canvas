@@ -14,6 +14,7 @@ const passing = {
   core_static: { result: "success" },
   core_unit: { result: "success" },
   core_unit_built: { result: "success" },
+  core_performance: { result: "success" },
   core_release: { result: "success" },
 };
 
