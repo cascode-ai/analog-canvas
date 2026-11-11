@@ -174,14 +174,6 @@
         opacity: 1;
         transition-duration: 0.01s;
       }
-      .hl .tx {
-        background: linear-gradient(var(--accent), var(--accent)) no-repeat 0
-          58%/0% 0.085em;
-        transition: background-size 0.36s cubic-bezier(0.7, 0, 0.2, 1);
-      }
-      .hook.strike .hl .tx {
-        background-size: 100% 0.085em;
-      }
       .pbr {
         display: none;
       }
@@ -198,11 +190,6 @@
       .hl b {
         font-weight: 700;
         color: #7dbbff;
-        transition: color 0.34s;
-      }
-      .hook.strike .hl,
-      .hook.strike .hl b {
-        color: rgba(255, 255, 255, 0.4);
         transition: color 0.34s;
       }
 
@@ -827,67 +814,6 @@
         top: 2.6cqh;
         font-size: min(1.7cqh, 13px);
       }
-      .sndchip {
-        all: unset;
-        box-sizing: border-box;
-        pointer-events: auto;
-        cursor: pointer;
-        position: absolute;
-        right: 6cqw;
-        top: 3.4cqh;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 9px 14px 9px 12px;
-        border-radius: 999px;
-        background: rgba(24, 24, 23, 0.84);
-        color: #fff;
-        font: 600 13px/1 var(--font-body);
-        border: 1px solid rgba(255, 255, 255, 0.18);
-        box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
-        transition:
-          opacity 0.3s,
-          transform 0.4s var(--ease);
-      }
-      .sndchip.off {
-        opacity: 0;
-        pointer-events: none;
-        transform: translateY(-8px);
-        visibility: hidden;
-        transition:
-          opacity 0.3s,
-          transform 0.4s var(--ease),
-          visibility 0s 0.4s;
-      }
-      .sndchip::before {
-        content: "";
-        position: absolute;
-        inset: -2px;
-        border-radius: 999px;
-        border: 2px solid rgba(125, 187, 255, 0.9);
-        opacity: 0;
-        animation: ring 2.2s ease-out 3;
-      }
-      @keyframes ring {
-        0% {
-          opacity: 0.9;
-          transform: scale(1);
-        }
-        100% {
-          opacity: 0;
-          transform: scale(1.22, 1.5);
-        }
-      }
-      .sndchip:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 3px;
-      }
-      .portrait .sndchip {
-        top: 2.1cqh;
-        right: 5cqw;
-        padding: 7px 12px 7px 10px;
-        font-size: 12px;
-      }
       /* ---- controls ---- */
       #bar {
         position: absolute;
@@ -1084,8 +1010,8 @@
               <span class="rv"
                 ><span
                   ><span class="tx"
-                    ><b>An afternoon</b> <br class="pbr" />on one
-                    schematic.</span
+                    >The <b>most beautiful</b>
+                    <br class="pbr" />schematics</span
                   ></span
                 ></span
               >
@@ -1094,7 +1020,7 @@
               <span class="rv"
                 ><span
                   ><span class="tx"
-                    >Now <b>retype it</b> <br class="pbr" />as a netlist?</span
+                    >are the <b>easiest</b> <br class="pbr" />to draw.</span
                   ></span
                 ></span
               >
@@ -1105,7 +1031,7 @@
               <span class="rv"><span>Analog Canvas</span></span>
             </div>
             <div class="pr">
-              <span class="rv"><span>Draw once. Get both.</span></span>
+              <span class="rv"><span>Beautiful by default.</span></span>
             </div>
           </div>
 
@@ -1208,18 +1134,6 @@
             ><span class="chip">ldo<i>.png</i></span>
           </div>
 
-          <button class="sndchip" id="sc" type="button">
-            <svg width="15" height="14" viewBox="0 0 15 14" aria-hidden="true">
-              <path
-                fill="none"
-                stroke="#fff"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M2 5h2.6L8 2.2v9.6L4.6 9H2zM10 4.6a3.4 3.4 0 0 1 0 4.8M11.6 3a5.6 5.6 0 0 1 0 8"
-              /></svg
-            ><span>Sound on</span>
-          </button>
           <div class="veil" id="veil"></div>
           <div class="big" id="big">
             <div class="num"><span id="num">0</span><b>+</b></div>
@@ -1279,7 +1193,9 @@
             </svg>
             <div class="ew">Analog Canvas</div>
             <div class="eh">
-              <span class="rv"><span>Draw it once.</span></span>
+              <span class="rv"
+                ><span>Draw it <br class="pbr" />beautifully.</span></span
+              >
             </div>
             <div class="ep">Free. Open source. Runs in your browser.</div>
             <div class="cta">
@@ -1322,19 +1238,6 @@
           <div id="ticks"></div>
         </div>
         <span id="time">0:00 / 0:57</span>
-        <button id="bs" type="button" aria-label="Turn sound on">
-          <svg width="15" height="14" viewBox="0 0 15 14" aria-hidden="true">
-            <path
-              id="bsi"
-              fill="none"
-              stroke="#fff"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M2 5h2.6L8 2.2v9.6L4.6 9H2zM10.2 5.2l3 3.6M13.2 5.2l-3 3.6"
-            />
-          </svg>
-        </button>
         <button id="br" type="button" aria-label="Replay">
           <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
             <path
@@ -1403,7 +1306,6 @@
         const TL = {
           h1: [0, 2.95],
           h2: [1.45, 2.95],
-          strike: [2.45, 3.2],
           brand: [3.2, 5.05],
           tile: 3.1,
           iris: [5.0, 5.95],
@@ -2235,7 +2137,6 @@
         /* ---------- screen-space cues ---------- */
         show($("#h1"), ...TL.h1);
         show($("#h2"), ...TL.h2);
-        show($("#hook"), ...TL.strike, "strike");
         show($("#brand"), ...TL.brand);
         show($("#bug"), [
           [TL.capDraw[0], TL.cards],
@@ -2382,8 +2283,8 @@
           return { s, tx: sx - cx * s, ty: sy - cy * s };
         }
 
-        /* ---------- sound: a synthesized score, scheduled against the film clock ---------- */
-        // 96 BPM: one bar is 2.5 s, so the scene cuts at 5, 12.5, 30, 32.5 and 50 s land on bar lines.
+        /* ---------- sound: a synthesized orchestral score, scheduled against the film clock ---------- */
+        // 96 beats a minute: one bar is 2.5 s, so the cuts at 5, 12.5, 30, 32.5 and 50 s land on bar lines.
         const BEAT = 0.625,
           BAR = 2.5,
           hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -2398,71 +2299,73 @@
           const comp = ctx.createDynamicsCompressor();
           comp.threshold.value = -16;
           comp.knee.value = 12;
-          comp.ratio.value = 3.5;
-          comp.attack.value = 0.004;
-          comp.release.value = 0.22;
+          comp.ratio.value = 3;
+          comp.attack.value = 0.006;
+          comp.release.value = 0.25;
           master.connect(comp);
           comp.connect(ctx.destination);
-          const n = Math.floor(ctx.sampleRate * 2.8),
+          // A concert hall: three and a half seconds of decaying noise.
+          const n = Math.floor(ctx.sampleRate * 3.6),
             ir = ctx.createBuffer(2, n, ctx.sampleRate);
           for (let c = 0; c < 2; c++) {
             const d = ir.getChannelData(c);
             for (let i = 0; i < n; i++)
-              d[i] = (rnd() * 2 - 1) * Math.pow(1 - i / n, 2.8);
+              d[i] = (rnd() * 2 - 1) * Math.pow(1 - i / n, 2.4);
           }
           const rev = ctx.createConvolver();
           rev.buffer = ir;
+          const hall = ctx.createBiquadFilter();
+          hall.type = "lowpass";
+          hall.frequency.value = 5200;
           const rg = ctx.createGain();
-          rg.gain.value = 0.3;
-          rev.connect(rg);
+          rg.gain.value = 0.34;
+          rev.connect(hall);
+          hall.connect(rg);
           rg.connect(master);
-          const del = ctx.createDelay(1.5);
-          del.delayTime.value = BEAT * 0.75;
-          const fb = ctx.createGain();
-          fb.gain.value = 0.3;
-          const lp = ctx.createBiquadFilter();
-          lp.type = "lowpass";
-          lp.frequency.value = 2600;
-          del.connect(lp);
-          lp.connect(fb);
-          fb.connect(del);
-          const dg = ctx.createGain();
-          dg.gain.value = 0.26;
-          lp.connect(dg);
-          dg.connect(master);
           const noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
           {
             const d = noise.getChannelData(0);
             for (let i = 0; i < d.length; i++) d[i] = rnd() * 2 - 1;
           }
-          return { ctx, master, rev, del, noise, bus: null };
+          return { ctx, master, rev, noise, bus: null, level: 1 };
         }
         function busOf(g) {
-          const b = {
-            dry: g.ctx.createGain(),
-            wet: g.ctx.createGain(),
-            echo: g.ctx.createGain(),
-          };
+          const b = { dry: g.ctx.createGain(), wet: g.ctx.createGain() };
           b.dry.connect(g.master);
           b.wet.connect(g.rev);
-          b.echo.connect(g.del);
           g.bus = b;
         }
-        function out(node, g, wet, echo) {
-          node.connect(g.bus.dry);
+        // The orchestra plays the quiet scenes up and the loud ones down, as a
+        // conductor would for a small room: the level of the scene a note starts in.
+        const LEVELS = [
+          [0, 1.5],
+          [5, 2.2],
+          [12.5, 1.9],
+          [20, 1.7],
+          [25, 2.2],
+          [30, 1.15],
+          [32.5, 1.4],
+          [37.5, 2.8],
+          [49.8, 1.3],
+        ];
+        const levelAt = (t) => LEVELS.findLast(([from]) => t >= from)[1];
+        function out(node, g, wet) {
+          const level = g.ctx.createGain();
+          level.gain.value = g.level;
+          node.connect(level);
+          level.connect(g.bus.dry);
           if (wet) {
             const s = g.ctx.createGain();
             s.gain.value = wet;
-            node.connect(s);
+            level.connect(s);
             s.connect(g.bus.wet);
           }
-          if (echo) {
-            const s = g.ctx.createGain();
-            s.gain.value = echo;
-            node.connect(s);
-            s.connect(g.bus.echo);
-          }
         }
+        function sound(g, e, at, dur) {
+          g.level = levelAt(e.t);
+          e.go(g, at, dur);
+        }
+        // One oscillator with an envelope: struck and plucked sounds decay, blown ones hold.
         function tone(g, at, o) {
           const c = g.ctx,
             osc = c.createOscillator(),
@@ -2476,7 +2379,6 @@
               o.f2,
               at + (o.glide || dur),
             );
-          if (o.det) osc.detune.value = o.det;
           v.gain.setValueAtTime(0.0001, at);
           v.gain.linearRampToValueAtTime(o.vol, at + a);
           if (o.decay) v.gain.exponentialRampToValueAtTime(0.0001, at + dur);
@@ -2494,12 +2396,12 @@
             f.frequency.setValueAtTime(o.lp, at);
             if (o.lp2)
               f.frequency.exponentialRampToValueAtTime(o.lp2, at + dur);
-            f.Q.value = o.q ?? 0.7;
+            f.Q.value = 0.7;
             osc.connect(f);
             n = f;
           }
           n.connect(v);
-          out(v, g, o.wet, o.echo);
+          out(v, g, o.wet);
           osc.start(at);
           osc.stop(at + dur + 0.05);
         }
@@ -2525,373 +2427,634 @@
           }
           s.connect(f);
           f.connect(v);
-          out(v, g, o.wet, 0);
+          out(v, g, o.wet);
           s.start(at, rnd() * 1.5);
           s.stop(at + dur + 0.05);
         }
-        const kick = (g, at, vol = 0.4) => {
-          tone(g, at, {
-            f: 150,
-            f2: 45,
-            glide: 0.11,
-            dur: 0.3,
+        // A bowed string section on one pitch: four players a few cents apart,
+        // a slow bow and a vibrato that comes in after the note starts.
+        function bowed(g, at, dur, m, o = {}) {
+          const c = g.ctx,
+            f = c.createBiquadFilter(),
+            v = c.createGain(),
+            lfo = c.createOscillator(),
+            depth = c.createGain(),
+            vol = o.vol ?? 0.02,
+            a = Math.min(o.a ?? 0.22, dur * 0.45),
+            r = Math.min(o.r ?? 0.4, dur * 0.45);
+          f.type = "lowpass";
+          f.frequency.value = o.lp ?? 2600;
+          f.Q.value = 0.5;
+          lfo.frequency.value = 5.1 + (m % 5) * 0.13;
+          depth.gain.setValueAtTime(0, at);
+          depth.gain.linearRampToValueAtTime(
+            o.vib ?? 7,
+            at + Math.min(0.45, dur),
+          );
+          lfo.connect(depth);
+          lfo.start(at);
+          lfo.stop(at + dur + 0.05);
+          for (const cents of [-11, -4, 5, 12]) {
+            const osc = c.createOscillator();
+            osc.type = "sawtooth";
+            osc.frequency.value = hz(m);
+            osc.detune.value = cents;
+            depth.connect(osc.detune);
+            osc.connect(f);
+            osc.start(at);
+            osc.stop(at + dur + 0.05);
+          }
+          v.gain.setValueAtTime(0.0001, at);
+          v.gain.linearRampToValueAtTime(vol, at + a);
+          v.gain.setValueAtTime(vol, at + dur - r);
+          v.gain.linearRampToValueAtTime(0.0001, at + dur);
+          f.connect(v);
+          out(v, g, o.wet ?? 0.7);
+        }
+        const spiccato = (g, at, m, vol = 0.03) =>
+          bowed(g, at, 0.2, m, {
             vol,
-            decay: true,
-          });
-          hiss(g, at, { dur: 0.025, vol: vol * 0.3, f: 2200 });
-        };
-        const hat = (g, at, vol = 0.08) =>
-          hiss(g, at, { dur: 0.05, vol, f: 7500 });
-        const clap = (g, at, vol = 0.13) =>
-          hiss(g, at, {
-            dur: 0.17,
-            vol,
-            type: "bandpass",
-            f: 1700,
-            q: 0.9,
+            a: 0.012,
+            r: 0.14,
+            lp: 3200,
+            vib: 0,
             wet: 0.5,
           });
-        const pluck = (g, at, m, vol = 0.09, echo = 0.5) => {
+        const pizz = (g, at, m, vol = 0.07) => {
           tone(g, at, {
             f: hz(m),
             type: "triangle",
-            dur: 0.34,
+            dur: 0.5,
             vol,
             decay: true,
-            lp: 4600,
-            lp2: 1300,
-            echo,
-            wet: 0.2,
+            lp: 2600,
+            lp2: 500,
+            wet: 0.5,
           });
           tone(g, at, {
             f: hz(m),
             type: "sawtooth",
-            dur: 0.2,
-            vol: vol * 0.35,
+            dur: 0.16,
+            vol: vol * 0.3,
             decay: true,
-            lp: 3600,
-            lp2: 900,
-            echo: echo * 0.6,
-          });
-        };
-        const bell = (g, at, m, vol = 0.09) => {
-          tone(g, at, { f: hz(m), dur: 1.5, vol, decay: true, wet: 0.7 });
-          tone(g, at, {
-            f: hz(m) * 2.76,
-            dur: 0.5,
-            vol: vol * 0.22,
-            decay: true,
-            wet: 0.5,
-          });
-        };
-        const boom = (g, at, vol = 0.55) => {
-          tone(g, at, {
-            f: 95,
-            f2: 34,
-            glide: 0.5,
-            dur: 1.4,
-            vol: vol * 0.55,
-            decay: true,
-            wet: 0.3,
-          });
-          tone(g, at, {
-            f: 220,
-            f2: 80,
-            glide: 0.2,
-            dur: 0.4,
-            vol: vol * 0.5,
-            type: "triangle",
-            decay: true,
+            lp: 2200,
+            lp2: 600,
             wet: 0.4,
           });
-          hiss(g, at, {
-            dur: 0.9,
-            vol: vol * 0.3,
-            type: "lowpass",
-            f: 1800,
-            f2: 200,
-            wet: 0.6,
-          });
-          hiss(g, at, {
-            dur: 0.09,
-            vol: vol * 0.3,
-            type: "bandpass",
-            f: 1400,
-            q: 0.7,
-            wet: 0.5,
-          });
         };
-        const stab = (g, at, notes, vol = 0.065) => {
-          for (const m of notes)
-            tone(g, at, {
-              f: hz(m),
-              type: "sawtooth",
-              dur: 1.1,
-              vol,
-              decay: true,
-              lp: 3000,
-              lp2: 600,
-              wet: 0.7,
-              echo: 0.3,
-            });
-        };
-        const crash = (g, at, vol = 0.11) =>
-          hiss(g, at, { dur: 1.8, vol, f: 5200, wet: 0.6 });
-        const whoosh = (g, at, dur, up = true, vol = 0.085) =>
-          hiss(g, at, {
-            dur,
-            vol,
-            type: "bandpass",
-            f: up ? 300 : 5200,
-            f2: up ? 6000 : 300,
-            q: 1.2,
-            rise: up,
-            wet: 0.5,
-          });
-        const riser = (g, at, dur, vol = 0.11) =>
-          hiss(g, at, { dur, vol, f: 500, f2: 9000, rise: true, wet: 0.4 });
-        const tick = (g, at, vol = 0.014, f = 2400) =>
+        const harp = (g, at, m, vol = 0.05) => {
           tone(g, at, {
-            f,
-            dur: 0.02,
+            f: hz(m),
+            type: "triangle",
+            dur: 1.5,
             vol,
             decay: true,
-            type: "square",
-            lp: 5000,
+            lp: 4200,
+            lp2: 900,
+            wet: 0.6,
           });
-        const chord = (g, at, dur, notes, vol = 0.04) => {
-          for (const m of notes)
-            for (const det of [-7, 7])
-              tone(g, at, {
-                f: hz(m),
-                type: "sawtooth",
-                det,
-                dur,
-                vol,
-                a: Math.min(0.5, dur * 0.3),
-                r: Math.min(0.8, dur * 0.4),
-                lp: 1900,
-                wet: 0.5,
-              });
+          tone(g, at, {
+            f: hz(m) * 2,
+            dur: 0.6,
+            vol: vol * 0.2,
+            decay: true,
+            wet: 0.5,
+          });
         };
-        const bass = (g, at, dur, m, vol = 0.14) => {
-          tone(g, at, { f: hz(m), dur, vol, a: 0.01, r: 0.08 });
+        const celesta = (g, at, m, vol = 0.07) => {
+          tone(g, at, { f: hz(m), dur: 1.3, vol, decay: true, wet: 0.7 });
+          tone(g, at, {
+            f: hz(m) * 3.01,
+            dur: 0.4,
+            vol: vol * 0.18,
+            decay: true,
+            wet: 0.5,
+          });
+        };
+        const horn = (g, at, dur, m, vol = 0.04) => {
           tone(g, at, {
             f: hz(m),
             type: "sawtooth",
             dur,
-            vol: vol * 0.45,
-            a: 0.01,
-            r: 0.08,
-            lp: 1000,
+            vol,
+            a: 0.11,
+            r: 0.3,
+            lp: 760,
+            wet: 0.7,
+          });
+          tone(g, at, {
+            f: hz(m),
+            type: "triangle",
+            dur,
+            vol: vol * 0.8,
+            a: 0.09,
+            r: 0.3,
+            wet: 0.6,
           });
         };
+        const flute = (g, at, dur, m, vol = 0.035) => {
+          tone(g, at, { f: hz(m), dur, vol, a: 0.06, r: 0.12, wet: 0.6 });
+          tone(g, at, {
+            f: hz(m) * 2,
+            dur,
+            vol: vol * 0.18,
+            a: 0.06,
+            r: 0.12,
+            wet: 0.5,
+          });
+          hiss(g, at, {
+            dur: Math.min(dur, 0.25),
+            vol: vol * 0.12,
+            type: "bandpass",
+            f: hz(m) * 2,
+            q: 2,
+            wet: 0.4,
+          });
+        };
+        const timpani = (g, at, m, vol = 0.34) => {
+          tone(g, at, {
+            f: hz(m) * 1.18,
+            f2: hz(m),
+            glide: 0.07,
+            dur: 1.5,
+            vol,
+            decay: true,
+            wet: 0.5,
+          });
+          tone(g, at, {
+            f: hz(m) * 1.5,
+            dur: 0.5,
+            vol: vol * 0.25,
+            decay: true,
+            wet: 0.5,
+          });
+          hiss(g, at, {
+            dur: 0.12,
+            vol: vol * 0.3,
+            type: "lowpass",
+            f: 700,
+            f2: 180,
+            wet: 0.5,
+          });
+        };
+        const cymbal = (g, at, vol = 0.1) =>
+          hiss(g, at, { dur: 2.4, vol, f: 4800, wet: 0.7 });
+        const swell = (g, at, dur, vol = 0.09) =>
+          hiss(g, at, { dur, vol, f: 3200, f2: 7000, rise: true, wet: 0.6 });
+        const wood = (g, at, vol = 0.012) =>
+          tone(g, at, {
+            f: 950,
+            f2: 600,
+            dur: 0.04,
+            vol,
+            decay: true,
+            type: "triangle",
+          });
+        // A run up the D major scale.
+        const SCALE = [62, 64, 66, 67, 69, 71, 73];
+        const step = (i) => SCALE[i % 7] + 12 * Math.floor(i / 7);
+        const gliss = (g, at, from, n, dur, vol = 0.04) => {
+          for (let i = 0; i < n; i++)
+            harp(
+              g,
+              at + (dur * i) / n,
+              step(from + i),
+              vol * (0.7 + (0.5 * i) / n),
+            );
+        };
 
-        // The score: Am – F – C – G, one bar each.
-        const CH = [
-          { b: 45, n: [57, 60, 64, 67] },
-          { b: 41, n: [57, 60, 64, 65] },
-          { b: 48, n: [55, 60, 64, 67] },
-          { b: 43, n: [55, 59, 62, 67] },
-        ];
+        // The score, in D major, one chord a bar: bass note and the inner voices.
+        const HARM = {
+          2: [38, 57, 62, 66],
+          3: [37, 57, 61, 64],
+          4: [35, 59, 62, 66],
+          5: [43, 59, 62, 67],
+          6: [42, 57, 62, 66],
+          7: [43, 59, 62, 67],
+          8: [40, 59, 64, 67],
+          9: [45, 57, 61, 64],
+          10: [38, 57, 62, 66],
+          11: [38, 59, 62, 67],
+          12: [45, 57, 61, 67],
+          13: [38, 57, 62, 66],
+          14: [43, 59, 62, 67],
+          15: [35, 59, 62, 66],
+          16: [43, 59, 62, 67],
+          17: [42, 57, 62, 66],
+          18: [40, 59, 64, 67],
+          19: [45, 57, 61, 67],
+        };
+        // The tune the violins carry: [pitch, beats] a bar.
+        const TUNE = {
+          2: [
+            [78, 2],
+            [76, 1],
+            [74, 1],
+          ],
+          3: [
+            [76, 2],
+            [73, 1],
+            [69, 1],
+          ],
+          4: [
+            [74, 2],
+            [73, 1],
+            [71, 1],
+          ],
+          5: [
+            [71, 1.5],
+            [69, 0.5],
+            [67, 1],
+            [71, 1],
+          ],
+          6: [
+            [69, 2],
+            [74, 1],
+            [78, 1],
+          ],
+          7: [
+            [79, 2],
+            [78, 1],
+            [76, 1],
+          ],
+          8: [
+            [76, 1],
+            [74, 1],
+            [76, 1],
+            [78, 1],
+          ],
+          9: [
+            [76, 3],
+            [73, 1],
+          ],
+          13: [
+            [78, 2],
+            [76, 1],
+            [74, 1],
+          ],
+          14: [
+            [79, 1],
+            [81, 1],
+            [83, 1],
+            [86, 1],
+          ],
+        };
+        const sing = (bar, play) => {
+          let t = bar * BAR;
+          for (const [m, beats] of TUNE[bar]) {
+            const at = t,
+              d = beats * BEAT;
+            ev(at, (g, when, left) => play(g, when, left, m), d * 1.04, true);
+            t += d;
+          }
+        };
+
+        // The hook: low strings hold a bare fifth; a soft drum under each line.
         ev(
           0,
-          (g, at, d) =>
-            tone(g, at, {
-              f: hz(33),
-              dur: d,
-              vol: 0.05,
-              a: 0.4,
-              r: 0.6,
-              wet: 0.3,
-            }),
-          5,
-          true,
-        );
-        ev(
-          0,
-          (g, at, d) =>
-            tone(g, at, {
-              f: hz(57),
-              type: "sawtooth",
-              dur: d,
-              vol: 0.035,
-              a: 1.5,
-              r: 0.8,
-              lp: 900,
-              wet: 0.6,
-            }),
-          5,
+          (g, at, d) => {
+            bowed(g, at, d, 38, { vol: 0.03, a: 0.5, r: 0.8, lp: 900 });
+            bowed(g, at, d, 45, { vol: 0.022, a: 0.8, r: 0.8, lp: 1100 });
+          },
+          5.1,
           true,
         );
         ev(TL.h1[0] + 0.05, (g, at) => {
-          boom(g, at, 0.36);
-          stab(g, at, [57, 64, 69]);
+          timpani(g, at, 38, 0.26);
+          pizz(g, at, 50, 0.05);
+          pizz(g, at, 57, 0.05);
         });
         ev(TL.h2[0], (g, at) => {
-          boom(g, at, 0.36);
-          stab(g, at, [53, 60, 65, 69]);
+          timpani(g, at, 45, 0.24);
+          pizz(g, at, 52, 0.05);
+          pizz(g, at, 57, 0.05);
         });
-        ev(TL.strike[0], (g, at) => whoosh(g, at, 0.42, true, 0.09));
-        ev(TL.tile, (g, at) => bell(g, at, 88, 0.08));
-        ev(3.5, (g, at, d) => riser(g, at, d, 0.1), 1.5);
+        ev(TL.h1[1] - 0.35, (g, at) => gliss(g, at, 0, 10, 0.5, 0.03));
+        ev(TL.tile, (g, at) => {
+          celesta(g, at, 86, 0.07);
+          celesta(g, at + 0.16, 93, 0.05);
+        });
+        ev(
+          3.4,
+          (g, at, d) => {
+            swell(g, at, d, 0.08);
+            bowed(g, at, d, 69, { vol: 0.02, a: d * 0.9, r: 0.1, lp: 3000 });
+          },
+          1.6,
+        );
+        // The curtain: the paper opens on a D major chord.
         ev(TL.iris[0], (g, at) => {
-          boom(g, at, 0.55);
-          crash(g, at, 0.09);
-          stab(g, at, [57, 60, 64, 72], 0.045);
+          timpani(g, at, 38, 0.24);
+          cymbal(g, at, 0.04);
+          gliss(g, at, 7, 8, 0.45, 0.03);
         });
+
         for (let b = 2; b < 20; b++) {
           const t = b * BAR,
-            c = CH[(b - 2) % 4],
+            [bass, ...inner] = HARM[b],
+            light = b === 10 || b === 11,
             build = b === 12,
-            full = b === 13 || b === 14,
-            quiet = b === 10 || b === 11,
-            ai = b >= 15;
-          ev(
-            t,
-            (g, at, d) => chord(g, at, d, c.n, quiet ? 0.05 : 0.04),
-            BAR,
-            true,
-          );
+            tutti = b === 13 || b === 14,
+            play = b >= 15;
+          // Violas and cellos hold the harmony.
           if (!build) {
-            const steps = b >= 8 ? 16 : 8;
-            for (let s = 0; s < steps; s++) {
-              const m =
-                c.n[[0, 2, 1, 3, 2, 3, 1, 2][s % 8]] +
-                12 +
-                (s % 8 === 7 ? 12 : 0);
-              ev(t + (s * BAR) / steps, (g, at) =>
-                pluck(g, at, m, ai ? 0.065 : quiet ? 0.055 : 0.085),
-              );
-            }
+            const vol = tutti
+              ? 0.02
+              : light || play
+                ? 0.01
+                : b >= 5
+                  ? 0.015
+                  : 0.012;
+            ev(
+              t,
+              (g, at, d) => {
+                for (const m of inner) bowed(g, at, d, m, { vol, lp: 2000 });
+              },
+              BAR * 1.02,
+              true,
+            );
           }
-          if (b >= 5 && !quiet && !build) {
-            for (const k of ai ? [0, 2.5] : [0, 1, 2, 3])
-              ev(t + k * BEAT, (g, at) => kick(g, at));
+          // Basses: plucked while the film draws, bowed when the whole orchestra plays.
+          if (tutti)
+            ev(
+              t,
+              (g, at, d) => {
+                bowed(g, at, d, bass, { vol: 0.045, lp: 700, vib: 3 });
+                bowed(g, at, d, bass + 12, { vol: 0.03, lp: 1100, vib: 3 });
+              },
+              BAR,
+              true,
+            );
+          else if (!build)
+            for (const k of play ? [0, 2] : [0, 2, 3])
+              ev(t + k * BEAT, (g, at) => {
+                pizz(g, at, bass + 12, 0.075);
+                pizz(g, at, bass, 0.05);
+              });
+          // The harp spreads each chord in eighths.
+          if (!build && !play)
             for (let k = 0; k < 8; k++)
               ev(t + (k * BEAT) / 2, (g, at) =>
-                hat(g, at, k % 2 ? 0.09 : 0.05),
+                harp(
+                  g,
+                  at,
+                  inner[[0, 1, 2, 1][k % 4]] + (k % 4 === 2 ? 12 : 0) + 12,
+                  light ? 0.034 : 0.028,
+                ),
               );
-            if (ai) ev(t + 2 * BEAT, (g, at) => clap(g, at, 0.1));
-            else if (b >= 8) {
-              ev(t + BEAT, (g, at) => clap(g, at));
-              ev(t + 3 * BEAT, (g, at) => clap(g, at));
-            }
-            for (const k of full ? [0, 1.5, 2, 3, 3.5] : [0, 1.5, 2.5])
-              ev(t + k * BEAT, (g, at) =>
-                bass(g, at, BEAT * (full ? 0.45 : 0.9), c.b),
+          // From the netlist on, the second violins bounce the chord.
+          if ((b >= 5 && b <= 9) || tutti)
+            for (let k = 0; k < 8; k++)
+              ev(t + (k * BEAT) / 2, (g, at) =>
+                spiccato(
+                  g,
+                  at,
+                  inner[[0, 2, 1, 2][k % 4]] + 12,
+                  tutti ? 0.03 : 0.018,
+                ),
               );
-          } else
-            ev(t, (g, at, d) => bass(g, at, d, c.b, 0.09), BAR * 0.96, true);
+          if ((b >= 6 && b <= 9) || tutti)
+            ev(
+              t,
+              (g, at, d) => {
+                horn(g, at, d, inner[0], tutti ? 0.05 : 0.026);
+                horn(g, at, d, inner[1], tutti ? 0.045 : 0.022);
+              },
+              BAR * 0.98,
+              true,
+            );
+          if (tutti) ev(t, (g, at) => timpani(g, at, bass, 0.34));
+          // While the Agent draws, pizzicato answers on the off beats.
+          if (play)
+            for (const k of [1, 3])
+              ev(t + k * BEAT, (g, at) => {
+                for (const m of inner) pizz(g, at, m + 12, 0.035);
+              });
         }
-        // Bar 12 builds into the number.
-        ev(30, (g, at, d) => riser(g, at, d, 0.13), 2.45);
-        for (let k = 0; k < 4; k++)
-          ev(30 + k * BEAT * 0.5, (g, at) => clap(g, at, 0.05 + k * 0.006));
-        for (let k = 0; k < 10; k++)
-          ev(31.25 + k * 0.125, (g, at) => clap(g, at, 0.07 + k * 0.006));
-        ev(32.5, (g, at) => {
-          boom(g, at, 0.6);
-          crash(g, at, 0.12);
-        });
-        // The ending resolves to C.
-        ev(TL.out[0], (g, at) => whoosh(g, at, 1.2, false, 0.075));
-        ev(TL.end, (g, at) => boom(g, at, 0.5));
+        // The violins sing; flutes join an octave up for the second phrase.
+        for (let b = 2; b <= 9; b++) {
+          sing(b, (g, at, d, m) =>
+            bowed(g, at, d, m, {
+              vol: b >= 6 ? 0.03 : 0.026,
+              a: 0.1,
+              r: 0.14,
+              lp: 3400,
+              vib: 9,
+            }),
+          );
+          if (b >= 6) sing(b, (g, at, d, m) => flute(g, at, d, m + 12, 0.022));
+        }
+        // Export: a lighter air on the celesta.
+        [
+          [25.0, 78],
+          [25.625, 74],
+          [26.25, 69],
+          [27.5, 79],
+          [28.125, 74],
+          [28.75, 71],
+        ].forEach(([t, m]) => ev(t, (g, at) => celesta(g, at, m, 0.055)));
+        // Bar 12 climbs to the number: the strings shiver up the scale under a drum roll.
+        for (let k = 0; k < 8; k++)
+          ev(30 + k * BEAT * 0.5, (g, at) => {
+            for (let j = 0; j < 2; j++)
+              bowed(g, at + j * 0.15, 0.16, step(4 + k), {
+                vol: 0.016 + k * 0.003,
+                a: 0.02,
+                r: 0.08,
+                lp: 3600,
+                vib: 0,
+              });
+          });
         ev(
-          TL.end,
-          (g, at, d) => chord(g, at, d, [48, 55, 60, 62, 64, 67], 0.03),
-          5.6,
+          30,
+          (g, at, d) => {
+            for (const m of [57, 61, 64, 67])
+              bowed(g, at, d, m, {
+                vol: 0.012,
+                a: d * 0.85,
+                r: 0.12,
+                lp: 2400,
+              });
+            swell(g, at, d, 0.1);
+          },
+          2.45,
           true,
         );
-        ev(TL.end, (g, at, d) => bass(g, at, d, 36, 0.1), 4.6, true);
-        ev(TL.end + 0.5, (g, at) => bell(g, at, 91, 0.07));
-        ev(TL.end + 1.25, (g, at) => bell(g, at, 96, 0.055));
-        // Sound effects that follow the picture.
-        for (const r of nlRows) {
-          const n = Math.max(3, Math.round((r.b - r.a) / 0.045));
-          for (let i = 0; i < n; i++)
-            ev(r.a + ((r.b - r.a) * i) / n, (g, at) =>
-              tick(g, at, 0.013, 2200 + (i % 3) * 300),
-            );
+        for (let k = 0; k < 20; k++)
+          ev(30 + k * 0.125, (g, at) => timpani(g, at, 45, 0.05 + k * 0.012));
+        // The number: everyone.
+        ev(32.5, (g, at) => {
+          cymbal(g, at, 0.12);
+          gliss(g, at, 7, 8, 0.4, 0.05);
+        });
+        for (const b of [13, 14]) {
+          sing(b, (g, at, d, m) => {
+            bowed(g, at, d, m, {
+              vol: 0.034,
+              a: 0.07,
+              r: 0.12,
+              lp: 3600,
+              vib: 9,
+            });
+            bowed(g, at, d, m + 12, {
+              vol: 0.02,
+              a: 0.07,
+              r: 0.12,
+              lp: 4200,
+              vib: 9,
+            });
+          });
+          sing(b, (g, at, d, m) => horn(g, at, d, m - 12, 0.038));
         }
-        ev(TL.spectre, (g, at) => {
-          pluck(g, at, 84, 0.055);
-          pluck(g, at + 0.09, 88, 0.055);
+        ev(35 + 2 * BEAT, (g, at) => timpani(g, at, 45, 0.3));
+        // The Agent's scene belongs to the celesta.
+        for (let b = 15; b < 20; b++) {
+          const [, x, y, z] = HARM[b];
+          [
+            z + 12,
+            y + 12,
+            x + 12,
+            y + 12,
+            z + 12,
+            y + 24,
+            z + 12,
+            y + 12,
+          ].forEach((m, k) =>
+            ev(b * BAR + (k * BEAT) / 2, (g, at) => celesta(g, at, m, 0.04)),
+          );
+        }
+        // The ending: a drum roll on the dominant, then home.
+        ev(
+          TL.out[0],
+          (g, at, d) => {
+            swell(g, at, d, 0.1);
+            for (const m of [45, 57, 61, 64, 67])
+              bowed(g, at, d, m, { vol: 0.016, a: d * 0.8, r: 0.12, lp: 2600 });
+          },
+          TL.end - TL.out[0],
+          true,
+        );
+        for (let k = 0; k < 10; k++)
+          ev(TL.end - 1.25 + k * 0.125, (g, at) =>
+            timpani(g, at, 45, 0.06 + k * 0.022),
+          );
+        ev(TL.end, (g, at) => {
+          timpani(g, at, 38, 0.42);
+          cymbal(g, at, 0.12);
+          gliss(g, at, 0, 15, 0.7, 0.045);
         });
         ev(
-          TL.fly[0],
-          (g, at, d) => whoosh(g, at, d, true, 0.06),
-          TL.fly[1] - TL.fly[0],
+          TL.end,
+          (g, at, d) => {
+            for (const m of [38, 50, 57, 62, 66, 69, 74, 78])
+              bowed(g, at, d, m, {
+                vol: m < 57 ? 0.03 : 0.02,
+                a: 0.08,
+                r: d * 0.55,
+                lp: m < 57 ? 900 : 3000,
+              });
+            for (const m of [62, 66, 69]) horn(g, at, d * 0.8, m, 0.04);
+          },
+          5.4,
+          true,
         );
-        ev(TL.ldo, (g, at) => bell(g, at, 84, 0.06));
-        ev(TL.punch[0], (g, at) => whoosh(g, at, 0.65, true, 0.09));
-        ev(TL.punch[1], (g, at) => boom(g, at, 0.32));
-        [76, 79, 84].forEach((m, i) =>
-          ev(TL.chips[0] + 0.05 + i * 0.09, (g, at) => pluck(g, at, m, 0.065)),
+        ev(TL.end + 0.5, (g, at) => celesta(g, at, 86, 0.06));
+        ev(TL.end + 1.25, (g, at) => celesta(g, at, 93, 0.045));
+        // Sounds that follow the picture.
+        for (const r of nlRows) {
+          const n = Math.max(3, Math.round((r.b - r.a) / 0.09));
+          for (let i = 0; i < n; i++)
+            ev(r.a + ((r.b - r.a) * i) / n, (g, at) => wood(g, at, 0.011));
+        }
+        ev(TL.spectre, (g, at) => {
+          celesta(g, at, 86, 0.045);
+          celesta(g, at + 0.09, 90, 0.045);
+        });
+        ev(TL.fly[0], (g, at) =>
+          gliss(g, at, 3, 12, TL.fly[1] - TL.fly[0], 0.03),
         );
-        for (let i = 0; i < 18; i++)
+        ev(TL.ldo, (g, at) => celesta(g, at, 86, 0.055));
+        ev(TL.punch[0], (g, at) => swell(g, at, 0.65, 0.07));
+        ev(TL.punch[1], (g, at) => timpani(g, at, 38, 0.2));
+        [78, 81, 86].forEach((m, i) =>
+          ev(TL.chips[0] + 0.05 + i * 0.09, (g, at) => celesta(g, at, m, 0.05)),
+        );
+        for (let i = 0; i < 15; i++)
           ev(
-            TL.count[0] + (TL.count[1] - TL.count[0]) * Math.pow(i / 18, 1.7),
-            (g, at) => tick(g, at, 0.02, 3200),
+            TL.count[0] + (TL.count[1] - TL.count[0]) * Math.pow(i / 15, 1.6),
+            (g, at) => pizz(g, at, step(i) + 12, 0.045),
           );
-        ev(TL.count[1], (g, at) => bell(g, at, 91, 0.085));
-        ev(36.1, (g, at) => pluck(g, at, 81, 0.05));
-        ev(36.9, (g, at) => pluck(g, at, 84, 0.05));
-        A_AG.placed.forEach((i, k) =>
-          ev(i.t, (g, at) =>
-            pluck(g, at, [72, 76, 79, 81, 84][(k * 3) % 5], 0.028, 0.3),
-          ),
-        );
-        A_AG.wired.forEach((w, k) => {
-          if (k % 2 === 0) ev(w.t0, (g, at) => tick(g, at, 0.011, 3000));
+        ev(TL.count[1], (g, at) => celesta(g, at, 98, 0.07));
+        ev(36.1, (g, at) => celesta(g, at, 81, 0.04));
+        ev(36.9, (g, at) => celesta(g, at, 86, 0.04));
+        A_AG.placed.forEach((i, k) => {
+          if (k % 3 === 0) ev(i.t, (g, at) => wood(g, at, 0.014));
         });
         ev(TL.verify[1], (g, at) => {
-          bell(g, at, 84, 0.08);
-          bell(g, at + 0.08, 88, 0.07);
-          bell(g, at + 0.16, 91, 0.07);
+          gliss(g, at, 7, 8, 0.35, 0.04);
+          celesta(g, at + 0.35, 98, 0.07);
         });
         SND.sort((a, b) => a.t - b.t);
 
+        // Sound is on from the start. A browser that holds audio until the viewer
+        // acts leaves the picture on its own clock; the first gesture then brings
+        // the score in, in step with the picture.
         let AC = null,
           mix = null,
           sp = 0;
-        const snd = { on: false, live: false, off: 0, stall: 0 };
-        // Made inside the click that asks for sound, as browsers require.
+        const snd = {
+          live: false,
+          off: 0,
+          none: false,
+          asked: false,
+          woke: -1e9,
+        };
         function audio() {
-          if (!AC) {
+          if (AC || snd.none) return AC;
+          try {
             AC = new (window.AudioContext || window.webkitAudioContext)();
             seed = 1;
             mix = graph(AC);
+            AC.addEventListener("statechange", () => {
+              if (AC.state === "running") {
+                snd.asked = false;
+                sndStart();
+              } else sndStop();
+            });
+          } catch (e) {
+            // No audio here: the film plays silent.
+            AC = null;
+            snd.none = true;
           }
-          AC.resume();
+          return AC;
         }
+        const resume = () => AC.resume().catch(() => {});
         function sndStart() {
-          if (!snd.on || !playing || snd.live || scrubbing || document.hidden)
-            return;
-          audio();
+          if (!playing || snd.live || scrubbing || document.hidden) return;
+          if (!audio()) return;
+          // Not running yet: its statechange calls back here.
+          if (AC.state !== "running") return void resume();
           busOf(mix);
           snd.off = AC.currentTime - T;
           snd.live = true;
-          snd.stall = 0;
           sp = SND.findIndex((e) => e.t >= T);
           if (sp < 0) sp = SND.length;
           for (const e of SND)
             if (e.sus && e.t < T && e.t + e.dur > T + 0.25)
-              e.go(mix, AC.currentTime + 0.02, e.t + e.dur - T);
+              sound(mix, e, AC.currentTime + 0.02, e.t + e.dur - T);
         }
         function sndStop() {
           if (!snd.live) return;
           snd.live = false;
           const b = mix.bus,
             t = AC.currentTime;
-          for (const k of ["dry", "wet", "echo"])
-            b[k].gain.setTargetAtTime(0, t, 0.02);
+          for (const n of [b.dry, b.wet]) n.gain.setTargetAtTime(0, t, 0.02);
           setTimeout(() => {
-            for (const k of ["dry", "wet", "echo"]) b[k].disconnect();
+            for (const n of [b.dry, b.wet]) n.disconnect();
           }, 400);
           // Let the reverb ring out, then stop the clock until sound is wanted again.
           setTimeout(() => {
-            if (!snd.live) AC.suspend();
+            if (!snd.live) AC.suspend().catch(() => {});
           }, 3200);
         }
         function sndPump() {
@@ -2900,31 +3063,21 @@
               at = e.t + snd.off;
             // A stalled page must not play what it missed all at once.
             if (at > AC.currentTime - 0.1)
-              e.go(mix, Math.max(AC.currentTime, at), e.dur);
+              sound(mix, e, Math.max(AC.currentTime, at), e.dur);
           }
         }
-        function setSound(on, fromStart = false) {
-          snd.on = on;
-          $("#bsi").setAttribute(
-            "d",
-            on
-              ? "M2 5h2.6L8 2.2v9.6L4.6 9H2zM10 4.6a3.4 3.4 0 0 1 0 4.8M11.6 3a5.6 5.6 0 0 1 0 8"
-              : "M2 5h2.6L8 2.2v9.6L4.6 9H2zM10.2 5.2l3 3.6M13.2 5.2l-3 3.6",
-          );
-          $("#sc").classList.toggle("off", on);
-          $("#bs").setAttribute(
-            "aria-label",
-            on ? "Turn sound off" : "Turn sound on",
-          );
-          if (!on) return sndStop();
-          audio();
-          // Only the "sound on" chip takes the viewer back to the start; the switch in the bar just switches.
-          if (fromStart) {
-            if (T < 12 || T >= DUR - 0.05) seek(0);
-            if (!playing) setPlaying(true);
+        // Any gesture in the film lets held audio start. The one that wakes it
+        // while the film plays is spent on that, so a click on the picture
+        // brings the sound in instead of pausing.
+        function wakeSound(e) {
+          if (!audio() || AC.state === "running") return;
+          resume();
+          if (playing && !snd.asked) {
+            snd.asked = true;
+            snd.woke = e.timeStamp;
           }
-          sndStart();
         }
+        const wokeSound = (e) => e.timeStamp - snd.woke < 800;
         async function renderScore(rate = 44100) {
           const ctx = new OfflineAudioContext(
             2,
@@ -2934,7 +3087,7 @@
           seed = 1;
           const g = graph(ctx);
           busOf(g);
-          for (const e of SND) e.go(g, e.t, e.dur);
+          for (const e of SND) sound(g, e, e.t, e.dur);
           return ctx.startRendering();
         }
 
@@ -2988,18 +3141,12 @@
         }
         function frame(now) {
           if (playing) {
-            // With sound on, the audio clock drives the picture, so the two cannot drift.
+            // While the score sounds, the audio clock drives the picture, so the
+            // two cannot drift; otherwise the picture keeps its own time.
             if (snd.live && AC.state === "running") {
               T = Math.min(DUR, Math.max(T, AC.currentTime - snd.off));
-              snd.stall = 0;
               sndPump();
-            } else {
-              // A browser that will not start audio leaves the film playing silent.
-              if (snd.live && (snd.stall += (now - lastNow) / 1000) > 0.8)
-                setSound(false);
-              if (!snd.live)
-                T = Math.min(DUR, T + Math.min(0.1, (now - lastNow) / 1000));
-            }
+            } else T = Math.min(DUR, T + Math.min(0.1, (now - lastNow) / 1000));
             dirty = true;
             if (T >= DUR) setPlaying(false);
           }
@@ -3079,14 +3226,11 @@
             ticks.appendChild(i);
           }
         }
+        for (const type of ["pointerdown", "pointerup", "touchend", "keydown"])
+          addEventListener(type, wakeSound, true);
         stage.addEventListener("click", (e) => {
-          if (e.target.closest("a,button")) return;
+          if (e.target.closest("a,button") || wokeSound(e)) return;
           toggle();
-        });
-        $("#bs").addEventListener("click", () => setSound(!snd.on));
-        $("#sc").addEventListener("click", (e) => {
-          e.currentTarget.blur();
-          setSound(true, true);
         });
         // A hidden tab stops drawing but not sounding: stop the score there and pick it up, in step, on return.
         document.addEventListener("visibilitychange", () => {
@@ -3128,9 +3272,8 @@
           if (e.target.closest && e.target.closest("button,a,#scrub")) return;
           if (e.key === " ") {
             e.preventDefault();
-            toggle();
+            if (!wokeSound(e)) toggle();
           }
-          if (e.key === "m" || e.key === "M") setSound(!snd.on);
           if (e.key === "ArrowRight")
             seek(SCENES.find((t) => t > T + 0.05) ?? DUR);
           if (e.key === "ArrowLeft")
@@ -3149,10 +3292,13 @@
         window.__film = {
           seek,
           setPlaying,
-          setSound,
           renderScore,
           get t() {
             return T;
+          },
+          // Whether the score is playing in step with the picture.
+          get sounding() {
+            return snd.live && AC.state === "running";
           },
           DUR,
         };
