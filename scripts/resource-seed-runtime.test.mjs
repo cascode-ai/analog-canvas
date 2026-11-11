@@ -55,6 +55,7 @@ it("initializes every publication stream in the Workers SQL runtime", async () =
       "circuitthink",
       "amsnet",
       "analogretriever",
+      "image2net",
     ]) {
       const response = await mf.dispatchFetch(
         `https://test/api/resource-sync/${stream}/seed`,

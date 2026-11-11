@@ -90,6 +90,7 @@ it("carries supported regional actions and their private catch-up without openin
     "gallery-activity",
     "circuitthink-activity",
     "analogretriever-opens",
+    "image2net-activity",
   ]) {
     expect(
       (

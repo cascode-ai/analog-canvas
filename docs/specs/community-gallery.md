@@ -493,16 +493,20 @@ out it asks to sign in).
 
 - Only datasets whose figures we may show take comparisons: `comparisons:
 true` in `config/gallery-sources.json` (AnalogGenie, MIT; CircuitThink,
-  Apache-2.0; AMS-Net, GPL-3.0; AnalogRetriever, MIT). Any other answers 404.
+  Apache-2.0; AMS-Net, GPL-3.0; AnalogRetriever, MIT; Image2Net,
+  Apache-2.0). Any other answers 404.
 - A comparison belongs to an entry of its dataset's store and is listed only
   while that entry is public. Comparisons are re-importable derived data:
   not in the backups.
 - Verdicts: `match` (netlists agree), `notation` (same circuit, written
   differently, such as an ideal source as a port), `error` (the dataset's
-  netlist is wrong), `unclear` (the figure is ambiguous). Every verdict
-  except `match` names a `category`; all of them are public. The pages name
-  them Match, Written differently, Dataset error and Figure ambiguous, with
-  no gloss: the board's legend is one row of name, count and share.
+  netlist is wrong), `unclear` (the figure is ambiguous), `figure-only` (the
+  dataset gives no netlist for the figure, so nothing is compared; its
+  `sourceNetlist` is empty). Every verdict except `match` and `figure-only`
+  names a `category`; all of them are public. The pages name them Match,
+  Written differently, Dataset error, Figure ambiguous and Figure only, in
+  that order, with no gloss: the board's legend is one row of name, count
+  and share. Accuracy leaves `figure-only` circuits out of its total.
 - A reader saves circuits for reference, privately: Save on a row or in the
   viewer, and the toolbar's Saved filter (`saved=1` in the address). `POST
 /api/gallery/<id>/bookmark` (same-origin, signed in) toggles one →
@@ -544,7 +548,7 @@ red, half-filled under the pointer and solid when pressed or chosen (once a
 reason is). Below the pictures, what comparing a dataset's two netlists found (a
 callout in the verdict's tint: verdict and kind as tags, then the
 difference, two lines unless opened); then each side's SPICE netlist at its full
-length. The page
+length, or, where the dataset gives none, a line saying so. The page
 scrolls. A drag on a picture boxes a spot (numbered, removable, ≤12 per
 review); a click opens both pictures over the window, each zoomed by the
 wheel and panned by a drag, where B or Shift-drag boxes too. Pointing at

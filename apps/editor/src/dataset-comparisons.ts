@@ -2,7 +2,8 @@
 // The page reads every comparison once and sorts, filters and counts them
 // itself; this module is that logic, the page only draws it.
 
-export type ComparisonVerdict = "match" | "notation" | "error" | "unclear";
+export type ComparisonVerdict =
+  "match" | "notation" | "error" | "unclear" | "figure-only";
 
 /** One row of GET /api/gallery/sources/<key>/comparisons, with its dataset. */
 export interface DatasetComparison {
@@ -30,6 +31,7 @@ export const VERDICTS: readonly {
   { key: "notation", label: "Written differently", icon: "≈" },
   { key: "error", label: "Dataset error", icon: "✕" },
   { key: "unclear", label: "Figure ambiguous", icon: "?" },
+  { key: "figure-only", label: "Figure only", icon: "–" },
 ];
 
 export function verdictOf(key: ComparisonVerdict) {
@@ -160,6 +162,7 @@ const VERDICT_ORDER: Record<ComparisonVerdict, number> = {
   unclear: 1,
   notation: 2,
   match: 3,
+  "figure-only": 4,
 };
 
 export function sortedComparisons(
@@ -261,6 +264,23 @@ export function searchOfFilters(filters: ComparisonFilters): string {
   if (filters.view !== "pair") params.set("view", filters.view);
   const text = params.toString();
   return text ? `?${text}` : "";
+}
+
+/**
+ * Share of the compared circuits that agree (Match and Notation); a
+ * figure-only circuit has no dataset netlist, so it counts on neither side.
+ */
+export function accuracyOf(rows: readonly DatasetComparison[]): {
+  accuracy: number;
+  strict: number;
+} {
+  const compared = rows.filter((row) => row.verdict !== "figure-only");
+  const of = (key: ComparisonVerdict) =>
+    compared.filter((row) => row.verdict === key).length;
+  return {
+    accuracy: percent(of("match") + of("notation"), compared.length),
+    strict: percent(of("match"), compared.length),
+  };
 }
 
 /** Share of a total as a whole percent. */

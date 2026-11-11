@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   NO_FILTERS,
+  VERDICTS,
+  accuracyOf,
   countBy,
   filtersFromSearch,
   rowsWithout,
@@ -105,6 +107,30 @@ describe("dataset comparison page logic", () => {
     ]);
     expect(sortedComparisons(rows, "largest")[0]!.id).toBe("ag-100");
     expect(sortedComparisons(rows, "errors").at(-1)!.id).toBe("ag-10");
+  });
+
+  it("counts, filters and sorts a figure without a dataset netlist last, outside accuracy", () => {
+    expect(VERDICTS.at(-1)).toMatchObject({
+      key: "figure-only",
+      label: "Figure only",
+    });
+    const all = [...rows, row("ag-12", "figure-only", "", 4)];
+    expect(
+      rowsWithout(all, { ...NO_FILTERS, verdict: "figure-only" }).map(
+        (r) => r.id,
+      ),
+    ).toEqual(["ag-12"]);
+    expect(countBy(all, (r) => r.verdict)).toContainEqual(["figure-only", 1]);
+    expect(sortedComparisons(all, "errors").at(-1)!.id).toBe("ag-12");
+    // Two of five compared agree; the figure-only circuit counts on neither side.
+    expect(accuracyOf(all)).toEqual({ accuracy: 40, strict: 20 });
+    expect(accuracyOf([row("ag-12", "figure-only", "", 4)])).toEqual({
+      accuracy: 0,
+      strict: 0,
+    });
+    expect(filtersFromSearch("?verdict=figure-only").verdict).toBe(
+      "figure-only",
+    );
   });
 
   it("keeps the filters in the address and ignores unknown values", () => {
