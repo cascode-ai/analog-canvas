@@ -70,6 +70,11 @@ import {
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
 import { acRichText } from "./text.js";
 import { applyNativeRnlAppearance } from "./native-terminals.js";
+import {
+  CANVAS_PACKAGE,
+  CANVAS_PACKAGE_VERSIONS,
+  RNL_STD_VERSION,
+} from "./rnl-packages.js";
 
 export type RnlAppearance = "canvas" | "source";
 
@@ -107,11 +112,10 @@ export interface RnlImportDiagnostic {
   documentId?: StableId;
 }
 
-/** The standard series and Analog Canvas package versions the mapping table is for. */
+/** The Analog Canvas package versions the mapping table is for. */
 const MAPPED_VERSIONS: Readonly<Record<string, readonly string[]>> = {
-  "analog-canvas-extensions": ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6"],
+  [CANVAS_PACKAGE]: CANVAS_PACKAGE_VERSIONS,
 };
-const STD_VERSION = "0.3";
 
 /**
  * The name an RNL id names, without its prefix (`#M1` → `M1`), quotes
@@ -367,10 +371,9 @@ export function canvasTopDocument(
 
 /**
  * A Project the SPICE / SCS importer made from a rich netlist, drawn as the
- * netlist's RNL draws it (rnl-dev `notes/analog-canvas-rnl-import-export.md`,
- * 6): parts placed, turned and in the variant their RNL symbol stands for;
- * wires with every bend, split where they run through a pin or point; and
- * junction points. The electrical part is the importer's, unchanged.
+ * netlist's RNL draws it: parts placed, turned and in the variant their RNL
+ * symbol stands for; wires with every bend, split where they run through a
+ * pin or point; and junction points. The electrical part is the importer's, unchanged.
  * Callers without an appearance retain the legacy projection.
  */
 export function applyRnlSnapshot(
@@ -390,7 +393,7 @@ export function applyRnlSnapshot(
   const cellNames: { documentId: StableId; name: string }[] = [];
   const keptParameters: KeptParameter[] = [];
   const canvasPackages = snapshot.packages.filter(
-    ({ name }) => name === "analog-canvas-extensions",
+    ({ name }) => name === CANVAS_PACKAGE,
   );
   const canvasAtLeast = (minorVersion: number) =>
     canvasPackages.some(({ version }) => {
@@ -424,7 +427,7 @@ export function applyRnlSnapshot(
       });
   for (const { name, version } of snapshot.packages) {
     const wanted = name.startsWith("rnl-std")
-      ? [STD_VERSION]
+      ? [RNL_STD_VERSION]
       : MAPPED_VERSIONS[name];
     if (wanted && version && !wanted.includes(version))
       diagnostics.push({

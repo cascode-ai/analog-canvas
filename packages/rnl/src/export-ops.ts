@@ -66,6 +66,11 @@ import {
 } from "./place.js";
 import { rnlName } from "./rnl-name.js";
 import {
+  CANVAS_PACKAGE,
+  CANVAS_PACKAGE_VERSION,
+  RNL_STD_VERSION,
+} from "./rnl-packages.js";
+import {
   RNL_SYMBOLS,
   rnlSymbolFor,
   rnlSymbolForPart,
@@ -109,13 +114,9 @@ const USAGE_PREFIX: Readonly<Record<string, string>> = {
  * hold the symbols for every element SPICE and Spectre read natively, all but
  * subcircuit calls. A file names every other package it uses. The rules that
  * pick those symbols by default come with the netlist dialect's own standard
- * package; the export needs none, since it sets every symbol itself. The
- * split is rnl-dev's draft, not yet in the standard.
+ * package; the export needs none, since it sets every symbol itself.
  */
 const IMPLICIT_PACKAGES = new Set(["rnl-std-basic", "rnl-std-semiconductors"]);
-
-/** The standard series the export writes for; the header pins it (16.3). */
-const STD_VERSION = "0.3";
 
 /**
  * The standard package that clears the labels symbols bring with them (name,
@@ -123,13 +124,6 @@ const STD_VERSION = "0.3";
  * Formulas stay: Analog Canvas shows them.
  */
 const NO_LABELS_PACKAGE = "rnl-std-no-labels";
-
-/**
- * The package of Analog Canvas's appearance variants and chopper, and what
- * only Analog Canvas keeps of a drawing; not standard.
- */
-const AC_PACKAGE = "analog-canvas-extensions";
-const AC_PACKAGE_VERSION = "0.6";
 
 /**
  * The edit transaction's operations that draw a netlisted Project as Analog
@@ -188,7 +182,7 @@ export function rnlExportOps(
         ),
     );
   if (top && calledTop) {
-    packages.add(AC_PACKAGE);
+    packages.add(CANVAS_PACKAGE);
     ops.push({
       level: `subckt:${top.name}`,
       op: "add-usage",
@@ -204,7 +198,7 @@ export function rnlExportOps(
     level: top ? `subckt:${top.name}` : "",
     op: "use-package",
     name,
-    version: name === AC_PACKAGE ? AC_PACKAGE_VERSION : STD_VERSION,
+    version: name === CANVAS_PACKAGE ? CANVAS_PACKAGE_VERSION : RNL_STD_VERSION,
   }));
   const fileSymbols: RnlOp[] = [...blocks.externals.values()].map((symbol) => ({
     level: "file",
@@ -468,7 +462,7 @@ function exportCell(
   // How the Cell sets names in its labels, each setting other than Analog
   // Canvas's default, none included, so the import knows the Cell keeps
   // the default: in its own record, which reaches no other Cell.
-  packages.add(AC_PACKAGE);
+  packages.add(CANVAS_PACKAGE);
   ops.push({
     level,
     op: "add-usage",
@@ -702,11 +696,11 @@ function exportCell(
       }
       orient = result.orient;
     }
-    if (symbol?.package === AC_PACKAGE)
+    if (symbol?.package === CANVAS_PACKAGE)
       report(
         "warning",
         "RNL_NOT_STANDARD_SYMBOL",
-        `${describe(instance)} is drawn with ${symbol.symbol} from the ${AC_PACKAGE} package, not the standard package`,
+        `${describe(instance)} is drawn with ${symbol.symbol} from the ${CANVAS_PACKAGE} package, not the standard package`,
         [instance.id],
       );
     if (symbol && !symbol.inline) packages.add(symbol.package);
@@ -824,7 +818,7 @@ function exportCell(
           ),
       )
     ) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -836,7 +830,7 @@ function exportCell(
     // The part's own name, where the netlist spells it otherwise: SPICE
     // starts a subcircuit call's card with X, so M1 prints as XM1.
     if (instance.reference && instance.reference !== reference) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -848,7 +842,7 @@ function exportCell(
     // A part the author never named, which the netlist must name to print
     // its card (Canvas 0.4).
     if (!instance.reference) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -864,7 +858,7 @@ function exportCell(
       instance,
       context.format,
     )) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -876,7 +870,7 @@ function exportCell(
     // Each parameter the editor keeps that the card does not print, by the
     // editor's name for it (Canvas 0.4).
     for (const { name, text } of unprintedParameters(cell, instance)) {
-      packages.add(AC_PACKAGE);
+      packages.add(CANVAS_PACKAGE);
       ops.push({
         level,
         op: "add-usage",
@@ -1281,7 +1275,7 @@ function exportTexts(
     const params = canvasLabel(binding);
     if (!params || said.has(label)) return;
     said.add(label);
-    context.packages.add(AC_PACKAGE);
+    context.packages.add(CANVAS_PACKAGE);
     ops.push({
       level,
       op: "add-usage",
@@ -1294,7 +1288,7 @@ function exportTexts(
   // text, named for it (Canvas 0.4); its size is written as well.
   const typeset = (text: string, token: string | undefined) => {
     if (!token) return;
-    context.packages.add(AC_PACKAGE);
+    context.packages.add(CANVAS_PACKAGE);
     ops.push({
       level,
       op: "add-usage",
@@ -1544,8 +1538,8 @@ function exportTexts(
       });
     if (object.anchor.kind === "route") alongWires.push(object.id);
     if (object.kind === "floating-symbol") {
-      // A symbol drawn as a picture: a usage of the point definition
-      // $FIGURE, which takes any symbol (rnl-dev ops draft, 3.4).
+      // A symbol drawn as a picture: a usage of the standard point
+      // definition $FIGURE, which takes any symbol.
       const symbol = rnlSymbolFor(object.symbolId, null);
       const turn = rnlOrient(object.transform);
       if (geometry.kind !== "floating-symbol" || !symbol || !turn.ok) {

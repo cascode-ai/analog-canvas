@@ -39,12 +39,15 @@ import {
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import {
+  CANVAS_PACKAGE,
+  CANVAS_PACKAGE_VERSION,
   composeOrient,
   createRnlExport,
   rnlBodyPortOrder,
   rnlOrient,
   rnlPlace,
   rnlSymbolFor,
+  RNL_STD_VERSION,
   type RnlWriteRequest,
 } from "@icm/rnl";
 import {
@@ -453,7 +456,7 @@ const EXTENSIONS_06_PARTS = [
 ] as const;
 
 it.each(["spice", "spectre"] as const)(
-  "brings back each part analog-canvas-extensions 0.6 draws through %s+RNL",
+  "brings back each part the written Canvas package draws through %s+RNL",
   async (format) => {
     const project = calledBlocks([...EXTENSIONS_06_PARTS]);
     const exported = createRnlExport(project, { format });
@@ -466,7 +469,7 @@ it.each(["spice", "spectre"] as const)(
       svg: false,
     });
     expect(written.text).toContain(
-      'USE-PACKAGE(name="analog-canvas-extensions", version="0.6")',
+      `USE-PACKAGE(name="${CANVAS_PACKAGE}", version="${CANVAS_PACKAGE_VERSION}")`,
     );
     const plan = await importRnl(written.text, format);
     expect(failures(plan)).toEqual([]);
@@ -5631,7 +5634,7 @@ describe("RNL round trip of 4-input gates", () => {
           `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
         );
       expect(written.text).toContain(
-        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.6")',
+        `@USE-PACKAGE(name="${CANVAS_PACKAGE}", version="${CANVAS_PACKAGE_VERSION}")`,
       );
       // RNL's standard gates have their inputs elsewhere; Analog Canvas's
       // own keep each wire level, in RNL as in the editor.
@@ -5690,8 +5693,8 @@ describe("RNL round trip of 4-input gates", () => {
         JSON.stringify(withoutCanvasMeaning(exported.request))
           .replaceAll("$CANVAS_", "$")
           .replace(
-            '"name":"analog-canvas-extensions","version":"0.6"',
-            '"name":"rnl-std-logic","version":"0.3"',
+            `"name":"${CANVAS_PACKAGE}","version":"${CANVAS_PACKAGE_VERSION}"`,
+            `"name":"rnl-std-logic","version":"${RNL_STD_VERSION}"`,
           ),
       ) as typeof exported.request;
       const written = await runtime.write({ write: request, svg: false });

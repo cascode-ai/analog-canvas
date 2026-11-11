@@ -25,6 +25,11 @@ import type { Vertex } from "@rich-netlist/runtime";
 
 import { delayCellFixture } from "../../netlist/src/delay-cell-fixture.test-support.js";
 import { rnlExportOps, type RnlOp } from "./export-ops.js";
+import {
+  CANVAS_PACKAGE,
+  CANVAS_PACKAGE_VERSION,
+  RNL_STD_VERSION,
+} from "./rnl-packages.js";
 import { rnlBodyPortOrder } from "./symbol-map.js";
 
 const example = (name: string): CircuitProject =>
@@ -78,9 +83,9 @@ describe("RNL export of the simulation examples", () => {
       expect(
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
       ).toEqual([
-        "rnl-std 0.3",
-        "rnl-std-no-labels 0.3",
-        "analog-canvas-extensions 0.6",
+        `rnl-std ${RNL_STD_VERSION}`,
+        `rnl-std-no-labels ${RNL_STD_VERSION}`,
+        `${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}`,
       ]);
       expect(
         of(ops, "add-usage").filter(
@@ -383,11 +388,11 @@ describe("what RNL cannot write", () => {
   });
 
   it.each([
-    ["opamp", "$OPAMP_5TERM", "rnl-std-functional 0.3", false],
+    ["opamp", "$OPAMP_5TERM", `rnl-std-functional ${RNL_STD_VERSION}`, false],
     [
       "opamp-lettered",
       "$CANVAS_OPAMP_LETTERED",
-      "analog-canvas-extensions 0.6",
+      `${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}`,
       true,
     ],
   ] as const)(
@@ -455,10 +460,10 @@ describe("what RNL cannot write", () => {
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
       ).toEqual([
         ...new Set([
-          "rnl-std 0.3",
-          "rnl-std-no-labels 0.3",
+          `rnl-std ${RNL_STD_VERSION}`,
+          `rnl-std-no-labels ${RNL_STD_VERSION}`,
           // Every Cell says how it sets names ($CANVAS_TYPESETTING).
-          "analog-canvas-extensions 0.6",
+          `${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}`,
           pinned,
         ]),
       ]);

@@ -1,46 +1,16 @@
 import { expect, it, vi } from "vitest";
 import { readFile } from "node:fs/promises";
+import { canvasPackageLock as lock } from "../apps/editor/src/features/netlist-export/rnl-canvas-package.ts";
 import { downloadCanvasPackages } from "./rnl-canvas-package.mjs";
 
 const base = "https://rich-netlist.github.io/rnl-packages/";
-const records = [
-  {
-    name: "analog-canvas-extensions",
-    version: "0.1",
-    url: "packages/analog-canvas-extensions/0.1/analog-canvas-extensions.rnl",
-    sha256: "3738e1ce0c5d6fca3e13ad44faac8bd54f5eeb70577a22e412f5858f21f86711",
-  },
-  {
-    name: "analog-canvas-extensions",
-    version: "0.2",
-    url: "packages/analog-canvas-extensions/0.2/analog-canvas-extensions.rnl",
-    sha256: "b9da7bd01b85ec1108546770cb0a845a85627a2b4879de8fc7351006f19cde7e",
-  },
-  {
-    name: "analog-canvas-extensions",
-    version: "0.3",
-    url: "packages/analog-canvas-extensions/0.3/analog-canvas-extensions.rnl",
-    sha256: "d000fb9bfafae4b53c28e2293f40b6ab0c1bdc15e2b17d53ee502877262fc914",
-  },
-  {
-    name: "analog-canvas-extensions",
-    version: "0.4",
-    url: "packages/analog-canvas-extensions/0.4/analog-canvas-extensions.rnl",
-    sha256: "40843a19ccbe02f81e7cbb4b5d7acb351bf2d3a4e737cb9be1f7b5fe6f83ac4a",
-  },
-  {
-    name: "analog-canvas-extensions",
-    version: "0.5",
-    url: "packages/analog-canvas-extensions/0.5/analog-canvas-extensions.rnl",
-    sha256: "4b902f72322d88c74bbd92a760d16b0bc38232e413b9140cb7e039efab8be3a5",
-  },
-  {
-    name: "analog-canvas-extensions",
-    version: "0.6",
-    url: "packages/analog-canvas-extensions/0.6/analog-canvas-extensions.rnl",
-    sha256: "6b8af6bbc4538cc5ea845b45c4511027fd61865917839a37612c326e19905ead",
-  },
-];
+// The catalog's records of the locked versions, as the catalog writes them.
+const records = lock.versions.map(({ version, url, sha256 }) => ({
+  name: lock.name,
+  version,
+  url: url.slice(base.length),
+  sha256,
+}));
 const bytes = Object.fromEntries(
   await Promise.all(
     records.map(async ({ version }) => [

@@ -3,7 +3,11 @@ import type { Written } from "@rich-netlist/runtime";
 
 import { importChunk } from "../../components/chunk-import";
 import { withCanvasPackage, type RnlWorkspace } from "./rnl-core";
-import { canvasPackageLock, decodeCanvasPackage } from "./rnl-canvas-package";
+import {
+  canvasPackageFile,
+  canvasPackageLock,
+  decodeCanvasPackage,
+} from "./rnl-canvas-package";
 
 type RuntimeDiagnostic = Written["document"]["diagnostics"][number];
 
@@ -46,17 +50,11 @@ export interface RnlRuntime {
   ): Promise<RnlSnapshot>;
 }
 
-/** Each locked Canvas package version's asset, by version. */
-const packageUrls: Readonly<
-  Record<string, () => Promise<{ default: string }>>
-> = {
-  "0.1": () => import("./analog-canvas-extensions-0.1.rnl?url"),
-  "0.2": () => import("./analog-canvas-extensions-0.2.rnl?url"),
-  "0.3": () => import("./analog-canvas-extensions-0.3.rnl?url"),
-  "0.4": () => import("./analog-canvas-extensions-0.4.rnl?url"),
-  "0.5": () => import("./analog-canvas-extensions-0.5.rnl?url"),
-  "0.6": () => import("./analog-canvas-extensions-0.6.rnl?url"),
-};
+/** The Canvas package assets the editor ships, by file name beside this module. */
+const packageUrls = import.meta.glob<string>(
+  "./analog-canvas-extensions-*.rnl",
+  { query: "?url", import: "default" },
+);
 
 /** A locked Canvas package version, from the editor's own asset. */
 async function loadCanvasPackage(version: string, url: string) {
@@ -93,10 +91,10 @@ export function loadRnlRuntime(): Promise<RnlRuntime | null> {
         import("@rich-netlist/runtime"),
         Promise.all(
           canvasPackageLock.versions.map(async ({ version }) => {
-            const asset = packageUrls[version];
+            const asset = packageUrls[`./${canvasPackageFile(version)}`];
             if (!asset)
               throw new Error(`Canvas package ${version} is not shipped`);
-            return { version, url: (await asset()).default };
+            return { version, url: await asset() };
           }),
         ),
       ]),
