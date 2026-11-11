@@ -4,6 +4,7 @@ import {
   makerOf,
   signIn,
   adminOf,
+  ownerAccountOf,
   ORIGIN,
   sqliteState,
   submissionRequest,
@@ -19,6 +20,172 @@ import { routeRegionalResourceActions } from "./regional-resource-actions";
 import { digest } from "./regional-auth-contract";
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("resolves a China-written Dataset review through the overseas entrance in its own stream", async () => {
+  const { cn, overseas, auth } = await pair();
+  const ownerCookie = await ownerAccountOf(auth.source);
+  const cnOwner = await auth.connect(ownerCookie);
+  const send = (
+    site: typeof cn,
+    cookie: string,
+    path: string,
+    method: string,
+    body?: unknown,
+  ) =>
+    site.route(
+      new Request(ORIGIN + path, {
+        method,
+        headers: { cookie, origin: ORIGIN },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+    );
+  const imported = await send(
+    cn,
+    cnOwner,
+    "/api/gallery/sources/analoggenie/entries",
+    "POST",
+    {
+      entries: [
+        {
+          id: "ag-308",
+          name: "Synthetic Dataset",
+          projectText: wiredProjectText(),
+        },
+      ],
+    },
+  );
+  expect(imported.status, await imported.clone().text()).toBe(200);
+  const transfer = async (stream: string) => {
+    const source = cn.env.GALLERY.getByName("source:analoggenie");
+    const target = overseas.env.GALLERY.getByName("source:analoggenie");
+    const changes = await source.fetch("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream, after: 0 }),
+    });
+    expect(
+      (
+        await target.fetch("https://store/resource-sync/receive", {
+          method: "POST",
+          body: JSON.stringify({ stream, envelope: await changes.json() }),
+        })
+      ).status,
+    ).toBe(200);
+  };
+  await transfer("analoggenie");
+  const revision = (await (await cn.call("/api/gallery/ag-308")).json()).entry
+    .previewRevision;
+  const created = await cn.call(
+    "/api/gallery/ag-308/reviews",
+    "POST",
+    undefined,
+    {
+      revision,
+      verdict: "issue",
+      flags: ["wiring"],
+      note: "Synthetic Dataset review",
+      marks: [],
+    },
+  );
+  expect(created.status, await created.clone().text()).toBe(200);
+  const reviewId = (await created.json()).review.id;
+  await transfer("analoggenie-interactions");
+  const response = await send(
+    overseas,
+    ownerCookie,
+    `/api/gallery/ag-308/reviews/${reviewId}`,
+    "PATCH",
+    { resolved: true },
+  );
+  expect(response.status, await response.clone().text()).toBe(200);
+  const visible = await send(
+    overseas,
+    ownerCookie,
+    "/api/gallery/ag-308/reviews",
+    "GET",
+  );
+  expect((await visible.json()).history[0].resolved).toBe(true);
+  // Reconciliation of a terminal resolution cannot be reused for another intent.
+  expect(
+    (
+      await send(
+        overseas,
+        ownerCookie,
+        `/api/gallery/ag-308/reviews/${reviewId}`,
+        "PATCH",
+        { resolved: false },
+      )
+    ).status,
+  ).toBe(400);
+});
+
+it("resolves a foreign review once, preserving Owner-only authority across a lost reply", async () => {
+  const { cn, overseas, publish, auth, loseNextReply } = await pair();
+  const id = await publish(cn);
+  const revision = (await (await overseas.call(`/api/gallery/${id}`)).json())
+    .entry.previewRevision;
+  const reviewer = await signIn(
+    auth.source.authDurable,
+    "regional-reviewer@example.com",
+  );
+  const created = await overseas.route(
+    new Request(ORIGIN + `/api/gallery/${id}/reviews`, {
+      method: "POST",
+      headers: { cookie: reviewer, origin: ORIGIN },
+      body: JSON.stringify({
+        revision,
+        verdict: "issue",
+        flags: ["wiring"],
+        note: "Synthetic review",
+        marks: [],
+      }),
+    }),
+  );
+  expect(created.status, await created.clone().text()).toBe(200);
+  const reviewId = (await created.json()).review.id;
+  const changes = await overseas.store.fetch(
+    new Request("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream: "gallery-interactions", after: 0 }),
+    }),
+  );
+  expect(
+    (
+      await cn.store.fetch(
+        new Request("https://store/resource-sync/receive", {
+          method: "POST",
+          body: JSON.stringify({
+            stream: "gallery-interactions",
+            envelope: await changes.json(),
+          }),
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  const resolve = (cookie: string) =>
+    cn.route(
+      new Request(ORIGIN + `/api/gallery/${id}/reviews/${reviewId}`, {
+        method: "PATCH",
+        headers: { cookie, origin: ORIGIN },
+        body: JSON.stringify({ resolved: true }),
+      }),
+    );
+  expect((await resolve(await auth.connect(reviewer))).status).toBe(403);
+  expect(
+    (await resolve(await auth.connect(await adminOf(auth.source)))).status,
+  ).toBe(403);
+  const owner = await auth.connect(await ownerAccountOf(auth.source));
+  loseNextReply();
+  expect((await resolve(owner)).status).toBe(503);
+  overseas.restart();
+  const retry = await resolve(owner);
+  expect(retry.status, await retry.clone().text()).toBe(200);
+  expect(await retry.json()).toEqual({ ok: true });
+  expect(
+    (await (await cn.call(`/api/gallery/${id}/reviews`)).json()).history[0]
+      .resolved,
+  ).toBe(true);
+  expect((await resolve(owner)).status).toBe(200);
+});
 
 it("keeps owner and moderator metadata permissions in the reverse direction", async () => {
   const { cn, overseas, publish, auth, cnCookie } = await pair();
@@ -136,6 +303,13 @@ async function pair() {
       PROJECT_IDENTITY_TOKEN: "isolated-regional-account-service-secret",
     };
     let store = new GalleryDO(state, env);
+    const datasets = new Map<
+      string,
+      {
+        state: ReturnType<typeof sqliteState>;
+        store: InstanceType<typeof GalleryDO>;
+      }
+    >();
     const componentState = sqliteState();
     let components = new ComponentLibraryDO(componentState, env);
     const componentBinding = {
@@ -146,9 +320,19 @@ async function pair() {
     };
     Object.assign(env, { COMPONENT_LIBRARY: componentBinding });
     env.GALLERY = {
-      getByName: () => ({
+      getByName: (name: string) => ({
         fetch: (input: string, init?: RequestInit) =>
-          store.fetch(new Request(input, init)),
+          (() => {
+            if (name === "gallery")
+              return store.fetch(new Request(input, init));
+            let dataset = datasets.get(name);
+            if (!dataset) {
+              const state = sqliteState();
+              dataset = { state, store: new GalleryDO(state, env) };
+              datasets.set(name, dataset);
+            }
+            return dataset.store.fetch(new Request(input, init));
+          })(),
       }),
     };
     const route = async (request: Request): Promise<Response> =>
@@ -190,6 +374,8 @@ async function pair() {
       call,
       restart: () => {
         store = new GalleryDO(state, env);
+        for (const dataset of datasets.values())
+          dataset.store = new GalleryDO(dataset.state, env);
         components = new ComponentLibraryDO(componentState, env);
       },
     };

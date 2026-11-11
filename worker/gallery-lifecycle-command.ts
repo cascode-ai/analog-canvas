@@ -1,6 +1,7 @@
 import {
   type DurableObjectStateLike,
   type EntryRow,
+  type SqlStorage,
   withdrawnByCurator,
   summaryOf,
 } from "./gallery-store";
@@ -17,10 +18,7 @@ export function lifecycleCommand(
   body: Record<string, unknown>,
 ): Response {
   const sql = state.storage.sql;
-  sql.exec(`CREATE TABLE IF NOT EXISTS gallery_lifecycle_commands (
-    user_id TEXT NOT NULL, command_id TEXT NOT NULL, binding TEXT NOT NULL,
-    entry_id TEXT NOT NULL, status TEXT NOT NULL,
-    PRIMARY KEY(user_id,command_id)) WITHOUT ROWID`);
+  ensureGalleryCommandReceipts(sql);
   const user = body.user as SessionUser;
   const id = String(body.id),
     action = String(body.action);
@@ -178,6 +176,13 @@ export function lifecycleCommand(
     );
     return Response.json({ id, status });
   });
+}
+
+export function ensureGalleryCommandReceipts(sql: SqlStorage): void {
+  sql.exec(`CREATE TABLE IF NOT EXISTS gallery_lifecycle_commands (
+    user_id TEXT NOT NULL, command_id TEXT NOT NULL, binding TEXT NOT NULL,
+    entry_id TEXT NOT NULL, status TEXT NOT NULL,
+    PRIMARY KEY(user_id,command_id)) WITHOUT ROWID`);
 }
 
 function curationReceipt(entry: ReturnType<typeof summaryOf>): string {
