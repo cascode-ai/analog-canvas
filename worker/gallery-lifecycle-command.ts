@@ -2,8 +2,10 @@ import {
   type DurableObjectStateLike,
   type EntryRow,
   withdrawnByCurator,
+  summaryOf,
 } from "./gallery-store";
-import { deleteEntry, setStatus } from "./gallery-store-moderation";
+import { curate, deleteEntry, setStatus } from "./gallery-store-moderation";
+import { validCurationRequest } from "./gallery-curation";
 import type { SessionUser } from "./auth";
 
 /** Trusted route command: authorization, state transition and receipt commit together. */
@@ -40,14 +42,25 @@ export function lifecycleCommand(
       return Response.json({ id, status: "deleted", superseded: !!row });
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
     if (!user.isAdmin && row.owner_user_id !== user.id)
-      return Response.json({ error: "unauthorized" }, { status: 401 });
+      return action === "curation"
+        ? Response.json({ error: "forbidden" }, { status: 403 })
+        : Response.json({ error: "unauthorized" }, { status: 401 });
+    if (previous && action === "curation") {
+      const entry = summaryOf(row, true);
+      return Response.json({
+        id,
+        status: row.status,
+        entry,
+        superseded: previous.status !== curationReceipt(entry),
+      });
+    }
     if (previous)
       return Response.json({
         id: previous.entry_id,
         status: row.status,
         superseded: row.status !== previous.status,
       });
-    if (action !== "recycle" && action !== "restore" && action !== "delete")
+    if (!["recycle", "restore", "delete", "curation"].includes(action))
       return Response.json({ error: "invalid-action" }, { status: 400 });
     if (
       sql
@@ -60,6 +73,7 @@ export function lifecycleCommand(
       return Response.json({ error: "command-receipts-full" }, { status: 503 });
     if (
       action !== "delete" &&
+      action !== "curation" &&
       !user.isAdmin &&
       !(action === "recycle"
         ? row.status === "public"
@@ -68,6 +82,30 @@ export function lifecycleCommand(
           !withdrawnByCurator(row))
     )
       return Response.json({ error: "invalid-status" }, { status: 409 });
+    if (action === "curation") {
+      if (!validCurationRequest(body.input))
+        return Response.json({ error: "invalid-curation" }, { status: 400 });
+      const response = curate(state, {
+        ...body.input,
+        id,
+        userId: user.id,
+        at: new Date().toISOString(),
+      });
+      if (!response.ok) return response;
+      const current = sql
+        .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id=?", id)
+        .toArray()[0]!;
+      const entry = summaryOf(current, true);
+      sql.exec(
+        "INSERT INTO gallery_lifecycle_commands VALUES (?,?,?,?,?)",
+        user.id,
+        String(body.commandId),
+        String(body.binding),
+        id,
+        curationReceipt(entry),
+      );
+      return Response.json({ id, status: current.status, entry });
+    }
     const status =
       action === "delete"
         ? "deleted"
@@ -99,4 +137,12 @@ export function lifecycleCommand(
     );
     return Response.json({ id, status });
   });
+}
+
+function curationReceipt(entry: ReturnType<typeof summaryOf>): string {
+  return JSON.stringify([
+    "curation",
+    entry.curationRevision,
+    entry.previewRevision,
+  ]);
 }

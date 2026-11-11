@@ -33,7 +33,7 @@ export const RESOURCE_MAX_BYTES = 24 * 1024 * 1024;
 /** Receivers refuse every other snapshot version; versions never mix. */
 const SNAPSHOT_VERSION = 2;
 /** Changing trigger bodies bumps this so installed triggers are recreated. */
-const TRIGGER_VERSION = 3;
+const TRIGGER_VERSION = 4;
 /** Writer-owned likes and reviews of a Gallery store travel in their own stream. */
 export const INTERACTION_STREAM_SUFFIX = "-interactions";
 /** Concurrent writes of one interaction generation keep this region's record. */
@@ -298,7 +298,7 @@ export class ResourceReplica {
       const claim = this.writerOwned
         ? `INSERT INTO ${meta}_keys (id,origin) VALUES (${id},${region})
             ON CONFLICT(id) DO UPDATE SET generation=generation+(origin<>excluded.origin), origin=excluded.origin;`
-        : `INSERT OR IGNORE INTO ${meta}_keys VALUES (${id},${region});`;
+        : `INSERT INTO ${meta}_keys VALUES (${id},${region}) ON CONFLICT(id) DO NOTHING;`;
       this.sql.exec(`CREATE TRIGGER ${prefix}_change_${table.name}_${event}
         AFTER ${event} ON ${table.name}
         WHEN (SELECT importing FROM ${meta}_meta WHERE id=1)=0${unchanged}

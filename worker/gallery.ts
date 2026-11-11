@@ -7,7 +7,7 @@
 
 import type { RejectionAuthor } from "./gallery-rejection-notice";
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
-import { validGalleryAttention } from "./gallery-curation";
+import { readCurationRequest } from "./gallery-curation";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
@@ -878,27 +878,8 @@ export async function routeGalleryRequest(
       return Response.json({ error: "not-found" }, { status: 404 });
     if (!user.isAdmin && !access.owner)
       return Response.json({ error: "forbidden" }, { status: 403 });
-    const text = await request.text();
-    if (text.length > 16000)
-      return Response.json({ error: "too-large" }, { status: 413 });
-    let body: Record<string, unknown> | null;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = null;
-    }
-    if (
-      !body ||
-      !validGalleryAttention(body.attention) ||
-      !Array.isArray(body.tags) ||
-      body.tags.length > 12 ||
-      body.tags.some((tag) => typeof tag !== "string" || tag.length > 32) ||
-      typeof body.expectedPreviewRevision !== "string" ||
-      !Number.isSafeInteger(body.expectedCurationRevision) ||
-      Number(body.expectedCurationRevision) < 0
-    ) {
-      return Response.json({ error: "invalid-curation" }, { status: 400 });
-    }
+    const body = await readCurationRequest(request);
+    if (body instanceof Response) return body;
     const { status, payload } = await callGallery(env, "curate", {
       ...body,
       id: segments[0],

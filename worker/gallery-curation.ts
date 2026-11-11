@@ -15,6 +15,39 @@ export interface GalleryCuration {
   source: "manual" | "visual-audit";
 }
 
+export function validCurationRequest(
+  body: unknown,
+): body is Record<string, unknown> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  const value = body as Record<string, unknown>;
+  return (
+    validGalleryAttention(value.attention) &&
+    Array.isArray(value.tags) &&
+    value.tags.length <= 12 &&
+    value.tags.every((tag) => typeof tag === "string" && tag.length <= 32) &&
+    typeof value.expectedPreviewRevision === "string" &&
+    Number.isSafeInteger(value.expectedCurationRevision) &&
+    Number(value.expectedCurationRevision) >= 0
+  );
+}
+
+export async function readCurationRequest(
+  request: Request,
+): Promise<Record<string, unknown> | Response> {
+  const text = await request.text();
+  if (text.length > 16000)
+    return Response.json({ error: "too-large" }, { status: 413 });
+  let body: unknown;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    /* Invalid below. */
+  }
+  return validCurationRequest(body)
+    ? body
+    : Response.json({ error: "invalid-curation" }, { status: 400 });
+}
+
 export function readGalleryCuration(
   raw: string | null | undefined,
 ): GalleryCuration | null {
@@ -26,7 +59,7 @@ export function readGalleryCuration(
   }
 }
 
-export function validGalleryAttention(
+function validGalleryAttention(
   value: unknown,
 ): value is GalleryAttention | null {
   if (value === null) return true;

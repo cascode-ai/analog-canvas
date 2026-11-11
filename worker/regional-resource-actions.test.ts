@@ -9,7 +9,10 @@ import {
   submissionRequest,
   wiredProjectText,
 } from "./gallery.test-support";
-import { GalleryDO } from "./index";
+import { GalleryDO, ComponentLibraryDO } from "./index";
+import { routeComponentLibraryRequest } from "./component-library";
+import { builtInSymbols } from "@icm/symbols";
+import { deviceDescriptor } from "@icm/devices";
 import { routeGalleryRequest } from "./gallery";
 import { routeResourceSync } from "./resource-sync";
 import { routeRegionalResourceActions } from "./regional-resource-actions";
@@ -35,6 +38,15 @@ async function pair() {
       PROJECT_IDENTITY_TOKEN: "isolated-regional-account-service-secret",
     };
     let store = new GalleryDO(state, env);
+    const componentState = sqliteState();
+    let components = new ComponentLibraryDO(componentState, env);
+    const componentBinding = {
+      getByName: () => ({
+        fetch: (input: string, init?: RequestInit) =>
+          components.fetch(new Request(input, init)),
+      }),
+    };
+    Object.assign(env, { COMPONENT_LIBRARY: componentBinding });
     env.GALLERY = {
       getByName: () => ({
         fetch: (input: string, init?: RequestInit) =>
@@ -44,8 +56,12 @@ async function pair() {
     const route = async (request: Request): Promise<Response> =>
       (await routeRegionalResourceActions(request, env)) ??
       (await routeResourceSync(request, env)) ??
-      (await routeGalleryRequest(request, env))!;
-    const call = (path: string, method = "GET", key?: string) =>
+      (await routeGalleryRequest(request, env)) ??
+      (await routeComponentLibraryRequest(request, {
+        ...env,
+        COMPONENT_LIBRARY: componentBinding,
+      }))!;
+    const call = (path: string, method = "GET", key?: string, body?: unknown) =>
       route(
         new Request(ORIGIN + path, {
           method,
@@ -54,6 +70,7 @@ async function pair() {
             cookie: region === "cn" ? cnCookie : cookie,
             ...(key ? { "idempotency-key": key } : {}),
           },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         }),
       );
     return {
@@ -61,10 +78,21 @@ async function pair() {
       get store() {
         return store;
       },
+      get components() {
+        return components;
+      },
+      legacyComponentDefinition: (id: string, definition: unknown) => {
+        componentState.storage.sql.exec(
+          "UPDATE components SET definition=? WHERE id=?",
+          JSON.stringify(definition),
+          id,
+        );
+      },
       route,
       call,
       restart: () => {
         store = new GalleryDO(state, env);
+        components = new ComponentLibraryDO(componentState, env);
       },
     };
   };
@@ -94,7 +122,7 @@ async function pair() {
       ).route(request);
       if (
         loseReply &&
-        url.pathname === "/api/resource-actions/lifecycle" &&
+        url.pathname.startsWith("/api/resource-actions/") &&
         response.ok
       ) {
         loseReply = false;
@@ -160,6 +188,299 @@ async function pair() {
     },
   };
 }
+
+it("updates a foreign User Component with the same revision checks and confirms local visibility", async () => {
+  const { overseas, cn } = await pair();
+  const definition = {
+    symbol: {
+      ...builtInSymbols.find((s) => s.id === "resistor")!,
+      name: "Regional resistor",
+    },
+    electrical: deviceDescriptor("resistor"),
+  };
+  expect(
+    (
+      await overseas.call(
+        "/api/components/regional-resistor",
+        "PUT",
+        undefined,
+        { revision: 0, definition },
+      )
+    ).status,
+  ).toBe(200);
+  const changes = await overseas.components.fetch(
+    new Request("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream: "components", after: 0 }),
+    }),
+  );
+  expect(
+    (
+      await cn.components.fetch(
+        new Request("https://store/resource-sync/receive", {
+          method: "POST",
+          body: JSON.stringify({
+            stream: "components",
+            envelope: await changes.json(),
+          }),
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  definition.symbol.name = "Updated from China";
+  const updated = await cn.call(
+    "/api/components/regional-resistor",
+    "PUT",
+    "foreign-update",
+    { revision: 1, definition },
+  );
+  expect(updated.status, await updated.clone().text()).toBe(200);
+  expect((await updated.json()).entry).toMatchObject({
+    revision: 2,
+    definition: { symbol: { name: "Updated from China" } },
+  });
+  expect(
+    (await (await cn.call("/api/components/regional-resistor")).json()).entry
+      .revision,
+  ).toBe(2);
+  expect(
+    (
+      await overseas.call(
+        "/api/components/regional-resistor",
+        "PUT",
+        "stale-update",
+        { revision: 1, definition },
+      )
+    ).status,
+  ).toBe(409);
+});
+
+it("reconciles deletion of an oversized historical Component after restart without undoing a later restoration", async () => {
+  const { cn, overseas, loseNextReply } = await pair();
+  const path = "/api/components/domestic-resistor";
+  expect(
+    (
+      await cn.call(path, "PUT", undefined, {
+        revision: 0,
+        definition: {
+          symbol: {
+            ...builtInSymbols.find((s) => s.id === "resistor")!,
+            name: "Domestic resistor",
+          },
+          electrical: deviceDescriptor("resistor"),
+        },
+      })
+    ).status,
+  ).toBe(200);
+  cn.legacyComponentDefinition("domestic-resistor", {
+    legacy: "x".repeat(300_000),
+  });
+  const changes = await cn.components.fetch(
+    new Request("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream: "components", after: 0 }),
+    }),
+  );
+  expect(
+    (
+      await overseas.components.fetch(
+        new Request("https://store/resource-sync/receive", {
+          method: "POST",
+          body: JSON.stringify({
+            stream: "components",
+            envelope: await changes.json(),
+          }),
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  const remove = () =>
+    overseas.call(path, "PATCH", undefined, { revision: 1, action: "delete" });
+  loseNextReply();
+  expect((await remove()).status).toBe(503);
+  cn.restart();
+  const retry = await remove();
+  expect(retry.status, await retry.clone().text()).toBe(200);
+  expect((await retry.json()).entry).toMatchObject({
+    revision: 2,
+    status: "deleted",
+  });
+  expect((await (await overseas.call(path)).json()).entry).toMatchObject({
+    revision: 2,
+    status: "deleted",
+  });
+  const restored = await overseas.call(path, "PATCH", undefined, {
+    revision: 2,
+    action: "restore",
+  });
+  expect(restored.status, await restored.clone().text()).toBe(200);
+  expect((await restored.json()).entry).toMatchObject({
+    revision: 3,
+    status: "shared",
+  });
+  expect((await remove()).status).toBe(409);
+  expect((await (await cn.call(path)).json()).entry).toMatchObject({
+    revision: 3,
+    status: "shared",
+  });
+});
+
+it("curates a foreign publication with revision checks and reconciles a lost reply exactly once", async () => {
+  const { cn, overseas, publish, loseNextReply } = await pair();
+  const id = await publish(overseas);
+  const { entry } = await (await cn.call(`/api/gallery/${id}`)).json();
+  const body = {
+    tags: ["amplifier"],
+    attention: {
+      status: "needs-attention",
+      issues: Array.from({ length: 12 }, () => ({
+        kind: "suspected-disconnection",
+        detail: "断".repeat(500),
+      })),
+    },
+    expectedPreviewRevision: entry.previewRevision,
+    expectedCurationRevision: entry.curationRevision,
+  };
+  const change = () =>
+    cn.call(`/api/gallery/${id}/curation`, "PATCH", undefined, body);
+  loseNextReply();
+  expect((await change()).status).toBe(503);
+  overseas.restart();
+  const result = await change();
+  expect(result.status, await result.clone().text()).toBe(200);
+  expect((await result.json()).entry).toMatchObject({
+    tags: ["amplifier"],
+    curationRevision: 1,
+  });
+  expect(
+    (await (await cn.call(`/api/gallery/${id}`)).json()).entry,
+  ).toMatchObject({ tags: ["amplifier"], curationRevision: 1 });
+  const stale = await overseas.call(
+    `/api/gallery/${id}/curation`,
+    "PATCH",
+    undefined,
+    { ...body, tags: ["buffer"] },
+  );
+  expect(stale.status).toBe(409);
+});
+
+it("keeps foreign component authority and the stricter component browser-origin check", async () => {
+  const { cn, overseas, auth, cnCookie } = await pair();
+  const path = "/api/components/guarded-resistor";
+  const definition = {
+    symbol: {
+      ...builtInSymbols.find((s) => s.id === "resistor")!,
+      name: "Guarded resistor",
+    },
+    electrical: deviceDescriptor("resistor"),
+  };
+  expect(
+    (await overseas.call(path, "PUT", undefined, { revision: 0, definition }))
+      .status,
+  ).toBe(200);
+  const changes = await overseas.components.fetch(
+    new Request("https://store/resource-sync/changes", {
+      method: "POST",
+      body: JSON.stringify({ stream: "components", after: 0 }),
+    }),
+  );
+  expect(
+    (
+      await cn.components.fetch(
+        new Request("https://store/resource-sync/receive", {
+          method: "POST",
+          body: JSON.stringify({
+            stream: "components",
+            envelope: await changes.json(),
+          }),
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  const stranger = await auth.connect(
+    await signIn(auth.source.authDurable, "component-stranger@example.com"),
+  );
+  const remove = (
+    cookie: string,
+    site = "same-origin",
+    revision = 1,
+    action = "delete",
+  ) =>
+    cn.route(
+      new Request(ORIGIN + path, {
+        method: "PATCH",
+        headers: { cookie, "sec-fetch-site": site },
+        body: JSON.stringify({ revision, action }),
+      }),
+    );
+  expect((await remove(stranger)).status).toBe(403);
+  expect((await remove(cnCookie, "same-site")).status).toBe(403);
+  const admin = await auth.connect(await adminOf(auth.source));
+  expect((await remove(admin)).status).toBe(200);
+  expect((await remove(cnCookie, "same-origin", 2, "restore")).status).toBe(
+    403,
+  );
+  const forged = await overseas.route(
+    new Request(ORIGIN + "/api/resource-actions/component", {
+      method: "POST",
+      headers: { authorization: "Bearer source-sync" },
+      body: JSON.stringify({
+        id: "guarded-resistor",
+        operation: "status",
+        commandId: "forged",
+        target: "overseas",
+        input: { revision: 2, action: "restore", admin: true },
+      }),
+    }),
+  );
+  expect(forged.status).toBe(401);
+});
+
+it("retains a duplicate Component publication outcome when the matching component is later withdrawn", async () => {
+  const { overseas } = await pair();
+  const definition = {
+    symbol: {
+      ...builtInSymbols.find((s) => s.id === "resistor")!,
+      name: "Duplicate resistor",
+    },
+    electrical: deviceDescriptor("resistor"),
+  };
+  expect(
+    (
+      await overseas.call(
+        "/api/components/first-resistor",
+        "PUT",
+        "first-create",
+        { revision: 0, definition },
+      )
+    ).status,
+  ).toBe(200);
+  const duplicate = () =>
+    overseas.call(
+      "/api/components/second-resistor",
+      "PUT",
+      "duplicate-create",
+      { revision: 0, definition },
+    );
+  const refused = await duplicate();
+  expect(refused.status).toBe(409);
+  const original = await refused.json();
+  expect(original.code).toBe("COMPONENT_ALREADY_PUBLISHED");
+  expect(
+    (
+      await overseas.call(
+        "/api/components/first-resistor",
+        "PATCH",
+        undefined,
+        { revision: 1, action: "delete" },
+      )
+    ).status,
+  ).toBe(200);
+  overseas.restart();
+  const retried = await duplicate();
+  expect(retried.status).toBe(409);
+  expect(await retried.json()).toEqual(original);
+});
 
 it("deletes a foreign publication through either entrance and reconciles a lost reply after restart", async () => {
   const { cn, overseas, publish, loseNextReply } = await pair();
