@@ -21,9 +21,15 @@ import {
   createProjectSymbolResolver,
   externalSubcircuitSymbolId,
 } from "@icm/symbols";
+import type { Vertex } from "@rich-netlist/runtime";
 
 import { delayCellFixture } from "../../netlist/src/delay-cell-fixture.test-support.js";
-import { rnlExportOps, type RnlOp, type RnlVertex } from "./export-ops.js";
+import { rnlExportOps, type RnlOp } from "./export-ops.js";
+import {
+  CANVAS_PACKAGE,
+  CANVAS_PACKAGE_VERSION,
+  RNL_STD_VERSION,
+} from "./rnl-packages.js";
 import { rnlBodyPortOrder } from "./symbol-map.js";
 
 const example = (name: string): CircuitProject =>
@@ -97,9 +103,9 @@ describe("RNL export of the simulation examples", () => {
       expect(
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
       ).toEqual([
-        "rnl-std 0.3",
-        "rnl-std-no-labels 0.3",
-        "analog-canvas-extensions 0.5",
+        `rnl-std ${RNL_STD_VERSION}`,
+        `rnl-std-no-labels ${RNL_STD_VERSION}`,
+        `${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}`,
       ]);
       expect(
         of(ops, "add-usage").filter(
@@ -123,7 +129,7 @@ describe("RNL export of the simulation examples", () => {
       const wireNames = new Set(
         of(ops, "add-wire").flatMap((op) => (op.name ? [op.name] : [])),
       );
-      const known = (level: string, vertex: RnlVertex) =>
+      const known = (level: string, vertex: Vertex) =>
         "terminal" in vertex
           ? levelOf.get(level)!.has(vertex.terminal.split(":")[0]!)
           : "point" in vertex
@@ -173,7 +179,7 @@ describe("RNL export of the simulation examples", () => {
           expect(levelOf.get(label.level)!.has(label.attach)).toBe(true);
           expect(label.offset).toBeDefined();
         } else expect(label.at).toBeDefined();
-        expect(label.lines.flat().length).toBeGreaterThan(0);
+        expect(label.lines!.flat().length).toBeGreaterThan(0);
       }
     },
   );
@@ -189,10 +195,10 @@ describe("RNL export of the simulation examples", () => {
     )!;
     expect(name.size).toBeGreaterThan(1);
     expect(
-      name.lines.flat().map((run) => run.kind === "text" && run.text),
+      name.lines!.flat().map((run) => run.kind === "text" && run.text),
     ).toEqual(["XM1"]);
     // W over L, as the value label draws it.
-    expect(value.lines[0]![0]!.kind).toBe("frac");
+    expect(value.lines![0]![0]!.kind).toBe("frac");
     expect(place).toEqual([35, -40]);
     expect(name.offset).toEqual([-4, -3]);
     expect(diagnostics).toContainEqual(
@@ -402,11 +408,11 @@ describe("what RNL cannot write", () => {
   });
 
   it.each([
-    ["opamp", "$OPAMP_5TERM", "rnl-std-functional 0.3", false],
+    ["opamp", "$OPAMP_5TERM", `rnl-std-functional ${RNL_STD_VERSION}`, false],
     [
       "opamp-lettered",
       "$CANVAS_OPAMP_LETTERED",
-      "analog-canvas-extensions 0.5",
+      `${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}`,
       true,
     ],
   ] as const)(
@@ -474,10 +480,10 @@ describe("what RNL cannot write", () => {
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
       ).toEqual([
         ...new Set([
-          "rnl-std 0.3",
-          "rnl-std-no-labels 0.3",
+          `rnl-std ${RNL_STD_VERSION}`,
+          `rnl-std-no-labels ${RNL_STD_VERSION}`,
           // Every Cell says how it sets names ($CANVAS_TYPESETTING).
-          "analog-canvas-extensions 0.5",
+          `${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}`,
           pinned,
         ]),
       ]);
@@ -587,7 +593,10 @@ describe("blocks' symbols", () => {
     expect(
       symbol.pins.map((pin) => [pin.terminals, pin.at, pin.direction]),
     ).toContainEqual([["vout"], [8, 0], "right"]);
-    expect(symbol.pins[0]!.label?.lines[0]![0]).toMatchObject({ text: "vss" });
+    const label = symbol.pins[0]!.label;
+    expect(label && "lines" in label && label.lines[0]![0]).toMatchObject({
+      text: "vss",
+    });
     expect(symbol.prims[0]).toEqual({
       shape: "rectangle",
       points: [[0, 0]],
@@ -928,7 +937,7 @@ function drawings(): CircuitProject {
 }
 
 const firstText = (op: Op<"add-text">) => {
-  const run = op.lines[0]?.[0];
+  const run = op.lines?.[0]?.[0];
   return run?.kind === "text" ? run.text : undefined;
 };
 

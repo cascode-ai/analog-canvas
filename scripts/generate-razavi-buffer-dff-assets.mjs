@@ -11,6 +11,7 @@ import { format } from "prettier";
 import { loadRazaviReferenceAuthority } from "./lib/razavi-reference-authority.mjs";
 import { anchorLogicBody } from "./lib/anchor-logic-body.mjs";
 import { normalizeLogicPortLeads } from "./lib/normalize-logic-port-leads.mjs";
+import { supplyPinsOn, withSupplyPins } from "./lib/supply-pins.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -180,6 +181,43 @@ output.at = { ...output.at, y: 0 };
 definitions.set(Q_ONLY_ID, qOnly);
 const generatedIds = [...symbolIds, RESET_ID, Q_ONLY_ID];
 
+// Their supplies, drawn when an Instance shows them (#1941): VDD above and
+// VSS below, each on a lead from the body. The buffer's leave its slanted
+// edges as an inverter's do; a flip-flop's leave the middle of its box on
+// leads as long as its signal leads, but for the reset form's VSS, which
+// stands beside RST.
+const supplyPlacements = {
+  buffer: [
+    { x: -10, y: -20 },
+    { x: -10, y: 20 },
+  ],
+  "d-flip-flop": [
+    { x: 0, y: -40 },
+    { x: 0, y: 40 },
+  ],
+  [Q_ONLY_ID]: [
+    { x: 0, y: -40 },
+    { x: 0, y: 40 },
+  ],
+  [RESET_ID]: [
+    { x: 0, y: -40 },
+    { x: -20, y: resetPinY },
+  ],
+};
+for (const symbolId of generatedIds) {
+  const definition = definitions.get(symbolId);
+  const body = definition.primitives.find(
+    (primitive) => primitive.kind === "path",
+  );
+  definitions.set(
+    symbolId,
+    withSupplyPins(
+      definition,
+      supplyPinsOn(body, ...supplyPlacements[symbolId]),
+    ),
+  );
+}
+
 const assetSources = new Map();
 for (const symbolId of generatedIds) {
   assetSources.set(
@@ -257,7 +295,7 @@ for (const symbolId of generatedIds) {
       "fixtures/visual-reference/razavi-reference-v1/manifest.json",
     referencePath: `fixtures/visual-reference/razavi-reference-v1/${symbolId}-vector-source.json`,
     converterPath: "scripts/generate-razavi-buffer-dff-assets.mjs",
-    converterVersion: 3,
+    converterVersion: 4,
     ...(symbolId === "buffer" ? { bodyNormalization: "left-grid-anchor" } : {}),
   };
   if (symbolId === Q_ONLY_ID || symbolId === RESET_ID) {
@@ -276,7 +314,7 @@ for (const symbolId of generatedIds) {
       kind: symbolId === RESET_ID ? "derived-reset-pin" : "derived-output-drop",
       sourceSymbolId: "d-flip-flop",
       converterPath: "scripts/generate-razavi-buffer-dff-assets.mjs",
-      converterVersion: 1,
+      converterVersion: 2,
     };
   }
 }

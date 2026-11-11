@@ -12,6 +12,9 @@ import {
   type RnlObjectView,
 } from "./index.js";
 
+/** A snapshot value from no statement in particular. */
+const slot = <T>(value: T | null) => ({ value, source: null });
+
 function usage(
   definition: string,
   attach: Record<string, string>,
@@ -24,9 +27,9 @@ function usage(
     definition,
     attach,
     params,
-    symbol: { value: null },
-    at: { value: null },
-    orient: { value: "R0" },
+    symbol: slot(null),
+    at: slot(null),
+    orient: slot("R0"),
     pins: [],
   };
 }
@@ -100,7 +103,11 @@ function fixture() {
     id: `subckt:${name}`,
     kind: "subckt",
     name,
+    file: 0,
+    line: 1,
+    status: null,
     model: {
+      symbol: slot(null),
       symbols: [
         {
           id: "$RESISTOR",
@@ -108,6 +115,7 @@ function fixture() {
           package: "rnl-std-basic",
           level: null,
           default: false,
+          definition: null,
         },
       ],
       objects: [
@@ -117,13 +125,13 @@ function fixture() {
           host: ["#R1"],
           definition: null,
           attach: null,
-          symbol: { value: "$RESISTOR" },
-          at: { value: [x, y] },
-          orient: { value: "R0" },
+          symbol: slot("$RESISTOR"),
+          at: slot([x, y]),
+          orient: slot("R0"),
           pins: [],
         },
       ],
-      points: [{ id: "%end", at: { value: [x, y - 6] }, junction: true }],
+      points: [{ id: "%end", at: slot([x, y - 6]), junction: true }],
       wires: [
         {
           id: "%wire",
@@ -138,10 +146,16 @@ function fixture() {
         },
       ],
       texts: [],
+      shapes: [],
     },
   });
   const snapshot: RnlSnapshot = {
+    schema: "rnl-snapshot/1",
+    runtime: "0.5.5",
+    language: "0.3",
+    revision: "0".repeat(32),
     dialect: "spice",
+    files: [{ path: "/w/top.sp", name: "top.sp" }],
     packages: [{ name: "rnl-std-basic", version: "0.3" }],
     levels: [level("first", 2, 3), level("second", -4, 5)],
     diagnostics: [],
@@ -395,14 +409,15 @@ describe("RNL snapshot import", () => {
         package: "rnl-std-basic",
         level: null,
         default: false,
+        definition: null,
       },
     ];
     snapshot.levels[0]!.model!.objects = [
       ...snapshot.levels[0]!.model!.objects,
       {
         ...usage("$GROUND", { p: "&0" }),
-        symbol: { value: "$GROUND_SYMBOL" },
-        at: { value: [2, -3] },
+        symbol: slot("$GROUND_SYMBOL"),
+        at: slot([2, -3]),
       },
     ];
     expect(() => CircuitProjectSchema.parse(project)).not.toThrow();

@@ -27,6 +27,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  adaptiveSignalFlowSupplyLeads,
   resolveAdaptiveSignalFlowBlockLayout,
   resolveInstanceSymbol,
   resolveSignalFlowPinAt,
@@ -233,6 +234,15 @@ export function renderSymbolDefinitionBody(
       `<line data-part="input-a-lead" x1="${left}" y1="${center.y}" x2="${bodyLeft}" y2="${center.y}"/>`,
       frame,
       `<line data-part="output-y-lead" x1="${bodyRight}" y1="${center.y}" x2="${right}" y2="${center.y}"/>`,
+      // Its supplies, where the variant draws them, on the grown body (#1941).
+      ...adaptiveSignalFlowSupplyLeads(
+        definition,
+        adaptive,
+        hiddenPrimitiveParts,
+      ).map(
+        ({ part, from, to }) =>
+          `<line data-part="${part}" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"/>`,
+      ),
     ].join("");
   }
   const hidden = new Set(hiddenPrimitiveParts);

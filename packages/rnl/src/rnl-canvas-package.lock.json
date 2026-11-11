@@ -26,6 +26,11 @@
       "version": "0.5",
       "url": "https://rich-netlist.github.io/rnl-packages/packages/analog-canvas-extensions/0.5/analog-canvas-extensions.rnl",
       "sha256": "4b902f72322d88c74bbd92a760d16b0bc38232e413b9140cb7e039efab8be3a5"
+    },
+    {
+      "version": "0.6",
+      "url": "https://rich-netlist.github.io/rnl-packages/packages/analog-canvas-extensions/0.6/analog-canvas-extensions.rnl",
+      "sha256": "6b8af6bbc4538cc5ea845b45c4511027fd61865917839a37612c326e19905ead"
     }
   ]
 }

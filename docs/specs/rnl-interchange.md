@@ -20,6 +20,21 @@ the RNL language and its runtime belong to rnl.
   snapshot, so an rnl upgrade changes the written RNL without editor changes.
 - WebAssembly stays out of packages the Worker and MCP bundles import
   (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.
+- Upstream decisions this contract follows: Analog Canvas stays compatible
+  with RNL and is no RNL editor — it reads RNL into its own format and writes
+  it anew on export
+  ([rnl roadmap](https://github.com/rich-netlist/rnl/blob/main/docs/roadmap.md));
+  public packages come from an immutable catalog
+  ([decision 0012](https://github.com/rich-netlist/rnl/blob/main/docs/decisions/0012-public-packages-use-an-immutable-catalog.md));
+  core, Viewer and language release independently
+  ([decision 0013](https://github.com/rich-netlist/rnl/blob/main/docs/decisions/0013-independent-release-lines.md)).
+- Each runtime or package upgrade is one pull request that states the
+  versions, the type and behavior differences, the rnl-benchmark L1/L2/L3
+  before and after, and how to roll back. `pnpm rnl:reconcile` reports, never
+  blocks, where the editor is behind upstream. The benchmark harness is
+  `apps/editor/src/features/netlist-export/rnl-benchmark.test.ts`, skipped
+  unless `RNL_BENCH_CORPUS` names the
+  [rnl-benchmark](https://github.com/rich-netlist/rnl-benchmark) corpus.
 - Without the runtime, the RNL formats say so and copy nothing; the other
   formats are unaffected.
 - Canvas extensions are supplied explicitly, each version at a private
@@ -28,7 +43,7 @@ the RNL language and its runtime belong to rnl.
   adapter preserves the caller's files, includes and search order. One fetch
   of each version serves the shared Worker; fetch failures identify the
   package and can be retried.
-- Every Canvas version the editor ships, 0.1 to 0.5, is locked by name,
+- Every Canvas version the editor ships, 0.1 to 0.6, is locked by name,
   version, URL and raw-byte SHA-256 against the public
   [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json),
   so a file written with any of them reads; the editor writes the newest.
@@ -96,7 +111,8 @@ the RNL language and its runtime belong to rnl.
   Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
   Delay Cell, op-amp or comparator) back as that library symbol, a gate's
   pins meeting its Cell's Pins by name, only when the name, artwork and positional pins are the ones
-  the export writes. A call drawn with a standard gate symbol reads back as
+  the export writes, or those with the supply leads the default variant
+  hides, as files written from #1939 to #1941 draw an op-amp's. A call drawn with a standard gate symbol reads back as
   that Library gate when it prints the Cell's Pins in the symbol's terminal
   order and they meet the gate's pins by name; any other call keeps its block and warns
   `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
@@ -108,6 +124,13 @@ the RNL language and its runtime belong to rnl.
 - The crystal, which the standard series lacks, exports as `$CANVAS_CRYSTAL`
   from `analog-canvas-extensions` 0.5 on the call of its body; import reads it
   back as the crystal.
+- So do, from `analog-canvas-extensions` 0.6, the polarized capacitor,
+  photoresistor and speaker (C and R cards), LED and Schottky diode (D cards),
+  microphone, sine voltage source and ammeter (V cards) and the Shockley diode,
+  PUT, UJT and potentiometer (calls of their bodies), each as
+  `$CANVAS_<ID>`. A Spectre card whose name the conversion prefixed with its
+  element's letter (the ammeter's `A1 … vsource` read as `VA1`) gets its own
+  name back where the part as drawn can have it.
 - Fully differential comparators and Delay Cell define their exact artwork in the file
   using the runtime's `define-symbol` operation. Signals precede supplies;
   Delay Cell retains both VDD/VSS, while comparator numeric-high bodies omit
@@ -125,10 +148,12 @@ the RNL language and its runtime belong to rnl.
   - on top, at the inputs and at a differential op-amp's outputs. An Analog
     Canvas variant with − on top is that symbol flipped top to bottom: it is
     written as the symbol turned by its own orientation after `MX`.
-- An op-amp's VDD and VSS are its symbol's undrawn `vp` and `vn`. RNL fails a
-  wire to a terminal with no pin (9.2.4), so a wire on a shown supply pin is
-  left out with `RNL_PIN_NOT_DRAWN`; the netlist still joins it, and it reads
-  back as that supply's Net.
+- A block's VDD and VSS are its RNL symbol's undrawn `vp` and `vn`, or a
+  stencil the file defines its supply terminals (RNL's import-only
+  two-terminal Delay Cell stencil has none). RNL fails a wire to a terminal
+  with no pin (9.2.4), so a wire on a shown supply pin is left out with
+  `RNL_PIN_NOT_DRAWN`; the netlist still joins it, and it reads back as that
+  supply's Net.
 - The header pins the standard series, `rnl-std` 0.3, and declares with its
   version each package the drawing uses that `rnl-std` does not bring in by
   itself, such as `rnl-std-functional` for an op-amp. A tool without that
@@ -245,7 +270,8 @@ the RNL language and its runtime belong to rnl.
   electrical comparison before using the drawing.
 - The electrical import is the SPICE / SCS importer, called unchanged but for
   the two things below. The rnl runtime reads the same files (its snapshot,
-  rnl-dev's editor-interface draft) and the drawing is laid over the imported
+  [rnl-edit](https://github.com/rich-netlist/rnl/blob/main/crates/rnl-edit/README.md))
+  and the drawing is laid over the imported
   circuit as a separate layer: CircuitIR never carries geometry
   ([circuit IR](circuit-ir.md)).
   - A model the files call but no model card declares is the device type the
@@ -474,10 +500,10 @@ the RNL language and its runtime belong to rnl.
   (`MX`) when the variant draws the symbol upside down, and pins; a row with
   `import_only` (RNL's standard 4-input gates and legacy controlled-source
   aliases) only reads files back, its pins where the RNL symbol has them.
-  Generated by rnl-dev's `build-symbol-list.mjs`; checked against the rnl
-  runtime's published symbol catalog.
-- Operations: `RnlOp` in `packages/rnl/src/export-ops.ts`, after rnl's
-  editor-interface draft (snapshot and edit transaction).
+  Maintained here by hand; checked against the rnl runtime's published symbol
+  catalog.
+- Operations: the runtime's edit transaction and snapshot
+  ([rnl-edit](https://github.com/rich-netlist/rnl/blob/main/crates/rnl-edit/README.md)).
 - Codes: errors `RNL_ROTATION_NOT_QUARTER`, `RNL_NO_SYMBOL`; warnings
   `RNL_NOT_STANDARD_SYMBOL`, `RNL_TEXT_FIXED`, `RNL_TEXT_HIDDEN`,
   `RNL_TEXT_ALONG_WIRE`, `RNL_TEXT_FORMULA`, `RNL_TEXT_TILTED`,
@@ -489,11 +515,8 @@ the RNL language and its runtime belong to rnl.
 
 ## Acceptance criteria
 
-- The mapping table draws every built-in symbol but the polarized capacitor,
-  LED, Schottky diode, speaker, microphone, ammeter, potentiometer,
-  unijunction, PUT, Shockley diode, photoresistor and sine voltage source, which await an unpublished extensions version
-  (`RNL_NO_SYMBOL` until then), follows the registration rules and matches
-  each symbol's pins
+- The mapping table draws every built-in symbol, follows the registration
+  rules and matches each symbol's pins
   (`packages/rnl/src/symbol-map.test.ts`).
 - Every symbol of the mapping table is in the package the rnl runtime's
   catalog says defines it, with each pin where the runtime puts it and

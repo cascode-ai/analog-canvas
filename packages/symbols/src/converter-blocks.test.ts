@@ -82,7 +82,11 @@ describe("converter blocks", () => {
   it("lands every body vertex and external terminal on the grid", () => {
     for (const id of CONVERTERS) {
       const symbol = requireRazaviCatalogSymbol(id);
-      expect(symbol.pins.map((pin) => pin.name)).toEqual(["IN", "OUT"]);
+      // Its signal pins; supply-pins.test.ts places VDD and VSS (#1941).
+      const signals = symbol.pins.filter(
+        (pin) => !pin.role.endsWith("-supply"),
+      );
+      expect(signals.map((pin) => pin.name)).toEqual(["IN", "OUT"]);
       for (const point of bodyPolygon(id).points) {
         expect(Math.abs(point.x) % SYMBOL_STANDARD_GRID, `${id} body x`).toBe(
           0,
@@ -91,7 +95,7 @@ describe("converter blocks", () => {
           0,
         );
       }
-      for (const pin of symbol.pins) {
+      for (const pin of signals) {
         expect(
           Math.abs(pin.at.x) % SYMBOL_STANDARD_GRID,
           `${id} ${pin.name} anchor`,

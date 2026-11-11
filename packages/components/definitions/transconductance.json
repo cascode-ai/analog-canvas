@@ -36,6 +36,32 @@
           "visibility": "visible",
           "leadLength": 10
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": 0,
+          "y": -40
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": 0,
+          "y": 40
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -83,6 +109,40 @@
           "lineCap": "butt",
           "lineJoin": "miter"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -26.25
+        },
+        "to": {
+          "x": 0,
+          "y": -40
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 26.25
+        },
+        "to": {
+          "x": 0,
+          "y": 40
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
     "formulaPresentation": {
@@ -102,8 +162,22 @@
         "leadLength": 10
       }
     },
-    "variants": [],
-    "labelVisibility": "hidden"
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "labelVisibility": "hidden",
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "subcircuit": {
@@ -139,7 +213,7 @@
     "name": "Transconductance (gₘ)",
     "category": "analog-block",
     "reviewStatus": "reviewed",
-    "pinOrder": ["A", "Y"],
+    "pinOrder": ["A", "Y", "VDD", "VSS"],
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "Behavioral transconductance block; structural netlists need an explicit implementation mapping.",

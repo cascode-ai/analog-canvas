@@ -39,8 +39,9 @@ describe("Wide amplifier geometry", () => {
           direction,
         })),
       );
-      // Wide spreads the signal pins; an op-amp's supplies stay at the
-      // body's extent, where the compact form draws them (#1833).
+      // Wide spreads the signal pins; the supplies stay at the body's extent,
+      // where the compact form draws them (#1833), but a differential form's
+      // stand at x -20, clear of its outputs (#1941).
       const supply = (pin: (typeof wide.pins)[number]) =>
         pin.role.endsWith("-supply");
       const signals = (symbol: typeof wide) =>
@@ -52,7 +53,14 @@ describe("Wide amplifier geometry", () => {
         Math.max(...signals(wide).map((pin) => pin.at.y)) -
           Math.min(...signals(wide).map((pin) => pin.at.y)),
       ).toBe(40);
-      expect(wide.pins.filter(supply)).toEqual(compact.pins.filter(supply));
+      const differential = wide.pins.some((pin) => pin.name === "OUT+");
+      expect(wide.pins.filter(supply)).toEqual(
+        compact.pins
+          .filter(supply)
+          .map((pin) =>
+            differential ? { ...pin, at: { ...pin.at, x: -20 } } : pin,
+          ),
+      );
       for (const pin of wide.pins) {
         expect(Math.abs(pin.at.x % 10)).toBe(0);
         expect(Math.abs(pin.at.y % 10)).toBe(0);

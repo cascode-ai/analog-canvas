@@ -49,6 +49,32 @@
           "visibility": "visible",
           "leadLength": 10
         }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": 10,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -150,10 +176,58 @@
           "lineCap": "round",
           "lineJoin": "round"
         }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -12
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vdd-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 10,
+          "y": 6.633241
+        },
+        "to": {
+          "x": 10,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vss-lead"
       }
     ],
-    "variants": [],
-    "labelVisibility": "hidden"
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "labelVisibility": "hidden",
+    "defaultVariantId": "signal-pins"
   },
   "electrical": null,
   "catalog": {
@@ -162,7 +236,7 @@
     "name": "Multiplier",
     "category": "signal-flow",
     "reviewStatus": "reviewed",
-    "pinOrder": ["A", "B", "Y"],
+    "pinOrder": ["A", "B", "Y", "VDD", "VSS"],
     "palette": true,
     "automaticMappings": [],
     "manualOnlyReason": "Behavioral mixing node; structural netlists need an explicit implementation mapping.",

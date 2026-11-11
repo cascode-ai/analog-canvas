@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { canvasPackageLock, canvasPackageVersion } from "./rnl-canvas-package";
 
 const origin = "https://rich-netlist.github.io";
 const features = ["requestId", "packages", "opener"];
@@ -75,7 +76,7 @@ it("opens synchronously, verifies the handshake, sends the exact export and reus
     type: "open",
     name: "circuit.sp",
     text: "* export one\n.end\n",
-    packages: [{ name: "analog-canvas-extensions", version: "0.5" }],
+    packages: [{ name: canvasPackageLock.name, version: canvasPackageVersion }],
   });
   expect(popup.postMessage.mock.calls[0]![1]).toBe(origin);
   reply({ type: "loaded", requestId: message.requestId });

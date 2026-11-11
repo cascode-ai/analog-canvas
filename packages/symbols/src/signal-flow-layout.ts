@@ -593,6 +593,80 @@ export function resolveAdaptiveSignalFlowBlockLayout(
   };
 }
 
+/**
+ * A supply pin's lead on a block whose body grows with its text (#1941): at
+ * the pin's own x, from the body's edge to the first grid row at or beyond
+ * the body's height, as the static symbol draws it for the default text.
+ */
+function adaptiveSupplyLead(
+  layout: AdaptiveSignalFlowBlockLayout,
+  center: { x: number; y: number },
+  pin: Pick<SymbolPin, "at" | "direction">,
+): { from: { x: number; y: number }; to: { x: number; y: number } } {
+  const sign = pin.direction === "north" ? -1 : 1;
+  const { body } = layout;
+  const x = pin.at.x;
+  const taper =
+    layout.shape === "right-tapered-trapezoid"
+      ? ((x - body.x) / body.width) * (body.height / 4)
+      : 0;
+  const edge = center.y + sign * (body.height / 2 - taper);
+  return {
+    from: { x, y: edge },
+    to: { x, y: center.y + sign * snapUp(body.height / 2, 10) },
+  };
+}
+
+/**
+ * The supply leads an adaptive block draws (#1941): each north or south pin's
+ * whose lead part the variant does not hide, resolved on its grown body.
+ */
+export function adaptiveSignalFlowSupplyLeads(
+  definition: Pick<
+    SymbolDefinition,
+    "formulaPresentation" | "pins" | "primitives"
+  >,
+  layout: AdaptiveSignalFlowBlockLayout,
+  hiddenPrimitiveParts: readonly string[] = [],
+): {
+  part: string;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+}[] {
+  const center = definition.formulaPresentation?.center;
+  if (!center) return [];
+  const hidden = new Set(hiddenPrimitiveParts);
+  return definition.pins.flatMap((pin) => {
+    const part = `${pin.name.toLowerCase()}-lead`;
+    return (pin.direction === "north" || pin.direction === "south") &&
+      !hidden.has(part) &&
+      definition.primitives.some((primitive) => primitive.part === part)
+      ? [{ part, ...adaptiveSupplyLead(layout, center, pin) }]
+      : [];
+  });
+}
+
+/** An adaptive block's extent, with the supply leads its variant draws. */
+export function adaptiveSignalFlowBounds(
+  definition: Pick<
+    SymbolDefinition,
+    "formulaPresentation" | "pins" | "primitives"
+  >,
+  layout: AdaptiveSignalFlowBlockLayout,
+  hiddenPrimitiveParts: readonly string[] = [],
+): AdaptiveSignalFlowBlockLayout["bounds"] {
+  const ys = adaptiveSignalFlowSupplyLeads(
+    definition,
+    layout,
+    hiddenPrimitiveParts,
+  ).flatMap(({ from, to }) => [from.y, to.y]);
+  const { bounds } = layout;
+  if (!ys.length) return bounds;
+  const top = Math.min(bounds.y, ...ys);
+  const bottom = Math.max(bounds.y + bounds.height, ...ys);
+  return { ...bounds, y: top, height: bottom - top };
+}
+
 /** Resolve presentation-driven pin geometry while retaining pin identity. */
 export function resolveSignalFlowPinAt(
   definition: Pick<SymbolDefinition, "formulaPresentation">,
@@ -601,6 +675,12 @@ export function resolveSignalFlowPinAt(
 ): { x: number; y: number } {
   const layout = resolveAdaptiveSignalFlowBlockLayout(definition, parameters);
   const center = definition.formulaPresentation?.center;
+  if (
+    layout &&
+    center &&
+    (pin.direction === "north" || pin.direction === "south")
+  )
+    return adaptiveSupplyLead(layout, center, pin).to;
   if (!layout || !center || pin.at.y !== center.y) return pin.at;
   if (pin.direction === "west") {
     return { x: center.x - layout.pinSpan, y: center.y };

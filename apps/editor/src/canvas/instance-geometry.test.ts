@@ -121,6 +121,70 @@ describe("selection geometry", () => {
       width: 84,
       height: 54,
     });
+    // Its shown supply stubs stand past that box, and select it too (#1941).
+    expect(
+      visibleSymbolLocalBounds(resolver.resolve("d-flip-flop", "supply-pins")!),
+    ).toEqual({ x: -42, y: -40, width: 84, height: 80 });
+  });
+
+  it("selects a part from every stub of its shown supplies, and as placed keeps its box (#1941)", () => {
+    const contains = (
+      box: { x: number; y: number; width: number; height: number },
+      point: { x: number; y: number },
+    ) =>
+      point.x >= box.x &&
+      point.x <= box.x + box.width &&
+      point.y >= box.y &&
+      point.y <= box.y + box.height;
+    const supplied = builtInSymbols.filter((symbol) =>
+      symbol.variants.some((variant) => variant.id === "supply-pins"),
+    );
+    expect(supplied).toHaveLength(65);
+    for (const symbol of supplied) {
+      const placement = {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      };
+      const shown = resolver.resolve(symbol.id, "supply-pins")!;
+      const hit = instanceVisibleHitBox(
+        {
+          id: "X1",
+          symbolId: symbol.id,
+          symbolVariantId: "supply-pins",
+          placement,
+        },
+        shown,
+      )!;
+      for (const primitive of shown.definition.primitives)
+        if (
+          primitive.kind === "line" &&
+          (primitive.part === "vdd-lead" || primitive.part === "vss-lead")
+        )
+          for (const point of [primitive.from, primitive.to])
+            expect(
+              contains(hit, { x: point.x + 100, y: point.y + 100 }),
+              `${symbol.id} ${primitive.part}`,
+            ).toBe(true);
+      // Hidden, as placed, it keeps the box it had: the signal artwork's.
+      const plain = resolver.resolve(symbol.id)!;
+      const signalOnly = {
+        ...plain,
+        definition: {
+          ...plain.definition,
+          pins: plain.definition.pins.filter(
+            (pin) => !["VDD", "VSS"].includes(pin.name),
+          ),
+          primitives: plain.definition.primitives.filter(
+            (primitive) =>
+              primitive.part !== "vdd-lead" && primitive.part !== "vss-lead",
+          ),
+        },
+      };
+      expect(visibleSymbolLocalBounds(plain), symbol.id).toEqual(
+        visibleSymbolLocalBounds(signalOnly),
+      );
+    }
   });
 
   it("uses adaptive formula dimensions for local and transformed hit bounds", () => {

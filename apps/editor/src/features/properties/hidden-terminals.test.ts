@@ -46,22 +46,31 @@ const terminalsOf = (project: CircuitProject) =>
     createProjectSymbolResolver(project, builtInSymbols),
   );
 
-/** X1, an op-amp in the top Cell, its supplies shown or hidden. */
-function amplifier(symbolVariantId?: string): CircuitProject {
+/** X1, a block in the top Cell, its supplies shown or hidden. */
+function amplifier(
+  symbolVariantId?: string,
+  symbolId = "opamp",
+): CircuitProject {
   const project = createEmptyProject("hidden", "Hidden terminals");
   project.documents[0]!.instances.push({
     id: "X1",
     reference: "X1",
-    symbolId: "opamp",
+    symbolId,
     ...(symbolVariantId ? { symbolVariantId } : {}),
     placement: null,
     netlist: {
-      binding: { kind: "unresolved-subcircuit", name: "opamp" },
+      binding: {
+        kind: "unresolved-subcircuit",
+        name: symbolId.replaceAll("-", "_"),
+      },
       parameters: {},
     },
   });
   return project;
 }
+
+/** Blocks that may draw their supplies (#1833, #1941). */
+const BLOCKS = ["opamp", "inverter", "d-flip-flop-reset", "adder"];
 
 describe("the terminals a part draws no pin for (#1833)", () => {
   it("lists every own terminal of a reviewed device, not only the first", () => {
@@ -77,16 +86,22 @@ describe("the terminals a part draws no pin for (#1833)", () => {
     ]);
   });
 
-  it("lists a block's supplies, which take Auto while unset", () => {
-    expect(terminalsOf(amplifier())).toEqual([
-      { pinName: "VDD", label: "VDD", rail: "VDD" },
-      { pinName: "VSS", label: "VSS", rail: "VSS" },
-    ]);
-  });
+  it.each(BLOCKS)(
+    "lists %s's supplies, which take Auto while unset",
+    (symbolId) => {
+      expect(terminalsOf(amplifier(undefined, symbolId))).toEqual([
+        { pinName: "VDD", label: "VDD", rail: "VDD" },
+        { pinName: "VSS", label: "VSS", rail: "VSS" },
+      ]);
+    },
+  );
 
-  it("lists none of an op-amp's supplies while it draws their pins", () => {
-    expect(terminalsOf(amplifier("supply-pins"))).toEqual([]);
-  });
+  it.each(BLOCKS)(
+    "lists none of %s's supplies while it draws their pins",
+    (symbolId) => {
+      expect(terminalsOf(amplifier("supply-pins", symbolId))).toEqual([]);
+    },
+  );
 
   it("lists the pins a Circuit Component's op-amp artwork maps and hides", () => {
     // Made from the op-amp's current artwork, VDD and VSS pins included.

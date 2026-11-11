@@ -174,8 +174,8 @@ importers:
         specifier: 1.0.3
         version: 1.0.3
       "@rich-netlist/runtime":
-        specifier: 0.5.2
-        version: 0.5.2
+        specifier: 0.5.5
+        version: 0.5.5
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -479,8 +479,8 @@ importers:
         specifier: workspace:*
         version: link:../spice
       "@rich-netlist/runtime":
-        specifier: 0.5.2
-        version: 0.5.2
+        specifier: 0.5.5
+        version: 0.5.5
 
   packages/simulation-service:
     dependencies:
@@ -2056,10 +2056,10 @@ packages:
       }
     engines: { node: ">= 10" }
 
-  "@rich-netlist/runtime@0.5.2":
+  "@rich-netlist/runtime@0.5.5":
     resolution:
       {
-        integrity: sha512-79VNqrKtD0i/Aq/7ZkqaiDHiJZrJP19yrBT1YDGPEJab1qTAW/70PbhiiHnHsHf4sTtAMTtlEwKLXHK7YRaodg==,
+        integrity: sha512-ceRA/Hcpafb/VfDA+IKb2vQBzB4s5ymy5gK/hxn2xLR9psZpOgSsnpgwZeXd2yP5b1+fHZLFyG8W7yBCzTNudQ==,
       }
 
   "@rolldown/binding-android-arm64@1.2.3":
@@ -4569,7 +4569,7 @@ snapshots:
       "@resvg/resvg-js-win32-ia32-msvc": 2.6.2
       "@resvg/resvg-js-win32-x64-msvc": 2.6.2
 
-  "@rich-netlist/runtime@0.5.2": {}
+  "@rich-netlist/runtime@0.5.5": {}
 
   "@rolldown/binding-android-arm64@1.2.3":
     optional: true

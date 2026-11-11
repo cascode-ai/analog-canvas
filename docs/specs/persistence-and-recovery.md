@@ -22,11 +22,13 @@ current schema before import or Cloud Save.
   (idempotent, reported as migration). Resemblance to a built-in never
   authorizes repair of other artwork; the catalog never overwrites
   project-owned definitions; Gallery sources are not bulk-edited.
-- Op-amp supply-pin repair v1 gives the eight converter-v6 single-ended op-amp
-  snapshots, by content signature, their `VDD`/`VSS` pins and leads and the
-  variants that hide (default) or draw them, where the interface has both
-  supply ports; a drawing looks and netlists as it did. A Circuit Component's
-  artwork is never repaired.
+- Supply-pin repair gives a built-in block's snapshot from before it had
+  [optional supply pins](symbol-dsl.md), by content signature, its
+  `VDD`/`VSS` pins and leads and the variants that hide (default) or draw
+  them, where the interface has both supply ports; a drawing looks and
+  netlists as it did. v1 covers the eight converter-v6 single-ended op-amps;
+  v2 every other such block as shipped before #1941, and AND and NAND gates as
+  drawn before #1043. A Circuit Component's artwork is never repaired.
 
 ## Browser recovery records
 

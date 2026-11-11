@@ -9,18 +9,14 @@ import { createDesignNetlistExport } from "@icm/netlist";
 import { renderDocumentSvg } from "@icm/render-svg";
 import { parseProject, serializeProject } from "./index.js";
 
-const FORMS = [
-  "opamp",
-  "opamp-lettered",
-  "opamp-wide",
-  "opamp-wide-lettered",
-  "opamp-inputs-swapped",
-  "opamp-lettered-inputs-swapped",
-  "opamp-wide-inputs-swapped",
-  "opamp-wide-lettered-inputs-swapped",
-];
+/** Every form that may show its supplies (#1833, #1941). */
+const FORMS = builtInSymbols
+  .filter((symbol) =>
+    symbol.variants.some((variant) => variant.id === "supply-pins"),
+  )
+  .map((symbol) => symbol.id);
 
-/** A form as converter v6 drew it: no supply pins, leads or variants. */
+/** A form as drawn before it had supply pins: no such pins, leads or variants. */
 function beforeSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
   const { defaultVariantId: _default, ...rest } = structuredClone(symbol);
   return {
@@ -33,7 +29,7 @@ function beforeSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
   };
 }
 
-/** A drawing saved with a v6 op-amp: its signal pins wired, its class captured. */
+/** A drawing saved with such a form: its signal pins wired, its class captured. */
 function savedProject(symbol: SymbolDefinition) {
   const project = createEmptyProject("supply-repair", "Supply repair", "dut");
   const document = project.documents[0]!;
@@ -71,7 +67,23 @@ const capturedSymbol = (project: ReturnType<typeof parseProject>, id: string) =>
     (definition) => definition.symbol.id === id,
   )!.symbol;
 
-describe("recognized op-amp supply pin snapshot repair (#1833)", () => {
+describe("recognized supply pin snapshot repair (#1833, #1941)", () => {
+  it("covers every block that takes both supplies", () => {
+    expect(FORMS).toHaveLength(65);
+    expect(FORMS).toEqual(
+      expect.arrayContaining([
+        "inverter",
+        "xnor-gate-4",
+        "opamp-differential-wide-crossed-lettered-inputs-swapped",
+        "comparator-differential-unmarked-inputs-swapped",
+        "transconductance",
+        "d-flip-flop-reset",
+        "adc",
+        "dac",
+      ]),
+    );
+  });
+
   it.each(FORMS)(
     "gives a saved %s its supply pins, hidden, and keeps the drawing as it was",
     (id) => {

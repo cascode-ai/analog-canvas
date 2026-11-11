@@ -1,17 +1,11 @@
 import { afterAll, expect, it } from "vitest";
-import type { RnlSnapshot } from "@icm/rnl";
 import { createRnlTestCore } from "./rnl-core.test-support";
 import { planRnlImport } from "./rnl-import";
 import type { RnlRuntime } from "./rnl-runtime";
 
 const core = await createRnlTestCore();
 afterAll(() => core.terminate());
-const runtime: RnlRuntime = {
-  write: (request) =>
-    core.write(request as unknown as Parameters<typeof core.write>[0]),
-  snapshot: (request) =>
-    core.snapshot(request) as unknown as Promise<RnlSnapshot>,
-};
+const runtime: RnlRuntime = core;
 
 // A transistor no card declares and the drawing does not draw: only the
 // caller can say what it is.

@@ -68,8 +68,9 @@ their IDs, never resolved to the first.
   new Instance ID); Cell markers and ground take neither. Later,
   `set-instance-display` (`instanceIds`, `showReference`, `showValue`,
   `showParameters`) toggles the same attached labels, keeping placement and
-  style; never imitate them with free text. `showSupplyPins` draws an op-amp's
-  `VDD`/`VSS` as pins to wire (a wired one must be disconnected before
+  style; never imitate them with free text. `showSupplyPins` draws a block's
+  (op-amp, comparator, gate, flip-flop, converter …) `VDD`/`VSS` as pins to
+  wire (a wired one must be disconnected before
   `false`, one set by `set-terminal-net` returned to `net: null` before
   `true`); hidden, each takes `set-terminal-net`. Parameter keys come from the actual
   model contract: a built-in part's are its catalog `parameters`; bound

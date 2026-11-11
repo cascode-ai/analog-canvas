@@ -13,12 +13,7 @@ import type { RnlRuntime } from "./rnl-runtime";
 
 const core = await createRnlTestCore();
 afterAll(() => core.terminate());
-const runtime: RnlRuntime = {
-  write: (request) =>
-    core.write(request as unknown as Parameters<typeof core.write>[0]),
-  snapshot: (request) =>
-    core.snapshot(request) as unknown as Promise<RnlSnapshot>,
-};
+const runtime: RnlRuntime = core;
 
 it("keeps the circuit and leaves out a drawing whose wire joins nets the netlist keeps apart", async () => {
   const path = "reset-chain.scs";

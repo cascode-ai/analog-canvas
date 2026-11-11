@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, type SymbolDefinition } from "@icm/model";
+import {
+  createEmptyProject,
+  isOptionalSupplyPin,
+  type SymbolDefinition,
+} from "@icm/model";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -31,7 +35,10 @@ function legacyProject(symbol: SymbolDefinition = legacySymbol) {
     placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
     netlist: { parameters: { gain: "20" } },
   });
-  for (const [index, pin] of symbol.pins.entries()) {
+  // Its signal pins: supplies it hides take their Net as hidden (#1941).
+  for (const [index, pin] of symbol.pins
+    .filter((item) => !isOptionalSupplyPin(symbol, item))
+    .entries()) {
     const name = `N${index}`;
     document.nets.push({
       id: name,
@@ -52,6 +59,19 @@ function legacyProject(symbol: SymbolDefinition = legacySymbol) {
   return captured;
 }
 
+/** A symbol as drawn before it had supply pins. */
+function withoutSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
+  const { defaultVariantId: _default, ...rest } = structuredClone(symbol);
+  return {
+    ...rest,
+    pins: rest.pins.filter((pin) => !["VDD", "VSS"].includes(pin.name)),
+    primitives: rest.primitives.filter(
+      (primitive) => !["vdd-lead", "vss-lead"].includes(primitive.part ?? ""),
+    ),
+    variants: [],
+  };
+}
+
 describe("recognized amplifier polarity snapshot repair", () => {
   it("covers all sixteen recognized forms, keeps current forms and custom snapshots", () => {
     const current = builtInSymbols.filter((symbol) =>
@@ -59,9 +79,12 @@ describe("recognized amplifier polarity snapshot repair", () => {
     );
     expect(current).toHaveLength(16);
     for (const symbol of current) {
+      // As converter v8 drew it: its marks flipped, and no supply pins, which
+      // the supply-pin repair then adds (#1941).
+      const unsupplied = withoutSupplyPins(symbol);
       const old = {
-        ...structuredClone(symbol),
-        primitives: symbol.primitives.map((primitive) =>
+        ...unsupplied,
+        primitives: unsupplied.primitives.map((primitive) =>
           primitive.kind === "line" &&
           primitive.part?.includes("input-polarity")
             ? {
@@ -112,7 +135,13 @@ describe("recognized amplifier polarity snapshot repair", () => {
     )!;
     if (positive.kind !== "line") throw new Error("Missing positive stroke");
     expect((positive.from.y + positive.to.y) / 2).toBe(-14);
-    expect(resolved.pins).toEqual(legacySymbol.pins);
+    // Its pins, and the supplies the supply-pin repair adds (#1941).
+    expect(resolved.pins.slice(0, legacySymbol.pins.length)).toEqual(
+      legacySymbol.pins,
+    );
+    expect(
+      resolved.pins.slice(legacySymbol.pins.length).map((pin) => pin.name),
+    ).toEqual(["VDD", "VSS"]);
     expect(loaded.documents).toEqual(original.documents);
     expect(createDesignNetlistExport(loaded)).toEqual(before);
     expect(JSON.stringify(original)).toBe(raw);

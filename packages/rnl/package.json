@@ -8,7 +8,8 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./rnl-canvas-package.lock.json": "./src/rnl-canvas-package.lock.json"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json"
@@ -23,6 +24,6 @@
   "devDependencies": {
     "@icm/project-protocol": "workspace:*",
     "@icm/spice": "workspace:*",
-    "@rich-netlist/runtime": "0.5.2"
+    "@rich-netlist/runtime": "0.5.5"
   }
 }

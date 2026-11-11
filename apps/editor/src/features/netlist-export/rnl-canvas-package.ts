@@ -1,4 +1,4 @@
-import lock from "./rnl-canvas-package.lock.json" with { type: "json" };
+import lock from "@icm/rnl/rnl-canvas-package.lock.json" with { type: "json" };
 
 /** Every version the editor ships, so a file written with any of them reads. */
 export const canvasPackageLock = lock;

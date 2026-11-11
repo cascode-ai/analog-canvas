@@ -1,11 +1,17 @@
 import { isDeepStrictEqual } from "node:util";
+import {
+  supplyPinsOf,
+  withSupplyPins,
+  withoutSupplyPins,
+} from "./supply-pins.mjs";
 
 /** Extend the reviewed two-input AND outline without claiming new PDF evidence. */
 export function deriveMultiInputAndGate(source, inputCount) {
   if (source?.symbol?.id !== "and-gate" || ![3, 4].includes(inputCount)) {
     throw new Error("Multi-input AND requires the reviewed two-input source");
   }
-  const base = source.symbol;
+  // Its supplies stay where the two-input gate draws them, after its own art.
+  const base = withoutSupplyPins(source.symbol);
   const body = base.primitives.find((primitive) => primitive.kind === "path");
   if (!body || !body.bounds) throw new Error("AND body path is missing");
   const lead = base.primitives.find((primitive) => primitive.kind === "line");
@@ -33,13 +39,16 @@ export function deriveMultiInputAndGate(source, inputCount) {
     structuredClone(body),
     structuredClone(output),
   ];
-  const symbol = {
-    ...structuredClone(base),
-    id: `and-gate-${inputCount}`,
-    name: `AND Gate (${inputCount} inputs)`,
-    pins,
-    primitives,
-  };
+  const symbol = withSupplyPins(
+    {
+      ...structuredClone(base),
+      id: `and-gate-${inputCount}`,
+      name: `AND Gate (${inputCount} inputs)`,
+      pins,
+      primitives,
+    },
+    supplyPinsOf(source.symbol),
+  );
   if (isDeepStrictEqual(symbol, base))
     throw new Error("AND derivation did not change geometry");
   return symbol;

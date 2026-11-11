@@ -36,7 +36,7 @@ function styled(
   const lineStyle =
     override?.lineStyle ??
     ("lineStyle" in object ? object.lineStyle : undefined);
-  const style: Record<string, string | number> = { ...shape.style };
+  const style: NonNullable<RnlShape["style"]> = { ...shape.style };
   if (lineStyle && lineStyle !== "solid" && style.linestyle !== "none")
     style.linestyle = lineStyle;
   if (override?.color) style.linecolor = override.color;

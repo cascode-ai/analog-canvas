@@ -24,10 +24,17 @@ owns visual authority.
   wired or marked pin is refused, as is one that would draw a supply whose Net
   Properties set (set it to Auto first).
 - An optional supply pin has role `positive-supply` or `negative-supply` and
-  is hidden by its symbol's default variant, as an op-amp's `VDD`/`VSS`:
-  `signal-pins`, the default, hides them and their leads; `supply-pins` draws
-  them. Drawn and unwired, it is Auto, as hidden. A subcircuit supply port is
-  drawn by the Symbol pin named after its supply where no port maps that pin.
+  is hidden by its symbol's default variant. Every built-in block whose
+  subcircuit takes `VDD` and `VSS` has them (op-amps, fully differential
+  op-amps, comparators, transconductors, voltage amplifiers, inverter,
+  buffer, 2–4-input gates, D flip-flops, Delay Cell, adder, multiplier, ADC,
+  DAC): `signal-pins`, the default, hides them and their leads; `supply-pins`
+  draws them, `VDD` north above and `VSS` south below the body, on whole grid
+  points, each on a lead from the body's edge, after the symbol's own pins and
+  primitives. A block whose body grows with its text draws them on its grown
+  body. A form switch (lettering, input swap, input count) keeps the variant.
+  Drawn and unwired, it is Auto, as hidden. A subcircuit supply port is drawn
+  by the Symbol pin named after its supply where no port maps that pin.
 - `port`, `port-filled`, `vdd-port` have one pin `P`; naming and interface
   follow the [schematic model](schematic-model.md). `nmos`/`pmos` keep D/G/S/B;
   default variant `textbook-3terminal` may hide bulk and never implies `B=S`;

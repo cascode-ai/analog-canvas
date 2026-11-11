@@ -1,4 +1,5 @@
 import type { SymbolPrimitive } from "@icm/symbols";
+import type { Shape } from "@rich-netlist/runtime/core";
 
 import { AC_UNITS_PER_RNL_UNIT, toRnlPoint, type RnlPoint } from "./place.js";
 
@@ -87,19 +88,13 @@ function pathShapes(data: string): RnlShape[] | null {
 
 /**
  * A drawing primitive (language standard 9.2.5) as an edit transaction gives
- * it, in a symbol's frame or in the scene (rnl-dev
- * `notes/rnl-editor-interface/ops-draft-blocks-and-drawings.md`, 2.1):
+ * it, in a symbol's frame or in the scene. The export writes these:
  *
  * - `line`: two points or more; a last point on the first closes it;
  * - `rectangle`, `circle`: the centre, with width and height or radius;
  * - `bezier`: 3n+1 points, a start then each cubic leg's two controls and end.
  */
-export interface RnlShape {
-  shape: "line" | "rectangle" | "circle" | "bezier";
-  points: RnlPoint[];
-  params?: Record<string, string | number>;
-  style?: Record<string, string | number>;
-}
+export type RnlShape = Shape;
 
 /** A length in RNL units, kept to a millionth. */
 export const rnlLength = (length: number): number =>

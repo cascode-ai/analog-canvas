@@ -2,9 +2,11 @@ import { registerDocumentCache } from "./document-caches.js";
 import { routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
+  adaptiveSignalFlowBounds,
   resolveAdaptiveSignalFlowBlockLayout,
   resolveInstanceSymbol,
   resolveSignalFlowPinAt,
+  withShownSupplies,
 } from "@icm/symbols";
 import type {
   ResolvedSymbol,
@@ -287,7 +289,13 @@ export function visibleSymbolInkBounds(
     resolved.definition,
     signalFlowParameters,
   );
-  if (adaptive) return adaptive.bounds;
+  // Supply leads a variant draws reach past the grown body (#1941).
+  if (adaptive)
+    return adaptiveSignalFlowBounds(
+      resolved.definition,
+      adaptive,
+      resolved.variant?.hiddenPrimitiveParts,
+    );
   const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
   const hiddenPins = new Set(resolved.variant?.hiddenPinNames ?? []);
   const primitives = [
@@ -296,7 +304,8 @@ export function visibleSymbolInkBounds(
   ].filter((primitive) => !primitive.part || !hiddenParts.has(primitive.part));
   const primitivePointSets = primitives.map(primitivePoints);
   if (primitivePointSets.some((points) => points === null)) {
-    return resolved.definition.viewBox;
+    // A shown supply's stub may stand past the viewBox (#1941).
+    return withShownSupplies(resolved.definition.viewBox, resolved);
   }
   const points = [
     ...primitivePointSets.flatMap((entry) => entry ?? []),

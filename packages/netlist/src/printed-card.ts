@@ -2,7 +2,10 @@ import type { DesignNetlistInstance, DesignNetlistParameter } from "./ir.js";
 import type { PrintedNetlistField } from "./printed-netlist.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { parseNgspiceSourceParameters } from "./simulation-ngspice-source-parameters.js";
-import { normalizeIndependentSource } from "./source-waveform.js";
+import {
+  normalizeIndependentSource,
+  type IndependentSourceWaveform,
+} from "./source-waveform.js";
 import { signedControlGain } from "./controlled-current.js";
 import {
   printedParameterConversion,
@@ -65,6 +68,101 @@ function sourceFieldsFromText(
       (p) => !["dc", "waveform"].includes(p.name.toLowerCase()),
     ),
   ];
+}
+
+/**
+ * The name a Spectre card prints each field of an independent source under,
+ * by the waveform it is set to: the waveform's own fields and its dc, where
+ * a sine's offset takes that name. A PWL's points print as one `wave`, which
+ * no field owns. AC's fields print under every waveform.
+ */
+const SPECTRE_SOURCE_NAMES = {
+  dc: { dc: "dc" },
+  pulse: {
+    low: "val0",
+    high: "val1",
+    delay: "delay",
+    rise: "rise",
+    fall: "fall",
+    width: "width",
+    period: "period",
+    dc: "dc",
+  },
+  sin: {
+    offset: "dc",
+    amplitude: "ampl",
+    frequency: "freq",
+    delay: "delay",
+    damping: "damp",
+    phase: "sinephase",
+  },
+  pwl: { dc: "dc" },
+} as const satisfies Record<
+  IndependentSourceWaveform,
+  Readonly<Record<string, string>>
+>;
+const SPECTRE_AC_NAMES = { acMagnitude: "mag", acPhase: "phase" } as const;
+
+/** Each waveform's printed names by field, folded to lower case, AC's among them. */
+const printedNames = (waveform: IndependentSourceWaveform) =>
+  new Map(
+    Object.entries({
+      ...SPECTRE_SOURCE_NAMES[waveform],
+      ...SPECTRE_AC_NAMES,
+    }).map(([field, printed]) => [field.toLowerCase(), printed]),
+  );
+const WAVEFORMS = Object.keys(
+  SPECTRE_SOURCE_NAMES,
+) as IndependentSourceWaveform[];
+
+/**
+ * The name a Spectre card prints an independent source's field under, the
+ * source set to `waveform`; null for a field of another waveform, which the
+ * card does not print; undefined for a parameter that is no waveform's field
+ * (an extra assignment, which prints under its own name).
+ */
+export function spectreSourceFieldName(
+  field: string,
+  waveform: IndependentSourceWaveform,
+): string | null | undefined {
+  const folded = field.toLowerCase();
+  const printed = printedNames(waveform).get(folded);
+  if (printed !== undefined) return printed;
+  return WAVEFORMS.some((other) => printedNames(other).has(folded))
+    ? null
+    : undefined;
+}
+
+/**
+ * The field of an independent source a Spectre card's name stands for, the
+ * source set to `waveform` (as the editor keeps it, any case): its own
+ * waveform's first, then another's, `mag` and `phase` AC's under every
+ * waveform; undefined for a name no field prints under.
+ */
+export function spectreSourceField(
+  printed: string,
+  waveform: string | undefined,
+): string | undefined {
+  const folded = printed.toLowerCase();
+  const own = WAVEFORMS.find((item) => item === waveform);
+  for (const candidate of own ? [own, ...WAVEFORMS] : WAVEFORMS)
+    for (const [field, name] of Object.entries({
+      ...SPECTRE_SOURCE_NAMES[candidate],
+      ...SPECTRE_AC_NAMES,
+    }))
+      if (name === folded) return field;
+  return undefined;
+}
+
+/**
+ * Whether a Spectre card prints an independent source from the SPICE text
+ * its dc keeps (AC, PULSE, SIN or PWL after its value), as plain text that
+ * no authored parameter owns.
+ */
+export function spectreSourceFromText(
+  parameters: readonly DesignNetlistParameter[],
+): boolean {
+  return sourceFieldsFromText(parameters) !== null;
 }
 
 /** Single card emission: field provenance travels with the existing tokens,
@@ -174,7 +272,7 @@ export function printInstanceCard(
         ? []
         : format === "spice"
           ? [plain("DC"), value("dc", source.dc)]
-          : [assignment("dc", "dc", source.dc)];
+          : [assignment(SPECTRE_SOURCE_NAMES.dc.dc, "dc", source.dc)];
     const ac = source.ac
       ? format === "spice"
         ? [
@@ -183,8 +281,12 @@ export function printInstanceCard(
             value("acPhase", source.ac.phase),
           ]
         : [
-            assignment("mag", "acMagnitude", source.ac.magnitude),
-            assignment("phase", "acPhase", source.ac.phase),
+            assignment(
+              SPECTRE_AC_NAMES.acMagnitude,
+              "acMagnitude",
+              source.ac.magnitude,
+            ),
+            assignment(SPECTRE_AC_NAMES.acPhase, "acPhase", source.ac.phase),
           ]
       : [];
     const extra = assignments([], source.extraParameters);
@@ -238,13 +340,13 @@ export function printInstanceCard(
     if (t.kind === "pulse")
       return [
         plain("type=pulse"),
-        assignment("val0", "low", t.low),
-        assignment("val1", "high", t.high),
-        assignment("delay", "delay", t.delay),
-        assignment("rise", "rise", t.rise),
-        assignment("fall", "fall", t.fall),
-        assignment("width", "width", t.width),
-        assignment("period", "period", t.period),
+        assignment(SPECTRE_SOURCE_NAMES.pulse.low, "low", t.low),
+        assignment(SPECTRE_SOURCE_NAMES.pulse.high, "high", t.high),
+        assignment(SPECTRE_SOURCE_NAMES.pulse.delay, "delay", t.delay),
+        assignment(SPECTRE_SOURCE_NAMES.pulse.rise, "rise", t.rise),
+        assignment(SPECTRE_SOURCE_NAMES.pulse.fall, "fall", t.fall),
+        assignment(SPECTRE_SOURCE_NAMES.pulse.width, "width", t.width),
+        assignment(SPECTRE_SOURCE_NAMES.pulse.period, "period", t.period),
         ...dc,
         ...ac,
         ...extra,
@@ -252,12 +354,20 @@ export function printInstanceCard(
     if (t.kind === "sin")
       return [
         plain("type=sine"),
-        assignment("dc", "offset", t.offset),
-        assignment("ampl", "amplitude", t.amplitude),
-        assignment("freq", "frequency", t.frequency),
-        assignment("delay", "delay", t.delay),
-        assignment("damp", "damping", t.damping),
-        assignment("sinephase", "phase", t.phase),
+        assignment(SPECTRE_SOURCE_NAMES.sin.offset, "offset", t.offset),
+        assignment(
+          SPECTRE_SOURCE_NAMES.sin.amplitude,
+          "amplitude",
+          t.amplitude,
+        ),
+        assignment(
+          SPECTRE_SOURCE_NAMES.sin.frequency,
+          "frequency",
+          t.frequency,
+        ),
+        assignment(SPECTRE_SOURCE_NAMES.sin.delay, "delay", t.delay),
+        assignment(SPECTRE_SOURCE_NAMES.sin.damping, "damping", t.damping),
+        assignment(SPECTRE_SOURCE_NAMES.sin.phase, "phase", t.phase),
         ...ac,
         ...extra,
       ];

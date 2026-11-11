@@ -2545,7 +2545,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "电源不画；输入、输出都 + 在上"
@@ -2620,7 +2631,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential 画成本符号上下翻转（MX）"
@@ -2683,7 +2705,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "信号在前、电源在后，电源不画：AC 的理想比较器调三端（阈值是数）或四端（阈值取自 VDD）的方框，都合用；+ 在上"
@@ -2746,7 +2779,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "comparator 画成本符号上下翻转（MX）"
@@ -2838,7 +2882,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "in", "out"],
     "note": ""
@@ -2889,7 +2944,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-3.4, -3.9, 3.4, 3.9],
     "ac_netlist_order": ["vp", "vn", "in", "out"],
     "note": ""
@@ -2952,7 +3018,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-3.4, -3.9, 3.4, 3.9],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "+ 在上"
@@ -3015,7 +3092,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-3.4, -3.9, 3.4, 3.9],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "differential-transconductance 画成本符号上下翻转（MX）"
@@ -3066,7 +3154,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-5.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "in", "out"],
     "note": ""
@@ -3117,7 +3216,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 5.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "in", "out"],
     "note": ""
@@ -3286,7 +3396,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
     "note": ""
@@ -3361,7 +3482,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "y"],
     "note": ""
@@ -3449,7 +3581,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_AND_4INPUT"
@@ -3512,7 +3655,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
     "note": ""
@@ -3587,7 +3741,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "y"],
     "note": ""
@@ -3675,7 +3840,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_NAND_4INPUT"
@@ -3738,7 +3914,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
     "note": ""
@@ -3813,7 +4000,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "y"],
     "note": ""
@@ -3901,7 +4099,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_OR_4INPUT"
@@ -3964,7 +4173,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
     "note": ""
@@ -4039,7 +4259,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "y"],
     "note": ""
@@ -4127,7 +4358,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_NOR_4INPUT"
@@ -4190,7 +4432,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
     "note": ""
@@ -4265,7 +4518,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "y"],
     "note": ""
@@ -4353,7 +4617,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_XOR_4INPUT"
@@ -4416,7 +4691,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
     "note": ""
@@ -4491,7 +4777,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "y"],
     "note": ""
@@ -4579,7 +4876,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "只用于导入：输入在整数格点 (−3, 2)、(−3, 1)、(−3, −1)、(−3, −2)，AC 导出用 $CANVAS_XNOR_4INPUT"
@@ -4630,7 +4938,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "y"],
     "note": ""
@@ -4681,7 +5000,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "y"],
     "note": ""
@@ -4756,7 +5086,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.2, -2.7, 4.2, 2.7],
     "ac_netlist_order": ["vp", "vn", "d", "ck", "q", "qb"],
     "note": ""
@@ -4819,7 +5160,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.2, -2.7, 4.2, 2.7],
     "ac_netlist_order": ["vp", "vn", "d", "ck", "q"],
     "note": ""
@@ -4906,7 +5258,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.2, -5.2, 4.2, 2.7],
     "ac_netlist_order": ["vp", "vn", "d", "ck", "rst", "q", "qb"],
     "note": ""
@@ -5011,7 +5374,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-2.4, -2.4, 2.4, 1.6],
     "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
     "note": ""
@@ -5074,7 +5448,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-2.4, -2.4, 2.4, 1.6],
     "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
     "note": ""
@@ -5745,7 +6130,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "同 $COMPARATOR 的端子；+ 在上，不画 + −"
@@ -5808,7 +6204,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "comparator-unmarked 画成本符号上下翻转（MX）"
@@ -5883,7 +6290,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
@@ -5958,7 +6376,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential-crossed 画成本符号上下翻转（MX）"
@@ -6033,7 +6462,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入、输出都 + 在上"
@@ -6108,7 +6548,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential-lettered 画成本符号上下翻转（MX）"
@@ -6183,7 +6634,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
@@ -6258,7 +6720,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential-crossed-lettered 画成本符号上下翻转（MX）"
@@ -6333,7 +6806,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入、输出都 + 在上"
@@ -6408,7 +6892,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential-wide 画成本符号上下翻转（MX）"
@@ -6483,7 +6978,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
@@ -6558,7 +7064,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential-wide-crossed 画成本符号上下翻转（MX）"
@@ -6633,7 +7150,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入、输出都 + 在上"
@@ -6708,7 +7236,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential-wide-lettered 画成本符号上下翻转（MX）"
@@ -6783,7 +7322,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
@@ -6858,7 +7408,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential-wide-crossed-lettered 画成本符号上下翻转（MX）"
@@ -6909,7 +7470,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "in", "out"],
     "note": "同 $VOLTAGE_AMPLIFIER"
@@ -7654,6 +8226,534 @@
     "note": "AC 的扩展（0.5 起）：AC 印成子电路 crystal（Butterworth-Van Dyke 等效电路）"
   },
   {
+    "symbol": "$CANVAS_POLARIZED_CAPACITOR",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "polarized-capacitor",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.4, -2, 1.4, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a C card, its + plate on terminal 1"
+  },
+  {
+    "symbol": "$CANVAS_LED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "led",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "k",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-2, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "k",
+        "ac_pin": "K",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -1, 2, 1.8],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a D card"
+  },
+  {
+    "symbol": "$CANVAS_SCHOTTKY_DIODE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "schottky-diode",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "k",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-2, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "k",
+        "ac_pin": "K",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -1, 2, 1],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a D card"
+  },
+  {
+    "symbol": "$CANVAS_SHOCKLEY_DIODE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "shockley-diode",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "k",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-2, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "k",
+        "ac_pin": "K",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -1, 2, 1],
+    "ac_netlist_order": ["a", "k"],
+    "note": "AC 的扩展（0.6 起）：a call of the four-layer body Analog Canvas writes"
+  },
+  {
+    "symbol": "$CANVAS_PUT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "put",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "g",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "k",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-2, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-1, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 3,
+        "name": "k",
+        "ac_pin": "K",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -1, 2, 2],
+    "ac_netlist_order": ["a", "g", "k"],
+    "note": "AC 的扩展（0.6 起）：a call of the programmable unijunction body Analog Canvas writes"
+  },
+  {
+    "symbol": "$CANVAS_UJT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "ujt",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "e",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "b1",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "b2",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "e",
+        "ac_pin": "E",
+        "at": [-2, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "b1",
+        "ac_pin": "B1",
+        "at": [1, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 3,
+        "name": "b2",
+        "ac_pin": "B2",
+        "at": [1, 2],
+        "dir": 90
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -2, 1.4, 2],
+    "ac_netlist_order": ["e", "b1", "b2"],
+    "note": "AC 的扩展（0.6 起）：a call of the unijunction body Analog Canvas writes"
+  },
+  {
+    "symbol": "$CANVAS_POTENTIOMETER",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "potentiometer",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "n1",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "nw",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "n2",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "n1",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "nw",
+        "ac_pin": "W",
+        "at": [2, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 3,
+        "name": "n2",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1, -2, 2, 2],
+    "ac_netlist_order": ["n1", "nw", "n2"],
+    "note": "AC 的扩展（0.6 起）：a call of the two-resistor body Analog Canvas writes, the wiper in the middle"
+  },
+  {
+    "symbol": "$CANVAS_PHOTORESISTOR",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "photoresistor",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.8, -2, 1, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：an R card"
+  },
+  {
+    "symbol": "$CANVAS_SPEAKER",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "speaker",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-0.8, -2, 1.6, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：an R card, the voice coil's resistance"
+  },
+  {
+    "symbol": "$CANVAS_MICROPHONE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "microphone",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2.4, -2, 2, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a V card, + on terminal 1"
+  },
+  {
+    "symbol": "$CANVAS_SINE_VOLTAGE_SOURCE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "sine-voltage-source",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.4, -2, 1.4, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a V card with a SIN waveform, + on terminal 1"
+  },
+  {
+    "symbol": "$CANVAS_AMMETER",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "ammeter",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.4, -2, 1.4, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a zero-volt V card the current is read through, + on terminal 1"
+  },
+  {
     "symbol": "$CANVAS_AND_4INPUT",
     "definition": null,
     "package": "analog-canvas-extensions",
@@ -7735,7 +8835,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "同 $AND_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
@@ -7822,7 +8933,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "同 $NAND_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
@@ -7909,7 +9031,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "同 $OR_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
@@ -7996,7 +9129,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "同 $NOR_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
@@ -8083,7 +9227,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "同 $XOR_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
@@ -8170,7 +9325,18 @@
         "dir": 0
       }
     ],
-    "undrawn_pins": [],
+    "undrawn_pins": [
+      {
+        "terminal": 6,
+        "name": "vp",
+        "ac_pin": "VDD"
+      },
+      {
+        "terminal": 7,
+        "name": "vn",
+        "ac_pin": "VSS"
+      }
+    ],
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "b", "c", "d", "y"],
     "note": "同 $XNOR_4INPUT 的端子；照 AC 的画法，输入间距 0.8"
