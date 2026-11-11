@@ -356,7 +356,11 @@ function canvasTypesetting(
         usual.subscriptAfterFirst,
       ],
       first_letter_italic: [own.firstLetterItalic, usual.firstLetterItalic],
-      face: [presentation.textFace, undefined],
+      // Canvas 0.5 names only the serif; the other faces await a version.
+      face: [
+        presentation.textFace === "serif" ? "serif" : undefined,
+        undefined,
+      ],
       crossings: [presentation.crossingStyle, undefined],
     }).flatMap(([key, [value, otherwise]]) =>
       value !== undefined && value !== otherwise ? [[key, value]] : [],

@@ -4,6 +4,7 @@ import {
   resolveAnnotationPresentation,
   resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
+  DOCUMENT_TEXT_FACE_FONT_FAMILIES,
   SERIF_FONT_FAMILY,
 } from "@icm/derived";
 import { InMemorySymbolResolver } from "@icm/symbols";
@@ -567,5 +568,21 @@ describe("the Document's font (#1725)", () => {
     const serif = renderDocumentSvg(document, resolver);
     expect(serif).toMatch(/^<svg [^>]* data-text-face="serif">/u);
     expect(serif).toContain(`text{font-family:${SERIF_FONT_FAMILY}}`);
+  });
+
+  it.each([
+    ["sans", "'ICM Sans','Liberation Sans',Arial,"],
+    ["latin-modern", "'ICM Modern','Latin Modern Roman',"],
+  ] as const)("names the %s stack and marks the root", (face, stack) => {
+    const document = createEmptyDocument("doc", "Font");
+    document.presentation.textFace = face;
+    const svg = renderDocumentSvg(document, new InMemorySymbolResolver([]));
+    expect(svg).toMatch(
+      new RegExp(`^<svg [^>]* data-text-face="${face}">`, "u"),
+    );
+    expect(svg).toContain(
+      `text{font-family:${DOCUMENT_TEXT_FACE_FONT_FAMILIES[face]}}`,
+    );
+    expect(DOCUMENT_TEXT_FACE_FONT_FAMILIES[face]).toContain(stack);
   });
 });

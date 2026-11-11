@@ -1,5 +1,7 @@
 import type { SymbolStrokeRole } from "@icm/symbols";
 
+import type { DocumentTextFace } from "@icm/model";
+
 import type { SchematicTextFace } from "./fraction-text-metrics.js";
 import { razaviPeripheralGeometry } from "./razavi-peripheral-geometry.generated.js";
 import { withSchematicRoundPeriodFont } from "./schematic-font.js";
@@ -63,6 +65,22 @@ export interface SchematicTypography {
  */
 export const SERIF_FONT_FAMILY =
   "'ICM Serif','Liberation Serif','Times New Roman',Times,'DejaVu Sans',serif";
+
+/**
+ * The stack of each face a Document may choose instead of Metropolis
+ * (#1725): its served subset first (ICM Serif, ICM Sans, ICM Modern), then
+ * the face under its own name and the face it shares metrics with where a
+ * viewer has them and not the subset, then DejaVu Sans for symbols none of
+ * them draw.
+ */
+export const DOCUMENT_TEXT_FACE_FONT_FAMILIES: Readonly<
+  Record<DocumentTextFace, string>
+> = {
+  serif: SERIF_FONT_FAMILY,
+  sans: "'ICM Sans','Liberation Sans',Arial,Helvetica,'DejaVu Sans',sans-serif",
+  "latin-modern":
+    "'ICM Modern','Latin Modern Roman','LM Roman 10','DejaVu Sans',serif",
+};
 
 /** The one typography system shared by all presentation profiles. */
 export const globalSchematicTypography: SchematicTypography = {
@@ -146,27 +164,35 @@ export interface StyleOverridablePresentation {
         readonly junctionRadiusScale?: number | undefined;
       }
     | undefined;
-  /** The whole canvas's face: the serif, or Metropolis when absent (#1725). */
-  readonly textFace?: "serif" | undefined;
+  /** The whole canvas's face; Metropolis when absent (#1725). */
+  readonly textFace?: DocumentTextFace | undefined;
 }
 
 const overriddenProfiles = new WeakMap<object, SchematicStyleProfile>();
-const serifProfiles = new WeakMap<object, SchematicStyleProfile>();
+const faceProfiles = new Map<
+  DocumentTextFace,
+  WeakMap<object, SchematicStyleProfile>
+>();
 
-/** `profile` set in the serif face, one object per profile. */
-function withSerifFace(profile: SchematicStyleProfile): SchematicStyleProfile {
-  const cached = serifProfiles.get(profile);
+/** `profile` set in a chosen face, one object per profile and face. */
+function withTextFace(
+  profile: SchematicStyleProfile,
+  face: DocumentTextFace,
+): SchematicStyleProfile {
+  let profiles = faceProfiles.get(face);
+  if (!profiles) faceProfiles.set(face, (profiles = new WeakMap()));
+  const cached = profiles.get(profile);
   if (cached) return cached;
-  const serif: SchematicStyleProfile = {
+  const chosen: SchematicStyleProfile = {
     ...profile,
     typography: {
       ...profile.typography,
-      face: "serif",
-      fontFamily: SERIF_FONT_FAMILY,
+      face,
+      fontFamily: DOCUMENT_TEXT_FACE_FONT_FAMILIES[face],
     },
   };
-  serifProfiles.set(profile, serif);
-  return serif;
+  profiles.set(profile, chosen);
+  return chosen;
 }
 
 /**
@@ -182,8 +208,10 @@ export function resolveDocumentStyleProfile(
   presentation: StyleOverridablePresentation,
 ): SchematicStyleProfile {
   const scaled = scaledDocumentStyleProfile(presentation);
-  // One face for the whole canvas: the serif when the Document chose it.
-  return presentation.textFace === "serif" ? withSerifFace(scaled) : scaled;
+  // One face for the whole canvas: the one the Document chose, if any.
+  return presentation.textFace
+    ? withTextFace(scaled, presentation.textFace)
+    : scaled;
 }
 
 function scaledDocumentStyleProfile(
@@ -250,8 +278,9 @@ export function objectStyleProfile(
         styleProfileId: documentProfile.id,
         styleOverrides: kept,
         // A kept style scales; the face stays the canvas's.
-        ...(documentProfile.typography.face === "serif"
-          ? { textFace: "serif" as const }
+        ...(documentProfile.typography.face &&
+        documentProfile.typography.face !== "metropolis"
+          ? { textFace: documentProfile.typography.face }
           : {}),
       })
     : documentProfile;

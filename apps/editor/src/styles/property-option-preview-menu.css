@@ -79,6 +79,14 @@
     "ICM Serif", "Liberation Serif", "Times New Roman", Times, "DejaVu Sans",
     serif;
 }
+.cm-property-option-preview-font[data-face="sans"] {
+  font-family:
+    "ICM Sans", "Liberation Sans", Arial, Helvetica, "DejaVu Sans", sans-serif;
+}
+.cm-property-option-preview-font[data-face="latin-modern"] {
+  font-family:
+    "ICM Modern", "Latin Modern Roman", "LM Roman 10", "DejaVu Sans", serif;
+}
 .cm-property-label-preview-first {
   font-weight: 700;
 }

@@ -1,11 +1,17 @@
+import type { DocumentTextFace } from "@icm/model";
+
+import { schematicLatinModernTextMetrics } from "./schematic-latin-modern-text-metrics.generated.js";
+import { schematicSansTextMetrics } from "./schematic-sans-text-metrics.generated.js";
 import { schematicSerifTextMetrics } from "./schematic-serif-text-metrics.generated.js";
 import { schematicTextMetrics } from "./schematic-text-metrics.generated.js";
 
 /**
- * The face a Document's text is set in: Metropolis, or the Times-style serif
- * (Liberation Serif, served as ICM Serif) a Document may choose (#1725).
+ * The face a Document's text is set in: Metropolis, or one a Document may
+ * choose instead (#1725), each measured from its own tables: Liberation Serif
+ * (served as ICM Serif), Liberation Sans (ICM Sans) or Latin Modern Roman
+ * (ICM Modern).
  */
-export type SchematicTextFace = "metropolis" | "serif";
+export type SchematicTextFace = "metropolis" | DocumentTextFace;
 
 type MetricTable = typeof schematicTextMetrics;
 function faceMetrics(
@@ -30,9 +36,11 @@ const tableFaces = (table: MetricTable) => ({
   italic: faceMetrics(table, "italic"),
   boldItalic: faceMetrics(table, "boldItalic"),
 });
-const faces = {
+const faces: Record<SchematicTextFace, ReturnType<typeof tableFaces>> = {
   metropolis: tableFaces(schematicTextMetrics),
   serif: tableFaces(schematicSerifTextMetrics),
+  sans: tableFaces(schematicSansTextMetrics),
+  "latin-modern": tableFaces(schematicLatinModernTextMetrics),
 };
 function metricsFor(
   weight: "plain" | "bold",

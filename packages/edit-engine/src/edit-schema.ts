@@ -2,6 +2,7 @@ import {
   AnnotationSchema,
   CellSymbolPresentationSchema,
   CellNetlistTerminalSchema,
+  DOCUMENT_TEXT_FACES,
   DraftingObjectSchema,
   ConnectivityEvidenceSchema,
   InductorCouplingSchema,
@@ -391,9 +392,10 @@ const SetPresentationStyleEditSchema = z.strictObject({
   styleOverrides: StyleOverridesSchema.nullable().optional(),
   /**
    * The one font of all the Document's text: omitted leaves it, `null`
-   * returns to Metropolis, "serif" sets the Times-style face.
+   * returns to Metropolis, "serif" sets Times New Roman's metrics, "sans"
+   * Arial's and "latin-modern" LaTeX's Latin Modern Roman.
    */
-  textFace: z.enum(["serif"]).nullable().optional(),
+  textFace: z.enum(DOCUMENT_TEXT_FACES).nullable().optional(),
   /**
    * How unconnected wire crossings draw: omitted leaves it, `null` returns
    * to plain crossings, "hop" arcs the horizontal wire over the vertical.

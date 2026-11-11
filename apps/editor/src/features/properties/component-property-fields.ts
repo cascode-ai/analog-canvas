@@ -1,3 +1,5 @@
+import type { DocumentTextFace } from "@icm/model";
+
 /** Canvas-layer authoring metadata shared by validation and external controls. */
 export const ROTATION_OPTIONS = [
   { value: 0, label: "0°" },
@@ -39,7 +41,7 @@ export type CanvasPropertyOptionPreview =
       device: "NMOS" | "PMOS";
       rail: "VSS" | "VDD";
     }
-  | { kind: "font"; face: "metropolis" | "serif" }
+  | { kind: "font"; face: "metropolis" | DocumentTextFace }
   | { kind: "crossing"; style: "plain" | "hop" }
   | { kind: "grid"; enabled: boolean; spacing: 1 | 5 | 10 }
   | { kind: "angle"; mode: "free" | "45" | "orthogonal" }

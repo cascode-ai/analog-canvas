@@ -322,6 +322,25 @@ describe("document Style code", () => {
     ).toEqual({ ok: true, value });
   });
 
+  it.each(["sans", "latin-modern"] as const)(
+    "accepts the %s font and keeps it when pasted code leaves it out",
+    (font) => {
+      const document = createEmptyDocument("document-main", "Main");
+      const value = { ...editableValue(), font };
+      expect(
+        parseDocumentSettingsCode(
+          serializeDocumentSettingsCode(value),
+          document,
+        ),
+      ).toEqual({ ok: true, value });
+      document.presentation.textFace = font;
+      const { font: _font, ...withoutFont } = editableValue();
+      expect(
+        parseDocumentSettingsCode(JSON.stringify(withoutFont), document),
+      ).toEqual({ ok: true, value });
+    },
+  );
+
   it("keeps the canvas font when pasted code leaves it out", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.presentation.textFace = "serif";
@@ -343,7 +362,11 @@ describe("document Style code", () => {
   });
 
   it.each([
-    ["font", "times", 'must be "metropolis" or "serif"'],
+    [
+      "font",
+      "times",
+      'must be "metropolis", "serif", "sans" or "latin-modern"',
+    ],
     ["crossings", "bridge", 'must be "plain" or "hop"'],
     ["appearance.fontScale", 0.49, "from 0.5 to 2"],
     ["appearance.wireStrokeScale", 2.01, "from 0.5 to 2"],
@@ -425,7 +448,18 @@ describe("document Style code", () => {
       }),
       expect.objectContaining({
         value: "serif",
+        label: "Times New Roman",
         preview: { kind: "font", face: "serif" },
+      }),
+      expect.objectContaining({
+        value: "sans",
+        label: "Arial",
+        preview: { kind: "font", face: "sans" },
+      }),
+      expect.objectContaining({
+        value: "latin-modern",
+        label: "Latin Modern (LaTeX)",
+        preview: { kind: "font", face: "latin-modern" },
       }),
     ]);
     expect(
