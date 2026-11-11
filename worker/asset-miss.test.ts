@@ -88,6 +88,7 @@ describe("client routes keep the shell", () => {
     "/",
     "/datasets",
     "/review",
+    "/film",
     "/account",
     "/mine",
     "/privacy",
