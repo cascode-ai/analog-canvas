@@ -6,11 +6,11 @@ import { AC_UNITS_PER_RNL_UNIT, toRnlPoint, type RnlPoint } from "./place.js";
 type Point = { readonly x: number; readonly y: number };
 
 /**
- * An SVG path of absolute M, L, C and Z commands as RNL shapes, one for each
- * subpath: straight legs only make a line; with a cubic leg, a Bézier whose
- * straight legs are cubics with their controls on the leg, so the curve is
- * the one drawn, not an approximation. Any other command (relative, H, V, S,
- * Q, A) gives null.
+ * An SVG path of absolute M, L, H, V, C and Z commands as RNL shapes, one
+ * for each subpath: straight legs only make a line; with a cubic leg, a
+ * Bézier whose straight legs are cubics with their controls on the leg, so
+ * the curve is the one drawn, not an approximation. Any other command
+ * (relative, S, Q, A) gives null.
  */
 function pathShapes(data: string): RnlShape[] | null {
   const tokens = data.match(
@@ -45,6 +45,10 @@ function pathShapes(data: string): RnlShape[] | null {
     index += 2;
     return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
   };
+  const coordinate = (): number | null => {
+    const value = Number(tokens[index++]);
+    return Number.isFinite(value) ? value : null;
+  };
   while (index < tokens.length) {
     if (/^[A-Za-z]$/u.test(tokens[index]!)) command = tokens[index++]!;
     if (command === "Z") {
@@ -72,6 +76,14 @@ function pathShapes(data: string): RnlShape[] | null {
       const to = point();
       if (!to || !points.length) return null;
       points.push(to);
+      controls.push(null);
+    } else if (command === "H" || command === "V") {
+      const value = coordinate();
+      const from = points.at(-1);
+      if (value === null || !from) return null;
+      points.push(
+        command === "H" ? { x: value, y: from.y } : { x: from.x, y: value },
+      );
       controls.push(null);
     } else if (command === "C") {
       const a = point();

@@ -143,6 +143,21 @@ describe("RNL shapes", () => {
         ],
       },
     ]);
+    // A block's box drawn with horizontal and vertical legs.
+    expect(
+      symbolShapes([{ kind: "path", data: "M -20 -10 H 20 V 10 H -20 Z" }]),
+    ).toEqual([
+      {
+        shape: "line",
+        points: [
+          [-2, 1],
+          [2, 1],
+          [2, -1],
+          [-2, -1],
+          [-2, 1],
+        ],
+      },
+    ]);
     expect(
       symbolShapes([{ kind: "path", data: "M 0 0 A 5 5 0 0 1 10 0" }]),
     ).toBeNull();
