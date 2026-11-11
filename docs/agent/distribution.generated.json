@@ -1,7 +1,7 @@
 {
   "format": "analog-canvas-agent-distribution-v1",
   "version": 1,
-  "registrySha256": "53e1467f62c9b658090a9f0a008a992f61bc1537742fe102a410e1ca7c8fad5f",
+  "registrySha256": "a371d7b07944b08617db422f13237ddba6e51b43c4a93b4b5fdc8e75166ee2f8",
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
@@ -9,7 +9,7 @@
     },
     {
       "source": "docs/agent/mcp-quickstart.md",
-      "sha256": "ddf396e2113abfb8c8a90b834e3cbda373be9796841d4af9994e999d56984c38"
+      "sha256": "037b6762a5f3fd2925526558eac96d73be69c33354797ceac6d68bc3c2ca7d0d"
     },
     {
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
@@ -85,7 +85,7 @@
     },
     {
       "source": "docs/agent/mcp-install.md",
-      "sha256": "2c7964d4972a9862781a322d8396eabcbf8bfa08333da8b7aa4601365fb04d27"
+      "sha256": "5d6035f477eb3a7f14bd6d523d44d24d514b1ee0f27540eae7f531af789ec7cd"
     },
     {
       "source": "docs/agent/api-usage.md",
@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "eab0de194044ad235c0aa0550af41c36030fe825297f2d7807a7325e63137684"
+      "sha256": "daf0469de19acfe6e9b77637f4e5792d9e862bdd6fc0ba014e130991346865de"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -129,7 +129,7 @@
     },
     {
       "source": "docs/agent/skills/canvas-review/SKILL.md",
-      "sha256": "af15e5a7dfe2a37e5a94b2a991ed515e017462378d0abe317f8930dcf48a0c17"
+      "sha256": "76ee462f92f452b2f5396bad1c8e43b0ea1e47d0fb5bbb0d9247a253753d132c"
     },
     {
       "source": "docs/agent/skills/canvas-review/agents/openai.yaml",
@@ -137,7 +137,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "aa588fec68f89f34f4f938c831df57cec8b3311471e4c4d43841b4ff1599ddd1"
+      "sha256": "976b3cd07dafaeb3a52a277a4ce88524f5fc1fec18aa0b1a096d6bee6e05f30b"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -145,7 +145,7 @@
     },
     {
       "source": "docs/agent/mcp/instructions.md",
-      "sha256": "32b7dcdcbfacc176b8a832417104cc4bfe5972a811c01ab9caeab6bf07b772e5"
+      "sha256": "296c0f3d73be1216b823f38316e702a7504e3a91ca6d7964e93fbaa391ddee69"
     },
     {
       "source": "docs/agent/entrypoints/connect.md",
@@ -631,7 +631,7 @@
       "reads": [
         {
           "document": "reference/quickstart",
-          "section": "Connect"
+          "section": "Open a review task"
         },
         {
           "document": "reference/mcp-tools",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "8053f61246ed62e39605fbac67e26ddc61819220a938ab6df679837148e95278"
+      "sha256": "54153b46b592a6a96b00a5a500a702282d51c2b456eb51cf96d72be7ce2969db"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -732,7 +732,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "9d359f6384f803de8fd2eac4cfe6f5fff727edb643d01cacd8fdbe73db8229d9"
+      "sha256": "c7d8c1db632c52a57cf587ea8b56c2c3b321683e2ca23fb2fddd0de6c60da394"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

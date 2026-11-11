@@ -1,30 +1,44 @@
 # Analog Canvas MCP quickstart
 
-## Connect
+## Open a review task
 
 `open_canvas({})` opens a dedicated Canvas tab for a new task at the configured
-origin. The browser offers **Allow Agent access** for this task and **Trust this
-device** for a signed-in account. On the same site, the same installation and
-account can then open new review tasks without a click; their replies say
-`trusted: true`. A trusted task reads and edits local review copies only: a
-Cloud, Gallery, component-library or simulation call answers
-`TRUSTED_TASK_LOCAL_ONLY`. Ask the user to do it in Canvas, or open a separate
-task with `open_canvas({approval:"once"})`: the user approves it in the
-browser and it acts with their account. Each task gets
-its own working copy and credentials. **Stop trusting this device** in the
-tab's Agent panel, or **Account → Settings → Trusted Canvas devices**, ends a
-device's trust and its trusted tasks. A successful
-reply includes `taskRef`, `sessionId` and the live Project and Cell context.
-Wait for `projectRead: "ready"` before editing. Pass that `taskRef` on every
-Canvas tool call in this task, including another `open_canvas` to reuse the tab
-or reopen after closing. If approval is pending, continue with the returned
-reference after the user approves. Task references last for the running MCP
-process. After a reopen with `recovery: "previous-project-unconfirmed"`,
-verify the target Project and revision before continuing earlier work.
-`SESSION_REVOKED` means the user ended the task in the browser: ask before
-reconnecting, then call `open_canvas({})` for a new task. Canvas checks device
-trust again or shows the one-time approval. A trusted task's message says
-whether its device is still trusted.
+origin. A successful reply includes the `taskRef`, `sessionId` and live Project
+and Cell context. Wait for `projectRead: "ready"` before importing or editing.
+Pass the returned `taskRef` on every tool call for the task.
+
+If approval is pending, have the user choose **Allow Agent access** in the
+browser, then reuse `open_canvas({taskRef})`. A signed-in user can choose
+**Trust this device** so later tasks for this site, installation and account
+open without a click (`trusted: true`). Trusted tasks use local review copies.
+For a closed, revoked or blocked task, see
+[Recover a review task](analog-canvas://reference/quickstart?section=Recover%20a%20review%20task).
+
+## Recover a review task
+
+- Reuse `open_canvas({taskRef})` to check or reopen the task. Task references
+  last for the running MCP process. Wait for `projectRead: "ready"`. If recovery
+  is `"previous-project-unconfirmed"`, verify the Project and revision before
+  continuing earlier work. Each task has its own working copy and credentials.
+- `SESSION_REVOKED` means the user ended the task in Canvas. Ask before
+  reconnecting, then use `open_canvas({})` for a new task. Canvas checks trust
+  again or shows the one-time approval. **Stop trusting this device** in the
+  Agent panel or **Account → Settings → Trusted Canvas devices** ends the device's
+  trust and its trusted tasks.
+- `TRUSTED_TASK_LOCAL_ONLY` means the operation needs account access. Tell the
+  user what it needed. Have them do it in Canvas, or open a separate
+  `open_canvas({approval:"once"})` task for an authorized account operation. The
+  user approves it in the browser. Do not retry it in the trusted task.
+- `REVIEW_TARGET_CHANGED` on image export means the receipt is stale. Read the
+  current revision and explain the change before exporting it. A restored copy
+  has a new `workspaceGeneration`. Report the recovery and confirm the live
+  copy before presenting an image as current.
+
+## Connect
+
+For a dedicated task, see
+[Open a review task](analog-canvas://reference/quickstart?section=Open%20a%20review%20task).
+For a user-provided Claim, use the manual connection below.
 
 Use the manual connection for a page the user paired using a Claim. Run it
 in a separate MCP process from dedicated Canvas tasks.
@@ -73,9 +87,9 @@ freezes its input, so start/read/download need no circuit reread.
 ## Task guidance
 
 - Local circuit delivery: `import_file` with `action:"open-local"`. See
-  [file delivery and its receipt](mcp/tools.md#projects-files-and-gallery) for the source root and
+  [file delivery and its receipt](analog-canvas://reference/mcp-tools?section=Import%20a%20local%20source) for the source root and
   version fields.
-- Netlist to review: [choose how to draw and how to present](mcp/tools.md#from-a-netlist-to-a-review).
+- Netlist to review: [start a review](analog-canvas://reference/mcp-tools?section=Start%20a%20review).
   Reuse a usable drawing and keep one live Canvas revision across images and Web.
 - Circuit editing: [authoring](shared/authoring.md), then the built-in catalog
   for unfamiliar symbols (`analog-canvas://catalog/builtins?symbols=nmos,pmos,port`
