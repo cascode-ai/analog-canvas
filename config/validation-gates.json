@@ -315,6 +315,9 @@
       "apps/editor/e2e/native-simulation-executor.d.mts",
       "apps/mcp-server/**",
       "packages/agent-adapter/**",
+      "!apps/mcp-server/src/guidance.generated.ts",
+      "!apps/mcp-server/src/resources.generated.ts",
+      "!packages/agent-adapter/src/agent-docs.generated.ts",
       "packages/agent-client/**",
       "packages/agent-routing/**",
       "worker/agent-editor-launch.ts",
@@ -322,6 +325,11 @@
       "apps/editor/e2e/editor-fixtures.ts",
       "apps/editor/e2e/gallery-fixtures.ts",
       "apps/editor/e2e/manual-editor-fixtures.ts"
+    ],
+    "agentDocs": [
+      "apps/mcp-server/src/guidance.generated.ts",
+      "apps/mcp-server/src/resources.generated.ts",
+      "packages/agent-adapter/src/agent-docs.generated.ts"
     ],
     "analogSimulation": [
       "apps/editor/src/features/simulation/**",
@@ -660,6 +668,20 @@
       }
     },
     {
+      "id": "agent-docs-browser",
+      "stage": "affected",
+      "groups": ["agentDocs"],
+      "description": "Validate the Agent kit and guidance text the connection workflow serves.",
+      "command": [
+        "pnpm",
+        "test:e2e:local",
+        "apps/editor/e2e/agent-connection.spec.ts"
+      ],
+      "ci": {
+        "e2eArgs": ["apps/editor/e2e/agent-connection.spec.ts"]
+      }
+    },
+    {
       "id": "analog-simulation-browser",
       "stage": "affected",
       "groups": ["analogSimulation"],
@@ -956,6 +978,7 @@
         "gallery-browser",
         "gallery-request-failures-browser",
         "agent-browser",
+        "agent-docs-browser",
         "analog-simulation-browser",
         "editor-browser",
         "editor-commands-browser",

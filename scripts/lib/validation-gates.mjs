@@ -70,11 +70,24 @@ export async function loadGateCatalog(path = defaultCatalogPath) {
   return catalog;
 }
 
+/** A path is in a group when one pattern names it and no `!pattern` removes it. */
+export function inPathGroup(path, patterns) {
+  const removed = patterns
+    .filter((pattern) => pattern.startsWith("!"))
+    .map((pattern) => pattern.slice(1));
+  return (
+    matchesAny(
+      path,
+      patterns.filter((pattern) => !pattern.startsWith("!")),
+    ) && !matchesAny(path, removed)
+  );
+}
+
 function groupMatches(paths, catalog) {
   return Object.fromEntries(
     Object.entries(catalog.pathGroups).map(([name, patterns]) => [
       name,
-      paths.filter((path) => matchesAny(path, patterns)),
+      paths.filter((path) => inPathGroup(path, patterns)),
     ]),
   );
 }

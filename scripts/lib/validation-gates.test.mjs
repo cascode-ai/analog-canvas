@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   globPattern,
   formatGatePlan,
+  inPathGroup,
   formatGatePlanMarkdown,
   loadGateCatalog,
   matchesAny,
@@ -37,6 +38,15 @@ function ids(paths) {
 }
 
 describe("validation gate planning", () => {
+  it("leaves a path out of a group that a !pattern removes", () => {
+    const group = ["apps/mcp-server/**", "!apps/mcp-server/src/*.generated.ts"];
+    expect(inPathGroup("apps/mcp-server/src/server.ts", group)).toBe(true);
+    expect(
+      inPathGroup("apps/mcp-server/src/guidance.generated.ts", group),
+    ).toBe(false);
+    expect(inPathGroup("packages/model/src/index.ts", group)).toBe(false);
+  });
+
   it("keeps a build between browser batches in execution order", () => {
     const commands = [
       ["pnpm", "test:e2e:local", "apps/editor/e2e/group-mirror.spec.ts"],
@@ -298,7 +308,7 @@ describe("validation gate catalog paths", () => {
     const dead = [];
     for (const [group, patterns] of Object.entries(catalog.pathGroups)) {
       for (const pattern of patterns) {
-        const matches = globPattern(pattern);
+        const matches = globPattern(pattern.replace(/^!/u, ""));
         if (!trackedPaths.some((path) => matches.test(path))) {
           dead.push(`${group}: ${pattern}`);
         }
