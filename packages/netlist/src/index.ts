@@ -24,6 +24,11 @@ export { withNetlistPowerMarkerClaims } from "./extract-nets.js";
 export { plainBodyName } from "./library-part-calls.js";
 export * from "./printers.js";
 export * from "./printed-netlist.js";
+export {
+  spectreSourceField,
+  spectreSourceFieldName,
+  spectreSourceFromText,
+} from "./printed-card.js";
 export * from "./parameter-projection.js";
 export * from "./vacask-printer.js";
 export * from "./vacask-source.js";

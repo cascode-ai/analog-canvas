@@ -23,6 +23,7 @@ import {
   createDesignNetlistExport,
   encodeNetName,
   spectreNumber,
+  spectreSourceField,
 } from "@icm/netlist";
 import {
   deriveStableId,
@@ -1483,14 +1484,13 @@ function applyLevel(
     // sine's offset, phase the AC phase), a resistor's, capacitor's or
     // inductor's value, or the parameter of that name.
     const folded = name.toLowerCase();
-    const sine = parameters["waveform"]?.trim().toLowerCase() === "sin";
-    const candidates =
-      folded === "dc"
-        ? [sine ? "offset" : "dc"]
-        : (SOURCE_FIELDS_OF[folded] ?? [
-            name,
-            ...(["r", "c", "l"].includes(folded) ? ["value"] : []),
-          ]);
+    const field = spectreSourceField(
+      name,
+      parameters["waveform"]?.trim().toLowerCase(),
+    );
+    const candidates = field
+      ? [field]
+      : [name, ...(["r", "c", "l"].includes(folded) ? ["value"] : [])];
     const key = candidates
       .flatMap(
         (candidate) =>
@@ -4567,18 +4567,6 @@ function turnedBy(
 
 /** Marks read once the wires are routes, and figures. */
 const LATER = new Set(["$ARROW", "$CURRENT_ARROW", "$FIGURE"]);
-
-/** The source fields a Spectre card's names stand for, where they differ. */
-const SOURCE_FIELDS_OF: Readonly<Record<string, readonly string[]>> = {
-  val0: ["low"],
-  val1: ["high"],
-  ampl: ["amplitude"],
-  freq: ["frequency"],
-  damp: ["damping"],
-  sinephase: ["phase"],
-  mag: ["acMagnitude"],
-  phase: ["acPhase"],
-};
 
 /**
  * How near two points are the same, in Analog Canvas units: RNL keeps
