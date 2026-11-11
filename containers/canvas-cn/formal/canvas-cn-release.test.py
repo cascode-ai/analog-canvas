@@ -9,6 +9,7 @@ import re
 import tempfile
 import unittest
 import urllib.error
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -18,6 +19,7 @@ release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 OLD = 'a' * 40
 NEW = 'b' * 40
+check_readiness = release.smoke
 
 
 def digest(data):
@@ -117,6 +119,60 @@ def can_symlink():
             return True
         except OSError:
             return False
+
+
+class ReadinessTest(unittest.TestCase):
+    def test_accepts_ready_runtime_without_a_fixed_two_second_pause(self):
+        with tempfile.TemporaryDirectory() as directory:
+            credentials = pathlib.Path(directory)
+            (credentials / 'sync-inbound-token').write_text('peer')
+            clock, requests = [0.0], []
+            def open_request(request, timeout):
+                requests.append(clock[0])
+                if len(requests) == 1:
+                    raise urllib.error.URLError('starting')
+                body = (b'<div id="root"></div>' if request.full_url.endswith('/') else
+                        b'{"version":"test"}' if request.full_url.endswith('mcp-manifest.json') else
+                        b'{"origin":"cn"}')
+                return nullcontext(SimpleNamespace(status=200, read=lambda size: body))
+            with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
+                    patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    patch.object(release.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+seconds)):
+                self.assertTrue(check_readiness('http://localhost', credentials))
+            self.assertLess(requests[1], .5)
+            self.assertGreater(requests[1], 0)
+
+    def test_final_body_arriving_after_the_budget_is_not_accepted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            credentials = pathlib.Path(directory)
+            (credentials / 'sync-inbound-token').write_text('peer')
+            clock = [0.0]
+            def open_request(request, timeout):
+                def read(size):
+                    if request.full_url.endswith('/'):
+                        return b'<div id="root"></div>'
+                    if request.full_url.endswith('mcp-manifest.json'):
+                        return b'{"version":"test"}'
+                    clock[0] = 61
+                    return b'{"origin":"cn"}'
+                return nullcontext(SimpleNamespace(status=200, read=read))
+            with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
+                    patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]):
+                self.assertFalse(check_readiness('http://localhost', credentials))
+
+    def test_slow_failures_count_toward_the_readiness_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            credentials = pathlib.Path(directory)
+            (credentials / 'sync-inbound-token').write_text('peer')
+            clock = [0.0]
+            def open_request(request, timeout):
+                clock[0] += timeout
+                raise urllib.error.URLError('timeout')
+            with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
+                    patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    patch.object(release.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+seconds)):
+                self.assertFalse(check_readiness('http://localhost', credentials))
+            self.assertAlmostEqual(clock[0], 60)
 
 
 @unittest.skipUnless(can_symlink(), 'the release link is a Linux symlink')
