@@ -1,4 +1,8 @@
 import {
+  maintenanceCommand,
+  maintenanceState,
+} from "./gallery-maintenance-command";
+import {
   publicationCommand,
   publicationFingerprint,
   publicationProjectBindings,
@@ -648,6 +652,12 @@ export class GalleryDO {
         );
     }
     switch (operation) {
+      case "maintenance-command":
+        return maintenanceCommand(this.state, body);
+      case "maintenance-state":
+        return Response.json({
+          state: maintenanceState(this.sql, body.command),
+        });
       case "publication-state":
         return Response.json({
           state: publicationFingerprint(this.sql, String(body.id)),
@@ -790,7 +800,7 @@ export class GalleryDO {
       case "simulation-check-record":
         return recordSimulationCheck(this.state, body);
       case "simulation-checks-progress":
-        return simulationCheckProgress(this.sql);
+        return simulationCheckProgress(this.sql, body.ownedOnly === true);
       case "curate":
         return curate(this.state, body);
       case "tags":

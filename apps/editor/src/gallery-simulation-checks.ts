@@ -5,10 +5,14 @@
  * rest.
  */
 
+import { galleryPublicationRequest } from "./gallery-publication-request";
+
 export interface GallerySimulationCheckQueued {
   queued: string[];
   noTestbench: string[];
   waiting: number;
+  missing?: string[];
+  failures?: { region: string; ids: string[]; error: string }[];
 }
 
 export interface GallerySimulationCheckProgress {
@@ -23,12 +27,16 @@ export async function queueGallerySimulationChecks(
   request: { ids: string[] } | { all: true },
 ): Promise<GallerySimulationCheckQueued | null> {
   try {
-    const response = await fetchLike("/api/gallery/simulation-checks", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(request),
-    });
+    const response = await galleryPublicationRequest(
+      "/api/gallery/simulation-checks",
+      {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(request),
+      },
+      fetchLike,
+    );
     return response.ok
       ? ((await response.json()) as GallerySimulationCheckQueued)
       : null;

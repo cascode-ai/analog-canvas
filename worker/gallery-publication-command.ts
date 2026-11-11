@@ -3,6 +3,10 @@ import type { DurableObjectStateLike, SqlStorage } from "./gallery-store";
 
 const bodies = new WeakMap<Response, string>();
 
+export function publicationResultText(response: Response): string | undefined {
+  return bodies.get(response);
+}
+
 /** A store result whose bytes can be recorded before its SQL transaction commits. */
 export function publicationResult(value: unknown, status = 200): Response {
   const text = JSON.stringify(value);

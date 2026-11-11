@@ -54,6 +54,7 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   const entries = [
     { ...ENTRY, id: "original", name: "Resistor pair" },
     { ...ENTRY, id: "redrawn", name: "Completely different title" },
+    { ...ENTRY, id: "third-copy", name: "Third copy" },
     { ...ENTRY, id: "unfinished", name: "Unfinished circuit" },
     {
       ...ENTRY,
@@ -65,6 +66,7 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   ];
   const projects = [
     project,
+    renamed,
     renamed,
     createEmptyProject("empty", "Empty"),
     different,
@@ -80,6 +82,7 @@ test("admin checks duplicates and cleans selected copies with partial failure re
     remove: Array<{ id: string }>;
   }> = [];
   let failOtherGroup = true;
+  let partialFirstGroup = true;
   // Context routes also intercept the dedicated worker's fetch requests.
   await context.route("**/api/gallery**", (route) => {
     const url = new URL(route.request().url());
@@ -92,6 +95,21 @@ test("admin checks duplicates and cleans selected copies with partial failure re
           json: { error: "duplicate-group-changed" },
         });
       const removed = body.remove.map((entry: { id: string }) => entry.id);
+      if (partialFirstGroup && body.keep.id === "redrawn") {
+        partialFirstGroup = false;
+        recycled.add("original");
+        return route.fulfill({
+          status: 207,
+          json: {
+            kept: "redrawn",
+            recycled: ["original"],
+            results: [
+              { id: "original", ok: true },
+              { id: "third-copy", ok: false, error: "action-unconfirmed" },
+            ],
+          },
+        });
+      }
       removed.forEach((id: string) => recycled.add(id));
       return route.fulfill({ json: { kept: body.keep.id, recycled: removed } });
     }
@@ -134,7 +152,7 @@ test("admin checks duplicates and cleans selected copies with partial failure re
   await page.getByTestId("gallery-check-duplicates").click();
   const panel = page.getByTestId("gallery-duplicates");
   await expect(panel.getByRole("status")).toContainText(
-    "Scan finished: 5 checked · 2 extra copies in 2 groups · 1 unable to compare",
+    "Scan finished: 6 checked · 3 extra copies in 2 groups · 1 unable to compare",
   );
   await expect(
     panel.getByRole("link", { name: "Completely different title tz" }),
@@ -154,13 +172,14 @@ test("admin checks duplicates and cleans selected copies with partial failure re
     })
     .check();
   await panel
-    .getByRole("button", { name: "Remove all extra copies (2)", exact: true })
+    .getByRole("button", { name: "Remove all extra copies (3)", exact: true })
     .click();
   await expect(
     panel.getByText("Moved 1 circuit to the recycle bin.", { exact: false }),
   ).toBeVisible();
-  await expect(panel.getByRole("alert")).toContainText(
-    "changed or no longer match",
+  await expect(panel).toContainText("changed or no longer match");
+  await expect(panel).toContainText(
+    "remaining removals could not be confirmed",
   );
   expect(cleanupRequests.map((request) => request.keep.id)).toEqual([
     "redrawn",
@@ -172,23 +191,17 @@ test("admin checks duplicates and cleans selected copies with partial failure re
     panel.getByRole("link", { name: "Open recycle bin" }),
   ).toHaveAttribute("href", "/moderation");
   failOtherGroup = false;
-  const remainingGroup = panel
-    .locator("details")
-    .filter({ hasText: "same netlist" });
-  if ((await remainingGroup.getAttribute("open")) === null) {
-    await remainingGroup.locator("summary").click();
-  }
-  await remainingGroup
-    .getByRole("button", { name: "Keep selected, remove 1 copy" })
+  await panel
+    .getByRole("button", { name: "Remove all extra copies (2)", exact: true })
     .click();
   await expect(
-    panel.getByText("Moved 2 circuits to the recycle bin.", { exact: false }),
+    panel.getByText("Moved 3 circuits to the recycle bin.", { exact: false }),
   ).toBeVisible();
   await expect(panel.getByRole("alert")).toHaveCount(0);
   await expect(
     panel.getByText("No remaining duplicates", { exact: false }),
   ).toBeVisible();
-  expect([...recycled]).toEqual(["original", "other-copy"]);
+  expect([...recycled]).toEqual(["original", "third-copy", "other-copy"]);
   await panel.getByRole("button", { name: "Hide results" }).click();
   await expect(
     panel.getByText("No remaining duplicates", { exact: false }),

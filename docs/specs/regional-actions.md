@@ -38,6 +38,19 @@ the region components in [regional publications](regional-resources.md).
   the Owner may resolve. Repeating a resolved review leaves its original
   resolution time and author intact, with a deterministic command ID for
   callers that do not supply one.
+- Duplicate cleanup groups removals by publication writer. Each writer rechecks
+  the survivor's current synchronized revision and electrical equality, and
+  commits its group atomically with one receipt. A mixed-writer request reports
+  every removal outcome; partial success is HTTP 207, never a global atomicity
+  claim. The existing cleanup report removes only confirmed rows and retains
+  the other rows and chosen survivor for retry.
+- Owner simulation-check requests dispatch explicit IDs to their writers;
+  `all` selects each writer's own public testbenches. The queue and execution
+  stay with that writer. A receipt records the accepted queue intent, so retrying
+  after completion cannot run a second check. A new request identity permits an
+  intentional rerun. Partial acceptance reports failed writers or IDs with HTTP
+  207 and retains the browser's retry identity. Progress totals writer-owned
+  results once; an unavailable writer makes the combined progress unavailable.
 - Component writes and curation retain their required revision preconditions.
   Without an explicit command ID, derive one from the actor, resource, operation
   and validated revision-bound input. A repeated request reconciles its receipt;

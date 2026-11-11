@@ -181,7 +181,7 @@ export function recycleDuplicates(
         row.id,
       );
     }
-    return Response.json({
+    return publicationResult({
       kept: rows[0]!.id,
       recycled: rows.slice(1).map((row) => row.id),
     });

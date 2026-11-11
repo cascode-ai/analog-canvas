@@ -113,7 +113,7 @@ export function useGalleryOwnerTools({
       ids: [entry.id],
     });
     setOwnerNotice(
-      !queued
+      !queued || queued.failures?.length || queued.missing?.includes(entry.id)
         ? {
             ok: false,
             text: `Could not queue a simulation check of “${entry.name}”. Try again.`,
