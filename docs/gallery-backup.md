@@ -3,7 +3,9 @@
 The private `cascode-ai/analog-canvas-backups` repository owns the backup
 collector, its tests, schedule (weekly, plus manual dispatch) and recovery
 instructions. Snapshots are date-stamped private Release attachments, never overwritten;
-each run keeps only the two newest Releases of its kind and deletes older ones. `cascode-ai` members can read
+Gallery and Store runs keep only the two newest Releases of their kind and delete
+older ones. Manual activity migration captures remain until explicitly removed.
+`cascode-ai` members can read
 them (they contain submitter emails and sign-in methods; store snapshots also
 every private Cloud Project); only the Owner changes the repository or starts
 its workflows.
@@ -19,15 +21,32 @@ its workflows.
   read is open to anyone
   ([reader access](specs/community-gallery.md#reader-access)).
 - `STORE_BACKUP_TOKEN`, stored and rotated the same way, reads only
-  `automated-backup?scope=store` pages.
+  `automated-backup?scope=store` and `scope=activity` pages.
+
+## Private activity capture
+
+`automated-backup?scope=activity` uses the Store credential, never the Gallery
+credential. It captures `entryBookmarks`, `selectionBoards`,
+`selectionBoardItems`, `selectionBoardEvents` and `entryOpens`: private Statistics
+bookmarks, Board metadata/items/audit history and daily per-entry open counts.
+`&source=<key>` selects a Dataset store. These rows are outside the existing
+Gallery, Store and Reviews captures; their inventories remain unchanged.
+
+Use the same fenced paging and changed-key reconciliation below. Board event
+cursors contain a positive integer `seq`; other table cursors contain strings.
+Administrators can read the community scope with
+`schema-backup?scope=activity&table=…`. The export changes no business rows and
+enables no replication. `schema-restore` does not restore these tables; retain
+the original capture and reconcile both regions before any data migration.
 
 ## Reviews capture
 
 `automated-backup?scope=reviews` (the Gallery credential) reads a store's
 [reviews](specs/community-gallery.md#reviews), fixes and reference images:
 `entryReviews`, `entryFixes`, `entryReferences`. `&source=<key>` reads a
-dataset's store instead of the community one; `source` with another scope is
-400 `invalid-source`. The scope has its own revision and change index, so a
+dataset's store instead of the community one; `source` is also allowed for
+`activity`, but with Gallery or Store scope returns 400 `invalid-source`.
+The scope has its own revision and change index, so a
 review restarts no Gallery capture. The weekly run captures it for the
 community and each dataset with comparisons, beside the Gallery archive.
 `schema-restore` does not restore it; recover rows from the offline archive.
