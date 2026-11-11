@@ -1361,7 +1361,7 @@ function applyLevel(
       name !== null &&
       instance.reference !== undefined &&
       instance.reference.length === name.length + 1 &&
-      /^[a-z]$/iu.test(instance.reference[0]!) &&
+      /^[a-z]/iu.test(instance.reference) &&
       instance.reference.slice(1).toLowerCase() === name.toLowerCase()
     )
       nameIfFree(instance, name);
