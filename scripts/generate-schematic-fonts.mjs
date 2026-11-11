@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * Browser subsets and shared metrics for Metropolis and its DejaVu Sans
- * symbol fallback, and for the Times-style serif a Document may choose
- * instead (Liberation Serif, served as ICM Serif; #1725). Also writes the
- * authored round-period face for Node.
+ * symbol fallback, and for the faces a Document may choose instead (#1725):
+ * Liberation Serif (served as ICM Serif), Liberation Sans (ICM Sans) and
+ * Latin Modern Roman (ICM Modern). Also writes the authored round-period face
+ * for Node, and Latin Modern's TrueType subsets for the PDF and Node.
  *
  *   node scripts/generate-schematic-fonts.mjs [--check]
  *
@@ -45,22 +46,81 @@ export const SCHEMATIC_FONT_FACES = [
   "DejaVuSans-BoldOblique",
 ];
 
-/**
- * The serif choice's browser subsets: Liberation Serif's faces renamed ICM
- * Serif, since the OFL reserves "Liberation" for unmodified copies.
- */
-export const SERIF_FONT_FACES = [
-  ["LiberationSerif-Regular", "ICMSerif-Regular"],
-  ["LiberationSerif-Bold", "ICMSerif-Bold"],
-  ["LiberationSerif-Italic", "ICMSerif-Italic"],
-  ["LiberationSerif-BoldItalic", "ICMSerif-BoldItalic"],
-];
-const SERIF_METRIC_FILES = {
-  plain: "LiberationSerif-Regular.ttf",
-  bold: "LiberationSerif-Bold.ttf",
-  italic: "LiberationSerif-Italic.ttf",
-  boldItalic: "LiberationSerif-BoldItalic.ttf",
+const STYLE_SUFFIXES = {
+  plain: "Regular",
+  bold: "Bold",
+  italic: "Italic",
+  boldItalic: "BoldItalic",
 };
+
+/**
+ * The faces a Document may choose instead of Metropolis, each read from its
+ * unmodified originals in `directory`. A subset is a modified copy, which
+ * the OFL's Reserved Font Name (Liberation) and the GUST Font License (Latin
+ * Modern) ask to be renamed: `renames` are the family names each subset's
+ * name records replace, in turn, and `family` names its files. jsPDF embeds
+ * TrueType outlines only, so a CFF face (`truetype`) also gets TrueType
+ * subsets, `<family>-<style>.ttf`, for the PDF and Node.
+ */
+export const DOCUMENT_FONT_FACES = [
+  {
+    id: "serif",
+    directory: "liberation-serif",
+    family: "ICMSerif",
+    renames: [["Liberation Serif", "ICM Serif"]],
+    styles: {
+      plain: "LiberationSerif-Regular.ttf",
+      bold: "LiberationSerif-Bold.ttf",
+      italic: "LiberationSerif-Italic.ttf",
+      boldItalic: "LiberationSerif-BoldItalic.ttf",
+    },
+    metrics: "schematicSerifTextMetrics",
+    metricsPath:
+      "packages/derived/src/schematic-serif-text-metrics.generated.ts",
+    coverage: "serifGlyphs",
+    coveragePath: "packages/exporters/src/serif-coverage.generated.ts",
+  },
+  {
+    id: "sans",
+    directory: "liberation-sans",
+    family: "ICMSans",
+    renames: [["Liberation Sans", "ICM Sans"]],
+    styles: {
+      plain: "LiberationSans-Regular.ttf",
+      bold: "LiberationSans-Bold.ttf",
+      italic: "LiberationSans-Italic.ttf",
+      boldItalic: "LiberationSans-BoldItalic.ttf",
+    },
+    metrics: "schematicSansTextMetrics",
+    metricsPath:
+      "packages/derived/src/schematic-sans-text-metrics.generated.ts",
+    coverage: "sansGlyphs",
+    coveragePath: "packages/exporters/src/sans-coverage.generated.ts",
+  },
+  {
+    id: "latin-modern",
+    directory: "latin-modern",
+    family: "ICMModern",
+    // The Macintosh full name first, then the family names.
+    renames: [
+      ["Latin Modern Roman 10", "ICM Modern"],
+      ["Latin Modern Roman", "ICM Modern"],
+      ["LM Roman 10", "ICM Modern"],
+    ],
+    styles: {
+      plain: "lmroman10-regular.otf",
+      bold: "lmroman10-bold.otf",
+      italic: "lmroman10-italic.otf",
+      boldItalic: "lmroman10-bolditalic.otf",
+    },
+    truetype: true,
+    metrics: "schematicLatinModernTextMetrics",
+    metricsPath:
+      "packages/derived/src/schematic-latin-modern-text-metrics.generated.ts",
+    coverage: "latinModernGlyphs",
+    coveragePath: "packages/exporters/src/latin-modern-coverage.generated.ts",
+  },
+];
 
 const NODE_FONT_FACES = ["Regular", "RegularItalic", "Bold", "BoldItalic"].map(
   (style) => `ICMSchematic-${style}.ttf`,
@@ -105,7 +165,7 @@ function unkernedMetropolis() {
   return directory;
 }
 
-function subset(face, directory, metropolis, source) {
+function subset(face, directory, metropolis, source, flavor = "woff2") {
   const result = spawnSync(
     "python3",
     [
@@ -116,14 +176,17 @@ function subset(face, directory, metropolis, source) {
       `--unicodes=${SCHEMATIC_FONT_UNICODES.join(",")}`,
       // WOFF2 is about a quarter smaller than WOFF, and every browser the
       // editor supports reads it (#1673).
-      "--flavor=woff2",
+      ...(flavor === "woff2" ? ["--flavor=woff2"] : []),
       // Hinting is most of each face; browsers that use it draw well
       // without, and the advances label measurement reads are unchanged.
       "--no-hinting",
       // Every name record, the copyright and licence with them, as the
       // licence asks of a copy.
       "--name-IDs=*",
-      `--output-file=${join(directory, `${face}.schematic.woff2`)}`,
+      `--output-file=${join(
+        directory,
+        flavor === "woff2" ? `${face}.schematic.woff2` : `${face}.ttf`,
+      )}`,
     ],
     { encoding: "utf8" },
   );
@@ -131,6 +194,18 @@ function subset(face, directory, metropolis, source) {
     throw new Error(
       `fontTools could not subset ${face}: ${result.stderr || result.error}`,
     );
+}
+
+/** Run one of the font scripts on `path`, in place. */
+function python(script, args, what) {
+  const result = spawnSync(
+    "python3",
+    [join(root, "scripts", script), ...args],
+    {
+      encoding: "utf8",
+    },
+  );
+  if (result.status !== 0) throw new Error(`Cannot ${what}: ${result.stderr}`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -158,34 +233,37 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       )
         stale.push(name);
     }
-    for (const [source, face] of SERIF_FONT_FACES) {
-      subset(
-        face,
-        directory,
-        metropolis,
-        join(output, "liberation-serif", `${source}.ttf`),
-      );
-      const name = `${face}.schematic.woff2`;
-      const renamed = spawnSync(
-        "python3",
-        [
-          join(root, "scripts/rename-font-family.py"),
-          join(directory, name),
-          "Liberation Serif",
-          "ICM Serif",
-        ],
-        { encoding: "utf8" },
-      );
-      if (renamed.status !== 0)
-        throw new Error(`Cannot rename ${name}: ${renamed.stderr}`);
-      if (
-        check &&
-        !readFileSync(join(directory, name)).equals(
-          readFileSync(join(output, name)),
-        )
-      )
-        stale.push(name);
-    }
+    for (const chosen of DOCUMENT_FONT_FACES)
+      for (const [style, source] of Object.entries(chosen.styles)) {
+        const face = `${chosen.family}-${STYLE_SUFFIXES[style]}`;
+        const original = join(output, chosen.directory, source);
+        const names = [];
+        subset(face, directory, metropolis, original);
+        names.push(`${face}.schematic.woff2`);
+        if (chosen.truetype) {
+          subset(face, directory, metropolis, original, "truetype");
+          python(
+            "convert-cff-to-truetype.py",
+            [join(directory, `${face}.ttf`)],
+            `convert ${face} to TrueType`,
+          );
+          names.push(`${face}.ttf`);
+        }
+        for (const name of names) {
+          python(
+            "rename-font-family.py",
+            [join(directory, name), ...chosen.renames.flat()],
+            `rename ${name}`,
+          );
+          if (
+            check &&
+            !readFileSync(join(directory, name)).equals(
+              readFileSync(join(output, name)),
+            )
+          )
+            stale.push(name);
+        }
+      }
     const nodeFaces = spawnSync(
       "python3",
       [
@@ -220,20 +298,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (tables.status !== 0)
       throw new Error(`Cannot read schematic metrics: ${tables.stderr}`);
     const { metrics, primaryGlyphs } = JSON.parse(tables.stdout);
-    const serifTables = spawnSync(
-      "python3",
-      [
-        join(root, "scripts/generate-schematic-metrics.py"),
-        join(output, "liberation-serif"),
-        ttf,
-        JSON.stringify(SCHEMATIC_FONT_UNICODES),
-        JSON.stringify(SERIF_METRIC_FILES),
-      ],
-      { encoding: "utf8" },
-    );
-    if (serifTables.status !== 0)
-      throw new Error(`Cannot read serif metrics: ${serifTables.stderr}`);
-    const serif = JSON.parse(serifTables.stdout);
+    const chosenTables = DOCUMENT_FONT_FACES.map((chosen) => {
+      const result = spawnSync(
+        "python3",
+        [
+          join(root, "scripts/generate-schematic-metrics.py"),
+          join(output, chosen.directory),
+          ttf,
+          JSON.stringify(SCHEMATIC_FONT_UNICODES),
+          JSON.stringify(chosen.styles),
+        ],
+        { encoding: "utf8" },
+      );
+      if (result.status !== 0)
+        throw new Error(`Cannot read ${chosen.id} metrics: ${result.stderr}`);
+      return { chosen, ...JSON.parse(result.stdout) };
+    });
     for (const [path, declaration] of [
       [
         "packages/derived/src/schematic-text-metrics.generated.ts",
@@ -243,14 +323,16 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         "packages/exporters/src/metropolis-coverage.generated.ts",
         `export const metropolisGlyphs = ${JSON.stringify(primaryGlyphs)};`,
       ],
-      [
-        "packages/derived/src/schematic-serif-text-metrics.generated.ts",
-        `export const schematicSerifTextMetrics = ${JSON.stringify(serif.metrics)};`,
-      ],
-      [
-        "packages/exporters/src/serif-coverage.generated.ts",
-        `export const serifGlyphs = ${JSON.stringify(serif.primaryGlyphs)};`,
-      ],
+      ...chosenTables.flatMap(({ chosen, ...tables }) => [
+        [
+          chosen.metricsPath,
+          `export const ${chosen.metrics} = ${JSON.stringify(tables.metrics)};`,
+        ],
+        [
+          chosen.coveragePath,
+          `export const ${chosen.coverage} = ${JSON.stringify(tables.primaryGlyphs)};`,
+        ],
+      ]),
     ]) {
       const content = await format(
         `// Generated by scripts/generate-schematic-fonts.mjs. Do not edit.\n${declaration}\n`,
@@ -268,7 +350,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       process.exitCode = 1;
     } else
       console.log(
-        `Schematic fonts: ${SCHEMATIC_FONT_FACES.length + SERIF_FONT_FACES.length} faces ${check ? "current" : "written"}`,
+        `Schematic fonts: ${SCHEMATIC_FONT_FACES.length + 4 * DOCUMENT_FONT_FACES.length} faces ${check ? "current" : "written"}`,
       );
   } finally {
     if (check) rmSync(directory, { recursive: true, force: true });

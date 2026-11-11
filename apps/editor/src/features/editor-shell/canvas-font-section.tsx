@@ -1,4 +1,4 @@
-import type { DocumentFontCode } from "./document-settings-code";
+import { DOCUMENT_FONT_LABELS, type DocumentFontCode } from "./document-font";
 
 export interface CanvasFontSectionProps {
   font: DocumentFontCode;
@@ -20,8 +20,11 @@ export function CanvasFontSection({ font, onChange }: CanvasFontSectionProps) {
             onChange(event.currentTarget.value as DocumentFontCode)
           }
         >
-          <option value="metropolis">Metropolis</option>
-          <option value="serif">Times (Liberation Serif)</option>
+          {Object.entries(DOCUMENT_FONT_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
         </select>
       </label>
     </section>

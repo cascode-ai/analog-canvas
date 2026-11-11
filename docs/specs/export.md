@@ -33,16 +33,27 @@ and diagnostics never enter a formal artifact.
   slant across mixed runs). Browser PNG inlines the faces (an SVG image loads
   no external font), falling back to system faces if unreadable. Downloaded
   SVG names the stack and carries only the period face.
-- A Document with `presentation.textFace: "serif"` sets every text in
-  Liberation Serif (Times New Roman's metrics) instead, everywhere above: the
-  browser serves renamed subsets as **ICM Serif** (OFL Reserved Font Name),
-  measured from the same tables; the formal SVG root carries
-  `data-text-face="serif"` and names the serif stack; PNG inlines ICM Serif
-  and DejaVu only; PDF embeds the unmodified Liberation Serif files. No round
+- A Document's `presentation.textFace` sets every text in another face
+  instead, everywhere above. Each is served as renamed subsets (an OFL Reserved
+  Font Name or the GUST Font License's renaming request), measured from its
+  own tables:
+
+  | `textFace`       | Face (metrics)                     | Served as      | PDF embeds                        |
+  | ---------------- | ---------------------------------- | -------------- | --------------------------------- |
+  | `"serif"`        | Liberation Serif (Times New Roman) | **ICM Serif**  | unmodified Liberation Serif       |
+  | `"sans"`         | Liberation Sans (Arial)            | **ICM Sans**   | unmodified Liberation Sans        |
+  | `"latin-modern"` | Latin Modern Roman 10 (LaTeX)      | **ICM Modern** | ICM Modern as TrueType (from CFF) |
+
+  The formal SVG root carries `data-text-face="<textFace>"` and names the
+  face's stack (served name, original name, metric twin such as Times New
+  Roman or Arial, DejaVu Sans); PNG inlines that face and DejaVu only; Node
+  raster uses the PDF's files, so there a Latin Modern run holding a glyph
+  the face lacks (lowercase Greek) draws whole in a fallback face. No round
   period. One face per Document; Metropolis stays the default.
-- PDF selects Metropolis, DejaVu or the period face per glyph and embeds each
-  used weight/slant as a subset (PDF has no CSS fallback); faces are loaded
-  for measurement and removed after. CJK characters, which the canvas draws in
+
+- PDF selects the Document's face, DejaVu or (Metropolis only) the period
+  face per glyph and embeds each used weight/slant as a subset (PDF has no
+  CSS fallback); faces are loaded for measurement and removed after. CJK characters, which the canvas draws in
   a system face, take the ICM CJK faces (Noto Sans SC Regular cut by code
   point, `packages/exporters/fonts/cjk/`), fetched only for an export that
   uses them; they have one weight, so bold or italic CJK is set regular. A

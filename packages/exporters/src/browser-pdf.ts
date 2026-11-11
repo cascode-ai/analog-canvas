@@ -15,7 +15,17 @@ import serifUrl from "../fonts/liberation-serif/LiberationSerif-Regular.ttf?url"
 import serifBoldUrl from "../fonts/liberation-serif/LiberationSerif-Bold.ttf?url";
 import serifItalicUrl from "../fonts/liberation-serif/LiberationSerif-Italic.ttf?url";
 import serifBoldItalicUrl from "../fonts/liberation-serif/LiberationSerif-BoldItalic.ttf?url";
+import chosenSansUrl from "../fonts/liberation-sans/LiberationSans-Regular.ttf?url";
+import chosenSansBoldUrl from "../fonts/liberation-sans/LiberationSans-Bold.ttf?url";
+import chosenSansItalicUrl from "../fonts/liberation-sans/LiberationSans-Italic.ttf?url";
+import chosenSansBoldItalicUrl from "../fonts/liberation-sans/LiberationSans-BoldItalic.ttf?url";
+import modernUrl from "../fonts/ICMModern-Regular.ttf?url";
+import modernBoldUrl from "../fonts/ICMModern-Bold.ttf?url";
+import modernItalicUrl from "../fonts/ICMModern-Italic.ttf?url";
+import modernBoldItalicUrl from "../fonts/ICMModern-BoldItalic.ttf?url";
+import { latinModernGlyphs } from "./latin-modern-coverage.generated.js";
 import { metropolisGlyphs } from "./metropolis-coverage.generated.js";
+import { sansGlyphs } from "./sans-coverage.generated.js";
 import { serifGlyphs } from "./serif-coverage.generated.js";
 import { cjkFaceUrls } from "./cjk-pdf-faces.generated.js";
 
@@ -41,14 +51,17 @@ import {
 
 /**
  * Embed the same stack the canvas draws: Metropolis, DejaVu for glyphs it
- * lacks, and the round period; or, for a Document set in the Times-style
- * face, unmodified Liberation Serif and DejaVu. CJK text, which the canvas
- * draws in a system face, takes the CJK faces in either case; they have one
- * weight, so bold or italic CJK text is set upright and regular. Load only
- * the faces used by this export.
+ * lacks, and the round period; or, for a Document set in a face of its
+ * choosing, that face and DejaVu: unmodified Liberation Serif or Liberation
+ * Sans, or Latin Modern Roman as the TrueType ICM Modern (jsPDF embeds no
+ * CFF outlines). CJK text, which the canvas draws in a system face, takes
+ * the CJK faces in every case; they have one weight, so bold or italic CJK
+ * text is set upright and regular. Load only the faces used by this export.
  */
 const SCHEMATIC_FAMILY = "ICM Schematic";
 const SERIF_FAMILY = "ICM Schematic Serif";
+const SANS_FAMILY = "ICM Schematic Sans";
+const MODERN_FAMILY = "ICM Schematic Modern";
 const SYMBOL_FAMILY = "ICM Symbols";
 const PERIOD_FAMILY = "ICM Round Period";
 // Letters, not digits: a family name token may not start with a digit.
@@ -74,6 +87,18 @@ const SCHEMATIC_FACES: Record<string, Record<PdfFontStyle, string>> = {
     italic: serifItalicUrl,
     bolditalic: serifBoldItalicUrl,
   },
+  [SANS_FAMILY]: {
+    normal: chosenSansUrl,
+    bold: chosenSansBoldUrl,
+    italic: chosenSansItalicUrl,
+    bolditalic: chosenSansBoldItalicUrl,
+  },
+  [MODERN_FAMILY]: {
+    normal: modernUrl,
+    bold: modernBoldUrl,
+    italic: modernItalicUrl,
+    bolditalic: modernBoldItalicUrl,
+  },
   [SYMBOL_FAMILY]: {
     normal: dejaVuSansUrl,
     bold: dejaVuSansBoldUrl,
@@ -98,10 +123,19 @@ function familyForGlyph(glyph: string): string {
       ? SCHEMATIC_FAMILY
       : fallbackFamily(glyph);
 }
-const serifPrimaryGlyphs = new Set(serifGlyphs);
-function serifFamilyForGlyph(glyph: string): string {
-  return serifPrimaryGlyphs.has(glyph) ? SERIF_FAMILY : fallbackFamily(glyph);
+/** A chosen face's family for the glyphs it holds, without a round period. */
+function chosenFamilyForGlyph(family: string, glyphs: string) {
+  const held = new Set(glyphs);
+  return (glyph: string) => (held.has(glyph) ? family : fallbackFamily(glyph));
 }
+const FAMILY_FOR_GLYPH: Readonly<
+  Record<SchematicTextFace, (glyph: string) => string>
+> = {
+  metropolis: familyForGlyph,
+  serif: chosenFamilyForGlyph(SERIF_FAMILY, serifGlyphs),
+  sans: chosenFamilyForGlyph(SANS_FAMILY, sansGlyphs),
+  "latin-modern": chosenFamilyForGlyph(MODERN_FAMILY, latinModernGlyphs),
+};
 
 function base64(bytes: Uint8Array): string {
   let binary = "";
@@ -177,7 +211,7 @@ export function pdfTextPlan(
   place: (glyph: string, style: PdfFontStyle) => PdfGlyph;
   omitted: string[];
 } {
-  const familyFor = textFace === "serif" ? serifFamilyForGlyph : familyForGlyph;
+  const familyFor = FAMILY_FOR_GLYPH[textFace];
   const omitted = new Set<string>();
   for (const [style, set] of glyphs)
     for (const [family, list] of glyphsByFamily(set, familyFor))
@@ -208,7 +242,7 @@ async function setTextInFaces(
   omitted: string[];
 }> {
   const glyphs = textGlyphsByStyle(svg);
-  const familyFor = textFace === "serif" ? serifFamilyForGlyph : familyForGlyph;
+  const familyFor = FAMILY_FOR_GLYPH[textFace];
   const writable = new Map<string, ReadonlySet<number>>();
   for (const [style, set] of glyphs)
     for (const family of glyphsByFamily(set, familyFor).keys())

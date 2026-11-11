@@ -4,16 +4,16 @@
   "routes": {
     "editor": {
       "budget": {
-        "files": 87,
-        "rawKib": 3637,
-        "gzipKib": 1047,
-        "brotliKib": 887
+        "files": 91,
+        "rawKib": 4045,
+        "gzipKib": 1145,
+        "brotliKib": 964
       },
       "measured": {
-        "files": 79,
-        "rawKib": 3487.4,
-        "gzipKib": 1004.1,
-        "brotliKib": 849.3
+        "files": 82,
+        "rawKib": 3677.1,
+        "gzipKib": 1040.9,
+        "brotliKib": 876
       }
     },
     "gallery": {

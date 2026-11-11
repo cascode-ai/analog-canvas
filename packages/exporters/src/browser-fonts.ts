@@ -10,15 +10,48 @@ import serifUrl from "../fonts/ICMSerif-Regular.schematic.woff2?url";
 import serifBoldUrl from "../fonts/ICMSerif-Bold.schematic.woff2?url";
 import serifItalicUrl from "../fonts/ICMSerif-Italic.schematic.woff2?url";
 import serifBoldItalicUrl from "../fonts/ICMSerif-BoldItalic.schematic.woff2?url";
+import chosenSansUrl from "../fonts/ICMSans-Regular.schematic.woff2?url";
+import chosenSansBoldUrl from "../fonts/ICMSans-Bold.schematic.woff2?url";
+import chosenSansItalicUrl from "../fonts/ICMSans-Italic.schematic.woff2?url";
+import chosenSansBoldItalicUrl from "../fonts/ICMSans-BoldItalic.schematic.woff2?url";
+import modernUrl from "../fonts/ICMModern-Regular.schematic.woff2?url";
+import modernBoldUrl from "../fonts/ICMModern-Bold.schematic.woff2?url";
+import modernItalicUrl from "../fonts/ICMModern-Italic.schematic.woff2?url";
+import modernBoldItalicUrl from "../fonts/ICMModern-BoldItalic.schematic.woff2?url";
 import type { SchematicTextFace } from "@icm/derived";
 
 /**
- * Metropolis approximates the reference textbook's Proxima Nova lettering;
- * ICM Serif (Liberation Serif, renamed) is the Times-style face a Document can
- * choose instead (#1725). DejaVu supplies Greek and math glyphs either lacks.
+ * Metropolis approximates the reference textbook's Proxima Nova lettering. A
+ * Document can choose another face instead (#1725), each renamed from its
+ * originals as their licenses ask: ICM Serif (Liberation Serif, Times New
+ * Roman's metrics), ICM Sans (Liberation Sans, Arial's) or ICM Modern (Latin
+ * Modern Roman, LaTeX's). DejaVu supplies Greek and math glyphs a face lacks.
  * All are served and measured from the same pinned files, on every operating
  * system.
  */
+
+/** The family each face is served as. */
+const SCHEMATIC_TEXT_FACE_FAMILIES: Readonly<
+  Record<SchematicTextFace, string>
+> = {
+  metropolis: "Metropolis",
+  serif: "ICM Serif",
+  sans: "ICM Sans",
+  "latin-modern": "ICM Modern",
+};
+
+/** Each style of a face, regular, bold, italic and bold italic in turn. */
+function styles(
+  family: string,
+  urls: readonly [string, string, string, string],
+) {
+  return [
+    { url: urls[0], weight: 400, style: "normal" },
+    { url: urls[1], weight: 700, style: "normal" },
+    { url: urls[2], weight: 400, style: "italic" },
+    { url: urls[3], weight: 700, style: "italic" },
+  ].map((face) => ({ ...face, family }));
+}
 
 /** The characters the faces hold, as their generator subsets them. */
 export const SCHEMATIC_FONT_UNICODE_RANGE = [
@@ -42,12 +75,24 @@ const FACES = [
     { url: metropolisItalicUrl, weight: 400, style: "italic" },
     { url: metropolisBoldItalicUrl, weight: 700, style: "italic" },
   ].map((face) => ({ ...face, family: "Metropolis" })),
-  ...[
-    { url: serifUrl, weight: 400, style: "normal" },
-    { url: serifBoldUrl, weight: 700, style: "normal" },
-    { url: serifItalicUrl, weight: 400, style: "italic" },
-    { url: serifBoldItalicUrl, weight: 700, style: "italic" },
-  ].map((face) => ({ ...face, family: "ICM Serif" })),
+  ...styles("ICM Serif", [
+    serifUrl,
+    serifBoldUrl,
+    serifItalicUrl,
+    serifBoldItalicUrl,
+  ]),
+  ...styles("ICM Sans", [
+    chosenSansUrl,
+    chosenSansBoldUrl,
+    chosenSansItalicUrl,
+    chosenSansBoldItalicUrl,
+  ]),
+  ...styles("ICM Modern", [
+    modernUrl,
+    modernBoldUrl,
+    modernItalicUrl,
+    modernBoldItalicUrl,
+  ]),
   ...[
     { url: sansUrl, weight: 400, style: "normal" },
     {
@@ -86,12 +131,7 @@ export const schematicWebFontFaceCss = FACES.map((face) =>
   fontFaceRule(face, `url("${face.url}") format("woff2")`),
 ).join("");
 
-/** The face a formal SVG's text is set in, as its root element says. */
-export function formalSvgTextFace(svg: string): SchematicTextFace {
-  return /^\s*<svg\b[^>]*\sdata-text-face="serif"/u.test(svg)
-    ? "serif"
-    : "metropolis";
-}
+export { formalSvgTextFace } from "./text-face.js";
 
 const inlined = new Map<SchematicTextFace, Promise<string>>();
 
@@ -105,7 +145,7 @@ export function inlineSchematicWebFontFaceCss(
   fetchLike: typeof fetch = fetch,
   textFace: SchematicTextFace = "metropolis",
 ): Promise<string> {
-  const primary = textFace === "serif" ? "ICM Serif" : "Metropolis";
+  const primary = SCHEMATIC_TEXT_FACE_FAMILIES[textFace];
   const cached = inlined.get(textFace);
   if (cached) return cached;
   const read = Promise.all(

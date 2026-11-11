@@ -1,7 +1,7 @@
 # ICM CJK (Noto Sans SC)
 
 The PDF exporter's faces for Chinese, Japanese kana and other CJK characters
-(#2179). Metropolis, the serif and DejaVu Sans hold none, and a PDF cannot
+(#2179). Metropolis, the chosen faces and DejaVu Sans hold none, and a PDF cannot
 borrow the system face the canvas and PNG draw them in, so without these the
 PDF lost such text.
 

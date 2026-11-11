@@ -324,6 +324,25 @@ export function tryParseProjectWithMetadata(
         },
       ]);
     if (
+      sourceSchemaVersion < 79 &&
+      Array.isArray(parsed.documents) &&
+      parsed.documents.some(
+        (document: unknown) =>
+          isRecord(document) &&
+          isRecord(document.presentation) &&
+          Object.hasOwn(document.presentation, "textFace") &&
+          document.presentation.textFace !== "serif",
+      )
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message:
+            "A Document font other than the serif requires Project schema 79",
+          path: ["documents"],
+        },
+      ]);
+    if (
       sourceSchemaVersion < 71 &&
       Array.isArray(parsed.modelSources) &&
       parsed.modelSources.some(

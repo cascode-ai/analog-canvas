@@ -189,6 +189,10 @@ import {
 } from "../services/editor-services";
 import { normalizedStyleOverrides } from "../features/editor-shell/style-knobs";
 import {
+  DOCUMENT_FONT_LABELS,
+  documentTextFaceForFont,
+} from "../features/editor-shell/document-font";
+import {
   keptDocumentStyleOfSelection,
   releaseKeptDocumentStyleEdit,
 } from "../features/editor-shell/kept-document-style";
@@ -6630,8 +6634,7 @@ function WorkspaceEditor({
                               : {}),
                             ...(value.font !== current.font
                               ? {
-                                  textFace:
-                                    value.font === "serif" ? "serif" : null,
+                                  textFace: documentTextFaceForFont(value.font),
                                 }
                               : {}),
                             ...(value.crossings !== current.crossings
@@ -7553,12 +7556,12 @@ function WorkspaceEditor({
                             kind: "set_presentation_style",
                             styleProfileId:
                               document.presentation.styleProfileId,
-                            textFace: font === "serif" ? "serif" : null,
+                            textFace: documentTextFaceForFont(font),
                           },
                         ]);
                         if (result.ok)
                           setStatus(
-                            `Canvas font: ${font === "serif" ? "Times (Liberation Serif)" : "Metropolis"}`,
+                            `Canvas font: ${DOCUMENT_FONT_LABELS[font]}`,
                           );
                       },
                     }
@@ -7761,7 +7764,8 @@ function WorkspaceEditor({
         <EditorCanvasSurface
           shortcutHintsVisible={shortcutHintsVisible}
           textFontFamily={
-            styleProfile.typography.face === "serif"
+            styleProfile.typography.face &&
+            styleProfile.typography.face !== "metropolis"
               ? styleProfile.typography.fontFamily
               : null
           }

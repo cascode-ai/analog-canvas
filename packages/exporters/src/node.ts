@@ -6,7 +6,14 @@ import { fileURLToPath } from "node:url";
 import type { FormalExportSource, RasterExport } from "./index.js";
 import { DEFAULT_EXPORT_SCALE } from "./index.js";
 import { createPdfFromPng } from "./pdf.js";
-import { globalSchematicTypography, SERIF_FONT_FAMILY } from "@icm/derived";
+import {
+  DOCUMENT_TEXT_FACE_FONT_FAMILIES,
+  globalSchematicTypography,
+  type SchematicTextFace,
+} from "@icm/derived";
+import { formalSvgTextFace } from "./text-face.js";
+
+type DocumentTextFace = Exclude<SchematicTextFace, "metropolis">;
 
 const BUNDLED_FONT_PACKAGE = fileURLToPath(
   import.meta.resolve("dejavu-fonts-ttf/package.json"),
@@ -28,14 +35,32 @@ const SCHEMATIC_FONTS = ["Regular", "Bold", "RegularItalic", "BoldItalic"].map(
       new URL(`../fonts/ICMSchematic-${face}.ttf`, import.meta.url),
     ),
 );
-const SERIF_FONTS = ["Regular", "Bold", "Italic", "BoldItalic"].map((face) =>
-  fileURLToPath(
-    new URL(
-      `../fonts/liberation-serif/LiberationSerif-${face}.ttf`,
-      import.meta.url,
-    ),
-  ),
-);
+function fontFiles(path: (style: string) => string): string[] {
+  return ["Regular", "Bold", "Italic", "BoldItalic"].map((style) =>
+    fileURLToPath(new URL(`../fonts/${path(style)}.ttf`, import.meta.url)),
+  );
+}
+/**
+ * The faces a Document may choose (#1725): the family resvg finds in their
+ * files, which the PDF embeds too, and those files. Latin Modern Roman is
+ * read as its TrueType subsets, ICM Modern.
+ */
+const DOCUMENT_FACE_FONTS: Readonly<
+  Record<DocumentTextFace, { family: string; files: readonly string[] }>
+> = {
+  serif: {
+    family: "Liberation Serif",
+    files: fontFiles((style) => `liberation-serif/LiberationSerif-${style}`),
+  },
+  sans: {
+    family: "Liberation Sans",
+    files: fontFiles((style) => `liberation-sans/LiberationSans-${style}`),
+  },
+  "latin-modern": {
+    family: "ICM Modern",
+    files: fontFiles((style) => `ICMModern-${style}`),
+  },
+};
 
 export interface NodeExportArtifacts {
   svg: Uint8Array;
@@ -47,11 +72,18 @@ export interface NodeExportArtifacts {
  * face keeps each style's Latin, symbols and period together. */
 function withHeadlessTextCompatibility(svg: string): string {
   const document = new DOMParser().parseFromString(svg, "image/svg+xml");
-  // A Times-style Document (#1725) draws in Liberation Serif, then DejaVu.
+  // A Document set in a face of its choosing (#1725) draws in that face,
+  // then DejaVu.
   const families = [
     [globalSchematicTypography.fontFamily, '"ICM Schematic"'],
-    [SERIF_FONT_FAMILY, '"Liberation Serif","DejaVu Sans"'],
-  ] as const;
+    ...Object.entries(DOCUMENT_FACE_FONTS).map(
+      ([face, { family }]) =>
+        [
+          DOCUMENT_TEXT_FACE_FONT_FAMILIES[face as DocumentTextFace],
+          `"${family}","DejaVu Sans"`,
+        ] as const,
+    ),
+  ];
   for (const style of Array.from(document.getElementsByTagName("style")))
     for (const [family, headless] of families)
       style.textContent =
@@ -90,13 +122,19 @@ function withHeadlessTextCompatibility(svg: string): string {
 }
 
 function resvg(svg: string, fitTo: { mode: "zoom" | "width"; value: number }) {
+  const face = formalSvgTextFace(svg);
   return new Resvg(withHeadlessTextCompatibility(svg), {
     fitTo,
     font: {
       // Formal export goldens must not depend on whichever fonts happen to be
       // installed on the developer machine or GitHub runner.
       loadSystemFonts: false,
-      fontFiles: [...SCHEMATIC_FONTS, ...SERIF_FONTS, ...BUNDLED_FONTS],
+      // Only the face the SVG's root names besides Metropolis.
+      fontFiles: [
+        ...SCHEMATIC_FONTS,
+        ...(face === "metropolis" ? [] : DOCUMENT_FACE_FONTS[face].files),
+        ...BUNDLED_FONTS,
+      ],
       defaultFontFamily: "ICM Schematic",
       sansSerifFamily: "ICM Schematic",
       serifFamily: "DejaVu Serif",
