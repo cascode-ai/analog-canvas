@@ -671,14 +671,18 @@
       "id": "agent-docs-browser",
       "stage": "affected",
       "groups": ["agentDocs"],
-      "description": "Validate the Agent kit and guidance text the connection workflow serves.",
+      "description": "Validate the Agent kit and guidance the connection and simulation workflows read.",
       "command": [
         "pnpm",
         "test:e2e:local",
-        "apps/editor/e2e/agent-connection.spec.ts"
+        "apps/editor/e2e/agent-connection.spec.ts",
+        "apps/editor/e2e/agent-simulation.spec.ts"
       ],
       "ci": {
-        "e2eArgs": ["apps/editor/e2e/agent-connection.spec.ts"]
+        "e2eArgs": [
+          "apps/editor/e2e/agent-connection.spec.ts",
+          "apps/editor/e2e/agent-simulation.spec.ts"
+        ]
       }
     },
     {

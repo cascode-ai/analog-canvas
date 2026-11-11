@@ -248,9 +248,10 @@ describe("CI validation planning", () => {
     });
   });
 
-  it("runs only the connection workflow for generated Agent docs", () => {
-    // The kit, guidance and MCP resources are text generated from docs/agent;
-    // agent-connection is the one browser workflow that serves that text.
+  it("runs only the kit-reading workflows for generated Agent docs", () => {
+    // The kit, guidance and MCP resources are generated from docs/agent. In
+    // the browser, agent-connection checks the kit's text and agent-simulation
+    // places parts from its authoring catalog; no other spec reads them.
     for (const path of [
       "apps/mcp-server/src/guidance.generated.ts",
       "apps/mcp-server/src/resources.generated.ts",
@@ -260,6 +261,7 @@ describe("CI validation planning", () => {
       expect(plan.mode, path).toBe("focused");
       expect(plan.e2eArgs, path).toEqual([
         "apps/editor/e2e/agent-connection.spec.ts",
+        "apps/editor/e2e/agent-simulation.spec.ts",
       ]);
     }
     expect(ciPlan(["apps/mcp-server/src/server.ts"]).e2eArgs).toEqual(
