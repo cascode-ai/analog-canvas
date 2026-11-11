@@ -7,6 +7,7 @@ for (const job of [
   "core_static",
   "core_unit",
   "core_unit_built",
+  "core_performance",
   "core_release",
 ]) {
   if (needs[job]?.result !== "success") {
