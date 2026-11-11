@@ -248,6 +248,31 @@ describe("CI validation planning", () => {
     });
   });
 
+  it("runs only the kit-reading workflows for generated Agent docs", () => {
+    // The kit, guidance and MCP resources are generated from docs/agent. In
+    // the browser, agent-connection checks the kit's text and agent-simulation
+    // places parts from its authoring catalog; no other spec reads them.
+    for (const path of [
+      "apps/mcp-server/src/guidance.generated.ts",
+      "apps/mcp-server/src/resources.generated.ts",
+      "packages/agent-adapter/src/agent-docs.generated.ts",
+    ]) {
+      const plan = ciPlan([path]);
+      expect(plan.mode, path).toBe("focused");
+      expect(plan.e2eArgs, path).toEqual([
+        "apps/editor/e2e/agent-connection.spec.ts",
+        "apps/editor/e2e/agent-simulation.spec.ts",
+      ]);
+    }
+    expect(ciPlan(["apps/mcp-server/src/server.ts"]).e2eArgs).toEqual(
+      expect.arrayContaining([
+        "apps/editor/e2e/agent-connection.spec.ts",
+        "apps/editor/e2e/web-agent-session.spec.ts",
+        "apps/editor/e2e/task-canvas.spec.ts",
+      ]),
+    );
+  });
+
   it("selects the Agent and simulation specs for their shared run fixtures (#1646)", () => {
     for (const path of [
       "apps/editor/e2e/simulation-e2e-fixtures.ts",

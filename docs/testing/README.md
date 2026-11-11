@@ -31,8 +31,9 @@ pnpm gate:preflight -- --base <base-ref>
 pnpm gate:affected -- --base <base-ref>
 ```
 
-`config/validation-gates.json` maps paths to gates; review the printed reasons
-before running. `full-delivery` is a batch delivery obligation, not a command
+`config/validation-gates.json` maps paths to gates; a `!pattern` removes paths
+from its group, whatever their order. Review the printed reasons before
+running. `full-delivery` is a batch delivery obligation, not a command
 after every edit: record in the PR how final local, risk and queue checks fulfil it, and
 skip `gate:full` when they already cover it. Run `pnpm setup:e2e` once per
 machine or Playwright version. A new `apps/editor/e2e/*.spec.ts` needs a focused
