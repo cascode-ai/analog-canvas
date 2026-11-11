@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import tempfile
 import unittest
 import urllib.error
@@ -521,6 +522,20 @@ class HostDrainTest(unittest.TestCase):
                 patch.object(release, 'entrance') as entrance:
             release.Host(run=run).hold()
         entrance.assert_called_once_with('hold')
+
+
+class PeerEntranceTest(unittest.TestCase):
+    def test_fixed_peer_routes_use_the_canonical_worker_authority(self):
+        config = release.nginx_config(pathlib.Path(__file__).parent, {
+            'mode': 'open', 'filingNumber': '京ICP备2026077076号-1',
+        }).decode('utf-8')
+        peer = config.split('server_name canvas-hangzhou-origin.tokenzhang.com;', 1)[1]
+        # The fixed service address differs from AUTH_REGIONAL_CLIENT.clientOrigin.
+        # Both peer APIs must reach the Worker's authentication, not invalid-host.
+        hosts = re.findall(r'proxy_set_header Host ([^;]+);', peer)
+        self.assertEqual(hosts, [
+            'analog-canvas.tokenzhang.com', 'analog-canvas.tokenzhang.com',
+        ])
 
 
 if __name__ == '__main__':
