@@ -42,6 +42,11 @@ describe("the film's document", () => {
       );
   });
 
+  it("speaks English only, with no language switch", () => {
+    expect(html).toContain('<html lang="en">');
+    expect(html).not.toMatch(/[\u3000-\u9fff\uff00-\uffef]/u);
+  });
+
   it("keeps its links on the site and says 7,000+", () => {
     expect(html).toContain('href="/editor"');
     expect(html).toContain('target="_top"');

@@ -27,13 +27,10 @@
         --ai: #6a3cbf;
         --ai-soft: #efe7fb;
         --ok: #2f9e44;
-        --font-display:
-          "Metropolis", "PingFang SC", "HarmonyOS Sans SC", "MiSans",
-          "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", ui-sans-serif,
-          system-ui, sans-serif;
+        --font-display: "Metropolis", ui-sans-serif, system-ui, sans-serif;
         --font-body:
           ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          "PingFang SC", "Microsoft YaHei", Helvetica, Arial, sans-serif;
+          Helvetica, Arial, sans-serif;
         --font-mono:
           "AC Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
         --ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -169,12 +166,9 @@
         white-space: nowrap;
         line-height: 1.16;
         letter-spacing: -0.012em;
-        font-size: min(9cqh, 7.2cqw);
+        font-size: min(7cqh, 4.9cqw);
         opacity: 0;
         transition: opacity 0.28s;
-      }
-      .en .hl {
-        font-size: min(7cqh, 4.9cqw);
       }
       .hl.on {
         opacity: 1;
@@ -195,11 +189,8 @@
         display: inline;
       }
       .portrait .hl {
-        font-size: min(6.4cqh, 11.6cqw);
-        line-height: 1.2;
-      }
-      .portrait.en .hl {
         font-size: min(4.6cqh, 7.7cqw);
+        line-height: 1.2;
       }
       .portrait .hook {
         gap: 2.6cqh;
@@ -946,9 +937,6 @@
       #bar button:hover {
         background: rgba(255, 255, 255, 0.14);
       }
-      #bl {
-        padding: 0 8px;
-      }
       #scrub {
         position: relative;
         flex: 1;
@@ -1094,13 +1082,22 @@
           <div class="hook" id="hook">
             <div class="hl" id="h1">
               <span class="rv"
-                ><span><span class="tx" data-i="hook1"></span></span
-              ></span>
+                ><span
+                  ><span class="tx"
+                    ><b>An afternoon</b> <br class="pbr" />on one
+                    schematic.</span
+                  ></span
+                ></span
+              >
             </div>
             <div class="hl" id="h2">
               <span class="rv"
-                ><span><span class="tx" data-i="hook2"></span></span
-              ></span>
+                ><span
+                  ><span class="tx"
+                    >Now <b>retype it</b> <br class="pbr" />as a netlist?</span
+                  ></span
+                ></span
+              >
             </div>
           </div>
           <div class="brand" id="brand">
@@ -1108,42 +1105,60 @@
               <span class="rv"><span>Analog Canvas</span></span>
             </div>
             <div class="pr">
-              <span class="rv"><span data-i="promise"></span></span>
+              <span class="rv"><span>Draw once. Get both.</span></span>
             </div>
           </div>
 
           <div class="cap" id="c-draw">
-            <div class="kick" data-i="k_draw"></div>
-            <h2 class="rv"><span data-i="c_draw_h"></span></h2>
-            <p class="rv"><span data-i="c_draw_p"></span></p>
+            <div class="kick">Draw</div>
+            <h2 class="rv"><span>Textbook-grade schematics.</span></h2>
+            <p class="rv">
+              <span
+                >Parts snap to the grid. Wires know a junction from a
+                crossing.</span
+              >
+            </p>
           </div>
           <div class="cap" id="c-net">
-            <div class="kick" data-i="k_net"></div>
-            <h2 class="rv"><span data-i="c_net_h"></span></h2>
-            <p class="rv"><span data-i="c_net_p"></span></p>
+            <div class="kick">Netlist</div>
+            <h2 class="rv"><span>The netlist writes itself.</span></h2>
+            <p class="rv">
+              <span>SPICE or Spectre in one click, with real PDK devices.</span>
+            </p>
           </div>
           <div class="cap" id="c-cell">
-            <div class="kick" data-i="k_cell"></div>
-            <h2 class="rv"><span data-i="c_cell_h"></span></h2>
-            <p class="rv"><span data-i="c_cell_p"></span></p>
+            <div class="kick">Cells</div>
+            <h2 class="rv"><span>Your circuit becomes a block.</span></h2>
+            <p class="rv">
+              <span
+                >Behind the op-amp symbol: the transistors you just drew.</span
+              >
+            </p>
           </div>
           <div class="cap" id="c-exp">
-            <div class="kick" data-i="k_exp"></div>
-            <h2 class="rv"><span data-i="c_exp_h"></span></h2>
-            <p class="rv"><span data-i="c_exp_p"></span></p>
+            <div class="kick">Export</div>
+            <h2 class="rv"><span>Vector export. Zoom all you like.</span></h2>
+            <p class="rv"><span>SVG and PDF for the paper. PNG at 3×.</span></p>
           </div>
           <div class="cap plate" id="c-next">
-            <h2 class="rv"><span data-i="c_next_h"></span></h2>
+            <h2 class="rv"><span>The next one goes to an AI.</span></h2>
           </div>
           <div class="cap" id="c-ai">
-            <div class="kick ai" data-i="k_ai"></div>
-            <h2 class="rv"><span data-i="c_ai_h"></span></h2>
-            <p class="rv"><span data-i="c_ai_p"></span></p>
+            <div class="kick ai">Agents</div>
+            <h2 class="rv"><span>Agents draw here too.</span></h2>
+            <p class="rv">
+              <span>Over MCP, with the same edits you make by hand.</span>
+            </p>
           </div>
           <div class="cap" id="c-ai2">
-            <div class="kick ai" data-i="k_ai"></div>
-            <h2 class="rv"><span data-i="c_ai2_h"></span></h2>
-            <p class="rv"><span data-i="c_ai2_p"></span></p>
+            <div class="kick ai">Agents</div>
+            <h2 class="rv"><span>An AI drew this one.</span></h2>
+            <p class="rv">
+              <span
+                ><span id="ai2-parts"></span> parts. Every connection checked
+                against the netlist.</span
+              >
+            </p>
           </div>
 
           <div class="panel nl" id="p-nl">
@@ -1203,13 +1218,13 @@
                 stroke-linejoin="round"
                 d="M2 5h2.6L8 2.2v9.6L4.6 9H2zM10 4.6a3.4 3.4 0 0 1 0 4.8M11.6 3a5.6 5.6 0 0 1 0 8"
               /></svg
-            ><span data-i="sound"></span>
+            ><span>Sound on</span>
           </button>
           <div class="veil" id="veil"></div>
           <div class="big" id="big">
             <div class="num"><span id="num">0</span><b>+</b></div>
-            <div class="lab" data-i="num_label"></div>
-            <div class="sub" data-i="num_sub"></div>
+            <div class="lab">circuits in the Gallery</div>
+            <div class="sub">Free to read, download in bulk and train on.</div>
           </div>
 
           <div class="cursor" id="cur">
@@ -1221,7 +1236,7 @@
                 stroke-width="1.6"
                 stroke-linejoin="round"
               /></svg
-            ><span data-i="agent"></span>
+            ><span>Agent</span>
           </div>
 
           <div class="end" id="end">
@@ -1264,24 +1279,23 @@
             </svg>
             <div class="ew">Analog Canvas</div>
             <div class="eh">
-              <span class="rv"><span data-i="end_h"></span></span>
+              <span class="rv"><span>Draw it once.</span></span>
             </div>
-            <div class="ep" data-i="end_p"></div>
+            <div class="ep">Free. Open source. Runs in your browser.</div>
             <div class="cta">
               <a
                 class="btn pri"
                 href="%%SITE%%/editor"
                 target="%%LINK_TARGET%%"
                 rel="noopener"
-                data-i="cta1"
-              ></a
+                >Open the editor</a
               ><a
                 class="btn"
                 href="%%SITE%%/"
                 target="%%LINK_TARGET%%"
                 rel="noopener"
-                data-i="cta2"
-              ></a>
+                >Browse the Gallery</a
+              >
             </div>
             <div class="url">analog-canvas.tokenzhang.com</div>
           </div>
@@ -1321,7 +1335,6 @@
             />
           </svg>
         </button>
-        <button id="bl" type="button" aria-label="Switch language">EN</button>
         <button id="br" type="button" aria-label="Replay">
           <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
             <path
@@ -1362,75 +1375,6 @@
           },
           total: 7000,
           wall: { src: "%%WALL%%", cols: 8, rows: 6, cw: 440, ch: 330, n: 46 },
-        };
-        const STR = {
-          zh: {
-            hook1: '电路图，<br class="pbr">画了<b>一下午</b>。',
-            hook2: '网表，<br class="pbr">还要<b>再敲一遍</b>？',
-            promise: "画一次，图和网表都有。",
-            c_draw_h: "教科书级的原理图",
-            c_draw_p: "器件吸附网格，连线自动分清节点和交叉。",
-            c_net_h: "网表，自己长出来",
-            c_net_p: "SPICE、Spectre 一键切换，直接带 PDK 器件。",
-            c_cell_h: "画好的电路，秒变模块",
-            c_cell_p: "运放符号背后，就是你刚画的晶体管。",
-            c_exp_h: "矢量导出，放大不糊",
-            c_exp_p: "SVG、PDF 直接进论文，PNG 三倍清晰。",
-            num_label: "个电路，都在 Gallery",
-            num_sub: "免费浏览 · 整库下载 · 可以拿去训练模型",
-            c_next_h: "下一张，交给 AI。",
-            c_ai_h: "AI 也能上手画",
-            c_ai_p: "通过 MCP 接入，用的是和你一样的编辑操作。",
-            c_ai2_h: "这张图，是 AI 画的",
-            c_ai2_p: "{parts} 个器件，连接关系对着网表逐一核对，一处不差。",
-            end_h: "画一次，就够了。",
-            end_p: "免费 · 开源 · 打开浏览器就能用",
-            cta1: "打开编辑器",
-            cta2: "逛逛 Gallery",
-            agent: "AI",
-            lang: "EN",
-            k_draw: "画图",
-            k_net: "网表",
-            k_cell: "模块",
-            k_exp: "导出",
-            k_ai: "AI 画图",
-            sound: "开声音",
-          },
-          en: {
-            hook1: '<b>An afternoon</b> <br class="pbr">on one schematic.',
-            hook2: 'Now <b>retype it</b> <br class="pbr">as a netlist?',
-            promise: "Draw once. Get both.",
-            c_draw_h: "Textbook-grade schematics.",
-            c_draw_p:
-              "Parts snap to the grid. Wires know a junction from a crossing.",
-            c_net_h: "The netlist writes itself.",
-            c_net_p: "SPICE or Spectre in one click, with real PDK devices.",
-            c_cell_h: "Your circuit becomes a block.",
-            c_cell_p:
-              "Behind the op-amp symbol: the transistors you just drew.",
-            c_exp_h: "Vector export. Zoom all you like.",
-            c_exp_p: "SVG and PDF for the paper. PNG at 3×.",
-            num_label: "circuits in the Gallery",
-            num_sub: "Free to read, download in bulk and train on.",
-            c_next_h: "The next one goes to an AI.",
-            c_ai_h: "Agents draw here too.",
-            c_ai_p: "Over MCP, with the same edits you make by hand.",
-            c_ai2_h: "An AI drew this one.",
-            c_ai2_p:
-              "{parts} parts. Every connection checked against the netlist.",
-            end_h: "Draw it once.",
-            end_p: "Free. Open source. Runs in your browser.",
-            cta1: "Open the editor",
-            cta2: "Browse the Gallery",
-            agent: "Agent",
-            lang: "中文",
-            k_draw: "Draw",
-            k_net: "Netlist",
-            k_cell: "Cells",
-            k_exp: "Export",
-            k_ai: "Agents",
-            sound: "Sound on",
-          },
         };
 
         const $ = (s, r = document) => r.querySelector(s),
@@ -2271,6 +2215,7 @@
           curW = v;
         });
         $(".tp").textContent = A_AG.insts.length;
+        $("#ai2-parts").textContent = A_AG.insts.length;
         $(".tw").textContent = A_AG.wires.length;
         let nP = -1,
           nW = -1;
@@ -2998,7 +2943,6 @@
           playing = false,
           lastNow = 0,
           dirty = true,
-          lang = "en",
           scrubbing = false;
         const fill = $("#fill"),
           prog = $("#prog i"),
@@ -3096,18 +3040,6 @@
           if (!playing && T >= DUR - 0.05) seek(0);
           setPlaying(!playing);
         }
-        function setLang(l) {
-          lang = l;
-          document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
-          stage.classList.toggle("zh", l === "zh");
-          stage.classList.toggle("en", l !== "zh");
-          for (const el of $$("[data-i]"))
-            el.innerHTML = STR[l][el.dataset.i].replace(
-              "{parts}",
-              A_AG.insts.length,
-            );
-          $("#bl").textContent = STR[l].lang;
-        }
         function fitMono() {
           const pb = $("#p-nl .pb"),
             w = pb.clientWidth - 32;
@@ -3166,13 +3098,6 @@
           seek(0);
           setPlaying(true);
         });
-        $("#bl").addEventListener("click", () => {
-          setLang(lang === "zh" ? "en" : "zh");
-          try {
-            localStorage.setItem("icm.film.lang.v1", lang);
-          } catch (e) {}
-          wake();
-        });
         const scrubTo = (e) => {
           const r = scrub.getBoundingClientRect();
           seek(((e.clientX - r.left) / r.width) * DUR);
@@ -3214,30 +3139,16 @@
         addEventListener("pointermove", wake);
         addEventListener("pointerdown", wake);
 
-        let saved = null;
-        try {
-          saved = localStorage.getItem("icm.film.lang.v1");
-        } catch (e) {}
-        if (saved !== "zh" && saved !== "en") saved = null;
-        // In a frame on the site, the page around it holds the address and the language hash.
-        let host = "",
-          hash = location.hash;
+        // In a frame on the site, the page around it holds the address.
+        let host = "";
         if (window.parent !== window)
           try {
             host = window.parent.location.host;
-            hash = window.parent.location.hash || hash;
           } catch (e) {}
         if (host) $(".url").textContent = host;
-        const h = hash.replace("#", "");
-        setLang(
-          h === "zh" || h === "en"
-            ? h
-            : saved || (/^zh/i.test(navigator.language || "") ? "zh" : "en"),
-        );
         window.__film = {
           seek,
           setPlaying,
-          setLang,
           setSound,
           renderScore,
           get t() {
