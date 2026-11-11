@@ -63,7 +63,8 @@ export type BuiltInModelRecipe =
       readonly family: "passive";
       readonly implementation: "crystal" | "potentiometer";
     }
-  | { readonly family: "opamp"; readonly implementation: "opamp" };
+  | { readonly family: "opamp"; readonly implementation: "opamp" }
+  | { readonly family: "semiconductor"; readonly implementation: "ujt" };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
   readonly target: string;
@@ -254,6 +255,24 @@ const potentiometer: readonly DeviceParameterDefinition[] = [
     "Wiper position from end 1 (0) to end 2 (1): end 1 to W is r·pos, W to end 2 is r·(1−pos), each at least 1 mΩ.",
   ),
 ];
+// A unijunction's base bar, B2 to B1, with the emitter junction meeting it
+// a fraction `eta` of the way up from B1.
+const ujt: readonly DeviceParameterDefinition[] = [
+  parameter(
+    "rbb",
+    "Interbase resistance",
+    "7k",
+    "Ohm",
+    "Resistance of the base bar from B2 to B1 with the emitter open.",
+  ),
+  parameter(
+    "eta",
+    "Intrinsic standoff ratio",
+    "0.65",
+    "",
+    "Fraction of rbb between the emitter junction and B1: the emitter conducts once it is about eta·V(B2, B1) plus a diode drop above B1.",
+  ),
+];
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.
 const comparator: readonly DeviceParameterDefinition[] = [
@@ -348,6 +367,7 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   ),
   crystal: { family: "passive", implementation: "crystal" },
   potentiometer: { family: "passive", implementation: "potentiometer" },
+  ujt: { family: "semiconductor", implementation: "ujt" },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
@@ -397,13 +417,15 @@ function contract(target: string): BuiltInModelContract | undefined {
               ? implementation === "crystal"
                 ? crystal
                 : potentiometer
-              : target === ADDER_TARGET
-                ? ADDER_SIGN_PARAMETERS
-                : target === "opamp_differential"
-                  ? differentialOpamp
-                  : Object.hasOwn(analog, target)
-                    ? [analog[target as keyof typeof analog]]
-                    : [],
+              : family === "semiconductor"
+                ? ujt
+                : target === ADDER_TARGET
+                  ? ADDER_SIGN_PARAMETERS
+                  : target === "opamp_differential"
+                    ? differentialOpamp
+                    : Object.hasOwn(analog, target)
+                      ? [analog[target as keyof typeof analog]]
+                      : [],
     backends: {
       spice: "included",
       spectre:
@@ -411,6 +433,7 @@ function contract(target: string): BuiltInModelContract | undefined {
         family === "opamp" ||
         family === "comparator" ||
         family === "passive" ||
+        family === "semiconductor" ||
         (family === "logic" && implementation !== "flip-flop")
           ? "included"
           : "external",

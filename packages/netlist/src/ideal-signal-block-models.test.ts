@@ -425,6 +425,42 @@ describe("generated block bodies", () => {
     expect(spectre).toMatch(/^X1 \(n1 nw n2\) potentiometer pos=0.25 r=10k$/mu);
   });
 
+  it("export a unijunction as a call of its split base bar and emitter diode", () => {
+    const project = blockCell("ujt");
+    project.documents[0]!.instances[0]!.netlist!.parameters = {
+      rbb: "7k",
+      eta: "0.6",
+    };
+    const [spice, spectre] = (["spice", "spectre"] as const).map((format) => {
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      return result.status === "ready" ? result.file.text : "";
+    });
+    expect(spice).toContain(
+      [
+        ".subckt ujt e b1 b2 params: rbb=7k eta=0.65",
+        ".model de D(IS=1e-14 N=1)",
+        "RB1 nb b1 {rbb*eta}",
+        "RB2 b2 nb {rbb*(1-eta)}",
+        "DE e nb de",
+        ".ends ujt",
+      ].join("\n"),
+    );
+    expect(spice).toMatch(/^X1 e b1 b2 ujt eta=0.6 rbb=7k$/mu);
+    expect(spectre).toContain(
+      [
+        "subckt ujt (e b1 b2)",
+        "parameters rbb=7k eta=0.65",
+        "model de diode is=1e-14 n=1",
+        "RB1 (nb b1) resistor r=rbb*eta",
+        "RB2 (b2 nb) resistor r=rbb*(1-eta)",
+        "DE (e nb) de",
+        "ends ujt",
+      ].join("\n"),
+    );
+    expect(spectre).toMatch(/^X1 \(e b1 b2\) ujt eta=0.6 rbb=7k$/mu);
+  });
+
   it.each(["multiplier", "adc", "dac", "adc-differential", "dac-differential"])(
     "export the %s ready in SPICE, and to Spectre with a warning",
     (symbolId) => {

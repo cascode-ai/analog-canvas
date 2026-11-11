@@ -59,6 +59,7 @@ export function symbolCategory(symbolId: string): string {
       "schottky-diode",
       "njfet",
       "pjfet",
+      "ujt",
       "tcoil",
       "center-tap-inductor",
       "xfmr",
@@ -197,6 +198,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   photoresistor: "LDR",
   "sine-voltage-source": "Sine Src",
   potentiometer: "Pot",
+  ujt: "UJT",
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
 };
@@ -249,6 +251,7 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   ammeter: "Ammeter — a 0 V source in series; probe the current through it",
   potentiometer:
     "Potentiometer — total resistance r, wiper W at fraction pos from end 1",
+  ujt: "Unijunction transistor — base bar rbb split at eta, emitter diode onto it",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -335,6 +338,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "schottky-diode",
   "njfet",
   "pjfet",
+  "ujt",
   "tcoil",
   "center-tap-inductor",
   "xfmr",

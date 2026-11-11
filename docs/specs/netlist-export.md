@@ -136,10 +136,11 @@ derive from `parameters`.
 ### Ideal blocks
 
 Bodies live in [analog blocks](../../packages/netlist/src/ideal-analog-block-models.ts),
-[signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts) and
+[signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts),
+[semiconductor devices](../../packages/netlist/src/semiconductor-device-models.ts) and
 [generated models](../../packages/netlist/src/generated-models.ts). Every Block
-but the crystal and the potentiometer declares fixed `VDD`/`VSS` ports; logic
-ports follow Symbol pins.
+but the crystal, the potentiometer and the semiconductor devices declares
+fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
   differential op-amp (unlimited) are frequency-independent E/G sources that
@@ -209,9 +210,17 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `max(r·(1−pos), 1m)` from the wiper to end 2, defaults `r` = 10 kΩ and
   `pos` = 0.5; the 1 mΩ floor keeps a wiper at either end well conditioned. It
   is an `X` call of that body, as the crystal is.
+- Semiconductor devices SPICE has no card for are `X` calls of textbook
+  equivalent circuits, no supplies, each body carrying its own model cards
+  with the generic cards' parameters (`de` the DIODE card), so a Project model
+  of any name never reaches them:
+  - Unijunction (`ujt`: `e b1 b2`): `RB1 nb b1 {rbb*eta}`,
+    `RB2 b2 nb {rbb*(1-eta)}` and the emitter diode `DE e nb`; defaults
+    `rbb` = 7 kΩ, `eta` = 0.65. No conductivity modulation, so no negative
+    resistance past the peak point.
 - SPICE and VACASK include all bodies; Spectre includes comparator,
-  combinational gates (`bsource` with RC delay), the crystal and the
-  potentiometer; DFF,
+  combinational gates (`bsource` with RC delay), the crystal, the
+  potentiometer and the semiconductor devices; DFF,
   multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.
   That call's name is the reader's interface: where a Cell, or an external
   subcircuit or model source, in the netlist defines it, an unbound part
