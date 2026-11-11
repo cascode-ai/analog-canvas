@@ -288,13 +288,34 @@ function calledBlocks(symbolIds = ["d-flip-flop", "dac"]): CircuitProject {
       symbolId,
       reference,
       placement: at(position.x, position.y),
-      netlist: {
-        binding: {
-          kind: "unresolved-subcircuit",
-          name: subcircuitDescriptor(symbolId)!.target,
-        },
-        parameters: {},
-      },
+      netlist: subcircuitDescriptor(symbolId)
+        ? {
+            binding: {
+              kind: "unresolved-subcircuit",
+              name: subcircuitDescriptor(symbolId)!.target,
+            },
+            parameters: {},
+          }
+        : // A native card's part takes its defaults; a diode, a model.
+          {
+            ...(deviceDescriptor(symbolId)?.deviceClass === "diode"
+              ? {
+                  binding: {
+                    kind: "model" as const,
+                    deviceClass: "diode",
+                    name: "DIODE",
+                  },
+                }
+              : {}),
+            parameters: Object.fromEntries(
+              (deviceDescriptor(symbolId)?.parameters ?? []).flatMap(
+                (parameter) =>
+                  parameter.defaultValue === undefined
+                    ? []
+                    : [[parameter.name, parameter.defaultValue]],
+              ),
+            ),
+          },
     });
     for (const pin of symbols.get(symbolId)!.pins) {
       const node = `n_${reference}_${pin.name}`.toLowerCase();
@@ -414,6 +435,62 @@ it.each(["spice", "spectre"] as const)(
       .find((instance) => instance.reference === "X1");
     expect(crystal?.symbolId).toBe("crystal");
     expect(crystal?.netlist?.parameters).toEqual({ rm: "30" });
+    const netlist = (circuit: CircuitProject) => {
+      const result = createDesignNetlistExport(circuit, { format });
+      return result.status === "ready" ? result.file.text : result.status;
+    };
+    expect(netlist(plan.project)).toBe(netlist(project));
+  },
+);
+
+const EXTENSIONS_06_PARTS = [
+  "polarized-capacitor",
+  "led",
+  "schottky-diode",
+  "shockley-diode",
+  "put",
+  "ujt",
+  "potentiometer",
+  "photoresistor",
+  "speaker",
+  "microphone",
+  "sine-voltage-source",
+  "ammeter",
+] as const;
+
+it.each(["spice", "spectre"] as const)(
+  "brings back each part analog-canvas-extensions 0.6 draws through %s+RNL",
+  async (format) => {
+    const project = calledBlocks([...EXTENSIONS_06_PARTS]);
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(
+        JSON.stringify(exported.netlistDiagnostics ?? exported.diagnostics),
+      );
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain(
+      'USE-PACKAGE(name="analog-canvas-extensions", version="0.6")',
+    );
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    expect(
+      plan.diagnostics
+        .map((item) => item.code)
+        .filter((code) => code === "RNL_IMPORT_UNMAPPED_SYMBOL"),
+    ).toEqual([]);
+    const parts = plan.project.documents
+      .flatMap((document) => document.instances)
+      .filter((instance) => /^X\d+$/u.test(instance.reference ?? ""));
+    expect(
+      EXTENSIONS_06_PARTS.map(
+        (_, row) =>
+          parts.find((instance) => instance.reference === `X${row + 1}`)
+            ?.symbolId,
+      ),
+    ).toEqual([...EXTENSIONS_06_PARTS]);
     const netlist = (circuit: CircuitProject) => {
       const result = createDesignNetlistExport(circuit, { format });
       return result.status === "ready" ? result.file.text : result.status;
@@ -5557,7 +5634,7 @@ describe("RNL round trip of 4-input gates", () => {
           `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
         );
       expect(written.text).toContain(
-        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.5")',
+        '@USE-PACKAGE(name="analog-canvas-extensions", version="0.6")',
       );
       // RNL's standard gates have their inputs elsewhere; Analog Canvas's
       // own keep each wire level, in RNL as in the editor.
@@ -5616,7 +5693,7 @@ describe("RNL round trip of 4-input gates", () => {
         JSON.stringify(withoutCanvasMeaning(exported.request))
           .replaceAll("$CANVAS_", "$")
           .replace(
-            '"name":"analog-canvas-extensions","version":"0.5"',
+            '"name":"analog-canvas-extensions","version":"0.6"',
             '"name":"rnl-std-logic","version":"0.3"',
           ),
       ) as typeof exported.request;

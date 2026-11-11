@@ -80,28 +80,12 @@ describe("the RNL symbol list", () => {
       undefined,
     ]);
   });
-  it("draws every Analog Canvas symbol but those awaiting an extensions version", () => {
-    // RNL's standard series has none of these, and drawing them needs an
-    // analog-canvas-extensions version not yet published; until then a part
-    // of theirs stops RNL export with RNL_NO_SYMBOL.
+  it("draws every Analog Canvas symbol", () => {
     expect(
       builtInSymbols
         .map((symbol) => symbol.id)
         .filter((id) => !rnlSymbolFor(id)),
-    ).toEqual([
-      "polarized-capacitor",
-      "led",
-      "schottky-diode",
-      "microphone",
-      "ammeter",
-      "potentiometer",
-      "ujt",
-      "put",
-      "shockley-diode",
-      "photoresistor",
-      "speaker",
-      "sine-voltage-source",
-    ]);
+    ).toEqual([]);
   });
 
   it("takes the chopper and appearance variants from Analog Canvas's package", () => {

@@ -28,7 +28,7 @@ the RNL language and its runtime belong to rnl.
   adapter preserves the caller's files, includes and search order. One fetch
   of each version serves the shared Worker; fetch failures identify the
   package and can be retried.
-- Every Canvas version the editor ships, 0.1 to 0.5, is locked by name,
+- Every Canvas version the editor ships, 0.1 to 0.6, is locked by name,
   version, URL and raw-byte SHA-256 against the public
   [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json),
   so a file written with any of them reads; the editor writes the newest.
@@ -108,6 +108,13 @@ the RNL language and its runtime belong to rnl.
 - The crystal, which the standard series lacks, exports as `$CANVAS_CRYSTAL`
   from `analog-canvas-extensions` 0.5 on the call of its body; import reads it
   back as the crystal.
+- So do, from `analog-canvas-extensions` 0.6, the polarized capacitor,
+  photoresistor and speaker (C and R cards), LED and Schottky diode (D cards),
+  microphone, sine voltage source and ammeter (V cards) and the Shockley diode,
+  PUT, UJT and potentiometer (calls of their bodies), each as
+  `$CANVAS_<ID>`. A Spectre card whose name the conversion prefixed with its
+  element's letter (the ammeter's `A1 … vsource` read as `VA1`) gets its own
+  name back where the part as drawn can have it.
 - Fully differential comparators and Delay Cell define their exact artwork in the file
   using the runtime's `define-symbol` operation. Signals precede supplies;
   Delay Cell retains both VDD/VSS, while comparator numeric-high bodies omit
@@ -487,11 +494,8 @@ the RNL language and its runtime belong to rnl.
 
 ## Acceptance criteria
 
-- The mapping table draws every built-in symbol but the polarized capacitor,
-  LED, Schottky diode, speaker, microphone, ammeter, potentiometer,
-  unijunction, PUT, Shockley diode, photoresistor and sine voltage source, which await an unpublished extensions version
-  (`RNL_NO_SYMBOL` until then), follows the registration rules and matches
-  each symbol's pins
+- The mapping table draws every built-in symbol, follows the registration
+  rules and matches each symbol's pins
   (`packages/rnl/src/symbol-map.test.ts`).
 - Every symbol of the mapping table is in the package the rnl runtime's
   catalog says defines it, with each pin where the runtime puts it and

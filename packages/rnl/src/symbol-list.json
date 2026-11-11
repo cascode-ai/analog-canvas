@@ -7654,6 +7654,534 @@
     "note": "AC 的扩展（0.5 起）：AC 印成子电路 crystal（Butterworth-Van Dyke 等效电路）"
   },
   {
+    "symbol": "$CANVAS_POLARIZED_CAPACITOR",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "polarized-capacitor",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.4, -2, 1.4, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a C card, its + plate on terminal 1"
+  },
+  {
+    "symbol": "$CANVAS_LED",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "led",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "k",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-2, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "k",
+        "ac_pin": "K",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -1, 2, 1.8],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a D card"
+  },
+  {
+    "symbol": "$CANVAS_SCHOTTKY_DIODE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "schottky-diode",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "k",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-2, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "k",
+        "ac_pin": "K",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -1, 2, 1],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a D card"
+  },
+  {
+    "symbol": "$CANVAS_SHOCKLEY_DIODE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "shockley-diode",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "k",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-2, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "k",
+        "ac_pin": "K",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -1, 2, 1],
+    "ac_netlist_order": ["a", "k"],
+    "note": "AC 的扩展（0.6 起）：a call of the four-layer body Analog Canvas writes"
+  },
+  {
+    "symbol": "$CANVAS_PUT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "put",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "g",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "k",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-2, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-1, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 3,
+        "name": "k",
+        "ac_pin": "K",
+        "at": [2, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -1, 2, 2],
+    "ac_netlist_order": ["a", "g", "k"],
+    "note": "AC 的扩展（0.6 起）：a call of the programmable unijunction body Analog Canvas writes"
+  },
+  {
+    "symbol": "$CANVAS_UJT",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "ujt",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "e",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "b1",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "b2",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "e",
+        "ac_pin": "E",
+        "at": [-2, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "b1",
+        "ac_pin": "B1",
+        "at": [1, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 3,
+        "name": "b2",
+        "ac_pin": "B2",
+        "at": [1, 2],
+        "dir": 90
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2, -2, 1.4, 2],
+    "ac_netlist_order": ["e", "b1", "b2"],
+    "note": "AC 的扩展（0.6 起）：a call of the unijunction body Analog Canvas writes"
+  },
+  {
+    "symbol": "$CANVAS_POTENTIOMETER",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "potentiometer",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "n1",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "nw",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "n2",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "n1",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "nw",
+        "ac_pin": "W",
+        "at": [2, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 3,
+        "name": "n2",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1, -2, 2, 2],
+    "ac_netlist_order": ["n1", "nw", "n2"],
+    "note": "AC 的扩展（0.6 起）：a call of the two-resistor body Analog Canvas writes, the wiper in the middle"
+  },
+  {
+    "symbol": "$CANVAS_PHOTORESISTOR",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "photoresistor",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.8, -2, 1, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：an R card"
+  },
+  {
+    "symbol": "$CANVAS_SPEAKER",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "speaker",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "1",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "2",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-0.8, -2, 1.6, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：an R card, the voice coil's resistance"
+  },
+  {
+    "symbol": "$CANVAS_MICROPHONE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "microphone",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-2.4, -2, 2, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a V card, + on terminal 1"
+  },
+  {
+    "symbol": "$CANVAS_SINE_VOLTAGE_SOURCE",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "sine-voltage-source",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.4, -2, 1.4, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a V card with a SIN waveform, + on terminal 1"
+  },
+  {
+    "symbol": "$CANVAS_AMMETER",
+    "definition": null,
+    "package": "analog-canvas-extensions",
+    "ac": "ammeter",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "n",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "+",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "n",
+        "ac_pin": "-",
+        "at": [0, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.4, -2, 1.4, 2],
+    "ac_netlist_order": null,
+    "note": "AC 的扩展（0.6 起）：a zero-volt V card the current is read through, + on terminal 1"
+  },
+  {
     "symbol": "$CANVAS_AND_4INPUT",
     "definition": null,
     "package": "analog-canvas-extensions",

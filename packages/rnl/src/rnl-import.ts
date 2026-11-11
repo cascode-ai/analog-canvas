@@ -235,7 +235,7 @@ export interface RnlImportDiagnostic {
 
 /** The standard series and Analog Canvas package versions the mapping table is for. */
 const MAPPED_VERSIONS: Readonly<Record<string, readonly string[]>> = {
-  "analog-canvas-extensions": ["0.1", "0.2", "0.3", "0.4", "0.5"],
+  "analog-canvas-extensions": ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6"],
 };
 const STD_VERSION = "0.3";
 
@@ -1353,12 +1353,16 @@ function applyLevel(
       // A gate's call, or a symbol taken by terminal, renames the part's pins.
       if (mapped.pins) renamePins(instance, mapped.pins);
     }
-    // A Spectre card the conversion named for SPICE, which calls a
-    // subcircuit with X (M1 as XM1), has its Spectre name again where the
-    // part as drawn can have it.
+    // A Spectre card the conversion named for SPICE, which starts a card
+    // with its element's letter (a subcircuit call M1 as XM1, the ammeter's
+    // vsource A1 as VA1), has its Spectre name again where the part as drawn
+    // can have it.
     if (
       name !== null &&
-      instance.reference?.toLowerCase() === `x${name.toLowerCase()}`
+      instance.reference !== undefined &&
+      instance.reference.length === name.length + 1 &&
+      /^[a-z]$/iu.test(instance.reference[0]!) &&
+      instance.reference.slice(1).toLowerCase() === name.toLowerCase()
     )
       nameIfFree(instance, name);
     const turn = mapped?.orient ?? orient;
