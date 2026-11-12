@@ -48,6 +48,10 @@ export interface NetlistConversionOptions {
   subcircuitNames?: readonly string[];
   /** Calls classified by a separate reading of the native circuit. */
   externalSubcircuitNames?: readonly string[];
+  /** Masters whose calls are subcircuit calls whatever the letter of their
+   * names: a foundry design's `M1 (d g s b) pch_mac`, drawn with the PDK's
+   * own artwork, calls the PDK's subcircuit. */
+  externalSubcircuitCalls?: readonly string[];
   /** Execution projections can retain native owners without reverse-writing
    * converted text. Entries are 1-based input lines; 0 is a generated header. */
   withLineOrigins?: boolean;
@@ -484,6 +488,7 @@ function modelGroupNames(name: string): string[] {
 interface Context {
   subckts: Set<string>;
   externalSubckts: Set<string>;
+  externalCalls: Set<string>;
   models: Map<string, string>;
   ownedIncludes: Set<string>;
   externalModels?: ExternalNativeModel[];
@@ -583,13 +588,10 @@ function spectreInstance(s: Statement, ctx: Context): string {
   )
     refuse(s, `Unsupported native Spectre primitive ${master}.`);
   const declared = ctx.models.get(kind);
-  // A master the native reading classifies as an external subcircuit, and
-  // no model statement declares, is a call whatever its name's letter: a
-  // foundry's `M1 (d g s b) pch_mac` calls the PDK's subcircuit.
   const isSubckt =
     ctx.subckts.has(kind) ||
     !!reviewedExternalBindingForMaster(master!) ||
-    (!declared && ctx.externalSubckts.has(kind));
+    (!declared && ctx.externalCalls.has(kind));
   const conventional = /^[MDQJX]/iu.exec(name!)?.[0].toUpperCase();
   if (!isSubckt && !declared && !conventional && !ctx.externalSubckts.has(kind))
     refuse(
@@ -1110,6 +1112,9 @@ export function convertNetlist(
       ),
       externalSubckts: new Set(
         options.externalSubcircuitNames?.map((name) => name.toLowerCase()),
+      ),
+      externalCalls: new Set(
+        options.externalSubcircuitCalls?.map((name) => name.toLowerCase()),
       ),
       models: new Map(),
       ownedIncludes: new Set(options.ownedIncludes),

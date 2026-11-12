@@ -515,18 +515,19 @@ describe("netlist-crawler structural conversion", () => {
   });
 
   it("calls an external subcircuit no model declares, whatever its name's letter", () => {
-    const convert = (externalSubcircuitNames: string[]) =>
+    const convert = (externalSubcircuitCalls: string[]) =>
       convertNetlist({
         text: "subckt top (a b)\nM13 (a b a a) pch_mac l=30n w=1u\nends top\n",
         source: "spectre",
         target: "spice",
-        externalSubcircuitNames,
+        externalSubcircuitNames: ["pch_mac"],
+        externalSubcircuitCalls,
       });
     const called = convert(["pch_mac"]);
     expect(called.status === "converted" && called.text).toContain(
       "\nXM13 a b a a pch_mac l=30n w=1u\n",
     );
-    // Not classified as a subcircuit, M stays a MOS card.
+    // Not named a call, M stays a MOS card, as before.
     const card = convert([]);
     expect(card.status === "converted" && card.text).toContain(
       "\nM13 a b a a pch_mac l=30n w=1u\n",

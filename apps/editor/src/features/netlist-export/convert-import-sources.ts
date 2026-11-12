@@ -67,6 +67,7 @@ function spiceSections(
 export function prepareImportSources(
   inputs: readonly SpiceSourceInput[],
   externalSubcircuitNames?: readonly string[],
+  externalSubcircuitCalls?: readonly string[],
 ): {
   inputs: SpiceSourceInput[];
   builtInBodies: SpiceBuiltInBody[];
@@ -118,6 +119,7 @@ export function prepareImportSources(
       // A design read from the user's own files has no service to protect.
       unbounded: true,
       ...(externalSubcircuitNames ? { externalSubcircuitNames } : {}),
+      ...(externalSubcircuitCalls ? { externalSubcircuitCalls } : {}),
     });
     if (converted.status === "blocked") {
       const issue = converted.issues[0]!;

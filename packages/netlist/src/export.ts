@@ -243,6 +243,13 @@ export function createDesignNetlistExport(
     bodyPortOrder?: BodyPortOrder;
     /** Return the IR the file was printed from, with its printed names. */
     includeIr?: boolean;
+    /**
+     * Print a call of an external subcircuit whose body the Project does not
+     * hold, as the file it came from did, and report it rather than refuse:
+     * an interchange file (the RNL modes) calls a foundry's library as its
+     * source did; a netlist handed out to run keeps refusing.
+     */
+    callsWithoutBodies?: boolean;
   } = {},
 ): DesignNetlistExportResult {
   const format = options.format ?? "spice";
@@ -275,7 +282,8 @@ export function createDesignNetlistExport(
     // An experiment may supply a legacy body. A copied design has no such
     // context and cannot claim completeness from its interface alone.
     severity:
-      d.code === "MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED"
+      d.code === "MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED" &&
+      !options.callsWithoutBodies
         ? "error"
         : d.severity,
     message: d.path

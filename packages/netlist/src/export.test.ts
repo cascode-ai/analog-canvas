@@ -44,6 +44,25 @@ describe("complete external model export", () => {
     expect(designExtractsNetlist(project)).toBe(false);
   });
 
+  it("prints a call without its body for an interchange file, and reports it", () => {
+    const project = externalModelFixture();
+    delete project.externalSubcircuitDefinitions[0]!.implementation;
+    delete project.modelSources;
+    const name = project.externalSubcircuitDefinitions[0]!.name;
+    const result = createDesignNetlistExport(project, {
+      callsWithoutBodies: true,
+    });
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") return;
+    expect(result.file.text).toContain(` ${name}`);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED",
+        severity: "warning",
+      }),
+    );
+  });
+
   // #1933: only a source the conversion refuses goes in as SPICE.
   it("writes a SPICE model Spectre conversion refuses as SPICE, its bytes mapped to their owners", () => {
     const project = externalModelFixture();

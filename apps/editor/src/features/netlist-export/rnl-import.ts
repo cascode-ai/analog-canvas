@@ -186,6 +186,7 @@ export async function writesFileNetlist(
     Parameters<typeof importSpiceSources>[3]
   >["externalSymbolMappings"] = [],
   externalSubcircuitNames: readonly string[] = [],
+  externalSubcircuitCalls: readonly string[] = [],
 ): Promise<boolean> {
   const entry = inputs.find((input) => input.path === entryPath)!;
   const written = createDesignNetlistExport(project, {
@@ -199,7 +200,11 @@ export async function writesFileNetlist(
       ? { ...input, bytes: new TextEncoder().encode(written.file.text) }
       : input,
   );
-  const prepared = prepareImportSources(rewritten, externalSubcircuitNames);
+  const prepared = prepareImportSources(
+    rewritten,
+    externalSubcircuitNames,
+    externalSubcircuitCalls,
+  );
   const again = await importSpiceSources(
     prepared.inputs,
     entryPath,
@@ -343,6 +348,43 @@ export function readRnlHost(
   });
 }
 
+/**
+ * The masters the host calls whose every part the file draws with artwork
+ * of its own, which no standard symbol, model type or caller types: a
+ * foundry design's PDK subcircuits, exported with their own symbols, are
+ * calls whatever their names' letters (rich-netlist/rnl#499 would let the
+ * file say their kind).
+ */
+function ownArtworkCalls(
+  snapshot: RnlSnapshot,
+  drawnTypes: ReadonlyMap<string, string>,
+  given: Readonly<Record<string, string>>,
+): string[] {
+  const typed = new Set(
+    [...drawnTypes.keys(), ...Object.keys(given)].map((name) =>
+      name.toLowerCase(),
+    ),
+  );
+  const own = new Map<string, boolean>();
+  for (const { model, host } of snapshot.levels) {
+    if (!model || !host) continue;
+    const symbols = new Map(model.symbols.map((symbol) => [symbol.id, symbol]));
+    const objects = new Map(
+      model.objects.map((object) => [object.host[0] ?? object.id, object]),
+    );
+    for (const instance of host.instances) {
+      const master = instance.master?.toLowerCase();
+      if (!master || !instance.subckt || typed.has(master)) continue;
+      const symbol = symbols.get(objects.get(instance.id)?.symbol.value ?? "");
+      const drawnOwn = Boolean(
+        symbol?.definition && !symbol.default && !symbol.package,
+      );
+      own.set(master, (own.get(master) ?? true) && drawnOwn);
+    }
+  }
+  return [...own].flatMap(([master, drawn]) => (drawn ? [master] : []));
+}
+
 /** Native subcircuit bindings from the host circuit, independent of drawing. */
 export function rnlSubcircuitNames(snapshot: RnlSnapshot): string[] {
   return [
@@ -376,12 +418,21 @@ async function buildImportPlan({
   const snapshot = await readRnlHost(runtime, inputs, entryPath, dialect);
   const externalSubcircuitNames = rnlSubcircuitNames(snapshot);
   const symbolMappings = drawnExternalSymbolMappings(snapshot);
-  const prepared = prepareImportSources(inputs, externalSubcircuitNames);
+  const drawnTypes = drawnModelTypes(snapshot);
+  const externalSubcircuitCalls = ownArtworkCalls(
+    snapshot,
+    drawnTypes,
+    modelTypes,
+  );
+  const prepared = prepareImportSources(
+    inputs,
+    externalSubcircuitNames,
+    externalSubcircuitCalls,
+  );
   const libraryBodies = undrawnBodies(
     snapshot,
     inputs.map((input) => input.path),
   );
-  const drawnTypes = drawnModelTypes(snapshot);
   const imported = await importSpiceSources(
     prepared.inputs,
     entryPath,
@@ -444,6 +495,7 @@ async function buildImportPlan({
             compileOptions,
             symbolMappings,
             externalSubcircuitNames,
+            externalSubcircuitCalls,
           ),
         );
   let kept = await verifyDrawing(drawn);
