@@ -155,10 +155,11 @@ the RNL language and its runtime belong to rnl.
   interface with different positional terminals refuses with
   `RNL_INLINE_INTERFACE_MISMATCH`, rather than drawing a wire on the wrong
   signal; plain SPICE/SCS remains available.
-- RNL's op-amp kinds (op-amps, comparators, differential transconductors) put
-  - on top, at the inputs and at a differential op-amp's outputs. An Analog
-    Canvas variant with − on top is that symbol flipped top to bottom: it is
-    written as the symbol turned by its own orientation after `MX`.
+- RNL's op-amp kinds (op-amps, comparators, differential transconductors)
+  draw the non-inverting input (+) on top, and a differential op-amp's
+  positive output on top. An Analog Canvas variant with − on top is that
+  symbol flipped top to bottom: it is written as the symbol turned by its own
+  orientation after `MX`.
 - A block's VDD and VSS are its RNL symbol's undrawn `vp` and `vn`, or a
   stencil the file defines its supply terminals (RNL's import-only
   two-terminal Delay Cell stencil has none). RNL fails a wire to a terminal
