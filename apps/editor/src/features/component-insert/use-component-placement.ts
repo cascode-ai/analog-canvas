@@ -17,7 +17,10 @@ import {
   planPlaceCellInstance,
 } from "@icm/edit-engine";
 import type { SchematicStyleProfile } from "@icm/derived";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  supplyMarkerForSymbol,
+} from "@icm/derived";
 import {
   createReferenceIndex,
   hierarchyReferencePolicy,
@@ -29,7 +32,11 @@ import type {
   Point,
   SchematicDocument,
 } from "@icm/model";
-import { createDraftText, defaultDraftTextDocument } from "@icm/model";
+import {
+  createDraftText,
+  defaultDraftTextDocument,
+  isSupplyPortSymbol,
+} from "@icm/model";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -622,12 +629,12 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
   };
 
   const placeNewCellPin = (
-    symbolId: "port" | "port-filled" | "vdd-port",
+    symbolId: "port" | "port-filled" | "vdd-port" | "named-ground",
     position: Point,
     placementRequest: PendingComponentPlacement,
   ): void => {
     const id = nextInstanceId(options.document, symbolId);
-    const supply = symbolId === "vdd-port";
+    const supply = isSupplyPortSymbol(symbolId);
     if (
       !supply &&
       (placementRequest.kind !== "cell-pin" || !placementRequest.direction)
@@ -672,7 +679,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       requestedName ||
       connectedName ||
       (supply
-        ? "VDD"
+        ? (supplyMarkerForSymbol(symbolId)?.name ?? "VDD")
         : nextCellPinName(
             options.document,
             new Set(),
@@ -743,7 +750,9 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
     const placedKind = supply
-      ? "VDD Power Cell Pin"
+      ? symbolId === "named-ground"
+        ? "Named Ground Cell Pin"
+        : "VDD Power Cell Pin"
       : symbolId === "port-filled"
         ? "Bias Voltage Port"
         : "Cell Pin";
@@ -1075,10 +1084,11 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       if (instanceId) placeRetainedInstance(instanceId, point);
     } else if (
       options.pendingComponentPlacement.kind === "cell-pin" ||
-      options.pendingSymbolId === "vdd-port"
+      isSupplyPortSymbol(options.pendingSymbolId)
     ) {
       placeNewCellPin(
-        options.pendingSymbolId as "port" | "port-filled" | "vdd-port",
+        options.pendingSymbolId as
+          "port" | "port-filled" | "vdd-port" | "named-ground",
         point,
         options.pendingComponentPlacement,
       );

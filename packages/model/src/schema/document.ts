@@ -2,6 +2,10 @@ import { richTextPresentsIdentifier } from "../identifier-text.js";
 import { cellSymbolPinContainmentProblems } from "../cell-symbol-layout.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 import { cellSymbolArtworkIssues } from "../circuit-component.js";
+import {
+  isPowerMarkerSymbol,
+  isSupplyPortSymbol,
+} from "../supply-port-symbol.js";
 import { z } from "zod";
 
 import { StableIdSchema } from "./common.js";
@@ -285,13 +289,14 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
           );
           if (
             !interfaceInstance ||
-            !["port", "port-filled", "vdd-port"].includes(
-              interfaceInstance.symbolId,
+            !(
+              ["port", "port-filled"].includes(interfaceInstance.symbolId) ||
+              isSupplyPortSymbol(interfaceInstance.symbolId)
             )
           ) {
             context.addIssue({
               code: "custom",
-              message: `Cell terminal requires a Port or VDD Power interface Instance: ${interfaceInstanceId}`,
+              message: `Cell terminal requires a Port or supply port interface Instance: ${interfaceInstanceId}`,
               path: [
                 "netlist",
                 "terminals",
@@ -429,7 +434,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         });
       }
       if (
-        (instance.symbolId === "ground" || instance.symbolId === "vdd-port") &&
+        isPowerMarkerSymbol(instance.symbolId) &&
         instance.reference !== undefined
       ) {
         context.addIssue({

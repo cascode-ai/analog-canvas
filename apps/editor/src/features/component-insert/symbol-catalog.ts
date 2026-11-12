@@ -362,6 +362,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "vdd-port",
   "vdd",
   "ground",
+  "named-ground",
   "no-connect",
   // Signal-flow blocks in signal-chain order, not alphabetical.
   "adder",

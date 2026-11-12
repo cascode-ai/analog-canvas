@@ -375,6 +375,8 @@ function deviceFindings(
     for (const terminal of net.terminals) {
       const symbol = byId.get(terminal.instanceId)?.symbolId;
       if (symbol === "ground") supplies.set(id, "#gnd");
+      else if (symbol === "named-ground" && !supplies.has(id))
+        supplies.set(id, "#vss");
       else if (symbol === "vdd-port" && !supplies.has(id))
         supplies.set(id, "#vdd");
       const role = pinRole(symbol ?? "", terminal.pinName);

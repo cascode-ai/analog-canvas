@@ -18,7 +18,11 @@ import {
   reviewedExternalBindingById,
   subcircuitDescriptor,
 } from "@icm/devices";
-import { executeProjectTransaction } from "@icm/edit-engine";
+import {
+  executeProjectTransaction,
+  planSetVddConnectionMode,
+  type ProjectStructureEdit,
+} from "@icm/edit-engine";
 import {
   createEmptyDocument,
   createEmptyProject,
@@ -67,6 +71,7 @@ import { withImportedInstanceDisplays } from "../instance-display/imported-insta
 import { materializeRazaviProjectBulkConnections } from "../../presentation/razavi-presentation";
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import { planNetlistProcess, prepareNetlistExample } from "./netlist-process";
+import { planInsertedInstanceConnections } from "../component-insert/placement-connectivity";
 import { planRnlImport } from "./rnl-import";
 import type { RnlRuntime } from "./rnl-runtime";
 import { delayCellFixture } from "../../../../../packages/netlist/src/delay-cell-fixture.test-support.js";
@@ -1551,9 +1556,10 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
-it("ends a wire to a port on no port, or to ground on no ground, at a junction there", async () => {
+it("ends a wire to a port on no port at a junction there, and draws a ground on VSS as a Named Ground", async () => {
   // A flat file has no ports, and its VSS is no ground: the port is its
-  // net's label, the ground a picture, and both keep their wires.
+  // net's label, where its wire ends at a junction; the ground is a Named
+  // Ground of VSS, its wire on its pin.
   const text = [
     "* flat",
     '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
@@ -1587,7 +1593,7 @@ it("ends a wire to a port on no port, or to ground on no ground, at a junction t
   const junctions = ends.flatMap((end) =>
     end.kind === "junction" ? [end.junctionId] : [],
   );
-  expect(junctions).toHaveLength(2);
+  expect(junctions).toHaveLength(1);
   const name = (netId: string) =>
     top.importReference?.nets.find((net) => net.id === netId)?.name;
   const label = top.annotations.find((item) => item.kind === "net-label");
@@ -1596,12 +1602,27 @@ it("ends a wire to a port on no port, or to ground on no ground, at a junction t
   expect(label?.anchor.kind === "object" && label.anchor.objectId).toBe(
     top.junctions.find((junction) => name(junction.netId) === "in")?.id,
   );
-  expect(junctions).toContain(
-    top.junctions.find((junction) => name(junction.netId) === "VSS")?.id,
-  );
+  const vss = top.instances.find((item) => item.symbolId === "named-ground")!;
+  expect(vss.placement).toBeTruthy();
+  expect(ends).toContainEqual({
+    kind: "terminal",
+    instanceId: vss.id,
+    pinName: "P",
+  });
   expect(
-    top.drafting?.objects.filter((item) => item.kind === "floating-symbol"),
-  ).toHaveLength(1);
+    top.connectivityEvidence.find(
+      (item) =>
+        item.kind === "name-claim" &&
+        item.owner.kind === "power-marker" &&
+        item.owner.objectId === vss.id,
+    ),
+  ).toMatchObject({ name: "VSS", powerDomain: "vdd" });
+  expect(top.drafting?.objects ?? []).toEqual([]);
+  // VSS stays its own net, beside ground, in the netlist.
+  const netlist = createDesignNetlistExport(plan.project, { format: "spice" });
+  expect(netlist.status === "ready" && netlist.file.text).toMatch(
+    /^R1 in VSS 1k$/mu,
+  );
 });
 
 it("joins a wire that ends on a point another wire runs straight through", async () => {
@@ -1796,6 +1817,132 @@ it("reads a rectangle given by its two corners as the one between them", async (
   ]);
 });
 
+/**
+ * R1 between a ground and a Named Ground, each placed as the editor's Insert
+ * places it; Properties then makes the Named Ground a Cell Pin, if asked.
+ */
+function namedGroundDrawing(connection: "global" | "cell-pin") {
+  let project = createEmptyProject("named-ground", "Named ground", "dut");
+  project.documents[0]!.netlist!.name = "dut";
+  const resolver = createProjectSymbolResolver(project, builtInSymbols);
+  const commit = (edits: ProjectStructureEdit[]) => {
+    const result = executeProjectTransaction(project, {
+      transactionId: `edit-${project.structureRevision}`,
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits,
+    });
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    project = result.project;
+  };
+  const place = (instance: Instance) => {
+    const document = project.documents[0]!;
+    const planned = planInsertedInstanceConnections(
+      { ...document, instances: [...document.instances, instance] },
+      resolver,
+      instance,
+    );
+    commit([
+      {
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        edits: [{ kind: "add_instance", instance }, ...planned.edits],
+      },
+    ]);
+  };
+  const at = (x: number, y: number, rotation: 0 | 180 = 0) =>
+    ({ position: { x, y }, rotation, mirror: "none" }) as const;
+  place({
+    id: "R1",
+    reference: "R1",
+    symbolId: "resistor",
+    placement: at(100, 100),
+    netlist: { parameters: { value: "1k" } },
+  });
+  // Each marker's pin on one of R1's: ground turned over on top, VSS below.
+  place({ id: "GND1", symbolId: "ground", placement: at(100, 70, 180) });
+  place({ id: "VSS1", symbolId: "named-ground", placement: at(100, 130) });
+  if (connection === "cell-pin")
+    commit(
+      planSetVddConnectionMode(
+        project,
+        project.documents[0]!.id,
+        "VSS1",
+        "cell-pin",
+      ),
+    );
+  return project;
+}
+
+describe.each(["spice", "spectre"] as const)(
+  "a Named Ground through %s+RNL",
+  (format) => {
+    it.each(["global", "cell-pin"] as const)(
+      "comes back as the %s supply it was, its name under its bars",
+      async (connection) => {
+        const project = namedGroundDrawing(connection);
+        const drawn = project.documents[0]!;
+        expect(
+          drawn.nets.find((net) =>
+            net.terminals.some((terminal) => terminal.instanceId === "VSS1"),
+          )?.terminals,
+        ).toContainEqual({ instanceId: "R1", pinName: "2" });
+        const exported = createRnlExport(project, { format });
+        if (exported.status !== "ready") throw new Error("export blocked");
+        const written = await runtime.write({
+          write: exported.request,
+          svg: false,
+        });
+        expect(written.text).toMatch(/\$GROUND @ATTACH &VSS\b/u);
+        expect(written.text).toContain("$NAMED_GROUND_SYMBOL");
+        const plan = await importRnl(written.text, format);
+        expect(failures(plan)).toEqual([]);
+        expect(
+          plan.diagnostics.filter(
+            (item) => item.code === "RNL_IMPORT_GLYPH_AS_PICTURE",
+          ),
+        ).toEqual([]);
+        const dut = plan.project.documents.find(
+          (document) => document.netlist?.name === "dut",
+        )!;
+        const glyph = dut.instances.find(
+          (item) => item.symbolId === "named-ground",
+        )!;
+        expect(glyph.placement?.position).toEqual({ x: 100, y: 130 });
+        const r1 = dut.instances.find((item) => item.reference === "R1")!;
+        expect(
+          dut.nets.find((net) =>
+            net.terminals.some((terminal) => terminal.instanceId === glyph.id),
+          )?.terminals,
+        ).toContainEqual({ instanceId: r1.id, pinName: "2" });
+        const pin = dut.netlist!.terminals.find((item) => item.name === "VSS");
+        if (connection === "cell-pin")
+          expect(pin?.interfaceInstanceIds).toEqual([glyph.id]);
+        else {
+          expect(pin).toBeUndefined();
+          expect(
+            dut.connectivityEvidence.find(
+              (item) =>
+                item.kind === "name-claim" &&
+                item.owner.kind === "power-marker" &&
+                item.owner.objectId === glyph.id,
+            ),
+          ).toMatchObject({ name: "VSS", scope: "global", powerDomain: "vdd" });
+        }
+        const label = dut.annotations.find(
+          (item) => item.kind === "power-label",
+        );
+        expect(label?.anchor.kind === "object" && label.anchor.objectId).toBe(
+          glyph.id,
+        );
+        expect(printed(plan.project, format)).toBe(printed(project, format));
+      },
+    );
+  },
+);
+
 it.each([
   ["a net of its caller's", "VSS", true],
   ["ground", "0", false],
@@ -1829,15 +1976,22 @@ it.each([
     expect(
       cell.instances.find((item) => item.id === "R1")?.placement,
     ).toBeDefined();
+    const vss = cell.netlist?.terminals.find(
+      (item) => item.name.toLowerCase() === "vss",
+    );
+    expect(vss !== undefined).toBe(port);
+    // Ground on ground; on the Cell's own VSS Pin the glyph is that Pin,
+    // drawn as a Named Ground.
     expect(
-      cell.netlist?.terminals.some((item) => item.name.toLowerCase() === "vss"),
-    ).toBe(port);
-    // Ground only on ground: elsewhere the glyph is a picture.
-    expect(
-      plan.diagnostics.some(
+      plan.diagnostics.filter(
         (item) => item.code === "RNL_IMPORT_GLYPH_AS_PICTURE",
       ),
-    ).toBe(port);
+    ).toEqual([]);
+    const glyph = cell.instances.find(
+      (item) => item.symbolId === (port ? "named-ground" : "ground"),
+    );
+    expect(glyph?.placement).toBeTruthy();
+    if (vss) expect(vss.interfaceInstanceIds).toEqual([glyph!.id]);
   },
 );
 

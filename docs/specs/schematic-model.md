@@ -57,24 +57,27 @@ cross-Document edits use one Project transaction guarded by
   direction, Net ID and a singleton `interfaceInstanceIds` naming its one
   canvas Instance (pin `P`). Each formal terminal has exactly one interface
   owner; there is no free-Port collection. Equal folded names resolve to one
-  Logical Net, however each declaration is drawn (a VDD Power marker, a plain
-  Port), while declarations, directions and Base Nets stay separate. A
+  Logical Net, however each declaration is drawn (a VDD Power or Named Ground
+  marker, a plain Port), while declarations, directions and Base Nets stay separate. A
   direction is a drawing hint (the block symbol's pin side), never checked; a
   Port whose declarations differ reads passive. A
   Port name may differ from a visible internal Net Label without overwriting
   it.
 - `port` is the hollow Cell Pin, `port-filled` the solid Bias Voltage Port
-  (same storage). VDD Power owns a Cell-Pin declaration by default and can be
-  switched to Global in Properties. A local Power Rail owns a formal terminal
+  (same storage). VDD Power and Named Ground (`named-ground`: Ground's bars
+  naming a supply Net other than node `0`, default `VSS`, its name centred
+  below them) own a Cell-Pin declaration by default and can be switched to
+  Global in Properties. A local Power Rail owns a formal terminal
   through its `power-label` annotation (no hidden Instance); a global one has
   only the claim.
 - `projectCellInterface` groups declarations by case-insensitive Port Name
   (first declaration's order and spelling); never persisted, never merges
   objects, creates no connectivity (hierarchy trace omits a multi-member Port
   unless electrical facts already join its members).
-- Ground, Global VDD, Net Label and Power Rail author the same `name-claim`,
-  which owns scope and optional supply role. New VDD and Power Rail default
-  local; Ground is global node `0`. `AVDD` and `DVDD` differ even with the same
+- Ground, Global VDD or Named Ground, Net Label and Power Rail author the
+  same `name-claim`, which owns scope and optional supply role. New VDD,
+  Named Ground and Power Rail default local; Ground is global node `0`; a
+  Named Ground takes the `vdd` (named supply) role, never node `0`. `AVDD` and `DVDD` differ even with the same
   `vdd` role.
 - GUI naming writes the owner's `name-claim` on an existing Base Net; never
   `merge_nets` or `Net.name`. Only physical contact merges Base Nets.
@@ -94,8 +97,10 @@ cross-Document edits use one Project transaction guarded by
 
 `nmos`/`pmos` have D/G/S/B; `textbook-3terminal` is presentation only. B
 resolves from explicit membership, then a configured cell-default Net, then
-the one wired supply marker of its domain in the Cell (`ground` for NMOS,
-`vdd-port` for PMOS) as read-only `supply-default`, never written. None or
+the one wired supply marker of its domain in the Cell (`ground` for NMOS; a
+`vdd`-role marker, `vdd-port` or `named-ground`, for PMOS) as read-only
+`supply-default`, never written. Placing a Named Ground sets an absent NMOS
+cell default, as Ground does. None or
 several markers leave B unresolved; export then places it as
 [netlist export](netlist-export.md#implicit-supplies-and-mos-bodies) states.
 Persisted `supply-default` bindings stay readable. Cross-Document copy turns
@@ -148,8 +153,8 @@ annotations and unlocked layout references.
   offsets are relative to the fixed Symbol origin. Explicit bodies do not fit
   themselves to text. Absent bounds retain the previous derived geometry.
   The resolver derives block and anchors. While no parent has placed
-  the Cell, new supply Pins (VDD Power, or named like VDD/VCC/VSS/GND) get a
-  top/bottom placement and unplaced Pins sit on the side their Port is drawn
+  the Cell, new supply Pins (VDD Power on top, Named Ground below, or named
+  like VDD/VCC/VSS/GND) get a top/bottom placement and unplaced Pins sit on the side their Port is drawn
   (top-to-bottom order; middle stays automatic), sized so names clear; the
   first placement persists these, and a placed Cell's block never changes by
   this rule. Optional `artwork` replaces the derived block with author-drawn

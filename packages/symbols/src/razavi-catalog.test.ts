@@ -1260,6 +1260,18 @@ describe("Razavi symbol catalog", () => {
     expect(widths[1]!).toBeGreaterThan(widths[2]!);
   });
 
+  it("draws a Named Ground exactly as Ground, its one supply pin where Ground's is", () => {
+    const ground = requireRazaviCatalogSymbol("ground");
+    const named = requireRazaviCatalogSymbol("named-ground");
+    expect(named.primitives).toEqual(ground.primitives);
+    expect(named.viewBox).toEqual(ground.viewBox);
+    expect(named.pins).toEqual([
+      { ...ground.pins[0]!, name: "P", role: "power" },
+    ]);
+    // Its name is a power label of its own, as VDD Power's is.
+    expect(named.labelVisibility).toBe("hidden");
+  });
+
   it("uses one screenshot-authored sharp Razavi resistor path through both leads", () => {
     const resistor = requireRazaviCatalogSymbol("resistor");
     expect(resistor.primitives[0]).toMatchObject({

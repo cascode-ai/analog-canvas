@@ -18,7 +18,12 @@ import {
   canonicalParameterValues,
   instanceParameterContract,
 } from "@icm/devices";
-import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
+import {
+  isSupplyPortSymbol,
+  type CircuitProject,
+  type Instance,
+  type SchematicDocument,
+} from "@icm/model";
 import {
   drawnReferencePrefix,
   isDrawnReferenceName,
@@ -277,7 +282,9 @@ export function planPropertyApply(
       }),
     );
   }
-  const supplyMarker = instance.symbolId === "vdd-port" ? instance : undefined;
+  const supplyMarker = isSupplyPortSymbol(instance.symbolId)
+    ? instance
+    : undefined;
   if (value.netName !== undefined) {
     const portNet = supplyMarker
       ? document.nets.find((net) =>

@@ -38,6 +38,7 @@ const PRODUCT_IDS = [
   "schottky-diode",
   "externally-controlled-switch",
   "ground",
+  "named-ground",
   "ideal-switch",
   "inductor",
   "inductor-compact",

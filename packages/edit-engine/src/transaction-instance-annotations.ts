@@ -1,6 +1,7 @@
 import {
   flattenRichText,
   inverseTransformPoint,
+  isSupplyPortSymbol,
   mirrorScale,
   renamedLabelFormat,
   snapGridPoint,
@@ -78,7 +79,7 @@ function samePoint(left: Point, right: Point): boolean {
   return left.x === right.x && left.y === right.y;
 }
 
-function isCanonicalVddPowerLabel(
+function isCanonicalSupplyPortLabel(
   annotation: Annotation,
   instance: SchematicDocument["instances"][number],
   resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
@@ -87,7 +88,7 @@ function isCanonicalVddPowerLabel(
   oldOrientation: Orientation,
 ): boolean {
   if (
-    instance.symbolId !== "vdd-port" ||
+    !isSupplyPortSymbol(instance.symbolId) ||
     annotation.kind !== "power-label" ||
     annotation.id !== `power-label-${instance.id.toLowerCase()}` ||
     annotation.anchor.kind !== "object" ||
@@ -115,6 +116,7 @@ function isCanonicalVddPowerLabel(
     samePoint(visiblePosition, canonical.position) &&
     samePoint(annotation.anchor.fallbackPosition, canonical.position);
   if (matchesCanonical) return true;
+  if (instance.symbolId !== "vdd-port") return false;
 
   // Compatibility for untouched labels authored before orientation-aware VDD
   // placement. Their original {10,10} vector rotated rigidly with the Symbol.
@@ -807,7 +809,7 @@ export function followAttachedAnnotations(
     if (
       instance &&
       resolved &&
-      isCanonicalVddPowerLabel(
+      isCanonicalSupplyPortLabel(
         annotation,
         instance,
         resolved,

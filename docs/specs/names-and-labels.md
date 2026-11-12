@@ -7,7 +7,8 @@ editing and placement), `packages/edit-engine` (rename transactions)
 
 Covers labels that show an electrical name: device Reference
 (`instance-reference`), Cell Pin name (`cell-terminal-name`, incl. its parent
-block pin), Net label and supply label (VDD Power, drawn rail). Not parameter
+block pin), Net label and supply label (VDD Power, Named Ground, drawn rail).
+Not parameter
 values, drafting text, formulas or Symbol body text.
 
 ## Two facts
@@ -44,7 +45,7 @@ redraws seen drawings), whether the name was typed, connected or generated:
 
 | Role                                             | Names                                                     | Stored look                                                             |
 | ------------------------------------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Supply (VDD Power, drawn rail)                   | `V` followed by letters/digits, then an optional + or −   | Italic `V`, upright subscript rest: V_DD, V_DDH                         |
+| Supply (VDD Power, Named Ground, drawn rail)     | `V` followed by letters/digits, then an optional + or −   | Italic `V`, upright subscript rest: V_DD, V_DDH, V_SS                   |
 | Device Reference starting with its device letter | the device's one-letter prefix followed by letters/digits | Italic letter, upright subscript rest: M₁, R₁₂, R_L1, C_L, R_FB, M_TAIL |
 | Any other device Reference                       | letters followed by digits                                | Italic letters, upright subscript index: XU₀, OA₁                       |
 | Voltage node (Cell Pin, Bias Voltage, Net label) | `V` followed by letters/digits, then an optional + or −   | Italic `V`, upright subscript rest: V_in, V_BP, V_casP, V_in+, V_bn−    |

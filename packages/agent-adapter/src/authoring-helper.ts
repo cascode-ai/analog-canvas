@@ -22,9 +22,11 @@ import {
   couplableInductorPins,
   couplesInstances,
   nextInductorCouplingName,
+  supplyMarkerForSymbol,
 } from "@icm/derived";
 import {
   InstancePlacementRequestSchema,
+  isSupplyPortSymbol,
   reflectOrientation,
   SignalFlowParametersSchema,
   type InductorCoupling,
@@ -592,6 +594,13 @@ export function nativeForm(
   }
 }
 
+/** The Cell Pin name a supply port takes when given none: VDD, or VSS. */
+function supplyPortDefaultName(symbol: string): string | undefined {
+  return isSupplyPortSymbol(symbol)
+    ? supplyMarkerForSymbol(symbol)?.name
+    : undefined;
+}
+
 export function compileActions(
   actions: readonly unknown[],
   context: CompileContext,
@@ -612,7 +621,10 @@ export function compileActions(
     if (place?.kind !== "place-component") return;
     const names = [
       place.id,
-      place.reference ?? (place.symbol === "vdd-port" ? "VDD" : undefined),
+      place.reference ??
+        (typeof place.symbol === "string"
+          ? supplyPortDefaultName(place.symbol)
+          : undefined),
     ];
     for (const name of names)
       if (typeof name === "string" && !unplaced.has(name))
@@ -1425,7 +1437,9 @@ function compilePlaceComponent(
     );
   }
   const powerMarker = action.symbol === "ground";
-  const cellPin = ["port", "port-filled", "vdd-port"].includes(action.symbol);
+  const cellPin =
+    ["port", "port-filled"].includes(action.symbol) ||
+    isSupplyPortSymbol(action.symbol);
   if (action.direction && !cellPin)
     throw new ActionCompileError(
       index,
@@ -1514,8 +1528,7 @@ function compilePlaceComponent(
     action.parameters,
   );
   const variant = action.variant ?? catalogSymbol.defaultVariantId ?? undefined;
-  const reference =
-    action.reference ?? (action.symbol === "vdd-port" ? "VDD" : undefined);
+  const reference = action.reference ?? supplyPortDefaultName(action.symbol);
   const mirrored = action.mirrorOf
     ? mirroredPlacement(index, action, document)
     : undefined;

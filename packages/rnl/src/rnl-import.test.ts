@@ -446,9 +446,13 @@ describe("RNL snapshot import", () => {
       terminals: [{ instanceId: "X2", pinName: "GND" }],
     });
     const kept = applyRnlSnapshot(biased, snapshot);
-    expect(kept.diagnostics).toEqual([
-      expect.objectContaining({ code: "RNL_IMPORT_GLYPH_AS_PICTURE" }),
-    ]);
+    expect(kept.diagnostics).toEqual([]);
+    // The ground the file draws on the kept GND Pin is that Pin, drawn as a
+    // Named Ground.
+    expect(
+      kept.project.documents[0]!.instances.find((item) => item.id === "PGND")
+        ?.symbolId,
+    ).toBe("named-ground");
     expect(
       kept.project.documents[0]!.netlist!.terminals.map(
         (terminal) => terminal.name,

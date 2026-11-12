@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   deriveStableId,
+  isSupplyPortSymbol,
   renamedLabelFormat,
   type CircuitProject,
 } from "@icm/model";
@@ -91,8 +92,10 @@ export function applyCellSignalMigration(
   const marker = terminal.interfaceInstanceIds[0];
   if (
     !marker ||
-    child.instances.find((instance) => instance.id === marker)?.symbolId ===
-      "vdd-port"
+    isSupplyPortSymbol(
+      child.instances.find((instance) => instance.id === marker)?.symbolId ??
+        "",
+    )
   )
     throw new Error(
       "Native and Power Rail interfaces cannot be converted to aggregate signals",

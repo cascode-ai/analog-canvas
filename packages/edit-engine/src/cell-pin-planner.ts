@@ -4,12 +4,14 @@ import type { Annotation, CircuitProject, SchematicDocument } from "@icm/model";
 import {
   deriveStableId,
   foldNetName,
+  isSupplyPortSymbol,
   projectCellInterface,
   parseSignalExpression,
 } from "@icm/model";
 import {
   derivePowerRailComponent,
   resolveDocumentLogicalNets,
+  supplyMarkerForSymbol,
 } from "@icm/derived";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import {
@@ -20,16 +22,26 @@ import {
 import { planRemoveCellTerminals } from "./cell-interface-change-planner.js";
 
 /** The textbook edge for a supply terminal: VDD-like on top, ground-like
- * below. Undefined for a signal. */
+ * (a Named Ground's) below. Undefined for a signal. */
 function supplyEdge(
   name: string,
   vddPower: boolean,
+  groundPower = false,
 ): "north" | "south" | undefined {
+  if (groundPower) return "south";
   if (vddPower || /^(?:v(?:dd|cc|pp|pwr)|avdd|dvdd)\w*$/iu.test(name))
     return "north";
   if (/^(?:v(?:ss|ee)|gnd|vgnd|avss|dvss|agnd|dgnd)\w*$/iu.test(name))
     return "south";
   return undefined;
+}
+
+interface SupplyEdgeTerminal {
+  id: string;
+  name: string;
+  /** Drawn on VDD Power, or on a Named Ground. */
+  vddPower: boolean;
+  groundPower?: boolean;
 }
 
 /**
@@ -42,7 +54,7 @@ function supplyEdge(
 function supplyEdgePlacement(
   project: CircuitProject,
   document: SchematicDocument,
-  terminals: readonly { id: string; name: string; vddPower: boolean }[],
+  terminals: readonly SupplyEdgeTerminal[],
 ): DocumentEdits {
   const placed = project.documents.some((parent) =>
     parent.instances.some((instance) => {
@@ -57,7 +69,11 @@ function supplyEdgePlacement(
   const current = document.presentation.cellSymbol;
   const placements = [...(current?.pinPlacements ?? [])];
   for (const terminal of terminals) {
-    const side = supplyEdge(terminal.name, terminal.vddPower);
+    const side = supplyEdge(
+      terminal.name,
+      terminal.vddPower,
+      terminal.groundPower,
+    );
     if (!side) continue;
     const taken = new Set(
       placements
@@ -90,7 +106,7 @@ function supplyEdgePlacement(
 export function planSupplyTerminalEdge(
   project: CircuitProject,
   documentId: string,
-  terminals: readonly { id: string; name: string; vddPower: boolean }[],
+  terminals: readonly SupplyEdgeTerminal[],
 ): DocumentEdits {
   return supplyEdgePlacement(
     project,
@@ -177,10 +193,10 @@ export function planCreateCellPin(
   if (
     input.instance.symbolId !== "port" &&
     input.instance.symbolId !== "port-filled" &&
-    input.instance.symbolId !== "vdd-port"
+    !isSupplyPortSymbol(input.instance.symbolId)
   ) {
     throw new Error(
-      `Cell interface marker must be a Port or VDD Power: ${input.instance.symbolId}`,
+      `Cell interface marker must be a Port or a supply port: ${input.instance.symbolId}`,
     );
   }
   return [
@@ -192,6 +208,7 @@ export function planCreateCellPin(
         {
           ...input.terminal,
           vddPower: input.instance.symbolId === "vdd-port",
+          groundPower: input.instance.symbolId === "named-ground",
         },
       ]),
       ...(input.annotation
@@ -232,9 +249,12 @@ export function planSetVddConnectionMode(
   const selectedRail = document.routes.find(
     (route) => route.id === instanceId && route.presentation === "power-rail",
   );
-  if (selected?.symbolId !== "vdd-port" && !selectedRail) {
-    throw new Error(`Instance is not VDD Power: ${instanceId}`);
+  if (!isSupplyPortSymbol(selected?.symbolId ?? "") && !selectedRail) {
+    throw new Error(`Instance is not a supply port: ${instanceId}`);
   }
+  // The name a marker drawn without one takes: VDD, or a Named Ground's VSS.
+  const defaultName =
+    (selected && supplyMarkerForSymbol(selected.symbolId)?.name) ?? "VDD";
   const net = document.nets.find((candidate) =>
     selectedRail
       ? candidate.id === selectedRail.netId
@@ -250,7 +270,9 @@ export function planSetVddConnectionMode(
       const instance = document.instances.find(
         (candidate) => candidate.id === terminal.instanceId,
       );
-      return terminal.pinName === "P" && instance?.symbolId === "vdd-port"
+      return instance &&
+        terminal.pinName === "P" &&
+        isSupplyPortSymbol(instance.symbolId)
         ? [instance.id]
         : [];
     }),
@@ -384,7 +406,7 @@ export function planSetVddConnectionMode(
         `Net ${retainedFormalOnNet.name} still has a non-VDD formal Cell Pin; disconnect it before making VDD Global`,
       );
     }
-    const name = [...names.values()][0] ?? logicalName ?? "VDD";
+    const name = [...names.values()][0] ?? logicalName ?? defaultName;
     const annotationEdits: DocumentEdits = [
       ...preparation,
       ...ownedClaims
@@ -475,7 +497,7 @@ export function planSetVddConnectionMode(
       "One physical VDD Net has several Global names; unify them before making it a Cell Pin",
     );
   }
-  const name = [...claimNames.values()][0] ?? logicalName ?? "VDD";
+  const name = [...claimNames.values()][0] ?? logicalName ?? defaultName;
   const occupiedIds = new Set([
     ...document.instances.map((item) => item.id),
     ...document.nets.map((item) => item.id),
@@ -556,7 +578,12 @@ export function planSetVddConnectionMode(
   if (addedTerminalIds.length === markerIds.size && addedTerminalIds[0])
     edits.push(
       ...supplyEdgePlacement(project, document, [
-        { id: addedTerminalIds[0], name, vddPower: true },
+        {
+          id: addedTerminalIds[0],
+          name,
+          vddPower: selected?.symbolId !== "named-ground",
+          groundPower: selected?.symbolId === "named-ground",
+        },
       ]),
     );
   return [transactDocument(project, documentId, edits)];

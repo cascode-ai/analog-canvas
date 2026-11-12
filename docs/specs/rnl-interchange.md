@@ -173,7 +173,8 @@ the RNL language and its runtime belong to rnl.
   bring with them (name, value, model), so the drawing shows only the labels
   the editor writes; formulas stay.
 - Ground, supply and Cell Pin markers are written as `$GROUND`, `$SUPPLY` and
-  `$IO_PORT`, and a `NoConnect` as the standard `$NO_CONNECT` on its pin's
+  `$IO_PORT`; a Named Ground as `$GROUND` on its own net, drawn with
+  `$NAMED_GROUND_SYMBOL`. A `NoConnect` as the standard `$NO_CONNECT` on its pin's
   terminal. Wires keep every bend. What the editor joins by contact (a wire
   through a junction or pin, touching endpoints) is joined explicitly, since
   RNL never connects by position; the dots the editor draws are written.
@@ -346,9 +347,12 @@ the RNL language and its runtime belong to rnl.
     its lines, outlines, circles and curves (one with an ellipse or an arc
     keeps the generated block);
   - Cell Pins, the importer's own, moved where RNL draws `$IO_PORT` (or a
-    supply drawn on a port); ground glyphs on ground, supply glyphs claiming
-    their net by its own name; a glyph anywhere else is drawn as a floating
-    symbol, which the netlist does not read; a port on a net the Cell has
+    supply or ground drawn on a port, which draws that Pin as VDD Power or a
+    Named Ground); ground glyphs on ground; a ground glyph on any other net
+    (`vss`), drawn with either ground symbol, a Named Ground of that net;
+    Named Ground and supply glyphs claiming their net by its own name; a
+    glyph on no net of the Cell is drawn as a floating symbol, which the
+    netlist does not read; a port on a net the Cell has
     but not as a port (a flat file's inputs) as a label of its net, showing
     its own name text, else the net's name; the wires a floating glyph or
     such a port ends end at a junction at its pin;
@@ -365,7 +369,8 @@ the RNL language and its runtime belong to rnl.
     Pin and each power label it shows, so the hidden label was the port's
     only interface. Applied the same way, where the netlist stays the same;
   - the ground pin the export adds (`VSS`, or `GND`, `GND__n`, drawn as
-    ground rather than as a port) is ground again, and its callers stop
+    ground rather than as a port or with `$NAMED_GROUND_SYMBOL`) is ground
+    again, and its callers stop
     passing a node to it, as before the export; so is one a Cell drawing no
     ground prints because a Cell it calls, a switch it draws or a MOS body
     it leaves unwired meets ground, the VDD pin an unwired PMOS body gives

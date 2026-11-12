@@ -2033,6 +2033,35 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "named-ground",
+      name: "Named Ground",
+      category: "power",
+      defaultVariantId: null,
+      labelVisibility: "hidden",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      bounds: {
+        x: -6.4,
+        y: -10,
+        width: 12.8,
+        height: 21.05,
+      },
+      pins: [
+        {
+          name: "P",
+          role: "power",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -10,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "ideal-switch",
       name: "Open Switch",
       category: "switch",

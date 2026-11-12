@@ -1011,6 +1011,76 @@ describe("naming a supply marker", () => {
   });
 });
 
+describe("a Global Named Ground", () => {
+  it("names its own net VSS, never node 0, shows the name under its bars and renames to AGND", () => {
+    let document = createEmptyDocument("main", "Main");
+    const instance = {
+      id: "VSS1",
+      symbolId: "named-ground",
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    const planned = planInsertedInstanceConnections(
+      { ...document, instances: [instance] },
+      resolver,
+      instance,
+      [],
+    );
+    const placed = executeTransaction(
+      document,
+      transaction(document.revision, [
+        { kind: "add_instance", instance },
+        ...planned.edits,
+      ]),
+      context,
+    );
+    if (!placed.ok) throw new Error(JSON.stringify(placed.diagnostics));
+    document = placed.document;
+    expect(resolveDocumentLogicalNets(document).groups).toEqual([
+      expect.objectContaining({
+        name: "VSS",
+        scope: "global",
+        powerDomain: "vdd",
+      }),
+    ]);
+    const label = document.annotations.find(
+      (annotation) => annotation.kind === "power-label",
+    )!;
+    expect(label).toMatchObject({
+      id: "power-label-vss1",
+      binding: { kind: "net-name" },
+      alignment: "middle",
+      anchor: { objectId: "VSS1", localOffset: { x: 0, y: 30 } },
+    });
+    // NMOS bodies follow it: it is drawn as the rail they sit on.
+    expect(document.mosBulkDefaults?.nmosNetId).toBe(document.nets[0]!.id);
+
+    const renamed = planElectricalMarkerRename(document, "VSS1", "AGND");
+    if (renamed.status !== "ready") throw new Error(renamed.status);
+    const result = executeTransaction(
+      document,
+      transaction(document.revision, [...renamed.plan.edits]),
+      context,
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+    expect(resolveDocumentLogicalNets(result.document).groups).toEqual([
+      expect.objectContaining({
+        name: "AGND",
+        scope: "global",
+        powerDomain: "vdd",
+      }),
+    ]);
+    expect(
+      result.document.annotations.find(
+        (annotation) => annotation.id === "power-label-vss1",
+      )?.binding,
+    ).toMatchObject({ kind: "net-name" });
+  });
+});
+
 describe("multi-pin placement onto one conductor", () => {
   function verticalWireDocument() {
     const document = createEmptyDocument("main", "Main");

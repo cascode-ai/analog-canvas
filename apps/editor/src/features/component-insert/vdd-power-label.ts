@@ -4,8 +4,9 @@ import type { Annotation, SchematicDocument } from "@icm/model";
 import type { ResolvedSymbol } from "@icm/symbols";
 
 /**
- * The placed VDD power port keeps the reviewed marker artwork (a filled bar
- * with a hidden default label), so its visible "VDD" text is a separate
+ * A placed supply port (VDD Power, Named Ground) keeps its marker artwork (a
+ * filled bar, or ground's bars, with a hidden default label), so its visible
+ * "VDD" or "VSS" text is a separate
  * power-label annotation — the same semantic typography the drawn rail uses.
  * The id prefix differs from the rail's `label-` prefix so a device and a rail
  * can never overwrite each other's label. `name` is the supply the label
@@ -24,7 +25,7 @@ export function vddPowerLabelAnnotation(options: {
     options.grid,
   );
   if (!placement || !options.instance.placement) {
-    throw new Error("VDD Port power label requires a placed VDD Port Symbol");
+    throw new Error("A supply port power label requires a placed supply port");
   }
   const position = options.instance.placement.position;
   const format = supplyLabelFormat(options.name);

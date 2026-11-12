@@ -262,6 +262,76 @@ describe("followAttachedAnnotations rigid fallback", () => {
   });
 });
 
+describe("a Named Ground's name as it turns", () => {
+  it("stays centred beyond its bars, away from its pin, and upright", () => {
+    const document = createEmptyDocument("vss", "VSS");
+    const instance = {
+      id: "VSS1",
+      symbolId: "named-ground",
+      placement: {
+        position: { x: 200, y: 100 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    document.instances.push(instance);
+    const resolved = resolver.resolve("named-ground")!;
+    const initial = defaultVddPowerLabelPlacement(instance, resolved, 10)!;
+    // Under the bars, as RNL's $NAMED_GROUND_SYMBOL draws its name.
+    expect(initial).toEqual({
+      position: { x: 200, y: 130 },
+      alignment: "middle",
+    });
+    const annotation: Annotation = {
+      id: "power-label-vss1",
+      kind: "power-label",
+      content: { runs: [{ kind: "text", value: "VSS" }] },
+      anchor: {
+        kind: "object",
+        objectId: "VSS1",
+        localOffset: { x: 0, y: 30 },
+        fallbackPosition: initial.position,
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(annotation);
+    let orientation: Orientation = { rotation: 0, mirror: "none" };
+    const turn = (rotation: 90 | 180) => {
+      const next: Orientation = { rotation, mirror: "none" };
+      document.instances[0]!.placement = {
+        position: { x: 200, y: 100 },
+        ...next,
+      };
+      followAttachedAnnotations(
+        document,
+        "VSS1",
+        { x: 200, y: 100 },
+        orientation,
+        { x: 200, y: 100 },
+        next,
+        new Set(),
+        resolver,
+      );
+      orientation = next;
+      if (annotation.anchor.kind !== "object") throw new Error("anchor");
+      return { offset: annotation.anchor.localOffset, ...annotation };
+    };
+    // Upside down, the bars point up and the name stands above them.
+    expect(turn(180)).toMatchObject({
+      offset: { x: 0, y: -20 },
+      alignment: "middle",
+      rotation: 0,
+    });
+    // On its side, the name stands beyond the bars, level with them.
+    const side = turn(90);
+    expect(side.offset.y).toBe(0);
+    expect(Math.abs(side.offset.x)).toBeGreaterThanOrEqual(20);
+    expect(side.alignment).toBe(side.offset.x > 0 ? "start" : "end");
+  });
+});
+
 describe("attached text reflection", () => {
   const cases = [
     { symbolId: "nmos", kind: "instance-label" as const },
@@ -271,6 +341,7 @@ describe("attached text reflection", () => {
     { symbolId: "port", kind: "instance-label" as const },
     { symbolId: "port-filled", kind: "instance-label" as const },
     { symbolId: "vdd-port", kind: "power-label" as const },
+    { symbolId: "named-ground", kind: "power-label" as const },
     { symbolId: "xfmr", kind: "instance-value" as const, parameter: "k" },
     { symbolId: "tcoil", kind: "instance-value" as const, parameter: "l1" },
   ];

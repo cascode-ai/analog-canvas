@@ -26,7 +26,7 @@ after a human change or stale-revision rejection, and read the full Snapshot
 only for broad context. New endpoints come from MCP `inspect` target `pins`
 with `instanceIds` (up to 64) or HTTP Snapshot projection `pins`: pin
 geometry, Net IDs and bulk without full topology. A Cell Pin marker (`port`,
-`port-filled`, `vdd-port`) has `reference: null` and its name in
+`port-filled`, `vdd-port`, `named-ground`) has `reference: null` and its name in
 `cellTerminal: {id, name, direction}`. A crossing is not a connection. It
 draws plain unless the Cell's `crossingStyle` is `"hop"`
 (`set_presentation_style`), which arcs every crossing on its own; set it only
@@ -297,16 +297,18 @@ information). Hidden bulk needs no decorative wire.
 
 ## Cell Pins and supplies
 
-- `port`/`port-filled`/`vdd-port` placement also creates the Cell terminal and
-  Net. `reference` names a Port (required); `vdd-port` defaults to `VDD`;
-  `ground` takes none. Optional `direction` (default passive) applies to these
-  markers only (native `terminalDirections` keys must be new markers). The
-  first explicit supply in a batch initializes an absent bulk default, so a
-  signal input (`VIN`) is a `port`, not a `vdd-port`. A `vdd-port`'s name
-  stands beside its bar; `arrange-labels` `side:"top"` centres it (house
-  style).
+- `port`/`port-filled`/`vdd-port`/`named-ground` placement also creates the
+  Cell terminal and Net. `reference` names a Port (required); `vdd-port`
+  defaults to `VDD`, `named-ground` (the ground glyph naming a non-0 ground
+  net such as VSS, AGND) to `VSS`; `ground` (always node 0) takes none.
+  Optional `direction` (default passive) applies to these markers only
+  (native `terminalDirections` keys must be new markers). The first explicit
+  supply in a batch initializes an absent bulk default (`named-ground` the
+  NMOS one), so a signal input (`VIN`) is a `port`, not a `vdd-port`. A
+  `vdd-port`'s name stands beside its bar, `arrange-labels` `side:"top"`
+  centres it (house style); a `named-ground`'s stands centred below its bars.
 - `set-port-direction` sets one terminal or a whole Port; `set-vdd-mode`
-  switches VDD between Cell Pin and Global. Remove a Pin with
+  switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.
 - `add-power-rail` draws a `vdd-rail` (a primitive, not a symbol) with optional
   `name`/`scope` (existing scope kept, else local; `global` only explicitly).
