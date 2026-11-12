@@ -393,8 +393,9 @@ the RNL language and its runtime belong to rnl.
     a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, and a dashed one between
     junctions where it meets a body tie, any other line style or color as the
-    wire's own; junctions at named points and independent anchors at
-    anonymous wire ends; wires of no length,
+    wire's own; junctions at named points, on the net of a wire of one net
+    that meets them (a wire of several nets, a bus, is left out), and
+    independent anchors at anonymous wire ends; wires of no length,
     which join what touches, are left to touching;
   - in the default Canvas appearance for external RNL, the branch reaching
     a MOS body uses the Canvas dashed style. A free `0` label at an open

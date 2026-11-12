@@ -1957,6 +1957,42 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it("puts a point a bus wire meets first on the net of the wire of one net", async () => {
+  // %p1 is met first by a wire of two nets (a bus, left out), then by a's
+  // own wire: the point is a's, so a's wire ends there and the drawing comes
+  // in (rnl-gallery's RISC-A did not).
+  const text = [
+    "* bus tap",
+    '* @RNL(type="header") { @VERSION("0.3") }',
+    "R1 a 0 1k",
+    "R2 b 0 1k",
+    "R3 a b 1k",
+    "* @RNL {",
+    '*   #R1 @PLACE(0, 0); #R2 @PLACE(10, 0); #R3 @PLACE(20, 0) => @ORIENT("R90");',
+    "*   %p1 = (0, 10); %p2 = (10, 10);",
+    "*   {&b &a} @WIRE {%p1 %p2};",
+    "*   &a @WIRE {#R1:1 %p1}",
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  expect(plan.drawing).not.toBe("discarded");
+  expect(plan.diagnostics.map((item) => item.code)).toContain(
+    "RNL_IMPORT_WIRE_SKIPPED",
+  );
+  const document = plan.project.documents[0]!;
+  const r1 = document.instances.find((item) => item.reference === "R1")!;
+  const net = document.nets.find((item) =>
+    item.terminals.some((terminal) => terminal.instanceId === r1.id),
+  )!;
+  const junction = document.junctions.find(
+    (item) => item.position.x === 0 && item.position.y === -100,
+  );
+  expect(junction?.netId).toBe(net.id);
+});
+
 it("keeps parts where RNL puts them, on a finer Document grid", async () => {
   // R1 at (1.3, 0) is 13 units across, off Analog Canvas's 10-unit grid: it
   // stays there, and the Document takes the 1-unit grid that holds it.

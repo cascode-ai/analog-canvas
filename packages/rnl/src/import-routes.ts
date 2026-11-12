@@ -61,7 +61,9 @@ export function routeWires(
   { glyphOf, openGlyphs }: Pick<Glyphs, "glyphOf" | "openGlyphs">,
   nativeAppearance: boolean,
 ): WireRoutes {
-  // Named points that wires meet become junctions, on the net of the first.
+  // Named points that wires meet become junctions, on the net of the first
+  // wire of one net: a wire of several nets (a bus), which the import leaves
+  // out, names no junction's net.
   const junctions = new Map<string, Junction>();
   // An anonymous endpoint needs a Canvas anchor. Coordinate coincidence
   // does not name a shared junction in RNL.
@@ -93,7 +95,7 @@ export function routeWires(
     for (const vertex of wire.via) {
       if (!("point" in vertex) || junctions.has(vertex.point)) continue;
       const point = model.points.find((item) => item.id === vertex.point);
-      const netId = wire.nets[0] && netOf(wire.nets[0]);
+      const netId = wire.nets.length === 1 ? netOf(wire.nets[0]!) : undefined;
       if (!point?.at.value || !netId) continue;
       junctions.set(vertex.point, {
         id: deriveStableId("junction", document.id, level.id, vertex.point),
