@@ -96,6 +96,7 @@ import {
   createId,
   defaultDraftTextDocument,
   flattenRichText,
+  isSupplyPortSymbol,
   LINEAR_CONTROLLED_SOURCE_KINDS,
   controlledSourceExpressionSource,
 } from "@icm/model";
@@ -4523,9 +4524,11 @@ function WorkspaceEditor({
   // A design routinely carries VDDH and VDDL, or VDD1 and VDD2, at once, so
   // VDD artwork keeps its authored supply name in either Cell Pin or Global mode.
   const selectedSupplyMarker =
-    selectedInstance?.symbolId === "vdd-port" ? selectedInstance : undefined;
+    selectedInstance && isSupplyPortSymbol(selectedInstance.symbolId)
+      ? selectedInstance
+      : undefined;
   const selectedPortNet =
-    selectedInstance && selectedInstance.symbolId === "vdd-port"
+    selectedInstance && isSupplyPortSymbol(selectedInstance.symbolId)
       ? document.nets.find((net) =>
           net.terminals.some(
             (terminal) => terminal.instanceId === selectedInstance.id,

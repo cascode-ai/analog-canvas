@@ -91,6 +91,9 @@ authority. House entries follow the [visual contract](../../docs/specs/razavi-vi
 The product set is exactly the reviewed reference entries and explicit house derivatives:
 
 - `nmos`, `pmos`, and `ground`;
+- `named-ground`, a house net marker: Ground's reviewed bars unchanged, its
+  pin `P` where Ground's `0` is, naming a supply Net other than node 0
+  (`VSS`, `AGND`) as `vdd-port` does, its name a power label below the bars;
 - `voltage-source`, `pulse-voltage-source`, `current-source`; the two-terminal
   Digital Clock composes the calibrated independent voltage-source body with
   the Figure 16.8 clock-pulse mark and owns its timing semantics separately;

@@ -210,7 +210,8 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
 - A manual MOS without explicit B resolves its body: the configured Cell
   default, else `supply-default`, the Cell's single wired Net of the power
   domain (ground for NMOS, positive supply for PMOS). Power domain comes only
-  from authored evidence (`ground`/`vdd-port` marker, rail or supply Pin claim),
+  from authored evidence (`ground`/`vdd-port`/`named-ground` marker, rail or
+  supply Pin claim),
   never spelling, polarity or proximity. None or several (VDD beside AVDD)
   leaves it unresolved; unwired markers do not count.
 - Pasting a supply marker sets a missing default like placing one. A body alone

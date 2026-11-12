@@ -122,6 +122,7 @@ function nextSignalFlow(
 const PIN_MARKERS = {
   ground: "ground",
   "vdd-port": "supply marker",
+  "named-ground": "supply marker",
   port: "Cell Pin",
   "port-filled": "Cell Pin",
 } as const;

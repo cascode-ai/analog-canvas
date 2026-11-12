@@ -121,14 +121,17 @@ rendering and recovery.
 
 ## Supplies
 
-- Ground is `ground` on pin `0`, reusing the global ground Net. VDD Power places
-  a local formal Cell Pin; Properties can make it Global.
+- Ground is `ground` on pin `0`, reusing the global ground Net. VDD Power and
+  Named Ground (Library tile `VSS`, beside Ground) place a local formal Cell
+  Pin, `VDD` or `VSS`; Properties can make it Global or rename it (`AGND`).
+  A Named Ground's name stands centred beyond its bars, away from its pin, and
+  follows it as it moves or turns.
 - Power Rail: preview follows the pointer, the first click fixes an end, the
   dominant axis picks direction, the second click creates the rail per
   [connectivity](connectivity-and-routing.md#rails-and-supplies) with its label
   as formal terminal owner (or keeping an existing Global supply). Its artwork
   is preview-only; it creates no VDD Instance and exits placement.
-- VDD Power and Power Rail labels store the V_DD look as their own
+- VDD Power, Named Ground and Power Rail labels store the V_DD look as their own
   `formatOverride`; the name keeps its spelling (`VDD`). Typing renames exactly,
   keeping the look for `V`-led names; restyling never renames.
 

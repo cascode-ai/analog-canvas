@@ -404,6 +404,8 @@ describe("reach order inside a category", () => {
     ]);
     const power = ids("Power and Ports");
     expect(power.indexOf("vdd-port")).toBeLessThan(power.indexOf("vdd"));
+    // A Named Ground (VSS) sits beside Ground.
+    expect(power.indexOf("named-ground")).toBe(power.indexOf("ground") + 1);
   });
 
   it("orders passives the way they are taught, not alphabetically", () => {

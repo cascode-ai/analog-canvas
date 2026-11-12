@@ -86,7 +86,7 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
       { value: "global", label: "Global" },
     ],
     description: "",
-    help: "Choose whether VDD Power exposes a Cell Pin or declares a Global Net.",
+    help: "Choose whether the supply (VDD Power, Named Ground) exposes a Cell Pin or declares a Global Net.",
   },
   {
     path: "placement.coordinate",

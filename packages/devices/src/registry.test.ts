@@ -388,12 +388,13 @@ describe("built-in device registry", () => {
       pinOrder: ["0"],
       targetPolicy: "none",
     });
-    expect(deviceDescriptor("vdd-port")).toMatchObject({
-      deviceClass: "net-marker",
-      referencePrefix: null,
-      pinOrder: ["P"],
-      targetPolicy: "none",
-    });
+    for (const symbolId of ["vdd-port", "named-ground"])
+      expect(deviceDescriptor(symbolId)).toMatchObject({
+        deviceClass: "net-marker",
+        referencePrefix: null,
+        pinOrder: ["P"],
+        targetPolicy: "none",
+      });
   });
 
   it("gives independent sources one DC, AC, PULSE, SIN, and PWL authoring contract", () => {

@@ -21,7 +21,10 @@ import {
 } from "@icm/derived";
 import type { Instance, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
+import {
+  planInitialMosBulkDefault,
+  supplyMarkerBodyDomain,
+} from "./mos-bulk-defaults";
 import { vddPowerLabelAnnotation } from "./vdd-power-label";
 import { razaviManualBulkConnectionEdits } from "../../presentation/razavi-presentation";
 
@@ -172,9 +175,10 @@ export function planInsertedInstanceConnections(
   }
   const powerNetId = standalonePower.powerNetId ?? contact.powerNetId;
   const powerConnection = powerConnectionForSymbol(instance.symbolId);
+  const bodyDomain = supplyMarkerBodyDomain(instance.symbolId);
   const initialBulkDefaultEdits =
-    powerConnection && powerNetId
-      ? planInitialMosBulkDefault(document, powerConnection.domain, powerNetId)
+    bodyDomain && powerNetId
+      ? planInitialMosBulkDefault(document, bodyDomain, powerNetId)
       : [];
   const resolvedPowerSymbol = resolver.resolve(
     instance.symbolId,

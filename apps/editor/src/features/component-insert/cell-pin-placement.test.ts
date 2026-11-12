@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { executeProjectTransaction } from "@icm/edit-engine";
+import {
+  executeProjectTransaction,
+  planSetVddConnectionMode,
+} from "@icm/edit-engine";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
@@ -8,8 +11,13 @@ import { planPlacedCellPin } from "./cell-pin-placement";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
-/** One VDD marker as the Insert picker places it, on its own new Net. */
-function placeVddMarker(project: CircuitProject, id: string, x: number) {
+/** One supply marker as the Insert picker places it, on its own new Net. */
+function placeVddMarker(
+  project: CircuitProject,
+  id: string,
+  x: number,
+  symbolId: "vdd-port" | "named-ground" = "vdd-port",
+) {
   const document = project.documents[0]!;
   const netId = `net-cell-pin-${id.toLowerCase()}`;
   const endpoint = { kind: "terminal" as const, instanceId: id, pinName: "P" };
@@ -21,7 +29,7 @@ function placeVddMarker(project: CircuitProject, id: string, x: number) {
     edits: planPlacedCellPin(project, document.id, resolver, {
       instance: {
         id,
-        symbolId: "vdd-port",
+        symbolId,
         placement: { position: { x, y: 100 }, rotation: 0, mirror: "none" },
       },
       terminalId: `terminal-${id.toLowerCase()}`,
@@ -81,6 +89,88 @@ describe("placing a VDD marker", () => {
         { kind: "cell-terminal-name", terminalId: "terminal-vdd2" },
       ],
     ]);
+  });
+});
+
+describe("placing a Named Ground", () => {
+  it("makes a VSS Cell Pin on the block's bottom, named under its bars, that NMOS bodies follow", () => {
+    const project = placeVddMarker(
+      createEmptyProject("vss-marker", "VSS marker"),
+      "VSS1",
+      100,
+      "named-ground",
+    );
+    const document = project.documents[0]!;
+    const [terminal] = document.netlist!.terminals;
+    expect(terminal).toMatchObject({
+      name: "VSS",
+      interfaceInstanceIds: ["VSS1"],
+    });
+    // No ground claim: VSS is its own net, never node 0.
+    expect(
+      document.connectivityEvidence.filter(
+        (evidence) => evidence.kind === "name-claim",
+      ),
+    ).toEqual([]);
+    const label = document.annotations.find(
+      (annotation) => annotation.kind === "power-label",
+    )!;
+    expect(label).toMatchObject({
+      id: "power-label-vss1",
+      binding: { kind: "cell-terminal-name", terminalId: "terminal-vss1" },
+      alignment: "middle",
+      anchor: { objectId: "VSS1", localOffset: { x: 0, y: 20 } },
+    });
+    expect(document.presentation.cellSymbol?.pinPlacements).toEqual([
+      { terminalId: "terminal-vss1", side: "south", offset: 0 },
+    ]);
+    expect(document.mosBulkDefaults).toMatchObject({
+      nmosNetId: terminal!.netId,
+    });
+    expect(document.mosBulkDefaults?.pmosNetId).toBeUndefined();
+  });
+
+  it("switches between a VSS Cell Pin and a Global VSS, as VDD Power does", () => {
+    let project = placeVddMarker(
+      createEmptyProject("vss-mode", "VSS mode"),
+      "VSS1",
+      100,
+      "named-ground",
+    );
+    const switchTo = (mode: "global" | "cell-pin") => {
+      const result = executeProjectTransaction(project, {
+        transactionId: `vss-${mode}`,
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: planSetVddConnectionMode(
+          project,
+          project.topDocumentId,
+          "VSS1",
+          mode,
+        ),
+      });
+      if (!result.ok) throw new Error(JSON.stringify(result));
+      project = result.project;
+      return project.documents[0]!;
+    };
+    const global = switchTo("global");
+    expect(global.netlist!.terminals).toEqual([]);
+    expect(global.connectivityEvidence).toEqual([
+      expect.objectContaining({
+        kind: "name-claim",
+        name: "VSS",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VSS1" },
+      }),
+    ]);
+    expect(global.annotations[0]!.binding).toMatchObject({ kind: "net-name" });
+    const pin = switchTo("cell-pin");
+    expect(pin.netlist!.terminals).toEqual([
+      expect.objectContaining({ name: "VSS", interfaceInstanceIds: ["VSS1"] }),
+    ]);
+    expect(pin.connectivityEvidence).toEqual([]);
   });
 });
 

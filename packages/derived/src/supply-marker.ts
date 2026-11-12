@@ -21,6 +21,15 @@ const SUPPLY_MARKER_BY_SYMBOL = {
     domain: "vdd",
     scope: "global",
   },
+  // A ground net with a name of its own (VSS, AGND): a named supply rail,
+  // the domain a negative rail drawn on VDD Power already has. Node 0 stays
+  // the plain Ground's alone.
+  "named-ground": {
+    name: "VSS",
+    pinName: "P",
+    domain: "vdd",
+    scope: "global",
+  },
 } as const;
 
 export type SupplyMarker =

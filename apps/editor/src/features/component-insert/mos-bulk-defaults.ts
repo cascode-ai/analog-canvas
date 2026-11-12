@@ -11,6 +11,19 @@ import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 type Definitions = Pick<CircuitProject, "externalSubcircuitDefinitions">;
 
 /**
+ * Which body default a placed supply marker settles: Ground and a Named
+ * Ground (VSS, AGND) the NMOS body's, VDD Power the PMOS body's. A Named
+ * Ground names a supply rail, yet it is drawn as the rail NMOS bodies sit
+ * on, never the one PMOS bodies do.
+ */
+export function supplyMarkerBodyDomain(
+  symbolId: string,
+): "ground" | "vdd" | undefined {
+  if (symbolId === "ground" || symbolId === "named-ground") return "ground";
+  return symbolId === "vdd-port" ? "vdd" : undefined;
+}
+
+/**
  * An explicit supply placement chooses a cell default only once.  The caller
  * supplies the just-authored Net ID; this helper never discovers a supply by
  * name or power role, so AVDD-first and VDD-first remain equally deliberate.

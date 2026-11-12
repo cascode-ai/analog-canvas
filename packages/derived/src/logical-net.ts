@@ -2,6 +2,7 @@ import { registerDocumentCache } from "./document-caches.js";
 import {
   foldNetName,
   isFrozenSnapshot,
+  isSupplyPortSymbol,
   scalarCellTerminals,
   scalarConnectivityEvidence,
 } from "@icm/model";
@@ -141,7 +142,9 @@ export function resolveDocumentLogicalNets(
     );
     const powerDomain =
       interfaceAnnotation?.kind === "power-label" ||
-      interfaceInstances.some((instance) => instance.symbolId === "vdd-port")
+      interfaceInstances.some((instance) =>
+        isSupplyPortSymbol(instance.symbolId),
+      )
         ? ("vdd" as const)
         : ("none" as const);
     return {

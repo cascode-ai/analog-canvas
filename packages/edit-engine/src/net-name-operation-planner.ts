@@ -1,4 +1,7 @@
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  supplyMarkerForSymbol,
+} from "@icm/derived";
 import { deriveStableId, foldNetName, renamedLabelFormat } from "@icm/model";
 import type { RouteEndpoint, SchematicDocument } from "@icm/model";
 
@@ -18,14 +21,6 @@ export type NetNameOperationResult =
       readonly plan: RoutingOperationPlan;
     };
 
-function markerContract(symbolId: string) {
-  return symbolId === "vdd-port"
-    ? ({ pinName: "P", domain: "vdd", scope: "global" } as const)
-    : symbolId === "ground"
-      ? ({ pinName: "0", domain: "ground", scope: "global" } as const)
-      : undefined;
-}
-
 /** Rename one marker owner; the old Logical Net and its other owners stay put. */
 export function planElectricalMarkerRename(
   document: SchematicDocument,
@@ -43,7 +38,7 @@ export function planElectricalMarkerRename(
   ) {
     return { status: "rejected", message: "Formal Cell Pins use Cell naming" };
   }
-  const marker = markerContract(instance.symbolId);
+  const marker = supplyMarkerForSymbol(instance.symbolId);
   if (!marker) {
     return {
       status: "rejected",

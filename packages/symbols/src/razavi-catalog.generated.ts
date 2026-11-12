@@ -1009,6 +1009,21 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "named-ground",
+    name: "Named Ground",
+    category: "power",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reviewed page draws ground only as node 0. A ground net with a name of its own (VSS, AGND, DGND) is drawn as designs and RNL's $NAMED_GROUND_SYMBOL draw it: the reviewed Ground bars unchanged, with the Net's name below them.",
+    pinOrder: ["P"],
+    palette: true,
+    automaticMappings: [],
+    assetPath: "named-ground.json",
+    assetHash:
+      "19ceeff18955e186863c50a456f0aaffd466b0469544d5e206ec5244fa26389d",
+  },
+  {
     symbolId: "ideal-switch",
     name: "Ideal Switch",
     category: "switch",
@@ -10691,6 +10706,100 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         name: "0",
         role: "ground",
+        at: {
+          x: 0,
+          y: -10,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10,
+        },
+        to: {
+          x: 0,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -6.395349,
+          y: 0,
+        },
+        to: {
+          x: 6.395349,
+          y: 0,
+        },
+        style: {
+          strokeRole: "ground",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -4.069767,
+          y: 5.813953,
+        },
+        to: {
+          x: 4.069767,
+          y: 5.813953,
+        },
+        style: {
+          strokeRole: "ground",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -2.325581,
+          y: 11.046512,
+        },
+        to: {
+          x: 2.325581,
+          y: 11.046512,
+        },
+        style: {
+          strokeRole: "ground",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+    labelVisibility: "hidden",
+  },
+  {
+    schemaVersion: 1,
+    id: "named-ground",
+    name: "Named Ground",
+    viewBox: {
+      x: -12,
+      y: -14,
+      width: 24,
+      height: 31,
+    },
+    pins: [
+      {
+        name: "P",
+        role: "power",
         at: {
           x: 0,
           y: -10,

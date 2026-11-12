@@ -5,7 +5,7 @@ import {
   referencePolicyForInstance,
   type ReferenceIndex,
 } from "@icm/devices";
-import type { SchematicDocument } from "@icm/model";
+import { isPowerMarkerSymbol, type SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
@@ -235,7 +235,7 @@ export function applyInstanceNetlistEdit(
           ),
         };
       }
-      if (instance.symbolId === "ground" || instance.symbolId === "vdd-port") {
+      if (isPowerMarkerSymbol(instance.symbolId)) {
         return {
           ok: false,
           rejection: reject(

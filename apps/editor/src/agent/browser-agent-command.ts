@@ -47,7 +47,6 @@ import {
   resolveNetLabelOwnerRoute,
   planElectricalMarkerRename,
   proposedStandalonePowerConnection,
-  powerConnectionForSymbol,
   proposePowerRailSpan,
   type SchematicEdit,
   type TransformOperation,
@@ -56,6 +55,7 @@ import {
 import {
   createCellDocument,
   deriveStableId,
+  isSupplyPortSymbol,
   routeEnd,
   flattenRichText,
   renamedLabelFormat,
@@ -155,7 +155,17 @@ import {
 import {
   planInitialMosBulkDefault,
   planMosBulkDefaultUpdate,
+  supplyMarkerBodyDomain,
 } from "../features/component-insert/mos-bulk-defaults";
+
+/** A Cell Pin's own marker: a Port, or a supply port (VDD, Named Ground). */
+function isCellInterfaceMarker(symbolId: string): boolean {
+  return (
+    symbolId === "port" ||
+    symbolId === "port-filled" ||
+    isSupplyPortSymbol(symbolId)
+  );
+}
 import {
   logicalNetChoiceForNet,
   logicalNetChoices,
@@ -780,11 +790,7 @@ export function planBrowserAgentCommand(
           throw new Error(
             `Terminal direction targets an unknown new Instance: ${id}`,
           );
-        if (
-          !["port", "port-filled", "vdd-port"].includes(
-            command.instances[index]!.symbolId,
-          )
-        )
+        if (!isCellInterfaceMarker(command.instances[index]!.symbolId))
           throw new AgentCommandPlanningError(
             index,
             `Terminal direction requires a Cell interface marker: ${id}`,
@@ -795,9 +801,8 @@ export function planBrowserAgentCommand(
         if (index < 0)
           throw new Error(`Display targets an unknown new Instance: ${id}`);
         if (
-          ["port", "port-filled", "vdd-port", "ground"].includes(
-            command.instances[index]!.symbolId,
-          )
+          isCellInterfaceMarker(command.instances[index]!.symbolId) ||
+          command.instances[index]!.symbolId === "ground"
         )
           throw new AgentCommandPlanningError(
             index,
@@ -853,11 +858,7 @@ export function planBrowserAgentCommand(
               },
             },
           };
-        if (
-          instance.symbolId === "port" ||
-          instance.symbolId === "port-filled" ||
-          instance.symbolId === "vdd-port"
-        ) {
+        if (isCellInterfaceMarker(instance.symbolId)) {
           // The compact action's reference names a Cell terminal, not a
           // device. Use the GUI's interface planner and bound name display.
           const { reference, netlist: _netlist, ...port } = instance;
@@ -876,7 +877,7 @@ export function planBrowserAgentCommand(
             netId,
             direction:
               command.terminalDirections?.[instance.id] ??
-              (instance.symbolId === "vdd-port" ? "inout" : "passive"),
+              (isSupplyPortSymbol(instance.symbolId) ? "inout" : "passive"),
             connectionEdits: [
               {
                 kind: "connect_endpoints",
@@ -918,12 +919,12 @@ export function planBrowserAgentCommand(
         const power = proposedStandalonePowerConnection(document, instance);
         if (power.rejected) throw new Error(power.rejected);
         edits.push({ kind: "add_instance", instance }, ...power.edits);
-        const supply = powerConnectionForSymbol(instance.symbolId);
-        if (supply && power.powerNetId)
+        const bodyDomain = supplyMarkerBodyDomain(instance.symbolId);
+        if (bodyDomain && power.powerNetId)
           edits.push(
             ...planInitialMosBulkDefault(
               document,
-              supply.domain,
+              bodyDomain,
               power.powerNetId,
               edits,
             ),

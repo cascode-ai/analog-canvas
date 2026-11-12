@@ -1,5 +1,5 @@
 import { resolveDocumentLogicalNets } from "@icm/derived";
-import { deriveStableId } from "@icm/model";
+import { deriveStableId, isPowerMarkerSymbol } from "@icm/model";
 import type { ConnectivityEvidence, SchematicDocument } from "@icm/model";
 
 /**
@@ -25,8 +25,7 @@ export function missingPowerMarkerClaims(
   );
   const claims: ConnectivityEvidence[] = [];
   for (const instance of document.instances) {
-    if (instance.symbolId !== "ground" && instance.symbolId !== "vdd-port")
-      continue;
+    if (!isPowerMarkerSymbol(instance.symbolId)) continue;
     if (
       document.netlist?.terminals.some((terminal) =>
         terminal.interfaceInstanceIds.includes(instance.id),

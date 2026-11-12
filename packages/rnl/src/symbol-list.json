@@ -1145,6 +1145,35 @@
     "note": ""
   },
   {
+    "symbol": "$NAMED_GROUND_SYMBOL",
+    "definition": "$GROUND",
+    "package": "rnl-std-basic",
+    "ac": "named-ground",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "p",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 1],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p",
+        "ac_pin": "P",
+        "at": [0, 0],
+        "dir": 90
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-1.2, -2.7, 1.2, 0],
+    "ac_netlist_order": null,
+    "note": "地的符号，网名写在下方：非 0 的地网（VSS、AGND）"
+  },
+  {
     "symbol": "$IO_PORT_SYMBOL",
     "definition": "$IO_PORT",
     "package": "rnl-std-basic",

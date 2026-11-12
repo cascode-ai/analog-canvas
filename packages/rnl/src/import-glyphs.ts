@@ -20,6 +20,9 @@ import {
 } from "./import-pins.js";
 import { type LevelScope, type RnlHiddenLabels } from "./import-scope.js";
 
+/** The Analog Canvas symbols that draw a `$GROUND`. */
+const GROUND_SYMBOLS: ReadonlySet<string> = new Set(["ground", "named-ground"]);
+
 /** The glyphs a level draws, by usage, and the Cell Pins they place. */
 export interface Glyphs {
   /** Each glyph drawn as a Cell Pin or a ground or supply glyph: the pin it is. */
@@ -41,19 +44,27 @@ export interface Glyphs {
  * GND, GND__2 …), which its drawing shows as ground, never as a port, and
  * its calls tie to ground. On such a pin the Cell's ground is ground again,
  * as drawn; its callers' ground reaches it as before. A pin a call ties
- * elsewhere stays a port.
+ * elsewhere stays a port, and so does one drawn as a Named Ground, which
+ * shows the pin's own name.
  */
 export function reclaimGroundPins(
-  { project, document, model, netOf }: LevelScope,
+  { project, document, model, netOf, symbols }: LevelScope,
   tiedToGround: ReadonlySet<string>,
 ): ReadonlySet<string> {
-  const usagesOn = (definition: string) =>
+  const usagesOn = (
+    definition: string,
+    drawn: (symbol: string | undefined) => boolean = () => true,
+  ) =>
     new Set(
       model.objects.flatMap((object) => {
         const attached = object.attach?.["p"];
+        const symbol = object.symbol.value
+          ? symbols.get(object.symbol.value)?.name
+          : undefined;
         const netId =
           object.kind === "usage" &&
           object.definition === definition &&
+          drawn(symbol) &&
           typeof attached === "string"
             ? netOf(attached)
             : undefined;
@@ -61,7 +72,10 @@ export function reclaimGroundPins(
       }),
     );
   const groundNets = usagesOn("$GROUND");
-  const portNets = usagesOn("$IO_PORT");
+  const portNets = new Set([
+    ...usagesOn("$IO_PORT"),
+    ...usagesOn("$GROUND", (symbol) => symbol === "$NAMED_GROUND_SYMBOL"),
+  ]);
   const groundPins = new Set<string>();
   for (const terminal of [...(document.netlist?.terminals ?? [])])
     if (
@@ -80,7 +94,9 @@ export function reclaimGroundPins(
  * Each usage of a virtual element on an Analog Canvas glyph, read one by one
  * in the file's order. A Cell Pin is the importer's own, moved where RNL
  * draws it; ground and supply glyphs are added on their nets, each claiming
- * its supply; a ground goes only on `groundPins` or the global 0.
+ * its supply. A ground on `groundPins` or the global 0 is Ground; on any
+ * other net (VSS, AGND) it is a Named Ground of that net, however the file
+ * draws it.
  */
 export function readGlyphs(
   { document, level, symbols, warn, instanceOf, netOf, snap }: LevelScope,
@@ -119,9 +135,30 @@ export function readGlyphs(
             ...acOrientation(mapped.orient),
           }
         : null;
-    // A port the Cell has, drawn as a port or as a supply: the importer's
-    // own Cell Pin, moved where RNL draws it, in the glyph RNL draws.
-    if (object.definition === "$IO_PORT" || object.definition === "$SUPPLY") {
+    const ground = object.definition === "$GROUND";
+    const named = document.importReference?.nets.find(
+      (item) => item.id === netId,
+    );
+    const isGround =
+      (netId !== undefined && groundPins.has(netId)) ||
+      (named?.name === "0" && named.scope === "global");
+    // A ground glyph is Ground on ground, else a Named Ground of its net,
+    // whichever of the two symbols draws it; nothing else draws a ground.
+    const glyphSymbol = ground
+      ? mapped && GROUND_SYMBOLS.has(mapped.row.ac ?? "")
+        ? isGround
+          ? "ground"
+          : "named-ground"
+        : undefined
+      : mapped?.row.ac;
+    // A port the Cell has, drawn as a port, a supply or a named ground: the
+    // importer's own Cell Pin, moved where RNL draws it, in the glyph RNL
+    // draws.
+    if (
+      object.definition === "$IO_PORT" ||
+      object.definition === "$SUPPLY" ||
+      (ground && !isGround)
+    ) {
       const terminal = document.netlist?.terminals.find(
         (item) =>
           item.netId === netId &&
@@ -131,12 +168,12 @@ export function readGlyphs(
         (id) => !movedPins.has(id),
       );
       const pin = pinId === undefined ? undefined : instanceOf(pinId);
-      if (pin) {
+      if (pin && (!ground || glyphSymbol)) {
         const placement = placementOf();
         movedPins.add(pin.id);
         if (placement) placedPins.add(pin.id);
         glyphOf.set(object.id, { instanceId: pin.id, pinName: "P" });
-        if (mapped) pin.symbolId = mapped.row.ac!;
+        if (mapped) pin.symbolId = glyphSymbol ?? mapped.row.ac!;
         pin.placement = placement ?? pin.placement;
         Object.assign(pin, paintOf(object));
         return;
@@ -182,19 +219,14 @@ export function readGlyphs(
       }
     }
     if (object.definition === "$GROUND" || object.definition === "$SUPPLY") {
-      // A ground glyph names its net 0, so it goes only on ground; a supply
+      // A ground glyph on ground names its net 0; a Named Ground or supply
       // glyph claims its net by the net's own name. Anything else is drawn
       // as a picture, which the netlist does not read.
       const net = document.nets.find((item) => item.id === netId);
-      const named = document.importReference?.nets.find(
-        (item) => item.id === netId,
-      );
-      const ground = object.definition === "$GROUND";
-      const isGround =
-        (netId !== undefined && groundPins.has(netId)) ||
-        (named?.name === "0" && named.scope === "global");
-      const pinName = mapped?.row.pins[0]?.acPin;
-      if (!net || !mapped || !pinName || (ground && !isGround)) {
+      const pinName = ground
+        ? glyphSymbol && supplyMarkerForSymbol(glyphSymbol)?.pinName
+        : mapped?.row.pins[0]?.acPin;
+      if (!net || !mapped || !glyphSymbol || !pinName) {
         if (net) openGlyphs.set(object.id, { netId: net.id });
         if (mapped && at) {
           document.drafting ??= { objects: [] };
@@ -210,19 +242,19 @@ export function readGlyphs(
         }
         warn(
           "RNL_IMPORT_GLYPH_AS_PICTURE",
-          `${object.id} draws ${object.definition} on ${String(attached)}, which is not ${ground ? "ground" : "a net of this Cell"}; it is drawn as a picture`,
+          `${object.id} draws ${object.definition} on ${String(attached)}, which is not a net of this Cell; it is drawn as a picture`,
         );
         return;
       }
       const id = deriveStableId("glyph", document.id, level.id, object.id);
       document.instances.push({
         id,
-        symbolId: mapped.row.ac!,
+        symbolId: glyphSymbol,
         placement: placementOf(),
         ...paintOf(object),
       });
       net.terminals.push({ instanceId: id, pinName });
-      const supply = supplyMarkerForSymbol(mapped.row.ac!);
+      const supply = supplyMarkerForSymbol(glyphSymbol);
       if (supply)
         document.connectivityEvidence.push({
           id: deriveStableId("connectivity-evidence", document.id, id),
@@ -230,10 +262,13 @@ export function readGlyphs(
           netId: net.id,
           owner: { kind: "power-marker", objectId: id },
           powerDomain: supply.domain,
-          ...(ground
+          ...(glyphSymbol === "ground"
             ? { name: supply.name, scope: supply.scope }
             : {
-                name: named?.name ?? rnlIdName(String(attached), "&") ?? "VDD",
+                name:
+                  named?.name ??
+                  rnlIdName(String(attached), "&") ??
+                  supply.name,
                 scope: named?.scope ?? "local",
               }),
         });

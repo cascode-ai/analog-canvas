@@ -769,6 +769,84 @@ R1 A B 5k
   );
 });
 
+describe("a Named Ground", () => {
+  /** R1 from a ground to a Named Ground; the marker's own claim, if any. */
+  function namedGroundCell(claim?: string) {
+    const document = createEmptyDocument("main", "dut");
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        netlist: { parameters: { value: "1k" } },
+        placement: null,
+      },
+      { id: "GND1", symbolId: "ground", placement: null },
+      { id: "VSS1", symbolId: "named-ground", placement: null },
+    );
+    document.nets.push(
+      {
+        id: "net-gnd",
+        terminals: [
+          { instanceId: "GND1", pinName: "0" },
+          { instanceId: "R1", pinName: "1" },
+        ],
+      },
+      {
+        id: "net-vss",
+        terminals: [
+          { instanceId: "VSS1", pinName: "P" },
+          { instanceId: "R1", pinName: "2" },
+        ],
+      },
+    );
+    document.connectivityEvidence.push({
+      id: "gnd-claim",
+      kind: "name-claim",
+      netId: "net-gnd",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "GND1" },
+    });
+    if (claim)
+      document.connectivityEvidence.push({
+        id: "vss-claim",
+        kind: "name-claim",
+        netId: "net-vss",
+        name: claim,
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VSS1" },
+      });
+    const project = createEmptyProject("named-ground", "Named ground", "main");
+    project.documents = [document];
+    return project;
+  }
+
+  it.each([
+    [undefined, "VSS"],
+    ["AGND", "AGND"],
+  ] as const)(
+    "prints the net it names (claim %s) as %s, never ground",
+    (claim, name) => {
+      const result = createDesignNetlistExport(namedGroundCell(claim), {
+        format: "spice",
+      });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      // The Cell's ground takes its added pin, by a name the supply leaves
+      // free (GND beside a VSS); the Named Ground's net is its own.
+      const [, ground] =
+        result.file.text.match(new RegExp(`^R1 (\\S+) ${name} 1k$`, "mu")) ??
+        [];
+      expect(ground).toBe(name === "VSS" ? "GND" : "VSS");
+      expect(result.file.text).toContain(`.subckt dut ${ground}\n`);
+      expect(result.file.text).toMatch(new RegExp(`^\\.global ${name}$`, "mu"));
+    },
+  );
+});
+
 describe("ground as the Cell's own pin", () => {
   /** One NMOS with a drawn ground, a declared VDD Port, and an output Port. */
   function cellWithGround(id = "main", name = "dut") {

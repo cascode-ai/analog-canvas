@@ -74,6 +74,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   vdd: "VDD Rail",
   "no-connect": "NoConn",
   "vdd-port": "VDD",
+  "named-ground": "VSS",
   "voltage-amplifier": "V Amp",
   "voltage-source": "V Src",
   adder: "Add",

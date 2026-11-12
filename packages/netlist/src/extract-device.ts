@@ -1,10 +1,11 @@
 // A primitive device as its card: model target, parameters, the controls
 // of a controlled source, and the built-in Zener model's name.
-import type {
-  CircuitProject,
-  Instance,
-  SchematicDocument,
-  StableId,
+import {
+  isSupplyPortSymbol,
+  type CircuitProject,
+  type Instance,
+  type SchematicDocument,
+  type StableId,
 } from "@icm/model";
 import {
   deviceDescriptor,
@@ -83,14 +84,16 @@ export function extractDeviceInstance(
         [instance.id, markerNet.id],
       );
     } else if (
-      instance.symbolId === "vdd-port" &&
+      isSupplyPortSymbol(instance.symbolId) &&
       markerNet.powerDomain !== "vdd"
     ) {
       diagnostic(
         diagnostics,
         document.id,
         "INVALID_NET_MARKER",
-        `VDD Port ${instance.id} must connect to an explicitly classified VDD Net`,
+        instance.symbolId === "vdd-port"
+          ? `VDD Port ${instance.id} must connect to an explicitly classified VDD Net`
+          : `Named Ground ${instance.id} must connect to an explicitly classified supply Net`,
         [instance.id, markerNet.id],
       );
     }

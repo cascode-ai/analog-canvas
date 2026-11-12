@@ -2327,6 +2327,21 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "named-ground",
+    symbolId: "named-ground",
+    deviceClass: "net-marker",
+    referencePrefix: null,
+    pinOrder: ["P"],
+    targetPolicy: "none",
+    parameters: [],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: false,
+    },
+  },
+  {
     id: "vdd-port",
     symbolId: "vdd-port",
     deviceClass: "net-marker",

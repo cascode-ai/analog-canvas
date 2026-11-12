@@ -27,6 +27,7 @@ const instanceIdPrefixOverrides: Record<string, string> = {
   port: "P",
   "port-filled": "P",
   "vdd-port": "VDD",
+  "named-ground": "VSS",
 };
 
 export function instanceIdPrefix(symbolId: string): string {

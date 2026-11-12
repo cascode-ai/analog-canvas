@@ -10,6 +10,7 @@ import {
   mosBulkKind,
   resolveMosBulkConnection,
   resolveCommittedDocumentLogicalNets,
+  supplyMarkerForSymbol,
   type ProjectedNetName,
   type ResolvedDocumentLogicalNets,
   type ResolvedLogicalNet,
@@ -66,7 +67,8 @@ export function encodeCandidate(
 }
 
 /**
- * A visible Ground or VDD marker is already an explicit electrical statement.
+ * A visible Ground or supply marker (VDD Power, Named Ground) is already an
+ * explicit electrical statement.
  * Older drawings and copied markers can predate the persisted name-claim
  * ownership record, so recover that statement in the read-only export view.
  * Ordinary unnamed Nets still receive deterministic net0-style names below.
@@ -85,12 +87,8 @@ export function withNetlistPowerMarkerClaims(
   );
   const additions: ConnectivityEvidence[] = [];
   for (const instance of document.instances) {
-    const ground = instance.symbolId === "ground";
-    if (
-      (!ground && instance.symbolId !== "vdd-port") ||
-      claimedMarkers.has(instance.id)
-    )
-      continue;
+    const marker = supplyMarkerForSymbol(instance.symbolId);
+    if (!marker || claimedMarkers.has(instance.id)) continue;
     const pinName = deviceDescriptor(instance.symbolId, project)?.pinOrder[0];
     if (!pinName) continue;
     const nets = document.nets.filter((net) =>
@@ -117,9 +115,9 @@ export function withNetlistPowerMarkerClaims(
       ),
       kind: "name-claim",
       netId: nets[0]!.id,
-      name: ground ? "0" : "VDD",
-      scope: "global",
-      powerDomain: ground ? "ground" : "vdd",
+      name: marker.name,
+      scope: marker.scope,
+      powerDomain: marker.domain,
       owner: { kind: "power-marker", objectId: instance.id },
     });
   }

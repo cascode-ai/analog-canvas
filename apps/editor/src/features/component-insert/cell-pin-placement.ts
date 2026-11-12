@@ -4,19 +4,24 @@ import {
   planCreateCellPin,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import type {
-  Annotation,
-  CircuitProject,
-  Instance,
-  SchematicDocument,
+import {
+  isSupplyPortSymbol,
+  type Annotation,
+  type CircuitProject,
+  type Instance,
+  type SchematicDocument,
 } from "@icm/model";
 import {
   resolveDocumentStyleProfile,
+  supplyMarkerForSymbol,
   type SchematicStyleProfile,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 import { defaultInstanceDisplayAnnotations } from "../instance-display/default-instance-display";
-import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
+import {
+  planInitialMosBulkDefault,
+  supplyMarkerBodyDomain,
+} from "./mos-bulk-defaults";
 import { vddPowerLabelAnnotation } from "./vdd-power-label";
 
 /** Shared electrical/display proposal; callers retain their own contact policy. */
@@ -37,8 +42,10 @@ export function planPlacedCellPin(
 ) {
   const document = project.documents.find((item) => item.id === documentId);
   if (!document) throw new Error("Cell not found");
-  const supply = input.instance.symbolId === "vdd-port";
-  const name = input.name?.trim() ?? (supply ? "VDD" : undefined);
+  const supply = isSupplyPortSymbol(input.instance.symbolId);
+  const name =
+    input.name?.trim() ??
+    (supply ? supplyMarkerForSymbol(input.instance.symbolId)?.name : undefined);
   if (!name) throw new Error("A Cell interface marker requires a name");
   const resolved = supply
     ? resolver.resolve(input.instance.symbolId)
@@ -74,7 +81,7 @@ export function planPlacedCellPin(
       ...(supply
         ? planInitialMosBulkDefault(
             document,
-            "vdd",
+            supplyMarkerBodyDomain(input.instance.symbolId) ?? "vdd",
             input.netId,
             input.precedingEdits,
           )
