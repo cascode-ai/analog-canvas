@@ -1,4 +1,7 @@
-import { portableCellIdentifier } from "@icm/derived";
+import {
+  portableCellIdentifier,
+  resolveSchematicStyleProfile,
+} from "@icm/derived";
 import {
   bindsProjectCell,
   deviceDescriptor,
@@ -35,6 +38,7 @@ import {
   isOrient,
 } from "./rnl-snapshot.js";
 import { family } from "./import-symbols.js";
+import { rnlLength } from "./shapes.js";
 import { importTexts } from "./import-texts.js";
 import {
   removeAddedPins,
@@ -653,6 +657,29 @@ function applyLevel(input: LevelInput, records: ImportRecords): void {
   // The Document takes the grid its places need, as RNL puts them.
   if (scope.grid < document.presentation.grid)
     document.presentation.grid = scope.grid;
+  // The Document's line widths, where its wires (or its parts) are all drawn
+  // as wide as one another and not as Analog Canvas's own (RNL's linewidth).
+  const base = resolveSchematicStyleProfile(
+    document.presentation.styleProfileId,
+  ).strokes;
+  const wireScale = widthScale(
+    model.wires
+      .filter((wire) => wire.style["linestyle"] !== "bold")
+      .map((wire) => wire.style["linewidth"]),
+    rnlLength(base.wire),
+  );
+  const symbolScale = widthScale(
+    model.objects
+      .filter((object) => object.kind === "instance")
+      .map((object) => object.style?.["linewidth"]),
+    rnlLength(base.symbol),
+  );
+  if (wireScale !== undefined || symbolScale !== undefined)
+    document.presentation.styleOverrides = {
+      ...document.presentation.styleOverrides,
+      ...(wireScale !== undefined ? { wireStrokeScale: wireScale } : {}),
+      ...(symbolScale !== undefined ? { symbolStrokeScale: symbolScale } : {}),
+    };
   if (scope.snapped)
     scope.warn(
       "RNL_IMPORT_SNAPPED",
@@ -692,4 +719,23 @@ function trimCallMappings(project: CircuitProject): void {
           pins.has(item.pinName.toLowerCase()),
         );
     }
+}
+
+/**
+ * How much wider than `own` every one of `widths` is, where they are all one
+ * width and not `own`; undefined where any is unset or they differ.
+ */
+function widthScale(
+  widths: readonly unknown[],
+  own: number,
+): number | undefined {
+  const first = widths[0];
+  if (
+    typeof first !== "number" ||
+    !(own > 0) ||
+    widths.some((width) => width !== first)
+  )
+    return undefined;
+  const scale = Math.round((first / own) * 1000) / 1000;
+  return scale === 1 ? undefined : scale;
 }

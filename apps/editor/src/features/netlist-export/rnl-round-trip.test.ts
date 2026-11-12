@@ -1611,6 +1611,32 @@ it.each([
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "keeps the Document's wire and symbol widths through %s+RNL",
+  async (format) => {
+    const project = calledBlocks(["crystal"]);
+    project.documents[0]!.presentation.styleOverrides = {
+      wireStrokeScale: 0.75,
+      symbolStrokeScale: 0.8,
+    };
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const document = plan.project.documents.find(
+      (item) => item.netlist?.name === "dut",
+    )!;
+    expect(document.presentation.styleOverrides).toMatchObject({
+      wireStrokeScale: 0.75,
+      symbolStrokeScale: 0.8,
+    });
+  },
+);
+
 it("keeps parts where RNL puts them, on a finer Document grid", async () => {
   // R1 at (1.3, 0) is 13 units across, off Analog Canvas's 10-unit grid: it
   // stays there, and the Document takes the 1-unit grid that holds it.

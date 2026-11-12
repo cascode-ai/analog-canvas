@@ -53,6 +53,7 @@ import {
 import type { Op, Vertex } from "@rich-netlist/runtime";
 
 import { blockSymbols, blockTerminals } from "./block-symbols.js";
+import { rnlLength } from "./shapes.js";
 import { draftingLayer, draftingShapes, drawingGroup } from "./drawing-ops.js";
 import {
   composeOrient,
@@ -673,9 +674,21 @@ function exportCell(
     // Its colour: its lines and the labels it brings, which RNL gives the
     // style of their part (11.3), as the editor gives a label its Instance's.
     const foreground = instance.styleOverride?.foreground;
-    const paint = foreground
-      ? { style: { linecolor: foreground, textcolor: foreground } }
-      : {};
+    // Its line width, where the Document draws symbols thinner or thicker
+    // than Analog Canvas's own (RNL's linewidth, 9.3).
+    const symbolScale =
+      document.presentation.styleOverrides?.symbolStrokeScale ?? 1;
+    const paintStyle: Record<string, string | number> = {
+      ...(foreground ? { linecolor: foreground, textcolor: foreground } : {}),
+      ...(symbolScale !== 1
+        ? {
+            linewidth: rnlLength(
+              resolveDocumentStyleProfile(document.presentation).strokes.symbol,
+            ),
+          }
+        : {}),
+    };
+    const paint = Object.keys(paintStyle).length ? { style: paintStyle } : {};
     if (instance.styleOverride?.background)
       report(
         "warning",
@@ -1045,9 +1058,15 @@ function exportCell(
       );
       continue;
     }
-    const style: Record<string, string> = {};
+    const style: Record<string, string | number> = {};
     if (route.presentation === "bulk-dashed") style.linestyle = "dashed";
     if (route.presentation === "power-rail") style.linestyle = "bold";
+    // A wire as wide as the Document draws wires, where that is not Analog
+    // Canvas's own width (RNL's linewidth, 9.3).
+    else if ((document.presentation.styleOverrides?.wireStrokeScale ?? 1) !== 1)
+      style.linewidth = rnlLength(
+        resolveDocumentStyleProfile(document.presentation).strokes.wire,
+      );
     if (route.styleOverride?.lineStyle)
       style.linestyle = route.styleOverride.lineStyle;
     if (route.styleOverride?.color) style.linecolor = route.styleOverride.color;
