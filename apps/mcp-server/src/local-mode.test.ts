@@ -178,12 +178,29 @@ describe("MCP local mode (#1498)", () => {
         message: expect.stringContaining("needs the website"),
       },
     });
-    // So do the Gallery and the figure files the editor measures in a page.
+    // SVG and PNG files are drawn without a page, cropped to what they draw.
+    const svgFile = await tool("export_file", {
+      artifact: "svg",
+      documentId: "main",
+      outputPath: `${root}/f.svg`,
+    });
+    expect(svgFile).toMatchObject({ ok: true, artifact: "svg" });
+    expect(await readFile(`${root}/f.svg`, "utf8")).toMatch(/^<svg\b/u);
+    expect(
+      await tool("export_file", {
+        artifact: "png",
+        documentId: "main",
+        outputPath: `${root}/f.png`,
+      }),
+    ).toMatchObject({ ok: true, artifact: "png" });
+    const png = await readFile(`${root}/f.png`);
+    expect([...png.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    // The Gallery and a PDF still need the website.
     for (const [name, args] of [
       ["gallery_circuits", { action: "list" }],
       [
         "export_file",
-        { artifact: "svg", documentId: "main", outputPath: `${root}/f.svg` },
+        { artifact: "pdf", documentId: "main", outputPath: `${root}/f.pdf` },
       ],
     ] as const)
       expect(await tool(name, args)).toMatchObject({
@@ -216,6 +233,45 @@ describe("MCP local mode (#1498)", () => {
       revision: saved.documents[0]!.revision,
       instanceCount: saved.documents[0]!.instances.length,
     });
+  });
+
+  it("draws the command-line guide's example and exports it (docs/user/command-line.md)", async () => {
+    const root = await temporary();
+    const dir = join(root, "cs");
+    const { tool } = await open({
+      dir,
+      create: { name: "Common-source amplifier" },
+    });
+    for (const step of ["place", "wire", "labels"])
+      expect(
+        await tool(
+          "apply_actions",
+          JSON.parse(
+            await readFile(
+              resolve(
+                import.meta.dirname,
+                `../../../docs/user/examples/common-source/${step}.json`,
+              ),
+              "utf8",
+            ),
+          ),
+        ),
+      ).toMatchObject({ ok: true });
+    expect(await tool("netlist_code", { action: "read" })).toMatchObject({
+      netlist: {
+        status: "ready",
+        text: expect.stringMatching(
+          /XM1 Vout Vin VSS VSS [\s\S]*RD VDD Vout 10kΩ/u,
+        ),
+      },
+    });
+    expect(
+      await tool("export_file", {
+        artifact: "png",
+        documentId: "main",
+        outputPath: join(root, "schematic.png"),
+      }),
+    ).toMatchObject({ ok: true });
   });
 
   it("places transistors in the editor's default Process unless one is named", async () => {

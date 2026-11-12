@@ -1,0 +1,8 @@
+{
+  "actions": [
+    {
+      "kind": "apply-label-preset",
+      "preset": "textbook"
+    }
+  ]
+}

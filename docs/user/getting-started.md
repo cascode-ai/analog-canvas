@@ -18,6 +18,9 @@ To start from a netlist, choose **File → Import SPICE / SCS…** and select on
 global Nets. Imported parts start in the **Placement Tray** so you decide the
 layout.
 
+To draw and export from a script, with no browser, use the
+[command line](command-line.md).
+
 ## The editor
 
 The header has **File**, **Edit** and **Circuit** menus and the **Agent** and

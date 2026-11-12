@@ -1,0 +1,45 @@
+{
+  "actions": [
+    {
+      "kind": "connect",
+      "from": {
+        "kind": "pin",
+        "instance": "RD",
+        "pin": "2"
+      },
+      "to": {
+        "kind": "pin",
+        "instance": "M1",
+        "pin": "D"
+      }
+    },
+    {
+      "kind": "connect",
+      "from": {
+        "kind": "pin",
+        "instance": "Vin",
+        "pin": "P"
+      },
+      "to": {
+        "kind": "pin",
+        "instance": "M1",
+        "pin": "G"
+      }
+    },
+    {
+      "kind": "connect",
+      "from": {
+        "kind": "wire-at",
+        "point": {
+          "x": 110,
+          "y": 70
+        }
+      },
+      "to": {
+        "kind": "pin",
+        "instance": "Vout",
+        "pin": "P"
+      }
+    }
+  ]
+}

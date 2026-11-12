@@ -1,8 +1,10 @@
 # Local workspaces for drawing without a browser
 
 For batch work or an Agent drawing with no editor page open (dataset redraws,
-Gallery batch checks, build-server jobs). Internal tool (#1498): no stability
-promise, not shipped as an MCP resource.
+Gallery batch checks, build-server jobs). Public (#1498) but not stable: it
+changes with each MCP release, so scripts pin a version. Not an MCP resource;
+people start from the [command line](../user/command-line.md)
+(`scripts/canvas-local.mjs`).
 
 `analog-canvas-mcp --local <dir>` serves every MCP tool from one Project file,
 `<dir>/project.icproj.json`, through the editor's own Agent host in the MCP
@@ -32,9 +34,11 @@ jq -n --rawfile text ws/reference.sp '{expectedNetlist:{text:$text}}' \
 ```
 
 `render` returns the formal SVG, `netlist_code` `{"action":"read"}` the
-netlist, `export_file` `{"artifact":"project"}` a Project copy. Refused:
-simulation (`SIMULATION_UNAVAILABLE`), Gallery, Cloud and tabs
-(`gallery_circuits`, `project_cells`) and figure exports, which need a page
+netlist. `export_file` writes `svg` and `png` files as the editor exports them:
+the bundle's resvg (WebAssembly) draws the PNG at 3× in the editor's fonts and
+crops both to what is drawn. `{"artifact":"project"}` writes a Project copy.
+Refused: simulation (`SIMULATION_UNAVAILABLE`), Gallery, Cloud and tabs
+(`gallery_circuits`, `project_cells`) and PDF files, which need a page
 (`WEBSITE_REQUIRED`).
 
 One process holds a workspace (`<dir>/.lock`; another opener is refused "in use

@@ -23,7 +23,11 @@ import type {
 } from "@icm/edit-engine";
 import { planProjectCellBodyImport } from "@icm/edit-engine";
 import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";
-import { createBrowserFormalExportSource } from "@icm/exporters";
+import {
+  createBrowserFormalExportSource,
+  type FormalExportSource,
+  type RasterExport,
+} from "@icm/exporters";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { RnlAppearance } from "@icm/rnl";
@@ -55,7 +59,19 @@ export type AgentReviewWorkspace = Pick<
   "workspaceId" | "workspaceGeneration" | "sourceVersion"
 >;
 
+/**
+ * Formal figures drawn without a page (local mode, #1498): the source
+ * measured and the PNG drawn by resvg, as the browser measures and draws
+ * them. PDF stays a website export there.
+ */
+export interface HeadlessFigureExports {
+  source: typeof createBrowserFormalExportSource;
+  png(source: FormalExportSource): Promise<RasterExport>;
+}
+
 export interface BrowserAgentFileHostOptions {
+  /** Draw SVG and PNG files without a browser page. */
+  headlessFigures?: HeadlessFigureExports;
   openLocalProject?: OpenLocalProject;
   getReviewWorkspace?: () => AgentReviewWorkspace | undefined;
   getActiveDocumentId?: () => string;
@@ -525,14 +541,25 @@ export class BrowserAgentFileHost {
           "REVIEW_TARGET_CHANGED",
           "The Canvas no longer shows the requested revision. Read the live Project before taking a new image.",
         );
+      const headless = this.options.headlessFigures;
+      if (headless && request.artifact === "pdf")
+        return this.error(
+          request,
+          "WEBSITE_REQUIRED",
+          "PDF export needs the website; a local workspace exports SVG and PNG.",
+        );
       const resolver = this.options.getResolver();
       const prepared = await prepareDocumentFormulaArtifacts(document);
       const source = await (async () => {
         try {
-          return await createBrowserFormalExportSource(document, resolver, {
-            title: project.name,
-            ...(request.bounds ? { bounds: request.bounds } : {}),
-          });
+          return await (headless?.source ?? createBrowserFormalExportSource)(
+            document,
+            resolver,
+            {
+              title: project.name,
+              ...(request.bounds ? { bounds: request.bounds } : {}),
+            },
+          );
         } finally {
           prepared.release();
         }
@@ -550,11 +577,14 @@ export class BrowserAgentFileHost {
           bytes: new TextEncoder().encode(source.svg),
         };
       } else if (request.artifact === "png") {
-        const { rasterizeFormalSvgInBrowser } = await importChunk(
-          "PNG export",
-          () => import("@icm/exporters/browser-raster"),
-        );
-        const png = await rasterizeFormalSvgInBrowser(source);
+        const png = headless
+          ? await headless.png(source)
+          : await (
+              await importChunk(
+                "PNG export",
+                () => import("@icm/exporters/browser-raster"),
+              )
+            ).rasterizeFormalSvgInBrowser(source);
         artifact = {
           name: "schematic.png",
           mediaType: png.mediaType,
