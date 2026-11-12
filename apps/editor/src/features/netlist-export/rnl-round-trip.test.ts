@@ -1637,6 +1637,35 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it("keeps a node the file names on a pin it marks unconnected", async () => {
+  // out reaches R1's n alone and is marked unconnected: Analog Canvas would
+  // name such a node NC0001, so the pin keeps out, without the mark; NC0001
+  // on R2 is Analog Canvas's own and becomes the mark again.
+  const text = [
+    "* open pins",
+    '* @RNL(type="header") { @VERSION("0.3") }',
+    "R1 a out 1k",
+    "R2 a NC0001 1k",
+    "V1 a 0 1",
+    "* @RNL { #R1 @PLACE(0, 0); #R2 @PLACE(4, 0); #V1 @PLACE(8, 0); $NO_CONNECT @ATTACH #R1:n; $NO_CONNECT @ATTACH #R2:n }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const document = plan.project.documents[0]!;
+  expect(document.noConnects.map((mark) => mark.endpoint.instanceId)).toEqual([
+    document.instances.find((instance) => instance.reference === "R2")!.id,
+  ]);
+  expect(plan.diagnostics.map((item) => item.code)).toContain(
+    "RNL_IMPORT_NO_CONNECT_NAMED",
+  );
+  const netlist = createDesignNetlistExport(plan.project, { format: "spice" });
+  expect(netlist.status === "ready" && netlist.file.text).toMatch(
+    /^R1 a out 1k$/mu,
+  );
+});
+
 it("keeps parts where RNL puts them, on a finer Document grid", async () => {
   // R1 at (1.3, 0) is 13 units across, off Analog Canvas's 10-unit grid: it
   // stays there, and the Document takes the 1-unit grid that holds it.

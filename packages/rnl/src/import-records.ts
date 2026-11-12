@@ -224,8 +224,8 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
   /**
    * A pin left open on purpose (`$NO_CONNECT`, 12.6) takes the mark again.
    * The netlist names such a pin's node alone (NC0001); the net the import
-   * made for that node goes. A pin the file connects to anything else keeps
-   * its net, without the mark.
+   * made for that node goes. A pin the file connects to anything else, or
+   * whose node it names otherwise, keeps its net, without the mark.
    */
   const opened: { node: string; endpoint: NoConnect["endpoint"] }[] = [];
   const openAgain = (object: RnlObjectView) => {
@@ -263,6 +263,19 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
       );
       return;
     }
+    // Analog Canvas names an open pin's node NC0001 and on; a node the file
+    // names otherwise is a net the netlist keeps by that name, which a
+    // NoConnect would rename, so the pin keeps it and the mark is left out.
+    const node =
+      document.importReference?.nets.find((item) => item.id === net?.id)
+        ?.name ?? "";
+    if (net && node && !/^NC\d+$/iu.test(node)) {
+      warn(
+        "RNL_IMPORT_NO_CONNECT_NAMED",
+        `RNL marks ${instance.reference ?? instance.id}:${pinName} as left unconnected on its node ${node}; it keeps that node, without the mark, so the netlist keeps its name`,
+      );
+      return;
+    }
     if (net) {
       document.nets = document.nets.filter((item) => item !== net);
       document.connectivityEvidence = document.connectivityEvidence.filter(
@@ -284,9 +297,7 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
       )
     )
       opened.push({
-        node:
-          document.importReference?.nets.find((item) => item.id === net?.id)
-            ?.name ?? "",
+        node,
         endpoint: { kind: "terminal", instanceId: instance.id, pinName },
       });
   };

@@ -67,6 +67,10 @@ the RNL language and its runtime belong to rnl.
   are printed; the export names the Cells it leaves out
   (`RNL_CELL_NOT_WRITTEN`). Uncalled Cells that would add a global net the
   reached Cells do not print stay out together.
+- An RNL format prints a call of an external subcircuit whose body the
+  Project does not hold (a foundry's library), as the file it came from did,
+  and reports it (`MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED` as a warning);
+  `SPICE` and `SCS` keep refusing it.
 - An RNL format is read-only in the panel; Copy and Save take its text.
 - Under an RNL format the panel carries an "About RNL" link to the
   introduction to RNL (<https://rich-netlist.github.io/rnl/en/>): a new tab in
@@ -275,6 +279,13 @@ the RNL language and its runtime belong to rnl.
   `RNL (preserve source appearance)…` opens the authored appearance.
   Both read the same netlist, includes and package files and apply the
   electrical comparison before using the drawing.
+- A master the file calls without declaring it, whose every part the file
+  draws with artwork of its own (a foundry design's PDK devices, exported
+  with their symbols), is a subcircuit call whatever the letter of its
+  parts' names; a part drawn with a standard symbol takes that symbol's type.
+- `$NO_CONNECT` on a pin whose node the file names otherwise than Analog
+  Canvas would (`NC0001`) leaves the pin on that node, without the mark
+  (`RNL_IMPORT_NO_CONNECT_NAMED`), so the netlist keeps the name.
 - The electrical import is the SPICE / SCS importer, called unchanged but for
   the two things below. The rnl runtime reads the same files (its snapshot,
   [rnl-edit](https://github.com/rich-netlist/rnl/blob/main/crates/rnl-edit/README.md))

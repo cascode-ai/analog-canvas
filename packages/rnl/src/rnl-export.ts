@@ -66,6 +66,9 @@ export function createRnlExport(
       ...options,
       bodyPortOrder: rnlBodyPortOrder(project),
       includeIr: true,
+      // An interchange file calls a library it does not carry, as its
+      // source did (a foundry's PDK).
+      callsWithoutBodies: true,
       uncalledCells,
       leaveOutCells,
     });
