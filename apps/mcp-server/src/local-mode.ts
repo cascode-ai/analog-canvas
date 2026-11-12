@@ -67,6 +67,8 @@ export interface HeadlessWorkspace {
   readonly LOCAL_AGENT_SCOPES: readonly string[];
   readonly NETLIST_PROFILE_IDS: readonly string[];
   readonly WORKSPACE_LOCK_FILE: string;
+  /** The figures the bundle draws without a page; absent before 0.17.113. */
+  readonly LOCAL_FIGURE_ARTIFACTS?: readonly string[];
   workspaceProjectPath(dir: string): string;
   createWorkspace(
     dir: string,
@@ -233,6 +235,7 @@ class LocalAgentHttp extends AgentHttpClient {
   constructor(
     private readonly workspace: LocalWorkspaceHandle,
     private readonly scopes: readonly string[],
+    private readonly figures: readonly string[] = [],
   ) {
     super({
       baseUrl: pathToFileURL(workspace.dir).href,
@@ -317,14 +320,17 @@ class LocalAgentHttp extends AgentHttpClient {
     _agentToken: string,
     request: AgentFileResourceRequest,
   ): Promise<AgentFileResourceResponse> {
-    // The editor measures a figure file's crop in a browser page.
+    // A figure the bundle cannot draw without a page needs the website.
     if (
       request.operation === "download" &&
-      FIGURE_ARTIFACTS.has(request.artifact)
+      FIGURE_ARTIFACTS.has(request.artifact) &&
+      !this.figures.includes(request.artifact)
     )
       throw websiteRequired(
         `${request.artifact.toUpperCase()} export`,
-        "Use render for the formal SVG.",
+        this.figures.length > 0
+          ? `Export ${this.figures.map((figure) => figure.toUpperCase()).join(" or ")} instead.`
+          : "Use render for the formal SVG.",
       );
     const response = relayed(
       AgentFileResourceResponseSchema,
@@ -460,7 +466,11 @@ export async function openLocalMode(
     dir,
     options.process === undefined ? {} : { process: options.process },
   );
-  const http = new LocalAgentHttp(workspace, headless.LOCAL_AGENT_SCOPES);
+  const http = new LocalAgentHttp(
+    workspace,
+    headless.LOCAL_AGENT_SCOPES,
+    headless.LOCAL_FIGURE_ARTIFACTS,
+  );
   let closing: Promise<void> | undefined;
   return {
     session: {

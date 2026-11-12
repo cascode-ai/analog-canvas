@@ -21,6 +21,7 @@ export { NETLIST_PROFILE_IDS } from "../features/netlist-export/netlist-process-
 export {
   createLocalEditor,
   LOCAL_AGENT_SCOPES,
+  LOCAL_FIGURE_ARTIFACTS,
   type LocalEditor,
 } from "./local-editor";
 export {

@@ -10,6 +10,10 @@ import {
   type AgentSessionScope,
 } from "@icm/agent-adapter";
 import type { CircuitProject } from "@icm/model";
+import {
+  createHeadlessFormalExportSource,
+  rasterizeFormalSvgHeadless,
+} from "@icm/exporters/headless-raster";
 import { EditorDocumentController } from "../document/document-controller";
 import { agentCircuitServiceOptions } from "../agent/agent-service-options";
 import type { BrowserAgentPlanningContext } from "../agent/browser-agent-command";
@@ -37,12 +41,15 @@ export interface LocalEditorOptions {
   process?: NetlistProfileId;
 }
 
+/** The figure files a local workspace exports without a page (#1498). */
+export const LOCAL_FIGURE_ARTIFACTS: readonly string[] = ["svg", "png"];
+
 /**
  * The editor's own Agent host and Circuit service around one Project, with no
  * browser (#1498). It is built as the session hook builds it for a paired
  * page, so an Agent's calls are planned and committed exactly as in the
- * editor; only the relay is gone. Simulation, the Cloud shelf and the Gallery
- * need the website and are not offered.
+ * editor; only the relay is gone. Simulation, the Cloud shelf, the Gallery and
+ * PDF files need the website and are not offered.
  */
 export function createLocalEditor(options: LocalEditorOptions) {
   const controller = new EditorDocumentController(options.project);
@@ -70,6 +77,10 @@ export function createLocalEditor(options: LocalEditorOptions) {
     throw new Error("A local workspace has no website to reach");
   };
   const fileHost = new BrowserAgentFileHost({
+    headlessFigures: {
+      source: createHeadlessFormalExportSource,
+      png: (source) => rasterizeFormalSvgHeadless(source),
+    },
     getProjectSessionId: () => controller.projectSessionId,
     getProject: () => controller.project,
     getDocument: (documentId) =>

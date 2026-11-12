@@ -38,6 +38,9 @@
       "@icm/exporters/browser-raster": [
         "./packages/exporters/src/browser-raster.ts"
       ],
+      "@icm/exporters/headless-raster": [
+        "./packages/exporters/src/headless-raster.ts"
+      ],
       "@icm/exporters/node": ["./packages/exporters/src/node.ts"],
       "@icm/math-typesetting": ["./packages/math-typesetting/src/index.ts"],
       "@icm/math-typesetting/cache": [

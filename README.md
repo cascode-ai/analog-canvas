@@ -33,6 +33,9 @@ edit model.
 - **Agent integration:** the typed Snapshot and transaction API is available
   through a version-pinned stdio MCP adapter, an HTTP Agent Kit, and the
   published OpenAPI contract. See the [Agent integration guide](docs/agent/README.md).
+- **Command line:** draw a schematic and export its PNG, SVG and netlist with
+  no browser, from one downloaded script. See the
+  [command-line guide](docs/user/command-line.md).
 
 ## Project ownership and privacy
 
