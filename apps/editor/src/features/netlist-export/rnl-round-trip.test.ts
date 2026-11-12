@@ -35,6 +35,7 @@ import {
   type Instance,
   type RichTextRun,
   type RouteBranch,
+  type SchematicDocument,
 } from "@icm/model";
 import {
   compareElectricalGraphs,
@@ -2145,6 +2146,83 @@ it("puts a point a bus wire meets first on the net of the wire of one net", asyn
     (item) => item.position.x === 0 && item.position.y === -100,
   );
   expect(junction?.netId).toBe(net.id);
+});
+
+it("shows the names a file's glyphs draw by themselves, where RNL draws them", async () => {
+  // Another tool leaves the names to the standard symbols (`${p}`): a
+  // supply's above its bar, a Named Ground's under its bars, a port's on the
+  // side away from its pin, which turns with the port. Analog Canvas shows
+  // each; a plain ground on dgnd draws none, so it shows none.
+  const text = [
+    "* glyph names",
+    '* @RNL(type="header") { @VERSION("0.3") }',
+    ".subckt inv a y vdd vss",
+    "R1 a y 1k",
+    "R2 y vss 1k",
+    "R3 vdd y 1k",
+    "* @RNL {",
+    "*   %pa = $IO_PORT @ATTACH &a => @PLACE(0, 10);",
+    '*   %py = $IO_PORT @ATTACH &y => @PLACE(20, 10) => @ORIENT("MY");',
+    "*   %sup = $SUPPLY @ATTACH &vdd => @PLACE(10, 20);",
+    "*   %gnd = $GROUND @ATTACH &vss => @SET-SYMBOL $NAMED_GROUND_SYMBOL => @PLACE(10, 0);",
+    '*   #R1 @PLACE(5, 10) => @ORIENT("R90"); #R2 @PLACE(10, 5); #R3 @PLACE(10, 15)',
+    "* }",
+    ".ends inv",
+    "Xi a y vdd agnd inv",
+    "R4 x agnd 1k",
+    "R5 x dgnd 1k",
+    "* @RNL { #Xi @PLACE(0, 0); #R4 @PLACE(40, 10); #R5 @PLACE(50, 10);",
+    "*   %g1 = $GROUND @ATTACH &agnd => @SET-SYMBOL $NAMED_GROUND_SYMBOL => @PLACE(40, 4);",
+    "*   %g2 = $GROUND @ATTACH &dgnd => @PLACE(50, 4); %s1 = $SUPPLY @ATTACH &x => @PLACE(40, 20) }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const level = (name: string) =>
+    plan.project.documents.find((item) => item.netlist?.name === name)!;
+  const on = (document: SchematicDocument, symbolId: string) =>
+    document.instances.filter((item) => item.symbolId === symbolId);
+  const labelOf = (document: SchematicDocument, instanceId: string) =>
+    document.annotations.find(
+      (item) =>
+        item.anchor.kind === "object" && item.anchor.objectId === instanceId,
+    );
+  const flat = level("__flat__");
+  // agnd's Named Ground and x's supply: power labels bound to their nets,
+  // the name under the bars and above the bar.
+  const [agnd, dgnd] = on(flat, "named-ground");
+  expect(labelOf(flat, agnd!.id)).toMatchObject({
+    kind: "power-label",
+    binding: { kind: "net-name" },
+    alignment: "middle",
+  });
+  const below = labelOf(flat, agnd!.id)!.anchor;
+  expect(below.kind === "object" && below.localOffset.y).toBeGreaterThan(20);
+  expect(labelOf(flat, dgnd!.id)).toBeUndefined();
+  expect(labelOf(flat, on(flat, "vdd-port")[0]!.id)).toMatchObject({
+    kind: "power-label",
+    binding: { kind: "net-name" },
+  });
+  // In the Cell, its supply and Named Ground Pins name their Pins, and the
+  // ports theirs: y, mirrored, reads away from its pin.
+  const inv = level("inv");
+  for (const symbolId of ["vdd-port", "named-ground"])
+    expect(labelOf(inv, on(inv, symbolId)[0]!.id)).toMatchObject({
+      kind: "power-label",
+      binding: { kind: "cell-terminal-name" },
+    });
+  const ports = on(inv, "port")
+    .map((pin) => labelOf(inv, pin.id))
+    .filter((label) => label !== undefined);
+  expect(ports.map((label) => label?.kind)).toEqual([
+    "instance-label",
+    "instance-label",
+  ]);
+  expect(ports.map((label) => label?.alignment).sort()).toEqual([
+    "end",
+    "start",
+  ]);
 });
 
 it("keeps parts where RNL puts them, on a finer Document grid", async () => {
