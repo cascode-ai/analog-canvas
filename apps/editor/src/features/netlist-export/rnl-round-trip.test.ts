@@ -734,15 +734,15 @@ it.each(["spice", "spectre"] as const)(
       d.instances.some((i) => i.symbolId === "nmos"),
     )!;
     // nch_mac, a SPICE body the file writes no RNL of, stays the model
-    // source it was rather than a Cell: XM1 is M1 again (#1791). Spectre
-    // reads its SPICE section as a Cell still, whose call keeps any name,
-    // so it is M1 as Spectre printed it.
+    // source it was rather than a Cell, whose calls take names starting
+    // with X: XM1 is M1 again (#1791). Spectre reads its SPICE section as a
+    // Cell still, whose call keeps the X the conversion gave it.
     expect(
       plan.diagnostics.some((item) => item.code === "RNL_IMPORT_NAME_REFUSED"),
     ).toBe(false);
     expect(
       document.instances.find((i) => i.symbolId === "nmos")?.reference,
-    ).toBe("M1");
+    ).toBe(format === "spice" ? "M1" : "XM1");
     expect(document.presentation.labelSubscriptItalic).toBe(false);
     expect(document.presentation.textFace).toBe("serif");
     expect(document.presentation.crossingStyle).toBe("hop");
@@ -1689,7 +1689,8 @@ it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () =
   const card = (id: string) =>
     parts.find((instance) => instance.id.toLowerCase() === id)?.reference;
   expect(card("xm1")).toBe("X7");
-  // A call of a Cell keeps any name; R1 is taken.
+  // nch, a body with no RNL of its own, is a model source's subcircuit,
+  // whose calls keep any name (#1791); R1 is taken.
   expect(card("xm2")).toBe("M2");
   expect(card("xm3")).toBe("XM3");
   const codes = plan.diagnostics.map((item) => item.code);
