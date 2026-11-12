@@ -4868,6 +4868,72 @@ describe("RNL round trip", () => {
     ).toEqual([expect.objectContaining({ code: "RNL_IMPORT_SHAPE_UNFILLED" })]);
   });
 
+  it("reads a circle or an ellipse written on two points, without its size", async () => {
+    // RNL writes either one without its size: an ellipse by its box's
+    // opposite corners, a circle by its centre and a point on it (13.4).
+    const exported = createRnlExport(example("simulation-rc"), {
+      format: "spice",
+    });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const level = exported.request.ops.find((op) => op.op === "set")!.level;
+    const shapes: Shape[] = [
+      {
+        shape: "ellipse",
+        points: [
+          [100, -15],
+          [106, -9],
+        ],
+      },
+      {
+        shape: "ellipse",
+        points: [
+          [110, -17],
+          [118, -13],
+        ],
+      },
+      {
+        shape: "circle",
+        points: [
+          [130, -15],
+          [133, -11],
+        ],
+      },
+    ];
+    const written = await runtime.write({
+      write: {
+        ...exported.request,
+        ops: [
+          ...exported.request.ops,
+          ...shapes.map((shape) => ({
+            level,
+            op: "add-shape" as const,
+            ...shape,
+          })),
+        ],
+      },
+      svg: false,
+    });
+    const plan = await importRnl(written.text, "spice");
+    expect(failures(plan)).toEqual([]);
+    expect(plan.drawing).toBe("preserved");
+    const objects = plan.project.documents.flatMap(
+      (document) => document.drafting?.objects ?? [],
+    );
+    const circles = objects.filter((object) => object.kind === "circle");
+    expect(circles).toEqual([
+      expect.objectContaining({ center: { x: 1030, y: 120 }, radius: 30 }),
+      expect.objectContaining({ center: { x: 1300, y: 150 }, radius: 50 }),
+    ]);
+    const oval = objects.find(
+      (object) =>
+        object.kind === "construction-line" && object.points.length === 9,
+    );
+    expect(oval?.kind === "construction-line" && oval.points[0]).toEqual({
+      x: 1180,
+      y: 150,
+    });
+  });
+
   it.each(["spice", "spectre"] as const)(
     "carries the Cells the top does not call, with their drawings, through %s+RNL",
     async (format) => {

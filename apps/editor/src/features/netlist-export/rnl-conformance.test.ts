@@ -114,6 +114,14 @@ describe.skipIf(!(CORPUS && OUT))("read each case and write it again", () => {
         });
         report.import = plan.status;
         report.importDiagnostics = plan.diagnostics.map((item) => item.code);
+        // Why a drawing or the whole file was left out, in full.
+        report.importMessages = plan.diagnostics
+          .filter(
+            (item) =>
+              item.severity === "error" ||
+              /INVALID_DRAWING|CHANGES_NETLIST|FAILED/u.test(item.code),
+          )
+          .map((item) => `${item.code}: ${item.message.slice(0, 2000)}`);
         if (plan.status === "ready") {
           const exported = createRnlExport(plan.project, { format });
           report.export = exported.status;

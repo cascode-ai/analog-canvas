@@ -15,13 +15,21 @@ import {
 } from "./rnl-snapshot.js";
 import type { LevelScope } from "./import-scope.js";
 
+/** Whether every number in a value is finite. */
+function finite(value: unknown): boolean {
+  if (typeof value === "number") return Number.isFinite(value);
+  if (value && typeof value === "object")
+    return Object.values(value).every(finite);
+  return true;
+}
+
 /**
  * The scene's graphics as drawing objects, in the order RNL draws them: a
  * rectangle or circle as one, a closed line that is a turned rectangle as a
  * turned rectangle, a line or curve with an arrow as an arrow, any other as
  * a construction line (a cubic leg as the quadratic it was raised from, or
- * the nearest one). The bottom layer is the background plane. Ellipses and
- * arcs are not read yet; the count of them is returned.
+ * the nearest one), an ellipse or arc as the curve that draws it. The bottom
+ * layer is the background plane. The count of shapes not read is returned.
  */
 function importShapes(
   document: SchematicDocument,
@@ -37,6 +45,12 @@ function importShapes(
   const whole = ([x, y]: Point) => {
     const point = acPoint([x, y]);
     return { x: Math.round(point.x) + 0, y: Math.round(point.y) + 0 };
+  };
+  // A shape whose numbers do not make one is left unread, and the drawing
+  // keeps the rest.
+  const keep = (object: (typeof objects)[number]) => {
+    if (finite(object)) objects.push(object);
+    else unread += 1;
   };
   for (const shape of shapes) {
     const style = shape.style;
@@ -85,38 +99,57 @@ function importShapes(
       shape.layer === "bottom" ? { layer: "background" as const } : {};
     const filled = fillColor ? { fillColor } : {};
     const points = shape.points.map(whole);
+    // A rectangle, circle or ellipse is written with its size, at its centre,
+    // or without it, on two points: a rectangle's or an ellipse's opposite
+    // corners, a circle's centre and a point on it (13.4).
+    const [from, to] = shape.points.map((point) => acPoint(point));
+    const twoPoints =
+      shape.params["width"] === undefined &&
+      shape.params["radius"] === undefined &&
+      from !== undefined &&
+      to !== undefined;
+    const middle = (point: { x: number; y: number }) => ({
+      x: Math.round(point.x) + 0,
+      y: Math.round(point.y) + 0,
+    });
+    const ellipse =
+      shape.shape !== "ellipse"
+        ? undefined
+        : twoPoints
+          ? {
+              center: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 },
+              width: Math.abs(to.x - from.x),
+              height: Math.abs(to.y - from.y),
+            }
+          : {
+              center: points[0] ?? { x: 0, y: 0 },
+              width: Number(shape.params["width"]) * AC_UNITS_PER_RNL_UNIT,
+              height: Number(shape.params["height"]) * AC_UNITS_PER_RNL_UNIT,
+            };
     // An ellipse as wide as it is high is a circle.
     const round =
-      shape.shape === "ellipse" &&
-      Math.abs(Number(shape.params["width"]) - Number(shape.params["height"])) *
-        AC_UNITS_PER_RNL_UNIT <
-        1;
+      ellipse !== undefined && Math.abs(ellipse.width - ellipse.height) < 1;
     if (shape.shape === "rectangle" || shape.shape === "circle" || round) {
-      // A rectangle given by two corners is the one centred between them.
-      const [from, to] = shape.points.map((point) => acPoint(point));
-      const corners =
-        shape.shape === "rectangle" &&
-        from !== undefined &&
-        to !== undefined &&
-        shape.params["width"] === undefined;
+      const corners = shape.shape === "rectangle" && twoPoints;
       const center = corners
-        ? {
-            x: Math.round((from.x + to.x) / 2) + 0,
-            y: Math.round((from.y + to.y) / 2) + 0,
-          }
-        : points[0]!;
+        ? middle({ x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 })
+        : round
+          ? middle(ellipse.center)
+          : points[0]!;
       const size = (key: string) =>
         Math.max(
           1,
           Math.round(
             corners
-              ? Math.abs(key === "width" ? to!.x - from!.x : to!.y - from!.y)
-              : Number(shape.params[key]) *
-                  AC_UNITS_PER_RNL_UNIT *
-                  (round ? 0.5 : 1),
+              ? Math.abs(key === "width" ? to.x - from.x : to.y - from.y)
+              : round
+                ? ellipse.width / 2
+                : shape.shape === "circle" && twoPoints
+                  ? Math.hypot(to.x - from.x, to.y - from.y)
+                  : Number(shape.params[key]) * AC_UNITS_PER_RNL_UNIT,
           ),
         );
-      objects.push(
+      keep(
         shape.shape === "rectangle"
           ? {
               ...base(center),
@@ -162,7 +195,7 @@ function importShapes(
         ? turnedRectangle(shape.points.map((point) => acPoint(point)))
         : null;
     if (turned) {
-      objects.push({
+      keep({
         ...base(turned.center),
         kind: "rectangle",
         ...turned,
@@ -175,11 +208,11 @@ function importShapes(
     const path =
       shape.shape === "bezier"
         ? quadraticPath(shape.points.map((point) => acPoint(point)))
-        : shape.shape === "ellipse"
+        : ellipse
           ? ellipticCurve(
-              points[0] ?? { x: 0, y: 0 },
-              (Number(shape.params["width"]) * AC_UNITS_PER_RNL_UNIT) / 2,
-              (Number(shape.params["height"]) * AC_UNITS_PER_RNL_UNIT) / 2,
+              ellipse.center,
+              ellipse.width / 2,
+              ellipse.height / 2,
               0,
               2 * Math.PI,
             )
@@ -196,7 +229,7 @@ function importShapes(
           ? { arrowEnd: "medium-arrow" as const }
           : { arrowEnd: "none" as const }),
       };
-      objects.push({
+      keep({
         ...base(path.points[0]!),
         kind: "arrow",
         from: { kind: "free", position: path.points[0]! },
@@ -212,7 +245,7 @@ function importShapes(
       });
       continue;
     }
-    objects.push({
+    keep({
       ...base(path.points[0]!),
       kind: "construction-line",
       points: path.points,
@@ -869,7 +902,7 @@ export function importDrawings({
   if (unread)
     warn(
       "RNL_IMPORT_SHAPE_SKIPPED",
-      `${unread} shapes RNL draws are of no kind Analog Canvas reads back`,
+      `${unread} shapes RNL draws are of no kind Analog Canvas reads back, or have sizes that make none`,
     );
   if (unfilled)
     warn(
