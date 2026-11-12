@@ -9,7 +9,11 @@ playwright-report/
 test-results/
 output/
 tmp/
+# Fetched sources of references/manifest.json (references/README.md); local
+# dataset redraw work also lives under redraw/ and datasets/ there.
 .reference-src/
+# Local copies of the reference datasets the Gallery compares with.
+reference-datasets/
 # Local Claude registration points at the checked-in original skills.
 .claude/skills
 *.tsbuildinfo

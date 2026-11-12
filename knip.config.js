@@ -61,7 +61,7 @@ export default {
         "containers/ngspice/sg13g2/verify-image.mjs!",
         "containers/simulation/*.mjs!",
         "containers/vacask/image-smoke.mjs!",
-        "tools/**/*.mjs!",
+        "scripts/calibration/**/*.mjs!",
         // The batch runner's scripted Agent, run as a command (#1498).
         "scripts/lib/draw-batch-script-agent.mjs!",
       ],
@@ -69,7 +69,6 @@ export default {
         "scripts/**/*.mjs!",
         "worker/**/*.ts!",
         "containers/**/*.mjs!",
-        "tools/**/*.mjs!",
         "!scripts/lib/native-cross-project-fixture.mjs!",
         ...testSupport,
       ],

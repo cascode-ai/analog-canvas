@@ -2,7 +2,7 @@
 """Extract the fully-differential op-amp body from Razavi Figure 13.48.
 
 This is deliberately a PDF-vector extractor.  Raster comparison remains in
-tools/calibration/razavi; this tool only records the immutable source evidence
+scripts/calibration/razavi; this tool only records the immutable source evidence
 and a source-PDF raster witness.
 """
 
