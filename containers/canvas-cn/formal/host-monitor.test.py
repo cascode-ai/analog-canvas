@@ -18,6 +18,53 @@ def sample(at=1000):
 
 
 class MonitorTests(unittest.TestCase):
+    def test_low_priority_events_are_recorded_without_mail(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'delivery.json'
+            messages = []
+            def accepted(p, c):
+                messages.append(p['conditions'])
+                return 'receipt'
+            notify(path, ['http-agent-errors', 'service-canvas-cn-operator', 'cpu-high'], {}, 1000, accepted)
+            notify(path, [], {}, 2000, accepted)
+            self.assertEqual(messages, [])
+
+    def test_one_incident_does_not_repeat_when_conditions_flap_or_an_hour_passes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'delivery.json'
+            messages = []
+            def accepted(p, c):
+                messages.append(p['conditions'])
+                return 'receipt'
+            notify(path, ['diskPct'], {}, 1000, accepted)
+            notify(path, ['diskPct', 'runtime-check-failed'], {}, 1060, accepted)
+            notify(path, ['diskPct'], {}, 5000, accepted)
+            notify(path, [], {}, 5060, accepted)
+            notify(path, [], {}, 5240, accepted)
+            notify(path, ['diskPct'], {}, 5300, accepted)
+            self.assertEqual(messages, [['diskPct']])
+            notify(path, ['diskPct', 'disk-critical'], {}, 5360, accepted)
+            notify(path, ['diskPct'], {}, 5420, accepted)
+            notify(path, ['diskPct', 'disk-critical'], {}, 5480, accepted)
+            self.assertEqual(messages, [['diskPct'], ['disk-critical', 'diskPct']])
+            notify(path, [], {}, 5540, accepted)
+            notify(path, [], {}, 6140, accepted)
+            self.assertEqual(messages[-1], [])
+            self.assertEqual(len(messages), 3)
+
+    def test_new_backup_and_capacity_failures_are_not_hidden_by_an_open_warning(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'delivery.json'
+            messages = []
+            def accepted(p, c):
+                messages.append(p['conditions'])
+                return 'receipt'
+            notify(path, ['diskPct'], {}, 1000, accepted)
+            notify(path, ['diskPct', 'egress-critical', 'daily-backup-failed'], {}, 1060, accepted)
+            notify(path, ['diskPct'], {}, 1120, accepted)
+            notify(path, ['diskPct', 'egress-critical', 'daily-backup-failed'], {}, 1180, accepted)
+            self.assertEqual(messages, [['diskPct'], ['daily-backup-failed', 'diskPct', 'egress-critical']])
+
     def test_exposed_internal_port_and_changed_runtime_are_reported_without_contents(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -82,8 +129,8 @@ class MonitorTests(unittest.TestCase):
             self.assertEqual(keys[0],keys[1])
             self.assertEqual(notify(path,['diskPct'],{},1120,accepted),'healthy-or-suppressed')
             self.assertEqual(notify(path,[],{},1180,accepted),'recovery-confirming')
-            self.assertEqual(notify(path,[],{},1300,accepted),'accepted-by-mail-service')
-            self.assertEqual(notify(path,[],{},1360,accepted),'healthy-or-suppressed')
+            self.assertEqual(notify(path,[],{},1780,accepted),'accepted-by-mail-service')
+            self.assertEqual(notify(path,[],{},1840,accepted),'healthy-or-suppressed')
             self.assertEqual(len(keys),3)
             self.assertEqual(load(path)['accepted'],[])
 

@@ -24,6 +24,19 @@ _observations = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_observations)
 http_window, record_history = _observations.http_window, _observations.record_history
 
+# These remain in monitor.json and history. They do not require an owner's email.
+RECORD_ONLY = {'http-agent-errors', 'service-canvas-cn-operator', 'cpu-high',
+               'memoryPct', 'egress-high', 'http-auth-slow', 'http-projects-slow',
+               'http-gallery-slow', 'http-api-other-slow', 'certificate-expiring'}
+CRITICAL = {'disk-critical', 'certificate-critical', 'public-listener-drift',
+            'egress-critical', 'daily-backup-failed', 'backup-stale',
+            'runtime-config-drift', 'certificate-urgent', 'certificate-check-failed',
+            'service-canvas-cn-formal', 'service-canvas-cn-ingress', 'service-nginx',
+            'http-page-errors', 'http-auth-errors', 'http-projects-errors',
+            'http-gallery-errors', 'http-api-other-errors', 'http-static-errors',
+            'http-sync-errors'}
+RECOVERY_SECONDS = 600
+
 
 def save(path, value):
     temp = path.with_suffix('.next')
@@ -238,17 +251,19 @@ def send_pending(pending, config):
 
 
 def notify(path, conditions, config, now, sender=send_pending):
+    conditions = sorted(set(conditions) - RECORD_ONLY)
     state = load(path)
     previous = state.get('accepted', [])
     if 'pending' not in state:
         if not conditions and previous:
             state.setdefault('healthySince', now)
             save(path, state)
-            if now - state['healthySince'] < 120:
+            if now - state['healthySince'] < RECOVERY_SECONDS:
                 return 'recovery-confirming'
         else:
             state.pop('healthySince', None)
-        if conditions == previous and (not conditions or now - state.get('lastSent', 0) < 3600):
+        escalation = (set(conditions) & CRITICAL) - set(previous)
+        if (not conditions and not previous) or (conditions and previous and not escalation):
             save(path, state)
             return 'healthy-or-suppressed'
         state['pending'] = {'key': 'canvas-ops-' + str(uuid.uuid4()),
@@ -258,7 +273,8 @@ def notify(path, conditions, config, now, sender=send_pending):
     if not 0 <= now - pending['created'] < 23 * 3600:
         raise ValueError('delivery-uncertain-reconcile-required')
     receipt = sender(pending, config)
-    state.update(accepted=pending['conditions'], lastSent=now, receipt=receipt)
+    notified = sorted(set(previous) | set(pending['conditions'])) if pending['conditions'] else []
+    state.update(accepted=notified, lastSent=now, receipt=receipt)
     state.pop('pending')
     state.pop('healthySince', None)
     save(path, state)

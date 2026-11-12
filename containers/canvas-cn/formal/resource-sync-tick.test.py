@@ -163,11 +163,17 @@ class PumpTest(unittest.TestCase):
                                             'ds-interactions', 'bomb-interactions', 'gallery-opens', 'ds-opens', 'bomb-opens',
                                             'gallery-activity', 'ds-activity', 'bomb-activity'})
             self.assertEqual(streams['components'], {'status': 'blocked', 'reason': 'resource-schema-newer',
-                                                     'cursor': {'cn': None, 'overseas': 0}})
+                                                     'cursor': {'cn': None, 'overseas': 0},
+                                                     'directions': {
+                                                         'cn': {'status': 'blocked', 'reason': 'resource-schema-newer', 'cursor': None},
+                                                         'overseas': {'status': 'caught-up', 'reason': None, 'cursor': 0}}})
             self.assertEqual(streams['bomb']['status'], 'blocked')
             self.assertEqual(streams['bomb']['reason'], 'oversized-response')
             self.assertEqual(streams['gallery'], {'status': 'caught-up', 'reason': None,
-                                                  'cursor': {'cn': 1, 'overseas': 0}})
+                                                  'cursor': {'cn': 1, 'overseas': 0},
+                                                  'directions': {
+                                                      'cn': {'status': 'caught-up', 'reason': None, 'cursor': 1},
+                                                      'overseas': {'status': 'caught-up', 'reason': None, 'cursor': 0}}})
             self.assertEqual(streams['ds-interactions']['cursor'], {'cn': 0, 'overseas': 1})
             self.assertEqual(streams['ds-opens']['cursor'], {'cn': 1, 'overseas': 0})
             for name in ['ds', 'gallery-interactions', 'ds-interactions', 'bomb-interactions']:

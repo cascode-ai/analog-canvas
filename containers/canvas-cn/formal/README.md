@@ -87,8 +87,8 @@ upstream write may fence maintenance when acceptance cannot be ruled out;
 nginx buffers incoming request bodies before forwarding. A fence reports an
 `uncertain-write` release failure before fetching or staging a release, even
 when the overseas version has not changed. Waiting for verification or stability
-does not close an existing release incident. A recovery notification requires
-120 seconds of confirmed healthy observations; a failed observation resets it.
+does not close an existing release incident. Recovery follows the notification
+rules below; a failed observation resets confirmation.
 An unfinished archive remains a failure at the same version; a later successful
 installation with a completed archive can close it. Other same-version recovery
 requires live backend readiness, not only a matching commit or `.verified` file.
@@ -162,11 +162,20 @@ names and port numbers enter the monitor state, never configuration bodies.
   blocked or disabled sync or journal capacity alerts at the next check,
   including escalation from an open incident with a less urgent report.
   An escalation waits in the delivery state during an unresolved send.
-  Two minutes of healthy observations confirm recovery.
-- Release mail reports failure and recovery at the next check. Retry must
-  persist for two minutes before mail.
-- All scopes report recovery after an accepted failure email. An open incident
-  sends at most one reminder per hour. Uncertain sends reuse their idempotency
+  Publication backlog stays recorded without mail while every unfinished
+  direction advances within five minutes, for at most thirty minutes without
+  catch-up. Old or invalid reports cannot prove progress. Progress never clears
+  a health failure, skips a record, or confirms recovery.
+- Release mail reports failure at the next check. Retry must persist for two
+  minutes before mail.
+- Host Agent errors, operator availability, CPU/memory/throughput warnings,
+  slow API warnings and thirty-day certificate warnings are record-only.
+  Core service/HTTP failures, critical capacity, backup and security conditions
+  remain email-eligible; fourteen-day certificate expiry remains actionable.
+- An open incident sends once, with one additional notice for a newly observed
+  critical escalation, and no hourly reminders or messages for shrinking
+  condition sets. All scopes require ten minutes of healthy observations before
+  one recovery email, only after an accepted failure email. Uncertain sends reuse their idempotency
   key for up to 23 hours. Production separately alerts when the region stops
   pulling. Confirm test delivery before opening writes.
 - Simulation reaches the regional gateways through `canvas-cn-operator`. Tunnel
