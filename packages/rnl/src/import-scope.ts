@@ -94,6 +94,11 @@ export interface LevelScope {
   snap(point: { x: number; y: number }, grid: number): { x: number; y: number };
   /** How many places and corners `snap` moved. */
   readonly snapped: number;
+  /**
+   * The coarsest Document grid the level's places and corners fit as RNL
+   * puts them: Analog Canvas's own 10 where they are on it.
+   */
+  readonly grid: number;
 }
 
 export function levelScope(
@@ -166,14 +171,20 @@ export function levelScope(
       (terminal) => terminal.sourcePosition === n - 1,
     )?.pinName;
 
-  // Analog Canvas keeps parts on its 10-unit grid and wire corners on its
-  // 2-unit one; a point RNL puts between is moved to the nearest.
+  // A part or a wire corner stays where RNL puts it, on a whole unit; the
+  // Document's grid is then the coarsest that every part (the 10-unit grid
+  // asked for) and every corner (the 2-unit one) fits. Only a point between
+  // whole units is moved to the nearest.
   let snapped = 0;
+  let parts = 10;
+  let corners = 2;
   const snap = (point: { x: number; y: number }, grid: number) => {
-    const x = Math.round(point.x / grid) * grid + 0;
-    const y = Math.round(point.y / grid) * grid + 0;
+    const x = Math.round(point.x) + 0;
+    const y = Math.round(point.y) + 0;
     if (Math.abs(x - point.x) > NEAR || Math.abs(y - point.y) > NEAR)
       snapped += 1;
+    if (grid >= 10) parts = gcd(gcd(parts, x), y);
+    else corners = gcd(gcd(corners, x), y);
     return { x, y };
   };
 
@@ -189,8 +200,19 @@ export function levelScope(
     netOf,
     pinOf,
     snap,
+    get grid() {
+      // The electrical lattice is the gcd of the Document grid and 2, so
+      // corners off the 2-unit grid ask for an odd Document grid.
+      return corners % 2 === 0 || parts % 2 !== 0 ? parts : gcd(parts, 5);
+    },
     get snapped() {
       return snapped;
     },
   };
 }
+
+const gcd = (a: number, b: number): number => {
+  let [x, y] = [Math.abs(a), Math.abs(b)];
+  while (y) [x, y] = [y, x % y];
+  return x;
+};

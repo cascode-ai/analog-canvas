@@ -650,10 +650,13 @@ function applyLevel(input: LevelInput, records: ImportRecords): void {
   records.hiddenLabels.push(...pins.hiddenLabels);
   hideClockLabels(scope, parts);
   importDrawings(scope);
+  // The Document takes the grid its places need, as RNL puts them.
+  if (scope.grid < document.presentation.grid)
+    document.presentation.grid = scope.grid;
   if (scope.snapped)
     scope.warn(
       "RNL_IMPORT_SNAPPED",
-      `${scope.snapped} places and corners RNL puts off Analog Canvas's grid are moved onto it`,
+      `${scope.snapped} places and corners RNL puts between whole units are moved to the nearest`,
     );
 }
 

@@ -734,15 +734,15 @@ it.each(["spice", "spectre"] as const)(
       d.instances.some((i) => i.symbolId === "nmos"),
     )!;
     // nch_mac, a SPICE body the file writes no RNL of, stays the model
-    // source it was rather than a Cell, whose calls take names starting
-    // with X: XM1 is M1 again (#1791). Spectre reads its SPICE section as a
-    // Cell still, whose call keeps the X the conversion gave it.
+    // source it was rather than a Cell: XM1 is M1 again (#1791). Spectre
+    // reads its SPICE section as a Cell still, whose call keeps any name,
+    // so it is M1 as Spectre printed it.
     expect(
       plan.diagnostics.some((item) => item.code === "RNL_IMPORT_NAME_REFUSED"),
     ).toBe(false);
     expect(
       document.instances.find((i) => i.symbolId === "nmos")?.reference,
-    ).toBe(format === "spice" ? "M1" : "XM1");
+    ).toBe("M1");
     expect(document.presentation.labelSubscriptItalic).toBe(false);
     expect(document.presentation.textFace).toBe("serif");
     expect(document.presentation.crossingStyle).toBe("hop");
@@ -1611,6 +1611,34 @@ it.each([
   },
 );
 
+it("keeps parts where RNL puts them, on a finer Document grid", async () => {
+  // R1 at (1.3, 0) is 13 units across, off Analog Canvas's 10-unit grid: it
+  // stays there, and the Document takes the 1-unit grid that holds it.
+  const text = [
+    "* off the grid",
+    '* @RNL(type="header") { @VERSION("0.3") }',
+    "R1 a 0 1k",
+    "R2 a 0 1k",
+    "* @RNL { #R1 @PLACE(1.3, 0); #R2 @PLACE(4, 0) }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const document = plan.project.documents[0]!;
+  const at = (reference: string) =>
+    document.instances.find((instance) => instance.reference === reference)
+      ?.placement?.position;
+  expect([at("R1"), at("R2")]).toEqual([
+    { x: 13, y: 0 },
+    { x: 40, y: 0 },
+  ]);
+  expect(document.presentation.grid).toBe(1);
+  expect(plan.diagnostics.map((item) => item.code)).not.toContain(
+    "RNL_IMPORT_SNAPPED",
+  );
+});
+
 it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
   // SPICE starts a subcircuit call's card with X: a part Analog Canvas
   // names otherwise prints as X and its name.
@@ -1635,11 +1663,10 @@ it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () =
   const card = (id: string) =>
     parts.find((instance) => instance.id.toLowerCase() === id)?.reference;
   expect(card("xm1")).toBe("X7");
-  // A call of a Cell takes names starting with X, and R1 is taken.
-  expect(card("xm2")).toBe("XM2");
+  // A call of a Cell keeps any name; R1 is taken.
+  expect(card("xm2")).toBe("M2");
   expect(card("xm3")).toBe("XM3");
   const codes = plan.diagnostics.map((item) => item.code);
-  expect(codes).toContain("RNL_IMPORT_NAME_REFUSED");
   expect(codes).toContain("RNL_IMPORT_NAME_TAKEN");
   expect(codes).not.toContain("RNL_IMPORT_PACKAGE_VERSION");
 });
