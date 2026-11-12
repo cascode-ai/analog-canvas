@@ -101,6 +101,10 @@ def run(args):
     if scope == 'Release':
         if health != 'retry' and state.pop('retrySince', None) is not None:
             write_state(state_path, state)
+        if health == 'ok':
+            waiting = observe_sync_health(state_path, state, previous, health, now)
+        elif state.pop('recoverySince', None) is not None:
+            write_state(state_path, state)
     else:
         waiting = observe_sync_health(state_path, state, previous, health, now)
     pending = state.get('pending')

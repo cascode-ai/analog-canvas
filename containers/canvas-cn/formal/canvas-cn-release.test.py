@@ -65,6 +65,10 @@ class FakeHost:
         self.calls = []
         self.active_units = set(active)
         self.broken_nginx = broken_nginx
+        self.uncertain = False
+
+    def uncertain_write(self):
+        return self.uncertain
 
     def systemctl(self, *args, check=True):
         self.calls.append(('systemctl',) + args)
@@ -485,6 +489,68 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual((result['health'], result['status']), ('failed', 'uncertain-write'))
         self.assertEqual(self.current.resolve().name, OLD)
         self.assertNotIn(('systemctl', 'stop', 'canvas-cn-formal.service'), host.calls)
+
+    def test_uncertain_write_stays_failed_before_download_or_settling(self):
+        host, production = FakeHost(), FakeProduction(self.files)
+        host.uncertain = True
+        args = self.args(120)
+        for at in (1000, 1060, 1180):
+            result = release.tick(args, host, production, now=at)
+            pathlib.Path(args.state).write_text(json.dumps(result))
+            self.assertEqual((result['health'], result['status']), ('failed', 'uncertain-write'))
+        self.assertEqual(production.requests, [])
+        self.assertEqual(host.calls, [])
+
+    def test_waiting_for_a_new_candidate_does_not_recover_an_open_failure(self):
+        args = self.args(120)
+        pathlib.Path(args.state).write_text(json.dumps({
+            'health': 'failed', 'reason': 'release-failed', 'status': 'uncertain-write'}))
+        host, production = FakeHost(), FakeProduction(self.files)
+        result = release.tick(args, host, production, now=1000)
+        self.assertEqual((result['health'], result['status']), ('failed', 'settling'))
+        pathlib.Path(args.state).write_text(json.dumps(result))
+        result = release.tick(args, host, production, now=1120)
+        self.assertEqual((result['health'], result['status']), ('ok', 'installed'))
+
+    def test_current_version_cannot_hide_an_unfinished_archive(self):
+        args = self.args(0)
+        pathlib.Path(args.state).write_text(json.dumps({
+            'health': 'failed', 'reason': 'release-failed', 'status': 'archive-failed'}))
+        host = FakeHost()
+        result = release.tick(args, host, FakeProduction(self.files, OLD), now=1000)
+        self.assertEqual((result['health'], result['status']), ('failed', 'archive-failed'))
+        pathlib.Path(args.state).write_text(json.dumps(result))
+        waiting = self.args(120)
+        result = release.tick(waiting, host, FakeProduction(self.files), now=1060)
+        pathlib.Path(args.state).write_text(json.dumps(result))
+        result = release.tick(waiting, host, FakeProduction(self.files, OLD), now=1100)
+        self.assertEqual((result['health'], result['status']), ('failed', 'archive-failed'))
+        pathlib.Path(args.state).write_text(json.dumps(result))
+        result = release.tick(args, host, FakeProduction(self.files), now=1200)
+        self.assertEqual((result['health'], result['status']), ('ok', 'installed'))
+
+    def test_recovery_at_current_version_requires_a_live_backend(self):
+        args = self.args(0)
+        pathlib.Path(args.state).write_text(json.dumps({
+            'health': 'failed', 'reason': 'transport-or-invalid-status'}))
+        self.smoked = False
+        result = release.tick(args, FakeHost(), FakeProduction(self.files, OLD), now=1000)
+        self.assertEqual(result['health'], 'failed')
+        self.smoked = True
+        result = release.tick(args, FakeHost(), FakeProduction(self.files, OLD), now=1060)
+        self.assertEqual((result['health'], result['status']), ('ok', 'current'))
+
+    def test_archive_obligation_survives_a_transport_error_in_the_runner(self):
+        args = self.args(0)
+        pathlib.Path(args.state).write_text(json.dumps({
+            'health': 'failed', 'reason': 'release-failed', 'status': 'archive-failed'}))
+        argv = ['release', '--current', args.current, '--releases', args.releases,
+                '--credentials', args.credentials, '--unit-dir', args.unit_dir,
+                '--state', args.state]
+        with patch('sys.argv', argv), patch.object(release, 'tick', side_effect=OSError('offline')):
+            self.assertEqual(release.main(), 1)
+        result = release.tick(args, FakeHost(), FakeProduction(self.files, OLD), now=1000)
+        self.assertEqual((result['health'], result['status']), ('failed', 'archive-failed'))
 
     def test_a_failed_candidate_restores_old_code_before_resuming_held_requests(self):
         host = FakeHost()

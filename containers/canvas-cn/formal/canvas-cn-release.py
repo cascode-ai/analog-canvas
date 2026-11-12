@@ -241,6 +241,9 @@ class Host:
     def active(self, unit):
         return self.systemctl('is-active', '--quiet', unit, check=False).returncode == 0
 
+    def uncertain_write(self):
+        return entrance('status')['uncertain']
+
     def backup(self, release):
         if not pathlib.Path('/run/canvas-cn-ingress/control.sock').is_socket():
             raise ReleaseError('entrance-not-installed')
@@ -481,11 +484,24 @@ def tick(args, host=None, fetcher=None, now=None):
                     'failedReason': 'release-rolled-back'}
         else:
             raise ReleaseError('release-failed')
+    result = {'health': 'ok', 'reason': None, 'serving': installed, 'lastAttemptAt': now}
+    if state.get('archivePending') or state.get('status') == 'archive-failed':
+        result['archivePending'] = True
+    if host.uncertain_write():
+        return dict(result, health='failed', reason='release-failed', status='uncertain-write',
+                    lastCaughtUpAt=state.get('lastCaughtUpAt'))
     published = read_current(fetcher)
     commit = published['commit']
-    result = {'health': 'ok', 'reason': None, 'serving': installed, 'lastAttemptAt': now}
     if commit == installed:
+        if result.get('archivePending'):
+            return dict(result, health='failed', reason='release-failed', status='archive-failed')
+        if state.get('health') == 'failed' and not smoke(args.local, credentials, attempts=args.smoke_attempts):
+            return dict(result, health='failed', reason='release-failed', status='runtime-not-ready')
         return dict(result, status='current', lastCaughtUpAt=now)
+    # Waiting for another candidate is not recovery from an open incident.
+    # Only a confirmed serving version or a successful install closes it.
+    if state.get('health') == 'failed':
+        result.update(health='failed', reason=state.get('reason', 'release-failed'))
     if state.get('failedCommit') == commit:
         return dict(result, health='failed', reason=state.get('failedReason', 'release-failed'),
                     status='refused', failedCommit=commit, failedReason=state.get('failedReason'))
@@ -584,7 +600,8 @@ def tick(args, host=None, fetcher=None, now=None):
                 # Code is healthy and accepting writes. Never roll it back for
                 # an archive/compression error; keep the captured staging tree.
                 return dict(result, health='failed', reason='release-failed',
-                            status='archive-failed', serving=commit, previous=str(serving))
+                            status='archive-failed', archivePending=True,
+                            serving=commit, previous=str(serving))
             for unit in added:
                 if unit in AUTO_TIMERS:
                     host.systemctl('enable', '--now', unit, check=False)
@@ -592,7 +609,8 @@ def tick(args, host=None, fetcher=None, now=None):
             monitors = releases.parent / 'monitor-releases'
             if (target / 'canvas-ops-monitor.service').is_file() and monitors.is_dir():
                 prune(monitors, keep={monitors / commit}, count=2)
-            return dict(result, status='installed', serving=commit, previous=str(serving),
+            return dict(result, health='ok', reason=None, archivePending=False,
+                        status='installed', serving=commit, previous=str(serving),
                         downloadedBytes=downloaded, lastCaughtUpAt=now)
         # Restore the serving release exactly: link, units, nginx site, processes.
         host.systemctl('stop', 'canvas-cn-formal.service', check=False)
@@ -671,7 +689,9 @@ def main():
         # Bodies and paths may contain upstream payloads; report the class only.
         result = {'health': 'failed', 'reason': 'transport-or-invalid-status', 'lastAttemptAt': time.time()}
     # Only an uninterrupted observation may carry its settling clock forward.
-    for key in ['lastCaughtUpAt', 'failedCommit', 'failedReason', 'previous']:
+    if previous.get('status') == 'archive-failed':
+        previous['archivePending'] = True
+    for key in ['lastCaughtUpAt', 'failedCommit', 'failedReason', 'previous', 'archivePending']:
         if key not in result and key in previous:
             result[key] = previous[key]
     save(state_path, result)

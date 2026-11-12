@@ -4,6 +4,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+SupplementaryGroups=adm
 LoadCredential=mail.json:/etc/analog-canvas-formal/sync-alert.json
 StateDirectory=canvas-ops-monitor
 StateDirectoryMode=0700

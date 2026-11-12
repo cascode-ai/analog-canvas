@@ -85,7 +85,16 @@ restarting the entrance. Never clear it simply to allow a release.
 The marker records only a timestamp and route category. Even an incomplete
 upstream write may fence maintenance when acceptance cannot be ruled out;
 nginx buffers incoming request bodies before forwarding. A fence reports an
-`uncertain-write` release failure before any backup seed is prepared.
+`uncertain-write` release failure before fetching or staging a release, even
+when the overseas version has not changed. Waiting for verification or stability
+does not close an existing release incident. A recovery notification requires
+120 seconds of confirmed healthy observations; a failed observation resets it.
+An unfinished archive remains a failure at the same version; a later successful
+installation with a completed archive can close it. Other same-version recovery
+requires live backend readiness, not only a matching commit or `.verified` file.
+The host monitor belongs to `adm` so nginx's daily `0640 www-data:adm` log
+rotation does not revoke its read access; the service retains its empty
+capability bounding set.
 Paused background timers are recorded before stopping in
 `/var/lib/canvas-cn-maintenance/paused.json`; recovery restores that exact set
 after real runtime readiness, including an interrupted daily backup.
