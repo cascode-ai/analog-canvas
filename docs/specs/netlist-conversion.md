@@ -22,6 +22,8 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
 - 400 invalid JSON/envelope, 405 method, 415 media type, 413 size: text ≤
   512 KiB and 10,000 non-comment statements, body ≤ 1 MiB; 500 a converter
   failure.
+- The editor's local import converts the user's own files whole, with neither
+  limit: the limits protect the endpoint, not the conversion.
 - Responses `no-store`; input is never stored or executed.
 - Default is a fragment. `fragment: false` treats a SPICE source's first
   physical line as its title and appends `.end` to SPICE output if absent.

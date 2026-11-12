@@ -115,6 +115,8 @@ export function prepareImportSources(
       // A model library the export wrote as SPICE (#1933) is read as it is.
       uncountedSpiceSections: true,
       externalNativeModels: true,
+      // A design read from the user's own files has no service to protect.
+      unbounded: true,
       ...(externalSubcircuitNames ? { externalSubcircuitNames } : {}),
     });
     if (converted.status === "blocked") {

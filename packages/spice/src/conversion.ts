@@ -60,6 +60,10 @@ export interface NetlistConversionOptions {
    * device type its `type=` gives, so an import can draw its instances
    * without its parameters. Only the editor's import sets it. */
   externalNativeModels?: boolean;
+  /** A local import reads a whole design, however large: no size or
+   * statement limit. The public endpoint keeps both, which protect the
+   * service, not the conversion. Only the editor's import sets it. */
+  unbounded?: boolean;
 }
 export interface ExternalNativeModel {
   name: string;
@@ -245,6 +249,7 @@ function statements(
   text: string,
   source: NetlistDialect,
   uncountedSpiceSections = false,
+  bounded = true,
 ): Statement[] {
   const result: Statement[] = [];
   let dialect: Statement["dialect"] =
@@ -298,7 +303,7 @@ function statements(
     uncountedSpiceSections && source === "spectre"
       ? result.filter((statement) => statement.dialect === "spectre")
       : result;
-  if (translated.length > 10000)
+  if (bounded && translated.length > 10000)
     refuse(
       translated[10000]!,
       "Conversion is limited to 10,000 statements.",
@@ -1071,7 +1076,10 @@ export function convertNetlist(
     const passed = options.uncountedSpiceSections
       ? passedThroughBytes(text, source)
       : 0;
-    if (new TextEncoder().encode(text).length - passed > MAX_CONVERSION_BYTES)
+    if (
+      !options.unbounded &&
+      new TextEncoder().encode(text).length - passed > MAX_CONVERSION_BYTES
+    )
       refuse(
         root,
         "Netlist exceeds the 512 KiB conversion limit.",
@@ -1085,7 +1093,12 @@ export function convertNetlist(
       source !== "spectre" && options.fragment === false
         ? text.replace(/^[^\r\n]*/u, "")
         : text;
-    const input = statements(inputText, source, options.uncountedSpiceSections);
+    const input = statements(
+      inputText,
+      source,
+      options.uncountedSpiceSections,
+      !options.unbounded,
+    );
     const ctx: Context = {
       subckts: new Set(
         options.subcircuitNames?.map((name) => name.toLowerCase()),
@@ -1244,8 +1257,9 @@ export function convertNetlist(
     }
     const converted = out.join("\n") + "\n";
     if (
+      !options.unbounded &&
       new TextEncoder().encode(converted).length - passed >
-      MAX_CONVERSION_BYTES * 2
+        MAX_CONVERSION_BYTES * 2
     )
       refuse(
         root,
