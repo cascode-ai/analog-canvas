@@ -513,4 +513,20 @@ describe("netlist-crawler structural conversion", () => {
       "\nR39999 a39999 0 1k\n",
     );
   });
+
+  it("reads a whole design, past the endpoint's limits, for a local import", () => {
+    // 40,000 Spectre resistors: past 10,000 statements and 512 KiB.
+    const text = Array.from(
+      { length: 40000 },
+      (_, k) => `R${k} (a${k} 0) resistor r=1k`,
+    ).join("\n");
+    const convert = (unbounded: boolean) =>
+      convertNetlist({ text, source: "spectre", target: "spice", unbounded });
+    expect(convert(false).status).toBe("blocked");
+    const whole = convert(true);
+    expect(whole.status).toBe("converted");
+    expect(whole.status === "converted" && whole.text).toContain(
+      "\nR39999 a39999 0 1k",
+    );
+  });
 });
