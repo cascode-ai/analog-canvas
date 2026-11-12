@@ -571,6 +571,68 @@ it("brings back the built-in Zener with its breakdown, which prints a card of it
   );
 });
 
+it.each(["spice", "spectre"] as const)(
+  "draws a coupled inductor its card starts at the other end of on the pins the card prints, through %s+RNL",
+  async (format) => {
+    // L2 is dotted at its pin 2, so its card prints that pin first, and
+    // RNL binds the symbol's first pin to it: the symbol is turned over so
+    // each wire still ends on its own node, and comes back as drawn.
+    const project = calledBlocks(["inductor-compact", "inductor-compact"]);
+    const document = project.documents[0]!;
+    for (const [id, reference] of [
+      ["X1", "L1"],
+      ["X2", "L2"],
+    ] as const)
+      document.instances.find((instance) => instance.id === id)!.reference =
+        reference;
+    document.inductorCouplings = [
+      {
+        id: "coupling-k1",
+        name: "K1",
+        k: "0.9",
+        arrow: false,
+        members: [
+          { instanceId: "X1", dotPin: "1" },
+          { instanceId: "X2", dotPin: "2" },
+        ],
+      },
+    ];
+    const before = createDesignNetlistExport(project, { format });
+    expect(before.status === "ready" && before.file.text).toMatch(
+      /^L2 \(?n_x2_2 n_x2_1\b/mu,
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.drawing).not.toBe("discarded");
+    // Each wire ends at the places it was drawn to, on its own node.
+    const ends = (circuit: CircuitProject) => {
+      const cell = circuit.documents.find(
+        (item) => item.netlist?.name === "dut",
+      )!;
+      const resolver = createProjectSymbolResolver(circuit, builtInSymbols);
+      const names = new Map(
+        cell.netlist!.terminals.map((terminal) => [
+          terminal.netId,
+          terminal.name,
+        ]),
+      );
+      return cell.routes
+        .flatMap((route) => {
+          const line = resolveRouteGeometry(cell, resolver, route)?.centerline;
+          return [line?.[0], line?.at(-1)].map(
+            (point) => `${names.get(route.netId)} ${point?.x},${point?.y}`,
+          );
+        })
+        .sort();
+    };
+    expect(ends(plan.project)).toEqual(ends(project));
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 /**
  * Cell `dut`: a resistor R1 from Cell Pin `A` to the Cell's port `VDD`,
  * whose only interface is a hidden power label hung on R1, as a Cell keeps
