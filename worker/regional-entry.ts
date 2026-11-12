@@ -1,6 +1,11 @@
 import canvas from "./index";
 import { bearerMatches } from "./bearer";
 import {
+  arenaCapabilityRequest,
+  REGIONAL_ARENA_CAPABILITY,
+} from "./regional-arena-auth";
+import { isRegionalArenaRoute } from "./arena-paths";
+import {
   REGIONAL_SCHEDULED_PATH,
   regionalRateLimiters,
 } from "./regional-runtime";
@@ -77,13 +82,37 @@ export default {
     ) {
       const upstream = new Request(
         new URL(local.pathname + local.search, config.transportOrigin),
-        request,
+        request.clone(),
       );
       // The destination owns Host; browser Origin and cookies stay unchanged.
       upstream.headers.delete("host");
       // This is an internal rate-limit address, not a Cloudflare edge request.
       upstream.headers.delete("cf-connecting-ip");
+      // Only Production's private Arena binding may carry a vouched identity.
+      upstream.headers.delete("x-arena-account");
+      upstream.headers.delete(REGIONAL_ARENA_CAPABILITY);
       try {
+        if (isRegionalArenaRoute(request.method, local.pathname)) {
+          // Native and regional sessions can name different actors, and local
+          // logout deliberately retains the overseas session. Never forward it.
+          upstream.headers.delete("cookie");
+          upstream.headers.delete("authorization");
+          const authorization = await arenaCapabilityRequest(
+            request,
+            "authorize",
+          );
+          if (authorization instanceof Response) return authorization;
+          const proof = await env.AUTH.getByName("auth").fetch(authorization);
+          if (proof.ok) {
+            const body = (await proof.json()) as { token: string };
+            upstream.headers.set(REGIONAL_ARENA_CAPABILITY, body.token);
+          } else if (proof.status !== 401) {
+            return Response.json(
+              { error: "arena-authorization-unavailable" },
+              { status: 503, headers: { "cache-control": "no-store" } },
+            );
+          }
+        }
         return await fetch(upstream, {
           redirect: "manual",
           signal: AbortSignal.timeout(15_000),

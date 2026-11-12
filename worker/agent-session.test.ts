@@ -2682,6 +2682,93 @@ describe("public Agent session routes", () => {
 
 describe("Agent idle expiry", () => {
   const idleMs = 30 * 60_000;
+  it.each([
+    ["expired", "SESSION_EXPIRED"],
+    ["revoked", "SESSION_REVOKED"],
+  ] as const)(
+    "answers a restored %s task while its device directory is delayed",
+    async (status, code) => {
+      const storage = new MemoryStorage();
+      const now =
+        status === "expired" ? Date.now() - idleMs - 1_000 : Date.now();
+      const created = AgentSessionMachine.create({
+        sessionId: "expired-task",
+        projectSessionId: "project:1",
+        projectId: "project",
+        documentIds: ["doc"],
+        scopes: ["circuit.snapshot"],
+        now,
+        random: () => crypto.randomUUID(),
+      });
+      const claimed = created.machine.redeemClaim(
+        created.session.claimCode,
+        now,
+      );
+      if (!claimed.ok) throw new Error("fixture claim failed");
+      if (status === "revoked") created.machine.revoke();
+      await storage.put(SESSION_STATE_KEY, {
+        ...created.machine.serialize(),
+        deviceTrust: {
+          directory: "directory",
+          deviceId: "device",
+          trustId: "trust",
+        },
+      });
+      let finishCleanup!: () => void;
+      const cleanup = new Promise<void>((resolve) => {
+        finishCleanup = resolve;
+      });
+      let gate!: Promise<void>;
+      let leaves = 0;
+      const object = new AgentSessionDO(
+        {
+          storage,
+          blockConcurrencyWhile: (callback) => {
+            gate = callback();
+          },
+        },
+        {
+          AGENT_SESSION: {
+            getByName: () => ({
+              fetch: async (input, init) => {
+                const request = new Request(input, init);
+                const body = (await request.json()) as { action: string };
+                if (body.action === "remove-session") leaves++;
+                await cleanup;
+                return Response.json({ trusted: true });
+              },
+            }),
+          },
+        },
+      );
+      try {
+        expect(
+          await Promise.race([
+            gate.then(() => "ready"),
+            new Promise((resolve) =>
+              setTimeout(() => resolve("initialization blocked"), 100),
+            ),
+          ]),
+        ).toBe("ready");
+        const response = await object.fetch(
+          new Request("https://internal/status", {
+            headers: { authorization: `Bearer ${claimed.claim.agentToken}` },
+          }),
+        );
+        expect(await response.json()).toMatchObject({
+          error: { code },
+        });
+        expect(storage.alarm).not.toBeNull();
+        expect(leaves).toBe(0);
+      } finally {
+        finishCleanup();
+        await gate;
+      }
+      await object.alarm();
+      expect(leaves).toBe(1);
+      expect(storage.values.size).toBe(0);
+    },
+  );
   async function fixture() {
     const storage = new MemoryStorage();
     const created = AgentSessionMachine.create({

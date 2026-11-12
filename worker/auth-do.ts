@@ -40,6 +40,10 @@ import { isBoardPagePath } from "./board-paths";
 import { SITE_USAGE_CONTACT } from "../apps/editor/src/usage-policy-note";
 import { RegionalAuthority } from "./regional-auth-authority";
 import {
+  regionalArenaUser,
+  REGIONAL_ARENA_CAPABILITY,
+} from "./regional-arena-auth";
+import {
   ProfileBylines,
   applyProfileByline,
   PROFILE_BYLINE_TICK,
@@ -1109,7 +1113,10 @@ export class AuthDO {
     );
     const binding = url.searchParams.get("binding");
     if (!binding) return handoffRedirect(handoffBeginning(page));
-    const user = await this.sessionUser(request);
+    const user = request.headers.has(REGIONAL_ARENA_CAPABILITY)
+      ? await regionalArenaUser(request, (internal) => this.fetch(internal))
+      : await this.sessionUser(request);
+    if (user instanceof Response) return user;
     if (!user) return handoffRedirect(page.toString());
     const code = randomToken();
     const now = this.now();

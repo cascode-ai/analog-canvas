@@ -1,4 +1,5 @@
 import type { SessionUser, SqlStorage } from "./auth-do";
+import { isRegionalArenaRoute } from "./arena-paths";
 
 export const REGIONAL_PREFIX = "/api/auth/regional/";
 export const REGIONAL_SESSION_COOKIE = "icm_regional_session";
@@ -56,11 +57,12 @@ export function regionalConfig(
   }
 }
 
-/** Exact browser routes the domestic entry may proxy to the fixed authority. */
+/** Browser routes the domestic entry may proxy to the fixed authority. */
 export function isRegionalAuthorityBrowserRoute(
   method: string,
   path: string,
 ): boolean {
+  if (isRegionalArenaRoute(method, path)) return true;
   return [
     "GET /api/auth/regional/authorize",
     "GET /api/auth/github/start",
@@ -94,10 +96,7 @@ export function isRegionalAccountRoute(method: string, path: string): boolean {
 
 /** Resource/maintenance calls on the trusted AUTH binding, never browser routes. */
 export function isRegionalSecurityRoute(method: string, path: string): boolean {
-  return (
-    method === "POST" &&
-    path === "/internal/gallery-rejection"
-  );
+  return method === "POST" && path === "/internal/gallery-rejection";
 }
 
 export function nonce(): string {
