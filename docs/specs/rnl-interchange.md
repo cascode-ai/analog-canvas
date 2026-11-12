@@ -71,6 +71,9 @@ the RNL language and its runtime belong to rnl.
   Project does not hold (a foundry's library), as the file it came from did,
   and reports it (`MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED` as a warning);
   `SPICE` and `SCS` keep refusing it.
+- A top the import made from a file's own cards, outside every subcircuit,
+  and given no pins since, prints there again with its drawing at the file
+  level; `SPICE` and `SCS` keep printing it as a subcircuit.
 - An RNL format is read-only in the panel; Copy and Save take its text.
 - Under an RNL format the panel carries an "About RNL" link to the
   introduction to RNL (<https://rich-netlist.github.io/rnl/en/>): a new tab in

@@ -133,6 +133,7 @@ describe.skipIf(!(CORPUS && OUT))("read each case and write it again", () => {
         `${JSON.stringify(report, null, 1)}\n`,
       );
     },
-    300_000,
+    // A whole design written elsewhere (ext-risca, 1.3 MB) takes minutes.
+    3_600_000,
   );
 });

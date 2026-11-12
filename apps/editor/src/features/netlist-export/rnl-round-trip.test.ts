@@ -1896,6 +1896,67 @@ it("keeps a node the file names on a pin it marks unconnected", async () => {
   );
 });
 
+it.each(["spice", "spectre"] as const)(
+  "writes a file's own cards back at the file level, with their drawing (%s+RNL)",
+  async (format) => {
+    // The importer makes one Cell of the cards outside every subcircuit;
+    // exported as the top, they go back outside, not into a subcircuit.
+    const text =
+      format === "spice"
+        ? [
+            "* top level",
+            '* @RNL(type="header") { @VERSION("0.3") }',
+            ".subckt half a b",
+            "R1 a b 1k",
+            ".ends half",
+            "X1 in mid half",
+            "X2 mid 0 half",
+            "V1 in 0 1",
+            "* @RNL { #X1 @PLACE(0, 0); #X2 @PLACE(10, 0); #V1 @PLACE(-10, 0) }",
+            ".end",
+            "",
+          ]
+        : [
+            "// top level",
+            "simulator lang=spectre",
+            '// @RNL(type="header") { @VERSION("0.3") }',
+            "subckt half (a b)",
+            "R1 (a b) resistor r=1k",
+            "ends half",
+            "X1 (in mid) half",
+            "X2 (mid 0) half",
+            "V1 (in 0) vsource dc=1",
+            "// @RNL { #X1 @PLACE(0, 0); #X2 @PLACE(10, 0); #V1 @PLACE(-10, 0) }",
+            "",
+          ];
+    const plan = await importRnl(text.join("\n"), format);
+    expect(failures(plan)).toEqual([]);
+    const exported = createRnlExport(plan.project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).not.toMatch(/__flat__/u);
+    expect(written.text).toMatch(/^X2 \(?mid 0\)? half$/mu);
+    const again = await importRnl(written.text, format);
+    expect(failures(again)).toEqual([]);
+    const top = again.project.documents.find(
+      (document) => document.id === again.project.topDocumentId,
+    )!;
+    expect(
+      top.instances
+        .filter((instance) => instance.reference)
+        .map((instance) => [instance.reference, instance.placement?.position])
+        .sort(),
+    ).toEqual([
+      ["V1", { x: -100, y: 0 }],
+      ["X1", { x: 0, y: 0 }],
+      ["X2", { x: 100, y: 0 }],
+    ]);
+  },
+);
+
 it("keeps parts where RNL puts them, on a finer Document grid", async () => {
   // R1 at (1.3, 0) is 13 units across, off Analog Canvas's 10-unit grid: it
   // stays there, and the Document takes the 1-unit grid that holds it.
