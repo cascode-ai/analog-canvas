@@ -67,9 +67,66 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.assertNotIn('private-alert-key', result.stdout + result.stderr)
         return result
 
+    def publication(self, cn, overseas=0, overseas_status='caught-up', cn_status='sent'):
+        (self.root / 'monitor.json').write_text(json.dumps({
+            'health': 'error', 'reason': 'replication-lag', 'lastAttemptAt': self.now,
+            'streams': {'image2net': {'directions': {
+                'cn': {'status': cn_status, 'cursor': cn},
+                'overseas': {'status': overseas_status, 'cursor': overseas}}}}}))
+
+    def test_bulk_progress_stays_quiet_but_a_stalled_direction_alerts(self):
+        self.publication(10)
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.now += 180
+        self.publication(35)
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.assertEqual(self.calls, [])
+
+        # CN continues, but that cannot hide the opposite direction stalling.
+        self.publication(35, overseas_status='retry')
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.now += 300
+        self.publication(80, overseas_status='retry')
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.assertEqual(len(self.calls), 1)
+        self.assertIn('replication-lag', self.calls[0][1]['text'])
+
+    def test_progress_cannot_hide_thirty_minutes_of_backlog_or_a_block(self):
+        self.publication(10)
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.now += 1800
+        self.publication(500)
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.assertEqual(len(self.calls), 1)
+        self.health('failed', reason='blocked')
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.assertEqual(len(self.calls), 2)
+        self.assertIn('Status: blocked', self.calls[-1][1]['text'])
+
+    def test_unknown_cursor_cannot_claim_progress(self):
+        self.publication(None, cn_status='retry')
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.now += 120
+        self.publication(None, cn_status='retry')
+        self.assertEqual(self.tick(scope='Publication').returncode, 0)
+        self.assertEqual(len(self.calls), 1)
+
     def test_healthy_service_sends_nothing(self):
         self.assertEqual(self.tick().returncode, 0)
         self.assertEqual(self.calls, [])
+
+    def test_brief_recovery_does_not_close_an_incident(self):
+        self.health('failed')
+        self.assertEqual(self.tick().returncode, 0)
+        self.health('ok')
+        self.assertEqual(self.tick().returncode, 0)
+        self.now += 180
+        self.health('ok')
+        self.assertEqual(self.tick().returncode, 0)
+        self.now += 60
+        self.health('failed')
+        self.assertEqual(self.tick().returncode, 0)
+        self.assertEqual(len(self.calls), 1)
 
     def test_short_maintenance_and_replication_delays_stay_quiet(self):
         for scope, reason, age in [
@@ -108,7 +165,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
 
         self.health('ok')
         self.assertEqual(self.tick().returncode, 0)
-        self.now += 119
+        self.now += 599
         self.health('ok')
         self.assertEqual(self.tick().returncode, 0)
         self.assertEqual(len(self.calls), 1)
@@ -131,7 +188,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.health('ok')
         self.assertEqual(self.tick().returncode, 0)
         self.assertEqual(len(self.calls), 1)
-        self.now += 120
+        self.now += 600
         self.health('ok')
         self.assertEqual(self.tick().returncode, 0)
         self.assertEqual(len(self.calls), 2)
@@ -151,7 +208,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.assertEqual(self.tick().returncode, 0)
         self.assertEqual(len(self.calls), 2)
 
-    def test_short_relapse_does_not_send_an_hourly_reminder(self):
+    def test_open_incident_never_sends_an_hourly_reminder(self):
         self.health('failed')
         self.assertEqual(self.tick().returncode, 0)
         self.now += 3590
@@ -165,7 +222,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.now += 120
         self.health('failed', reason='write-fenced')
         self.assertEqual(self.tick().returncode, 0)
-        self.assertEqual(len(self.calls), 2)
+        self.assertEqual(len(self.calls), 1)
 
     def test_healthy_tick_breaks_failure_confirmation_during_mail_retry(self):
         self.health('failed', reason='retry')
@@ -218,7 +275,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.assertEqual(len(self.calls), 1)
         self.health('ok')
         self.assertEqual(self.tick(scope='Release').returncode, 0)
-        self.now += 119
+        self.now += 599
         self.health('ok')
         self.assertEqual(self.tick(scope='Release').returncode, 0)
         self.assertEqual(len(self.calls), 1)
@@ -277,7 +334,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.assertEqual(self.tick().returncode, 0)
         self.health('ok')
         self.assertEqual(self.tick().returncode, 0)
-        self.now += 120
+        self.now += 600
         self.health('ok')
         self.reject = True
         self.assertNotEqual(self.tick().returncode, 0)
@@ -302,7 +359,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.health('ok')
         self.assertNotEqual(self.tick().returncode, 0)
 
-        self.now += 120
+        self.now += 600
         self.health('ok')
         self.reject = False
         self.assertEqual(self.tick().returncode, 0)

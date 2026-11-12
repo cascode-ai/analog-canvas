@@ -203,7 +203,8 @@ def run(args):
         directions = [(units[(stream, source, 1 - source)], 'cn' if source == 1 else 'overseas') for source in (1, 0)]
         worst = max((state for state, _ in directions), key=lambda state: RANK[state['status']])
         report[stream] = {'status': worst['status'], 'reason': worst['reason'],
-                          'cursor': {target: state['cursor'] for state, target in directions}}
+                          'cursor': {target: state['cursor'] for state, target in directions},
+                          'directions': {target: state for state, target in directions}}
     statuses = {entry['status'] for entry in report.values()}
     overall = ('caught-up' if statuses == {'caught-up'} else 'blocked' if 'blocked' in statuses
                else 'retry' if 'retry' in statuses else 'sent')

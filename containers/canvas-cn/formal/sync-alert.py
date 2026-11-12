@@ -12,7 +12,10 @@ import uuid
 from datetime import datetime, timezone
 
 CONFIRMATION_SECONDS = 120
+RECOVERY_SECONDS = 600
 IMMEDIATE_SYNC_FAILURES = {'blocked', 'disabled', 'journal-capacity'}
+PROGRESS_STALL_SECONDS = 300
+BACKLOG_LIMIT_SECONDS = 1800
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -48,7 +51,7 @@ def observe_confirmation(state, field, now):
     since = state.get(field)
     if type(since) not in [int, float] or not 0 <= since <= now:
         since = state[field] = now
-    return now - since < CONFIRMATION_SECONDS
+    return now - since < (RECOVERY_SECONDS if field == 'recoverySince' else CONFIRMATION_SECONDS)
 
 
 def observe_sync_health(path, state, previous, health, now):
@@ -79,6 +82,52 @@ def observe_sync_health(path, state, previous, health, now):
     return waiting
 
 
+def publication_progress(state, monitor, health, now):
+    """Defer mail, never health or cursors, while every pending direction advances."""
+    if health == 'ok':
+        state.pop('publicationProgress', None)
+        state.pop('publicationBacklogSince', None)
+        return False
+    if health != 'replication-lag':
+        return False
+    try:
+        streams = json.loads(monitor.read_text())['streams']
+        if not isinstance(streams, dict) or not streams:
+            return False
+        previous = state.get('publicationProgress', {})
+        progress = {}
+        for stream, report in streams.items():
+            directions = report['directions']
+            for target in ('cn', 'overseas'):
+                direction = directions[target]
+                if direction['status'] == 'caught-up':
+                    continue
+                if direction['status'] not in ('sent', 'retry', 'pending'):
+                    return False
+                key = stream + '/' + target
+                old = previous.get(key, {})
+                cursor = direction['cursor']
+                if cursor is not None and (type(cursor) is not int or cursor < 0):
+                    return False
+                prior_cursor = old.get('cursor')
+                if cursor is None and prior_cursor is None:
+                    return False
+                if cursor is not None and prior_cursor is not None and cursor < prior_cursor:
+                    return False
+                advanced = cursor is not None and (prior_cursor is None or cursor > prior_cursor)
+                progress[key] = {'cursor': cursor if cursor is not None else prior_cursor,
+                                 'at': now if advanced else old.get('at', now)}
+        if not progress:
+            return False
+        state['publicationProgress'] = progress
+        started = state.setdefault('publicationBacklogSince', now)
+        return (0 <= now - started < BACKLOG_LIMIT_SECONDS
+                and all(0 <= now - item['at'] < PROGRESS_STALL_SECONDS for item in progress.values()))
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        # Old or malformed reports cannot prove progress; retain ordinary alarms.
+        return False
+
+
 def run(args):
     scope = getattr(args, 'scope', 'Project')
     service = {'Publication': 'canvas-cn-resource-sync.service',
@@ -96,6 +145,10 @@ def run(args):
     state = json.loads(state_path.read_text()) if state_path.exists() else {}
     now = time.time()
     health = condition(pathlib.Path(args.monitor), now, getattr(args, 'stale_seconds', 120))
+    progressing = False
+    if scope == 'Publication':
+        progressing = publication_progress(state, pathlib.Path(args.monitor), health, now)
+        write_state(state_path, state)
     previous = state.get('acceptedCondition', 'ok')
     waiting = False
     if scope == 'Release':
@@ -111,6 +164,8 @@ def run(args):
     if pending is None:
         queued_urgent = state.get('queuedUrgent') if scope != 'Release' else None
         if not args.test and queued_urgent is None:
+            if progressing:
+                return {'result': 'progressing-backlog-recorded', 'condition': health}
             if waiting:
                 return {'result': 'waiting-for-confirmation'}
             if scope == 'Release' and health == 'retry':
@@ -130,8 +185,7 @@ def run(args):
             target = state.pop('queuedUrgent')
         elif health == 'ok' and previous == 'ok':
             return {'result': 'healthy'}
-        elif (health != 'ok' and previous != 'ok' and not escalated
-              and now - state.get('lastAcceptedAt', 0) < 3600):
+        elif health != 'ok' and previous != 'ok' and not escalated:
             return {'result': 'suppressed'}
         else:
             target = health
