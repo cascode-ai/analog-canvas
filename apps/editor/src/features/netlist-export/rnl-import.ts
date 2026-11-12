@@ -133,10 +133,17 @@ export async function drawnProject(
 ): Promise<{ project: CircuitProject } | OmittedDrawing> {
   try {
     const before = projectElectricalGraph(imported);
-    if (
-      !sameCircuits(imported, drawn.project) &&
-      !(await writesFileNetlist(drawn.project))
-    )
+    // A port the drawing shows only as its power label is that label again
+    // (#1783), which claims its net as a supply: the circuit checked is the
+    // one kept, since a Cell's supplies decide where its bodies go.
+    const project = withPowerLabelPorts(
+      hideLabels(
+        withImportedInstanceDisplays(drawn.project),
+        drawn.hiddenLabels,
+      ),
+      drawn.powerLabelPorts,
+    );
+    if (!sameCircuits(imported, project) && !(await writesFileNetlist(project)))
       return {
         code: "RNL_IMPORT_CHANGES_NETLIST",
         // A circuit the comparison cannot check comes in undrawn too (#1932).
@@ -145,15 +152,6 @@ export async function drawnProject(
             ? "The RNL drawing would change the netlist, so the circuit comes in undrawn"
             : `The RNL drawing may change a netlist that cannot be compared (${before.reason}), so the circuit comes in undrawn`,
       };
-    // A port the drawing shows only as its power label is that label again
-    // (#1783): the circuit is the same, only who owns the port changes.
-    const project = withPowerLabelPorts(
-      hideLabels(
-        withImportedInstanceDisplays(drawn.project),
-        drawn.hiddenLabels,
-      ),
-      drawn.powerLabelPorts,
-    );
     serializeProject(project);
     return { project };
   } catch (error) {

@@ -114,7 +114,9 @@ the RNL language and its runtime belong to rnl.
   as a gate Cell whose ports start with its supplies, is drawn with the same
   artwork defined in the file (`$CANVAS_CALL_…`), each pin on the position
   the call prints it at, so every wire reaches the terminal it was drawn to.
-  Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
+  A card that prints its two pins the other way round (a coupled inductor
+  starts at its dotted end) draws its symbol turned over onto itself, each
+  pin where the card prints it. Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
   Delay Cell, op-amp or comparator) back as that library symbol, a gate's
   pins meeting its Cell's Pins by name, only when the name, artwork and positional pins are the ones
   the export writes, or those with the supply leads the default variant
@@ -241,10 +243,12 @@ the RNL language and its runtime belong to rnl.
   (`presentation.cellSymbol`), as the editor shows it; it reads back with
   every pin placed where it was shown. An external subcircuit's block is
   defined once in the file level, its pins numbered, and set on each call.
-  A Cell's symbol drawn only in lines, with no box, reads back as the block's
-  own artwork, its pins where the symbol has them. A Cell drawn with its
+  A Cell's symbol drawn with no box (no rectangle centred on its origin)
+  reads back as the block's own artwork, its pins where the symbol has them.
+  A Cell drawn with its
   author's artwork (`cellSymbol.artwork`) is defined the same way from that
-  artwork, its mapped pins naming the printed ports; other shapes read back
+  artwork, its mapped pins naming the printed ports; a box with other
+  shapes, or a shape a symbol cannot draw (an ellipse, an arc), reads back
   as the nearest box (`RNL_IMPORT_BLOCK_APPROXIMATE`).
 - Drawing objects are RNL shapes, each in the line style it is drawn with
   (its override, else its own), in their stacking order: rectangles,
@@ -348,9 +352,9 @@ the RNL language and its runtime belong to rnl.
   - a port the drawing shows only as a power label naming it, no Pin drawn
     (Canvas 0.2): the label is the port again, as the editor keeps a local
     power label, claiming its net's name as a supply, so its rails are
-    rails; the Pin the netlist import gave it goes. It is applied once the
-    drawing is known to keep the circuit, since only who owns the port, and
-    with it where the netlist prints the port, changes (#1783);
+    rails; the Pin the netlist import gave it goes. The drawing is checked
+    with it applied, since a supply it claims is the one a Cell's unwired
+    bodies take (#1783);
   - in a file Canvas 0.4 or later wrote, a port the drawing draws neither
     as a Pin nor as a power label, and whose net holds more than its Pin
     and unwired bodies or rails: its interface is a hidden power label again, bound to the port where the
@@ -443,8 +447,11 @@ the RNL language and its runtime belong to rnl.
     `RNL_IMPORT_PARAMETER_TEXT`;
   - each parameter the card does not print (`$CANVAS_PARAMETER`) where the
     netlist import did not bring it, all or none: only where the netlist
-    then prints as it does without them, else none
-    (`RNL_IMPORT_PARAMETERS_IGNORED`); one the card prints is the card's;
+    then prints as it does without them, or adds only model cards the files
+    hold, else none (`RNL_IMPORT_PARAMETERS_IGNORED`); one the card prints
+    is the card's. The built-in Zener's `bv` and `ibv` print in its own card
+    (`icm_zener_D1`), which the netlist import reads as a card the part
+    calls: given back, the part is the editor's Zener again;
   - a label as it was drawn: a part's name that is not its reference (M1 on
     the card XM1) is the label's own text; a net's or power label hangs
     where its record attaches it, on the wire's route, or on the part,

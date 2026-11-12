@@ -252,6 +252,13 @@ const SIDE: Readonly<Record<number, "east" | "north" | "west" | "south">> = {
   270: "south",
 };
 
+/** A rectangle centred on a symbol's origin: the body a block's layout draws. */
+const isBlockBody = (prim: RnlSymbolDefinitionView["prims"][number]) =>
+  prim.shape === "rectangle" &&
+  prim.points.length === 1 &&
+  prim.points[0]![0] === 0 &&
+  prim.points[0]![1] === 0;
+
 /**
  * A Cell's block layout from the symbol the file defines for it: each pin on
  * the side it leaves by, at its distance along that side, and the body the
@@ -279,13 +286,7 @@ export function cellSymbolOf(
     if (onGrid(along) !== along) exact = false;
     return [{ terminalId: terminal.id, side, offset: onGrid(along) }];
   });
-  const body = definition.prims.find(
-    (prim) =>
-      prim.shape === "rectangle" &&
-      prim.points.length === 1 &&
-      prim.points[0]![0] === 0 &&
-      prim.points[0]![1] === 0,
-  );
+  const body = definition.prims.find(isBlockBody);
   const width = onGrid(Number(body?.params?.["width"]) * 10);
   const height = onGrid(Number(body?.params?.["height"]) * 10);
   if (!body || !(width > 0) || !(height > 0)) exact = false;
@@ -301,9 +302,12 @@ export function cellSymbolOf(
 }
 
 /**
- * A Cell's block drawn as its symbol in the file draws it, where that is lines
- * and no box: the block keeps its generated pins, each where the file has it,
- * and takes the lines as its artwork. Null for any other symbol, which the
+ * A Cell's block drawn as its symbol in the file draws it, where that has no
+ * box (a rectangle centred on its origin, as a block's layout draws its
+ * body): the block keeps its generated pins, each where the file has it,
+ * and takes the shapes as its artwork, as the export writes an author's
+ * (`cellSymbol.artwork`, a Circuit Component's). Null for any other symbol,
+ * or one with a shape Analog Canvas does not draw in a symbol, which the
  * Cell's block layout draws.
  */
 export function cellArtwork(
@@ -311,7 +315,7 @@ export function cellArtwork(
   definition: RnlSymbolDefinitionView,
 ): ComponentDefinition | null {
   if (!definition.prims.length) return null;
-  if (definition.prims.some((prim) => prim.shape !== "line")) return null;
+  if (definition.prims.some(isBlockBody)) return null;
   const block = createHierarchicalBlockSymbol(cell);
   return block
     ? blockArtwork(block, cell.netlist?.terminals ?? [], definition, false)

@@ -540,6 +540,99 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it("brings back the built-in Zener with its breakdown, which prints a card of its own, through SPICE+RNL", async () => {
+  // The Zener's bv prints in its own card (icm_zener_X1), which the
+  // netlist import reads as a card X1 calls; the file keeps bv for the
+  // part, and X1 is the editor's Zener again, printing that card. Only
+  // SPICE prints the built-in Zener.
+  const format = "spice";
+  const project = calledBlocks(["zener-diode"]);
+  const zener = project.documents[0]!.instances.find(
+    (instance) => instance.id === "X1",
+  )!;
+  zener.netlist = { parameters: { bv: "6.2" } };
+  const before = createDesignNetlistExport(project, { format });
+  expect(before.status === "ready" && before.file.text).toMatch(
+    /^\.?model icm_zener_X1 /mu,
+  );
+  const plan = await roundTrip(project, format);
+  expect(failures(plan)).toEqual([]);
+  expect(plan.diagnostics.map((item) => item.code)).not.toContain(
+    "RNL_IMPORT_PARAMETERS_IGNORED",
+  );
+  const back = plan.project.documents
+    .flatMap((document) => document.instances)
+    .find((instance) => instance.reference === "X1")!;
+  expect(back.symbolId).toBe("zener-diode");
+  expect(back.netlist).toEqual({ parameters: { bv: "6.2" } });
+  const after = createDesignNetlistExport(plan.project, { format });
+  expect(after.status === "ready" && after.file.text).toBe(
+    before.status === "ready" && before.file.text,
+  );
+});
+
+it.each(["spice", "spectre"] as const)(
+  "draws a coupled inductor its card starts at the other end of on the pins the card prints, through %s+RNL",
+  async (format) => {
+    // L2 is dotted at its pin 2, so its card prints that pin first, and
+    // RNL binds the symbol's first pin to it: the symbol is turned over so
+    // each wire still ends on its own node, and comes back as drawn.
+    const project = calledBlocks(["inductor-compact", "inductor-compact"]);
+    const document = project.documents[0]!;
+    for (const [id, reference] of [
+      ["X1", "L1"],
+      ["X2", "L2"],
+    ] as const)
+      document.instances.find((instance) => instance.id === id)!.reference =
+        reference;
+    document.inductorCouplings = [
+      {
+        id: "coupling-k1",
+        name: "K1",
+        k: "0.9",
+        arrow: false,
+        members: [
+          { instanceId: "X1", dotPin: "1" },
+          { instanceId: "X2", dotPin: "2" },
+        ],
+      },
+    ];
+    const before = createDesignNetlistExport(project, { format });
+    expect(before.status === "ready" && before.file.text).toMatch(
+      /^L2 \(?n_x2_2 n_x2_1\b/mu,
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.drawing).not.toBe("discarded");
+    // Each wire ends at the places it was drawn to, on its own node.
+    const ends = (circuit: CircuitProject) => {
+      const cell = circuit.documents.find(
+        (item) => item.netlist?.name === "dut",
+      )!;
+      const resolver = createProjectSymbolResolver(circuit, builtInSymbols);
+      const names = new Map(
+        cell.netlist!.terminals.map((terminal) => [
+          terminal.netId,
+          terminal.name,
+        ]),
+      );
+      return cell.routes
+        .flatMap((route) => {
+          const line = resolveRouteGeometry(cell, resolver, route)?.centerline;
+          return [line?.[0], line?.at(-1)].map(
+            (point) => `${names.get(route.netId)} ${point?.x},${point?.y}`,
+          );
+        })
+        .sort();
+    };
+    expect(ends(plan.project)).toEqual(ends(project));
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
 /**
  * Cell `dut`: a resistor R1 from Cell Pin `A` to the Cell's port `VDD`,
  * whose only interface is a hidden power label hung on R1, as a Cell keeps
@@ -641,6 +734,143 @@ it.each(["spice", "spectre"] as const)(
     const netlist = (circuit: CircuitProject) => {
       const result = createDesignNetlistExport(circuit, { format });
       return result.status === "ready" ? result.file.text : result.status;
+    };
+    expect(netlist(plan.project)).toBe(netlist(project));
+  },
+);
+
+/**
+ * hiddenPowerPort's dut with its supply port drawn only as its power label,
+ * named `supply`, and an NMOS M1 whose body has no Net, its source on a
+ * second such port GND where `ground` asks for one, else on A.
+ */
+function labelledSupplies(supply: string, ground: boolean): CircuitProject {
+  const project = hiddenPowerPort();
+  const document = project.documents[0]!;
+  const label = document.annotations.find((item) => item.id === "hidden-vdd")!;
+  label.visible = true;
+  label.anchor = { kind: "free", position: { x: 200, y: 40 } };
+  document.netlist!.terminals.find(
+    (terminal) => terminal.id === "terminal-vdd",
+  )!.name = supply;
+  const claim = document.connectivityEvidence.find(
+    (item) => item.id === "evidence-hidden-vdd",
+  )!;
+  if (claim.kind === "name-claim") claim.name = supply;
+  document.instances.push({
+    id: "M1",
+    symbolId: "nmos",
+    reference: "M1",
+    placement: { position: { x: 300, y: 100 }, rotation: 0, mirror: "none" },
+    netlist: {
+      binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+      parameters: { w: "1u", l: "1u" },
+    },
+  });
+  document.nets
+    .find((net) => net.id === "net-vdd")!
+    .terminals.push({ instanceId: "M1", pinName: "D" });
+  document.nets
+    .find((net) => net.id === "net-a")!
+    .terminals.push({ instanceId: "M1", pinName: "G" });
+  if (!ground) {
+    document.nets
+      .find((net) => net.id === "net-a")!
+      .terminals.push({ instanceId: "M1", pinName: "S" });
+    return project;
+  }
+  // GND as the editor draws a power label for a port: a supply claim, on
+  // a wire from M1's source to R2.
+  document.instances.push({
+    id: "R2",
+    symbolId: "resistor",
+    reference: "R2",
+    placement: { position: { x: 300, y: 300 }, rotation: 0, mirror: "none" },
+    netlist: { parameters: { value: "2k" } },
+  });
+  document.nets
+    .find((net) => net.id === "net-a")!
+    .terminals.push({ instanceId: "R2", pinName: "1" });
+  document.nets.push({
+    id: "net-gnd",
+    terminals: [
+      { instanceId: "M1", pinName: "S" },
+      { instanceId: "R2", pinName: "2" },
+    ],
+  });
+  document.routes.push({
+    id: "route-gnd",
+    netId: "net-gnd",
+    start: { kind: "terminal", instanceId: "M1", pinName: "S" },
+    legs: [
+      {
+        id: "leg-gnd",
+        to: {
+          kind: "endpoint",
+          endpoint: { kind: "terminal", instanceId: "R2", pinName: "2" },
+        },
+        mode: "manual",
+      },
+    ],
+  });
+  document.netlist!.terminals.push({
+    id: "terminal-gnd",
+    name: "GND",
+    netId: "net-gnd",
+    direction: "inout",
+    interfaceInstanceIds: [],
+    interfaceAnnotationId: "label-gnd",
+  });
+  document.annotations.push({
+    ...label,
+    id: "label-gnd",
+    netId: "net-gnd",
+    binding: { kind: "cell-terminal-name", terminalId: "terminal-gnd" },
+    anchor: { kind: "free", position: { x: 300, y: 200 } },
+  } as Annotation);
+  document.connectivityEvidence.push({
+    ...claim,
+    id: "evidence-gnd",
+    netId: "net-gnd",
+    name: "GND",
+    owner: { kind: "power-marker", objectId: "label-gnd" },
+  } as (typeof document.connectivityEvidence)[number]);
+  return project;
+}
+
+it.each(
+  (["spice", "spectre"] as const).flatMap((format) =>
+    (["AVDD", "VDD GND"] as const).map((ports) => [format, ports] as const),
+  ),
+)(
+  "keeps a Cell whose power label ports are the supplies its unwired bodies take (%s+RNL, %s)",
+  async (format, ports) => {
+    // dut's NMOS body has no Net: it takes ground, the VSS pin the export
+    // adds after the Cell's drawn supplies (AVDD, or VDD and GND, which RNL
+    // reads as ground 0), each drawn only as its power label. Taken back,
+    // each label is its port's interface again, so the body adds no VDD pin
+    // of its own, and VSS goes again, printed where the file has it.
+    const project = labelledSupplies(ports.split(" ")[0]!, ports !== "AVDD");
+    const exported = createRnlExport(project, { format });
+    expect(exported.status === "ready" && exported.request.netlist).toMatch(
+      new RegExp(`subckt dut \\(?${ports} VSS A\\b`, "u"),
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.drawing).not.toBe("discarded");
+    // The VSS pin goes again: dut has the Pins it was drawn with.
+    const pins = (circuit: CircuitProject) =>
+      circuit.documents[0]!.netlist!.terminals.map(
+        (terminal) => terminal.name,
+      ).sort();
+    expect(pins(plan.project)).toEqual(pins(project));
+    // The stand-in NMOS card reads back as the Project's own model, which
+    // the netlist then leaves out: that is #1815's, not this.
+    const netlist = (circuit: CircuitProject) => {
+      const result = createDesignNetlistExport(circuit, { format });
+      return result.status === "ready"
+        ? result.file.text.replace(/^\.?model NMOS .*\n/gmu, "")
+        : result.status;
     };
     expect(netlist(plan.project)).toBe(netlist(project));
   },
@@ -4655,7 +4885,7 @@ describe("RNL round trip", () => {
   );
 
   it.each(["spice", "spectre"] as const)(
-    "reads back a block the file draws in lines, through %s+RNL",
+    "reads back a block the file draws in lines, filled bars and dots and no box, through %s+RNL",
     async (format) => {
       const project = example("simulation-rc");
       const lowpass = project.documents.find(
@@ -4698,6 +4928,26 @@ describe("RNL round trip", () => {
           kind: "line",
           from: { x: -60, y: 30 },
           to: { x: -50, y: 30 },
+        },
+        // A gate's plate and a junction's dot, as an author draws a MOS
+        // stack's artwork: shapes that are no block's box.
+        {
+          kind: "polygon",
+          points: [
+            { x: -30, y: -20 },
+            { x: -26, y: -20 },
+            { x: -26, y: 20 },
+            { x: -30, y: 20 },
+          ],
+          fill: "foreground",
+          stroke: "none",
+        },
+        {
+          kind: "circle",
+          center: { x: 20, y: 0 },
+          radius: 3,
+          fill: "foreground",
+          stroke: "none",
         },
       ];
       project.componentDefinitions = [
@@ -6001,6 +6251,157 @@ it.each(["spice", "spectre"] as const)(
     expect(stage.netlist!.terminals.map((terminal) => terminal.name)).toContain(
       "VSS",
     );
+  },
+);
+
+/**
+ * GainStagePair with GainStage's body unwired, so the export gives GainStage
+ * and the pair VDD and VSS pins, and a Cell Sink calling ground through a
+ * ground glyph, which prints its own VSS: the pair's Pins `IN<0>` and OUT.
+ */
+function stagesWithSink(): CircuitProject {
+  const project = parseProject(
+    readFileSync(
+      resolve(
+        import.meta.dirname,
+        "../../../../../fixtures/projects/hierarchical-gain-stage/project.icproj.json",
+      ),
+      "utf8",
+    ),
+  );
+  for (const instance of project.documents.flatMap((cell) => cell.instances))
+    if (instance.id === "M1")
+      instance.netlist = {
+        binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+        parameters: { w: "1u", l: "1u" },
+      };
+    else if (instance.id === "R1")
+      instance.netlist = {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "1k" },
+      };
+  const at = (x: number, y: number, rotation: 0 | 180 = 0) =>
+    ({ position: { x, y }, rotation, mirror: "none" }) as const;
+  const sink = createEmptyDocument("document-sink", "Sink");
+  sink.netlist = {
+    name: "Sink",
+    formalParameters: [],
+    terminals: [
+      {
+        id: "terminal-sink-a",
+        name: "A",
+        netId: "net-a",
+        direction: "inout",
+        interfaceInstanceIds: ["PA"],
+      },
+    ],
+  };
+  sink.instances.push(
+    { id: "PA", symbolId: "port", placement: at(100, 100) },
+    {
+      id: "RS",
+      symbolId: "resistor",
+      reference: "RS",
+      placement: at(200, 160),
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "2k" },
+      },
+    },
+    { id: "GS", symbolId: "ground", placement: at(200, 260) },
+  );
+  sink.nets.push(
+    {
+      id: "net-a",
+      terminals: [
+        { instanceId: "PA", pinName: "P" },
+        { instanceId: "RS", pinName: "1" },
+      ],
+    },
+    {
+      id: "net-gnd",
+      terminals: [
+        { instanceId: "GS", pinName: "0" },
+        { instanceId: "RS", pinName: "2" },
+      ],
+    },
+  );
+  sink.connectivityEvidence.push({
+    id: "sink-gnd-claim",
+    kind: "name-claim",
+    netId: "net-gnd",
+    name: "0",
+    scope: "global",
+    powerDomain: "ground",
+    owner: { kind: "power-marker", objectId: "GS" },
+  });
+  project.documents.push(sink);
+  const top = project.documents.find(
+    (cell) => cell.id === project.topDocumentId,
+  )!;
+  top.instances.push(
+    {
+      id: "X3",
+      symbolId: hierarchicalSymbolId("document-sink"),
+      reference: "X3",
+      placement: at(900, 240),
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "document-sink" },
+        parameters: {},
+      },
+    },
+    { id: "PIN", symbolId: "port", placement: at(100, 240) },
+    { id: "POUT", symbolId: "port", placement: at(1000, 160, 180) },
+  );
+  top.netlist!.terminals.push(
+    {
+      id: "terminal-top-in",
+      name: "IN<0>",
+      netId: "net-top-in",
+      direction: "input",
+      interfaceInstanceIds: ["PIN"],
+    },
+    {
+      id: "terminal-top-out",
+      name: "OUT",
+      netId: "net-top-out",
+      direction: "output",
+      interfaceInstanceIds: ["POUT"],
+    },
+  );
+  top.nets
+    .find((net) => net.id === "net-top-in")!
+    .terminals.push({ instanceId: "PIN", pinName: "P" });
+  top.nets
+    .find((net) => net.id === "net-top-out")!
+    .terminals.push(
+      { instanceId: "POUT", pinName: "P" },
+      { instanceId: "X3", pinName: "A" },
+    );
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "takes back the supply pins a Cell with a port RNL quotes prints, beside a Cell drawing its ground, through %s+RNL",
+  async (format) => {
+    // RNL quotes the pair's port IN<0> ("IN<0>"); the import compares the
+    // pins it takes back by the file's own subcircuits, which spell it so.
+    const project = stagesWithSink();
+    const exported = createRnlExport(project, { format });
+    expect(exported.status === "ready" && exported.request.netlist).toMatch(
+      /subckt GainStagePair \(?VDD VSS /,
+    );
+    const plan = await roundTrip(project, format);
+    expect(failures(plan)).toEqual([]);
+    expect(plan.drawing).not.toBe("discarded");
+    for (const spice of [false, true]) {
+      const options = { format: spice ? "spice" : format } as const;
+      const before = createDesignNetlistExport(project, options);
+      const after = createDesignNetlistExport(plan.project, options);
+      expect(after.status === "ready" && after.file.text).toBe(
+        before.status === "ready" && before.file.text,
+      );
+    }
   },
 );
 

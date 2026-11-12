@@ -145,3 +145,13 @@ export function supplyPortRank(
   if (domain === "ground" || port.name.toUpperCase() === "VSS") return 1;
   return 2;
 }
+
+/**
+ * Whether the export sorts a Cell's ports by {@link supplyPortRank}. A Cell
+ * read from a netlist file (it keeps the import's reference) prints its
+ * ports in its own order, as the file declared them, so it writes again as
+ * it was read and every positional call stays the file's; a ground pin the
+ * export adds still goes after its VDD ports.
+ */
+export const sortsSupplyPorts = (document: SchematicDocument): boolean =>
+  document.importReference === undefined;

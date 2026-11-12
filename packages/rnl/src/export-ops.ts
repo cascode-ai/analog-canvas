@@ -58,6 +58,7 @@ import { draftingLayer, draftingShapes, drawingGroup } from "./drawing-ops.js";
 import {
   composeOrient,
   inverseOrient,
+  orientPoint,
   rnlOrient,
   type RnlOrient,
 } from "./orientation.js";
@@ -710,13 +711,20 @@ function exportCell(
         `${describe(instance)} has a wire on ${unwritten.map((pin) => pin.acPin).join(" and ")}, which RNL's ${mapped!.symbol} draws no pin for; the wire is left out, and the netlist still joins it`,
         [instance.id],
       );
+    // A card that prints its two pins the other way round (a coupled
+    // inductor starts at its dotted end): RNL binds the symbol's pins in the
+    // card's order, so the symbol is turned over onto itself, each terminal
+    // where the card prints its pin.
+    const swap = mapped && call ? cardSwap(mapped, call.nodes) : undefined;
     terminalsOf.set(
       instance.id,
       mapped
         ? (pin) =>
             unwritten.some((item) => item.acPin === pin)
               ? undefined
-              : terminalOfPin(mapped, pin)
+              : swap
+                ? swap.terminalOf(pin)
+                : terminalOfPin(mapped, pin)
         : block!,
     );
     const where =
@@ -724,7 +732,10 @@ function exportCell(
         ? {
             at: rnlPlace(placement.position, orient, symbol?.offset ?? [0, 0]),
             // a drawing that is the symbol flipped turns with the part
-            orient: composeOrient(orient, symbol?.orient ?? "R0"),
+            orient: composeOrient(
+              orient,
+              composeOrient(symbol?.orient ?? "R0", swap?.flip ?? "R0"),
+            ),
           }
         : {};
     const definition = symbol?.definition;
@@ -1772,4 +1783,47 @@ function describe(instance: Instance): string {
   return instance.reference
     ? `${instance.reference} (${instance.symbolId})`
     : instance.symbolId;
+}
+
+/**
+ * For a two-pin symbol whose card prints its pins in the other order than
+ * the symbol's terminals: the turn of the symbol's own frame that lays each
+ * pin on the other's place (a mirror along the pins first), and the
+ * terminal each pin then takes, its place in the card. Undefined where the
+ * card prints them in the symbol's order or no turn swaps them.
+ */
+function cardSwap(
+  symbol: RnlSymbol,
+  nodes: readonly { pinName: string }[],
+):
+  | { flip: RnlOrient; terminalOf: (pin: string) => number | undefined }
+  | undefined {
+  const [first, second] = [...symbol.pins].sort(
+    (a, b) => a.terminal - b.terminal,
+  );
+  if (
+    symbol.pins.length !== 2 ||
+    symbol.undrawnPins.length ||
+    nodes.length !== 2 ||
+    nodes[0]!.pinName !== second!.acPin ||
+    nodes[1]!.pinName !== first!.acPin
+  )
+    return undefined;
+  const lands = (flip: RnlOrient, from: RnlPoint, to: RnlPoint) => {
+    const [x, y] = orientPoint(flip, from);
+    return x === to[0] && y === to[1];
+  };
+  const flip = (["MX", "MY", "R180"] as const).find(
+    (code) =>
+      lands(code, first!.at, second!.at) && lands(code, second!.at, first!.at),
+  );
+  return flip
+    ? {
+        flip,
+        terminalOf: (pin) => {
+          const index = nodes.findIndex((node) => node.pinName === pin);
+          return index < 0 ? undefined : index + 1;
+        },
+      }
+    : undefined;
 }

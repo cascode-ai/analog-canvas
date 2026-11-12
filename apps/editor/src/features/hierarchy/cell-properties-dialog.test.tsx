@@ -167,39 +167,51 @@ describe("CellPropertiesDialog", () => {
       const result = createDesignNetlistExport(project);
       return result.status === "ready" ? result.file.text : result.status;
     };
-    // A Pin named VSS is a supply: it leads, as the netlist writes it, and
-    // its place is fixed; the signals move among themselves.
-    expect(rows("rc_stage")).toEqual(["1 VSS --", "2 IN xd", "3 OUT ux"]);
-    expect(netlist()).toContain(".subckt rc_stage VSS IN OUT\n");
-    expect(render(project, cellId("rc_stage"))).toContain(
-      "Top to bottom is the netlist order; supplies lead",
-    );
+    // A Cell read from a file keeps the order the file declares its Pins
+    // in, VSS among them: each moves, and the netlist writes it as it reads.
+    expect(rows("rc_stage")).toEqual(["1 IN xd", "2 OUT ud", "3 VSS ux"]);
+    expect(netlist()).toContain(".subckt rc_stage IN OUT VSS\n");
+    expect(render(project, cellId("rc_stage"))).not.toContain("supplies lead");
     // Ground's pin, which the netlist adds, shows where it is written.
     expect(rows("amp")).toEqual(["1 VSS added", "2 IN xd", "3 OUT ux"]);
 
-    // Moving OUT up swaps it with IN, past nothing the netlist fixes: the
-    // definition and its call change alike, and the table still matches.
-    const moved = executeProjectTransaction(project, {
-      transactionId: "move-out-up",
-      projectId: project.id,
-      expectedStructureRevision: project.structureRevision,
-      actor: { kind: "human", id: "test" },
-      edits: planSwapCellPorts(
-        project,
-        cellId("rc_stage"),
-        project.documents
-          .find((item) => item.name === "rc_stage")!
-          .netlist!.terminals.find((terminal) => terminal.name === "OUT")!.id,
-        project.documents
-          .find((item) => item.name === "rc_stage")!
-          .netlist!.terminals.find((terminal) => terminal.name === "IN")!.id,
-      ),
-    });
+    // Moving OUT up swaps it with IN: the definition and its call change
+    // alike, and the table still matches.
+    const swap = (from: CircuitProject, id: string) =>
+      executeProjectTransaction(from, {
+        transactionId: id,
+        projectId: from.id,
+        expectedStructureRevision: from.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: planSwapCellPorts(
+          from,
+          cellId("rc_stage"),
+          from.documents
+            .find((item) => item.name === "rc_stage")!
+            .netlist!.terminals.find((terminal) => terminal.name === "OUT")!.id,
+          from.documents
+            .find((item) => item.name === "rc_stage")!
+            .netlist!.terminals.find((terminal) => terminal.name === "IN")!.id,
+        ),
+      });
+    const moved = swap(project, "move-out-up");
     expect(moved.ok).toBe(true);
     project = moved.project;
+    expect(rows("rc_stage")).toEqual(["1 OUT xd", "2 IN ud", "3 VSS ux"]);
+    expect(netlist()).toContain(".subckt rc_stage OUT IN VSS\n");
+    expect(netlist()).toMatch(/^X1 b a VSS rc_stage$/mu);
+
+    // A Cell the editor draws puts a Pin named VSS, a supply, first, as
+    // the netlist writes it, its place fixed; the signals move among
+    // themselves.
+    delete project.documents.find((item) => item.name === "rc_stage")!
+      .importReference;
     expect(rows("rc_stage")).toEqual(["1 VSS --", "2 OUT xd", "3 IN ux"]);
     expect(netlist()).toContain(".subckt rc_stage VSS OUT IN\n");
     expect(netlist()).toMatch(/^X1 VSS b a rc_stage$/mu);
+    expect(render(project, cellId("rc_stage"))).toContain(
+      "Top to bottom is the netlist order; supplies lead",
+    );
   });
 
   it("keeps imported parameters without defaults and offers adding one", () => {

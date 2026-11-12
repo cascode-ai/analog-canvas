@@ -477,6 +477,11 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   body lands on a supply other than its source's
   ([connectivity](connectivity-and-routing.md#mos-bulk)); wired bodies are never
   reported.
+- A `.subckt` prints its Cell's Pins in the Cell's order, its `vdd`-domain
+  or `VDD` Pins first, then its ground or `VSS` Pins. A Cell imported from a
+  netlist file (it keeps the import's reference) prints its Pins in the
+  file's order, so it is written as it was read; the pins the export adds
+  take their places all the same.
 - Ground: a `.subckt` meeting ground carries `VSS` after the author's
   `vdd`-domain ports (else first), with internal `0` read as `VSS`; an author's
   ground pin is kept instead. If `VSS` names another Pin or Net, the pin is `GND`

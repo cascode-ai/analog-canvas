@@ -56,7 +56,7 @@ import {
   diagnostic,
 } from "./extract-common.js";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
-import { supplyPortRank } from "./extract-ground-pin.js";
+import { sortsSupplyPorts, supplyPortRank } from "./extract-ground-pin.js";
 import { bubblePhasePins } from "./extract-switch.js";
 import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
@@ -512,7 +512,8 @@ function analyzeDesign(
         );
         if (net) net.scope = "local";
       }
-      cell.ports.sort((left, right) => rank(left) - rank(right));
+      if (sortsSupplyPorts(documentsById.get(cell.id)!))
+        cell.ports.sort((left, right) => rank(left) - rank(right));
     }
     // Port order is positional in both SPICE and Spectre. Reorder internal
     // calls from the final child interface; external PDK pin order is untouched.

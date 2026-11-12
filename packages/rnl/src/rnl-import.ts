@@ -259,7 +259,11 @@ export function applyRnlSnapshot(
 /**
  * Gives back the parameters the file keeps for its parts (Canvas 0.4), all
  * or none: only where the netlist then prints as it does without them, so
- * a stale or forged record (a field the card now prints) changes nothing.
+ * a stale or forged record (a field the card now prints) changes nothing,
+ * or adds only model cards the file itself holds. That is the built-in
+ * Zener's: its bv and ibv print in a card of its own (`icm_zener_D1`), which
+ * the netlist import reads as a card the part calls and leaves out, so the
+ * part given them back is the editor's Zener again and prints that card.
  * False when some were kept and none could be given back.
  */
 function restoreKeptParameters(
@@ -269,20 +273,75 @@ function restoreKeptParameters(
   if (!kept.length) return true;
   const trial = structuredClone(project);
   for (const { documentId, instanceId, name, text } of kept) {
-    const parameters = trial.documents
+    const instance = trial.documents
       .find((document) => document.id === documentId)
-      ?.instances.find((instance) => instance.id === instanceId)
-      ?.netlist?.parameters;
-    if (parameters) parameters[name] = text;
+      ?.instances.find((item) => item.id === instanceId);
+    const parameters = instance?.netlist?.parameters;
+    if (!parameters) continue;
+    parameters[name] = text;
+    if (/^i?bv$/iu.test(name) && callsBuiltInZenerCard(instance))
+      delete instance.netlist!.binding;
   }
   const printed = (from: CircuitProject) => {
     const result = createDesignNetlistExport(from, { format: "spice" });
     return result.status === "ready" ? result.file.text : null;
   };
   const now = printed(project);
-  if (now === null || printed(trial) !== now) return false;
+  const restored = printed(trial);
+  if (
+    now === null ||
+    restored === null ||
+    (restored !== now && !addsOnlyFileCards(now, restored, project))
+  )
+    return false;
   project.documents = trial.documents;
   return true;
+}
+
+/** A Zener drawn as the editor's that calls the card the editor writes for it. */
+function callsBuiltInZenerCard(
+  instance: SchematicDocument["instances"][number],
+): boolean {
+  const binding = instance.netlist?.binding;
+  return (
+    instance.symbolId === "zener-diode" &&
+    binding?.kind === "model" &&
+    binding.name.toLowerCase() ===
+      `icm_zener_${instance.reference ?? ""}`.toLowerCase()
+  );
+}
+
+/**
+ * Whether a netlist prints every line of another and adds only `.model`
+ * cards one of the Project's source files holds, read as SPICE reads them:
+ * case and the punctuation of `D(BV=6.2)` aside.
+ */
+function addsOnlyFileCards(
+  before: string,
+  after: string,
+  project: CircuitProject,
+): boolean {
+  const card = (line: string) =>
+    line
+      .toLowerCase()
+      .replace(/[()=,]/gu, " ")
+      .trim()
+      .split(/\s+/u)
+      .join(" ");
+  const held = new Set(
+    project.source.files.flatMap((file) =>
+      (file.content?.text ?? "").split(/\r?\n/u).map(card),
+    ),
+  );
+  const added = after.split("\n");
+  for (const line of before.split("\n")) {
+    const index = added.indexOf(line);
+    if (index < 0) return false;
+    added.splice(index, 1);
+  }
+  return added.every(
+    (line) => /^\.model\s/iu.test(line) && held.has(card(line)),
+  );
 }
 
 /**

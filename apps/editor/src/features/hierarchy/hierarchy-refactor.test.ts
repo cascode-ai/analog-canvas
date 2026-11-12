@@ -303,7 +303,8 @@ describe("hierarchy refactoring", () => {
           "R3 OUT VSS 3k",
           ".ends ChainChild",
           "",
-          ".subckt R11_CHAIN VSS IN OUT",
+          // The Cell read from the file keeps its ports in the file's order.
+          ".subckt R11_CHAIN IN OUT VSS",
           "X1 VSS IN OUT ChainChild",
           ".ends R11_CHAIN",
         ].join("\n"),
