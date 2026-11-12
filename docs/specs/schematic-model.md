@@ -152,7 +152,9 @@ annotations and unlocked layout references.
   top/bottom placement and unplaced Pins sit on the side their Port is drawn
   (top-to-bottom order; middle stays automatic), sized so names clear; the
   first placement persists these, and a placed Cell's block never changes by
-  this rule.
+  this rule. Optional `artwork` replaces the derived block with author-drawn
+  Symbol JSON mapped from every Cell Pin, as
+  [Symbol DSL](symbol-dsl.md#source-backed-custom-artwork) states.
 
 ## Project-owned external model sources
 

@@ -998,6 +998,9 @@ function WorkspaceEditor({
   // The Cell definition open in Cell properties; External Circuits keep the
   // Cell Manager dialog above.
   const [cellPropertiesId, setCellPropertiesId] = useState<string | null>(null);
+  const [cellSymbolAuthoringId, setCellSymbolAuthoringId] = useState<
+    string | null
+  >(null);
   const [importCellOpen, setImportCellOpen] = useState(false);
   const [hierarchyExpanded, setHierarchyExpanded] = useState<string[]>([]);
   // The tree row whose uses are listed inline; the breadcrumb can open it.
@@ -1390,6 +1393,7 @@ function WorkspaceEditor({
       setSelectionCell(null);
       setReplaceUse(null);
       setCellPropertiesId(null);
+      setCellSymbolAuthoringId(null);
       setImportCellOpen(false);
       setViewBox(nextViewBox, nextDocument.presentation.grid);
       resetInteractionState();
@@ -1670,6 +1674,7 @@ function WorkspaceEditor({
     setCellSymbolBodySize,
     setCellSymbolPresentation,
     setCellSymbolPortPlacement,
+    setCellSymbolArtwork,
     editCellTerminalAnnotation,
     convertCellTerminalSignal,
     removeCellTerminalSelection,
@@ -5966,6 +5971,9 @@ function WorkspaceEditor({
         }
         cellPropertiesId={cellPropertiesId}
         setCellPropertiesId={setCellPropertiesId}
+        cellSymbolAuthoringId={cellSymbolAuthoringId}
+        setCellSymbolAuthoringId={setCellSymbolAuthoringId}
+        setCellSymbolArtwork={setCellSymbolArtwork}
         importCellOpen={importCellOpen}
         setImportCellOpen={setImportCellOpen}
         renameCellTerminal={renameCellTerminal}
@@ -7280,6 +7288,21 @@ function WorkspaceEditor({
                                 side,
                                 offset,
                               ),
+                            ...(selectedBlockLayout.kind === "cell"
+                              ? {
+                                  onCustomizeSymbol: () =>
+                                    setCellSymbolAuthoringId(
+                                      selectedBlockLayout.ownerId,
+                                    ),
+                                  onResetSymbol: () => {
+                                    const refusal = setCellSymbolArtwork(
+                                      selectedBlockLayout.ownerId,
+                                      { symbolMode: "automatic" },
+                                    );
+                                    if (refusal) setStatus(refusal);
+                                  },
+                                }
+                              : {}),
                           }
                         : null,
                       identity: {

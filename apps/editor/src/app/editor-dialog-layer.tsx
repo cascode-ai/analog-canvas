@@ -13,6 +13,7 @@ import {
 import {
   LazyCellManagerDialog,
   LazyCellPropertiesDialog,
+  LazyCellSymbolAuthoringDialog,
   LazyImportCellDialog,
   LazyConnectAgentPanel,
   LazyInsertComponentDialog,
@@ -39,6 +40,9 @@ export interface EditorDialogLayerProps {
   insertComponent: ComponentProps<typeof LazyInsertComponentDialog> | null;
   cellManager: ComponentProps<typeof LazyCellManagerDialog> | null;
   cellProperties: ComponentProps<typeof LazyCellPropertiesDialog> | null;
+  cellSymbolAuthoring?: ComponentProps<
+    typeof LazyCellSymbolAuthoringDialog
+  > | null;
   importCell: ComponentProps<typeof LazyImportCellDialog> | null;
   netlistPreflight: ComponentProps<typeof LazyNetlistPreflightDialog> | null;
   publishGallery: ComponentProps<typeof LazyPublishGalleryDialog> | null;
@@ -65,6 +69,7 @@ export function EditorDialogLayer({
   insertComponent,
   cellManager,
   cellProperties,
+  cellSymbolAuthoring,
   importCell,
   netlistPreflight,
   publishGallery,
@@ -100,6 +105,9 @@ export function EditorDialogLayer({
         {cellManager ? <LazyCellManagerDialog {...cellManager} /> : null}
         {cellProperties ? (
           <LazyCellPropertiesDialog {...cellProperties} />
+        ) : null}
+        {cellSymbolAuthoring ? (
+          <LazyCellSymbolAuthoringDialog {...cellSymbolAuthoring} />
         ) : null}
         {importCell ? <LazyImportCellDialog {...importCell} /> : null}
         {netlistPreflight ? (

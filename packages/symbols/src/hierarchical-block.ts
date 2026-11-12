@@ -1,6 +1,7 @@
 import {
   deriveStableId,
   projectCellInterface,
+  projectCellSymbolArtwork,
   semanticTextDocument,
 } from "@icm/model";
 import type {
@@ -136,6 +137,17 @@ export function createHierarchicalBlockSymbol(
   const cellName = document.netlist?.name;
   const terminals = projectCellSymbolTerminals(document);
   if (!cellName) return null;
+  // The author's own artwork, its graphical pins projected onto the Cell
+  // Pins' formal names; a map the Document validation would refuse never
+  // reaches here, and the generated block stands in for one that does.
+  const artwork = document.presentation?.cellSymbol?.artwork;
+  const custom =
+    artwork &&
+    projectCellSymbolArtwork(artwork, terminals, {
+      id: hierarchicalSymbolId(cellName),
+      name: document.name,
+    });
+  if (custom) return SymbolDefinitionSchema.parse(custom);
   return createBlockSymbol(
     {
       id: hierarchicalSymbolId(cellName),

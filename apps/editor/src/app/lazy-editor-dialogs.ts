@@ -14,6 +14,14 @@ export const LazyCellPropertiesDialog = lazyChunk("dialog", () =>
   })),
 );
 
+export const LazyCellSymbolAuthoringDialog = lazyChunk("dialog", () =>
+  import("../features/hierarchy/cell-symbol-authoring-dialog").then(
+    (module) => ({
+      default: module.CellSymbolAuthoringDialog,
+    }),
+  ),
+);
+
 export const LazyImportCellDialog = lazyChunk("dialog", () =>
   import("../features/hierarchy/import-cell-dialog").then((module) => ({
     default: module.ImportCellDialog,

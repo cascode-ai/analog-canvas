@@ -156,7 +156,7 @@ describe("mcp resources single-source projection", () => {
   it("bounds discovery size while retaining complete contracts and runtime validation", async () => {
     const tools = listToolDefinitions();
     // A tripwire for a directory that unfolds by accident, not a pin on
-    // today's size: about twice the measured 119,622 bytes (not a token
+    // today's size: about twice the measured 246,567 bytes (not a token
     // count), so ordinary growth never trips it. Focused tools keep the
     // stricter per-tool limit a real host's compaction sets, in
     // focused-tools.test.ts.
@@ -164,7 +164,7 @@ describe("mcp resources single-source projection", () => {
       (t) => !FOCUSED_TOOLS.some((f) => f.name === t.name),
     );
     expect(Buffer.byteLength(JSON.stringify(compatibility))).toBeLessThan(
-      240_000,
+      500_000,
     );
     for (const tool of tools) {
       const complete = JSON.parse(

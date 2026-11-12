@@ -188,11 +188,23 @@ export function extractHierarchyInstance(
       [instance.id, child.id],
     );
   const railsAsked = new Set<string>();
+  // A Cell Pin its custom block maps to a property supply takes the Net
+  // chosen in Properties, else that rail, as a Circuit Component's does.
+  const supplies = new Map(
+    (child.presentation.cellSymbol?.artwork?.terminals ?? []).flatMap(
+      (mapping) =>
+        "supply" in mapping ? [[mapping.terminalId, mapping.supply]] : [],
+    ),
+  );
   const nodes = childPorts.map((port) => {
     const member = scalarTerminals.find((terminal) => terminal.id === port.id);
+    const supply = member?.memberId ? undefined : supplies.get(port.id);
     const pin: Omit<GateCellPin, "portName"> | undefined = gate
       ? gate.pins.find((item) => item.portName === port.name)
-      : { pinName: member?.aggregateName ?? port.name };
+      : {
+          pinName: member?.aggregateName ?? port.name,
+          ...(supply ? { supply } : {}),
+        };
     // Strict extraction rejects the accompanying error. Authoring keeps an
     // explicit non-executable slot rather than shifting positional arguments.
     const netName = !pin

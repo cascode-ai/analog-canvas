@@ -421,6 +421,17 @@ export function planSetCellSymbolPresentation(
   ];
 }
 
+/**
+ * The automatic block's size and Pin sides do not move custom artwork; they
+ * stay as they were, for a reset to automatic.
+ */
+function refuseCustomArtworkLayout(document: SchematicDocument): void {
+  if (document.presentation.cellSymbol?.artwork)
+    throw new Error(
+      `${document.netlist!.name} is drawn with a custom symbol: edit its artwork, or reset it to automatic before arranging the block. Nothing was changed.`,
+    );
+}
+
 /** A Pin of a Cell's block, by name, and the side it is to stand on. */
 export interface CellSymbolPinRequest {
   readonly name: string;
@@ -449,6 +460,7 @@ export function planSetCellSymbolPins(
 ): ProjectStructureEdit[] {
   const document = requireDocument(project, documentId);
   if (!document.netlist) throw new Error(`Cell does not exist: ${documentId}`);
+  refuseCustomArtworkLayout(document);
   const terminals = projectCellSymbolTerminals(document);
   const now = new Map(
     cellSymbolPinSlots(project, document).map((slot) => [
@@ -579,6 +591,7 @@ export function planSetCellSymbolSize(
 ): ProjectStructureEdit[] {
   const document = requireDocument(project, documentId);
   if (!document.netlist) throw new Error(`Cell does not exist: ${documentId}`);
+  refuseCustomArtworkLayout(document);
   const cell = document.netlist.name;
   const layout = placedCellDocumentIds(project).has(document.id)
     ? document.presentation.cellSymbol
