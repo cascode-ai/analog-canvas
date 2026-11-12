@@ -11,7 +11,7 @@ import {
 } from "@icm/model";
 
 import { rnlBodyPortOrder } from "./symbol-map.js";
-import { type RnlSnapshot } from "./rnl-snapshot.js";
+import { rnlIdName, type RnlSnapshot } from "./rnl-snapshot.js";
 
 /**
  * A Cell port the drawing shows only as a power label that names it, no Pin
@@ -142,10 +142,14 @@ export function printsFileCircuit(
     uncalledCells: true,
   });
   if (result.status !== "ready" || !result.ir) return false;
-  // Nets as both sides spell them: RNL's `&VSS`, Spectre's `Vin\+`.
-  const plain = (net: string) => net.replace(/^&/u, "").replace(/\\/gu, "");
-  const cards = (nets: readonly string[][]) =>
-    nets.map((card) => JSON.stringify(card.map(plain))).sort();
+  // Nets as both sides spell them: RNL's `&VSS` and `"VIN<0>"`, Spectre's
+  // `Vin\+`.
+  const plain = (net: string) => {
+    const bare = net.replace(/^&/u, "");
+    return (rnlIdName(`&${bare}`, "&") ?? bare).replace(/\\/gu, "");
+  };
+  const cards = (nets: readonly string[][], net = plain) =>
+    nets.map((card) => JSON.stringify(card.map(net))).sort();
   const hosts = new Map(
     snapshot.levels.flatMap((level) =>
       level.kind === "subckt" && level.host ? [[level.name, level.host]] : [],
@@ -158,10 +162,19 @@ export function printsFileCircuit(
     cells.length > 0 &&
     cells.every((cell) => {
       const host = hosts.get(cell.name);
+      // RNL reads SPICE's GND as ground (0), as ngspice does, in a Cell
+      // with no net named 0 (#1784).
+      const ground = cell.nets.some((net) => net.name === "0")
+        ? undefined
+        : cell.nets.find((net) => net.name.toUpperCase() === "GND")?.name;
+      const hostNet = (net: string) => {
+        const name = plain(net);
+        return name === "0" && ground ? ground : name;
+      };
       return (
         !!host &&
         JSON.stringify(cell.ports.map((port) => plain(port.netName))) ===
-          JSON.stringify(host.ports.map(plain)) &&
+          JSON.stringify(host.ports.map(hostNet)) &&
         JSON.stringify(
           cards(
             cell.instances.map((instance) =>
@@ -176,6 +189,7 @@ export function printsFileCircuit(
                   .sort((a, b) => a.n - b.n)
                   .map((terminal) => terminal.net),
               ),
+              hostNet,
             ),
           )
       );
