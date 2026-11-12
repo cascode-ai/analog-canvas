@@ -1,3 +1,4 @@
+import { REGIONAL_ACTION_TIMEOUT_MS } from "../../../worker/regional-action-budget.ts";
 import { isRegionalAuthorityBrowserRoute } from "../../../worker/regional-auth-contract.ts";
 
 /** Operator routes generated from wrangler.jsonc upstreams (scripts/regional-runtime.mjs). */
@@ -131,11 +132,15 @@ export default {
           headers,
           redirect: "manual",
           signal: AbortSignal.timeout(
-            [
-              "/api/resource-actions/publication",
-              "/api/resource-actions/maintenance",
-            ].includes(destination.pathname)
-              ? 45000
+            (destination.origin === peer.origin &&
+              destination.pathname.startsWith("/api/resource-actions/")) ||
+              datasetLocation ||
+              resourceCatchup ||
+              (destination.origin === peer.origin &&
+                ["/api/project-sync/status", "/api/project-sync/pull"].includes(
+                  destination.pathname,
+                ))
+              ? REGIONAL_ACTION_TIMEOUT_MS
               : 15000,
           ),
         }),

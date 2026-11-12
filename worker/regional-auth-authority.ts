@@ -1,3 +1,4 @@
+import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import { AUTH_OWNER_COOKIE, type SessionUser } from "./auth-do";
 import {
   ACCOUNT_DELETE_PATH,
@@ -407,7 +408,7 @@ export class RegionalAuthority {
       userId,
       kind,
       reference,
-      this.now() + 60_000,
+      this.now() + REGIONAL_ACTION_TIMEOUT_MS,
     );
     return answer({ token });
   }

@@ -1,3 +1,4 @@
+import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import { sessionUserOf, type SessionUser } from "./auth";
 import { digest, sessionIdentity } from "./regional-auth-contract";
 import { readSyncJson } from "./project-sync-http";
@@ -198,7 +199,7 @@ export async function routeRegionalComponentActions(
     const response = await fetch(peer.origin + peerPath, {
       method: "POST",
       redirect: "manual",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
       headers: {
         "content-type": "application/json",
         authorization: "Bearer " + token,

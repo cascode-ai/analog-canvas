@@ -1,3 +1,4 @@
+import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import type { GalleryEnv } from "./gallery-store";
 import type { ResourceSyncEnv } from "./resource-sync";
 import { sessionUserOf, type SessionUser } from "./auth";
@@ -232,7 +233,7 @@ export async function routeRegionalResourceActions(
     const response = await fetch(peer.origin + peerPath, {
       method: "POST",
       redirect: "manual",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
       headers: {
         "content-type": "application/json",
         authorization: "Bearer " + token,

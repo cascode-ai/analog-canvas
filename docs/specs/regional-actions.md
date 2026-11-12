@@ -12,12 +12,16 @@ the region components in [regional publications](regional-resources.md).
 - `RESOURCE_ACTION_PEER` is a fixed HTTPS service origin, independent of browser
   geographic routing. `RESOURCE_SYNC_PEER_TOKEN` permits ordered catch-up only;
   it grants no command authority. Without the peer setting, legacy routing stays.
-- AUTH issues a 60-second opaque capability bound to one command digest and its
+- AUTH issues a 120-second opaque capability bound to one command digest and its
   destination. Redemption revalidates the original session or regional grant,
   including its current subject. A session change invalidates the capability.
   Dataset import alone also accepts an Owner token: AUTH revalidates the current
   token and Owner role before issuing and redeeming the bounded capability. The
   publication peer never receives the original Owner token.
+- A peer command or writer lookup may wait through a domestic maintenance hold
+  of up to 60 seconds. The transport allows 120 seconds, including execution;
+  upstream proxies must not expire sooner. This does not replay a sent command
+  or bypass the writer's command receipts and current authorization checks.
 - The writer commits the mutation and its per-account command receipt together. Keep at most 10,000 receipts per account; exhaustion refuses new
   commands before mutation. Receipts are retained with the writer's backups;
   do not discard them during rollback or reset an identity to bypass the limit.

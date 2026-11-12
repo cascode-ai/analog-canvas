@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import { once } from "node:events";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { createIngress } from "./ingress.mjs";
 
@@ -10,6 +10,39 @@ async function listen(server) {
   await once(server, "listening");
   return server.address().port;
 }
+
+test("a snapshot-length hold queues a save once and still bounds abandoned maintenance", async (t) => {
+  let writes = 0;
+  const backend = http.createServer((req, res) => {
+    req.resume();
+    writes++;
+    res.end("saved");
+  });
+  const ingress = createIngress({ upstreamPort: await listen(backend) });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    vi.useRealTimers();
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  assert.equal(await ingress.hold(), true);
+  const saving = request(port, "/api/projects", "once");
+  while (!ingress.status().pending) await new Promise(setImmediate);
+  await vi.advanceTimersByTimeAsync(45_000);
+  assert.equal(ingress.status().pending, 1);
+  assert.equal(writes, 0);
+  ingress.resume();
+  assert.deepEqual(await saving, { status: 200, body: "saved" });
+  assert.equal(writes, 1);
+  assert.equal(await ingress.hold(), true);
+  const expired = request(port, "/api/projects", "not-sent");
+  while (!ingress.status().pending) await new Promise(setImmediate);
+  await vi.advanceTimersByTimeAsync(60_001);
+  assert.equal((await expired).status, 503);
+  assert.equal(writes, 1);
+});
 
 function request(port, path = "/", body) {
   return new Promise((resolve, reject) => {

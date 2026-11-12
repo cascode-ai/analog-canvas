@@ -7,6 +7,7 @@ import unittest
 import importlib.util
 import http.server
 import os
+import mmap
 import socketserver
 import threading
 from unittest.mock import patch
@@ -56,6 +57,26 @@ class EntranceTest(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('rsync'), 'requires Linux rsync')
 class SnapshotTest(unittest.TestCase):
+    def test_capture_includes_writes_through_an_existing_memory_mapping(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            data = root / 'data'
+            (data / 'state').mkdir(parents=True)
+            (data / 'artifacts').mkdir()
+            db = data / 'state' / 'mapped.sqlite'
+            db.write_bytes(b'init')
+            record = root / 'release.json'
+            record.write_text('{"commit":"old"}')
+            snapshot = Snapshot(data, root / 'backups')
+            with db.open('r+b') as file, mmap.mmap(file.fileno(), 0) as mapped:
+                mapped[:] = b'base'
+                snapshot.prepare()
+                mapped[:] = b'next'
+            snapshot.capture(record)
+            archive = snapshot.publish()
+            with tarfile.open(archive / 'state.tar.gz') as bundle:
+                self.assertEqual(bundle.extractfile('state/mapped.sqlite').read(), b'next')
+
     def test_final_capture_replaces_changed_bytes_and_removes_deleted_files(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)

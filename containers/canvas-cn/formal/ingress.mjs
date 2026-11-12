@@ -7,7 +7,7 @@ import { existsSync, writeFileSync } from "node:fs";
 
 export function createIngress({
   upstreamPort = 8792,
-  waitMs = 15_000,
+  waitMs = 60_000,
   maxPending = 512,
   drainMs = 3_000,
   initialUncertainty = false,

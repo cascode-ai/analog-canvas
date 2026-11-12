@@ -66,7 +66,7 @@ Restore the release timer after the verified runner is installed.
 Only successful content-hashed public build files bypass the Worker; retired
 names return an uncached 404. No API or account response is cached there.
 
-During handover the entrance holds at most 512 new requests for at most 15
+During handover the entrance holds at most 512 new requests for at most 60
 seconds, never replays a sent request, and cancels handover if accepted ordinary
 requests have not drained within 3 seconds. It then ends event streams and
 WebSockets so their clients can reconnect to the same domestic entrance.
@@ -95,6 +95,11 @@ requires live backend readiness, not only a matching commit or `.verified` file.
 The host monitor belongs to `adm` so nginx's daily `0640 www-data:adm` log
 rotation does not revoke its read access; the service retains its empty
 capability bounding set.
+A snapshot always completes a full checksum pass while the writer is stopped;
+live file timestamps cannot prove that memory-mapped writes have been copied.
+The entrance waits up to 60 seconds. Regional commands, writer lookup and command
+capabilities allow 120 seconds; nginx allows 150 seconds. Longer maintenance
+still refuses queued requests without replaying accepted writes.
 Paused background timers are recorded before stopping in
 `/var/lib/canvas-cn-maintenance/paused.json`; recovery restores that exact set
 after real runtime readiness, including an interrupted daily backup.
