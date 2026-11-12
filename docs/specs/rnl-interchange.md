@@ -483,7 +483,11 @@ the RNL language and its runtime belong to rnl.
     ellipse as a circle, any other ellipse or arc as the curve that draws it,
     legs of at most an eighth of a turn each the quadratic through its ends,
     an arc with a head as an arrow along it; a fill they have is left out,
-    with a warning (`RNL_IMPORT_SHAPE_UNFILLED`).
+    with a warning (`RNL_IMPORT_SHAPE_UNFILLED`);
+  - either form of a rectangle, circle or ellipse: its size at its centre,
+    or two points (a rectangle's or ellipse's opposite corners, a circle's
+    centre and a point on it). A shape whose numbers make none is left out
+    (`RNL_IMPORT_SHAPE_SKIPPED`), and the rest of the drawing comes in.
 - Analog Canvas's own bodies (an op-amp's, a gate's, an ideal block's) come
   back as the blocks that write them, as the SPICE / SCS import brings them
   ([SPICE frontend](spice-frontend.md)), in the port order the export wrote.
