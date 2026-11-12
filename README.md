@@ -214,9 +214,10 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
   test inputs and goldens.
 - `scripts/` and `config/`: build, generation, validation-gate, release, and
   deployment tooling, with the gate catalog and pinned MCP and VACASK
-  declarations.
-- `tools/` and `references/`: manual Razavi calibration and PDF extraction
-  tools, and the pinned external research-source manifest.
+  declarations; the manual Razavi calibration (`scripts/calibration/`) and
+  PDF extraction (`scripts/pdf-vector-extract/`) tools.
+- `references/`: the pinned external research-source manifest; its sources
+  are fetched into the ignored `.reference-src/`.
 - [`eda/`](docs/eda-import.md): Canvas export and single/batch EDA imports,
   with PyAether and Virtuoso Bridge adapters.
 - `docs/`: current architecture, user guides, normative contracts, ADRs and

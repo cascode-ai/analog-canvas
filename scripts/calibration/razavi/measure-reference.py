@@ -10,7 +10,7 @@ different crop must be aligned explicitly instead of silently producing false
 
 Requires: Python 3.11+, OpenCV, NumPy.
 Usage:
-  python tools/calibration/razavi/measure-reference.py <reference.png>
+  python scripts/calibration/razavi/measure-reference.py <reference.png>
 """
 
 from __future__ import annotations

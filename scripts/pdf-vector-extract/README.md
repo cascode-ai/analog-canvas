@@ -1,7 +1,7 @@
 # PDF vector extraction
 
 This directory contains source-PDF extraction tools. It is deliberately
-separate from `tools/calibration/razavi/symbol-fidelity-diff.mjs` and
+separate from `scripts/calibration/razavi/symbol-fidelity-diff.mjs` and
 `scripts/lib/`, which own the raster comparison workflow.
 
 The family extractors currently cover:
@@ -47,7 +47,7 @@ Example (PowerShell):
 
 ```powershell
 $python = (Get-Command python).Source
-& $python tools/pdf-vector-extract/extract-razavi-inductor.py `
+& $python scripts/pdf-vector-extract/extract-razavi-inductor.py `
   --pdf "$env:ICM_REFERENCE_ROOT\books\razavi-design-of-analog-cmos-integrated-circuits-2e.pdf" `
   --output-json fixtures/visual-reference/razavi-reference-v1/inductor-vector-source.json `
   --output-png fixtures/visual-reference/razavi-reference-v1/inductor-reference.png

@@ -8,7 +8,7 @@
 // at anti-aliased edges, so it never acts as an absolute visual gate.
 //
 // Usage:
-//   node tools/calibration/razavi/text-fidelity-diff.mjs --reference C:/.../ota.png
+//   node scripts/calibration/razavi/text-fidelity-diff.mjs --reference C:/.../ota.png
 //     [--font Arial] [--subscript-face upright-bold] [--out output/calibration/razavi-text]
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
