@@ -203,13 +203,26 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.assertEqual(len(self.calls), 1)
         self.assertIn('stale-monitor', self.calls[0][1]['text'])
 
-    def test_release_failure_and_recovery_keep_their_timing(self):
+    def test_release_failure_is_immediate_but_recovery_must_stay_healthy(self):
         self.health('failed', reason='release-rolled-back')
         self.assertEqual(self.tick(scope='Release').returncode, 0)
         self.assertEqual(len(self.calls), 1)
         self.assertEqual(self.calls[0][1]['subject'], '[Canvas CN] Release sync FAILURE')
 
         self.health('ok')
+        self.assertEqual(self.tick(scope='Release').returncode, 0)
+        self.assertEqual(len(self.calls), 1)
+        self.now += 60
+        self.health('failed', reason='release-failed')
+        self.assertEqual(self.tick(scope='Release').returncode, 0)
+        self.assertEqual(len(self.calls), 1)
+        self.health('ok')
+        self.assertEqual(self.tick(scope='Release').returncode, 0)
+        self.now += 119
+        self.health('ok')
+        self.assertEqual(self.tick(scope='Release').returncode, 0)
+        self.assertEqual(len(self.calls), 1)
+        self.now += 1
         self.assertEqual(self.tick(scope='Release').returncode, 0)
         self.assertEqual(len(self.calls), 2)
         self.assertEqual(self.calls[1][1]['subject'], '[Canvas CN] Release sync RECOVERED')
