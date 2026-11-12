@@ -62,6 +62,7 @@ import { readCanvasRecords } from "./import-records.js";
 import { routeWires } from "./import-routes.js";
 import { readMarks, LATER } from "./import-marks.js";
 import { importDrawings } from "./import-drawings.js";
+import { FILE_LEVEL_CELL } from "./rnl-export.js";
 
 export type {
   RnlLevelSnapshot,
@@ -88,7 +89,8 @@ function documentOf(
   project: CircuitProject,
   level: RnlLevelSnapshot,
 ): SchematicDocument | undefined {
-  const name = level.kind === "file" ? "__flat__" : level.name.toLowerCase();
+  const name =
+    level.kind === "file" ? FILE_LEVEL_CELL : level.name.toLowerCase();
   return project.documents.find(
     (document) => document.netlist?.name.toLowerCase() === name,
   );

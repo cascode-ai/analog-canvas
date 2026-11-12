@@ -306,10 +306,11 @@ export function createDesignNetlistExport(
   const printedIr = options.bodyPortOrder
     ? withBodyPortOrder(ir, options.bodyPortOrder)
     : ir;
+  const atTop = options.rootAsTopLevel ?? false;
   const printed = options.includeLocations
-    ? printDesignNetlistWithLocations(format, printedIr)
+    ? printDesignNetlistWithLocations(format, printedIr, atTop)
     : null;
-  const file = printed?.file ?? printDesignNetlist(format, printedIr);
+  const file = printed?.file ?? printDesignNetlist(format, printedIr, atTop);
   const originalLength = file.text.length;
   // Presentation export omits the strict printer's title. Keep that printer
   // unchanged for simulation/source offsets; a blank SPICE title below keeps

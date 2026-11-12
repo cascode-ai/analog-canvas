@@ -146,6 +146,8 @@ export function rnlExportOps(
   project: CircuitProject,
   ir: DesignNetlistIR,
   format: NetlistFormat = "spice",
+  /** The top is printed as the file's own cards, and drawn at the file level. */
+  rootAsTopLevel = false,
 ): { ops: RnlOp[]; diagnostics: RnlExportDiagnostic[] } {
   const ops: RnlOp[] = [];
   const diagnostics: RnlExportDiagnostic[] = [];
@@ -170,12 +172,17 @@ export function rnlExportOps(
       blocks,
       callSymbols,
       calledParts,
+      level:
+        rootAsTopLevel && cell.id === ir.topCellId
+          ? "file"
+          : `subckt:${cell.name}`,
     });
   }
   // The editor's top, where a Cell printed beside it calls it and so is the
   // netlist's top in its place (Canvas 0.4).
   const calledTop =
     top &&
+    !rootAsTopLevel &&
     ir.cells.some((cell) =>
       project.documents
         .find((document) => document.id === cell.id)
@@ -248,6 +255,8 @@ interface ExportContext {
   resolver: ReturnType<typeof createProjectSymbolResolver>;
   /** The symbols written for blocks: a Cell's by its Document, an external one's by definition. */
   blocks: ReturnType<typeof blockSymbols>;
+  /** The level the Cell's drawing goes to: its subcircuit, or the file level. */
+  level?: string;
   /** Library artwork defined for calls that print its pins in another order, by name. */
   callSymbols: Map<string, RnlSymbol>;
   /** The parts drawn with one of those (`partKey`). */
@@ -417,10 +426,11 @@ function exportCell(
   context: ExportContext,
 ): void {
   const { ops, diagnostics, packages, blocks } = context;
-  const level = `subckt:${cell.name}`;
+  const level = context.level ?? `subckt:${cell.name}`;
 
-  // The Cell's own block symbol: how every call of it is drawn (9.2.6).
-  const own = blocks.cells.get(document.id);
+  // The Cell's own block symbol: how every call of it is drawn (9.2.6). The
+  // file level is no subcircuit, and nothing calls it.
+  const own = level === "file" ? undefined : blocks.cells.get(document.id);
   if (own)
     ops.push(
       { level, op: "define-symbol", ...own },

@@ -293,8 +293,11 @@ function renderSpice(
   return { text: `${lines.join("\n")}\n`, parameters, instances, fields };
 }
 
-export function printSpiceNetlist(ir: DesignNetlistIR): string {
-  return renderSpice(ir, false, false).text;
+export function printSpiceNetlist(
+  ir: DesignNetlistIR,
+  rootAsTopLevel = false,
+): string {
+  return renderSpice(ir, rootAsTopLevel, false).text;
 }
 
 /** The Spectre form of a drawn magnetic device's coupled windings. */
@@ -330,11 +333,15 @@ function spectreCell(
     offset: number,
     card: ReturnType<typeof printInstanceCard>,
   ) => void,
+  asTopLevel = false,
 ): string[] {
   const portNames = cell.ports.map((port) => port.name);
-  const lines = [
-    `subckt ${cell.name}${portNames.length ? ` (${portNames.join(" ")})` : ""}`,
-  ];
+  // The root printed as the file's own cards has no `subckt` around them.
+  const lines = asTopLevel
+    ? []
+    : [
+        `subckt ${cell.name}${portNames.length ? ` (${portNames.join(" ")})` : ""}`,
+      ];
   if (cell.formalParameters?.length) {
     lines.push(
       `parameters ${cell.formalParameters
@@ -353,7 +360,7 @@ function spectreCell(
     const card = spectreModelCard(model);
     if (card) lines.push(card);
   }
-  let offset = lines.join("\n").length + 1;
+  let offset = lines.length ? lines.join("\n").length + 1 : 0;
   for (const instance of cell.instances) {
     const card = printInstanceCard(instance, "spectre", Boolean(onInstance));
     if (card.text) {
@@ -363,7 +370,7 @@ function spectreCell(
     }
   }
   lines.push(...couplingCards(cell, "spectre"));
-  lines.push(`ends ${cell.name}`);
+  if (!asTopLevel) lines.push(`ends ${cell.name}`);
   return lines;
 }
 
@@ -388,6 +395,7 @@ export function printGeneratedCell(
 function renderSpectre(
   ir: DesignNetlistIR,
   locations = false,
+  rootAsTopLevel = false,
 ): {
   text: string;
   instances: PrintedNetlistInstance[];
@@ -416,7 +424,14 @@ function renderSpectre(
           )),
     );
   let length = lines.join("\n").length;
-  for (const cell of ir.cells) {
+  // The root printed as the file's own cards comes last, as in SPICE.
+  const root = rootAsTopLevel
+    ? ir.cells.find((cell) => cell.id === ir.topCellId)
+    : undefined;
+  for (const cell of [
+    ...ir.cells.filter((item) => item !== root),
+    ...(root ? [root] : []),
+  ]) {
     const offset = length + 2;
     const cellLines = spectreCell(
       cell,
@@ -424,31 +439,42 @@ function renderSpectre(
         ? (instance, relative, card) =>
             locate(cell, instance, offset + relative, card)
         : undefined,
+      cell === root,
     );
+    if (!cellLines.length) continue;
     lines.push("", ...cellLines);
     length += 2 + cellLines.join("\n").length;
   }
   return { text: `${lines.join("\n")}\n`, instances, fields };
 }
 
-export function printSpectreNetlist(ir: DesignNetlistIR): string {
-  return renderSpectre(ir).text;
+export function printSpectreNetlist(
+  ir: DesignNetlistIR,
+  rootAsTopLevel = false,
+): string {
+  return renderSpectre(ir, false, rootAsTopLevel).text;
 }
 
+/**
+ * A design netlist file. `rootAsTopLevel` prints the root Cell as the file's
+ * own cards rather than as a subcircuit, as the file it was read from held
+ * them.
+ */
 export function printDesignNetlist(
   format: NetlistFormat,
   ir: DesignNetlistIR,
+  rootAsTopLevel = false,
 ): NetlistFileDescriptor {
   return format === "spice"
     ? {
         extension: ".spi",
         mediaType: "application/x-spice",
-        text: printSpiceNetlist(ir),
+        text: printSpiceNetlist(ir, rootAsTopLevel),
       }
     : {
         extension: ".scs",
         mediaType: "application/x-spectre",
-        text: printSpectreNetlist(ir),
+        text: printSpectreNetlist(ir, rootAsTopLevel),
       };
 }
 
@@ -519,9 +545,12 @@ function cardRecorder(
 export function printDesignNetlistWithLocations(
   format: NetlistFormat,
   ir: DesignNetlistIR,
+  rootAsTopLevel = false,
 ): { file: NetlistFileDescriptor; locations: DesignNetlistLocations } {
   const printed =
-    format === "spice" ? renderSpice(ir, false, true) : renderSpectre(ir, true);
+    format === "spice"
+      ? renderSpice(ir, rootAsTopLevel, true)
+      : renderSpectre(ir, true, rootAsTopLevel);
   return {
     file: {
       extension: format === "spice" ? ".spi" : ".scs",

@@ -16,6 +16,13 @@ import {
 import { rnlBodyPortOrder } from "./symbol-map.js";
 
 /**
+ * The Cell the SPICE / SCS importer makes from a file's own cards, outside
+ * every subcircuit. Printed as the top, it goes back to the file level with
+ * its drawing, as the file it came from held it.
+ */
+export const FILE_LEVEL_CELL = "__flat__";
+
+/**
  * What the rnl runtime's writer takes to write a drawing into its netlist
  * (its `WriteRequest.write`): the netlist as the SPICE+RNL or Spectre+RNL
  * format prints it, bodies in their RNL symbols' port order, and the edit
@@ -61,9 +68,17 @@ export function createRnlExport(
     "namingProfile" | "rootDocumentId"
   > & { format: NetlistFormat },
 ): RnlExport {
+  const root = project.documents.find(
+    (document) =>
+      document.id === (options.rootDocumentId ?? project.topDocumentId),
+  );
+  const rootAsTopLevel =
+    root?.netlist?.name.toLowerCase() === FILE_LEVEL_CELL &&
+    !root.netlist.terminals.length;
   const print = (uncalledCells: boolean, leaveOutCells: StableId[] = []) =>
     createDesignNetlistExport(project, {
       ...options,
+      rootAsTopLevel,
       bodyPortOrder: rnlBodyPortOrder(project),
       includeIr: true,
       // An interchange file calls a library it does not carry, as its
@@ -123,6 +138,7 @@ export function createRnlExport(
     project,
     result.ir!,
     options.format,
+    rootAsTopLevel,
   );
   const printed = new Set(result.ir!.cells.map((cell) => cell.id));
   const left = project.documents.filter(
