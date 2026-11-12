@@ -76,6 +76,13 @@ export const ExternalSubcircuitDefinitionSchema = z
       .optional(),
   })
   .superRefine((definition, context) => {
+    if (definition.presentation?.artwork)
+      context.addIssue({
+        code: "custom",
+        message:
+          "An external definition's custom artwork is a circuitBinding component, not block presentation",
+        path: ["presentation", "artwork"],
+      });
     for (const [index, pin] of (
       definition.presentation?.pinPlacements ?? []
     ).entries())

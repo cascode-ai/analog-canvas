@@ -2,6 +2,14 @@ import { z } from "zod";
 import { cellSymbolPinFitsBody } from "../cell-symbol-layout.js";
 
 import { StableIdSchema } from "./common.js";
+import {
+  SymbolDefinitionSchema,
+  type SymbolDefinition,
+} from "./symbol-definition.js";
+import {
+  SymbolTerminalMappingSchema,
+  type SymbolTerminalMapping,
+} from "./symbol-binding.js";
 
 /** Symbol-local grid used by derived hierarchical Cell block geometry. */
 const CELL_SYMBOL_CONNECTION_GRID = 10;
@@ -65,12 +73,30 @@ const CellSymbolBodyBoundsSchema = z
     },
   );
 
+/**
+ * A Cell's author-drawn block: raw Symbol JSON artwork and the map from each
+ * stable Cell Pin (terminalId) to one graphical pin or a `VDD`/`VSS`
+ * property supply, as source-backed `circuitBinding` maps native terminals.
+ * Present means Custom; the automatic layout fields beside it stay inactive.
+ */
+// Named, so schemas that embed Cell presentation (edits, Agent payloads)
+// reference the Symbol type instead of inlining its whole structure.
+export interface CellSymbolArtwork {
+  symbol: SymbolDefinition;
+  terminals: SymbolTerminalMapping[];
+}
+const CellSymbolArtworkSchema: z.ZodType<CellSymbolArtwork> = z.strictObject({
+  symbol: SymbolDefinitionSchema,
+  terminals: z.array(SymbolTerminalMappingSchema).max(256),
+});
+
 export const CellSymbolPresentationSchema = z
   .strictObject({
     minimumBodySize: CellSymbolBodySizeSchema.optional(),
     /** Explicit edited edges; never fitted to text or recentered. */
     bodyBounds: CellSymbolBodyBoundsSchema.optional(),
     pinPlacements: z.array(CellSymbolPinPlacementSchema).max(256).optional(),
+    artwork: CellSymbolArtworkSchema.optional(),
   })
   .superRefine((presentation, context) => {
     const terminals = new Set<string>(),

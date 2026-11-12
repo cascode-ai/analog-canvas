@@ -62,6 +62,7 @@ export * from "./project-copy-dependencies.js";
 export * from "./circuit-component-package.js";
 export * from "./legacy-circuit-repair.js";
 export * from "./hierarchy-planner.js";
+export * from "./cell-symbol-artwork.js";
 export * from "./cell-pin-planner.js";
 export * from "./signal-wire-planner.js";
 export * from "./signal-endpoint.js";

@@ -20,8 +20,13 @@ import {
   planRemoveCellParameter,
   proposeUpsertExternalSubcircuitDefinition,
   resizeCellSymbolPresentation,
+  planSetCellSymbolArtwork,
 } from "@icm/edit-engine";
-import type { ProjectStructureEdit, SchematicEdit } from "@icm/edit-engine";
+import type {
+  CellSymbolArtworkInput,
+  ProjectStructureEdit,
+  SchematicEdit,
+} from "@icm/edit-engine";
 import {
   CircuitProjectSchema,
   CellSymbolPresentationSchema,
@@ -975,6 +980,32 @@ export function createProjectStructureCommands({
     }
   };
 
+  /**
+   * Give a Cell its author's artwork, or reset it to automatic, for every
+   * caller at once. Returns the refusal, if any, for the authoring view.
+   */
+  const setCellSymbolArtwork = (
+    cellId: string,
+    input: CellSymbolArtworkInput,
+  ): string | undefined => {
+    const cell = project.documents.find((item) => item.id === cellId);
+    let edits: ProjectStructureEdit[];
+    try {
+      edits = planSetCellSymbolArtwork(project, cellId, input);
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+    if (!edits.length) return undefined;
+    if (!commitStructure("set-cell-symbol-artwork", edits))
+      return "The symbol change was refused; refresh and try again";
+    setStatus(
+      input.symbolMode === "custom"
+        ? `Drew ${cell?.name ?? "the Cell"} with its custom symbol in every parent instance`
+        : `Reset ${cell?.name ?? "the Cell"} to its automatic symbol in every parent instance`,
+    );
+    return undefined;
+  };
+
   const renameProject = (inputName: string | null): void => {
     const name = (inputName ?? "").trim();
     if (!name || name === project.name) return;
@@ -1004,6 +1035,7 @@ export function createProjectStructureCommands({
     setCellSymbolBodySize,
     setCellSymbolPresentation,
     setCellSymbolPortPlacement,
+    setCellSymbolArtwork,
     renameProject,
   };
 }

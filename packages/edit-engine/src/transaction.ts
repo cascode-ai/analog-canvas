@@ -1,4 +1,9 @@
-import { routeEnd, SchematicDocumentSchema } from "@icm/model";
+import {
+  cellSymbolArtworkIssues,
+  projectCellInterface,
+  routeEnd,
+  SchematicDocumentSchema,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import { applyLabelSignalMigration } from "./label-signal-migration.js";
 import { diffDocumentObjectIds } from "./history.js";
@@ -1256,6 +1261,22 @@ export function executeTransaction(
     context.externalSubcircuitDefinitions,
     changedObjectIds,
   );
+  // A Cell drawn with its author's artwork keeps every Cell Pin mapped: a
+  // new Pin refuses here, by name, rather than as a schema path.
+  const artwork = draft.presentation.cellSymbol?.artwork;
+  const artworkIssue =
+    artwork &&
+    draft.netlist &&
+    cellSymbolArtworkIssues(
+      artwork,
+      projectCellInterface(draft.netlist).ports,
+    )[0];
+  if (artworkIssue)
+    return rejectTransaction(
+      document,
+      "EDIT_PRECONDITION",
+      `${draft.netlist!.name} is drawn with a custom symbol. ${artworkIssue.message}`,
+    );
   const candidate = SchematicDocumentSchema.safeParse(draft);
   if (!candidate.success) {
     return rejectTransaction(

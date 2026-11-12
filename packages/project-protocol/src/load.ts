@@ -111,11 +111,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function hasExplicitCellBody(project: Record<string, unknown>): boolean {
+/** Whether any Cell symbol presentation in the file carries `field`. */
+function hasCellSymbolField(
+  project: Record<string, unknown>,
+  field: "bodyBounds" | "artwork",
+): boolean {
   const items = (value: unknown): Record<string, unknown>[] =>
     Array.isArray(value) ? value.filter(isRecord) : [];
   const presentationHasBody = (value: unknown) =>
-    isRecord(value) && Object.hasOwn(value, "bodyBounds");
+    isRecord(value) && Object.hasOwn(value, field);
   const artworkHasBody = (value: unknown) =>
     isRecord(value) &&
     isRecord(value.generatedFrom) &&
@@ -275,11 +279,19 @@ export function tryParseProjectWithMetadata(
           path: ["documents"],
         },
       ]);
-    if (sourceSchemaVersion < 74 && hasExplicitCellBody(parsed))
+    if (sourceSchemaVersion < 74 && hasCellSymbolField(parsed, "bodyBounds"))
       throw new ProjectFormatError([
         {
           code: "INVALID_PROJECT",
           message: "An explicit Cell symbol body requires Project schema 74",
+          path: ["schemaVersion"],
+        },
+      ]);
+    if (sourceSchemaVersion < 80 && hasCellSymbolField(parsed, "artwork"))
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "A Cell's custom symbol artwork requires Project schema 80",
           path: ["schemaVersion"],
         },
       ]);

@@ -142,6 +142,9 @@ export function EditorDialogs({
   galleryTopologyProject,
   cellPropertiesId,
   setCellPropertiesId,
+  cellSymbolAuthoringId,
+  setCellSymbolAuthoringId,
+  setCellSymbolArtwork,
   importCellOpen,
   setImportCellOpen,
   renameCellTerminal,
@@ -263,6 +266,9 @@ export function EditorDialogs({
   galleryTopologyProject: ReturnType<typeof projectWithTopologyRoot>;
   cellPropertiesId: string | null;
   setCellPropertiesId: Dispatch<SetStateAction<string | null>>;
+  cellSymbolAuthoringId: string | null;
+  setCellSymbolAuthoringId: Dispatch<SetStateAction<string | null>>;
+  setCellSymbolArtwork: ProjectStructureCommands["setCellSymbolArtwork"];
   importCellOpen: boolean;
   setImportCellOpen: Dispatch<SetStateAction<boolean>>;
   renameCellTerminal: ProjectStructureCommands["renameCellTerminal"];
@@ -648,6 +654,20 @@ export function EditorDialogs({
                 onSymbolSizeChange: setCellSymbolBodySize,
                 onPinSideChange: setCellSymbolPortPlacement,
                 onSetTop: (cellId) => void setTopCell(cellId),
+                onCustomizeSymbol: (cellId) => {
+                  setCellPropertiesId(null);
+                  setCellSymbolAuthoringId(cellId);
+                },
+              }
+            : null
+        }
+        cellSymbolAuthoring={
+          cellSymbolAuthoringId
+            ? {
+                project,
+                cellId: cellSymbolAuthoringId,
+                onClose: () => setCellSymbolAuthoringId(null),
+                onApply: setCellSymbolArtwork,
               }
             : null
         }

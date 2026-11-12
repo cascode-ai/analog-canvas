@@ -580,6 +580,98 @@ describe("an op-amp's shown supply pins (#1833)", () => {
 });
 
 describe("blocks' symbols", () => {
+  it("defines a Cell's custom artwork as its block, its pins on the printed ports", () => {
+    const original = example("simulation-ota");
+    const project = structuredClone(original);
+    const cell = project.documents.find((item) => item.name === "ota_5t")!;
+    const pin = (
+      name: string,
+      x: number,
+      y: number,
+      direction: "north" | "east" | "south" | "west",
+    ) => ({
+      name,
+      role: "inout",
+      at: { x, y },
+      direction,
+      presentation: { visibility: "visible" as const, showName: false },
+    });
+    cell.presentation.cellSymbol = {
+      ...cell.presentation.cellSymbol,
+      artwork: {
+        symbol: {
+          schemaVersion: 1,
+          id: "ota-triangle",
+          name: "ota_5t",
+          viewBox: { x: -60, y: -50, width: 120, height: 100 },
+          pins: [
+            pin("IN-", -60, -20, "west"),
+            pin("IN+", -60, 20, "west"),
+            pin("OUT", 60, 0, "east"),
+            pin("VDD", -20, -50, "north"),
+            pin("IBIAS", 0, -50, "north"),
+            pin("VSS", -20, 50, "south"),
+          ],
+          primitives: [
+            {
+              kind: "polygon",
+              points: [
+                { x: -40, y: -40 },
+                { x: -40, y: 40 },
+                { x: 40, y: 0 },
+              ],
+              fill: "none",
+            },
+          ],
+          variants: [],
+        },
+        terminals: [
+          { terminalId: "terminal-pvinn", pinName: "IN-" },
+          { terminalId: "terminal-pvinp", pinName: "IN+" },
+          { terminalId: "terminal-pvout", pinName: "OUT" },
+          { terminalId: "terminal-pvdd", pinName: "VDD" },
+          { terminalId: "terminal-pibias", pinName: "IBIAS" },
+          { terminalId: "terminal-pvss", pinName: "VSS" },
+        ],
+      },
+    };
+    const before = exported(original);
+    const { ops, diagnostics, text } = exported(project);
+    expect(text).toBe(before.text);
+    expect(diagnostics.map((item) => item.code)).not.toContain(
+      "RNL_BLOCK_STAND_IN",
+    );
+    const symbol = of(ops, "define-symbol").find(
+      (op) => op.level === "subckt:ota_5t",
+    )!;
+    expect(symbol.name).toBe("%ota_5t_SYMBOL");
+    // The triangle, not a box, and every pin where the artwork draws it,
+    // named by the port it is.
+    expect(symbol.prims).toHaveLength(1);
+    expect(symbol.prims[0]!.shape).not.toBe("rectangle");
+    expect(
+      Object.fromEntries(
+        symbol.pins.map((item) => [
+          item.terminals[0],
+          [item.at, item.direction],
+        ]),
+      ),
+    ).toEqual({
+      vinn: [[-6, 2], "left"],
+      vinp: [[-6, -2], "left"],
+      vout: [[6, 0], "right"],
+      vdd: [[-2, 5], "up"],
+      ibias: [[0, 5], "up"],
+      vss: [[-2, -5], "down"],
+    });
+    expect(of(ops, "set")).toContainEqual({
+      level: "subckt:ota_5t",
+      op: "set",
+      object: "#",
+      symbol: "%ota_5t_SYMBOL",
+    });
+  });
+
   it("defines a drawn Cell's block in its own level, its pins on the printed ports", () => {
     const { ops, diagnostics } = exported(example("simulation-ota"));
     expect(diagnostics.map((item) => item.code)).not.toContain(

@@ -58,6 +58,8 @@ export interface CellPropertiesDialogProps {
   onClose(): void;
   /** Make this Cell the Project's Top (default entry). */
   onSetTop(cellId: string): void;
+  /** Opens the Cell's Symbol view (custom artwork). */
+  onCustomizeSymbol?(cellId: string): void;
   onRename(cellId: string, name: string): void;
   onRenamePin(cellId: string, terminalId: string, name: string): void;
   onSetPinDirection(cellId: string, portId: string, direction: Direction): void;
@@ -387,10 +389,22 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                 />
               ) : null}
             </div>
+            {props.onCustomizeSymbol ? (
+              <button
+                type="button"
+                className="cell-props-customize"
+                onClick={() => props.onCustomizeSymbol!(cell.id)}
+              >
+                {target.presentation?.artwork
+                  ? "Edit custom symbol…"
+                  : "Customize symbol…"}
+              </button>
+            ) : null}
             <div
               className="cell-props-size"
               role="group"
               aria-label="Symbol size"
+              hidden={Boolean(target.presentation?.artwork)}
             >
               <label>
                 <span>W</span>
@@ -427,8 +441,9 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
               </label>
             </div>
             <p className="cell-props-note">
-              {actualSize.width} × {actualSize.height}
-              {chosenSize ? "" : " · sized to its Pins"}
+              {target.presentation?.artwork
+                ? "Custom artwork"
+                : `${actualSize.width} × ${actualSize.height}${chosenSize ? "" : " · sized to its Pins"}`}
             </p>
           </aside>
 

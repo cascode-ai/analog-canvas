@@ -1,6 +1,6 @@
 import { renamedLabelFormat, richTextPresentsIdentifier } from "@icm/model";
 import { CellNetlistTerminalSchema, projectCellInterface } from "@icm/model";
-import type { SchematicDocument } from "@icm/model";
+import type { CellSymbolPresentation, SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
@@ -68,34 +68,94 @@ export function applyCellInterfaceEdit(
 ): CellInterfaceEditOutcome {
   const { draft, changedObjectIds } = context;
   const placements = draft.presentation.cellSymbol?.pinPlacements;
+  const artwork = draft.presentation.cellSymbol?.artwork;
   const before = projectCellInterface(draft.netlist).ports;
   const outcome = mutateCellInterface(edit, context);
-  if (!outcome.ok || !placements?.length) return outcome;
+  if (!outcome.ok || (!placements?.length && !artwork)) return outcome;
 
   // Layout belongs to the effective interface, not whichever marker happens
   // to represent it. Existing names win merges; a split leaves the old layout
   // with the surviving interface. Only a one-to-one rename follows identity.
   const after = projectCellInterface(draft.netlist).ports;
   const afterKeys = new Set(after.map((port) => port.key));
-  const retained = after.flatMap((port) => {
-    const previous =
-      before.find((candidate) => candidate.key === port.key) ??
-      before.find(
-        (candidate) =>
-          !afterKeys.has(candidate.key) &&
-          candidate.terminalIds.some((id) => port.terminalIds.includes(id)),
-      );
-    const placement =
-      previous && placements.find((item) => item.terminalId === previous.id);
-    return placement ? [{ ...placement, terminalId: port.id }] : [];
-  });
-  if (JSON.stringify(placements) !== JSON.stringify(retained)) {
-    if (retained.length)
-      draft.presentation.cellSymbol!.pinPlacements = retained;
-    else delete draft.presentation.cellSymbol!.pinPlacements;
-    changedObjectIds.add(draft.id);
+  const previousOf = (port: (typeof after)[number]) =>
+    before.find((candidate) => candidate.key === port.key) ??
+    before.find(
+      (candidate) =>
+        !afterKeys.has(candidate.key) &&
+        candidate.terminalIds.some((id) => port.terminalIds.includes(id)),
+    );
+  if (placements?.length) {
+    const retained = after.flatMap((port) => {
+      const previous = previousOf(port);
+      const placement =
+        previous && placements.find((item) => item.terminalId === previous.id);
+      return placement ? [{ ...placement, terminalId: port.id }] : [];
+    });
+    if (JSON.stringify(placements) !== JSON.stringify(retained)) {
+      if (retained.length)
+        draft.presentation.cellSymbol!.pinPlacements = retained;
+      else delete draft.presentation.cellSymbol!.pinPlacements;
+      changedObjectIds.add(draft.id);
+    }
+  }
+  if (artwork) {
+    // Custom artwork follows the same identity. A departing Pin takes its
+    // graphical pin with it, as a source-backed removal forks only its
+    // contacts; a new Pin stays unmapped and the result refuses until the
+    // author maps it or resets the symbol to automatic.
+    const mapped = after.flatMap((port) => {
+      const previous = previousOf(port);
+      const mapping =
+        previous &&
+        artwork.terminals.find((item) => item.terminalId === previous.id);
+      return mapping ? [{ ...mapping, terminalId: port.id }] : [];
+    });
+    const departed = new Set(
+      artwork.terminals.flatMap((mapping) =>
+        "pinName" in mapping &&
+        !mapped.some(
+          (item) => "pinName" in item && item.pinName === mapping.pinName,
+        )
+          ? [mapping.pinName]
+          : [],
+      ),
+    );
+    if (JSON.stringify(artwork.terminals) !== JSON.stringify(mapped)) {
+      draft.presentation.cellSymbol!.artwork = {
+        symbol: departed.size
+          ? withoutSymbolPins(artwork.symbol, departed)
+          : artwork.symbol,
+        terminals: mapped,
+      };
+      changedObjectIds.add(draft.id);
+    }
   }
   return outcome;
+}
+
+/** Artwork with some graphical pins gone, from its variants too. */
+function withoutSymbolPins(
+  symbol: NonNullable<CellSymbolPresentation["artwork"]>["symbol"],
+  names: ReadonlySet<string>,
+): NonNullable<CellSymbolPresentation["artwork"]>["symbol"] {
+  const pins = symbol.pins.filter((pin) => !names.has(pin.name));
+  return {
+    ...symbol,
+    pins,
+    variants: symbol.variants.map((variant) => ({
+      ...variant,
+      hiddenPinNames: variant.hiddenPinNames.filter((name) => !names.has(name)),
+      ...(variant.auxiliaryPins
+        ? {
+            auxiliaryPins: variant.auxiliaryPins.filter(
+              (pin) => !names.has(pin.name),
+            ),
+          }
+        : {}),
+    })),
+    ...(pins.length === 0 ? { hierarchicalBlock: true as const } : {}),
+  };
 }
 
 function mutateCellInterface(

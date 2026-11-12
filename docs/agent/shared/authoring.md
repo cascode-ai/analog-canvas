@@ -334,6 +334,16 @@ information). Hidden bulk needs no decorative wire.
   stored size does not count, so a body left large can be made smaller. On an
   unplaced Cell its Pins stay where its first placement puts them. Callers
   keep their Nets and redraw.
+- `set-cell-symbol-artwork` (`circuit_selection`, the Cell's `documentId`)
+  draws the block with the author's own artwork, as a User Component's
+  `authoring` does: `{kind:"set-cell-symbol-artwork",symbolMode:"custom",
+artworkText:"<Symbol JSON>",pinMap:{INP:{pinName:"+"},VDD:{supply:"VDD"}}}`.
+  `pinMap` is complete, keyed by Cell Pin name; omitted, the current map
+  while it fits, else identical pin names. Omitted `artworkText` keeps the
+  current artwork (needed to create one). `{symbolMode:"automatic"}` restores
+  the generated block and its layout. Callers redraw on the new pins and keep
+  their Nets and netlist; size and pin edits refuse while it is custom, a new
+  Cell Pin refuses until mapped, a removed one takes its graphical pin.
 - Other interface/symbol edits use `structureEdits` with a nested
   `transact_document` (not top-level `edits`), e.g. `set_cell_symbol_presentation`
   with all `pinPlacements` by terminal ID. HTTP callers use their published

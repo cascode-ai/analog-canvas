@@ -86,6 +86,23 @@ owns visual authority.
   Compatible parameter overrides survive. Source, interface, artwork and
   wiring validate together before a new revision reaches copy, export or
   simulation.
+- A native Cell takes the same artwork and map on its own
+  `presentation.cellSymbol.artwork` (`symbol`, `terminals` keyed by its Cell
+  Pins' stable IDs, the projected ports'), never as a `circuitBinding`
+  capture: the Cell owns its block, and the artwork lives as long as the Cell,
+  placed or not. Every caller bound `subcircuit` and drawn with the Cell's
+  block resolves the projected artwork under the generated block's Symbol ID;
+  the netlist is that of the automatic block. Absent is Automatic; the
+  automatic layout beside it stays inactive (size and Pin-side edits refuse)
+  and returns on reset. A Pin rename keeps its mapping, a removed Pin takes
+  its graphical pin, a new Pin refuses until mapped or reset. A
+  supply-mapped Pin is a property supply: a caller wire or No Connect on it
+  refuses; unwired, it takes the Net chosen in Properties, else its rail.
+  Mode switches and artwork edits use route-follow; no connection is lost.
+  GUI (Cell instance Properties, Cell properties: Customize symbol, Reset to
+  automatic) and Agent (`set-cell-symbol-artwork`: `symbolMode`,
+  `artworkText`, Cell-Pin-name-keyed `pinMap`) share `planSetCellSymbolArtwork`;
+  Customize captures the generated block mapped one to one.
 
 ## Component authoring
 

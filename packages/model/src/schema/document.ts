@@ -1,6 +1,7 @@
 import { richTextPresentsIdentifier } from "../identifier-text.js";
 import { cellSymbolPinContainmentProblems } from "../cell-symbol-layout.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
+import { cellSymbolArtworkIssues } from "../circuit-component.js";
 import { z } from "zod";
 
 import { StableIdSchema } from "./common.js";
@@ -387,6 +388,16 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
           }
           occupiedSlots.add(slot);
         }
+        if (cellSymbol.artwork)
+          for (const issue of cellSymbolArtworkIssues(
+            cellSymbol.artwork,
+            projectCellInterface(document.netlist).ports,
+          ))
+            context.addIssue({
+              code: "custom",
+              message: `${document.netlist.name}'s custom symbol: ${issue.message}`,
+              path: ["presentation", "cellSymbol", "artwork", ...issue.path],
+            });
       }
     }
     const instanceReferences = new Set<string>();

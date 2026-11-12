@@ -5,6 +5,7 @@ import { NetlistDeviceClassSchema } from "./instance.js";
 import { SymbolDefinitionSchema } from "./symbol-definition.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
 import { RichTextDocumentSchema } from "./rich-text.js";
+import { SymbolTerminalMappingSchema } from "./symbol-binding.js";
 
 const ComponentDefinitionSourceSchema = z.strictObject({
   name: z.string(),
@@ -97,20 +98,7 @@ const ComponentSubcircuitSchema = z.strictObject({
 /** Artwork refers to native terminal identity; it does not redeclare port order. */
 const CircuitSymbolBindingSchema = z.strictObject({
   definitionId: StableIdSchema,
-  terminals: z
-    .array(
-      z.union([
-        z.strictObject({
-          terminalId: StableIdSchema,
-          pinName: z.string().min(1),
-        }),
-        z.strictObject({
-          terminalId: StableIdSchema,
-          supply: z.enum(["VDD", "VSS"]),
-        }),
-      ]),
-    )
-    .max(128),
+  terminals: z.array(SymbolTerminalMappingSchema).max(128),
 });
 
 /** One local class, referenced by Instance.symbolId and floating symbols. */

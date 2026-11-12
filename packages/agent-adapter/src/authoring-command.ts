@@ -1,6 +1,9 @@
 import { NetlistParameterNameSchema } from "@icm/model";
 import { z } from "zod";
-import { ApplyModelSourceEditSchema } from "@icm/edit-engine";
+import {
+  ApplyModelSourceEditSchema,
+  CellSymbolArtworkInputSchema,
+} from "@icm/edit-engine";
 import {
   CellSymbolSideSchema,
   PointSchema,
@@ -647,5 +650,10 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     .describe(
       "Size this Cell's block body: multiples of 20 (10 inside explicit edges), at least the smallest that fits its Pins and their names. Every caller redraws it; callers keep their Nets.",
     ),
+  CellSymbolArtworkInputSchema.extend({
+    kind: z.literal("set-cell-symbol-artwork"),
+  }).describe(
+    'Draw this Cell\'s block with its own artwork, or reset it (symbolMode "automatic"). artworkText: raw Symbol JSON (omitted: the current artwork). pinMap: every Cell Pin by name to {pinName} or {supply}; omitted, the current map while it fits, else same names. Callers redraw and keep their Nets and netlist.',
+  ),
 ]);
 export type AgentAuthoringCommand = z.infer<typeof AgentAuthoringCommandSchema>;

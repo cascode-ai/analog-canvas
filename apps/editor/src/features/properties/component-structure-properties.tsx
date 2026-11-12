@@ -1,5 +1,6 @@
 import type { BlockSymbolLayoutTarget } from "../hierarchy/block-symbol-layout-target";
 import { hierarchicalBlockBodySize } from "@icm/symbols";
+import { InlineConfirm } from "../../components/inline-confirm";
 
 type PinSide = "north" | "east" | "south" | "west" | "auto";
 
@@ -11,6 +12,8 @@ export function CellSymbolLayoutProperties({
   onBodySizeChange,
   onPortPlacementChange,
   onReset,
+  onCustomizeSymbol,
+  onResetSymbol,
 }: {
   target: BlockSymbolLayoutTarget;
   enabled: boolean;
@@ -23,7 +26,38 @@ export function CellSymbolLayoutProperties({
     side: PinSide,
     offset: number,
   ) => void;
+  /** A Cell's own artwork: opens its Symbol view. */
+  onCustomizeSymbol?: () => void;
+  onResetSymbol?: () => void;
 }) {
+  // Custom artwork owns its geometry; the automatic layout waits beside it.
+  if (target.presentation?.artwork)
+    return (
+      <div
+        className="cell-symbol-layout-properties"
+        aria-label="Cell symbol layout"
+      >
+        <div className="property-section-heading">Cell symbol</div>
+        <small>
+          Drawn with custom artwork. Every instance of {target.name} draws it.
+        </small>
+        {onCustomizeSymbol ? (
+          <button type="button" disabled={readOnly} onClick={onCustomizeSymbol}>
+            Edit custom symbol…
+          </button>
+        ) : null}
+        {onResetSymbol ? (
+          <InlineConfirm
+            disabled={readOnly}
+            confirmLabel="Reset to automatic"
+            cancelLabel="Keep custom symbol"
+            onConfirm={onResetSymbol}
+          >
+            Reset to automatic…
+          </InlineConfirm>
+        ) : null}
+      </div>
+    );
   const automaticSize = hierarchicalBlockBodySize(target.terminals);
   const actualSize = hierarchicalBlockBodySize(
     target.terminals,
@@ -108,6 +142,11 @@ export function CellSymbolLayoutProperties({
           onClick={onReset}
         >
           Reset layout
+        </button>
+      ) : null}
+      {onCustomizeSymbol ? (
+        <button type="button" disabled={readOnly} onClick={onCustomizeSymbol}>
+          Customize symbol…
         </button>
       ) : null}
       <table className="cell-symbol-pin-layout-table">
