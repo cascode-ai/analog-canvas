@@ -583,8 +583,13 @@ function spectreInstance(s: Statement, ctx: Context): string {
   )
     refuse(s, `Unsupported native Spectre primitive ${master}.`);
   const declared = ctx.models.get(kind);
+  // A master the native reading classifies as an external subcircuit, and
+  // no model statement declares, is a call whatever its name's letter: a
+  // foundry's `M1 (d g s b) pch_mac` calls the PDK's subcircuit.
   const isSubckt =
-    ctx.subckts.has(kind) || !!reviewedExternalBindingForMaster(master!);
+    ctx.subckts.has(kind) ||
+    !!reviewedExternalBindingForMaster(master!) ||
+    (!declared && ctx.externalSubckts.has(kind));
   const conventional = /^[MDQJX]/iu.exec(name!)?.[0].toUpperCase();
   if (!isSubckt && !declared && !conventional && !ctx.externalSubckts.has(kind))
     refuse(

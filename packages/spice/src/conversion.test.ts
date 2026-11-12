@@ -514,6 +514,25 @@ describe("netlist-crawler structural conversion", () => {
     );
   });
 
+  it("calls an external subcircuit no model declares, whatever its name's letter", () => {
+    const convert = (externalSubcircuitNames: string[]) =>
+      convertNetlist({
+        text: "subckt top (a b)\nM13 (a b a a) pch_mac l=30n w=1u\nends top\n",
+        source: "spectre",
+        target: "spice",
+        externalSubcircuitNames,
+      });
+    const called = convert(["pch_mac"]);
+    expect(called.status === "converted" && called.text).toContain(
+      "\nXM13 a b a a pch_mac l=30n w=1u\n",
+    );
+    // Not classified as a subcircuit, M stays a MOS card.
+    const card = convert([]);
+    expect(card.status === "converted" && card.text).toContain(
+      "\nM13 a b a a pch_mac l=30n w=1u\n",
+    );
+  });
+
   it("reads a whole design, past the endpoint's limits, for a local import", () => {
     // 40,000 Spectre resistors: past 10,000 statements and 512 KiB.
     const text = Array.from(
