@@ -125,9 +125,14 @@ export function createReferenceIndex(
     const retainedExternalReference =
       Boolean(deviceDescriptor(instance.symbolId, project)?.referencePrefix) &&
       /^x/iu.test(reference);
+    // A subcircuit call may take any name, as Spectre writes it (A1, U1):
+    // SPICE puts its X before the name when it prints the card. New calls
+    // are still named X1, X2, … (#2102).
+    const anyCallName = policy === hierarchyReferencePolicy;
     if (
       !reference.toUpperCase().startsWith(policy.prefix.toUpperCase()) &&
-      !retainedExternalReference
+      !retainedExternalReference &&
+      !anyCallName
     ) {
       issues.push({
         code: "WRONG_REFERENCE_PREFIX",

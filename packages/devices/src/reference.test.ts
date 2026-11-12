@@ -187,6 +187,21 @@ describe("ReferencePolicy and ReferenceIndex", () => {
     ).toEqual(["R", "R"]);
   });
 
+  it("lets a subcircuit call keep any name, as Spectre writes it", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "U1",
+      symbolId: "opamp",
+      placement: null,
+      reference: "A1",
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "amp" },
+        parameters: {},
+      },
+    });
+    expect(createReferenceIndex(document).issues).toEqual([]);
+  });
+
   it("does not allocate a reference already claimed by an invalid prefix", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push({
