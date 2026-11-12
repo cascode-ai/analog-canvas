@@ -350,8 +350,12 @@ the RNL language and its runtime belong to rnl.
     supply or ground drawn on a port, which draws that Pin as VDD Power or a
     Named Ground); ground glyphs on ground; a ground glyph on any other net
     (`vss`), drawn with either ground symbol, a Named Ground of that net;
-    Named Ground and supply glyphs claiming their net by its own name; a
-    glyph on no net of the Cell is drawn as a floating symbol, which the
+    Named Ground and supply glyphs claiming their net by its own name; the
+    name a glyph's own symbol draws (`${p}`, as another tool leaves it to
+    the standard symbols) as the editor's label where RNL draws it, on its
+    baseline and read from the side RNL reads it: a supply's or Named
+    Ground's as its power label, bound to its net or Cell Pin, a port's as
+    its Cell Pin's name label; a glyph on no net of the Cell is drawn as a floating symbol, which the
     netlist does not read; a port on a net the Cell has
     but not as a port (a flat file's inputs) as a label of its net, showing
     its own name text, else the net's name; the wires a floating glyph or

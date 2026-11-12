@@ -7,6 +7,7 @@ import { encodeNetName } from "@icm/netlist";
 import {
   deriveStableId,
   flattenRichText,
+  isSupplyPortSymbol,
   labelTextDocument,
   sameStyledText,
   type Annotation,
@@ -31,6 +32,18 @@ import {
   type Junction,
 } from "./rnl-snapshot.js";
 import { clockedByLabel } from "./import-symbols.js";
+
+/**
+ * How far a text's baseline lies above the point its vertical alignment
+ * names, in text sizes (y up): the face's ascender above it, the descender
+ * below it, as RNL's renderer measures a run.
+ */
+const BASELINE_RISE: Readonly<Record<string, number>> = {
+  top: -0.905,
+  middle: -0.3465,
+  bottom: 0.212,
+  baseline: 0,
+};
 
 /**
  * Whether the netlist spells `name` as `printed`, its node in the file's own
@@ -274,18 +287,47 @@ export function importTexts(
   };
 
   model.texts.forEach((text, index) => {
-    if (!text.written || consumed.has(text.id)) return;
+    if (consumed.has(text.id)) return;
+    // A text no record writes is one a symbol draws by itself, such as the
+    // name of the net or port a glyph stands for (`${p}`, rnl-std-basic):
+    // only a glyph's name is read, so a file another tool wrote shows the
+    // names its glyphs show. Analog Canvas writes its own labels instead.
+    const drawnName =
+      !text.written &&
+      text.key === "name" &&
+      !!text.attach &&
+      glyphOf.has(text.attach);
+    if (!text.written && !drawnName) return;
     const content = acRichText(text.lines);
     if (!content) return;
     const says = stated(text);
-    // Labels and texts stand on whole units.
-    const exact = acPoint(text.anchor);
+    // Labels and texts stand on whole units, on their baseline. A name a
+    // symbol draws stands where its symbol aligns it, by the face's ascender
+    // and descender (RNL 13.3), such as a Named Ground's name hanging from
+    // under its bars: its baseline is that far down or up.
+    const rise = drawnName
+      ? (BASELINE_RISE[text.valign] ?? 0) * (text.size ?? 1)
+      : 0;
+    const exact = acPoint([text.anchor[0], text.anchor[1] + rise]);
     const at = { x: Math.round(exact.x) + 0, y: Math.round(exact.y) + 0 };
     const id = deriveStableId("annotation", document.id, level.id, text.id);
     const rotation = ((360 - text.rotate) % 360) as 0 | 90 | 180 | 270;
-    const alignment = (
+    const written = (
       ["start", "middle", "end"].includes(text.halign) ? text.halign : "start"
     ) as "start" | "middle" | "end";
+    // A symbol's own text keeps its symbol's alignment, which turns with its
+    // owner: one turned over or mirrored left to right reads from the
+    // other side, as RNL draws it.
+    const owner = drawnName
+      ? model.objects.find((object) => object.id === text.attach)
+      : undefined;
+    const alignment =
+      written !== "middle" &&
+      (owner?.orient.value === "MY" || owner?.orient.value === "R180")
+        ? written === "start"
+          ? "end"
+          : "start"
+        : written;
     // A label takes its part's colour as the editor's does from its Instance:
     // the colour its part has is no colour of its own.
     const textcolor = text.style["textcolor"];
@@ -331,6 +373,29 @@ export function importTexts(
           item.interfaceInstanceIds.includes(pin.id),
         )
       : undefined;
+    // A supply or Named Ground glyph's own name: the editor's power label of
+    // its net, or of the Cell Pin it is, bound to that name, where RNL shows
+    // it. A port's own name is its Cell Pin's name label, as below.
+    if (drawnName && pin && isSupplyPortSymbol(pin.symbolId)) {
+      const netId = document.nets.find((net) =>
+        net.terminals.some((item) => item.instanceId === pin.id),
+      )?.id;
+      if (!netId || labelled.has(pin.id)) return;
+      labelled.add(pin.id);
+      document.annotations.push({
+        id,
+        kind: "power-label",
+        netId,
+        binding: terminal
+          ? { kind: "cell-terminal-name", terminalId: terminal.id }
+          : { kind: "net-name", netId },
+        anchor: onObject(pin),
+        ...common,
+        ...scaled(text.size, profile.typography.powerFontSize),
+      });
+      return;
+    }
+    if (drawnName && !(pin && terminal)) return;
     // A switch or chopper is clocked by the phase its label names: the label
     // holds that text itself, in place of one the import gave it.
     if (instance && text.key === "name" && clockedByLabel(instance)) {
