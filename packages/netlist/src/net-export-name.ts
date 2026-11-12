@@ -6,7 +6,7 @@ import {
   analyzeDesignNetlistForAuthoring,
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
-import { supplyPortRank } from "./extract-ground-pin.js";
+import { sortsSupplyPorts, supplyPortRank } from "./extract-ground-pin.js";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
 
 /**
@@ -99,6 +99,11 @@ export function designNetlistCellPorts(
     groundPin: "pin" as const,
     rootDocumentId: documentId,
   };
+  // A Cell read from a file keeps its own Pins where the file has them; the
+  // supplies the export adds still take their places.
+  const own = new Set(
+    source.netlist?.terminals.map((terminal) => terminal.netId) ?? [],
+  );
   for (const analyze of [
     analyzeDesignNetlist,
     analyzeDesignNetlistForAuthoring,
@@ -110,7 +115,9 @@ export function designNetlistCellPorts(
       return cell.ports.map(({ id, name }) => ({
         id,
         name,
-        supply: supplyPortRank(logical, { id, name }) < 2,
+        supply:
+          supplyPortRank(logical, { id, name }) < 2 &&
+          (sortsSupplyPorts(source) || !own.has(id)),
       }));
   }
   return null;

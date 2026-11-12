@@ -92,9 +92,14 @@ describe("designNetlistCellPorts", () => {
     expect(designNetlistCellPorts(project, "missing")).toBeNull();
   });
 
-  it("lists a Pin named VSS where the export puts it, before the signals (#2177)", async () => {
+  it("lists the Pins of a Cell read from a file in the file's order, supplies among them", async () => {
+    // A Cell keeps the order the file declares its ports in, VSS last here
+    // and vdd before vss after the signals, so it writes again as it was
+    // read and every positional call with it (#2177 lists what it writes).
     const deck =
-      ".subckt rc_stage IN OUT VSS\nR1 IN OUT 1k\nC1 OUT VSS 1n\n.ends rc_stage\nX1 a b 0 rc_stage\n.end\n";
+      ".subckt rc_stage IN OUT VSS\nR1 IN OUT 1k\nC1 OUT VSS 1n\n.ends rc_stage\n" +
+      ".subckt core vp vn vdd vss\nR1 vp vdd 1k\nR2 vn vss 1k\n.ends core\n" +
+      "X1 a b 0 rc_stage\nX2 a b c d core\n.end\n";
     const imported = await importSpiceSources(
       [{ path: "rc.spi", bytes: new TextEncoder().encode(deck) }],
       "rc.spi",
@@ -109,14 +114,17 @@ describe("designNetlistCellPorts", () => {
     const ports = designNetlistCellPorts(project, cell.id)!;
     expect(
       ports.map((port) => `${port.name}${port.supply ? " (supply)" : ""}`),
-    ).toEqual(["VSS (supply)", "IN", "OUT"]);
+    ).toEqual(["IN", "OUT", "VSS"]);
+    const core = project.documents.find((item) => item.name === "core")!;
+    expect(
+      designNetlistCellPorts(project, core.id)!.map((port) => port.name),
+    ).toEqual(["vp", "vn", "vdd", "vss"]);
     // The netlist writes that same order, definition and call alike.
     const text = createDesignNetlistExport(project);
-    expect(text.status === "ready" && text.file.text).toContain(
-      ".subckt rc_stage VSS IN OUT\n",
-    );
-    expect(text.status === "ready" && text.file.text).toMatch(
-      /^X1 VSS a b rc_stage$/mu,
-    );
+    const written = text.status === "ready" ? text.file.text : "";
+    expect(written).toContain(".subckt rc_stage IN OUT VSS\n");
+    expect(written).toMatch(/^X1 a b VSS rc_stage$/mu);
+    expect(written).toContain(".subckt core vp vn vdd vss\n");
+    expect(written).toMatch(/^X2 a b c d core$/mu);
   });
 });

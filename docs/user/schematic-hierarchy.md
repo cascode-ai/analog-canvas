@@ -116,7 +116,8 @@ block side and netlist order), its parameters and the block's size; **Auto**
 returns a pin to its default side. Its Pins read in netlist order: supply
 Pins (VDD, VSS) lead and keep their place, the others move up and down, and
 a pin the netlist adds, such as ground's `VSS`, is marked **Added by the
-netlist**. Select a parent instance and open
+netlist**. A Cell imported from a netlist file keeps the file's order, its
+supply Pins among the others, each free to move. Select a parent instance and open
 **Properties** for pin offsets, or **Edit symbol layout on canvas** for drag
 grips. Changes apply to every instance. Highlight a Net (`H`) to see its
 **Hierarchy Net trace** in Properties, with **Enter** and **Return** across
