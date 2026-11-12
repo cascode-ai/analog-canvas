@@ -219,12 +219,15 @@ export function defaultVddPowerLabelPlacement(
       y: bounds.y + bounds.height / 2,
     };
     const away = { x: centre.x - pinAt.x, y: centre.y - pinAt.y };
+    // The position is the text's baseline: below the bars the name stands
+    // a line's height under them, so its capitals clear the lowest bar;
+    // above them its subscript clears the stem; beside them it is level.
     if (Math.abs(away.y) >= Math.abs(away.x))
       return {
         position: {
           x: projectCoordinate(centre.x),
           y: projectCoordinate(
-            away.y >= 0 ? bounds.y + bounds.height + grid : bounds.y - grid,
+            away.y >= 0 ? bounds.y + bounds.height + 2 * grid : bounds.y - grid,
           ),
         },
         alignment: "middle",

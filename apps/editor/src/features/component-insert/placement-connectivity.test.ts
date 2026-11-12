@@ -1053,7 +1053,7 @@ describe("a Global Named Ground", () => {
       id: "power-label-vss1",
       binding: { kind: "net-name" },
       alignment: "middle",
-      anchor: { objectId: "VSS1", localOffset: { x: 0, y: 20 } },
+      anchor: { objectId: "VSS1", localOffset: { x: 0, y: 30 } },
     });
     // NMOS bodies follow it: it is drawn as the rail they sit on.
     expect(document.mosBulkDefaults?.nmosNetId).toBe(document.nets[0]!.id);

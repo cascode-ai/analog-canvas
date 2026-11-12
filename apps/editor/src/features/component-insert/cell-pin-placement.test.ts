@@ -119,7 +119,7 @@ describe("placing a Named Ground", () => {
       id: "power-label-vss1",
       binding: { kind: "cell-terminal-name", terminalId: "terminal-vss1" },
       alignment: "middle",
-      anchor: { objectId: "VSS1", localOffset: { x: 0, y: 20 } },
+      anchor: { objectId: "VSS1", localOffset: { x: 0, y: 30 } },
     });
     expect(document.presentation.cellSymbol?.pinPlacements).toEqual([
       { terminalId: "terminal-vss1", side: "south", offset: 0 },

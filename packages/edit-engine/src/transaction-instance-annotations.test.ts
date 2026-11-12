@@ -279,7 +279,7 @@ describe("a Named Ground's name as it turns", () => {
     const initial = defaultVddPowerLabelPlacement(instance, resolved, 10)!;
     // Under the bars, as RNL's $NAMED_GROUND_SYMBOL draws its name.
     expect(initial).toEqual({
-      position: { x: 200, y: 120 },
+      position: { x: 200, y: 130 },
       alignment: "middle",
     });
     const annotation: Annotation = {
@@ -289,7 +289,7 @@ describe("a Named Ground's name as it turns", () => {
       anchor: {
         kind: "object",
         objectId: "VSS1",
-        localOffset: { x: 0, y: 20 },
+        localOffset: { x: 0, y: 30 },
         fallbackPosition: initial.position,
       },
       alignment: "middle",
