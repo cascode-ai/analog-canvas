@@ -883,9 +883,8 @@ describe("an ended session's downloads", () => {
   });
 
   it("ends an expired session that R2 cannot clear yet, and retries on an alarm", async () => {
-    // Expired while the object was away: restoring it ends the session. A
-    // failed delete there used to fail the object's start-up, so every
-    // request to it, the editor's status polls included, threw.
+    // Expired while the object was away: answer first, then let the alarm
+    // clean up. A failed delete must not fail initialization or lose retries.
     const s = await session();
     const state = s.values.get(SESSION_STATE_KEY) as { expiresAt: number };
     s.values.set(SESSION_STATE_KEY, { ...state, expiresAt: Date.now() - 1 });
@@ -899,6 +898,8 @@ describe("an ended session's downloads", () => {
     );
     expect(status.status).toBeGreaterThanOrEqual(400);
     expect(status.status).toBeLessThan(500);
+    expect(s.values.has(SESSION_STATE_KEY)).toBe(true);
+    await object.alarm();
     expect(s.values.has(SESSION_STATE_KEY)).toBe(false);
     expect(s.objects.size).toBe(2);
     expect(s.alarm()).toBeGreaterThan(Date.now());

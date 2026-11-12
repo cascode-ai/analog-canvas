@@ -7,6 +7,49 @@ const env = {
 };
 afterEach(() => vi.unstubAllGlobals());
 
+it("carries an Arena request and its sign-in handoff only to the fixed authority", async () => {
+  const network = vi.fn(async (request) => {
+    expect(request.redirect).toBe("manual");
+    expect(request.headers.get("cookie")).toBe("icm_session=browser-session");
+    if (new URL(request.url).pathname === "/api/auth/handoff")
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "https://chip-arena.com/schematic" },
+      });
+    expect(request.url).toBe(
+      "https://canvas-origin.test/api/arena/votes?retry=1",
+    );
+    expect(await request.json()).toEqual({ battleId: "battle", choice: "a" });
+    return Response.json({ error: "vote-refused" }, { status: 409 });
+  });
+  vi.stubGlobal("fetch", network);
+  const headers = {
+    Cookie: "icm_session=browser-session",
+    "Content-Type": "application/json",
+  };
+  const vote = await egress.fetch(
+    new Request("https://canvas-origin.test/api/arena/votes?retry=1", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ battleId: "battle", choice: "a" }),
+    }),
+    env,
+  );
+  expect(vote.status).toBe(409);
+  expect(await vote.json()).toEqual({ error: "vote-refused" });
+  const handoff = await egress.fetch(
+    new Request("https://canvas-origin.test/api/auth/handoff?binding=browser", {
+      headers,
+    }),
+    env,
+  );
+  expect(handoff.status).toBe(302);
+  expect(handoff.headers.get("location")).toBe(
+    "https://chip-arena.com/schematic",
+  );
+  expect(network).toHaveBeenCalledTimes(2);
+});
+
 it("looks up only a Dataset writer at the fixed peer", async () => {
   vi.stubGlobal("fetch", async () =>
     Response.json({ known: true, origin: "cn" }),
@@ -340,6 +383,12 @@ it("keeps service redirects closed even when they contain an apparent identity",
 });
 
 it.each([
+  ["GET", "https://unconfigured.test/api/arena/session"],
+  ["GET", env.PEER_ORIGIN + "/api/arena/session"],
+  ["GET", "https://canvas-origin.test/api/arenas/session"],
+  ["POST", "https://canvas-origin.test/api/canvas/account-deletion"],
+  ["POST", "https://canvas-origin.test/api/auth/handoff"],
+  ["GET", "https://canvas-origin.test/api/auth/handoff/complete"],
   ["GET", "https://unconfigured.test/api/auth/google/start"],
   ["GET", env.PEER_ORIGIN + "/api/auth/google/start"],
   ["POST", "https://canvas-origin.test/api/auth/google/start"],

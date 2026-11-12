@@ -25,7 +25,9 @@ export async function readSyncJson(
       if (done) break;
       size += value.byteLength;
       if (size > limit) {
-        await reader.cancel();
+        // A cloned Request is one tee branch: awaiting cancellation waits for
+        // the unread sibling, which may itself be waiting for this refusal.
+        void reader.cancel().catch(() => {});
         throw new RangeError("JSON body too large");
       }
       text += decoder.decode(value, { stream: true });

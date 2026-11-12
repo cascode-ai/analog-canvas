@@ -38,6 +38,17 @@ export function isArenaForwardedPath(pathname: string): boolean {
   return isArenaPagePath(pathname) || pathname.startsWith("/api/arena/");
 }
 
+/** Regional Canvas delegates these browser requests to Production's authority. */
+export function isRegionalArenaRoute(method: string, path: string): boolean {
+  return (
+    (method === "GET" && path === "/api/auth/handoff") ||
+    (path.startsWith("/api/arena/") &&
+      ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"].includes(
+        method,
+      ))
+  );
+}
+
 /**
  * Chip Arena's own pages on its host alone: its front page and its visitor
  * statistics. On Analog Canvas's host the same paths are Analog Canvas's.

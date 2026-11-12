@@ -15,6 +15,11 @@ import {
 } from "./auth";
 import { ARENA_ACCOUNT_HEADER, arenaAccount } from "./arena-account";
 import {
+  regionalArenaUser,
+  REGIONAL_ARENA_CAPABILITY,
+} from "./regional-arena-auth";
+import { regionalConfig } from "./regional-auth-contract";
+import {
   ARENA_HOST,
   ARENA_ORIGIN,
   CANVAS_HOST,
@@ -172,13 +177,40 @@ export async function routeArenaRequest(
     !(url.hostname === ARENA_HOST && isArenaHostOwnPath(url.pathname))
   )
     return null;
+  const authority = regionalConfig(env.AUTH_REGIONAL_AUTHORITY);
+  if (authority && url.origin === authority.transportOrigin) {
+    request = new Request(
+      new URL(url.pathname + url.search, authority.origin),
+      request,
+    );
+  }
   const headers = forwardedHeaders(request);
-  const user = await sessionUserOf(request, env);
+  const regional = request.headers.has(REGIONAL_ARENA_CAPABILITY);
+  const user = regional
+    ? await regionalArenaUser(request, (internal) =>
+        env.AUTH!.getByName("auth").fetch(internal),
+      )
+    : await sessionUserOf(request, env);
+  if (user instanceof Response) return user;
+  headers.delete(REGIONAL_ARENA_CAPABILITY);
   if (user) headers.set(ARENA_ACCOUNT_HEADER, arenaAccount(user));
+  if (regional) headers.delete("cf-connecting-ip");
+  // Build from the URL, not the incoming Request, to omit the proxy's cf
+  // country/network too. Arena already records unavailable origins as null.
+  const regionalInit: RequestInit & { duplex: "half" } = {
+    method: request.method,
+    headers,
+    body: request.body,
+    redirect: "manual",
+    duplex: "half",
+  };
+  const forwarded = regional
+    ? new Request(request.url, regionalInit)
+    : new Request(request, { headers });
   let response: Response;
   try {
     if (!env.ARENA) throw new Error("no ARENA binding");
-    response = await env.ARENA.fetch(new Request(request, { headers }));
+    response = await env.ARENA.fetch(forwarded);
   } catch (error) {
     console.error("Arena unreachable", error);
     return arenaUnavailable(request);

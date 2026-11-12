@@ -46,6 +46,19 @@ The hosts share only accounts and the way between them. Before any route,
 - Only the Production Worker binds the service `analog-arena` as `ARENA` (not
   the retired Preview Worker, not the local replica). Arena trusts the account
   of whoever calls it, so the binding is the trust boundary.
+- A same-origin regional Canvas without that binding sends `/api/arena/…`
+  and `GET /api/auth/handoff` to its fixed Production authority, outside
+  geographic routing. Method, query and JSON body (up to 64 KiB) survive;
+  browser credentials and client account headers do not. The existing regional
+  action-capability service binds the local session's current actor to this
+  method, path, query and body. Production revalidates that capability before
+  using its private binding or issuing a browser-bound sign-in handoff. Local
+  logout stays anonymous even if the overseas cookie remains; switching an AI
+  account uses the regional actor. The region creates no Arena store and never
+  proxies the private account-deletion call. Failed forwards are not retried.
+  A capability-authorized proxy call carries unknown connection metadata:
+  neither the ECS IP nor its Cloudflare country/network is the visitor's.
+  Direct overseas requests keep their connection metadata.
 - Forwarded: exactly `/schematic`, `/schematic/…` and `/api/arena/…` on any
   host that keeps them, plus `/` and `/analytics` on AnalogArena's host only.
   Nothing else (`/schematics`, `/api/arena`, `/analytics/…`, `/api/auth/…`).

@@ -1,9 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
 import entry from "./regional-entry";
+import canvas from "./index";
 import { regionalRuntimeBindings } from "./regional-entry.test-support";
 import { RegionalSessionDO } from "./regional-session";
 import {
   environment,
+  adminOf,
   makerOf,
   ORIGIN,
   sqliteState,
@@ -12,6 +14,224 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 const transport = "https://canvas-origin.test";
+
+it("rejects an oversized Arena command without waiting for the unread forward body", async () => {
+  const { target, requests } = proxyEnvironment();
+  const result = await Promise.race([
+    entry.fetch(
+      new Request(`${ORIGIN}/api/arena/votes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ padding: "x".repeat(70_000) }),
+      }),
+      target,
+    ),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 1_000)),
+  ]);
+  expect(result?.status).toBe(413);
+  expect(requests).toHaveLength(0);
+});
+
+async function localLogin(
+  target: ReturnType<typeof proxyEnvironment>["target"],
+  cookie: string,
+) {
+  const start = await entry.fetch(
+    new Request(`${ORIGIN}/api/auth/regional/start`),
+    target,
+  );
+  const pending = start.headers.get("set-cookie")!.split(";")[0]!;
+  const authorized = await entry.fetch(
+    new Request(start.headers.get("location")!, {
+      headers: { Cookie: cookie },
+    }),
+    target,
+  );
+  const completed = await entry.fetch(
+    new Request(authorized.headers.get("location")!, {
+      headers: { Cookie: `${cookie}; ${pending}` },
+    }),
+    target,
+  );
+  const local = completed.headers
+    .getSetCookie()
+    .find((value) => value.startsWith("icm_regional_session="))!
+    .split(";")[0]!;
+  return `${cookie}; ${local}`;
+}
+
+it("completes the Arena browser-bound sign-in handoff through domestic Canvas", async () => {
+  const { source, target } = proxyEnvironment();
+  const cookie = await localLogin(target, await makerOf(source));
+  const begin = await source.authDurable.fetch(
+    new Request(
+      "https://chip-arena.com/api/auth/handoff/begin?return=/schematic",
+    ),
+  );
+  const binding = begin.headers.get("set-cookie")!.split(";")[0]!;
+  const ask = new URL(begin.headers.get("location")!);
+  const handoff = await entry.fetch(
+    new Request(ORIGIN + ask.pathname + ask.search, {
+      headers: { Cookie: cookie },
+    }),
+    target,
+  );
+  expect(handoff.status).toBe(302);
+  const complete = await source.authDurable.fetch(
+    new Request(handoff.headers.get("location")!, {
+      headers: { Cookie: binding },
+    }),
+  );
+  expect(complete.status).toBe(302);
+  expect(complete.headers.get("location")).toBe(
+    "https://chip-arena.com/schematic",
+  );
+  expect(
+    complete.headers
+      .getSetCookie()
+      .some((value) => value.startsWith("icm_session=")),
+  ).toBe(true);
+  await entry.fetch(
+    new Request(`${ORIGIN}/api/auth/logout`, {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: ORIGIN },
+    }),
+    target,
+  );
+  const signedOut = await entry.fetch(
+    new Request(ORIGIN + ask.pathname + ask.search, {
+      headers: { Cookie: cookie },
+    }),
+    target,
+  );
+  expect(signedOut.headers.get("location")).toBe(
+    "https://chip-arena.com/schematic",
+  );
+});
+
+it("reaches Arena through the authority's verified account without a domestic Arena binding", async () => {
+  const { source, target } = proxyEnvironment();
+  const cookie = await localLogin(target, await adminOf(source));
+  const account = (
+    await (
+      await source.authDurable.fetch(
+        new Request(`${ORIGIN}/api/auth/me`, {
+          headers: { Cookie: cookie },
+        }),
+      )
+    ).json()
+  ).user;
+  const forwarded: Request[] = [];
+  const transmitted: Request[] = [];
+  const authority = {
+    ...source,
+    ...regionalRuntimeBindings(),
+    AUTH: source.AUTH!,
+    AUTH_REGIONAL_AUTHORITY: target.AUTH_REGIONAL_CLIENT,
+    ARENA: {
+      fetch: async (arenaRequest: Request) => {
+        forwarded.push(arenaRequest);
+        return Response.json({ accepted: true });
+      },
+    },
+  };
+  const network = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+    const request = new Request(input, init);
+    expect(new URL(request.url).origin).toBe(transport);
+    expect(request.redirect).toBe("manual");
+    expect(request.headers.has("x-arena-account")).toBe(false);
+    if (new URL(request.url).pathname.startsWith("/api/arena/")) {
+      // Cloudflare sees the domestic server's connection, not the visitor's.
+      request.headers.set("cf-connecting-ip", "203.0.113.99");
+      transmitted.push(request.clone());
+    }
+    return canvas.fetch(request, authority);
+  });
+  vi.stubGlobal("fetch", network);
+  const response = await entry.fetch(
+    new Request(`${ORIGIN}/api/arena/votes?retry=1`, {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        Origin: ORIGIN,
+        "Content-Type": "application/json",
+        "x-arena-account": '{"id":"forged"}',
+      },
+      body: JSON.stringify({ battleId: "battle", choice: "a" }),
+    }),
+    target,
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ accepted: true });
+  expect(forwarded).toHaveLength(1);
+  expect(JSON.parse(forwarded[0]!.headers.get("x-arena-account")!).id).toBe(
+    account.id,
+  );
+  expect(forwarded[0]!.headers.get("cookie") ?? "").not.toContain(
+    "icm_session=",
+  );
+  expect(forwarded[0]!.headers.has("cf-connecting-ip")).toBe(false);
+  expect(forwarded[0]!.url).toBe(`${ORIGIN}/api/arena/votes?retry=1`);
+  expect(await forwarded[0]!.json()).toEqual({
+    battleId: "battle",
+    choice: "a",
+  });
+  const altered = await canvas.fetch(
+    new Request(transmitted[0]!, {
+      body: JSON.stringify({ battleId: "battle", choice: "b" }),
+    }),
+    authority,
+  );
+  expect(altered.status).toBe(401);
+  expect(forwarded).toHaveLength(1);
+  const anonymous = await entry.fetch(
+    new Request(`${ORIGIN}/api/arena/session`),
+    target,
+  );
+  expect(anonymous.status).toBe(200);
+  expect(forwarded[1]!.headers.has("x-arena-account")).toBe(false);
+  const seats = await (
+    await entry.fetch(
+      new Request(`${ORIGIN}/api/auth/ai-accounts`, {
+        headers: { Cookie: cookie },
+      }),
+      target,
+    )
+  ).json();
+  const seat = seats.accounts[0];
+  const switched = await entry.fetch(
+    new Request(`${ORIGIN}/api/auth/ai-accounts/switch`, {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        Origin: ORIGIN,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId: seat.id }),
+    }),
+    target,
+  );
+  expect(switched.status).toBe(200);
+  await entry.fetch(
+    new Request(`${ORIGIN}/api/arena/session`, { headers: { Cookie: cookie } }),
+    target,
+  );
+  expect(JSON.parse(forwarded.at(-1)!.headers.get("x-arena-account")!).id).toBe(
+    seat.id,
+  );
+  await entry.fetch(
+    new Request(`${ORIGIN}/api/auth/logout`, {
+      method: "POST",
+      headers: { Cookie: cookie, Origin: ORIGIN },
+    }),
+    target,
+  );
+  await entry.fetch(
+    new Request(`${ORIGIN}/api/arena/session`, { headers: { Cookie: cookie } }),
+    target,
+  );
+  expect(forwarded.at(-1)!.headers.has("x-arena-account")).toBe(false);
+});
 
 function proxyEnvironment() {
   const config = JSON.stringify({

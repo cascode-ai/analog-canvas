@@ -282,9 +282,11 @@ export class AgentSessionDO {
         await this.revokeTrustedSession(machine, "removed");
       return new Response(null, { status: 204 });
     }
-    const trustedTask = this.approvingLaunch
-      ? undefined
-      : this.trustedTask(machine);
+    const status = machine.statusAt(Date.now());
+    const trustedTask =
+      this.approvingLaunch || status === "expired" || status === "revoked"
+        ? undefined
+        : this.trustedTask(machine);
     if (trustedTask) {
       const trusted = await trustedTask.isCurrent().catch(() => null);
       if (trusted === null)
@@ -729,7 +731,8 @@ export class AgentSessionDO {
       return;
     }
     const machine = await this.loadMachine();
-    if (machine && Date.now() < machine.expiresAt - EXPIRY_WARNING_MS) {
+    const live = machine && machine.statusAt(Date.now()) !== "revoked";
+    if (live && Date.now() < machine.expiresAt - EXPIRY_WARNING_MS) {
       await this.state.storage.setAlarm?.(
         Math.min(
           machine.expiresAt - EXPIRY_WARNING_MS,
@@ -738,7 +741,7 @@ export class AgentSessionDO {
       );
       return;
     }
-    if (machine && Date.now() < machine.expiresAt) {
+    if (live && Date.now() < machine.expiresAt) {
       const event: AgentSessionEvent = {
         type: "session.expiring",
         sessionId: machine.sessionId,
@@ -2124,6 +2127,15 @@ export class AgentSessionDO {
         () => crypto.randomUUID(),
         Date.now(),
       );
+      const status = this.machine.statusAt(Date.now());
+      if (status === "expired" || status === "revoked") {
+        // Initialization holds the input gate. Device-directory calls and R2
+        // cleanup belong to the alarm, never under that gate: a slow cleanup
+        // must not reset the object before it can answer SESSION_EXPIRED.
+        // Keep the stored session (including device trust) until cleanup ends.
+        await this.state.storage.setAlarm?.(Date.now());
+        return;
+      }
       // A failed write here would leave the object unable to answer any
       // request, its session neither ended nor usable. The next change
       // writes the state again.

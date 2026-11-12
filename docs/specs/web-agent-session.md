@@ -142,7 +142,11 @@ GET  /api/agent/openapi.json
   grant. The signing key stays local. A signed-in account can list and revoke
   the device records belonging to that account at the current site.
 - Ended sessions bulk-delete download copies (failures retried later) and
-  answer the typed expired/revoked errors.
+  answer the typed expired/revoked errors. Restoring an ended session schedules
+  cleanup outside the initialization gate; a slow device directory or artifact
+  deletion must not prevent the session from answering. Terminal status does
+  not require a device-directory lookup. Its stored session remains available
+  for the alarm to clean up.
 
 ## Binding and context
 
