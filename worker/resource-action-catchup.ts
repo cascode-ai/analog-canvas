@@ -1,4 +1,5 @@
 import { RESOURCE_MAX_BYTES } from "./resource-replica";
+import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import { readSyncJson } from "./project-sync-http";
 
 export type ResourceCall = (
@@ -13,7 +14,7 @@ export async function catchUpResource(
   token: string | undefined,
   head: { epoch: string; sequence: number },
 ): Promise<boolean> {
-  const until = Date.now() + 20_000;
+  const until = Date.now() + REGIONAL_ACTION_TIMEOUT_MS;
   for (let attempt = 0; attempt < 64 && Date.now() < until; attempt++) {
     const response = await call("resource-sync/status", { stream });
     if (!response.ok) return false;

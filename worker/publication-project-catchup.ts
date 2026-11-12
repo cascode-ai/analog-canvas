@@ -1,4 +1,5 @@
 import type { GalleryEnv } from "./gallery-store";
+import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import type { ProjectSyncStatus } from "./project-sync-journal";
 import { MAX_SYNC_BYTES } from "./project-sync-protocol";
 import { readSyncJson } from "./project-sync-http";
@@ -44,7 +45,7 @@ export async function catchUpPublicationProjects(
     peer.hash
   )
     return false;
-  const until = Date.now() + 20_000;
+  const until = Date.now() + REGIONAL_ACTION_TIMEOUT_MS;
   const headers = { authorization: "Bearer " + env.PROJECT_SYNC_PEER_TOKEN };
   if (!head) {
     const response = await fetch(peer.origin + "/api/project-sync/status", {

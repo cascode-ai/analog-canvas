@@ -1,3 +1,4 @@
+import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import {
   catchUpPublicationProjects,
   publicationProjectHead,
@@ -334,7 +335,7 @@ export async function routeRegionalPublicationActions(
         `${peer.origin}/api/resource-sync/${stream}/location?id=${encodeURIComponent(command.entryId)}`,
         {
           redirect: "manual",
-          signal: AbortSignal.timeout(20_000),
+          signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
           headers: { authorization: "Bearer " + env.RESOURCE_SYNC_PEER_TOKEN },
         },
       );
@@ -422,7 +423,7 @@ export async function routeRegionalPublicationActions(
     const response = await fetch(peer.origin + PATH, {
       method: "POST",
       redirect: "manual",
-      signal: AbortSignal.timeout(45_000),
+      signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
       headers: {
         authorization: "Bearer " + (await authorized.json()).token,
         "content-type": "application/json",

@@ -13,6 +13,64 @@ import { digest } from "./regional-auth-contract";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("withdraws once after the peer waits through maintenance and network transit", async () => {
+  const { cn, overseas, publish, auth } = await pair();
+  const id = await publish(cn);
+  const transport = globalThis.fetch;
+  let delivered = 0;
+  let started!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+  const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+  });
+  vi.stubGlobal(
+    "fetch",
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      if (new URL(request.url).pathname === "/api/resource-actions/lifecycle") {
+        // Time passes before the writer redeems its command-bound authorization.
+        auth.advance(65_000);
+        delivered++;
+      }
+      if (new URL(request.url).pathname.endsWith("/changes")) {
+        await new Promise<void>((resolve, reject) => {
+          request.signal.addEventListener(
+            "abort",
+            () => reject(request.signal.reason),
+            { once: true },
+          );
+          setTimeout(resolve, 45_000);
+          started();
+        });
+      }
+      return transport(request);
+    },
+  );
+  try {
+    const pending = overseas.call(
+      `/api/gallery/${id}/recycle`,
+      "POST",
+      "held-withdrawal",
+    );
+    await waiting;
+    await vi.advanceTimersByTimeAsync(45_000);
+    const response = await pending;
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect((await (await cn.call(`/api/gallery/${id}`)).json()).status).toBe(
+      "recycled",
+    );
+    expect(delivered).toBe(1);
+  } finally {
+    timeout.mockRestore();
+    vi.useRealTimers();
+  }
+});
+
 it("unlikes through the other entrance and reconciles a lost reply without toggling again", async () => {
   const { cn, overseas, publish, loseNextReply } = await pair();
   const id = await publish(overseas);

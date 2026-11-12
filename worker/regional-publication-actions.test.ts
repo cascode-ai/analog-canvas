@@ -14,6 +14,78 @@ import {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("imports Image2Net after the China writer lookup waits through a backup", async () => {
+  const { overseas, auth } = await pair();
+  const owner = await ownerAccountOf(auth.source);
+  const transport = globalThis.fetch;
+  let started!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), ms);
+    return controller.signal;
+  });
+  vi.stubGlobal(
+    "fetch",
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      if (
+        new URL(request.url).pathname ===
+        "/api/resource-sync/image2net/location"
+      ) {
+        await new Promise<void>((resolve, reject) => {
+          request.signal.addEventListener(
+            "abort",
+            () => reject(request.signal.reason),
+            { once: true },
+          );
+          setTimeout(resolve, 45_000);
+          started();
+        });
+      }
+      return transport(request);
+    },
+  );
+  try {
+    const pending = overseas.route(
+      new Request(ORIGIN + "/api/gallery/sources/image2net/entries", {
+        method: "POST",
+        headers: {
+          origin: ORIGIN,
+          cookie: owner,
+          "idempotency-key": "image2net-after-backup",
+        },
+        body: JSON.stringify({
+          entries: [
+            {
+              id: "i2n-maintenance",
+              name: "Backup continuity",
+              projectText: wiredProjectText(),
+            },
+          ],
+        }),
+      }),
+    );
+    await waiting;
+    await vi.advanceTimersByTimeAsync(45_000);
+    const response = await pending;
+    expect((await response.json()).results[0]).toMatchObject({
+      ok: true,
+      created: true,
+    });
+    expect(
+      (await (await overseas.call("/api/gallery/i2n-maintenance")).json()).entry
+        .name,
+    ).toBe("Backup continuity");
+  } finally {
+    timeout.mockRestore();
+    vi.useRealTimers();
+  }
+});
+
 it("fixes a foreign Dataset drawing without changing its source attribution", async () => {
   const { cn, overseas, auth, loseNextReply } = await pair();
   const owner = await ownerAccountOf(auth.source),

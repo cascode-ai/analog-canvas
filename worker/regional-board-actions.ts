@@ -1,3 +1,4 @@
+import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import { sessionUserOf, type SessionUser } from "./auth";
 import { sha256Hex } from "@icm/derived";
 import { digest, sessionIdentity } from "./regional-auth-contract";
@@ -86,7 +87,7 @@ export async function routeRegionalBoardActions(
         `${peer.origin}/api/resource-sync/${stream}/status`,
         {
           redirect: "manual",
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
           headers: { authorization: "Bearer " + env.RESOURCE_SYNC_PEER_TOKEN },
         },
       );
@@ -212,7 +213,7 @@ export async function routeRegionalBoardActions(
             `${peer.origin}/api/resource-sync/gallery/status`,
             {
               redirect: "manual",
-              signal: AbortSignal.timeout(15000),
+              signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
               headers: {
                 authorization: "Bearer " + env.RESOURCE_SYNC_PEER_TOKEN,
               },
@@ -257,7 +258,7 @@ export async function routeRegionalBoardActions(
     const remote = await fetch(peer.origin + peerPath, {
       method: "POST",
       redirect: "manual",
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
       headers: {
         authorization: "Bearer " + token,
         "content-type": "application/json",
