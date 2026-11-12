@@ -125,9 +125,17 @@ export function createReferenceIndex(
     const retainedExternalReference =
       Boolean(deviceDescriptor(instance.symbolId, project)?.referencePrefix) &&
       /^x/iu.test(reference);
+    // A call of an external subcircuit (a model source's) keeps any name, as
+    // Spectre writes it (A1, U1): SPICE puts its X before the name when it
+    // prints the card. A Cell's call keeps to X and draws another name with
+    // a display alias (#1254).
+    const anyCallName =
+      policy === hierarchyReferencePolicy &&
+      instance.netlist?.binding?.kind === "external-subcircuit";
     if (
       !reference.toUpperCase().startsWith(policy.prefix.toUpperCase()) &&
-      !retainedExternalReference
+      !retainedExternalReference &&
+      !anyCallName
     ) {
       issues.push({
         code: "WRONG_REFERENCE_PREFIX",

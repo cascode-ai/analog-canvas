@@ -187,6 +187,35 @@ describe("ReferencePolicy and ReferenceIndex", () => {
     ).toEqual(["R", "R"]);
   });
 
+  it("lets an external subcircuit's call keep any name, a Cell's call X", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      {
+        id: "U1",
+        symbolId: "opamp",
+        placement: null,
+        reference: "A1",
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: "amp" },
+          parameters: {},
+        },
+      },
+      {
+        id: "U2",
+        symbolId: "opamp",
+        placement: null,
+        reference: "A2",
+        netlist: {
+          binding: { kind: "unresolved-subcircuit", name: "amp" },
+          parameters: {},
+        },
+      },
+    );
+    expect(
+      createReferenceIndex(document).issues.map((issue) => issue.instanceId),
+    ).toEqual(["U2"]);
+  });
+
   it("does not allocate a reference already claimed by an invalid prefix", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push({

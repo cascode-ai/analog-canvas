@@ -1611,6 +1611,60 @@ it.each([
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "keeps the Document's wire and symbol widths through %s+RNL",
+  async (format) => {
+    const project = calledBlocks(["crystal"]);
+    project.documents[0]!.presentation.styleOverrides = {
+      wireStrokeScale: 0.75,
+      symbolStrokeScale: 0.8,
+    };
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const document = plan.project.documents.find(
+      (item) => item.netlist?.name === "dut",
+    )!;
+    expect(document.presentation.styleOverrides).toMatchObject({
+      wireStrokeScale: 0.75,
+      symbolStrokeScale: 0.8,
+    });
+  },
+);
+
+it("keeps parts where RNL puts them, on a finer Document grid", async () => {
+  // R1 at (1.3, 0) is 13 units across, off Analog Canvas's 10-unit grid: it
+  // stays there, and the Document takes the 1-unit grid that holds it.
+  const text = [
+    "* off the grid",
+    '* @RNL(type="header") { @VERSION("0.3") }',
+    "R1 a 0 1k",
+    "R2 a 0 1k",
+    "* @RNL { #R1 @PLACE(1.3, 0); #R2 @PLACE(4, 0) }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const document = plan.project.documents[0]!;
+  const at = (reference: string) =>
+    document.instances.find((instance) => instance.reference === reference)
+      ?.placement?.position;
+  expect([at("R1"), at("R2")]).toEqual([
+    { x: 13, y: 0 },
+    { x: 40, y: 0 },
+  ]);
+  expect(document.presentation.grid).toBe(1);
+  expect(plan.diagnostics.map((item) => item.code)).not.toContain(
+    "RNL_IMPORT_SNAPPED",
+  );
+});
+
 it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () => {
   // SPICE starts a subcircuit call's card with X: a part Analog Canvas
   // names otherwise prints as X and its name.
@@ -1635,11 +1689,11 @@ it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () =
   const card = (id: string) =>
     parts.find((instance) => instance.id.toLowerCase() === id)?.reference;
   expect(card("xm1")).toBe("X7");
-  // A call of a Cell takes names starting with X, and R1 is taken.
-  expect(card("xm2")).toBe("XM2");
+  // nch, a body with no RNL of its own, is a model source's subcircuit,
+  // whose calls keep any name (#1791); R1 is taken.
+  expect(card("xm2")).toBe("M2");
   expect(card("xm3")).toBe("XM3");
   const codes = plan.diagnostics.map((item) => item.code);
-  expect(codes).toContain("RNL_IMPORT_NAME_REFUSED");
   expect(codes).toContain("RNL_IMPORT_NAME_TAKEN");
   expect(codes).not.toContain("RNL_IMPORT_PACKAGE_VERSION");
 });
