@@ -235,6 +235,7 @@ def main():
         result = {'health': 'error', 'reason': 'transport-or-invalid-status', 'status': 'blocked'}
     result['lastAttemptAt'] = now
     result['lastCaughtUpAt'] = caught
+    result['lastObservedAt'] = time.time()
     write_monitor(path, result)
     print(json.dumps(result))
     return 0 if result['health'] == 'ok' else 1

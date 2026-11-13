@@ -114,6 +114,11 @@ requires live backend readiness, not only a matching commit or `.verified` file.
 The host monitor belongs to `adm` so nginx's daily `0640 www-data:adm` log
 rotation does not revoke its read access; the service retains its empty
 capability bounding set.
+Publication reports record `lastObservedAt` when the completed observation is
+written. Freshness uses that time, falling back to `lastAttemptAt` for older
+reporters; the start time of a slow but progressing tick must not masquerade as
+a stopped reporter. Replication lag, progress and caught-up checkpoints keep
+their existing meanings.
 A snapshot always completes a full checksum pass while the writer is stopped;
 live file timestamps cannot prove that memory-mapped writes have been copied.
 The entrance waits up to 60 seconds. Regional commands, writer lookup and command

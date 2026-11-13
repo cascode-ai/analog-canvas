@@ -11,6 +11,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 class AlertTest(unittest.TestCase):
+    def test_completed_slow_observation_is_fresh_but_a_stopped_reporter_still_alerts(self):
+        (self.root / 'monitor.json').write_text(json.dumps({
+            'health': 'ok', 'lastAttemptAt': self.now - 140,
+            'lastObservedAt': self.now - 70}))
+        self.assertEqual(json.loads(self.tick(scope='Publication').stdout)['result'], 'healthy')
+        self.now += 121
+        self.tick(scope='Publication')
+        self.now += 120
+        self.tick(scope='Publication')
+        self.assertEqual(len(self.calls), 1)
+        self.assertIn('stale-monitor', self.calls[0][1]['text'])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = pathlib.Path(self.temp.name)
