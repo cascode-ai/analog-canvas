@@ -34,7 +34,7 @@ def write_state(path, state):
 def condition(path, now, stale_seconds=120):
     try:
         status = json.loads(path.read_text())
-        at = status.get('lastAttemptAt')
+        at = status.get('lastObservedAt', status.get('lastAttemptAt'))
         if type(at) not in [int, float] or not math.isfinite(at) or at > now or now - at > stale_seconds:
             return 'stale-monitor'
         if status.get('health') == 'ok':

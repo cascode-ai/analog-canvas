@@ -106,6 +106,7 @@ class PumpTest(unittest.TestCase):
                     self.assertEqual(state['health'], 'error')
                     if phase == 'partial':
                         self.assertGreater(cursor[0], 0)
+                        self.assertGreater(state['lastObservedAt'], state['lastAttemptAt'] + .5)
         finally:
             peers.close()
 
