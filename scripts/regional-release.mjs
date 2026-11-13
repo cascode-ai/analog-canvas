@@ -36,6 +36,9 @@ const ROOT_SUFFIX = ".bin";
 export const RELEASE_SOURCES = [
   "config.capnp",
   "artifact-storage.capnp",
+  "artifact-memory-entry.mjs",
+  "artifact-memory-bucket.mjs",
+  "memory.mjs",
   "nginx.conf",
   "nginx-public.conf",
   "formal-backup.sh",

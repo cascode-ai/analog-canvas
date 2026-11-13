@@ -49,6 +49,9 @@ export default {
         "worker/index.ts!",
         "worker/regional-entry.ts!",
         "containers/canvas-cn/formal/egress.mjs!",
+        // Receiver modules loaded by artifact-storage.capnp in standalone workerd.
+        "containers/canvas-cn/formal/artifact-memory-entry.mjs!",
+        "containers/canvas-cn/formal/artifact-memory-bucket.mjs!",
         // Independent host service, loaded by systemd rather than the Worker.
         "containers/canvas-cn/formal/ingress.mjs!",
         // Invoked by scripts/regional-release.mjs inside the candidate build.

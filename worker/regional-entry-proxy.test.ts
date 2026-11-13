@@ -15,6 +15,32 @@ afterEach(() => vi.unstubAllGlobals());
 
 const transport = "https://canvas-origin.test";
 
+it("reports native memory readiness only to the private loopback probe", async () => {
+  const { target } = proxyEnvironment();
+  const url = "http://127.0.0.1/__regional/health";
+  vi.stubGlobal("gc", undefined);
+  expect((await entry.fetch(new Request(url), target)).status).toBe(503);
+  vi.stubGlobal("gc", () => {});
+  const ready = await entry.fetch(new Request(url), target);
+  expect(ready.status).toBe(200);
+  expect(await ready.json()).toMatchObject({
+    ready: true,
+    memory: { enabled: true },
+  });
+  expect(
+    (await entry.fetch(new Request(ORIGIN + "/__regional/health"), target))
+      .status,
+  ).toBe(404);
+  expect(
+    (
+      await entry.fetch(
+        new Request(url, { headers: { "x-real-ip": "192.0.2.1" } }),
+        target,
+      )
+    ).status,
+  ).toBe(404);
+});
+
 it("rejects an oversized Arena command without waiting for the unread forward body", async () => {
   const { target, requests } = proxyEnvironment();
   const result = await Promise.race([

@@ -126,6 +126,23 @@ def can_symlink():
 
 
 class ReadinessTest(unittest.TestCase):
+    def test_candidate_with_inactive_collector_is_not_ready(self):
+        with tempfile.TemporaryDirectory() as directory:
+            credentials = pathlib.Path(directory)
+            (credentials / 'sync-inbound-token').write_text('peer')
+            clock = [0.0]
+            def open_request(request, timeout):
+                body = (b'<div id="root"></div>' if request.full_url.endswith('/') else
+                        b'{"version":"test"}' if request.full_url.endswith('mcp-manifest.json') else
+                        b'{"ready":false}' if request.full_url.endswith('/__regional/health') else
+                        b'{"origin":"cn"}')
+                return nullcontext(SimpleNamespace(status=200, read=lambda size: body))
+            with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
+                    patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    patch.object(release.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+seconds)):
+                self.assertFalse(check_readiness('http://localhost', credentials,
+                                               attempts=1, delay=.2, require_memory=True))
+
     def test_accepts_ready_runtime_without_a_fixed_two_second_pause(self):
         with tempfile.TemporaryDirectory() as directory:
             credentials = pathlib.Path(directory)
@@ -539,6 +556,16 @@ class ReleaseTest(unittest.TestCase):
         self.smoked = True
         result = release.tick(args, FakeHost(), FakeProduction(self.files, OLD), now=1060)
         self.assertEqual((result['health'], result['status']), ('ok', 'current'))
+
+    def test_interrupted_candidate_cannot_skip_its_collector_check(self):
+        serving = self.current.resolve()
+        (serving / release.VERIFIED).unlink()
+        (serving / 'memory.mjs').write_text('collector')
+        # The runtime boundary is healthy except for its missing collector.
+        release.smoke = lambda *args, require_memory=False, **kwargs: not require_memory
+        with self.assertRaises(release.ReleaseError):
+            release.tick(self.args(0), FakeHost(), FakeProduction(self.files, OLD), now=1000)
+        self.assertFalse((serving / release.VERIFIED).exists())
 
     def test_archive_obligation_survives_a_transport_error_in_the_runner(self):
         args = self.args(0)

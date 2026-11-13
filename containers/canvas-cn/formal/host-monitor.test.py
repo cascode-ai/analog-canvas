@@ -18,6 +18,20 @@ def sample(at=1000):
 
 
 class MonitorTests(unittest.TestCase):
+    def test_stalled_business_is_reported_without_completed_http_requests(self):
+        m = sample()
+        m['business'] = {'ready': False}
+        m['processMemory'] = {'available': True, 'current': 3300000000,
+                              'high': 3221225472, 'pressureFull10': 62}
+        m['http'] = {'available': True, 'incomplete': False, 'groups': {}}
+        _, since = evaluate(m, {}, {}, 1000)
+        self.assertEqual(evaluate(m, {}, since, 1120)[0],
+                         ['business-unavailable', 'runtime-memory-pressure'])
+        m['business']['ready'] = True
+        m['processMemory']['current'] = 2000000000
+        m['processMemory']['pressureFull10'] = 0
+        self.assertEqual(evaluate(m, {}, since, 1180), ([], {}))
+
     def test_low_priority_events_are_recorded_without_mail(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'delivery.json'

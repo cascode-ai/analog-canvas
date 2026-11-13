@@ -34,7 +34,8 @@ CRITICAL = {'disk-critical', 'certificate-critical', 'public-listener-drift',
             'service-canvas-cn-formal', 'service-canvas-cn-ingress', 'service-nginx',
             'http-page-errors', 'http-auth-errors', 'http-projects-errors',
             'http-gallery-errors', 'http-api-other-errors', 'http-static-errors',
-            'http-sync-errors'}
+            'http-sync-errors', 'business-unavailable', 'runtime-memory-pressure',
+            'runtime-memory-headroom', 'runtime-memory-check-failed'}
 RECOVERY_SECONDS = 600
 
 
@@ -91,6 +92,30 @@ def runtime_checks(release=Path('/opt/analog-canvas/current-formal'),
         return {'available': False}
 
 
+def process_memory(root=Path('/sys/fs/cgroup/system.slice/canvas-cn-formal.service')):
+    """Observe the service's own budget, not the host's unrelated free RAM."""
+    try:
+        pressure = next(line for line in (root / 'memory.pressure').read_text().splitlines()
+                        if line.startswith('full '))
+        fields = dict(part.split('=', 1) for part in pressure.split()[1:])
+        high = (root / 'memory.high').read_text().strip()
+        return {'available': True, 'current': int((root / 'memory.current').read_text()),
+                'high': None if high == 'max' else int(high),
+                'pressureFull10': float(fields['avg10'])}
+    except (OSError, ValueError, KeyError, StopIteration):
+        return {'available': False}
+
+
+def business_probe():
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        with opener.open('http://127.0.0.1:8794/__regional/health', timeout=3) as response:
+            body = json.loads(response.read(4096))
+            return {'ready': response.status == 200 and body.get('ready') is True}
+    except (OSError, ValueError, TypeError, AttributeError):
+        return {'ready': False}
+
+
 def collect():
     now = time.time()
     memory = {line.split(':')[0]: int(line.split()[1]) for line in
@@ -131,6 +156,8 @@ def collect():
         metrics['certificateDays'] = None
     metrics['http'] = http_window(Path('/var/log/nginx/canvas-ops.log'), now)
     metrics['runtime'] = runtime_checks()
+    metrics['business'] = business_probe()
+    metrics['processMemory'] = process_memory()
     try:
         release = load(Path('/var/lib/canvas-cn-release/monitor.json'))
         candidate = (release.get('pending') or {}).get('commit')
@@ -145,6 +172,17 @@ def collect():
 def evaluate(metrics, previous, since, now):
     """Return sustained conditions; changing boot or a long gap resets rate baselines."""
     raw = {}
+    if metrics.get('business', {}).get('ready') is False:
+        raw['business-unavailable'] = 120
+    process = metrics.get('processMemory')
+    if process is not None:
+        if not process.get('available'):
+            raw['runtime-memory-check-failed'] = 120
+        else:
+            if process['pressureFull10'] >= 10:
+                raw['runtime-memory-pressure'] = 120
+            if process.get('high') and process['current'] >= .9 * process['high']:
+                raw['runtime-memory-headroom'] = 300
     runtime = metrics.get('runtime')
     if runtime is not None:
         if not runtime.get('available'):
