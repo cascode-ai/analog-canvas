@@ -1,5 +1,24 @@
 # China regional runtime
 
+## Memory and availability
+
+The pinned standalone runtime enables `--expose-gc`. Regional Canvas, egress
+and artifact receivers collect unreachable request wrappers every 128 entries,
+or on the next entry after 30 seconds. Live streams, transactions and durable
+state remain reachable; collection never restarts a process or deletes data.
+This policy belongs only to the standalone runtime, not hosted Cloudflare.
+Qualify its memory plateau and artifact/session survival with the actual pinned
+binary and candidate bundles before deployment; raising a limit alone is not
+a memory-growth fix. The service's soft/hard budgets are 6/8 GiB on the 16 GiB host.
+
+The entrance releases abandoned reads and admits at most 512 ordinary in-flight
+requests. Excess requests receive 503 before reaching the application. An
+accepted write remains tracked until its outcome is known and is never replayed.
+The private loopback `GET /__regional/health` verifies the collector and Auth
+store response; browser/peer access is refused. Host monitoring probes this
+entrance independently of traffic and checks the service's cgroup pressure and
+headroom. Sustained failures notify through the existing incident deduplication.
+
 The China region runs Production's release on one host under the pinned
 workerd ([standalone runtime](../README.md)), implementing the
 [Project contract](../../../docs/specs/regional-projects.md),
@@ -77,7 +96,7 @@ remain failures. Record additional request waiting on the host as an observation
 not a 5-second release gate or an inference from a successful version update.
 The Agent recovery target remains 10 seconds. Keep the bounded entrance hold and
 readiness checks; do not repeat live restarts solely to meet a timing target.
-An abandoned browser request still drains its accepted upstream operation.
+An abandoned browser write still drains its accepted upstream operation.
 An uncertain write response fences maintenance in
 `/var/lib/canvas-cn-ingress/uncertain-write`, surviving entrance restarts;
 reconcile the affected operation before deliberately clearing that marker and

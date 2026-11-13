@@ -350,7 +350,7 @@ def install_units(release, unit_dir, host, changed, added):
         host.systemctl('daemon-reload')
 
 
-def smoke(local, credentials, attempts=30, delay=2):
+def smoke(local, credentials, attempts=30, delay=2, require_memory=None):
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     inbound = (credentials / 'sync-inbound-token').read_text().strip()
     checks = [
@@ -358,6 +358,10 @@ def smoke(local, credentials, attempts=30, delay=2):
         ('/api/agent/mcp-manifest.json', None, lambda r, b: json.loads(b).get('version')),
         ('/api/project-sync/status', inbound, lambda r, b: json.loads(b).get('origin') == 'cn'),
     ]
+    if require_memory is None:
+        require_memory = pathlib.Path('/opt/analog-canvas/current-formal/memory.mjs').is_file()
+    if require_memory:
+        checks.append(('/__regional/health', None, lambda r, b: json.loads(b).get('ready') is True))
     # Keep the legacy attempts * delay startup budget, but sample readiness
     # promptly rather than holding healthy requests for a full retry interval.
     # urllib timeouts bound socket operations; late complete bodies still fail.
@@ -467,7 +471,8 @@ def tick(args, host=None, fetcher=None, now=None):
     if not (serving / VERIFIED).exists():
         # A runner stopped between switch and smoke left this release unproved.
         previous = state.get('previous')
-        if smoke(args.local, credentials, attempts=args.smoke_attempts):
+        if smoke(args.local, credentials, attempts=args.smoke_attempts,
+                 require_memory=(serving / 'memory.mjs').is_file()):
             (serving / VERIFIED).write_text('')
             host.recover_entrance(args.local, credentials)
         elif previous and pathlib.Path(previous).is_dir() and pathlib.Path(previous) != serving:
@@ -495,7 +500,8 @@ def tick(args, host=None, fetcher=None, now=None):
     if commit == installed:
         if result.get('archivePending'):
             return dict(result, health='failed', reason='release-failed', status='archive-failed')
-        if state.get('health') == 'failed' and not smoke(args.local, credentials, attempts=args.smoke_attempts):
+        if state.get('health') == 'failed' and not smoke(args.local, credentials,
+                attempts=args.smoke_attempts, require_memory=(serving / 'memory.mjs').is_file()):
             return dict(result, health='failed', reason='release-failed', status='runtime-not-ready')
         return dict(result, status='current', lastCaughtUpAt=now)
     # Waiting for another candidate is not recovery from an open incident.
@@ -587,7 +593,8 @@ def tick(args, host=None, fetcher=None, now=None):
                 operator_restarted = True
                 host.systemctl('restart', 'canvas-cn-operator.service')
             host.systemctl('start', 'canvas-cn-formal.service')
-            ok = smoke(args.local, credentials, attempts=args.smoke_attempts)
+            ok = smoke(args.local, credentials, attempts=args.smoke_attempts,
+                       require_memory=(target / 'memory.mjs').is_file())
         except Exception:
             ok = False
         if ok:
@@ -633,7 +640,8 @@ def tick(args, host=None, fetcher=None, now=None):
         if operator_restarted:
             host.systemctl('restart', 'canvas-cn-operator.service', check=False)
         host.systemctl('restart', 'canvas-cn-formal.service', check=False)
-        restored = smoke(args.local, credentials, attempts=args.smoke_attempts)
+        restored = smoke(args.local, credentials, attempts=args.smoke_attempts,
+                         require_memory=(serving / 'memory.mjs').is_file())
         if restored:
             host.resume()
         return dict(result, health='failed', reason='release-rolled-back' if restored else 'release-failed',

@@ -9,6 +9,7 @@ export function createIngress({
   upstreamPort = 8792,
   waitMs = 60_000,
   maxPending = 512,
+  maxActive = 512,
   drainMs = 3_000,
   initialUncertainty = false,
   onUncertain = () => {},
@@ -19,7 +20,8 @@ export function createIngress({
   const active = new Set();
   const streams = new Map();
   function admit(req, client, forward, reject) {
-    if (!holding) return forward();
+    const start = () => (active.size >= maxActive ? reject() : forward());
+    if (!holding) return start();
     if (pending.size >= maxPending) return reject();
     req.pause();
     const timer = setTimeout(() => {
@@ -29,7 +31,7 @@ export function createIngress({
     const send = () => {
       clearTimeout(timer);
       pending.delete(send);
-      if (!client.destroyed) forward();
+      if (!client.destroyed) start();
     };
     pending.add(send);
     client.once("close", () => {
@@ -41,8 +43,9 @@ export function createIngress({
     req.on("error", () => res.destroy());
     const forward = () => {
       let response;
+      const readOnly = ["GET", "HEAD", "OPTIONS"].includes(req.method);
       const markUnknown = () => {
-        if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !uncertain) {
+        if (!readOnly && !uncertain) {
           uncertain = true;
           const category = req.url.startsWith("/api/agent/")
             ? "agent"
@@ -93,6 +96,12 @@ export function createIngress({
       res.on("close", () => {
         if (streams.has(upstream)) {
           streams.delete(upstream);
+          upstream.destroy();
+        } else if (readOnly && !res.writableFinished) {
+          // An abandoned read has no completion to preserve for its client.
+          // Writes remain tracked until their outcome is known.
+          active.delete(upstream);
+          response?.destroy();
           upstream.destroy();
         } else if (response) {
           // A disconnected browser cannot cancel a write already accepted by
@@ -213,7 +222,7 @@ export function createIngress({
 }
 
 // This control socket is never exposed through nginx or a TCP listener.
-async function serveIngress({
+export async function serveIngress({
   port = 8794,
   controlPath = "/run/canvas-cn-ingress/control.sock",
   ...options

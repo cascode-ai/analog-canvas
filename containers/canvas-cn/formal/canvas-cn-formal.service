@@ -45,8 +45,8 @@ ProtectHome=true
 PrivateTmp=true
 InaccessiblePaths=/var/lib/analog-canvas /var/lib/analog-canvas-login
 ReadWritePaths=/var/lib/analog-canvas-formal
-MemoryHigh=3G
-MemoryMax=4G
+MemoryHigh=6G
+MemoryMax=8G
 TasksMax=256
 LimitNOFILE=65536
 

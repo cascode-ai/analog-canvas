@@ -4,6 +4,7 @@ using Workerd = import "/workerd/workerd.capnp";
 using Artifacts = import "artifact-storage.capnp";
 
 const config :Workerd.Config = (
+  v8Flags = ["--expose-gc"],
   extensions = Artifacts.extensions,
   services = [
     (name = "canvas", worker = (

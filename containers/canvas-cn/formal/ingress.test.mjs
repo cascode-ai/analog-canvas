@@ -68,6 +68,68 @@ function request(port, path = "/", body) {
   });
 }
 
+test("a browser abandoning a read releases the upstream and permits maintenance", async (t) => {
+  let received;
+  const arrived = new Promise((resolve) => (received = resolve));
+  const backend = http.createServer((req, res) => {
+    req.resume();
+    received(res);
+  });
+  const ingress = createIngress({ upstreamPort: await listen(backend) });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  const client = http.get({ host: "127.0.0.1", port, agent: false });
+  client.on("error", () => {});
+  const response = await arrived;
+  const closed = once(response, "close").then(() => true);
+  client.destroy();
+  assert.equal(
+    await Promise.race([
+      closed,
+      new Promise((resolve) => setTimeout(() => resolve(false), 250)),
+    ]),
+    true,
+  );
+  assert.equal(await ingress.hold(), true);
+  assert.equal(ingress.status().uncertain, false);
+});
+
+test("overload refuses a new write before forwarding it", async (t) => {
+  const received = [];
+  const backend = http.createServer((req, res) => {
+    req.resume();
+    received.push(res);
+  });
+  const ingress = createIngress({
+    upstreamPort: await listen(backend),
+    maxActive: 1,
+  });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  const saving = request(port, "/api/projects", "accepted-once");
+  while (!received.length) await new Promise(setImmediate);
+  const refused = request(port, "/api/projects", "not-forwarded");
+  const result = await Promise.race([
+    refused,
+    new Promise((resolve) => setTimeout(() => resolve(null), 250)),
+  ]);
+  // Always finish pending replies, including the unfixed implementation's
+  // second forwarded write, so a failed assertion leaves no hanging request.
+  for (const reply of received) reply.end("saved");
+  await saving;
+  await refused;
+  assert.equal(result?.status, 503);
+  assert.equal(received.length, 1);
+});
+
 test("a save arriving during handover reaches the domestic backend once after resume", async (t) => {
   const saved = [];
   const backend = http.createServer(async (req, res) => {

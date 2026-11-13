@@ -1,4 +1,5 @@
 import { REGIONAL_ACTION_TIMEOUT_MS } from "../../../worker/regional-action-budget.ts";
+import { collectRegionalGarbage } from "./memory.mjs";
 import { isRegionalAuthorityBrowserRoute } from "../../../worker/regional-auth-contract.ts";
 
 /** Operator routes generated from wrangler.jsonc upstreams (scripts/regional-runtime.mjs). */
@@ -32,6 +33,7 @@ function operatorFor(destination, env) {
 
 export default {
   async fetch(request, env) {
+    collectRegionalGarbage();
     try {
       const destination = new URL(request.url);
       const route = operatorFor(destination, env);

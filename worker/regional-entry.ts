@@ -1,4 +1,8 @@
 import canvas from "./index";
+import {
+  collectRegionalGarbage,
+  regionalMemoryStatus,
+} from "../containers/canvas-cn/formal/memory.mjs";
 import { bearerMatches } from "./bearer";
 import {
   arenaCapabilityRequest,
@@ -34,6 +38,7 @@ type Env = Parameters<typeof canvas.fetch>[1] & {
 /** The common Canvas runtime behind a trusted regional loopback proxy. */
 export default {
   async fetch(incoming: Request, base: Env): Promise<Response> {
+    collectRegionalGarbage();
     const config = regionalConfig(base.AUTH_REGIONAL_CLIENT);
     if (!config)
       return Response.json({ error: "region-not-configured" }, { status: 503 });
@@ -41,6 +46,21 @@ export default {
       origin = new URL(config.clientOrigin);
     // The browser proxy names the client; nothing a client sends is trusted.
     const proxied = incoming.headers.get("x-real-ip");
+    if (local.pathname === "/__regional/health") {
+      if (
+        incoming.method !== "GET" ||
+        proxied !== null ||
+        !["localhost", "127.0.0.1"].includes(local.hostname)
+      )
+        return new Response(null, { status: 404 });
+      const memory = regionalMemoryStatus();
+      const auth = await base.AUTH.getByName("auth").fetch(
+        new Request(new URL("/api/auth/me", origin)),
+      );
+      await auth.body?.cancel();
+      const ready = memory.enabled && auth.ok;
+      return Response.json({ ready, memory }, { status: ready ? 200 : 503 });
+    }
     if (local.pathname === REGIONAL_SCHEDULED_PATH) {
       if (
         incoming.method !== "POST" ||
