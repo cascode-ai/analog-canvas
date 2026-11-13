@@ -1,5 +1,4 @@
 import { Resvg } from "@resvg/resvg-js";
-import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,60 +6,22 @@ import type { FormalExportSource, RasterExport } from "./index.js";
 import { DEFAULT_EXPORT_SCALE } from "./index.js";
 import { createPdfFromPng } from "./pdf.js";
 import {
-  DOCUMENT_TEXT_FACE_FONT_FAMILIES,
-  globalSchematicTypography,
-  type SchematicTextFace,
-} from "@icm/derived";
-import { formalSvgTextFace } from "./text-face.js";
-
-type DocumentTextFace = Exclude<SchematicTextFace, "metropolis">;
+  headlessFontPlan,
+  withHeadlessSerif,
+  withHeadlessTextCompatibility,
+  type HeadlessFontFile,
+} from "./headless-text.js";
 
 const BUNDLED_FONT_PACKAGE = fileURLToPath(
   import.meta.resolve("dejavu-fonts-ttf/package.json"),
 );
 const BUNDLED_FONT_DIRECTORY = resolve(dirname(BUNDLED_FONT_PACKAGE), "ttf");
-const BUNDLED_FONTS = [
-  "DejaVuSans.ttf",
-  "DejaVuSans-Bold.ttf",
-  "DejaVuSans-Oblique.ttf",
-  "DejaVuSans-BoldOblique.ttf",
-  "DejaVuSerif.ttf",
-  "DejaVuSerif-Bold.ttf",
-  "DejaVuSerif-Italic.ttf",
-  "DejaVuSerif-BoldItalic.ttf",
-].map((file) => resolve(BUNDLED_FONT_DIRECTORY, file));
-const SCHEMATIC_FONTS = ["Regular", "Bold", "RegularItalic", "BoldItalic"].map(
-  (face) =>
-    fileURLToPath(
-      new URL(`../fonts/ICMSchematic-${face}.ttf`, import.meta.url),
-    ),
-);
-function fontFiles(path: (style: string) => string): string[] {
-  return ["Regular", "Bold", "Italic", "BoldItalic"].map((style) =>
-    fileURLToPath(new URL(`../fonts/${path(style)}.ttf`, import.meta.url)),
-  );
+
+function fontPath({ source, file }: HeadlessFontFile): string {
+  return source === "dejavu"
+    ? resolve(BUNDLED_FONT_DIRECTORY, file)
+    : fileURLToPath(new URL(`../fonts/${file}`, import.meta.url));
 }
-/**
- * The faces a Document may choose (#1725): the family resvg finds in their
- * files, which the PDF embeds too, and those files. Latin Modern Roman is
- * read as its TrueType subsets, ICM Modern.
- */
-const DOCUMENT_FACE_FONTS: Readonly<
-  Record<DocumentTextFace, { family: string; files: readonly string[] }>
-> = {
-  serif: {
-    family: "Liberation Serif",
-    files: fontFiles((style) => `liberation-serif/LiberationSerif-${style}`),
-  },
-  sans: {
-    family: "Liberation Sans",
-    files: fontFiles((style) => `liberation-sans/LiberationSans-${style}`),
-  },
-  "latin-modern": {
-    family: "ICM Modern",
-    files: fontFiles((style) => `ICMModern-${style}`),
-  },
-};
 
 export interface NodeExportArtifacts {
   svg: Uint8Array;
@@ -68,76 +29,18 @@ export interface NodeExportArtifacts {
   pdf: Uint8Array;
 }
 
-/** resvg can reshape a mixed-family run with one fallback face. The composed
- * face keeps each style's Latin, symbols and period together. */
-function withHeadlessTextCompatibility(svg: string): string {
-  const document = new DOMParser().parseFromString(svg, "image/svg+xml");
-  // A Document set in a face of its choosing (#1725) draws in that face,
-  // then DejaVu.
-  const families = [
-    [globalSchematicTypography.fontFamily, '"ICM Schematic"'],
-    ...Object.entries(DOCUMENT_FACE_FONTS).map(
-      ([face, { family }]) =>
-        [
-          DOCUMENT_TEXT_FACE_FONT_FAMILIES[face as DocumentTextFace],
-          `"${family}","DejaVu Sans"`,
-        ] as const,
-    ),
-  ];
-  for (const style of Array.from(document.getElementsByTagName("style")))
-    for (const [family, headless] of families)
-      style.textContent =
-        style.textContent?.replaceAll(
-          `font-family:${family}`,
-          `font-family:${headless}`,
-        ) ?? "";
-  for (const element of Array.from(document.getElementsByTagName("*")))
-    for (const [family, headless] of families)
-      if (element.getAttribute("font-family") === family)
-        element.setAttribute("font-family", headless.replaceAll('"', ""));
-  // resvg 2.6 ignores relative glyph spacing when measuring a text anchor.
-  // Label formulas use flat flowing runs; include their dx in the anchor so
-  // operators clear adjoining fraction bars and scripts remain centered.
-  for (const formula of Array.from(document.getElementsByTagName("g"))) {
-    if (formula.getAttribute("data-role") !== "formula") continue;
-    for (const text of Array.from(formula.getElementsByTagName("text"))) {
-      const anchor = text.getAttribute("text-anchor");
-      const factor = anchor === "end" ? 1 : anchor === "middle" ? 0.5 : 0;
-      if (factor === 0) continue;
-      const spans = Array.from(text.getElementsByTagName("tspan"));
-      if (
-        spans.some((span) => span.parentNode !== text || span.hasAttribute("x"))
-      )
-        continue;
-      const spacing = spans.reduce(
-        (sum, span) => sum + Number(span.getAttribute("dx") ?? 0),
-        0,
-      );
-      const x = Number(text.getAttribute("x"));
-      if (Number.isFinite(spacing) && Number.isFinite(x) && spacing !== 0)
-        text.setAttribute("x", String(x - factor * spacing));
-    }
-  }
-  return new XMLSerializer().serializeToString(document);
-}
-
 function resvg(svg: string, fitTo: { mode: "zoom" | "width"; value: number }) {
-  const face = formalSvgTextFace(svg);
+  const plan = headlessFontPlan(svg);
   return new Resvg(withHeadlessTextCompatibility(svg), {
     fitTo,
     font: {
       // Formal export goldens must not depend on whichever fonts happen to be
       // installed on the developer machine or GitHub runner.
       loadSystemFonts: false,
-      // Only the face the SVG's root names besides Metropolis.
-      fontFiles: [
-        ...SCHEMATIC_FONTS,
-        ...(face === "metropolis" ? [] : DOCUMENT_FACE_FONTS[face].files),
-        ...BUNDLED_FONTS,
-      ],
-      defaultFontFamily: "ICM Schematic",
-      sansSerifFamily: "ICM Schematic",
-      serifFamily: "DejaVu Serif",
+      fontFiles: plan.files.map(fontPath),
+      defaultFontFamily: plan.defaultFontFamily,
+      sansSerifFamily: plan.sansSerifFamily,
+      serifFamily: plan.serifFamily,
     },
   }).render();
 }
@@ -156,11 +59,10 @@ export async function exportFormalArtifacts(
   if (!Number.isInteger(scale) || scale < 1 || scale > 8) {
     throw new Error("Export scale must be an integer from 1 through 8");
   }
-  const rasterSvg = source.svg.replace(
-    "Georgia,'Times New Roman',serif",
-    "DejaVu Serif",
-  );
-  const rendered = resvg(rasterSvg, { mode: "zoom", value: scale });
+  const rendered = resvg(withHeadlessSerif(source.svg), {
+    mode: "zoom",
+    value: scale,
+  });
   const png: RasterExport = {
     bytes: rendered.asPng(),
     width: rendered.width,

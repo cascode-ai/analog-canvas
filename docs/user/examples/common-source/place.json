@@ -1,0 +1,42 @@
+{
+  "actions": [
+    {
+      "kind": "place-component",
+      "symbol": "nmos",
+      "reference": "M1",
+      "position": { "x": 100, "y": 100 }
+    },
+    {
+      "kind": "place-component",
+      "symbol": "resistor",
+      "reference": "RD",
+      "position": { "x": 110, "y": 40 },
+      "parameters": { "value": "10kΩ" },
+      "showValue": true
+    },
+    {
+      "kind": "place-component",
+      "symbol": "vdd-port",
+      "id": "vdd",
+      "position": { "x": 110, "y": 0 }
+    },
+    {
+      "kind": "place-component",
+      "symbol": "ground",
+      "id": "gnd",
+      "position": { "x": 110, "y": 130 }
+    },
+    {
+      "kind": "place-component",
+      "symbol": "port",
+      "reference": "Vin",
+      "position": { "x": 40, "y": 100 }
+    },
+    {
+      "kind": "place-component",
+      "symbol": "port",
+      "reference": "Vout",
+      "position": { "x": 170, "y": 70 }
+    }
+  ]
+}
