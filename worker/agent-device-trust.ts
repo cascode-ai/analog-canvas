@@ -1,3 +1,4 @@
+import { regionalDeviceDirectory } from "./agent-regional-routing";
 import {
   browserLaunchProofText,
   BROWSER_LAUNCH_TTL_MS,
@@ -107,7 +108,12 @@ export async function deviceTrustDirectory(
   env: AgentSessionRouterEnv,
 ) {
   const user = await sessionUserOf(request, env);
-  return user ? directoryName(new URL(request.url).origin, user.id) : null;
+  return user
+    ? regionalDeviceDirectory(
+        await directoryName(new URL(request.url).origin, user.id),
+        env,
+      )
+    : null;
 }
 
 /** What one circuit session asks of the directory holding its device's trust. */

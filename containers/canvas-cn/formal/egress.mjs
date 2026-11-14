@@ -1,3 +1,4 @@
+import { agentPeerTarget } from "../../../worker/agent-regional-routing.ts";
 import { REGIONAL_ACTION_TIMEOUT_MS } from "../../../worker/regional-action-budget.ts";
 import { collectRegionalGarbage } from "./memory.mjs";
 import { isRegionalAuthorityBrowserRoute } from "../../../worker/regional-auth-contract.ts";
@@ -62,6 +63,9 @@ export default {
       }
       const peer = new URL(env.PEER_ORIGIN);
       const identity = new URL(env.IDENTITY_URL);
+      const agentPeer =
+        destination.origin === peer.origin &&
+        agentPeerTarget(destination.pathname) !== null;
       const browserAuth =
         destination.origin === identity.origin &&
         isRegionalAuthorityBrowserRoute(request.method, destination.pathname);
@@ -117,7 +121,8 @@ export default {
       if (
         peer.protocol !== "https:" ||
         identity.protocol !== "https:" ||
-        (!browserAuth &&
+        (!agentPeer &&
+          !browserAuth &&
           !resourceCatchup &&
           !datasetLocation &&
           !allowed.has(`${request.method} ${request.url}`))
@@ -129,6 +134,10 @@ export default {
           "user-agent",
           "Analog-Canvas-Regional/1 (+https://analog-canvas.tokenzhang.com)",
         );
+      // The session forwarder bounds opening the response; an established
+      // WebSocket/SSE must not inherit the ordinary 15-second HTTP deadline.
+      if (agentPeer)
+        return fetch(new Request(request, { headers, redirect: "manual" }));
       const response = await fetch(
         new Request(request, {
           headers,

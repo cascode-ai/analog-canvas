@@ -1,4 +1,10 @@
 import {
+  regionalAgentId,
+  regionalAgentNamespace,
+  routeAgentRegion,
+  type AgentRegionalEnv,
+} from "./agent-regional-routing";
+import {
   AgentAdapterVersionSchema,
   AgentClaimRequestSchema,
   AgentRedemptionKeySchema,
@@ -93,7 +99,7 @@ export type AgentSessionNamespaceLike = {
   };
 };
 
-export interface AgentSessionRouterEnv {
+export interface AgentSessionRouterEnv extends AgentRegionalEnv {
   AGENT_SESSION: AgentSessionNamespaceLike;
   AGENT_ALLOWED_ORIGIN?: string;
   AGENT_MCP_DOWNLOAD_ORIGIN?: string;
@@ -116,7 +122,7 @@ export type DurableStateLike = {
   getWebSockets?(tag?: string): WebSocket[];
 };
 
-export type AgentSessionEnv = {
+export type AgentSessionEnv = AgentRegionalEnv & {
   AGENT_ALLOWED_ORIGIN?: string;
   SIMULATION_ARTIFACTS?: AgentArtifactBucket;
   AGENT_SESSION?: AgentSessionNamespaceLike;
@@ -203,6 +209,12 @@ export async function routeAgentSessionRequest(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/agent/")) return null;
+  const peer = await routeAgentRegion(request, env);
+  if (peer) return peer;
+  env = {
+    ...env,
+    AGENT_SESSION: regionalAgentNamespace(env.AGENT_SESSION, env),
+  };
   if (
     url.pathname === DEVICE_TRUST_PATH ||
     url.pathname.startsWith(DEVICE_TRUST_PATH + "/")
@@ -270,7 +282,10 @@ export async function routeAgentSessionRequest(
       );
     }
     const body = parsedBody.value as Record<string, unknown>;
-    const sessionId = agentSiteSessionId(url.origin, crypto.randomUUID());
+    const sessionId = agentSiteSessionId(
+      url.origin,
+      regionalAgentId(crypto.randomUUID(), env),
+    );
     const response = await env.AGENT_SESSION.getByName(sessionId).fetch(
       "https://agent-session.internal/create",
       {

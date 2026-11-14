@@ -1,3 +1,8 @@
+import {
+  regionalAgentNamespace,
+  regionalDeviceDirectory,
+  type AgentRegionalEnv,
+} from "./agent-regional-routing";
 // Naming, revoking and purging trusted-device directories. Account deletion
 // in AuthDO imports this, so it takes only types from the Agent relay: the
 // simulation control runtime bundles AuthDO and cannot bundle the relay.
@@ -86,10 +91,15 @@ export async function purgeTrustedDevices(
   namespace: AgentSessionNamespaceLike | undefined,
   origin: string,
   userId: string,
+  env: AgentRegionalEnv = {},
 ): Promise<boolean> {
   if (!namespace) return true;
   try {
-    const name = await directoryName(origin, userId);
+    namespace = regionalAgentNamespace(namespace, env);
+    const name = regionalDeviceDirectory(
+      await directoryName(origin, userId),
+      env,
+    );
     const response = await directory(namespace, name).fetch("all", {
       method: "DELETE",
     });

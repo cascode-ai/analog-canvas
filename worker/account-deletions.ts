@@ -1,3 +1,4 @@
+import type { AgentRegionalEnv } from "./agent-regional-routing";
 import {
   arenaAccount,
   unlinkArenaVoter,
@@ -13,7 +14,7 @@ import { answer, digest } from "./regional-auth-contract";
 export const ACCOUNT_DELETE_PATH = "/api/auth/account/delete";
 export const ACCOUNT_DELETION_TICK = "/internal/account-deletion-tick";
 
-export type AccountResourceBindings = {
+export type AccountResourceBindings = AgentRegionalEnv & {
   GALLERY?: GalleryNamespaceLike;
   COMPONENT_LIBRARY?: GalleryNamespaceLike;
   PROJECTS?: GalleryNamespaceLike;
@@ -202,6 +203,6 @@ export async function purgeAccountResources(
   const rest = await Promise.all(targets.slice(4).map(clean));
   const devices =
     site === undefined ||
-    (await purgeTrustedDevices(env.AGENT_SESSION, site, userId));
+    (await purgeTrustedDevices(env.AGENT_SESSION, site, userId, env));
   return first.every(Boolean) && rest.every(Boolean) && devices;
 }

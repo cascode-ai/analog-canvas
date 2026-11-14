@@ -1,3 +1,4 @@
+import type { AgentRegionalEnv } from "./agent-regional-routing";
 import {
   deliverRejection,
   type RejectionProviderBody,
@@ -201,7 +202,7 @@ export type GalleryBylineNamespaceLike = {
   };
 };
 
-export type AuthEnv = {
+export type AuthEnv = AgentRegionalEnv & {
   AUTH: AuthNamespaceLike;
   /** Present in the deployed Worker; omitted only by isolated Auth tests. */
   GALLERY?: GalleryBylineNamespaceLike;
@@ -1719,7 +1720,12 @@ export class AuthDO {
     )
       return noStoreJson({ error: "arena-unlink-failed" }, 503);
     if (
-      !(await purgeTrustedDevices(this.env.AGENT_SESSION, url.origin, user.id))
+      !(await purgeTrustedDevices(
+        this.env.AGENT_SESSION,
+        url.origin,
+        user.id,
+        this.env,
+      ))
     )
       return noStoreJson({ error: "devices-delete-failed" }, 503);
     this.sql.exec("DELETE FROM sessions WHERE user_id = ?", user.id);
