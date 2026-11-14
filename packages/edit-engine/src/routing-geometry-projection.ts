@@ -108,9 +108,12 @@ function projectGeometry(
         };
       }
     } else if (edit.kind === "set_route_path") {
-      projected.routes = projected.routes.map((r) =>
-        r.id === edit.route.id ? structuredClone(edit.route) : r,
-      );
+      // A path for a Route the Document lacks draws it, as the edit does.
+      projected.routes = projected.routes.some((r) => r.id === edit.route.id)
+        ? projected.routes.map((r) =>
+            r.id === edit.route.id ? structuredClone(edit.route) : r,
+          )
+        : [...projected.routes, structuredClone(edit.route)];
     } else if (edit.kind === "remove_route_geometry") {
       projected.routes = projected.routes.filter((r) => r.id !== edit.routeId);
     } else if (edit.kind === "upsert_schematic_annotation") {

@@ -19,7 +19,7 @@ import {
   createProjectSymbolResolver,
   hierarchicalSymbolId,
 } from "@icm/symbols";
-import { resolveRouteGeometry } from "@icm/derived";
+import { resolveEndpointPoint, resolveRouteGeometry } from "@icm/derived";
 import { buildSvgScene } from "@icm/render-svg";
 
 import {
@@ -716,5 +716,171 @@ describe("a Cell drawn with its author's artwork", () => {
     expect(() =>
       planSetCellSymbolSize(custom, CELL, { width: 200, height: 200 }),
     ).toThrow("ota_5t is drawn with a custom symbol");
+  });
+});
+
+describe("a caller's connectivity across a symbol change (#2287, #2289)", () => {
+  /** The bench edited in one transaction, as a person draws it. */
+  const drawn = (project: CircuitProject, edits: unknown[]) =>
+    commit(project, [
+      {
+        kind: "transact_document",
+        documentId: BENCH,
+        expectedRevision: bench(project).revision,
+        edits,
+      } as ProjectStructureEdit,
+    ]);
+  /** Resistors on Nets of their own beside the testbench's block. */
+  const withResistors = (
+    parts: readonly [string, number, number, 0 | 90][],
+  ) => {
+    const project = ota();
+    for (const [id, x, y, rotation] of parts) {
+      bench(project).instances.push({
+        id,
+        reference: id,
+        symbolId: "resistor",
+        placement: { position: { x, y }, rotation, mirror: "none" },
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      });
+      for (const pinName of ["1", "2"])
+        bench(project).nets.push({
+          id: `net-${id}-${pinName}`,
+          terminals: [{ instanceId: id, pinName }],
+        });
+    }
+    return project;
+  };
+  /** The triangle with IN+ moved to its right side, `y` below OUT. */
+  const moveInputRight = (project: CircuitProject, y: number) =>
+    planSetCellSymbolArtwork(project, CELL, {
+      symbolMode: "custom",
+      artworkText: JSON.stringify({
+        ...TRIANGLE,
+        viewBox: { x: -60, y: -50, width: 120, height: 120 },
+        pins: TRIANGLE.pins.map((item) =>
+          item.name === "IN+"
+            ? { ...item, at: { x: 60, y }, direction: "east" }
+            : item,
+        ),
+        primitives: TRIANGLE.primitives.filter(
+          (primitive) =>
+            primitive.kind !== "line" ||
+            primitive.from.x !== -60 ||
+            primitive.from.y !== 20,
+        ),
+      }),
+      pinMap: PIN_MAP,
+    });
+
+  it("draws a moved pin's wire clear of another Net's part instead of through its pins (#2287)", () => {
+    // IN+ moves to the block's right side, behind RF; stretched straight, its
+    // wire ran down through both of RF's pins and shorted RF to vinp.
+    const project = withResistors([["RF", 620, 320, 0]]);
+    const spice = netlist(project, "spice");
+    const nets = members(project);
+    const custom = commit(project, moveInputRight(project, 30));
+    expect(netlist(custom, "spice")).toBe(spice);
+    expect(members(custom)).toEqual(nets);
+    expectWiresOnPins(custom);
+  });
+
+  it("refuses a symbol change whose moved pin has no clear path, naming the Cell, the pin and the conflict (#2287)", () => {
+    // IN+ moves to (620, 380), where another Net's pin stands one grid step
+    // away on every side: any wire to it passes over one.
+    const project = withResistors([
+      ["RN", 620, 350, 0],
+      ["RS", 620, 410, 0],
+      ["RE", 650, 380, 90],
+      ["RW", 590, 380, 90],
+    ]);
+    const resolver = createProjectSymbolResolver(project, builtInSymbols);
+    expect(
+      ["RN.2", "RS.1", "RE.2", "RW.1"].map((pinName) => {
+        const [instanceId, name] = pinName.split(".");
+        return resolveEndpointPoint(bench(project), resolver, {
+          kind: "terminal",
+          instanceId: instanceId!,
+          pinName: name!,
+        });
+      }),
+    ).toEqual([
+      { x: 620, y: 370 },
+      { x: 620, y: 390 },
+      { x: 630, y: 380 },
+      { x: 610, y: 380 },
+    ]);
+    const before = serializeProject(project);
+    expect(() => commit(project, moveInputRight(project, 60))).toThrow(
+      /^ota_5t's symbol moves XDUT\.vinp in Testbench, and its wire has no clear path \(as stretched: passes over pin \S+ of a different Net .*\)\. Move the parts apart, or disconnect XDUT\.vinp first\. Nothing was changed\.$/u,
+    );
+    expect(serializeProject(project)).toBe(before);
+  });
+
+  it("joins a part that touched a moved pin directly with a wire (#2289)", () => {
+    // GND4 stands on XDUT's vss pin and a VDD marker on its vdd pin, with no
+    // wire; the triangle moves both pins away from them.
+    let project = drawn(ota(), [
+      { kind: "remove_route_geometry", routeId: "tb-gnd-dut-route" },
+      {
+        kind: "move_instance",
+        instanceId: "GND4",
+        position: { x: 560, y: 400 },
+      },
+      { kind: "cut_connection", routeId: "tb-vdd-dut-route-b-2" },
+      { kind: "remove_connectivity_evidence", evidenceId: "native-name-vdd" },
+      { kind: "remove_schematic_annotation", annotationId: "native-net-vdd" },
+    ]);
+    project = drawn(project, [
+      {
+        kind: "add_instance",
+        instance: {
+          id: "VDDM",
+          symbolId: "vdd-port",
+          placement: {
+            position: { x: 590, y: 230 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      },
+    ]);
+    const touching = (source: CircuitProject, pinName: string) =>
+      bench(source).routes.filter((route) =>
+        routeEndpoints(route).some(
+          (endpoint) =>
+            endpoint.kind === "terminal" &&
+            endpoint.instanceId === "XDUT" &&
+            endpoint.pinName === pinName,
+        ),
+      );
+    expect(touching(project, "vss")).toEqual([]);
+    expect(touching(project, "vdd")).toEqual([]);
+    const spice = netlist(project, "spice");
+    const nets = members(project);
+    const custom = customize(project);
+    expect(netlist(custom, "spice")).toBe(spice);
+    expect(members(custom)).toEqual(nets);
+    // Each contact the move pulled apart is drawn as a wire from the pin
+    // to the part it touched.
+    for (const [pinName, part] of [
+      ["vss", "GND4.0"],
+      ["vdd", "VDDM.P"],
+    ] as const)
+      expect(
+        touching(custom, pinName).map((route) =>
+          routeEndpoints(route)
+            .map((endpoint) =>
+              endpoint.kind === "terminal"
+                ? `${endpoint.instanceId}.${endpoint.pinName}`
+                : endpoint.kind,
+            )
+            .sort(),
+        ),
+      ).toEqual([[part, `XDUT.${pinName}`].sort()]);
+    expectWiresOnPins(custom);
   });
 });

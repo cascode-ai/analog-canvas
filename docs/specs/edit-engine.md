@@ -127,9 +127,12 @@ gate.
   target or be covered by a one-to-one `pinMap`, updating Net, Route and
   `spice.pin.*` references atomically. Ports use ordinary Instance edits.
 - `set_cell_symbol_presentation` (inside a structural transaction) changes
-  only terminal visual intent; caller pins keep their Nets; a stretched wire
-  that would cross another Net's pin or wire, or a part, is redrawn clear
-  along the Agent connect's path.
+  only terminal visual intent, never which caller pins are joined: a
+  stretched wire that would cross another Net's pin or wire, or a part, is
+  redrawn clear along the Agent connect's path, and a part that touched a
+  moved pin directly is wired to its new place. A change that would still
+  join, part or leave undrawn a caller's pins is refused, naming the Cell,
+  the pin and the conflict.
 - `remove_instance` needs no Net, annotation, group or constraint reference
   (owned evidence is cleaned). Connected deletion is a composed transaction,
   not a flag.
