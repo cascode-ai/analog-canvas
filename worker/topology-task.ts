@@ -6,12 +6,25 @@ import { parseProject } from "@icm/project-protocol";
 import type { GalleryFeedEntry } from "../apps/editor/src/gallery-client";
 import type { GalleryTopologyMatchReport } from "../apps/editor/src/gallery-topology-match";
 import { closeTopologyMatches } from "../apps/editor/src/gallery-topology-selection";
-import { sessionUserOf } from "./auth";
+import { sessionUserOf, type SessionUser } from "./auth";
 import type { GalleryEnv, GalleryNamespaceLike } from "./gallery-store";
+import {
+  jobPeerConfigured,
+  receiveJobCommand,
+  jobFailure,
+  sendJobCommand,
+  type RegionalJobEnv,
+} from "./regional-job-peer";
+import {
+  topologyJobPeerPath,
+  topologyRegion,
+  topologyRegistryCommand,
+} from "./regional-topology";
 
-export type TopologyTaskEnv = GalleryEnv & {
-  TOPOLOGY_TASK?: GalleryNamespaceLike;
-};
+export type TopologyTaskEnv = GalleryEnv &
+  RegionalJobEnv & {
+    TOPOLOGY_TASK?: GalleryNamespaceLike;
+  };
 type TaskState = {
   storage: {
     sql: { exec<T>(query: string, ...values: unknown[]): { toArray(): T[] } };
@@ -40,6 +53,17 @@ const RESULT_LIMIT = 20;
 /** One signed-in account owns one durable snapshot job.
  * Alarms, not client polling, drive work. Every completed candidate checkpoints. */
 export class TopologyTaskDO {
+  private mutations: Promise<void> = Promise.resolve();
+
+  private mutate<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.mutations.then(operation);
+    this.mutations = result.then(
+      () => {},
+      () => {},
+    );
+    return result;
+  }
+
   constructor(
     private state: TaskState,
     private env: Pick<GalleryEnv, "GALLERY">,
@@ -47,6 +71,9 @@ export class TopologyTaskDO {
   ) {
     state.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS topology_job (part INTEGER PRIMARY KEY, text TEXT NOT NULL)",
+    );
+    state.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS topology_region (id INTEGER PRIMARY KEY CHECK (id = 1), region TEXT NOT NULL)",
     );
   }
   private read(): Job | null {
@@ -111,7 +138,30 @@ export class TopologyTaskDO {
     });
   }
   async fetch(request: Request): Promise<Response> {
+    // Do not hold the account mutation queue while a caller uploads its body.
+    const raw = request.method === "POST" ? await request.text() : "";
+    return this.mutate(() => this.fetchSerial(request, raw));
+  }
+  private async fetchSerial(request: Request, raw: string): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/regional-owner") {
+      if (request.method === "POST") {
+        const body = JSON.parse(raw) as { region?: string };
+        if (!["cn", "overseas"].includes(body.region ?? ""))
+          return Response.json({ error: "invalid-region" }, { status: 400 });
+        this.state.storage.sql.exec(
+          "INSERT OR IGNORE INTO topology_region(id, region) VALUES (1, ?)",
+          body.region,
+        );
+      } else if (request.method !== "GET")
+        return new Response(null, { status: 405 });
+      const row = this.state.storage.sql
+        .exec<{ region: string }>(
+          "SELECT region FROM topology_region WHERE id = 1",
+        )
+        .toArray()[0];
+      return Response.json({ region: row?.region ?? null });
+    }
     let job = this.read();
     if (job && job.expiresAt <= this.now()) {
       this.state.storage.sql.exec("DELETE FROM topology_job");
@@ -130,7 +180,6 @@ export class TopologyTaskDO {
     }
     if (request.method !== "POST")
       return Response.json({ error: "method-not-allowed" }, { status: 405 });
-    const raw = await request.text();
     if (new TextEncoder().encode(raw).length > MAX_SOURCE_BYTES + 16_384)
       return Response.json({ error: "source-too-large" }, { status: 413 });
     let body: { id?: string; projectText?: string };
@@ -196,19 +245,37 @@ export class TopologyTaskDO {
     this.write(job);
     return this.response(job, url);
   }
+
+  private checkpoint(job: Job): Promise<boolean> {
+    return this.mutate(async () => {
+      const current = this.read();
+      if (!current || current.id !== job.id || !current.running) return false;
+      job.dismissed = current.dismissed;
+      job.revision = current.revision;
+      await this.state.storage.setAlarm(
+        job.running ? this.now() + 5_000 : job.expiresAt,
+      );
+      this.write(job);
+      return true;
+    });
+  }
+
   async alarm(): Promise<void> {
-    const job = this.read();
+    const job = await this.mutate(async () => {
+      const current = this.read();
+      if (!current) return null;
+      if (current.expiresAt <= this.now()) {
+        this.state.storage.sql.exec("DELETE FROM topology_job");
+        return null;
+      }
+      // Install a retry before external reads. Network waits stay outside the
+      // mutation queue, so cancellation does not wait for Gallery responses.
+      await this.state.storage.setAlarm(
+        current.running ? this.now() + 5_000 : current.expiresAt,
+      );
+      return current.running ? current : null;
+    });
     if (!job) return;
-    if (job.expiresAt <= this.now()) {
-      this.state.storage.sql.exec("DELETE FROM topology_job");
-      return;
-    }
-    if (!job.running) {
-      await this.state.storage.setAlarm(job.expiresAt);
-      return;
-    }
-    // Install a retry before external reads. Worker eviction cannot lose the job.
-    await this.state.storage.setAlarm(this.now() + 5_000);
     try {
       if (job.ids === null) {
         const response = await this.gallery("topology-inventory", {});
@@ -216,7 +283,7 @@ export class TopologyTaskDO {
           throw new Error("Gallery inventory is temporarily unavailable");
         job.ids = ((await response.json()) as { ids: string[] }).ids;
         job.report.total = job.ids.length;
-        this.write(job);
+        if (!(await this.checkpoint(job))) return;
       }
       const source = projectElectricalGraph(parseProject(job.projectText));
       if (source.status !== "ready") throw new Error(source.reason);
@@ -301,33 +368,39 @@ export class TopologyTaskDO {
           job.report.complete = true;
           job.running = false;
         }
-        this.write(job);
+        if (!(await this.checkpoint(job))) return;
       }
       if (!job.ids.length) {
         job.report.complete = true;
         job.running = false;
-        this.write(job);
+        if (!(await this.checkpoint(job))) return;
       }
-      await this.state.storage.setAlarm(
-        job.running ? this.now() + 100 : job.expiresAt,
-      );
+      await this.mutate(async () => {
+        const current = this.read();
+        if (!current || current.id !== job.id) return;
+        await this.state.storage.setAlarm(
+          current.running ? this.now() + 100 : current.expiresAt,
+        );
+      });
     } catch (error) {
-      const current = this.read();
-      if (!current || current.id !== job.id || !current.running) return;
-      current.failures++;
-      if (current.failures >= 5) {
-        current.running = false;
-        current.report.error =
-          error instanceof Error
-            ? error.message
-            : "Could not finish comparison. Try again.";
-      }
-      this.write(current);
-      await this.state.storage.setAlarm(
-        current.running
-          ? this.now() + Math.min(60_000, 2 ** current.failures * 1_000)
-          : current.expiresAt,
-      );
+      await this.mutate(async () => {
+        const current = this.read();
+        if (!current || current.id !== job.id || !current.running) return;
+        current.failures++;
+        if (current.failures >= 5) {
+          current.running = false;
+          current.report.error =
+            error instanceof Error
+              ? error.message
+              : "Could not finish comparison. Try again.";
+        }
+        await this.state.storage.setAlarm(
+          current.running
+            ? this.now() + Math.min(60_000, 2 ** current.failures * 1_000)
+            : current.expiresAt,
+        );
+        this.write(current);
+      });
     }
   }
 }
@@ -341,6 +414,21 @@ export async function routeTopologyTaskRequest(
   env: TopologyTaskEnv,
 ): Promise<Response | null> {
   const url = new URL(request.url);
+  if (url.pathname === topologyJobPeerPath)
+    return receiveJobCommand(request, env, async (command, user) => {
+      if (command.action !== "local")
+        return topologyRegistryCommand(command, user, env);
+      if (!/^\/api\/topology-task(?:\?.*)?$/.test(command.path))
+        return jobFailure("invalid-command", 400);
+      return localTopology(
+        new Request(url.origin + command.path, {
+          method: command.method,
+          ...(command.body === null ? {} : { body: command.body }),
+        }),
+        env,
+        user,
+      );
+    });
   if (url.pathname !== "/api/topology-task") return null;
   if (!env.TOPOLOGY_TASK)
     return Response.json(
@@ -360,6 +448,30 @@ export async function routeTopologyTaskRequest(
           { error: "sign-in-required" },
           { status: 401, headers: noStore },
         );
+  if (jobPeerConfigured(env)) {
+    const region = await topologyRegion(request, env, user, (request) =>
+      localTopology(request, env, user),
+    );
+    if (region instanceof Response) return region;
+    if (region !== env.RESOURCE_REGION)
+      return sendJobCommand(request, env, topologyJobPeerPath, {
+        action: "local",
+        method: request.method,
+        path: url.pathname + url.search,
+        body: request.method === "POST" ? await request.text() : null,
+      });
+  }
+  if (env.RESOURCE_REGION && !jobPeerConfigured(env)) return jobFailure();
+  return localTopology(request, env, user);
+}
+
+async function localTopology(
+  request: Request,
+  env: TopologyTaskEnv,
+  user: SessionUser,
+): Promise<Response> {
+  const url = new URL(request.url);
+  if (!env.TOPOLOGY_TASK) return jobFailure();
   const response = await env.TOPOLOGY_TASK.getByName(`user:${user.id}`).fetch(
     `https://topology/job${url.search}`,
     {

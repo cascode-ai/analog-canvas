@@ -113,6 +113,8 @@ export default {
           "publication",
           "board",
           "maintenance",
+          "simulation-job",
+          "topology-job",
         ].map(
           (action) =>
             `POST ${new URL("/api/resource-actions/" + action, peer)}`,

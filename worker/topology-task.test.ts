@@ -29,6 +29,8 @@ function harness(publicProject = circuit("Public")) {
   let time = 1_000_000;
   let alarm: number | null = null;
   let fail = false;
+  let pauseAlarm: (() => Promise<void>) | undefined;
+  let pauseInventory: (() => Promise<void>) | undefined;
   const state = {
     storage: {
       sql: {
@@ -52,6 +54,7 @@ function harness(publicProject = circuit("Public")) {
       },
       async setAlarm(value: number) {
         alarm = value;
+        await pauseAlarm?.();
       },
       async deleteAlarm() {
         alarm = null;
@@ -64,8 +67,10 @@ function harness(publicProject = circuit("Public")) {
       getByName: () => ({
         fetch: async (input: string, init?: RequestInit) => {
           if (fail) return new Response(null, { status: 503 });
-          if (input.endsWith("/topology-inventory"))
+          if (input.endsWith("/topology-inventory")) {
+            await pauseInventory?.();
             return Response.json({ ids: entries });
+          }
           const { id } = JSON.parse(init!.body as string);
           return Response.json({
             status: "public",
@@ -92,6 +97,46 @@ function harness(publicProject = circuit("Public")) {
       time += ms;
     },
     alarm: () => alarm,
+    pauseAlarms() {
+      let release!: () => void, entered!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const waiting = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      pauseAlarm = async () => {
+        entered();
+        await gate;
+      };
+      return {
+        waiting,
+        release: () => {
+          pauseAlarm = undefined;
+          release();
+        },
+      };
+    },
+    pauseInventory() {
+      let release!: () => void, entered!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const waiting = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      pauseInventory = async () => {
+        entered();
+        await gate;
+      };
+      return {
+        waiting,
+        release: () => {
+          pauseInventory = undefined;
+          release();
+        },
+      };
+    },
     fail: (value: boolean) => {
       fail = value;
     },
@@ -115,6 +160,66 @@ const read = async (object: TopologyTaskDO) =>
   (await object.fetch(new Request("https://job/"))).json();
 
 describe("durable topology tasks", () => {
+  it("lets cancellation and replacement complete while the old alarm waits for Gallery", async () => {
+    const h = harness(),
+      object = h.create();
+    await start(object, "Old", "old-job-123");
+    const delay = h.pauseInventory(),
+      oldAlarm = object.alarm();
+    await delay.waiting;
+    expect(
+      (
+        await object.fetch(
+          new Request("https://job/?id=old-job-123", { method: "DELETE" }),
+        )
+      ).status,
+    ).toBe(200);
+    h.advance(31_000);
+    expect((await start(object, "New", "new-job-123")).status).toBe(200);
+    delay.release();
+    await oldAlarm;
+    expect(h.alarm()).toBe(1_031_100);
+    expect((await read(object)).job).toMatchObject({
+      id: "new-job-123",
+      running: true,
+      report: { scanned: 0 },
+    });
+    h.advance(100);
+    await object.alarm();
+    expect((await read(object)).job).toMatchObject({
+      id: "new-job-123",
+      report: { scanned: 3 },
+    });
+  });
+  it("does not let a rejected uncheckable start delay the accepted task's first scan", async () => {
+    const h = harness(),
+      object = h.create(),
+      delay = h.pauseAlarms();
+    const accepted = start(object, "Accepted", "accepted-job");
+    await delay.waiting;
+    const rejected = object.fetch(
+      new Request("https://job/", {
+        method: "POST",
+        body: JSON.stringify({
+          id: "uncheckable-job",
+          projectText: serializeProject(createEmptyProject("empty", "Empty")),
+        }),
+      }),
+    );
+    // Both requests have arrived before the storage acknowledgement is released.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    delay.release();
+    expect((await accepted).status).toBe(200);
+    expect((await rejected).status).toBe(409);
+    expect(h.alarm()).toBe(1_000_100);
+    h.advance(100);
+    await object.alarm();
+    expect((await read(object)).job).toMatchObject({
+      id: "accepted-job",
+      running: true,
+      report: { scanned: 3 },
+    });
+  });
   it("checkpoints without a browser, resumes after object eviction, and retains the clicked snapshot", async () => {
     const h = harness();
     let object = h.create();

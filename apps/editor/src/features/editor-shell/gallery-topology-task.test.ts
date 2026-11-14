@@ -81,6 +81,45 @@ describe("background topology task", () => {
 });
 
 describe("durable topology observation", () => {
+  it("keeps the notice available after a failed remote dismissal and confirms a successful retry", async () => {
+    const { createDurableGalleryTopologyTask } =
+      await import("./gallery-topology-task");
+    let fail = true;
+    const job = {
+      id: "dismiss-job",
+      revision: 1,
+      running: false,
+      dismissed: false,
+      report,
+    };
+    const task = createDurableGalleryTopologyTask(async (_url, init) => {
+      if (init?.method === "PATCH") {
+        if (fail)
+          return Response.json(
+            { error: "regional-job-unavailable" },
+            { status: 503 },
+          );
+        job.dismissed = true;
+      }
+      return Response.json({ job });
+    });
+    try {
+      await task.start(createEmptyProject("source", "Saved check"));
+      await task.dismissNotice();
+      expect(task.getSnapshot()).toMatchObject({
+        noticeDismissed: false,
+        failure: expect.any(String),
+      });
+      fail = false;
+      await task.dismissNotice();
+      expect(task.getSnapshot()).toMatchObject({
+        noticeDismissed: true,
+        failure: null,
+      });
+    } finally {
+      task.dispose();
+    }
+  });
   it("pauses observation without cancelling the server job and ignores detached responses", async () => {
     const { createDurableGalleryTopologyTask } =
       await import("./gallery-topology-task");

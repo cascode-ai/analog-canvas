@@ -71,6 +71,18 @@ export class SimulationControlDO {
   async fetch(request: Request): Promise<Response> {
     await this.ensureAlarm();
     const url = new URL(request.url);
+    if (url.pathname === "/regional-request")
+      return this.regionalRequest(request);
+    if (url.pathname === "/request" && request.method === "GET") {
+      const previous = this.sql
+        .exec<RequestRow>(
+          "SELECT request_fingerprint, run_id FROM simulation_start_requests WHERE owner_id = ? AND request_id = ?",
+          url.searchParams.get("ownerId"),
+          url.searchParams.get("requestId"),
+        )
+        .toArray()[0];
+      return json({ request: previous ?? null });
+    }
     if (url.pathname === "/operations") return this.operations(request);
     if (request.method === "POST" && url.pathname === "/accept") {
       const response = await this.accept(request);
@@ -94,6 +106,10 @@ export class SimulationControlDO {
   }
 
   private initializeSchema(): void {
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_simulation_requests (
+      owner_id TEXT NOT NULL, request_id TEXT NOT NULL, fingerprint TEXT NOT NULL,
+      region TEXT NOT NULL, PRIMARY KEY(owner_id, request_id)
+    ) WITHOUT ROWID`);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS simulation_runs (
         id TEXT PRIMARY KEY,
@@ -139,6 +155,55 @@ export class SimulationControlDO {
       `INSERT OR IGNORE INTO simulation_operations (key, value)
        VALUES ('accepting', 'true')`,
     );
+  }
+
+  private async regionalRequest(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "GET") {
+      const reservation = this.sql
+        .exec<{ fingerprint: string; region: string }>(
+          "SELECT fingerprint, region FROM regional_simulation_requests WHERE owner_id = ? AND request_id = ?",
+          url.searchParams.get("ownerId"),
+          url.searchParams.get("requestId"),
+        )
+        .toArray()[0];
+      return json({ reservation: reservation ?? null });
+    }
+    if (request.method !== "POST")
+      return json({ error: "method-not-allowed" }, 405);
+    const body = (await request.json()) as {
+      ownerId?: string;
+      requestId?: string;
+      fingerprint?: string;
+      region?: string;
+    };
+    if (
+      !body.ownerId ||
+      !body.requestId ||
+      body.requestId.length > 256 ||
+      !/^[a-f0-9]{64}$/.test(body.fingerprint ?? "") ||
+      !["cn", "overseas"].includes(body.region ?? "")
+    )
+      return json({ error: "invalid-reservation" }, 400);
+    return this.state.storage.transactionSync(() => {
+      this.sql.exec(
+        "INSERT OR IGNORE INTO regional_simulation_requests(owner_id, request_id, fingerprint, region) VALUES (?, ?, ?, ?)",
+        body.ownerId,
+        body.requestId,
+        body.fingerprint,
+        body.region,
+      );
+      const reservation = this.sql
+        .exec<{ fingerprint: string; region: string }>(
+          "SELECT fingerprint, region FROM regional_simulation_requests WHERE owner_id = ? AND request_id = ?",
+          body.ownerId,
+          body.requestId,
+        )
+        .toArray()[0]!;
+      return reservation.fingerprint === body.fingerprint
+        ? json({ reservation })
+        : json({ error: "REQUEST_ID_REUSED" }, 409);
+    });
   }
 
   private async accept(request: Request): Promise<Response> {
