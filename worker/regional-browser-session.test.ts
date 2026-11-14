@@ -84,6 +84,28 @@ it("keeps the browser's native and regional identities when its entry changes", 
 
 it("finishes a domestic handoff even when start and callback arrive overseas", async () => {
   const { auth, overseas, cn, call } = browserRegions();
+  const local = cn.AUTH;
+  // A real Durable Object fetch follows redirects unless the reconstructed
+  // request says otherwise. Keep the real store and model that transport rule.
+  cn.AUTH = {
+    getByName() {
+      const binding = local.getByName();
+      return {
+        async fetch(input, init) {
+          const request = new Request(input, init);
+          const reply = await binding.fetch(request);
+          if (request.redirect === "follow" && reply.status === 302) {
+            const location = reply.headers.get("location")!;
+            await reply.body?.cancel();
+            return binding.fetch(
+              new Request(location, { headers: request.headers }),
+            );
+          }
+          return reply;
+        },
+      };
+    },
+  };
   const native = await makerOf(auth.source);
   const start = await call(overseas, "/api/auth/regional/start?return=/editor");
   expect(start.status).toBe(302);
