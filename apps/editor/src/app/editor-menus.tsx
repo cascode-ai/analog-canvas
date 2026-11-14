@@ -101,6 +101,7 @@ export function EditorMenuBar({
   searchOpen,
   toggleLibraryPanel,
   toggleHierarchyPanel,
+  toggleObjectsPanel,
   visibleLibraryPanelOpen,
   recoverySessions,
   project,
@@ -201,6 +202,7 @@ export function EditorMenuBar({
   searchOpen: EditorPanels["searchOpen"];
   toggleLibraryPanel: EditorPanels["toggleLibraryPanel"];
   toggleHierarchyPanel: EditorPanels["toggleHierarchyPanel"];
+  toggleObjectsPanel: EditorPanels["toggleObjectsPanel"];
   visibleLibraryPanelOpen: boolean;
   recoverySessions: UseRecoveryCoordinatorResult["sessions"];
   project: CircuitProject;
@@ -669,6 +671,7 @@ export function EditorMenuBar({
         onToggleExamples: toggleExamplesPanel,
         onToggleLibrary: toggleLibraryPanel,
         onToggleHierarchy: toggleHierarchyPanel,
+        onToggleObjects: toggleObjectsPanel,
         // The PowerPoint dialog is for drawing; its netlist stays out of view.
         ...(isOfficeDialog()
           ? {}

@@ -22,6 +22,7 @@ import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
 import { EditorCellSymbolLayoutOverlay } from "./editor-cell-symbol-layout-overlay";
 import { EditorRouteHandles } from "./editor-route-handles";
 import { EditorSelectionHalo } from "./editor-selection-halo";
+import { DrawingLocationOutline } from "./drawing-location-outline";
 import {
   EditorDraftingHandles,
   EditorDraftingHitTargets,
@@ -99,6 +100,10 @@ export interface EditorCanvasSurfaceProps {
   grid: ComponentProps<typeof CanvasGridOverlay>;
   sceneInnerHtml: { __html: string };
   selectionHalo: ComponentProps<typeof EditorSelectionHalo>;
+  drawingLocation: Pick<
+    ComponentProps<typeof DrawingLocationOutline>,
+    "scene" | "locatedInstanceId" | "selectedDraftingIds"
+  >;
   cellSymbolLayout: ComponentProps<typeof EditorCellSymbolLayoutOverlay> | null;
   cellSymbolLayoutControls?: ReactNode;
   netHighlight: ComponentProps<typeof NetHighlightOverlay>;
@@ -147,6 +152,7 @@ export function EditorCanvasSurface({
   grid,
   sceneInnerHtml,
   selectionHalo,
+  drawingLocation,
   cellSymbolLayout,
   cellSymbolLayoutControls,
   netHighlight,
@@ -371,8 +377,16 @@ export function EditorCanvasSurface({
         </style>
         <CanvasGridOverlay {...grid} />
         <EditorSelectionHalo {...selectionHalo} />
-        <ConnectedNetGlow {...connectedNets} />
+        {!connectedNets.front ? <ConnectedNetGlow {...connectedNets} /> : null}
         <g dangerouslySetInnerHTML={sceneInnerHtml} />
+        {connectedNets.front ? <ConnectedNetGlow {...connectedNets} /> : null}
+        <DrawingLocationOutline
+          document={selectionHalo.document}
+          resolver={selectionHalo.resolver}
+          styleProfile={selectionHalo.styleProfile}
+          selectedInstanceIds={selectionHalo.selectedInstanceIds}
+          {...drawingLocation}
+        />
         <NetHighlightOverlay {...netHighlight} />
         <LabelTetherOverlay tethers={labelTethers} />
         {copyPreviewInnerHtml ? (

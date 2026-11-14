@@ -471,7 +471,7 @@ it("reports free text struck through by a wire or drawn over a label (#1323)", (
     diagnoseVisualQuality(doc, resolver)
       .filter((d) => d.code === "VISUAL_LABEL_OVERLAP")
       .map((d) => d.objectIds),
-  ).toEqual([["on-label", "name"]]);
+  ).toEqual([["name", "on-label"]]);
   doc.drafting!.objects = [note("mark", 100, 40, "both")];
   doc.revision += 1;
   expect(

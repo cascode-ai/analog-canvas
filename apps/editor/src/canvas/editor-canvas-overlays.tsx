@@ -164,6 +164,7 @@ export function ConnectedNetGlow({
   document,
   resolver,
   routeGeometryRecords,
+  front = false,
 }: {
   highlights: readonly NetHighlight[];
   document: SchematicDocument;
@@ -172,6 +173,7 @@ export function ConnectedNetGlow({
     route: RouteBranch;
     geometry: ResolvedRouteGeometry;
   }[];
+  front?: boolean;
 }) {
   if (highlights.length === 0) return null;
   const routeIds = new Set(highlights.flatMap(({ routes }) => routes));
@@ -184,7 +186,7 @@ export function ConnectedNetGlow({
     <g
       data-testid="connected-net-glow"
       data-net-ids={highlights.map(({ netId }) => netId).join(" ")}
-      className="net-highlight-overlay connected-net-glow"
+      className={`net-highlight-overlay connected-net-glow${front ? " connected-net-glow-front" : ""}`}
       pointerEvents="none"
       aria-hidden="true"
     >

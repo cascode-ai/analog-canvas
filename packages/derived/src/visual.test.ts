@@ -1,8 +1,12 @@
 import {
   createEmptyDocument,
   createRoutePath,
+  resolveClosedSymbolPath,
+  transformPoint,
   type Point,
   type RouteEndpoint,
+  type DraftingObject,
+  type SymbolDefinition,
 } from "@icm/model";
 import {
   InMemorySymbolResolver,
@@ -18,7 +22,484 @@ import {
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
+const implicitPin: SymbolDefinition["pins"][number] = {
+  name: "P",
+  role: "passive",
+  at: { x: 0, y: 0 },
+  direction: "east",
+  presentation: { visibility: "implicit" },
+};
+
+function filledRectangle(
+  id: string,
+  center: Point,
+  width: number,
+  height: number,
+  layer: "background" | "foreground",
+): DraftingObject {
+  return {
+    id,
+    kind: "rectangle",
+    center,
+    width,
+    height,
+    layer,
+    zIndex: 0,
+    locked: false,
+    anchor: { kind: "free", position: center },
+    lineStyle: "solid",
+    rotation: 0,
+    styleOverride: { fillColor: "#c8d0de" },
+  };
+}
+
 describe("visual quality diagnostics", () => {
+  it.each([
+    {
+      name: "separate lobes",
+      data: "M0 0H20V20H0Z M80 0H100V20H80Z",
+      from: { x: -10, y: 10 },
+      to: { x: 110, y: 10 },
+      covered: true,
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+    {
+      name: "rotated lobes",
+      data: "M0 0H20V20H0Z M80 0H100V20H80Z",
+      from: { x: -10, y: 10 },
+      to: { x: 110, y: 10 },
+      covered: true,
+      rotation: 90 as const,
+      mirror: "horizontal" as const,
+    },
+    {
+      name: "along a closed path's lower border",
+      data: "M0 0H20V20H0Z",
+      from: { x: -10, y: 20 },
+      to: { x: 30, y: 20 },
+      covered: true,
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+    {
+      name: "along an even-odd cancelled border",
+      data: "M0 0H20V20H0Z M0 0H20V20H0Z M80 0H100V20H80Z",
+      from: { x: -10, y: 20 },
+      to: { x: 30, y: 20 },
+      covered: false,
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+    {
+      name: "along an oblique closed path border",
+      data: "M1 5L3 15L3 28L1 18Z",
+      from: { x: 0, y: 0 },
+      to: { x: 10, y: 50 },
+      covered: true,
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+    {
+      name: "inside an unpainted hole",
+      data: "M0 0H100V100H0Z M20 20H80V80H20Z",
+      from: { x: 30, y: 50 },
+      to: { x: 70, y: 50 },
+      covered: false,
+      rotation: 90 as const,
+      mirror: "horizontal" as const,
+    },
+    {
+      name: "off-center curved lobe",
+      data: "M0 8Q8 -8 16 8Q8 24 0 8Z M80 8Q88 -8 96 8Q88 24 80 8Z",
+      from: { x: -10, y: 6 },
+      to: { x: 110, y: 6 },
+      covered: true,
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+    {
+      name: "diagonal through separate curved lobes",
+      data: "M0 8A8 6 20 0 1 16 8A8 6 20 0 1 0 8Z M84 82Q92 66 100 82Q92 98 84 82Z",
+      from: { x: -10, y: -10 },
+      to: { x: 110, y: 110 },
+      covered: true,
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  ])(
+    "observes routes through marked paths ($name)",
+    ({ data, from, to, covered, rotation, mirror }) => {
+      const symbol: SymbolDefinition = {
+        schemaVersion: 1,
+        id: "path-body",
+        name: "Path body",
+        viewBox: { x: 0, y: 0, width: 100, height: 100 },
+        primitives: [{ kind: "path", data, fillableBody: true }],
+        pins: [implicitPin],
+        variants: [],
+      };
+      const document = createEmptyDocument("path-cover", "Path cover");
+      const placement = { position: { x: 200, y: 200 }, rotation, mirror };
+      document.instances = [
+        {
+          id: "path",
+          symbolId: symbol.id,
+          placement,
+          bodyFill: { kind: "background" },
+        },
+      ];
+      document.nets = [{ id: "net", terminals: [] }];
+      document.junctions = [
+        {
+          id: "start",
+          netId: "net",
+          position: transformPoint(from, placement.position, placement),
+        },
+        {
+          id: "end",
+          netId: "net",
+          position: transformPoint(to, placement.position, placement),
+        },
+      ];
+      document.routes = [
+        createRoutePath({
+          id: "route",
+          netId: "net",
+          start: { kind: "junction", junctionId: "start" },
+          end: { kind: "junction", junctionId: "end" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      ];
+      const diagnostics = diagnoseVisualQuality(
+        document,
+        new InMemorySymbolResolver([symbol]),
+      );
+      expect(
+        diagnostics
+          .filter(({ code }) => code === "VISUAL_DRAWING_OCCLUSION")
+          .map(({ objectIds }) => objectIds),
+      ).toEqual(covered ? [["route", "path"]] : []);
+    },
+  );
+
+  it("uses finite scan coordinates for an accepted extreme cubic", () => {
+    const path = resolveClosedSymbolPath(
+      "M0 0 C1.6e308 0 0 1.6e308 1.0e307 1.0e307 V0Z",
+    );
+    expect(path.ok).toBe(true);
+    if (!path.ok) return;
+    const witness = path.geometry.segmentWitness(
+      { x: 0, y: 10 },
+      { x: 10, y: 0 },
+    );
+    if (witness) {
+      expect(witness.x + witness.y).toBeCloseTo(10);
+      expect(path.geometry.contains(witness)).toBe(true);
+    }
+  });
+
+  it("uses the active variant's adaptive artwork when detecting occlusion", () => {
+    const document = createEmptyDocument(
+      "adaptive-coverage",
+      "Adaptive coverage",
+    );
+    const rear: SymbolDefinition = {
+      schemaVersion: 1,
+      id: "framed",
+      name: "Frame with separate body",
+      viewBox: { x: -30, y: -20, width: 100, height: 40 },
+      formulaPresentation: {
+        defaultFormula: "F",
+        supportsCoefficient: false,
+        center: { x: 0, y: 0 },
+        fontSize: 8,
+        adaptiveFrame: {
+          minBodyWidth: 60,
+          minBodyHeight: 40,
+          horizontalPadding: 10,
+          verticalPadding: 10,
+          leadLength: 10,
+        },
+      },
+      primitives: [
+        {
+          kind: "rectangle",
+          part: "body",
+          bounds: { x: -30, y: -20, width: 60, height: 40 },
+          fillableBody: true,
+        },
+        {
+          kind: "rectangle",
+          part: "extra",
+          bounds: { x: 40, y: 12, width: 20, height: 12 },
+          fillableBody: true,
+        },
+      ],
+      pins: [implicitPin],
+      variants: [
+        { id: "no-frame", hiddenPinNames: [], hiddenPrimitiveParts: ["body"] },
+      ],
+    };
+    document.instances = [
+      {
+        id: "rear",
+        symbolId: rear.id,
+        symbolVariantId: "no-frame",
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    ];
+    document.drafting = {
+      objects: [
+        filledRectangle("visible-edge", { x: 250, y: 212 }, 8, 8, "foreground"),
+        filledRectangle("hidden-frame", { x: 210, y: 180 }, 8, 8, "foreground"),
+      ],
+    };
+    const diagnostics = diagnoseVisualQuality(
+      document,
+      new InMemorySymbolResolver([rear]),
+    );
+    expect(
+      diagnostics
+        .filter(({ code }) => code === "VISUAL_DRAWING_OCCLUSION")
+        .map(({ objectIds }) => objectIds),
+    ).toEqual([["rear", "visible-edge"]]);
+  });
+
+  it("includes an adaptive symbol's horizontal leads in occlusion findings", () => {
+    const document = createEmptyDocument("adaptive-lead", "Adaptive lead");
+    document.instances = [
+      {
+        id: "integrator",
+        symbolId: "integrator",
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    ];
+    document.drafting = {
+      objects: [
+        filledRectangle("lead-cover", { x: 175, y: 200 }, 2, 2, "foreground"),
+      ],
+    };
+    expect(
+      diagnoseVisualQuality(document, resolver)
+        .filter(({ code }) => code === "VISUAL_DRAWING_OCCLUSION")
+        .map(({ objectIds }) => objectIds),
+    ).toEqual([["integrator", "lead-cover"]]);
+  });
+
+  it("observes the actual world position of upright part ink", () => {
+    const document = createEmptyDocument("upright", "Upright mark");
+    document.instances = [
+      {
+        id: "rear",
+        symbolId: "upright",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 90,
+          mirror: "none",
+        },
+      },
+    ];
+    document.drafting = {
+      objects: [
+        filledRectangle("painted", { x: 107, y: 100 }, 2, 2, "foreground"),
+        filledRectangle("unpainted", { x: 100, y: 107 }, 2, 2, "foreground"),
+      ],
+    };
+    const symbols = new InMemorySymbolResolver([
+      {
+        schemaVersion: 1,
+        id: "upright",
+        name: "Upright mark",
+        pins: [implicitPin],
+        viewBox: { x: -10, y: -2, width: 20, height: 4 },
+        variants: [],
+        primitives: [
+          {
+            kind: "line",
+            part: "upright-test",
+            from: { x: -10, y: 0 },
+            to: { x: 10, y: 0 },
+          },
+        ],
+      },
+    ]);
+    expect(
+      diagnoseVisualQuality(document, symbols)
+        .filter(({ code }) => code === "VISUAL_DRAWING_OCCLUSION")
+        .map(({ objectIds }) => objectIds),
+    ).toEqual([["rear", "painted"]]);
+  });
+
+  it("reports filled shapes over a rear fill and a narrow interval of a long wire", () => {
+    const document = createEmptyDocument("covered-ink", "Covered ink");
+    document.drafting = {
+      objects: [
+        filledRectangle("rear-fill", { x: 100, y: 80 }, 200, 100, "background"),
+        filledRectangle("front-fill", { x: 40, y: 60 }, 20, 20, "foreground"),
+      ],
+    };
+    document.nets = [{ id: "net", terminals: [] }];
+    document.junctions = [
+      { id: "start", netId: "net", position: { x: 0, y: 60 } },
+      { id: "end", netId: "net", position: { x: 400, y: 60 } },
+    ];
+    document.routes = [
+      createRoutePath({
+        id: "wire",
+        netId: "net",
+        start: { kind: "junction", junctionId: "start" },
+        end: { kind: "junction", junctionId: "end" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    ];
+    expect(
+      diagnoseVisualQuality(document, resolver)
+        .filter(({ code }) => code === "VISUAL_DRAWING_OCCLUSION")
+        .map(({ objectIds }) => objectIds),
+    ).toEqual([
+      ["rear-fill", "front-fill"],
+      ["wire", "front-fill"],
+    ]);
+  });
+
+  it("finds narrow crossing strokes and only treats a filled rear interior as ink", () => {
+    const document = createEmptyDocument("covered-strokes", "Covered strokes");
+    const rear = filledRectangle(
+      "rear-fill",
+      { x: 200, y: 200 },
+      200,
+      20,
+      "background",
+    );
+    const cover = filledRectangle(
+      "crossing-fill",
+      { x: 140, y: 150 },
+      20,
+      200,
+      "foreground",
+    );
+    const interiorCover = filledRectangle(
+      "interior-only",
+      { x: 140, y: 200 },
+      10,
+      10,
+      "foreground",
+    );
+    const { styleOverride: _fill, ...rearOutline } = rear;
+    const findings = (objects: DraftingObject[]) =>
+      diagnoseVisualQuality({ ...document, drafting: { objects } }, resolver)
+        .filter(({ code }) => code === "VISUAL_DRAWING_OCCLUSION")
+        .map(({ objectIds }) => objectIds);
+    expect(findings([rear, cover])).toEqual([["rear-fill", "crossing-fill"]]);
+    expect(findings([rearOutline, cover])).toEqual([
+      ["rear-fill", "crossing-fill"],
+    ]);
+    expect(findings([rearOutline, interiorCover])).toEqual([]);
+  });
+
+  it("names an opaque middle symbol behind a foremost transparent one", () => {
+    const document = createEmptyDocument("stack", "Opaque middle");
+    document.instances = [
+      ...["ADC1", "ADC2", "ADC3"].map((id, index) => ({
+        id,
+        symbolId: "adc",
+        placement: {
+          position: { x: 100 + index * 20, y: 80 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+        ...(id === "ADC2" ? { bodyFill: { kind: "background" as const } } : {}),
+      })),
+    ];
+    const occlusion = diagnoseVisualQuality(document, resolver).filter(
+      ({ code }) => code === "VISUAL_DRAWING_OCCLUSION",
+    );
+    expect(occlusion).toMatchObject([
+      { objectIds: ["ADC1", "ADC2"], gateEligible: false },
+    ]);
+  });
+
+  it("does not treat an unpainted symbol polygon as covered ink", () => {
+    const document = createEmptyDocument("inkless", "Inkless symbol");
+    document.instances = [
+      {
+        id: "unpainted",
+        symbolId: "unpainted-symbol",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    ];
+    const center = { x: 100, y: 100 };
+    document.drafting = {
+      objects: [
+        {
+          id: "front-fill",
+          kind: "rectangle",
+          center,
+          width: 40,
+          height: 20,
+          layer: "foreground",
+          zIndex: 0,
+          locked: false,
+          anchor: { kind: "free", position: center },
+          lineStyle: "solid",
+          rotation: 0,
+          styleOverride: { fillColor: "#c8d0de" },
+        },
+      ],
+    };
+    const symbols = new InMemorySymbolResolver([
+      ...builtInSymbols,
+      {
+        schemaVersion: 1,
+        id: "unpainted-symbol",
+        name: "Unpainted symbol",
+        viewBox: { x: -5, y: -5, width: 10, height: 10 },
+        primitives: [
+          {
+            kind: "polygon",
+            points: [
+              { x: -5, y: -5 },
+              { x: 5, y: -5 },
+              { x: 0, y: 5 },
+            ],
+            fill: "none",
+            stroke: "none",
+          },
+        ],
+        pins: [
+          {
+            name: "P",
+            role: "passive",
+            at: { x: 0, y: 0 },
+            direction: "east",
+            presentation: { visibility: "implicit" },
+          },
+        ],
+        variants: [],
+      },
+    ]);
+    expect(
+      diagnoseVisualQuality(document, symbols).filter(
+        ({ code }) => code === "VISUAL_DRAWING_OCCLUSION",
+      ),
+    ).toEqual([]);
+  });
+
   it.each([true, false])(
     "counts only rendered annotations in overlap diagnostics (visible=%s)",
     (visible) => {

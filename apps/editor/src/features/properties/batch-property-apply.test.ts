@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { executeTransaction } from "@icm/edit-engine";
 import {
   createEmptyDocument,
+  resolveDrawingOrder,
   type Annotation,
   type DraftingObject,
   type SchematicDocument,
@@ -10,7 +12,9 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import {
   batchAnnotationEdits,
   batchDraftingEdits,
+  drawingPropertyEdits,
 } from "./batch-property-apply";
+import { EMPTY_VISUAL_SELECTION } from "../selection/visual-selection";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -52,6 +56,63 @@ const upserted = (edits: ReturnType<typeof batchDraftingEdits>) =>
   );
 
 describe("one Properties edit for several selected objects", () => {
+  it.each([false, true])(
+    "updates a shape and moves the entire group atomically (locked=%s)",
+    (locked) => {
+      const shape: DraftingObject = {
+        id: "box",
+        kind: "rectangle",
+        center: { x: 150, y: 100 },
+        anchor: { kind: "free", position: { x: 150, y: 100 } },
+        width: 40,
+        height: 20,
+        rotation: 0,
+        zIndex: 0,
+        layer: "background",
+        lineStyle: "solid",
+        locked: false,
+      };
+      const peer = { ...line, locked };
+      const document = drawing([shape, peer]);
+      document.layoutGroups = [
+        {
+          id: "group",
+          kind: "custom",
+          objectIds: [shape.id, peer.id],
+          locked: false,
+        },
+      ];
+      const edits = drawingPropertyEdits(
+        document,
+        resolver,
+        10,
+        shape,
+        { object: { ...shape, width: 70 }, layer: "front" },
+        { ...EMPTY_VISUAL_SELECTION, draftingIds: [shape.id] },
+      );
+      const result = executeTransaction(document, {
+        transactionId: "properties",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits,
+      });
+      if (locked) {
+        expect(result.ok).toBe(false);
+        expect(result.document).toEqual(document);
+      } else {
+        expect(result.ok).toBe(true);
+        expect(resolveDrawingOrder(result.document).slice(-2)).toEqual([
+          { kind: "drafting", id: shape.id },
+          { kind: "drafting", id: peer.id },
+        ]);
+        expect(result.document.drafting?.objects[0]).toMatchObject({
+          width: 70,
+        });
+      }
+    },
+  );
+
   it("gives every selected text the new size and keeps its own words and place", () => {
     const first = note("a", "Vin", 100);
     const second = note("b", "Vout", 200);

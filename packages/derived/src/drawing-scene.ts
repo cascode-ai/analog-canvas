@@ -3,10 +3,12 @@ import {
   inverseTransformPoint,
   resolveClosedSymbolPath,
   resolveDrawingOrder,
+  transformPoint,
 } from "@icm/model";
 import type {
   DerivedPoint,
   DerivedRect,
+  DrawingObjectEntry,
   DrawingOrderEntry,
   Instance,
   RouteEndpoint,
@@ -26,6 +28,10 @@ import type {
 } from "@icm/symbols";
 
 import { resolveDraftingObjectGeometry } from "./drafting-geometry.js";
+import {
+  regionAreaEvidence,
+  regionSegmentEvidence,
+} from "./filled-region-evidence.js";
 import { pointOnSegment } from "./segment-geometry.js";
 
 export type FilledRegion =
@@ -35,6 +41,11 @@ export type FilledRegion =
       readonly data: string;
       readonly bounds: DerivedRect;
       readonly contains: (point: DerivedPoint) => boolean;
+      readonly segmentWitness: (
+        from: DerivedPoint,
+        to: DerivedPoint,
+      ) => DerivedPoint | undefined;
+      readonly outlineEvidence: () => Required<DrawingInkEvidence>;
     }
   | {
       readonly kind: "circle";
@@ -119,6 +130,14 @@ export function closedSymbolPathBounds(
 ): DerivedRect | undefined {
   return primitive.fillableBody
     ? filledPathRegion(primitive)?.bounds
+    : undefined;
+}
+
+export function closedSymbolPathInk(
+  primitive: Extract<SymbolPrimitive, { kind: "path" }>,
+): Required<DrawingInkEvidence> | undefined {
+  return primitive.fillableBody
+    ? filledPathRegion(primitive)?.outlineEvidence()
     : undefined;
 }
 
@@ -244,10 +263,47 @@ function regionContains(region: FilledRegion, point: DerivedPoint): boolean {
 }
 
 type Occluder = {
+  readonly entry: DrawingObjectEntry;
   readonly rank: number;
   readonly regions: readonly FilledRegion[];
   readonly placement?: NonNullable<Instance["placement"]>;
 };
+
+function occluderPoint(
+  point: DerivedPoint,
+  { placement }: Occluder,
+): DerivedPoint {
+  return placement
+    ? inverseTransformPoint(point, placement.position, placement)
+    : point;
+}
+
+function drawingPoint(
+  point: DerivedPoint,
+  { placement }: Occluder,
+): DerivedPoint {
+  return placement
+    ? transformPoint(point, placement.position, placement)
+    : point;
+}
+
+function occluderContains(occluder: Occluder, point: DerivedPoint): boolean {
+  const local = occluderPoint(point, occluder);
+  return occluder.regions.some((region) => regionContains(region, local));
+}
+
+export interface DrawingInkEvidence {
+  readonly points?: readonly DerivedPoint[];
+  readonly segments?: readonly {
+    readonly from: DerivedPoint;
+    readonly to: DerivedPoint;
+  }[];
+}
+
+interface DrawingOcclusionWitness {
+  readonly front: DrawingObjectEntry;
+  readonly point: DerivedPoint;
+}
 
 export class ResolvedDrawingScene {
   readonly #ranks: ReadonlyMap<string, number>;
@@ -261,7 +317,9 @@ export class ResolvedDrawingScene {
     occluders: readonly Occluder[],
   ) {
     this.#ranks = ranks;
-    this.#occluders = occluders;
+    this.#occluders = [...occluders].sort(
+      (left, right) => right.rank - left.rank,
+    );
   }
 
   rank(entry: DrawingOrderEntry): number {
@@ -283,15 +341,77 @@ export class ResolvedDrawingScene {
 
   /** True when no later opaque region covers the document-space point. */
   isVisibleAt(entry: DrawingOrderEntry, point: DerivedPoint): boolean {
-    const index = this.rank(entry);
-    return !this.#occluders.some(({ rank, regions, placement }) => {
-      if (rank <= index) return false;
-      const local = placement
-        ? inverseTransformPoint(point, placement.position, placement)
-        : point;
-      return regions.some((region) => regionContains(region, local));
-    });
+    return this.occluderAt(entry, point) === undefined;
   }
+
+  /** The frontmost opaque drawing object covering this point above entry. */
+  occluderAt(
+    entry: DrawingOrderEntry,
+    point: DerivedPoint,
+  ): DrawingObjectEntry | undefined {
+    const index = this.rank(entry);
+    for (const occluder of this.#occluders) {
+      if (occluder.rank <= index) break;
+      if (occluderContains(occluder, point)) return occluder.entry;
+    }
+    return undefined;
+  }
+
+  /** Finds evidence in real rear ink, with the foreground object that covers it. */
+  occlusionOf(
+    entry: DrawingOrderEntry,
+    { points = [], segments = [] }: DrawingInkEvidence,
+  ): DrawingOcclusionWitness | undefined {
+    const index = this.rank(entry);
+    const foremost = this.#occluders[0];
+    if (!foremost || foremost.rank <= index) return undefined;
+    const rearFill = this.#occluders.find(({ rank }) => rank === index);
+    const rearArea = rearFill ? fillEvidence(rearFill) : [];
+    for (const front of this.#occluders) {
+      if (front.rank <= index) break;
+      let point = points.find((candidate) =>
+        occluderContains(front, candidate),
+      );
+      point ??= rearArea.find((candidate) =>
+        occluderContains(front, candidate),
+      );
+      if (!point && rearFill)
+        point = fillEvidence(front).find((candidate) =>
+          occluderContains(rearFill, candidate),
+        );
+      point ??= findSegmentEvidence(front, segments);
+      if (point)
+        return { front: this.occluderAt(entry, point) ?? front.entry, point };
+    }
+    return undefined;
+  }
+}
+
+function fillEvidence(occluder: Occluder): DerivedPoint[] {
+  return occluder.regions.flatMap((region) =>
+    regionAreaEvidence(region)
+      .filter((point) => regionContains(region, point))
+      .map((point) => drawingPoint(point, occluder)),
+  );
+}
+
+function findSegmentEvidence(
+  occluder: Occluder,
+  segments: NonNullable<DrawingInkEvidence["segments"]>,
+): DerivedPoint | undefined {
+  for (const { from, to } of segments) {
+    const local = {
+      from: occluderPoint(from, occluder),
+      to: occluderPoint(to, occluder),
+    };
+    for (const region of occluder.regions) {
+      const point = regionSegmentEvidence(region, local).find((candidate) =>
+        regionContains(region, candidate),
+      );
+      if (point) return drawingPoint(point, occluder);
+    }
+  }
+  return undefined;
 }
 
 export function drawingHasOpaqueFill(document: SchematicDocument): boolean {
@@ -329,6 +449,7 @@ export function resolveDrawingScene(
     instanceFills.set(instance.id, fill);
     if (fill.regions.length)
       occluders.push({
+        entry: { kind: "instance", id: instance.id },
         rank: rank({ kind: "instance", id: instance.id }),
         regions: fill.regions,
         placement,
@@ -347,6 +468,7 @@ export function resolveDrawingScene(
         ? { kind: "polygon", points: geometry.corners }
         : { kind: "circle", center: geometry.center, radius: geometry.radius };
     occluders.push({
+      entry: { kind: "drafting", id: object.id },
       rank: rank({ kind: "drafting", id: object.id }),
       regions: [region],
     });

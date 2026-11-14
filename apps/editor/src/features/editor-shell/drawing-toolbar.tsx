@@ -4,6 +4,7 @@ import type { EditorTool } from "../../interaction/interaction-state";
 import { ToolIcon } from "./tool-icon";
 import type { InsertLaunch } from "../component-insert/insert-launch";
 import { AnnotationMenu } from "./annotation-menu";
+import type { LeftPanelMode } from "./use-editor-panels";
 
 interface ToolbarCommand {
   enabled: boolean;
@@ -12,7 +13,7 @@ interface ToolbarCommand {
 
 export interface DrawingToolbarProps {
   communityEnabled?: boolean;
-  leftPanelMode: "examples" | "library" | "hierarchy";
+  leftPanelMode: LeftPanelMode;
   libraryPanelOpen: boolean;
   projectPanel: "netlist" | "testbench" | "project-code" | null;
   leftPanelsDisabled?: boolean;
@@ -26,6 +27,7 @@ export interface DrawingToolbarProps {
   onToggleLibrary: () => void;
   /** The Cell tree shares the Library's place; absent, no toggle is shown. */
   onToggleHierarchy?: () => void;
+  onToggleObjects?: () => void;
   /** Absent (the PowerPoint dialog), no Netlist or Project Code toggle. */
   onToggleNetlist?: () => void;
   /** The Cell's Testbench and Specs, beside the netlist (#2110). */
@@ -163,6 +165,7 @@ export function DrawingToolbar({
   onToggleExamples,
   onToggleLibrary,
   onToggleHierarchy,
+  onToggleObjects,
   onToggleNetlist,
   onToggleTestbench,
   onToggleProjectCode,
@@ -174,6 +177,7 @@ export function DrawingToolbar({
   const examplesOpen = leftPanelMode === "examples" && libraryPanelOpen;
   const libraryOpen = leftPanelMode === "library" && libraryPanelOpen;
   const hierarchyOpen = leftPanelMode === "hierarchy" && libraryPanelOpen;
+  const objectsOpen = leftPanelMode === "objects" && libraryPanelOpen;
 
   return (
     <div
@@ -219,6 +223,19 @@ export function DrawingToolbar({
             onClick={onToggleHierarchy}
           >
             <ToolIcon name="hierarchy" />
+          </ToolbarButton>
+        ) : null}
+        {onToggleObjects ? (
+          <ToolbarButton
+            testId="objects-layers-toggle"
+            label="Objects & layers"
+            text="Layers"
+            pressed={objectsOpen}
+            controls="objects-layers-panel"
+            disabled={leftPanelsDisabled}
+            onClick={onToggleObjects}
+          >
+            <ToolIcon name="layers" />
           </ToolbarButton>
         ) : null}
         {onToggleNetlist ? (

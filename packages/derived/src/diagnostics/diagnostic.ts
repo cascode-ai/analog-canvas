@@ -3,7 +3,7 @@ import { buildProjectConnectivityIndex } from "../connectivity-index.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { VisualDiagnostic } from "../visual.js";
 import { diagnoseVisualQuality } from "../visual.js";
-import type { CircuitProject } from "@icm/model";
+import type { CircuitProject, DerivedPoint } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { runErcChecks } from "./erc.js";
 import { assessImportReference } from "../import-reference.js";
@@ -30,6 +30,7 @@ export interface Diagnostic {
   message: string;
   primary: ObjectLocator;
   related: readonly ObjectLocator[];
+  point?: DerivedPoint;
   parameters: Readonly<Record<string, string | number | boolean>>;
 }
 
@@ -141,6 +142,7 @@ export function adaptVisualDiagnostic(
     message: visual.message,
     primary,
     related,
+    ...(visual.point ? { point: visual.point } : {}),
     parameters: visual.parameters ?? {},
   };
 }

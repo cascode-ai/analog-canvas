@@ -1,5 +1,6 @@
 import type { InteractionMode } from "./interaction-state";
 import type { EditorCommandRequest } from "../commands/editor-command";
+import { DRAWING_ORDER_ACTIONS } from "../features/selection/drawing-order-actions";
 
 export interface EditorShortcutKey {
   key: string;
@@ -125,6 +126,17 @@ export function resolveEditorShortcut(
   }
 
   if (context.isTyping) return null;
+
+  if (event.altKey && event.shiftKey && !commandModifier) {
+    const order = DRAWING_ORDER_ACTIONS.find(
+      (action) => action.key === event.key,
+    );
+    if (order)
+      return {
+        kind: "run-command",
+        command: { id: "selection.reorder", position: { kind: order.kind } },
+      };
+  }
 
   if (commandModifier && key === "f") {
     return {

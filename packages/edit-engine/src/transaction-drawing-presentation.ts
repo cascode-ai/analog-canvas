@@ -6,6 +6,7 @@ import {
 import type { DrawingOrderEntry, SchematicDocument } from "@icm/model";
 import {
   annotationOwningInstanceId,
+  gatheredDrawingLabelOwners,
   instanceSupportsBodyFill,
   isSchematicAnnotationVisible,
   resolveDocumentLogicalNets,
@@ -91,25 +92,6 @@ function applyBodyFill(
     changedObjectIds.add(id);
   }
   return { ok: true };
-}
-
-function gatheredLabelOwners(
-  order: readonly DrawingOrderEntry[],
-  owners: ReadonlyMap<string, string>,
-): ReadonlyMap<string, string> {
-  const gathered = new Map<string, string>();
-  let owner: string | undefined;
-  for (const entry of order) {
-    if (entry.kind === "instance") owner = entry.id;
-    else if (
-      entry.kind === "annotation" &&
-      owner &&
-      owners.get(entry.id) === owner
-    )
-      gathered.set(entry.id, owner);
-    else owner = undefined;
-  }
-  return gathered;
 }
 
 function relativeInsertionIndex(
@@ -336,7 +318,7 @@ function applyDrawingOrder(
   }
   // A label still drawn apart from its owner has its own step until that owner
   // is sorted. Once gathered, it stays with its owner as other objects pass.
-  const gatheredLabels = gatheredLabelOwners(current, owners);
+  const gatheredLabels = gatheredDrawingLabelOwners(current, owners);
   const logicalNets =
     edit.position.kind === "forward" || edit.position.kind === "backward"
       ? resolveDocumentLogicalNets(draft)

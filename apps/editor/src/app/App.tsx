@@ -123,7 +123,12 @@ import { buildSvgScene } from "@icm/render-svg";
 import {
   drawingOrderActions,
   selectedDrawingObjectIds,
+  type DrawingDragRevision,
+  type DrawingReorderPosition,
 } from "../features/selection/drawing-order-actions";
+import { ObjectsLayersPanel } from "../features/selection/objects-layers-panel";
+import type { DrawingInstanceLocation } from "../features/selection/drawing-location";
+import { useDrawingLayerInteraction } from "../features/selection/use-drawing-layer-interaction";
 import type { TextDraft } from "../features/text-editing/text-draft-overlay";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
@@ -144,6 +149,7 @@ import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import {
   canvasInsetsFromOverlays,
   insetsBesideFloatingWindow,
+  focusCameraOnPoint,
   type CameraRectInput,
   type CanvasInsets,
 } from "../canvas/fit-view";
@@ -797,6 +803,7 @@ function WorkspaceEditor({
     toggleExamplesPanel: toggleExamplesPanelFromShell,
     toggleLibraryPanel,
     toggleHierarchyPanel,
+    toggleObjectsPanel,
   } = useEditorPanels({
     initialCompact: compactLayoutMatches(COMPACT_LAYOUT_MEDIA_QUERY),
     compactMediaQuery: COMPACT_LAYOUT_MEDIA_QUERY,
@@ -905,6 +912,11 @@ function WorkspaceEditor({
     flushRecovery,
   });
   const [documentStack, setDocumentStack] = useState<HierarchyFrame[]>([]);
+  const drawingLocationScopeFor = (documentId: string) =>
+    JSON.stringify([recoveryWorkingCopyId, projectSessionId, documentId]);
+  const drawingLocationScope = drawingLocationScopeFor(document.id);
+  const [locatedInstance, setLocatedInstance] =
+    useState<DrawingInstanceLocation | null>(null);
   const {
     selection: visualSelection,
     replace: replaceSelection,
@@ -2109,6 +2121,14 @@ function WorkspaceEditor({
     wireSource,
     bulkDrawInstanceId,
   });
+  const wireContactEndpoints = useMemo(() => {
+    const committed = committedSceneState.scene.drawingScene;
+    return committed.hasOcclusion
+      ? visibleEndpoints.filter(({ endpoint, connection }) =>
+          committed.isEndpointVisibleAt(endpoint, connection.contactPoint),
+        )
+      : visibleEndpoints;
+  }, [committedSceneState.scene.drawingScene, visibleEndpoints]);
   const netChoices = useMemo(() => logicalNetChoices(document), [document]);
   // A Net label showing a display alias still names its Net here.
   const selectedNetNameAnnotation =
@@ -2938,6 +2958,7 @@ function WorkspaceEditor({
     handleFlightline,
     handleWireRoutePointerDown,
     handleWireEndpoint,
+    activateWireEndpoint,
     commitWire,
     selectRoute,
   } = useWireInteraction({
@@ -2945,7 +2966,7 @@ function WorkspaceEditor({
       document,
       resolver,
       externalSubcircuitDefinitions: project.externalSubcircuitDefinitions,
-      visibleEndpoints,
+      visibleEndpoints: wireContactEndpoints,
       routeGeometryRecords,
       contactComponents,
       netNameOf: (netId) =>
@@ -3460,7 +3481,7 @@ function WorkspaceEditor({
             steps: wireDraftSteps,
             routingMode: wireRoutingMode,
             cornerOrder: wireCornerOrder,
-            visibleEndpoints,
+            visibleEndpoints: wireContactEndpoints,
           })
         : EMPTY_WIRE_DRAFT_PREVIEW,
     [
@@ -3471,7 +3492,7 @@ function WorkspaceEditor({
       wireDraftSteps,
       wireRoutingMode,
       wireCornerOrder,
-      visibleEndpoints,
+      wireContactEndpoints,
     ],
   );
   const projectInstanceCount = project.documents.reduce(
@@ -4016,6 +4037,8 @@ function WorkspaceEditor({
       focusBeforeDock.current = frameAgain;
     },
     selectionOpen,
+    locateInstanceOutline: (documentId, id) =>
+      setLocatedInstance({ scope: drawingLocationScopeFor(documentId), id }),
     openDocument,
     resetInteractionState,
     selectOnly,
@@ -4332,6 +4355,8 @@ function WorkspaceEditor({
     setProjectPanel(null);
     setDocumentSettingsOpen(false);
     setImportReviewOpen(false);
+    if (compactLayout && leftPanelMode === "objects")
+      setCompactLibraryPanelOpen(false);
     setSelectionOpen(true);
     // Focus the header, not the first field: Q stays a pure toggle and
     // editing starts only when the user clicks an input.
@@ -5002,6 +5027,43 @@ function WorkspaceEditor({
     report: setStatus,
     onChunkLoadFailure: setChunkLoadFailure,
   });
+  function drawingDragRevision(): DrawingDragRevision {
+    return {
+      documentId: editorDocumentController.document.id,
+      revision: editorDocumentController.document.revision,
+      structureRevision: editorDocumentController.project.structureRevision,
+      sessionId: JSON.stringify([
+        recoveryWorkingCopyId,
+        editorDocumentController.projectSessionId,
+      ]),
+    };
+  }
+
+  function reorderDrawingSelection(
+    position: DrawingReorderPosition,
+    drag?: { objectIds: string[]; expected: DrawingDragRevision },
+  ): void {
+    if (drag) {
+      const current = drawingDragRevision();
+      const { expected } = drag;
+      if (
+        current.sessionId !== expected.sessionId ||
+        current.documentId !== expected.documentId ||
+        current.revision !== expected.revision ||
+        current.structureRevision !== expected.structureRevision
+      ) {
+        setStatus(
+          "The drawing changed while dragging. Drag the objects again.",
+        );
+        return;
+      }
+    }
+    const objectIds =
+      drag?.objectIds ?? selectedDrawingObjectIds(document, visualSelection);
+    if (objectIds.length)
+      transact([{ kind: "reorder_drawing_objects", objectIds, position }]);
+  }
+
   const editorCommands = useEditorCommandRouter({
     setStatus,
     selectionOpen,
@@ -5034,6 +5096,11 @@ function WorkspaceEditor({
     mirrorSelected,
     alignSelection,
     alignmentParticipantCount,
+    hasDrawingSelection:
+      selectedDrawingObjectIds(document, visualSelection).length > 0,
+    drawingEditActive: textEditing !== null || netLabelPlacement !== null,
+    reorderSelection: ({ position, drag }) =>
+      reorderDrawingSelection(position, drag),
     armVerb,
     disarmVerb,
     beginKeyboardSelectionMoveFromSelection,
@@ -5101,6 +5168,49 @@ function WorkspaceEditor({
     );
     return group.objectIds.filter((objectId) => draftingIds.has(objectId));
   }
+
+  const drawingLayerInteraction = useDrawingLayerInteraction({
+    scope: drawingLocationScope,
+    locatedInstance,
+    setLocatedInstance,
+    geometry: {
+      document,
+      resolver,
+      styleProfile,
+      logicalNets,
+      routingGeometry: documentConnectivity?.routingGeometry,
+    },
+    scene: drawingScene,
+    policy: selectionPolicy,
+    selection: visualSelection,
+    replaceSelection,
+    getInteractionKind: () => getCurrentInteractionState().kind,
+    textEditActive: textEditing !== null || netLabelPlacement !== null,
+    prepareSelection: () => {
+      setSelectedEndpoint(null);
+      setSelectedRouteSegmentIndex(null);
+      setDraftingInspectorSegment(null);
+      setArmedVerb(null);
+    },
+    frame: (point) => {
+      const grid = document.presentation.grid;
+      setViewBox(focusCameraOnPoint(point, grid, measureCanvasView()), grid);
+    },
+    wire: {
+      selectedEndpoint,
+      select: (source) => {
+        setArmedVerb(null);
+        selectEndpoint(source);
+        setStatus(`Selected ${endpointTestId(source.endpoint)}`);
+      },
+      usePin: activateWireEndpoint,
+    },
+    edit: {
+      annotation: beginAnnotationTextEditing,
+      drafting: beginDraftingTextEditing,
+      formula: beginInstanceFormulaEditing,
+    },
+  });
 
   function selectDraftingObject(id: string, additive = false): void {
     selectVisualObjects("drafting", draftingSelectionIds(id), additive);
@@ -5809,6 +5919,7 @@ function WorkspaceEditor({
       {renderCrashRequested() ? <RenderCrashProbe /> : null}
       <EditorMenuBar
         toggleHierarchyPanel={toggleHierarchyPanel}
+        toggleObjectsPanel={toggleObjectsPanel}
         identity={identity}
         projectStore={projectStore}
         nativeProjectStore={nativeProjectStore}
@@ -6235,7 +6346,29 @@ function WorkspaceEditor({
             }}
           />
         ) : null}
-        {leftPanelMode === "hierarchy" ? (
+        {leftPanelMode === "objects" ? (
+          <ObjectsLayersPanel
+            key={drawingLocationScope}
+            document={document}
+            scene={committedSceneState.scene.drawingScene}
+            resolver={resolver}
+            logicalNets={logicalNets}
+            open={visibleLibraryPanelOpen}
+            selection={visualSelection}
+            selectionPolicy={selectionPolicy}
+            commands={editorCommands}
+            revision={drawingDragRevision()}
+            endpoints={visibleEndpoints}
+            wireActive={tool === "wire"}
+            wireHasSource={wireSource !== null}
+            objectActionsEnabled={drawingLayerInteraction.objectActionsEnabled}
+            onSelect={drawingLayerInteraction.select}
+            onLocate={drawingLayerInteraction.locate}
+            onEditText={drawingLayerInteraction.editText}
+            onFormula={drawingLayerInteraction.editFormula}
+            onPin={drawingLayerInteraction.choosePin}
+          />
+        ) : leftPanelMode === "hierarchy" ? (
           <CellHierarchyTree
             key={projectSessionId}
             project={project}
@@ -7602,7 +7735,7 @@ function WorkspaceEditor({
                             annotationGrid,
                             selectedDrafting,
                             object,
-                            visualSelection.draftingIds,
+                            visualSelection,
                           ),
                         );
                       },
@@ -7891,6 +8024,11 @@ function WorkspaceEditor({
             wouldMoveIds,
             labelOwnerIds,
           }}
+          drawingLocation={{
+            scene: drawingScene,
+            locatedInstanceId: drawingLayerInteraction.locatedInstanceId,
+            selectedDraftingIds: visualSelection.draftingIds,
+          }}
           cellSymbolLayout={
             selectedCellSymbolLayout
               ? {
@@ -7935,6 +8073,7 @@ function WorkspaceEditor({
             document,
             resolver,
             routeGeometryRecords,
+            front: drawingLayerInteraction.showConnectedNetsInFront,
           }}
           wireUnderSymbol={{
             warnings: wireUnderSymbolWarnings,
@@ -8450,12 +8589,7 @@ function WorkspaceEditor({
             openSelectedComponentDefinition={openSelectedComponentDefinition}
             hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
-            drawingOrderActions={drawingOrderActions(
-              selectedDrawingObjectIds(document, visualSelection),
-              (edit) => {
-                transact([edit]);
-              },
-            )}
+            drawingOrderActions={drawingOrderActions(editorCommands)}
             coupleInductors={(() => {
               const edit = planCoupleInductors(document, selectedIds);
               if (!edit || edit.kind !== "set_inductor_coupling") return null;

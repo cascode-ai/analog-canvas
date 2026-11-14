@@ -2,6 +2,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 
 import {
   resolveEndpointConnection,
+  resolveDocumentStyleProfile,
   type Diagnostic,
   type GlobalNetTraceHop,
   type HierarchyFrame,
@@ -33,9 +34,11 @@ import {
   referencedDocumentId,
 } from "../../document/editor-session";
 import { endpointNetId } from "../wiring/route-interaction-geometry";
+import { drawingLocationPoint } from "../selection/drawing-location";
 
 type Instance = SchematicDocument["instances"][number];
-type SelectionKind = "instance" | "route" | "junction" | "annotation";
+type SelectionKind =
+  "instance" | "route" | "junction" | "annotation" | "drafting";
 type SetViewBox = (
   next: GridRect | CameraRectInput | ((current: GridRect) => CameraRectInput),
   grid?: number,
@@ -71,6 +74,7 @@ export interface EditorNavigationControllerDependencies {
   onFocusBeforeDock?: (frameAgain: () => void) => void;
   /** Whether the Properties dock is open now. */
   selectionOpen?: boolean;
+  locateInstanceOutline?: (documentId: string, instanceId: string) => void;
   openDocument: (documentId: string) => SchematicDocument | null | undefined;
   resetInteractionState: () => void;
   selectOnly: (kind: SelectionKind, ids: readonly string[]) => void;
@@ -110,6 +114,7 @@ export function createEditorNavigationController({
   onFit,
   onFocusBeforeDock,
   selectionOpen = false,
+  locateInstanceOutline,
   openDocument,
   resetInteractionState,
   selectOnly,
@@ -182,7 +187,12 @@ export function createEditorNavigationController({
   const navigateToLocator = (
     locator: ObjectLocator,
     statusMessage: string,
-    options: { keepPanel?: boolean } = {},
+    options: {
+      keepPanel?: boolean;
+      drawingTargetId?: string;
+      showInstanceOutline?: boolean;
+      focusAt?: Point;
+    } = {},
   ): void => {
     const targetDocument = project.documents.find(
       (candidate) => candidate.id === locator.documentId,
@@ -249,7 +259,11 @@ export function createEditorNavigationController({
         (item) => item.id === locator.objectId,
       );
       selectOnly("instance", [locator.objectId]);
-      if (instance?.placement) focusPoint(instance.placement.position);
+      if (instance?.placement) {
+        focusPoint(instance.placement.position);
+        if (options.showInstanceOutline)
+          locateInstanceOutline?.(opened.id, instance.id);
+      }
     } else if (locator.kind === "route") {
       const route = opened.routes.find((item) => item.id === locator.objectId);
       selectOnly("route", [locator.objectId]);
@@ -258,23 +272,30 @@ export function createEditorNavigationController({
             .get(opened.id)
             ?.routingGeometry.routes.get(route.id)?.centerline
         : undefined;
-      if (centerline?.[0]) focusPoint(centerline[0]);
+      const point = options.focusAt ?? centerline?.[0];
+      if (route && point) focusPoint(point);
     } else if (locator.kind === "junction") {
       const junction = opened.junctions.find(
         (item) => item.id === locator.objectId,
       );
       selectOnly("junction", [locator.objectId]);
       if (junction) focusPoint(junction.position);
-    } else if (locator.kind === "annotation") {
-      const annotation = opened.annotations.find(
-        (item) => item.id === locator.objectId,
-      );
-      selectOnly("annotation", [locator.objectId]);
-      const position =
-        annotation?.anchor.kind === "free"
-          ? annotation.anchor.position
-          : annotation?.anchor.fallbackPosition;
-      if (position) focusPoint(position);
+    } else if (locator.kind === "annotation" || options.drawingTargetId) {
+      const entry = options.drawingTargetId
+        ? ({ kind: "drafting", id: options.drawingTargetId } as const)
+        : ({ kind: "annotation", id: locator.objectId } as const);
+      const resolved = connectivityIndex.documents.get(opened.id);
+      const point = drawingLocationPoint(entry, {
+        document: opened,
+        resolver,
+        styleProfile: resolveDocumentStyleProfile(opened.presentation),
+        routingGeometry: resolved?.routingGeometry,
+        logicalNets: resolved?.logicalNetResolution,
+      });
+      if (point) {
+        selectOnly(entry.kind, [entry.id]);
+        focusPoint(point);
+      }
     } else if (locator.kind === "net") {
       // Store the same resolved path that the document stack was set to:
       // diagnostics carry an empty locator path, and a mismatched origin
@@ -436,9 +457,20 @@ export function createEditorNavigationController({
   };
 
   const jumpToProjectDiagnostic = (diagnostic: Diagnostic): void => {
+    const { drawingTargetId } = diagnostic.parameters;
+    const occlusion = diagnostic.code === "VISUAL_DRAWING_OCCLUSION";
     navigateToLocator(
       diagnostic.primary,
       `${diagnostic.domain.toUpperCase()} ${diagnostic.code}: ${diagnostic.message}`,
+      diagnostic.domain === "visual"
+        ? {
+            ...(typeof drawingTargetId === "string" ? { drawingTargetId } : {}),
+            showInstanceOutline: occlusion,
+            ...(occlusion && diagnostic.point
+              ? { focusAt: diagnostic.point }
+              : {}),
+          }
+        : undefined,
     );
   };
 

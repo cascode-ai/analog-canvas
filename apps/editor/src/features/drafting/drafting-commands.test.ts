@@ -124,6 +124,20 @@ describe("drafting commands", () => {
       lineStyle: "solid",
     };
     document.drafting = { objects: [backgroundPeer, shape] };
+    document.instances = [
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 200, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    ];
+    document.layoutGroups = [
+      { id: "layout", kind: "custom", objectIds: ["box", "R1"], locked: false },
+    ];
     const commands = createDraftingCommands({
       document,
       annotationGrid: 1,
@@ -153,15 +167,15 @@ describe("drafting commands", () => {
     });
 
     commands.setDraftingStacking("back");
-    expect(resolveDrawingOrder(document)[0]).toEqual({
-      kind: "drafting",
-      id: "box",
-    });
+    expect(resolveDrawingOrder(document).slice(0, 2)).toEqual([
+      { kind: "instance", id: "R1" },
+      { kind: "drafting", id: "box" },
+    ]);
     expect(document.drafting?.objects).toEqual([backgroundPeer, shape]);
     commands.setDraftingStacking("front");
-    expect(resolveDrawingOrder(document).at(-1)).toEqual({
-      kind: "drafting",
-      id: "box",
-    });
+    expect(resolveDrawingOrder(document).slice(-2)).toEqual([
+      { kind: "instance", id: "R1" },
+      { kind: "drafting", id: "box" },
+    ]);
   });
 });

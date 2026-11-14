@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createEmptyProject, createRoutePath } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
+import { onScreen, placedInstance } from "./canvas-fixtures.js";
 
 import {
   clickNetlistWorkflowCommand,
@@ -141,4 +143,258 @@ test("accepts free angles and optionally straightens them in one undoable action
   await expect(route).toHaveAttribute("points", "200,200 260,200 260,230");
   await page.keyboard.press("Control+z");
   await expect(route).toHaveAttribute("points", "200,200 260,230");
+});
+
+test("visual observations locate the rear object while ERC findings stay independent", async ({
+  page,
+}) => {
+  const project = createEmptyProject("drawing-review", "Drawing review");
+  const document = project.documents[0]!;
+  document.instances.push(
+    { ...placedInstance("ADC1", "adc", 200, 200), reference: "ADC1" },
+    {
+      ...placedInstance("ADC2", "adc", 220, 210),
+      reference: "ADC2",
+      bodyFill: { kind: "background" },
+    },
+    { ...placedInstance("R1", "resistor", 440, 310), reference: "R1" },
+  );
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 401, json: { error: "unauthorized" } }),
+  );
+  await openProject(
+    page,
+    serializeProject(project),
+    "drawing-review.icproj.json",
+  );
+  const issues = page.getByTestId("project-diagnostics");
+  async function checkAndReadErc() {
+    await clickNetlistWorkflowCommand(page, "check-and-save");
+    await page
+      .getByTestId("save-sign-in-dialog")
+      .getByRole("button", { name: "Not now", exact: true })
+      .click();
+    await expect(issues).toContainText("ERC_UNCONNECTED_PIN");
+    const toggle = page.getByTestId("diagnostic-observations-toggle");
+    if (
+      (await toggle.count()) &&
+      (await toggle.getAttribute("aria-pressed")) !== "true"
+    )
+      await toggle.click();
+    return issues.locator('[data-domain="erc"]').allTextContents();
+  }
+  const ercBefore = await checkAndReadErc();
+  const finding = issues.getByRole("button", {
+    name: /ADC2 covers part of ADC1/u,
+  });
+  await expect(finding).toBeVisible();
+  await finding.click();
+  await expect(page.getByTestId("hit-ADC1")).toHaveClass(/selected/u);
+  await expect(
+    page
+      .getByTestId("layer-location-outlines")
+      .locator('[data-object-id="ADC1"]'),
+  ).toBeVisible();
+  await page.keyboard.press("Alt+Shift+Home");
+  await expect(page.getByTestId("statusbar-issues")).toContainText(
+    /out of date|stale/iu,
+  );
+  expect(await checkAndReadErc()).toEqual(ercBefore);
+  await expect(finding).toHaveCount(0);
+  await expect(issues).toContainText(/ADC1.*in front of.*ADC2/u);
+});
+
+test("selects rear drawing text from an overlap and outlines a covered locked shape", async ({
+  page,
+}) => {
+  const project = createEmptyProject("rear-drawing", "Rear drawing targets");
+  const document = project.documents[0]!;
+  const textAnchor = { kind: "free" as const, position: { x: 180, y: 160 } };
+  document.annotations.push({
+    id: "front-label",
+    kind: "instance-label",
+    content: { runs: [{ kind: "text", value: "Front label" }] },
+    anchor: textAnchor,
+    alignment: "middle",
+    rotation: 0,
+    locked: false,
+  });
+  const center = { x: 310, y: 260 };
+  document.drafting = {
+    objects: [
+      {
+        id: "rear-note",
+        kind: "text",
+        content: { runs: [{ kind: "text", value: "Rear note" }] },
+        alignment: "middle",
+        rotation: 0,
+        anchor: textAnchor,
+        zIndex: 0,
+        locked: false,
+      },
+      {
+        id: "rear-circle",
+        kind: "circle",
+        center,
+        radius: 10,
+        anchor: { kind: "free", position: center },
+        lineStyle: "solid",
+        zIndex: 1,
+        layer: "background",
+        locked: true,
+      },
+      {
+        id: "foreground-cover",
+        kind: "rectangle",
+        center,
+        width: 60,
+        height: 40,
+        rotation: 0,
+        anchor: { kind: "free", position: center },
+        lineStyle: "solid",
+        zIndex: 2,
+        layer: "foreground",
+        locked: false,
+        styleOverride: { fillColor: "#e2d4ad" },
+      },
+      {
+        id: "partial-cover",
+        kind: "rectangle",
+        center: { x: 200, y: 179 },
+        width: 10,
+        height: 8,
+        rotation: 0,
+        anchor: { kind: "free", position: { x: 200, y: 179 } },
+        zIndex: 3,
+        layer: "foreground",
+        locked: false,
+        lineStyle: "solid",
+        styleOverride: { fillColor: "#e2d4ad" },
+      },
+    ],
+  };
+  document.instances = [
+    { ...placedInstance("ADC1", "adc", 200, 200), reference: "ADC1" },
+  ];
+  document.drawingOrder = [
+    { kind: "drafting", id: "rear-note" },
+    { kind: "drafting", id: "rear-circle" },
+    { kind: "electrical" },
+    { kind: "instance", id: "ADC1" },
+    { kind: "circuit-marks" },
+    { kind: "annotation", id: "front-label" },
+    { kind: "drafting", id: "foreground-cover" },
+    { kind: "drafting", id: "partial-cover" },
+  ];
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 401, json: { error: "unauthorized" } }),
+  );
+  await openProject(
+    page,
+    serializeProject(project),
+    "rear-drawing.icproj.json",
+  );
+  await clickNetlistWorkflowCommand(page, "check-and-save");
+  await page
+    .getByTestId("save-sign-in-dialog")
+    .getByRole("button", { name: "Not now", exact: true })
+    .click();
+  await page.getByTestId("diagnostic-observations-toggle").click();
+  const issues = page.getByTestId("project-diagnostics");
+  await issues
+    .getByRole("button", {
+      name: /rectangle partial-cover covers part of ADC1/u,
+    })
+    .click();
+  await expect(
+    page
+      .getByTestId("layer-location-outlines")
+      .locator('[data-object-id="ADC1"]'),
+  ).toBeVisible();
+  await issues
+    .getByRole("button", { name: /Front label is in front of Rear note/u })
+    .click();
+  await expect(page.getByTestId("drafting-hit-rear-note")).toHaveClass(
+    /selected/u,
+  );
+  await issues
+    .getByRole("button", {
+      name: /rectangle foreground-cover covers part of circle rear-circle/u,
+    })
+    .click();
+  await expect(
+    page
+      .getByTestId("layer-location-outlines")
+      .locator('[data-drafting-id="rear-circle"]'),
+  ).toBeVisible();
+});
+
+test("a wire coverage finding frames the covered interval", async ({
+  page,
+}) => {
+  const project = createEmptyProject("wire-coverage", "Wire coverage");
+  const document = project.documents[0]!;
+  const center = { x: 1240, y: 120 };
+  document.drafting = {
+    objects: [
+      {
+        id: "cover",
+        kind: "rectangle",
+        center,
+        width: 20,
+        height: 40,
+        rotation: 0,
+        anchor: { kind: "free", position: center },
+        zIndex: 0,
+        layer: "foreground",
+        locked: false,
+        lineStyle: "solid",
+        styleOverride: { fillColor: "#e2d4ad" },
+      },
+    ],
+  };
+  document.nets = [{ id: "net", terminals: [] }];
+  document.junctions = [
+    { id: "start", netId: "net", position: { x: 0, y: center.y } },
+    { id: "end", netId: "net", position: { x: 1600, y: center.y } },
+  ];
+  document.routes = [
+    createRoutePath({
+      id: "wire",
+      netId: "net",
+      start: { kind: "junction", junctionId: "start" },
+      end: { kind: "junction", junctionId: "end" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  ];
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 401, json: { error: "unauthorized" } }),
+  );
+  await openProject(
+    page,
+    serializeProject(project),
+    "wire-coverage.icproj.json",
+  );
+  await clickNetlistWorkflowCommand(page, "check-and-save");
+  await page
+    .getByTestId("save-sign-in-dialog")
+    .getByRole("button", { name: "Not now", exact: true })
+    .click();
+  await page.getByTestId("diagnostic-observations-toggle").click();
+  await page
+    .getByTestId("project-diagnostics")
+    .getByRole("button", { name: /rectangle cover covers part of route wire/u })
+    .click();
+  const canvas = page.getByTestId("schematic-canvas");
+  const hit = canvas.getByTestId("route-hit-wire");
+  await expect(hit).toHaveClass(/selected/u);
+  const bounds = await canvas.boundingBox();
+  if (!bounds) throw new Error("Schematic canvas is not visible");
+  await expect
+    .poll(async () => {
+      const [screen] = await onScreen(canvas, [center] as const);
+      return Math.abs(screen.x - (bounds.x + bounds.width / 2));
+    })
+    .toBeLessThan(bounds.width / 3);
 });
