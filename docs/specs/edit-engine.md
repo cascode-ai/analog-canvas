@@ -183,8 +183,8 @@ with no live link). Cell/caller summaries belong to `@icm/derived`.
 [EditorDocumentController](../../apps/editor/src/document/document-controller.ts)
 keeps one chronological history per open Project working copy (Document and
 structural commits, ≤ 64 entries per stack). GUI Undo follows commit order
-across Cells; Agent Undo cannot skip a newer entry for another Cell (the
-rejection names it) and structural Agent Undo checks
+across Cells; Agent Undo does too, whichever Cell it names, and answers for
+the Cell the entry changed. Structural Agent Undo checks
 `expectedStructureRevision`. Whole-Project replacement starts a new history;
 Cell or tab switches do not. Restores create new increasing revisions and
 restore model definitions; a new commit clears redo, rejected, dry-run and

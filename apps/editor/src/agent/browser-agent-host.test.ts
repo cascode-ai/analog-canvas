@@ -191,6 +191,67 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
     expect(controller.canUndo).toBe(false);
   });
 
+  it("undoes the newest Project change whichever Cell the Agent names (#2292)", () => {
+    const project = createEmptyProject("agent-session", "Agent Session");
+    const top = project.documents[0]!;
+    project.documents.push({
+      ...structuredClone(top),
+      id: "document-opamp",
+      name: "opamp",
+      netlist: { name: "opamp", terminals: [], formalParameters: [] },
+    });
+    const controller = new EditorDocumentController(project);
+    const host = new BrowserAgentHost(controller, () => {});
+    const service = createAgentCircuitService({
+      agentId: "codex",
+      host,
+      permissions: allPermissions,
+    });
+    let calls = 0;
+    const transact = (
+      documentId: string,
+      edits: Parameters<typeof controller.transact>[0],
+    ) =>
+      service.handle({
+        apiVersion: "3.0",
+        requestId: `r-${++calls}`,
+        operation: "transact",
+        documentId,
+        transactionId: `tx-${calls}`,
+        expectedRevision: controller.project.documents.find(
+          (item) => item.id === documentId,
+        )!.revision,
+        expectedStructureRevision: controller.project.structureRevision,
+        edits: [...edits],
+      });
+
+    expect(
+      transact("document-opamp", [
+        { kind: "add_instance", instance: instance("Rchild") },
+      ]).ok,
+    ).toBe(true);
+    const undo = transact(top.id, [{ kind: "undo" }]);
+    expect(undo).toMatchObject({
+      ok: true,
+      applied: true,
+      diff: { documentId: "document-opamp", editKinds: ["undo"] },
+    });
+    expect(
+      controller.project.documents.find((item) => item.id === "document-opamp")!
+        .instances,
+    ).toEqual([]);
+    const redo = transact(top.id, [{ kind: "redo" }]);
+    expect(redo).toMatchObject({
+      ok: true,
+      applied: true,
+      diff: { documentId: "document-opamp", editKinds: ["redo"] },
+    });
+    expect(
+      controller.project.documents.find((item) => item.id === "document-opamp")!
+        .instances,
+    ).toEqual([instance("Rchild")]);
+  });
+
   it("routes scoped semantic control to the browser without changing history", () => {
     const { controller, service, committed, semanticRequests } = setup();
     const documentId = controller.activeDocumentId;

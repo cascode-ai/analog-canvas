@@ -96,8 +96,9 @@ Simulation tools take arguments flat (`{action, …}`) or in `request`. `detail`
 - `disconnect` on a pin is the GUI's Delete connection where wires end on it,
   else Disconnect endpoint.
 - `undo`/`redo` share the Editor's one chronological Project history, not an
-  Agent or per-Cell stack; they cannot skip newer work on another Cell (the
-  rejection names it). Structural history needs the current
+  Agent or per-Cell stack: like Ctrl+Z they take back the newest Project change
+  whichever `documentId` is given, and the receipt's `diff.documentId` and
+  `revision` name the Cell they changed. Structural history needs the current
   `expectedStructureRevision` (the client supplies it). Choose a `reset-cell`
   mode deliberately; routine layout uses move/transform/align.
 - Colors use `set_instance_style_override`, `set_route_style_override`,
