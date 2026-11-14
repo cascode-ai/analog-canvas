@@ -420,3 +420,43 @@ it.each([
     expect(network).not.toHaveBeenCalled();
   },
 );
+
+it("carries session credentials and upgrade headers only to the fixed Agent peer", async () => {
+  const path =
+    "/api/agent/region/12345678_caca0002-1111-8111-8111-111111111111/editor";
+  const network = vi.fn(async (request) => {
+    expect(request.headers.get("upgrade")).toBe("websocket");
+    expect(request.headers.get("sec-websocket-protocol")).toBe("editor-proof");
+    expect(request.headers.get("x-canvas-agent-peer")).toBe("peer-proof");
+    return new Response(null, { status: 426 });
+  });
+  vi.stubGlobal("fetch", network);
+  const headers = {
+    upgrade: "websocket",
+    "sec-websocket-protocol": "editor-proof",
+    "x-canvas-agent-peer": "peer-proof",
+  };
+  expect(
+    (await egress.fetch(new Request(env.PEER_ORIGIN + path, { headers }), env))
+      .status,
+  ).toBe(426);
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://other.test" + path, { headers }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await egress.fetch(
+        new Request(env.PEER_ORIGIN + path.replace("/editor", "/create"), {
+          headers,
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+  expect(network).toHaveBeenCalledTimes(1);
+});

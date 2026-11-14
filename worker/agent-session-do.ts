@@ -1,4 +1,8 @@
 import {
+  regionalAgentNamespace,
+  regionalDeviceDirectory,
+} from "./agent-regional-routing";
+import {
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
   AGENT_SESSION_PROTOCOL_VERSION,
   AgentAdapterVersionSchema,
@@ -161,7 +165,11 @@ export class AgentSessionDO {
       env.SIMULATION_ARTIFACTS,
     );
     this.deviceDirectory = new AgentDeviceTrustDirectory(state.storage);
-    this.devices = new DeviceTrustClient(env.AGENT_SESSION);
+    this.devices = new DeviceTrustClient(
+      env.AGENT_SESSION
+        ? regionalAgentNamespace(env.AGENT_SESSION, env)
+        : undefined,
+    );
     this.ready = this.initialize();
     this.state.blockConcurrencyWhile?.(() => this.ready);
   }
@@ -247,6 +255,15 @@ export class AgentSessionDO {
     if (request.method === "POST" && url.pathname === "/create") {
       return this.create(request, allowedOrigin);
     }
+    if (request.method === "GET" && url.pathname === "/region-presence")
+      return new Response(null, {
+        status:
+          (await this.loadMachine()) ||
+          this.replacedUntil > Date.now() ||
+          this.deviceRevokedUntil > Date.now()
+            ? 204
+            : 404,
+      });
     if (this.replacedUntil > Date.now()) {
       return jsonResponse(
         errorBody("PROJECT_REPLACED", errorMessage("PROJECT_REPLACED")),
@@ -275,7 +292,8 @@ export class AgentSessionDO {
       const current = this.deviceTrust;
       if (
         current &&
-        current.directory === revoked.directory &&
+        regionalDeviceDirectory(current.directory, this.env) ===
+          regionalDeviceDirectory(revoked.directory, this.env) &&
         current.deviceId === revoked.deviceId &&
         current.trustId === revoked.trustId
       )

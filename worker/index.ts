@@ -1,3 +1,4 @@
+import { routeAgentRegion } from "./agent-regional-routing";
 import { ACCOUNT_DELETION_TICK } from "./account-deletions";
 import {
   routeTopologyTaskRequest,
@@ -178,6 +179,10 @@ async function route(request: Request, env: Env): Promise<Response> {
   const hostRedirect = routeArenaHosts(request);
   if (hostRedirect) return hostRedirect;
 
+  // Authenticate the fixed peer before the per-client flood limiter: all
+  // remote sessions otherwise share one server IP. Session limits still apply.
+  const agentPeer = await routeAgentRegion(request, env);
+  if (agentPeer) return agentPeer;
   const flood = await refuseApiFlood(request, env);
   if (flood) return flood;
 

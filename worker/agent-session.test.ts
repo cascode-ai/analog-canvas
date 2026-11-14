@@ -52,6 +52,7 @@ import {
   relayHeaders,
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
+  type AgentSessionRouterEnv,
 } from "./agent-session";
 import { AgentDeviceTrustDirectory } from "./agent-device-trust";
 import { purgeTrustedDevices } from "./agent-device-directory";
@@ -456,7 +457,10 @@ class MemoryStorage {
   }
 }
 
-function routedFixture(dropDeviceRevocation?: (sessionId: string) => boolean) {
+function routedFixture(
+  dropDeviceRevocation?: (sessionId: string) => boolean,
+  regional: Partial<AgentSessionRouterEnv> = {},
+) {
   const objects = new Map<string, AgentSessionDO>();
   const storages = new Map<string, MemoryStorage>();
   const sockets = new Map<string, WebSocket[]>();
@@ -469,6 +473,7 @@ function routedFixture(dropDeviceRevocation?: (sessionId: string) => boolean) {
         object = new AgentSessionDO(
           { storage, getWebSockets: () => sockets.get(name) ?? [] },
           {
+            ...regional,
             AGENT_ALLOWED_ORIGIN: "https://editor.example",
             AGENT_SESSION: namespace,
           },
@@ -490,6 +495,7 @@ function routedFixture(dropDeviceRevocation?: (sessionId: string) => boolean) {
   };
   return {
     env: {
+      ...regional,
       AGENT_SESSION: namespace,
       AGENT_ALLOWED_ORIGIN: "https://editor.example",
     },
@@ -498,6 +504,353 @@ function routedFixture(dropDeviceRevocation?: (sessionId: string) => boolean) {
     sockets,
   };
 }
+
+async function withRegions(
+  run: (context: {
+    cn: ReturnType<typeof routedFixture>;
+    overseas: ReturnType<typeof routedFixture>;
+    send: (
+      env: AgentSessionRouterEnv,
+      path: string,
+      body: unknown,
+    ) => Promise<Response>;
+  }) => Promise<void>,
+) {
+  const cn = routedFixture(undefined, {
+    RESOURCE_REGION: "cn",
+    RESOURCE_ACTION_PEER: "https://overseas.example",
+    RESOURCE_SYNC_TOKEN: "cn-peer-secret",
+    RESOURCE_SYNC_PEER_TOKEN: "overseas-peer-secret",
+  });
+  const overseas = routedFixture(undefined, {
+    RESOURCE_REGION: "overseas",
+    RESOURCE_ACTION_PEER: "https://cn.example",
+    RESOURCE_SYNC_TOKEN: "overseas-peer-secret",
+    RESOURCE_SYNC_PEER_TOKEN: "cn-peer-secret",
+  });
+  const send = async (
+    env: AgentSessionRouterEnv,
+    path: string,
+    body: unknown,
+  ) =>
+    (await routeAgentSessionRequest(
+      new Request("https://editor.example" + path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      env,
+    ))!;
+  const peer = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (input, init) => {
+      const req = new Request(input, init);
+      const env =
+        new URL(req.url).hostname === "cn.example" ? cn.env : overseas.env;
+      return (await routeAgentSessionRequest(req, env))!;
+    });
+  try {
+    await run({ cn, overseas, send });
+  } finally {
+    peer.mockRestore();
+  }
+}
+
+it("redeems a Claim and resumes its connector through the other region", async () => {
+  await withRegions(async ({ cn, overseas, send }) => {
+    const created = await send(cn.env, "/api/agent/sessions", {
+      projectId: "project",
+      projectSessionId: "workspace",
+      documentIds: ["main"],
+      scopes: ["circuit.snapshot"],
+    });
+    const { session } = await created.json();
+    // The installed MCP launch parser accepts site_UUID, without a package update.
+    expect(session.sessionId).toMatch(/^[a-f0-9]{8}_[a-f0-9-]{36}$/u);
+    const detached = await send(overseas.env, "/api/agent/sessions", {
+      projectId: BROWSER_LAUNCH_PENDING_PROJECT,
+      projectSessionId: "browser-task",
+      browserLaunch: true,
+      documentIds: [],
+      scopes: ["circuit.snapshot"],
+    });
+    const launch = (await detached.json()).session;
+    expect(
+      (await send(cn.env, "/api/agent/claims", { claimCode: launch.claimCode }))
+        .status,
+    ).toBe(200);
+    const approval = await routeAgentSessionRequest(
+      new Request("https://editor.example" + BROWSER_LAUNCH_PATH, {
+        method: "POST",
+        headers: {
+          origin: "https://editor.example",
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "same-origin",
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          sessionId: launch.sessionId,
+          grant: launch.launchGrant,
+        }),
+      }),
+      cn.env,
+    );
+    expect(approval?.status).toBe(200);
+    const claim = await send(overseas.env, "/api/agent/claims", {
+      claimCode: session.claimCode,
+    });
+    expect(claim.status).toBe(200);
+    const credential = await claim.json();
+    const resumed = await send(overseas.env, "/api/agent/connectors/resume", {
+      sessionId: session.sessionId,
+      connectorToken: credential.connectorToken,
+    });
+    expect(resumed.status).toBe(200);
+    const { agentToken } = await resumed.json();
+    const status = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${session.sessionId}/status`,
+        { headers: { authorization: `Bearer ${agentToken}` } },
+      ),
+      overseas.env,
+    );
+    expect(status?.status).toBe(200);
+    expect(await status!.json()).toMatchObject({
+      authorization: "active",
+      editor: "detached",
+    });
+    const browser = editorEnd(editorFor("project", "main"), () =>
+      cn.objects.get(session.sessionId)!,
+    );
+    cn.sockets.set(session.sessionId, [browser.socket]);
+    const snapshot = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${session.sessionId}/circuit`,
+        {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${agentToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            apiVersion: "3.0",
+            requestId: "regional-snapshot",
+            operation: "snapshot",
+            documentId: "main",
+          }),
+        },
+      ),
+      overseas.env,
+    );
+    expect(snapshot?.status).toBe(200);
+    expect(await snapshot!.json()).toMatchObject({
+      ok: true,
+      operation: "snapshot",
+    });
+    expect(browser.families).toEqual(["circuit"]);
+  });
+});
+
+it("finds a legacy session without replaying a failed mutation in either region", async () => {
+  await withRegions(async ({ cn, overseas, send }) => {
+    const legacyEnv = { ...cn.env };
+    delete legacyEnv.RESOURCE_REGION;
+    const created = await send(legacyEnv, "/api/agent/sessions", {
+      projectId: "legacy",
+      projectSessionId: "legacy-workspace",
+      documentIds: ["main"],
+      scopes: ["circuit.snapshot"],
+    });
+    const { session } = await created.json();
+    const claimed = await send(overseas.env, "/api/agent/claims", {
+      claimCode: session.claimCode,
+    });
+    expect(claimed.status).toBe(200);
+    const { agentToken } = await claimed.json();
+    const call = (env: AgentSessionRouterEnv, method: string, token: string) =>
+      routeAgentSessionRequest(
+        new Request(
+          `https://editor.example/api/agent/sessions/${session.sessionId}`,
+          { method, headers: { authorization: `Bearer ${token}` } },
+        ),
+        env,
+      );
+    expect((await call(overseas.env, "DELETE", "forged"))?.status).toBe(401);
+    const transport = vi.mocked(globalThis.fetch).getMockImplementation()!;
+    let deliveries = 0;
+    const drop = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        deliveries++;
+        await transport(input, init);
+        throw new Error("reply lost after owner committed");
+      });
+    try {
+      const result = await call(overseas.env, "DELETE", agentToken);
+      expect(result?.status).toBe(503);
+      expect(await result!.json()).toMatchObject({
+        error: { code: "REQUEST_TIMEOUT" },
+      });
+      expect(deliveries).toBe(1);
+    } finally {
+      drop.mockImplementation(transport);
+    }
+    const status = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${session.sessionId}/status`,
+        { headers: { authorization: `Bearer ${agentToken}` } },
+      ),
+      cn.env,
+    );
+    expect(await status!.json()).toMatchObject({
+      error: { code: "SESSION_REVOKED" },
+    });
+  });
+});
+
+it("keeps cross-region device approval revocable in the approving account's directory", async () => {
+  await withRegions(async ({ cn, overseas, send }) => {
+    const auth = {
+      getByName: () => ({
+        fetch: async () => Response.json({ user: { id: "owner" } }),
+      }),
+    };
+    cn.env.AUTH = auth;
+    const created = await send(overseas.env, "/api/agent/sessions", {
+      projectId: BROWSER_LAUNCH_PENDING_PROJECT,
+      projectSessionId: "trust-task",
+      browserLaunch: true,
+      documentIds: [],
+      scopes: AgentSessionScopeSchema.options,
+    });
+    const { session } = await created.json();
+    const claimed = await send(cn.env, "/api/agent/claims", {
+      claimCode: session.claimCode,
+    });
+    const { agentToken } = await claimed.json();
+    const key = generateKeyPairSync("ed25519");
+    const proof = sign(
+      null,
+      Buffer.from(
+        browserLaunchProofText(
+          "https://editor.example",
+          session.sessionId,
+          session.launchGrant,
+        ),
+      ),
+      key.privateKey,
+    );
+    const approval = await routeAgentSessionRequest(
+      new Request("https://editor.example" + BROWSER_LAUNCH_PATH, {
+        method: "POST",
+        headers: {
+          origin: "https://editor.example",
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "same-origin",
+          cookie: "icm_session=a",
+        },
+        body: new URLSearchParams({
+          sessionId: session.sessionId,
+          grant: session.launchGrant,
+          approval: "trust",
+          deviceKey: key.publicKey.export({ format: "jwk" }).x!,
+          deviceProof: proof.toString("base64url"),
+          deviceName: "regional-test",
+        }),
+      }),
+      cn.env,
+    );
+    expect(approval?.status).toBe(200);
+    expect(await approval!.json()).toMatchObject({ localReviewOnly: true });
+    const listed = await routeAgentSessionRequest(
+      new Request("https://editor.example" + DEVICE_TRUST_PATH, {
+        headers: { cookie: "icm_session=a" },
+      }),
+      cn.env,
+    );
+    const { devices } = await listed!.json();
+    expect(devices).toHaveLength(1);
+    const revoked = await routeAgentSessionRequest(
+      new Request(
+        "https://editor.example" + DEVICE_TRUST_PATH + "/" + devices[0].id,
+        {
+          method: "DELETE",
+          headers: {
+            origin: "https://editor.example",
+            "sec-fetch-site": "same-origin",
+            cookie: "icm_session=a",
+          },
+        },
+      ),
+      cn.env,
+    );
+    expect(revoked?.status).toBe(204);
+    const status = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${session.sessionId}/status`,
+        {
+          headers: { authorization: `Bearer ${agentToken}` },
+        },
+      ),
+      overseas.env,
+    );
+    expect(await status!.json()).toMatchObject({
+      error: { code: "SESSION_REVOKED" },
+    });
+  });
+});
+
+it("rejects unauthenticated peer RPC, wrong-owner forwarding and foreign-site Claims", async () => {
+  await withRegions(async ({ cn, overseas, send }) => {
+    const created = await send(cn.env, "/api/agent/sessions", {
+      projectId: "guard",
+      projectSessionId: "guard-task",
+      documentIds: ["main"],
+      scopes: ["circuit.snapshot"],
+    });
+    const { session } = await created.json();
+    const path = `/api/agent/region/${session.sessionId}/status`;
+    const denied = await routeAgentSessionRequest(
+      new Request("https://cn.example" + path),
+      cn.env,
+    );
+    expect(denied?.status).toBe(403);
+    const wrong = await routeAgentSessionRequest(
+      new Request("https://overseas.example" + path, {
+        headers: { "x-canvas-agent-peer": "overseas-peer-secret" },
+      }),
+      overseas.env,
+    );
+    expect(wrong?.status).toBe(503);
+    const invalid = await routeAgentSessionRequest(
+      new Request(
+        `https://cn.example/api/agent/region/${session.sessionId}/create`,
+        {
+          method: "POST",
+          headers: { "x-canvas-agent-peer": "cn-peer-secret" },
+          body: "{}",
+        },
+      ),
+      cn.env,
+    );
+    expect(invalid?.status).toBe(404);
+    const foreign = await routeAgentSessionRequest(
+      new Request("https://another.example/api/agent/claims", {
+        method: "POST",
+        body: JSON.stringify({ claimCode: session.claimCode }),
+      }),
+      overseas.env,
+    );
+    expect(foreign?.status).toBe(421);
+    const missing = await send(overseas.env, "/api/agent/claims", {
+      claimCode: "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa.missing",
+    });
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toMatchObject({
+      error: { code: "SESSION_NOT_FOUND" },
+    });
+  });
+});
 
 it("trusts a proven installation for one account and origin, then revokes its active tasks", async () => {
   const origin = "https://editor.example";

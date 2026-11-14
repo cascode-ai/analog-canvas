@@ -107,6 +107,25 @@ GET  /api/agent/openapi.json
   catalog) with no Project data, secrets or mutation, outside the Circuit
   OpenAPI; fetched only when a human hands over setup, before redeeming.
 
+## Regional ownership
+
+- Behind one geographically routed origin, each session belongs to its creating
+  region. IDs retain the installed MCP's `site_UUID` shape: UUIDv8 markers
+  `caca0001` and `caca0002` identify China and overseas respectively; the rest
+  remains random. Existing UUIDv4 IDs and local deployments keep their behavior.
+- Claim, connector, launch approval, control, resource operations, WebSocket,
+  SSE and artifact requests reach that same session through either entrance.
+  The relay forwards once over the fixed authenticated HTTPS peer, preserving
+  session credentials and scopes. Peer endpoints never forward again.
+- Old IDs resolve local presence without executing the requested operation,
+  then use the peer only when absent. An unreachable owner is a retryable
+  transport failure, not a missing session. An uncertain write is never replayed
+  in another region, and live state is neither copied nor recreated there.
+- Device trust directories remain regional. Approval records its directory's
+  region so a session elsewhere checks that same trust; device revocation and
+  account deletion reach its owned sessions. Existing directories keep their
+  storage keys and existing grants remain subject to their original scope.
+
 ## Credentials
 
 - Claim redeemable 30 minutes; bearer ≤ 8 hours, never persisted; session and
