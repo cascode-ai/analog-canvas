@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { planProjectCellImport } from "./project-cell-import.js";
 import { executeProjectTransaction } from "./project-transaction.js";
+import { executeTransaction } from "./transaction.js";
 
 function importProject(
   destination: CircuitProject,
@@ -198,6 +199,114 @@ describe("cross-Project Cell import", () => {
     expect(
       planProjectCellImport(conflictDestination, source, source.topDocumentId),
     ).toMatchObject({ ok: false, code: "EXTERNAL_DEFINITION_CONFLICT" });
+  });
+
+  it("keeps a supply-rail Pin and controlled-source references on their imported owners", () => {
+    const destination = createEmptyProject("destination", "Destination");
+    const source = createEmptyProject("source", "Source", "source-top");
+    const railed = executeTransaction(createEmptyDocument("bias", "Bias"), {
+      transactionId: "add-rail",
+      documentId: "bias",
+      expectedRevision: 0,
+      actor: { kind: "human", id: "test" },
+      edits: [
+        {
+          kind: "add_power_rail",
+          netId: "rail-net",
+          routeId: "rail-route",
+          startJunctionId: "rail-start",
+          endJunctionId: "rail-end",
+          labelId: "rail-label",
+          netName: "VDD",
+          scope: "local",
+          powerDomain: "vdd",
+          start: { x: 0, y: 0 },
+          end: { x: 100, y: 0 },
+        },
+      ],
+    });
+    expect(railed.ok).toBe(true);
+    if (!railed.ok) return;
+    const child = railed.document;
+    child.nets.push({ id: "sense-net", terminals: [] });
+    child.instances.push(
+      {
+        id: "v-sense",
+        symbolId: "voltage-source",
+        placement: null,
+        reference: "V1",
+        netlist: { parameters: { dc: "0" } },
+      },
+      {
+        id: "e-gain",
+        symbolId: "vcvs",
+        placement: null,
+        reference: "E1",
+        netlist: {
+          parameters: { gain: "2" },
+          control: {
+            kind: "voltage",
+            positiveNetId: "rail-net",
+            negativeNetId: "sense-net",
+          },
+        },
+      },
+      {
+        id: "f-mirror",
+        symbolId: "cccs",
+        placement: null,
+        reference: "F1",
+        netlist: {
+          parameters: { gain: "1" },
+          control: { kind: "current", sensorInstanceId: "v-sense" },
+        },
+      },
+    );
+    source.documents.push(child);
+    source.documents[0]!.instances.push({
+      id: "source-x1",
+      symbolId: hierarchicalSymbolId(child.netlist!.name),
+      placement: null,
+      reference: "X1",
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+      },
+    });
+
+    const { plan, project } = importProject(
+      destination,
+      source,
+      source.topDocumentId,
+    );
+    const imported = project.documents.find(
+      (document) => document.id === plan.documentIds[child.id],
+    )!;
+    const [terminal] = imported.netlist!.terminals;
+    const label = imported.annotations.find(
+      (annotation) => annotation.id === terminal!.interfaceAnnotationId,
+    );
+    expect(label).toMatchObject({
+      kind: "power-label",
+      netId: terminal!.netId,
+    });
+    expect(label!.id).not.toBe("rail-label");
+    const instance = (reference: string) =>
+      imported.instances.find(
+        (candidate) => candidate.reference === reference,
+      )!;
+    const netIds = imported.nets.map((net) => net.id);
+    const voltage = instance("E1").netlist!.control;
+    expect(
+      voltage?.kind === "voltage" &&
+        [voltage.positiveNetId, voltage.negativeNetId].every((id) =>
+          netIds.includes(id!),
+        ),
+    ).toBe(true);
+    expect(instance("F1").netlist!.control).toEqual({
+      kind: "current",
+      sensorInstanceId: instance("V1").id,
+    });
   });
 
   it("rejects an incompatible symbol-library lock before any mutation", () => {
