@@ -30,11 +30,12 @@ const catalog = (packages = records) =>
 it("rejects a changed catalog lock before downloading package bytes", async () => {
   const request = vi
     .fn()
-    .mockResolvedValue(
-      catalog([records[0], { ...records[1], sha256: "0".repeat(64) }]),
-    );
+    .mockResolvedValue(catalog([{ ...records[0], sha256: "0".repeat(64) }]));
   await expect(downloadCanvasPackages(request)).rejects.toThrow(
-    /Canvas package lock differs from catalog for 0.2/u,
+    new RegExp(
+      `Canvas package lock differs from catalog for ${records[0].version}`,
+      "u",
+    ),
   );
   expect(request).toHaveBeenCalledTimes(1);
 });

@@ -12,12 +12,24 @@ the RNL language and its runtime belong to rnl.
 
 ## Rules
 
+### Language
+
+- The editor writes and reads the RNL language 0.4 only (`@VERSION("0.4")`),
+  with the standard series 0.4 and `analog-canvas-extensions` 0.7, a package
+  of that language
+  ([decision 0017](https://github.com/rich-netlist/rnl/blob/main/docs/decisions/0017-isolate-language-0-4-packages.md)).
+  It keeps no compatibility with earlier languages or package versions.
+
 ### Dependency
 
 - The rnl runtime (`@rich-netlist/runtime`, WebAssembly in a Worker, loaded on
   demand) writes and reads every RNL statement. The editor never spells RNL
   syntax: it hands the runtime edit-transaction operations and reads its
   snapshot, so an rnl upgrade changes the written RNL without editor changes.
+- The runtime is the package built from one commit of rich-netlist/rnl
+  `main`, vendored as `packages/rnl/vendor/rich-netlist-runtime-*.tgz` and
+  pinned by the lockfile's integrity, until a release on npm reads
+  language 0.4; then the npm release replaces it.
 - WebAssembly stays out of packages the Worker and MCP bundles import
   (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.
 - Upstream decisions this contract follows: Analog Canvas stays compatible
@@ -37,17 +49,15 @@ the RNL language and its runtime belong to rnl.
   [rnl-benchmark](https://github.com/rich-netlist/rnl-benchmark) corpus.
 - Without the runtime, the RNL formats say so and copy nothing; the other
   formats are unaffected.
-- Canvas extensions are supplied explicitly, each version at a private
-  virtual path of its own, in `files` and `pool` for every build, snapshot
-  and rebuild; write and catalog also receive their `package_dirs`. The
-  adapter preserves the caller's files, includes and search order. One fetch
-  of each version serves the shared Worker; fetch failures identify the
-  package and can be retried.
-- Every Canvas version the editor ships, 0.1 to 0.6, is locked by name,
-  version, URL and raw-byte SHA-256 against the public
-  [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json),
-  so a file written with any of them reads; the editor writes the newest.
-  Refreshing the vendored assets rejects changed catalog records or byte hashes.
+- The Canvas package is supplied explicitly, at a private virtual path, in
+  `files` and `pool` for every build, snapshot and rebuild; write and catalog
+  also receive its `package_dirs`. The adapter preserves the caller's files,
+  includes and search order. One fetch serves the shared Worker; fetch
+  failures identify the package and can be retried.
+- The one Canvas version the editor ships is locked by name, version, URL
+  and raw-byte SHA-256 against the public
+  [package catalog](https://rich-netlist.github.io/rnl-packages/catalog.json).
+  Refreshing the vendored asset rejects changed catalog records or byte hashes.
   Web and desktop builds verify and ship those bytes as local Vite assets;
   runtime loading verifies them before decoding, without contacting the catalog.
   The static shell caches the same-origin hashed packages, Worker and WebAssembly
@@ -62,7 +72,7 @@ the RNL language and its runtime belong to rnl.
 - An RNL format also prints the Cells the top does not call, after the top,
   so the file carries every Cell's drawing. Where one of them calls the top,
   and so is the netlist's top in its place, the top's record names it as
-  the editor's (`$CANVAS_TOP` on `#`, since 0.4). An uncalled Cell the
+  the editor's (`$CANVAS_TOP` on `#`). An uncalled Cell the
   netlist cannot print, such as one not finished, stays out, and the others
   are printed; the export names the Cells it leaves out
   (`RNL_CELL_NOT_WRITTEN`). Uncalled Cells that would add a global net the
@@ -104,49 +114,56 @@ the RNL language and its runtime belong to rnl.
   shapes and device class and no block binding, is drawn as that Library symbol
   and reads back as it.
 - Each part is drawn with the RNL symbol the mapping table names, from a
-  standard package or, for an appearance variant, the chopper or a 4-input
-  gate, the `analog-canvas-extensions` package; it is placed at that symbol's
-  registration point and turned by one of RNL's eight orientations. RNL's
-  standard 4-input gates put their inputs on whole grid points, Analog
-  Canvas's 0.8 apart, so its own (`$CANVAS_AND_4INPUT` and the rest) keep
-  each wire as drawn. The wide chopper, which no package draws, is defined
-  in the file (`$CANVAS_CHOPPER_WIDE`) with the `$CANVAS_CHOPPER` terminals,
-  its pins at the box's corners, and reads back wide.
-- RNL binds a symbol's pin to the terminal at that position of the instance
-  line. A subcircuit call that prints a library symbol's pins elsewhere, such
-  as a gate Cell whose ports start with its supplies, is drawn with the same
-  artwork defined in the file (`$CANVAS_CALL_…`), each pin on the position
-  the call prints it at, so every wire reaches the terminal it was drawn to.
+  standard package or, for an appearance variant, a 4-input gate or a
+  4-terminal MOSFET, the `analog-canvas-extensions` package; it is placed at
+  that symbol's registration point and turned by one of RNL's eight
+  orientations. RNL's standard 4-input gates put their inputs on whole grid
+  points, Analog Canvas's 0.8 apart, and its standard 4-terminal MOSFETs the
+  body pin at (0, 0), Analog Canvas's at (1, 0), so its own
+  (`$CANVAS_AND_4INPUT`, `$CANVAS_NMOS_4TERM` and the rest) keep each wire as
+  drawn. The wide chopper, which no package draws, is defined in the file
+  (`$CANVAS_CHOPPER_WIDE`) with the `$CHOPPER_SYMBOL` row's terminals, its
+  pins at the box's corners, and reads back wide.
+- A package symbol's pin binds the terminal of its name (9.2.4). A SPICE
+  card's letter names its terminals as the standard symbols do (M1's
+  `d g s b`); a subcircuit call, and a Spectre instance of a model or
+  subcircuit, bind each drawn pin to the position the row's terminal order
+  gives it (`@SET-SYMBOL(terminals=[[1, "inp"], [2, "inn"], [5, "out"]])`,
+  11.3). A symbol the file defines binds by position. A subcircuit call that
+  prints a library symbol's pins elsewhere, such as a gate Cell whose ports
+  start with its supplies, is drawn with the same artwork defined in the file
+  (`$CANVAS_CALL_…`), each pin on the position the call prints it at, so
+  every wire reaches the terminal it was drawn to.
   A card that prints its two pins the other way round (a coupled inductor
   starts at its dotted end) draws its symbol turned over onto itself, each
   pin where the card prints it. Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
   Delay Cell, op-amp or comparator) back as that library symbol, a gate's
   pins meeting its Cell's Pins by name, only when the name, artwork and positional pins are the ones
-  the export writes, or those with the supply leads the default variant
-  hides, as files written from #1939 to #1941 draw an op-amp's. A call drawn with a standard gate symbol reads back as
+  the export writes. A call drawn with a standard gate symbol reads back as
   that Library gate when it prints the Cell's Pins in the symbol's terminal
   order and they meet the gate's pins by name; any other call keeps its block and warns
   `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
   as a cubic, a straight one as a cubic with its controls on the leg.
-- Diamond appearances of VCVS, VCCS, CCVS and CCCS export as the standard
-  `$VCVS`, `$VCCS`, `$CCVS` and `$CCCS` symbols. Default circle appearances
-  export as `$CANVAS_*_CIRCLE` from `analog-canvas-extensions`. Both preserve
-  their appearance, pin positions and control connections through import.
-- The crystal, which the standard series lacks, exports as `$CANVAS_CRYSTAL`
-  from `analog-canvas-extensions` 0.5 on the call of its body; import reads it
-  back as the crystal.
-- So do, from `analog-canvas-extensions` 0.6, the polarized capacitor,
-  photoresistor and speaker (C and R cards), LED and Schottky diode (D cards),
-  microphone, sine voltage source and ammeter (V cards) and the Shockley diode,
-  PUT, UJT and potentiometer (calls of their bodies), each as
-  `$CANVAS_<ID>`. A Spectre card whose name the conversion prefixed with its
+- Diamond appearances of VCVS and CCVS export as the standard
+  `$CONTROLLED_VOLTAGE_SOURCE`, of VCCS and CCCS as
+  `$CONTROLLED_CURRENT_SOURCE`; the card's letter (E, H, G, F) tells them
+  apart on import. Default circle appearances export as `$CANVAS_*_CIRCLE`
+  from `analog-canvas-extensions`. Both preserve their appearance, pin
+  positions and control connections through import.
+- The standard series' own symbols draw the crystal (`$CRYSTAL`, on the call
+  of its body), the polarized capacitor, photoresistor and speaker (C and R
+  cards), LED and Schottky diode (D cards), microphone, sine and pulse voltage
+  sources and ammeter (V cards), the Shockley diode, PUT, UJT and
+  potentiometer (calls of their bodies), the chopper (`$CHOPPER_SYMBOL`) and
+  the crossed differential op-amp (`$DIFFERENTIAL_OPAMP_TWISTED`); import
+  reads each back as that part. A Spectre card whose name the conversion prefixed with its
   element's letter (the ammeter's `A1 … vsource` read as `VA1`) gets its own
   name back where the part as drawn can have it.
 - Fully differential comparators and Delay Cell define their exact artwork in the file
   using the runtime's `define-symbol` operation. Signals precede supplies;
   Delay Cell retains both VDD/VSS, while comparator numeric-high bodies omit
-  VDD and every comparator body omits VSS. The old two-terminal drawing-only
-  Delay Cell stencil is import-only. Marked, unmarked and
+  VDD and every comparator body omits VSS. RNL's standard two-terminal
+  `$DELAY_CELL` is import-only. Marked, unmarked and
   input-swapped states round-trip without an external symbol-package update.
   Import recognizes the local Symbol only when its name, artwork and positional
   pins match; an edited stencil keeps the electrically imported part and reports
@@ -160,25 +177,38 @@ the RNL language and its runtime belong to rnl.
   positive output on top. An Analog Canvas variant with − on top is that
   symbol flipped top to bottom: it is written as the symbol turned by its own
   orientation after `MX`.
-- A block's VDD and VSS are its RNL symbol's undrawn `vp` and `vn`, or a
-  stencil the file defines its supply terminals (RNL's import-only
-  two-terminal Delay Cell stencil has none). RNL fails a wire to a terminal
+- A block's VDD and VSS are the terminals `vp` and `vn` of its row, which its
+  RNL symbol draws no pin for, or a stencil the file defines its supply
+  terminals (RNL's import-only two-terminal Delay Cell has none). RNL fails a wire to a terminal
   with no pin (9.2.4), so a wire on a shown supply pin is left out with
   `RNL_PIN_NOT_DRAWN`; the netlist still joins it, and it reads back as that
   supply's Net.
-- The header pins the standard series, `rnl-std` 0.3, and declares with its
-  version each package the drawing uses that `rnl-std` does not bring in by
-  itself, such as `rnl-std-functional` for an op-amp. A tool without that
-  version then says so at the first statement.
-- The header also uses `rnl-std-no-labels`, which clears the labels symbols
-  bring with them (name, value, model), so the drawing shows only the labels
-  the editor writes; formulas stay.
+- The header says `@VERSION("0.4")` and uses, each with its version,
+  `rnl-std-style`, `rnl-std-basic`, `rnl-std-semiconductors`,
+  `rnl-std-no-labels`, each other package the drawing uses (such as
+  `rnl-std-functional` for an op-amp) and `analog-canvas-extensions`. It never
+  uses `rnl-std-all`, whose fill would draw glyphs and labels the export
+  draws itself. A tool without a version then says so at the first statement.
+- `rnl-std-no-labels` hides the labels symbols bring with them (name, value,
+  model; `textvisible=false`), so the drawing shows only the labels the
+  editor writes; formulas stay. Each keyed label the export writes says it
+  is shown (`textvisible=true`), and every text its weight (`bold`), which
+  the standard style makes bold. A glyph's name label is the glyph symbol's
+  net name (`netname`); a glyph symbol that shows its net's name where the
+  editor shows none has it hidden. The standard transconductor's empty
+  centred label (`label`) is written with Analog Canvas's gm.
 - Ground, supply and Cell Pin markers are written as `$GROUND`, `$SUPPLY` and
-  `$IO_PORT`; a Named Ground as `$GROUND` on its own net, drawn with
-  `$NAMED_GROUND_SYMBOL`. A `NoConnect` as the standard `$NO_CONNECT` on its pin's
-  terminal. Wires keep every bend. What the editor joins by contact (a wire
-  through a junction or pin, touching endpoints) is joined explicitly, since
-  RNL never connects by position; the dots the editor draws are written.
+  `$IO_PORT`, each attached to its net; a Cell Pin on a net that is no port
+  of its level (the file level) as `$NET_LABEL` drawn with the port's symbol,
+  since `$IO_PORT` asserts a port; a Named Ground as `$GROUND` on its own
+  net, drawn with `$NAMED_GROUND_SYMBOL`. A glyph's wire ends on its symbol's
+  pin (`%gnd1::pin`). A `NoConnect` as the standard `$NO_CONNECT` on its
+  pin's terminal. Wires keep every bend. What the editor joins by contact (a
+  wire through a junction or pin, touching endpoints) is joined explicitly,
+  since RNL never connects by position; the dots the editor draws are written
+  as `$JUNCTION` usages. A usage has a point of its own (12.1), which a
+  definition's alignment alone leaves to a solver, so every dot, mark and
+  figure is placed (`@PLACE`) on its point.
   Every marker and wire is written on the net the netlist prints it on: the
   netlist joins supply markers by name first (a copied ground glyph carries no
   claim of its own), and so does the export. A net's name is the one the
@@ -206,19 +236,19 @@ the RNL language and its runtime belong to rnl.
   the labels its part brings, as the editor gives a label its Instance's; a
   background paint is not written (`RNL_BACKGROUND_NOT_EXPORTED`).
 - What only the editor keeps is written with the meaning-only definitions of
-  `analog-canvas-extensions` 0.4, which draw nothing: a part's name where the
+  `analog-canvas-extensions`, which draw nothing: a part's name where the
   card spells it otherwise (`$CANVAS_NAME`, SPICE's `XM1` for M1), a part
   the author never named, which the netlist must name to print its card
-  (`$CANVAS_UNNAMED`, since 0.4), the variant a part is drawn as where the
+  (`$CANVAS_UNNAMED`), the variant a part is drawn as where the
   import would read the other one of two that RNL draws alike
-  (`$CANVAS_VARIANT`, since 0.4: an op-amp flipped top to bottom, not the
+  (`$CANVAS_VARIANT`: an op-amp flipped top to bottom, not the
   inputs-swapped one), in each
   Cell's own record how the Cell sets names in labels and draws its wire
-  crossings (`$CANVAS_TYPESETTING` on `#`, `crossings="hop"` since 0.3; of
-  the canvas fonts only `face="serif"`, the others awaiting an unpublished
-  extensions version) and,
+  crossings (`$CANVAS_TYPESETTING` on `#`, `crossings="hop"`; of the canvas
+  fonts only `face="serif"`, the others awaiting an unpublished extensions
+  version) and,
   where the netlist must write it otherwise, the Cell's own name
-  (`$CANVAS_CELL_NAME` on `#`, since 0.4: `Bootstrap switch` for the
+  (`$CANVAS_CELL_NAME` on `#`: `Bootstrap switch` for the
   subcircuit `Bootstrap_switch`), each
   setting other than the editor's default, none included, and
   on each bound label what it shows (`$CANVAS_LABEL`: the part's name, its
@@ -231,16 +261,18 @@ the RNL language and its runtime belong to rnl.
   as `150n`); in Spectre each number Spectre spells otherwise (`100fF` where
   it reads `100f`, as `c`, `val1`), a source's fields only for its waveform.
   A drawing text's or callout's typography role is given on the text, named
-  for it (`$CANVAS_TYPOGRAPHY`, since 0.4), its size as well.
+  for it (`$CANVAS_TYPOGRAPHY`), its size as well.
   Each parameter the editor keeps that the card does not print is given on
-  the part by the editor's name for it (`$CANVAS_PARAMETER`, since 0.4): a
+  the part by the editor's name for it (`$CANVAS_PARAMETER`): a
   source's fields of the waveforms it is not set to, and its waveform where
   that is dc; any other part's parameters its card has none of, such as an
   op-amp's rails, which choose its body.
-- A wire's direction arrow is an `$ARROW` mark on the wire, a current marker
-  a `$CURRENT_ARROW` mark with its label hung on it, and a voltage marker its
-  label with + and − beside it, all where the editor draws them. A floating
-  symbol is a `$FIGURE` mark drawn with the part's RNL symbol.
+- A wire's direction arrow is an `$ARROW` mark on its point (`at`) on the
+  wire, a current marker a `$CURRENT_ARROW` mark drawn with the full-size
+  `$ARROW_SYMBOL`, its label hung on it, and a voltage marker its label with
+  - and − beside it, all where the editor draws them. A floating symbol is a
+    `$FIGURE` mark on its point (`at`) drawn with the part's RNL symbol, the
+    name, value and model labels that symbol brings empty.
 - A drawn Cell's block is a symbol defined in the Cell's own level and set on
   the Cell itself, so every call is drawn with it; its pins name the printed
   ports and show their names. A Cell no call draws, such as the top, carries
@@ -284,6 +316,10 @@ the RNL language and its runtime belong to rnl.
 
 ### Import
 
+- A file whose language is not 0.4, and which writes RNL records, is refused
+  whole (`RNL_IMPORT_VERSION`, naming its version and `rnl upgrade`, which
+  raises it): nothing of it is imported, its circuit included. A netlist with
+  no records imports as its circuit.
 - File → Import → `RNL…` opens the source layout using Canvas conventions.
   `RNL (preserve source appearance)…` opens the authored appearance.
   Both read the same netlist, includes and package files and apply the
@@ -316,7 +352,7 @@ the RNL language and its runtime belong to rnl.
     a subcircuit with X (`M1` as `XM1`), and the part is `M1` again where it
     can be named so (a call of a Cell keeps its X);
   - a part's name where the netlist spells it otherwise, from
-    `$CANVAS_NAME` (Canvas 0.2): `XM1` named `M1` is M1 again; a name that
+    `$CANVAS_NAME`: `XM1` named `M1` is M1 again; a name that
     would give the part a Reference issue keeps the card's, with
     `RNL_IMPORT_NAME_TAKEN` (another part has it) or `RNL_IMPORT_NAME_REFUSED`
     (the part as read takes names of another prefix, or the name is not one
@@ -334,14 +370,14 @@ the RNL language and its runtime belong to rnl.
     a part whose call also prints a terminal its own symbol has no pin for
     (a PDK device's substrate, set as a property) reads back as that symbol;
     a symbol two Analog Canvas variants draw, one flipped, reads back as the
-    variant the file names (`$CANVAS_VARIANT`, since 0.4), else as the
-    variant that needs no mirror: `$OPAMP_5TERM` turned `MX` becomes the
+    variant the file names (`$CANVAS_VARIANT`), else as the
+    variant that needs no mirror: `$OPAMP` turned `MX` becomes the
     default op-amp, unturned the inputs-swapped one; RNL's standard 4-input
-    gates read back as Analog Canvas's own, their wires ending at its pins;
-  - controlled sources as diamonds from the standard two-terminal symbols
-    and the legacy `$CANVAS_*_DIAMOND` aliases, and as circles from
-    `$CANVAS_*_CIRCLE`; legacy diamond aliases are read-only and export again
-    as the standard symbols;
+    gates and 4-terminal MOSFETs read back as Analog Canvas's own, their
+    wires ending at its pins;
+  - controlled sources as diamonds from `$CONTROLLED_VOLTAGE_SOURCE` and
+    `$CONTROLLED_CURRENT_SOURCE`, the card's letter naming the source, and as
+    circles from `$CANVAS_*_CIRCLE`;
   - a Cell's block as the symbol the file defines for it: each pin's side and
     place, and the body; an external subcircuit's block as the symbol the
     file level defines for its calls: each pin where the symbol has it, and
@@ -352,7 +388,7 @@ the RNL language and its runtime belong to rnl.
     Named Ground); ground glyphs on ground; a ground glyph on any other net
     (`vss`), drawn with either ground symbol, a Named Ground of that net;
     Named Ground and supply glyphs claiming their net by its own name; the
-    name a glyph's own symbol draws (`${p}`, as another tool leaves it to
+    name a glyph's own symbol draws (`${p}`, its `netname`, as another tool leaves it to
     the standard symbols) as the editor's label where RNL draws it, on its
     baseline and read from the side RNL reads it: a supply's or Named
     Ground's as its power label, bound to its net or Cell Pin, a port's as
@@ -360,14 +396,15 @@ the RNL language and its runtime belong to rnl.
     netlist does not read; a port on a net the Cell has
     but not as a port (a flat file's inputs) as a label of its net, showing
     its own name text, else the net's name; the wires a floating glyph or
-    such a port ends end at a junction at its pin;
-  - a port the drawing shows only as a power label naming it, no Pin drawn
-    (Canvas 0.2): the label is the port again, as the editor keeps a local
+    such a port ends end at a junction at its pin; a usage a package's rule
+    makes and leaves unplaced, such as the standard fill's, is no mark;
+  - a port the drawing shows only as a power label naming it, no Pin drawn:
+    the label is the port again, as the editor keeps a local
     power label, claiming its net's name as a supply, so its rails are
     rails; the Pin the netlist import gave it goes. The drawing is checked
     with it applied, since a supply it claims is the one a Cell's unwired
     bodies take (#1783);
-  - in a file Canvas 0.4 or later wrote, a port the drawing draws neither
+  - in a file Analog Canvas wrote, a port the drawing draws neither
     as a Pin nor as a power label, and whose net holds more than its Pin
     and unwired bodies or rails: its interface is a hidden power label again, bound to the port where the
     netlist import put its Pin, and that Pin goes; the export draws every
@@ -421,7 +458,8 @@ the RNL language and its runtime belong to rnl.
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has, or as a power label where the export wrote one, hung on the
-    junction it was drawn at; any other text as a drawing text, anchored to
+    junction it was drawn at; a text its style hides (`textvisible=false`)
+    and a standard block's centred `label` as nothing; any other text as a drawing text, anchored to
     the part or glyph it is attached to, else free, with the typography role
     `$CANVAS_TYPOGRAPHY` gives it and its size within that role; a label a
     symbol alone gives is left to the symbol; a part the drawing places
@@ -429,7 +467,7 @@ the RNL language and its runtime belong to rnl.
     hidden, in their usual place, since the export writes every label it
     shows, and so does a Cell Pin the drawing names only by a net label
     beside it;
-  - in a level written with Canvas 0.2 (it has `$CANVAS_TYPESETTING`), what
+  - in a level Analog Canvas wrote (it has `$CANVAS_TYPESETTING`), what
     each label shows as `$CANVAS_LABEL` says, a label without one its own
     text; a power label that shows a Cell Pin's name is bound to that Pin and
     hangs on the junction it stands beside, else on the Pin; one that shows
@@ -437,7 +475,7 @@ the RNL language and its runtime belong to rnl.
     scope, so its rails are rails; a drawn name
     still binds only where it reads as the part's name; a level another tool
     wrote is read from its texts as above;
-  - in a level Analog Canvas wrote (`$CANVAS_TYPESETTING` or extension 0.1), a label
+  - in a level Analog Canvas wrote (`$CANVAS_TYPESETTING`), a label
     keeps its size and colour, and a bound label the drawn styles as its
     format only where they differ from what the binding shows anyway;
     another tool's labels (a part's name and values, net, power and Cell
@@ -472,7 +510,7 @@ the RNL language and its runtime belong to rnl.
     glyph or Cell Pin; one attached to its net stands on the Cell Pin it
     names when it is within four grid steps of one (a power label on the
     junction of its net within four), else, in a file that does not name
-    its wire (before Canvas 0.4, or another tool's), on a wire of its net
+    its wire (another tool's), on a wire of its net
     within three, else where it stands; a name the netlist had to spell
     otherwise is matched in the file's own dialect; a current or
     voltage marker's label keeps its size and colour; in Analog Canvas's own
@@ -546,12 +584,15 @@ the RNL language and its runtime belong to rnl.
   symbol and variant, its RNL symbol and package, the definition a glyph or
   drawing-only part draws, terminal order, registration offset, the flip
   (`MX`) when the variant draws the symbol upside down, and pins; a row with
-  `import_only` (RNL's standard 4-input gates and legacy controlled-source
-  aliases) only reads files back, its pins where the RNL symbol has them.
+  `import_only` (RNL's standard 4-input gates, 4-terminal MOSFETs and
+  two-terminal Delay Cell) only reads files back, its pins where the RNL
+  symbol has them. A row's terminal names are the symbol's (9.2.4); their
+  order is the one a body prints and a terminal map binds.
   Maintained here by hand; checked against the rnl runtime's published symbol
   catalog.
 - Operations: the runtime's edit transaction and snapshot
   ([rnl-edit](https://github.com/rich-netlist/rnl/blob/main/crates/rnl-edit/README.md)).
+- Import refusal: `RNL_IMPORT_VERSION`.
 - Codes: errors `RNL_ROTATION_NOT_QUARTER`, `RNL_NO_SYMBOL`; warnings
   `RNL_NOT_STANDARD_SYMBOL`, `RNL_TEXT_FIXED`, `RNL_TEXT_HIDDEN`,
   `RNL_TEXT_ALONG_WIRE`, `RNL_TEXT_FORMULA`, `RNL_TEXT_TILTED`,
@@ -566,8 +607,8 @@ the RNL language and its runtime belong to rnl.
 - The mapping table draws every built-in symbol, follows the registration
   rules and matches each symbol's pins
   (`packages/rnl/src/symbol-map.test.ts`).
-- Every symbol of the mapping table is in the package the rnl runtime's
-  catalog says defines it, with each pin where the runtime puts it and
+- Every symbol of the mapping table is in the package of the series 0.4 or
+  the Canvas version the rnl runtime's catalog says defines it, with each pin where the runtime puts it and
   leaving the way it says, so an rnl upgrade that moves a pin fails there
   (`apps/editor/src/features/netlist-export/rnl-symbol-catalog.test.ts`).
 - Orientations and registration put every pin where the editor draws it in all
@@ -575,9 +616,13 @@ the RNL language and its runtime belong to rnl.
 - Reordered bodies keep every port-to-node connection and leave `SPICE` and
   `SCS` byte for byte (`packages/netlist/src/body-port-order.test.ts`).
 - The simulation examples export with no error, every part, glyph, wire, dot
-  and label written, and name only `analog-canvas-extensions` beside
-  `rnl-std` (each Cell's `$CANVAS_TYPESETTING`); an op-amp also names
-  `rnl-std-functional` (`packages/rnl/src/export-ops.test.ts`).
+  and label written, and name only `analog-canvas-extensions` (each Cell's
+  `$CANVAS_TYPESETTING`) beside the standard style, basic, semiconductor and
+  no-labels packages; an op-amp also names `rnl-std-functional`
+  (`packages/rnl/src/export-ops.test.ts`).
+- A file of another language version is refused whole, and a netlist with
+  no records imports (`packages/rnl/src/rnl-import.test.ts`,
+  `apps/editor/src/features/netlist-export/rnl-import-safety.test.ts`).
 - The desktop host serves `.wasm` as `application/wasm` and allows
   WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`).
 - A file the export wrote imports with every part where it was drawn, its
@@ -585,9 +630,9 @@ the RNL language and its runtime belong to rnl.
   inside Cells, and the same netlist; 4-input gates
   are drawn with Analog Canvas's own symbols, every wire as drawn, and RNL's
   standard ones read back as Analog Canvas's; controlled sources drawn as
-  circles or diamonds keep their appearance through their canonical symbols,
-  and legacy diamond aliases remain readable (in Spectre the voltage-controlled
-  ones, as the Spectre import reads no native `ccvs` or `cccs`); a Spectre netlist with
+  circles or diamonds keep their appearance through their canonical symbols
+  (in Spectre the voltage-controlled ones, as the Spectre import reads no
+  native `ccvs` or `cccs`); a Spectre netlist with
   a SPICE section keeps every record out of it; parts bound to a model
   source's subcircuits, a Q card and a B source in their bodies, come back
   bound to them with the source's text

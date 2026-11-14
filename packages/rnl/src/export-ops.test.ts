@@ -74,7 +74,7 @@ describe("RNL export of the canvas font (#1725)", () => {
     ["sans", undefined],
     ["latin-modern", undefined],
   ] as const)(
-    "writes face=%j only where Canvas 0.5 names it",
+    "writes face=%j only where Analog Canvas's package names it",
     (textFace, written) => {
       const project = example("simulation-common-source");
       for (const document of project.documents)
@@ -97,13 +97,16 @@ describe("RNL export of the simulation examples", () => {
       expect(diagnostics.filter((item) => item.severity === "error")).toEqual(
         [],
       );
-      // Their symbols all come with rnl-std: the file pins it, clears the
-      // symbols' own labels and names only the package that says how each
-      // Cell sets names.
+      // Their symbols all come with the standard series' styles, basic and
+      // semiconductor packages: the file pins each, hides the symbols' own
+      // labels and names only the package that says how each Cell sets
+      // names, and no fill.
       expect(
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
       ).toEqual([
-        `rnl-std ${RNL_STD_VERSION}`,
+        `rnl-std-style ${RNL_STD_VERSION}`,
+        `rnl-std-basic ${RNL_STD_VERSION}`,
+        `rnl-std-semiconductors ${RNL_STD_VERSION}`,
         `rnl-std-no-labels ${RNL_STD_VERSION}`,
         `${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}`,
       ]);
@@ -136,7 +139,10 @@ describe("RNL export of the simulation examples", () => {
             ? levelOf.get(level)!.has(vertex.point)
             : "usage" in vertex
               ? levelOf.get(level)!.has(vertex.usage)
-              : true;
+              : "owner" in vertex
+                ? levelOf.get(level)!.has(vertex.owner) &&
+                  vertex.reference === `${vertex.owner}::pin`
+                : true;
       for (const wire of wires) {
         expect(wire.via.length).toBeGreaterThanOrEqual(2);
         for (const vertex of wire.via)
@@ -167,6 +173,15 @@ describe("RNL export of the simulation examples", () => {
         )
           expect(op.orient, op.name).toBeDefined();
       for (const label of of(ops, "add-text")) {
+        // A glyph's own net name, where the export writes none: hidden.
+        if (label.style?.textvisible === false) {
+          expect(label).toMatchObject({ key: "netname", markup: "${p}" });
+          expect(levelOf.get(label.level)!.has(label.attach!)).toBe(true);
+          continue;
+        }
+        // Every text says its weight, which the standard style makes bold.
+        expect(typeof label.style?.bold, label.attach).toBe("boolean");
+        if (label.key) expect(label.style?.textvisible).toBe(true);
         // A part's or glyph's label hangs on something declared, by key and
         // offset; a net's stands at an absolute place, on its net or on the
         // wire it hangs on, which has no point to offset from; a free text
@@ -238,12 +253,20 @@ describe("RNL export of the simulation examples", () => {
     expect(source.via).toEqual([
       { terminal: "#XM1:3" },
       { point: expect.stringMatching(/^%j/) },
-      { usage: expect.stringMatching(/^%gnd/), role: "p" },
+      {
+        owner: expect.stringMatching(/^%gnd/),
+        pin: 0,
+        reference: expect.stringMatching(/^%gnd\d+::pin$/),
+      },
     ]);
+    // Its dot is a usage on the point, placed there (12.1).
     const through = (source.via[1] as { point: string }).point;
-    expect(of(ops, "add-point").find((op) => op.name === through)).toEqual(
-      expect.objectContaining({ junction: true }),
-    );
+    const at = of(ops, "add-point").find((op) => op.name === through)!.at;
+    expect(
+      of(ops, "add-usage").find(
+        (op) => op.definition === "$JUNCTION" && op.attach.p === through,
+      ),
+    ).toEqual(expect.objectContaining({ at }));
   });
 
   it("dots exactly the contacts Analog Canvas dots", () => {
@@ -256,10 +279,9 @@ describe("RNL export of the simulation examples", () => {
           contactRequiresJunctionDot,
         ),
       );
-      const written =
-        of(ops, "add-point").filter((op) => op.junction).length +
-        of(ops, "add-usage").filter((op) => op.definition === "$JUNCTION")
-          .length;
+      const written = of(ops, "add-usage").filter(
+        (op) => op.definition === "$JUNCTION",
+      ).length;
       expect(written, name).toBe(dots.length);
     }
   });
@@ -271,24 +293,29 @@ describe("RNL export of the simulation examples", () => {
         nets: ["&VSS"],
         via: [
           { terminal: "#CL:2" },
-          { usage: expect.stringMatching(/^%gnd/), role: "p" },
+          {
+            owner: expect.stringMatching(/^%gnd/),
+            pin: 0,
+            reference: expect.stringMatching(/^%gnd\d+::pin$/),
+          },
         ],
       }),
     );
   });
 
-  it("draws ground on the Cell's ground pin and keeps a port tag off it", () => {
+  it("draws ground on the Cell's ground pin, and no port tag there", () => {
     const { ops } = exported(example("simulation-common-source"));
     for (const op of of(ops, "add-usage").filter(
       (item) => item.definition === "$GROUND",
     ))
       expect(op.attach).toEqual({ p: "&VSS" });
-    expect(of(ops, "remove-from")).toEqual([
-      expect.objectContaining({
-        items: ["&VSS"],
-        set: "$PORT_FILL_SET",
-      }),
-    ]);
+    // The standard fill, which would tag every port, is not used.
+    expect(
+      of(ops, "add-usage").filter(
+        (op) => op.definition === "$IO_PORT" && op.attach.p === "&VSS",
+      ),
+    ).toEqual([]);
+    expect(of(ops, "remove-from")).toEqual([]);
   });
 
   it("marks a pin left open with the standard no-connect on its terminal", () => {
@@ -329,6 +356,8 @@ describe("RNL export of the simulation examples", () => {
         op: "add-usage",
         definition: "$NO_CONNECT",
         attach: { t: "#R9:2" },
+        // Placed on its pin: a usage has a point of its own (12.1).
+        at: [40, -42],
       },
     ]);
     // A bus member has no terminal of its own in RNL.
@@ -403,12 +432,12 @@ describe("what RNL cannot write", () => {
       "RNL_HIDDEN_PIN_WIRED",
     );
     expect(of(ops, "set").find((op) => op.object === "#XM1")?.symbol).toBe(
-      "$NMOS_4TERM",
+      "$CANVAS_NMOS_4TERM",
     );
   });
 
   it.each([
-    ["opamp", "$OPAMP_5TERM", `rnl-std-functional ${RNL_STD_VERSION}`, false],
+    ["opamp", "$OPAMP", `rnl-std-functional ${RNL_STD_VERSION}`, false],
     [
       "opamp-lettered",
       "$CANVAS_OPAMP_LETTERED",
@@ -468,10 +497,16 @@ describe("what RNL cannot write", () => {
           : [],
       );
       expect(of(ops, "set")).toContainEqual(
-        // Both draw − on top: the + on top symbol, flipped.
+        // Both draw − on top: the + on top symbol, flipped. Its pins bind
+        // the call's terminals by position, the ports named otherwise.
         expect.objectContaining({
           object: "#X1",
           symbol,
+          terminals: [
+            [1, "inp"],
+            [2, "inn"],
+            [5, "out"],
+          ],
           at: [10, 0],
           orient: "MX",
         }),
@@ -480,7 +515,9 @@ describe("what RNL cannot write", () => {
         of(ops, "use-package").map(({ name, version }) => `${name} ${version}`),
       ).toEqual([
         ...new Set([
-          `rnl-std ${RNL_STD_VERSION}`,
+          `rnl-std-style ${RNL_STD_VERSION}`,
+          `rnl-std-basic ${RNL_STD_VERSION}`,
+          `rnl-std-semiconductors ${RNL_STD_VERSION}`,
           `rnl-std-no-labels ${RNL_STD_VERSION}`,
           // Every Cell says how it sets names ($CANVAS_TYPESETTING).
           `${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}`,
@@ -489,6 +526,42 @@ describe("what RNL cannot write", () => {
       ]);
     },
   );
+});
+
+describe("the standard transconductor", () => {
+  it("draws Analog Canvas's gm in the label the standard symbol leaves empty", () => {
+    const project = createEmptyProject("gm", "Gm", "dut");
+    const document = project.documents[0]!;
+    document.netlist!.name = "dut";
+    const descriptor = subcircuitDescriptor("transconductance")!;
+    document.instances.push({
+      id: "gm",
+      symbolId: "transconductance",
+      reference: "X1",
+      placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: descriptor.target },
+        parameters: {},
+      },
+    });
+    for (const pinName of ["A", "Y"])
+      document.noConnects.push({
+        id: `open-${pinName}`,
+        endpoint: { kind: "terminal", instanceId: "gm", pinName },
+      });
+    const { ops } = exported(project);
+    expect(of(ops, "set")).toContainEqual(
+      expect.objectContaining({ object: "#X1", symbol: "$TRANSCONDUCTOR" }),
+    );
+    expect(of(ops, "add-text")).toContainEqual(
+      expect.objectContaining({
+        attach: "#X1",
+        key: "label",
+        markup: String.raw`\textit{g}_{m}`,
+        style: { bold: false, textvisible: true },
+      }),
+    );
+  });
 });
 
 describe("an op-amp's shown supply pins (#1833)", () => {
@@ -564,7 +637,7 @@ describe("an op-amp's shown supply pins (#1833)", () => {
         severity: "warning",
         code: "RNL_PIN_NOT_DRAWN",
         message:
-          "X1 (opamp) has a wire on VDD, which RNL's $OPAMP_5TERM draws no pin for; the wire is left out, and the netlist still joins it",
+          "X1 (opamp) has a wire on VDD, which RNL's $OPAMP draws no pin for; the wire is left out, and the netlist still joins it",
       }),
     );
     expect(
@@ -1132,7 +1205,9 @@ describe("drawing objects", () => {
     expect(of(ops, "add-usage")).toContainEqual(
       expect.objectContaining({
         definition: "$FIGURE",
-        attach: { p: [110, 30] },
+        // On its point, placed there (12.1).
+        attach: { at: [110, 30] },
+        at: [110, 30],
         symbol: "$RESISTOR",
         orient: "R270",
       }),

@@ -197,7 +197,7 @@ it("keeps a drawing the imported circuit disagrees with only when it writes the 
 function clockProbe(name: string, params = "") {
   return [
     "* clock safety probe",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3")}',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-style", version="0.4"); @USE-PACKAGE(name="rnl-std-basic", version="0.4")}',
     `.subckt dut a b clk wrong VSS${params}`,
     "S1 a b clk VSS ideal_switch",
     ".model ideal_switch SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
@@ -214,7 +214,7 @@ function clockProbe(name: string, params = "") {
 function largeProbe(...drawing: string[]) {
   return [
     "* large clock probe",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3")}',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-style", version="0.4"); @USE-PACKAGE(name="rnl-std-basic", version="0.4")}',
     ...Array.from(
       { length: 1200 },
       (_, index) => `R${index + 1} n${index} 0 1k`,
@@ -302,9 +302,9 @@ function uncalledProbe(name: string, dutIsTop = false) {
   return [
     "* uncalled safety probe",
     '* @RNL(type="header") {',
-    '*   @VERSION("0.3");',
-    '*   @USE-PACKAGE(name="rnl-std-full", version="0.3");',
-    '*   @USE-PACKAGE(name="analog-canvas-extensions", version="0.5")',
+    '*   @VERSION("0.4");',
+    '*   @USE-PACKAGE(name="rnl-std-basic", version="0.4");',
+    '*   @USE-PACKAGE(name="analog-canvas-extensions", version="0.7")',
     "* }",
     ...(dutIsTop
       ? []
@@ -372,4 +372,47 @@ it("keeps a drawing of a Cell the top does not call that keeps its netlist (#195
     kept.instances.find((instance) => instance.reference === "S1")?.placement
       ?.position,
   ).toEqual({ x: 0, y: 0 });
+});
+
+it("refuses a file of another RNL version whole, and reads a netlist with no records", async () => {
+  const text = (header: string) =>
+    [
+      "* version probe",
+      header,
+      "R1 a 0 1k",
+      "V1 a 0 1",
+      '* @RNL { #R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0") }',
+      ".end",
+      "",
+    ].join("\n");
+  const plan = (source: string) =>
+    planRnlImport({
+      inputs: [{ path: "top.sp", bytes: new TextEncoder().encode(source) }],
+      entryPath: "top.sp",
+      runtime,
+    });
+  const refused = await plan(text('* @RNL(type="header") { @VERSION("0.3") }'));
+  expect(refused).toMatchObject({
+    status: "failed",
+    message: expect.stringContaining("rnl upgrade"),
+    diagnostics: [
+      expect.objectContaining({
+        code: "RNL_IMPORT_VERSION",
+        severity: "error",
+      }),
+    ],
+  });
+  expect("project" in refused).toBe(false);
+  const read = await plan(
+    text(
+      '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-basic", version="0.4") }',
+    ),
+  );
+  expect(read.status).toBe("ready");
+  // No records: no drawing of any version, only the circuit.
+  const plain = await plan("* plain\nR1 a 0 1k\nV1 a 0 1\n.end\n");
+  expect(plain.status).toBe("ready");
+  expect(plain.diagnostics.map((item) => item.code)).not.toContain(
+    "RNL_IMPORT_VERSION",
+  );
 });

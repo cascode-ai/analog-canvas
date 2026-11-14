@@ -92,7 +92,7 @@ describe("static shell cache policy", () => {
     const valid = new Uint8Array(
       readFileSync(
         resolve(
-          "apps/editor/src/features/netlist-export/analog-canvas-extensions-0.2.rnl",
+          "apps/editor/src/features/netlist-export/analog-canvas-extensions-0.7.rnl",
         ),
       ),
     );
@@ -124,7 +124,7 @@ describe("static shell cache policy", () => {
       await Promise.all(pending);
       return decodeCanvasPackage(
         new Uint8Array(await response.arrayBuffer()),
-        "0.2",
+        "0.7",
       );
     };
     await expect(loadPackage()).rejects.toThrow(
@@ -132,11 +132,11 @@ describe("static shell cache policy", () => {
     );
     network = valid;
     await expect(loadPackage()).resolves.toContain(
-      '@PACKAGE(name="analog-canvas-extensions", version="0.2")',
+      '@PACKAGE(name="analog-canvas-extensions", version="0.7")',
     );
     network = null;
     await expect(loadPackage()).resolves.toContain(
-      '@PACKAGE(name="analog-canvas-extensions", version="0.2")',
+      '@PACKAGE(name="analog-canvas-extensions", version="0.7")',
     );
   });
 

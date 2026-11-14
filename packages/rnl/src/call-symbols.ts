@@ -70,10 +70,11 @@ function callSymbol(
 }
 
 /**
- * The symbol that draws `row`'s artwork on this call. RNL binds a pin to the
- * terminal at that position of the instance line (language standard 9.2.4),
- * so a library symbol fits a call only when each pin's Analog Canvas pin is
- * printed at the pin's terminal number. A call that prints them elsewhere,
+ * The symbol that draws `row`'s artwork on this call. The export binds a
+ * package symbol's pins to a call's terminals by their positions in the
+ * row's terminal order (`@SET-SYMBOL(terminals=…)`, 11.3), so a library
+ * symbol fits a call only when each pin's Analog Canvas pin is printed at the
+ * pin's terminal number. A call that prints them elsewhere,
  * such as a gate's or a Delay Cell's Cell whose ports start with its
  * supplies, gets the same artwork defined in the file with each pin on the
  * position it is printed at. The name records, for each position of the

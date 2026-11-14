@@ -45,7 +45,10 @@ export function readMarks(
   });
   for (const object of later) {
     const at = object.at.value ?? null;
-    const attached = object.attach?.["p"];
+    // A current arrow marks its point `p`; an arrow head or a figure is drawn
+    // on its point `at`.
+    const attached =
+      object.attach?.[object.definition === "$CURRENT_ARROW" ? "p" : "at"];
     const place = Array.isArray(attached) ? (attached as Point) : at;
     const orient = object.orient.value ?? "R0";
     if (!place || !isOrient(orient) || orient.startsWith("M")) {

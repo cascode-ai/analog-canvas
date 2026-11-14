@@ -13,6 +13,7 @@ import {
   type RnlExportDiagnostic,
   type RnlOp,
 } from "./export-ops.js";
+import { RNL_LANGUAGE_VERSION } from "./rnl-packages.js";
 import { rnlBodyPortOrder } from "./symbol-map.js";
 
 /**
@@ -26,8 +27,8 @@ export const FILE_LEVEL_CELL = "__flat__";
  * What the rnl runtime's writer takes to write a drawing into its netlist
  * (its `WriteRequest.write`): the netlist as the SPICE+RNL or Spectre+RNL
  * format prints it, bodies in their RNL symbols' port order, and the edit
- * transaction's operations, written as `author` "analog-canvas" (the rnl
- * standard, chapter 17). The writer spells every RNL statement; this editor
+ * transaction's operations in the language 0.4, written as `author`
+ * "analog-canvas" (the rnl standard, chapter 17). The writer spells every RNL statement; this editor
  * never does.
  */
 export type RnlWriteRequest = Omit<WriteRequest["write"], "ops"> & {
@@ -169,6 +170,7 @@ export function createRnlExport(
       extension: result.file.extension,
     },
     request: {
+      language_version: RNL_LANGUAGE_VERSION,
       dialect: options.format,
       netlist: result.file.text,
       ops,
