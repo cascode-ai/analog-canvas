@@ -14,6 +14,7 @@ const PRODUCT_IDS = [
   "buffer",
   "capacitor",
   "polarized-capacitor",
+  "mos-varactor",
   "closed-switch",
   "comparator",
   "comparator-differential",

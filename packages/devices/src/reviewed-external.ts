@@ -45,6 +45,7 @@ export type ReviewedExternalBindingId =
   | "sg13g2-rhigh"
   | "sg13g2-cap-cmim"
   | "sg13g2-cap-rfcmim"
+  | "sg13g2-svaricap-hv"
   | `std-cell-${string}`;
 
 export interface ReviewedExternalTerminalBinding {
@@ -121,6 +122,7 @@ export interface ReviewedExternalDeviceBinding {
     | "capacitor"
     | "inductor"
     | "center-tap-inductor"
+    | "mos-varactor"
     | "npn"
     | "pnp"
     | StandardCellGateSymbolId;
@@ -1017,6 +1019,43 @@ const sg13MimBinding = (
   ],
 });
 
+/**
+ * `.subckt sg13_hv_svaricap G1 W G2 bn`, the MOS varactor: drawn as the MOS
+ * Varactor, its gates G1 and G2 and its n-well control W are pins to wire
+ * and its substrate is set in Properties. w l Nx follow the xschem template
+ * (`sg13_svaricap.sym`, which also writes `mm_ok`, a mismatch switch left at
+ * its model default); m is the X-line multiplier. The bounds are the model's
+ * own parameter checks.
+ */
+const sg13VaricapBinding = (): ReviewedExternalDeviceBinding => ({
+  id: "sg13g2-svaricap-hv",
+  libraryId: "sg13g2_pr",
+  masterName: "sg13_hv_svaricap",
+  invocationKind: "external-subcircuit",
+  symbolId: "mos-varactor",
+  deviceClass: "capacitor",
+  sizeLimits: { length: [300e-9, 800e-9], widthPerFinger: 3.74e-6 },
+  terminals: [
+    ...["G1", "W", "G2"].map((name) => ({
+      targetName: name,
+      pinName: name,
+      interaction: "canvas" as const,
+    })),
+    sg13Substrate("B"),
+  ],
+  parameters: [
+    {
+      ...sg13Length("w", "W", "3.74u", "Width in metres", "width", 0),
+      numericLimits: { maximum: 9.74e-6 },
+    },
+    sg13Length("l", "L", "300n", "Length in metres", "length", 1),
+    // Each of the Nx fingers is w wide, so W is not shared out among them
+    // as a MOS's W is among its ng fingers.
+    sg13Count("Nx", "NX", "Gate finger count, 1 to 10", 2, "none"),
+    sg13Count("m", "M", "Parallel varactor count", 3),
+  ],
+});
+
 export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBinding[] =
   [
     sky130MosBinding(
@@ -1206,6 +1245,7 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
     sg13ResistorBinding("sg13g2-rhigh", "rhigh", "960n", true),
     sg13MimBinding("sg13g2-cap-cmim", "cap_cmim", "7u"),
     sg13MimBinding("sg13g2-cap-rfcmim", "cap_rfcmim", "10u", "5u"),
+    sg13VaricapBinding(),
   ];
 
 type GateFunction =

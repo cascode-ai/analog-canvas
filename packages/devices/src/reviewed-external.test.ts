@@ -29,6 +29,7 @@ describe("reviewed external device bindings", () => {
     ["cap_cmim", { w: "1u", l: "2m" }, ["w", "l"]],
     ["cap_rfcmim", { w: "1u" }, ["w"]],
     ["sg13_lv_nmos", { w: "11u", ng: "1" }, ["w"]],
+    ["sg13_hv_svaricap", { w: "3u", l: "1u", Nx: "11" }, ["w", "l", "Nx"]],
   ] as const)(
     "reports the pinned SG13 PCell bounds for %s",
     (master, parameters, expected) => {
@@ -441,6 +442,11 @@ describe("reviewed external device bindings", () => {
         ["PLUS", "MINUS", "bn"],
         ["w", "l", "wfeed", "m"],
       ],
+      sg13_hv_svaricap: [
+        "mos-varactor",
+        ["G1", "W", "G2", "bn"],
+        ["w", "l", "Nx", "m"],
+      ],
     };
     for (const [master, [symbolId, terminals, parameters]] of Object.entries(
       pdk,
@@ -486,6 +492,28 @@ describe("reviewed external device bindings", () => {
       ["we", "70n"],
       ["Nx", "1"],
     ]);
+    // The MOS varactor's gates and well are pins of the MOS Varactor, and
+    // its defaults are the xschem template's (sg13_svaricap.sym). Var Cap
+    // stays an ideal capacitor (#1298).
+    const varicap = reviewedExternalBindingForMaster("sg13_hv_svaricap")!;
+    expect(varicap.terminals.map((terminal) => terminal.pinName)).toEqual([
+      "G1",
+      "W",
+      "G2",
+      "B",
+    ]);
+    expect(
+      varicap.parameters.map((item) => [item.name, item.defaultValue]),
+    ).toEqual([
+      ["w", "3.74u"],
+      ["l", "300n"],
+      ["Nx", "1"],
+      ["m", "1"],
+    ]);
+    expect(reviewedExternalModelSuggestions("mos-varactor")).toEqual([
+      "sg13_hv_svaricap",
+    ]);
+    expect(reviewedExternalModelSuggestions("variable-capacitor")).toEqual([]);
   });
 
   it("suggests the models of one PDK library when asked", () => {

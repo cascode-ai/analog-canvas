@@ -98,8 +98,12 @@ export function validateDeviceDescriptors(
         message: "Only capacitor devices may declare plate semantics",
       });
     }
+    // A capacitor that prints its own card names its plates. One that prints
+    // nothing itself, a MOS varactor whose PDK device is its netlist form,
+    // need not: its gates and well are not plates of one capacitor.
     if (
       descriptor.deviceClass === "capacitor" &&
+      !(descriptor.targetPolicy === "none" && semanticRoles.size === 0) &&
       (semanticPins.size !== 2 ||
         !semanticRoles.has("capacitor-top-plate") ||
         !semanticRoles.has("capacitor-bottom-plate"))

@@ -4,7 +4,11 @@ import type { BodyPortOrder } from "@icm/netlist";
 import { builtInSymbols, type SymbolDefinition } from "@icm/symbols";
 
 import list from "./symbol-list.json";
-import { inlineRnlSymbols, inlineRnlVariantSymbols } from "./inline-symbols.js";
+import {
+  inlineRnlDeviceSymbols,
+  inlineRnlSymbols,
+  inlineRnlVariantSymbols,
+} from "./inline-symbols.js";
 import type { RnlOrient } from "./orientation.js";
 import type { RnlPoint } from "./place.js";
 
@@ -135,6 +139,7 @@ const LISTED: readonly RnlSymbol[] = (list as ListEntry[]).map((entry) => ({
 export const RNL_SYMBOLS: readonly RnlSymbol[] = [
   ...LISTED,
   ...inlineRnlSymbols,
+  ...inlineRnlDeviceSymbols,
   ...inlineRnlVariantSymbols(LISTED),
 ];
 

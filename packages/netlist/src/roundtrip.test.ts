@@ -342,6 +342,7 @@ describe("structural SPICE round trip", () => {
       "XQ2 vss vss vout pnpMPA a=1.4e-12 p=5.4e-06 m=1",
       "XR1 vout vss vss rsil w=0.5e-6 l=5e-6 m=1",
       "XC1 vout vss cap_cmim w=7.0e-6 l=7.0e-6 m=1",
+      "XV1 vin vss vout vss sg13_hv_svaricap w=9.74u l=0.8u Nx=3",
     ];
     const source = [
       "IHP SG13G2 round trip",
@@ -370,6 +371,7 @@ describe("structural SPICE round trip", () => {
       ["XQ2", "pnp"],
       ["XR1", "resistor"],
       ["XC1", "capacitor"],
+      ["XV1", "mos-varactor"],
     ] as const)
       expect(instance(reference), reference).toMatchObject({
         symbolId,

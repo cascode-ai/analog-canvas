@@ -585,4 +585,41 @@ describe("built-in device registry", () => {
       ]),
     );
   });
+
+  it("lets only a capacitor that prints nothing itself name no plates (#2321)", () => {
+    const varactor = deviceDescriptor("mos-varactor");
+    expect(varactor).toMatchObject({
+      deviceClass: "capacitor",
+      targetPolicy: "none",
+      pinOrder: ["G1", "W", "G2"],
+    });
+    if (!varactor) return;
+    expect(validateDeviceDescriptors([varactor])).toEqual([]);
+    // A three-terminal capacitor that prints its own C card still must.
+    expect(
+      validateDeviceDescriptors([
+        { ...varactor, id: "three-pin-capacitor", targetPolicy: "builtin" },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        deviceId: "three-pin-capacitor",
+        message:
+          "Capacitor devices must declare one top-plate and one bottom-plate pin semantic",
+      }),
+    ]);
+    // Plates it does name are checked as any capacitor's.
+    expect(
+      validateDeviceDescriptors([
+        {
+          ...varactor,
+          pinSemantics: [{ pinName: "G1", role: "capacitor-top-plate" }],
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({
+        message:
+          "Capacitor devices must declare one top-plate and one bottom-plate pin semantic",
+      }),
+    ]);
+  });
 });

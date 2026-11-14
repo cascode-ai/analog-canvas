@@ -534,6 +534,52 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it.each(["spice", "spectre"] as const)(
+  "brings back IHP's MOS varactor on its own symbol, defined in the file, through %s+RNL (#2321)",
+  async (format) => {
+    const drawn = calledBlocks(["mos-varactor"]);
+    drawn.documents[0]!.instances[0]!.reference = "C1";
+    const process = planNetlistProcess(
+      drawn,
+      createDefaultNetlistExportPreferences().profiles.sg13g2,
+    );
+    const bound = executeProjectTransaction(drawn, {
+      transactionId: "sg13g2",
+      projectId: drawn.id,
+      expectedStructureRevision: drawn.structureRevision,
+      actor: { kind: "human", id: "netlist-process" },
+      edits: process,
+    });
+    if (!bound.ok) throw new Error(bound.error.message);
+    const project = bound.project;
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(
+        JSON.stringify(exported.netlistDiagnostics ?? exported.diagnostics),
+      );
+    expect(
+      exported.diagnostics.filter((item) => item.severity === "error"),
+    ).toEqual([]);
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(written.text).toContain("$CANVAS_MOS_VARACTOR");
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const varactor = plan.project.documents
+      .flatMap((document) => document.instances)
+      .find((instance) => instance.symbolId === "mos-varactor");
+    expect(varactor?.netlist?.binding?.kind).toBe("external-subcircuit");
+    const netlist = (circuit: CircuitProject) => {
+      const result = createDesignNetlistExport(circuit, { format });
+      return result.status === "ready" ? result.file.text : result.status;
+    };
+    expect(netlist(project)).toMatch(/sg13_hv_svaricap/u);
+    expect(netlist(plan.project)).toBe(netlist(project));
+  },
+);
+
 /** Parts the standard series 0.4 draws, with the symbol of each. */
 const STANDARD_04_PARTS = [
   "polarized-capacitor",

@@ -228,6 +228,12 @@ their IDs, never resolved to the first.
   inductor (`set-model` `sky130_fd_pr__ind_03_90`,
   `sky130_fd_pr__ind_05_125` or `sky130_fd_pr__ind_05_220`) is drawn with
   it: A, B and CT are pins 1, 2 and 3, and SUB is set with `set-terminal-net`.
+- IHP's MOS varactor (`set-model` `sg13_hv_svaricap`; `w l Nx m`) is drawn as
+  `mos-varactor`, as IHP's xschem symbol draws it: gate `G2` left, `G1`
+  right and n-well control `W` on top are pins, and its substrate `B` (`bn`) is set with `set-terminal-net`.
+  An SG13G2 Process sets that model on placement and Process fill; without
+  it the part has no netlist form. `variable-capacitor` stays
+  an ideal tunable capacitor and takes no model.
 
 ### Controlled sources
 

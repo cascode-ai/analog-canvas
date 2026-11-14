@@ -52,6 +52,7 @@ export function symbolCategory(symbolId: string): string {
       "photoresistor",
       "variable-capacitor",
       "polarized-capacitor",
+      "mos-varactor",
       "variable-inductor",
       "diode",
       "zener-diode",
@@ -205,6 +206,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   "shockley-diode": "Shockley",
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
+  "mos-varactor": "MOS Var",
 };
 
 /** One line saying what an entry does, where the name alone leaves a doubt. */
@@ -247,6 +249,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Photoresistor (light-dependent resistor) — electrically the Resistor",
   "polarized-capacitor":
     "Polarized (electrolytic) capacitor — electrically the Capacitor, + on pin 1",
+  "mos-varactor":
+    "Two-gate MOS varactor drawn as IHP's: gates G2 left and G1 right, n-well control W on top; takes a PDK model (IHP sg13_hv_svaricap)",
   "schottky-diode":
     "Schottky barrier diode — electrically a diode, on the generic DSCH model",
   speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",
@@ -338,6 +342,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "photoresistor",
   "variable-capacitor",
   "polarized-capacitor",
+  "mos-varactor",
   "variable-inductor",
   "diode",
   "zener-diode",

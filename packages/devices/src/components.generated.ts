@@ -205,6 +205,21 @@ export const componentDeviceDescriptors: readonly DeviceDescriptor[] = [
     },
   },
   {
+    id: "mos-varactor",
+    symbolId: "mos-varactor",
+    deviceClass: "capacitor",
+    referencePrefix: "C",
+    pinOrder: ["G1", "W", "G2"],
+    targetPolicy: "none",
+    parameters: [],
+    dialects: ["spice", "spectre"],
+    capabilities: {
+      supportsModel: false,
+      supportsBulkBinding: false,
+      supportsValueAnnotation: true,
+    },
+  },
+  {
     id: "inductor-compact",
     symbolId: "inductor-compact",
     deviceClass: "inductor",
