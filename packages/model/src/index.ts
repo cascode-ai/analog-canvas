@@ -2,6 +2,7 @@ export * from "./drafting-geometry-schema.js";
 export * from "./coordinate-domain.js";
 export * from "./cell-interface-projection.js";
 export * from "./cell-symbol-layout.js";
+export { resolveClosedSymbolPath } from "./closed-symbol-path.js";
 export * from "./component-interface.js";
 export * from "./circuit-component.js";
 export * from "./factories.js";

@@ -1,6 +1,7 @@
 import {
   drawingOrderKey,
   inverseTransformPoint,
+  resolveClosedSymbolPath,
   resolveDrawingOrder,
 } from "@icm/model";
 import type {
@@ -10,13 +11,16 @@ import type {
   Instance,
   RouteEndpoint,
   SchematicDocument,
+  SymbolPrimitive,
 } from "@icm/model";
 import {
+  drawnAdaptiveBodyParts,
   resolveAdaptiveSignalFlowBlockLayout,
   resolveInstanceSymbol,
 } from "@icm/symbols";
 import type {
   ResolvedSymbol,
+  SignalFlowLayoutParameters,
   SymbolDefinition,
   SymbolResolver,
 } from "@icm/symbols";
@@ -26,6 +30,12 @@ import { pointOnSegment } from "./segment-geometry.js";
 
 export type FilledRegion =
   | { readonly kind: "polygon"; readonly points: readonly DerivedPoint[] }
+  | {
+      readonly kind: "path";
+      readonly data: string;
+      readonly bounds: DerivedRect;
+      readonly contains: (point: DerivedPoint) => boolean;
+    }
   | {
       readonly kind: "circle";
       readonly center: DerivedPoint;
@@ -40,21 +50,76 @@ export interface ResolvedInstanceFill {
   readonly adaptive?: boolean;
 }
 
-function fillableRegions(symbol: ResolvedSymbol): FilledRegion[] {
+function fillableRegions(
+  symbol: ResolvedSymbol,
+  parameters: SignalFlowLayoutParameters | undefined,
+): FilledRegion[] {
+  const adaptive = resolveAdaptiveSignalFlowBlockLayout(
+    symbol.definition,
+    parameters,
+  );
+  if (adaptive) {
+    const parts = drawnAdaptiveBodyParts(
+      symbol.definition,
+      symbol.variant?.hiddenPrimitiveParts,
+      symbol.variant?.additionalPrimitives,
+    );
+    return [
+      ...(parts.frameFillable ? [adaptiveFrameRegion(adaptive)] : []),
+      ...parts.extraBodies.flatMap(primitiveFillRegions),
+    ];
+  }
   const hidden = new Set(symbol.variant?.hiddenPrimitiveParts);
   return [
     ...symbol.definition.primitives,
     ...(symbol.variant?.additionalPrimitives ?? []),
-  ].flatMap((primitive): FilledRegion[] => {
-    if (primitive.part && hidden.has(primitive.part)) return [];
-    if (primitive.kind === "circle" && primitive.fillableBody)
-      return [
-        { kind: "circle", center: primitive.center, radius: primitive.radius },
-      ];
-    if (primitive.kind === "polygon" && primitive.fillableBody)
-      return [{ kind: "polygon", points: primitive.points }];
-    return [];
-  });
+  ]
+    .filter((primitive) => !primitive.part || !hidden.has(primitive.part))
+    .flatMap(primitiveFillRegions);
+}
+
+function primitiveFillRegions(primitive: SymbolPrimitive): FilledRegion[] {
+  if (primitive.kind === "circle" && primitive.fillableBody)
+    return [
+      { kind: "circle", center: primitive.center, radius: primitive.radius },
+    ];
+  if (primitive.kind === "polygon" && primitive.fillableBody)
+    return [{ kind: "polygon", points: primitive.points }];
+  if (primitive.kind === "rectangle" && primitive.fillableBody)
+    return [{ kind: "rectangle", bounds: primitive.bounds }];
+  if (primitive.kind === "path" && primitive.fillableBody) {
+    const path = filledPathRegion(primitive);
+    return path ? [path] : [];
+  }
+  return [];
+}
+
+type FilledPathRegion = Extract<FilledRegion, { kind: "path" }>;
+const filledPathRegions = new WeakMap<
+  SymbolPrimitive,
+  FilledPathRegion | undefined
+>();
+
+function filledPathRegion(
+  primitive: Extract<SymbolPrimitive, { kind: "path" }>,
+): FilledPathRegion | undefined {
+  if (Object.isFrozen(primitive) && filledPathRegions.has(primitive))
+    return filledPathRegions.get(primitive);
+  const result = resolveClosedSymbolPath(primitive.data);
+  const region = result.ok
+    ? { kind: "path" as const, data: primitive.data, ...result.geometry }
+    : undefined;
+  if (Object.isFrozen(primitive)) filledPathRegions.set(primitive, region);
+  return region;
+}
+
+/** Bounds for the same marked paths the scene draws and uses for occlusion. */
+export function closedSymbolPathBounds(
+  primitive: Extract<SymbolPrimitive, { kind: "path" }>,
+): DerivedRect | undefined {
+  return primitive.fillableBody
+    ? filledPathRegion(primitive)?.bounds
+    : undefined;
 }
 
 /** Resolve capability independently of whether the instance is already filled. */
@@ -63,7 +128,10 @@ export function instanceSupportsBodyFill(
   resolver: SymbolResolver,
 ): boolean {
   const symbol = resolveInstanceSymbol(resolver, instance);
-  return !!symbol && fillableRegions(symbol).length > 0;
+  return (
+    !!symbol &&
+    fillableRegions(symbol, instance.signalFlowParameters).length > 0
+  );
 }
 
 /** A declaration can survive a variant that hides all of its regions. */
@@ -110,7 +178,7 @@ function resolvedInstanceFill(
   if (!symbol) return undefined;
   if (bodyFill)
     return {
-      regions: fillableRegions(symbol),
+      regions: fillableRegions(symbol, instance.signalFlowParameters),
       color: bodyFill.kind === "background" ? "background" : bodyFill.color,
       legacy: false,
     };
@@ -130,6 +198,24 @@ function resolvedInstanceFill(
   };
 }
 
+function contourWinding(
+  points: readonly DerivedPoint[],
+  point: DerivedPoint,
+): number | undefined {
+  let winding = 0;
+  for (const [index, from] of points.entries()) {
+    const to = points[(index + 1) % points.length];
+    if (!to) continue;
+    if (pointOnSegment(point, from, to)) return undefined;
+    const side =
+      (to.x - from.x) * (point.y - from.y) -
+      (point.x - from.x) * (to.y - from.y);
+    if (from.y <= point.y && to.y > point.y && side > 0) winding++;
+    else if (from.y > point.y && to.y <= point.y && side < 0) winding--;
+  }
+  return winding;
+}
+
 function regionContains(region: FilledRegion, point: DerivedPoint): boolean {
   switch (region.kind) {
     case "circle":
@@ -146,20 +232,14 @@ function regionContains(region: FilledRegion, point: DerivedPoint): boolean {
         point.y <= y + height
       );
     }
-    case "polygon": {
-      // Match the SVG default nonzero winding rule. Edges are visible ink.
-      let winding = 0;
-      for (const [index, from] of region.points.entries()) {
-        const to = region.points[(index + 1) % region.points.length]!;
-        if (pointOnSegment(point, from, to)) return true;
-        const side =
-          (to.x - from.x) * (point.y - from.y) -
-          (point.x - from.x) * (to.y - from.y);
-        if (from.y <= point.y && to.y > point.y && side > 0) winding++;
-        else if (from.y > point.y && to.y <= point.y && side < 0) winding--;
-      }
-      return winding !== 0;
-    }
+    case "polygon":
+      // The SVG default is nonzero winding. Edges are visible ink.
+      return contourWinding(region.points, point) !== 0;
+    case "path":
+      return (
+        regionContains({ kind: "rectangle", bounds: region.bounds }, point) &&
+        region.contains(point)
+      );
   }
 }
 

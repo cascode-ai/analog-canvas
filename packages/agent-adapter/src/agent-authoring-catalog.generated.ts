@@ -1808,10 +1808,10 @@ export const agentRazaviAuthoringCatalog = {
       formula: false,
       coefficient: false,
       bounds: {
-        x: -34,
-        y: -24,
-        width: 68,
-        height: 48,
+        x: -30,
+        y: -20,
+        width: 60,
+        height: 40,
       },
       pins: [
         {

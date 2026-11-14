@@ -677,7 +677,10 @@ it.each([false, true])(
     const ready = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     h.region.fetchLike = (async (input, init) => {
-      await h.source.authDurable.fetch(new Request(input, init));
+      const response = await h.source.authDurable.fetch(
+        new Request(input, init),
+      );
+      if (!String(input).endsWith("/account")) return response;
       ready.resolve();
       await release.promise;
       throw new Error("Lost authority response");

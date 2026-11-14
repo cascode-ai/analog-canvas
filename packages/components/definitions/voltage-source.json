@@ -46,6 +46,7 @@
           "y": 0
         },
         "radius": 10.755814,
+        "fillableBody": true,
         "style": {
           "strokeRole": "normal",
           "lineCap": "butt",

@@ -3,6 +3,7 @@ import { isRegionalArenaRoute } from "./arena-paths";
 
 export const REGIONAL_PREFIX = "/api/auth/regional/";
 export const REGIONAL_SESSION_COOKIE = "icm_regional_session";
+export const REGIONAL_SESSION_PEER_PATH = "/api/auth/region/session";
 /**
  * How long a region keeps authorizing an account without reaching the
  * authority. Renewal still runs every REGIONAL_REFRESH_MS, so logout, expiry

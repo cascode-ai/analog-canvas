@@ -189,11 +189,16 @@ choices have a dropdown.
 
 ## Stack components
 
-Select an ADC and open **Properties → Body fill**. **Document background**
+Select a component with a fillable body and open **Properties → Body fill**.
+Examples include ADCs, DACs, op-amps, round sources and Cell blocks. **Document background**
 matches the drawing's background color, **Custom color** sets an opaque color,
 and **Transparent** shows the drawing behind the symbol. The fill follows the
 closed body when you move, rotate, or mirror the component. You can still
 double-click visible text to edit it.
+
+In a custom component's Symbol JSON, set `fillableBody: true` on a closed
+body primitive. A single path can include closed inner contours to keep holes
+clear. [Symbol DSL](../specs/symbol-dsl.md#rules)
 
 Right-click a component or a selection to move it forward, backward, to the
 front, or to the back. A component moves in the drawing order with its labels.

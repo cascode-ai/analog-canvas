@@ -17,6 +17,19 @@ import { sessionUserOf } from "./auth";
 import type { AuthEnv, SessionUser } from "./auth-do";
 import { computesOnHostedSimulation } from "./hosted-simulation-access";
 import type { SimulationControlNamespaceLike } from "./simulation-control-do";
+import { sameOrigin } from "./same-origin";
+import {
+  jobPeerConfigured,
+  receiveJobCommand,
+  sendJobCommand,
+  jobFailure,
+  type RegionalJobEnv,
+} from "./regional-job-peer";
+import {
+  simulationJobPeerPath,
+  simulationRegistryCommand,
+  simulationStartRegion,
+} from "./regional-simulation";
 import {
   routeSimulationRequest,
   signInToSimulate,
@@ -53,7 +66,7 @@ export interface SimulationJobQueue {
 }
 
 export interface SimulationOperationsEnv
-  extends SimulationEnv, Partial<AuthEnv> {
+  extends SimulationEnv, Partial<AuthEnv>, RegionalJobEnv {
   SIMULATION_CONTROL?: SimulationControlNamespaceLike;
   SIMULATION_JOBS?: SimulationJobQueue;
   SIMULATION_ARTIFACTS?: SimulationArtifactBucket;
@@ -189,6 +202,32 @@ export async function routeManagedSimulationRequest(
   runtime: SimulationOperationsRuntime = defaultRuntime,
 ): Promise<Response | null> {
   const url = new URL(request.url);
+  const peerPath = simulationJobPeerPath;
+  if (url.pathname === peerPath)
+    return receiveJobCommand(request, env, async (command, user) => {
+      if (command.action !== "local")
+        return simulationRegistryCommand(command, user, env);
+      if (
+        !/^\/api\/simulation\/runs(?:\/[^/?]+(?:\/(?:cancel|result))?)?(?:\?.*)?$/.test(
+          command.path,
+        )
+      )
+        return jobFailure("invalid-command", 400);
+      const {
+        RESOURCE_ACTION_PEER: _peer,
+        RESOURCE_REGION: _region,
+        ...localEnv
+      } = env;
+      return (await routeManagedSimulationRequest(
+        new Request(url.origin + command.path, {
+          method: command.method,
+          headers: { origin: url.origin },
+          ...(command.body === null ? {} : { body: command.body }),
+        }),
+        localEnv,
+        { ...runtime, principalOf: async () => user },
+      ))!;
+    });
   if (!url.pathname.startsWith("/api/simulation/")) return null;
   if (!configured(env))
     return Response.json(
@@ -202,6 +241,9 @@ export async function routeManagedSimulationRequest(
   // Simulation runs on the operator's host, so it is for signed-in accounts.
   const principal = await runtime.principalOf(request, env);
   if (!principal) return signInToSimulate();
+  if (env.RESOURCE_REGION && !jobPeerConfigured(env)) return jobFailure();
+  if (jobPeerConfigured(env) && !sameOrigin(request))
+    return jobFailure("forbidden", 403);
   const ownedResponse = (response: Response): Response => {
     response.headers.set("cache-control", "private, no-store");
     return response;
@@ -244,6 +286,21 @@ export async function routeManagedSimulationRequest(
       const response = await control(env)!.fetch(
         `https://simulation-control/runs?ownerId=${encodeURIComponent(principal.id)}`,
       );
+      if (jobPeerConfigured(env) && response.ok) {
+        const peer = await sendJobCommand(request, env, peerPath, {
+          action: "local",
+          method: "GET",
+          path: url.pathname,
+          body: null,
+        });
+        if (!peer.ok) return ownedResponse(peer);
+        const own = (await response.json()) as { runs: ManagedRunRecord[] },
+          other = (await peer.json()) as { runs: ManagedRunRecord[] };
+        const runs = [...own.runs, ...other.runs]
+          .sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id))
+          .slice(0, 50);
+        return ownedResponse(Response.json({ runs }));
+      }
       return ownedResponse(
         new Response(response.body, {
           status: response.status,
@@ -288,6 +345,23 @@ export async function routeManagedSimulationRequest(
         input,
       }),
     );
+    if (jobPeerConfigured(env)) {
+      const region = await simulationStartRegion(
+        request,
+        env,
+        principal,
+        body.requestId,
+        requestFingerprint,
+      );
+      if (region instanceof Response) return ownedResponse(region);
+      if (region !== env.RESOURCE_REGION)
+        return sendJobCommand(request, env, peerPath, {
+          action: "local",
+          method: "POST",
+          path: url.pathname,
+          body: JSON.stringify(body),
+        });
+    }
     const inputKey = `simulation-inputs/${safeSegment(principal.id)}/${requestFingerprint}.json`;
     await env.SIMULATION_ARTIFACTS!.put(inputKey, canonicalInput, {
       httpMetadata: { contentType: "application/json" },
@@ -393,6 +467,13 @@ export async function routeManagedSimulationRequest(
       ),
     );
   }
+  if (!run && jobPeerConfigured(env))
+    return sendJobCommand(request, env, peerPath, {
+      action: "local",
+      method: request.method,
+      path: url.pathname + url.search,
+      body: null,
+    });
   if (!run || !ownerMayRead(run, principal))
     return ownedResponse(
       Response.json({ error: "RUN_NOT_FOUND" }, { status: 404 }),

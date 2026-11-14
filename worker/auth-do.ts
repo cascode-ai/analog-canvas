@@ -55,6 +55,8 @@ import {
   readBody,
   regionalConfig,
   REGIONAL_PREFIX,
+  REGIONAL_SESSION_COOKIE,
+  setCookie,
   type RegionalConfig,
 } from "./regional-auth-contract";
 import {
@@ -81,6 +83,7 @@ function canonicalAuthorityRequest(
     [
       "exchange",
       "renew",
+      "revoke",
       "identities",
       "account",
       "owner-token",
@@ -1065,10 +1068,22 @@ export class AuthDO {
       "Set-Cookie",
       sessionCookie(token, secure, AUTH_SESSION_TTL_SECONDS),
     );
+    this.clearRegionalCookie(response, url);
     if (clearState) {
       response.headers.append("Set-Cookie", stateCookie("", secure, 0));
     }
     return response;
+  }
+
+  private clearRegionalCookie(response: Response, url: URL) {
+    if (
+      this.regional?.origin === this.regional?.clientOrigin &&
+      this.regional?.origin === url.origin
+    )
+      response.headers.append(
+        "set-cookie",
+        setCookie(REGIONAL_SESSION_COOKIE, "", url.origin, 0),
+      );
   }
 
   // --- Sign-in handoff to AnalogArena ----------------------------------
@@ -1524,6 +1539,7 @@ export class AuthDO {
       "Set-Cookie",
       sessionCookie(token, url.protocol === "https:", AUTH_SESSION_TTL_SECONDS),
     );
+    this.clearRegionalCookie(response, url);
     return response;
   }
 

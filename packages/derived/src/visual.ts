@@ -3,6 +3,7 @@ import { routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   adaptiveSignalFlowBounds,
+  drawnAdaptiveBodyParts,
   resolveAdaptiveSignalFlowBlockLayout,
   relocatedPin,
   resolveInstanceSymbol,
@@ -11,6 +12,7 @@ import {
   variantHidesPin,
   variantPinAt,
 } from "@icm/symbols";
+import { closedSymbolPathBounds } from "./drawing-scene.js";
 import type {
   ResolvedSymbol,
   SignalFlowLayoutParameters,
@@ -264,15 +266,18 @@ function primitivePoints(primitive: SymbolPrimitive): Point[] | null {
         },
       ];
     case "path":
-      return primitive.bounds
+    case "rectangle": {
+      const bounds =
+        primitive.kind === "path"
+          ? (primitive.bounds ?? closedSymbolPathBounds(primitive))
+          : primitive.bounds;
+      return bounds
         ? [
-            { x: primitive.bounds.x, y: primitive.bounds.y },
-            {
-              x: primitive.bounds.x + primitive.bounds.width,
-              y: primitive.bounds.y + primitive.bounds.height,
-            },
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
           ]
         : null;
+    }
   }
 }
 
@@ -292,12 +297,33 @@ export function visibleSymbolInkBounds(
     signalFlowParameters,
   );
   // Supply leads a variant draws reach past the grown body (#1941).
-  if (adaptive)
-    return adaptiveSignalFlowBounds(
+  if (adaptive) {
+    const bounds = adaptiveSignalFlowBounds(
       resolved.definition,
       adaptive,
       resolved.variant?.hiddenPrimitiveParts,
     );
+    const { extraBodies } = drawnAdaptiveBodyParts(
+      resolved.definition,
+      resolved.variant?.hiddenPrimitiveParts,
+      resolved.variant?.additionalPrimitives,
+    );
+    if (!extraBodies.length) return bounds;
+    const points = extraBodies.flatMap(
+      (primitive) => primitivePoints(primitive) ?? [],
+    );
+    const x = Math.min(bounds.x, ...points.map((point) => point.x));
+    const y = Math.min(bounds.y, ...points.map((point) => point.y));
+    const right = Math.max(
+      bounds.x + bounds.width,
+      ...points.map((point) => point.x),
+    );
+    const bottom = Math.max(
+      bounds.y + bounds.height,
+      ...points.map((point) => point.y),
+    );
+    return { x, y, width: right - x, height: bottom - y };
+  }
   const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
   const primitives = [
     ...resolved.definition.primitives,

@@ -121,10 +121,13 @@ GET  /api/agent/openapi.json
   then use the peer only when absent. An unreachable owner is a retryable
   transport failure, not a missing session. An uncertain write is never replayed
   in another region, and live state is neither copied nor recreated there.
-- Device trust directories remain regional. Approval records its directory's
-  region so a session elsewhere checks that same trust; device revocation and
-  account deletion reach its owned sessions. Existing directories keep their
-  storage keys and existing grants remain subject to their original scope.
+- Device trust directories retain their existing regional storage keys and
+  scopes. Approval records its directory's region so a session elsewhere checks
+  that same trust. Settings lists the account/site's installations across both
+  directories; revocation removes that installation's grants in both regions
+  and reaches their tasks. An unavailable directory returns a retryable failure,
+  never an incomplete list or a claim of completed global revocation. Retrying
+  a partially completed revocation is safe and never creates trust.
 
 ## Credentials
 

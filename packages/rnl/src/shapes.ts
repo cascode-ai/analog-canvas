@@ -214,6 +214,21 @@ export function symbolShapes(
       case "polyline":
         shapes.push(pathShape(primitive.points));
         break;
+      case "rectangle": {
+        const { x, y, width, height } = primitive.bounds;
+        shapes.push(
+          paint(
+            {
+              shape: "rectangle",
+              points: [toRnlPoint({ x: x + width / 2, y: y + height / 2 })],
+              params: { width: rnlLength(width), height: rnlLength(height) },
+            },
+            primitive.fill === "foreground",
+            primitive.stroke !== "none",
+          ),
+        );
+        break;
+      }
       case "polygon":
         shapes.push(
           paint(

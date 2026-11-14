@@ -45,6 +45,8 @@ import { repairUnmodelledReviewedSizes } from "./transforms/reviewed-size.js";
 import { repairAmplifierPolaritySnapshots } from "./transforms/amplifier-polarity.js";
 import { repairSupplyPinSnapshots } from "./transforms/supply-pins.js";
 import { repairAdcBodySnapshots } from "./transforms/adc-body.js";
+import { repairSymbolBodySnapshots } from "./transforms/symbol-body.js";
+import { rejectClosedBodyGeometry } from "./closed-body-envelope.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
@@ -260,6 +262,7 @@ export function tryParseProjectWithMetadata(
 
   let current: Record<string, unknown>;
   try {
+    if (sourceSchemaVersion < 82) rejectClosedBodyGeometry(parsed);
     if (sourceSchemaVersion < 81 && Array.isArray(parsed.documents)) {
       for (const [index, item] of parsed.documents.entries()) {
         if (!isRecord(item)) continue;
@@ -532,7 +535,10 @@ export function tryParseProjectWithMetadata(
   // A Var Cap bound to the SKY130 varactor (#1298) could be neither wired nor
   // exported; it opens as an ideal Var Cap. A repair the schema would refuse
   // leaves the Project as it was rather than refusing to open it.
-  let project = validated.project;
+  let project =
+    sourceSchemaVersion < 82
+      ? repairSymbolBodySnapshots(validated.project)
+      : validated.project;
   const repaired = repairMisdrawnReviewedBindings(project);
   if (repaired !== project) {
     const checked = CircuitProjectSchema.safeParse(repaired);

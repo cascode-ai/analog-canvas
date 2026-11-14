@@ -10,7 +10,13 @@ import {
   readAgentClaim,
 } from "./editor-fixtures";
 import { openSelectionShelf, placeComponent } from "./manual-editor-fixtures";
-import { placedInstance, onScreen, drawWire } from "./canvas-fixtures";
+import {
+  placedInstance,
+  onScreen,
+  drawWire,
+  awaitCanvasSettled,
+  closeSelectionShelf,
+} from "./canvas-fixtures";
 import { mockProviders, sessionUser, signIn } from "./gallery-fixtures";
 import { analyzeDesignNetlist, createDesignNetlistExport } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
@@ -3442,6 +3448,57 @@ test("editing connected custom artwork and switching modes preserves logical pin
     ...automaticPeer,
     symbolId: caller.symbolId,
   });
+});
+
+test("applies custom body fill and keeps the component behind a hole selectable", async ({
+  page,
+  service,
+}) => {
+  await service.openEditorAs(page, null);
+  await placeComponent(page, "voltage-source", { x: 460, y: 280 });
+  const base = await readProject(page);
+  const center = instanceOf(base, "V1").placement!.position;
+  const editor = await openFiniteGain(page, "custom");
+  const code = symbolJson(editor);
+  const artwork = JSON.parse(await copyText(page, code));
+  const outline = "M-40-40 H40 V40 H-40 Z M-18-18 H18 V18 H-18 Z";
+  artwork.symbol.primitives = [
+    { kind: "path", data: outline, fillableBody: true },
+  ];
+  await code.fill(JSON.stringify(artwork));
+  await button(editor, "Apply & Place").click();
+  await expect(editor).toHaveCount(0);
+  const canvas = page.getByTestId("schematic-canvas");
+  await awaitCanvasSettled(canvas);
+  const [drop] = await onScreen(canvas, [center]);
+  await page.mouse.click(drop.x, drop.y);
+  const customHit = page.getByTestId("hit-X1");
+  await expect(customHit).toBeVisible();
+  await page.keyboard.press("Escape");
+  await awaitCanvasSettled(canvas);
+  const solidPoint = { x: center.x - 30, y: center.y - 20 };
+  const [solid] = await onScreen(canvas, [solidPoint]);
+  await page.mouse.click(solid.x, solid.y);
+  await expect(customHit).toHaveClass(/selected/u);
+  await openSelectionShelf(page);
+  await page
+    .getByLabel("Body fill", { exact: true })
+    .selectOption("background");
+  const body = canvas.locator(
+    '[data-object-id="X1"] path[data-role="instance-body-fill"]',
+  );
+  await expect(body).toHaveAttribute("fill-rule", "evenodd");
+  await expect(body).toHaveAttribute("d", outline);
+  await closeSelectionShelf(page);
+  await awaitCanvasSettled(canvas);
+  const [hole] = await onScreen(canvas, [center]);
+  await page.mouse.click(hole.x, hole.y);
+  await expect(page.getByTestId("hit-V1")).toHaveClass(/selected/);
+  const saved = await readProject(page);
+  expect(instanceOf(saved, "X1").bodyFill).toEqual({ kind: "background" });
+  expect(
+    definitionOf(saved, instanceOf(saved, "X1").symbolId).symbol.primitives[0],
+  ).toMatchObject({ data: outline, fillableBody: true });
 });
 
 test("copying custom circuits keeps terminal identities scoped to each native owner", async ({

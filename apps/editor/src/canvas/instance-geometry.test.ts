@@ -106,7 +106,10 @@ describe("selection geometry", () => {
     expect(bounds.height).toBe(48);
     const unbounded = structuredClone(resolver.resolve("opamp")!);
     for (const primitive of unbounded.definition.primitives)
-      if (primitive.kind === "path") delete primitive.bounds;
+      if (primitive.kind === "path") {
+        delete primitive.bounds;
+        delete primitive.fillableBody;
+      }
     expect(visibleSymbolLocalBounds(unbounded)).toEqual(
       unbounded.definition.viewBox,
     );

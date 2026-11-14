@@ -19,11 +19,39 @@ import {
   resolveInstanceSymbol,
   variantHiddenPinNames,
   type SymbolResolver,
+  type SymbolPrimitive,
 } from "@icm/symbols";
 import { compileWireDraft } from "./wire-draft.js";
 import { signalEndpointMembers } from "./signal-endpoint.js";
 
 type Rect = { x: number; y: number; width: number; height: number };
+
+function primitiveStrokePoints(primitive: SymbolPrimitive): readonly Point[] {
+  switch (primitive.kind) {
+    case "line":
+      return [primitive.from, primitive.to];
+    case "polyline":
+      return primitive.points;
+    case "polygon": {
+      const first = primitive.points[0];
+      return first ? [...primitive.points, first] : [];
+    }
+    case "rectangle": {
+      const { x, y, width, height } = primitive.bounds;
+      return [
+        { x, y },
+        { x: x + width, y },
+        { x: x + width, y: y + height },
+        { x, y: y + height },
+        { x, y },
+      ];
+    }
+    case "path":
+      return straightPathPoints(primitive.data);
+    case "circle":
+      return [];
+  }
+}
 type CornerOrder = "horizontal-first" | "vertical-first";
 
 /** The bends a planned wire takes, and the corner order that reproduces it. */
@@ -293,16 +321,7 @@ export function createRouteClearance(
         (primitive) => !primitive.part || !hiddenParts.has(primitive.part),
       )
       .flatMap((primitive) => {
-        const points =
-          primitive.kind === "line"
-            ? [primitive.from, primitive.to]
-            : primitive.kind === "polyline"
-              ? primitive.points
-              : primitive.kind === "polygon"
-                ? [...primitive.points, primitive.points[0]!]
-                : primitive.kind === "path"
-                  ? straightPathPoints(primitive.data)
-                  : [];
+        const points = primitiveStrokePoints(primitive);
         return points
           .slice(1)
           .map((to, index) => [place(points[index]!), place(to)] as const);

@@ -39,13 +39,24 @@ owns visual authority.
   follow the [schematic model](schematic-model.md). `nmos`/`pmos` keep D/G/S/B;
   default variant `textbook-3terminal` may hide bulk and never implies `B=S`;
   no `nmos3`/`pmos3`.
-- Primitives: line, polyline, polygon, circle, path. Pins carry unique name,
+- Primitives include line, polyline, polygon, circle, rectangle and path. Pins carry unique name,
   role, anchor, direction, visibility. Anchors lie on the 2-unit electrical
   lattice (ordinary symbols on the 10-unit grid); artwork may be decimal.
   Razavi assets use semantic stroke roles, no raw widths.
-- A polygon or circle can declare `fillableBody: true`. A fill follows only
-  declared regions the active variant draws. A variant hiding every declared
-  region keeps the Instance's fill choice for the next visible variant.
+- A polygon, circle, rectangle or closed path can declare `fillableBody: true`.
+  A rectangle supplies `bounds` with `x`, `y`, `width` and `height`. A path
+  supplies SVG `data`. Every subpath starts with a move and closes explicitly
+  with `Z` or `z`. Each contour must enclose an area and resolve to finite
+  geometry. The editor reports malformed and open paths at their definition.
+- Body regions draw together. A compound path uses the even-odd SVG rule so
+  nested contours can form holes. Each separate primitive paints independently.
+  Output preserves the original path. Canvas occlusion tests ray crossings on
+  the resolved lines, Bézier curves and elliptical arcs. A closed path accepts
+  up to 65,536 commands within 1 MiB of source.
+- Fill follows the regions visible in the active variant. A variant hiding
+  every declared region retains the Instance's fill choice. An adaptive Symbol's
+  `body` part uses its resolved frame and honors the variant's visibility.
+  Other marked regions retain their authored geometry.
 - An off-lattice auxiliary/variant contact needs `routing.preferredLanding`,
   outward and grid-aligned (behind or transverse is rejected); runtime
   resolves contact and landing as one `EndpointConnection`; no Route escape is

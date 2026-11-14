@@ -1,7 +1,10 @@
 import { agentPeerTarget } from "../../../worker/agent-regional-routing.ts";
 import { REGIONAL_ACTION_TIMEOUT_MS } from "../../../worker/regional-action-budget.ts";
 import { collectRegionalGarbage } from "./memory.mjs";
-import { isRegionalAuthorityBrowserRoute } from "../../../worker/regional-auth-contract.ts";
+import {
+  isRegionalAuthorityBrowserRoute,
+  REGIONAL_SESSION_PEER_PATH,
+} from "../../../worker/regional-auth-contract.ts";
 
 /** Operator routes generated from wrangler.jsonc upstreams (scripts/regional-runtime.mjs). */
 const DEFAULT_OPERATORS = [
@@ -86,6 +89,7 @@ export default {
         ) &&
         /^\?id=[A-Za-z0-9_-]{3,64}$/.test(destination.search);
       const allowed = new Set([
+        `POST ${new URL(REGIONAL_SESSION_PEER_PATH, peer)}`,
         `POST ${new URL("/api/analytics-sync/seed", peer)}`,
         `POST ${new URL("/api/analytics-sync/receive", peer)}`,
         `GET ${new URL("/api/analytics-sync/summary", peer)}`,
@@ -96,6 +100,7 @@ export default {
         `POST ${identity}`,
         `POST ${new URL("/api/auth/regional/exchange", identity)}`,
         `POST ${new URL("/api/auth/regional/renew", identity)}`,
+        `POST ${new URL("/api/auth/regional/revoke", identity)}`,
         `POST ${new URL("/api/auth/regional/deletions", identity)}`,
         `POST ${new URL("/api/auth/regional/account", identity)}`,
         `POST ${new URL("/api/auth/regional/owner-token", identity)}`,
@@ -114,6 +119,8 @@ export default {
           "submission",
           "board",
           "maintenance",
+          "simulation-job",
+          "topology-job",
         ].map(
           (action) =>
             `POST ${new URL("/api/resource-actions/" + action, peer)}`,
