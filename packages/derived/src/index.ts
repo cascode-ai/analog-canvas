@@ -11,6 +11,7 @@ export * from "./diagnostics/diagnostic.js";
 export * from "./diagnostics/erc.js";
 export * from "./document-derived-context.js";
 export * from "./drafting-geometry.js";
+export * from "./drawing-scene.js";
 export * from "./endpoint.js";
 export * from "./endpoint-connectivity.js";
 export * from "./electrical-topology-projection.js";

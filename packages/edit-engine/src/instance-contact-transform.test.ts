@@ -140,6 +140,74 @@ describe("final-position contact transform", () => {
       proposal.edits.filter((e) => e.kind === "attach_endpoint_to_route"),
     ).toHaveLength(2);
   });
+  it.each(["pin", "wire"])(
+    "does not join a %s hidden under a filled body on drop",
+    (target) => {
+      const document = createEmptyDocument("covered-drop", "Covered drop");
+      for (const [id, x, y] of [
+        ["cover", 140, 20],
+        ["X", 200, 100],
+      ] as const)
+        document.instances.push({
+          id,
+          symbolId: "adc",
+          placement: { position: { x, y }, rotation: 0, mirror: "none" },
+        });
+      document.drawingOrder = [{ kind: "electrical" }];
+      if (target === "pin") {
+        document.instances.push({
+          id: "rear",
+          symbolId: "adc",
+          placement: {
+            position: { x: 100, y: 20 },
+            rotation: 0,
+            mirror: "none",
+          },
+        });
+        document.nets.push({
+          id: "target",
+          terminals: [{ instanceId: "rear", pinName: "OUT" }],
+        });
+        document.drawingOrder.push({ kind: "instance", id: "rear" });
+      } else {
+        document.nets.push({ id: "target", terminals: [] });
+        document.junctions.push(
+          { id: "start", netId: "target", position: { x: 130, y: 20 } },
+          { id: "end", netId: "target", position: { x: 150, y: 20 } },
+        );
+        document.routes.push(
+          createRoutePath({
+            id: "wire",
+            netId: "target",
+            start: { kind: "junction", junctionId: "start" },
+            end: { kind: "junction", junctionId: "end" },
+            bends: [],
+            modes: ["manual"],
+          }),
+        );
+      }
+      document.drawingOrder.push(
+        { kind: "instance", id: "cover" },
+        { kind: "instance", id: "X" },
+        { kind: "circuit-marks" },
+      );
+      const delta = { x: -10, y: -80 };
+      const unfilled = move(document, delta);
+      expect(unfilled.nets[0]!.terminals).toContainEqual({
+        instanceId: "X",
+        pinName: "IN",
+      });
+
+      document.instances[0]!.bodyFill = { kind: "background" };
+      const filled = move(document, delta);
+      expect(
+        filled.instances.find((instance) => instance.id === "X")?.placement
+          ?.position,
+      ).toEqual({ x: 190, y: 20 });
+      expect(filled.nets).toEqual(document.nets);
+      expect(filled.routes).toEqual(document.routes);
+    },
+  );
   it("can leave and return to the original pin-on-wire contacts repeatedly", () => {
     let d = move(fixture(), { x: 0, y: -100 });
     for (let i = 0; i < 3; i++) {

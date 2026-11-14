@@ -43,6 +43,9 @@ owns visual authority.
   role, anchor, direction, visibility. Anchors lie on the 2-unit electrical
   lattice (ordinary symbols on the 10-unit grid); artwork may be decimal.
   Razavi assets use semantic stroke roles, no raw widths.
+- A polygon or circle can declare `fillableBody: true`. A fill follows only
+  declared regions the active variant draws. A variant hiding every declared
+  region keeps the Instance's fill choice for the next visible variant.
 - An off-lattice auxiliary/variant contact needs `routing.preferredLanding`,
   outward and grid-aligned (behind or transverse is rejected); runtime
   resolves contact and landing as one `EndpointConnection`; no Route escape is

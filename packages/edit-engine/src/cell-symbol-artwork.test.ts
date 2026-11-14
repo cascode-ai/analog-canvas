@@ -7,7 +7,11 @@ import {
   type SymbolDefinition,
 } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import {
+  CURRENT_PROJECT_FILE_VERSION,
+  parseProject,
+  serializeProject,
+} from "@icm/project-protocol";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -247,11 +251,11 @@ describe("a Cell drawn with its author's artwork", () => {
     expect(expectWiresOnPins(automatic)).toBe(wires);
   });
 
-  it("keeps a reset Cell's file bytes identical, and round-trips the artwork at schema 80", () => {
+  it("round-trips Cell artwork and restores the automatic presentation on reset", () => {
     const original = ota();
     const custom = customize(original);
     const text = serializeProject(custom);
-    expect(JSON.parse(text).schemaVersion).toBe(80);
+    expect(JSON.parse(text).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
     const loaded = parseProject(text);
     expect(cell(loaded).presentation.cellSymbol?.artwork).toEqual(
       cell(custom).presentation.cellSymbol?.artwork,
@@ -263,8 +267,11 @@ describe("a Cell drawn with its author's artwork", () => {
       planSetCellSymbolArtwork(custom, CELL, { symbolMode: "automatic" }),
     );
     expect(cell(reset).presentation).toEqual(cell(original).presentation);
-    // An older envelope cannot carry the field.
     const older = JSON.parse(text) as { schemaVersion: number };
+    older.schemaVersion = 80;
+    expect(cell(parseProject(JSON.stringify(older))).presentation).toEqual(
+      cell(custom).presentation,
+    );
     older.schemaVersion = 79;
     expect(() => parseProject(JSON.stringify(older))).toThrow(
       "A Cell's custom symbol artwork requires Project schema 80",

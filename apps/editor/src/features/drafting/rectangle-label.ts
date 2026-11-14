@@ -1,4 +1,7 @@
-import { resolveDraftingObjectGeometry } from "@icm/derived";
+import {
+  resolveDraftingObjectGeometry,
+  type ResolvedDrawingScene,
+} from "@icm/derived";
 import type { DraftingObject, Point, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -25,24 +28,32 @@ export function rectangleLabelFor(
 }
 
 /**
- * Top-most rectangle whose interior (boundary inclusive) contains the point.
- * Nested boxes prefer the smallest containing rectangle so a label lands on
- * the inner block, not the surrounding group frame; ties go to the later
- * object in document order, matching paint order.
+ * Nested boxes prefer the smallest visible interior. Paint order breaks ties.
  */
 export function rectangleInteriorAt(
   document: SchematicDocument,
   resolver: SymbolResolver,
   point: Point,
+  scene?: ResolvedDrawingScene,
 ): DraftingRectangle | null {
   let best: { rectangle: DraftingRectangle; area: number } | null = null;
   for (const object of document.drafting?.objects ?? []) {
     if (object.kind !== "rectangle") continue;
+    const entry = { kind: "drafting", id: object.id } as const;
+    if (scene && !scene.isVisibleAt(entry, point)) continue;
     const geometry = resolveDraftingObjectGeometry(document, resolver, object);
     if (geometry.kind !== "rectangle") continue;
     if (!pointInConvexPolygon(point, geometry.corners)) continue;
     const area = object.width * object.height;
-    if (!best || area <= best.area) best = { rectangle: object, area };
+    if (
+      !best ||
+      area < best.area ||
+      (area === best.area &&
+        (!scene ||
+          scene.rank(entry) >
+            scene.rank({ kind: "drafting", id: best.rectangle.id })))
+    )
+      best = { rectangle: object, area };
   }
   return best?.rectangle ?? null;
 }

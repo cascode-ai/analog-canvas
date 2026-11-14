@@ -6,7 +6,7 @@ import {
   DEFAULT_AGENT_SESSION_LIMITS,
   AgentSessionMachine,
   AgentTransportErrorResponseSchema,
-  agentEditCategory,
+  agentEditPermissions,
   agentCircuitOpenApi,
   agentMcpBootstrapManifest,
   agentSessionFromOtherSite,
@@ -503,12 +503,11 @@ export function operationScopes(
       }
       return [
         ...new Set(
-          (request.edits ?? []).flatMap((edit) => {
-            const category = agentEditCategory(edit.kind);
-            return category === "unsupported"
-              ? []
-              : ([`circuit.edit.${category}`] as AgentSessionScope[]);
-          }),
+          (request.edits ?? []).flatMap((edit) =>
+            (agentEditPermissions(edit) ?? []).map(
+              (permission): AgentSessionScope => `circuit.edit.${permission}`,
+            ),
+          ),
         ),
       ];
   }

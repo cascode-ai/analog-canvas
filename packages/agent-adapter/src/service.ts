@@ -183,6 +183,8 @@ export function agentEditCategory(
     case "patch_instance_netlist_parameters":
     case "set_instance_reference":
     case "set_instance_style_override":
+    case "set_body_fill":
+    case "reorder_drawing_objects":
     case "set_route_style_override":
     case "set_junction_style_override":
     case "set_object_document_style":
@@ -244,6 +246,35 @@ export function agentEditCategory(
   }
 }
 
+export function agentEditPermissions(
+  edit: SchematicEdit,
+): readonly (keyof AgentPermissions["edit"])[] | null {
+  const category = agentEditCategory(edit.kind);
+  if (category === "unsupported") return null;
+  return edit.kind === "add_instance" && edit.instance.bodyFill
+    ? [category, "presentation"]
+    : [category];
+}
+
+function checkEditPermissions(
+  edit: SchematicEdit,
+  permissions: AgentPermissions["edit"],
+) {
+  const required = agentEditPermissions(edit);
+  if (!required)
+    return {
+      code: "UNSUPPORTED_EDIT",
+      message: `Edit ${edit.kind} is not exposed by Agent Circuit API ${AGENT_API_VERSION}`,
+    };
+  const denied = required.find((permission) => !permissions[permission]);
+  return denied
+    ? {
+        code: "PERMISSION_DENIED",
+        message: `${denied} edit permission is not granted`,
+      }
+    : null;
+}
+
 function escapeXml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -289,6 +320,7 @@ export function createAgentCircuitService(
         resolver: SymbolResolver;
         includeSourceSpans: boolean;
         instanceLabels: boolean;
+        drawingPresentation: boolean;
         snapshot: AgentSessionSnapshot;
       }
     | undefined;
@@ -528,6 +560,17 @@ export function createAgentCircuitService(
           );
         }
         if (
+          request.drawingPresentation !== undefined &&
+          (request.projection ?? "full") !== "full"
+        ) {
+          return fail(
+            "snapshot",
+            "INVALID_REQUEST",
+            "drawingPresentation applies only to the full projection",
+            document.revision,
+          );
+        }
+        if (
           (request.projection === "pins") !==
             (request.instanceIds !== undefined) ||
           (request.projection === "pins" &&
@@ -706,6 +749,7 @@ export function createAgentCircuitService(
           });
         }
         const instanceLabels = request.instanceLabels === true;
+        const drawingPresentation = request.drawingPresentation === true;
         const cachedSnapshot = snapshotCache;
         const snapshot =
           cachedSnapshot !== undefined &&
@@ -713,7 +757,8 @@ export function createAgentCircuitService(
           cachedSnapshot.document === document &&
           cachedSnapshot.resolver === resolver &&
           cachedSnapshot.includeSourceSpans === includeSourceSpans &&
-          cachedSnapshot.instanceLabels === instanceLabels
+          cachedSnapshot.instanceLabels === instanceLabels &&
+          cachedSnapshot.drawingPresentation === drawingPresentation
             ? cachedSnapshot.snapshot
             : buildAgentSessionSnapshot({
                 ...(project ? { project } : {}),
@@ -721,6 +766,7 @@ export function createAgentCircuitService(
                 resolver,
                 includeSourceSpans,
                 instanceLabels,
+                drawingPresentation,
               });
         snapshotCache = {
           project,
@@ -728,6 +774,7 @@ export function createAgentCircuitService(
           resolver,
           includeSourceSpans,
           instanceLabels,
+          drawingPresentation,
           snapshot,
         };
         diagnosticsCache = {
@@ -831,6 +878,8 @@ export function createAgentCircuitService(
                 includeSourceSpans: false,
                 instanceLabels:
                   cached?.snapshot === snapshot && cached.instanceLabels,
+                drawingPresentation:
+                  cached?.snapshot === snapshot && cached.drawingPresentation,
                 snapshot,
               };
               return snapshot;
@@ -1260,20 +1309,15 @@ export function createAgentCircuitService(
             edit.kind === "transact_document" ? edit.edits : [],
           );
           for (const edit of nestedEdits) {
-            const category = agentEditCategory(edit.kind);
-            if (category === "unsupported") {
+            const refusal = checkEditPermissions(
+              edit,
+              options.permissions.edit,
+            );
+            if (refusal) {
               return fail(
                 "transact",
-                "UNSUPPORTED_EDIT",
-                `Edit ${edit.kind} is not exposed by Agent Circuit API ${request.apiVersion}`,
-                document.revision,
-              );
-            }
-            if (!options.permissions.edit[category]) {
-              return fail(
-                "transact",
-                "PERMISSION_DENIED",
-                `${category} edit permission is not granted`,
+                refusal.code,
+                refusal.message,
                 document.revision,
               );
             }
@@ -1440,20 +1484,12 @@ export function createAgentCircuitService(
         }
         const edits = request.edits ?? plannedWire?.edits ?? [];
         for (const edit of edits) {
-          const category = agentEditCategory(edit.kind);
-          if (category === "unsupported") {
+          const refusal = checkEditPermissions(edit, options.permissions.edit);
+          if (refusal) {
             return fail(
               "transact",
-              "UNSUPPORTED_EDIT",
-              `Edit ${edit.kind} is not exposed by Agent Circuit API ${request.apiVersion}`,
-              document.revision,
-            );
-          }
-          if (!options.permissions.edit[category]) {
-            return fail(
-              "transact",
-              "PERMISSION_DENIED",
-              `${category} edit permission is not granted`,
+              refusal.code,
+              refusal.message,
               document.revision,
             );
           }

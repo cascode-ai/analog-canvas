@@ -9,6 +9,7 @@ import { PlacementTrayPanel } from "../features/component-insert/placement-tray-
 import { CellSymbolLayoutProperties } from "../features/properties/component-structure-properties";
 import { ComponentIdentityProperties } from "../features/properties/component-identity-properties";
 import { NetNameProperties } from "../features/properties/net-name-properties";
+import { BodyFillProperties } from "../features/properties/body-fill-properties";
 import {
   AnnotationActionsSection,
   EndpointActionsSection,
@@ -57,6 +58,7 @@ export interface EditorPropertiesDockProps {
   groupProperties: ComponentProps<typeof GroupPropertiesSection>;
   keptStyle: ComponentProps<typeof KeptDocumentStyleSection>;
   component: ComponentPropertiesModel | null;
+  bodyFill?: ComponentProps<typeof BodyFillProperties>;
   annotationText: ComponentProps<typeof AnnotationColorProperties> | null;
   netName: ComponentProps<typeof NetNameProperties> | null;
   drafting: ComponentProps<typeof DraftingPropertiesPanel> | null;
@@ -89,6 +91,7 @@ export function EditorPropertiesDock({
   groupProperties,
   keptStyle,
   component,
+  bodyFill,
   annotationText,
   netName,
   drafting,
@@ -167,6 +170,7 @@ export function EditorPropertiesDock({
             ) : null}
             <GroupPropertiesSection {...groupProperties} />
             <KeptDocumentStyleSection {...keptStyle} />
+            {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
             {onConvertSignal ? (
               <button type="button" onClick={onConvertSignal}>
                 Convert to bus…

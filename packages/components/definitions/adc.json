@@ -105,6 +105,7 @@
             "y": 20
           }
         ],
+        "fillableBody": true,
         "fill": "none",
         "stroke": "foreground",
         "style": {

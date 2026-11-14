@@ -3,6 +3,7 @@ import {
   projectCellInterface,
   routeEnd,
   SchematicDocumentSchema,
+  resolveDrawingOrder,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import { applyLabelSignalMigration } from "./label-signal-migration.js";
@@ -59,6 +60,7 @@ import {
 import { applyPropertyTerminalEdit } from "./transaction-property-terminal.js";
 import { applyInstanceSignalFlowEdit } from "./transaction-instance-signal-flow.js";
 import { applyInstanceStyleOverrideEdit } from "./transaction-instance-style.js";
+import { applyDrawingPresentationEdit } from "./transaction-drawing-presentation.js";
 import { applyInstanceTransformEdit } from "./transaction-instance-transform.js";
 import { applyMosBulkEdit } from "./transaction-mos-bulk.js";
 import { applyNetPowerEdit } from "./transaction-net-power.js";
@@ -360,6 +362,18 @@ export function executeTransaction(
       );
     }
     switch (edit.kind) {
+      case "set_body_fill":
+      case "reorder_drawing_objects": {
+        const outcome = applyDrawingPresentationEdit(edit, {
+          before: document,
+          draft,
+          resolver,
+          changedObjectIds,
+          reject: rejectAt,
+        });
+        if (!outcome.ok) return outcome.rejection;
+        continue;
+      }
       case "migrate_label_signal": {
         const beforeMigration = structuredClone(draft);
         try {
@@ -651,6 +665,31 @@ export function executeTransaction(
       }
     }
     geometryChanged = true;
+  }
+
+  if (
+    changedObjectIds.size === 0 &&
+    transaction.edits.every(
+      (edit) =>
+        edit.kind === "set_body_fill" ||
+        edit.kind === "reorder_drawing_objects",
+    )
+  ) {
+    return {
+      ok: true,
+      applied: false,
+      revision: document.revision,
+      proposedRevision: document.revision,
+      document,
+      diff: {
+        documentId: document.id,
+        fromRevision: document.revision,
+        toRevision: document.revision,
+        editKinds: transaction.edits.map((edit) => edit.kind),
+        changedObjectIds: [],
+      },
+      diagnostics: [],
+    };
   }
 
   if (resolver) {
@@ -1277,6 +1316,7 @@ export function executeTransaction(
       "EDIT_PRECONDITION",
       `${draft.netlist!.name} is drawn with a custom symbol. ${artworkIssue.message}`,
     );
+  if (draft.drawingOrder) draft.drawingOrder = resolveDrawingOrder(draft);
   const candidate = SchematicDocumentSchema.safeParse(draft);
   if (!candidate.success) {
     return rejectTransaction(

@@ -3,6 +3,7 @@ import type {
   AgentDiagnostic,
   AgentSessionSnapshot,
 } from "@icm/agent-adapter";
+import { drawingOrderKey } from "@icm/model";
 
 /** One document's last complete Snapshot plus the response-level diagnostics. */
 export interface CachedSnapshot {
@@ -111,10 +112,17 @@ interface ObjectCollection {
 
 function documentCollections(
   snapshot: AgentSessionSnapshot,
+  compareDrawingPresentation: boolean,
 ): Record<string, ObjectCollection> {
   const document = snapshot.document;
   const instances = new Map(
-    document.instances.map((i) => [i.id, JSON.stringify(i)]),
+    document.instances.map((instance) => {
+      const { bodyFill, supportsBodyFill, ...base } = instance;
+      const facts = compareDrawingPresentation
+        ? { ...base, bodyFill, supportsBodyFill }
+        : base;
+      return [instance.id, JSON.stringify(facts)];
+    }),
   );
   const nets = new Map(document.nets.map((n) => [n.id, JSON.stringify(n)]));
   const routes = new Map(document.routes.map((r) => [r.id, JSON.stringify(r)]));
@@ -136,6 +144,16 @@ function documentCollections(
   const inductorCouplings = new Map(
     (document.inductorCouplings ?? []).map((c) => [c.id, JSON.stringify(c)]),
   );
+  const drawingOrder = new Map<string, string>();
+  if (compareDrawingPresentation) {
+    for (const [index, entry] of (document.drawingOrder ?? []).entries()) {
+      if ("id" in entry)
+        drawingOrder.set(
+          entry.id,
+          JSON.stringify([index, drawingOrderKey(entry)]),
+        );
+    }
+  }
   const collection = (map: Map<string, string>): ObjectCollection => ({
     ids: [...map.keys()],
     identity: (id: string) => map.get(id) ?? "",
@@ -149,6 +167,7 @@ function documentCollections(
     noConnects: collection(noConnects),
     drafting: collection(drafting),
     inductorCouplings: collection(inductorCouplings),
+    drawingOrder: collection(drawingOrder),
   };
 }
 
@@ -161,8 +180,17 @@ export function changedObjectIds(
   before: AgentSessionSnapshot,
   after: AgentSessionSnapshot,
 ): string[] {
-  const beforeCollections = documentCollections(before);
-  const afterCollections = documentCollections(after);
+  const compareDrawingPresentation =
+    before.document.drawingOrder !== undefined &&
+    after.document.drawingOrder !== undefined;
+  const beforeCollections = documentCollections(
+    before,
+    compareDrawingPresentation,
+  );
+  const afterCollections = documentCollections(
+    after,
+    compareDrawingPresentation,
+  );
   const changed = new Set<string>();
   for (const key of Object.keys(beforeCollections)) {
     const b = beforeCollections[key]!;

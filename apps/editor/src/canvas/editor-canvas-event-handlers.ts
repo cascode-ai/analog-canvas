@@ -11,11 +11,16 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import type { WireSource } from "@icm/edit-engine";
+import type { ResolvedDrawingScene } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditorTool } from "../interaction/interaction-state";
 import type { SelectionPolicy } from "../features/selection/selection-filter";
-import { rankCanvasHits } from "./canvas-hit-resolver";
+import {
+  canvasHitFromElement,
+  isCanvasHitVisible,
+  rankCanvasHits,
+} from "./canvas-hit-resolver";
 import {
   proposeRectangleLabel,
   rectangleInteriorAt,
@@ -36,6 +41,7 @@ interface CanvasEventHandlerDependencies {
     document: SchematicDocument;
     resolver: SymbolResolver;
     selectionPolicy: SelectionPolicy;
+    drawingScene: ResolvedDrawingScene;
   };
   session: {
     interactionKind: () => string;
@@ -62,6 +68,7 @@ interface CanvasEventHandlerDependencies {
      */
     pressActsOnSelection: (target: Element) => boolean;
     handleCanvasHitPointerDown: (event: CanvasPointerEvent) => void;
+    openInstance: (instance: SchematicDocument["instances"][number]) => void;
     openContextMenu: (
       target: Element,
       clientX: number,
@@ -143,7 +150,7 @@ interface CanvasEventHandlerDependencies {
 
 /** DOM event boundary for the editor canvas; domain mutations stay injected. */
 export function createEditorCanvasEventHandlers({
-  model: { tool, document, resolver, selectionPolicy },
+  model: { tool, document, resolver, selectionPolicy, drawingScene },
   session: { interactionKind, cellSymbolLayoutEnabled },
   coordinates: {
     pointFromClient,
@@ -155,6 +162,7 @@ export function createEditorCanvasEventHandlers({
     clearDraftingSelection,
     pressActsOnSelection,
     handleCanvasHitPointerDown,
+    openInstance,
     openContextMenu,
   },
   placement: {
@@ -202,6 +210,20 @@ export function createEditorCanvasEventHandlers({
   report: setStatus,
   consumePickupClick,
 }: CanvasEventHandlerDependencies) {
+  const rawPoint = (event: CanvasMouseEvent) =>
+    pointFromClient(event.clientX, event.clientY, event.currentTarget, false);
+  const hitsAt = (event: CanvasMouseEvent, intent: "edit" | "context-menu") =>
+    rankCanvasHits(
+      event.currentTarget.ownerDocument.elementsFromPoint(
+        event.clientX,
+        event.clientY,
+      ),
+      (hit) => selectionPolicy.allowsCanvasHit(hit, intent),
+      {
+        scene: drawingScene,
+        point: rawPoint(event),
+      },
+    );
   return {
     onClickCapture(event: CanvasMouseEvent) {
       if (noConnectPlacement?.active) {
@@ -433,6 +455,76 @@ export function createEditorCanvasEventHandlers({
         return;
       }
     },
+    onContextMenuCapture(event: CanvasMouseEvent) {
+      if (tool !== "pointer" || interactionKind() !== "idle") return;
+      const target = event.target as Element;
+      if (
+        target.closest(
+          "foreignObject, .endpoint-hit, .draft-handle, .route-handle",
+        )
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      openContextMenu(
+        hitsAt(event, "context-menu")[0]?.element ?? event.currentTarget,
+        event.clientX,
+        event.clientY,
+      );
+    },
+    onDoubleClickCapture(event: CanvasMouseEvent) {
+      const target = event.target as Element;
+      if (
+        tool !== "pointer" ||
+        cellSymbolLayoutEnabled ||
+        target.closest("foreignObject, .draft-handle, .route-handle")
+      )
+        return;
+      const direct = canvasHitFromElement(target);
+      const presentation = { scene: drawingScene, point: rawPoint(event) };
+      const directVisible = direct && isCanvasHitVisible(direct, presentation);
+      if (directVisible && direct.kind === "drafting") return;
+      const hit =
+        directVisible &&
+        !drawingScene.hasOcclusion &&
+        !document.drawingOrder &&
+        (direct.kind === "instance" || direct.kind === "annotation") &&
+        selectionPolicy.allowsCanvasHit(direct, "edit")
+          ? direct
+          : hitsAt(event, "edit").find(
+              (candidate) =>
+                candidate.kind === "instance" ||
+                candidate.kind === "annotation",
+            );
+      if (
+        direct &&
+        !directVisible &&
+        hit?.kind !== "annotation" &&
+        hit?.kind !== "instance"
+      ) {
+        event.stopPropagation();
+        return;
+      }
+      if (hit?.kind === "instance") {
+        const instance = document.instances.find(
+          (candidate) => candidate.id === hit.id,
+        );
+        if (!instance) return;
+        event.preventDefault();
+        event.stopPropagation();
+        cancelCanvasDrag();
+        openInstance(instance);
+      } else if (hit?.kind === "annotation") {
+        const annotation = document.annotations.find(
+          (candidate) => candidate.id === hit.id,
+        );
+        if (!annotation) return;
+        event.preventDefault();
+        event.stopPropagation();
+        cancelCanvasDrag();
+        beginAnnotationTextEditing(annotation);
+      }
+    },
     onDoubleClick(event: CanvasMouseEvent) {
       if (cellSymbolLayoutEnabled) {
         event.preventDefault();
@@ -440,28 +532,7 @@ export function createEditorCanvasEventHandlers({
       }
       const target = event.target as Element;
       if (tool === "pointer") {
-        const pointHits = rankCanvasHits(
-          event.currentTarget.ownerDocument.elementsFromPoint(
-            event.clientX,
-            event.clientY,
-          ),
-          (hit) => selectionPolicy.allowsCanvasHit(hit, "edit"),
-        );
-        const annotationHit = pointHits.find(
-          (hit) => hit.kind === "annotation",
-        );
-        const annotation = annotationHit
-          ? document.annotations.find(
-              (candidate) => candidate.id === annotationHit.id,
-            )
-          : undefined;
-        if (annotation) {
-          event.preventDefault();
-          event.stopPropagation();
-          cancelCanvasDrag();
-          beginAnnotationTextEditing(annotation);
-          return;
-        }
+        const pointHits = hitsAt(event, "edit");
         const electricalHit = pointHits.some(
           (hit) =>
             hit.kind !== "annotation" &&
@@ -475,7 +546,12 @@ export function createEditorCanvasEventHandlers({
         );
         const rectangle = electricalHit
           ? null
-          : rectangleInteriorAt(document, resolver, interiorPoint);
+          : rectangleInteriorAt(
+              document,
+              resolver,
+              interiorPoint,
+              drawingScene,
+            );
         if (rectangle && selectionPolicy.allowsDrafting(rectangle, "edit")) {
           event.preventDefault();
           event.stopPropagation();
@@ -572,14 +648,7 @@ export function createEditorCanvasEventHandlers({
       }
       if (tool === "wire") cancelWire();
       if (tool === "pointer" && interactionKind() === "idle") {
-        const hit = rankCanvasHits(
-          event.currentTarget.ownerDocument.elementsFromPoint(
-            event.clientX,
-            event.clientY,
-          ),
-          (candidate) =>
-            selectionPolicy.allowsCanvasHit(candidate, "context-menu"),
-        )[0];
+        const hit = hitsAt(event, "context-menu")[0];
         openContextMenu(
           hit?.element ?? event.currentTarget,
           event.clientX,

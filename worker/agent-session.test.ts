@@ -1246,6 +1246,128 @@ async function editorAnswer(
 }
 
 describe("public Agent session routes", () => {
+  it("enforces appearance grants and replays a drawing order receipt without moving twice", async () => {
+    const { env, objects, sockets } = routedFixture();
+    const post = async (path: string, body: unknown, token?: string) => {
+      const response = await routeAgentSessionRequest(
+        new Request(`https://editor.example${path}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...(token ? { authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+        }),
+        env,
+      );
+      if (!response) throw new Error(`No Agent route for ${path}`);
+      return response.json();
+    };
+    const arrangement = (scopes: AgentSessionScope[]) => {
+      const project = emptyAgentProject();
+      project.documents[0]!.instances.push(
+        ...["a", "b", "c"].map((id, index) => ({
+          id,
+          symbolId: "adc",
+          placement: {
+            position: { x: 100 + index * 20, y: 100 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+        })),
+      );
+      return liveAgentEditor({ project, scopes });
+    };
+    async function claim(scopes: AgentSessionScope[]) {
+      const editor = arrangement(scopes);
+      const created = (await post("/api/agent/sessions", {
+        projectSessionId: crypto.randomUUID(),
+        projectId: editor.controller.project.id,
+        documentIds: ["main"],
+        scopes,
+      })) as { session: { sessionId: string; claimCode: string } };
+      const { sessionId, claimCode } = created.session;
+      const { agentToken } = (await post("/api/agent/claims", {
+        claimCode,
+      })) as { agentToken: string };
+      sockets.set(sessionId, [
+        editorEnd(editor, () => objects.get(sessionId)!).socket,
+      ]);
+      return (input: unknown) =>
+        post(`/api/agent/sessions/${sessionId}/circuit`, input, agentToken);
+    }
+    const reorder = {
+      apiVersion: "3.0",
+      requestId: "advance-a",
+      operation: "transact",
+      documentId: "main",
+      expectedRevision: 0,
+      transactionId: "advance-a",
+      edits: [
+        {
+          kind: "reorder_drawing_objects",
+          objectIds: ["a"],
+          position: { kind: "forward" },
+        },
+      ],
+    };
+    const geometryOnly = await claim(["circuit.edit.geometry"]);
+    const missingPresentation = { error: { code: "TOKEN_SCOPE_INSUFFICIENT" } };
+    expect(await geometryOnly(reorder)).toMatchObject(missingPresentation);
+    expect(
+      await geometryOnly({
+        ...reorder,
+        requestId: "place-with-fill",
+        edits: [
+          {
+            kind: "add_instance",
+            instance: {
+              id: "new-adc",
+              symbolId: "adc",
+              placement: {
+                position: { x: 200, y: 100 },
+                rotation: 0,
+                mirror: "none",
+              },
+              bodyFill: { kind: "background" },
+            },
+          },
+        ],
+      }),
+    ).toMatchObject(missingPresentation);
+
+    const presentation = await claim([
+      "circuit.snapshot",
+      "circuit.edit.presentation",
+    ]);
+    const first = await presentation(reorder);
+    expect(first).toMatchObject({
+      ok: true,
+      applied: true,
+      revision: 1,
+      terminalConnectivityChanged: false,
+    });
+    expect(await presentation(reorder)).toEqual(first);
+    const snapshot = (await presentation({
+      apiVersion: "3.0",
+      requestId: "read-order",
+      operation: "snapshot",
+      documentId: "main",
+      drawingPresentation: true,
+    })) as {
+      revision: number;
+      snapshot: {
+        document: { drawingOrder: Array<{ kind: string; id?: string }> };
+      };
+    };
+    expect(snapshot.revision).toBe(1);
+    expect(
+      snapshot.snapshot.document.drawingOrder
+        .filter((entry) => entry.kind === "instance")
+        .map((entry) => entry.id),
+    ).toEqual(["b", "a", "c"]);
+  });
+
   it("relays typed simulation failures without revoking a session and replays a receipt once", async () => {
     const { env, objects, sockets } = routedFixture();
     const post = (path: string, body: unknown, token?: string) =>

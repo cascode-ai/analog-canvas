@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveCanvasHit, screenScaleHitRadius } from "./canvas-hit-resolver";
+import {
+  rankCanvasHits,
+  screenScaleHitRadius,
+  type CanvasHit,
+} from "./canvas-hit-resolver";
+
+function resolveCanvasHit(
+  elements: readonly Element[],
+  cycle = 0,
+  accepts?: (hit: CanvasHit) => boolean,
+) {
+  return rankCanvasHits(elements, accepts).at(cycle);
+}
 
 function element(kind: string, id: string, selected = false): Element {
   const classes = new Set(selected ? ["selected"] : []);
@@ -28,7 +40,7 @@ function childOf(parent: Element): Element {
   } as unknown as Element;
 }
 
-describe("resolveCanvasHit", () => {
+describe("rankCanvasHits", () => {
   it("prefers visible annotation text over an overlapping conductor", () => {
     const route = element("route", "wire-1");
     const annotation = element("annotation", "label-1");
@@ -145,14 +157,9 @@ describe("resolveCanvasHit", () => {
     const route = element("route", "route-1");
     const instance = element("instance", "M1");
     const accepts = (hit: { kind: string }) => hit.kind !== "route";
-    expect(resolveCanvasHit([route, instance], 0, accepts)).toMatchObject({
-      kind: "instance",
-      id: "M1",
-    });
-    expect(resolveCanvasHit([route, instance], 1, accepts)).toMatchObject({
-      kind: "instance",
-      id: "M1",
-    });
+    expect(rankCanvasHits([route, instance], accepts)).toMatchObject([
+      { kind: "instance", id: "M1" },
+    ]);
   });
 });
 

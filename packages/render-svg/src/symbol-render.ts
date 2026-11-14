@@ -3,10 +3,11 @@
  * transforms and visible pin names.
  */
 import {
+  adaptiveFrameRegion,
   razaviTextbookProfile,
   resolvePrimitiveStrokeWidth,
 } from "@icm/derived";
-import type { SchematicStyleProfile } from "@icm/derived";
+import type { FilledRegion, SchematicStyleProfile } from "@icm/derived";
 import {
   formatLabelFirstLetter,
   formatLabelIdentifier,
@@ -184,26 +185,27 @@ function uprightMarkPivots(
   );
 }
 
-function signalFlowFramePoints(body: {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}): string {
-  const right = body.x + body.width;
-  const bottom = body.y + body.height;
-  const taper = body.height / 4;
-  return `${body.x},${body.y} ${right},${body.y + taper} ${right},${bottom - taper} ${body.x},${bottom}`;
+export function renderFilledRegion(
+  region: FilledRegion,
+  attributes: string,
+): string {
+  switch (region.kind) {
+    case "polygon":
+      return `<polygon ${attributes} points="${pointList(region.points)}"/>`;
+    case "circle":
+      return `<circle ${attributes} cx="${region.center.x}" cy="${region.center.y}" r="${region.radius}"/>`;
+    case "rectangle": {
+      const { x, y, width, height } = region.bounds;
+      return `<rect ${attributes} x="${x}" y="${y}" width="${width}" height="${height}"/>`;
+    }
+  }
 }
 
-export function renderAdaptiveSignalFlowFrame(
+function renderAdaptiveSignalFlowFrame(
   adaptive: AdaptiveSignalFlowBlockLayout,
   attributes: string,
 ): string {
-  const { body, shape } = adaptive;
-  return shape === "right-tapered-trapezoid"
-    ? `<polygon ${attributes} points="${signalFlowFramePoints(body)}"/>`
-    : `<rect ${attributes} x="${body.x}" y="${body.y}" width="${body.width}" height="${body.height}"/>`;
+  return renderFilledRegion(adaptiveFrameRegion(adaptive), attributes);
 }
 
 export function renderSymbolDefinitionBody(

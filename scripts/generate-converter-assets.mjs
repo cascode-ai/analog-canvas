@@ -219,6 +219,7 @@ function converterSymbol({ id, name, defaultText, pointsRight, differential }) {
       {
         kind: "polygon",
         points,
+        ...(defaultText === "ADC" ? { fillableBody: true } : {}),
         // Empty inside, like every other body on the sheet.
         fill: "none",
         stroke: "foreground",

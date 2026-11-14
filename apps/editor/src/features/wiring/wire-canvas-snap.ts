@@ -1,6 +1,7 @@
 import {
   createElectricalContactResolver,
   resolveElectricalContactTargets,
+  type ResolvedDrawingScene,
   type ResolvedRouteGeometry,
   type RoutedComponent,
 } from "@icm/derived";
@@ -155,6 +156,7 @@ export interface WireCanvasSnapContext {
   snapIndex?: WireCanvasSnapIndex;
   /** The editor's stable source read; omitted for stateless/mutable callers. */
   contactResolver?: ReturnType<typeof createElectricalContactResolver>;
+  drawingScene?: ResolvedDrawingScene;
 }
 
 export interface WireCanvasSnapResult {
@@ -178,6 +180,7 @@ export function resolveWireCanvasSnap(
     captureTolerance,
     snapIndex,
     contactResolver,
+    drawingScene,
   }: WireCanvasSnapContext,
   point: Point,
   suppressSnap: boolean,
@@ -194,6 +197,8 @@ export function resolveWireCanvasSnap(
   const arrival = wireSource
     ? (wireWaypoints.at(-1) ?? wireSource.connection.contactPoint)
     : null;
+  const visibleConductorAt = (position: Point) =>
+    drawingScene?.isVisibleAt({ kind: "electrical" }, position) ?? true;
   const index =
     snapIndex ??
     buildWireCanvasSnapIndex(
@@ -211,8 +216,18 @@ export function resolveWireCanvasSnap(
     // Hit and rank the actual conductor before choosing its grid landing.
     // Quantizing here makes even a click ON a wire miss at higher zoom.
     const tapPoint = closestPointOnSegment(point, segment.from, segment.to);
-    return Math.hypot(tapPoint.x - point.x, tapPoint.y - point.y) <=
-      captureTolerance
+    const landing = drawingScene?.hasOcclusion
+      ? routeTapPoint(
+          tapPoint,
+          segment.from,
+          segment.to,
+          document.presentation.grid,
+          arrival,
+        )
+      : tapPoint;
+    return visibleConductorAt(tapPoint) &&
+      visibleConductorAt(landing) &&
+      Math.hypot(tapPoint.x - point.x, tapPoint.y - point.y) <= captureTolerance
       ? [
           {
             anchor: {
@@ -238,6 +253,11 @@ export function resolveWireCanvasSnap(
     .map((endpointIndex) => index.endpointTargets[endpointIndex]!)
     .filter(
       (target) =>
+        (drawingScene?.isEndpointVisibleAt(
+          target.source.endpoint,
+          target.anchor.point,
+        ) ??
+          true) &&
         Math.hypot(
           target.anchor.point.x - point.x,
           target.anchor.point.y - point.y,
@@ -312,6 +332,7 @@ export function resolveWireCanvasSnap(
           candidate.to,
         );
         return (
+          visibleConductorAt(projection) &&
           Math.hypot(
             projection.x - snappedPoint.x,
             projection.y - snappedPoint.y,

@@ -60,7 +60,10 @@ appear only when present. Local and production codecs share one schema.
   `text.bounds` as label placement measures them. `instanceLabels` (full or
   `pins`) adds per-instance `annotations` (`id`, `kind`, `parameter`,
   `visible`, `resolvedText`, `position` = the anchor `move-annotation` sets).
-  Both are opt-in so released strict clients keep their fields.
+  `drawingPresentation: true` (full) adds the Document's effective
+  `drawingOrder` from back to front, each Instance's `supportsBodyFill` for
+  its active Symbol, and its authored `bodyFill` where present. These fields
+  are opt-in so released strict clients keep their response shape.
 - RichText uses the Project's one union: styled runs or one
   `{kind:"math", latex, display}` run. Generated SVG, glyph paths and formula
   metrics are never accepted as mutation data.
@@ -74,6 +77,9 @@ appear only when present. Local and production codecs share one schema.
   `expectedStructureRevision`; all or nothing; optional dry run. A Snapshot or
   whole Project is never a mutation payload. Reuse a `requestId` only for an
   exact-payload retry.
+- `set_body_fill` and `reorder_drawing_objects` require
+  `circuit.edit.presentation`. `add_instance` with `bodyFill` also requires
+  that grant alongside `circuit.edit.geometry`.
 - `transact.command` (exclusive form): Model switching, Cell lifecycle, copy,
   alignment, selection transforms via the GUI planners; structural commands
   require `expectedStructureRevision`.

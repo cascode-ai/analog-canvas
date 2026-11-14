@@ -1,22 +1,26 @@
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 
 import type { WireSource } from "@icm/edit-engine";
-import { endpointKey } from "@icm/derived";
-import type { Annotation, DraftingObject, SchematicDocument } from "@icm/model";
+import { endpointKey, type ResolvedDrawingScene } from "@icm/derived";
+import type {
+  Annotation,
+  DraftingObject,
+  Point,
+  SchematicDocument,
+} from "@icm/model";
 
 import type { EditorTool } from "../interaction/interaction-state";
 import { planSelectionMove } from "../features/selection/selection-move-plan";
 import { type SelectionPolicy } from "../features/selection/selection-filter";
 import type { VisualSelection } from "../features/selection/visual-selection";
-import {
-  resolveCanvasHitAtPoint,
-  type CanvasHitKind,
-} from "./canvas-hit-resolver";
+import { rankCanvasHits, type CanvasHitKind } from "./canvas-hit-resolver";
 import { resolvePointerDownAction } from "./pointer-down-router";
 
 export interface CanvasHitControllerDependencies {
   model: {
     document: SchematicDocument;
+    drawingScene: ResolvedDrawingScene;
+    pointFromClient: (x: number, y: number, svg: SVGSVGElement) => Point;
     visibleEndpoints: readonly WireSource[];
     selection: VisualSelection;
     selectedInternalRouteIds: ReadonlySet<string>;
@@ -86,9 +90,11 @@ export interface CanvasHitControllerDependencies {
 }
 
 /** Rank the visible hit stack and hand one press to its owning domain. */
-export function createCanvasHitController({
+export function useCanvasHitController({
   model: {
     document,
+    drawingScene,
+    pointFromClient,
     visibleEndpoints,
     selection,
     selectedInternalRouteIds,
@@ -122,6 +128,12 @@ export function createCanvasHitController({
     pickControlledSource,
   },
 }: CanvasHitControllerDependencies) {
+  const lastAlternateHit = useRef<{
+    documentId: string;
+    x: number;
+    y: number;
+    id: string;
+  } | null>(null);
   const compositeSelectionOwnsHit = (
     kind:
       | "instance"
@@ -169,12 +181,21 @@ export function createCanvasHitController({
   };
 
   const handlePointerDown = (event: ReactPointerEvent<SVGSVGElement>): void => {
+    const point = pointFromClient(
+      event.clientX,
+      event.clientY,
+      event.currentTarget,
+    );
     const dotKey = (event.target as Element)
       .closest('.endpoint-hit[data-junction-dot="true"]')
       ?.getAttribute("data-endpoint-key");
     const junctionDotEndpoint = visibleEndpoints.find(
       (candidate) =>
         endpointKey(candidate.endpoint) === dotKey &&
+        drawingScene.isEndpointVisibleAt(
+          candidate.endpoint,
+          candidate.connection.contactPoint,
+        ) &&
         selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select"),
     )?.endpoint;
     // A terminal has a more precise electrical identity than the enclosing
@@ -191,11 +212,16 @@ export function createCanvasHitController({
     // The buried-wire warning span joins them: it exists precisely because
     // the symbol's hit box sits over the wire, so the span must win the
     // point or the wire underneath could never be picked.
-    const handleAtPoint = event.currentTarget.ownerDocument
-      .elementsFromPoint(event.clientX, event.clientY)
-      .some((element) =>
-        element.closest(".draft-handle, .route-handle, .wire-under-symbol-hit"),
-      );
+    const elements = event.currentTarget.ownerDocument.elementsFromPoint(
+      event.clientX,
+      event.clientY,
+    );
+    const handleAtPoint = elements.some(
+      (element) =>
+        element.closest(".draft-handle, .route-handle") ||
+        (element.closest(".wire-under-symbol-hit") &&
+          drawingScene.isVisibleAt({ kind: "electrical" }, point)),
+    );
     // The facts must describe the press as it arrived. Offering the hit to an
     // armed verb runs the verb, and a verb such as Move puts an interaction
     // in flight — so the interaction kind is read BEFORE the offer. Reading
@@ -219,17 +245,41 @@ export function createCanvasHitController({
       tool === "pointer" &&
       event.button === 0 &&
       !handleAtPoint;
-    const hit =
+    const alternate =
+      dispatching &&
+      event.altKey &&
+      simulationPickMode === null &&
+      controlPickMode === null;
+    const hits =
       dispatching || placingPart
-        ? resolveCanvasHitAtPoint(
-            event.currentTarget.ownerDocument,
-            { x: event.clientX, y: event.clientY },
-            event.altKey ? 1 : 0,
+        ? rankCanvasHits(
+            elements,
             simulationPickMode === null && controlPickMode === null
               ? (candidate) =>
                   selectionPolicy.allowsCanvasHit(candidate, "select")
               : undefined,
+            { scene: drawingScene, point, includeOccluded: alternate },
           )
+        : [];
+    const previous = lastAlternateHit.current;
+    const previousIndex =
+      alternate &&
+      previous?.documentId === document.id &&
+      Math.hypot(previous.x - event.clientX, previous.y - event.clientY) <= 4
+        ? hits.findIndex((candidate) => candidate.id === previous.id)
+        : 0;
+    const hit =
+      (alternate && hits.length
+        ? hits[(previousIndex + 1) % hits.length]
+        : hits[0]) ?? null;
+    lastAlternateHit.current =
+      alternate && hit
+        ? {
+            documentId: document.id,
+            x: event.clientX,
+            y: event.clientY,
+            id: hit.id,
+          }
         : null;
     // The offer runs the verb, so it is withheld while a simulation probe is
     // being picked: a pick must not rotate, copy, or delete what it names.

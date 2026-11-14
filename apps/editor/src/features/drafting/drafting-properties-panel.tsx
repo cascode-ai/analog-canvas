@@ -8,6 +8,7 @@ import {
   draftingPropertyValue,
   parseDraftingPropertyCode,
   serializeAnnotationPropertyCode,
+  type DraftingPropertyEdit,
 } from "../properties/annotation-property-code";
 import { annotationPropertyAdapter } from "../properties/annotation-property-code-assists";
 import { isClosedPolyline } from "./drafting-polyline";
@@ -19,7 +20,7 @@ export interface DraftingPropertiesPanelProps {
   object: DraftingObject;
   grid: number;
   defaultColor: string;
-  onApply(object: DraftingObject): { ok: boolean; message?: string };
+  onApply(edit: DraftingPropertyEdit): { ok: boolean; message?: string };
   onStackingChange(target: DraftingStackingTarget): void;
   onToggleLock(): void;
 }
@@ -52,10 +53,9 @@ export function DraftingPropertiesPanel({
       ),
     [context, closed],
   );
-  const format = (next: DraftingObject) =>
-    serializeAnnotationPropertyCode(
-      draftingPropertyValue({ ...context, object: next }),
-    );
+  const baseline = serializeAnnotationPropertyCode(
+    draftingPropertyValue(context),
+  );
   const position = resolveVisualAnchor(
     document,
     resolver,
@@ -86,10 +86,14 @@ export function DraftingPropertiesPanel({
             "content" in object ? flattenRichText(object.content) : object.id,
           coordinate: [position.x, position.y],
         }}
-        baseline={format(object)}
+        baseline={baseline}
         adapter={adapter}
         parse={(source) => parseDraftingPropertyCode(source, context)}
-        format={format}
+        format={({ object, layer }) =>
+          serializeAnnotationPropertyCode(
+            draftingPropertyValue({ ...context, object }, layer),
+          )
+        }
         onApply={onApply}
         defaultColor={defaultColor}
         title={title}
@@ -114,9 +118,8 @@ export function DraftingPropertiesPanel({
                   </button>
                 </div>
                 <small>
-                  Front is above the circuit; Back is behind it. Use these
-                  buttons to move above or below other drawings. Fill “auto” is
-                  transparent.
+                  Layer shows which side of the circuit this shape is on. Fill
+                  “auto” is transparent.
                 </small>
               </div>
             )}

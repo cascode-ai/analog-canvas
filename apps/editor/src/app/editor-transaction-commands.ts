@@ -137,7 +137,9 @@ export function createEditorTransactionCommands({
     setStatus(
       result.applied
         ? `Committed revision ${result.revision}`
-        : `Dry run for revision ${result.proposedRevision}`,
+        : result.proposedRevision === result.revision
+          ? "No change"
+          : `Dry run for revision ${result.proposedRevision}`,
     );
   };
 
@@ -179,6 +181,7 @@ export function createEditorTransactionCommands({
       (interactionKind === "wire" && options.completesWireSession);
     if (
       result.ok &&
+      result.applied &&
       interactionKind !== "idle" &&
       !preservesCurrentInteraction
     ) {

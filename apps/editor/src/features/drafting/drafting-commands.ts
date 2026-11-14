@@ -11,7 +11,6 @@ import {
   deleteConstructionVertex as deleteConstructionVertexObject,
   insertArrowWaypoint as insertArrowWaypointObject,
   insertConstructionVertex as insertConstructionVertexObject,
-  planDraftingStacking,
   setDraftingBearing as setDraftingObjectBearing,
   setDraftingTangentAngle as setDraftingObjectTangentAngle,
   type DraftingGeometryPatch,
@@ -123,27 +122,13 @@ export function createDraftingCommands({
 
   const setDraftingStacking = (target: DraftingStackingTarget): void => {
     if (!selectedDrafting) return;
-    const nextObjects = planDraftingStacking(
-      document.drafting?.objects ?? [],
-      selectedDrafting.id,
-      target,
-    );
-    if (!nextObjects) {
-      setStatus("Only unlocked rectangles and circles can change layer");
-      return;
-    }
-    if (
-      transact(
-        nextObjects.map((object) => ({
-          kind: "upsert_drafting_object" as const,
-          object,
-        })),
-      ).ok
-    ) {
-      setStatus(
-        target === "front" ? "Brought shape to front" : "Sent shape to back",
-      );
-    }
+    transact([
+      {
+        kind: "reorder_drawing_objects",
+        objectIds: selection.draftingIds,
+        position: { kind: target },
+      },
+    ]);
   };
 
   const setArrowPreset = (preset: ArrowPreset): void => {

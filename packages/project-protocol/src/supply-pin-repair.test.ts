@@ -19,6 +19,9 @@ const FORMS = builtInSymbols
 /** A form as drawn before it had supply pins: no such pins, leads or variants. */
 function beforeSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
   const { defaultVariantId: _default, ...rest } = structuredClone(symbol);
+  for (const primitive of rest.primitives) {
+    if ("fillableBody" in primitive) delete primitive.fillableBody;
+  }
   return {
     ...rest,
     pins: rest.pins.filter((pin) => !["VDD", "VSS"].includes(pin.name)),

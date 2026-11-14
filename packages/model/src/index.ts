@@ -16,6 +16,7 @@ export * from "./route-path.js";
 export * from "./rich-text.js";
 export * from "./draft-text.js";
 export * from "./drafting-cover.js";
+export * from "./drawing-order.js";
 export * from "./semantic-text.js";
 export * from "./schema/bound-annotation-text.js";
 export * from "./schema.js";

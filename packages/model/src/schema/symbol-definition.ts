@@ -107,6 +107,7 @@ export const SymbolPrimitiveSchema = z.discriminatedUnion("kind", [
     kind: z.literal("circle"),
     center: SymbolGeometryPointSchema,
     radius: z.number().positive(),
+    fillableBody: z.literal(true).optional(),
     fill: z.enum(["none", "foreground"]).optional(),
     stroke: z.enum(["none", "foreground"]).optional(),
     part: StableIdSchema.optional(),
@@ -127,6 +128,7 @@ export const SymbolPrimitiveSchema = z.discriminatedUnion("kind", [
   z.strictObject({
     kind: z.literal("polygon"),
     points: z.array(SymbolGeometryPointSchema).min(3),
+    fillableBody: z.literal(true).optional(),
     fill: z.enum(["none", "foreground"]),
     stroke: z.enum(["none", "foreground"]).optional(),
     part: StableIdSchema.optional(),

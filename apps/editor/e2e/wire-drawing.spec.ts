@@ -3,16 +3,21 @@
 
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { createEmptyProject } from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 import { createRoutingDemoProject } from "../src/demos/routing-demo.js";
 import {
   clickDrawTool,
   expectStatus,
+  openProject,
   openProjectFile,
 } from "./editor-fixtures.js";
 import { placeComponent } from "./manual-editor-fixtures.js";
 import {
   centre,
   clickRoute,
+  onScreen,
+  placedInstance,
   polylinePoints,
   readRoutePoints,
   routeIdOf,
@@ -23,6 +28,38 @@ async function onlyRouteId(page: Page): Promise<string> {
   await expect(route).toHaveCount(1);
   return routeIdOf(route);
 }
+
+test("starts a free wire over a covered ADC pin and snaps when exposed", async ({
+  page,
+}) => {
+  const project = createEmptyProject("hidden-pin", "Hidden ADC pin");
+  project.documents[0]!.instances.push(
+    placedInstance("ADC1", "adc", 200, 200),
+    {
+      ...placedInstance("ADC2", "adc", 240, 200),
+      bodyFill: { kind: "background" },
+    },
+  );
+  await openProject(page, serializeProject(project));
+  const canvas = page.getByTestId("schematic-canvas");
+  const coveredPin = page.getByTestId("terminal-ADC1-OUT");
+  await expect(coveredPin).toHaveCount(0);
+  await clickDrawTool(page, "wire");
+  const [out] = await onScreen(canvas, [{ x: 240, y: 200 }]);
+  await page.mouse.click(out.x, out.y);
+  await expectStatus(page, "Wire source: free grid point");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("active-tool")).toHaveText("pointer");
+  await page.mouse.click(out.x, out.y, { button: "right" });
+  await page
+    .getByRole("menuitem", { name: "Send to back", exact: true })
+    .click();
+  await clickDrawTool(page, "wire");
+  await expect(coveredPin).toBeVisible();
+  await coveredPin.click();
+  await expectStatus(page, "Wire source: ADC1.OUT");
+});
 
 test("connects one MOS Gate to Drain without false contact ambiguity", async ({
   page,

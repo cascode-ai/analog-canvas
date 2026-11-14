@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { buildSvgScene } from "@icm/render-svg";
 import {
   createEmptyProject,
   createEmptyDocument,
   createRoutePath,
+  resolveDrawingOrder,
   type CircuitProject,
   type RichTextDocument,
 } from "@icm/model";
@@ -106,6 +108,131 @@ function electricalEqual(a: CircuitProject, b: CircuitProject) {
 }
 
 describe("portable system circuit clipboard", () => {
+  it("keeps a copied conductor in front of the same opaque body", () => {
+    const source = createEmptyProject("wires-over-body", "Wires over body");
+    const document = source.documents[0]!;
+    document.instances.push({
+      id: "ADC",
+      symbolId: "adc",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+      bodyFill: { kind: "background" },
+    });
+    document.nets.push({ id: "wire", terminals: [] });
+    document.junctions.push(
+      {
+        id: "left",
+        netId: "wire",
+        position: { x: 20, y: 110 },
+        role: "route-anchor",
+      },
+      {
+        id: "right",
+        netId: "wire",
+        position: { x: 180, y: 110 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "wire-run",
+        netId: "wire",
+        start: { kind: "junction", junctionId: "left" },
+        end: { kind: "junction", junctionId: "right" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    document.drawingOrder = [
+      { kind: "instance", id: "ADC" },
+      { kind: "electrical" },
+      { kind: "circuit-marks" },
+    ];
+    const copied = paste(createEmptyProject("target", "Target"), text(source));
+    const reopened = parseProject(serializeProject(copied));
+    const drawing = reopened.documents[0]!;
+    expect(drawing.routes).toHaveLength(1);
+    expect(resolveDrawingOrder(drawing)[0]).toEqual({
+      kind: "instance",
+      id: drawing.instances[0]!.id,
+    });
+    const svg = buildSvgScene(
+      drawing,
+      createProjectSymbolResolver(reopened, builtInSymbols),
+    ).formalBody;
+    expect(svg.indexOf('data-role="instance-body-fill"')).toBeLessThan(
+      svg.indexOf('data-layer="routes"'),
+    );
+  });
+
+  it.each(["same cell", "other cell", "other project"])(
+    "pastes body fill and paint order into %s",
+    (destination) => {
+      const source = createEmptyProject("stack", "Stack");
+      const document = source.documents[0]!;
+      document.instances.push(
+        {
+          id: "ADC1",
+          symbolId: "adc",
+          placement: {
+            position: { x: 100, y: 100 },
+            rotation: 0,
+            mirror: "none",
+          },
+          bodyFill: { kind: "color", color: "#d4ecff" },
+        },
+        {
+          id: "ADC2",
+          symbolId: "adc",
+          placement: {
+            position: { x: 120, y: 110 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      );
+      document.drawingOrder = [
+        { kind: "electrical" },
+        { kind: "instance", id: "ADC2" },
+        { kind: "circuit-marks" },
+        { kind: "instance", id: "ADC1" },
+      ];
+      const target =
+        destination === "other project"
+          ? createEmptyProject("target", "Target")
+          : source;
+      const targetDocument =
+        destination === "other cell"
+          ? createEmptyDocument("second", "Second")
+          : target.documents[0]!;
+      if (destination === "other cell") source.documents.push(targetDocument);
+      const pasted = applyProjectCopyPlacement(
+        planProjectCopyPlacement(
+          target,
+          targetDocument,
+          decodeCircuitClipboard(text(source))!,
+          { x: 200, y: 200 },
+          1,
+        ),
+      );
+      const reopened = parseProject(serializeProject(pasted));
+      const drawing = reopened.documents.find(
+        ({ id }) => id === targetDocument.id,
+      )!;
+      const instanceAt = (x: number) =>
+        drawing.instances.find((item) => item.placement?.position.x === x)!;
+      const rear = instanceAt(320);
+      const front = instanceAt(300);
+      expect(front.bodyFill).toEqual({ kind: "color", color: "#d4ecff" });
+      const svg = buildSvgScene(
+        drawing,
+        createProjectSymbolResolver(reopened, builtInSymbols),
+      ).formalBody;
+      expect(
+        svg.lastIndexOf('data-object-id="' + front.id + '"'),
+      ).toBeGreaterThan(svg.lastIndexOf('data-object-id="' + rear.id + '"'));
+    },
+  );
+
   it.each([
     {
       name: "Cell default",

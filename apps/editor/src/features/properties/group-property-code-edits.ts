@@ -44,17 +44,10 @@ export function planGroupPropertyCodeEdits(
       color !== "" &&
       color !== (item ? item.foreground : context.foreground)
     ) {
-      // Component code does not expose fill/background paint. A color edit also
-      // retires that old component-only override, matching single selection.
-      const { background: _retiredBackground, ...styleOverride } = {
-        ...instance.styleOverride,
-      };
+      const styleOverride = { ...instance.styleOverride };
       if (color === "auto") delete styleOverride.foreground;
       else styleOverride.foreground = color;
-      if (
-        instance.styleOverride?.foreground !== styleOverride.foreground ||
-        _retiredBackground !== undefined
-      )
+      if (instance.styleOverride?.foreground !== styleOverride.foreground)
         edits.push({
           kind: "set_instance_style_override",
           instanceId: instance.id,

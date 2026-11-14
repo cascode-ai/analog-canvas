@@ -7,6 +7,8 @@ import {
   RotationSchema,
   MirrorSchema,
   ArrowEndStyleSchema,
+  draftingIsBackground,
+  resolveDrawingOrder,
   type Annotation,
   type DraftingObject,
   type SchematicDocument,
@@ -88,10 +90,32 @@ export interface DraftingPropertyContext {
   object: DraftingObject;
   grid: number;
 }
+export interface DraftingPropertyEdit {
+  object: DraftingObject;
+  layer?: "back" | "front";
+}
 const roundAngle = (angle: number) => Math.round(angle * 10) / 10;
+
+function draftingStackingLayer(
+  document: SchematicDocument,
+  object: DraftingObject,
+): "back" | "front" {
+  if (document.drawingOrder) {
+    const order = resolveDrawingOrder(document);
+    const rank = order.findIndex(
+      (entry) => entry.kind === "drafting" && entry.id === object.id,
+    );
+    if (rank >= 0)
+      return rank < order.findIndex((entry) => entry.kind === "electrical")
+        ? "back"
+        : "front";
+  }
+  return draftingIsBackground(object) ? "back" : "front";
+}
 
 export function draftingPropertyValue(
   context: DraftingPropertyContext,
+  layer?: "back" | "front",
 ): AnnotationPropertyValue {
   const { object, document, resolver } = context;
   const geometry = resolveDraftingObjectGeometry(document, resolver, object);
@@ -215,12 +239,7 @@ export function draftingPropertyValue(
       : {}),
     ...(closed
       ? {
-          stacking: {
-            layer:
-              object.layer === "background"
-                ? ("back" as const)
-                : ("front" as const),
-          },
+          stacking: { layer: layer ?? draftingStackingLayer(document, object) },
         }
       : {}),
     ...(text && !bare ? { content: object.content } : {}),
@@ -353,7 +372,7 @@ function propertyAnchor(value: AnnotationPropertyValue) {
 export function parseDraftingPropertyCode(
   source: string,
   context: DraftingPropertyContext,
-): PropertyResult<DraftingObject> {
+): PropertyResult<DraftingPropertyEdit> {
   return attempt(() => {
     const { object, document, resolver, grid } = context;
     const baseline = draftingPropertyValue(context);
@@ -402,9 +421,6 @@ export function parseDraftingPropertyCode(
       if (anchor.kind !== "free")
         throw new Error("Closed shapes require a free placement anchor");
       next.center = anchor.position;
-      if (value.stacking!.layer !== baseline.stacking!.layer)
-        next.layer =
-          value.stacking!.layer === "back" ? "background" : "foreground";
       if (next.kind === "rectangle") {
         next.width = value.geometry!.width!;
         next.height = value.geometry!.height!;
@@ -555,7 +571,11 @@ export function parseDraftingPropertyCode(
       }
     }
     next.locked = value.locked;
-    return DraftingObjectSchema.parse(next);
+    const layer = value.stacking?.layer;
+    return {
+      object: DraftingObjectSchema.parse(next),
+      ...(layer && layer !== baseline.stacking?.layer ? { layer } : {}),
+    };
   });
 }
 

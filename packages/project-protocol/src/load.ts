@@ -44,6 +44,7 @@ import { repairMisdrawnReviewedBindings } from "./transforms/misdrawn-reviewed-b
 import { repairUnmodelledReviewedSizes } from "./transforms/reviewed-size.js";
 import { repairAmplifierPolaritySnapshots } from "./transforms/amplifier-polarity.js";
 import { repairSupplyPinSnapshots } from "./transforms/supply-pins.js";
+import { repairAdcBodySnapshots } from "./transforms/adc-body.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
@@ -175,8 +176,8 @@ function checkedProject(
         ),
       })),
     };
-  const project = repairSupplyPinSnapshots(
-    repairAmplifierPolaritySnapshots(result.data),
+  const project = repairAdcBodySnapshots(
+    repairSupplyPinSnapshots(repairAmplifierPolaritySnapshots(result.data)),
   );
   const modelDiagnostics = collectProjectModelSources(
     project,
@@ -259,6 +260,35 @@ export function tryParseProjectWithMetadata(
 
   let current: Record<string, unknown>;
   try {
+    if (sourceSchemaVersion < 81 && Array.isArray(parsed.documents)) {
+      for (const [index, item] of parsed.documents.entries()) {
+        if (!isRecord(item)) continue;
+        if (Object.hasOwn(item, "drawingOrder"))
+          throw new ProjectFormatError([
+            {
+              code: "INVALID_PROJECT",
+              message: "A drawing order requires Project schema 81",
+              path: ["documents", index, "drawingOrder"],
+            },
+          ]);
+        if (Array.isArray(item.instances))
+          for (const [instanceIndex, instance] of item.instances.entries())
+            if (isRecord(instance) && Object.hasOwn(instance, "bodyFill"))
+              throw new ProjectFormatError([
+                {
+                  code: "INVALID_PROJECT",
+                  message: "A symbol body fill requires Project schema 81",
+                  path: [
+                    "documents",
+                    index,
+                    "instances",
+                    instanceIndex,
+                    "bodyFill",
+                  ],
+                },
+              ]);
+      }
+    }
     if (sourceSchemaVersion < 75) rejectSignalMembers(parsed);
     if (sourceSchemaVersion < 76) rejectOrderedSignals(parsed);
     if (sourceSchemaVersion < 77) rejectMemberNoConnect(parsed);

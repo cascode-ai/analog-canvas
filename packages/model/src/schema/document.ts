@@ -25,6 +25,8 @@ import {
 import { JunctionSchema, RouteBranchSchema } from "./routing.js";
 import { AnnotationSchema } from "./annotations.js";
 import { DraftingLayerSchema } from "./drafting.js";
+import { DrawingOrderEntrySchema } from "./drawing-presentation.js";
+import { drawingOrderEntries, drawingOrderKey } from "../drawing-order.js";
 import { boundAnnotationName } from "./bound-annotation-text.js";
 import {
   LayoutConstraintSchema,
@@ -118,6 +120,8 @@ const SchematicDocumentBaseSchema = z.strictObject({
   // Drafting remains optional for programmatic in-memory Documents; canonical
   // factories and persisted fixtures write an explicit empty layer.
   drafting: DraftingLayerSchema.optional(),
+  /** Back to front. Omission retains the historical default arrangement. */
+  drawingOrder: z.array(DrawingOrderEntrySchema).optional(),
 });
 
 function reportGridPoint(
@@ -138,6 +142,26 @@ function reportGridPoint(
 
 export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
   (document, context) => {
+    if (document.drawingOrder) {
+      const remaining = new Set(
+        drawingOrderEntries(document).map(drawingOrderKey),
+      );
+      for (const [index, entry] of document.drawingOrder.entries()) {
+        const key = drawingOrderKey(entry);
+        if (!remaining.delete(key))
+          context.addIssue({
+            code: "custom",
+            path: ["drawingOrder", index],
+            message: `Drawing order contains a duplicate or unknown entry: ${key}`,
+          });
+      }
+      if (remaining.size)
+        context.addIssue({
+          code: "custom",
+          path: ["drawingOrder"],
+          message: `Drawing order is missing ${remaining.values().next().value}`,
+        });
+    }
     const objectCollections = [
       ...document.instances,
       ...document.nets,

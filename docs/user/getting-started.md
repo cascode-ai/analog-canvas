@@ -185,7 +185,19 @@ Select a shape and press `Q` to edit its JSON: endpoint styles
 `placement.rotation` (clockwise degrees, 0° right), `tangentAngles` for
 curves, border `color` and `fillColor`, and `stacking.layer` (`"back"` or
 `"front"`; **Bring to front**/**Send to back** reorder). Values with fixed
-choices have a dropdown. Shapes are drawing only.
+choices have a dropdown.
+
+## Stack components
+
+Select an ADC and open **Properties → Body fill**. **Document background**
+matches the drawing's background color, **Custom color** sets an opaque color,
+and **Transparent** shows the drawing behind the symbol. The fill follows the
+closed body when you move, rotate, or mirror the component. You can still
+double-click visible text to edit it.
+
+Right-click a component or a selection to move it forward, backward, to the
+front, or to the back. A component moves in the drawing order with its labels.
+`Alt`-click the overlap repeatedly to select objects behind the visible one.
 
 ## Save and recover
 

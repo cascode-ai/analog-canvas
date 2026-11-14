@@ -89,6 +89,7 @@ import {
   resolveMosBulkConnection,
   supplyDefaultMosBulkNet,
   resolveDocumentStyleProfile,
+  instanceSupportsBodyFill,
 } from "@icm/derived";
 import type { HierarchyFrame } from "@icm/derived";
 import {
@@ -119,6 +120,10 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { buildSvgScene } from "@icm/render-svg";
+import {
+  drawingOrderActions,
+  selectedDrawingObjectIds,
+} from "../features/selection/drawing-order-actions";
 import type { TextDraft } from "../features/text-editing/text-draft-overlay";
 import { renderCrashRequested, sceneCrashRequested } from "./crash-test-hooks";
 import { buildSceneSafely } from "./scene-safety";
@@ -150,7 +155,7 @@ import type { CanvasDragSession } from "../canvas/canvas-drag-session";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
-import { createCanvasHitController } from "../canvas/canvas-hit-controller";
+import { useCanvasHitController } from "../canvas/canvas-hit-controller";
 import { LazyCellInterfaceConfirmationDialog as CellInterfaceConfirmationDialog } from "./lazy-editor-dialogs";
 import type { CellInterfaceConfirmation } from "../features/hierarchy/project-structure-commands";
 import { applyConfirmedCellInterfaceEdit } from "../features/hierarchy/project-structure-commands";
@@ -418,7 +423,7 @@ import {
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import {
   batchAnnotationEdits,
-  batchDraftingEdits,
+  drawingPropertyEdits,
 } from "../features/properties/batch-property-apply";
 import type { ComponentPropertyCodeValue } from "../features/properties/component-property-code";
 import type { GroupPropertyCodeValue } from "../features/properties/group-property-code";
@@ -1918,6 +1923,7 @@ function WorkspaceEditor({
     return outcome;
   }, [committedSceneState, document, renderedDocument, resolver]);
   const scene = sceneState.scene;
+  const drawingScene = scene.drawingScene;
   useEffect(() => {
     if (sceneState.degraded) {
       setStatus(
@@ -2148,8 +2154,15 @@ function WorkspaceEditor({
         resolver,
         visibleEndpoints,
         documentConnectivity?.routingGeometry,
+        committedSceneState.scene.drawingScene,
       ),
-    [document, resolver, visibleEndpoints, documentConnectivity],
+    [
+      document,
+      resolver,
+      visibleEndpoints,
+      documentConnectivity,
+      committedSceneState,
+    ],
   );
   const draftingCreateSnapIndex = useMemo(
     () =>
@@ -3621,6 +3634,7 @@ function WorkspaceEditor({
     model: {
       document,
       resolver,
+      drawingScene,
       wiringEndpoints,
       routeGeometryRecords,
       contactComponents,
@@ -3680,9 +3694,11 @@ function WorkspaceEditor({
   const {
     compositeSelectionOwnsHit,
     handlePointerDown: handleCanvasHitPointerDown,
-  } = createCanvasHitController({
+  } = useCanvasHitController({
     model: {
       document,
+      drawingScene,
+      pointFromClient: (x, y, svg) => pointFromClient(x, y, svg, false),
       visibleEndpoints,
       selection: visualSelection,
       selectedInternalRouteIds,
@@ -5197,9 +5213,27 @@ function WorkspaceEditor({
     },
     report: setStatus,
   });
+  function openCanvasInstance(
+    instance: SchematicDocument["instances"][number],
+  ) {
+    if (referencedDocumentId(project, instance)) {
+      enterHierarchy(instance.id);
+      return;
+    }
+    const presentation = resolver.resolve(
+      instance.symbolId,
+      instance.symbolVariantId,
+    )?.definition.formulaPresentation;
+    if (presentation) {
+      beginInstanceFormulaEditing(instance, presentation);
+      return;
+    }
+    inspectInstance(instance.id);
+  }
+
   const canvasEventHandlers = createEditorCanvasEventHandlers({
     noConnectPlacement,
-    model: { tool, document, resolver, selectionPolicy },
+    model: { tool, document, resolver, selectionPolicy, drawingScene },
     session: {
       interactionKind: () => getCurrentInteractionState().kind,
       cellSymbolLayoutEnabled,
@@ -5233,6 +5267,7 @@ function WorkspaceEditor({
         return false;
       },
       handleCanvasHitPointerDown,
+      openInstance: openCanvasInstance,
       openContextMenu: (target, clientX, clientY) => {
         if (
           canvasContextMenuSuppressed.current ||
@@ -5267,7 +5302,12 @@ function WorkspaceEditor({
             kind === "instance" ||
             kind === "annotation")
         ) {
-          openVisualContextMenu(kind, id, clientX, clientY);
+          openVisualContextMenu(
+            kind,
+            kind === "drafting" ? draftingSelectionIds(id) : id,
+            clientX,
+            clientY,
+          );
         } else if (hasVisualSelection(visualSelection)) {
           setCanvasContextMenu({ x: clientX, y: clientY });
         }
@@ -6565,6 +6605,17 @@ function WorkspaceEditor({
           }
           properties={
             <EditorPropertiesDock
+              bodyFill={{
+                instances: document.instances.filter((instance) =>
+                  selectedIds.includes(instance.id),
+                ),
+                supportsBodyFill: (instance) =>
+                  instanceSupportsBodyFill(instance, resolver),
+                background: styleProfile.background,
+                onChange: (objectIds, fill) => {
+                  transact([{ kind: "set_body_fill", objectIds, fill }]);
+                },
+              }}
               onConvertSignal={
                 selectedFormalTerminal &&
                 !selectedFormalTerminal.signal &&
@@ -7544,25 +7595,16 @@ function WorkspaceEditor({
                       onApply: (object) => {
                         // An edit made for one of several selected drawing
                         // objects is made for every one that has the setting.
-                        const batch = batchDraftingEdits(
-                          document,
-                          resolver,
-                          annotationGrid,
-                          selectedDrafting,
-                          object,
-                          visualSelection.draftingIds,
+                        return transact(
+                          drawingPropertyEdits(
+                            document,
+                            resolver,
+                            annotationGrid,
+                            selectedDrafting,
+                            object,
+                            visualSelection.draftingIds,
+                          ),
                         );
-                        const result = transact([
-                          { kind: "upsert_drafting_object", object },
-                          ...batch,
-                        ]);
-                        if (result.ok)
-                          setStatus(
-                            batch.length > 0
-                              ? `Updated ${batch.length + 1} drawing objects`
-                              : "Updated drawing properties",
-                          );
-                        return result;
                       },
                       onStackingChange: setDraftingStacking,
                       onToggleLock: () => toggleDraftingLock(selectedDrafting),
@@ -7898,6 +7940,16 @@ function WorkspaceEditor({
             warnings: wireUnderSymbolWarnings,
             canSelectRoute: () =>
               selectionPolicy.allowsClass("route", "select"),
+            visibleAtPointer: (event) =>
+              drawingScene.isVisibleAt(
+                { kind: "electrical" },
+                pointFromClient(
+                  event.clientX,
+                  event.clientY,
+                  event.currentTarget.ownerSVGElement!,
+                  false,
+                ),
+              ),
             onSelectRoute: (routeId) => {
               selectOnly("route", [routeId]);
               setStatus("Selected a wire buried under a symbol");
@@ -8040,26 +8092,6 @@ function WorkspaceEditor({
                 }
                 selectInstanceFromSelection(instance.id, additive);
               },
-              onInstanceOpen: (instance) => {
-                if (referencedDocumentId(project, instance)) {
-                  enterHierarchy(instance.id);
-                  return;
-                }
-                // A Symbol that draws text inside its own body edits that text
-                // where it is drawn, like every other text on the canvas. It
-                // used to be reachable only from the Properties panel, which
-                // made the same gesture mean two different things depending on
-                // where the text happened to live.
-                const presentation = resolver.resolve(
-                  instance.symbolId,
-                  instance.symbolVariantId,
-                )?.definition.formulaPresentation;
-                if (presentation) {
-                  beginInstanceFormulaEditing(instance, presentation);
-                  return;
-                }
-                inspectInstance(instance.id);
-              },
               onRoutePointerDown: (event, routeId) => {
                 // Reached only while a drawing tool is up: the pointer tool's
                 // presses are claimed and stopped by the capture-phase router.
@@ -8089,26 +8121,6 @@ function WorkspaceEditor({
                 }
                 handleRoutePointerDown(event, routeId);
               },
-              onInstanceContextMenu: (instance, clientX, clientY) => {
-                // macOS fires contextmenu for Ctrl+left-press; while that
-                // press is driving a drag session (the Ctrl+drag detach
-                // move), the menu must not pop over it.
-                if (canvasDragSessionRef.current !== null) return;
-                openVisualContextMenu(
-                  "instance",
-                  instance.id,
-                  clientX,
-                  clientY,
-                );
-              },
-              onAnnotationContextMenu: (annotation, clientX, clientY) =>
-                openVisualContextMenu(
-                  "annotation",
-                  annotation.id,
-                  clientX,
-                  clientY,
-                ),
-              onAnnotationEdit: beginAnnotationTextEditing,
               onNetPointerEnter: (netId) => {
                 if (simulationPickNetsActive || controlPickMode === "net")
                   setSimulationHoverNetId(netId);
@@ -8133,6 +8145,7 @@ function WorkspaceEditor({
                         }
                       : null,
               document,
+              drawingScene,
               endpoints:
                 controlPickMode === "sensor"
                   ? wiringEndpoints.filter(
@@ -8314,6 +8327,7 @@ function WorkspaceEditor({
           draftingHitTargets={{
             document,
             resolver,
+            drawingScene,
             tool,
             selectedDraftingId,
             supplementalDraftingIds: supplementalSelection.draftingIds,
@@ -8436,6 +8450,12 @@ function WorkspaceEditor({
             openSelectedComponentDefinition={openSelectedComponentDefinition}
             hasDefinitionSelection={hasDefinitionSelection}
             editorCommands={editorCommands}
+            drawingOrderActions={drawingOrderActions(
+              selectedDrawingObjectIds(document, visualSelection),
+              (edit) => {
+                transact([edit]);
+              },
+            )}
             coupleInductors={(() => {
               const edit = planCoupleInductors(document, selectedIds);
               if (!edit || edit.kind !== "set_inductor_coupling") return null;

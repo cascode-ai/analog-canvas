@@ -124,7 +124,7 @@ describe("closed-shape paint and layer", () => {
     expect(markup).toContain(">Bring to front</button>");
     expect(markup).toContain(">Send to back</button>");
     expect(markup).not.toContain("zIndex");
-    expect(markup).toContain("Front is above the circuit");
+    expect(markup).toContain("Layer shows which side of the circuit");
     expect(markup).not.toContain('type="color"');
   });
 });

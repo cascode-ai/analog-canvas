@@ -1,9 +1,11 @@
 import {
   AnnotationSchema,
+  BodyFillSchema,
   CellSymbolPresentationSchema,
   CellNetlistTerminalSchema,
   DOCUMENT_TEXT_FACES,
   DraftingObjectSchema,
+  DrawingOrderEntrySchema,
   ConnectivityEvidenceSchema,
   InductorCouplingSchema,
   InstanceNetlistDataSchema,
@@ -122,6 +124,33 @@ const SetInstanceStyleOverrideEditSchema = z.strictObject({
   kind: z.literal("set_instance_style_override"),
   instanceId: StableIdSchema,
   styleOverride: InstanceStyleOverrideSchema.nullable(),
+});
+const SetBodyFillEditSchema = z.strictObject({
+  kind: z.literal("set_body_fill"),
+  objectIds: z.array(StableIdSchema).min(1),
+  fill: BodyFillSchema.nullable(),
+});
+const ReorderDrawingObjectsEditSchema = z.strictObject({
+  kind: z.literal("reorder_drawing_objects"),
+  objectIds: z.array(StableIdSchema).min(1),
+  position: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("front") }),
+    z.strictObject({ kind: z.literal("back") }),
+    z.strictObject({ kind: z.literal("forward") }),
+    z.strictObject({ kind: z.literal("backward") }),
+    z.strictObject({
+      kind: z.literal("insert"),
+      beforePlane: z.enum(["electrical", "circuit-marks"]).optional(),
+    }),
+    z.strictObject({
+      kind: z.literal("before"),
+      target: DrawingOrderEntrySchema,
+    }),
+    z.strictObject({
+      kind: z.literal("after"),
+      target: DrawingOrderEntrySchema,
+    }),
+  ]),
 });
 /**
  * Replace or clear schematic-only Signal Flow parameters.
@@ -475,6 +504,8 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   PatchInstanceNetlistParametersEditSchema,
   SetInstanceReferenceEditSchema,
   SetInstanceStyleOverrideEditSchema,
+  SetBodyFillEditSchema,
+  ReorderDrawingObjectsEditSchema,
   SetInstanceSignalFlowParametersEditSchema,
   SetInstanceBindingEditSchema,
   SetInstanceNetlistEditSchema,

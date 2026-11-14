@@ -26,7 +26,157 @@ import {
   openSelectionShelf,
   readComponentCode,
 } from "./manual-editor-fixtures.js";
-import { closeSelectionShelf, placedInstance } from "./canvas-fixtures.js";
+import {
+  awaitCanvasSettled,
+  closeSelectionShelf,
+  onScreen,
+  placedInstance,
+} from "./canvas-fixtures.js";
+
+test("fills the real ADC body and edits or reorders the visible symbol", async ({
+  page,
+}) => {
+  const project = createEmptyProject("adc-stack", "ADC stack");
+  const document = project.documents[0]!;
+  document.instances.push(
+    {
+      ...placedInstance("ADC1", "adc", 200, 200),
+      signalFlowParameters: { formula: "First" },
+    },
+    {
+      ...placedInstance("ADC2", "adc", 220, 210),
+      signalFlowParameters: { formula: "Second" },
+    },
+    {
+      ...placedInstance("ADC3", "adc", 240, 220),
+      signalFlowParameters: { formula: "Third" },
+    },
+  );
+  await openProject(page, serializeProject(project));
+  const canvas = page.getByTestId("schematic-canvas");
+  const scene = canvas.locator('[data-layer="formal"]');
+  const symbol = (id: string) => scene.locator(`[data-object-id="${id}"]`);
+  await expect(symbol("ADC3")).toBeVisible();
+  await awaitCanvasSettled(canvas);
+  const [front] = await onScreen(canvas, [{ x: 256, y: 225 }]);
+  await page.mouse.click(front.x, front.y);
+  await openSelectionShelf(page);
+  const fill = page.getByLabel("Body fill", { exact: true });
+  await closeSelectionShelf(page);
+  await awaitCanvasSettled(canvas);
+  const [overlap] = await onScreen(canvas, [{ x: 218, y: 209 }]);
+  await page.keyboard.down("Alt");
+  await page.mouse.click(overlap.x, overlap.y);
+  await expect(page.getByTestId("hit-ADC2")).toHaveClass(/selected/);
+  await page.mouse.click(overlap.x, overlap.y);
+  await expect(page.getByTestId("hit-ADC1")).toHaveClass(/selected/);
+  await page.keyboard.up("Alt");
+  await page.mouse.click(front.x, front.y);
+  await openSelectionShelf(page);
+  await fill.selectOption("background");
+  const opaqueBody = symbol("ADC3").locator(
+    'polygon[data-role="instance-body-fill"]',
+  );
+  await expect(opaqueBody).toBeVisible();
+  await expect(opaqueBody).toHaveAttribute(
+    "points",
+    "30,-20 -20,-20 -40,0 -20,20 30,20",
+  );
+  await closeSelectionShelf(page);
+  await awaitCanvasSettled(canvas);
+
+  await page.mouse.dblclick(overlap.x, overlap.y);
+  const textEditor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await expect(textEditor).toHaveText("Third");
+  await textEditor.fill("ADC channel");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(symbol("ADC3")).toContainText("ADC channel");
+
+  await page.keyboard.down("Alt");
+  await page.mouse.click(overlap.x, overlap.y);
+  await expect(page.getByTestId("hit-ADC2")).toHaveClass(/selected/);
+  await page.mouse.click(overlap.x, overlap.y);
+  await expect(page.getByTestId("hit-ADC1")).toHaveClass(/selected/);
+  await page.keyboard.up("Alt");
+
+  await page.mouse.click(overlap.x, overlap.y, { button: "right" });
+  await page
+    .getByRole("menuitem", { name: "Send to back", exact: true })
+    .click();
+  const order = () =>
+    scene
+      .locator("[data-symbol-id=adc]")
+      .evaluateAll((elements) =>
+        elements.map((element) => element.getAttribute("data-object-id")),
+      );
+  await expect.poll(order).toEqual(["ADC3", "ADC1", "ADC2"]);
+  await page.getByTestId("draw-tool-undo").click();
+  await expect.poll(order).toEqual(["ADC1", "ADC2", "ADC3"]);
+  await page.getByTestId("draw-tool-redo").click();
+  await expect.poll(order).toEqual(["ADC3", "ADC1", "ADC2"]);
+
+  const saved = await downloadBytes(page, "File", "Export Project File…");
+  await openProjectFile(page, saved);
+  await expect.poll(order).toEqual(["ADC3", "ADC1", "ADC2"]);
+  await expect(symbol("ADC3")).toContainText("ADC channel");
+  await expect(opaqueBody).toBeVisible();
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString();
+  expect(svg.indexOf('data-object-id="ADC3"')).toBeLessThan(
+    svg.indexOf('data-object-id="ADC1"'),
+  );
+  expect(svg).toContain('data-role="instance-body-fill"');
+});
+
+test("drags and transforms the filled ADC from an overlapping point", async ({
+  page,
+}) => {
+  const project = createEmptyProject("adc-move", "ADC move");
+  project.documents[0]!.instances.push(
+    placedInstance("ADC1", "adc", 200, 200),
+    {
+      ...placedInstance("ADC2", "adc", 220, 210),
+      bodyFill: { kind: "color", color: "#cceeff" },
+      signalFlowParameters: { formula: "Channel" },
+    },
+  );
+  await openProject(page, serializeProject(project));
+  const canvas = page.getByTestId("schematic-canvas");
+  const adc = canvas.locator('[data-layer="formal"] [data-object-id="ADC2"]');
+  const body = adc.locator('[data-role="instance-body-fill"]');
+  await expect(body).toHaveAttribute("fill", "#cceeff");
+  await awaitCanvasSettled(canvas);
+  const [start, end] = await onScreen(canvas, [
+    { x: 216, y: 209 },
+    { x: 276, y: 249 },
+  ]);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.keyboard.down("Alt");
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  await expect(body.locator("..")).toHaveAttribute(
+    "transform",
+    /^translate\(280 250\)/u,
+  );
+  await page.keyboard.press("r");
+  await page.keyboard.press("Shift+r");
+  const saved: SchematicDocument = await exportedDocument(page);
+  expect(
+    saved.instances.find(({ id }) => id === "ADC1")?.placement?.position,
+  ).toEqual({ x: 200, y: 200 });
+  expect(saved.instances.find(({ id }) => id === "ADC2")).toMatchObject({
+    placement: {
+      position: { x: 280, y: 250 },
+      rotation: 90,
+      mirror: "horizontal",
+    },
+    bodyFill: { kind: "color", color: "#cceeff" },
+    signalFlowParameters: { formula: "Channel" },
+  });
+  await expect(adc).toContainText("Channel");
+  await expect(body).toHaveAttribute("fill", "#cceeff");
+});
 
 test("fully differential comparator places four pins and retains its model through polarity edits", async ({
   page,

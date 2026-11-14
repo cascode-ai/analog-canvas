@@ -82,7 +82,12 @@ function change(
 ) {
   const code = draftingPropertyValue(context(object));
   update(code);
-  return parseDraftingPropertyCode(JSON.stringify(code), context(object));
+  return parsedDrawing(JSON.stringify(code), object);
+}
+
+function parsedDrawing(input: string, object: DraftingObject) {
+  const result = parseDraftingPropertyCode(input, context(object));
+  return result.ok ? { ...result, value: result.value.object } : result;
 }
 
 describe("annotation code projection", () => {
@@ -92,7 +97,7 @@ describe("annotation code projection", () => {
       const result = parseDraftingPropertyCode(source(object), context(object));
       expect(result.ok).toBe(true);
       if (result.ok)
-        expect(JSON.parse(JSON.stringify(result.value))).toEqual(object);
+        expect(JSON.parse(JSON.stringify(result.value.object))).toEqual(object);
     },
   );
   it.each(
@@ -100,22 +105,27 @@ describe("annotation code projection", () => {
       (object) => object.kind === "rectangle" || object.kind === "circle",
     ),
   )("updates $kind border, fill and stacking together", (object) => {
-    const result = change(object, (code) => {
-      code.appearance.color = "#123456";
-      code.appearance.fillColor = "#abcdef";
-      code.stacking = { layer: "back" };
-    });
+    const code = draftingPropertyValue(context(object));
+    code.appearance.color = "#123456";
+    code.appearance.fillColor = "#abcdef";
+    code.stacking = { layer: "back" };
+    const result = parseDraftingPropertyCode(
+      JSON.stringify(code),
+      context(object),
+    );
     expect(result).toMatchObject({
       ok: true,
       value: {
-        id: object.id,
-        layer: "background",
-        zIndex: object.zIndex,
-        styleOverride: { color: "#123456", fillColor: "#abcdef" },
+        layer: "back",
+        object: {
+          id: object.id,
+          zIndex: object.zIndex,
+          styleOverride: { color: "#123456", fillColor: "#abcdef" },
+        },
       },
     });
     if (!result.ok) return;
-    const reset = change(result.value, (code) => {
+    const reset = change(result.value.object, (code) => {
       code.appearance.color = "auto";
       code.appearance.fillColor = "auto";
     });
@@ -145,12 +155,13 @@ describe("annotation code projection", () => {
     expect(code.placement).toEqual({ at: [100, 100], rotation: 0 });
     expect(source(object)).not.toMatch(/bearing|zIndex|background/);
     expect(
-      change(object, (value) => {
-        value.stacking!.layer = "front";
-      }),
+      parseDraftingPropertyCode(
+        JSON.stringify({ ...code, stacking: { layer: "front" } }),
+        context(object),
+      ),
     ).toMatchObject({
       ok: true,
-      value: { layer: "foreground", zIndex: 37 },
+      value: { layer: "front", object },
     });
     const drawing = { ...arrow, zIndex: 12 };
     expect(draftingPropertyValue(context(drawing))).not.toHaveProperty(
@@ -191,7 +202,7 @@ describe("annotation code projection", () => {
         ],
       },
     };
-    const result = parseDraftingPropertyCode(source(object), context(object));
+    const result = parsedDrawing(source(object), object);
     expect(result).toMatchObject({
       ok: true,
       value: { content: object.content },
@@ -255,9 +266,10 @@ describe("annotation code projection", () => {
       ...arrow,
       styleOverride: { arrowHeadAt: "both" as const, arrowHeadScale: 1.25 },
     };
-    expect(
-      parseDraftingPropertyCode(source(legacy), context(legacy)),
-    ).toMatchObject({ ok: true, value: legacy });
+    expect(parsedDrawing(source(legacy), legacy)).toMatchObject({
+      ok: true,
+      value: legacy,
+    });
     const start = change(legacy, (code) => {
       code.appearance.startStyle = "dot";
     });
@@ -416,7 +428,7 @@ describe("annotation code projection", () => {
     expect(edits).toHaveLength(1);
     const edit = edits[0]!;
     const next = code.slice(0, edit.from) + edit.insert + code.slice(edit.to);
-    expect(parseDraftingPropertyCode(next, context(rectangle))).toMatchObject({
+    expect(parsedDrawing(next, rectangle)).toMatchObject({
       ok: true,
       value: { styleOverride: { fillColor: "#0c2238" } },
     });
@@ -451,7 +463,7 @@ describe("annotation code projection", () => {
       expect(edits).toHaveLength(1);
       const edit = edits[0]!;
       const next = code.slice(0, edit.from) + edit.insert + code.slice(edit.to);
-      expect(parseDraftingPropertyCode(next, context(object))).toMatchObject({
+      expect(parsedDrawing(next, object)).toMatchObject({
         ok: true,
         value: expected,
       });

@@ -48,6 +48,7 @@ import {
 } from "@icm/edit-engine";
 import {
   captureDocumentComposition,
+  copyDrawingOrder,
   copySelection,
   type ExplicitCopyRoutingSelection,
   type SchematicClipboard,
@@ -588,6 +589,8 @@ export function captureProjectCopy(
       clipboard.cellTerminals.some((t) => t.id === binding.terminalId)
     );
   });
+  const drawingOrder = copyDrawingOrder(document, clipboard);
+  if (drawingOrder) clipboard.drawingOrder = drawingOrder;
   const documents = new Map<string, SchematicDocument>();
   const visit = (instances: SchematicDocument["instances"]): void => {
     for (const instance of instances) {

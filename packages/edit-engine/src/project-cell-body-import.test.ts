@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyProject,
   createEmptyDocument,
+  resolveDrawingOrder,
   type SchematicDocument,
 } from "@icm/model";
 import { planProjectCellBodyImport } from "./project-cell-body-import.js";
@@ -109,6 +110,70 @@ describe("staged Cell body composition", () => {
     expect(changed.nets).toHaveLength(2);
     expect(changed.nets.map((n) => n.terminals.length)).toEqual([3, 3]);
   });
+  it.each([false, true])(
+    "appends an ordered ADC stack into a Cell with authored order %s",
+    (authored) => {
+      const source = createEmptyProject("stack", "Stack");
+      const sourceCell = source.documents[0]!;
+      sourceCell.instances.push(
+        ...["front", "rear"].map((id, index) => ({
+          id,
+          reference: id,
+          symbolId: "adc",
+          placement: {
+            position: { x: 100 + index * 10, y: 100 },
+            rotation: 0 as const,
+            mirror: "none" as const,
+          },
+          ...(id === "front"
+            ? { bodyFill: { kind: "background" as const } }
+            : {}),
+        })),
+      );
+      sourceCell.drawingOrder = [
+        { kind: "electrical" },
+        { kind: "instance", id: "rear" },
+        { kind: "circuit-marks" },
+        { kind: "instance", id: "front" },
+      ];
+      const destination = createEmptyProject("destination", "Destination");
+      const target = destination.documents[0]!;
+      target.instances.push({
+        id: "existing",
+        reference: "existing",
+        symbolId: "adc",
+        placement: {
+          position: { x: 200, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      if (authored) target.drawingOrder = resolveDrawingOrder(target);
+      const { project } = planProjectCellBodyImport(
+        destination,
+        source,
+        sourceCell.id,
+        target.id,
+        "append",
+        "stack-import",
+      );
+      const changed = project.documents[0]!;
+      const instancesById = new Map(
+        changed.instances.map((instance) => [instance.id, instance]),
+      );
+      expect(
+        resolveDrawingOrder(changed).flatMap((entry) =>
+          entry.kind === "instance"
+            ? [instancesById.get(entry.id)?.reference]
+            : [],
+        ),
+      ).toEqual(["existing", "rear", "front"]);
+      expect(
+        changed.instances.find((instance) => instance.reference === "front")
+          ?.bodyFill,
+      ).toEqual({ kind: "background" });
+    },
+  );
   it("rejects reference/interface/local-name conflicts without changing either input", () => {
     const old = circuit("old", "R1"),
       source = circuit("source", "R1");

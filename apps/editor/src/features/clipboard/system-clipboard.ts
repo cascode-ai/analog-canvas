@@ -74,6 +74,7 @@ export function encodeCircuitClipboard(
         ? { inductorCouplings: copied.inductorCouplings }
         : {}),
       drafting: { objects: copied.draftingObjects },
+      ...(copied.drawingOrder ? { drawingOrder: copied.drawingOrder } : {}),
       ...(document.netlist
         ? {
             netlist: {

@@ -16,8 +16,9 @@ SchematicDocument + Symbol Resolver + optional bounds → validate
 
 ## Formal scene
 
-- Formal SVG has stable groups for routes, Junctions, symbols and
-  annotations; grid, selection, hit targets, previews, flightlines and
+- Formal SVG groups consecutive runs of route, Junction, symbol, annotation
+  and drafting ink. Object identifiers remain stable across reordering. Grid,
+  selection, hit targets, previews, flightlines and
   diagnostics stay outside it (an export containing `hit-target`,
   `selection`, `editor-overlay` or a grid pattern fails). SVG is derived,
   never connectivity or persistence truth.
@@ -33,9 +34,17 @@ SchematicDocument + Symbol Resolver + optional bounds → validate
   its run stays plain. Hops are ink only: hit geometry, selection and
   connectivity keep the straight centerline. Set in Canvas settings
   (`crossings`) or beside a selected wire.
-- Ordering is deterministic by stable ID and fixed layer order. Export bounds
-  are placed geometry plus an explicit integer margin; viewport bounds may
-  differ.
+- The shared scene applies the [Document's drawing order](schematic-model.md#presentation-authority).
+  The default order is background drafting, conductors and Junction dots,
+  Instances, circuit marks, Annotations, and foreground drafting. Instance
+  and Annotation defaults sort by ID. Within a drafting plane `zIndex` sorts
+  first and equal entries retain stored order. Export bounds are placed
+  geometry plus an explicit integer margin.
+- Opaque regions use the exact transformed fill geometry. A symbol's declared
+  body fills before its ink and upright text. The Document profile resolves
+  a background fill. Transparent page export preserves opaque object fills.
+  Point hits and inferred physical contacts use the scene's occlusion query.
+  Explicit endpoint edits retain their connectivity semantics.
 - Transforms: rotation, then independent screen-space mirrors, then
   translation; mirroring never rewrites rotation. Instance and pin text is
   emitted outside component transforms; text, formulas, fractions and

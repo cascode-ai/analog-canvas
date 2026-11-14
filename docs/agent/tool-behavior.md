@@ -10,6 +10,11 @@ counts), `state` (revision, counts, optional diagnostics), `folder-directory`
 bulk) and the default `full` (Document and Project editing context). A built-in
 catalog describes assets, never live positions or Net membership.
 
+Full Snapshot with `drawingPresentation: true` includes the effective
+`drawingOrder` (back to front) and each Instance's fill capability and authored
+fill. Use `set_body_fill` and `reorder_drawing_objects` through the presentation
+grant. Placement with an explicit body fill takes both geometry and presentation.
+
 ## Transactions
 
 - Ordinary edits use `expectedRevision`; structure edits also use

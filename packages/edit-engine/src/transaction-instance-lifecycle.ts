@@ -5,6 +5,7 @@ import {
   routeEndpoints,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
+import { symbolDeclaresBodyFill } from "@icm/derived";
 import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 
 import type { EditTransaction } from "./edit-schema.js";
@@ -66,17 +67,30 @@ export function applyInstanceLifecycleEdit(
           ),
         };
       }
-      if (
-        !resolver?.resolve(
-          edit.instance.symbolId,
-          edit.instance.symbolVariantId,
-        )
-      ) {
+      const symbol = resolver?.resolve(
+        edit.instance.symbolId,
+        edit.instance.symbolVariantId,
+      );
+      if (!symbol) {
         return {
           ok: false,
           rejection: reject(
             "EDIT_PRECONDITION",
             `Symbol does not exist: ${edit.instance.symbolId}`,
+          ),
+        };
+      }
+      if (
+        edit.instance.bodyFill &&
+        !symbolDeclaresBodyFill(symbol.definition)
+      ) {
+        return {
+          ok: false,
+          rejection: reject(
+            "EDIT_PRECONDITION",
+            `Instance ${edit.instance.id} has no fillable body`,
+            [],
+            [edit.instance.id],
           ),
         };
       }
@@ -473,6 +487,8 @@ export function applyInstanceLifecycleEdit(
         changedObjectIds,
       );
       instance.symbolId = edit.symbolId;
+      if (instance.bodyFill && !symbolDeclaresBodyFill(resolved.definition))
+        delete instance.bodyFill;
       if (symbolVariantId === undefined) delete instance.symbolVariantId;
       else instance.symbolVariantId = symbolVariantId;
       changedObjectIds.add(instance.id);
