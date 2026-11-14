@@ -454,7 +454,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
   page,
   browserName,
 }) => {
-  const viewerUrl = "https://rich-netlist.github.io/rnl/viewer/";
+  const viewerUrl = "https://rich-netlist.github.io/rnl/viewer-0.3/";
   const candidate = process.env.RNL_VIEWER_TEST_URL;
   await page.context().route(`${viewerUrl}**`, async (route) => {
     const requested = route.request().url();

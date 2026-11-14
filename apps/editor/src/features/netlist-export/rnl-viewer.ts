@@ -1,6 +1,6 @@
 import { canvasPackageLock, canvasPackageVersion } from "./rnl-canvas-package";
 
-export const RNL_VIEWER_URL = "https://rich-netlist.github.io/rnl/viewer/";
+export const RNL_VIEWER_URL = "https://rich-netlist.github.io/rnl/viewer-0.3/";
 const viewerOrigin = new URL(RNL_VIEWER_URL).origin;
 const requiredFeatures = ["requestId", "packages", "opener"];
 const timeoutMs = 60_000;
