@@ -139,6 +139,7 @@ export async function routeBrowserSessionPeer(
         headers.set(name, value.headers[name]);
     const original = new Request(value.url, {
       method: value.method,
+      redirect: "manual",
       headers,
       ...(value.body === undefined ? {} : { body: JSON.stringify(value.body) }),
     });
