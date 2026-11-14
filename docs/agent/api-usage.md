@@ -41,7 +41,10 @@ Pairing belongs to the browser workspace. Project-bound requests send
 the human's active Project, or `x-agent-workspace` (from `workspace.list`) for
 another open copy, which fails if that copy closes. After
 `PROJECT_CONTEXT_STALE`, refresh context and replan; never redirect an old
-mutation. Gallery returns `NO_ACTIVE_PROJECT` without revoking.
+mutation. A request naming a Cell outside the tab's open Project answers
+`PROJECT_CONTEXT_STALE` when its `x-agent-context` is behind, else
+`TOKEN_SCOPE_INSUFFICIENT`. Gallery returns `NO_ACTIVE_PROJECT` without
+revoking.
 
 Project `operation:"workspace"` `request.action`: `list` live copies and
 revisions; `activate`; `open` (`background:true` returns a `workspaceId`

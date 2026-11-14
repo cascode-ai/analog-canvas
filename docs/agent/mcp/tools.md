@@ -195,6 +195,9 @@ Tool descriptions cover each action; these are the extra rules.
   navigation do not. `PROJECT_CONTEXT_STALE` needs refreshed context and a new
   plan, not a Claim; `NO_ACTIVE_PROJECT` means the browser is in Gallery. The
   client never redirects old writes. Closing a panel is not a disconnect.
+  After the tab opens another Project, a Cell of the previous one is
+  `TOKEN_SCOPE_INSUFFICIENT`: `connect()` (no Claim) resumes onto the open
+  Project; use its `documentIds`.
 - `project_cells` Cloud import copies one Cell's dependency closure (no live
   link); sign-in, stale-revision and library-compatibility failures are
   recoverable. `bind-workspace` targets a copy for this client's Circuit,
