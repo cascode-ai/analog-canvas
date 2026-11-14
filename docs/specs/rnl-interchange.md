@@ -26,6 +26,10 @@ the RNL language and its runtime belong to rnl.
   demand) writes and reads every RNL statement. The editor never spells RNL
   syntax: it hands the runtime edit-transaction operations and reads its
   snapshot, so an rnl upgrade changes the written RNL without editor changes.
+- The runtime is the package built from one commit of rich-netlist/rnl
+  `main`, vendored as `packages/rnl/vendor/rich-netlist-runtime-*.tgz` and
+  pinned by the lockfile's integrity, until a release on npm reads
+  language 0.4; then the npm release replaces it.
 - WebAssembly stays out of packages the Worker and MCP bundles import
   (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.
 - Upstream decisions this contract follows: Analog Canvas stays compatible
