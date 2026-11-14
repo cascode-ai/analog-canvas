@@ -7042,6 +7042,68 @@ it.each(["spice", "spectre"] as const)(
 );
 
 it.each(["spice", "spectre"] as const)(
+  "draws a project's copy of a standard source, saved before body fill, with the standard symbol through %s+RNL",
+  async (format) => {
+    // A copy made before the Library marked the source's circle as a body
+    // fill may paint (#2313) draws the same source.
+    const project = calledBlocks(["current-source"]);
+    const library = builtInSymbols.find(
+      (symbol) => symbol.id === "current-source",
+    )!;
+    expect(
+      library.primitives.some(
+        (primitive) => "fillableBody" in primitive && primitive.fillableBody,
+      ),
+    ).toBe(true);
+    const copyId = "trial-source-reference-I1";
+    project.componentDefinitions = [
+      {
+        symbol: {
+          ...library,
+          id: copyId,
+          primitives: library.primitives.map((primitive) => {
+            const { fillableBody: _, ...shape } =
+              primitive as typeof primitive & {
+                fillableBody?: boolean;
+              };
+            return shape;
+          }),
+        },
+        electrical: {
+          ...deviceDescriptor("current-source")!,
+          id: copyId,
+          symbolId: copyId,
+        },
+      },
+    ] as CircuitProject["componentDefinitions"];
+    const part = project.documents[0]!.instances.find(
+      (instance) => instance.id === "X1",
+    )!;
+    part.symbolId = copyId;
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(setsSymbol(written.text, "$CURRENT_SOURCE")).toBe(true);
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    expect(
+      plan.project.documents[0]!.instances.find(
+        (instance) => instance.reference === "X1",
+      )!.symbolId,
+    ).toBe("current-source");
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
   "reads a transformer back the transformer, through %s+RNL",
   async (format) => {
     const project = createEmptyProject("magnetic", "Magnetic", "dut");

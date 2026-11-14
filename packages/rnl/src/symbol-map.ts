@@ -192,15 +192,22 @@ export function symbolModelType(
 }
 
 /**
+ * What a primitive may carry that draws nothing: its `part`, which names it,
+ * and `fillableBody`, which lets a body fill paint it (#2313) and which a
+ * copy made before the Library gave it lacks.
+ */
+const UNDRAWN_KEYS: ReadonlySet<string> = new Set(["part", "fillableBody"]);
+
+/**
  * A symbol's pins and primitives as text, to compare two by: each object's
- * keys in order, without a primitive's `part`, which names it and draws nothing.
+ * keys in order, without those that draw nothing (`UNDRAWN_KEYS`).
  */
 const drawingOf = (symbol: Pick<SymbolDefinition, "pins" | "primitives">) =>
   JSON.stringify([symbol.pins, symbol.primitives], (_, item: unknown) =>
     item && typeof item === "object" && !Array.isArray(item)
       ? Object.fromEntries(
           Object.entries(item)
-            .filter(([key]) => key !== "part")
+            .filter(([key]) => !UNDRAWN_KEYS.has(key))
             .sort(([left], [right]) => (left < right ? -1 : 1)),
         )
       : item,
