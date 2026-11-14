@@ -9,6 +9,7 @@ import type {
 import {
   derivePowerRailComponent,
   endpointKey,
+  instanceSupportsBodyFill,
   isSchematicAnnotationVisible,
   resolveDocumentLogicalNets,
   resolveDocumentRoutingGeometry,
@@ -26,6 +27,7 @@ import {
 import {
   getRazaviCatalogEntry,
   adaptiveSignalFlowSupplyLeads,
+  drawnAdaptiveBodyParts,
   resolveAdaptiveSignalFlowBlockLayout,
   type ResolvedSymbol,
   type SymbolPrimitive,
@@ -70,6 +72,11 @@ function analogBlockHitPrimitives(
     instance.signalFlowParameters,
   );
   if (adaptive) {
+    const parts = drawnAdaptiveBodyParts(
+      resolved.definition,
+      resolved.variant?.hiddenPrimitiveParts,
+      resolved.variant?.additionalPrimitives,
+    );
     const { body, pinSpan, shape } = adaptive;
     const center = resolved.definition.formulaPresentation!.center;
     const bodyRight = body.x + body.width;
@@ -104,7 +111,7 @@ function analogBlockHitPrimitives(
         from: { x: center.x - pinSpan, y: center.y },
         to: { x: body.x, y: center.y },
       },
-      frame,
+      ...(parts.frameVisible ? [frame] : []),
       {
         kind: "line",
         from: { x: bodyRight, y: center.y },
@@ -115,6 +122,7 @@ function analogBlockHitPrimitives(
         adaptive,
         resolved.variant?.hiddenPrimitiveParts,
       ).map(({ from, to }): SymbolPrimitive => ({ kind: "line", from, to })),
+      ...parts.extraBodies,
     ];
   }
 
@@ -143,8 +151,10 @@ function AnalogBlockHitGeometry({
     outline: boolean,
   ) => {
     const key = `${outline ? "outline" : "hit"}-${index}`;
+    const bodyPath = primitive.kind === "path" && primitive.fillableBody;
     const filled =
       primitive.kind === "polygon" ||
+      primitive.kind === "rectangle" ||
       primitive.kind === "circle" ||
       (primitive.kind === "path" && /z\s*$/iu.test(primitive.data));
     const common = outline
@@ -153,10 +163,12 @@ function AnalogBlockHitGeometry({
           pointerEvents: "none" as const,
         }
       : {
-          className: `analog-block-hit-area${filled ? " filled" : ""}${selected ? " selected" : ""}`,
+          className: `analog-block-hit-area${filled ? " filled" : ""}${bodyPath ? " body-path" : ""}${selected ? " selected" : ""}`,
           pointerEvents,
         };
     switch (primitive.kind) {
+      case "rectangle":
+        return <rect key={key} {...common} {...primitive.bounds} />;
       case "line":
         return (
           <line
@@ -188,7 +200,14 @@ function AnalogBlockHitGeometry({
           />
         );
       case "path":
-        return <path key={key} {...common} d={primitive.data} />;
+        return (
+          <path
+            key={key}
+            {...common}
+            d={primitive.data}
+            fillRule={primitive.fillableBody ? "evenodd" : undefined}
+          />
+        );
     }
   };
 
@@ -384,10 +403,12 @@ function SelectionHitTargets({
             instance.symbolId,
             instance.symbolVariantId,
           );
-          const analogBlock =
+          const outlineHit =
             resolved &&
-            getRazaviCatalogEntry(instance.symbolId)?.category ===
-              "analog-block";
+            (getRazaviCatalogEntry(instance.symbolId)?.category ===
+              "analog-block" ||
+              (!!instance.bodyFill &&
+                instanceSupportsBodyFill(instance, resolver)));
           const selected = selectedInstanceIds.includes(instance.id);
           const wouldMove = wouldMoveIds.has(instance.id);
           const className = selected
@@ -406,7 +427,7 @@ function SelectionHitTargets({
             event.stopPropagation();
             onInstanceClick(instance, event.shiftKey || event.ctrlKey);
           };
-          if (analogBlock) {
+          if (outlineHit) {
             return (
               <g
                 key={instance.id}

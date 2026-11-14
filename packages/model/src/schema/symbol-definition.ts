@@ -4,6 +4,7 @@ import {
   SymbolLocalRectSchema,
 } from "./common.js";
 import { RichTextDocumentSchema } from "./rich-text.js";
+import { resolveClosedSymbolPath } from "../closed-symbol-path.js";
 import { z } from "zod";
 
 /** Smallest legal electrical pin pitch; ordinary placement still uses the Document grid. */
@@ -114,17 +115,38 @@ export const SymbolPrimitiveSchema = z.discriminatedUnion("kind", [
     style: SymbolPrimitiveStyleSchema.optional(),
   }),
   z.strictObject({
-    kind: z.literal("path"),
-    data: z.string().min(1),
-    /**
-     * Optional tight bounds of the authored path centerline. Path data is
-     * otherwise opaque to geometry consumers, which must conservatively fall
-     * back to the Symbol viewBox.
-     */
-    bounds: SymbolLocalRectSchema.optional(),
+    kind: z.literal("rectangle"),
+    bounds: SymbolLocalRectSchema,
+    fillableBody: z.literal(true).optional(),
+    fill: z.enum(["none", "foreground"]).optional(),
+    stroke: z.enum(["none", "foreground"]).optional(),
     part: StableIdSchema.optional(),
     style: SymbolPrimitiveStyleSchema.optional(),
   }),
+  z
+    .strictObject({
+      kind: z.literal("path"),
+      data: z.string().min(1),
+      fillableBody: z.literal(true).optional(),
+      /**
+       * Optional tight bounds of the authored path centerline. Path data is
+       * otherwise opaque to geometry consumers, which must conservatively fall
+       * back to the Symbol viewBox.
+       */
+      bounds: SymbolLocalRectSchema.optional(),
+      part: StableIdSchema.optional(),
+      style: SymbolPrimitiveStyleSchema.optional(),
+    })
+    .superRefine((primitive, context) => {
+      if (!primitive.fillableBody) return;
+      const result = resolveClosedSymbolPath(primitive.data);
+      if (!result.ok)
+        context.addIssue({
+          code: "custom",
+          path: ["data"],
+          message: result.message,
+        });
+    }),
   z.strictObject({
     kind: z.literal("polygon"),
     points: z.array(SymbolGeometryPointSchema).min(3),

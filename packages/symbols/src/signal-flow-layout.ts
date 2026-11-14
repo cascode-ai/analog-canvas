@@ -593,6 +593,26 @@ export function resolveAdaptiveSignalFlowBlockLayout(
   };
 }
 
+/** The named outline drives the frame; explicitly marked other bodies keep their artwork. */
+export function drawnAdaptiveBodyParts(
+  definition: Pick<SymbolDefinition, "primitives">,
+  hiddenParts: readonly string[] | undefined,
+  additionalPrimitives: readonly SymbolDefinition["primitives"][number][] = [],
+) {
+  const hidden = new Set(hiddenParts);
+  const marked = [...definition.primitives, ...additionalPrimitives].filter(
+    (primitive) =>
+      "fillableBody" in primitive &&
+      primitive.fillableBody &&
+      (!primitive.part || !hidden.has(primitive.part)),
+  );
+  return {
+    frameVisible: !hidden.has("body"),
+    frameFillable: marked.some((primitive) => primitive.part === "body"),
+    extraBodies: marked.filter((primitive) => primitive.part !== "body"),
+  };
+}
+
 /**
  * A supply pin's lead on a block whose body grows with its text (#1941): at
  * the pin's own x, from the body's edge to the first grid row at or beyond

@@ -46,6 +46,7 @@
           "y": 0
         },
         "radius": 10.755814,
+        "fillableBody": true,
         "part": "body",
         "style": {
           "strokeRole": "normal",
@@ -152,6 +153,7 @@
             "fill": "none",
             "stroke": "foreground",
             "part": "diamond-body",
+            "fillableBody": true,
             "style": {
               "strokeRole": "normal",
               "lineCap": "butt",

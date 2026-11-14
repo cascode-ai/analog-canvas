@@ -133,6 +133,10 @@
   pointer-events: all;
 }
 
+.analog-block-hit-area.body-path {
+  pointer-events: fill;
+}
+
 .analog-block-hit-outline {
   fill: none;
   stroke: transparent;

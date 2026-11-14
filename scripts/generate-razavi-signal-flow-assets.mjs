@@ -54,6 +54,7 @@ function bodyPath(left, top, right, bottom, shape = "rectangle") {
     kind: "path",
     part: "body",
     data,
+    fillableBody: true,
     style: {
       strokeRole: "emphasis",
       lineCap: "butt",
@@ -232,7 +233,10 @@ function quantizerBlock() {
       // transfer characteristic rather than a line of formula text, and a
       // plot needs comparable room on both axes; the width and pin span stay
       // family-standard so the leads and grid alignment are untouched.
-      bodyPath(-20, -20, 20, 20),
+      {
+        ...bodyPath(-20, -20, 20, 20),
+        bounds: { x: -20, y: -20, width: 40, height: 40 },
+      },
       lead({ x: 20, y: 0 }, { x: 30, y: 0 }, "output-y-lead"),
       {
         kind: "polyline",

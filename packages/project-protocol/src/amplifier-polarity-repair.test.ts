@@ -62,6 +62,8 @@ function legacyProject(symbol: SymbolDefinition = legacySymbol) {
 /** A symbol as drawn before it had supply pins. */
 function withoutSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
   const { defaultVariantId: _default, ...rest } = structuredClone(symbol);
+  for (const primitive of rest.primitives)
+    if (primitive.kind === "path") delete primitive.fillableBody;
   return {
     ...rest,
     pins: rest.pins.filter((pin) => !["VDD", "VSS"].includes(pin.name)),
@@ -101,10 +103,8 @@ describe("recognized amplifier polarity snapshot repair", () => {
           (definition) => definition.symbol.id === symbol.id,
         )!.symbol,
       ).toEqual(symbol);
-      const correct = legacyProject(symbol);
-      expect(
-        parseProject(JSON.stringify(correct)).componentDefinitions,
-      ).toEqual(correct.componentDefinitions);
+      const correct = serializeProject(legacyProject(symbol));
+      expect(serializeProject(parseProject(correct))).toBe(correct);
     }
     const custom = legacyProject();
     const definition = custom.componentDefinitions![0]!;

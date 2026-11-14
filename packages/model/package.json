@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@icm/math-typesetting": "workspace:*",
+    "svg-pathdata": "8.0.0",
     "zod": "4.4.3"
   }
 }

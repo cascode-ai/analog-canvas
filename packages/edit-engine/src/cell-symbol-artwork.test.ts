@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   SchematicDocumentSchema,
   routeEndpoints,
+  transformPoint,
   type CircuitProject,
   type SymbolDefinition,
 } from "@icm/model";
@@ -11,6 +12,7 @@ import {
   CURRENT_PROJECT_FILE_VERSION,
   parseProject,
   serializeProject,
+  tryParseProjectWithMetadata,
 } from "@icm/project-protocol";
 import {
   builtInSymbols,
@@ -18,6 +20,7 @@ import {
   hierarchicalSymbolId,
 } from "@icm/symbols";
 import { resolveRouteGeometry } from "@icm/derived";
+import { buildSvgScene } from "@icm/render-svg";
 
 import {
   capturedCellSymbolArtwork,
@@ -200,6 +203,277 @@ function expectWiresOnPins(project: CircuitProject) {
 }
 
 describe("a Cell drawn with its author's artwork", () => {
+  it("fills a captured automatic block and follows its manually resized body", () => {
+    const captured = JSON.parse(serializeProject(ota()));
+    captured.schemaVersion = 81;
+    for (const definition of captured.componentDefinitions)
+      for (const primitive of definition.symbol.primitives)
+        delete primitive.fillableBody;
+    const original = parseProject(JSON.stringify(captured));
+    const document = bench(original);
+    const { id, placement } = caller(original);
+    const painted = commit(original, [
+      {
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        edits: [
+          {
+            kind: "set_body_fill",
+            objectIds: [id],
+            fill: { kind: "background" },
+          },
+        ],
+      },
+    ]);
+    const point = { x: placement!.position.x, y: placement!.position.y + 130 };
+    const visible = (source: CircuitProject) => {
+      const reopened = parseProject(serializeProject(source));
+      const scene = buildSvgScene(
+        bench(reopened),
+        createProjectSymbolResolver(reopened, builtInSymbols),
+      );
+      return scene.drawingScene.isVisibleAt({ kind: "electrical" }, point);
+    };
+    expect(visible(painted)).toBe(true);
+    const resized = commit(
+      painted,
+      planSetCellSymbolSize(painted, CELL, { width: 400, height: 400 }),
+    );
+    expect(visible(resized)).toBe(false);
+    expect(netlist(resized, "spice")).toBe(netlist(original, "spice"));
+    expect(expectWiresOnPins(resized)).toBe(expectWiresOnPins(original));
+  });
+
+  it("keeps a curved hole clear at an electrical point after transforming and reopening", () => {
+    const project = ota();
+    const data =
+      "M-30-30 H30 V30 H-30 Z m40.0001 30 a10.0001 10.0001 0 1 0-20.0002 0 a10.0001 10.0001 0 1 0 20.0002 0 z";
+    const primitives = [
+      { kind: "path", data, fillableBody: true },
+      ...TRIANGLE.primitives.slice(1),
+    ];
+    const custom = commit(
+      project,
+      planSetCellSymbolArtwork(project, CELL, {
+        symbolMode: "custom",
+        artworkText: JSON.stringify({ ...TRIANGLE, primitives }),
+        pinMap: PIN_MAP,
+      }),
+    );
+    const document = bench(custom);
+    const { id, placement } = caller(custom);
+    const filled = commit(custom, [
+      {
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        edits: [
+          {
+            kind: "set_body_fill",
+            objectIds: [id],
+            fill: { kind: "background" },
+          },
+        ],
+      },
+    ]);
+    const transformed = structuredClone(filled);
+    const contact = caller(transformed).placement!;
+    contact.rotation = 90;
+    contact.mirror = "horizontal";
+    const saved = serializeProject(transformed);
+    const reopened = parseProject(saved);
+    expect(serializeProject(reopened)).toBe(saved);
+    const oldEnvelope = JSON.parse(saved);
+    oldEnvelope.schemaVersion = 81;
+    const rejected = tryParseProjectWithMetadata(JSON.stringify(oldEnvelope));
+    expect(rejected).toMatchObject({
+      ok: false,
+      diagnostics: [
+        expect.objectContaining({
+          message: "Closed Symbol paths require Project schema 82",
+          path: expect.arrayContaining(["primitives", 0, "fillableBody"]),
+        }),
+      ],
+    });
+
+    const scene = buildSvgScene(
+      bench(reopened),
+      createProjectSymbolResolver(reopened, builtInSymbols),
+    );
+    const origin = placement!.position;
+    expect(scene.formalBody).toMatch(
+      /<path[^>]*data-role="instance-body-fill"[^>]*fill-rule="evenodd"/u,
+    );
+    expect(scene.drawingScene.isVisibleAt({ kind: "electrical" }, origin)).toBe(
+      true,
+    );
+    const local = (x: number, y: number) =>
+      transformPoint({ x, y }, contact.position, contact);
+    expect(
+      scene.drawingScene.isVisibleAt({ kind: "electrical" }, local(6, 8)),
+    ).toBe(true);
+    expect(
+      scene.drawingScene.isVisibleAt({ kind: "electrical" }, local(0, 12)),
+    ).toBe(false);
+    expect(netlist(reopened, "spice")).toBe(netlist(custom, "spice"));
+  });
+
+  it("accepts an explicitly closed shallow quadratic outline", () => {
+    const data = "M0 0 Q1 .005 2 0 Z";
+    const project = ota();
+    const custom = commit(
+      project,
+      planSetCellSymbolArtwork(project, CELL, {
+        symbolMode: "custom",
+        artworkText: JSON.stringify({
+          ...TRIANGLE,
+          primitives: [{ kind: "path", data, fillableBody: true }],
+        }),
+        pinMap: PIN_MAP,
+      }),
+    );
+    expect(
+      cell(parseProject(serializeProject(custom))).presentation.cellSymbol
+        ?.artwork?.symbol.primitives,
+    ).toEqual([{ kind: "path", data, fillableBody: true }]);
+  });
+
+  it("fills independent rectangles and variant regions without painting unmarked circles", () => {
+    const project = ota();
+    const custom = commit(
+      project,
+      planSetCellSymbolArtwork(project, CELL, {
+        symbolMode: "custom",
+        artworkText: JSON.stringify({
+          ...TRIANGLE,
+          primitives: [
+            {
+              kind: "rectangle",
+              bounds: { x: -30, y: -20, width: 20, height: 40 },
+              part: "left",
+              fillableBody: true,
+            },
+            {
+              kind: "circle",
+              center: { x: 20, y: 0 },
+              radius: 10,
+              part: "right",
+              fillableBody: true,
+            },
+            { kind: "circle", center: { x: 0, y: 20 }, radius: 4 },
+          ],
+          variants: [
+            {
+              id: "right-only",
+              hiddenPinNames: [],
+              hiddenPrimitiveParts: ["left"],
+            },
+          ],
+        }),
+        pinMap: PIN_MAP,
+      }),
+    );
+    const present = (source: CircuitProject, edits: unknown[]) => {
+      const document = bench(source);
+      return commit(source, [
+        {
+          kind: "transact_document",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          edits,
+        },
+      ] as ProjectStructureEdit[]);
+    };
+    const { id, symbolId, placement } = caller(custom);
+    const filled = present(custom, [
+      {
+        kind: "set_body_fill",
+        objectIds: [id],
+        fill: { kind: "color", color: "#e6ffff" },
+      },
+    ]);
+    const visible = (source: CircuitProject, x: number, y: number) => {
+      const scene = buildSvgScene(
+        bench(source),
+        createProjectSymbolResolver(source, builtInSymbols),
+      );
+      return scene.drawingScene.isVisibleAt(
+        { kind: "electrical" },
+        {
+          x: placement!.position.x + x,
+          y: placement!.position.y + y,
+        },
+      );
+    };
+    expect(visible(filled, -20, 0)).toBe(false);
+    expect(visible(filled, 20, 0)).toBe(false);
+    expect(visible(filled, 0, 20)).toBe(true);
+    const variant = present(filled, [
+      {
+        kind: "set_instance_symbol",
+        instanceId: id,
+        symbolId,
+        symbolVariantId: "right-only",
+      },
+    ]);
+    expect(visible(variant, -20, 0)).toBe(true);
+    expect(visible(variant, 20, 0)).toBe(false);
+    expect(caller(variant).bodyFill).toEqual({
+      kind: "color",
+      color: "#e6ffff",
+    });
+  });
+
+  it.each([
+    [
+      "M0 0 L20 0 L0 20 M2 2 L3 2 L2 3 Z",
+      /Every body subpath must end with Z/u,
+    ],
+    ["M0 0 L20 0 x Z", /Invalid character|Unexpected/u],
+    ["M0 0 L10 0 L20 0 Z", /Each body subpath must enclose an area/u],
+    [
+      "M0 0 L20 0 L20 20 L20 10 L20 0 L10 0 L0 0 Z",
+      /Each body subpath must enclose an area/u,
+    ],
+    [
+      "M0 0 C0 8 8 8 8 0 C8 4 6 6 4 6 C2 6 0 4 0 0 Z",
+      /Each body subpath must enclose an area/u,
+    ],
+    [
+      "M0 0H20V20H0Z M0 0H10H20V10V20H10H0V10Z",
+      /Body path must enclose an area after applying even-odd fill/u,
+    ],
+    [
+      "M1 0L7 2L7 12L1 12Z M1 0L4 1L7 2L7 12L1 12Z",
+      /Body path must enclose an area after applying even-odd fill/u,
+    ],
+    [
+      "M0 0 A1e999 1e999 0 0 0 0 0 L10 0 L0 10 Z",
+      /Path coordinates must be finite/u,
+    ],
+  ] as const)(
+    "locates invalid filled paths in the component editing flow (%s)",
+    (data, message) => {
+      const project = ota();
+      expect(() =>
+        planSetCellSymbolArtwork(project, CELL, {
+          symbolMode: "custom",
+          artworkText: JSON.stringify({
+            symbol: {
+              ...TRIANGLE,
+              primitives: [{ kind: "path", data, fillableBody: true }],
+            },
+          }),
+          pinMap: PIN_MAP,
+        }),
+      ).toThrow(
+        new RegExp("symbol\\.primitives\\.0\\.data: .*" + message.source, "iu"),
+      );
+      expect(cell(project).presentation.cellSymbol?.artwork).toBeUndefined();
+    },
+  );
+
   it("draws the triangle for its caller, its pins named by the Cell Pins", () => {
     const project = customize(ota());
     const symbol = block(project);

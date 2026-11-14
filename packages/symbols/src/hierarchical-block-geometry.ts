@@ -357,6 +357,7 @@ export function createHierarchicalBlockGeometry(
           { x: left, y: bottom },
         ],
         fill: "none",
+        fillableBody: true,
         stroke: "foreground",
       },
       ...pins.map((pin) => ({

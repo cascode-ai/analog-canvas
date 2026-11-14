@@ -30,6 +30,7 @@ import type {
 import {
   adaptiveSignalFlowSupplyLeads,
   resolveAdaptiveSignalFlowBlockLayout,
+  drawnAdaptiveBodyParts,
   resolveInstanceSymbol,
   resolveSignalFlowPinAt,
 } from "@icm/symbols";
@@ -87,6 +88,10 @@ function renderPrimitive(
     ? ` data-part="${escapeXml(rendered.part)}"`
     : "";
   switch (rendered.kind) {
+    case "rectangle": {
+      const { x, y, width, height } = rendered.bounds;
+      return `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${rendered.fill === "foreground" ? fg : "none"}"${rendered.stroke === undefined ? "" : ` stroke="${rendered.stroke === "foreground" ? fg : "none"}"`}${style}/>`;
+    }
     case "line":
       return `<line${uprightPart} x1="${rendered.from.x}" y1="${rendered.from.y}" x2="${rendered.to.x}" y2="${rendered.to.y}"${style}/>`;
     case "polyline":
@@ -190,6 +195,8 @@ export function renderFilledRegion(
   attributes: string,
 ): string {
   switch (region.kind) {
+    case "path":
+      return `<path ${attributes} d="${escapeXml(region.data)}" fill-rule="evenodd"/>`;
     case "polygon":
       return `<polygon ${attributes} points="${pointList(region.points)}"/>`;
     case "circle":
@@ -222,6 +229,11 @@ export function renderSymbolDefinitionBody(
     signalFlowParameters,
   );
   if (adaptive) {
+    const parts = drawnAdaptiveBodyParts(
+      definition,
+      hiddenPrimitiveParts,
+      additionalPrimitives,
+    );
     const { body, pinSpan } = adaptive;
     const center = definition.formulaPresentation!.center;
     const left = center.x - pinSpan;
@@ -234,7 +246,7 @@ export function renderSymbolDefinitionBody(
     );
     return [
       `<line data-part="input-a-lead" x1="${left}" y1="${center.y}" x2="${bodyLeft}" y2="${center.y}"/>`,
-      frame,
+      parts.frameVisible ? frame : "",
       `<line data-part="output-y-lead" x1="${bodyRight}" y1="${center.y}" x2="${right}" y2="${center.y}"/>`,
       // Its supplies, where the variant draws them, on the grown body (#1941).
       ...adaptiveSignalFlowSupplyLeads(
@@ -244,6 +256,9 @@ export function renderSymbolDefinitionBody(
       ).map(
         ({ part, from, to }) =>
           `<line data-part="${part}" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"/>`,
+      ),
+      ...parts.extraBodies.map((primitive) =>
+        renderPrimitive(primitive, profile, foregroundOverride),
       ),
     ].join("");
   }

@@ -177,6 +177,7 @@ const symbol = {
       kind: "path",
       data: ANALOG_TRIANGLE_PATH,
       bounds: ANALOG_TRIANGLE_BOUNDS,
+      fillableBody: true,
       style: {
         strokeRole: "emphasis",
         lineCap: "butt",
@@ -358,6 +359,7 @@ const differentialSymbol = (id, name, plusOutputAtBottom) => {
         kind: "path",
         data: differentialTrianglePathData,
         bounds: ANALOG_TRIANGLE_BOUNDS,
+        fillableBody: true,
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",

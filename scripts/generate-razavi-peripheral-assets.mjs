@@ -95,7 +95,13 @@ function voltageSource(measurement) {
       // The Razavi reference uses the same fine outline for the voltage-source
       // circle as its terminal leads; only source glyphs such as GND bars use
       // the heavier emphasis role.
-      { kind: "circle", center: { x: 0, y: 0 }, radius, style: normal },
+      {
+        kind: "circle",
+        center: { x: 0, y: 0 },
+        radius,
+        fillableBody: true,
+        style: normal,
+      },
       line(
         { x: plus.x - halfWidth, y: plus.y },
         { x: plus.x + halfWidth, y: plus.y },
@@ -132,7 +138,13 @@ function pulseVoltageSource(measurement) {
     viewBox: { x: -24, y: -24, width: 39, height: 48 },
     pins: sourcePins(),
     primitives: [
-      { kind: "circle", center: { x: 0, y: 0 }, radius, style: normal },
+      {
+        kind: "circle",
+        center: { x: 0, y: 0 },
+        radius,
+        fillableBody: true,
+        style: normal,
+      },
       // One continuous path preserves sharp mitered corners at every scale.
       // These points are the horizontal pulse glyph rotated 90 degrees
       // counter-clockwise in screen coordinates.
@@ -176,6 +188,7 @@ function sourceDiamondVariant() {
         fill: "none",
         stroke: "foreground",
         part: "diamond-body",
+        fillableBody: true,
         style: normal,
       },
       line(
@@ -218,6 +231,7 @@ function currentSource(measurement) {
         kind: "circle",
         center: { x: 0, y: 0 },
         radius,
+        fillableBody: true,
         part: "body",
         style: normal,
       },

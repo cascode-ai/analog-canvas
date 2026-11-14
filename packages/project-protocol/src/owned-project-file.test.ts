@@ -25,6 +25,52 @@ const fixture = () =>
   );
 
 describe("instance-owned portable source", () => {
+  it("reopens schema 81 with a previously allowed collinear body polygon", () => {
+    const before = createEmptyProject("flat-polygon", "Flat polygon");
+    const polygon = {
+      kind: "polygon" as const,
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 20, y: 0 },
+      ],
+      fill: "none" as const,
+      fillableBody: true as const,
+    };
+    before.componentDefinitions = [
+      {
+        symbol: {
+          schemaVersion: 1,
+          id: "legacy-flat",
+          name: "Legacy flat",
+          viewBox: { x: -10, y: -10, width: 40, height: 20 },
+          pins: [
+            {
+              name: "P",
+              role: "passive",
+              at: { x: -10, y: 0 },
+              direction: "west",
+              presentation: { visibility: "visible" },
+            },
+          ],
+          primitives: [polygon],
+          variants: [],
+        },
+      },
+    ];
+    before.documents[0]!.instances.push({
+      id: "flat",
+      symbolId: "legacy-flat",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const source = JSON.parse(serializeProject(before));
+    source.schemaVersion = 81;
+    const parsed = parseProject(JSON.stringify(source));
+    expect(parsed.componentDefinitions?.[0]?.symbol.primitives).toEqual([
+      polygon,
+    ]);
+  });
+
   it("opens a legacy Project whose ordinary parameter is named bodyBounds", () => {
     const before = fixture();
     const instance = before.documents[0]!.instances.find(
