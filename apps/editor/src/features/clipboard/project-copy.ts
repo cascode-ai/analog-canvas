@@ -718,7 +718,8 @@ export function prepareProjectCopy(
     const symbolIds = new Map<string, string>();
     for (const rawDefinition of context.componentDefinitions) {
       const definition = ComponentDefinitionSchema.parse(rawDefinition);
-      // Cell/external symbols are regenerated from their imported interfaces.
+      // Cell and external symbols follow their imported owners: Cell import
+      // keeps a saved Cell drawing while its interface holds.
       if (definition.generatedFrom || definition.circuitBinding) continue;
       const originalId = definition.symbol.id;
       let id = originalId;

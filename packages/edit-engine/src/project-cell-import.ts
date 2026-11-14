@@ -1,12 +1,15 @@
 import {
   CircuitProjectSchema,
   deriveStableId,
+  SymbolDefinitionSchema,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
 import { bindsProjectCell, resolveReviewedExternalBinding } from "@icm/devices";
 import {
   externalSubcircuitSymbolId,
+  builtInSymbols,
+  createProjectSymbolResolver,
   hierarchicalSymbolId,
   projectSymbolSources,
   resolvePdkSymbolMappingForTerminalOrder,
@@ -212,10 +215,12 @@ function keptGeneratedArtwork(
   identifierMap: ReadonlyMap<string, string>,
   memberIds: CopiedMemberIds,
 ): ProjectStructureEdit[] {
+  const expectedTop = importedDocuments[0]!.id;
   const expected = projectSymbolSources({
     documents: [...importedDocuments],
-    topDocumentId: importedDocuments[0]!.id,
+    topDocumentId: expectedTop,
   });
+  let today: ReturnType<typeof createProjectSymbolResolver> | undefined;
   const edits: ProjectStructureEdit[] = [];
   for (const child of closure) {
     if (!child.netlist) continue;
@@ -235,14 +240,30 @@ function keptGeneratedArtwork(
       JSON.stringify(generatedFrom) !== JSON.stringify(expected.get(symbolId))
     )
       continue;
+    // A destination that already holds this symbol (an earlier Cell of the
+    // same copy shares it) keeps what it has.
+    if (
+      destination.componentDefinitions?.some(
+        (component) => component.symbol.id === symbolId,
+      )
+    )
+      continue;
     const copy = {
       ...copyCallerArtwork(captured, child, memberIds, { keepSymbolId: true }),
       generatedFrom,
     } as typeof captured;
-    const existing = destination.componentDefinitions?.find(
-      (component) => component.symbol.id === symbolId,
+    // A drawing today's generator reproduces needs no capture edit.
+    today ??= createProjectSymbolResolver(
+      { documents: [...importedDocuments], topDocumentId: expectedTop },
+      builtInSymbols,
     );
-    if (existing && JSON.stringify(existing) !== JSON.stringify(copy)) continue;
+    const regenerated = today.resolve(symbolId)?.definition;
+    if (
+      regenerated &&
+      JSON.stringify(SymbolDefinitionSchema.parse(regenerated)) ===
+        JSON.stringify(SymbolDefinitionSchema.parse(copy.symbol))
+    )
+      continue;
     edits.push({ kind: "capture_component_definition", definition: copy });
   }
   return edits;

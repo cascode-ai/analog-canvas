@@ -97,6 +97,40 @@ function vddAt(project: CircuitProject) {
     .definition.pins.find((pin) => pin.name === "VDD")!.at;
 }
 
+/**
+ * `cells` distinct Cells placed in a row, each calling the same `shared`
+ * child Cells, with every Cell's generated drawing saved.
+ */
+function cellsSharingChildren(cells: number, shared: number) {
+  const project = createEmptyProject("gallery-source", "Gallery source");
+  const call = (id: string, name: string, x: number) => ({
+    id,
+    reference: id,
+    symbolId: hierarchicalSymbolId(name),
+    placement: {
+      position: { x, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+    netlist: {
+      parameters: {},
+      binding: { kind: "subcircuit" as const, childDocumentId: name },
+    },
+  });
+  for (let j = 0; j < shared; j++)
+    project.documents.push(createEmptyDocument(`Shared${j}`, `Shared${j}`));
+  for (let i = 0; i < cells; i++) {
+    const cell = createEmptyDocument(`Cell${i}`, `Cell${i}`);
+    for (let j = 0; j < shared; j++)
+      cell.instances.push(call(`X${j + 1}`, `Shared${j}`, j * 300));
+    project.documents.push(cell);
+    project.documents[0]!.instances.push(
+      call(`X${i + 1}`, `Cell${i}`, i * 300),
+    );
+  }
+  return withProjectComponentDefinitions(project);
+}
+
 describe("Gallery census through the editor commands", () => {
   it("records both failures when the drawing cannot be read", async () => {
     const result = await exerciseGalleryEntry("{ not a project");
@@ -217,6 +251,20 @@ describe("Gallery census through the editor commands", () => {
       y: today.y + 10,
     });
   });
+
+  it.each([
+    [60, 4],
+    [100, 1],
+    [130, 0],
+  ])(
+    "inserts %i Cells sharing %i child Cells within one Project transaction",
+    async (cells, shared) => {
+      const result = await exerciseGalleryEntry(
+        serializeProject(cellsSharingChildren(cells, shared)),
+      );
+      expect(result.insert.status).toBe("inserted");
+    },
+  );
 
   it("opens the source and commits its drawing into a separate fresh canvas", async () => {
     const result = await exerciseGalleryEntry(serializeProject(resistor()));

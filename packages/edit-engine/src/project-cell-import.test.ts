@@ -370,6 +370,34 @@ describe("cross-Project Cell import", () => {
     expect(pinAt(project, symbolId, "VDD")).toEqual(saved);
   });
 
+  it("adds no capture for a drawing today's generator reproduces or the destination holds", () => {
+    const captures = (plan: ReturnType<typeof planProjectCellImport>) =>
+      plan.ok
+        ? plan.edits.filter(
+            (edit) => edit.kind === "capture_component_definition",
+          ).length
+        : -1;
+    const destination = createEmptyProject("destination", "Destination");
+    const current = callingProject(railedCell());
+    expect(
+      captures(
+        planProjectCellImport(destination, current, current.topDocumentId),
+      ),
+    ).toBe(0);
+
+    const older = callingProject(railedCell());
+    shiftSavedVdd(older, hierarchicalSymbolId("Bias"));
+    const first = importProject(destination, older, older.topDocumentId);
+    expect(captures(first.plan)).toBe(1);
+    expect(
+      captures(
+        planProjectCellImport(first.project, older, older.topDocumentId, {
+          sharedSnapshot: true,
+        }),
+      ),
+    ).toBe(0);
+  });
+
   it("redraws a Cell whose saved drawing no longer matches its interface", () => {
     const source = callingProject(railedCell());
     const symbolId = hierarchicalSymbolId("Bias");
