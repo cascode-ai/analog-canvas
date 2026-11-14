@@ -1013,7 +1013,11 @@ export function followAttachedAnnotations(
       },
       fallbackPosition: persistedPosition,
     };
-    if (slot !== null) {
+    // A part's own power label stays readable (#2290): upright text stays
+    // upright like a Reference or value, and a turned one follows the part
+    // but never ends up upside down.
+    const ownLabel = slot !== null || annotation.kind === "power-label";
+    if (ownLabel && (slot !== null || annotation.rotation === 0)) {
       annotation.rotation = 0;
       if (transformedAlignment !== null) {
         annotation.alignment = transformedAlignment;
@@ -1040,9 +1044,18 @@ export function followAttachedAnnotations(
         origin,
         oldOrientation,
       );
-      annotation.rotation = rotationForDirection(
+      const rotation = rotationForDirection(
         transformPoint(localDirection, origin, newOrientation),
       );
+      // Turned the rest of the way round, the same text reads from the same
+      // anchor towards the same side.
+      const upsideDown = ownLabel && rotation > 90 && rotation < 270;
+      annotation.rotation = upsideDown
+        ? (((rotation + 180) % 360) as Rotation)
+        : rotation;
+      if (upsideDown && annotation.alignment !== "middle")
+        annotation.alignment =
+          annotation.alignment === "start" ? "end" : "start";
     }
     changedObjectIds.add(annotation.id);
   }

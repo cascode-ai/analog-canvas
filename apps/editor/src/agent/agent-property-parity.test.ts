@@ -720,6 +720,60 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     });
   });
 
+  it("keeps a moved supply name readable through turns, and arranges an upside-down one upright (#2290)", async () => {
+    const { controller, client, apply } = await session();
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "vddY",
+        position: { x: 200, y: 200 },
+      },
+    ]);
+    const vdd = { kind: "instance", id: "vddY" };
+    const label = () =>
+      controller.document.annotations.find(
+        (item) => item.id === "power-label-vddy",
+      )!;
+    const moveLabel = async (rotation: 0 | 90 | 180, x: number, y: number) => {
+      const moved = structuredClone(label());
+      if (moved.anchor.kind !== "object") throw new Error("object anchor");
+      moved.rotation = rotation;
+      moved.alignment = "start";
+      moved.anchor.localOffset = { x, y };
+      moved.anchor.fallbackPosition = { x: 200 + x, y: 200 + y };
+      const report = await client.advancedTransact([
+        { kind: "upsert_schematic_annotation", annotation: moved },
+      ]);
+      expect(report.ok, report.message).toBe(true);
+    };
+    // A name moved by hand, upright, stays upright as the marker turns.
+    await apply([{ kind: "set-orientation", target: vdd, rotation: 180 }]);
+    await moveLabel(0, -20, -10);
+    for (const rotation of [0, 90, 180, 0]) {
+      await apply([{ kind: "set-orientation", target: vdd, rotation }]);
+      expect(label().rotation).toBe(0);
+    }
+
+    // A turned name follows the marker, but is never left upside down.
+    await moveLabel(180, -20, -10);
+    await apply([{ kind: "set-orientation", target: vdd, rotation: 180 }]);
+    expect(label()).toMatchObject({ rotation: 0, alignment: "start" });
+    await moveLabel(90, 20, 10);
+    await apply([{ kind: "set-orientation", target: vdd, rotation: 0 }]);
+    expect(label().rotation).toBe(270);
+    await moveLabel(90, 20, 10);
+    await apply([{ kind: "set-orientation", target: vdd, rotation: 90 }]);
+    expect(label()).toMatchObject({ rotation: 0, alignment: "end" });
+
+    // An upside-down name already drawn is set upright beside the marker.
+    await apply([{ kind: "set-orientation", target: vdd, rotation: 0 }]);
+    await moveLabel(180, 40, 30);
+    await apply([{ kind: "arrange-labels", instanceIds: ["vddY"] }]);
+    expect(label()).toMatchObject({ rotation: 0, alignment: "start" });
+    expect(label().anchor).toMatchObject({ localOffset: { x: 20, y: 10 } });
+  });
+
   it("names the nearest landing when a pin cannot land where asked", async () => {
     const { apply, refuse } = await session();
     await apply([place("nmos", "M1", 100)]);
