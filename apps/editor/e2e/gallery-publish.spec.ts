@@ -90,9 +90,9 @@ test("a member publishes from a tab, which then counts as saved and updates its 
     aiGenerated: boolean;
     instanceCount: number;
   }[] = [];
-  // The real submissions endpoint is /api/gallery/submissions — the mock
+  // The browser submits through /api/gallery/submissions/commit — the mock
   // matches it exactly so a client posting anywhere else fails this test.
-  await page.route("**/api/gallery/submissions", (route) => {
+  await page.route("**/api/gallery/submissions/commit", (route) => {
     if (route.request().method() !== "POST") return route.fallback();
     const body = route.request().postDataJSON() as {
       author?: string;
@@ -376,7 +376,7 @@ for (const scenario of [
       });
     });
     await page.route(
-      /\/api\/gallery\/(?:submissions|published-\d+)(?:\?summary=1)?$/,
+      /\/api\/gallery\/(?:submissions\/commit|published-\d+)(?:\?summary=1)?$/,
       async (route) => {
         const req = route.request();
         let id = new URL(req.url()).pathname.split("/")[3]!;

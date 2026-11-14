@@ -206,11 +206,8 @@ async function sendGalleryProject(
 ): Promise<GalleryPublishOutcome> {
   let response: Response;
   try {
-    const request =
-      method === "PUT"
-        ? (path: string, init: RequestInit) =>
-            galleryPublicationRequest(path, init, fetchLike)
-        : fetchLike;
+    const request = (path: string, init: RequestInit) =>
+      galleryPublicationRequest(path, init, fetchLike);
     response = await request(url, {
       method,
       // The session cookie is the credential; there is nothing else to send.

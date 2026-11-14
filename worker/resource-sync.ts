@@ -92,11 +92,14 @@ export async function routeResourceSync(
   if (!store) return refuse("unknown-resource-store", 404);
   let id: string | null = null;
   if (operation === "location") {
-    if (!source || interactions || opens) return refuse("not-found", 404);
+    if ((!source && !interactions) || opens || activity)
+      return refuse("not-found", 404);
     id = url.searchParams.get("id");
     if (
       !id ||
-      gallerySourceOfEntryId(id)?.key !== source.key ||
+      (interactions
+        ? !/^[A-Za-z0-9_-]{3,64}$/.test(id)
+        : gallerySourceOfEntryId(id)?.key !== source?.key) ||
       [...url.searchParams.keys()].length !== 1
     )
       return refuse("invalid-resource-id", 400);

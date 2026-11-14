@@ -192,7 +192,7 @@ export function submit(
   if (outcome.status === "rate-limited") {
     return Response.json({ error: "rate-limited" }, { status: 429 });
   }
-  return Response.json({ id: entry.id, previewRevision });
+  return publicationResult({ id: entry.id, previewRevision });
 }
 
 /** Minimum row needed to decide whether an immutable preview cache hit is valid. */

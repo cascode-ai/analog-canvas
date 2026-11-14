@@ -208,6 +208,9 @@
       "apps/editor/src/features/editor-shell/examples-panel.tsx",
       "apps/editor/src/components/shelf-wall.tsx",
       "apps/editor/src/components/my-submissions.tsx",
+      "apps/editor/src/components/review-page.tsx",
+      "worker/regional-submissions*.ts",
+      "worker/regional-review-actions.ts",
       "apps/editor/src/request-failure.ts"
     ],
     "gallery": [
@@ -264,6 +267,7 @@
       "apps/editor/e2e/gallery-history.spec.ts",
       "apps/editor/e2e/gallery-moderation.spec.ts",
       "apps/editor/e2e/gallery-publish.spec.ts",
+      "apps/editor/e2e/regional-review.spec.ts",
       "apps/editor/e2e/gallery-wall.spec.ts",
       "apps/editor/e2e/gallery-fixtures.ts",
       "apps/editor/e2e/gallery-test.ts",
@@ -625,6 +629,7 @@
         "apps/editor/e2e/gallery-history.spec.ts",
         "apps/editor/e2e/gallery-moderation.spec.ts",
         "apps/editor/e2e/gallery-publish.spec.ts",
+        "apps/editor/e2e/regional-review.spec.ts",
         "apps/editor/e2e/gallery-wall.spec.ts",
         "apps/editor/e2e/local-examples.spec.ts"
       ],
@@ -636,6 +641,7 @@
           "apps/editor/e2e/gallery-history.spec.ts",
           "apps/editor/e2e/gallery-moderation.spec.ts",
           "apps/editor/e2e/gallery-publish.spec.ts",
+          "apps/editor/e2e/regional-review.spec.ts",
           "apps/editor/e2e/gallery-wall.spec.ts",
           "apps/editor/e2e/local-examples.spec.ts"
         ]

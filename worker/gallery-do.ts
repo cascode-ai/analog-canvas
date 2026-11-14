@@ -3,6 +3,10 @@ import {
   maintenanceState,
 } from "./gallery-maintenance-command";
 import {
+  submissionCommand,
+  type SubmissionReceipt,
+} from "./gallery-submission-command";
+import {
   publicationCommand,
   publicationFingerprint,
   publicationProjectBindings,
@@ -585,6 +589,21 @@ export class GalleryDO {
       )
     )
       return Response.json({ error: "account-deleted" }, { status: 403 });
+    if (
+      (operation === "submit" || operation === "review-submit") &&
+      body.submissionReceipt
+    ) {
+      return submissionCommand(
+        this.state,
+        body.submissionReceipt as SubmissionReceipt,
+        () =>
+          operation === "review-submit"
+            ? submitReview(this.sql, body)
+            : this.regionalProjects
+              ? this.regionalProjects.publication("submit", body)
+              : submit(this.state, body),
+      );
+    }
     if (
       [
         "replace-entry",

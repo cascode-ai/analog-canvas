@@ -317,6 +317,17 @@ export function deleteAccount(
         .toArray().length
     )
       sql.exec("DELETE FROM gallery_like_intents WHERE user_id=?", userId);
+    if (
+      sql
+        .exec(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='gallery_submission_commands'",
+        )
+        .toArray().length
+    )
+      sql.exec(
+        "DELETE FROM gallery_submission_commands WHERE user_id=?",
+        userId,
+      );
     // Copies of the other region's publications are removed by their origin.
     const entries = sql
       .exec<{

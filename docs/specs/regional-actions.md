@@ -4,7 +4,7 @@ Status: `accepted`
 
 Primary owner: Gallery, Component Library, Auth and regional replication.
 This is the required behavior. The opt-in command route covers Community Gallery withdrawal, restoration,
-deletion, curation and name/description edits, plus drawing updates/fixes/takeover, references, version restore, rejection, Dataset imports/comparisons, User Component save/status, Community/Dataset review resolution, like changes and writer-routed maintenance. Per-entry opens use
+deletion, curation and name/description edits, plus first publication, drawing updates/fixes/takeover, references, version restore, rejection, Dataset imports/comparisons, User Component save/status, Community/Dataset review submission and resolution, like changes and writer-routed maintenance. Per-entry opens use
 the region components in [regional publications](regional-resources.md).
 
 ## Command delivery
@@ -40,7 +40,29 @@ the region components in [regional publications](regional-resources.md).
 - Review resolution follows the review writer, including Dataset stores; only
   the Owner may resolve. Repeating a resolved review leaves its original
   resolution time and author intact, with a deterministic command ID for
-  callers that do not supply one.
+  callers that do not supply one. A locally unknown review is located through
+  the authenticated peer before resolution; unavailable ownership is not a
+  missing review and never permits a local replacement.
+- First Gallery publication and Review submission prepare a region-bearing
+  intent before mutation. The browser retains its key and payload fingerprint
+  across uncertain replies and reloads; the writer commits the successful
+  result and receipt with the new record. Cross-entrance retry returns that
+  result without creating another publication, review history item or quota
+  charge. Explicit new intent permits a deliberate new publication or judgment.
+  Reusing a key with different input is a conflict. Explicit older keys without
+  a region have a deterministic writer; requests without a key retain legacy
+  retry limitations. Submission keys are scoped to the account and endpoint.
+  New browsers submit through the corresponding `/commit` endpoint, which
+  requires a key. An older entry refuses this endpoint without mutation during
+  a rolling release; the browser retains its intent for retry and never falls
+  back to the legacy mutation endpoint. New servers still accept keyed legacy
+  endpoints. Standalone deployments also retain receipts for `/commit`.
+  Incomplete regional routing refuses submission; a standalone deployment
+  cannot consume a region-bearing intent.
+  Retain these receipts with the full store; they add no per-account lifetime
+  submission quota. Gallery content exports alone cannot restore retry safety.
+  Account retirement removes their personal result payloads; its retained
+  retired-account fence prevents those commands from recreating data.
 - Duplicate cleanup groups removals by publication writer. Each writer rechecks
   the survivor's current synchronized revision and electrical equality, and
   commits its group atomically with one receipt. A mixed-writer request reports

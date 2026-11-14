@@ -14,6 +14,8 @@ function galleryServer(status = 201) {
   const answer = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? "GET";
+    if (url.endsWith("/intent"))
+      return Response.json({ key: crypto.randomUUID() });
     if (method === "GET")
       return url === "/api/gallery/entry-7?summary=1"
         ? Response.json({
@@ -90,7 +92,7 @@ describe("an Agent publishes to the Gallery (#1415)", () => {
     expect(server.sent).toEqual([
       {
         method: "POST",
-        url: "/api/gallery/submissions",
+        url: "/api/gallery/submissions/commit",
         body: expect.objectContaining({
           name: "Folded cascode",
           description: "Two stages",

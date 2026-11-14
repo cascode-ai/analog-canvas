@@ -81,7 +81,7 @@ export default {
       const datasetLocation =
         destination.origin === peer.origin &&
         request.method === "GET" &&
-        /^\/api\/resource-sync\/(analoggenie|circuitthink|amsnet|analogretriever|image2net)\/location$/.test(
+        /^\/api\/resource-sync\/((analoggenie|circuitthink|amsnet|analogretriever|image2net)|(gallery|analoggenie|circuitthink|amsnet|analogretriever|image2net)-interactions)\/location$/.test(
           destination.pathname,
         ) &&
         /^\?id=[A-Za-z0-9_-]{3,64}$/.test(destination.search);
@@ -111,6 +111,7 @@ export default {
           "review-resolution",
           "like",
           "publication",
+          "submission",
           "board",
           "maintenance",
         ].map(

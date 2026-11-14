@@ -16,6 +16,7 @@ import { routeRegionalBoardActions } from "./regional-board-actions";
 import { routeRegionalPublicationActions } from "./regional-publication-actions";
 import { routeRegionalMaintenance } from "./regional-maintenance";
 import { routeRegionalLikeActions } from "./regional-like-actions";
+import { routeRegionalSubmissions } from "./regional-submissions";
 
 export type ResourceActionEnv = GalleryEnv &
   ResourceSyncEnv & {
@@ -27,6 +28,8 @@ export async function routeRegionalResourceActions(
   request: Request,
   env: ResourceActionEnv,
 ): Promise<Response | null> {
+  const submission = await routeRegionalSubmissions(request, env);
+  if (submission) return submission;
   const board = await routeRegionalBoardActions(request, env);
   if (board) return board;
   const maintenance = await routeRegionalMaintenance(request, env);

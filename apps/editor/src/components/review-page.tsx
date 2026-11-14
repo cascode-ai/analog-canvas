@@ -13,6 +13,7 @@ import "../styles/review-page.css";
 import "./gallery-tag-groups.css";
 import { galleryPreviewUrl } from "../gallery-client";
 import { galleryLikeRequest } from "../gallery-like-request";
+import { galleryPublicationRequest } from "../gallery-publication-request";
 import { gallerySourceByKey } from "../gallery-sources";
 import { verdictOf, type ComparisonVerdict } from "../dataset-comparisons";
 import {
@@ -436,7 +437,7 @@ export function ReviewPage({
       if (!card || busy) return;
       setBusy(true);
       try {
-        const response = await fetchLike(
+        const response = await galleryPublicationRequest(
           `/api/gallery/${encodeURIComponent(card.id)}/reviews`,
           {
             method: "POST",
@@ -450,6 +451,7 @@ export function ReviewPage({
               marks,
             }),
           },
+          fetchLike,
         );
         const payload = (await response.json()) as {
           review?: ShownReview;
@@ -1150,6 +1152,7 @@ function OthersReviews({
   const [shown, setShown] = useState<ShownReview[] | null>(null);
   const [fixes, setFixes] = useState<EntryFix[]>([]);
   const [round, setRound] = useState(0);
+  const [resolveError, setResolveError] = useState("");
   const unblinded = reviewed(card) || owner || card.own === true;
   const key = `${card.mine?.id ?? ""}:${owner}:${round}`;
   const loaded = useRef<string | null>(null);
@@ -1169,16 +1172,22 @@ function OthersReviews({
       .catch(() => setShown([]));
   }, [card.id, unblinded, key, fetchLike]);
   const resolve = async (review: ShownReview) => {
-    await fetchLike(
-      `/api/gallery/${encodeURIComponent(card.id)}/reviews/${review.id}`,
-      {
-        method: "PATCH",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ resolved: true }),
-      },
-    );
-    setRound((value) => value + 1);
+    setResolveError("");
+    try {
+      const response = await fetchLike(
+        `/api/gallery/${encodeURIComponent(card.id)}/reviews/${review.id}`,
+        {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ resolved: true }),
+        },
+      );
+      if (!response.ok) throw new Error("Resolution was not confirmed");
+      setRound((value) => value + 1);
+    } catch {
+      setResolveError("This issue could not be resolved. Please try again.");
+    }
   };
   if (!unblinded)
     return card.reviews ? (
@@ -1189,6 +1198,7 @@ function OthersReviews({
     ) : null;
   return (
     <ul className="review-others">
+      {resolveError ? <li role="alert">{resolveError}</li> : null}
       {fixes.slice(0, 3).map((fix) => (
         <li key={fix.id} className="fix">
           <span className="datasets-icon v-notation" aria-hidden="true">

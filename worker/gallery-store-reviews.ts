@@ -5,6 +5,7 @@
 // history, no longer current.
 
 import { type SqlStorage, isRecord } from "./gallery-store";
+import { publicationResult } from "./gallery-publication-command";
 import { allFixers, entryFixes, fixTotals } from "./gallery-store-fixes";
 
 /** What a reviewer can flag; the page names them. */
@@ -238,7 +239,7 @@ export function submitReview(sql: SqlStorage, body: unknown): Response {
     row.marks,
     row.created_at,
   );
-  return Response.json({ review: shown(row, entry.preview_revision) });
+  return publicationResult({ review: shown(row, entry.preview_revision) });
 }
 
 /**
