@@ -720,7 +720,7 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     });
   });
 
-  it("keeps a moved supply name readable through turns, and arranges an upside-down one upright (#2290)", async () => {
+  it("gives a supply name back after a full turn, and arranges an upside-down one upright (#2290)", async () => {
     const { controller, client, apply } = await session();
     await apply([
       {
@@ -747,24 +747,16 @@ describe("Agent property actions are planned as Apply in Properties", () => {
       ]);
       expect(report.ok, report.message).toBe(true);
     };
-    // A name moved by hand, upright, stays upright as the marker turns.
-    await apply([{ kind: "set-orientation", target: vdd, rotation: 180 }]);
-    await moveLabel(0, -20, -10);
-    for (const rotation of [0, 90, 180, 0]) {
+    // A turned name follows the marker rigidly: a full turn gives it back.
+    await moveLabel(90, 20, 10);
+    const before = structuredClone(label());
+    for (const rotation of [90, 180, 270, 0] as const)
       await apply([{ kind: "set-orientation", target: vdd, rotation }]);
-      expect(label().rotation).toBe(0);
-    }
-
-    // A turned name follows the marker, but is never left upside down.
-    await moveLabel(180, -20, -10);
-    await apply([{ kind: "set-orientation", target: vdd, rotation: 180 }]);
-    expect(label()).toMatchObject({ rotation: 0, alignment: "start" });
-    await moveLabel(90, 20, 10);
-    await apply([{ kind: "set-orientation", target: vdd, rotation: 0 }]);
-    expect(label().rotation).toBe(270);
-    await moveLabel(90, 20, 10);
-    await apply([{ kind: "set-orientation", target: vdd, rotation: 90 }]);
-    expect(label()).toMatchObject({ rotation: 0, alignment: "end" });
+    expect(label()).toMatchObject({
+      rotation: before.rotation,
+      alignment: before.alignment,
+      anchor: before.anchor,
+    });
 
     // An upside-down name already drawn is set upright beside the marker.
     await apply([{ kind: "set-orientation", target: vdd, rotation: 0 }]);

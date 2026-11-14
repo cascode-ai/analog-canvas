@@ -103,9 +103,9 @@ redraws seen drawings), whether the name was typed, connected or generated:
   rename, reset and arrangement may share construction primitives but not
   authorization or target selection; entry points applying one role
   exception share its RichText construction.
-- A part's Reference, value and supply name stay readable when it turns or
-  mirrors: upright ones stay upright; a turned supply name turns with the
-  part but is never left upside down (it flips to read the same way).
+- A part's Reference and value stay upright when it turns or mirrors; its
+  supply name turns with it, so a full turn gives it back unchanged, and
+  `arrange-labels` sets an upside-down supply name upright.
 
 ## Batch operations
 
