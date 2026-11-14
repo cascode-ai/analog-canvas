@@ -10873,7 +10873,7 @@
             },
             "edits": {
               "minItems": 1,
-              "maxItems": 1024,
+              "maxItems": 8192,
               "type": "array",
               "items": {
                 "$ref": "#/$defs/__schema251"

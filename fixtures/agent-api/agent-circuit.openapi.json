@@ -12014,7 +12014,7 @@
                   },
                   "edits": {
                     "minItems": 1,
-                    "maxItems": 1024,
+                    "maxItems": 8192,
                     "type": "array",
                     "items": {
                       "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema251"

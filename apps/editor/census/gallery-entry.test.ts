@@ -1,4 +1,5 @@
 import { createEmptyProject } from "@icm/model";
+import { MAX_SCHEMATIC_EDITS_PER_TRANSACTION } from "@icm/edit-engine";
 import { serializeProject } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
 import { exerciseGalleryEntry } from "./gallery-entry";
@@ -15,6 +16,26 @@ function resistor() {
       parameters: { value: "1k" },
     },
   });
+  return project;
+}
+
+/** `count` resistors in a row: one placement edit each. */
+function resistors(count: number) {
+  const project = resistor();
+  const prototype = project.documents[0]!.instances[0]!;
+  project.documents[0]!.instances = Array.from(
+    { length: count },
+    (_, index) => ({
+      ...structuredClone(prototype),
+      id: `resistor-${index}`,
+      reference: `R${index + 1}`,
+      placement: {
+        position: { x: index * 100, y: 100 },
+        rotation: 0,
+        mirror: "none",
+      },
+    }),
+  );
   return project;
 }
 
@@ -74,23 +95,20 @@ describe("Gallery census through the editor commands", () => {
     });
   });
 
-  it("reports a commit exceeding the transaction edit limit as failure", async () => {
-    const project = resistor();
-    const prototype = project.documents[0]!.instances[0]!;
-    project.documents[0]!.instances = Array.from(
-      { length: 1025 },
-      (_, index) => ({
-        ...structuredClone(prototype),
-        id: `resistor-${index}`,
-        reference: `R${index + 1}`,
-        placement: {
-          position: { x: index * 100, y: 100 },
-          rotation: 0,
-          mirror: "none",
-        },
-      }),
+  it("commits a drawing of more than 1024 edits as one placement", async () => {
+    const result = await exerciseGalleryEntry(
+      serializeProject(resistors(1025)),
     );
-    const result = await exerciseGalleryEntry(serializeProject(project));
+    expect(result.insert.status).toBe("inserted");
+    if (result.insert.status !== "inserted")
+      throw new Error("Expected insertion");
+    expect(result.insert.project.documents[0]!.instances).toHaveLength(1025);
+  });
+
+  it("reports a commit exceeding the transaction edit limit as failure", async () => {
+    const result = await exerciseGalleryEntry(
+      serializeProject(resistors(MAX_SCHEMATIC_EDITS_PER_TRANSACTION + 1)),
+    );
     expect(result.open.status).toBe("opened");
     expect(result.insert).toMatchObject({
       status: "failed",

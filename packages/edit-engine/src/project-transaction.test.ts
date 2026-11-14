@@ -321,7 +321,7 @@ describe("Project structural transaction", () => {
 
   it("accepts a Gallery-sized nested document transaction within its bound", () => {
     const project = createEmptyProject("gallery-sized-project", "Gallery");
-    const edits = Array.from({ length: 272 }, () => ({
+    const edits = Array.from({ length: 1_850 }, () => ({
       kind: "set_presentation_style" as const,
       styleProfileId: "razavi-textbook-v1",
     }));
@@ -353,7 +353,7 @@ describe("Project structural transaction", () => {
           kind: "transact_document",
           documentId: project.documents[0]!.id,
           expectedRevision: project.documents[0]!.revision,
-          edits: Array.from({ length: 1_025 }, () => edits[0]!),
+          edits: Array.from({ length: 8_193 }, () => edits[0]!),
         },
       ],
     });

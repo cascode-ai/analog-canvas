@@ -180,11 +180,11 @@ function documentWithLegacyResistorLabels(
 }
 
 describe("Edit Transaction envelope", () => {
-  it("accepts 1024 edits and rejects the 1025th before execution", () => {
+  it("accepts 8192 edits and rejects the 8193rd before execution", () => {
     const document = createEmptyDocument("document-main", "Main");
     const maximum = {
       ...transaction(),
-      edits: Array.from({ length: 1024 }, (_, index) => ({
+      edits: Array.from({ length: 8192 }, (_, index) => ({
         kind: "noop" as const,
         reason: `Boundary edit ${index + 1}`,
       })),
