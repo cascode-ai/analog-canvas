@@ -62,10 +62,14 @@ async function pair(enabled = true) {
     const stores = new Map<string, InstanceType<typeof GalleryDO>>();
     const env = {
       ...(region === "cn" ? auth.resources : auth.source),
-      ...(enabled ? { RESOURCE_REGION: region } : {}),
+      ...(enabled
+        ? {
+            RESOURCE_REGION: region,
+            RESOURCE_ACTION_PEER:
+              region === "cn" ? transportOrigin : "https://china.test",
+          }
+        : {}),
       RESOURCE_WRITES_ENABLED: "true",
-      RESOURCE_ACTION_PEER:
-        region === "cn" ? transportOrigin : "https://china.test",
       RESOURCE_SYNC_TOKEN: "activity-sync",
       RESOURCE_SYNC_PEER_TOKEN: "activity-sync",
       STORE_BACKUP_TOKEN: "private-activity-backup",
@@ -121,6 +125,8 @@ async function pair(enabled = true) {
       restart: () => stores.clear(),
       activate: () => {
         env.RESOURCE_REGION = region;
+        env.RESOURCE_ACTION_PEER =
+          region === "cn" ? transportOrigin : "https://china.test";
         stores.clear();
       },
     };

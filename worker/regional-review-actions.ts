@@ -123,7 +123,34 @@ export async function routeRegionalReviewActions(
       id: command.reviewId,
     });
     if (!location.ok) return location;
-    const origin = (await location.json()).origin;
+    const local = (await location.json()) as { origin: string; known: boolean };
+    let origin = local.origin;
+    if (!local.known && !incoming) {
+      if (!env.RESOURCE_SYNC_PEER_TOKEN) return fail("writer-unconfirmed", 503);
+      const response = await fetch(
+        `${peer.origin}/api/resource-sync/${stream}/location?id=${encodeURIComponent(command.reviewId)}`,
+        {
+          redirect: "manual",
+          signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
+          headers: { authorization: "Bearer " + env.RESOURCE_SYNC_PEER_TOKEN },
+        },
+      );
+      if (!response.ok) return fail("writer-unconfirmed", 503);
+      const remote = (await readSyncJson(response, 4096)) as {
+        known?: unknown;
+        origin?: unknown;
+      } | null;
+      if (
+        !remote ||
+        typeof remote.known !== "boolean" ||
+        !["cn", "overseas"].includes(String(remote.origin))
+      )
+        return fail("writer-unconfirmed", 503);
+      if (!remote.known) return fail("not-found", 404);
+      if (remote.origin === env.RESOURCE_REGION)
+        return fail("writer-state-missing", 503);
+      origin = String(remote.origin);
+    }
     if (!incoming) command.target = origin;
     const binding = await digest(JSON.stringify(command));
     const input = { ...command, user, userId: user.id, binding };

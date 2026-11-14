@@ -19,6 +19,8 @@ function fetchReturning(
   seen: { url?: string; init?: RequestInit | undefined } = {},
 ): typeof fetch {
   return (async (url: RequestInfo | URL, init?: RequestInit) => {
+    if (String(url).endsWith("/intent"))
+      return Response.json({ key: crypto.randomUUID() });
     seen.url = String(url);
     seen.init = init;
     return new Response(JSON.stringify(payload), { status });
@@ -114,6 +116,32 @@ describe("loadGalleryPublicationContext", () => {
 });
 
 describe("publishProjectToGallery", () => {
+  it("retains the publication intent when a success response body is truncated", async () => {
+    const keys: string[] = [];
+    let prepared = 0;
+    const network = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/intent")) {
+        prepared++;
+        return Response.json({ key: `cn_intent-${prepared}` });
+      }
+      keys.push(new Headers(init?.headers).get("idempotency-key") ?? "");
+      return keys.length === 1
+        ? new Response('{"id":', { status: 201 })
+        : Response.json(
+            { id: "one-publication", previewRevision: "r1" },
+            { status: 201 },
+          );
+    }) as typeof fetch;
+    const fields = { name: "Truncated reply", description: "", tags: [] };
+    const first = await publishProjectToGallery(project, fields, network);
+    expect(first.status).toBe("unreachable");
+    const retry = await publishProjectToGallery(project, fields, network);
+    expect(retry).toMatchObject({ status: "published", id: "one-publication" });
+    expect(keys).toEqual(["cn_intent-1", "cn_intent-1"]);
+    const deliberate = await publishProjectToGallery(project, fields, network);
+    expect(deliberate.status).toBe("published");
+    expect(keys).toEqual(["cn_intent-1", "cn_intent-1", "cn_intent-2"]);
+  });
   it("keeps archived source text private without dropping the routing reference", async () => {
     const imported = structuredClone(project);
     imported.source.files = [
@@ -166,7 +194,7 @@ describe("publishProjectToGallery", () => {
       id: "entry-1",
       previewRevision: "revision-0",
     });
-    expect(seen.url).toBe("/api/gallery/submissions");
+    expect(seen.url).toBe("/api/gallery/submissions/commit");
     expect(seen.init?.credentials).toBe("same-origin");
 
     // No passphrase travels any more: the cookie is the whole credential.

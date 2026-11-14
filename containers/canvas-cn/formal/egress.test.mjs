@@ -151,6 +151,23 @@ it("carries owner command authorization only to the fixed identity endpoint", as
   ).toBe(403);
 });
 
+it("locates an unsynchronized review only at the fixed interaction peer", async () => {
+  vi.stubGlobal("fetch", async () =>
+    Response.json({ known: true, origin: "overseas" }),
+  );
+  const path = "/api/resource-sync/gallery-interactions/location?id=review-123";
+  expect(
+    (await egress.fetch(new Request(env.PEER_ORIGIN + path), env)).status,
+  ).toBe(200);
+  expect(
+    (await egress.fetch(new Request("https://other.test" + path), env)).status,
+  ).toBe(403);
+  expect(
+    (await egress.fetch(new Request(env.PEER_ORIGIN + path + "&extra=1"), env))
+      .status,
+  ).toBe(403);
+});
+
 it("carries supported regional actions and their private catch-up without opening other peer paths", async () => {
   vi.stubGlobal("fetch", async () => Response.json({ ok: true }));
   for (const action of [
@@ -158,6 +175,7 @@ it("carries supported regional actions and their private catch-up without openin
     "review-resolution",
     "component",
     "publication",
+    "submission",
     "board",
     "maintenance",
     "simulation-job",
