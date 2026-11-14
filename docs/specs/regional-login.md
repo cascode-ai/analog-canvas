@@ -16,14 +16,27 @@ serves local authorization. Resource replication is owned by
 - Provider secrets and provider callbacks stay at the authority. A shared browser
   domain requires a distinct fixed `transportOrigin` for authority traffic. The
   domestic entry proxies only the method/path pairs in
-  `isRegionalAuthorityBrowserRoute`; regional start, callback and local sessions
-  stay domestic. The authority recognizes only its configured transport alias
+  `isRegionalAuthorityBrowserRoute`. Regional start/callback always reach the
+  domestic store, even through the overseas entry. The authority recognizes only its configured transport alias
   and preserves the browser Origin check. Forwarded headers grant no trust.
-- A region uses its own AUTH binding, storage and HttpOnly host-only
-  `icm_regional_session`; overseas retains `icm_session`. Regional logout clears
-  only the regional session and pending handoff. The editor recognizes `central`
+- A region uses its own AUTH storage and HttpOnly host-only
+  `icm_regional_session`; overseas retains `icm_session`. Behind one shared
+  browser origin, the regional cookie takes precedence when present; an invalid
+  regional session never falls back to a different native actor. Authentication
+  reads and account commands follow that cookie's owning store through a narrow
+  authenticated peer endpoint. Ordinary requests at the session's own region
+  stay local; changing entry can require a cross-border identity lookup, without
+  proxying the business operation itself. Successful explicit native sign-in
+  clears the previous regional cookie. The editor recognizes `central`
   with the local `loginUrl` `/api/auth/regional/start`; overseas provider choices
   stay intact.
+- Sign-out ends both presented browser sessions and the pending handoff, not
+  other devices. It reports success and clears cookies only after every involved
+  store confirms. Partial failure preserves the credentials for an idempotent
+  retry and is shown on the Account page; a revoked local session never resumes
+  authorization while waiting for its peer. Removing a regional session also
+  revokes its authority grant and derived action capabilities. A durable pending
+  revocation survives restart and is retried by the session alarm.
 - Regional sign-in lists the authority's enabled GitHub, Google and email
   methods. Choosing a method starts that authentication even when an authority
   session exists; only an explicit continuation reuses the current account.
@@ -38,7 +51,7 @@ serves local authorization. Resource replication is owned by
   same-origin page continuation to the pending handoff; callbacks cannot change
   it. External and API continuations fall back to `/`. Returning to the editor
   preserves its browser-local workspace under the existing recovery contract.
-- Ordinary `sessionUserOf()` calls read local state without network I/O. Its
+- At the owning entry, ordinary `sessionUserOf()` calls read local state without network I/O. Its
   `SessionUser | null` shape remains unchanged. Local authority-originated flags
   are never inferred from email or granted by a resource store.
 - Account operations use the explicit `isRegionalAccountRoute` allowlist on
@@ -58,7 +71,8 @@ serves local authorization. Resource replication is owned by
   Invalid/revoked tokens yield no user; resource owners still enforce `isOwner`
   and the import-only scope.
 - Regional AI switching changes only the authority grant's effective subject;
-  it never replaces or ends the overseas browser session. A live administrator
+  the regional cookie selects that same subject through either entry. It never
+  replaces the separate native browser session. A live administrator
   session remains the original actor; an overseas AI handoff also requires its
   live original-actor cookie. Regional projections retain that actor's ID and
   display name in `switchedFrom`. Resource permissions, ownership and quotas

@@ -2009,9 +2009,18 @@ describe("regional identity handoff", () => {
         exchangeStarted();
         await heldExchange;
       };
-      if (pauseAt === "alarm") alarmBarrier = pause;
+      if (pauseAt === "alarm")
+        alarmBarrier = async () => {
+          // Hold this callback's scheduling, not logout's independent retry alarm.
+          alarmBarrier = undefined;
+          await pause();
+        };
       regional.fetchLike = (async (input, init) => {
-        if (pauseAt === "exchange") await pause();
+        if (
+          pauseAt === "exchange" &&
+          new URL(String(input)).pathname.endsWith("/exchange")
+        )
+          await pause();
         return auth.durable.fetch(new Request(input, init));
       }) as typeof fetch;
       const inFlight = regional.fetch(

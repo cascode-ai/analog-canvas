@@ -1,4 +1,8 @@
 import { routeAgentRegion } from "./agent-regional-routing";
+import {
+  browserSessionNamespace,
+  routeBrowserSessionPeer,
+} from "./regional-browser-session";
 import { ACCOUNT_DELETION_TICK } from "./account-deletions";
 import {
   routeTopologyTaskRequest,
@@ -183,6 +187,9 @@ async function route(request: Request, env: Env): Promise<Response> {
   // remote sessions otherwise share one server IP. Session limits still apply.
   const agentPeer = await routeAgentRegion(request, env);
   if (agentPeer) return agentPeer;
+  const sessionPeer = await routeBrowserSessionPeer(request, env);
+  if (sessionPeer) return sessionPeer;
+  env = { ...env, AUTH: browserSessionNamespace(env) };
   const flood = await refuseApiFlood(request, env);
   if (flood) return flood;
 

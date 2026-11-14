@@ -169,6 +169,7 @@ export class AgentSessionDO {
       env.AGENT_SESSION
         ? regionalAgentNamespace(env.AGENT_SESSION, env)
         : undefined,
+      env,
     );
     this.ready = this.initialize();
     this.state.blockConcurrencyWhile?.(() => this.ready);

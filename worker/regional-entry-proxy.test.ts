@@ -384,6 +384,7 @@ it("hands off through the fixed authority while keeping the shared browser origi
     transport + authorizeUrl.pathname + authorizeUrl.search,
     transport + "/api/auth/regional/exchange",
     transport + "/api/auth/regional/account",
+    transport + "/api/auth/regional/revoke",
   ]);
 });
 

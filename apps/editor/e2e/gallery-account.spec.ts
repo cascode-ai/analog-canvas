@@ -527,6 +527,11 @@ test("the Owner switches to an AI account, renames, is asked the name before del
   let loggedOut = 0;
   await page.route("**/api/auth/logout", (route) => {
     loggedOut += 1;
+    if (loggedOut === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: "session-region-unavailable" },
+      });
     user = null;
     return route.fulfill({ json: { ok: true } });
   });
@@ -565,9 +570,14 @@ test("the Owner switches to an AI account, renames, is asked the name before del
   await expect(page.getByTestId("account-delete-dialog")).toHaveCount(0);
 
   await page.getByTestId("account-signout").click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Sign-out could not be confirmed",
+  );
+  await expect(page).toHaveURL(/\/account\?tab=settings$/u);
+  await page.getByTestId("account-signout").click();
   await expect(page).toHaveURL(/\/$/u);
   await expect(page.getByTestId("account-signin")).toBeVisible();
-  expect(loggedOut).toBe(1);
+  expect(loggedOut).toBe(2);
 });
 
 test("a member withdraws their own entry from its tile, then restores or deletes it in My submissions", async ({

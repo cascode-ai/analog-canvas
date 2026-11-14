@@ -346,14 +346,17 @@ async function returnToOwner(
   }
 }
 
-export async function signOut(fetchLike: typeof fetch = fetch): Promise<void> {
+export async function signOut(
+  fetchLike: typeof fetch = fetch,
+): Promise<boolean> {
   try {
-    await fetchLike("/api/auth/logout", {
+    const response = await fetchLike("/api/auth/logout", {
       method: "POST",
       credentials: "same-origin",
     });
+    return response.ok;
   } catch {
-    // The cookie may survive a network hiccup; the next load re-syncs.
+    return false;
   }
 }
 
