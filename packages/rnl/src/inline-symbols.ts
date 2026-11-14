@@ -137,7 +137,7 @@ export function inlineRnlVariantSymbols(
       if (!variant) throw new Error(`Unknown variant ${ac}/${id}`);
       return {
         ...base,
-        symbol: `${base.symbol}_${id.toUpperCase().replaceAll("-", "_")}`,
+        symbol: `$CANVAS_${ac.toUpperCase().replaceAll("-", "_")}_${id.toUpperCase().replaceAll("-", "_")}`,
         package: "",
         inline: true,
         variant: id,
@@ -168,11 +168,10 @@ export function inlineInterface(row: RnlSymbol): boolean {
 /**
  * Exact candidate artwork and positional pins, using the existing define-symbol
  * op: the artwork as the row's variant draws it, with no lead of a hidden
- * supply. `withHiddenLeads` keeps them, as files written from #1939 to #1941
- * draw an op-amp's call symbol. A variant the file defines in its own right,
- * as the wide chopper, draws its own art in its own box (#2170).
+ * supply. A variant the file defines in its own right, as the wide chopper,
+ * draws its own art in its own box (#2170).
  */
-export function inlineRnlDefinition(row: RnlSymbol, withHiddenLeads = false) {
+export function inlineRnlDefinition(row: RnlSymbol) {
   const { symbol, variant } = variantOf(row);
   const own =
     variant && INLINE_VARIANTS[symbol.id]?.includes(variant.id)
@@ -180,12 +179,10 @@ export function inlineRnlDefinition(row: RnlSymbol, withHiddenLeads = false) {
       : undefined;
   const hidden = own
     ? (own.hiddenPrimitiveParts ?? [])
-    : withHiddenLeads
-      ? []
-      : (symbol.variants.find(
-          (candidate) =>
-            candidate.id === (row.variant ?? symbol.defaultVariantId),
-        )?.hiddenPrimitiveParts ?? []);
+    : (symbol.variants.find(
+        (candidate) =>
+          candidate.id === (row.variant ?? symbol.defaultVariantId),
+      )?.hiddenPrimitiveParts ?? []);
   const drawn = [
     ...symbol.primitives,
     ...(own?.additionalPrimitives ?? []),
@@ -228,11 +225,7 @@ export function matchesInlineRnlSymbol(
   actual: RnlSymbolDefinitionView | null | undefined,
 ): boolean {
   if (!actual) return false;
-  // As written now, or with the hidden supply leads files written from
-  // #1939 to #1941 drew (#1941).
-  return [inlineRnlDefinition(row), inlineRnlDefinition(row, true)].some(
-    (expected) => matches(row, expected, actual),
-  );
+  return matches(row, inlineRnlDefinition(row), actual);
 }
 
 function matches(

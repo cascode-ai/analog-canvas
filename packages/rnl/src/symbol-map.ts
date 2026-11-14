@@ -8,10 +8,15 @@ import { inlineRnlSymbols, inlineRnlVariantSymbols } from "./inline-symbols.js";
 import type { RnlOrient } from "./orientation.js";
 import type { RnlPoint } from "./place.js";
 
-/** One terminal of an RNL symbol, in the instance line's node order. */
+/**
+ * One terminal of an RNL symbol, in the instance line's node order: where a
+ * body Analog Canvas writes prints it, and the position a call's terminal
+ * map binds it at (11.3).
+ */
 export interface RnlTerminal {
   /** Position on the instance line, from 1. */
   n: number;
+  /** The terminal its pin binds by name (9.2.4). */
   name: string;
   /** The symbol draws a pin for it. */
   drawn: boolean;
@@ -47,9 +52,9 @@ export interface RnlSymbol {
   orient: RnlOrient;
   /**
    * The row only reads other tools' files back: a standard symbol drawn
-   * otherwise than Analog Canvas draws its part (the 4-input gates), or a
-   * legacy appearance alias (controlled-source diamonds). The export uses
-   * the canonical symbol instead. Pins are where the RNL symbol has them.
+   * otherwise than Analog Canvas draws its part (the 4-input gates, the
+   * 4-terminal MOSFETs, the two-terminal Delay Cell). The export uses
+   * Analog Canvas's own instead. Pins are where the RNL symbol has them.
    */
   importOnly: boolean;
   /**

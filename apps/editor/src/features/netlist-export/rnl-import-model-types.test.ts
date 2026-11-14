@@ -15,8 +15,10 @@ const inputs = [
     path,
     bytes: new TextEncoder().encode(
       [
-        '// @RNL(type="header") { @VERSION("0.3");',
-        '// @USE-PACKAGE(name="rnl-std-full", version="0.3"); }',
+        // The first line of a file is never read as RNL (2.2).
+        "// model types",
+        '// @RNL(type="header") { @VERSION("0.4");',
+        '// @USE-PACKAGE(name="rnl-std-all", version="0.4"); }',
         "simulator lang=spectre",
         "subckt dut (IN OUT VSS)",
         "R1 (IN OUT) resistor r=1k",

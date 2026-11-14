@@ -26,7 +26,8 @@ import { RNL_SYMBOLS, symbolModelType } from "./symbol-map.js";
 import { matchesInlineRnlSymbol } from "./inline-symbols.js";
 import {
   CANVAS_PACKAGE,
-  CANVAS_PACKAGE_VERSIONS,
+  CANVAS_PACKAGE_VERSION,
+  RNL_LANGUAGE_VERSION,
   RNL_STD_VERSION,
 } from "./rnl-packages.js";
 import {
@@ -34,6 +35,7 @@ import {
   type RnlLevelSnapshot,
   type LevelModel,
   hasCanvasTypesetting,
+  readableLevel,
   type RnlObjectView,
   isOrient,
 } from "./rnl-snapshot.js";
@@ -79,10 +81,31 @@ export type {
 
 export type RnlAppearance = "canvas" | "source";
 
-/** The Analog Canvas package versions the mapping table is for. */
-const MAPPED_VERSIONS: Readonly<Record<string, readonly string[]>> = {
-  [CANVAS_PACKAGE]: CANVAS_PACKAGE_VERSIONS,
-};
+/** The package versions the mapping table is for, by package. */
+const mappedVersion = (name: string) =>
+  name.startsWith("rnl-std")
+    ? RNL_STD_VERSION
+    : name === CANVAS_PACKAGE
+      ? CANVAS_PACKAGE_VERSION
+      : undefined;
+
+/**
+ * Why a rich netlist is not read, or null: Analog Canvas reads the language
+ * 0.4 only (16.1), so a file of another version, with records written in it,
+ * is refused whole; `rnl upgrade` raises it to 0.4. A netlist with no records
+ * is no drawing of any version.
+ */
+export function rnlVersionRefusal(
+  snapshot: Pick<RnlSnapshot, "language">,
+  hasRecords: boolean,
+): RnlImportDiagnostic | null {
+  if (!hasRecords || snapshot.language === RNL_LANGUAGE_VERSION) return null;
+  return {
+    severity: "error",
+    code: "RNL_IMPORT_VERSION",
+    message: `The file is written in RNL ${snapshot.language}; Analog Canvas reads RNL ${RNL_LANGUAGE_VERSION} only. Raise it with \`rnl upgrade\`, then import it again`,
+  };
+}
 
 /** The Cell a level draws: a subcircuit by its name, the file level by the flat Cell. */
 function documentOf(
@@ -97,7 +120,7 @@ function documentOf(
 }
 
 /**
- * The Cell the file names as the editor's top (`$CANVAS_TOP`, Canvas 0.4),
+ * The Cell the file names as the editor's top (`$CANVAS_TOP`),
  * which the netlist need not show: a Cell that calls it may be printed too.
  */
 export function canvasTopDocument(
@@ -138,16 +161,9 @@ export function applyRnlSnapshot(
   const parameterTexts: RnlParameterText[] = [];
   const cellNames: { documentId: StableId; name: string }[] = [];
   const keptParameters: KeptParameter[] = [];
-  const canvasPackages = snapshot.packages.filter(
+  const canvasPackage = snapshot.packages.some(
     ({ name }) => name === CANVAS_PACKAGE,
   );
-  const canvasAtLeast = (minorVersion: number) =>
-    canvasPackages.some(({ version }) => {
-      const [major = 0, minor = 0] = version.split(".").map(Number);
-      return major > 0 || minor >= minorVersion;
-    });
-  const canvas02 = canvasAtLeast(2);
-  const canvas04 = canvasAtLeast(4);
   const canvasDocuments = new Set<string>();
   const powerLabelPorts: RnlPowerLabelPort[] = [];
   if (snapshot.failed) {
@@ -164,6 +180,20 @@ export function applyRnlSnapshot(
       powerLabelPorts,
     };
   }
+  const refused = rnlVersionRefusal(
+    snapshot,
+    snapshot.levels.some((level) => writesRecords(level, [])),
+  );
+  if (refused) {
+    diagnostics.push(refused);
+    return {
+      project,
+      diagnostics,
+      hiddenLabels,
+      parameterTexts,
+      powerLabelPorts,
+    };
+  }
   for (const item of snapshot.diagnostics)
     if (item.severity === "error")
       diagnostics.push({
@@ -172,14 +202,12 @@ export function applyRnlSnapshot(
         message: `RNL: ${item.message}`,
       });
   for (const { name, version } of snapshot.packages) {
-    const wanted = name.startsWith("rnl-std")
-      ? [RNL_STD_VERSION]
-      : MAPPED_VERSIONS[name];
-    if (wanted && version && !wanted.includes(version))
+    const wanted = mappedVersion(name);
+    if (wanted && version && version !== wanted)
       diagnostics.push({
         severity: "warning",
         code: "RNL_IMPORT_PACKAGE_VERSION",
-        message: `${name} ${version} is not a version Analog Canvas maps (${wanted.join(", ")}); its symbols may read back wrong`,
+        message: `${name} ${version} is not a version Analog Canvas maps (${wanted}); its symbols may read back wrong`,
       });
   }
   const next = structuredClone(project);
@@ -194,7 +222,9 @@ export function applyRnlSnapshot(
     keptParameters,
   };
   const tiedToGround = groundTiedPins(project);
-  for (const level of snapshot.levels) {
+  for (const read of snapshot.levels) {
+    if (!read.model) continue;
+    const level = readableLevel(read);
     if (!level.model) continue;
     const document = documentOf(next, level);
     if (!document) {
@@ -206,13 +236,11 @@ export function applyRnlSnapshot(
         });
       continue;
     }
-    // Since 0.2 Canvas writes a marker on each level. An external level can
-    // use the package's symbols without having been written by Canvas.
+    // Canvas writes a marker on each level. An external level can use the
+    // package's symbols without having been written by Canvas.
     const canvasWritten =
-      canvasPackages.length > 0 &&
-      (appearance === undefined ||
-        !canvas02 ||
-        hasCanvasTypesetting(level.model));
+      canvasPackage &&
+      (appearance === undefined || hasCanvasTypesetting(level.model));
     if (canvasWritten) canvasDocuments.add(document.id);
     applyLevel(
       {
@@ -221,7 +249,7 @@ export function applyRnlSnapshot(
         level,
         model: level.model,
         format: snapshot.dialect === "spectre" ? "spectre" : "spice",
-        wiresNamed: canvas04 && canvasWritten,
+        wiresNamed: canvasWritten,
         tiedToGround,
         canvasLooks: canvasWritten || appearance === "source",
         nativeAppearance: !canvasWritten && appearance === "canvas",
@@ -245,8 +273,8 @@ export function applyRnlSnapshot(
   removeAddedPins(next, undrawnPins, (trial) =>
     printsFileCircuit(withPowerLabelPorts(trial, powerLabelPorts), snapshot),
   );
-  // Only a file Canvas 0.4 or later wrote draws every Pin a Cell has.
-  if (canvas04)
+  // A file Canvas wrote draws every Pin a Cell has.
+  if (canvasPackage)
     unpinUndrawnPorts(next, canvasDocuments, undrawnPins, powerLabelPorts);
   trimCallMappings(next);
   return {
@@ -259,7 +287,7 @@ export function applyRnlSnapshot(
 }
 
 /**
- * Gives back the parameters the file keeps for its parts (Canvas 0.4), all
+ * Gives back the parameters the file keeps for its parts, all
  * or none: only where the netlist then prints as it does without them, so
  * a stale or forged record (a field the card now prints) changes nothing,
  * or adds only model cards the file itself holds. That is the built-in
@@ -496,7 +524,7 @@ export function drawnExternalSymbolMappings(
           const pin = object.pins.find((item) =>
             item.terminals.includes(`${instance.id}:${n}`),
           );
-          if (!pin) return undefined;
+          if (!pin?.at) return undefined;
           const [x, y] = orientPoint(inverse(orient), [
             pin.at[0] - at[0],
             pin.at[1] - at[1],
@@ -608,7 +636,23 @@ export function undrawnBodies(
   snapshot: RnlSnapshot,
   files: readonly string[],
 ): string[] {
-  const written = ({ model }: RnlLevelSnapshot) =>
+  const written = (level: RnlLevelSnapshot) => writesRecords(level, files);
+  if (!snapshot.levels.some(written)) return [];
+  return snapshot.levels
+    .filter((level) => level.kind === "subckt" && !written(level))
+    .map(({ name }) => name);
+}
+
+/**
+ * Whether a level states records of its own: it places or wires anything,
+ * shows a text of its own, or names an object (or makes one at a place in
+ * `files`). What a package fills in is no record.
+ */
+function writesRecords(
+  { model }: RnlLevelSnapshot,
+  files: readonly string[],
+): boolean {
+  return (
     !!model &&
     (model.objects.some(
       (object) =>
@@ -620,11 +664,8 @@ export function undrawnBodies(
       model.points.some((point) => point.at.value !== null) ||
       model.wires.length > 0 ||
       model.texts.some((text) => text.written) ||
-      (model.shapes?.length ?? 0) > 0);
-  if (!snapshot.levels.some(written)) return [];
-  return snapshot.levels
-    .filter((level) => level.kind === "subckt" && !written(level))
-    .map(({ name }) => name);
+      (model.shapes?.length ?? 0) > 0)
+  );
 }
 
 /** What a level is read with besides its Cell. */
@@ -635,7 +676,7 @@ interface LevelInput {
   model: LevelModel;
   /** The dialect the file is written in, which spells its names. */
   format: "spice" | "spectre";
-  /** The file says which wire each net label is on (Canvas 0.4). */
+  /** The file says which wire each net label is on. */
   wiresNamed: boolean;
   /** Each Cell's pins its calls all tie to ground (`groundTiedPins`). */
   tiedToGround: ReadonlySet<string>;

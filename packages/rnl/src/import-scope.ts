@@ -63,9 +63,9 @@ export interface ImportRecords {
   /** The Cell Pins the drawing does not place, each keyed by its Document (`pinKey`): an instance ID is the Document's own. */
   undrawnPins: Set<string>;
   powerLabelPorts: RnlPowerLabelPort[];
-  /** The Cells' own names (Canvas 0.4), given once every level is read. */
+  /** The Cells' own names, given once every level is read. */
   cellNames: { documentId: StableId; name: string }[];
-  /** Parameters the cards do not print (Canvas 0.4), given back together. */
+  /** Parameters the cards do not print, given back together. */
   keptParameters: KeptParameter[];
 }
 

@@ -102,15 +102,19 @@ async function prepareReviewSource(rootPath: string) {
   await writeFile(
     join(rootPath, entryPath),
     [
-      '// @RNL(type="header") { @VERSION("0.3");',
+      // The first line of a file is never read as RNL (2.2).
+      "// review source",
+      '// @RNL(type="header") { @VERSION("0.4");',
       '// @USE-PACKAGE(name="fixture", version="0.1", path="../draw.rnl");',
-      '// @USE-PACKAGE(name="rnl-std-full", version="0.3"); }',
+      '// @USE-PACKAGE(name="rnl-std-all", version="0.4"); }',
       "simulator lang=spectre",
       "subckt dut (IN OUT)",
       "C0 (IN OUT) process_mim w=3u l=2u",
       "R1 (IN OUT) resistor r=1k",
       "// @RNL {",
-      '// #C0 @SET-SYMBOL $CAPACITOR => @PLACE(0, 0) => @ORIENT("R0");',
+      // A master the file does not hold names no terminals: its pins bind
+      // by position.
+      '// #C0 @SET-SYMBOL(terminals=[[1, "p"], [2, "n"]]) $CAPACITOR => @PLACE(0, 0) => @ORIENT("R0");',
       '// #R1 @SET-SYMBOL $RESISTOR => @PLACE(8, 0) => @ORIENT("R0");',
       '// &OUT @WIRE(mode="straight") {#C0:2 (0,-10)};',
       '// &OUT @WIRE(mode="straight") {(0,-10) (8,-10)};',
@@ -121,7 +125,7 @@ async function prepareReviewSource(rootPath: string) {
     ].join("\n"),
   );
   const packageText =
-    '@RNL(type="header") { @VERSION("0.3"); @PACKAGE(name="fixture",version="0.1"); }\n';
+    '@RNL(type="header") { @VERSION("0.4"); @PACKAGE(name="fixture",version="0.1"); }\n@RNL { $FIXTURE = @DEFINE(roles=["level"]) {}; }\n';
   return { entryPath, packagePath, packageText };
 }
 
@@ -962,8 +966,9 @@ test("keeps Canvas and source RNL copies distinct across recovery", async ({
   await writeFile(
     join(rootPath, entryPath),
     [
-      '// @RNL(type="header") { @VERSION("0.3");',
-      '// @USE-PACKAGE(name="rnl-std-full", version="0.3"); }',
+      "// legacy connector source",
+      '// @RNL(type="header") { @VERSION("0.4");',
+      '// @USE-PACKAGE(name="rnl-std-all", version="0.4"); }',
       "simulator lang=spectre",
       "subckt dut (IN OUT)",
       "R1 (IN OUT) resistor r=1k",

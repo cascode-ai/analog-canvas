@@ -1,10 +1,30 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import { RNL_SYMBOLS } from "@icm/rnl";
+import {
+  CANVAS_PACKAGE,
+  CANVAS_PACKAGE_VERSION,
+  RNL_STD_VERSION,
+  RNL_SYMBOLS,
+} from "@icm/rnl";
 import { createRnlTestCore } from "./rnl-core.test-support";
 
 const core = await createRnlTestCore();
 afterAll(() => core.terminate());
+
+/**
+ * The symbols of the packages Analog Canvas writes: the standard series 0.4
+ * and its own package, as the runtime's catalog lists every version.
+ */
+async function writtenSymbols() {
+  const catalog = await core.catalog({ catalog: { all_versions: true } });
+  return catalog.symbols.filter(
+    (symbol) =>
+      symbol.version ===
+      (symbol.package === CANVAS_PACKAGE
+        ? CANVAS_PACKAGE_VERSION
+        : RNL_STD_VERSION),
+  );
+}
 
 /** An exit direction in degrees, as the mapping table has it, as the catalog says it. */
 const DIRECTION: Record<number, string> = {
@@ -21,9 +41,8 @@ const DIRECTION: Record<number, string> = {
 // drawing.
 describe("the mapping table against the rnl runtime's catalog", () => {
   it("names every symbol in the package the runtime defines it in, with the pins where it puts them", async () => {
-    const catalog = await core.catalog({ catalog: {} });
     const found = new Map(
-      catalog.symbols.map((symbol) => [
+      (await writtenSymbols()).map((symbol) => [
         `${symbol.package}/${symbol.symbol}`,
         symbol,
       ]),
@@ -40,8 +59,13 @@ describe("the mapping table against the rnl runtime's catalog", () => {
         continue;
       }
       // A symbol the packages draw for a definition: null stands for none
-      // found, which says nothing against the table.
-      if (symbol.definition !== null && symbol.definition !== row.definition)
+      // found, which says nothing against the table; a row that draws an
+      // instance with it (a subcircuit drawn as an adder, 11.3) names none.
+      if (
+        symbol.definition !== null &&
+        row.definition !== null &&
+        symbol.definition !== row.definition
+      )
         problems.push(
           `${row.symbol}: draws ${symbol.definition}, the table says ${row.definition}`,
         );
@@ -56,6 +80,9 @@ describe("the mapping table against the rnl runtime's catalog", () => {
           pin,
         ]),
       );
+      // A figure's pins bind no terminal and are wired by name (9.2.4):
+      // the catalog lists none, and the round trip compares them.
+      if (row.definition === "$SPDT_SWITCH") continue;
       for (const pin of row.pins) {
         const there = drawn.get(pin.terminal);
         compared += 1;
@@ -85,29 +112,25 @@ describe("the mapping table against the rnl runtime's catalog", () => {
     expect(compared).toBeGreaterThan(200);
   });
 
-  it("keeps controlled-source circles and legacy diamonds pin-compatible with the standard symbols", async () => {
-    const catalog = await core.catalog({ catalog: {} });
+  it("keeps controlled-source circles pin-compatible with the standard diamonds", async () => {
+    const symbols = await writtenSymbols();
     for (const kind of ["VCVS", "VCCS", "CCVS", "CCCS"]) {
-      const standard = catalog.symbols.find(
+      const standard = symbols.find(
         (symbol) =>
-          symbol.package === "rnl-std-basic" && symbol.symbol === `$${kind}`,
+          symbol.package === "rnl-std-basic" &&
+          symbol.symbol ===
+            (kind.endsWith("VS")
+              ? "$CONTROLLED_VOLTAGE_SOURCE"
+              : "$CONTROLLED_CURRENT_SOURCE"),
       );
-      const legacy = catalog.symbols.find(
-        (symbol) =>
-          symbol.package === "analog-canvas-extensions" &&
-          symbol.symbol === `$CANVAS_${kind}_DIAMOND`,
-      );
-      const circle = catalog.symbols.find(
+      const circle = symbols.find(
         (symbol) =>
           symbol.package === "analog-canvas-extensions" &&
           symbol.symbol === `$CANVAS_${kind}_CIRCLE`,
       );
-      expect(circle, kind).toBeDefined();
-      expect(circle!.pins, kind).toEqual(standard?.pins);
       expect(standard, kind).toBeDefined();
-      expect(legacy, kind).toBeDefined();
-      expect(standard!.pins, kind).toEqual(legacy!.pins);
-      expect(standard!.box, kind).toEqual(legacy!.box);
+      expect(circle, kind).toBeDefined();
+      expect(circle!.pins, kind).toEqual(standard!.pins);
     }
   });
 });
