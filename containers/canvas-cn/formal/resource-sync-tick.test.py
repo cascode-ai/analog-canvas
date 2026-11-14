@@ -58,6 +58,168 @@ class Peers:
 
 
 class PumpTest(unittest.TestCase):
+    def test_budgeted_ticks_resume_late_streams_without_skipping_the_durable_cursor(self):
+        """Healthy but slow peer reads must not repeatedly starve the tail."""
+        cursors = {('cn', 'late-activity'): 7}
+        delivered = []
+        visited = set()
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def respond(self, value):
+                self.send_response(200)
+                self.end_headers()
+                try:
+                    self.wfile.write(json.dumps(value).encode())
+                except ConnectionError:
+                    pass  # A bounded tick can close its last healthy request.
+
+            def do_GET(self):
+                region, stream = self.server.region, self.path.split('/')[3]
+                if region == 'overseas':
+                    time.sleep(.14)
+                if self.path.endswith('/status'):
+                    return self.respond({'region': region, 'received': {'epoch': 'e', 'sequence': cursors.get((region, stream), 0)}})
+                after = int(self.path.split('after=')[1])
+                visited.add((region, stream))
+                if (region, stream) == ('overseas', 'late-activity') and after == 7:
+                    payload = json.dumps({'origin': region, 'stream': stream, 'after': 7, 'sequence': 8})
+                    return self.respond({'payload': payload, 'digest': hashlib.sha256(payload.encode()).hexdigest()})
+                self.respond({'event': None, 'region': region, 'epoch': 'e', 'sequence': after})
+
+            def do_POST(self):
+                event = json.loads(request_body(self)['payload'])
+                key = (self.server.region, event['stream'])
+                if event['after'] != cursors.get(key, 0):
+                    self.send_response(409)
+                    self.end_headers()
+                    return
+                delivered.append((event['after'], event['sequence']))
+                cursors[key] = event['sequence']
+                # Commit succeeds but the reply is lost. The next tick must
+                # read the receiver's cursor instead of replaying monitor state.
+                self.close_connection = True
+
+        peers = Peers(Handler, sources=['late'])
+        try:
+            old = time.time() - 300
+            # The monitor is observational: a restored/misleading cursor must
+            # not skip the actual receiver's pending record 8.
+            (peers.root/'state').write_text(json.dumps({'lastCaughtUpAt': old, 'streams': {
+                'late-activity': {'directions': {'cn': {'status': 'caught-up', 'reason': None,
+                    'cursor': 999, 'observedAt': time.time()}}}}}))
+            snapshots = []
+            for _ in range(10):
+                peers.tick()
+                self.assertNotIn('test-peer-token', peers.output)
+                snapshots.append(peers.state())
+                if snapshots[-1]['status'] == 'caught-up' and delivered == [(7, 8)]:
+                    break
+            self.assertEqual(cursors[('cn', 'late-activity')], 8)
+            self.assertEqual(delivered, [(7, 8)])
+            self.assertEqual(visited, {(region, stream) for region in ('cn', 'overseas')
+                                     for stream in ('gallery', 'components', 'late', 'gallery-interactions',
+                                                    'late-interactions', 'gallery-opens', 'late-opens',
+                                                    'gallery-activity', 'late-activity')})
+            state = peers.state()
+            self.assertEqual((state['status'], state['health']), ('caught-up', 'ok'), state)
+            observations = [direction['observedAt'] for stream in state['streams'].values()
+                            for direction in stream['directions'].values()]
+            self.assertEqual(state['lastCaughtUpAt'], min(observations))
+            self.assertLess(state['lastCaughtUpAt'], state['lastAttemptAt'])
+            self.assertTrue(any(snapshots[0]['streams'][name]['directions'][target]['observedAt']
+                                == snapshots[1]['streams'][name]['directions'][target]['observedAt']
+                                for name in state['streams'] for target in ('cn', 'overseas')))
+            # A partial visit cannot renew evidence that has expired.
+            state['lastCaughtUpAt'] = old
+            for stream in state['streams'].values():
+                for direction in stream['directions'].values():
+                    direction['observedAt'] = old
+            (peers.root/'state').write_text(json.dumps(state))
+            self.assertEqual(peers.tick().returncode, 1)
+            stale = peers.state()
+            self.assertEqual((stale['health'], stale['reason']), ('error', 'replication-lag'))
+            self.assertEqual(stale['lastCaughtUpAt'], old)
+            self.assertTrue(any(direction['reason'] == 'stale-observation'
+                                for stream in stale['streams'].values() for direction in stream['directions'].values()))
+        finally:
+            peers.close()
+
+    def test_whole_tick_timeout_yields_to_other_streams_and_preserves_unvisited_refusal(self):
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                region = self.server.region
+                if region == 'cn' and self.path == '/api/resource-sync/gallery/status':
+                    time.sleep(1.2)
+                body = ({'region': region, 'received': None} if self.path.endswith('/status')
+                        else {'event': None, 'region': region, 'epoch': 'e', 'sequence': 0})
+                try:
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(json.dumps(body).encode())
+                except ConnectionError:
+                    pass
+
+        peers = Peers(Handler)
+        try:
+            old = time.time() - 300
+            refused = {'status': 'blocked', 'reason': 'source-epoch-changed', 'cursor': 7, 'observedAt': old}
+            (peers.root/'state').write_text(json.dumps({'lastCaughtUpAt': old, 'streams': {
+                'gallery-activity': {'directions': {'cn': refused}}}}))
+            self.assertEqual(peers.tick().returncode, 1)
+            state = peers.state()
+            self.assertEqual((state['status'], state['reason']), ('blocked', 'blocked'))
+            self.assertEqual(state['streams']['gallery-activity']['directions']['cn'], refused)
+            self.assertEqual(state['lastCaughtUpAt'], old)
+            self.assertEqual(peers.tick().returncode, 1)
+            state = peers.state()
+            self.assertEqual(state['streams']['gallery-activity']['status'], 'caught-up')
+            self.assertEqual(state['streams']['gallery']['directions']['cn']['status'], 'pending')
+            self.assertEqual(state['reason'], 'replication-lag')
+            self.assertEqual(state['lastCaughtUpAt'], old)
+        finally:
+            peers.close()
+
+    def test_new_event_invalidates_cached_catch_up_before_a_budget_limited_post(self):
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                region, stream = self.server.region, self.path.split('/')[3]
+                if self.path.endswith('/status'):
+                    value = {'region': region, 'received': {'epoch': 'e', 'sequence': 0}}
+                else:
+                    payload = json.dumps({'origin': region, 'stream': stream, 'after': 0, 'sequence': 1})
+                    value = {'payload': payload, 'digest': hashlib.sha256(payload.encode()).hexdigest()}
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps(value).encode())
+
+            def do_POST(self):
+                request_body(self)
+                time.sleep(1.2)
+                self.close_connection = True
+
+        peers = Peers(Handler)
+        try:
+            previous = time.time() - 1
+            observed = {'status': 'caught-up', 'reason': None, 'cursor': 0, 'observedAt': previous}
+            (peers.root/'state').write_text(json.dumps({'lastCaughtUpAt': previous, 'streams': {
+                stream: {'directions': {'cn': observed, 'overseas': observed}}
+                for stream in ('gallery', 'components', 'gallery-interactions', 'gallery-opens', 'gallery-activity')}}))
+            peers.tick()
+            state = peers.state()
+            self.assertEqual(state['streams']['gallery']['directions']['cn']['status'], 'pending')
+            self.assertNotEqual(state['status'], 'caught-up')
+            self.assertEqual(state['lastCaughtUpAt'], previous)
+        finally:
+            peers.close()
+
     def test_failure_and_partial_progress_do_not_reset_lag(self):
         mode = ['fail']
         cursor = [0]
@@ -160,13 +322,17 @@ class PumpTest(unittest.TestCase):
             state = peers.state()
             self.assertEqual((state['health'], state['reason'], state['status']), ('error', 'blocked', 'blocked'))
             streams = state['streams']
+            # Timestamps supplement the existing per-direction result shape.
+            for entry in streams.values():
+                for direction in entry['directions'].values():
+                    self.assertGreaterEqual(direction.pop('observedAt'), state['lastAttemptAt'])
             self.assertEqual(set(streams), {'gallery', 'components', 'ds', 'bomb', 'gallery-interactions',
                                             'ds-interactions', 'bomb-interactions', 'gallery-opens', 'ds-opens', 'bomb-opens',
                                             'gallery-activity', 'ds-activity', 'bomb-activity'})
             self.assertEqual(streams['components'], {'status': 'blocked', 'reason': 'resource-schema-newer',
-                                                     'cursor': {'cn': None, 'overseas': 0},
+                                                     'cursor': {'cn': 0, 'overseas': 0},
                                                      'directions': {
-                                                         'cn': {'status': 'blocked', 'reason': 'resource-schema-newer', 'cursor': None},
+                                                         'cn': {'status': 'blocked', 'reason': 'resource-schema-newer', 'cursor': 0},
                                                          'overseas': {'status': 'caught-up', 'reason': None, 'cursor': 0}}})
             self.assertEqual(streams['bomb']['status'], 'blocked')
             self.assertEqual(streams['bomb']['reason'], 'oversized-response')

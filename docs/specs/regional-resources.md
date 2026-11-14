@@ -147,10 +147,20 @@ credentials are separate. Peer credentials grant replication access only;
 browser sessions cannot use this entrance. Receiving requires
 `PROJECT_IDENTITY_URL` and `PROJECT_IDENTITY_TOKEN`.
 
-The China runner records each stream's `{status, reason, cursor}`; its health
-is `error` while any stream is blocked and `caught-up` only when all are. Each
-request may take 15 s plus 1 s per 256 KiB of payload, at most 120 s and the
-remaining tick.
+The China runner records each direction's `{status, reason, cursor, observedAt}`
+and resumes its saved scheduling position across bounded ticks. A cut-short
+direction gets a full tick on retry; a direction exhausting that whole tick
+yields to the next. Every delivery reads the receiver's durable cursor; monitor
+state only schedules work and reports observations.
+
+Unvisited observations keep their timestamps and refusals. A budget ending
+preserves the last observation; it does not establish success or failure.
+Observing a valid new event marks that direction pending before delivery.
+`caught-up` requires every direction's observation to be caught up and within
+the existing 120 s health window. The whole-set catch-up timestamp is the oldest
+required observation. Stale evidence remains pending; blocked streams keep
+health `error`. Each request may take 15 s plus 1 s per 256 KiB of payload, at
+most 120 s and the remaining tick.
 
 ## Acceptance criteria
 
