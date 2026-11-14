@@ -6,7 +6,8 @@ Primary owner: `worker/boards.ts`
 
 A selection board is an ordered, link-shared list of public Gallery entries that
 collaborators build together, for example a Season's benchmark. Entries,
-accounts and previews stay the [Gallery's](community-gallery.md).
+accounts and previews stay the [Gallery's](community-gallery.md). An entry may be
+the community wall's or a reference dataset's circuit (`ag-308`, `ct-001`…).
 
 ## Rules
 
@@ -18,7 +19,9 @@ accounts and previews stay the [Gallery's](community-gallery.md).
   lock. Unlocking takes the board's maker or an administrator.
 - A board holds only public entries, each once, at most its slots (1–500). An
   entry that later leaves the public wall stays on the board without its
-  name or preview.
+  name or preview. A reference dataset's circuit must be public in that
+  dataset's own store, where its name, facts and drawing are read; the board's
+  store keeps only its id. A wall entry is never taken for a dataset id.
 - Every change records the account's display name, the time and what changed;
   the page shows the latest 300. Deleting an account replaces its name on
   every board with "(deleted account)".
@@ -66,4 +69,5 @@ note?}`, `{kind: "remove" | "note" | "move", itemId, note? | to?}`,
 `worker/boards.test.ts` pins reading by link, making by administrators only,
 each change and its record, all-or-none batches, plain previews,
 types, transistor counts and levels, lock and unlock, previews
-only for entries on the board, and the sign-in return to a board.
+only for entries on the board, reference datasets' circuits read from their own
+stores, and the sign-in return to a board.

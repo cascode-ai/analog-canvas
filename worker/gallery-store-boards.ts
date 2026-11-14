@@ -1,12 +1,15 @@
 // Selection boards (docs/specs/selection-boards.md): an ordered list of Gallery
 // entries, kept in the Gallery's own store so one query reads each entry's name,
-// author and preview revision beside the board's own facts. Every change is kept
+// author and preview revision beside the board's own facts. A board may also hold
+// circuits of a reference dataset, which live in that dataset's store: the board
+// keeps their ids, and worker/boards.ts reads their facts from their own store. Every change is kept
 // as an event: who, when, what. A board's id is its unguessable link; who may read
 // or change one is decided by worker/boards.ts, never here.
 
 import { parseProject } from "@icm/project-protocol";
 import { getRazaviCatalogEntry } from "@icm/symbols";
 import taxonomy from "../config/gallery-taxonomy.json";
+import { gallerySourceOfEntryId } from "./gallery-sources";
 import { type SqlStorage, unwrapTags } from "./gallery-store";
 
 /**
@@ -272,8 +275,20 @@ function boardRow(sql: SqlStorage, id: string): BoardRow {
   return row;
 }
 
-/** An entry a board may hold: one on the public wall. */
-function publicEntry(sql: SqlStorage, entryId: string): void {
+/**
+ * An entry a board may hold: one on the public wall, or a reference dataset's
+ * circuit that worker/boards.ts found public in that dataset's store.
+ */
+function publicEntry(
+  sql: SqlStorage,
+  entryId: string,
+  datasetPublic: ReadonlySet<string>,
+): void {
+  if (gallerySourceOfEntryId(entryId)) {
+    if (!datasetPublic.has(entryId))
+      throw new BoardError("entry-not-public", 404, entryId);
+    return;
+  }
   const row = sql
     .exec<{
       status: string;
@@ -383,8 +398,9 @@ function addItem(
   actor: BoardActor,
   entryId: string,
   note: string,
+  datasetPublic: ReadonlySet<string>,
 ): string {
-  publicEntry(sql, entryId);
+  publicEntry(sql, entryId, datasetPublic);
   if (onBoard(sql, board.id, entryId))
     throw new BoardError("entry-already-on-board", 409, entryId);
   if (itemCount(sql, board.id) >= board.slots)
@@ -412,6 +428,7 @@ function apply(
   board: BoardRow,
   actor: BoardActor,
   change: BoardChange,
+  datasetPublic: ReadonlySet<string>,
 ): void {
   if (board.locked_at && change.kind !== "unlock")
     throw new BoardError("board-locked", 409);
@@ -423,13 +440,14 @@ function apply(
         actor,
         text(change.entryId, 200),
         text(change.note, BOARD_NOTE_MAX),
+        datasetPublic,
       );
       return;
     case "replace": {
       const item = itemRow(sql, board.id, change.itemId);
       const entryId = text(change.entryId, 200);
       if (entryId === item.entry_id) return;
-      publicEntry(sql, entryId);
+      publicEntry(sql, entryId, datasetPublic);
       if (onBoard(sql, board.id, entryId))
         throw new BoardError("entry-already-on-board", 409, entryId);
       const note =
@@ -551,6 +569,57 @@ function failure(error: unknown): Response {
   throw error;
 }
 
+/** What a board shows of one public entry of this store. */
+function entrySummary(
+  sql: SqlStorage,
+  entryId: string,
+  row: Pick<
+    ItemRow,
+    | "name"
+    | "author"
+    | "component_count"
+    | "preview_revision"
+    | "ai_generated"
+    | "tags"
+  >,
+) {
+  const revision = row.preview_revision || "legacy";
+  return {
+    name: row.name,
+    author: row.author,
+    components: row.component_count,
+    previewRevision: revision,
+    ai: row.ai_generated === 1,
+    tagType: tagType(row.tags),
+    ...entryFacts(sql, entryId, revision),
+  };
+}
+
+/**
+ * What a board shows of each named entry that is public in this store, by id: a
+ * reference dataset's store answers this for the circuits a board holds of it.
+ */
+export function boardEntries(sql: SqlStorage, ids: unknown): Response {
+  const wanted = Array.isArray(ids)
+    ? [...new Set(ids.map((id) => text(id, 200)).filter(Boolean))].slice(
+        0,
+        BOARD_SLOTS_MAX + BOARD_EVENTS_READ * 2,
+      )
+    : [];
+  const entries: Record<string, ReturnType<typeof entrySummary>> = {};
+  for (const id of wanted) {
+    const row = sql
+      .exec<ItemRow>(
+        `SELECT name, author, status, component_count, preview_revision, ai_generated, tags
+         FROM gallery_entries WHERE id = ?`,
+        id,
+      )
+      .toArray()[0];
+    if (row?.status === "public") entries[id] = entrySummary(sql, id, row);
+  }
+  return Response.json({ entries });
+}
+
 /** A board as its page shows it: its facts, its items in order, its latest events. */
 export function boardRead(sql: SqlStorage, id: string): Response {
   try {
@@ -567,7 +636,6 @@ export function boardRead(sql: SqlStorage, id: string): Response {
       .toArray()
       .map((row) => {
         const visible = row.status === "public";
-        const revision = row.preview_revision || "legacy";
         return {
           id: row.id,
           type: row.type,
@@ -576,17 +644,7 @@ export function boardRead(sql: SqlStorage, id: string): Response {
           note: row.note,
           addedBy: row.added_by_name,
           addedAt: row.added_at,
-          entry: visible
-            ? {
-                name: row.name,
-                author: row.author,
-                components: row.component_count,
-                previewRevision: row.preview_revision || "legacy",
-                ai: row.ai_generated === 1,
-                tagType: tagType(row.tags),
-                ...entryFacts(sql, row.entry_id, revision),
-              }
-            : null,
+          entry: visible ? entrySummary(sql, row.entry_id, row) : null,
         };
       });
     const events = sql
@@ -640,6 +698,15 @@ export function boardRead(sql: SqlStorage, id: string): Response {
   }
 }
 
+/** The reference datasets' circuits worker/boards.ts found public, for the changes it sends. */
+function datasetPublicOf(body: Record<string, unknown>): ReadonlySet<string> {
+  return new Set(
+    Array.isArray(body.datasetPublic)
+      ? body.datasetPublic.filter((id): id is string => typeof id === "string")
+      : [],
+  );
+}
+
 /** Make a board, with any entries it starts with, in one transaction. */
 export function boardCreate(
   state: { storage: { sql: SqlStorage; transactionSync<T>(fn: () => T): T } },
@@ -657,6 +724,7 @@ export function boardCreate(
   const entries = Array.isArray(body.entries)
     ? body.entries.map((entry) => text(entry, 200)).filter(Boolean)
     : [];
+  const datasetPublic = datasetPublicOf(body);
   try {
     state.storage.transactionSync(() => {
       sql.exec(
@@ -671,7 +739,8 @@ export function boardCreate(
       );
       record(sql, id, actor, "create", { detail: title });
       const board = boardRow(sql, id);
-      for (const entryId of entries) addItem(sql, board, actor, entryId, "");
+      for (const entryId of entries)
+        addItem(sql, board, actor, entryId, "", datasetPublic);
     });
   } catch (error) {
     return failure(error);
@@ -692,10 +761,11 @@ export function boardChange(
     : [];
   if (!changes.length)
     return Response.json({ error: "no-changes" }, { status: 400 });
+  const datasetPublic = datasetPublicOf(body);
   try {
     state.storage.transactionSync(() => {
       for (const change of changes)
-        apply(sql, boardRow(sql, id), actor, change);
+        apply(sql, boardRow(sql, id), actor, change, datasetPublic);
       sql.exec("UPDATE boards SET revision = revision + 1 WHERE id = ?", id);
     });
   } catch (error) {
@@ -712,6 +782,13 @@ export function boardPreview(
 ): Response {
   if (!onBoard(sql, boardId, entryId))
     return Response.json({ error: "not-found" }, { status: 404 });
+  // A reference dataset's circuit is drawn from its own store (worker/boards.ts).
+  if (gallerySourceOfEntryId(entryId)) return Response.json({ dataset: true });
+  return entryPreview(sql, entryId);
+}
+
+/** An entry's drawing and stored preview, for a board that holds it. */
+export function entryPreview(sql: SqlStorage, entryId: string): Response {
   const row = sql
     .exec<{
       status: string;

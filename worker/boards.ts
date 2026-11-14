@@ -2,6 +2,9 @@
 // of Gallery entries. Anyone holding a board's link sees its entries' names, authors
 // and previews; any signed-in account that is not blocked may change it, and every
 // change is recorded under that account. An administrator makes a board at /boards.
+// A board may hold reference datasets' circuits (ag-308, ct-001…) beside the wall's:
+// the board's own store keeps their ids, and their names, facts and drawings come
+// from each dataset's store here.
 
 import { sessionUserOf, type SessionUser } from "./auth";
 import { BOARDS_HOME_PAGE, BOARD_PAGE } from "./boards-page";
@@ -12,6 +15,8 @@ import {
   recoverFormulaPreview,
   renderPreview,
 } from "./gallery-requests";
+import { withGalleryStore } from "./gallery-datasets";
+import { gallerySourceOfEntryId, type GallerySource } from "./gallery-sources";
 import { type GalleryEnv } from "./gallery-store";
 import { type BoardActor } from "./gallery-store-boards";
 import { sameOrigin } from "./same-origin";
@@ -173,6 +178,77 @@ export function withViewer(
   };
 }
 
+type EntrySummary = Record<string, unknown>;
+
+/** What a board shows of each named reference-dataset circuit public in its own store. */
+async function datasetEntries(
+  env: GalleryEnv,
+  ids: Iterable<string | null | undefined>,
+): Promise<Map<string, EntrySummary>> {
+  const bySource = new Map<GallerySource, Set<string>>();
+  for (const id of ids) {
+    const source = id ? gallerySourceOfEntryId(id) : null;
+    if (!source || !id) continue;
+    const wanted = bySource.get(source) ?? new Set<string>();
+    bySource.set(source, wanted.add(id));
+  }
+  const found = new Map<string, EntrySummary>();
+  await Promise.all(
+    [...bySource].map(async ([source, wanted]) => {
+      const { status, payload } = await callGallery<{
+        entries?: Record<string, EntrySummary>;
+      }>(withGalleryStore(env, source), "board-entries", {
+        ids: [...wanted],
+      });
+      if (status !== 200) return;
+      for (const [id, entry] of Object.entries(payload.entries ?? {}))
+        found.set(id, entry);
+    }),
+  );
+  return found;
+}
+
+/** A board read with its reference-dataset circuits named and counted from their own stores. */
+export async function withDatasetEntries(
+  env: GalleryEnv,
+  payload: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const items = Array.isArray(payload.items)
+    ? (payload.items as { entryId: string; entry: unknown }[])
+    : [];
+  const events = Array.isArray(payload.events)
+    ? (payload.events as {
+        entryId?: string | null;
+        previousEntryId?: string | null;
+      }[])
+    : [];
+  const ids = [
+    ...items.map((item) => item.entryId),
+    ...events.flatMap((event) => [event.entryId, event.previousEntryId]),
+  ].filter((id): id is string => !!id && !!gallerySourceOfEntryId(id));
+  if (!ids.length) return payload;
+  const found = await datasetEntries(env, ids);
+  const names = { ...(payload.entryNames as Record<string, string>) };
+  for (const [id, entry] of found) names[id] = String(entry.name ?? id);
+  return {
+    ...payload,
+    items: items.map((item) =>
+      gallerySourceOfEntryId(item.entryId)
+        ? { ...item, entry: found.get(item.entryId) ?? null }
+        : item,
+    ),
+    entryNames: names,
+  };
+}
+
+/** The reference-dataset circuits that changes add and that are public in their own store. */
+export async function datasetPublicIds(
+  env: GalleryEnv,
+  entryIds: string[],
+): Promise<string[]> {
+  return [...(await datasetEntries(env, entryIds)).keys()];
+}
+
 /** Each change as the store takes it, its entries named by id; null when one names none. */
 export function storeChanges(raw: unknown): Record<string, unknown>[] | null {
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > 200) return null;
@@ -235,12 +311,13 @@ export async function routeBoardsRequest(
         title: body.title,
         slots: body.slots ?? 50,
         entries,
+        datasetPublic: await datasetPublicIds(env, entries),
         actor: actorOf(user),
       },
     );
     return json(
       status === 200
-        ? withViewer(payload as Record<string, unknown>, user)
+        ? withViewer(await withDatasetEntries(env, payload), user)
         : payload,
       status,
     );
@@ -257,7 +334,12 @@ export async function routeBoardsRequest(
       { id: boardId },
     );
     if (status !== 200) return json(payload, status);
-    return json(withViewer(payload, await sessionUserOf(request, env)));
+    return json(
+      withViewer(
+        await withDatasetEntries(env, payload),
+        await sessionUserOf(request, env),
+      ),
+    );
   }
 
   // POST /api/boards/<id>/changes — add, replace, remove, move, note, rename, lock.
@@ -268,12 +350,25 @@ export async function routeBoardsRequest(
     const body = await readBody(request);
     const changes = storeChanges(body?.changes);
     if (!changes) return json({ error: "bad-changes" }, 400);
+    const added = changes
+      .filter((change) => change.kind === "add" || change.kind === "replace")
+      .map((change) => String(change.entryId));
     const { status, payload } = await callGallery<Record<string, unknown>>(
       env,
       "board-change",
-      { id: boardId, changes, actor: actorOf(user) },
+      {
+        id: boardId,
+        changes,
+        datasetPublic: await datasetPublicIds(env, added),
+        actor: actorOf(user),
+      },
     );
-    return json(status === 200 ? withViewer(payload, user) : payload, status);
+    return json(
+      status === 200
+        ? withViewer(await withDatasetEntries(env, payload), user)
+        : payload,
+      status,
+    );
   }
 
   // GET /api/boards/<id>/export — the list in order, for scripts.
@@ -302,12 +397,16 @@ export async function routeBoardsRequest(
       }[];
     }>(env, "board-read", { id: boardId });
     if (status !== 200 || !payload.board) return json(payload, status);
+    const read = (await withDatasetEntries(
+      env,
+      payload as Record<string, unknown>,
+    )) as typeof payload;
     return json({
       title: payload.board.title,
       slots: payload.board.slots,
       lockedAt: payload.board.lockedAt,
       revision: payload.board.revision,
-      items: (payload.items ?? []).map((item) => ({
+      items: (read.items ?? []).map((item) => ({
         position: item.position + 1,
         entryId: item.entryId,
         url: `${url.origin}/g/${encodeURIComponent(item.entryId)}`,
@@ -327,12 +426,26 @@ export async function routeBoardsRequest(
   if (segments.length === 3 && segments[1] === "preview" && method === "GET") {
     const entryId = segments[2]!.replace(/\.svg$/u, "");
     if (!ENTRY_ID.test(entryId)) return json({ error: "not-found" }, 404);
-    const { status, payload } = await callGallery<{
+    type Drawing = {
+      dataset?: boolean;
       status?: string;
       previewRevision?: string;
       svgText?: string;
       projectText?: string;
-    }>(env, "board-preview", { id: boardId, entryId });
+    };
+    let { status, payload } = await callGallery<Drawing>(
+      env,
+      "board-preview",
+      { id: boardId, entryId },
+    );
+    // On the board, and a reference dataset's circuit: its drawing is in its own store.
+    const source = gallerySourceOfEntryId(entryId);
+    if (status === 200 && payload.dataset && source)
+      ({ status, payload } = await callGallery<Drawing>(
+        withGalleryStore(env, source),
+        "board-entry-preview",
+        { entryId },
+      ));
     if (status !== 200 || payload.status !== "public" || !payload.svgText)
       return json({ error: "not-found" }, 404);
     const immutable =

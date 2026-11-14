@@ -99,8 +99,10 @@ import {
 import {
   boardChange,
   boardCreate,
+  boardEntries,
   boardPreview,
   boardRead,
+  entryPreview,
   forgetBoardAccount,
   installBoards,
 } from "./gallery-store-boards";
@@ -793,6 +795,11 @@ export class GalleryDO {
         return boardChange(this.state, body);
       case "board-preview":
         return boardPreview(this.sql, String(body.id), String(body.entryId));
+      // A reference dataset's store, for the circuits a board holds of it.
+      case "board-entries":
+        return boardEntries(this.sql, body.ids);
+      case "board-entry-preview":
+        return entryPreview(this.sql, String(body.entryId));
       case "recycled":
         return recycled(this.sql);
       case "rejected":

@@ -5,7 +5,14 @@ import { digest, sessionIdentity } from "./regional-auth-contract";
 import { readSyncJson } from "./project-sync-http";
 import { sameOrigin } from "./same-origin";
 import { catchUpResource } from "./resource-action-catchup";
-import { entryIdOf, storeChanges, withViewer } from "./boards";
+import {
+  datasetPublicIds,
+  entryIdOf,
+  storeChanges,
+  withDatasetEntries,
+  withViewer,
+} from "./boards";
+import { gallerySourceOfEntryId } from "./gallery-sources";
 import type { ResourceActionEnv } from "./regional-resource-actions";
 
 const peerPath = "/api/resource-actions/board";
@@ -195,17 +202,22 @@ export async function routeRegionalBoardActions(
     if (!user) return fail("unauthorized", 401);
     const binding = await digest(JSON.stringify(command));
     if (incoming || command.target === env.RESOURCE_REGION) {
-      const references =
+      const references = (
         command.operation === "create"
-          ? command.input.entries
+          ? Array.isArray(command.input.entries)
+            ? command.input.entries
+            : []
           : (command.input.changes as Record<string, unknown>[])
               .filter(
                 (change) => change.kind === "add" || change.kind === "replace",
               )
-              .map((change) => change.entryId);
-      if (incoming && Array.isArray(references) && references.length) {
+              .map((change) => change.entryId)
+      ).map(String);
+      // A reference dataset's circuit is in that dataset's store, not the wall's.
+      const wall = references.filter((id) => !gallerySourceOfEntryId(id));
+      if (incoming && wall.length) {
         const checked = await call("activity-board-references", {
-          ids: references,
+          ids: wall,
         });
         if (!checked.ok) return checked;
         if (!(await checked.json()).present) {
@@ -238,10 +250,13 @@ export async function routeRegionalBoardActions(
         ...command,
         user,
         binding,
+        // Checked here, in the writer's own dataset stores, not taken from the command.
+        datasetPublic: await datasetPublicIds(env, references),
       });
       if (!response.ok) return response;
       const result = await response.json();
-      if (!incoming) return answer(withViewer(result, user));
+      if (!incoming)
+        return answer(withViewer(await withDatasetEntries(env, result), user));
       const head = await (
         await call("resource-sync/status", { stream })
       ).json();
@@ -299,7 +314,7 @@ export async function routeRegionalBoardActions(
     if (!current.ok) return fail("action-propagation-pending", 503);
     const value = await current.json();
     return value.board.revision === result.revision
-      ? answer(withViewer(value, user))
+      ? answer(withViewer(await withDatasetEntries(env, value), user))
       : fail("action-superseded", 409);
   } catch {
     return fail("activity-unavailable", 503);
