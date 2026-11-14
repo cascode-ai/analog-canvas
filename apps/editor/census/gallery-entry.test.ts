@@ -1,5 +1,18 @@
-import { createEmptyProject } from "@icm/model";
-import { MAX_SCHEMATIC_EDITS_PER_TRANSACTION } from "@icm/edit-engine";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  type CircuitProject,
+} from "@icm/model";
+import {
+  executeTransaction,
+  MAX_SCHEMATIC_EDITS_PER_TRANSACTION,
+} from "@icm/edit-engine";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  hierarchicalSymbolId,
+  withProjectComponentDefinitions,
+} from "@icm/symbols";
 import { serializeProject } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
 import { exerciseGalleryEntry } from "./gallery-entry";
@@ -37,6 +50,51 @@ function resistors(count: number) {
     }),
   );
   return project;
+}
+
+/** A top calling a Cell whose one Pin is a local VDD rail. */
+function railedCellCaller() {
+  const railed = executeTransaction(createEmptyDocument("bias", "Bias"), {
+    transactionId: "add-rail",
+    documentId: "bias",
+    expectedRevision: 0,
+    actor: { kind: "human", id: "test" },
+    edits: [
+      {
+        kind: "add_power_rail",
+        netId: "rail-net",
+        routeId: "rail-route",
+        startJunctionId: "rail-start",
+        endJunctionId: "rail-end",
+        labelId: "rail-label",
+        netName: "VDD",
+        scope: "local",
+        powerDomain: "vdd",
+        start: { x: 0, y: 0 },
+        end: { x: 100, y: 0 },
+      },
+    ],
+  });
+  if (!railed.ok) throw new Error(railed.error.message);
+  const project = createEmptyProject("gallery-source", "Gallery source");
+  project.documents.push(railed.document);
+  project.documents[0]!.instances.push({
+    id: "X1",
+    reference: "X1",
+    symbolId: hierarchicalSymbolId("Bias"),
+    placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+    netlist: {
+      parameters: {},
+      binding: { kind: "subcircuit", childDocumentId: "bias" },
+    },
+  });
+  return withProjectComponentDefinitions(project);
+}
+
+function vddAt(project: CircuitProject) {
+  return createProjectSymbolResolver(project, builtInSymbols)
+    .resolve(hierarchicalSymbolId("Bias"))!
+    .definition.pins.find((pin) => pin.name === "VDD")!.at;
 }
 
 describe("Gallery census through the editor commands", () => {
@@ -139,6 +197,25 @@ describe("Gallery census through the editor commands", () => {
     );
     expect(result.open.status).toBe("opened");
     expect(result.insert.status).toBe("opened-empty");
+  });
+
+  it("keeps an inserted Cell's saved drawing from an older generator", async () => {
+    const project = railedCellCaller();
+    const today = vddAt(project);
+    const pin = project
+      .componentDefinitions!.find(
+        (definition) => definition.symbol.id === hierarchicalSymbolId("Bias"),
+      )!
+      .symbol.pins.find((candidate) => candidate.name === "VDD")!;
+    pin.at = { x: today.x, y: today.y + 10 };
+    const result = await exerciseGalleryEntry(serializeProject(project));
+    expect(result.insert.status).toBe("inserted");
+    if (result.insert.status !== "inserted")
+      throw new Error("Expected insertion");
+    expect(vddAt(result.insert.project)).toEqual({
+      x: today.x,
+      y: today.y + 10,
+    });
   });
 
   it("opens the source and commits its drawing into a separate fresh canvas", async () => {

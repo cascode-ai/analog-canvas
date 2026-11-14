@@ -8,6 +8,7 @@ import { bindsProjectCell, resolveReviewedExternalBinding } from "@icm/devices";
 import {
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
+  projectSymbolSources,
   resolvePdkSymbolMappingForTerminalOrder,
 } from "@icm/symbols";
 
@@ -194,6 +195,57 @@ function importedCellNames(
     names.set(document.id, candidate);
   }
   return names;
+}
+
+/**
+ * The saved generated drawing of each imported Cell whose interface is
+ * unchanged. A stable interface keeps its captured artwork instead of being
+ * redrawn by whichever generator the destination ships (spec: Included
+ * component definitions); a Cell renamed on import, or whose captured
+ * drawing no longer matches its interface, is redrawn as before.
+ */
+function keptGeneratedArtwork(
+  source: CircuitProject,
+  destination: CircuitProject,
+  closure: readonly SchematicDocument[],
+  importedDocuments: readonly SchematicDocument[],
+  identifierMap: ReadonlyMap<string, string>,
+  memberIds: CopiedMemberIds,
+): ProjectStructureEdit[] {
+  const expected = projectSymbolSources({
+    documents: [...importedDocuments],
+    topDocumentId: importedDocuments[0]!.id,
+  });
+  const edits: ProjectStructureEdit[] = [];
+  for (const child of closure) {
+    if (!child.netlist) continue;
+    const symbolId = hierarchicalSymbolId(child.netlist.name);
+    const captured = source.componentDefinitions?.find(
+      (component) =>
+        component.symbol.id === symbolId &&
+        component.generatedFrom &&
+        !component.circuitBinding,
+    );
+    if (!captured?.generatedFrom || !expected.has(symbolId)) continue;
+    const generatedFrom = remapImportedIdentifierValues(
+      captured.generatedFrom,
+      identifierMap,
+    );
+    if (
+      JSON.stringify(generatedFrom) !== JSON.stringify(expected.get(symbolId))
+    )
+      continue;
+    const copy = {
+      ...copyCallerArtwork(captured, child, memberIds, { keepSymbolId: true }),
+      generatedFrom,
+    } as typeof captured;
+    const existing = destination.componentDefinitions?.find(
+      (component) => component.symbol.id === symbolId,
+    );
+    if (existing && JSON.stringify(existing) !== JSON.stringify(copy)) continue;
+    edits.push({ kind: "capture_component_definition", definition: copy });
+  }
+  return edits;
 }
 
 /**
@@ -408,6 +460,16 @@ export function planProjectCellImport(
     }
     return remapped;
   });
+  artworkEdits.push(
+    ...keptGeneratedArtwork(
+      source,
+      destination,
+      closure,
+      importedDocuments,
+      identifierMap,
+      memberIds,
+    ),
+  );
   const rootDocumentId = identifierMap.get(sourceDocumentId)!;
   if (options.sharedSnapshot)
     for (const document of importedDocuments) {

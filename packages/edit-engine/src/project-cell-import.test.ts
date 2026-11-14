@@ -2,8 +2,15 @@ import {
   createEmptyDocument,
   createEmptyProject,
   type CircuitProject,
+  type SchematicDocument,
 } from "@icm/model";
-import { externalSubcircuitSymbolId, hierarchicalSymbolId } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  externalSubcircuitSymbolId,
+  hierarchicalSymbolId,
+  withProjectComponentDefinitions,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { planProjectCellImport } from "./project-cell-import.js";
@@ -29,6 +36,67 @@ function importProject(
   expect(result.ok).toBe(true);
   if (!result.ok) throw new Error(result.error.message);
   return { plan, project: result.project };
+}
+
+/** A Cell named Bias whose local VDD rail is its one formal Pin. */
+function railedCell() {
+  const railed = executeTransaction(createEmptyDocument("bias", "Bias"), {
+    transactionId: "add-rail",
+    documentId: "bias",
+    expectedRevision: 0,
+    actor: { kind: "human", id: "test" },
+    edits: [
+      {
+        kind: "add_power_rail",
+        netId: "rail-net",
+        routeId: "rail-route",
+        startJunctionId: "rail-start",
+        endJunctionId: "rail-end",
+        labelId: "rail-label",
+        netName: "VDD",
+        scope: "local",
+        powerDomain: "vdd",
+        start: { x: 0, y: 0 },
+        end: { x: 100, y: 0 },
+      },
+    ],
+  });
+  if (!railed.ok) throw new Error(railed.error.message);
+  return railed.document;
+}
+
+/** A top that calls `child` once, with the Project's captured artwork. */
+function callingProject(child: SchematicDocument) {
+  const source = createEmptyProject("source", "Source", "source-top");
+  source.documents.push(child);
+  source.documents[0]!.instances.push({
+    id: "source-x1",
+    symbolId: hierarchicalSymbolId(child.netlist!.name),
+    placement: { position: { x: 200, y: 200 }, rotation: 0, mirror: "none" },
+    reference: "X1",
+    netlist: {
+      parameters: {},
+      binding: { kind: "subcircuit", childDocumentId: child.id },
+    },
+  });
+  return withProjectComponentDefinitions(source);
+}
+
+function pinAt(project: CircuitProject, symbolId: string, name: string) {
+  return createProjectSymbolResolver(project, builtInSymbols)
+    .resolve(symbolId)!
+    .definition.pins.find((pin) => pin.name === name)!.at;
+}
+
+/** Moves the saved drawing's VDD 10 lower, as an older generator drew it. */
+function shiftSavedVdd(project: CircuitProject, symbolId: string) {
+  const saved = project.componentDefinitions!.find(
+    (definition) => definition.symbol.id === symbolId,
+  )!;
+  expect(saved.generatedFrom).toBeDefined();
+  const pin = saved.symbol.pins.find((candidate) => candidate.name === "VDD")!;
+  pin.at = { x: pin.at.x, y: pin.at.y + 10 };
+  return saved;
 }
 
 describe("cross-Project Cell import", () => {
@@ -204,30 +272,7 @@ describe("cross-Project Cell import", () => {
   it("keeps a supply-rail Pin and controlled-source references on their imported owners", () => {
     const destination = createEmptyProject("destination", "Destination");
     const source = createEmptyProject("source", "Source", "source-top");
-    const railed = executeTransaction(createEmptyDocument("bias", "Bias"), {
-      transactionId: "add-rail",
-      documentId: "bias",
-      expectedRevision: 0,
-      actor: { kind: "human", id: "test" },
-      edits: [
-        {
-          kind: "add_power_rail",
-          netId: "rail-net",
-          routeId: "rail-route",
-          startJunctionId: "rail-start",
-          endJunctionId: "rail-end",
-          labelId: "rail-label",
-          netName: "VDD",
-          scope: "local",
-          powerDomain: "vdd",
-          start: { x: 0, y: 0 },
-          end: { x: 100, y: 0 },
-        },
-      ],
-    });
-    expect(railed.ok).toBe(true);
-    if (!railed.ok) return;
-    const child = railed.document;
+    const child = railedCell();
     child.nets.push({ id: "sense-net", terminals: [] });
     child.instances.push(
       {
@@ -307,6 +352,37 @@ describe("cross-Project Cell import", () => {
       kind: "current",
       sensorInstanceId: instance("V1").id,
     });
+  });
+
+  it("keeps a Cell's saved generated drawing while its interface is unchanged", () => {
+    const source = callingProject(railedCell());
+    const symbolId = hierarchicalSymbolId("Bias");
+    const today = pinAt(source, symbolId, "VDD");
+    shiftSavedVdd(source, symbolId);
+    const saved = { x: today.x, y: today.y + 10 };
+    expect(pinAt(source, symbolId, "VDD")).toEqual(saved);
+
+    const { project } = importProject(
+      createEmptyProject("destination", "Destination"),
+      source,
+      source.topDocumentId,
+    );
+    expect(pinAt(project, symbolId, "VDD")).toEqual(saved);
+  });
+
+  it("redraws a Cell whose saved drawing no longer matches its interface", () => {
+    const source = callingProject(railedCell());
+    const symbolId = hierarchicalSymbolId("Bias");
+    const today = pinAt(source, symbolId, "VDD");
+    shiftSavedVdd(source, symbolId).generatedFrom!.terminals[0]!.direction =
+      "input";
+
+    const { project } = importProject(
+      createEmptyProject("destination", "Destination"),
+      source,
+      source.topDocumentId,
+    );
+    expect(pinAt(project, symbolId, "VDD")).toEqual(today);
   });
 
   it("rejects an incompatible symbol-library lock before any mutation", () => {

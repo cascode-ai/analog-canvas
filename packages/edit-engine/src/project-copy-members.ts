@@ -18,6 +18,7 @@ export function copyCallerArtwork(
   component: NonNullable<CircuitProject["componentDefinitions"]>[number],
   child: SchematicDocument,
   mapping: CopiedMemberIds,
+  options: { keepSymbolId?: boolean } = {},
 ): NonNullable<CircuitProject["componentDefinitions"]>[number] {
   const copy = structuredClone(component);
   for (const pin of copy.symbol.pins) {
@@ -30,7 +31,11 @@ export function copyCallerArtwork(
       id: mapping[child.id]?.[formal.id]?.[member.id] ?? member.id,
     }));
   }
-  if (JSON.stringify(copy) === JSON.stringify(component)) return copy;
+  if (
+    options.keepSymbolId ||
+    JSON.stringify(copy) === JSON.stringify(component)
+  )
+    return copy;
   const id = deriveStableId(
     "copied-caller-symbol",
     component.symbol.id,

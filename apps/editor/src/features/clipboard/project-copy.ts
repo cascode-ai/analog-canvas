@@ -866,8 +866,17 @@ export function prepareProjectCopy(
             sourceId,
           );
           source.documents = structuredClone(context.documents);
+          // A copied Cell keeps its saved generated drawing while its
+          // interface is unchanged; Cell import decides, per Cell.
+          const generated = (context.componentDefinitions ?? []).filter(
+            (d) => d.generatedFrom && !d.circuitBinding,
+          );
+          const generatedIds = new Set(generated.map((d) => d.symbol.id));
           source.componentDefinitions = [
-            ...(componentDefinitions ?? []).filter((d) => !d.circuitBinding),
+            ...(componentDefinitions ?? []).filter(
+              (d) => !d.circuitBinding && !generatedIds.has(d.symbol.id),
+            ),
+            ...generated,
             ...(context.componentDefinitions ?? []).filter(
               (d) => d.circuitBinding,
             ),
