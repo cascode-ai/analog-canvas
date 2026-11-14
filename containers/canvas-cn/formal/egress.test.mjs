@@ -7,6 +7,54 @@ const env = {
 };
 afterEach(() => vi.unstubAllGlobals());
 
+it("carries session-owner RPC and grant revocation only to configured peers", async () => {
+  vi.stubGlobal("fetch", async () => Response.json({ ok: true }));
+  expect(
+    (
+      await egress.fetch(
+        new Request(env.PEER_ORIGIN + "/api/auth/region/session", {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://canvas-origin.test/api/auth/regional/revoke", {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await egress.fetch(
+        new Request("https://unconfigured.test/api/auth/region/session", {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await egress.fetch(
+        new Request(env.PEER_ORIGIN + "/api/auth/region/session?override=1", {
+          method: "POST",
+          body: "{}",
+        }),
+        env,
+      )
+    ).status,
+  ).toBe(403);
+});
+
 it("carries an Arena request and its sign-in handoff only to the fixed authority", async () => {
   const network = vi.fn(async (request) => {
     expect(request.redirect).toBe("manual");

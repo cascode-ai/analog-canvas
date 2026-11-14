@@ -56,6 +56,7 @@ import {
 } from "./agent-session";
 import { AgentDeviceTrustDirectory } from "./agent-device-trust";
 import { purgeTrustedDevices } from "./agent-device-directory";
+import { environment, makerOf } from "./gallery.test-support";
 
 const limits: Partial<AgentSessionLimits> = {
   claimTtlMs: 60_000,
@@ -710,12 +711,10 @@ it("finds a legacy session without replaying a failed mutation in either region"
 
 it("keeps cross-region device approval revocable in the approving account's directory", async () => {
   await withRegions(async ({ cn, overseas, send }) => {
-    const auth = {
-      getByName: () => ({
-        fetch: async () => Response.json({ user: { id: "owner" } }),
-      }),
-    };
-    cn.env.AUTH = auth;
+    const auth = environment();
+    const cookie = await makerOf(auth);
+    cn.env.AUTH = auth.AUTH!;
+    overseas.env.AUTH = auth.AUTH!;
     const created = await send(overseas.env, "/api/agent/sessions", {
       projectId: BROWSER_LAUNCH_PENDING_PROJECT,
       projectSessionId: "trust-task",
@@ -747,7 +746,7 @@ it("keeps cross-region device approval revocable in the approving account's dire
           origin: "https://editor.example",
           "sec-fetch-site": "same-origin",
           "sec-fetch-mode": "same-origin",
-          cookie: "icm_session=a",
+          cookie,
         },
         body: new URLSearchParams({
           sessionId: session.sessionId,
@@ -764,12 +763,89 @@ it("keeps cross-region device approval revocable in the approving account's dire
     expect(await approval!.json()).toMatchObject({ localReviewOnly: true });
     const listed = await routeAgentSessionRequest(
       new Request("https://editor.example" + DEVICE_TRUST_PATH, {
-        headers: { cookie: "icm_session=a" },
+        headers: { cookie },
       }),
-      cn.env,
+      overseas.env,
     );
     const { devices } = await listed!.json();
     expect(devices).toHaveLength(1);
+    const next = (
+      await (
+        await send(cn.env, "/api/agent/sessions", {
+          projectId: BROWSER_LAUNCH_PENDING_PROJECT,
+          projectSessionId: "next-regional-trusted-task",
+          browserLaunch: true,
+          documentIds: [],
+          scopes: AgentSessionScopeSchema.options,
+        })
+      ).json()
+    ).session;
+    const nextClaim = await (
+      await send(overseas.env, "/api/agent/claims", {
+        claimCode: next.claimCode,
+      })
+    ).json();
+    const nextProof = sign(
+      null,
+      Buffer.from(
+        browserLaunchProofText(
+          "https://editor.example",
+          next.sessionId,
+          next.launchGrant,
+        ),
+      ),
+      key.privateKey,
+    );
+    const automatic = await routeAgentSessionRequest(
+      new Request("https://editor.example" + BROWSER_LAUNCH_PATH, {
+        method: "POST",
+        headers: {
+          origin: "https://editor.example",
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "same-origin",
+          cookie,
+        },
+        body: new URLSearchParams({
+          sessionId: next.sessionId,
+          grant: next.launchGrant,
+          approval: "auto",
+          deviceKey: key.publicKey.export({ format: "jwk" }).x!,
+          deviceProof: nextProof.toString("base64url"),
+        }),
+      }),
+      overseas.env,
+    );
+    expect(automatic?.status).toBe(200);
+    vi.mocked(globalThis.fetch).mockRejectedValueOnce(
+      new Error("peer offline"),
+    );
+    const incomplete = await routeAgentSessionRequest(
+      new Request("https://editor.example" + DEVICE_TRUST_PATH, {
+        headers: { cookie },
+      }),
+      overseas.env,
+    );
+    expect(incomplete?.status).toBe(503);
+    const transport = vi.mocked(globalThis.fetch).getMockImplementation()!;
+    vi.mocked(globalThis.fetch).mockImplementationOnce(async (input, init) => {
+      await transport(input, init);
+      throw new Error("revocation reply lost");
+    });
+    const uncertain = await routeAgentSessionRequest(
+      new Request(
+        "https://editor.example" + DEVICE_TRUST_PATH + "/" + devices[0].id,
+        {
+          method: "DELETE",
+          headers: {
+            cookie,
+            origin: "https://editor.example",
+            "sec-fetch-site": "same-origin",
+          },
+        },
+      ),
+      overseas.env,
+    );
+    expect(uncertain?.status).toBe(503);
     const revoked = await routeAgentSessionRequest(
       new Request(
         "https://editor.example" + DEVICE_TRUST_PATH + "/" + devices[0].id,
@@ -778,11 +854,11 @@ it("keeps cross-region device approval revocable in the approving account's dire
           headers: {
             origin: "https://editor.example",
             "sec-fetch-site": "same-origin",
-            cookie: "icm_session=a",
+            cookie,
           },
         },
       ),
-      cn.env,
+      overseas.env,
     );
     expect(revoked?.status).toBe(204);
     const status = await routeAgentSessionRequest(
@@ -797,6 +873,136 @@ it("keeps cross-region device approval revocable in the approving account's dire
     expect(await status!.json()).toMatchObject({
       error: { code: "SESSION_REVOKED" },
     });
+    const nextStatus = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${next.sessionId}/status`,
+        { headers: { authorization: `Bearer ${nextClaim.agentToken}` } },
+      ),
+      cn.env,
+    );
+    expect(await nextStatus!.json()).toMatchObject({
+      error: { code: "SESSION_REVOKED" },
+    });
+  });
+});
+
+it("stops trusting both regional grants from a legacy task's panel and can retry an unavailable peer", async () => {
+  await withRegions(async ({ cn, overseas, send }) => {
+    const auth = environment();
+    const cookie = await makerOf(auth);
+    cn.env.AUTH = auth.AUTH!;
+    overseas.env.AUTH = auth.AUTH!;
+    const origin = "https://editor.example";
+    const key = generateKeyPairSync("ed25519");
+    const open = async (site: typeof cn, approval: "trust" | "auto") => {
+      const { session } = await (
+        await send(site.env, "/api/agent/sessions", {
+          projectId: BROWSER_LAUNCH_PENDING_PROJECT,
+          projectSessionId: crypto.randomUUID(),
+          browserLaunch: true,
+          documentIds: [],
+          scopes: AgentSessionScopeSchema.options,
+        })
+      ).json();
+      const { agentToken } = await (
+        await send(site.env, "/api/agent/claims", {
+          claimCode: session.claimCode,
+        })
+      ).json();
+      const proof = sign(
+        null,
+        Buffer.from(
+          browserLaunchProofText(
+            origin,
+            session.sessionId,
+            session.launchGrant,
+          ),
+        ),
+        key.privateKey,
+      );
+      const result = await routeAgentSessionRequest(
+        new Request(origin + BROWSER_LAUNCH_PATH, {
+          method: "POST",
+          headers: {
+            origin,
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-mode": "same-origin",
+            cookie,
+          },
+          body: new URLSearchParams({
+            sessionId: session.sessionId,
+            grant: session.launchGrant,
+            approval,
+            deviceKey: key.publicKey.export({ format: "jwk" }).x!,
+            deviceProof: proof.toString("base64url"),
+          }),
+        }),
+        site.env,
+      );
+      const editorSecret = result!.ok
+        ? (await result!.clone().json()).editorSecret
+        : "";
+      return {
+        id: session.sessionId as string,
+        response: result!,
+        control: () =>
+          routeAgentSessionRequest(
+            new Request(
+              `${origin}/api/agent/sessions/${session.sessionId}/control`,
+              {
+                method: "POST",
+                headers: {
+                  "x-editor-secret": editorSecret,
+                  "content-type": "application/json",
+                },
+                body: JSON.stringify({ action: "untrust-device" }),
+              },
+            ),
+            site.env,
+          ),
+        status: async () =>
+          await (await routeAgentSessionRequest(
+            new Request(
+              `${origin}/api/agent/sessions/${session.sessionId}/status`,
+              { headers: { authorization: `Bearer ${agentToken}` } },
+            ),
+            site.env,
+          ))!.json(),
+      };
+    };
+    const first = await open(cn, "trust"),
+      second = await open(overseas, "trust");
+    expect(first.response.status).toBe(200);
+    expect(second.response.status).toBe(200);
+    // Restore the pre-routing link shape; its physical directory key did not change.
+    const storage = cn.storages.get(first.id)!;
+    const stored = (await storage.get<
+      PersistedAgentSessionState & { deviceTrust: { directory: string } }
+    >(SESSION_STATE_KEY))!;
+    stored.deviceTrust.directory = stored.deviceTrust.directory.replace(
+      /^cn_/u,
+      "",
+    );
+    await storage.put(SESSION_STATE_KEY, stored);
+    cn.objects.delete(first.id);
+    vi.mocked(globalThis.fetch).mockRejectedValueOnce(
+      new Error("peer unavailable"),
+    );
+    expect((await first.control())?.status).toBe(503);
+    expect((await first.status()).error).toBeUndefined();
+    expect((await first.control())?.status).toBe(200);
+    expect(await first.status()).toMatchObject({
+      error: { code: "SESSION_REVOKED" },
+    });
+    expect(await second.status()).toMatchObject({
+      error: { code: "SESSION_REVOKED" },
+    });
+    const listed = await routeAgentSessionRequest(
+      new Request(origin + DEVICE_TRUST_PATH, { headers: { cookie } }),
+      overseas.env,
+    );
+    expect((await listed!.json()).devices).toEqual([]);
+    expect((await open(overseas, "auto")).response.status).toBe(403);
   });
 });
 

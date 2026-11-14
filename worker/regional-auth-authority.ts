@@ -126,6 +126,16 @@ export class RegionalAuthority {
       if (url.pathname === REGIONAL_PREFIX + "exchange")
         return this.exchange(body);
       if (url.pathname === REGIONAL_PREFIX + "renew") return this.renew(body);
+      if (url.pathname === REGIONAL_PREFIX + "revoke") {
+        if (!validNonce(body.grant))
+          return answer({ error: "invalid-request" }, 400);
+        this.sql.exec(
+          "DELETE FROM regional_grants WHERE grant_hash = ? AND audience = ?",
+          await digest(body.grant),
+          this.config.clientOrigin,
+        );
+        return answer({ revoked: true });
+      }
       if (url.pathname === REGIONAL_PREFIX + "account")
         return this.accountOperation(body);
       if (url.pathname === REGIONAL_PREFIX + "security") {

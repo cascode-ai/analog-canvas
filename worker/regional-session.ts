@@ -103,6 +103,9 @@ export class RegionalSessionDO {
       token_hash TEXT PRIMARY KEY, user_json TEXT NOT NULL, grant TEXT NOT NULL,
       lease_until INTEGER NOT NULL, expires_at INTEGER NOT NULL, refresh_at INTEGER NOT NULL,
       login_state_hash TEXT NOT NULL UNIQUE) WITHOUT ROWID`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS regional_session_revocations (
+      token_hash TEXT PRIMARY KEY, grant TEXT NOT NULL,
+      login_state_hash TEXT NOT NULL, expires_at INTEGER NOT NULL) WITHOUT ROWID`);
     if (
       !this.sql
         .exec<{ name: string }>("PRAGMA table_info(regional_sessions)")
@@ -260,23 +263,30 @@ export class RegionalSessionDO {
       if (request.headers.get("origin") !== this.config.clientOrigin)
         return answer({ error: "forbidden" }, 403);
       const token = cookie(request, REGIONAL_SESSION_COOKIE);
-      if (token)
-        this.sql.exec(
-          "DELETE FROM regional_sessions WHERE token_hash = ?",
-          await digest(token),
-        );
       const pending = cookie(request, "icm_regional_login");
-      if (validNonce(pending)) {
-        const hash = await digest(pending);
+      const tokenHash = token ? await digest(token) : "";
+      const pendingHash = validNonce(pending) ? await digest(pending) : "";
+      this.state.storage.transactionSync(() => {
         this.sql.exec(
           "DELETE FROM regional_pending WHERE state_hash = ?",
-          hash,
+          pendingHash,
         );
         this.sql.exec(
-          "DELETE FROM regional_sessions WHERE login_state_hash = ?",
-          hash,
+          `INSERT OR IGNORE INTO regional_session_revocations
+          SELECT token_hash, grant, login_state_hash, expires_at FROM regional_sessions
+          WHERE token_hash = ? OR login_state_hash = ?`,
+          tokenHash,
+          pendingHash,
         );
-      }
+        this.sql.exec(
+          "DELETE FROM regional_sessions WHERE token_hash = ? OR login_state_hash = ?",
+          tokenHash,
+          pendingHash,
+        );
+      });
+      await this.schedule();
+      if (!(await this.flushRevocations(tokenHash, pendingHash)))
+        return answer({ error: "logout-pending" }, 503);
       const response = answer({ ok: true });
       response.headers.append(
         "set-cookie",
@@ -467,6 +477,7 @@ export class RegionalSessionDO {
     action:
       | "exchange"
       | "renew"
+      | "revoke"
       | "account"
       | "deletions"
       | "bylines"
@@ -825,20 +836,67 @@ export class RegionalSessionDO {
     return sessionIdentity(JSON.parse(row.user_json));
   }
 
+  private async flushRevocations(
+    tokenHash?: string,
+    pendingHash?: string,
+  ): Promise<boolean> {
+    this.sql.exec(
+      "DELETE FROM regional_session_revocations WHERE expires_at <= ?",
+      this.now(),
+    );
+    const rows =
+      tokenHash === undefined
+        ? this.sql
+            .exec<{ token_hash: string; grant: string }>(
+              "SELECT token_hash, grant FROM regional_session_revocations LIMIT 100",
+            )
+            .toArray()
+        : this.sql
+            .exec<{ token_hash: string; grant: string }>(
+              "SELECT token_hash, grant FROM regional_session_revocations WHERE token_hash = ? OR login_state_hash = ?",
+              tokenHash,
+              pendingHash ?? "",
+            )
+            .toArray();
+    const results = await Promise.all(
+      rows.map(async (row) => {
+        const result = await this.authority("revoke", { grant: row.grant });
+        if (result.status !== 200 || result.body?.revoked !== true)
+          return false;
+        this.sql.exec(
+          "DELETE FROM regional_session_revocations WHERE token_hash = ? AND grant = ?",
+          row.token_hash,
+          row.grant,
+        );
+        return true;
+      }),
+    );
+    return results.every(Boolean);
+  }
+
   private async schedule(): Promise<void> {
     const row = this.sql
       .exec<{ next: number | null }>(
         "SELECT MIN(refresh_at) AS next FROM regional_sessions",
       )
       .one();
-    if (row.next !== null)
+    const revoking =
+      this.sql
+        .exec("SELECT token_hash FROM regional_session_revocations LIMIT 1")
+        .toArray().length > 0;
+    const next = revoking
+      ? Math.min(row.next ?? Infinity, this.now() + REGIONAL_REFRESH_MS)
+      : row.next;
+    if (next !== null)
       // Drain overdue batches without spending another second of every lease.
       // The bounded batch and awaited network calls still limit concurrency.
-      await this.state.storage.setAlarm(Math.max(this.now() + 100, row.next));
+      await this.state.storage.setAlarm(Math.max(this.now() + 100, next));
   }
 
   async alarm(): Promise<void> {
     if (!this.config) return;
+    await this.schedule();
+    await this.flushRevocations();
     this.sql.exec(
       "DELETE FROM regional_sessions WHERE expires_at <= ?",
       this.now(),

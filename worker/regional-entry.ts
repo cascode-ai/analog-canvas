@@ -1,4 +1,5 @@
 import canvas from "./index";
+import { browserSessionNamespace } from "./regional-browser-session";
 import {
   collectRegionalGarbage,
   regionalMemoryStatus,
@@ -113,8 +114,8 @@ export default {
       upstream.headers.delete(REGIONAL_ARENA_CAPABILITY);
       try {
         if (isRegionalArenaRoute(request.method, local.pathname)) {
-          // Native and regional sessions can name different actors, and local
-          // logout deliberately retains the overseas session. Never forward it.
+          // Select the current browser's owning session; never forward another
+          // cookie's actor as the Arena identity.
           upstream.headers.delete("cookie");
           upstream.headers.delete("authorization");
           const authorization = await arenaCapabilityRequest(
@@ -122,7 +123,9 @@ export default {
             "authorize",
           );
           if (authorization instanceof Response) return authorization;
-          const proof = await env.AUTH.getByName("auth").fetch(authorization);
+          const proof = await browserSessionNamespace(env)
+            .getByName("auth")
+            .fetch(authorization);
           if (proof.ok) {
             const body = (await proof.json()) as { token: string };
             upstream.headers.set(REGIONAL_ARENA_CAPABILITY, body.token);

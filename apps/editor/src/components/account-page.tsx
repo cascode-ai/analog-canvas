@@ -550,6 +550,7 @@ type AccountPageState =
 export function AccountPage() {
   usePageTitle("Account");
   const [state, setState] = useState<AccountPageState>({ status: "loading" });
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const [receipt, setReceipt] = useState(readDeletionReceipt);
   const [pollGeneration, retryPoll] = useState(0);
   const [pollPaused, setPollPaused] = useState(false);
@@ -630,6 +631,12 @@ export function AccountPage() {
     <main className="review-shell account-shell" data-testid="account-page">
       <GalleryChrome subtitle="Account" editorHref="/editor?resume=1" />
       <div className="page-body account-page-body">
+        {signOutFailed ? (
+          <p className="gallery-status" role="alert">
+            Sign-out could not be confirmed in every region. Please try Sign out
+            again.
+          </p>
+        ) : null}
         {deletion ? (
           <p className="gallery-status" role="status">
             {deletionComplete(deletion)
@@ -668,7 +675,12 @@ export function AccountPage() {
               });
             }}
             onSignOut={() => {
-              void signOut().then(() => {
+              setSignOutFailed(false);
+              void signOut().then((succeeded) => {
+                if (!succeeded) {
+                  setSignOutFailed(true);
+                  return;
+                }
                 cacheSessionUser(fetch, null);
                 window.location.assign("/");
               });

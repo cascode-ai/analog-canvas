@@ -1,4 +1,7 @@
-import { regionalDeviceDirectory } from "./agent-regional-routing";
+import {
+  regionalDeviceDirectory,
+  type AgentRegionalEnv,
+} from "./agent-regional-routing";
 import {
   browserLaunchProofText,
   BROWSER_LAUNCH_TTL_MS,
@@ -116,10 +119,42 @@ export async function deviceTrustDirectory(
     : null;
 }
 
+function accountDirectories(name: string) {
+  return /^(cn|overseas)_agent-device-trust-/u.test(name)
+    ? [
+        name,
+        name.replace(
+          /^(cn|overseas)_/u,
+          name.startsWith("cn_") ? "overseas_" : "cn_",
+        ),
+      ]
+    : [name];
+}
+
+/** Reuse standing approval without copying it into the entry's region. */
+export async function existingDeviceTrustDirectory(
+  name: string,
+  deviceId: string,
+  namespace: AgentSessionNamespaceLike,
+): Promise<string | null> {
+  for (const candidate of accountDirectories(name)) {
+    const response = await directory(namespace, candidate).fetch("list", {
+      method: "GET",
+    });
+    if (!response.ok) throw Error("Device directory unavailable");
+    const { devices } = (await response.json()) as {
+      devices: { id: string }[];
+    };
+    if (devices.some((device) => device.id === deviceId)) return candidate;
+  }
+  return null;
+}
+
 /** What one circuit session asks of the directory holding its device's trust. */
 export class DeviceTrustClient {
   constructor(
     private readonly namespace: AgentSessionNamespaceLike | undefined,
+    private readonly env: AgentRegionalEnv = {},
   ) {}
 
   private grant(name: string, input: DeviceRequest) {
@@ -167,6 +202,10 @@ export class DeviceTrustClient {
         sessionId,
       });
     const namespace = this.namespace;
+    const owningDirectory = regionalDeviceDirectory(
+      link.directory,
+      this.env,
+    );
     return {
       /** Make a first trust standing once its task is approved. */
       async commit() {
@@ -185,12 +224,29 @@ export class DeviceTrustClient {
         await send("remove-session").catch(() => undefined);
       },
       /** The person in this task's tab stops trusting its device; the task ends itself. */
-      untrust() {
-        if (!namespace) return Promise.resolve(false);
-        return untrustDevice(namespace, link.directory, link.deviceId, {
-          trustId: link.trustId,
-          except: sessionId,
-        }).catch(() => false);
+      async untrust() {
+        if (!namespace) return false;
+        try {
+          // Leave this task usable for a retry until the other directory confirms.
+          for (const name of accountDirectories(owningDirectory).slice(1))
+            if (
+              !(await untrustDevice(namespace, name, link.deviceId, {
+                except: sessionId,
+              }))
+            )
+              return false;
+          return await untrustDevice(
+            namespace,
+            owningDirectory,
+            link.deviceId,
+            {
+              trustId: link.trustId,
+              except: sessionId,
+            },
+          );
+        } catch {
+          return false;
+        }
       },
     };
   }
@@ -362,18 +418,60 @@ export async function routeTrustedDevices(
     return new Response(null, { status: 403, headers });
   const name = await deviceTrustDirectory(request, env);
   if (!name) return new Response(null, { status: 401, headers });
-  if (revoke)
+  const names = accountDirectories(name);
+  if (revoke) {
+    const revoked = await Promise.all(
+      names.map((directory) =>
+        untrustDevice(env.AGENT_SESSION, directory, deviceId).catch(
+          () => false,
+        ),
+      ),
+    );
     return new Response(null, {
-      status: (await untrustDevice(env.AGENT_SESSION, name, deviceId).catch(
-        () => false,
-      ))
-        ? 204
-        : 503,
+      status: revoked.every(Boolean) ? 204 : 503,
       headers,
     });
-  const response = await directory(env.AGENT_SESSION, name).fetch("list", {
-    method: "GET",
-  });
-  if (!response.ok) return new Response(null, { status: 503, headers });
-  return Response.json(await response.json(), { headers });
+  }
+  type ListedDevice = Pick<
+    DeviceEntry,
+    "id" | "name" | "trustedAt" | "lastUsedAt"
+  >;
+  const lists = await Promise.all(
+    names.map(async (name) => {
+      try {
+        const response = await directory(env.AGENT_SESSION, name).fetch(
+          "list",
+          { method: "GET" },
+        );
+        if (!response.ok) return null;
+        return ((await response.json()) as { devices: ListedDevice[] }).devices;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  if (lists.some((list) => list === null))
+    return new Response(null, { status: 503, headers });
+  const devices = new Map<string, ListedDevice>();
+  for (const entry of lists.flatMap((list) => list ?? [])) {
+    const previous = devices.get(entry.id);
+    const lastUsedAt = Math.max(
+      entry.lastUsedAt ?? 0,
+      previous?.lastUsedAt ?? 0,
+    );
+    devices.set(
+      entry.id,
+      previous
+        ? {
+            ...((entry.lastUsedAt ?? entry.trustedAt) >
+            (previous.lastUsedAt ?? previous.trustedAt)
+              ? entry
+              : previous),
+            trustedAt: Math.min(entry.trustedAt, previous.trustedAt),
+            ...(lastUsedAt ? { lastUsedAt } : {}),
+          }
+        : entry,
+    );
+  }
+  return Response.json({ devices: [...devices.values()] }, { headers });
 }

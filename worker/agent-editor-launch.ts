@@ -8,6 +8,7 @@ import type { AgentSessionRouterEnv } from "./agent-session-runtime";
 import {
   deviceLabel,
   deviceTrustDirectory,
+  existingDeviceTrustDirectory,
   verifyLaunchDevice,
 } from "./agent-device-trust";
 
@@ -82,6 +83,20 @@ export async function editorLaunchPage(
       verifyLaunchDevice(origin, sessionId, grant, deviceKey, deviceProof),
     ]);
     if (!directory || !deviceId) return reject(403);
+    let owningDirectory = directory;
+    if (approval === "auto") {
+      try {
+        const existing = await existingDeviceTrustDirectory(
+          directory,
+          deviceId,
+          env.AGENT_SESSION,
+        );
+        if (!existing) return reject(403);
+        owningDirectory = existing;
+      } catch {
+        return reject(503);
+      }
+    }
     return session.fetch(
       "https://agent-session.internal/approve-editor-launch",
       {
@@ -90,7 +105,7 @@ export async function editorLaunchPage(
         body: JSON.stringify({
           grant,
           device: {
-            directory,
+            directory: owningDirectory,
             deviceId,
             action: approval,
             ...(deviceName ? { label: deviceName } : {}),
