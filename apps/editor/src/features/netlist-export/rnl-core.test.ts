@@ -13,6 +13,7 @@ const core = withCanvasPackage(bare, packages);
 afterAll(() => core.terminate());
 
 const write: WriteRequest["write"] = {
+  language_version: "0.4",
   dialect: "spice",
   netlist: '\nE1 out 0 in 0 2\n.include "/user/parts.inc"\n.end\n',
   author: "test",
@@ -92,22 +93,27 @@ describe("explicit Canvas package workspace", () => {
   });
 
   it.each([
-    "/.analog-canvas/rnl/0.2/analog-canvas-extensions.rnl",
-    "\\.analog-canvas\\rnl\\0.2\\analog-canvas-extensions.rnl",
-    "/.analog-canvas/other/../rnl/0.2/analog-canvas-extensions.rnl",
+    `/.analog-canvas/rnl/${canvasPackageVersion}/analog-canvas-extensions.rnl`,
+    `\\.analog-canvas\\rnl\\${canvasPackageVersion}\\analog-canvas-extensions.rnl`,
+    `/.analog-canvas/other/../rnl/${canvasPackageVersion}/analog-canvas-extensions.rnl`,
   ])(
     "does not replace a user file at its private virtual path (%s)",
     async (path) => {
+      // A package of the language 0.4 is found by the name of its file
+      // (16.2): the user's own one of that name, another version.
       const text =
-        '@RNL(type="header") { @VERSION("0.3"); @PACKAGE(name="user-kept", version="1") }';
+        '@RNL(type="header") { @VERSION("0.4"); @PACKAGE(name="analog-canvas-extensions", version="9.9") }';
       const catalog = await core.catalog({
-        catalog: {},
+        catalog: { all_versions: true },
         files: { [path]: text },
-        package_dirs: ["/.analog-canvas/rnl/0.2"],
+        package_dirs: [`/.analog-canvas/rnl/${canvasPackageVersion}`],
       });
-      expect(catalog.packages.some((pkg) => pkg.name === "user-kept")).toBe(
-        true,
-      );
+      expect(
+        catalog.packages.some(
+          (pkg) =>
+            pkg.name === "analog-canvas-extensions" && pkg.version === "9.9",
+        ),
+      ).toBe(true);
       expect(
         catalog.symbols.some(
           (symbol) => symbol.symbol === "$CANVAS_VCVS_CIRCLE",

@@ -152,11 +152,11 @@ function fixture() {
   const snapshot: RnlSnapshot = {
     schema: "rnl-snapshot/1",
     runtime: "0.5.5",
-    language: "0.3",
+    language: "0.4",
     revision: "0".repeat(32),
     dialect: "spice",
     files: [{ path: "/w/top.sp", name: "top.sp" }],
-    packages: [{ name: "rnl-std-basic", version: "0.3" }],
+    packages: [{ name: "rnl-std-basic", version: "0.4" }],
     levels: [level("first", 2, 3), level("second", -4, 5)],
     diagnostics: [],
     failed: null,
@@ -165,6 +165,19 @@ function fixture() {
 }
 
 describe("RNL snapshot import", () => {
+  it("refuses a file of another language version and draws nothing of it", () => {
+    const { project, snapshot } = fixture();
+    const result = applyRnlSnapshot(project, { ...snapshot, language: "0.3" });
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        code: "RNL_IMPORT_VERSION",
+        message: expect.stringMatching(/RNL 0\.3.*RNL 0\.4 only.*rnl upgrade/u),
+      }),
+    ]);
+    expect(result.project).toBe(project);
+  });
+
   it("keeps Cell-local names, pin order and GND wiring independent of level order (#1784)", () => {
     const { project, snapshot } = fixture();
     const source = structuredClone(project);

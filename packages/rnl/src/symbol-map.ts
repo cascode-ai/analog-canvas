@@ -12,10 +12,15 @@ import {
 import type { RnlOrient } from "./orientation.js";
 import type { RnlPoint } from "./place.js";
 
-/** One terminal of an RNL symbol, in the instance line's node order. */
+/**
+ * One terminal of an RNL symbol, in the instance line's node order: where a
+ * body Analog Canvas writes prints it, and the position a call's terminal
+ * map binds it at (11.3).
+ */
 export interface RnlTerminal {
   /** Position on the instance line, from 1. */
   n: number;
+  /** The terminal its pin binds by name (9.2.4). */
   name: string;
   /** The symbol draws a pin for it. */
   drawn: boolean;
@@ -51,9 +56,9 @@ export interface RnlSymbol {
   orient: RnlOrient;
   /**
    * The row only reads other tools' files back: a standard symbol drawn
-   * otherwise than Analog Canvas draws its part (the 4-input gates), or a
-   * legacy appearance alias (controlled-source diamonds). The export uses
-   * the canonical symbol instead. Pins are where the RNL symbol has them.
+   * otherwise than Analog Canvas draws its part (the 4-input gates, the
+   * 4-terminal MOSFETs, the two-terminal Delay Cell). The export uses
+   * Analog Canvas's own instead. Pins are where the RNL symbol has them.
    */
   importOnly: boolean;
   /**
@@ -192,15 +197,22 @@ export function symbolModelType(
 }
 
 /**
+ * What a primitive may carry that draws nothing: its `part`, which names it,
+ * and `fillableBody`, which lets a body fill paint it (#2313) and which a
+ * copy made before the Library gave it lacks.
+ */
+const UNDRAWN_KEYS: ReadonlySet<string> = new Set(["part", "fillableBody"]);
+
+/**
  * A symbol's pins and primitives as text, to compare two by: each object's
- * keys in order, without a primitive's `part`, which names it and draws nothing.
+ * keys in order, without those that draw nothing (`UNDRAWN_KEYS`).
  */
 const drawingOf = (symbol: Pick<SymbolDefinition, "pins" | "primitives">) =>
   JSON.stringify([symbol.pins, symbol.primitives], (_, item: unknown) =>
     item && typeof item === "object" && !Array.isArray(item)
       ? Object.fromEntries(
           Object.entries(item)
-            .filter(([key]) => key !== "part")
+            .filter(([key]) => !UNDRAWN_KEYS.has(key))
             .sort(([left], [right]) => (left < right ? -1 : 1)),
         )
       : item,

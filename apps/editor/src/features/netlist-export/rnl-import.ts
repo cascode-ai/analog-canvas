@@ -15,6 +15,7 @@ import {
   undrawnBodies,
   withPowerLabelPorts,
   rnlBodyPortOrder,
+  rnlVersionRefusal,
   type RnlHiddenLabels,
   type RnlParameterText,
   type RnlImportDiagnostic,
@@ -414,6 +415,18 @@ async function buildImportPlan({
   if (!entry) return failedPlan(`RNL import has no file ${entryPath}`);
   const dialect = isSpectreSource(entry) ? "spectre" : "spice";
   const snapshot = await readRnlHost(runtime, inputs, entryPath, dialect);
+  // A file of another language version is refused whole: nothing of it is
+  // imported, the circuit included.
+  const refused = rnlVersionRefusal(
+    snapshot,
+    inputs.some(({ bytes }) => /@RNL\b/u.test(new TextDecoder().decode(bytes))),
+  );
+  if (refused)
+    return {
+      status: "failed",
+      message: refused.message,
+      diagnostics: [reported(refused)],
+    };
   const externalSubcircuitNames = rnlSubcircuitNames(snapshot);
   const symbolMappings = drawnExternalSymbolMappings(snapshot);
   const drawnTypes = drawnModelTypes(snapshot);
@@ -469,7 +482,7 @@ async function buildImportPlan({
     ...drawnTypes.keys(),
     ...prepared.modelTypes.keys(),
   ]);
-  // The editor's top where the file names it (Canvas 0.4): a Cell printed
+  // The editor's top where the file names it: a Cell printed
   // beside it may call it, and so be the netlist's top in its place.
   const top = canvasTopDocument(imported.project, snapshot);
   if (top) imported.project.topDocumentId = top;

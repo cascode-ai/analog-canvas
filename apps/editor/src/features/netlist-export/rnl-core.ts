@@ -96,6 +96,8 @@ export function withCanvasPackage(
     build: (request) => core.build(workspace(request, packages)),
     snapshot: (request) => core.snapshot(workspace(request, packages)),
     write: (request) => core.write(workspace(request, packages)),
+    replaceRecords: (request) =>
+      core.replaceRecords(workspace(request, packages)),
     catalog: (request) => core.catalog(workspace(request, packages)),
     drawings: (request) => core.drawings(request),
     library: (request) => core.library(workspace(request, packages)),

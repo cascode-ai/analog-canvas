@@ -24,7 +24,7 @@ test("imports native bulk styling by default and offers the source appearance", 
     buffer: Buffer.from(
       [
         "* External RNL",
-        '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full",version="0.3"); }',
+        '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all",version="0.4"); }',
         ".model nch nmos",
         ".subckt review OUT IN",
         "M1 OUT IN 0 0 nch w=1u l=0.15u",
@@ -122,7 +122,7 @@ test("loads each Canvas package version once for both RNL formats", async ({
     const text = await copiedNetlist(page, mode);
     rich = text;
     expect(text).toContain(
-      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.6")',
+      '@USE-PACKAGE(name="analog-canvas-extensions", version="0.7")',
     );
     expect(text).toContain("$CANVAS_VCVS_CIRCLE");
     await expect(
@@ -159,8 +159,8 @@ test("loads each Canvas package version once for both RNL formats", async ({
   expect(after.status).toBe("ready");
   if (before.status === "ready" && after.status === "ready")
     expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
-  // Every locked version, 0.1 to 0.6, so a file written with any reads.
-  expect(requested).toHaveLength(6);
+  // The one locked version, which the editor reads and writes.
+  expect(requested).toHaveLength(1);
   for (const url of requested)
     expect(new URL(url).origin).toBe(new URL(page.url()).origin);
 });
@@ -326,9 +326,10 @@ test("writes SPICE+RNL and Spectre+RNL, and imports the file it wrote as it was 
   const rich = await copiedNetlist(page, "spice+rnl");
   expect(rich).toContain('* @RNL(type="header")');
   expect(rich).toContain(
-    '@USE-PACKAGE(name="rnl-std-functional", version="0.3")',
+    '@USE-PACKAGE(name="rnl-std-functional", version="0.4")',
   );
-  expect(rich).toMatch(/#X1 @SET-SYMBOL \$OPAMP_5TERM/u);
+  // Its pins bound to the positions the call prints them at.
+  expect(rich).toMatch(/#X1 @SET-SYMBOL\(terminals=\[[^)]*\]\) \$OPAMP\b/u);
   // The netlist it carries is the plain one, the op-amp's body printed in
   // the port order of its RNL symbol.
   expect(rich).toMatch(/^X1 Vin Vout 0 VSS net0 opamp$/mu);
@@ -517,7 +518,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
       await viewer.locator("#tab-files").click();
       await expect(
         viewer.getByRole("button", {
-          name: "Open analog-canvas-extensions 0.4",
+          name: "Open analog-canvas-extensions 0.7",
           exact: true,
         }),
       ).toBeVisible();
@@ -532,7 +533,7 @@ test("opens both current RNL exports and the Canvas package in one reusable View
         type: "open",
         name: mode === "spice+rnl" ? "circuit.sp" : "circuit.scs",
         text: expected,
-        packages: [{ name: "analog-canvas-extensions", version: "0.6" }],
+        packages: [{ name: "analog-canvas-extensions", version: "0.7" }],
       });
     }
     expect(page.context().pages()).toHaveLength(2);

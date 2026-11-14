@@ -93,16 +93,61 @@ describe("the RNL symbol list", () => {
     ).toEqual([]);
   });
 
-  it("takes the chopper and appearance variants from Analog Canvas's package", () => {
+  it("takes the standard series' symbols, and appearance variants from Analog Canvas's package", () => {
     expect(rnlSymbolFor("chopper")).toMatchObject({
-      symbol: "$CANVAS_CHOPPER",
-      package: "analog-canvas-extensions",
-    });
-    expect(rnlSymbolFor("opamp")).toMatchObject({
-      symbol: "$OPAMP_5TERM",
+      symbol: "$CHOPPER_SYMBOL",
       package: "rnl-std-functional",
     });
+    expect(rnlSymbolFor("opamp")).toMatchObject({
+      symbol: "$OPAMP",
+      package: "rnl-std-functional",
+    });
+    expect(rnlSymbolFor("opamp-lettered")).toMatchObject({
+      symbol: "$CANVAS_OPAMP_LETTERED",
+      package: "analog-canvas-extensions",
+    });
     expect(rnlSymbolFor("ground")?.package).toBe("rnl-std-basic");
+  });
+
+  it("draws with the standard series 0.4 each part it has a symbol for", () => {
+    for (const [symbolId, symbol, pkg] of [
+      ["crystal", "$CRYSTAL", "rnl-std-basic"],
+      ["polarized-capacitor", "$POLARIZED_CAPACITOR", "rnl-std-basic"],
+      ["led", "$LED", "rnl-std-semiconductors"],
+      ["schottky-diode", "$SCHOTTKY_DIODE", "rnl-std-semiconductors"],
+      ["shockley-diode", "$SHOCKLEY_DIODE", "rnl-std-semiconductors"],
+      ["put", "$PUT", "rnl-std-semiconductors"],
+      ["ujt", "$UJT", "rnl-std-semiconductors"],
+      ["potentiometer", "$POTENTIOMETER", "rnl-std-basic"],
+      ["photoresistor", "$PHOTORESISTOR", "rnl-std-basic"],
+      ["speaker", "$SPEAKER", "rnl-std-basic"],
+      ["microphone", "$MICROPHONE", "rnl-std-basic"],
+      ["sine-voltage-source", "$SINE_VOLTAGE_SOURCE", "rnl-std-basic"],
+      ["ammeter", "$AMMETER", "rnl-std-basic"],
+      ["pulse-voltage-source", "$PULSE_VOLTAGE_SOURCE", "rnl-std-basic"],
+      [
+        "opamp-differential-crossed",
+        "$DIFFERENTIAL_OPAMP_TWISTED",
+        "rnl-std-functional",
+      ],
+    ] as const)
+      expect(rnlSymbolFor(symbolId), symbolId).toMatchObject({
+        symbol,
+        package: pkg,
+      });
+    // The transformer's terminals are the standard's p1 n1 p2 n2.
+    expect(
+      rnlSymbolFor("xfmr")!.terminals.map((terminal) => terminal.name),
+    ).toEqual(["p1", "n1", "p2", "n2"]);
+    // 4-terminal MOSFETs keep the body pin at (1, 0), where the standard
+    // series 0.4 has moved it; its own read back.
+    expect(rnlSymbolFor("nmos")).toMatchObject({
+      symbol: "$CANVAS_NMOS_4TERM",
+      package: "analog-canvas-extensions",
+    });
+    expect(
+      RNL_SYMBOLS.find((entry) => entry.symbol === "$NMOS_4TERM"),
+    ).toMatchObject({ ac: "nmos", importOnly: true });
   });
 
   it("draws the wide chopper with its own symbol, defined in the file (#2170)", () => {
@@ -127,18 +172,20 @@ describe("the RNL symbol list", () => {
     const definition = inlineRnlDefinition(wide);
     expect(definition.box).toEqual([-2.4, -4.4, 2.4, 4.4]);
     expect(definition.prims).toHaveLength(7);
-    // The narrow chopper still comes from the published package.
+    // The narrow chopper still comes from the standard series.
     expect(narrow).toMatchObject({
-      symbol: "$CANVAS_CHOPPER",
-      package: "analog-canvas-extensions",
+      symbol: "$CHOPPER_SYMBOL",
+      package: "rnl-std-functional",
     });
     expect(narrow.inline).toBeUndefined();
   });
 
-  it("preserves controlled-source circles and diamonds and reads legacy aliases", () => {
+  it("draws controlled-source diamonds with the standard symbols and circles with Analog Canvas's", () => {
     for (const source of ["vcvs", "vccs", "ccvs", "cccs"]) {
       expect(rnlSymbolFor(source, "diamond")).toMatchObject({
-        symbol: `$${source.toUpperCase()}`,
+        symbol: source.endsWith("vs")
+          ? "$CONTROLLED_VOLTAGE_SOURCE"
+          : "$CONTROLLED_CURRENT_SOURCE",
         package: "rnl-std-basic",
         variant: "diamond",
         importOnly: false,
@@ -149,25 +196,23 @@ describe("the RNL symbol list", () => {
         variant: null,
         importOnly: false,
       });
-      expect(
-        RNL_SYMBOLS.find(
-          (entry) => entry.symbol === `$CANVAS_${source.toUpperCase()}_DIAMOND`,
-        ),
-      ).toMatchObject({
-        ac: source,
-        variant: "diamond",
-        importOnly: true,
-      });
     }
+    expect(
+      RNL_SYMBOLS.some(
+        (entry) =>
+          /^\$CANVAS_\w+_DIAMOND$/u.test(entry.symbol) &&
+          entry.ac !== "current-source",
+      ),
+    ).toBe(false);
   });
 
   it("draws the op-amp kinds with + on top, Analog Canvas's − on top ones flipped", () => {
     expect(rnlSymbolFor("opamp-inputs-swapped")).toMatchObject({
-      symbol: "$OPAMP_5TERM",
+      symbol: "$OPAMP",
       orient: "R0",
     });
     expect(rnlSymbolFor("opamp")).toMatchObject({
-      symbol: "$OPAMP_5TERM",
+      symbol: "$OPAMP",
       orient: "MX",
     });
     expect(rnlSymbolFor("opamp-differential")).toMatchObject({
@@ -203,7 +248,9 @@ describe("the RNL symbol list", () => {
         [-3, -2],
       ]);
     }
-    expect(RNL_SYMBOLS.filter((entry) => entry.importOnly)).toHaveLength(11);
+    // The 4-input gates, the two-terminal Delay Cell and the 4-terminal
+    // MOSFETs of the standard series.
+    expect(RNL_SYMBOLS.filter((entry) => entry.importOnly)).toHaveLength(13);
   });
 
   it("names the definition a glyph or a drawing-only part draws", () => {

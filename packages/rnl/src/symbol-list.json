@@ -255,22 +255,22 @@
     "terminals": [
       {
         "n": 1,
-        "name": "p_plus",
+        "name": "p1",
         "drawn": true
       },
       {
         "n": 2,
-        "name": "p_minus",
+        "name": "n1",
         "drawn": true
       },
       {
         "n": 3,
-        "name": "s_plus",
+        "name": "p2",
         "drawn": true
       },
       {
         "n": 4,
-        "name": "s_minus",
+        "name": "n2",
         "drawn": true
       }
     ],
@@ -278,28 +278,28 @@
     "pins": [
       {
         "terminal": 2,
-        "name": "p_minus",
+        "name": "n1",
         "ac_pin": "P-",
         "at": [-2, 1],
         "dir": 180
       },
       {
         "terminal": 1,
-        "name": "p_plus",
+        "name": "p1",
         "ac_pin": "P+",
         "at": [2, 1],
         "dir": 0
       },
       {
         "terminal": 4,
-        "name": "s_minus",
+        "name": "n2",
         "ac_pin": "S-",
         "at": [-2, -1],
         "dir": 180
       },
       {
         "terminal": 3,
-        "name": "s_plus",
+        "name": "p2",
         "ac_pin": "S+",
         "at": [2, -1],
         "dir": 0
@@ -307,7 +307,7 @@
     ],
     "undrawn_pins": [],
     "box": [-2.4, -2.4, 2.4, 2.4],
-    "ac_netlist_order": ["p_minus", "p_plus", "s_minus", "s_plus"],
+    "ac_netlist_order": ["n1", "p1", "n2", "p2"],
     "note": "Spectre 原生的 transformer（analogLib 的 xfmr 就是它）；SPICE 写成两个 L 加 K。AC 印成子电路 xfmr，端口顺序 P− P+ S− S+，需重排"
   },
   {
@@ -527,7 +527,7 @@
     "note": "新画：AC 没有。Spectre 的 port（RF 端口，带内阻的源）"
   },
   {
-    "symbol": "$VCVS",
+    "symbol": "$CONTROLLED_VOLTAGE_SOURCE",
     "definition": null,
     "package": "rnl-std-basic",
     "ac": "vcvs",
@@ -614,7 +614,7 @@
     "note": "四端都画；现有标准库的画法，AC 不用"
   },
   {
-    "symbol": "$VCCS",
+    "symbol": "$CONTROLLED_CURRENT_SOURCE",
     "definition": null,
     "package": "rnl-std-basic",
     "ac": "vccs",
@@ -701,7 +701,7 @@
     "note": "四端都画，AC 不用"
   },
   {
-    "symbol": "$CCCS",
+    "symbol": "$CONTROLLED_CURRENT_SOURCE",
     "definition": null,
     "package": "rnl-std-basic",
     "ac": "cccs",
@@ -742,7 +742,7 @@
     "note": "F：控制是电压源的名字"
   },
   {
-    "symbol": "$CCVS",
+    "symbol": "$CONTROLLED_VOLTAGE_SOURCE",
     "definition": null,
     "package": "rnl-std-basic",
     "ac": "ccvs",
@@ -1233,8 +1233,8 @@
     "note": "标记：AC 的 NoConnect"
   },
   {
-    "symbol": "$CURRENT_ARROW_SYMBOL",
-    "definition": "$CURRENT_ARROW",
+    "symbol": "$ARROW_SYMBOL",
+    "definition": "$ARROW",
     "package": "rnl-std-basic",
     "ac": null,
     "variant": null,
@@ -1394,9 +1394,9 @@
     "note": "AC 的默认变体；衬底不画"
   },
   {
-    "symbol": "$NMOS_4TERM",
+    "symbol": "$CANVAS_NMOS_4TERM",
     "definition": null,
-    "package": "rnl-std-semiconductors",
+    "package": "analog-canvas-extensions",
     "ac": "nmos",
     "variant": null,
     "orient": "R0",
@@ -1457,6 +1457,72 @@
     "box": [-3.4, -2.4, 1.4, 2.4],
     "ac_netlist_order": null,
     "note": ""
+  },
+  {
+    "symbol": "$NMOS_4TERM",
+    "definition": null,
+    "package": "rnl-std-semiconductors",
+    "ac": "nmos",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "g",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "s",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "b",
+        "drawn": true
+      }
+    ],
+    "offset": [1, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "s",
+        "ac_pin": "S",
+        "at": [0, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 4,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [0, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-3.4, -2.4, 1.4, 2.4],
+    "ac_netlist_order": null,
+    "note": "",
+    "import_only": true
   },
   {
     "symbol": "$PMOS",
@@ -1523,9 +1589,9 @@
     "note": "AC 的默认变体；衬底不画"
   },
   {
-    "symbol": "$PMOS_4TERM",
+    "symbol": "$CANVAS_PMOS_4TERM",
     "definition": null,
-    "package": "rnl-std-semiconductors",
+    "package": "analog-canvas-extensions",
     "ac": "pmos",
     "variant": null,
     "orient": "R0",
@@ -1586,6 +1652,72 @@
     "box": [-3.4, -2.4, 1.4, 2.4],
     "ac_netlist_order": null,
     "note": ""
+  },
+  {
+    "symbol": "$PMOS_4TERM",
+    "definition": null,
+    "package": "rnl-std-semiconductors",
+    "ac": "pmos",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "g",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "s",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "b",
+        "drawn": true
+      }
+    ],
+    "offset": [1, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [0, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "s",
+        "ac_pin": "S",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 4,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [0, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-3.4, -2.4, 1.4, 2.4],
+    "ac_netlist_order": null,
+    "note": "",
+    "import_only": true
   },
   {
     "symbol": "$DEPLETION_NMOS",
@@ -1652,9 +1784,9 @@
     "note": ""
   },
   {
-    "symbol": "$DEPLETION_NMOS_4TERM",
+    "symbol": "$CANVAS_DEPLETION_NMOS_4TERM",
     "definition": null,
-    "package": "rnl-std-semiconductors",
+    "package": "analog-canvas-extensions",
     "ac": "depletion-nmos",
     "variant": null,
     "orient": "R0",
@@ -1715,6 +1847,72 @@
     "box": [-3.4, -2.4, 1.4, 2.4],
     "ac_netlist_order": null,
     "note": ""
+  },
+  {
+    "symbol": "$DEPLETION_NMOS_4TERM",
+    "definition": null,
+    "package": "rnl-std-semiconductors",
+    "ac": "depletion-nmos",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "g",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "s",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "b",
+        "drawn": true
+      }
+    ],
+    "offset": [1, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "s",
+        "ac_pin": "S",
+        "at": [0, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 4,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [0, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-3.4, -2.4, 1.4, 2.4],
+    "ac_netlist_order": null,
+    "note": "",
+    "import_only": true
   },
   {
     "symbol": "$DEPLETION_PMOS",
@@ -1781,9 +1979,9 @@
     "note": ""
   },
   {
-    "symbol": "$DEPLETION_PMOS_4TERM",
+    "symbol": "$CANVAS_DEPLETION_PMOS_4TERM",
     "definition": null,
-    "package": "rnl-std-semiconductors",
+    "package": "analog-canvas-extensions",
     "ac": "depletion-pmos",
     "variant": null,
     "orient": "R0",
@@ -1844,6 +2042,72 @@
     "box": [-3.4, -2.4, 1.4, 2.4],
     "ac_netlist_order": null,
     "note": ""
+  },
+  {
+    "symbol": "$DEPLETION_PMOS_4TERM",
+    "definition": null,
+    "package": "rnl-std-semiconductors",
+    "ac": "depletion-pmos",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "g",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "s",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "b",
+        "drawn": true
+      }
+    ],
+    "offset": [1, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [0, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "s",
+        "ac_pin": "S",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 4,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [0, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-3.4, -2.4, 1.4, 2.4],
+    "ac_netlist_order": null,
+    "note": "",
+    "import_only": true
   },
   {
     "symbol": "$NDMOS",
@@ -1910,9 +2174,9 @@
     "note": ""
   },
   {
-    "symbol": "$NDMOS_4TERM",
+    "symbol": "$CANVAS_NDMOS_4TERM",
     "definition": null,
-    "package": "rnl-std-semiconductors",
+    "package": "analog-canvas-extensions",
     "ac": "ndmos",
     "variant": null,
     "orient": "R0",
@@ -1973,6 +2237,72 @@
     "box": [-3.4, -2.4, 1.4, 2.4],
     "ac_netlist_order": null,
     "note": ""
+  },
+  {
+    "symbol": "$NDMOS_4TERM",
+    "definition": null,
+    "package": "rnl-std-semiconductors",
+    "ac": "ndmos",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "g",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "s",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "b",
+        "drawn": true
+      }
+    ],
+    "offset": [1, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "s",
+        "ac_pin": "S",
+        "at": [0, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 4,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [0, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-3.4, -2.4, 1.4, 2.4],
+    "ac_netlist_order": null,
+    "note": "",
+    "import_only": true
   },
   {
     "symbol": "$PDMOS",
@@ -2039,9 +2369,9 @@
     "note": ""
   },
   {
-    "symbol": "$PDMOS_4TERM",
+    "symbol": "$CANVAS_PDMOS_4TERM",
     "definition": null,
-    "package": "rnl-std-semiconductors",
+    "package": "analog-canvas-extensions",
     "ac": "pdmos",
     "variant": null,
     "orient": "R0",
@@ -2102,6 +2432,72 @@
     "box": [-3.4, -2.4, 1.4, 2.4],
     "ac_netlist_order": null,
     "note": ""
+  },
+  {
+    "symbol": "$PDMOS_4TERM",
+    "definition": null,
+    "package": "rnl-std-semiconductors",
+    "ac": "pdmos",
+    "variant": null,
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "g",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "s",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "b",
+        "drawn": true
+      }
+    ],
+    "offset": [1, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [0, -2],
+        "dir": 270
+      },
+      {
+        "terminal": 2,
+        "name": "g",
+        "ac_pin": "G",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "s",
+        "ac_pin": "S",
+        "at": [0, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 4,
+        "name": "b",
+        "ac_pin": "B",
+        "at": [0, 0],
+        "dir": 0
+      }
+    ],
+    "undrawn_pins": [],
+    "box": [-3.4, -2.4, 1.4, 2.4],
+    "ac_netlist_order": null,
+    "note": "",
+    "import_only": true
   },
   {
     "symbol": "$NPN",
@@ -2329,37 +2725,6 @@
     "symbol": "$OPAMP",
     "definition": null,
     "package": "rnl-std-functional",
-    "ac": null,
-    "variant": null,
-    "orient": "R0",
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "out",
-        "drawn": true
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [],
-    "undrawn_pins": [],
-    "box": null,
-    "ac_netlist_order": null,
-    "note": "理想运放，三端；AC 不用"
-  },
-  {
-    "symbol": "$OPAMP_5TERM",
-    "definition": null,
-    "package": "rnl-std-functional",
     "ac": "opamp-inputs-swapped",
     "variant": null,
     "orient": "R0",
@@ -2431,7 +2796,7 @@
     "note": "宏模型顺序；电源不画；+ 在上"
   },
   {
-    "symbol": "$OPAMP_5TERM",
+    "symbol": "$OPAMP",
     "definition": null,
     "package": "rnl-std-functional",
     "ac": "opamp",
@@ -2823,47 +3188,6 @@
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "comparator 画成本符号上下翻转（MX）"
-  },
-  {
-    "symbol": "$COMPARATOR_5TERM",
-    "definition": null,
-    "package": "rnl-std-functional",
-    "ac": null,
-    "variant": null,
-    "orient": "R0",
-    "terminals": [
-      {
-        "n": 1,
-        "name": "inp",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "inn",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "vp",
-        "drawn": false
-      },
-      {
-        "n": 4,
-        "name": "vn",
-        "drawn": false
-      },
-      {
-        "n": 5,
-        "name": "out",
-        "drawn": true
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [],
-    "undrawn_pins": [],
-    "box": null,
-    "ac_netlist_order": null,
-    "note": "宏模型顺序；AC 不用"
   },
   {
     "symbol": "$VOLTAGE_AMPLIFIER",
@@ -5304,9 +5628,9 @@
     "note": ""
   },
   {
-    "symbol": "$DELAY_CELL_SYMBOL",
+    "symbol": "$DELAY_CELL",
     "import_only": true,
-    "definition": "$DELAY_CELL",
+    "definition": null,
     "package": "rnl-std-logic",
     "ac": "delay-cell",
     "variant": null,
@@ -5346,7 +5670,7 @@
     "note": "纯画图：AC 不进网表"
   },
   {
-    "symbol": "$ADDER",
+    "symbol": "$ADDER_SYMBOL",
     "definition": null,
     "package": "rnl-std-signal-flow",
     "ac": "adder",
@@ -5355,17 +5679,17 @@
     "terminals": [
       {
         "n": 1,
-        "name": "a",
+        "name": "in1",
         "drawn": true
       },
       {
         "n": 2,
-        "name": "b",
+        "name": "in2",
         "drawn": true
       },
       {
         "n": 3,
-        "name": "y",
+        "name": "out",
         "drawn": true
       },
       {
@@ -5383,21 +5707,21 @@
     "pins": [
       {
         "terminal": 1,
-        "name": "a",
+        "name": "in1",
         "ac_pin": "A",
         "at": [-2, 0],
         "dir": 180
       },
       {
         "terminal": 2,
-        "name": "b",
+        "name": "in2",
         "ac_pin": "B",
         "at": [0, -2],
         "dir": 270
       },
       {
         "terminal": 3,
-        "name": "y",
+        "name": "out",
         "ac_pin": "Y",
         "at": [2, 0],
         "dir": 0
@@ -5416,11 +5740,11 @@
       }
     ],
     "box": [-2.4, -2.4, 2.4, 1.6],
-    "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
+    "ac_netlist_order": ["vp", "vn", "in1", "in2", "out"],
     "note": ""
   },
   {
-    "symbol": "$MULTIPLIER",
+    "symbol": "$MULTIPLIER_SYMBOL",
     "definition": null,
     "package": "rnl-std-signal-flow",
     "ac": "multiplier",
@@ -5429,17 +5753,17 @@
     "terminals": [
       {
         "n": 1,
-        "name": "a",
+        "name": "in1",
         "drawn": true
       },
       {
         "n": 2,
-        "name": "b",
+        "name": "in2",
         "drawn": true
       },
       {
         "n": 3,
-        "name": "y",
+        "name": "out",
         "drawn": true
       },
       {
@@ -5457,21 +5781,21 @@
     "pins": [
       {
         "terminal": 1,
-        "name": "a",
+        "name": "in1",
         "ac_pin": "A",
         "at": [-2, 0],
         "dir": 180
       },
       {
         "terminal": 2,
-        "name": "b",
+        "name": "in2",
         "ac_pin": "B",
         "at": [0, -2],
         "dir": 270
       },
       {
         "terminal": 3,
-        "name": "y",
+        "name": "out",
         "ac_pin": "Y",
         "at": [2, 0],
         "dir": 0
@@ -5490,7 +5814,7 @@
       }
     ],
     "box": [-2.4, -2.4, 2.4, 1.6],
-    "ac_netlist_order": ["vp", "vn", "a", "b", "y"],
+    "ac_netlist_order": ["vp", "vn", "in1", "in2", "out"],
     "note": ""
   },
   {
@@ -5503,12 +5827,12 @@
     "terminals": [
       {
         "n": 1,
-        "name": "a",
+        "name": "in",
         "drawn": true
       },
       {
         "n": 2,
-        "name": "y",
+        "name": "out",
         "drawn": true
       }
     ],
@@ -5516,14 +5840,14 @@
     "pins": [
       {
         "terminal": 1,
-        "name": "a",
+        "name": "in",
         "ac_pin": "A",
         "at": [-3, 0],
         "dir": 180
       },
       {
         "terminal": 2,
-        "name": "y",
+        "name": "out",
         "ac_pin": "Y",
         "at": [3, 0],
         "dir": 0
@@ -5544,12 +5868,12 @@
     "terminals": [
       {
         "n": 1,
-        "name": "a",
+        "name": "in",
         "drawn": true
       },
       {
         "n": 2,
-        "name": "y",
+        "name": "out",
         "drawn": true
       }
     ],
@@ -5557,14 +5881,14 @@
     "pins": [
       {
         "terminal": 1,
-        "name": "a",
+        "name": "in",
         "ac_pin": "A",
         "at": [-4, 0],
         "dir": 180
       },
       {
         "terminal": 2,
-        "name": "y",
+        "name": "out",
         "ac_pin": "Y",
         "at": [4, 0],
         "dir": 0
@@ -5585,12 +5909,12 @@
     "terminals": [
       {
         "n": 1,
-        "name": "a",
+        "name": "in",
         "drawn": true
       },
       {
         "n": 2,
-        "name": "y",
+        "name": "out",
         "drawn": true
       }
     ],
@@ -5598,14 +5922,14 @@
     "pins": [
       {
         "terminal": 1,
-        "name": "a",
+        "name": "in",
         "ac_pin": "A",
         "at": [-3, 0],
         "dir": 180
       },
       {
         "terminal": 2,
-        "name": "y",
+        "name": "out",
         "ac_pin": "Y",
         "at": [3, 0],
         "dir": 0
@@ -5626,12 +5950,12 @@
     "terminals": [
       {
         "n": 1,
-        "name": "a",
+        "name": "in",
         "drawn": true
       },
       {
         "n": 2,
-        "name": "y",
+        "name": "out",
         "drawn": true
       }
     ],
@@ -5639,14 +5963,14 @@
     "pins": [
       {
         "terminal": 1,
-        "name": "a",
+        "name": "in",
         "ac_pin": "A",
         "at": [-3, 0],
         "dir": 180
       },
       {
         "terminal": 2,
-        "name": "y",
+        "name": "out",
         "ac_pin": "Y",
         "at": [3, 0],
         "dir": 0
@@ -5729,7 +6053,7 @@
     ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM 的端子；+ 在上"
+    "note": "同 $OPAMP 的端子；+ 在上"
   },
   {
     "symbol": "$CANVAS_OPAMP_LETTERED",
@@ -5877,7 +6201,7 @@
     ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM 的端子；+ 在上"
+    "note": "同 $OPAMP 的端子；+ 在上"
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE",
@@ -6025,7 +6349,7 @@
     ],
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
-    "note": "同 $OPAMP_5TERM 的端子；+ 在上"
+    "note": "同 $OPAMP 的端子；+ 在上"
   },
   {
     "symbol": "$CANVAS_OPAMP_WIDE_LETTERED",
@@ -6250,9 +6574,9 @@
     "note": "comparator-unmarked 画成本符号上下翻转（MX）"
   },
   {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED",
+    "symbol": "$DIFFERENTIAL_OPAMP_TWISTED",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-functional",
     "ac": "opamp-differential-inputs-swapped",
     "variant": null,
     "orient": "R0",
@@ -6336,9 +6660,9 @@
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
   },
   {
-    "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_CROSSED",
+    "symbol": "$DIFFERENTIAL_OPAMP_TWISTED",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-functional",
     "ac": "opamp-differential-crossed",
     "variant": null,
     "orient": "MX",
@@ -7731,194 +8055,6 @@
     "note": "同 $CURRENT_SOURCE"
   },
   {
-    "symbol": "$CANVAS_VCCS_DIAMOND",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "vccs",
-    "variant": "diamond",
-    "orient": "R0",
-    "import_only": true,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "p",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "n",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "cp",
-        "drawn": false
-      },
-      {
-        "n": 4,
-        "name": "cn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "p",
-        "ac_pin": "+",
-        "at": [0, 2],
-        "dir": 90
-      },
-      {
-        "terminal": 2,
-        "name": "n",
-        "ac_pin": "-",
-        "at": [0, -2],
-        "dir": 270
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-1.5, -2.4, 1.5, 2.4],
-    "ac_netlist_order": null,
-    "note": "同 $VCCS"
-  },
-  {
-    "symbol": "$CANVAS_CCCS_DIAMOND",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "cccs",
-    "variant": "diamond",
-    "orient": "R0",
-    "import_only": true,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "p",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "n",
-        "drawn": true
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "p",
-        "ac_pin": "+",
-        "at": [0, 2],
-        "dir": 90
-      },
-      {
-        "terminal": 2,
-        "name": "n",
-        "ac_pin": "-",
-        "at": [0, -2],
-        "dir": 270
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-1.5, -2.4, 1.5, 2.4],
-    "ac_netlist_order": null,
-    "note": "同 $CCCS"
-  },
-  {
-    "symbol": "$CANVAS_VCVS_DIAMOND",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "vcvs",
-    "variant": "diamond",
-    "orient": "R0",
-    "import_only": true,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "p",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "n",
-        "drawn": true
-      },
-      {
-        "n": 3,
-        "name": "cp",
-        "drawn": false
-      },
-      {
-        "n": 4,
-        "name": "cn",
-        "drawn": false
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "p",
-        "ac_pin": "+",
-        "at": [0, 2],
-        "dir": 90
-      },
-      {
-        "terminal": 2,
-        "name": "n",
-        "ac_pin": "-",
-        "at": [0, -2],
-        "dir": 270
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-2.4, -2.4, 1.5, 2.4],
-    "ac_netlist_order": null,
-    "note": "同 $VCVS"
-  },
-  {
-    "symbol": "$CANVAS_CCVS_DIAMOND",
-    "definition": null,
-    "package": "analog-canvas-extensions",
-    "ac": "ccvs",
-    "variant": "diamond",
-    "orient": "R0",
-    "import_only": true,
-    "terminals": [
-      {
-        "n": 1,
-        "name": "p",
-        "drawn": true
-      },
-      {
-        "n": 2,
-        "name": "n",
-        "drawn": true
-      }
-    ],
-    "offset": [0, 0],
-    "pins": [
-      {
-        "terminal": 1,
-        "name": "p",
-        "ac_pin": "+",
-        "at": [0, 2],
-        "dir": 90
-      },
-      {
-        "terminal": 2,
-        "name": "n",
-        "ac_pin": "-",
-        "at": [0, -2],
-        "dir": 270
-      }
-    ],
-    "undrawn_pins": [],
-    "box": [-2.4, -2.4, 1.5, 2.4],
-    "ac_netlist_order": null,
-    "note": "同 $CCVS"
-  },
-  {
     "symbol": "$CANVAS_VCVS_CIRCLE",
     "definition": null,
     "package": "analog-canvas-extensions",
@@ -8103,9 +8239,9 @@
     "note": "AC 的圆圈画法；菱形用标准符号"
   },
   {
-    "symbol": "$CANVAS_PULSE_VOLTAGE_SOURCE",
+    "symbol": "$PULSE_VOLTAGE_SOURCE",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "pulse-voltage-source",
     "variant": null,
     "orient": "R0",
@@ -8144,9 +8280,9 @@
     "note": "边界：同 $VOLTAGE_SOURCE"
   },
   {
-    "symbol": "$CANVAS_CHOPPER",
+    "symbol": "$CHOPPER_SYMBOL",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-functional",
     "ac": "chopper",
     "variant": null,
     "orient": "R0",
@@ -8214,9 +8350,9 @@
     "note": "AC 的扩展：开关端在前、时钟在后（与 S 一致）；AC 印成子电路 ideal_chopper；时钟不画"
   },
   {
-    "symbol": "$CANVAS_CRYSTAL",
+    "symbol": "$CRYSTAL",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "crystal",
     "variant": null,
     "orient": "R0",
@@ -8255,9 +8391,9 @@
     "note": "AC 的扩展（0.5 起）：AC 印成子电路 crystal（Butterworth-Van Dyke 等效电路）"
   },
   {
-    "symbol": "$CANVAS_POLARIZED_CAPACITOR",
+    "symbol": "$POLARIZED_CAPACITOR",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "polarized-capacitor",
     "variant": null,
     "orient": "R0",
@@ -8296,9 +8432,9 @@
     "note": "AC 的扩展（0.6 起）：a C card, its + plate on terminal 1"
   },
   {
-    "symbol": "$CANVAS_LED",
+    "symbol": "$LED",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-semiconductors",
     "ac": "led",
     "variant": null,
     "orient": "R0",
@@ -8337,9 +8473,9 @@
     "note": "AC 的扩展（0.6 起）：a D card"
   },
   {
-    "symbol": "$CANVAS_SCHOTTKY_DIODE",
+    "symbol": "$SCHOTTKY_DIODE",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-semiconductors",
     "ac": "schottky-diode",
     "variant": null,
     "orient": "R0",
@@ -8378,9 +8514,9 @@
     "note": "AC 的扩展（0.6 起）：a D card"
   },
   {
-    "symbol": "$CANVAS_SHOCKLEY_DIODE",
+    "symbol": "$SHOCKLEY_DIODE",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-semiconductors",
     "ac": "shockley-diode",
     "variant": null,
     "orient": "R0",
@@ -8419,9 +8555,9 @@
     "note": "AC 的扩展（0.6 起）：a call of the four-layer body Analog Canvas writes"
   },
   {
-    "symbol": "$CANVAS_PUT",
+    "symbol": "$PUT",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-semiconductors",
     "ac": "put",
     "variant": null,
     "orient": "R0",
@@ -8472,9 +8608,9 @@
     "note": "AC 的扩展（0.6 起）：a call of the programmable unijunction body Analog Canvas writes"
   },
   {
-    "symbol": "$CANVAS_UJT",
+    "symbol": "$UJT",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-semiconductors",
     "ac": "ujt",
     "variant": null,
     "orient": "R0",
@@ -8525,9 +8661,9 @@
     "note": "AC 的扩展（0.6 起）：a call of the unijunction body Analog Canvas writes"
   },
   {
-    "symbol": "$CANVAS_POTENTIOMETER",
+    "symbol": "$POTENTIOMETER",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "potentiometer",
     "variant": null,
     "orient": "R0",
@@ -8578,9 +8714,9 @@
     "note": "AC 的扩展（0.6 起）：a call of the two-resistor body Analog Canvas writes, the wiper in the middle"
   },
   {
-    "symbol": "$CANVAS_PHOTORESISTOR",
+    "symbol": "$PHOTORESISTOR",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "photoresistor",
     "variant": null,
     "orient": "R0",
@@ -8619,9 +8755,9 @@
     "note": "AC 的扩展（0.6 起）：an R card"
   },
   {
-    "symbol": "$CANVAS_SPEAKER",
+    "symbol": "$SPEAKER",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "speaker",
     "variant": null,
     "orient": "R0",
@@ -8660,9 +8796,9 @@
     "note": "AC 的扩展（0.6 起）：an R card, the voice coil's resistance"
   },
   {
-    "symbol": "$CANVAS_MICROPHONE",
+    "symbol": "$MICROPHONE",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "microphone",
     "variant": null,
     "orient": "R0",
@@ -8701,9 +8837,9 @@
     "note": "AC 的扩展（0.6 起）：a V card, + on terminal 1"
   },
   {
-    "symbol": "$CANVAS_SINE_VOLTAGE_SOURCE",
+    "symbol": "$SINE_VOLTAGE_SOURCE",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "sine-voltage-source",
     "variant": null,
     "orient": "R0",
@@ -8742,9 +8878,9 @@
     "note": "AC 的扩展（0.6 起）：a V card with a SIN waveform, + on terminal 1"
   },
   {
-    "symbol": "$CANVAS_AMMETER",
+    "symbol": "$AMMETER",
     "definition": null,
-    "package": "analog-canvas-extensions",
+    "package": "rnl-std-basic",
     "ac": "ammeter",
     "variant": null,
     "orient": "R0",

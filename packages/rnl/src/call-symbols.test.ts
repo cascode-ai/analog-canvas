@@ -161,7 +161,7 @@ describe("library artwork of a call read back", () => {
     ).toEqual({ A: 3, Y: 4 });
   });
 
-  it("reads an op-amp back from the call symbol files written from #1939 to #1941 define, with its hidden supply leads", () => {
+  it("reads an op-amp back from its call symbol, and nothing from other artwork", () => {
     const opamp = symbolForCall(
       rnlSymbolFor("opamp")!,
       call([
@@ -173,33 +173,25 @@ describe("library artwork of a call read back", () => {
       ]),
     );
     expect(opamp.symbol).toBe("$CANVAS_CALL_OPAMP__0_0_1_2_5");
-    // Those files drew every primitive of the op-amp, its VDD and VSS leads
-    // last, in the width of its other leads.
-    const leads = builtInSymbols
+    expect(callSymbolFromDefinition(defined(opamp))?.ac).toBe("opamp");
+    // Exact artwork is the evidence: the supply leads the default variant
+    // hides are not ours.
+    const lead = builtInSymbols
       .find((symbol) => symbol.id === "opamp")!
-      .primitives.flatMap((primitive) =>
-        primitive.kind === "line" &&
-        (primitive.part === "vdd-lead" || primitive.part === "vss-lead")
-          ? [[toRnlPoint(primitive.from), toRnlPoint(primitive.to)]]
-          : [],
-      );
-    expect(leads).toHaveLength(2);
-    const withLeads = (count: number) => (written: RnlPrims) => [
-      ...written,
-      ...leads.slice(0, count).map((points) => ({
-        ...written.find((prim) => prim.shape === "line")!,
-        points,
-      })),
-    ];
-    for (const stencil of [
-      defined(opamp),
-      defined(opamp, undefined, undefined, withLeads(2)),
-    ])
-      expect(callSymbolFromDefinition(stencil)?.ac).toBe("opamp");
-    // Exact artwork is still the evidence: one lead more or less is not ours.
+      .primitives.find(
+        (primitive) =>
+          primitive.kind === "line" && primitive.part === "vdd-lead",
+      )!;
+    if (lead.kind !== "line") throw new Error("no lead");
     expect(
       callSymbolFromDefinition(
-        defined(opamp, undefined, undefined, withLeads(1)),
+        defined(opamp, undefined, undefined, (written: RnlPrims) => [
+          ...written,
+          {
+            ...written.find((prim) => prim.shape === "line")!,
+            points: [toRnlPoint(lead.from), toRnlPoint(lead.to)],
+          },
+        ]),
       ),
     ).toBeNull();
   });

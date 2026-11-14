@@ -121,7 +121,7 @@ export function importTexts(
     /** Whether a call meets the Cell's Pins, which it does by name. */
     /** The dialect the file is written in, which spells its names. */
     format: "spice" | "spectre";
-    /** The file says which wire each net label is on (Canvas 0.4). */
+    /** The file says which wire each net label is on. */
     wiresNamed: boolean;
     /** Analog Canvas wrote the file, so its labels keep their looks. */
     canvasLooks: boolean;
@@ -151,7 +151,7 @@ export function importTexts(
         : [],
     ),
   );
-  // A drawing text's typography role, where Canvas 0.4 states it.
+  // A drawing text's typography role, where the file states it.
   const tokenOf = new Map(
     model.objects.flatMap((object) => {
       const text = object.attach?.["text"];
@@ -431,7 +431,7 @@ export function importTexts(
         // Bound to the part's reference when it reads as that and the
         // drawing does not say otherwise; a name drawn otherwise (M1 on the
         // card XM1) is the label's own text, as drawn. A part the author
-        // never named (Canvas 0.4) shows the name the netlist gave it,
+        // never named shows the name the netlist gave it,
         // which is no name of its own: its label is bound, and shows none.
         // The export says so of every bound label; one that holds the
         // author's own text says nothing, and keeps that text.
@@ -561,7 +561,7 @@ export function importTexts(
       : undefined;
     /**
      * On the wire it is attached to, where it stands along it; in a file
-     * that does not say which wire (before Canvas 0.4, or another tool's),
+     * that does not say which wire (another tool's),
      * on the wire of its net it stands beside.
      */
     const onWire = (net: string) => {

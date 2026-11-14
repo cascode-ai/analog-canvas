@@ -275,6 +275,9 @@ export function readGlyphs(
       glyphOf.set(object.id, { instanceId: id, pinName });
       return;
     }
+    // What a package's rule makes and leaves to a solver, such as the
+    // standard fill's net labels on pins, is no mark of the file's.
+    if (at === null && /^@[^:]+\.rnl:/u.test(object.id)) return;
     marks.set(object.definition, (marks.get(object.definition) ?? 0) + 1);
   };
   return { glyphOf, openGlyphs, movedPins, placedPins, marks, read };

@@ -138,6 +138,12 @@ export function acRichText(
           runs.push(spanned({ kind: "text", value: run.text }, run.style));
         continue;
       }
+      // A square root (0.4) has no Analog Canvas form: its radicand stands.
+      if (run.kind === "sqrt") {
+        const radicand = acRichText([run.radicand]);
+        if (radicand) runs.push(...radicand.runs);
+        continue;
+      }
       const numerator = acRichText([run.num]);
       const denominator = acRichText([run.den]);
       if (numerator && denominator)

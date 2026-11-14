@@ -194,7 +194,7 @@ export function placeParts(scope: LevelScope): PlacedParts {
   // Parts: placed, turned and in the variant their symbol stands for.
   const unplaced: string[] = [];
   const placed: Instance[] = [];
-  // The symbol each part is drawn as, where the file names it (Canvas 0.4).
+  // The symbol each part is drawn as, where the file names it.
   const variantOf = new Map(
     model.objects.flatMap((object) => {
       const part = object.attach?.["part"];

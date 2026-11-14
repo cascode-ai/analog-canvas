@@ -110,27 +110,47 @@ export interface RnlExportDiagnostic {
 /**
  * The virtual elements a glyph stands for (standard package `rnl-std-basic`),
  * with the prefix of their usages' names. The mapping table says which
- * definition a glyph's symbol draws.
+ * definition a glyph's symbol draws. A Cell Pin on a net that is no port of
+ * its level, as at the file level, is a `$NET_LABEL` drawn with its port
+ * symbol, since an `$IO_PORT` asserts its net is a port.
  */
 const USAGE_PREFIX: Readonly<Record<string, string>> = {
   $GROUND: "gnd",
   $SUPPLY: "vdd",
   $IO_PORT: "port",
+  $NET_LABEL: "port",
 };
 
 /**
- * Packages the standard package `rnl-std` brings in by itself (16.3): they
- * hold the symbols for every element SPICE and Spectre read natively, all but
- * subcircuit calls. A file names every other package it uses. The rules that
- * pick those symbols by default come with the netlist dialect's own standard
- * package; the export needs none, since it sets every symbol itself.
+ * The glyph symbols that show the name of their net (`netname`, 13.3). The
+ * export writes a glyph's labels itself, so it hides that text where it
+ * writes none in its place: `rnl-std-no-labels` leaves it shown.
  */
-const IMPLICIT_PACKAGES = new Set(["rnl-std-basic", "rnl-std-semiconductors"]);
+const NETNAME_SYMBOLS = new Set([
+  "$NAMED_GROUND_SYMBOL",
+  "$SUPPLY_SYMBOL",
+  "$IO_PORT_SYMBOL",
+  "$CANVAS_PORT_FILLED",
+]);
 
 /**
- * The standard package that clears the labels symbols bring with them (name,
- * value, model; a usage's name), so a file shows only the labels it writes.
- * Formulas stay: Analog Canvas shows them.
+ * The packages every file uses, a series 0.4 file bringing in none by itself
+ * (16.3): the styles, and the symbols for every element SPICE and Spectre
+ * read natively. A file names every other package it uses; the standard
+ * fill (`rnl-std-fill`, in `rnl-std-all`) stays out, since the export draws
+ * every glyph and label itself.
+ */
+const BASE_PACKAGES = [
+  "rnl-std-style",
+  "rnl-std-basic",
+  "rnl-std-semiconductors",
+] as const;
+
+/**
+ * The standard package that hides the labels symbols bring with them (name,
+ * value, model), so a file shows only the labels it writes; the export
+ * writes each of its own visible (`textvisible`). Formulas stay: Analog
+ * Canvas shows them.
  */
 const NO_LABELS_PACKAGE = "rnl-std-no-labels";
 
@@ -184,7 +204,7 @@ export function rnlExportOps(
     });
   }
   // The editor's top, where a Cell printed beside it calls it and so is the
-  // netlist's top in its place (Canvas 0.4).
+  // netlist's top in its place.
   const calledTop =
     top &&
     !rootAsTopLevel &&
@@ -207,9 +227,15 @@ export function rnlExportOps(
     });
   }
   const header: RnlOp[] = [
-    "rnl-std",
+    ...BASE_PACKAGES,
     NO_LABELS_PACKAGE,
-    ...[...packages].filter((name) => !IMPLICIT_PACKAGES.has(name)).sort(),
+    ...[...packages]
+      .filter(
+        (name) =>
+          !(BASE_PACKAGES as readonly string[]).includes(name) &&
+          name !== NO_LABELS_PACKAGE,
+      )
+      .sort(),
   ].map((name) => ({
     level: top ? `subckt:${top.name}` : "",
     op: "use-package",
@@ -290,7 +316,7 @@ function canvasTypesetting(
         usual.subscriptAfterFirst,
       ],
       first_letter_italic: [own.firstLetterItalic, usual.firstLetterItalic],
-      // Canvas 0.5 names only the serif; the other faces await a version.
+      // Canvas 0.7 names only the serif; the other faces await a version.
       face: [
         presentation.textFace === "serif" ? "serif" : undefined,
         undefined,
@@ -453,7 +479,7 @@ function exportCell(
     params: canvasTypesetting(document.presentation),
   });
   // The Cell's own name, where the netlist must write it otherwise: a
-  // subcircuit name has no spaces (Canvas 0.4).
+  // subcircuit name has no spaces.
   if (document.netlist?.name && document.netlist.name !== cell.name)
     ops.push({
       level,
@@ -532,7 +558,8 @@ function exportCell(
     counters.set(prefix, count);
     return `%${prefix}${count}`;
   };
-  const drawnPorts = new Set<string>();
+  /** The glyphs drawn, by usage name: the symbol each is drawn with. */
+  const glyphSymbols = new Map<string, string>();
   /** Where each drawn part or glyph is registered, and the name RNL knows it by. */
   const placeOf = new Map<StableId, { object: string; at: RnlPoint }>();
   for (const instance of document.instances) {
@@ -725,7 +752,7 @@ function exportCell(
       );
     const mapped = symbol;
     // A pin the part shows that its RNL symbol draws none for, as an op-amp's
-    // shown supply on $OPAMP_5TERM (#1833): RNL fails a wire to a terminal
+    // shown supply on $OPAMP (#1833): RNL fails a wire to a terminal
     // with no pin (9.2.4), so none is written; the netlist still joins it.
     const unwritten = (mapped?.undrawnPins ?? []).filter((pin) =>
       reached.has(`${instance.id}\u0000${pin.acPin}`),
@@ -764,8 +791,8 @@ function exportCell(
             ),
           }
         : {};
-    const definition = symbol?.definition;
-    if (symbol && definition && USAGE_PREFIX[definition]) {
+    const glyph = symbol?.definition;
+    if (symbol && glyph && USAGE_PREFIX[glyph]) {
       const pin = symbol.pins[0]?.acPin;
       const net = pin ? netOfPin(instance.id, pin) : undefined;
       if (!net) {
@@ -777,10 +804,19 @@ function exportCell(
         );
         continue;
       }
-      const name = nextName(USAGE_PREFIX[definition]!);
+      const name = nextName(USAGE_PREFIX[glyph]!);
       usageOf.set(instance.id, name);
+      glyphSymbols.set(name, symbol.symbol);
       if (where.at) placeOf.set(instance.id, { object: name, at: where.at });
-      if (definition === "$IO_PORT") drawnPorts.add(net);
+      // A port tag asserts its net is a port of its level (12.4): a Cell
+      // Pin on any other net, as at the file level, is a net label drawn
+      // with the port's symbol.
+      const definition =
+        glyph === "$IO_PORT" &&
+        (level === "file" ||
+          !cell.ports.some((port) => plain(port.name) === net))
+          ? "$NET_LABEL"
+          : glyph;
       ops.push({
         level,
         op: "add-usage",
@@ -805,6 +841,24 @@ function exportCell(
     }
     const object = rnlName("#", reference);
     if (where.at) placeOf.set(instance.id, { object, at: where.at });
+    // A package symbol's pins bind the terminals of their names (9.2.4). A
+    // SPICE card's letter names its terminals as the symbol does (M1's d g s
+    // b), but a call names them as its subcircuit's ports, and a Spectre
+    // instance of a master (a model or a subcircuit) as the master does,
+    // which the file need not hold: there each pin is bound to the position
+    // the card prints it at (`@SET-SYMBOL(terminals=)`, 11.3). A symbol the
+    // file defines binds by position itself.
+    const named =
+      call?.invocationKind === "subcircuit" ||
+      (context.format === "spectre" && call?.target != null);
+    const bound =
+      symbol && !symbol.inline && named
+        ? symbol.pins.flatMap(({ terminal }): [number, string][] =>
+            terminal <= call.nodes.length
+              ? [[terminal, symbol.terminals[terminal - 1]!.name]]
+              : [],
+          )
+        : [];
     ops.push({
       level,
       op: "set",
@@ -814,12 +868,24 @@ function exportCell(
         : blockSymbol && binding?.kind === "external-subcircuit"
           ? { symbol: blockSymbol.name }
           : {}),
+      ...(bound.length ? { terminals: bound } : {}),
       ...paint,
       ...where,
     });
+    // The standard transconductor leaves its centred label empty; Analog
+    // Canvas draws its gm there, as series 0.3 did.
+    if (symbol?.symbol === "$TRANSCONDUCTOR")
+      ops.push({
+        level,
+        op: "add-text",
+        attach: object,
+        key: "label",
+        markup: String.raw`\textit{g}_{m}`,
+        style: { bold: false, textvisible: true },
+      });
     // The symbol the part is drawn as, where RNL draws it as another one
     // the import would take instead: an op-amp flipped top to bottom is the
-    // op-amp with its inputs swapped, unflipped (Canvas 0.4).
+    // op-amp with its inputs swapped, unflipped.
     if (
       symbol &&
       orient?.startsWith("M") &&
@@ -856,7 +922,7 @@ function exportCell(
       });
     }
     // A part the author never named, which the netlist must name to print
-    // its card (Canvas 0.4).
+    // its card.
     if (!instance.reference) {
       packages.add(CANVAS_PACKAGE);
       ops.push({
@@ -884,7 +950,7 @@ function exportCell(
       });
     }
     // Each parameter the editor keeps that the card does not print, by the
-    // editor's name for it (Canvas 0.4).
+    // editor's name for it.
     for (const { name, text } of unprintedParameters(cell, instance)) {
       packages.add(CANVAS_PACKAGE);
       ops.push({
@@ -897,17 +963,8 @@ function exportCell(
     }
   }
 
-  // A Cell Pin drawn as ground or supply, or not drawn at all, gets no port
-  // tag: each leaves the fill's set on its own, since RNL removes several
-  // nets only as one set of them (5.2.2).
-  for (const port of cell.ports)
-    if (!drawnPorts.has(plain(port.name)))
-      ops.push({
-        level,
-        op: "remove-from",
-        items: [rnlName("&", plain(port.name))],
-        set: "$PORT_FILL_SET",
-      });
+  const pointOfEndpoint = (endpoint: RouteEndpoint) =>
+    resolveEndpointPoint(document, context.resolver, endpoint);
 
   // A pin left open on purpose: the standard no-connect mark on its
   // terminal (12.6). RNL names no glyph's pin and no bus member.
@@ -937,28 +994,26 @@ function exportCell(
         `The no-connect mark on ${pin} has a reason, which RNL's mark does not keep`,
         [mark.id],
       );
+    // A usage has a point of its own (12.1), placed on its terminal's pin,
+    // which the definition's alignment alone leaves to a solver.
+    const at = pointOfEndpoint(mark.endpoint);
     ops.push({
       level,
       op: "add-usage",
       definition: "$NO_CONNECT",
       attach: { t: `${rnlName("#", reference)}:${terminal}` },
+      ...(at ? { at: toRnlPoint(at) } : {}),
     });
   }
 
   // Junctions are named points; the dots come below.
   const pointOf = new Map<StableId, string>();
-  const points = new Map<string, RnlOp & { op: "add-point" }>();
+  const pointAt = new Map<string, RnlPoint>();
   for (const junction of document.junctions) {
     const name = nextName("j");
     pointOf.set(junction.id, name);
-    const op = {
-      level,
-      op: "add-point" as const,
-      name,
-      at: toRnlPoint(junction.position),
-    };
-    points.set(name, op);
-    ops.push(op);
+    pointAt.set(name, toRnlPoint(junction.position));
+    ops.push({ level, op: "add-point", name, at: pointAt.get(name)! });
   }
 
   const vertex = (endpoint: RouteEndpoint): Vertex | undefined => {
@@ -966,8 +1021,9 @@ function exportCell(
       const point = pointOf.get(endpoint.junctionId);
       return point ? { point } : undefined;
     }
+    // A glyph's wire reaches its symbol's pin, `%pin` (9.2.4).
     const usage = usageOf.get(endpoint.instanceId);
-    if (usage) return { usage, role: "p" };
+    if (usage) return { owner: usage, pin: 0, reference: `${usage}::pin` };
     const reference = references.get(endpoint.instanceId);
     const terminal = terminalsOf.get(endpoint.instanceId)?.(endpoint.pinName);
     return reference && terminal
@@ -1036,8 +1092,6 @@ function exportCell(
       through.set(routeId, list);
     }
   }
-  const pointOfEndpoint = (endpoint: RouteEndpoint) =>
-    resolveEndpointPoint(document, context.resolver, endpoint);
   const routing = resolveDocumentRoutingGeometry(document, context.resolver);
   const profile = resolveDocumentStyleProfile(document.presentation);
 
@@ -1140,7 +1194,8 @@ function exportCell(
       op: "add-usage",
       name: nextName("arrow"),
       definition: "$ARROW",
-      attach: { p: arrow.at },
+      attach: { at: arrow.at },
+      at: arrow.at,
       orient: arrow.orient,
     });
   }
@@ -1161,25 +1216,26 @@ function exportCell(
         });
     }
     if (!contactRequiresJunctionDot(contact)) continue;
+    // A dot is a usage placed on its point (12.1): on the junction's named
+    // point, else on the contact's.
     const junction = contact.endpoints.find(
       (endpoint) => endpoint.kind === "junction",
     );
     const point =
       junction?.kind === "junction" ? pointOf.get(junction.junctionId) : null;
-    if (point) {
-      points.get(point)!.junction = true;
-      continue;
-    }
+    const at =
+      (point ? pointAt.get(point) : undefined) ?? toRnlPoint(contact.point);
     ops.push({
       level,
       op: "add-usage",
       name: nextName("dot"),
       definition: "$JUNCTION",
-      attach: { p: toRnlPoint(contact.point) },
+      attach: { p: point ?? at },
+      at,
     });
   }
 
-  exportTexts(document, level, {
+  const named = exportTexts(document, level, {
     context,
     logical,
     routing,
@@ -1190,6 +1246,18 @@ function exportCell(
     report,
     references,
   });
+  // A glyph's own net name, where the export writes no label in its place:
+  // hidden, as Analog Canvas draws the labels it shows itself (9.3).
+  for (const [glyph, symbol] of glyphSymbols)
+    if (NETNAME_SYMBOLS.has(symbol) && !named.has(glyph))
+      ops.push({
+        level,
+        op: "add-text",
+        attach: glyph,
+        key: "netname",
+        markup: "${p}",
+        style: { textvisible: false },
+      });
 }
 
 /**
@@ -1278,6 +1346,9 @@ function annotationFontSize(
  * subscript), since RNL cannot style part of a referenced name (13.6); it no
  * longer follows a rename. A part's labels hang on the part by key and
  * offset, a Net's on the Net at an absolute place, anything else on its point.
+ * Every text says its weight, which the standard style makes bold (9.3), and
+ * a keyed one that it is shown, which `rnl-std-no-labels` hides. Returns the
+ * glyphs a label of their net's name (`netname`) is written on.
  */
 function exportTexts(
   document: SchematicDocument,
@@ -1310,8 +1381,9 @@ function exportTexts(
     /** The name the netlist prints each part with. */
     references: ReadonlyMap<StableId, string | undefined>;
   },
-): void {
+): Set<string> {
   const { ops, resolver } = context;
+  const netnames = new Set<string>();
   const profile = resolveDocumentStyleProfile(document.presentation);
   const fixed: StableId[] = [];
   const hidden: StableId[] = [];
@@ -1337,7 +1409,7 @@ function exportTexts(
     });
   };
   // A drawing text's typography role, which RNL has no form for, on the
-  // text, named for it (Canvas 0.4); its size is written as well.
+  // text, named for it; its size is written as well.
   const typeset = (text: string, token: string | undefined) => {
     if (!token) return;
     context.packages.add(CANVAS_PACKAGE);
@@ -1368,6 +1440,7 @@ function exportTexts(
       lines,
       ...fields,
       ...(turn ? { rotate: turn } : {}),
+      style: shownStyle(fields),
     });
   };
 
@@ -1378,7 +1451,7 @@ function exportTexts(
     }
     // A part the author never named shows its name label empty; it is
     // written with the name the netlist gives the part, which the import,
-    // told the part is unnamed (Canvas 0.4), binds to its name again.
+    // told the part is unnamed, binds to its name again.
     const named =
       annotation.binding?.kind === "instance-reference"
         ? annotation.binding.instanceId
@@ -1432,6 +1505,8 @@ function exportTexts(
         let name: string | undefined;
         if (turn === null) tilted.push(annotation.id);
         else {
+          // The full-size head Analog Canvas draws, which the standard
+          // rule draws at half size; placed on its point (12.1).
           name = nextName("current");
           ops.push({
             level,
@@ -1439,6 +1514,8 @@ function exportTexts(
             name,
             definition: "$CURRENT_ARROW",
             attach: { p: toRnlPoint(marker.position) },
+            symbol: "$ARROW_SYMBOL",
+            at: toRnlPoint(marker.position),
             orient: `R${turn}` as RnlOrient,
           });
         }
@@ -1477,7 +1554,7 @@ function exportTexts(
             }),
             halign: "middle",
             size: rnlSize(markerProfile.typography.polarityFontSize),
-            ...(common.style ? { style: common.style } : {}),
+            style: shownStyle(common),
           });
         }
         continue;
@@ -1493,12 +1570,17 @@ function exportTexts(
       (annotation.kind === "instance-label" ||
         annotation.kind === "instance-value")
     ) {
+      // A glyph's name label is the name of its net its symbol shows
+      // (`netname`, 13.3), which the label takes the place of.
       const key =
         binding?.kind === "instance-value" && binding.parameter
           ? binding.parameter
           : annotation.kind === "instance-label"
-            ? "name"
+            ? owner.object.startsWith("%")
+              ? "netname"
+              : "name"
             : "value";
+      if (key === "netname") netnames.add(owner.object);
       write(annotation.id, text, shown.rotation, {
         ...common,
         // A key's text takes what the scene leaves unsaid from the symbol's
@@ -1562,6 +1644,7 @@ function exportTexts(
   }
 
   // Drawing objects, in the order Analog Canvas stacks them.
+  let figures = false;
   const objects = [...(document.drafting?.objects ?? [])].sort(
     (a, b) => a.zIndex - b.zIndex,
   );
@@ -1600,13 +1683,16 @@ function exportTexts(
       }
       if (!symbol.inline) context.packages.add(symbol.package);
       const orient = composeOrient(turn.orient, symbol.orient);
+      const at = rnlPlace(geometry.position, turn.orient, symbol.offset);
+      figures = true;
       ops.push({
         level,
         op: "add-usage",
         name: nextName("figure"),
         definition: "$FIGURE",
-        attach: { p: rnlPlace(geometry.position, turn.orient, symbol.offset) },
+        attach: { at },
         symbol: symbol.symbol,
+        at,
         orient,
       });
       continue;
@@ -1701,6 +1787,18 @@ function exportTexts(
     if (name) typeset(name, object.typographyToken);
   }
 
+  // A figure drawn with a device's symbol has no name, value or model for
+  // the symbol's labels to read (13.6): they are empty, as the editor draws
+  // none.
+  if (figures)
+    for (const key of ["name", "value", "model"])
+      ops.push({
+        level,
+        op: "add-rule",
+        select: { kind: "usage", definition: "$FIGURE" },
+        action: { op: "add-text", key, markup: "" },
+      });
+
   const say = (code: string, ids: StableId[], message: string) => {
     if (ids.length) report("warning", code, `${ids.length} ${message}`, ids);
   };
@@ -1730,6 +1828,23 @@ function exportTexts(
     drawings,
     "drawing objects keep only part of their look: a floating symbol with no RNL symbol is left out",
   );
+  return netnames;
+}
+
+/**
+ * A text's style with its weight, which the standard style makes bold (9.3),
+ * as Analog Canvas draws it, and a keyed label shown, which
+ * `rnl-std-no-labels` hides.
+ */
+function shownStyle(fields: {
+  key?: string;
+  style?: Record<string, string | number | boolean>;
+}): Record<string, string | number | boolean> {
+  return {
+    bold: false,
+    ...fields.style,
+    ...(fields.key ? { textvisible: true } : {}),
+  };
 }
 
 /**

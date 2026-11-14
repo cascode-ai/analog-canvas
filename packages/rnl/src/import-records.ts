@@ -32,7 +32,7 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
   const keptParameters: KeptParameter[] = [];
   const parameterTexts: RnlParameterText[] = [];
   /**
-   * A part the author never named, as it was (Canvas 0.4): one with no name
+   * A part the author never named, as it was: one with no name
    * has no netlist record and emits as its symbol's own body, so the record
    * the netlist import made for its card goes, where it holds no parameter.
    */
@@ -79,7 +79,7 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
     );
   };
 
-  /** The Cell's own name, where the netlist had to write it otherwise (Canvas 0.4). */
+  /** The Cell's own name, where the netlist had to write it otherwise. */
   const cellNameAgain = (object: RnlObjectView) => {
     const name = object.params?.["name"];
     if (
@@ -138,7 +138,7 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
   };
 
   /**
-   * A parameter the editor keeps that the card does not print (Canvas 0.4),
+   * A parameter the editor keeps that the card does not print,
    * given again where the netlist import did not bring it: a source's fields
    * of other waveforms, an op-amp's rails. A parameter the card prints is
    * the card's.

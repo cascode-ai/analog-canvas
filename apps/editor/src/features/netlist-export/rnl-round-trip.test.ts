@@ -104,13 +104,13 @@ it("uses native Pins, Ground and bulk styling even when external RNL uses the Ca
   const entryPath = "review.sp";
   const text = [
     "* External RNL review fixture",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full",version="0.3");',
-    '* @USE-PACKAGE(name="analog-canvas-extensions",version="0.5"); }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all",version="0.4");',
+    '* @USE-PACKAGE(name="analog-canvas-extensions",version="0.7"); }',
     ".model nch nmos",
     ".subckt review IN OUT BIAS",
     "M1 OUT IN 0 BIAS nch w=1u l=0.15u",
     "* @RNL {",
-    "* #M1 @SET-SYMBOL $NMOS_4TERM; #M1 @PLACE(0,0);",
+    "* #M1 @SET-SYMBOL $CANVAS_NMOS_4TERM; #M1 @PLACE(0,0);",
     '* &IN @WIRE(mode="straight") {(-8,0) #M1:2};',
     '* (-8.4,0) @TEXT("IN",halign="end");',
     '* &OUT @WIRE(mode="straight") {#M1:1 (0,7)};',
@@ -474,7 +474,10 @@ it.each(["spice", "spectre"] as const)(
       write: exported.request,
       svg: false,
     });
-    expect(written.text).toContain("@SET-SYMBOL $CANVAS_CRYSTAL");
+    // The standard crystal, its pins bound to the call's positions.
+    expect(written.text).toContain(
+      '@SET-SYMBOL(terminals=[[1, "n1"], [2, "n2"]]) $CRYSTAL',
+    );
     const plan = await importRnl(written.text, format);
     expect(failures(plan)).toEqual([]);
     const crystal = plan.project.documents
@@ -482,6 +485,47 @@ it.each(["spice", "spectre"] as const)(
       .find((instance) => instance.reference === "X1");
     expect(crystal?.symbolId).toBe("crystal");
     expect(crystal?.netlist?.parameters).toEqual({ rm: "30" });
+    const netlist = (circuit: CircuitProject) => {
+      const result = createDesignNetlistExport(circuit, { format });
+      return result.status === "ready" ? result.file.text : result.status;
+    };
+    expect(netlist(plan.project)).toBe(netlist(project));
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "brings back blocks whose standard symbols renamed their terminals or left their label empty through %s+RNL",
+  async (format) => {
+    const kinds = ["transconductance", "adder", "multiplier", "xfmr"];
+    const project = calledBlocks(kinds);
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.netlistDiagnostics));
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    // (A call-only Spectre multiplier prints its supplies first: it takes a
+    // call symbol of its own.)
+    for (const symbol of ["$TRANSCONDUCTOR", "$ADDER_SYMBOL", "$TRANSFORMER"])
+      expect(setsSymbol(written.text, symbol), symbol).toBe(true);
+    // The transconductor's gm, which the standard symbol no longer draws.
+    expect(written.text).toContain('key="label"');
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    const dut = plan.project.documents.find(
+      (document) => document.netlist?.name === "dut",
+    )!;
+    expect(
+      kinds.map(
+        (_, row) =>
+          dut.instances.find((instance) => instance.reference === `X${row + 1}`)
+            ?.symbolId,
+      ),
+    ).toEqual(kinds);
+    // The label is the symbol's own: it reads back as no text of the drawing.
+    expect(dut.drafting?.objects ?? []).toEqual([]);
+    expect(dut.routes).toHaveLength(project.documents[0]!.routes.length);
     const netlist = (circuit: CircuitProject) => {
       const result = createDesignNetlistExport(circuit, { format });
       return result.status === "ready" ? result.file.text : result.status;
@@ -536,7 +580,8 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
-const EXTENSIONS_06_PARTS = [
+/** Parts the standard series 0.4 draws, with the symbol of each. */
+const STANDARD_04_PARTS = [
   "polarized-capacitor",
   "led",
   "schottky-diode",
@@ -550,11 +595,25 @@ const EXTENSIONS_06_PARTS = [
   "sine-voltage-source",
   "ammeter",
 ] as const;
+const STANDARD_04_SYMBOLS = [
+  "$POLARIZED_CAPACITOR",
+  "$LED",
+  "$SCHOTTKY_DIODE",
+  "$SHOCKLEY_DIODE",
+  "$PUT",
+  "$UJT",
+  "$POTENTIOMETER",
+  "$PHOTORESISTOR",
+  "$SPEAKER",
+  "$MICROPHONE",
+  "$SINE_VOLTAGE_SOURCE",
+  "$AMMETER",
+];
 
 it.each(["spice", "spectre"] as const)(
-  "brings back each part the written Canvas package draws through %s+RNL",
+  "brings back each part the standard series 0.4 draws through %s+RNL",
   async (format) => {
-    const project = calledBlocks([...EXTENSIONS_06_PARTS]);
+    const project = calledBlocks([...STANDARD_04_PARTS]);
     const exported = createRnlExport(project, { format });
     if (exported.status !== "ready")
       throw new Error(
@@ -567,6 +626,9 @@ it.each(["spice", "spectre"] as const)(
     expect(written.text).toContain(
       `USE-PACKAGE(name="${CANVAS_PACKAGE}", version="${CANVAS_PACKAGE_VERSION}")`,
     );
+    for (const symbol of STANDARD_04_SYMBOLS)
+      expect(setsSymbol(written.text, symbol), symbol).toBe(true);
+    expect(written.text).not.toMatch(/@SET-SYMBOL(?:\([^)]*\))?\s+\$CANVAS_/u);
     const plan = await importRnl(written.text, format);
     expect(failures(plan)).toEqual([]);
     expect(
@@ -578,12 +640,12 @@ it.each(["spice", "spectre"] as const)(
       .flatMap((document) => document.instances)
       .filter((instance) => /^X\d+$/u.test(instance.reference ?? ""));
     expect(
-      EXTENSIONS_06_PARTS.map(
+      STANDARD_04_PARTS.map(
         (_, row) =>
           parts.find((instance) => instance.reference === `X${row + 1}`)
             ?.symbolId,
       ),
-    ).toEqual([...EXTENSIONS_06_PARTS]);
+    ).toEqual([...STANDARD_04_PARTS]);
     const netlist = (circuit: CircuitProject) => {
       const result = createDesignNetlistExport(circuit, { format });
       return result.status === "ready" ? result.file.text : result.status;
@@ -1609,7 +1671,7 @@ it("ends a wire to a port on no port at a junction there, and draws a ground on 
   // Ground of VSS, its wire on its pin.
   const text = [
     "* flat",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
     "R1 in VSS 1k",
     "V1 in 0 1",
     "V2 VSS 0 0",
@@ -1617,8 +1679,8 @@ it("ends a wire to a port on no port at a junction there, and draws a ground on 
     '*   #R1 @PLACE(0, 0) => @ORIENT("R0");',
     '*   %p = $IO_PORT @ATTACH &in => @PLACE(-6, 1) => @ORIENT("R0");',
     '*   %g = $GROUND @ATTACH &VSS => @PLACE(0, -4) => @ORIENT("R0");',
-    "*   &in @WIRE {%p:p (0, 1) #R1:1};",
-    "*   &VSS @WIRE {#R1:2 %g:p};",
+    "*   &in @WIRE {%p::pin (0, 1) #R1:1};",
+    "*   &VSS @WIRE {#R1:2 %g::pin};",
     "* }",
     ".end",
     "",
@@ -1676,7 +1738,7 @@ it("joins a wire that ends on a point another wire runs straight through", async
   // The gate wire runs straight through %j; the port's wire ends there.
   const text = [
     "* through",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
     ".model NMOS nmos level=54",
     ".model PMOS pmos level=54",
     ".subckt inv a y vdd vss",
@@ -1689,7 +1751,7 @@ it("joins a wire that ends on a point another wire runs straight through", async
     "*   %j = (-4, 0);",
     "*   $JUNCTION @ATTACH {%j};",
     "*   &a @WIRE {#MP:g (-4, 3) %j (-4, -3) #MN:g};",
-    "*   &a @WIRE {%p:p %j};",
+    "*   &a @WIRE {%p::pin %j};",
     "* }",
     ".ends inv",
     "X1 in out VDD 0 inv",
@@ -1723,11 +1785,12 @@ it("joins a wire that ends on a point another wire runs straight through", async
 });
 
 it("reads a Cell's call drawn with the standard gate in its terminal order as the Library gate", async () => {
-  // X1 prints its pins as $INVERTER numbers its terminals (a, y, then the
-  // supplies); X2 prints its supplies first, so its wires would move.
+  // Both calls bind $INVERTER's pins to their first two terminals: X1
+  // prints a and y there, then the supplies; X2 prints its supplies first,
+  // so its wires would move.
   const text = [
     "* std gate",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
     ".model NMOS nmos level=54",
     ".model PMOS pmos level=54",
     ".subckt inv a y vdd vss",
@@ -1745,7 +1808,7 @@ it("reads a Cell's call drawn with the standard gate in its terminal order as th
     "V2 VDD 0 1",
     "R3 out 0 1k",
     "* @RNL {",
-    "*   {#X1 #X2} @SET-SYMBOL $INVERTER;",
+    '*   {#X1 #X2} @SET-SYMBOL(terminals=[[1, "a"], [2, "y"]]) $INVERTER;',
     '*   #X1 @PLACE(0, 0) => @ORIENT("R0");',
     '*   #X2 @PLACE(10, 6) => @ORIENT("R0");',
     '*   #V1 @PLACE(-8, -2) => @ORIENT("R0");',
@@ -1788,7 +1851,7 @@ it("reads a Cell's call drawn with the standard gate in its terminal order as th
 it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not know, and keeps the drawing", async () => {
   const text = [
     "* refused names",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.7") }',
     ".subckt nch d g s b",
     "R1 d s 1k",
     ".ends nch",
@@ -1832,7 +1895,7 @@ it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not
 it("reads a rectangle given by its two corners as the one between them", async () => {
   const text = [
     "* frames",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
     "R1 a 0 1k",
     "* @RNL {",
     '*   #R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0");',
@@ -1999,14 +2062,14 @@ it.each([
     const text = [
       "* ground on a Cell's VSS",
       // The fill packages draw no port of their own on a Cell's VSS.
-      '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3"); @USE-PACKAGE(name="rnl-std-fill") {}; @USE-PACKAGE(name="rnl-std-spice") {} }',
+      '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4"); @USE-PACKAGE(name="rnl-std-fill", version="0.4") {}; @USE-PACKAGE(name="rnl-std-spice", version="0.4") {} }',
       ".subckt cell a vss",
       "R1 a vss 1k",
       "* @RNL {",
       '*   #R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0");',
       "*   %p_a = $IO_PORT @ATTACH &a => @PLACE(0, 4);",
-      "*   %g = $GROUND @ATTACH &vss => @PLACE(0, -4);",
-      "*   &vss @WIRE {#R1:2 %g:p}",
+      "*   %g = $GROUND @ATTACH &vss => @SET-SYMBOL $GROUND_SYMBOL => @PLACE(0, -4);",
+      "*   &vss @WIRE {#R1:2 %g::pin}",
       "* }",
       ".ends cell",
       `X1 in ${tie} cell`,
@@ -2074,7 +2137,7 @@ it("keeps a node the file names on a pin it marks unconnected", async () => {
   // on R2 is Analog Canvas's own and becomes the mark again.
   const text = [
     "* open pins",
-    '* @RNL(type="header") { @VERSION("0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
     "R1 a out 1k",
     "R2 a NC0001 1k",
     "V1 a 0 1",
@@ -2106,7 +2169,7 @@ it.each(["spice", "spectre"] as const)(
       format === "spice"
         ? [
             "* top level",
-            '* @RNL(type="header") { @VERSION("0.3") }',
+            '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
             ".subckt half a b",
             "R1 a b 1k",
             ".ends half",
@@ -2120,7 +2183,7 @@ it.each(["spice", "spectre"] as const)(
         : [
             "// top level",
             "simulator lang=spectre",
-            '// @RNL(type="header") { @VERSION("0.3") }',
+            '// @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
             "subckt half (a b)",
             "R1 (a b) resistor r=1k",
             "ends half",
@@ -2164,7 +2227,7 @@ it("puts a point a bus wire meets first on the net of the wire of one net", asyn
   // in (rnl-gallery's RISC-A did not).
   const text = [
     "* bus tap",
-    '* @RNL(type="header") { @VERSION("0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
     "R1 a 0 1k",
     "R2 b 0 1k",
     "R3 a b 1k",
@@ -2198,10 +2261,11 @@ it("shows the names a file's glyphs draw by themselves, where RNL draws them", a
   // Another tool leaves the names to the standard symbols (`${p}`): a
   // supply's above its bar, a Named Ground's under its bars, a port's on the
   // side away from its pin, which turns with the port. Analog Canvas shows
-  // each; a plain ground on dgnd draws none, so it shows none.
+  // each; a ground on dgnd drawn with the plain symbol draws none, so it
+  // shows none.
   const text = [
     "* glyph names",
-    '* @RNL(type="header") { @VERSION("0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
     ".subckt inv a y vdd vss",
     "R1 a y 1k",
     "R2 y vss 1k",
@@ -2219,7 +2283,7 @@ it("shows the names a file's glyphs draw by themselves, where RNL draws them", a
     "R5 x dgnd 1k",
     "* @RNL { #Xi @PLACE(0, 0); #R4 @PLACE(40, 10); #R5 @PLACE(50, 10);",
     "*   %g1 = $GROUND @ATTACH &agnd => @SET-SYMBOL $NAMED_GROUND_SYMBOL => @PLACE(40, 4);",
-    "*   %g2 = $GROUND @ATTACH &dgnd => @PLACE(50, 4); %s1 = $SUPPLY @ATTACH &x => @PLACE(40, 20) }",
+    "*   %g2 = $GROUND @ATTACH &dgnd => @SET-SYMBOL $GROUND_SYMBOL => @PLACE(50, 4); %s1 = $SUPPLY @ATTACH &x => @PLACE(40, 20) }",
     ".end",
     "",
   ].join("\n");
@@ -2276,7 +2340,7 @@ it("keeps parts where RNL puts them, on a finer Document grid", async () => {
   // stays there, and the Document takes the 1-unit grid that holds it.
   const text = [
     "* off the grid",
-    '* @RNL(type="header") { @VERSION("0.3") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
     "R1 a 0 1k",
     "R2 a 0 1k",
     "* @RNL { #R1 @PLACE(1.3, 0); #R2 @PLACE(4, 0) }",
@@ -2304,7 +2368,7 @@ it("names a part again as Analog Canvas named it, from $CANVAS_NAME", async () =
   // names otherwise prints as X and its name.
   const text = [
     "* named parts",
-    '* @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.2") }',
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.7") }',
     ".subckt nch d g s b",
     "R1 d s 1k",
     ".ends nch",
@@ -3039,7 +3103,7 @@ it.each(
       svg: false,
     });
     const symbol = rnlSymbolFor(binding.symbolId)!.symbol;
-    expect(written.text).toContain(`@SET-SYMBOL ${symbol}`);
+    expect(setsSymbol(written.text, symbol)).toBe(true);
     const plan = await importRnl(written.text, format);
     expect(failures(plan)).toEqual([]);
     expect(
@@ -3058,10 +3122,12 @@ it.each(
 it("keeps a wire RNL draws on a Cell's GND, which it reads as ground (#1784)", async () => {
   const written = await runtime.write({
     write: {
+      language_version: "0.4",
       dialect: "spice",
       netlist: "\n.subckt dut a GND\nR1 a GND 1k\n.ends dut\n",
       author: "test",
       ops: [
+        { op: "use-package", name: "rnl-std-basic", version: "0.4" },
         {
           op: "set",
           level: "subckt:dut",
@@ -3923,7 +3989,9 @@ async function expectViewerLabels(
       (item) => item.title === level.name,
     );
     for (const text of level.model?.texts ?? []) {
-      if (!text.written || !text.attach || !text.key) continue;
+      // A text its style hides (a glyph's own net name) is not drawn.
+      if (!text.written || !text.attach || !text.key || text.visible === false)
+        continue;
       const owner = `${text.attach}::${text.key}`;
       const primitive = drawing?.primitives?.find(
         (item) => item.kind === "text" && item.owner === owner,
@@ -4014,6 +4082,16 @@ async function roundTrip(
 const pathOf = (format: "spice" | "spectre") =>
   format === "spice" ? "circuit.sp" : "circuit.scs";
 
+/**
+ * Whether a written file draws a part with `symbol`, its pins bound by a
+ * terminal map (`@SET-SYMBOL(terminals=…)`) or by name.
+ */
+const setsSymbol = (text: string, symbol: string) =>
+  new RegExp(
+    `@SET-SYMBOL(?:\\([^)]*\\))?\\s+${symbol.replaceAll("$", "\\$")}(?![A-Z0-9_])`,
+    "u",
+  ).test(text);
+
 /** Import a rich netlist as File > Import > RNL... does. */
 async function importRnl(text: string, format: "spice" | "spectre") {
   const path = pathOf(format);
@@ -4033,7 +4111,7 @@ const failures = (plan: Awaited<ReturnType<typeof importRnl>>) =>
   );
 
 /**
- * A write request as another tool, or Analog Canvas before Canvas 0.2,
+ * A write request as another tool
  * writes the drawing: without what only Analog Canvas keeps.
  */
 function withoutCanvasMeaning(request: RnlWriteRequest): RnlWriteRequest {
@@ -4435,7 +4513,7 @@ describe("RNL round trip", () => {
       });
       // RNL's own viewers show the name the netlist gives the part.
       expect(written.text).toMatch(
-        /#X\d+ @TEXT\("[^"]*X\d+[^"]*", key="name"/u,
+        /#X\d+[\s*/]+@TEXT\("[^"]*X\d+[^"]*", key="name"/u,
       );
       const plan = await importRnl(written.text, format);
       expect(failures(plan)).toEqual([]);
@@ -7010,6 +7088,68 @@ it.each(["spice", "spectre"] as const)(
 );
 
 it.each(["spice", "spectre"] as const)(
+  "draws a project's copy of a standard source, saved before body fill, with the standard symbol through %s+RNL",
+  async (format) => {
+    // A copy made before the Library marked the source's circle as a body
+    // fill may paint (#2313) draws the same source.
+    const project = calledBlocks(["current-source"]);
+    const library = builtInSymbols.find(
+      (symbol) => symbol.id === "current-source",
+    )!;
+    expect(
+      library.primitives.some(
+        (primitive) => "fillableBody" in primitive && primitive.fillableBody,
+      ),
+    ).toBe(true);
+    const copyId = "trial-source-reference-I1";
+    project.componentDefinitions = [
+      {
+        symbol: {
+          ...library,
+          id: copyId,
+          primitives: library.primitives.map((primitive) => {
+            const { fillableBody: _, ...shape } =
+              primitive as typeof primitive & {
+                fillableBody?: boolean;
+              };
+            return shape;
+          }),
+        },
+        electrical: {
+          ...deviceDescriptor("current-source")!,
+          id: copyId,
+          symbolId: copyId,
+        },
+      },
+    ] as CircuitProject["componentDefinitions"];
+    const part = project.documents[0]!.instances.find(
+      (instance) => instance.id === "X1",
+    )!;
+    part.symbolId = copyId;
+    const exported = createRnlExport(project, { format });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(setsSymbol(written.text, "$CURRENT_SOURCE")).toBe(true);
+    const plan = await importRnl(written.text, format);
+    expect(failures(plan)).toEqual([]);
+    expect(
+      plan.project.documents[0]!.instances.find(
+        (instance) => instance.reference === "X1",
+      )!.symbolId,
+    ).toBe("current-source");
+    const before = createDesignNetlistExport(project, { format });
+    const after = createDesignNetlistExport(plan.project, { format });
+    expect(after.status === "ready" && after.file.text).toBe(
+      before.status === "ready" && before.file.text,
+    );
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
   "reads a transformer back the transformer, through %s+RNL",
   async (format) => {
     const project = createEmptyProject("magnetic", "Magnetic", "dut");
@@ -7155,9 +7295,9 @@ describe("RNL round trip of 4-input gates", () => {
         svg: false,
       });
       for (const gate of GATES_4)
-        expect(written.text).toContain(
-          `@SET-SYMBOL $CANVAS_${gate.toUpperCase()}_4INPUT`,
-        );
+        expect(
+          setsSymbol(written.text, `$CANVAS_${gate.toUpperCase()}_4INPUT`),
+        ).toBe(true);
       expect(written.text).toContain(
         `@USE-PACKAGE(name="${CANVAS_PACKAGE}", version="${CANVAS_PACKAGE_VERSION}")`,
       );
@@ -7224,7 +7364,7 @@ describe("RNL round trip of 4-input gates", () => {
       ) as typeof exported.request;
       const written = await runtime.write({ write: request, svg: false });
       expect(written.text).not.toContain("$CANVAS_");
-      expect(written.text).toContain("@SET-SYMBOL $AND_4INPUT");
+      expect(setsSymbol(written.text, "$AND_4INPUT")).toBe(true);
       const plan = await importRnl(written.text, format);
       expect(failures(plan)).toEqual([]);
       const parts = plan.project.documents.flatMap(
@@ -7477,12 +7617,17 @@ describe.each(["circle", "diamond"] as const)(
           write: exported.request,
           svg: false,
         });
+        // The standard diamonds draw a controlled source's output alone,
+        // one for the voltage sources and one for the current sources; the
+        // card's letter tells which source it is.
         for (const kind of kinds) {
           const symbol =
             shape === "diamond"
-              ? `$${kind.toUpperCase()}`
+              ? kind.endsWith("vs")
+                ? "$CONTROLLED_VOLTAGE_SOURCE"
+                : "$CONTROLLED_CURRENT_SOURCE"
               : `$CANVAS_${kind.toUpperCase()}_CIRCLE`;
-          expect(written.text).toContain(`@SET-SYMBOL ${symbol}`);
+          expect(setsSymbol(written.text, symbol), kind).toBe(true);
         }
         expect(written.text.includes("@SET-SYMBOL $CANVAS_")).toBe(
           shape === "circle",
@@ -7569,80 +7714,6 @@ describe("another tool's label looks", () => {
         expect(label.textColor).toBeUndefined();
         expect(label.formatOverride).toBeUndefined();
       }
-    },
-  );
-});
-
-describe("legacy controlled-source diamond symbols", () => {
-  it.each([
-    ["spice", CONTROLLED_SOURCE_KINDS],
-    ["spectre", ["vcvs", "vccs"]],
-  ] as const)(
-    "imports the old aliases as diamonds (%s)",
-    async (format, kinds) => {
-      const project = withImportedInstanceDisplays(controlledSources(kinds));
-      const exported = createRnlExport(project, { format });
-      if (exported.status !== "ready") throw new Error("export blocked");
-      const standard = new Set(kinds.map((kind) => `$${kind.toUpperCase()}`));
-      // A file Analog Canvas wrote with Canvas 0.1.
-      const old = withoutCanvasMeaning(exported.request);
-      const written = await runtime.write({
-        write: {
-          ...old,
-          ops: [
-            ...old.ops.flatMap((op) =>
-              op.op === "set" && op.symbol && standard.has(op.symbol)
-                ? [{ ...op, symbol: `$CANVAS_${op.symbol.slice(1)}_DIAMOND` }]
-                : op.op === "use-package" &&
-                    op.name === "analog-canvas-extensions"
-                  ? []
-                  : [op],
-            ),
-            {
-              op: "use-package",
-              level: "subckt:dut",
-              name: "analog-canvas-extensions",
-              version: "0.1",
-            },
-          ],
-        },
-        svg: false,
-      });
-      for (const kind of kinds)
-        expect(written.text).toContain(
-          `@SET-SYMBOL $CANVAS_${kind.toUpperCase()}_DIAMOND`,
-        );
-      const plan = await importRnl(written.text, format);
-      expect(failures(plan)).toEqual([]);
-      const sources = plan.project.documents
-        .flatMap((document) => document.instances)
-        .filter((part) => kinds.some((kind) => kind === part.symbolId));
-      expect(sources).toHaveLength(kinds.length);
-      for (const part of sources) {
-        expect(part.symbolVariantId).toBe("diamond");
-        const original = project.documents[0]!.instances.find(
-          (instance) => instance.reference === part.reference,
-        );
-        if (!original) throw new Error("original source missing");
-        expect(rnlPart(part)).toEqual(rnlPart(original));
-      }
-      const reexported = createRnlExport(plan.project, { format });
-      if (reexported.status !== "ready") throw new Error("re-export blocked");
-      const rewritten = await runtime.write({
-        write: reexported.request,
-        svg: false,
-      });
-      expect(rewritten.text).not.toContain("@SET-SYMBOL $CANVAS_");
-      for (const kind of kinds)
-        expect(rewritten.text).toContain(`@SET-SYMBOL $${kind.toUpperCase()}`);
-      expect(
-        labelDifferences(labelCensus(project), labelCensus(plan.project)),
-      ).toEqual([]);
-      const before = createDesignNetlistExport(project, { format });
-      const after = createDesignNetlistExport(plan.project, { format });
-      expect(after.status === "ready" && after.file.text).toBe(
-        before.status === "ready" && before.file.text,
-      );
     },
   );
 });
