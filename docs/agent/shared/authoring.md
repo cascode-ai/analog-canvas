@@ -441,10 +441,11 @@ A pin unused on purpose (QBAR) needs No Connect or the netlist blocks with
 ## Batches and limits
 
 Placements, wires, labels, models and annotation moves batch atomically:
-failure commits nothing, success is one undo. A batch of any size is one
-transaction: no count of parts, wires, actions, edits or selected objects
-splits or refuses it; only the request's bytes are bounded
-(`maxRequestBytes`). An Editor page loaded before this rule refuses a large
+failure commits nothing, success is one undo. A batch is one transaction:
+no Agent count of parts, wires, actions or selected objects splits or
+refuses it. It is bounded by the request's bytes (`maxRequestBytes`) and the
+Edit Engine ceiling of 8192 edits per Document and 256 structural edits per
+transaction. An Editor page loaded before this rule refuses a large
 batch with `LIMIT_EXCEEDED` or `INVALID_REQUEST`: reload it and retry.
 
 Display flags, Port directions, VDD mode, terminal removal and power rails

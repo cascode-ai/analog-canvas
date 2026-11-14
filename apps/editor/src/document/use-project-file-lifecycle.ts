@@ -1017,7 +1017,13 @@ export function useProjectFileLifecycle({
       applied = true;
       setStatus(
         staged.migrated
-          ? `Imported and upgraded ${staged.fileName} from schema ${staged.sourceSchemaVersion} to schema ${CURRENT_PROJECT_FILE_VERSION}${normalizedDocumentCount > 0 ? ` and normalized connectivity and Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}${drawnNote}` : ""} — ${projectStore ? "save to Cloud or export" : "export"} to keep the upgrade`
+          ? `${
+              // A current file can still migrate a retired value (its
+              // Symbol Library lock) without changing schema.
+              staged.sourceSchemaVersion === CURRENT_PROJECT_FILE_VERSION
+                ? `Imported and updated ${staged.fileName} to the current format`
+                : `Imported and upgraded ${staged.fileName} from schema ${staged.sourceSchemaVersion} to schema ${CURRENT_PROJECT_FILE_VERSION}`
+            }${normalizedDocumentCount > 0 ? ` and normalized connectivity and Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}${drawnNote}` : ""} — ${projectStore ? "save to Cloud or export" : "export"} to keep the upgrade`
           : normalizedDocumentCount > 0
             ? `Opened ${staged.fileName} and normalized connectivity and Wire topology in ${normalizedDocumentCount} Cell${normalizedDocumentCount === 1 ? "" : "s"}${drawnNote} — ${projectStore ? "save to Cloud or export" : "export"} to keep the repair`
             : `Opened ${staged.fileName} at revision ${staged.topDocumentRevision}`,

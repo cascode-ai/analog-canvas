@@ -1,5 +1,6 @@
 import {
   CURRENT_MODEL_SCHEMA_VERSION,
+  CURRENT_SYMBOL_LIBRARY_LOCK,
   CircuitProjectSchema,
   deriveStableId,
 } from "@icm/model";
@@ -1838,11 +1839,7 @@ function importCircuitIR(
         };
       }),
     },
-    symbolLibrary: {
-      id: "razavi-symbols",
-      version: "1",
-      hash: "razavi-reference-v1",
-    },
+    symbolLibrary: { ...CURRENT_SYMBOL_LIBRARY_LOCK },
     structureRevision: 0,
     topDocumentId: topDocument.id,
     documents,
