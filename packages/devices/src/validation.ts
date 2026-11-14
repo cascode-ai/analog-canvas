@@ -98,20 +98,12 @@ export function validateDeviceDescriptors(
         message: "Only capacitor devices may declare plate semantics",
       });
     }
-    // A two-terminal capacitor names its plates. A MOS varactor's gates and
-    // well are not plates of one capacitor, so it names none.
+    // A capacitor that prints its own card names its plates. One that prints
+    // nothing itself, a MOS varactor whose PDK device is its netlist form,
+    // need not: its gates and well are not plates of one capacitor.
     if (
       descriptor.deviceClass === "capacitor" &&
-      descriptor.pinOrder.length !== 2
-    ) {
-      if (semanticRoles.size > 0)
-        issues.push({
-          deviceId: descriptor.id,
-          message:
-            "Only two-terminal capacitor devices may declare plate semantics",
-        });
-    } else if (
-      descriptor.deviceClass === "capacitor" &&
+      !(descriptor.targetPolicy === "none" && semanticRoles.size === 0) &&
       (semanticPins.size !== 2 ||
         !semanticRoles.has("capacitor-top-plate") ||
         !semanticRoles.has("capacitor-bottom-plate"))
