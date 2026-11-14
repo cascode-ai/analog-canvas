@@ -497,16 +497,20 @@ try {
     .poll(() => running.evaluate(() => typeof globalThis.__finishPendingSave))
     .toBe("function");
   await fileCommand(native, "Project Info");
-  const pendingInfo = native.getByRole("dialog", {
+  const pendingInfo = native.getByRole("complementary", {
     name: "Project Info",
     exact: true,
   });
   const pendingName = pendingInfo.getByRole("textbox", {
-    name: "Name",
+    name: "Circuit name",
     exact: true,
   });
   await pendingName.fill("Edited during Save As");
   await pendingName.press("Enter");
+  await expect(native.getByTestId("project-name")).toHaveText(
+    "Edited during Save As",
+  );
+  await pendingInfo.getByRole("button", { name: "Close", exact: true }).click();
   await expect(pendingInfo).toBeHidden();
   await running.evaluate((_electron, destination) => {
     globalThis.__finishPendingSave({ canceled: false, filePath: destination });
