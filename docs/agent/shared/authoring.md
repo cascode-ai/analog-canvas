@@ -228,6 +228,11 @@ their IDs, never resolved to the first.
   inductor (`set-model` `sky130_fd_pr__ind_03_90`,
   `sky130_fd_pr__ind_05_125` or `sky130_fd_pr__ind_05_220`) is drawn with
   it: A, B and CT are pins 1, 2 and 3, and SUB is set with `set-terminal-net`.
+- IHP's MOS varactor (`set-model` `sg13_hv_svaricap`; `w l Nx m`) is drawn as
+  `mos-varactor`: gates `G1` and `G2` at the ends and n-well control `W`
+  below are pins, and its substrate `B` (`bn`) is set with `set-terminal-net`.
+  It has no netlist form until that model is set. `variable-capacitor` stays
+  an ideal tunable capacitor and takes no model.
 
 ### Controlled sources
 

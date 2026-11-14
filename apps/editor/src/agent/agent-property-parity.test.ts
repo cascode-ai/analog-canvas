@@ -1446,6 +1446,79 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     expect(text).toMatch(/^XL2 A2 B2 VSS VSS sky130_fd_pr__ind_05_125$/mu);
   });
 
+  it("draws IHP's MOS varactor with its gates and well as pins, in the PDK's terminal order (#2321)", async () => {
+    const { controller, apply, refuse, instance } = await session();
+    const port = (name: string, x: number, y: number) => ({
+      kind: "place-component",
+      symbol: "port",
+      reference: name,
+      direction: "inout",
+      pinAnchor: { pinName: "P", position: { x, y } },
+    });
+    // The MOS Varactor's pins: G1 (-30, 0), W (0, 20), G2 (30, 0).
+    await apply([
+      place("mos-varactor", "C1", 300),
+      port("EP", 270, 100),
+      port("W1F", 300, 120),
+      port("EN", 330, 100),
+      {
+        kind: "place-component",
+        symbol: "ground",
+        id: "gnd",
+        position: { x: 450, y: 300 },
+      },
+      place("variable-capacitor", "C2", 600),
+    ]);
+    // Var Cap stays an ideal tunable capacitor (#1298).
+    expect(
+      await refuse([
+        {
+          kind: "set-model",
+          target: { kind: "instance", reference: "C2" },
+          model: "sg13_hv_svaricap",
+        },
+      ]),
+    ).toContain("sg13_hv_svaricap");
+    await apply([
+      { kind: "delete", target: { kind: "instance", reference: "C2" } },
+    ]);
+    // Until its model is set, the varactor has no netlist form.
+    expect(
+      createDesignNetlistExport(controller.project, { format: "spice" }),
+    ).toMatchObject({
+      status: "blocked",
+      diagnostics: [
+        {
+          code: "MISSING_MODEL_TARGET",
+          message: "Instance C1 requires a model: sg13_hv_svaricap",
+        },
+      ],
+    });
+    await apply([
+      {
+        kind: "set-model",
+        target: { kind: "instance", reference: "C1" },
+        model: "sg13_hv_svaricap",
+      },
+      {
+        kind: "set-property",
+        target: { kind: "instance", reference: "C1" },
+        set: { w: "9.74u", l: "0.8u", Nx: "3" },
+      },
+    ]);
+    expect(instance("C1").symbolId).toBe("mos-varactor");
+    const exported = createDesignNetlistExport(controller.project, {
+      format: "spice",
+    });
+    expect(exported.status, JSON.stringify(exported)).toBe("ready");
+    if (exported.status !== "ready") return;
+    // `.subckt sg13_hv_svaricap G1 W G2 bn`; bn follows VSS as every PDK
+    // substrate does.
+    expect(exported.file.text).toMatch(
+      /^XC1 EP W1F EN VSS sg13_hv_svaricap w=9\.74u l=0\.8u Nx=3 m=1$/mu,
+    );
+  });
+
   it("shows a block's supply pins as Properties does, wires one, and keeps a wired one shown (#1833, #1941)", async () => {
     // X2 keeps an old fill, a style Properties no longer offers.
     const fill = { background: "#FFF2CC" };

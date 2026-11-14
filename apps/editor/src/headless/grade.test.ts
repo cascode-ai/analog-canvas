@@ -304,6 +304,92 @@ describe("netlist grade (#1524)", () => {
     });
   });
 
+  it("grades a drawn IHP MOS varactor against the reference's X line, its two gates alike (#2321)", async () => {
+    const project = createEmptyProject("project-varactor", "Varactor");
+    project.documents[0]!.id = "main";
+    project.topDocumentId = "main";
+    const editor = createLocalEditor({ project });
+    const transact = (actions: unknown[], structure: boolean) =>
+      editor.circuit({
+        apiVersion: "3.0",
+        requestId: `varactor-${actions.length}`,
+        operation: "transact",
+        documentId: "main",
+        transactionId: `varactor-${actions.length}-${structure}`,
+        expectedRevision: editor.controller.document.revision,
+        ...(structure
+          ? { expectedStructureRevision: editor.project.structureRevision }
+          : {}),
+        dryRun: false,
+        actions,
+      } as never);
+    const port = (reference: string, x: number, y: number) => ({
+      kind: "place-component",
+      symbol: "port",
+      reference,
+      pinAnchor: { pinName: "P", position: { x, y } },
+    });
+    // The MOS Varactor's pins: G1 (-30, 0), W (0, 20), G2 (30, 0).
+    expect(
+      transact(
+        [
+          {
+            kind: "place-component",
+            symbol: "mos-varactor",
+            reference: "C1",
+            position: { x: 300, y: 100 },
+          },
+          port("EP", 270, 100),
+          port("W1F", 300, 120),
+          port("EN", 330, 100),
+          {
+            kind: "place-component",
+            symbol: "ground",
+            id: "gnd",
+            position: { x: 450, y: 300 },
+          },
+        ],
+        true,
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      transact(
+        [
+          {
+            kind: "set-model",
+            target: { kind: "instance", reference: "C1" },
+            model: "sg13_hv_svaricap",
+          },
+        ],
+        true,
+      ),
+    ).toMatchObject({ ok: true });
+    const netlist = workspaceNetlist(editor.project);
+    expect(netlist.status, netlist.messages.join("; ")).toBe("ready");
+    const reference = "XV1 ep w1f en vss sg13_hv_svaricap w=9.74u l=0.8u nx=3";
+    expect(await gradeNetlists(netlist.text!, reference)).toMatchObject({
+      exact: true,
+      mode: "strict",
+    });
+    // A MIM capacitor is another device.
+    expect(
+      await gradeNetlists(netlist.text!, "XC1 ep en cap_cmim w=7u l=7u"),
+    ).toMatchObject({ exact: false });
+    // The two gates are alike, as a MOS's drain and source are: a pair
+    // sharing G1 grades as one sharing G1 with G2, in lenient mode.
+    const pair = (second: string) =>
+      [
+        "XV1 a w1 b vss sg13_hv_svaricap",
+        `XV2 ${second} sg13_hv_svaricap`,
+      ].join("\n");
+    expect(
+      await gradeNetlists(pair("a w2 c vss"), pair("c w2 a vss")),
+    ).toMatchObject({ exact: true, mode: "lenient" });
+    expect(
+      await gradeNetlists(pair("a w2 c vss"), pair("w2 a c vss")),
+    ).toMatchObject({ exact: false });
+  });
+
   it("answers the same every time, and says why an unreadable side is not graded", async () => {
     const answer = AMPLIFIER.replace("M1 out in 0 0", "M1 in out 0 0");
     expect(await gradeNetlists(answer, AMPLIFIER)).toEqual(

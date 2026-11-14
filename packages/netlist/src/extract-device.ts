@@ -14,6 +14,7 @@ import {
   milliScaleReading,
   requiredParameterNames,
   reviewedExternalBindingForMaster,
+  reviewedExternalModelSuggestions,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
 import type { DesignNetlistInstance, NetlistDiagnostic } from "./ir.js";
@@ -126,6 +127,19 @@ export function extractDeviceInstance(
   // printer with a null target where the model name belongs, and it throws
   // there.
   if (definition.targetPolicy === "none") {
+    // A PDK device's symbol, such as the MOS Varactor, netlists once its
+    // reviewed model is set.
+    const models = reviewedExternalModelSuggestions(instance.symbolId);
+    if (models.length > 0) {
+      diagnostic(
+        diagnostics,
+        document.id,
+        "MISSING_MODEL_TARGET",
+        `Instance ${instance.reference!} requires a model: ${models.join(", ")}`,
+        [instance.id],
+      );
+      return null;
+    }
     diagnostic(
       diagnostics,
       document.id,

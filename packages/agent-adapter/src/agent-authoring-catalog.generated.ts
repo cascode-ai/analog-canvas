@@ -392,6 +392,55 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "mos-varactor",
+      name: "MOS Varactor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      bounds: {
+        x: -30,
+        y: -8.06,
+        width: 60,
+        height: 28.06,
+      },
+      pins: [
+        {
+          name: "G1",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
+        },
+        {
+          name: "W",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+        {
+          name: "G2",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "closed-switch",
       name: "Closed Switch",
       category: "switch",

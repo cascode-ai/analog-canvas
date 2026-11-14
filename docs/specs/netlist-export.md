@@ -400,7 +400,9 @@ parameters or renumbers first.
 - IHP SG13G2 binds like its xschem symbols: `sg13_lv_*`/`sg13_hv_*`
   (`d g s b`; `w l ng m`), `npn13G2`/`npn13G2l`/`npn13G2v` (`c b e bn`; `le we
 Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
-  `w l [b] m`), `cap_cmim`/`cap_rfcmim`; metres throughout.
+  `w l [b] m`), `cap_cmim`/`cap_rfcmim`, and the MOS varactor
+  `sg13_hv_svaricap` (`G1 W G2 bn`; `w l Nx m`) on the MOS Varactor symbol
+  only, which has no netlist form without it; metres throughout.
 - SG13G2 R/C presets use `rppd`/`cap_cmim`. The Netlist shortcuts include NPN
   and PNP; R/C retain an explicit Ideal choice. Old blank SG13 R/C browser
   presets move to these defaults once; subsequent explicit Ideal choices stay.
