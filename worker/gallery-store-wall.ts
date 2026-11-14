@@ -29,6 +29,15 @@ import { SIMULATION_CHECK_PASSES } from "./gallery-store-simulation-checks";
 import { fixersOf } from "./gallery-store-fixes";
 import { GalleryRevisionCache } from "./gallery-store-wall-cache";
 
+/** References affect wall counts as well as the Gallery rows themselves. */
+export function wallStatisticsRevision(sql: SqlStorage): number {
+  return sql
+    .exec<{ revision: number }>(
+      "SELECT SUM(revision) AS revision FROM backup_revisions WHERE scope IN ('gallery', 'reviews')",
+    )
+    .one().revision;
+}
+
 /** Longest search a reader may send; longer text is cut, not refused. */
 const GALLERY_MAX_SEARCH_LENGTH = 200;
 

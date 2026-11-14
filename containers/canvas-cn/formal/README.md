@@ -11,9 +11,16 @@ Qualify its memory plateau and artifact/session survival with the actual pinned
 binary and candidate bundles before deployment; raising a limit alone is not
 a memory-growth fix. The service's soft/hard budgets are 6/8 GiB on the 16 GiB host.
 
-The entrance releases abandoned reads and admits at most 512 ordinary in-flight
-requests. Excess requests receive 503 before reaching the application. An
-accepted write remains tracked until its outcome is known and is never replayed.
+The entrance admits at most 512 in-flight requests, reserving 32 slots for Auth
+and Project writes. Gallery listing and aggregate reads have a separate
+32-request limit; individual entries and previews use ordinary capacity. Requests
+waiting for capacity stay outside the runtime for at most 5 seconds, in a queue
+of at most 512 with 32 places reserved for critical operations. Available slots
+serve up to three critical requests before one eligible ordinary request; a
+maintenance backlog reopens in bounded batches. Exhausted capacity or waiting
+time returns 503 with Retry-After before forwarding. Abandoned queued requests
+and active reads release their slots. Accepted writes remain tracked until
+their outcome is known and are never replayed.
 The private loopback `GET /__regional/health` verifies the collector and Auth
 store response; browser/peer access is refused. Host monitoring probes this
 entrance independently of traffic and checks the service's cgroup pressure and
@@ -91,8 +98,11 @@ requests have not drained within 3 seconds. It then ends event streams and
 WebSockets so their clients can reconnect to the same domestic entrance.
 Before holding the entrance, allow running background ticks up to 90 seconds
 to finish while the website keeps serving; otherwise defer the handover.
-Release only queued requests after actual runtime readiness; genuine failures
-remain failures. Record additional request waiting on the host as an observation,
+Release queued requests only after runtime readiness and Project status reports
+`fenced: false`. Release, backup, rollback and recovery run the normal Project
+sync coordinator to reconcile a restart fence before reopening; they never
+clear a fence locally or require unrelated historical backlog to drain. Genuine
+failures remain failures. Record additional request waiting on the host as an observation,
 not a 5-second release gate or an inference from a successful version update.
 The Agent recovery target remains 10 seconds. Keep the bounded entrance hold and
 readiness checks; do not repeat live restarts solely to meet a timing target.

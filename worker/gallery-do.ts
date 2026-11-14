@@ -63,6 +63,7 @@ import {
   tagCounts,
   toggleLike,
   installSearchRevision,
+  wallStatisticsRevision,
   type GalleryWallStatistics,
 } from "./gallery-store-wall";
 import {
@@ -187,7 +188,7 @@ export class GalleryDO {
   private readonly regionalProjects: RegionalProjectDO | undefined;
   private readonly sql: SqlStorage;
   private readonly wallStatisticsCache =
-    new GalleryRevisionCache<GalleryWallStatistics>();
+    new GalleryRevisionCache<GalleryWallStatistics>(wallStatisticsRevision);
   /**
    * This start of the object. A restart — a deploy, or a point-in-time
    * restore that also rewinds the revisions — restarts a capture too.

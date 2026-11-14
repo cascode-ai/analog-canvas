@@ -10,6 +10,9 @@ export function createIngress({
   waitMs = 60_000,
   maxPending = 512,
   maxActive = 512,
+  reserved = Math.min(32, maxActive - 1, maxPending - 1),
+  maxHeavy = 32,
+  queueMs = 5_000,
   drainMs = 3_000,
   initialUncertainty = false,
   onUncertain = () => {},
@@ -17,27 +20,125 @@ export function createIngress({
   let holding = false;
   let uncertain = initialUncertainty;
   const pending = new Set();
-  const active = new Set();
+  const active = new Map();
+  const counts = { critical: 0, heavy: 0, ordinary: 0 };
   const streams = new Map();
-  function admit(req, client, forward, reject) {
-    const start = () => (active.size >= maxActive ? reject() : forward());
-    if (!holding) return start();
-    if (pending.size >= maxPending) return reject();
-    req.pause();
-    const timer = setTimeout(() => {
-      pending.delete(send);
-      reject();
-    }, waitMs);
-    const send = () => {
-      clearTimeout(timer);
-      pending.delete(send);
-      if (!client.destroyed) start();
-    };
-    pending.add(send);
-    client.once("close", () => {
-      clearTimeout(timer);
-      pending.delete(send);
+  let dispatchScheduled = false;
+  let criticalStreak = 0;
+  function laneOf(req) {
+    let path;
+    try {
+      path = new URL(req.url, "http://localhost").pathname;
+    } catch {
+      return "ordinary";
+    }
+    if (
+      path.startsWith("/api/auth/") ||
+      (["POST", "PUT", "PATCH", "DELETE"].includes(req.method) &&
+        /^\/api\/projects(?:\/[^/]+(?:\/versions\/[^/]+\/restore)?)?$/.test(
+          path,
+        ))
+    )
+      return "critical";
+    // Match the Gallery router's prefix and empty-segment handling, including
+    // accepted aliases; an equivalent wall URL cannot bypass its budget.
+    if (
+      ["GET", "HEAD"].includes(req.method) &&
+      path.startsWith("/api/gallery")
+    ) {
+      const segments = path.split("/").filter(Boolean).slice(2);
+      if (
+        segments.length === 0 ||
+        (segments.length === 1 &&
+          [
+            "tags",
+            "authors",
+            "owner-data",
+            "recycled",
+            "rejected",
+            "sources",
+          ].includes(segments[0]))
+      )
+        return "heavy";
+    }
+    return "ordinary";
+  }
+  function available(lane) {
+    return (
+      active.size < maxActive &&
+      (lane === "critical" ||
+        active.size - counts.critical < maxActive - reserved) &&
+      (lane !== "heavy" || counts.heavy < maxHeavy)
+    );
+  }
+  function track(upstream, req) {
+    const lane = laneOf(req);
+    active.set(upstream, lane);
+    counts[lane]++;
+  }
+  function release(upstream) {
+    const lane = active.get(upstream);
+    if (lane === undefined) return;
+    active.delete(upstream);
+    counts[lane]--;
+    pump();
+  }
+  function pump() {
+    if (holding || dispatchScheduled || !pending.size) return;
+    dispatchScheduled = true;
+    setImmediate(() => {
+      dispatchScheduled = false;
+      // Bounded batches avoid dumping a whole maintenance backlog into workerd.
+      for (let sent = 0; !holding && sent < 32; sent++) {
+        const eligible = [...pending].filter((item) => available(item.lane));
+        const critical = eligible.find((item) => item.lane === "critical");
+        const ordinary = eligible.find((item) => item.lane !== "critical");
+        const next =
+          criticalStreak < 3 ? critical || ordinary : ordinary || critical;
+        if (!next) return;
+        criticalStreak = next.lane === "critical" ? criticalStreak + 1 : 0;
+        next.send();
+      }
+      pump();
     });
+  }
+  function admit(req, client, forward, reject) {
+    const lane = laneOf(req);
+    if (!holding && !pending.size && available(lane)) return forward();
+    if (pending.size >= maxPending) return reject();
+    if (
+      lane !== "critical" &&
+      [...pending].filter((item) => item.lane !== "critical").length >=
+        maxPending - reserved
+    )
+      return reject();
+    req.pause();
+    const remove = () => {
+      clearTimeout(timer);
+      pending.delete(item);
+      client.off("close", remove);
+    };
+    const item = {
+      lane,
+      send() {
+        remove();
+        if (!client.destroyed) forward();
+      },
+      reject() {
+        remove();
+        reject();
+      },
+    };
+    const timer = setTimeout(
+      () => {
+        item.reject();
+        pump();
+      },
+      holding ? waitMs : queueMs,
+    );
+    pending.add(item);
+    client.once("close", remove);
+    pump();
   }
   const server = http.createServer((req, res) => {
     req.on("error", () => res.destroy());
@@ -69,16 +170,16 @@ export function createIngress({
         (reply) => {
           response = reply;
           if (!res.destroyed) res.writeHead(reply.statusCode, reply.headers);
-          reply.on("end", () => active.delete(upstream));
+          reply.on("end", () => release(upstream));
           reply.on("error", () => {
             markUnknown();
-            active.delete(upstream);
+            release(upstream);
             res.destroy();
           });
           if (
             reply.headers["content-type"]?.split(";")[0] === "text/event-stream"
           ) {
-            active.delete(upstream);
+            release(upstream);
             streams.set(upstream, () => {
               reply.unpipe(res);
               res.end();
@@ -89,7 +190,7 @@ export function createIngress({
           else reply.pipe(res);
         },
       );
-      active.add(upstream);
+      track(upstream, req);
       req.on("error", () => {
         if (!req.complete) upstream.destroy(new Error("incomplete upload"));
       });
@@ -100,7 +201,7 @@ export function createIngress({
         } else if (readOnly && !res.writableFinished) {
           // An abandoned read has no completion to preserve for its client.
           // Writes remain tracked until their outcome is known.
-          active.delete(upstream);
+          release(upstream);
           response?.destroy();
           upstream.destroy();
         } else if (response) {
@@ -112,7 +213,7 @@ export function createIngress({
       });
       upstream.on("error", () => {
         if (upstream.socket?.bytesWritten) markUnknown();
-        active.delete(upstream);
+        release(upstream);
         if (!res.headersSent) res.writeHead(502);
         res.end();
       });
@@ -137,19 +238,19 @@ export function createIngress({
           headers: req.headers,
           agent: false,
         });
-        active.add(upstream);
+        track(upstream, req);
         const close = () => {
           client.destroy();
           upstream.destroy();
         };
         client.once("close", () => {
-          active.delete(upstream);
+          release(upstream);
           streams.delete(upstream);
           upstream.destroy();
         });
         upstream.on("error", close);
         upstream.on("response", (reply) => {
-          active.delete(upstream);
+          release(upstream);
           // Preserve an authorization rejection rather than converting it to an upgrade.
           client.end(
             `HTTP/1.1 ${reply.statusCode} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
@@ -157,7 +258,7 @@ export function createIngress({
           reply.resume();
         });
         upstream.on("upgrade", (reply, socket, upstreamHead) => {
-          active.delete(upstream);
+          release(upstream);
           streams.set(upstream, () => {
             socket.destroy();
             close();
@@ -185,7 +286,7 @@ export function createIngress({
   });
   function resume() {
     holding = false;
-    for (const send of [...pending]) send();
+    pump();
   }
   return {
     server,
@@ -212,8 +313,9 @@ export function createIngress({
     },
     resume,
     async close() {
-      resume();
-      for (const req of active) req.destroy();
+      holding = true;
+      for (const item of pending) item.reject();
+      for (const req of active.keys()) req.destroy();
       for (const close of streams.values()) close();
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));

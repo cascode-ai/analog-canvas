@@ -356,7 +356,8 @@ def smoke(local, credentials, attempts=30, delay=2, require_memory=None):
     checks = [
         ('/', None, lambda r, b: b'<div id="root"' in b),
         ('/api/agent/mcp-manifest.json', None, lambda r, b: json.loads(b).get('version')),
-        ('/api/project-sync/status', inbound, lambda r, b: json.loads(b).get('origin') == 'cn'),
+        ('/api/project-sync/status', inbound, lambda r, b:
+         json.loads(b).get('origin') == 'cn' and json.loads(b).get('fenced') is False),
     ]
     if require_memory is None:
         require_memory = pathlib.Path('/opt/analog-canvas/current-formal/memory.mjs').is_file()
@@ -377,6 +378,22 @@ def smoke(local, credentials, attempts=30, delay=2, require_memory=None):
                     body = response.read(1024 * 1024)
                     if time.monotonic() >= deadline:
                         return False
+                    if response.status == 200 and path == '/api/project-sync/status':
+                        state = json.loads(body)
+                        if state.get('origin') == 'cn' and state.get('fenced') is True:
+                            # Restart fencing protects against a restored/rewound store.
+                            # Use the ordinary peer protocol; never clear it locally or
+                            # require unrelated historical backlog to drain first.
+                            admin = (credentials / 'sync-admin-token').read_text().strip()
+                            request = urllib.request.Request(local + '/api/project-sync/run',
+                                data=b'{}', headers={'Authorization': 'Bearer ' + admin,
+                                                    'Content-Type': 'application/json'})
+                            remaining = deadline - time.monotonic()
+                            if remaining <= 0:
+                                return False
+                            with opener.open(request, timeout=min(20, remaining)) as reconciliation:
+                                reconciliation.read(1024 * 1024)
+                            raise ValueError('project-writes-not-ready')
                     if response.status != 200 or not ok(response, body):
                         raise ValueError(path)
             return True

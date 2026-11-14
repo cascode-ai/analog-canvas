@@ -63,6 +63,54 @@ it("reads a fresh list identity once per request, including after the read-gate 
   expect(refused.status).toBe(401);
 });
 
+it("reuses Community counts while reads still see current likes and withdrawals", async () => {
+  const env = environment();
+  const owner = await adminOf(env);
+  const viewer = await makerOf(env);
+  const id = await submitOne(env, "Cached circuit", { cookie: owner });
+  const read = async (cookie?: string) =>
+    (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery?source=community`, {
+          headers: cookie ? cookieHeaders(cookie) : {},
+        }),
+      )
+    ).json();
+  expect((await read(viewer)).total).toBe(1);
+  env.galleryQueries.length = 0;
+  expect((await read(viewer)).filterCounts.liked).toBe(0);
+  // Public read cost: an unchanged first page does not aggregate the whole wall again.
+  expect(
+    env.galleryQueries.filter((query) => query.includes("COUNT(*) AS total")),
+  ).toHaveLength(0);
+  expect(
+    (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}/like`, {
+          method: "POST",
+          headers: { ...cookieHeaders(viewer), Origin: ORIGIN },
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  expect((await read(viewer)).filterCounts.liked).toBe(1);
+  expect((await read()).filterCounts.liked).toBe(0);
+  expect(
+    (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}/recycle`, {
+          method: "POST",
+          headers: { ...cookieHeaders(owner), Origin: ORIGIN },
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  expect((await read(viewer)).total).toBe(0);
+});
+
 /** Counts per part-count size, with `small` drawings of at most five parts. */
 function sizes(small: number, rest: Partial<Record<string, number>> = {}) {
   return { "0-5": small, "6-10": 0, "11-15": 0, "16-25": 0, "26-": 0, ...rest };

@@ -137,7 +137,7 @@ export async function wallList(
         ...body,
         entries,
         statistics,
-        cacheStatistics: store.source !== null,
+        cacheStatistics: true,
         sortKeys: true,
       });
     }),

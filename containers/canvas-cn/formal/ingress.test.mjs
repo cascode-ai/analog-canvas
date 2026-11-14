@@ -107,6 +107,7 @@ test("overload refuses a new write before forwarding it", async (t) => {
   const ingress = createIngress({
     upstreamPort: await listen(backend),
     maxActive: 1,
+    queueMs: 50,
   });
   const port = await listen(ingress.server);
   t.onTestFinished(async () => {
@@ -128,6 +129,140 @@ test("overload refuses a new write before forwarding it", async (t) => {
   await refused;
   assert.equal(result?.status, 503);
   assert.equal(received.length, 1);
+});
+
+test("Gallery reads wait outside the runtime while login and saving can finish", async (t) => {
+  const reads = [];
+  const backend = http.createServer((req, res) => {
+    req.resume();
+    if (req.url.startsWith("/api/gallery")) reads.push(res);
+    else res.end("completed");
+  });
+  const ingress = createIngress({
+    upstreamPort: await listen(backend),
+    maxActive: 4,
+    reserved: 1,
+    maxHeavy: 1,
+  });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  const first = request(port, "/api/gallery?source=community");
+  while (!reads.length) await new Promise(setImmediate);
+  const next = request(port, "/api/gallery-alias//?source=community&page=2");
+  // Crossing the same HTTP entrance proves the second read was admitted.
+  assert.equal((await request(port, "/api/auth/session")).status, 200);
+  assert.equal(
+    (await request(port, "/api/projects", "saved-once")).status,
+    200,
+  );
+  assert.equal(reads.length, 1);
+  reads[0].end("first");
+  assert.equal((await first).body, "first");
+  while (reads.length < 2) await new Promise(setImmediate);
+  reads[1].end("second");
+  assert.equal((await next).body, "second");
+});
+
+test("ordinary traffic cannot consume reserved save slots and canceled queued work is never forwarded", async (t) => {
+  const ordinary = [];
+  const backend = http.createServer((req, res) => {
+    req.resume();
+    if (req.url.startsWith("/api/agent/")) ordinary.push(res);
+    else res.end("saved");
+  });
+  const ingress = createIngress({
+    upstreamPort: await listen(backend),
+    maxActive: 3,
+    reserved: 1,
+  });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  const accepted = [
+    request(port, "/api/agent/a"),
+    request(port, "/api/agent/b"),
+  ];
+  while (ordinary.length < 2) await new Promise(setImmediate);
+  const canceled = http.get({
+    host: "127.0.0.1",
+    port,
+    path: "/api/agent/c",
+    agent: false,
+  });
+  canceled.on("error", () => {});
+  while (!ingress.status().pending) await new Promise(setImmediate);
+  canceled.destroy();
+  while (ingress.status().pending) await new Promise(setImmediate);
+  assert.equal((await request(port, "/api/projects", "one-save")).status, 200);
+  assert.equal(ordinary.length, 2);
+  for (const reply of ordinary) reply.end("done");
+  await Promise.all(accepted);
+  assert.equal(await ingress.hold(), true);
+  ingress.resume();
+  assert.equal((await request(port, "/api/auth/me")).status, 200);
+  assert.equal(ordinary.length, 2);
+});
+
+test("maintenance releases within capacity and ordinary work gets a turn among saves", async (t) => {
+  const received = [];
+  const backend = http.createServer((req, res) => {
+    req.resume();
+    received.push({ path: req.url, res });
+  });
+  const ingress = createIngress({
+    upstreamPort: await listen(backend),
+    maxActive: 1,
+    reserved: 0,
+  });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  assert.equal(await ingress.hold(), true);
+  const paths = [
+    "/api/gallery",
+    "/api/projects/a",
+    "/api/projects/b",
+    "/api/projects/c",
+    "/api/projects/d",
+  ];
+  const responses = [];
+  for (const path of paths) {
+    responses.push(
+      request(port, path, path === "/api/gallery" ? undefined : "save"),
+    );
+    while (ingress.status().pending < responses.length)
+      await new Promise(setImmediate);
+  }
+  ingress.resume();
+  for (let index = 0; index < paths.length; index++) {
+    while (received.length <= index) await new Promise(setImmediate);
+    assert.equal(received.length, index + 1);
+    received[index].res.end("done");
+  }
+  assert.deepEqual(
+    received.map((item) => item.path),
+    [
+      "/api/projects/a",
+      "/api/projects/b",
+      "/api/projects/c",
+      "/api/gallery",
+      "/api/projects/d",
+    ],
+  );
+  assert.equal(
+    (await Promise.all(responses)).every((reply) => reply.status === 200),
+    true,
+  );
 });
 
 test("a save arriving during handover reaches the domestic backend once after resume", async (t) => {

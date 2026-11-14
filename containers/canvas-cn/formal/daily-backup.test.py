@@ -56,7 +56,7 @@ class DailyTest(unittest.TestCase):
                 if self.attempts <= 3:
                     raise OSError('starting')
                 if request.full_url.endswith('/status'):
-                    return Response(b'{"origin":"cn"}')
+                    return Response(b'{"origin":"cn","fenced":false}')
                 if request.full_url.endswith('.json'):
                     return Response(b'{"version":"1"}')
                 return Response(b'<div id="root"></div>')
