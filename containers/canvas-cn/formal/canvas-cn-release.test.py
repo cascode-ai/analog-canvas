@@ -126,6 +126,57 @@ def can_symlink():
 
 
 class ReadinessTest(unittest.TestCase):
+    def test_peer_failure_cannot_turn_a_healthy_auth_endpoint_into_writable_readiness(self):
+        with tempfile.TemporaryDirectory() as directory:
+            credentials = pathlib.Path(directory)
+            (credentials / 'sync-inbound-token').write_text('peer')
+            (credentials / 'sync-admin-token').write_text('coordinator')
+            clock = [0.0]
+            def open_request(request, timeout):
+                body = (b'{"status":"blocked"}' if request.full_url.endswith('/run') else
+                        b'{"origin":"cn","fenced":true}' if request.full_url.endswith('/status') else
+                        b'{"ready":true}' if request.full_url.endswith('/__regional/health') else
+                        b'{"version":"test"}' if request.full_url.endswith('.json') else
+                        b'<div id="root"></div>')
+                return nullcontext(SimpleNamespace(status=200, read=lambda size: body))
+            with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
+                    patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    patch.object(release.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+seconds)):
+                self.assertFalse(check_readiness('http://localhost', credentials,
+                                                attempts=1, delay=.3, require_memory=True))
+            self.assertAlmostEqual(clock[0], .3)
+
+    def test_auth_ready_does_not_reopen_writes_before_peer_reconciliation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            credentials = pathlib.Path(directory)
+            (credentials / 'sync-inbound-token').write_text('peer')
+            (credentials / 'sync-admin-token').write_text('coordinator')
+            clock, coordinated, observed = [0.0], [False], []
+            def open_request(request, timeout):
+                path = request.full_url.removeprefix('http://localhost')
+                observed.append((request.get_method(), path))
+                if path == '/api/project-sync/run':
+                    self.assertEqual(request.get_header('Authorization'), 'Bearer coordinator')
+                    coordinated[0] = True
+                    body = b'{"status":"sent"}'
+                elif path == '/api/project-sync/status':
+                    # A writable, trusted state may still have replication backlog.
+                    body = json.dumps({'origin': 'cn', 'fenced': not coordinated[0], 'pending': 7}).encode()
+                elif path == '/__regional/health':
+                    body = b'{"ready":true}'
+                elif path.endswith('.json'):
+                    body = b'{"version":"test"}'
+                else:
+                    body = b'<div id="root"></div>'
+                return nullcontext(SimpleNamespace(status=200, read=lambda size: body))
+            with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
+                    patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    patch.object(release.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0]+seconds)):
+                self.assertTrue(check_readiness('http://localhost', credentials,
+                                               attempts=1, delay=.5, require_memory=True))
+            self.assertIn(('POST', '/api/project-sync/run'), observed)
+            self.assertEqual(observed.count(('GET', '/api/project-sync/status')), 2)
+
     def test_candidate_with_inactive_collector_is_not_ready(self):
         with tempfile.TemporaryDirectory() as directory:
             credentials = pathlib.Path(directory)
@@ -135,7 +186,7 @@ class ReadinessTest(unittest.TestCase):
                 body = (b'<div id="root"></div>' if request.full_url.endswith('/') else
                         b'{"version":"test"}' if request.full_url.endswith('mcp-manifest.json') else
                         b'{"ready":false}' if request.full_url.endswith('/__regional/health') else
-                        b'{"origin":"cn"}')
+                        b'{"origin":"cn","fenced":false}')
                 return nullcontext(SimpleNamespace(status=200, read=lambda size: body))
             with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
                     patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]), \
@@ -154,7 +205,7 @@ class ReadinessTest(unittest.TestCase):
                     raise urllib.error.URLError('starting')
                 body = (b'<div id="root"></div>' if request.full_url.endswith('/') else
                         b'{"version":"test"}' if request.full_url.endswith('mcp-manifest.json') else
-                        b'{"origin":"cn"}')
+                        b'{"origin":"cn","fenced":false}')
                 return nullcontext(SimpleNamespace(status=200, read=lambda size: body))
             with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
                     patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]), \
@@ -175,7 +226,7 @@ class ReadinessTest(unittest.TestCase):
                     if request.full_url.endswith('mcp-manifest.json'):
                         return b'{"version":"test"}'
                     clock[0] = 61
-                    return b'{"origin":"cn"}'
+                    return b'{"origin":"cn","fenced":false}'
                 return nullcontext(SimpleNamespace(status=200, read=read))
             with patch.object(release.urllib.request, 'build_opener', return_value=SimpleNamespace(open=open_request)), \
                     patch.object(release.time, 'monotonic', side_effect=lambda: clock[0]):
