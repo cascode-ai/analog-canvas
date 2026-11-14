@@ -52,6 +52,17 @@ describe("Gallery census through the editor commands", () => {
     });
   });
 
+  it("inserts a drawing saved with the retired development Symbol Library lock", async () => {
+    const project = resistor();
+    project.symbolLibrary = {
+      id: "builtin-analog",
+      version: "0.0.0",
+      hash: "development",
+    };
+    const result = await exerciseGalleryEntry(serializeProject(project));
+    expect(result.insert.status).toBe("inserted");
+  });
+
   it("reports a legacy Symbol Library mismatch as insertion failure", async () => {
     const project = resistor();
     project.symbolLibrary.hash = "older-library-lock";

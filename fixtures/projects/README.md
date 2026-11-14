@@ -37,6 +37,7 @@ the second as snapshots of published Gallery documents.
 | `differential-stage` | A small analog stage with Routes and annotations; also the source Project for `fixtures/exports/`. |
 | `hierarchical-gain-stage` | The only Project here with **hierarchy**: a `GainStage` Cell placed twice in a `GainStagePair` top. It is what proves a Cell instance and a child Document render at all; the visual golden covers both halves. |
 | `instance-value-display` | Device values and the annotation set that renders them. |
+| `legacy-symbol-library` | A schema-70 witness carrying the retired `builtin-analog` Symbol Library lock, which loads as the current lock. |
 | `rejected-missing-top` | A Project whose `topDocumentId` names a missing Document — the refusal case. |
 
 ## Constructed fixtures

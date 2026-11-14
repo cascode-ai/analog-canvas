@@ -43,7 +43,9 @@ export -> validate -> encode current file schema -> readable canonical JSON -> d
   ideal device but bound to a reviewed PDK device whose pins its symbol lacks
   (the variable capacitor bound to the SKY130 varactor) to that ideal device,
   dropping binding, parameters and memberships at the missing pins, keeping
-  wires, labels and any authored `value`.
+  wires, labels and any authored `value`. Every load also reads the retired
+  `builtin-analog` `0.0.0`/`development` Symbol Library lock as the current
+  `razavi-symbols` lock; any other lock stays as written.
 - Entry never physically merges Base Nets; equal authoritative names resolve
   as one Logical Net, conflicts block; repeated source-name hints never
   connect. Only explicit portable-file and Gallery imports may canonicalize

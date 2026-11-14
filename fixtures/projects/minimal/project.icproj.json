@@ -37,6 +37,6 @@
   "externalSubcircuitDefinitions": [],
   "simulationFolders": [],
   "source": { "dialect": "none", "entry": null, "files": [], "sourcePolicy": "copy" },
-  "symbolLibrary": { "hash": "development", "id": "builtin-analog", "version": "0.0.0" },
+  "symbolLibrary": { "hash": "razavi-reference-v1", "id": "razavi-symbols", "version": "1" },
   "structureRevision": 0
 }

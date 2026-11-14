@@ -41,6 +41,10 @@
     {
       "path": "fixtures/projects/hierarchical-gain-stage/project.icproj.json",
       "sourceSchemaVersion": 58
+    },
+    {
+      "path": "fixtures/projects/legacy-symbol-library/project.icproj.json",
+      "sourceSchemaVersion": 70
     }
   ],
   "rejected": [
