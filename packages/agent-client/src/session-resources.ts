@@ -477,21 +477,32 @@ export abstract class AgentSessionResources extends AgentSessionTransport {
   /** Cached Snapshot for a document, fetching a fresh one when absent/dirty. */
   async snapshot(
     documentId?: string,
-    options: { refresh?: boolean } = {},
+    options: { refresh?: boolean; drawingPresentation?: boolean } = {},
   ): Promise<CachedSnapshot> {
     const target = await this.resolveDocumentId(documentId);
     const cached = this.cache.get(target);
-    if (cached && !cached.dirty && !options.refresh) return cached;
-    return this.refreshSnapshot(target);
+    if (
+      cached &&
+      !cached.dirty &&
+      !options.refresh &&
+      (cached.snapshot.document.drawingOrder !== undefined) ===
+        (options.drawingPresentation === true)
+    )
+      return cached;
+    return this.refreshSnapshot(target, options);
   }
 
-  async refreshSnapshot(documentId?: string): Promise<CachedSnapshot> {
+  async refreshSnapshot(
+    documentId?: string,
+    options: { drawingPresentation?: boolean } = {},
+  ): Promise<CachedSnapshot> {
     let target = await this.resolveDocumentId(documentId);
     const request = (id: string) =>
       this.send({
         ...baseRequest(this.newRequestId()),
         operation: "snapshot",
         documentId: id,
+        ...(options.drawingPresentation ? { drawingPresentation: true } : {}),
       });
     const contextBefore = this.http.contextRevision;
     let response;

@@ -13,13 +13,13 @@ import {
   resolveDocumentLogicalNets,
   resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
+  type ResolvedDrawingScene,
   type ResolvedRouteGeometry,
 } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import {
   mirrorScale,
   routeEnd,
-  type Annotation,
   type RouteBranch,
   type SchematicDocument,
 } from "@icm/model";
@@ -226,12 +226,6 @@ interface SelectionHitTargetProps {
   wouldMoveIds: ReadonlySet<string>;
   selectionPolicy: SelectionPolicy;
   onInstanceClick: (instance: Instance, additive: boolean) => void;
-  onInstanceOpen: (instance: Instance) => void;
-  onInstanceContextMenu: (
-    instance: Instance,
-    clientX: number,
-    clientY: number,
-  ) => void;
   /**
    * Reached only while a drawing tool is up. The pointer tool's presses are
    * claimed and stopped by the capture-phase router, which is the one place
@@ -241,17 +235,12 @@ interface SelectionHitTargetProps {
     event: ReactPointerEvent<SVGPolylineElement>,
     routeId: string,
   ) => void;
-  onAnnotationContextMenu: (
-    annotation: Annotation,
-    clientX: number,
-    clientY: number,
-  ) => void;
-  onAnnotationEdit: (annotation: Annotation) => void;
   onNetPointerEnter?: (netId: string) => void;
   onNetPointerLeave?: () => void;
 }
 
 interface EndpointHitTargetProps {
+  drawingScene?: ResolvedDrawingScene;
   controlCurrentPreview?: {
     instanceId?: string | undefined;
     pinName?: string | undefined;
@@ -326,11 +315,7 @@ function SelectionHitTargets({
   wouldMoveIds,
   selectionPolicy,
   onInstanceClick,
-  onInstanceOpen,
-  onInstanceContextMenu,
   onRoutePointerDown,
-  onAnnotationContextMenu,
-  onAnnotationEdit,
   onNetPointerEnter,
   onNetPointerLeave,
   children,
@@ -421,29 +406,6 @@ function SelectionHitTargets({
             event.stopPropagation();
             onInstanceClick(instance, event.shiftKey || event.ctrlKey);
           };
-          const onDoubleClick = (event: ReactMouseEvent<SVGElement>) => {
-            if (
-              !selectionPolicy.allowsCanvasHit(
-                { kind: "instance", id: instance.id },
-                "edit",
-              )
-            )
-              return;
-            event.stopPropagation();
-            onInstanceOpen(instance);
-          };
-          const onContextMenu = (event: ReactMouseEvent<SVGElement>) => {
-            if (
-              !selectionPolicy.allowsCanvasHit(
-                { kind: "instance", id: instance.id },
-                "context-menu",
-              )
-            )
-              return;
-            event.preventDefault();
-            event.stopPropagation();
-            onInstanceContextMenu(instance, event.clientX, event.clientY);
-          };
           if (analogBlock) {
             return (
               <g
@@ -462,8 +424,6 @@ function SelectionHitTargets({
                 }
                 transform={instanceTransform(instance)}
                 onClick={onClick}
-                onDoubleClick={onDoubleClick}
-                onContextMenu={onContextMenu}
               >
                 <AnalogBlockHitGeometry
                   instance={instance}
@@ -485,8 +445,6 @@ function SelectionHitTargets({
               {...hitBox}
               className={className}
               onClick={onClick}
-              onDoubleClick={onDoubleClick}
-              onContextMenu={onContextMenu}
               pointerEvents={tool === "wire" ? "none" : undefined}
             />
           );
@@ -593,34 +551,7 @@ function SelectionHitTargets({
                 annotation.netId && onNetPointerEnter?.(annotation.netId)
               }
               onPointerLeave={() => onNetPointerLeave?.()}
-              onContextMenu={(event) => {
-                if (
-                  !selectionPolicy.allowsCanvasHit(
-                    { kind: "annotation", id: annotation.id },
-                    "context-menu",
-                  )
-                )
-                  return;
-                event.preventDefault();
-                event.stopPropagation();
-                onAnnotationContextMenu(
-                  annotation,
-                  event.clientX,
-                  event.clientY,
-                );
-              }}
               pointerEvents={tool === "wire" ? "none" : undefined}
-              onDoubleClick={(event) => {
-                if (
-                  !selectionPolicy.allowsCanvasHit(
-                    { kind: "annotation", id: annotation.id },
-                    "edit",
-                  )
-                )
-                  return;
-                event.stopPropagation();
-                onAnnotationEdit(annotation);
-              }}
             />
           );
         })}
@@ -629,6 +560,7 @@ function SelectionHitTargets({
 }
 
 function EndpointHitTargets({
+  drawingScene,
   document,
   endpoints,
   tool,
@@ -740,180 +672,192 @@ function EndpointHitTargets({
   });
   const pickOrigin = pickEntries.find(({ state }) => state === "origin");
   const pickPartners = pickEntries.filter(({ state }) => state === "partner");
-  const hitTargets = endpoints.map((candidate) => {
-    const candidateJunctionId =
-      candidate.endpoint.kind === "junction"
-        ? candidate.endpoint.junctionId
-        : null;
-    const powerRailEndIndex =
-      candidateJunctionId !== null
-        ? powerRailEnds.findIndex(
-            (junction) => junction.id === candidateJunctionId,
-          )
-        : -1;
-    const candidateKey = endpointKey(candidate.endpoint);
-    const selectedRouteEndSide =
-      candidateKey === selectedRouteEndKeys.start
-        ? "start"
-        : candidateKey === selectedRouteEndKeys.end
-          ? "end"
+  const hitTargets = endpoints
+    .filter(
+      (candidate) =>
+        (selectedEndpoint &&
+          endpointKey(selectedEndpoint.endpoint) ===
+            endpointKey(candidate.endpoint)) ||
+        (drawingScene?.isEndpointVisibleAt(
+          candidate.endpoint,
+          candidate.connection.contactPoint,
+        ) ??
+          true),
+    )
+    .map((candidate) => {
+      const candidateJunctionId =
+        candidate.endpoint.kind === "junction"
+          ? candidate.endpoint.junctionId
           : null;
-    const label = endpointLabel(candidate.endpoint);
-    const terminal =
-      candidate.endpoint.kind === "terminal" ? candidate.endpoint : null;
-    const controlTitle =
-      terminal &&
-      controlSensorCandidate?.(terminal.instanceId, terminal.pinName)
-        ? `${document.instances.find((item) => item.id === terminal.instanceId)?.reference ?? "Device"}.${terminal.pinName}`
-        : null;
-    return (
-      <circle
-        key={`${candidate.netId}:${label}`}
-        data-testid={label}
-        data-endpoint-kind={candidate.endpoint.kind}
-        data-endpoint-key={candidateKey}
-        data-junction-dot={
-          candidate.endpoint.kind === "terminal" &&
-          junctionDotEndpointKeys?.has(candidateKey)
-            ? "true"
-            : undefined
-        }
-        data-control-hover={
-          controlSensorCandidate
-            ? Boolean(
-                controlHover &&
-                endpointKey(controlHover.endpoint) === candidateKey,
-              )
-            : undefined
-        }
-        data-control-sensor={
-          candidate.endpoint.kind === "terminal"
-            ? controlSensorCandidate?.(
-                candidate.endpoint.instanceId,
-                candidate.endpoint.pinName,
-              )
-            : undefined
-        }
-        data-canvas-hit-kind={
-          candidate.endpoint.kind === "junction" ? "junction" : undefined
-        }
-        data-canvas-hit-id={candidateJunctionId ?? undefined}
-        data-drag-object-id={candidateJunctionId ?? undefined}
-        className={
-          tool === "wire" ||
-          (candidateJunctionId !== null &&
-            supplementalJunctionIds.includes(candidateJunctionId)) ||
-          (selectedEndpoint?.endpoint.kind === "junction" &&
-            candidateJunctionId !== null &&
-            selectedEndpoint.endpoint.junctionId === candidateJunctionId)
-            ? "endpoint-hit active"
-            : "endpoint-hit"
-        }
-        cx={candidate.connection.contactPoint.x}
-        cy={candidate.connection.contactPoint.y}
-        r={endpointHitRadius}
-        onClick={(event) => {
-          if (
-            tool !== "pointer" ||
-            selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select")
-          ) {
-            event.stopPropagation();
-          }
-        }}
-        onContextMenu={(event) => {
-          if (
-            tool === "pointer" &&
-            !selectionPolicy.allowsEndpoint(
-              candidate.endpoint.kind,
-              "context-menu",
+      const powerRailEndIndex =
+        candidateJunctionId !== null
+          ? powerRailEnds.findIndex(
+              (junction) => junction.id === candidateJunctionId,
             )
-          )
-            return;
-          event.preventDefault();
-          event.stopPropagation();
-          onEndpointActions(candidate, event.clientX, event.clientY);
-        }}
-        onPointerDown={(event) => {
-          if (
-            controlSensorCandidate &&
+          : -1;
+      const candidateKey = endpointKey(candidate.endpoint);
+      const selectedRouteEndSide =
+        candidateKey === selectedRouteEndKeys.start
+          ? "start"
+          : candidateKey === selectedRouteEndKeys.end
+            ? "end"
+            : null;
+      const label = endpointLabel(candidate.endpoint);
+      const terminal =
+        candidate.endpoint.kind === "terminal" ? candidate.endpoint : null;
+      const controlTitle =
+        terminal &&
+        controlSensorCandidate?.(terminal.instanceId, terminal.pinName)
+          ? `${document.instances.find((item) => item.id === terminal.instanceId)?.reference ?? "Device"}.${terminal.pinName}`
+          : null;
+      return (
+        <circle
+          key={`${candidate.netId}:${label}`}
+          data-testid={label}
+          data-endpoint-kind={candidate.endpoint.kind}
+          data-endpoint-key={candidateKey}
+          data-junction-dot={
+            candidate.endpoint.kind === "terminal" &&
+            junctionDotEndpointKeys?.has(candidateKey)
+              ? "true"
+              : undefined
+          }
+          data-control-hover={
+            controlSensorCandidate
+              ? Boolean(
+                  controlHover &&
+                  endpointKey(controlHover.endpoint) === candidateKey,
+                )
+              : undefined
+          }
+          data-control-sensor={
             candidate.endpoint.kind === "terminal"
-          ) {
+              ? controlSensorCandidate?.(
+                  candidate.endpoint.instanceId,
+                  candidate.endpoint.pinName,
+                )
+              : undefined
+          }
+          data-canvas-hit-kind={
+            candidate.endpoint.kind === "junction" ? "junction" : undefined
+          }
+          data-canvas-hit-id={candidateJunctionId ?? undefined}
+          data-drag-object-id={candidateJunctionId ?? undefined}
+          className={
+            tool === "wire" ||
+            (candidateJunctionId !== null &&
+              supplementalJunctionIds.includes(candidateJunctionId)) ||
+            (selectedEndpoint?.endpoint.kind === "junction" &&
+              candidateJunctionId !== null &&
+              selectedEndpoint.endpoint.junctionId === candidateJunctionId)
+              ? "endpoint-hit active"
+              : "endpoint-hit"
+          }
+          cx={candidate.connection.contactPoint.x}
+          cy={candidate.connection.contactPoint.y}
+          r={endpointHitRadius}
+          onClick={(event) => {
+            if (
+              tool !== "pointer" ||
+              selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select")
+            ) {
+              event.stopPropagation();
+            }
+          }}
+          onContextMenu={(event) => {
+            if (
+              tool === "pointer" &&
+              !selectionPolicy.allowsEndpoint(
+                candidate.endpoint.kind,
+                "context-menu",
+              )
+            )
+              return;
             event.preventDefault();
             event.stopPropagation();
-            if (event.button !== 0) return;
-            const snapped = snappedControlTarget(event);
-            if (snapped) onWireEndpoint(event, snapped);
-            return;
-          }
-          if (
-            tool === "pointer" &&
-            selectedRoute &&
-            (powerRailEndIndex >= 0 || selectedRouteEndSide !== null) &&
-            !selectionPolicy.allowsClass("route", "handle")
-          ) {
-            return;
-          }
-          if (tool === "pointer" && selectedRoute && powerRailEndIndex >= 0) {
-            onRouteStretch(
-              event,
-              selectedRoute.id,
-              selectedRouteSegmentIndex ?? 0,
-              powerRailEndIndex === 0
-                ? "resize-power-rail-start"
-                : "resize-power-rail-end",
-            );
-            return;
-          }
-          if (
-            tool === "pointer" &&
-            selectedRoute &&
-            selectedRouteEndSide !== null
-          ) {
-            onRouteStretch(
-              event,
-              selectedRoute.id,
-              selectedRouteEndSide === "start"
-                ? 0
-                : selectedRoute.legs.length - 1,
-              selectedRouteEndSide === "start"
-                ? "resize-route-start"
-                : "resize-route-end",
-            );
-            return;
-          }
-          if (
-            tool === "pointer" &&
-            !selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select")
-          ) {
-            return;
-          }
-          if (tool === "pointer" && candidate.endpoint.kind === "junction") {
-            event.stopPropagation();
-            onJunctionSelect(candidate);
-            return;
-          }
-          onWireEndpoint(event, candidate);
-        }}
-        onPointerMove={(event) => {
-          if (controlSensorCandidate)
-            setControlHover(snappedControlTarget(event));
-        }}
-        onPointerEnter={(event) => {
-          if (controlSensorCandidate) {
-            setControlHover(snappedControlTarget(event));
-            return;
-          }
-          if (candidate.netId) onNetPointerEnter?.(candidate.netId);
-        }}
-        onPointerLeave={() => {
-          onNetPointerLeave?.();
-          setControlHover(null);
-        }}
-      >
-        {controlTitle ? <title>{controlTitle}</title> : null}
-      </circle>
-    );
-  });
+            onEndpointActions(candidate, event.clientX, event.clientY);
+          }}
+          onPointerDown={(event) => {
+            if (
+              controlSensorCandidate &&
+              candidate.endpoint.kind === "terminal"
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (event.button !== 0) return;
+              const snapped = snappedControlTarget(event);
+              if (snapped) onWireEndpoint(event, snapped);
+              return;
+            }
+            if (
+              tool === "pointer" &&
+              selectedRoute &&
+              (powerRailEndIndex >= 0 || selectedRouteEndSide !== null) &&
+              !selectionPolicy.allowsClass("route", "handle")
+            ) {
+              return;
+            }
+            if (tool === "pointer" && selectedRoute && powerRailEndIndex >= 0) {
+              onRouteStretch(
+                event,
+                selectedRoute.id,
+                selectedRouteSegmentIndex ?? 0,
+                powerRailEndIndex === 0
+                  ? "resize-power-rail-start"
+                  : "resize-power-rail-end",
+              );
+              return;
+            }
+            if (
+              tool === "pointer" &&
+              selectedRoute &&
+              selectedRouteEndSide !== null
+            ) {
+              onRouteStretch(
+                event,
+                selectedRoute.id,
+                selectedRouteEndSide === "start"
+                  ? 0
+                  : selectedRoute.legs.length - 1,
+                selectedRouteEndSide === "start"
+                  ? "resize-route-start"
+                  : "resize-route-end",
+              );
+              return;
+            }
+            if (
+              tool === "pointer" &&
+              !selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select")
+            ) {
+              return;
+            }
+            if (tool === "pointer" && candidate.endpoint.kind === "junction") {
+              event.stopPropagation();
+              onJunctionSelect(candidate);
+              return;
+            }
+            onWireEndpoint(event, candidate);
+          }}
+          onPointerMove={(event) => {
+            if (controlSensorCandidate)
+              setControlHover(snappedControlTarget(event));
+          }}
+          onPointerEnter={(event) => {
+            if (controlSensorCandidate) {
+              setControlHover(snappedControlTarget(event));
+              return;
+            }
+            if (candidate.netId) onNetPointerEnter?.(candidate.netId);
+          }}
+          onPointerLeave={() => {
+            onNetPointerLeave?.();
+            setControlHover(null);
+          }}
+        >
+          {controlTitle ? <title>{controlTitle}</title> : null}
+        </circle>
+      );
+    });
   return (
     <>
       {arrowOuter && arrowInner ? (

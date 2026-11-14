@@ -17,13 +17,13 @@ import {
   parseDraftingPropertyCode,
   serializeAnnotationPropertyCode,
   type AnnotationPropertyValue,
+  type DraftingPropertyEdit,
 } from "./annotation-property-code";
 
 /** Settings a batch may share; placement and content stay per object. */
 const SHARED_PREFIXES = [
   "appearance.",
   "display.",
-  "stacking.",
   "placement.rotation",
   "placement.mirror",
   "geometry.width",
@@ -135,9 +135,43 @@ export function batchDraftingEdits(
       context,
     );
     return parsed.ok
-      ? [{ kind: "upsert_drafting_object", object: parsed.value }]
+      ? [{ kind: "upsert_drafting_object", object: parsed.value.object }]
       : [];
   });
+}
+
+export function drawingPropertyEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  grid: number,
+  before: DraftingObject,
+  { object, layer }: DraftingPropertyEdit,
+  selectedIds: readonly string[],
+): SchematicEdit[] {
+  const edits: SchematicEdit[] = [
+    { kind: "upsert_drafting_object", object },
+    ...batchDraftingEdits(
+      document,
+      resolver,
+      grid,
+      before,
+      object,
+      selectedIds,
+    ),
+  ];
+  if (!layer) return edits;
+  const objectIds = (document.drafting?.objects ?? [])
+    .filter(
+      (object) =>
+        (object.kind === "rectangle" || object.kind === "circle") &&
+        !object.locked &&
+        (object.id === before.id || selectedIds.includes(object.id)),
+    )
+    .map((object) => object.id);
+  return [
+    ...edits,
+    { kind: "reorder_drawing_objects", objectIds, position: { kind: layer } },
+  ];
 }
 
 /** The edits that carry a label's Properties edit to the other labels. */

@@ -469,6 +469,9 @@ export function planComponentPropertyCodeEdits(
 
   edits.push(...planInductorCouplingEdits(document, instance, value));
   const styleOverride = {
+    ...(instance.styleOverride?.background
+      ? { background: instance.styleOverride.background }
+      : {}),
     ...(value.appearance.color === "auto"
       ? {}
       : { foreground: value.appearance.color }),

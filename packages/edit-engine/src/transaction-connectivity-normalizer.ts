@@ -3,10 +3,12 @@ import type { Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   buildDocumentSpatialIndex,
   buildEndpointObjectLookup,
+  drawingHasOpaqueFill,
   endpointKey,
   findRouteSegmentsAtPoint,
   isVisibleEndpoint,
   resolveDocumentRoutingGeometry,
+  resolveDrawingScene,
   resolveEndpointConnection,
 } from "@icm/derived";
 import type { DocumentSpatialIndex, EndpointObjectLookup } from "@icm/derived";
@@ -166,6 +168,9 @@ export function newlyTouchedRouteEndpoints(
   const afterHits = authoredRoutesAtPoint(after, afterGeometry, afterIndex);
   const result: NewlyTouchedRouteEndpoint[] = [];
   const lookup = buildEndpointObjectLookup(after);
+  const drawing = drawingHasOpaqueFill(after)
+    ? resolveDrawingScene(after, resolver)
+    : undefined;
   for (const endpoint of visibleEndpoints(after, resolver, lookup)) {
     if (
       endpoint.kind === "terminal"
@@ -180,6 +185,12 @@ export function newlyTouchedRouteEndpoints(
       lookup,
     )?.contactPoint;
     if (!point) continue;
+    if (
+      drawing &&
+      (!drawing.isEndpointVisibleAt(endpoint, point) ||
+        !drawing.isVisibleAt({ kind: "electrical" }, point))
+    )
+      continue;
     const candidates = [...afterHits(point)]
       .filter((id) => movedRouteIds.has(id))
       .sort((left, right) => left.localeCompare(right, "en"));
@@ -238,6 +249,9 @@ export function nextPhysicalContactOperation(
   const endpoints = visibleEndpoints(document, resolver, lookup).filter(
     (endpoint) => !suppressedEndpointKeys.has(endpointKey(endpoint)),
   );
+  const drawing = drawingHasOpaqueFill(document)
+    ? resolveDrawingScene(document, resolver)
+    : undefined;
   const positioned = endpoints.flatMap((endpoint) => {
     const point = resolveEndpointConnection(
       document,
@@ -245,6 +259,13 @@ export function nextPhysicalContactOperation(
       endpoint,
       lookup,
     )?.contactPoint;
+    if (
+      point &&
+      drawing &&
+      !license.endpointKeys.has(endpointKey(endpoint)) &&
+      !drawing.isEndpointVisibleAt(endpoint, point)
+    )
+      return [];
     return point ? [{ endpoint, point }] : [];
   });
 
@@ -343,6 +364,12 @@ export function nextPhysicalContactOperation(
           : changedRoutePointLicensed ||
             (endpointIsLicensed && typedRoutePointLicensed);
       if (!contactLicensed) continue;
+      if (
+        !typedRoutePointLicensed &&
+        drawing &&
+        !drawing.isVisibleAt({ kind: "electrical" }, point)
+      )
+        continue;
       if (
         routeEndpoints(route).some(
           (candidate) => endpointKey(candidate) === endpointKey(endpoint),

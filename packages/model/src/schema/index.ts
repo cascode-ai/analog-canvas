@@ -7,6 +7,7 @@ export * from "./routing.js";
 export * from "./rich-text.js";
 export * from "./annotations.js";
 export * from "./drafting.js";
+export * from "./drawing-presentation.js";
 export * from "./symbol-binding.js";
 export * from "./presentation.js";
 export * from "./simulation.js";

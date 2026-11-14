@@ -419,7 +419,9 @@ export abstract class AgentSessionTransactions extends AgentSessionResources {
     message: string,
   ): Promise<ApplyActionsReport> {
     const before = this.cache.get(entry.documentId);
-    const fresh = await this.refreshSnapshot(entry.documentId);
+    const fresh = await this.refreshSnapshot(entry.documentId, {
+      drawingPresentation: before?.snapshot.document.drawingOrder !== undefined,
+    });
     return {
       ok: false,
       stage: "commit",

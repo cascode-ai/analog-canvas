@@ -10,6 +10,8 @@ import {
   objectStyleProfile,
   resolveDocumentStyleProfile,
   resolveDraftingObjectGeometry,
+  resolveDrawingScene,
+  type ResolvedDrawingScene,
 } from "@icm/derived";
 import type { DraftingObject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -36,6 +38,7 @@ const ROTATE_HANDLE_GAP = 22;
 export function EditorDraftingHitTargets({
   document,
   resolver,
+  drawingScene,
   tool,
   selectedDraftingId,
   supplementalDraftingIds,
@@ -47,6 +50,7 @@ export function EditorDraftingHitTargets({
 }: {
   document: SchematicDocument;
   resolver: SymbolResolver;
+  drawingScene?: ResolvedDrawingScene;
   tool: EditorTool;
   selectedDraftingId: string | null;
   supplementalDraftingIds: readonly string[];
@@ -66,16 +70,19 @@ export function EditorDraftingHitTargets({
     clientY: number,
   ) => void;
 }) {
-  const draftingObjects = [...(document.drafting?.objects ?? [])].sort(
-    (left, right) => {
-      const plane = (object: DraftingObject) =>
-        (object.kind === "rectangle" || object.kind === "circle") &&
-        object.layer === "background"
-          ? 0
-          : 1;
-      return plane(left) - plane(right) || left.zIndex - right.zIndex;
-    },
+  const scene = useMemo(
+    () => drawingScene ?? resolveDrawingScene(document, resolver),
+    [document, resolver, drawingScene],
   );
+  const objects = new Map(
+    (document.drafting?.objects ?? []).map((object) => [object.id, object]),
+  );
+  const draftingObjects = scene.order.flatMap((entry) =>
+    entry.kind === "drafting" && objects.has(entry.id)
+      ? [objects.get(entry.id)!]
+      : [],
+  );
+  const electricalRank = scene.rank({ kind: "electrical" });
   // `resolveDraftingObjectGeometry` re-derived the whole Document's route
   // geometry on every call, so a Project with hundreds of drafting objects
   // paid to resolve all of its Routes hundreds of times per render. Derive it
@@ -85,6 +92,8 @@ export function EditorDraftingHitTargets({
     [document, resolver],
   );
   return draftingObjects.map((object) => {
+    const background =
+      scene.rank({ kind: "drafting", id: object.id }) < electricalRank;
     const drawingThroughScene =
       tool === "wire" ||
       tool === "arrow" ||
@@ -238,7 +247,7 @@ export function EditorDraftingHitTargets({
     }
     if (object.kind === "rectangle" && geometry.kind === "rectangle") {
       const fillClass = object.styleOverride?.fillColor
-        ? object.layer === "background"
+        ? background
           ? " drafting-shape-background-hit"
           : " drafting-shape-filled-hit"
         : "";
@@ -254,7 +263,7 @@ export function EditorDraftingHitTargets({
     }
     if (object.kind === "circle" && geometry.kind === "circle") {
       const fillClass = object.styleOverride?.fillColor
-        ? object.layer === "background"
+        ? background
           ? " drafting-shape-background-hit"
           : " drafting-shape-filled-hit"
         : "";

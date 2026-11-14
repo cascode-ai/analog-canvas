@@ -50,6 +50,10 @@ test("right-click on a device only offers direct selection actions", async ({
   await expect(menu.getByRole("menuitem")).toHaveText([
     "Edit Component Definition (E)",
     "Properties (Q)",
+    "Bring to front",
+    "Move up one layer",
+    "Move down one layer",
+    "Send to back",
     "Copy (C)",
     "Rotate 90° (R)",
     "Mirror left/right (Shift+R)",

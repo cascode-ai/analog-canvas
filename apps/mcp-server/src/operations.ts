@@ -533,6 +533,12 @@ const VerifyArgs = DocumentArgs.extend({
 
 const InspectArgs = z.strictObject({
   documentId: z.string().min(1).optional(),
+  drawingPresentation: z
+    .boolean()
+    .optional()
+    .describe(
+      "For an object or a document with detail:full, read body fills, supported symbols and effective drawing order.",
+    ),
   refresh: z
     .boolean()
     .optional()
@@ -1609,6 +1615,18 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
     },
     handle: async (args, session) => {
       const parsed = InspectArgs.parse(args);
+      if (
+        parsed.drawingPresentation &&
+        parsed.target.kind !== "object" &&
+        !(parsed.target.kind === "document" && parsed.detail === "full")
+      )
+        return {
+          error: {
+            code: "INVALID_REQUEST",
+            message:
+              "drawingPresentation requires an object or a document with detail:full",
+          },
+        };
       if (parsed.target.kind === "activity") {
         // The relay's record spans every process of the session; this
         // process's receipts add the edits it made itself.
@@ -1659,6 +1677,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       }
       const entry = await session.client.snapshot(parsed.documentId, {
         refresh: parsed.refresh ?? false,
+        ...(parsed.drawingPresentation ? { drawingPresentation: true } : {}),
       });
       switch (parsed.target.kind) {
         case "document":
@@ -1793,7 +1812,10 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
       const parsed = VerifyArgs.parse(args ?? {});
       const documentId = parsed.documentId;
       const before = client.cachedSnapshot(documentId);
-      const fresh = await client.refreshSnapshot(documentId);
+      const fresh = await client.refreshSnapshot(documentId, {
+        drawingPresentation:
+          before?.snapshot.document.drawingOrder !== undefined,
+      });
       const changed =
         before && before.documentId === fresh.documentId
           ? changedObjectIds(before.snapshot, fresh.snapshot)

@@ -67,7 +67,7 @@ describe("batch property planning", () => {
       ),
     ).toBe("#aabbcc");
   });
-  it("patches the assigned value and color while retiring component background paint", () => {
+  it("patches the assigned value and foreground while keeping historical background", () => {
     const a = resistor("R1", "1k"),
       b = resistor("R2", "2k");
     a.styleOverride = { foreground: "#000", background: "#ffffff" };
@@ -87,7 +87,7 @@ describe("batch property planning", () => {
       {
         kind: "set_instance_style_override",
         instanceId: "R1",
-        styleOverride: { foreground: "#dc2626" },
+        styleOverride: { foreground: "#dc2626", background: "#ffffff" },
       },
       {
         kind: "patch_instance_netlist_parameters",
@@ -266,7 +266,7 @@ describe("batch property planning", () => {
         parseGroupPropertyCode(JSON.stringify({ ...code, parameters }), ctx).ok,
       ).toBe(false);
   });
-  it("resets component color and retires obsolete background paint", () => {
+  it("resets component color and keeps historical background paint", () => {
     const instance = {
       ...resistor("R1", "1k"),
       styleOverride: { foreground: "#dc2626", background: "#ffffff" },
@@ -278,7 +278,7 @@ describe("batch property planning", () => {
       {
         kind: "set_instance_style_override",
         instanceId: "R1",
-        styleOverride: null,
+        styleOverride: { background: "#ffffff" },
       },
     ]);
   });

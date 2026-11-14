@@ -18,7 +18,7 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 80;
+export const CURRENT_PROJECT_FILE_VERSION = 81;
 type Value = Record<string, any>;
 
 /** Member-specific No Connect declarations are explicit from schema 77. */

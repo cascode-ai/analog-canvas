@@ -1,5 +1,7 @@
 import {
   AnnotationSchema,
+  BodyFillSchema,
+  DrawingOrderEntrySchema,
   InstanceNetlistDataSchema,
   DerivedPointSchema,
   DerivedRectSchema,
@@ -151,6 +153,12 @@ export const AgentSnapshotRequestSchema = RequestBaseSchema.extend({
   instanceIds: z.array(StableIdSchema).min(1).max(64).optional(),
   /** Full and pins only: each instance lists its labels as well (#1518). */
   instanceLabels: z.boolean().optional(),
+  drawingPresentation: z
+    .boolean()
+    .optional()
+    .describe(
+      "Full Snapshot only: read effective drawing order and Instance body fill.",
+    ),
   diagnosticDetail: z.enum(["counts", "items"]).optional(),
   includeSourceSpans: z.boolean().optional(),
   traceNet: z
@@ -536,6 +544,13 @@ export const AgentSnapshotInstanceLabelSchema = z.strictObject({
 
 export const AgentSnapshotInstanceSchema = z.strictObject({
   styleOverride: InstanceStyleOverrideSchema.optional(),
+  bodyFill: BodyFillSchema.optional(),
+  supportsBodyFill: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether the active Symbol has a fillable body. Returned with drawingPresentation.",
+    ),
   signalFlowParameters: SignalFlowParametersSchema.optional(),
   id: StableIdSchema,
   reference: z.string().min(1).nullable(),
@@ -634,6 +649,12 @@ const AgentSnapshotInductorCouplingSchema = z.strictObject({
 
 export const AgentSnapshotDocumentSchema = z.strictObject({
   netlist: CellNetlistInterfaceSchema.optional(),
+  drawingOrder: z
+    .array(DrawingOrderEntrySchema)
+    .optional()
+    .describe(
+      "Effective order from back to front. Returned with drawingPresentation.",
+    ),
   mosBulkDefaults: MosBulkDefaultsSchema.optional(),
   inductorCouplings: z
     .array(AgentSnapshotInductorCouplingSchema)

@@ -1,3 +1,6 @@
+import type { ResolvedDrawingScene } from "@icm/derived";
+import type { DrawingOrderEntry, Point } from "@icm/model";
+
 export type CanvasHitKind =
   | "handle"
   | "annotation"
@@ -12,6 +15,36 @@ export interface CanvasHit {
   id: string;
   selected: boolean;
   element: Element;
+}
+
+function drawingEntryForHit(hit: CanvasHit): DrawingOrderEntry | null {
+  switch (hit.kind) {
+    case "handle":
+      return null;
+    case "route":
+    case "junction":
+      return { kind: "electrical" };
+    case "instance":
+    case "drafting":
+      return { kind: hit.kind, id: hit.id };
+    case "annotation":
+    case "instance-label":
+      return { kind: "annotation", id: hit.id };
+  }
+}
+
+export interface CanvasHitPresentation {
+  scene: ResolvedDrawingScene;
+  point: Point;
+  includeOccluded?: boolean;
+}
+
+export function isCanvasHitVisible(
+  hit: CanvasHit,
+  { scene, point }: CanvasHitPresentation,
+): boolean {
+  const entry = drawingEntryForHit(hit);
+  return entry === null || scene.isVisibleAt(entry, point);
 }
 
 // Thin electrical targets outrank the symbol's blank bounding box: a route
@@ -35,7 +68,7 @@ const KIND_PRIORITY: Record<CanvasHitKind, number> = {
 };
 const SELECTED_BONUS = 25;
 
-function readHit(element: Element): CanvasHit | null {
+export function canvasHitFromElement(element: Element): CanvasHit | null {
   const hitElement =
     element.closest?.("[data-canvas-hit-kind][data-canvas-hit-id]") ?? element;
   const kind = hitElement.getAttribute(
@@ -58,62 +91,56 @@ function readHit(element: Element): CanvasHit | null {
 export function rankCanvasHits(
   elements: readonly Element[],
   accepts: (hit: CanvasHit) => boolean = () => true,
+  presentation?: CanvasHitPresentation,
 ): CanvasHit[] {
   const hits = elements
-    .map(readHit)
+    .map(canvasHitFromElement)
     .filter((hit): hit is CanvasHit => hit !== null)
     .filter(accepts);
-  const unique = hits.filter(
-    (hit, index) =>
-      hits.findIndex(
-        (candidate) => candidate.kind === hit.kind && candidate.id === hit.id,
-      ) === index,
-  );
-  const visibleAnnotationAtPoint = unique.some(
-    (hit) => hit.kind === "annotation",
-  );
-  return unique
+  const unique = hits
+    .filter(
+      (hit, index) =>
+        hits.findIndex(
+          (candidate) => candidate.kind === hit.kind && candidate.id === hit.id,
+        ) === index,
+    )
     .map((hit, paintIndex) => ({
       hit,
       paintIndex,
+      visible: !presentation || isCanvasHitVisible(hit, presentation),
+    }))
+    .filter(({ visible }) => visible || presentation?.includeOccluded);
+  const visibleAnnotationAtPoint = unique.some(
+    ({ hit, visible }) => visible && hit.kind === "annotation",
+  );
+  return unique
+    .map(({ hit, paintIndex, visible }) => ({
+      hit,
+      paintIndex,
+      visible,
+      drawingRank:
+        presentation?.scene.rank(
+          drawingEntryForHit(hit) ?? { kind: "circuit-marks" },
+        ) ?? 0,
       // Selection stickiness must not let a broad symbol box or wire hit
       // stroke mask visible annotation text. Handles still outrank text by
       // their base priority; Alt continues to cycle to the geometry below.
       score:
         KIND_PRIORITY[hit.kind] +
         (hit.selected &&
+        !presentation?.includeOccluded &&
         (!visibleAnnotationAtPoint || hit.kind === "annotation")
           ? SELECTED_BONUS
           : 0),
     }))
     .sort(
       (left, right) =>
-        right.score - left.score || left.paintIndex - right.paintIndex,
+        Number(right.visible) - Number(left.visible) ||
+        right.score - left.score ||
+        right.drawingRank - left.drawingRank ||
+        left.paintIndex - right.paintIndex,
     )
     .map(({ hit }) => hit);
-}
-
-export function resolveCanvasHit(
-  elements: readonly Element[],
-  cycle = 0,
-  accepts?: (hit: CanvasHit) => boolean,
-): CanvasHit | null {
-  const hits = rankCanvasHits(elements, accepts);
-  if (hits.length === 0) return null;
-  return hits[Math.min(Math.max(0, cycle), hits.length - 1)]!;
-}
-
-export function resolveCanvasHitAtPoint(
-  owner: { elementsFromPoint?(x: number, y: number): Element[] },
-  client: { x: number; y: number },
-  cycle = 0,
-  accepts?: (hit: CanvasHit) => boolean,
-): CanvasHit | null {
-  return resolveCanvasHit(
-    owner.elementsFromPoint?.(client.x, client.y) ?? [],
-    cycle,
-    accepts,
-  );
 }
 
 /**

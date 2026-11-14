@@ -74,8 +74,9 @@ rendering and recovery.
   `Lp=1n Ls=1n K=1`. Their `display.parameters` switches each control one live
   label; clearing a value hides it.
 - Colors show as `[R, G, B]` but persist as hex; `"auto"` inherits foreground.
-  Components have no background/fill (historical overrides stay readable and
-  retire on the next Appearance edit); shapes use `appearance.fillColor`.
+  The **Body fill** control offers Transparent, Document background, and
+  Custom color for Symbols with a declared closed body. A direct change
+  replaces any legacy background. Shapes use `appearance.fillColor`.
 - `symbol` offers only pin-compatible variants; `signalFlow` owns formula
   overrides. `placement: null` is refused for drawn devices.
 - Units, selectors and switch/rotate/mirror/color buttons are decorations, never
@@ -240,6 +241,10 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   Definition, Enter Cell or Couple inductors where they apply. Rotate (R) turns a
   free drawing text between reading across and reading up the page; a half turn
   leaves it.
+- The canvas menu's drawing-order commands move an Instance with its labels
+  or move independent drawing objects. Hit testing skips objects under an
+  opaque region before applying selection priority. Repeat `Alt`-click to
+  cycle through candidates at the same point, including covered objects.
 - The six align commands share one planner. Participants: placed Instances,
   selected annotations and DraftText (an anchored label with its host follows
   once); not Routes or Junctions. One undo. The GUI never calls `align_instances`.

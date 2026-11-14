@@ -18,11 +18,13 @@ import { deviceDescriptor } from "@icm/devices";
 import {
   buildDocumentSpatialIndex,
   createElectricalContactResolver,
+  drawingHasOpaqueFill,
   endpointKey,
   isVisibleEndpoint,
   isMosBulkTerminal,
   findRouteSegmentsAtPoint,
   resolveDocumentLogicalNets,
+  resolveDrawingScene,
   resolveEndpointConnection,
   resolveDocumentRoutingGeometry,
   supplyMarkerForSymbol,
@@ -34,6 +36,7 @@ import type {
   ResolvedDocumentLogicalNets,
   ResolvedDocumentRoutingGeometry,
   DocumentSpatialIndex,
+  ResolvedDrawingScene,
 } from "@icm/derived";
 import { deriveStableId, routeEndpoints } from "@icm/model";
 import type { Instance, RouteEndpoint, SchematicDocument } from "@icm/model";
@@ -61,6 +64,8 @@ export function createPlacementContactContext(
   let logicalNets: ResolvedDocumentLogicalNets | undefined;
   let geometry: ResolvedDocumentRoutingGeometry | undefined;
   let index: DocumentSpatialIndex | undefined;
+  let drawing: ResolvedDrawingScene | undefined;
+  let hasOpaqueFill: boolean | undefined;
   const lookup: EndpointObjectLookup = {
     instancesById: new Map(document.instances.map((item) => [item.id, item])),
     junctionsById: new Map(document.junctions.map((item) => [item.id, item])),
@@ -111,6 +116,10 @@ export function createPlacementContactContext(
     },
     get spatialIndex() {
       return (index ??= buildDocumentSpatialIndex(document, routingGeometry()));
+    },
+    get drawing() {
+      if (!(hasOpaqueFill ??= drawingHasOpaqueFill(document))) return undefined;
+      return (drawing ??= resolveDrawingScene(document, resolver));
     },
     resolveContacts: createElectricalContactResolver(
       document,
@@ -354,19 +363,25 @@ export function proposePlacementContact(
   context.assertSnapshot(document, resolver);
   const routingGeometry = context.routingGeometry;
   const spatialIndex = context.spatialIndex;
+  const drawing = context.drawing;
   const sources = (options.instances ?? [instance]).flatMap((item) =>
     placementWireSources(document, resolver, item, context),
   );
   for (const source of sources) {
     const sourceKey = endpointKey(source.endpoint);
+    const point = source.connection.contactPoint;
+    if (
+      options.mode === "move" &&
+      drawing &&
+      !drawing.isEndpointVisibleAt(source.endpoint, point)
+    )
+      continue;
     const candidates: ElectricalContactCandidate[] = targets
       .filter(
         (target) =>
           endpointKey(target.endpoint) !== sourceKey &&
-          samePoint(
-            source.connection.contactPoint,
-            target.connection.contactPoint,
-          ),
+          samePoint(point, target.connection.contactPoint) &&
+          (!drawing || drawing.isEndpointVisibleAt(target.endpoint, point)),
       )
       .map((target) => ({
         kind: "endpoint" as const,
@@ -375,11 +390,11 @@ export function proposePlacementContact(
         netId: target.netId,
         endpoint: target.endpoint,
       }));
-    for (const address of findRouteSegmentsAtPoint(
-      routingGeometry,
-      source.connection.contactPoint,
-      spatialIndex,
-    )) {
+    const routeAddresses =
+      !drawing || drawing.isVisibleAt({ kind: "electrical" }, point)
+        ? findRouteSegmentsAtPoint(routingGeometry, point, spatialIndex)
+        : [];
+    for (const address of routeAddresses) {
       const route = context.routesById.get(address.routeId);
       if (
         !route ||

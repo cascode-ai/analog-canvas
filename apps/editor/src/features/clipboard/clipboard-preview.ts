@@ -2,11 +2,12 @@
 import { executeTransaction } from "@icm/edit-engine";
 import { translateDraftingObject } from "@icm/edit-engine";
 import type { Point, SchematicDocument } from "@icm/model";
+import { resolveDrawingOrder } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { PlacementOrientationOperation } from "../../interaction/shortcut-orientation";
 
-import type { SchematicClipboard } from "./clipboard";
+import { copyDrawingOrder, type SchematicClipboard } from "./clipboard";
 import { orientClipboard } from "./copy-placement";
 import { proposePaste } from "./paste-proposal";
 import { movePoint, remapPastedDraftingAnchors } from "./paste-remap";
@@ -66,8 +67,9 @@ function fallbackClipboardPreviewDocument(
   // The Cell's block layout names the Cell's Pins, of which the ghost holds
   // none or some: inherited, it failed validation and no ghost was drawn.
   const { cellSymbol: _cellSymbol, ...presentation } = base.presentation;
+  const { drawingOrder: _drawingOrder, ...source } = base;
   return {
-    ...base,
+    ...source,
     presentation,
     instances: clipboard.instances.map((instance) => ({
       ...structuredClone(instance),
@@ -118,6 +120,7 @@ function fallbackClipboardPreviewDocument(
     annotations,
     drafting:
       draftingObjects.length > 0 ? { objects: draftingObjects } : undefined,
+    ...(clipboard.drawingOrder ? { drawingOrder: clipboard.drawingOrder } : {}),
     // A copy ghost is an isolated fragment, not a filtered view of the base
     // Document. Every reference-bearing Document field must therefore be
     // owned explicitly here. Inheriting any of these through `...base` leaves
@@ -194,7 +197,7 @@ function previewExecutionDocument(base: SchematicDocument): SchematicDocument {
     })
   )
     return base;
-  return {
+  const isolated = {
     ...base,
     instances: base.instances.map((instance) => ({
       ...instance,
@@ -213,6 +216,9 @@ function previewExecutionDocument(base: SchematicDocument): SchematicDocument {
     layoutGroups: [],
     constraints: [],
   };
+  if (isolated.drawingOrder)
+    isolated.drawingOrder = resolveDrawingOrder(isolated);
+  return isolated;
 }
 
 /**
@@ -389,6 +395,11 @@ export function clipboardPreviewDocument(
           ),
           ...(inductorCouplings.length ? { inductorCouplings } : {}),
         });
+        const drawingOrder = copyDrawingOrder(
+          result.document,
+          previewClipboard,
+        );
+        if (drawingOrder) previewClipboard.drawingOrder = drawingOrder;
         // Back from the clearance the dry run needed, so the ghost lands
         // where the caller asked for it.
         return fallbackClipboardPreviewDocument(

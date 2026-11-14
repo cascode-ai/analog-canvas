@@ -1,6 +1,7 @@
 import {
   electricalTopologyHash,
   isSchematicAnnotationVisible,
+  instanceSupportsBodyFill,
   resolveAnnotationPresentation,
   resolveDocumentStyleProfile,
   resolveDocumentLogicalNets,
@@ -14,7 +15,11 @@ import {
   resolveAnnotationText,
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
-import { transformPoint, flattenRichText } from "@icm/model";
+import {
+  transformPoint,
+  flattenRichText,
+  resolveDrawingOrder,
+} from "@icm/model";
 import type {
   Annotation,
   CircuitProject,
@@ -60,6 +65,8 @@ export interface BuildAgentSessionSnapshotOptions {
    * released clients parse the instance record strictly.
    */
   instanceLabels?: boolean;
+  /** Opt-in presentation facts for clients that can read them. */
+  drawingPresentation?: boolean;
 }
 
 export interface BuildAgentBootstrapSnapshotOptions {
@@ -597,6 +604,14 @@ export function selectAgentInstances(
         ...(instance.styleOverride
           ? { styleOverride: structuredClone(instance.styleOverride) }
           : {}),
+        ...(options.drawingPresentation
+          ? {
+              supportsBodyFill: instanceSupportsBodyFill(instance, resolver),
+              ...(instance.bodyFill
+                ? { bodyFill: structuredClone(instance.bodyFill) }
+                : {}),
+            }
+          : {}),
         ...(instance.signalFlowParameters
           ? {
               signalFlowParameters: structuredClone(
@@ -795,6 +810,9 @@ function documentSnapshot(
       ? { inductorCouplings: inductorCouplingSnapshot(document) }
       : {}),
     presentation: structuredClone(document.presentation),
+    ...(options.drawingPresentation
+      ? { drawingOrder: resolveDrawingOrder(document) }
+      : {}),
     cellInterface: document.netlist
       ? {
           name: document.netlist.name,

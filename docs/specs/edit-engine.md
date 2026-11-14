@@ -40,8 +40,9 @@ schema → document identity → revision → preflight → candidate apply
   instance (no partial moves); symbol and Instance edits honor the same locks.
 - Moving or aligning an instance moves its attached annotations in the same
   transaction.
-- Instance/topology authoring sets `sourceStatus` to `connectivity-modified`;
-  geometry-only edits keep the prior status.
+- Instance/topology authoring sets `sourceStatus` to `connectivity-modified`.
+  Geometry-only edits set `geometry-only-changed` if previously `in-sync`.
+  Setting body fill or drawing order retains source status.
 - Only the resulting Document and revision persist; transactions, diffs,
   diagnostics and history are runtime state.
 
@@ -78,6 +79,18 @@ gate.
   (`formula`, `coefficient`, `bodyWidth`, `bodyHeight`; sizes are optional
   10-grid minimums) without touching netlist parameters; `null`/`{}` clears.
   Pins, bounds, routes and untouched labels re-derive; moved labels stay.
+- `set_body_fill` sets background or a hex color on Instances whose active
+  symbol exposes a fillable body. `null` clears the fill, including a legacy
+  box color. Symbol replacement clears fill when the new definition declares
+  no fillable region.
+- `reorder_drawing_objects` moves stable Document references as one selection.
+  Instance selection gathers owned annotations, and a Layout Group expands
+  its drawable members. Relative ordering moves across a neighboring Instance
+  and its gathered annotations together. It can address an object or the
+  electrical plane. `insert` preserves input order and accepts only newly
+  added or newly placed objects. A copied run can insert before a shared paint
+  plane it carries. These edits honor locks,
+  reject invalid targets atomically, and leave no history for no-ops.
 - Annotation edits (`upsert/remove_schematic_annotation`, kinds
   `instance-label | instance-value | net-label | power-label | route-marker`)
   and drafting edits (`upsert/remove_drafting_object`) never touch Nets,

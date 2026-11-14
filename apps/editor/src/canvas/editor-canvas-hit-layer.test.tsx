@@ -51,13 +51,9 @@ function emptySelectionProps(document = createEmptyDocument("cell", "Cell")) {
     wouldMoveIds: new Set<string>(),
     selectionPolicy: createSelectionPolicy(document, DEFAULT_SELECTION_FILTER),
     onInstanceClick: vi.fn(),
-    onInstanceOpen: vi.fn(),
     onInstancePointerDown: vi.fn(),
-    onInstanceContextMenu: vi.fn(),
     onRoutePointerDown: vi.fn(),
     onAnnotationPointerDown: vi.fn(),
-    onAnnotationContextMenu: vi.fn(),
-    onAnnotationEdit: vi.fn(),
   };
 }
 

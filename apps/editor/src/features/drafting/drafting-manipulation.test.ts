@@ -14,7 +14,6 @@ import {
   insertArrowWaypoint,
   insertConstructionVertex,
   mirrorDraftingObject,
-  planDraftingStacking,
   rotateDraftingObject,
   uprightOrUp,
   setDraftingBearing,
@@ -594,7 +593,7 @@ describe("drafting precise properties", () => {
     expect(cleared?.styleOverride).toEqual({ strokeScale: 1.35 });
   });
 
-  it("fills only closed shapes and moves them between circuit planes", () => {
+  it("fills only closed shapes", () => {
     const filled = applyDraftingStylePatch(circle(), {
       fillColor: "#9ca3af",
     });
@@ -602,43 +601,6 @@ describe("drafting precise properties", () => {
     expect(
       applyDraftingStylePatch(arrow(), { fillColor: "#dc2626" }),
     ).toBeNull();
-    expect(planDraftingStacking([filled!], filled!.id, "back")).toMatchObject([
-      { layer: "background", zIndex: 0 },
-    ]);
-    expect(
-      planDraftingStacking(
-        [filled!, { ...rectangle(), zIndex: 11 }],
-        filled!.id,
-        "front",
-      ),
-    ).toMatchObject([{ layer: "foreground", zIndex: 12 }]);
-    expect(
-      planDraftingStacking([{ ...filled!, locked: true }], filled!.id, "front"),
-    ).toBeNull();
-  });
-
-  it("normalizes background peers when sending a shape to the absolute back", () => {
-    const selected = { ...circle(), id: "selected", zIndex: 7 };
-    const first = {
-      ...rectangle(),
-      id: "first",
-      layer: "background" as const,
-      zIndex: 0,
-    };
-    const second = {
-      ...circle(),
-      id: "second",
-      layer: "background" as const,
-      zIndex: 9,
-      locked: true,
-    };
-    expect(
-      planDraftingStacking([first, selected, second], selected.id, "back"),
-    ).toMatchObject([
-      { id: "selected", layer: "background", zIndex: 0 },
-      { id: "first", zIndex: 1 },
-      { id: "second", zIndex: 2, locked: true },
-    ]);
   });
 });
 

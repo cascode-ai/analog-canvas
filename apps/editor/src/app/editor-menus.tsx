@@ -32,7 +32,10 @@ import {
 } from "../features/instance-display/reset-label-look";
 import type { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
 import { EDGE_ALIGNMENT_MODES } from "../features/selection/align-selection";
-import { CanvasContextMenu } from "../features/selection/canvas-context-menu";
+import {
+  CanvasContextMenu,
+  type ContextMenuAction,
+} from "../features/selection/canvas-context-menu";
 import type { useSelectionController } from "../features/selection/selection-controller";
 import type { summarizeVisualDiagnostics } from "../features/selection/selection-inspector-details";
 import {
@@ -744,6 +747,7 @@ export function EditorCanvasContextMenu({
   hasDefinitionSelection,
   editorCommands,
   coupleInductors,
+  drawingOrderActions = [],
 }: {
   canvasContextMenu: { x: number; y: number };
   setCanvasContextMenu: Dispatch<
@@ -759,6 +763,7 @@ export function EditorCanvasContextMenu({
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   /** Offered only while two uncoupled inductors are the selection. */
   coupleInductors?: (() => void) | null;
+  drawingOrderActions?: readonly ContextMenuAction[];
 }) {
   return (
     <CanvasContextMenu
@@ -796,6 +801,7 @@ export function EditorCanvasContextMenu({
           enabled: editorCommands.state({ id: "properties.open" }).enabled,
           execute: () => editorCommands.execute({ id: "properties.open" }),
         },
+        ...drawingOrderActions,
         {
           label: "Copy (C)",
           enabled:

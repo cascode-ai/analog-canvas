@@ -1,4 +1,8 @@
-import { SchematicDocumentSchema } from "@icm/model";
+import {
+  drawingOrderKey,
+  resolveDrawingOrder,
+  SchematicDocumentSchema,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import { shareEqualDocumentStructure } from "./document-structural-sharing.js";
@@ -50,13 +54,33 @@ export function diffDocumentObjectIds(
   if (left === right) return [];
   const leftObjects = collectObjects(left);
   const rightObjects = collectObjects(right);
+  const leftRanks =
+    left?.drawingOrder || right?.drawingOrder
+      ? new Map(
+          left &&
+            resolveDrawingOrder(left).map((entry, index) => [
+              drawingOrderKey(entry),
+              index,
+            ]),
+        )
+      : undefined;
+  const reordered = new Set(
+    right && leftRanks
+      ? resolveDrawingOrder(right).flatMap((entry, index) =>
+          "id" in entry && leftRanks.get(drawingOrderKey(entry)) !== index
+            ? [entry.id]
+            : [],
+        )
+      : [],
+  );
   const ids = new Set([...leftObjects.keys(), ...rightObjects.keys()]);
   return [...ids]
     .filter(
       (id) =>
-        leftObjects.get(id) !== rightObjects.get(id) &&
-        JSON.stringify(leftObjects.get(id)) !==
-          JSON.stringify(rightObjects.get(id)),
+        reordered.has(id) ||
+        (leftObjects.get(id) !== rightObjects.get(id) &&
+          JSON.stringify(leftObjects.get(id)) !==
+            JSON.stringify(rightObjects.get(id))),
     )
     .sort();
 }

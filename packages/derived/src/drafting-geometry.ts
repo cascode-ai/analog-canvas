@@ -180,6 +180,10 @@ export function resolveDraftingObjectGeometry(
   object: DraftingObject,
   resolvedRoutingGeometry?: ResolvedDocumentRoutingGeometry,
 ): ResolvedDraftingGeometry {
+  if (object.kind === "rectangle") return resolveRectangle(object);
+  if (object.kind === "circle") return resolveCircle(object);
+  if (object.kind === "construction-line")
+    return resolveConstructionLine(object);
   // Resolving this per object rebuilt the whole Document's route geometry once
   // for every drafting object: a Project with 200 of them paid to resolve 1070
   // Routes 200 times, and the Scene build does it in both the bounds pass and
@@ -196,12 +200,6 @@ export function resolveDraftingObjectGeometry(
       return resolveLeader(document, resolver, object, routingGeometry);
     case "callout":
       return resolveCallout(document, resolver, object, routingGeometry);
-    case "construction-line":
-      return resolveConstructionLine(object);
-    case "rectangle":
-      return resolveRectangle(object);
-    case "circle":
-      return resolveCircle(object);
     case "floating-symbol":
       return resolveFloatingSymbol(document, resolver, object, routingGeometry);
   }

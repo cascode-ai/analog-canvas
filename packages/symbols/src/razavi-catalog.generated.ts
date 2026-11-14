@@ -3179,7 +3179,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
     assetPath: "adc.json",
     assetHash:
-      "78c247c326a925a03f7094d156740b22e8cb557a4fb8b6b981cd078d1b44dd22",
+      "630edbb8c13c392e22b10398202d1cd30cdcf69b6cd8312b22c1a37442cd0d15",
   },
   {
     symbolId: "dac",
@@ -3213,7 +3213,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
     assetPath: "adc-differential.json",
     assetHash:
-      "c956adfaca2a46f9403957592cd74fa15773b65597b1c4a5d5fd455502b972ad",
+      "901ebdf6bd54504851d98fa44bbe9c357df87d159dc14340e84c7ab97b0c0114",
   },
   {
     symbolId: "adc-differential-inputs-swapped",
@@ -3230,7 +3230,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A converter block stands for a subsystem; SPICE has no primitive for one.",
     assetPath: "adc-differential-inputs-swapped.json",
     assetHash:
-      "b36d6dd10e1f67591613b61db73dc6afe5ff312ca945ab0fa0ec2119b9f4ff8b",
+      "6367a3c51adfa6862fc539c6d0d135454f5fb0ae935f239d462c7d697b44a6f8",
     generation: {
       kind: "derived-input-swap",
       sourceSymbolId: "adc-differential",
@@ -27925,6 +27925,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             y: 20,
           },
         ],
+        fillableBody: true,
         fill: "none",
         stroke: "foreground",
         style: {
@@ -28306,6 +28307,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             y: 20,
           },
         ],
+        fillableBody: true,
         fill: "none",
         stroke: "foreground",
         style: {
@@ -28501,6 +28503,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             y: 20,
           },
         ],
+        fillableBody: true,
         fill: "none",
         stroke: "foreground",
         style: {

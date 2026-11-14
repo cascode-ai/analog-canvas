@@ -1,4 +1,5 @@
 import {
+  resolveDrawingScene,
   resolveDocumentRoutingGeometry,
   resolveDraftingObjectGeometry,
 } from "@icm/derived";
@@ -419,6 +420,7 @@ export function buildSceneSnapTargetIndex(
   resolver: SymbolResolver,
   visibleEndpoints: readonly WireSource[],
   routingGeometry = resolveDocumentRoutingGeometry(document, resolver),
+  drawingScene = resolveDrawingScene(document, resolver),
 ): SceneSnapTargetIndex {
   // One derivation for every drafting object below. Without it each object
   // re-resolved the whole Document's route geometry, which dominated a commit.
@@ -429,8 +431,11 @@ export function buildSceneSnapTargetIndex(
     }
   }
   for (const source of visibleEndpoints) {
+    const anchor = endpointSnapAnchor(source);
+    if (!drawingScene.isEndpointVisibleAt(source.endpoint, anchor.point))
+      continue;
     targets.push({
-      anchor: endpointSnapAnchor(source),
+      anchor,
       objectId:
         source.endpoint.kind === "terminal"
           ? source.endpoint.instanceId

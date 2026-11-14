@@ -102,6 +102,10 @@ Simulation tools take arguments flat (`{action, …}`) or in `request`. `detail`
   mode deliberately; routine layout uses move/transform/align.
 - Colors use `set_instance_style_override`, `set_route_style_override`,
   `set_presentation_style` and annotation `textColor`.
+- Use `advanced_transact` with `set_body_fill` to set an Instance's closed
+  body to the document background, a custom color or transparent (`fill: null`).
+  `reorder_drawing_objects` moves objects and their owned labels in the drawing
+  order. Read fill support and order with `inspect` and `drawingPresentation: true`.
 
 ## Inspect and verify
 
@@ -122,6 +126,9 @@ in `total`; diagnostics `inspect` lists everything.
   overrides, `signalFlowParameters`, Cell interfaces, external Models) or
   `detail:"parts"`, a few KB listing every part (`id`, `name`, `symbol`,
   `position`, `rotation`/`mirror`) and Net (`id`, `name`, `powerDomain`).
+- `drawingPresentation: true` adds `drawingOrder` (back to front) and
+  Instance fill facts to a full Document read. On an `object` target, it reads
+  that Instance's `supportsBodyFill` and any authored `bodyFill`.
 - `{kind:"object"}` on a part also lists its labels as `annotations` (`id`,
   `kind`, `parameter`, `visible`, `resolvedText`, `position`); an older Editor
   answers `annotationsUnavailable`. Names match exactly: none is

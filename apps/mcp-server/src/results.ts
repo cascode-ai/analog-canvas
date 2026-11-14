@@ -212,6 +212,10 @@ function inspectInstanceValue(
 ): Record<string, unknown> {
   return {
     id: instance.id,
+    ...(instance.supportsBodyFill === undefined
+      ? {}
+      : { supportsBodyFill: instance.supportsBodyFill }),
+    ...(instance.bodyFill ? { bodyFill: instance.bodyFill } : {}),
     ...(instance.styleOverride
       ? { styleOverride: instance.styleOverride }
       : {}),

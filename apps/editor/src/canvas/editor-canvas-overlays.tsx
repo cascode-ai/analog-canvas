@@ -1,3 +1,5 @@
+import type { PointerEvent as ReactPointerEvent } from "react";
+
 import {
   endpointKey,
   resolveEndpointConnection,
@@ -237,10 +239,12 @@ import type { WireUnderSymbolWarning } from "./wire-under-symbol";
 export function WireUnderSymbolOverlay({
   warnings,
   canSelectRoute,
+  visibleAtPointer,
   onSelectRoute,
 }: {
   warnings: readonly WireUnderSymbolWarning[];
   canSelectRoute: (routeId: string) => boolean;
+  visibleAtPointer?: (event: ReactPointerEvent<SVGLineElement>) => boolean;
   onSelectRoute: (routeId: string) => void;
 }) {
   if (warnings.length === 0) return null;
@@ -268,7 +272,11 @@ export function WireUnderSymbolOverlay({
             y2={warning.to.y}
             pointerEvents={canSelectRoute(warning.routeId) ? undefined : "none"}
             onPointerDown={(event) => {
-              if (!canSelectRoute(warning.routeId)) return;
+              if (
+                !canSelectRoute(warning.routeId) ||
+                visibleAtPointer?.(event) === false
+              )
+                return;
               event.stopPropagation();
               event.preventDefault();
               onSelectRoute(warning.routeId);

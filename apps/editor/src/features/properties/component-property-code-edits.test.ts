@@ -953,7 +953,7 @@ describe("planComponentPropertyCodeEdits", () => {
     ]);
   });
 
-  it("clears a retired component background on the next appearance edit", () => {
+  it("preserves a historical component background when editing foreground", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {
       id: "R1",
@@ -973,13 +973,13 @@ describe("planComponentPropertyCodeEdits", () => {
           rotation: 0,
           mirror: "none",
         },
-        appearance: { color: "auto" },
+        appearance: { color: "#cc0000" },
       }),
     ).toEqual([
       {
         kind: "set_instance_style_override",
         instanceId: "R1",
-        styleOverride: null,
+        styleOverride: { foreground: "#cc0000", background: "#ffffff" },
       },
     ]);
   });

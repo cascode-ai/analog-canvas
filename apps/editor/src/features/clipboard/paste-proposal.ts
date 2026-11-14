@@ -16,6 +16,7 @@ import { translateDraftingObject } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type {
   CircuitProject,
+  DrawingOrderEntry,
   Instance,
   Point,
   RouteEndpoint,
@@ -29,6 +30,7 @@ import {
   defaultControlledSourceExpression,
   LINEAR_CONTROLLED_SOURCE_KINDS,
   rewriteRichTextPlainText,
+  resolveDrawingOrder,
   routeBends,
   routeEnd,
 } from "@icm/model";
@@ -986,6 +988,56 @@ export function proposePaste(
     });
   }
   let adoptedGrid: number | undefined;
+  if (clipboard.drawingOrder || document.drawingOrder) {
+    const created = new Set(
+      edits.flatMap((edit) => {
+        if (edit.kind === "add_instance" && edit.instance.placement)
+          return [edit.instance.id];
+        if (edit.kind === "upsert_schematic_annotation")
+          return [edit.annotation.id];
+        if (edit.kind === "upsert_drafting_object") return [edit.object.id];
+        return [];
+      }),
+    );
+    const sourceOrder =
+      clipboard.drawingOrder ??
+      resolveDrawingOrder({
+        instances: clipboard.instances,
+        annotations: clipboard.annotations,
+        drafting: { objects: clipboard.draftingObjects },
+      });
+    const copiedPlanes = new Set<
+      Exclude<DrawingOrderEntry, { id: string }>["kind"]
+    >();
+    if (clipboard.routes.length > 0 || clipboard.junctions.length > 0)
+      copiedPlanes.add("electrical");
+    if (clipboard.noConnects.length > 0 || clipboard.inductorCouplings?.length)
+      copiedPlanes.add("circuit-marks");
+    // Both planes belong to the destination Cell. Its order takes precedence
+    // when an imported run sits between planes that were reversed at source.
+    let run: string[] = [];
+    for (const entry of sourceOrder) {
+      if (entry.kind === "electrical" || entry.kind === "circuit-marks") {
+        if (!copiedPlanes.has(entry.kind)) continue;
+        if (run.length)
+          edits.push({
+            kind: "reorder_drawing_objects",
+            objectIds: run,
+            position: { kind: "insert", beforePlane: entry.kind },
+          });
+        run = [];
+      } else {
+        const id = objectIds.get(entry.id);
+        if (id && created.has(id)) run.push(id);
+      }
+    }
+    if (run.length)
+      edits.push({
+        kind: "reorder_drawing_objects",
+        objectIds: run,
+        position: { kind: "insert" },
+      });
+  }
   if (clipboard.intent === "compose-document" || clipboard.context) {
     const target = document.presentation.grid;
     const fits = (grid: number) =>

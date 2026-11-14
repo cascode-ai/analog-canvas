@@ -1,6 +1,7 @@
 import {
   CircuitProjectSchema,
   foldNetName,
+  resolveDrawingOrder,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
@@ -232,6 +233,13 @@ export function planProjectCellBodyImport(
       cellSymbol: target.presentation.cellSymbol,
     };
   } else {
+    const drawingOrder =
+      target.drawingOrder || incoming.drawingOrder
+        ? [
+            ...resolveDrawingOrder(target),
+            ...resolveDrawingOrder(incoming).filter((entry) => "id" in entry),
+          ]
+        : undefined;
     const append = <T extends { id: string }>(old: T[], added: T[]): T[] => {
       const ids = new Set(old.map((i) => i.id));
       return [...old, ...added.filter((i) => !ids.has(i.id))];
@@ -284,6 +292,11 @@ export function planProjectCellBodyImport(
       },
       sourceStatus: "connectivity-modified",
     };
+    if (drawingOrder)
+      incoming.drawingOrder = resolveDrawingOrder({
+        ...incoming,
+        drawingOrder,
+      });
     if (couplings.length) incoming.inductorCouplings = couplings;
     // Adding a global supply must not silently resolve or retarget a previously
     // authored body's implicit substrate connection.

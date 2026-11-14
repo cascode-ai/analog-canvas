@@ -143,9 +143,13 @@ annotations and unlocked layout references.
   inherit the Instance foreground and other kinds the Document profile.
 - RichText is either styled runs or one formula run (bounded LaTeX plus
   inline/display); generated SVG, paths, bounds and caches never persist.
-- Rectangle/circle drafting may override border and fill; `layer` is
-  background (below circuit) or foreground (default); `zIndex` orders within
-  a plane.
+- An Instance's optional `bodyFill` is background or a hex color. An absent
+  value paints a transparent body except for a retained legacy box color.
+- `drawingOrder` holds each Instance, Annotation and Drafting Object reference
+  once, back to front, with one electrical and one circuit-mark slot. When
+  omitted the Document uses its [default drawing order](visual-language.md#formal-scene).
+  Rectangle/circle drafting may override border and fill. Drafting `layer`
+  and `zIndex` supply the default order only.
 - `presentation.cellSymbol` (optional): legacy minimum size, optional explicit
   `bodyBounds`, and unique `terminalId`-keyed side/offset placements (existing
   terminals, one per slot). Explicit edges use the 10-unit grid, span at least

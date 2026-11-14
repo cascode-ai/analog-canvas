@@ -32,100 +32,78 @@ import { renderSymbolDefinitionBody } from "./symbol-render.js";
 // consuming the single derived-geometry entry. An unresolved anchor still
 // exports using its fallback position and
 // carries a data-anchor-resolved="false" attribute for diagnostics.
-export function renderDraftingLayer(
+export function renderDraftingObject(
   document: SchematicDocument,
   resolver: SymbolResolver,
   profile: SchematicStyleProfile,
   routingGeometry: ResolvedDocumentRoutingGeometry,
-  layer: "background" | "foreground",
-  objectIds?: ReadonlySet<string>,
+  object: DraftingObject,
 ): string {
-  const objects = document.drafting?.objects ?? [];
-  if (objects.length === 0) return "";
-  const sorted = [...objects].sort((left, right) => left.zIndex - right.zIndex);
-  const body = sorted
-    .filter(
-      (object) =>
-        (!objectIds || objectIds.has(object.id)) &&
-        ((object.kind === "rectangle" || object.kind === "circle") &&
-        object.layer === "background"
-          ? layer === "background"
-          : layer === "foreground"),
-    )
-    .map((object) => {
-      const objectProfile = objectStyleProfile(profile, object);
-      const geometry = resolveDraftingObjectGeometry(
+  const objectProfile = objectStyleProfile(profile, object);
+  const geometry = resolveDraftingObjectGeometry(
+    document,
+    resolver,
+    object,
+    routingGeometry,
+  );
+  const unresolved =
+    geometry.diagnostics.length > 0 ? ' data-anchor-resolved="false"' : "";
+  switch (object.kind) {
+    case "text":
+      return renderDraftText(
         document,
-        resolver,
         object,
-        routingGeometry,
+        geometry as Extract<ResolvedDraftingGeometry, { kind: "text" }>,
+        objectProfile,
+        unresolved,
       );
-      const unresolved =
-        geometry.diagnostics.length > 0 ? ' data-anchor-resolved="false"' : "";
-      switch (object.kind) {
-        case "text":
-          return renderDraftText(
-            document,
-            object,
-            geometry as Extract<ResolvedDraftingGeometry, { kind: "text" }>,
-            objectProfile,
-            unresolved,
-          );
-        case "construction-line":
-          return renderConstructionLine(object, objectProfile);
-        case "rectangle":
-          return renderDraftRectangle(
-            object,
-            geometry as Extract<
-              ResolvedDraftingGeometry,
-              { kind: "rectangle" }
-            >,
-            objectProfile,
-          );
-        case "circle":
-          return renderDraftCircle(
-            object,
-            geometry as Extract<ResolvedDraftingGeometry, { kind: "circle" }>,
-            objectProfile,
-          );
-        case "arrow":
-          return renderDraftArrow(
-            object,
-            geometry as Extract<ResolvedDraftingGeometry, { kind: "arrow" }>,
-            objectProfile,
-            unresolved,
-          );
-        case "leader":
-          return renderDraftLeader(
-            object,
-            geometry as Extract<ResolvedDraftingGeometry, { kind: "leader" }>,
-            objectProfile,
-            unresolved,
-          );
-        case "callout":
-          return renderDraftCallout(
-            object,
-            geometry as Extract<ResolvedDraftingGeometry, { kind: "callout" }>,
-            objectProfile,
-            unresolved,
-          );
-        case "floating-symbol":
-          return renderFloatingSymbol(
-            object,
-            geometry as Extract<
-              ResolvedDraftingGeometry,
-              { kind: "floating-symbol" }
-            >,
-            resolver,
-            objectProfile,
-            unresolved,
-          );
-      }
-    })
-    .join("");
-  return body
-    ? `<g data-layer="drafting" data-drafting-layer="${layer}">${body}</g>`
-    : "";
+    case "construction-line":
+      return renderConstructionLine(object, objectProfile);
+    case "rectangle":
+      return renderDraftRectangle(
+        object,
+        geometry as Extract<ResolvedDraftingGeometry, { kind: "rectangle" }>,
+        objectProfile,
+      );
+    case "circle":
+      return renderDraftCircle(
+        object,
+        geometry as Extract<ResolvedDraftingGeometry, { kind: "circle" }>,
+        objectProfile,
+      );
+    case "arrow":
+      return renderDraftArrow(
+        object,
+        geometry as Extract<ResolvedDraftingGeometry, { kind: "arrow" }>,
+        objectProfile,
+        unresolved,
+      );
+    case "leader":
+      return renderDraftLeader(
+        object,
+        geometry as Extract<ResolvedDraftingGeometry, { kind: "leader" }>,
+        objectProfile,
+        unresolved,
+      );
+    case "callout":
+      return renderDraftCallout(
+        object,
+        geometry as Extract<ResolvedDraftingGeometry, { kind: "callout" }>,
+        objectProfile,
+        unresolved,
+      );
+    case "floating-symbol":
+      return renderFloatingSymbol(
+        object,
+        geometry as Extract<
+          ResolvedDraftingGeometry,
+          { kind: "floating-symbol" }
+        >,
+        resolver,
+        objectProfile,
+        unresolved,
+      );
+  }
 }
 
 function renderDraftText(

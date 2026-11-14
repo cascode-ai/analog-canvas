@@ -14,6 +14,7 @@ import type {
   CellNetlistTerminal,
   ConnectivityEvidence,
   DraftingObject,
+  DrawingOrderEntry,
   InductorCoupling,
   Instance,
   LayoutConstraint,
@@ -24,7 +25,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-import { routeElectricalConnections } from "@icm/model";
+import { resolveDrawingOrder, routeElectricalConnections } from "@icm/model";
 
 import type { CopyContext } from "./project-copy";
 
@@ -54,12 +55,31 @@ export interface SchematicClipboard {
    * thing a copy needs when nothing electrical is selected.
    */
   draftingObjects: DraftingObject[];
+  drawingOrder?: DrawingOrderEntry[];
   /** Layout ownership records wholly contained in the copied closure. */
   layoutGroups: LayoutGroup[];
   /** Layout constraints wholly contained in the copied closure. */
   constraints: LayoutConstraint[];
   /** Couplings both of whose inductors are copied; absent when none. */
   inductorCouplings?: InductorCoupling[];
+}
+
+/** Retain paint order for the objects that travel with the copy. */
+export function copyDrawingOrder(
+  source: SchematicDocument,
+  contents: Pick<
+    SchematicClipboard,
+    "instances" | "annotations" | "draftingObjects"
+  >,
+): DrawingOrderEntry[] | undefined {
+  if (!source.drawingOrder && !contents.instances.some((item) => item.bodyFill))
+    return;
+  return resolveDrawingOrder({
+    drawingOrder: resolveDrawingOrder(source),
+    instances: contents.instances,
+    annotations: contents.annotations,
+    drafting: { objects: contents.draftingObjects },
+  });
 }
 
 /** Electrical objects the person explicitly included in the visual selection. */
@@ -140,6 +160,11 @@ export function captureDocumentComposition(
       });
     }
   }
+  const drawingOrder = copyDrawingOrder(document, {
+    instances,
+    annotations: document.annotations,
+    draftingObjects,
+  });
   return structuredClone({
     intent: "compose-document",
     sourceDocumentId: document.id,
@@ -154,6 +179,7 @@ export function captureDocumentComposition(
     noConnects: document.noConnects,
     connectivityEvidence: document.connectivityEvidence,
     draftingObjects,
+    ...(drawingOrder ? { drawingOrder } : {}),
     layoutGroups: document.layoutGroups,
     constraints: document.constraints,
     ...(document.inductorCouplings?.length
@@ -444,5 +470,7 @@ export function copySelection(
       }
     }
   }
+  const drawingOrder = copyDrawingOrder(document, clipboard);
+  if (drawingOrder) clipboard.drawingOrder = drawingOrder;
   return clipboard;
 }

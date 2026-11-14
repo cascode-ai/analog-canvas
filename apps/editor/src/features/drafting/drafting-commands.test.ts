@@ -1,4 +1,5 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, resolveDrawingOrder } from "@icm/model";
+import { executeTransaction } from "@icm/edit-engine";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
@@ -97,8 +98,8 @@ describe("drafting commands", () => {
     expect(setStatus).not.toHaveBeenCalled();
   });
 
-  it("moves an unlocked shape behind or in front of the circuit", () => {
-    const document = createEmptyDocument("cell", "Cell");
+  it("moves a shape across the circuit and past existing background peers", () => {
+    let document = createEmptyDocument("cell", "Cell");
     const shape: Extract<DraftingObject, { kind: "rectangle" }> = {
       id: "box",
       kind: "rectangle",
@@ -123,7 +124,6 @@ describe("drafting commands", () => {
       lineStyle: "solid",
     };
     document.drafting = { objects: [backgroundPeer, shape] };
-    const transact = vi.fn(() => ({ ok: true }));
     const commands = createDraftingCommands({
       document,
       annotationGrid: 1,
@@ -137,25 +137,31 @@ describe("drafting commands", () => {
       },
       selectedDrafting: shape,
       inspectorSegment: null,
-      transact,
+      transact(edits) {
+        const result = executeTransaction(document, {
+          transactionId: `drawing-${document.revision}`,
+          documentId: document.id,
+          expectedRevision: document.revision,
+          actor: { kind: "human", id: "test" },
+          edits,
+        });
+        document = result.document;
+        return result;
+      },
       setStatus: vi.fn(),
       beginTextPlacement: vi.fn(),
     });
 
     commands.setDraftingStacking("back");
-    expect(transact).toHaveBeenLastCalledWith([
-      expect.objectContaining({
-        object: expect.objectContaining({ layer: "background", zIndex: 0 }),
-      }),
-      expect.objectContaining({
-        object: expect.objectContaining({ id: "peer", zIndex: 1 }),
-      }),
-    ]);
+    expect(resolveDrawingOrder(document)[0]).toEqual({
+      kind: "drafting",
+      id: "box",
+    });
+    expect(document.drafting?.objects).toEqual([backgroundPeer, shape]);
     commands.setDraftingStacking("front");
-    expect(transact).toHaveBeenLastCalledWith([
-      expect.objectContaining({
-        object: expect.objectContaining({ layer: "foreground", zIndex: 3 }),
-      }),
-    ]);
+    expect(resolveDrawingOrder(document).at(-1)).toEqual({
+      kind: "drafting",
+      id: "box",
+    });
   });
 });

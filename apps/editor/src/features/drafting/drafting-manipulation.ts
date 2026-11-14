@@ -70,61 +70,6 @@ export type DraftingGeometryPatch = Partial<{
 
 export type DraftingStackingTarget = "front" | "back";
 
-function isBackgroundShape(object: DraftingObject): boolean {
-  return (
-    (object.kind === "rectangle" || object.kind === "circle") &&
-    object.layer === "background"
-  );
-}
-
-/**
- * Plan one atomic stacking edit. Sending a shape behind the circuit also
- * normalizes its background peers so repeated commands cannot accumulate
- * unbounded z-index values and the selected shape is unambiguously last.
- */
-export function planDraftingStacking(
-  objects: readonly DraftingObject[],
-  objectId: string,
-  target: DraftingStackingTarget,
-): DraftingObject[] | null {
-  const object = objects.find((candidate) => candidate.id === objectId);
-  if (
-    !object ||
-    object.locked ||
-    (object.kind !== "rectangle" && object.kind !== "circle")
-  ) {
-    return null;
-  }
-  if (target === "front") {
-    const frontZIndex =
-      Math.max(
-        0,
-        ...objects
-          .filter((candidate) => !isBackgroundShape(candidate))
-          .map((candidate) => candidate.zIndex),
-      ) + 1;
-    return [{ ...object, layer: "foreground", zIndex: frontZIndex }];
-  }
-  const stableOrder = new Map(
-    objects.map((candidate, index) => [candidate.id, index]),
-  );
-  const peers = objects
-    .filter(
-      (candidate) => candidate.id !== object.id && isBackgroundShape(candidate),
-    )
-    .sort(
-      (left, right) =>
-        left.zIndex - right.zIndex ||
-        stableOrder.get(left.id)! - stableOrder.get(right.id)!,
-    );
-  return [
-    { ...object, layer: "background", zIndex: 0 },
-    ...peers
-      .map((peer, index) => ({ ...peer, zIndex: index + 1 }))
-      .filter((peer, index) => peer.zIndex !== peers[index]!.zIndex),
-  ];
-}
-
 /**
  * Precise geometry from the Properties dock: a circle takes a radius, a
  * rectangle takes width/height. Values are rounded to integers and floored
