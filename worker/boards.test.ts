@@ -43,9 +43,9 @@ function seed(
   id: string,
   name: string,
   status = "public",
-  extra: { project?: string; tags?: string } = {},
+  extra: { project?: string; tags?: string; sql?: Harness["gallerySql"] } = {},
 ) {
-  env.gallerySql.exec(
+  (extra.sql ?? env.gallerySql).exec(
     `INSERT INTO gallery_entries
        (id, name, author, description, created_at, schema_version, status,
         project_text, svg_text, preview_revision, tags)
@@ -62,6 +62,17 @@ function seed(
     `rev-${id}`,
     extra.tags ?? "",
   );
+}
+
+/** The store of a reference dataset (config/gallery-sources.json), opened. */
+async function datasetSql(env: Harness, key: string) {
+  const name = `source:${key}`;
+  await env.GALLERY.getByName(name).fetch("https://gallery/public-count", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  });
+  return env.galleryStoreStates.get(name)!.storage.sql;
 }
 
 async function call(
@@ -359,6 +370,106 @@ describe("selection boards", () => {
     ).toEqual([
       [1, "entry-a", `${ORIGIN}/g/entry-a`, "Five-transistor OTA"],
       [2, "entry-b", `${ORIGIN}/g/entry-b`, "Bandgap"],
+    ]);
+  });
+
+  it("holds reference datasets' circuits, read from their own stores", async () => {
+    const circuitThink = await datasetSql(env, "circuitthink");
+    const analogGenie = await datasetSql(env, "analoggenie");
+    seed(env, "ct-001", "Folded cascode", "public", {
+      sql: circuitThink,
+      project: partsProjectText("Folded cascode", ["nmos", "nmos", "pmos"]),
+      tags: ",two stage,",
+    });
+    seed(env, "ct-002", "Withdrawn", "recycled", { sql: circuitThink });
+    seed(env, "ag-308", "Bandgap core", "public", {
+      sql: analogGenie,
+      project: partsProjectText("Bandgap core", ["opamp", "pnp"]),
+    });
+    // A wall entry by that id is not the dataset's circuit.
+    seed(env, "ct-003", "Not in the dataset");
+
+    const id = await makeBoard(["entry-a", `${ORIGIN}/g/ct-001`], 4);
+    let board = await json(await call(env, `/api/boards/${id}`));
+    expect(
+      board.items.map((item: any) => [
+        item.entryId,
+        item.entry?.name,
+        item.entry?.author,
+        item.entry?.tagType,
+        item.entry?.transistors,
+        item.entry?.levels,
+      ]),
+    ).toEqual([
+      ["entry-a", "Five-transistor OTA", "Five-transistor OTA author", null, 0, "single"],
+      ["ct-001", "Folded cascode", "Folded cascode author", "Amplifiers", 3, "single"],
+    ]);
+    expect(board.entryNames["ct-001"]).toBe("Folded cascode");
+
+    const change = async (changes: unknown[]) =>
+      call(env, `/api/boards/${id}/changes`, {
+        method: "POST",
+        cookie: collaborator,
+        body: { changes },
+      });
+    for (const entry of ["ct-002", "ct-003", "ct-404", "zz-1"]) {
+      const refused = await change([{ kind: "add", entry }]);
+      expect(refused.status).toBe(404);
+      expect(await json(refused)).toEqual({
+        error: "entry-not-public",
+        entryId: entry,
+      });
+    }
+    expect(
+      await json(await change([{ kind: "add", entry: "ct-001" }])),
+    ).toEqual({ error: "entry-already-on-board", entryId: "ct-001" });
+
+    board = await json(
+      await change([
+        { kind: "replace", itemId: board.items[0].id, entry: "ag-308" },
+      ]),
+    );
+    expect(board.items[0].entry).toMatchObject({
+      name: "Bandgap core",
+      transistors: 1,
+      levels: "multi",
+    });
+    expect(board.events[0]).toMatchObject({
+      action: "replace",
+      entryId: "ag-308",
+      previousEntryId: "entry-a",
+    });
+    expect(board.entryNames).toMatchObject({
+      "ag-308": "Bandgap core",
+      "entry-a": "Five-transistor OTA",
+    });
+
+    const shown = await call(
+      env,
+      `/api/boards/${id}/preview/ct-001?v=rev-ct-001`,
+      { origin: null },
+    );
+    expect(shown.status).toBe(200);
+    expect(await shown.text()).toMatch(/^<svg/u);
+    expect(
+      (await call(env, `/api/boards/${id}/preview/ct-002`, { origin: null }))
+        .status,
+    ).toBe(404);
+
+    const exported = await json(
+      await call(env, `/api/boards/${id}/export`, { origin: null }),
+    );
+    expect(
+      exported.items.map((item: any) => [
+        item.entryId,
+        item.url,
+        item.name,
+        item.type,
+        item.transistors,
+      ]),
+    ).toEqual([
+      ["ag-308", `${ORIGIN}/g/ag-308`, "Bandgap core", null, 1],
+      ["ct-001", `${ORIGIN}/g/ct-001`, "Folded cascode", "Amplifiers", 3],
     ]);
   });
 

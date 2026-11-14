@@ -296,6 +296,7 @@ export class RegionalBoards {
           ...(body.input as Record<string, unknown>),
           id,
           actor: { id: user.id, name: user.displayName, admin: user.isAdmin },
+          datasetPublic: body.datasetPublic,
         };
         const result =
           body.operation === "create"
