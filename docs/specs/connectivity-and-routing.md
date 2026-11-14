@@ -19,6 +19,12 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
   bend), whatever its historical role. Rail, MOS bulk and locked geometry stay
   out of the union, as do aggregate bus paths. Overlapping styles: largest coverage wins, Route ID breaks
   ties.
+- Restating an existing ordinary Wire's path (`set_route_path`, `route_orthogonal`)
+  keeps its ends: a Junction with three or more arms it ends on is never folded
+  or rebuilt unless the same transaction moves it. A path that would no longer
+  end there or on its pin, or would run along another same-Net wire into
+  either, is refused. A stretch following moved pins keeps such a Junction in
+  place and is never refused for it.
 - A [Junction color override](visual-language.md#style-overrides) owns its
   Junction through conductor normalization. An unreferenced styled Junction at
   a terminal contact travels when all of that contact's pins travel together;
@@ -148,6 +154,9 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
 - A tap or new Junction on a Route splits it; dots derive from branches. Cutting
   a branch coalesces the unowned degree-two Junction; continuing from a loose end
   extends the conductor. Labels, markers, layout references and legs follow.
+- A free Net Label whose anchor is within one grid square, on each axis, of
+  its Net's nearest Junction moves with that Junction by the same offset and
+  keeps its Net, unless it is locked or the same transaction places it.
 - Series splice: a part with one eligible pin pair on one continuous ordinary
   Route splits it, removes the span between and partitions the Net. Two-terminal
   parts are eligible; multi-pin parts only via the descriptor pair (D/S for MOS,
