@@ -18,6 +18,7 @@ import zlib
 MAX_RESPONSE = 50 * 1024 * 1024
 TOKEN = re.compile(r'^[a-z0-9-]{1,64}$')
 RANK = {'blocked': 4, 'retry': 3, 'pending': 2, 'sent': 1, 'caught-up': 0}
+MAX_OBSERVATION_AGE = 120
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -96,7 +97,7 @@ def refusal(error):
     return 'http-' + str(error.code)
 
 
-def run(args):
+def run(args, previous):
     config = json.loads(pathlib.Path(args.config).read_text(encoding='utf-8'))
     registry = json.loads(pathlib.Path(args.sources).read_text(encoding='utf-8'))
     stores = ['gallery'] + [s['key'] for s in registry['sources']]
@@ -146,7 +147,7 @@ def run(args):
         except ValueError:
             raise Blocked('invalid-response')
 
-    def step(stream, source, target):
+    def step(stream, source, target, state):
         """Deliver at most one snapshot; return the outcome and the target's cursor."""
         current = call(target, stream, 'status')
         if current.get('region') != ('cn' if target == 0 else 'overseas'):
@@ -169,6 +170,9 @@ def run(args):
         event = json.loads(payload)
         if event.get('origin') != expected_origin or event.get('stream') != stream or event.get('after') != after:
             raise Blocked('peer-identity-mismatch')
+        # A validated new event disproves cached catch-up even if its write
+        # later runs out of tick budget or commits without a received reply.
+        state.update(status='pending', reason=None, cursor=after, observedAt=time.time())
         result = call(target, stream, 'changes', item)
         if result.get('sequence') != event.get('sequence'):
             raise Blocked('invalid-durable-receipt')
@@ -176,29 +180,66 @@ def run(args):
 
     # One failing stream never stops the others: each direction is retried
     # round-robin until it is caught up, refused or the tick ends.
-    units = {(stream, source, 1 - source): {'status': 'pending', 'reason': None, 'cursor': None}
+    units = {(stream, source, 1 - source): {'status': 'pending', 'reason': None, 'cursor': None, 'observedAt': None}
              for stream in streams for source in (1, 0)}
-    active = list(units)
+    now = time.time()
+    for (stream, source, target), state in units.items():
+        saved = previous.get('streams', {}).get(stream, {}).get('directions', {}).get(
+            'cn' if target == 0 else 'overseas', {})
+        observed = saved.get('observedAt')
+        cursor = saved.get('cursor')
+        reason = saved.get('reason')
+        if (saved.get('status') in RANK and type(observed) in (int, float) and 0 <= observed <= now
+                and (cursor is None or (type(cursor) is int and cursor >= 0))
+                and (reason is None or (isinstance(reason, str) and TOKEN.fullmatch(reason)))):
+            state.update(status=saved['status'], reason=reason, cursor=cursor, observedAt=observed)
+    # This pointer only schedules work. step() always reads the actual receiver's
+    # durable cursor, including after a lost POST reply or an old monitor restore.
+    order = list(units)
+    saved_next = previous.get('nextUnit', {})
+    start = next((i for i, (stream, source, _) in enumerate(order)
+                  if saved_next == {'stream': stream, 'source': source}), 0)
+    active = order[start:] + order[:start]
+    next_unit = active[0]
+    budget_exhausted = False
+    attempts = 0
     sent = 0
     while active and time.monotonic() < deadline:
         for unit in list(active):
             if time.monotonic() >= deadline:
                 break
             state = units[unit]
+            next_unit = order[(order.index(unit) + 1) % len(order)]
             try:
-                state['status'], state['cursor'] = step(*unit)
+                state['status'], state['cursor'] = step(*unit, state)
                 state['reason'] = None
             except Blocked as error:
                 state.update(status='blocked', reason=error.reason)
             except Retry as error:
+                if str(error) in ('transport', 'tick-deadline', 'request-deadline') and time.monotonic() >= deadline:
+                    # A tick ending is not evidence that a previously checked
+                    # stream failed. Preserve its original observation time.
+                    budget_exhausted = True
+                    # Retry a cut-short last unit with a full budget. If it
+                    # already had the whole tick, let the other units run next.
+                    if attempts:
+                        next_unit = unit
+                    break
                 state.update(status='retry', reason=str(error))
             except (ValueError, TypeError, KeyError, AttributeError):
                 state.update(status='blocked', reason='invalid-response')
+            state['observedAt'] = time.time()
+            attempts += 1
             if state['status'] == 'sent':
                 sent += 1
             else:
                 active.remove(unit)
     report = {}
+    finished = time.time()
+    for state in units.values():
+        if (state['status'] in ('caught-up', 'sent')
+                and finished - state['observedAt'] > MAX_OBSERVATION_AGE):
+            state.update(status='pending', reason='stale-observation')
     for stream in streams:
         directions = [(units[(stream, source, 1 - source)], 'cn' if source == 1 else 'overseas') for source in (1, 0)]
         worst = max((state for state, _ in directions), key=lambda state: RANK[state['status']])
@@ -208,7 +249,9 @@ def run(args):
     statuses = {entry['status'] for entry in report.values()}
     overall = ('caught-up' if statuses == {'caught-up'} else 'blocked' if 'blocked' in statuses
                else 'retry' if 'retry' in statuses else 'sent')
-    return {'status': overall, 'transferred': sent, 'streams': report}
+    return {'status': overall, 'transferred': sent, 'streams': report,
+            'nextUnit': {'stream': next_unit[0], 'source': next_unit[1]},
+            'budgetExhausted': budget_exhausted or bool(active)}
 
 
 def main():
@@ -226,10 +269,12 @@ def main():
         if type(checkpoint) not in (int, float) or not 0 <= checkpoint <= now:
             raise ValueError('invalid monitor checkpoint')
         caught = checkpoint
-        result = run(args)
-        caught = now if result['status'] == 'caught-up' else caught
+        result = run(args, previous)
+        if result['status'] == 'caught-up':
+            caught = min(direction['observedAt'] for stream in result['streams'].values()
+                         for direction in stream['directions'].values())
         reason = ('blocked' if result['status'] == 'blocked'
-                  else None if now - caught <= 120 else 'replication-lag')
+                  else None if time.time() - caught <= MAX_OBSERVATION_AGE else 'replication-lag')
         result.update(health='ok' if reason is None else 'error', reason=reason)
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         result = {'health': 'error', 'reason': 'transport-or-invalid-status', 'status': 'blocked'}
