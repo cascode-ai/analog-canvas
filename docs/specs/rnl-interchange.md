@@ -135,6 +135,10 @@ the RNL language and its runtime belong to rnl.
 - The crystal, which the standard series lacks, exports as `$CANVAS_CRYSTAL`
   from `analog-canvas-extensions` 0.5 on the call of its body; import reads it
   back as the crystal.
+- The MOS Varactor, which no package draws, is defined in the file
+  (`$CANVAS_MOS_VARACTOR`) on the X line of its PDK device
+  (`sg13_hv_svaricap`): terminals `g1 w g2 bn`, the substrate undrawn. Import
+  reads it back as the MOS Varactor with that device.
 - So do, from `analog-canvas-extensions` 0.6, the polarized capacitor,
   photoresistor and speaker (C and R cards), LED and Schottky diode (D cards),
   microphone, sine voltage source and ammeter (V cards) and the Shockley diode,

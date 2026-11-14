@@ -47,6 +47,7 @@ import {
   bindsProjectCell,
   builtInModelContract,
   matchGateCellPins,
+  reviewedExternalBindingForMaster,
   subcircuitDescriptor,
 } from "@icm/devices";
 
@@ -82,7 +83,11 @@ import {
   type RnlSymbol,
 } from "./symbol-map.js";
 import { symbolForCall } from "./call-symbols.js";
-import { inlineInterface, inlineRnlDefinition } from "./inline-symbols.js";
+import {
+  inlineInterface,
+  inlineRnlDefinition,
+  inlineRnlDeviceMaster,
+} from "./inline-symbols.js";
 import { plainLines, rnlTextLines } from "./text.js";
 
 /**
@@ -635,11 +640,22 @@ function exportCell(
         instance.symbolId,
         context.project,
       );
+      // A device symbol's terminals are its reviewed device's (#2321).
+      const device = inlineRnlDeviceMaster(symbol);
+      const reviewed = device
+        ? reviewedExternalBindingForMaster(device, instance.symbolId)
+        : undefined;
+      const portName = (acPin: string) =>
+        device
+          ? call.reviewedExternalBindingId === reviewed?.id
+            ? reviewed?.terminals.find((terminal) => terminal.pinName === acPin)
+                ?.targetName
+            : undefined
+          : descriptor?.ports.find((port) => port.pinName === acPin)?.name;
       if (
         symbol.pins.some(
           (pin) =>
-            call.nodes[pin.terminal - 1]?.pinName !==
-            descriptor?.ports.find((port) => port.pinName === pin.acPin)?.name,
+            call.nodes[pin.terminal - 1]?.pinName !== portName(pin.acPin),
         )
       ) {
         report(
