@@ -1,10 +1,18 @@
 // Finding and selecting what is drawn: Find, the Selection Filter, marquee
 // direction, Net highlight and ERC diagnostics.
 
-import { createEmptyProject } from "@icm/model";
+import {
+  createEmptyProject,
+  resolveDrawingOrder,
+  type DrawingOrderEntry,
+} from "@icm/model";
+import { serializeProject } from "@icm/project-protocol";
 import { expect, test } from "@playwright/test";
 import {
   clickNetlistWorkflowCommand,
+  downloadBytes,
+  parseSavedProject,
+  openProjectFile,
   expectStatus,
   openProject,
   placeComponentAt,
@@ -20,6 +28,8 @@ import {
   onScreen,
   routeAnchor,
   drawWire,
+  placedInstance,
+  copySelectionAt,
 } from "./canvas-fixtures.js";
 
 test("marquee release uses the last pointer sample before a browser frame", async ({
@@ -493,4 +503,255 @@ test("directional marquee: window needs full coverage, crossing selects on touch
   expect(
     await page.evaluate(() => window.getSelection()?.toString() ?? ""),
   ).toBe("");
+});
+
+test("Objects & layers lists legacy drawing order and lets an obscured ADC be selected", async ({
+  page,
+}) => {
+  const project = createEmptyProject("layers", "Drawing layers");
+  const document = project.documents[0]!;
+  document.instances.push(
+    {
+      ...placedInstance("ADC1", "adc", 200, 200),
+      reference: "ADC1",
+      signalFlowParameters: { formula: "Rear channel" },
+    },
+    {
+      ...placedInstance("ADC2", "adc", 200, 200),
+      reference: "ADC2",
+      bodyFill: { kind: "background" },
+    },
+  );
+  document.annotations.push({
+    id: "legacy-label",
+    kind: "instance-label",
+    binding: { kind: "instance-reference", instanceId: "ADC1" },
+    anchor: { kind: "free", position: { x: 230, y: 245 } },
+    alignment: "start",
+    rotation: 0,
+    locked: false,
+  });
+  document.drafting = {
+    objects: [
+      {
+        id: "panel",
+        kind: "rectangle",
+        locked: false,
+        zIndex: 0,
+        layer: "background",
+        anchor: { kind: "free", position: { x: 200, y: 200 } },
+        center: { x: 200, y: 200 },
+        lineStyle: "solid",
+        width: 180,
+        height: 140,
+        rotation: 0,
+        styleOverride: { fillColor: "#dce4dc" },
+      },
+    ],
+  };
+  await openProject(
+    page,
+    serializeProject(project),
+    "legacy-layers.icproj.json",
+  );
+  const toggle = page.getByRole("button", {
+    name: "Objects & layers",
+    exact: true,
+  });
+  await toggle.click();
+  const panel = page.getByRole("complementary", { name: "Objects & layers" });
+  await expect(panel.getByRole("listitem")).toHaveText([
+    /Reference.*ADC1/u,
+    /Circuit marks/u,
+    /ADC2/u,
+    /ADC1/u,
+    /Electrical drawing/u,
+    /Rectangle/u,
+  ]);
+  const canvas = page.getByTestId("schematic-canvas");
+  const [overlap] = await onScreen(canvas, [{ x: 207, y: 204 }]);
+  await page.mouse.click(overlap.x, overlap.y);
+  await expect(page.getByTestId("hit-ADC2")).toHaveClass(/selected/u);
+  await panel.getByRole("button", { name: "Locate ADC1", exact: true }).click();
+  await expect(page.getByTestId("hit-ADC1")).toHaveClass(/selected/u);
+  await expect(
+    canvas
+      .getByTestId("layer-location-outlines")
+      .locator('[data-object-id="ADC1"]'),
+  ).toBeVisible();
+  await panel.getByRole("button", { name: "Expand ADC1", exact: true }).click();
+  const contents = panel.getByRole("group", { name: "ADC1 contents" });
+  await expect(
+    contents.getByRole("button", { name: "Pin IN", exact: true }),
+  ).toBeVisible();
+  await contents.getByRole("button", { name: "Formula", exact: true }).click();
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await expect(editor).toHaveText("Rear channel");
+  await editor.fill("Rear channel edited");
+  await page.getByRole("button", { name: "Apply text changes" }).click();
+  await expect(
+    canvas.locator('[data-layer="formal"] [data-object-id="ADC1"]'),
+  ).toContainText("Rear channel edited");
+  await expect(
+    contents.getByRole("button", { name: "Reference ADC1", exact: true }),
+  ).toBeVisible();
+  await panel
+    .getByRole("button", { name: "Bring to front", exact: true })
+    .click();
+  await expect(panel.getByRole("listitem").first()).toContainText("ADC1");
+  await expect(contents.getByText("Drawn separately")).toHaveCount(0);
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(panel.getByRole("listitem").first()).toContainText("Reference");
+  await page.getByRole("button", { name: "Wire", exact: true }).click();
+  await contents
+    .getByRole("button", { name: "Start wire at pin IN", exact: true })
+    .click();
+  await expectStatus(page, "Wire source: ADC1.IN");
+  await page.keyboard.press("Escape");
+  await toggle.click();
+  await expect(panel).toBeHidden();
+});
+
+test("relative layer drags and keyboard ordering share history and the formal drawing", async ({
+  page,
+}) => {
+  const project = createEmptyProject("mixed-layers", "Mixed drawing");
+  const document = project.documents[0]!;
+  const point = { kind: "free" as const, position: { x: 200, y: 200 } };
+  document.instances.push({
+    ...placedInstance("ADC1", "adc", 220, 210),
+    reference: "ADC1",
+  });
+  document.drafting = {
+    objects: [
+      {
+        id: "frame",
+        kind: "rectangle",
+        locked: false,
+        zIndex: 0,
+        layer: "background",
+        anchor: point,
+        center: point.position,
+        lineStyle: "solid",
+        width: 220,
+        height: 150,
+        rotation: 0,
+        styleOverride: { fillColor: "#eccf92" },
+      },
+      {
+        id: "caption",
+        kind: "text",
+        locked: false,
+        zIndex: 1,
+        anchor: point,
+        alignment: "start",
+        rotation: 0,
+        content: { runs: [{ kind: "text", value: "Channels" }] },
+      },
+      {
+        id: "arrow",
+        kind: "arrow",
+        locked: false,
+        zIndex: 2,
+        anchor: point,
+        from: point,
+        to: { kind: "free", position: { x: 240, y: 200 } },
+      },
+    ],
+  };
+  await openProject(
+    page,
+    serializeProject(project),
+    "mixed-layers.icproj.json",
+  );
+  const toggle = page.getByRole("button", {
+    name: "Objects & layers",
+    exact: true,
+  });
+  await toggle.click();
+  const panel = page.getByRole("complementary", { name: "Objects & layers" });
+  const frame = panel.getByRole("button", { name: "Rectangle", exact: true });
+  const arrow = panel.getByRole("button", { name: "Arrow", exact: true });
+  const order = () => panel.getByRole("listitem").allTextContents();
+  const before = [
+    "Arrow",
+    "TextChannels",
+    "Circuit marks",
+    "▸ADC1",
+    "Electrical drawing",
+    "Rectangle",
+  ];
+  const after = [
+    "Rectangle",
+    "Arrow",
+    "TextChannels",
+    "Circuit marks",
+    "▸ADC1",
+    "Electrical drawing",
+  ];
+  await expect.poll(order).toEqual(before);
+  await expect(frame).toHaveAttribute("draggable", "true");
+  await frame.dragTo(arrow, { targetPosition: { x: 20, y: 5 } });
+  await expect.poll(order).toEqual(after);
+  await page.getByTestId("draw-tool-undo").click();
+  await expect.poll(order).toEqual(before);
+  await frame.click();
+  await page.keyboard.press("Alt+Shift+Home");
+  await expect.poll(order).toEqual(after);
+  const data = await downloadBytes(page, "File", "Export Project File…");
+  const exported = JSON.parse(data.toString("utf8"));
+  const entry = (item: DrawingOrderEntry) =>
+    "id" in item ? item.id : item.kind;
+  expect(exported.documents[0].drawingOrder.map(entry)).toEqual([
+    "electrical",
+    "ADC1",
+    "circuit-marks",
+    "caption",
+    "arrow",
+    "frame",
+  ]);
+  await openProjectFile(page, data, "reopened-mixed.icproj.json");
+  if (!(await panel.isVisible())) await toggle.click();
+  await expect.poll(order).toEqual(after);
+  const svg = (await downloadBytes(page, "File", "Export SVG")).toString();
+  const indices = ["ADC1", "caption", "arrow", "frame"].map((id) =>
+    svg.indexOf('data-object-id="' + id + '"'),
+  );
+  expect(indices[0]).toBeGreaterThan(-1);
+  for (let index = 1; index < indices.length; index += 1)
+    expect(indices[index]).toBeGreaterThan(indices[index - 1]!);
+
+  await panel.getByRole("button", { name: "ADC1", exact: true }).click();
+  for (const name of ["Text Channels", "Arrow", "Rectangle"])
+    await panel
+      .getByRole("button", { name, exact: true })
+      .click({ modifiers: ["Shift"] });
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.focus();
+  const size = (await canvas.boundingBox())!;
+  await copySelectionAt(page, { x: size.width * 0.65, y: size.height * 0.66 });
+  const withCopy = await downloadBytes(page, "File", "Export Project File…");
+  const saved = parseSavedProject(withCopy.toString("utf8")) as typeof project;
+  const copied = saved.documents[0]!;
+  const originalIds = new Set(["ADC1", "caption", "arrow", "frame"]);
+  const clonedOrder = resolveDrawingOrder(copied).filter(
+    (item) => "id" in item && !originalIds.has(item.id),
+  );
+  expect(
+    clonedOrder.map((item) =>
+      item.kind === "drafting"
+        ? copied.drafting!.objects.find(({ id }) => id === item.id)?.kind
+        : item.kind,
+    ),
+  ).toEqual(["instance", "text", "arrow", "rectangle"]);
+  await openProjectFile(page, withCopy, "copied-mixed.icproj.json");
+  const copiedSvg = (
+    await downloadBytes(page, "File", "Export SVG")
+  ).toString();
+  const clonedIndices = clonedOrder.map((item) =>
+    copiedSvg.indexOf('data-object-id="' + ("id" in item ? item.id : "") + '"'),
+  );
+  expect(clonedIndices[0]).toBeGreaterThan(-1);
+  for (let index = 1; index < clonedIndices.length; index += 1)
+    expect(clonedIndices[index]).toBeGreaterThan(clonedIndices[index - 1]!);
 });

@@ -8,6 +8,7 @@ import { serializeProject } from "@icm/project-protocol";
 import { createRoutingDemoProject } from "../src/demos/routing-demo.js";
 import {
   clickDrawTool,
+  exportedProject,
   expectStatus,
   openProject,
   openProjectFile,
@@ -59,6 +60,96 @@ test("starts a free wire over a covered ADC pin and snaps when exposed", async (
   await expect(coveredPin).toBeVisible();
   await coveredPin.click();
   await expectStatus(page, "Wire source: ADC1.OUT");
+});
+
+test("covered intermediate pins never join a wire unless explicitly chosen", async ({
+  page,
+}) => {
+  const project = createEmptyProject(
+    "covered-intermediate",
+    "Covered intermediate pin",
+  );
+  const document = project.documents[0]!;
+  document.instances.push(
+    { ...placedInstance("ADC1", "adc", 200, 200), reference: "ADC1" },
+    {
+      ...placedInstance("R1", "resistor", 100, 200),
+      placement: {
+        position: { x: 100, y: 200 },
+        rotation: 270,
+        mirror: "none",
+      },
+    },
+    {
+      ...placedInstance("R2", "resistor", 340, 200),
+      placement: {
+        position: { x: 340, y: 200 },
+        rotation: 270,
+        mirror: "none",
+      },
+    },
+  );
+  const center = { x: 200, y: 200 };
+  document.drafting = {
+    objects: [
+      {
+        id: "opaque-frame",
+        kind: "rectangle",
+        locked: true,
+        zIndex: 0,
+        layer: "foreground",
+        anchor: { kind: "free", position: center },
+        center,
+        lineStyle: "solid",
+        width: 110,
+        height: 40,
+        rotation: 0,
+        styleOverride: { fillColor: "#e2d4ad" },
+      },
+    ],
+  };
+  await openProject(page, serializeProject(project));
+  await clickDrawTool(page, "wire");
+  const start = page.getByTestId("terminal-R1-2");
+  const end = page.getByTestId("terminal-R2-1");
+  await expect(page.getByTestId("terminal-ADC1-OUT")).toHaveCount(0);
+  await start.click();
+  await end.hover();
+  await expect(page.getByTestId("wire-preview")).toHaveAttribute(
+    "points",
+    /^120,200 .*320,200$/u,
+  );
+  await expect(page.locator(".wire-preview-contact")).toHaveCount(0);
+  await end.click();
+  await expectStatus(page, "Committed route");
+  const saved = (await exportedProject(page)) as typeof project;
+  expect(
+    saved.documents[0]!.nets.flatMap((net) =>
+      net.terminals.map((terminal) => terminal.instanceId),
+    ).sort(),
+  ).toEqual(["R1", "R2"]);
+
+  await page.getByTestId("draw-tool-undo").click();
+  await page
+    .getByRole("button", { name: "Objects & layers", exact: true })
+    .click();
+  const layers = page.getByRole("complementary", { name: "Objects & layers" });
+  await layers
+    .getByRole("button", { name: "Expand ADC1", exact: true })
+    .click();
+  await clickDrawTool(page, "wire");
+  await layers
+    .getByRole("button", { name: "Start wire at pin OUT", exact: true })
+    .click();
+  await expectStatus(page, "Wire source: ADC1.OUT");
+  await end.click();
+  await expectStatus(page, "Committed route");
+  const explicit = (await exportedProject(page)) as typeof project;
+  expect(
+    explicit.documents[0]!.nets.flatMap((net) =>
+      net.terminals.map((terminal) => terminal.instanceId),
+    ).sort(),
+  ).toEqual(["ADC1", "R2"]);
 });
 
 test("connects one MOS Gate to Drain without false contact ambiguity", async ({

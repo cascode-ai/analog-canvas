@@ -9,6 +9,8 @@
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { Annotation, DraftingObject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import { selectedDrawingObjectIds } from "../selection/drawing-order-actions";
+import type { VisualSelection } from "../selection/visual-selection";
 
 import {
   annotationPropertyValue,
@@ -146,7 +148,7 @@ export function drawingPropertyEdits(
   grid: number,
   before: DraftingObject,
   { object, layer }: DraftingPropertyEdit,
-  selectedIds: readonly string[],
+  selection: VisualSelection,
 ): SchematicEdit[] {
   const edits: SchematicEdit[] = [
     { kind: "upsert_drafting_object", object },
@@ -156,18 +158,14 @@ export function drawingPropertyEdits(
       grid,
       before,
       object,
-      selectedIds,
+      selection.draftingIds,
     ),
   ];
   if (!layer) return edits;
-  const objectIds = (document.drafting?.objects ?? [])
-    .filter(
-      (object) =>
-        (object.kind === "rectangle" || object.kind === "circle") &&
-        !object.locked &&
-        (object.id === before.id || selectedIds.includes(object.id)),
-    )
-    .map((object) => object.id);
+  const objectIds = selectedDrawingObjectIds(document, {
+    ...selection,
+    draftingIds: [...selection.draftingIds, before.id],
+  });
   return [
     ...edits,
     { kind: "reorder_drawing_objects", objectIds, position: { kind: layer } },

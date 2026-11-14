@@ -8,6 +8,7 @@ export interface BodyCurve {
   readonly xExtrema: readonly number[];
   readonly yExtrema: readonly number[];
   readonly linear: boolean;
+  readonly projectionExtrema: (x: number, y: number) => readonly number[];
 }
 
 function lerp(a: number, b: number, t: number): number {
@@ -23,6 +24,7 @@ export function bodyLine(from: DerivedPoint, to: DerivedPoint): BodyCurve {
     linear: true,
     xExtrema: [],
     yExtrema: [],
+    projectionExtrema: () => [],
     at: (t) => ({ x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) }),
   };
 }
@@ -73,6 +75,17 @@ export function bodyCubic(
     linear: false,
     xExtrema: cubicExtrema(from.x, x1, x2, to.x),
     yExtrema: cubicExtrema(from.y, y1, y2, to.y),
+    projectionExtrema: (x, y) => {
+      // A common power-of-two scale leaves derivative roots unchanged and
+      // keeps finite source controls safe through sums and differences.
+      const ordinate = (px: number, py: number) => (px / 4) * x + (py / 4) * y;
+      return cubicExtrema(
+        ordinate(from.x, from.y),
+        ordinate(x1, y1),
+        ordinate(x2, y2),
+        ordinate(to.x, to.y),
+      );
+    },
     at: (t) => ({
       x: cubicAt(from.x, x1, x2, to.x, t),
       y: cubicAt(from.y, y1, y2, to.y, t),
@@ -144,6 +157,13 @@ export function bodyArc(
     linear: false,
     xExtrema: arcExtrema(start, sweep, xCos, xSin),
     yExtrema: arcExtrema(start, sweep, yCos, ySin),
+    projectionExtrema: (x, y) =>
+      arcExtrema(
+        start,
+        sweep,
+        x * (xCos / 2) + y * (yCos / 2),
+        x * (xSin / 2) + y * (ySin / 2),
+      ),
     at: (t) => {
       const angle = start + t * sweep;
       const c = Math.cos(angle);

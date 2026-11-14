@@ -11,6 +11,15 @@ import {
 interface ClosedSymbolPath {
   readonly bounds: DerivedRect;
   contains(point: DerivedPoint): boolean;
+  segmentWitness(
+    from: DerivedPoint,
+    to: DerivedPoint,
+  ): DerivedPoint | undefined;
+  /** Actual straight edges and on-curve samples of the authored outline. */
+  outlineEvidence(): {
+    readonly points: readonly DerivedPoint[];
+    readonly segments: readonly { from: DerivedPoint; to: DerivedPoint }[];
+  };
 }
 
 type PathResult =
@@ -139,18 +148,28 @@ function containsPoint(
   return false;
 }
 
+function crossingPositions(
+  segments: readonly CrossingSegment[],
+  y: number,
+  fromBelow = false,
+): number[] {
+  const xs: number[] = [];
+  for (const segment of segments) {
+    const { from, to } = segment;
+    const low = Math.min(from.y, to.y);
+    const high = Math.max(from.y, to.y);
+    const crosses = fromBelow ? low < y && y <= high : low <= y && y < high;
+    if (crosses) xs.push(crossingX(segment, y));
+  }
+  return xs.sort((a, b) => a - b);
+}
+
 function crossingInterval(
   segments: readonly CrossingSegment[],
   y: number,
   tolerance: number,
 ): boolean {
-  const xs: number[] = [];
-  for (const segment of segments) {
-    const { from, to } = segment;
-    if (y >= Math.min(from.y, to.y) && y < Math.max(from.y, to.y))
-      xs.push(crossingX(segment, y));
-  }
-  xs.sort((a, b) => a - b);
+  const xs = crossingPositions(segments, y);
   for (let index = 1; index < xs.length; index += 2) {
     const start = xs[index - 1];
     const end = xs[index];
@@ -158,6 +177,94 @@ function crossingInterval(
       return true;
   }
   return false;
+}
+
+function segmentWitness(
+  curves: readonly BodyCurve[],
+  horizontalSegments: readonly CrossingSegment[],
+  bounds: DerivedRect,
+  from: DerivedPoint,
+  to: DerivedPoint,
+): DerivedPoint | undefined {
+  if (
+    Math.max(from.x, to.x) < bounds.x ||
+    Math.min(from.x, to.x) > bounds.x + bounds.width ||
+    Math.max(from.y, to.y) < bounds.y ||
+    Math.min(from.y, to.y) > bounds.y + bounds.height
+  )
+    return undefined;
+  const dx = to.x / 4 - from.x / 4;
+  const dy = to.y / 4 - from.y / 4;
+  const length = Math.hypot(dx, dy);
+  if (!length || !Number.isFinite(length)) return undefined;
+  const x = dx / length;
+  const y = dy / length;
+  // In segment coordinates, the finite segment is the row y=0, x=0..length.
+  const project = (point: DerivedPoint): DerivedPoint => {
+    const px = point.x / 4 - from.x / 4;
+    const py = point.y / 4 - from.y / 4;
+    const left = py * x;
+    const right = px * y;
+    const normal = left - right;
+    // Keep a collinear point on the scan row despite product roundoff.
+    const roundoff = (Math.abs(left) + Math.abs(right)) * Number.EPSILON * 4;
+    return { x: px * x + py * y, y: Math.abs(normal) <= roundoff ? 0 : normal };
+  };
+  const segments =
+    dy === 0
+      ? horizontalSegments
+      : curves.flatMap((curve) => {
+          const scanned: BodyCurve = {
+            ...curve,
+            from: project(curve.from),
+            to: project(curve.to),
+            at: (t) => project(curve.at(t)),
+            xExtrema: curve.projectionExtrema(x, y),
+            yExtrema: curve.projectionExtrema(-y, x),
+          };
+          return crossingSegments(scanned);
+        });
+  const row = dy === 0 ? from.y : 0;
+  const witnessOnRow = (fromBelow: boolean): DerivedPoint | undefined => {
+    const crossings = crossingPositions(segments, row, fromBelow);
+    const xs =
+      dy === 0
+        ? crossings.map((value) => (value / 4 - from.x / 4) * x)
+        : crossings;
+    if (dy === 0 && x < 0) xs.reverse();
+    const tolerance = length * Number.EPSILON * 16;
+    for (let index = 1; index < xs.length; index += 2) {
+      const left = xs[index - 1];
+      const right = xs[index];
+      if (left === undefined || right === undefined) continue;
+      const start = Math.max(0, left);
+      const end = Math.min(length, right);
+      if (!(end - start > tolerance)) continue;
+      const t = (start + (end - start) / 2) / length;
+      const point = {
+        x: (1 - t) * from.x + t * to.x,
+        y: (1 - t) * from.y + t * to.y,
+      };
+      return containsPoint(horizontalSegments, bounds, point)
+        ? point
+        : undefined;
+    }
+    return undefined;
+  };
+  // At a collinear edge the fill can border either side of the scan row.
+  return witnessOnRow(false) ?? witnessOnRow(true);
+}
+
+function outlineEvidence(
+  curves: readonly BodyCurve[],
+): ReturnType<ClosedSymbolPath["outlineEvidence"]> {
+  const points: DerivedPoint[] = [];
+  const segments: { from: DerivedPoint; to: DerivedPoint }[] = [];
+  for (const curve of curves) {
+    if (curve.linear) segments.push({ from: curve.from, to: curve.to });
+    else points.push(curve.from, curve.at(0.5), curve.to);
+  }
+  return { points, segments };
 }
 
 function hasFilledInterval(
@@ -289,6 +396,9 @@ function parseClosedPath(data: string): ClosedSymbolPath {
   return {
     bounds,
     contains: (point) => containsPoint(segments, bounds, point),
+    segmentWitness: (from, to) =>
+      segmentWitness(curves, segments, bounds, from, to),
+    outlineEvidence: () => outlineEvidence(curves),
   };
 }
 

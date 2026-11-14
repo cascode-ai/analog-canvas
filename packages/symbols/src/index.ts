@@ -8,3 +8,7 @@ export * from "./resolver.js";
 export * from "./project-components.js";
 export * from "./schema.js";
 export * from "./signal-flow-layout.js";
+export {
+  screenUprightPrimitive,
+  uprightMarkPivots,
+} from "./upright-primitive.js";

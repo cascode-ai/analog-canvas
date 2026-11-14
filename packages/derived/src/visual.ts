@@ -1,5 +1,5 @@
 import { registerDocumentCache } from "./document-caches.js";
-import { routeEnd, transformPoint } from "@icm/model";
+import { flattenRichText, routeEnd, transformPoint } from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   adaptiveSignalFlowBounds,
@@ -39,6 +39,9 @@ import {
   isSchematicAnnotationVisible,
   resolveAnnotationPresentation,
 } from "./annotation-presentation.js";
+import { resolveAnnotationText } from "./annotation-text.js";
+import { resolveDrawingScene } from "./drawing-scene.js";
+import { drawingOcclusionFindings } from "./drawing-occlusion.js";
 import {
   drawnFreeTexts,
   resolveDraftingTextInkBounds,
@@ -109,6 +112,21 @@ function enclosingBounds(input: readonly Rect[]): Rect | undefined {
   const right = Math.max(...input.map((item) => item.x + item.width));
   const bottom = Math.max(...input.map((item) => item.y + item.height));
   return { x, y, width: right - x, height: bottom - y };
+}
+
+function orderedOverlap<T extends { id: string }>(
+  items: readonly T[],
+  rank: (id: string) => number,
+): T[] {
+  return [...items].sort((left, right) => rank(left.id) - rank(right.id));
+}
+
+function frontBackDescription(names: readonly string[]): string {
+  const rear = names[0];
+  const front = names.at(-1);
+  return names.length === 2
+    ? `${front} is in front of ${rear}`
+    : `${front} is foremost and ${rear} is rearmost`;
 }
 
 function overlappingClusters<T extends { id: string; bounds: Rect }>(
@@ -900,6 +918,12 @@ export function diagnoseVisualQuality(
     return cached.diagnostics;
   }
   const diagnostics: VisualDiagnostic[] = [];
+  const drawingScene = resolveDrawingScene(document, resolver);
+  const paintRanks = {
+    instance: (id: string) => drawingScene.rank({ kind: "instance", id }),
+    annotation: (id: string) => drawingScene.rank({ kind: "annotation", id }),
+    drafting: (id: string) => drawingScene.rank({ kind: "drafting", id }),
+  };
   const minimumSegmentLength =
     options.minimumSegmentLength ?? document.presentation.grid;
   const bounds = visibleInstanceBounds(document, resolver);
@@ -966,16 +990,16 @@ export function diagnoseVisualQuality(
       rectanglesOverlap(left.bounds, right.bounds) &&
       !isExactPowerPinContact(document, resolver, left.id, right.id),
   )) {
-    const objectIds = cluster
-      .map((item) => item.id)
-      .sort((left, right) => left.localeCompare(right, "en"));
+    const inOrder = orderedOverlap(cluster, paintRanks.instance);
+    const objectIds = inOrder.map((item) => item.id);
+    const names = objectIds.map((id) => partName(document, id));
     diagnostics.push({
       code: "VISUAL_SYMBOL_OVERLAP",
       severity: "warning",
       category: "observation",
       confidence: "low",
       gateEligible: false,
-      message: `${objectIds.length} visible symbol bounds overlap`,
+      message: `${frontBackDescription(names)} where their symbol bounds overlap`,
       objectIds,
       bounds: enclosingBounds(cluster.map((item) => item.bounds))!,
       parameters: { clusteredObjectCount: objectIds.length },
@@ -996,6 +1020,14 @@ export function diagnoseVisualQuality(
     .map((annotation) => {
       return {
         id: annotation.id,
+        name: flattenRichText(
+          resolveAnnotationText(
+            document,
+            annotation,
+            options.logicalNetResolution,
+            resolver,
+          ),
+        ).trim(),
         // What is drawn, capitals to subscripts: the line box's extra ascent
         // and descent made two stacked rows, or a label and its part, read
         // as overlapping when nothing touched (#1105).
@@ -1010,16 +1042,15 @@ export function diagnoseVisualQuality(
       };
     });
   for (const cluster of overlappingClusters(annotationBounds)) {
-    const objectIds = cluster
-      .map((item) => item.id)
-      .sort((left, right) => left.localeCompare(right, "en"));
+    const inOrder = orderedOverlap(cluster, paintRanks.annotation);
+    const objectIds = inOrder.map((item) => item.id);
     diagnostics.push({
       code: "VISUAL_LABEL_OVERLAP",
       severity: "warning",
       category: "observation",
       confidence: "low",
       gateEligible: false,
-      message: `${objectIds.length} measured annotation bounds overlap`,
+      message: `${frontBackDescription(inOrder.map(({ name }) => name))} where the text bounds overlap`,
       objectIds,
       bounds: enclosingBounds(cluster.map((item) => item.bounds))!,
       parameters: { clusteredObjectCount: objectIds.length },
@@ -1038,24 +1069,44 @@ export function diagnoseVisualQuality(
       rectanglesOverlap(ink, label.bounds),
     );
     if (!covered.length) continue;
-    const objectIds = [
-      object.id,
-      ...covered
-        .map((label) => label.id)
-        .sort((left, right) => left.localeCompare(right, "en")),
-    ];
+    const inOrder = orderedOverlap(
+      [
+        {
+          id: object.id,
+          name: flattenRichText(object.content).trim() || "Drawing text",
+        },
+        ...covered,
+      ],
+      (id) =>
+        id === object.id ? paintRanks.drafting(id) : paintRanks.annotation(id),
+    );
+    const objectIds = inOrder.map(({ id }) => id);
     diagnostics.push({
       code: "VISUAL_LABEL_OVERLAP",
       severity: "warning",
       category: "observation",
       confidence: "low",
       gateEligible: false,
-      message: `Free text is drawn over ${covered.length === 1 ? "a label" : `${covered.length} labels`}`,
+      message: `${frontBackDescription(inOrder.map(({ name }) => name))} where the text bounds overlap`,
       objectIds,
       bounds: enclosingBounds([ink, ...covered.map((label) => label.bounds)])!,
-      parameters: { clusteredObjectCount: objectIds.length },
+      parameters: {
+        clusteredObjectCount: objectIds.length,
+        ...(objectIds[0] === object.id ? { drawingTargetId: object.id } : {}),
+      },
     });
   }
+
+  for (const finding of drawingOcclusionFindings(
+    document,
+    resolver,
+    drawingScene,
+    styleProfile,
+    routingGeometry,
+    annotationBounds,
+    (id) => partName(document, id),
+  ))
+    diagnostics.push(finding);
 
   for (const route of document.routes) {
     const centerline = routingGeometry.routes.get(route.id)?.centerline;

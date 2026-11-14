@@ -652,6 +652,22 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     }
   };
 
+  const activateWireEndpoint = (candidate: WireSource): void => {
+    if (pendingChoice?.choice.allowWhole === false) return;
+    const wire = options.readCurrentWireSession();
+    if (wire.labelEditing) return;
+    options.setTool("wire");
+    if (!wire.source) {
+      startWire(candidate);
+      return;
+    }
+    if (endpointKey(wire.source.endpoint) === endpointKey(candidate.endpoint)) {
+      options.setStatus("Choose a different endpoint");
+      return;
+    }
+    commitWire(candidate);
+  };
+
   const handleWireEndpoint = (
     event: ReactPointerEvent<SVGCircleElement>,
     candidate: WireSource,
@@ -665,17 +681,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       options.setStatus("Snap suppressed while Alt is held");
       return;
     }
-    options.setTool("wire");
-    const wire = options.readCurrentWireSession();
-    if (!wire.source) {
-      startWire(candidate);
-      return;
-    }
-    if (endpointKey(wire.source.endpoint) === endpointKey(candidate.endpoint)) {
-      options.setStatus("Choose a different endpoint");
-      return;
-    }
-    commitWire(candidate);
+    activateWireEndpoint(candidate);
   };
 
   const handleFlightline = (
@@ -1388,6 +1394,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     handleFlightline,
     handleWireRoutePointerDown,
     handleWireEndpoint,
+    activateWireEndpoint,
     selectRoute,
   };
 }

@@ -5,6 +5,7 @@ import type { DraftingObject, Point, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { VisualSelection } from "../selection/visual-selection";
+import { selectedDrawingObjectIds } from "../selection/drawing-order-actions";
 import {
   applyDraftingGeometryPatch,
   applyDraftingStylePatch,
@@ -122,10 +123,12 @@ export function createDraftingCommands({
 
   const setDraftingStacking = (target: DraftingStackingTarget): void => {
     if (!selectedDrafting) return;
+    const objectIds = selectedDrawingObjectIds(document, selection);
+    if (!objectIds.length) return;
     transact([
       {
         kind: "reorder_drawing_objects",
-        objectIds: selection.draftingIds,
+        objectIds,
         position: { kind: target },
       },
     ]);

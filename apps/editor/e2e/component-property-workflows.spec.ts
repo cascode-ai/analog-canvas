@@ -1394,3 +1394,79 @@ test("batch Code drafts follow selection identity even when common values are id
     ),
   ).toEqual(["22k", "22k", "22k"]);
 });
+
+test("the layers panel selects an existing Layout Group and batches mixed body fills", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 940 });
+  const project = createEmptyProject("layer-group", "Mixed color");
+  const document = project.documents[0]!;
+  document.instances.push(
+    {
+      ...placedInstance("ADC1", "adc", 200, 200),
+      reference: "ADC1",
+      bodyFill: { kind: "color", color: "#aabbcc" },
+    },
+    {
+      ...placedInstance("ADC2", "adc", 220, 210),
+      reference: "ADC2",
+      bodyFill: { kind: "color", color: "#ccbbaa" },
+    },
+    { ...placedInstance("ADC3", "adc", 240, 220), reference: "ADC3" },
+  );
+  document.layoutGroups.push({
+    id: "pair",
+    kind: "matched-pair",
+    objectIds: ["ADC1", "ADC2"],
+    locked: false,
+  });
+  await openProject(page, serializeProject(project), "layer-group.icproj.json");
+  const panel = page.getByRole("complementary", { name: "Objects & layers" });
+  await page
+    .getByRole("button", { name: "Objects & layers", exact: true })
+    .click();
+  await panel.getByRole("button", { name: "ADC1", exact: true }).click();
+  await expect(
+    panel.getByRole("button", { name: "ADC2", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await openSelectionShelf(page);
+  const fill = page.getByLabel("Body fill", { exact: true });
+  await expect(fill).toHaveValue("mixed");
+  await fill.selectOption("background");
+
+  const formal = page
+    .getByTestId("schematic-canvas")
+    .locator('[data-layer="formal"]');
+  const body = (id: string) =>
+    formal.locator(
+      '[data-object-id="' + id + '"] [data-role="instance-body-fill"]',
+    );
+  await expect(body("ADC1")).toHaveAttribute("fill", "#fff");
+  await expect(body("ADC2")).toHaveAttribute("fill", "#fff");
+  await expect(body("ADC3")).toHaveCount(0);
+
+  const symbols = () =>
+    formal
+      .locator("[data-symbol-id=adc]")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("data-object-id")),
+      );
+  await panel
+    .getByRole("button", { name: "Bring to front", exact: true })
+    .click();
+  await expect.poll(symbols).toEqual(["ADC3", "ADC1", "ADC2"]);
+  await page.getByTestId("draw-tool-undo").click();
+  await expect.poll(symbols).toEqual(["ADC1", "ADC2", "ADC3"]);
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(body("ADC1")).toHaveAttribute("fill", "#aabbcc");
+  await expect(body("ADC2")).toHaveAttribute("fill", "#ccbbaa");
+  await page.keyboard.press("ControlOrMeta+d");
+  const [rear] = await onScreen(page.getByTestId("schematic-canvas"), [
+    { x: 170, y: 200 },
+  ]);
+  await page.mouse.click(rear.x, rear.y, { button: "right" });
+  await page
+    .getByRole("menuitem", { name: "Bring to front", exact: true })
+    .click();
+  await expect.poll(symbols).toEqual(["ADC3", "ADC1", "ADC2"]);
+});

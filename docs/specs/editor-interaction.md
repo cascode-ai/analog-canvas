@@ -75,8 +75,10 @@ rendering and recovery.
   label; clearing a value hides it.
 - Colors show as `[R, G, B]` but persist as hex; `"auto"` inherits foreground.
   The **Body fill** control offers Transparent, Document background, and
-  Custom color for Symbols with a declared closed body. A direct change
-  replaces any legacy background. Shapes use `appearance.fillColor`.
+  Custom color for Symbols with a declared closed body. Differing modes or
+  colors display **Mixed**. One change applies to all selected eligible
+  Instances and replaces their legacy backgrounds. Shapes use
+  `appearance.fillColor`.
 - `symbol` offers only pin-compatible variants; `signalFlow` owns formula
   overrides. `placement: null` is refused for drawn devices.
 - Units, selectors and switch/rotate/mirror/color buttons are decorations, never
@@ -170,9 +172,9 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   do, show a tooltip, at once on hover or focus. Labelled buttons, including
   **Properties** and **Reset labels**, show none until a narrow window hides
   their labels; the tooltip then shows the label.
-- **Hierarchy**, beside Insert and Library, shows or hides the hierarchy tree.
-  In the compact layout one side shows at a time: a left panel and the
-  Netlist or Project Code panel close each other.
+- **Hierarchy** and **Objects & layers** share the Library dock. Each toolbar
+  toggle opens or collapses its own panel. Compact layouts make room for the
+  side the user opens.
 
 ### Cell symbol layout
 
@@ -241,13 +243,32 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   Definition, Enter Cell or Couple inductors where they apply. Rotate (R) turns a
   free drawing text between reading across and reading up the page; a half turn
   leaves it.
-- The canvas menu's drawing-order commands move an Instance with its labels
-  or move independent drawing objects. Hit testing skips objects under an
-  opaque region before applying selection priority. Repeat `Alt`-click to
-  cycle through candidates at the same point, including covered objects.
+- Hit testing skips objects under an opaque region before applying selection
+  priority. Repeat `Alt`-click to cycle through candidates at the same point,
+  including covered objects.
 - The six align commands share one planner. Participants: placed Instances,
   selected annotations and DraftText (an anchored label with its host follows
   once); not Routes or Junctions. One undo. The GUI never calls `align_instances`.
+
+### Objects and layers
+
+- **Objects & layers** lists the current Cell's paint order from front to
+  back, including electrical drawing and circuit marks. Expand an Instance
+  for its internal formula, Pins, and owned annotations. A separated annotation
+  keeps its actual place in the list and can also be reached from its owner.
+- Click a row to select it, or use the same additive modifiers as on the
+  canvas. Selecting a Layout Group member from the panel selects its drawable
+  members. **Locate** frames the target in the visible canvas. A covered
+  selection shows its outline above the drawing. Open an internal formula
+  or double-click an editable text row to edit it in place.
+- Use the panel or canvas menu to bring to front, move up, move down or send to
+  back. The corresponding chords use `Alt+Shift` with `Home`, `↑`, `↓` and
+  `End`. Drag a row above or below a target to place the selection there.
+  Each edit uses [the same transaction](edit-engine.md#edit-rules) and
+  one Undo. Changing the drawing during a drag invalidates that drop.
+- A Pin row locates its real endpoint. While wiring, choosing a Pin in the
+  panel targets it explicitly. Pointer snapping and automatically connected
+  contacts use the same visible geometry in previews and commits.
 
 ## Movement closure
 

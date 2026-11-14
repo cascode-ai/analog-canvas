@@ -200,9 +200,11 @@ In a custom component's Symbol JSON, set `fillableBody: true` on a closed
 body primitive. A single path can include closed inner contours to keep holes
 clear. [Symbol DSL](../specs/symbol-dsl.md#rules)
 
-Right-click a component or a selection to move it forward, backward, to the
-front, or to the back. A component moves in the drawing order with its labels.
-`Alt`-click the overlap repeatedly to select objects behind the visible one.
+Open **Objects & layers** from the toolbar to see the current Cell from front
+to back. Use **Locate** to frame a covered object, expand a component to reach
+its labels and Pins, or drag a row above or below another. The panel and
+right-click menu offer the same four ordering commands. `Alt`-click an overlap
+repeatedly to cycle through objects on the canvas.
 
 ## Save and recover
 

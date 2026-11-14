@@ -11,7 +11,10 @@ import type { SchematicDocument } from "@icm/model";
 import type { BoxPreview } from "../canvas/canvas-gesture-model";
 import type { createCanvasGestureController } from "../canvas/canvas-gesture-controller";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
-import { createEditorCommandRouter } from "../commands/editor-command";
+import {
+  createEditorCommandRouter,
+  type EditorCommandOperations,
+} from "../commands/editor-command";
 import type { useDocumentController } from "../document/document-controller";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
 import type { useCircuitClipboard } from "../features/clipboard/use-circuit-clipboard";
@@ -82,6 +85,9 @@ export function useEditorCommandRouter({
   mirrorSelected,
   alignSelection,
   alignmentParticipantCount,
+  hasDrawingSelection,
+  reorderSelection,
+  drawingEditActive,
   armVerb,
   disarmVerb,
   beginKeyboardSelectionMoveFromSelection,
@@ -138,6 +144,9 @@ export function useEditorCommandRouter({
   mirrorSelected: SelectionTransform["mirror"];
   alignSelection: SelectionTransform["align"];
   alignmentParticipantCount: number;
+  hasDrawingSelection: boolean;
+  reorderSelection: EditorCommandOperations["reorderSelection"];
+  drawingEditActive: boolean;
   armVerb: (verb: ArmedVerb) => void;
   disarmVerb: () => void;
   beginKeyboardSelectionMoveFromSelection: SelectionInteraction["beginKeyboardSelectionMove"];
@@ -181,6 +190,8 @@ export function useEditorCommandRouter({
         hasVisualSelection(visualSelection) || selectedEndpoint !== null,
       hasMoveSelection,
       hasAlignableSelection: alignmentParticipantCount >= 2,
+      hasDrawingSelection,
+      drawingEditActive,
       hasRotatableSelection,
       hasMirrorableSelection,
       canTransformMove: canTransformCommandMove(),
@@ -274,6 +285,7 @@ export function useEditorCommandRouter({
         armVerb(detach ? "move-detached" : "move");
       },
       alignSelection,
+      reorderSelection,
       rotatePlacement: rotatePendingComponentFromHook,
       rotateCopy: rotatePendingCopy,
       rotateMove: rotateCommandMoveFromSelection,

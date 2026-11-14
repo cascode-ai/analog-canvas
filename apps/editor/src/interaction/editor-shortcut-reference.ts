@@ -1,3 +1,5 @@
+import { DRAWING_ORDER_ACTIONS } from "../features/selection/drawing-order-actions";
+
 /**
  * User-facing index of every editor command chord owned by
  * `resolveEditorShortcut` or the native circuit clipboard handler. Browser-safety interceptions such as blocking F5
@@ -14,6 +16,14 @@ export const EDITOR_SHORTCUT_REFERENCE = [
   { keys: ["F"], action: "Fit view" },
   { keys: ["Home"], action: "Fit view" },
   { keys: ["Arrow keys"], action: "Pan view" },
+  ...DRAWING_ORDER_ACTIONS.map(({ key, label }) => ({
+    keys: [
+      "Alt",
+      "Shift",
+      key === "ArrowUp" ? "↑" : key === "ArrowDown" ? "↓" : key,
+    ],
+    action: label,
+  })),
   { keys: ["G"], action: "Toggle Gallery" },
   { keys: ["B"], action: "Toggle Component Library" },
   { keys: ["N"], action: "Toggle Netlist" },

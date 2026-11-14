@@ -666,6 +666,26 @@ export function adaptiveSignalFlowSupplyLeads(
   });
 }
 
+/** The input and output strokes on an adaptive frame, before placement. */
+export function adaptiveSignalFlowSignalLeads(
+  definition: Pick<SymbolDefinition, "formulaPresentation">,
+  layout: AdaptiveSignalFlowBlockLayout,
+  hiddenPrimitiveParts: readonly string[] = [],
+) {
+  const center = definition.formulaPresentation?.center;
+  if (!center) return { input: undefined, output: undefined };
+  const { body, pinSpan } = layout;
+  const y = center.y;
+  const lead = (part: string, from: number, to: number) =>
+    hiddenPrimitiveParts.includes(part)
+      ? undefined
+      : { part, from: { x: from, y }, to: { x: to, y } };
+  return {
+    input: lead("input-a-lead", center.x - pinSpan, body.x),
+    output: lead("output-y-lead", body.x + body.width, center.x + pinSpan),
+  };
+}
+
 /** An adaptive block's extent, with the supply leads its variant draws. */
 export function adaptiveSignalFlowBounds(
   definition: Pick<

@@ -25,6 +25,32 @@ describe("bounds spatial index", () => {
     );
   });
 
+  it("finds broad geometry and distant bounds in input order without enumerating their buckets", () => {
+    const index = buildBoundsSpatialIndex(
+      [
+        { bounds: { x: 10, y: 10, width: 30, height: 30 }, value: "near" },
+        {
+          bounds: { x: 0, y: 0, width: 1e308, height: 1e308 },
+          value: "wide body",
+        },
+        { bounds: { x: 1e300, y: 0, width: 4, height: 4 }, value: "distant" },
+        { bounds: { x: 80, y: 80, width: 30, height: 30 }, value: "far" },
+      ],
+      40,
+    );
+
+    expect(index.size).toBe(4);
+    expect(index.queryPoint({ x: 40, y: 40 })).toEqual(["near", "wide body"]);
+    expect(index.queryPoint({ x: 1e300, y: 4 })).toEqual([
+      "wide body",
+      "distant",
+    ]);
+    expect(index.queryPoint({ x: -1, y: 1 })).toEqual([]);
+    expect(
+      index.queryBounds({ x: 1e308, y: 1e308, width: -1e308, height: -1e308 }),
+    ).toEqual(["near", "wide body", "distant", "far"]);
+  });
+
   it("indexes non-orthogonal segments without claiming their exact geometry", () => {
     const resolver = new InMemorySymbolResolver(builtInSymbols);
     const document = createEmptyDocument("spatial", "Spatial");

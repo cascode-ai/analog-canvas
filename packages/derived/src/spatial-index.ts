@@ -51,12 +51,25 @@ function closedBoundsOverlap(left: Rect, right: Rect): boolean {
   );
 }
 
-function bucketCoordinate(value: number, cellSize: number): number {
-  return Math.floor(value / cellSize);
-}
-
 function bucketKey(x: number, y: number): string {
   return `${x}\0${y}`;
+}
+
+const MAX_BUCKETS_PER_RANGE = 4096;
+
+function bucketRange(bounds: Rect, cellSize: number) {
+  const minX = Math.floor(bounds.x / cellSize);
+  const maxX = Math.floor((bounds.x + bounds.width) / cellSize);
+  const minY = Math.floor(bounds.y / cellSize);
+  const maxY = Math.floor((bounds.y + bounds.height) / cellSize);
+  // Avoid unbounded work on large spans and coordinates at which an integer
+  // bucket loop cannot advance by one.
+  if (
+    ![minX, maxX, minY, maxY].every(Number.isSafeInteger) ||
+    (maxX - minX + 1) * (maxY - minY + 1) > MAX_BUCKETS_PER_RANGE
+  )
+    return undefined;
+  return { minX, maxX, minY, maxY };
 }
 
 /**
@@ -76,12 +89,14 @@ export function buildBoundsSpatialIndex<T>(
     value: entry.value,
   }));
   const buckets = new Map<string, number[]>();
+  const broadEntries: number[] = [];
   for (let index = 0; index < records.length; index += 1) {
-    const bounds = records[index]!.bounds;
-    const minX = bucketCoordinate(bounds.x, cellSize);
-    const maxX = bucketCoordinate(bounds.x + bounds.width, cellSize);
-    const minY = bucketCoordinate(bounds.y, cellSize);
-    const maxY = bucketCoordinate(bounds.y + bounds.height, cellSize);
+    const range = bucketRange(records[index]!.bounds, cellSize);
+    if (!range) {
+      broadEntries.push(index);
+      continue;
+    }
+    const { minX, maxX, minY, maxY } = range;
     for (let x = minX; x <= maxX; x += 1) {
       for (let y = minY; y <= maxY; y += 1) {
         const key = bucketKey(x, y);
@@ -94,11 +109,13 @@ export function buildBoundsSpatialIndex<T>(
 
   const queryBounds = (input: Rect): readonly T[] => {
     const bounds = normalizedBounds(input);
-    const minX = bucketCoordinate(bounds.x, cellSize);
-    const maxX = bucketCoordinate(bounds.x + bounds.width, cellSize);
-    const minY = bucketCoordinate(bounds.y, cellSize);
-    const maxY = bucketCoordinate(bounds.y + bounds.height, cellSize);
-    const candidateIndexes = new Set<number>();
+    const range = bucketRange(bounds, cellSize);
+    if (!range)
+      return records.flatMap((record) =>
+        closedBoundsOverlap(record.bounds, bounds) ? [record.value] : [],
+      );
+    const { minX, maxX, minY, maxY } = range;
+    const candidateIndexes = new Set(broadEntries);
     for (let x = minX; x <= maxX; x += 1) {
       for (let y = minY; y <= maxY; y += 1) {
         for (const index of buckets.get(bucketKey(x, y)) ?? []) {

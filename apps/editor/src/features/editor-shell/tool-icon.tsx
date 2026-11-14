@@ -27,7 +27,8 @@ export type ToolIconName =
   | "redo"
   | "delete"
   | "reset-labels"
-  | "hierarchy";
+  | "hierarchy"
+  | "layers";
 
 export function ToolIcon({ name }: { name: ToolIconName }) {
   const common = {
@@ -54,6 +55,12 @@ export function ToolIcon({ name }: { name: ToolIconName }) {
           <rect x="11.5" y="13" width="6" height="4.5" rx="1" {...common} />
           <path d="M10 7v3M5.5 13v-3h9v3" {...common} />
         </>
+      ) : null}
+      {name === "layers" ? (
+        <path
+          d="M2.5 7 10 3l7.5 4-7.5 4zM2.5 10.5l7.5 4 7.5-4M2.5 14l7.5 4 7.5-4"
+          {...common}
+        />
       ) : null}
       {name === "library" ? (
         <>

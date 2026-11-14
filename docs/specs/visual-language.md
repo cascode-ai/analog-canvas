@@ -139,3 +139,8 @@ and [browser flow](../../apps/editor/e2e/drawing-style.spec.ts) cover this lifec
   bounds. Unresolved symbols and ambiguous dots block; wire angles alone never
   warn. Overlap uses the active variant's visible geometry; a part's box ends
   at its visible pins, so pin-to-pin parts do not overlap.
+- Overlap findings name which object is in front and locate a rear object.
+  Occlusion findings identify the foreground fill and the rear object using
+  points in the shared closed regions. They check line segments along their
+  length through closed regions, including holes. Curved outlines and text
+  supply sampled evidence. The findings are independent of electrical rule checks.

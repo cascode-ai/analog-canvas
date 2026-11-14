@@ -195,6 +195,14 @@
   stroke-width: 6;
 }
 
+.drawing-location-outline * {
+  fill: none;
+  stroke: rgb(var(--icm-accent-rgb) / 80%);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+}
+
 .wire-under-symbol-overlay .wire-under-symbol-paint {
   stroke: #d3212c;
   stroke-width: 2.5;
@@ -380,6 +388,10 @@
   opacity: 0.28;
 }
 
+.net-highlight-overlay.connected-net-glow-front {
+  opacity: 0.58;
+}
+
 .net-highlight-overlay.connected-net-glow .net-highlight-halo,
 .net-highlight-overlay.connected-net-glow .connected-net-glow-body {
   fill: none;
@@ -396,6 +408,13 @@
 .net-highlight-overlay.connected-net-glow .net-highlight-endpoint {
   fill: #008ff0;
   stroke: none;
+}
+
+.net-highlight-overlay.connected-net-glow-front .net-highlight-halo,
+.net-highlight-overlay.connected-net-glow-front .connected-net-glow-body {
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
 }
 
 .wire-preview {

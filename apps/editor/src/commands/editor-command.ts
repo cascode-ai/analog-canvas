@@ -5,6 +5,10 @@ import type {
 } from "../interaction/interaction-state";
 import type { ScreenFlip } from "../interaction/shortcut-orientation";
 import type { EdgeAlignmentMode } from "../features/selection/align-selection";
+import type {
+  DrawingDragRevision,
+  DrawingReorderPosition,
+} from "../features/selection/drawing-order-actions";
 
 export type EditorCommandRequest =
   | { id: "editor.cancel" }
@@ -24,6 +28,11 @@ export type EditorCommandRequest =
    */
   | { id: "selection.move"; detach?: boolean }
   | { id: "selection.align"; mode: EdgeAlignmentMode }
+  | {
+      id: "selection.reorder";
+      position: DrawingReorderPosition;
+      drag?: { objectIds: string[]; expected: DrawingDragRevision };
+    }
   | { id: "transform.rotate"; deltaDegrees?: 45 | -45 | 90 | -90 }
   | { id: "transform.rotate-next" }
   | { id: "transform.mirror"; direction: ScreenFlip }
@@ -55,6 +64,8 @@ export interface EditorCommandContext {
   canCopyVisualSelection: boolean;
   hasMoveSelection: boolean;
   hasAlignableSelection: boolean;
+  hasDrawingSelection: boolean;
+  drawingEditActive: boolean;
   hasRotatableSelection: boolean;
   hasMirrorableSelection: boolean;
   canTransformMove: boolean;
@@ -86,6 +97,9 @@ export interface EditorCommandOperations {
   openSearch(): void;
   beginMove(detach: boolean): void;
   alignSelection(mode: EdgeAlignmentMode): void;
+  reorderSelection(
+    command: Extract<EditorCommandRequest, { id: "selection.reorder" }>,
+  ): void;
   rotatePlacement(deltaDegrees: 45 | -45 | 90 | -90): void;
   rotateCopy(deltaDegrees: 45 | -45 | 90 | -90): void;
   rotateMove(deltaDegrees: 45 | -45 | 90 | -90): void;
@@ -243,6 +257,22 @@ export function createEditorCommandRouter(
         return context.hasAlignableSelection
           ? enabled()
           : disabled("Select at least two parts or text objects to align");
+      case "selection.reorder":
+        if (
+          context.interactionMode !== "idle" ||
+          context.canvasDragActive ||
+          context.hasArmedVerb ||
+          context.drawingEditActive
+        ) {
+          return disabled("Finish or cancel the active tool before reordering");
+        }
+        return (
+          request.drag
+            ? request.drag.objectIds.length > 0
+            : context.hasDrawingSelection
+        )
+          ? enabled()
+          : disabled("Select drawing objects to reorder");
       case "transform.rotate": {
         const resolution = resolveTransformOwner(context, "rotate");
         return resolution.owner === "unavailable"
@@ -353,6 +383,9 @@ export function createEditorCommandRouter(
         break;
       case "selection.align":
         options.operations.alignSelection(request.mode);
+        break;
+      case "selection.reorder":
+        options.operations.reorderSelection(request);
         break;
       case "transform.rotate-next":
         options.operations.armRotate();
