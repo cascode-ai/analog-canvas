@@ -305,7 +305,12 @@ describe("MCP tools on the live editor", () => {
             cloudBinding: null,
           }),
           published: () => {},
-          fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+          fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
+            if (input === "/api/gallery/submissions/intent")
+              return Response.json({
+                key: "cn_11111111-1111-4111-8111-111111111111",
+              });
+            expect(input).toBe("/api/gallery/submissions/commit");
             sent.push(JSON.parse(String(init?.body)));
             return Response.json(
               { id: "g9", previewRevision: "r9" },

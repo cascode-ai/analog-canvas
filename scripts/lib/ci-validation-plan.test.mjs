@@ -38,6 +38,7 @@ const gallerySpecs = [
 ].map((name) => `apps/editor/e2e/gallery-${name}.spec.ts`);
 gallerySpecs.unshift("apps/editor/e2e/boards-regional-retry.spec.ts");
 gallerySpecs.push("apps/editor/e2e/local-examples.spec.ts");
+gallerySpecs.push("apps/editor/e2e/regional-review.spec.ts");
 
 function ciPlan(paths, options) {
   return planCiValidation(planValidation(paths, catalog), options);

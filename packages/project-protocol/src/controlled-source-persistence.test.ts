@@ -99,7 +99,12 @@ describe("controlled-source portable persistence", () => {
     const outcome = await publishProjectToGallery(
       before,
       { name: "Controls", description: "", tags: [], aiGenerated: false },
-      (async (_url, init) => {
+      (async (url, init) => {
+        if (url === "/api/gallery/submissions/intent")
+          return Response.json({
+            key: "cn_11111111-1111-4111-8111-111111111111",
+          });
+        expect(url).toBe("/api/gallery/submissions/commit");
         const body = JSON.parse(String(init?.body));
         stored = serializeProject(parseProject(body.projectText));
         return Response.json({ id: "gallery-controls" }, { status: 201 });
