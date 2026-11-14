@@ -335,17 +335,40 @@ export function createDurableGalleryTopologyTask(
         update({ failure: String(error) });
       }
     },
-    dismissNotice() {
+    async dismissNotice() {
       if (local) {
         options.localFallback!.dismissNotice();
         return;
       }
-      update({ noticeDismissed: true });
-      if (job)
-        void fetchLike(`/api/topology-task?id=${encodeURIComponent(job.id)}`, {
-          method: "PATCH",
-          credentials: "same-origin",
-        }).catch(() => {});
+      if (!job) {
+        update({ noticeDismissed: true });
+        return;
+      }
+      const current = generation,
+        id = job.id;
+      try {
+        const response = await fetchLike(
+          `/api/topology-task?id=${encodeURIComponent(id)}`,
+          {
+            method: "PATCH",
+            credentials: "same-origin",
+          },
+        );
+        if (!response.ok)
+          throw new Error("Could not dismiss the server check. Try again.");
+        const payload = (await response.json()) as { job?: DurableJob };
+        if (!payload.job || payload.job.id !== id || !payload.job.dismissed)
+          throw new Error("Could not confirm dismissal. Try again.");
+        if (current === generation && job?.id === id) publish(payload.job);
+      } catch (error) {
+        if (current === generation && job?.id === id)
+          update({
+            failure:
+              error instanceof Error
+                ? error.message
+                : "Could not dismiss the server check. Try again.",
+          });
+      }
     },
     /** Test/lifecycle cleanup does not cancel cloud work. */
     dispose() {

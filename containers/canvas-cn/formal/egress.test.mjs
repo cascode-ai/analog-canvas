@@ -160,6 +160,8 @@ it("carries supported regional actions and their private catch-up without openin
     "publication",
     "board",
     "maintenance",
+    "simulation-job",
+    "topology-job",
   ]) {
     expect(
       (

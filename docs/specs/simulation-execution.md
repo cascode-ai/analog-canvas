@@ -16,6 +16,14 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
   owns preparation and presentation; its Executor is the execution port shared
   by GUI and MCP. On Production the managed control plane owns admission,
   idempotency, queueing, retry, cancellation and retention.
+- Regional starts reserve the account/request ID at the overseas coordinator
+  before admission in the chosen execution region. The reservation never expires
+  into permission to execute elsewhere. Retries with the same input return the
+  original run; reuse with different input conflicts. Reads, result streams and
+  cancellation follow the execution region, including runs predating routing.
+  Account lists include both regions or explicitly report peer unavailability;
+  an unreachable peer never authorizes a replacement execution. Operator state
+  and result bytes remain in the execution region, not resource replication.
 - Gallery [simulation checks](community-gallery.md#simulation-checks) are one
   more managed caller (`prepareFolderExecutionInput`, account
   `gallery-simulation-check`, judged by `executionSpecReport`).

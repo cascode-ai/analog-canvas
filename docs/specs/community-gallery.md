@@ -796,6 +796,15 @@ ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
   Edits and closing never cancel; results resume within seven days; only Cancel
   stops; a second start is refused; request identity makes retries safe. Results
   for another Cell are not shown; edited-Cell results are marked historical.
+- In regional deployments an account's task owner is reserved at the overseas
+  coordinator before starting work. Existing tasks are discovered before the
+  first reservation; conflicting legacy jobs are reported, not overwritten.
+  Both entries read, stop and dismiss at that owner. Confirmed ownership is
+  cached durably: local tasks continue through peer outages; unknown or remote
+  ownership never falls back to a second local task. Account reservations never
+  expire or migrate, even after a result expires; only the task executes in its
+  owning region. Dismissal waits for the server acknowledgement; failures keep
+  the notice available and report the failed operation.
 - Results: ≤20 matches within 8 MiB, omissions explicit, never another owner's
   snapshot. Compare on canvas is an ordinary read (spends an open) of frozen
   Projects and refuses a circuit changed since.
