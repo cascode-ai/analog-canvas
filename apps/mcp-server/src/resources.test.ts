@@ -152,7 +152,9 @@ describe("mcp resources single-source projection", () => {
         )!
         .content.trim(),
     ).toBe(source.replaceAll("\r\n", "\n").trim());
-  });
+    // About 1.3 s alone, it expands two 200 KB schemas: past 10 s under a
+    // full local unit run on a loaded machine.
+  }, 30_000);
   it("bounds discovery size while retaining complete contracts and runtime validation", async () => {
     const tools = listToolDefinitions();
     // A tripwire for a directory that unfolds by accident, not a pin on
