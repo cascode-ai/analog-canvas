@@ -40,8 +40,8 @@ SchematicDocument + Symbol Resolver + optional bounds → validate
   and Annotation defaults sort by ID. Within a drafting plane `zIndex` sorts
   first and equal entries retain stored order. Export bounds are placed
   geometry plus an explicit integer margin.
-- Opaque regions use the exact transformed fill geometry. A symbol's declared
-  body fills before its ink and upright text. The Document profile resolves
+- Opaque regions follow the transformed [Symbol body geometry](symbol-dsl.md#rules).
+  A symbol's declared body fills before its ink and upright text. The Document profile resolves
   a background fill. Transparent page export preserves opaque object fills.
   Point hits and inferred physical contacts use the scene's occlusion query.
   Explicit endpoint edits retain their connectivity semantics.

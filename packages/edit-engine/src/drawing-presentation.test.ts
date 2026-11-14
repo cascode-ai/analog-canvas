@@ -1,7 +1,7 @@
 import { createEmptyProject } from "@icm/model";
 import type { Annotation, CircuitProject, Instance } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
-import { renderDocumentSvg } from "@icm/render-svg";
+import { buildSvgScene, renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { expect, it } from "vitest";
 
@@ -92,6 +92,78 @@ it("persists an ADC's opaque body and its reordered name in a transparent SVG", 
   expect(drawing.sourceStatus).toBe(document.sourceStatus);
 });
 
+it("includes remote filled regions in a rotated and mirrored formal SVG", () => {
+  const project = createEmptyProject("remote-bodies", "Remote bodies");
+  project.componentDefinitions = [
+    {
+      symbol: {
+        schemaVersion: 1,
+        id: "remote-body",
+        name: "Remote body",
+        viewBox: { x: -10, y: -10, width: 20, height: 20 },
+        pins: [
+          {
+            name: "IN",
+            role: "input",
+            at: { x: -10, y: 0 },
+            direction: "west",
+            presentation: { visibility: "visible" },
+          },
+        ],
+        primitives: [
+          {
+            kind: "rectangle",
+            bounds: { x: 100, y: 20, width: 20, height: 20 },
+            fillableBody: true,
+          },
+          {
+            kind: "path",
+            data: "M-60-50 H-40 V-30 H-60 Z",
+            fillableBody: true,
+          },
+        ],
+        variants: [],
+      },
+    },
+  ];
+  project.documents[0]!.instances.push({
+    id: "device",
+    symbolId: "remote-body",
+    placement: {
+      position: { x: 100, y: 100 },
+      rotation: 90,
+      mirror: "horizontal",
+    },
+  });
+  const result = edit(project, {
+    kind: "set_body_fill",
+    objectIds: ["device"],
+    fill: { kind: "color", color: "#ecd4ff" },
+  });
+  if (!result.ok) throw new Error(result.error.message);
+  const render = (candidate: CircuitProject) => {
+    const reopened = parseProject(serializeProject(candidate));
+    return renderDocumentSvg(
+      reopened.documents[0]!,
+      createProjectSymbolResolver(reopened, builtInSymbols),
+      { background: "transparent", margin: 0 },
+    );
+  };
+  const svg = render(result.project);
+  expect(svg).toContain('viewBox="50 40 90 180"');
+  expect(svg).toMatch(/<rect data-role="instance-body-fill"[^>]+/u);
+  expect(svg).toMatch(/<path data-role="instance-body-fill"[^>]+/u);
+  const clear = edit(result.project, {
+    kind: "set_body_fill",
+    objectIds: ["device"],
+    fill: null,
+  });
+  if (!clear.ok) throw new Error(clear.error.message);
+  const transparent = render(clear.project);
+  expect(transparent).toContain('viewBox="50 40 90 180"');
+  expect(transparent).not.toContain('data-role="instance-body-fill"');
+});
+
 it("leaves a free wire landing separate from a pin hidden by a filled ADC", () => {
   const project = createEmptyProject("contact", "Covered contact");
   const document = project.documents[0]!;
@@ -117,6 +189,99 @@ it("leaves a free wire landing separate from a pin hidden by a filled ADC", () =
     { id: "wire-net", terminals: [] },
   ]);
 });
+
+it.each([
+  "dac",
+  "dac-differential",
+  "opamp",
+  "opamp-differential-wide-crossed-lettered-inputs-swapped",
+  "voltage-source",
+  "pulse-voltage-source",
+  "sine-voltage-source",
+  "current-source",
+  "vcvs",
+  "vccs",
+  "ccvs",
+  "cccs",
+])("fills exactly the reviewed %s body on a reopened Project", (symbolId) => {
+  const project = createEmptyProject("filled-symbol", "Filled Symbol");
+  const document = project.documents[0]!;
+  document.instances.push({ ...adc("device", 100), symbolId });
+  const result = edit(project, {
+    kind: "set_body_fill",
+    objectIds: ["device"],
+    fill: { kind: "background" },
+  });
+  if (!result.ok) throw new Error(result.error.message);
+  const reopened = parseProject(serializeProject(result.project));
+  const resolver = createProjectSymbolResolver(reopened, builtInSymbols);
+  const svg = renderDocumentSvg(reopened.documents[0]!, resolver);
+  expect(svg.match(/data-role="instance-body-fill"/gu)).toHaveLength(1);
+  const transparent = renderDocumentSvg(
+    document,
+    createProjectSymbolResolver(project, builtInSymbols),
+  );
+  // Delete only the added body paint. The original ink, including internal
+  // notation and pin leads, stays exactly the same.
+  expect(
+    svg.replace(
+      /<(?:path|polygon|circle)[^>]*data-role="instance-body-fill"[^>]*\/>/u,
+      "",
+    ),
+  ).toBe(transparent);
+});
+
+it.each(["integrator", "transconductance"])(
+  "keeps the %s fill on the new frame when its formula grows",
+  (symbolId) => {
+    const project = createEmptyProject("grown-body", "Grown body");
+    project.documents[0]!.instances.push({ ...adc("block", 200), symbolId });
+    const fill = edit(project, {
+      kind: "set_body_fill",
+      objectIds: ["block"],
+      fill: { kind: "color", color: "#d4ecff" },
+    });
+    if (!fill.ok) throw new Error(fill.error.message);
+    const sharedScene = (source: CircuitProject) => {
+      const reopened = parseProject(serializeProject(source));
+      return buildSvgScene(
+        reopened.documents[0]!,
+        createProjectSymbolResolver(reopened, builtInSymbols),
+      );
+    };
+    const point = { x: 240, y: 100 };
+    expect(
+      sharedScene(fill.project).drawingScene.isVisibleAt(
+        { kind: "electrical" },
+        point,
+      ),
+    ).toBe(true);
+    const resize = edit(fill.project, {
+      kind: "set_instance_signal_flow_parameters",
+      instanceId: "block",
+      parameters: {
+        formula: "A very long transfer function",
+        bodyWidth: 160,
+        bodyHeight: 80,
+      },
+    });
+    if (!resize.ok) throw new Error(resize.error.message);
+    const scene = sharedScene(resize.project);
+    expect(scene.drawingScene.isVisibleAt({ kind: "electrical" }, point)).toBe(
+      false,
+    );
+    const fillTag = scene.formalBody.match(
+      /<(rect|polygon) data-role="instance-body-fill"[^>]*\/>/u,
+    )?.[0];
+    const outline = scene.formalBody.match(
+      /<(rect|polygon) data-role="signal-flow-frame"[^>]*\/>/u,
+    )?.[0];
+    expect(fillTag?.match(/(?: x=| points=).*/u)?.[0]).toBe(
+      outline?.match(/(?: x=| points=).*/u)?.[0],
+    );
+    expect(fillTag).toContain('fill="#d4ecff"');
+  },
+);
 
 it("rejects a mixed batch atomically when an ADC belongs to a locked group", () => {
   const project = createEmptyProject("locked-stack", "Protected stack");

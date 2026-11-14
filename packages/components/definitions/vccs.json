@@ -41,6 +41,7 @@
     "primitives": [
       {
         "kind": "circle",
+        "fillableBody": true,
         "center": {
           "x": 0,
           "y": 0
@@ -152,6 +153,7 @@
             "fill": "none",
             "stroke": "foreground",
             "part": "diamond-body",
+            "fillableBody": true,
             "style": {
               "strokeRole": "normal",
               "lineCap": "butt",

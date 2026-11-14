@@ -86,6 +86,7 @@
         "kind": "path",
         "part": "body",
         "data": "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        "fillableBody": true,
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",

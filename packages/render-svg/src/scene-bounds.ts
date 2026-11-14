@@ -3,17 +3,26 @@
  * Junctions, annotation room and ink, and drafting objects.
  */
 import {
+  closedSymbolPathBounds,
   objectStyleProfile,
   resolveDraftingObjectGeometry,
+  visibleSymbolInkBounds,
 } from "@icm/derived";
 import type {
+  FilledRegion,
+  ResolvedDrawingScene,
   ResolvedDocumentRoutingGeometry,
   SchematicStyleProfile,
 } from "@icm/derived";
 import { flattenRichText, transformPoint } from "@icm/model";
-import type { DerivedRect, Point, SchematicDocument } from "@icm/model";
+import type {
+  DerivedPoint,
+  DerivedRect,
+  Instance,
+  Point,
+  SchematicDocument,
+} from "@icm/model";
 import {
-  adaptiveSignalFlowBounds,
   resolveAdaptiveSignalFlowBlockLayout,
   resolveInstanceSymbol,
   withShownSupplies,
@@ -33,6 +42,53 @@ import {
   noConnectMarkerLayouts,
 } from "./route-render.js";
 
+function transformedPointBounds(
+  points: readonly DerivedPoint[],
+  placement: NonNullable<Instance["placement"]>,
+): DerivedRect {
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+  for (const point of points) {
+    const world = transformPoint(point, placement.position, placement);
+    left = Math.min(left, world.x);
+    top = Math.min(top, world.y);
+    right = Math.max(right, world.x);
+    bottom = Math.max(bottom, world.y);
+  }
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+function rectCorners({ x, y, width, height }: DerivedRect): DerivedPoint[] {
+  return [
+    { x, y },
+    { x: x + width, y },
+    { x, y: y + height },
+    { x: x + width, y: y + height },
+  ];
+}
+
+function filledRegionBounds(
+  region: FilledRegion,
+  placement: NonNullable<Instance["placement"]>,
+): DerivedRect {
+  if (region.kind === "circle") {
+    const center = transformPoint(region.center, placement.position, placement);
+    const { radius } = region;
+    return {
+      x: center.x - radius,
+      y: center.y - radius,
+      width: 2 * radius,
+      height: 2 * radius,
+    };
+  }
+  return transformedPointBounds(
+    region.kind === "polygon" ? region.points : rectCorners(region.bounds),
+    placement,
+  );
+}
+
 function symbolBounds(
   resolved: ResolvedSymbol,
   instance: SchematicDocument["instances"][number],
@@ -50,38 +106,30 @@ function symbolBounds(
     definition,
     instance.signalFlowParameters,
   );
-  const adaptiveBounds =
-    adaptive &&
-    adaptiveSignalFlowBounds(
-      definition,
-      adaptive,
-      resolved.variant?.hiddenPrimitiveParts,
+  const localPoints = rectCorners(viewBox);
+  if (adaptive) {
+    localPoints.push(
+      ...rectCorners(
+        visibleSymbolInkBounds(resolved, instance.signalFlowParameters),
+      ),
     );
-  const localBounds = adaptiveBounds ?? viewBox;
-  const left = Math.min(viewBox.x, localBounds.x);
-  const top = Math.min(viewBox.y, localBounds.y);
-  const right = Math.max(
-    viewBox.x + viewBox.width,
-    localBounds.x + localBounds.width,
-  );
-  const bottom = Math.max(
-    viewBox.y + viewBox.height,
-    localBounds.y + localBounds.height,
-  );
-  const corners = [
-    { x: left, y: top },
-    { x: right, y: top },
-    { x: left, y: bottom },
-    { x: right, y: bottom },
-  ].map((point) => transformPoint(point, placement.position, placement));
-  const xs = corners.map((point) => point.x);
-  const ys = corners.map((point) => point.y);
-  const transformedBounds = {
-    x: Math.min(...xs),
-    y: Math.min(...ys),
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys),
-  };
+  } else {
+    const hidden = new Set(resolved.variant?.hiddenPrimitiveParts);
+    for (const primitive of [
+      ...definition.primitives,
+      ...(resolved.variant?.additionalPrimitives ?? []),
+    ]) {
+      if (primitive.part && hidden.has(primitive.part)) continue;
+      const bounds =
+        primitive.kind === "rectangle"
+          ? primitive.bounds
+          : primitive.kind === "path"
+            ? closedSymbolPathBounds(primitive)
+            : undefined;
+      if (bounds) localPoints.push(...rectCorners(bounds));
+    }
+  }
+  const transformedBounds = transformedPointBounds(localPoints, placement);
   const formulaBounds = signalFlowFormulaLocalBounds(
     definition.formulaPresentation,
     instance.signalFlowParameters,
@@ -120,6 +168,7 @@ function symbolBounds(
 export function deriveBounds(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  drawingScene: ResolvedDrawingScene,
   routingGeometry: ResolvedDocumentRoutingGeometry,
   dottedJunctionIds: ReadonlySet<string>,
   margin: number,
@@ -149,11 +198,9 @@ export function deriveBounds(
       height: Math.ceil(17 * sizeScale),
     };
   };
-  for (const instance of document.instances.filter(
-    (candidate) =>
-      candidate.placement !== null &&
-      (!objectIds || objectIds.has(candidate.id)),
-  )) {
+  for (const instance of document.instances) {
+    const placement = instance.placement;
+    if (!placement || (objectIds && !objectIds.has(instance.id))) continue;
     // An adder's sign marks reach past its circle; its box includes them.
     const resolved = resolveInstanceSymbol(resolver, instance);
     if (!resolved) {
@@ -161,6 +208,10 @@ export function deriveBounds(
     }
     const instanceBox = symbolBounds(resolved, instance);
     bounds.push(instanceBox);
+    // The declared body can extend past the Symbol's original viewBox.
+    for (const region of drawingScene.instanceFills.get(instance.id)?.regions ??
+      [])
+      bounds.push(filledRegionBounds(region, placement));
   }
   for (const route of document.routes) {
     if (objectIds && !objectIds.has(route.id)) continue;

@@ -124,9 +124,9 @@ describe("recognized supply pin snapshot repair (#1833, #1941)", () => {
 
   it("leaves a current op-amp, a customized one and one without both supplies", () => {
     const current = savedProject(builtIn("opamp"));
-    expect(parseProject(JSON.stringify(current)).componentDefinitions).toEqual(
-      current.componentDefinitions,
-    );
+    expect(
+      parseProject(serializeProject(current)).componentDefinitions,
+    ).toEqual(current.componentDefinitions);
 
     const custom = savedProject(beforeSupplyPins(builtIn("opamp")));
     custom.componentDefinitions![0]!.symbol.name = "My own amplifier drawing";

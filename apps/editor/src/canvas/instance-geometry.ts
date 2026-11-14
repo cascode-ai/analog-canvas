@@ -1,4 +1,5 @@
 import { transformPoint } from "@icm/model";
+import { closedSymbolPathBounds, visibleSymbolInkBounds } from "@icm/derived";
 import type {
   DerivedRect,
   SymbolLocalPoint,
@@ -6,7 +7,6 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
-  adaptiveSignalFlowBounds,
   resolveAdaptiveSignalFlowBlockLayout,
   withShownSupplies,
   type ResolvedSymbol,
@@ -38,12 +38,7 @@ export function visibleSymbolLocalBounds(
     signalFlowParameters,
   );
   // Supply leads a variant draws reach past the grown body (#1941).
-  if (adaptive)
-    return adaptiveSignalFlowBounds(
-      resolved.definition,
-      adaptive,
-      resolved.variant?.hiddenPrimitiveParts,
-    );
+  if (adaptive) return visibleSymbolInkBounds(resolved, signalFlowParameters);
   const hiddenParts = new Set(resolved.variant?.hiddenPrimitiveParts ?? []);
   const primitives = [
     ...resolved.definition.primitives,
@@ -72,12 +67,19 @@ export function visibleSymbolLocalBounds(
           },
         );
         break;
-      case "path":
+      case "rectangle":
+      case "path": {
         // A shown supply's stub may stand past the viewBox (#1941).
-        if (!primitive.bounds)
+        const bounds =
+          primitive.bounds ??
+          (primitive.kind === "path"
+            ? closedSymbolPathBounds(primitive)
+            : undefined);
+        if (!bounds)
           return withShownSupplies(resolved.definition.viewBox, resolved);
-        points.push(...viewBoxCorners(primitive.bounds));
+        points.push(...viewBoxCorners(bounds));
         break;
+      }
     }
   }
 

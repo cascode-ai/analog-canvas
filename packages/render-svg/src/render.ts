@@ -286,6 +286,7 @@ export function buildSvgScene(
     : deriveBounds(
         document,
         resolver,
+        drawingScene,
         routingGeometry,
         dottedJunctionIds,
         margin,

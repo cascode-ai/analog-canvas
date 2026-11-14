@@ -402,6 +402,9 @@ importers:
       "@icm/math-typesetting":
         specifier: workspace:*
         version: link:../math-typesetting
+      svg-pathdata:
+        specifier: 8.0.0
+        version: 8.0.0
       zod:
         specifier: 4.4.3
         version: 4.4.3
@@ -3553,6 +3556,13 @@ packages:
       }
     engines: { node: ">=12.0.0" }
 
+  svg-pathdata@8.0.0:
+    resolution:
+      {
+        integrity: sha512-2Zqf5zsrX44Ws9y52EdHYrzGGnzyQG0jgREw+S3nP7zdx7QeH3QJonnGPvjtxPmYzU5mJMJ2YM+q2hUWGENWFg==,
+      }
+    engines: { node: ">=22.16.0" }
+
   svg2pdf.js@2.8.0:
     resolution:
       {
@@ -5425,6 +5435,8 @@ snapshots:
 
   svg-pathdata@6.0.3:
     optional: true
+
+  svg-pathdata@8.0.0: {}
 
   svg2pdf.js@2.8.0(jspdf@4.2.1):
     dependencies:

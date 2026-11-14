@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Portable file schema: `81`; normalized editor model schema: `58`.
+Portable file schema `82`. Normalized editor model schema `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec);
 `packages/model` validates the decoded editor model.
@@ -17,18 +17,21 @@ preserves.
 ## Read and write
 
 ```text
-import text -> parse JSON -> require Project file schema 24 through 81
--> migrate old files or decode 59–81 -> strict runtime model validation -> install unbound
-export -> validate -> encode file schema 81 -> readable canonical JSON -> download
+import text -> parse JSON -> require supported Project file schema
+-> migrate old files or decode 59–82 -> strict runtime model validation -> install unbound
+export -> validate -> encode current file schema -> readable canonical JSON -> download
 ```
 
-- `parseProject` reads schemas 24–81; writers always emit 81. Envelope
+- `parseProject` reads schemas 24–82. Writers emit the current schema. Envelope
   metadata uses `CURRENT_PROJECT_FILE_VERSION`, never the model version.
   Optional additions keep model 58; older envelopes cannot carry them.
   Member No Connect endpoints require file schema 77.
 - File schema 81 adds explicit `drawingOrder` and Instance `bodyFill`.
   Older files retain their implicit order and legacy box colors. Exact
   captured ADC definitions gain their fillable role without moving ink.
+- File schema 82 adds Symbol rectangles and fillable closed paths. On older
+  reads, exact reviewed Symbol snapshots and matching automatic Cell blocks
+  gain the declared fillable body while keeping their artwork.
 - The reader rejects mixed legacy/current field names, conflicting endpoints,
   unknown fields and missing used component definitions; it never deletes
   unplaced or overlapping instances. An invalid candidate never replaces the

@@ -168,6 +168,7 @@
           "width": 51.961524,
           "height": 60
         },
+        "fillableBody": true,
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",

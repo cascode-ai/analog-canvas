@@ -79,7 +79,8 @@ function primitivePoints(primitive) {
         { x: center.x + radius, y: center.y + radius },
       ];
     }
-    case "path": {
+    case "path":
+    case "rectangle": {
       const box = primitive.bounds;
       return box
         ? [box, { x: box.x + box.width, y: box.y + box.height }]

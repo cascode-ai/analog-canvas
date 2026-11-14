@@ -60,11 +60,18 @@
         "kind": "path",
         "part": "body",
         "data": "M -20 -20 L 20 -20 L 20 20 L -20 20 Z",
+        "fillableBody": true,
         "style": {
           "strokeRole": "emphasis",
           "lineCap": "butt",
           "lineJoin": "miter",
           "miterLimit": 4
+        },
+        "bounds": {
+          "x": -20,
+          "y": -20,
+          "width": 40,
+          "height": 40
         }
       },
       {

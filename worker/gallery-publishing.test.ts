@@ -7,7 +7,7 @@ import {
   serializeProject,
 } from "@icm/project-protocol";
 import { describe, expect, it } from "vitest";
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, createEmptyProject } from "@icm/model";
 import { hierarchicalSymbolId } from "@icm/symbols";
 import {
   GalleryDO,
@@ -383,6 +383,60 @@ describe("gallery submissions", () => {
     expect(immutablePreview.headers.get("cache-control")).toBe(
       "private, max-age=31536000, immutable",
     );
+  });
+
+  it("serves a custom compound body using the published Symbol definition", async () => {
+    const env = environment();
+    const project = createEmptyProject("panel", "Custom body");
+    const document = project.documents[0]!;
+    const data = "M-30-20 H30 V20 H-30 Z M-10-10 H10 V10 H-10 Z";
+    project.componentDefinitions = [
+      {
+        symbol: {
+          schemaVersion: 1,
+          id: "compound-body",
+          name: "Compound body",
+          viewBox: { x: -40, y: -30, width: 80, height: 60 },
+          pins: [
+            {
+              name: "IN",
+              role: "input",
+              at: { x: -40, y: 0 },
+              direction: "west",
+              presentation: { visibility: "visible" },
+            },
+          ],
+          primitives: [
+            { kind: "path", data, fillableBody: true },
+            { kind: "line", from: { x: -40, y: 0 }, to: { x: -30, y: 0 } },
+          ],
+          variants: [],
+        },
+      },
+    ];
+    document.instances.push({
+      id: "X1",
+      symbolId: "compound-body",
+      bodyFill: { kind: "color", color: "#cdeafa" },
+      placement: {
+        position: { x: 100, y: 100 },
+        rotation: 90,
+        mirror: "horizontal",
+      },
+    });
+    const id = await submitOne(env, "Custom body", {
+      text: serializeProject(project),
+    });
+    const preview = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
+    );
+    const svg = await preview.text();
+    expect(preview.status).toBe(200);
+    expect(svg).toContain(
+      `<path data-role="instance-body-fill" fill="#cdeafa" stroke="none" d="${data}" fill-rule="evenodd"/>`,
+    );
+    expect(svg).toContain('<line x1="-40" y1="0" x2="-30" y2="0"/>');
   });
 
   it("caches immutable preview bytes behind a live publication check", async () => {
