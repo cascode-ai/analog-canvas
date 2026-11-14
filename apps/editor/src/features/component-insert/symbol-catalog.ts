@@ -250,7 +250,7 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   "polarized-capacitor":
     "Polarized (electrolytic) capacitor — electrically the Capacitor, + on pin 1",
   "mos-varactor":
-    "Two-gate MOS varactor: gates G1 and G2 at the ends, n-well control W in the middle; takes a PDK model (IHP sg13_hv_svaricap)",
+    "Two-gate MOS varactor drawn as IHP's: gates G2 left and G1 right, n-well control W on top; takes a PDK model (IHP sg13_hv_svaricap)",
   "schottky-diode":
     "Schottky barrier diode — electrically a diode, on the generic DSCH model",
   speaker: "Loudspeaker — electrically a Resistor, 8 Ω by default",

@@ -1455,12 +1455,12 @@ describe("Agent property actions are planned as Apply in Properties", () => {
       direction: "inout",
       pinAnchor: { pinName: "P", position: { x, y } },
     });
-    // The MOS Varactor's pins: G1 (-30, 0), W (0, 20), G2 (30, 0).
+    // The MOS Varactor's pins, as IHP's xschem symbol: G2 (-40, 0), W (0, -30), G1 (40, 0).
     await apply([
       place("mos-varactor", "C1", 300),
-      port("EP", 270, 100),
-      port("W1F", 300, 120),
-      port("EN", 330, 100),
+      port("EP", 340, 100),
+      port("W1F", 300, 70),
+      port("EN", 260, 100),
       {
         kind: "place-component",
         symbol: "ground",

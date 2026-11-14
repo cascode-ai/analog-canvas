@@ -210,7 +210,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     reviewStatus: "reviewed",
     provenance: "house",
     houseReason:
-      "The reference draws no MOS varactor. Drawn as two of the reviewed Capacitor's plate pairs back to back, each gate plate curved as the Polarized Capacitor's is: gates G1 and G2 at the ends, the n-well control W from the joined well plates.",
+      "The reference draws no MOS varactor. Drawn after IHP's own xschem symbol (sg13_svaricap.sym): two straight well plates joined by the shared well, the n-well control W leaving it upward, and curved gate plates with G2 on the left and G1 on the right; stroke weights are the house passives'.",
     pinOrder: ["G1", "W", "G2"],
     palette: true,
     automaticMappings: [],
@@ -218,7 +218,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "A MOS varactor is a PDK device called on an X line: SPICE import places it from its reviewed binding (IHP sg13_hv_svaricap), and it has no netlist form until that model is set.",
     assetPath: "mos-varactor.json",
     assetHash:
-      "b665730994e67dca10d9ff1485c46dc7829290179c44e5747d2843760f368232",
+      "6dfd56e14a3c1f6dd4b97001c4b668c98de530c36c8b76a62518805f2c83a0a2",
   },
   {
     symbolId: "closed-switch",
@@ -4539,20 +4539,20 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
     id: "mos-varactor",
     name: "MOS Varactor",
     viewBox: {
-      x: -34,
-      y: -12,
-      width: 68,
-      height: 36,
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 48,
     },
     pins: [
       {
         name: "G1",
         role: "passive",
         at: {
-          x: -30,
+          x: 40,
           y: 0,
         },
-        direction: "west",
+        direction: "east",
         presentation: {
           visibility: "visible",
           leadLength: 10,
@@ -4563,9 +4563,9 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "passive",
         at: {
           x: 0,
-          y: 20,
+          y: -30,
         },
-        direction: "south",
+        direction: "north",
         presentation: {
           visibility: "visible",
           leadLength: 10,
@@ -4575,10 +4575,10 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         name: "G2",
         role: "passive",
         at: {
-          x: 30,
+          x: -40,
           y: 0,
         },
-        direction: "east",
+        direction: "west",
         presentation: {
           visibility: "visible",
           leadLength: 10,
@@ -4589,14 +4589,14 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -30,
+          x: -40,
           y: 0,
         },
         to: {
-          x: -13.233605,
+          x: -21.25,
           y: 0,
         },
-        part: "terminal-g1-lead",
+        part: "terminal-g2-lead",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4605,13 +4605,13 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M -16.5 -8.05064 C -12.1448 -2.7 -12.1448 2.7 -16.5 8.05064",
-        part: "gate-plate-g1",
+        data: "M -23.75 -10 C -20.4167 -3.75 -20.4167 3.75 -23.75 10",
+        part: "gate-plate-g2",
         bounds: {
-          x: -16.5,
-          y: -8.05064,
-          width: 3.266395,
-          height: 16.10128,
+          x: -23.75,
+          y: -10,
+          width: 2.5,
+          height: 20,
         },
         style: {
           strokeRole: "emphasis",
@@ -4622,14 +4622,14 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -6.766395,
-          y: -8.05064,
+          x: -17.5,
+          y: -10,
         },
         to: {
-          x: -6.766395,
-          y: 8.05064,
+          x: -17.5,
+          y: 10,
         },
-        part: "well-plate-g1",
+        part: "well-plate-g2",
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -4639,11 +4639,11 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: -6.766395,
+          x: -17.5,
           y: 0,
         },
         to: {
-          x: 6.766395,
+          x: 17.5,
           y: 0,
         },
         part: "well-link",
@@ -4656,14 +4656,14 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 6.766395,
-          y: -8.05064,
+          x: 17.5,
+          y: -10,
         },
         to: {
-          x: 6.766395,
-          y: 8.05064,
+          x: 17.5,
+          y: 10,
         },
-        part: "well-plate-g2",
+        part: "well-plate-g1",
         style: {
           strokeRole: "emphasis",
           lineCap: "butt",
@@ -4672,13 +4672,13 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
       {
         kind: "path",
-        data: "M 16.5 -8.05064 C 12.1448 -2.7 12.1448 2.7 16.5 8.05064",
-        part: "gate-plate-g2",
+        data: "M 23.75 -10 C 20.4167 -3.75 20.4167 3.75 23.75 10",
+        part: "gate-plate-g1",
         bounds: {
-          x: 13.233605,
-          y: -8.05064,
-          width: 3.266395,
-          height: 16.10128,
+          x: 21.25,
+          y: -10,
+          width: 2.5,
+          height: 20,
         },
         style: {
           strokeRole: "emphasis",
@@ -4689,14 +4689,14 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       {
         kind: "line",
         from: {
-          x: 13.233605,
+          x: 21.25,
           y: 0,
         },
         to: {
-          x: 30,
+          x: 40,
           y: 0,
         },
-        part: "terminal-g2-lead",
+        part: "terminal-g1-lead",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
@@ -4711,7 +4711,7 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         to: {
           x: 0,
-          y: 20,
+          y: -30,
         },
         part: "terminal-w-lead",
         style: {
