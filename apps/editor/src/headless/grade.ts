@@ -21,14 +21,15 @@ import {
  *   names only decide the kind.
  * - The ends of R, C and L are interchangeable, and those of independent
  *   sources too unless `sourcePolarity` is set (for a figure that marks it).
- * - MOS drain and source are interchangeable.
+ * - MOS drain and source are interchangeable, and so are a MOS varactor's
+ *   two gates.
  * - Bodies (MOS bulk, BJT substrate, a PDK device's substrate terminal) are
  *   ignored when one side omits them: every body of that side is unwritten
  *   or on its conventional rail (n-channel on ground, p-channel on a
  *   supply), which is what an undrawn body exports to. Otherwise they count.
  *
  * `mode` is "strict" when the netlists are isomorphic even with drain and
- * source and every body held apart, "lenient" otherwise. The partial scores
+ * source (and varactor gates) and every body held apart, "lenient" otherwise. The partial scores
  * are computed under the same rules as `exact`.
  */
 
@@ -160,6 +161,9 @@ function positional(
     }
     if ((type === "npn" || type === "pnp" || type === "bjt") && name === "s")
       return role("s", "s", true);
+    // The two gates of a MOS varactor are the same, as a MOS's D and S are.
+    if (type === "mos-varactor" && (name === "g1" || name === "g2"))
+      return role("g", name);
     if (SYMMETRIC.has(type)) return role("t");
     if ((type === "vsource" || type === "isource") && !options.sourcePolarity)
       return role("t");

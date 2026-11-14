@@ -1,5 +1,6 @@
 import {
   DIFFERENTIAL_COMPARATOR_TARGET,
+  reviewedExternalBindingForMaster,
   subcircuitDescriptor,
 } from "@icm/devices";
 import {
@@ -95,6 +96,59 @@ export const inlineRnlSymbols: readonly RnlSymbol[] = builtInSymbols.flatMap(
 );
 
 /**
+ * Device symbols no RNL package draws whose netlist form is a PDK device's
+ * X line alone: the MOS Varactor, as IHP's `sg13_hv_svaricap` (#2321). The
+ * file defines the artwork; its terminals are the device's, in the PDK's
+ * order, a property terminal (the substrate) undrawn.
+ */
+const DIRECTION_DEGREES = { east: 0, north: 90, west: 180, south: 270 };
+
+const INLINE_DEVICES: Readonly<Record<string, string>> = {
+  "mos-varactor": "sg13_hv_svaricap",
+};
+
+export const inlineRnlDeviceSymbols: readonly RnlSymbol[] = Object.entries(
+  INLINE_DEVICES,
+).map(([symbolId, master]) => {
+  const symbol = builtInSymbols.find((candidate) => candidate.id === symbolId);
+  const binding = reviewedExternalBindingForMaster(master, symbolId);
+  if (!symbol || binding?.symbolId !== symbolId)
+    throw new Error(`No reviewed device to draw ${symbolId} from`);
+  return {
+    symbol: `$CANVAS_${symbolId.toUpperCase().replaceAll("-", "_")}`,
+    package: "",
+    inline: true,
+    ac: symbolId,
+    variant: null,
+    orient: "R0",
+    importOnly: false,
+    definition: null,
+    offset: [0, 0],
+    terminals: binding.terminals.map((terminal, index) => ({
+      n: index + 1,
+      name: terminal.targetName.toLowerCase(),
+      drawn: terminal.interaction === "canvas",
+    })),
+    pins: symbol.pins.map((pin) => ({
+      terminal:
+        binding.terminals.findIndex(
+          (terminal) => terminal.pinName === pin.name,
+        ) + 1,
+      acPin: pin.name,
+      at: toRnlPoint(pin.at),
+      dir: DIRECTION_DEGREES[pin.direction],
+    })),
+    undrawnPins: [],
+    acNetlistOrder: null,
+  };
+});
+
+/** The reviewed device an inline device symbol's terminals are. */
+export function inlineRnlDeviceMaster(row: RnlSymbol): string | undefined {
+  return row.inline && row.ac ? INLINE_DEVICES[row.ac] : undefined;
+}
+
+/**
  * The variants a package row draws in their base form, defined in the file
  * itself instead, since the published package is fixed: the wide chopper
  * (#2170). Each keeps its row's terminals, its pins where the variant moves
@@ -103,8 +157,6 @@ export const inlineRnlSymbols: readonly RnlSymbol[] = builtInSymbols.flatMap(
 const INLINE_VARIANTS: Readonly<Record<string, readonly string[]>> = {
   chopper: ["wide"],
 };
-
-const DIRECTION_DEGREES = { east: 0, north: 90, west: 180, south: 270 };
 
 function variantOf(row: Pick<RnlSymbol, "ac" | "variant">): {
   symbol: SymbolDefinition;
@@ -137,7 +189,7 @@ export function inlineRnlVariantSymbols(
       if (!variant) throw new Error(`Unknown variant ${ac}/${id}`);
       return {
         ...base,
-        symbol: `${base.symbol}_${id.toUpperCase().replaceAll("-", "_")}`,
+        symbol: `$CANVAS_${ac.toUpperCase().replaceAll("-", "_")}_${id.toUpperCase().replaceAll("-", "_")}`,
         package: "",
         inline: true,
         variant: id,
@@ -168,11 +220,10 @@ export function inlineInterface(row: RnlSymbol): boolean {
 /**
  * Exact candidate artwork and positional pins, using the existing define-symbol
  * op: the artwork as the row's variant draws it, with no lead of a hidden
- * supply. `withHiddenLeads` keeps them, as files written from #1939 to #1941
- * draw an op-amp's call symbol. A variant the file defines in its own right,
- * as the wide chopper, draws its own art in its own box (#2170).
+ * supply. A variant the file defines in its own right, as the wide chopper,
+ * draws its own art in its own box (#2170).
  */
-export function inlineRnlDefinition(row: RnlSymbol, withHiddenLeads = false) {
+export function inlineRnlDefinition(row: RnlSymbol) {
   const { symbol, variant } = variantOf(row);
   const own =
     variant && INLINE_VARIANTS[symbol.id]?.includes(variant.id)
@@ -180,12 +231,10 @@ export function inlineRnlDefinition(row: RnlSymbol, withHiddenLeads = false) {
       : undefined;
   const hidden = own
     ? (own.hiddenPrimitiveParts ?? [])
-    : withHiddenLeads
-      ? []
-      : (symbol.variants.find(
-          (candidate) =>
-            candidate.id === (row.variant ?? symbol.defaultVariantId),
-        )?.hiddenPrimitiveParts ?? []);
+    : (symbol.variants.find(
+        (candidate) =>
+          candidate.id === (row.variant ?? symbol.defaultVariantId),
+      )?.hiddenPrimitiveParts ?? []);
   const drawn = [
     ...symbol.primitives,
     ...(own?.additionalPrimitives ?? []),
@@ -228,11 +277,7 @@ export function matchesInlineRnlSymbol(
   actual: RnlSymbolDefinitionView | null | undefined,
 ): boolean {
   if (!actual) return false;
-  // As written now, or with the hidden supply leads files written from
-  // #1939 to #1941 drew (#1941).
-  return [inlineRnlDefinition(row), inlineRnlDefinition(row, true)].some(
-    (expected) => matches(row, expected, actual),
-  );
+  return matches(row, inlineRnlDefinition(row), actual);
 }
 
 function matches(

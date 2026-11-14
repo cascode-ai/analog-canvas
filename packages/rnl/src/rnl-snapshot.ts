@@ -20,6 +20,70 @@ export type LevelModel = NonNullable<RnlLevelSnapshot["model"]>;
 
 export type Point = readonly [number, number];
 
+/** The glyph symbols a Cell Pin is drawn with, whatever usage draws them. */
+const PORT_SYMBOLS: ReadonlySet<string> = new Set([
+  "$IO_PORT_SYMBOL",
+  "$CANVAS_PORT_FILLED",
+]);
+
+/**
+ * A level as the import reads it, the language 0.4 told in the terms the
+ * phases use: a wire's vertex on a pin (`%gnd1::pin`, `#M1::d`) as the
+ * usage's role or the instance's terminal that pin binds; a net label drawn
+ * with a port's symbol (the export's form of a Cell Pin on a net that is no
+ * port) as the port tag it shows; the name of a glyph's net (`netname`) as
+ * the glyph's name label; and only the texts drawn: a text its style hides
+ * (`textvisible=false`, such as a default label `rnl-std-no-labels` hides)
+ * shows nothing, nor does the centred label of a standard block (`label`),
+ * which the editor's symbol draws itself.
+ */
+export function readableLevel(level: RnlLevelSnapshot): RnlLevelSnapshot {
+  const model = level.model;
+  if (!model) return level;
+  const symbols = new Map(model.symbols.map((symbol) => [symbol.id, symbol]));
+  const objects = new Map(model.objects.map((object) => [object.id, object]));
+  const vertex = (item: RnlSnapshotVertex): RnlSnapshotVertex => {
+    if (!("owner" in item)) return item;
+    const owner = objects.get(item.owner);
+    const pin =
+      owner?.pins.find((candidate) => candidate.index === item.pin) ??
+      owner?.pins[item.pin];
+    const bound = pin?.terminals[0];
+    if (!owner || bound === undefined) return item;
+    return owner.kind === "usage"
+      ? { usage: owner.id, role: bound }
+      : { terminal: bound };
+  };
+  return {
+    ...level,
+    model: {
+      ...model,
+      objects: model.objects.map((object) =>
+        object.kind === "usage" &&
+        object.definition === "$NET_LABEL" &&
+        PORT_SYMBOLS.has(symbols.get(object.symbol.value ?? "")?.name ?? "")
+          ? { ...object, definition: "$IO_PORT" }
+          : object,
+      ),
+      wires: model.wires.map((wire) => ({
+        ...wire,
+        via: wire.via.map(vertex),
+      })),
+      texts: model.texts.flatMap((text) => {
+        const on = text.attach ? objects.get(text.attach) : undefined;
+        if (
+          text.visible === false ||
+          (text.key === "label" && on?.kind === "instance")
+        )
+          return [];
+        return text.key === "netname" && on?.kind === "usage"
+          ? [{ ...text, key: "name" }]
+          : [text];
+      }),
+    },
+  };
+}
+
 export function hasCanvasTypesetting(model: LevelModel) {
   return model.objects.some(
     (object) =>

@@ -16,7 +16,7 @@ function source(
   const comment = format === "spice" ? "*" : "//";
   return [
     `${comment} Synthetic import regression; no user data`,
-    `${comment} @RNL(type="header") { @VERSION("0.3"); @USE-PACKAGE(name="rnl-std-full", version="0.3") }`,
+    `${comment} @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }`,
     ...(format === "spectre" ? ["simulator lang=spectre"] : []),
     ...body,
     `${comment} @RNL {`,

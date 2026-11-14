@@ -204,6 +204,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "58597e4339d330679151798ffcae3054a710261eb7f37de879c30d2c915f632a",
   },
   {
+    symbolId: "mos-varactor",
+    name: "MOS Varactor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "The reference draws no MOS varactor. Drawn after IHP's own xschem symbol (sg13_svaricap.sym): two straight well plates joined by the shared well, the n-well control W leaving it upward, and curved gate plates with G2 on the left and G1 on the right; stroke weights are the house passives'.",
+    pinOrder: ["G1", "W", "G2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A MOS varactor is a PDK device called on an X line: SPICE import places it from its reviewed binding (IHP sg13_hv_svaricap), and it has no netlist form until that model is set.",
+    assetPath: "mos-varactor.json",
+    assetHash:
+      "6dfd56e14a3c1f6dd4b97001c4b668c98de530c36c8b76a62518805f2c83a0a2",
+  },
+  {
     symbolId: "closed-switch",
     name: "Closed Switch",
     category: "switch",
@@ -4508,6 +4525,195 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: -6,
         },
         part: "positive-mark-vertical",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "mos-varactor",
+    name: "MOS Varactor",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "G1",
+        role: "passive",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "W",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "G2",
+        role: "passive",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -21.25,
+          y: 0,
+        },
+        part: "terminal-g2-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -23.75 -10 C -20.4167 -3.75 -20.4167 3.75 -23.75 10",
+        part: "gate-plate-g2",
+        bounds: {
+          x: -23.75,
+          y: -10,
+          width: 2.5,
+          height: 20,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -17.5,
+          y: -10,
+        },
+        to: {
+          x: -17.5,
+          y: 10,
+        },
+        part: "well-plate-g2",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -17.5,
+          y: 0,
+        },
+        to: {
+          x: 17.5,
+          y: 0,
+        },
+        part: "well-link",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 17.5,
+          y: -10,
+        },
+        to: {
+          x: 17.5,
+          y: 10,
+        },
+        part: "well-plate-g1",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 23.75 -10 C 20.4167 -3.75 20.4167 3.75 23.75 10",
+        part: "gate-plate-g1",
+        bounds: {
+          x: 21.25,
+          y: -10,
+          width: 2.5,
+          height: 20,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.25,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        part: "terminal-g1-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 0,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        part: "terminal-w-lead",
         style: {
           strokeRole: "normal",
           lineCap: "butt",
