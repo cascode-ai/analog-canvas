@@ -23,6 +23,7 @@ import {
   setNetlistDefaultTarget,
   type NetlistProfileId,
   NETLIST_PROFILE_IDS,
+  processOwnDevice,
 } from "./netlist-process-presets";
 import {
   planNetlistProcess,
@@ -624,6 +625,79 @@ describe("a part placed into a Process (#1251)", () => {
       /^XM1 \S+ \S+ \S+ \S+ sg13_lv_nmos w=1u l=130n ng=1 m=1$/mu,
     );
     expect(text).toMatch(/^XQ2 \S+ \S+ \S+ \S+ npn13G2 le=900n we=70n Nx=2$/mu);
+  });
+
+  it("binds a MOS Varactor to IHP's varactor under SG13G2, on placement and when the Process fills (#2321)", () => {
+    const sg13g2 = preferences("sg13g2");
+    const add = (instanceId: string, x: number) =>
+      ({
+        kind: "add_instance",
+        instance: {
+          id: instanceId,
+          symbolId: "mos-varactor",
+          reference: instanceId,
+          placement: { position: { x, y: 0 }, rotation: 0, mirror: "none" },
+          netlist: { parameters: {} },
+        },
+      }) as const;
+    // SKY130 and Abstract have no varactor of their own: nothing to bind.
+    expect(processOwnDevice("sg13g2", "mos-varactor")).toBe("sg13_hv_svaricap");
+    expect(processOwnDevice("sky130", "mos-varactor")).toBeUndefined();
+    expect(processOwnDevice("abstract", "mos-varactor")).toBeUndefined();
+    // Nor does a choice of three: SKY130's centre-tapped inductors.
+    expect(processOwnDevice("sky130", "center-tap-inductor")).toBeUndefined();
+
+    let project = createEmptyProject("ihp-varactor", "IHP varactor");
+    const id = project.topDocumentId;
+    project = commit(
+      project,
+      placementProcessFill(project, sg13g2, id, [add("C1", 0)])!,
+    );
+    const instance = (reference: string) =>
+      project.documents[0]!.instances.find(
+        (item) => item.reference === reference,
+      )!;
+    expect(instanceModelTarget(project, instance("C1"))).toBe(
+      "sg13_hv_svaricap",
+    );
+    // Its own defaults, not the capacitor family's cap_cmim sizes.
+    expect(instance("C1").netlist?.parameters).toEqual({
+      w: "3.74u",
+      l: "300n",
+      Nx: "1",
+      m: "1",
+    });
+
+    // One drawn without a model is filled by the Process.
+    const document = project.documents[0]!;
+    project = commit(project, [
+      {
+        kind: "transact_document",
+        documentId: id,
+        expectedRevision: document.revision,
+        edits: [add("C2", 200)],
+      },
+    ]);
+    expect(instanceModelTarget(project, instance("C2"))).toBe("");
+    project = commit(
+      project,
+      planNetlistProcess(project, sg13g2.profiles.sg13g2, {
+        onlyMissing: true,
+      }),
+    );
+    expect(instanceModelTarget(project, instance("C2"))).toBe(
+      "sg13_hv_svaricap",
+    );
+    // The substrate follows ground, as every PDK substrate does.
+    expect(
+      project.documents[0]!.nets.some((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instance("C2").id &&
+            terminal.pinName === "B",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("places SG13 R/C as physical devices by default and honors an explicit Ideal choice", () => {

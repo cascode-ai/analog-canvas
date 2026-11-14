@@ -231,7 +231,8 @@ their IDs, never resolved to the first.
 - IHP's MOS varactor (`set-model` `sg13_hv_svaricap`; `w l Nx m`) is drawn as
   `mos-varactor`, as IHP's xschem symbol draws it: gate `G2` left, `G1`
   right and n-well control `W` on top are pins, and its substrate `B` (`bn`) is set with `set-terminal-net`.
-  It has no netlist form until that model is set. `variable-capacitor` stays
+  An SG13G2 Process sets that model on placement and Process fill; without
+  it the part has no netlist form. `variable-capacitor` stays
   an ideal tunable capacitor and takes no model.
 
 ### Controlled sources

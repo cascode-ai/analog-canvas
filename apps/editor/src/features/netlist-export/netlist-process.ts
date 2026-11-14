@@ -21,6 +21,7 @@ import {
   NETLIST_HIGH_VOLTAGE_TARGETS,
   NETLIST_QUICK_TARGET_FAMILIES,
   netlistDeviceFamily,
+  processOwnDevice,
   type NetlistExportProfile,
   type NetlistProfileId,
   type NetlistDeviceFamily,
@@ -160,6 +161,8 @@ export function processPlacementTarget(
       ? "custom"
       : inferNetlistProcess(project, preferences.selected);
   const profile = preferences.profiles[process];
+  if (deviceDescriptor(symbolId)?.targetPolicy === "none")
+    return processOwnDevice(profile.id, symbolId);
   const target = profile.devices[family].target;
   if (!target) return undefined;
   const reviewed = reviewedExternalBindingForMaster(target);
@@ -408,7 +411,11 @@ export function planNetlistProcess(
       )
         continue;
       const rule = profile.devices[family];
-      if (descriptor.targetPolicy === "none") continue;
+      // A part that prints nothing itself takes the Process's one device
+      // drawn with its symbol, the MOS Varactor IHP's varactor (#2321), and
+      // none of its family's defaults.
+      const own = processOwnDevice(profile.id, original.symbolId);
+      if (descriptor.targetPolicy === "none" && !own) continue;
       // A reviewed model belongs to one drawn symbol. A drain-extended device
       // the family's model does not fit takes the process's high-voltage
       // device, unless a model is being chosen for the whole family. Without
@@ -426,13 +433,12 @@ export function planNetlistProcess(
         (drawn === "ndmos" || drawn === "pdmos")
           ? NETLIST_HIGH_VOLTAGE_TARGETS[profile.id]?.[drawn]
           : undefined;
-      const target = highVoltage ?? rule.target;
+      const target = own ?? highVoltage ?? rule.target;
       if (!fits(target)) continue;
       const reviewed = reviewedExternalBindingForMaster(target, drawn);
       // A high-voltage device brings its own geometry, not the family's.
-      const familyDefaults: Readonly<Record<string, string>> = highVoltage
-        ? {}
-        : rule.parameters;
+      const familyDefaults: Readonly<Record<string, string>> =
+        highVoltage || own ? {} : rule.parameters;
       if (!original.netlist)
         transact(documentId, [
           {

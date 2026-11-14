@@ -402,7 +402,8 @@ parameters or renumbers first.
 Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   `w l [b] m`), `cap_cmim`/`cap_rfcmim`, and the MOS varactor
   `sg13_hv_svaricap` (`G1 W G2 bn`; `w l Nx m`) on the MOS Varactor symbol
-  only, which has no netlist form without it; metres throughout.
+  only, which has no netlist form without it and which placement or a
+  Process fill under SG13G2 binds; metres throughout.
 - SG13G2 R/C presets use `rppd`/`cap_cmim`. The Netlist shortcuts include NPN
   and PNP; R/C retain an explicit Ideal choice. Old blank SG13 R/C browser
   presets move to these defaults once; subsequent explicit Ideal choices stay.

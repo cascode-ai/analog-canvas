@@ -1,5 +1,7 @@
 import {
   deviceDescriptor,
+  LIBRARY_PROCESS,
+  reviewedExternalDeviceBindings,
   reviewedExternalBindingForMaster,
 } from "@icm/devices";
 import {
@@ -227,6 +229,26 @@ export const NETLIST_HIGH_VOLTAGE_TARGETS: Partial<
     pdmos: "sky130_fd_pr__pfet_g5v0d16v0",
   },
 };
+
+/**
+ * The Process's own device for a symbol that prints nothing itself, such as
+ * the MOS Varactor (IHP's `sg13_hv_svaricap`, #2321): the one reviewed
+ * device of that Process drawn with it, or undefined where there is none or
+ * a choice to make (SKY130's three centre-tapped inductors).
+ */
+export function processOwnDevice(
+  processId: NetlistProfileId,
+  symbolId: string,
+): string | undefined {
+  if (deviceDescriptor(symbolId)?.targetPolicy !== "none") return undefined;
+  const devices = reviewedExternalDeviceBindings.filter(
+    (binding) =>
+      binding.symbolId === symbolId &&
+      !binding.legacy &&
+      LIBRARY_PROCESS[binding.libraryId] === processId,
+  );
+  return devices.length === 1 ? devices[0]!.masterName : undefined;
+}
 
 export function netlistDeviceFamily(
   symbolId: string,
