@@ -130,55 +130,83 @@ describe("gallery version history", () => {
     const { versions } = (await listed.json()) as {
       versions: { versionId: string; versionNo: number; name: string }[];
     };
-    expect(versions.map((version) => version.name)).toEqual([
-      "Versioned v2",
-      "Versioned v1",
-    ]);
+    // Only the newest previous state survives the second update.
+    expect(versions.map((version) => version.name)).toEqual(["Versioned v2"]);
 
     const versionPreview = await route(
       env,
       new Request(
-        `${ORIGIN}/api/gallery/${id}/versions/${versions[1]!.versionId}/preview.svg`,
+        `${ORIGIN}/api/gallery/${id}/versions/${versions[0]!.versionId}/preview.svg`,
         { headers: cookieHeaders(adminCookie) },
       ),
     );
     expect(versionPreview.headers.get("content-type")).toBe("image/svg+xml");
 
-    // Restore v1: current v3 is snapshotted first, entry becomes v1.
-    const restored = await route(
-      env,
-      new Request(
-        `${ORIGIN}/api/gallery/${id}/versions/${versions[1]!.versionId}/restore`,
+    // Restore v2: current v3 is snapshotted first, entry becomes v2.
+    function restoreRequest(versionId: string): Request {
+      return new Request(
+        `${ORIGIN}/api/gallery/${id}/versions/${versionId}/restore`,
         {
           method: "POST",
           headers: { Origin: ORIGIN, ...cookieHeaders(adminCookie) },
         },
-      ),
-    );
-    expect(restored.status).toBe(200);
-    expect(
-      ((await restored.json()) as { previewRevision: string }).previewRevision,
-    ).toBe(initialDetail.entry.previewRevision);
-    const detail = (await (
-      await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))
-    ).json()) as { entry: { name: string; previewRevision: string } };
-    expect(detail.entry.name).toBe("Versioned v1");
-    expect(detail.entry.previewRevision).toBe(
-      initialDetail.entry.previewRevision,
-    );
-
-    const afterRestore = (await (
-      await route(
+      );
+    }
+    async function listVersions(): Promise<
+      { versionId: string; name: string }[]
+    > {
+      const response = await route(
         env,
         new Request(`${ORIGIN}/api/gallery/${id}/versions`, {
           headers: cookieHeaders(adminCookie),
         }),
-      )
-    ).json()) as { versions: { name: string }[] };
-    expect(afterRestore.versions.map((version) => version.name)).toEqual([
+      );
+      return (
+        (await response.json()) as {
+          versions: { versionId: string; name: string }[];
+        }
+      ).versions;
+    }
+    async function liveEntry(): Promise<{
+      name: string;
+      previewRevision: string;
+    }> {
+      const response = await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}`),
+      );
+      return (
+        (await response.json()) as {
+          entry: { name: string; previewRevision: string };
+        }
+      ).entry;
+    }
+
+    const restored = await route(env, restoreRequest(versions[0]!.versionId));
+    expect(restored.status).toBe(200);
+    expect(
+      ((await restored.json()) as { previewRevision: string }).previewRevision,
+    ).toBe(updateV2.previewRevision);
+    expect(await liveEntry()).toMatchObject({
+      name: "Versioned v2",
+      previewRevision: updateV2.previewRevision,
+    });
+
+    // The restored-from state becomes the one retained version...
+    const afterRestore = await listVersions();
+    expect(afterRestore.map((version) => version.name)).toEqual([
       "Versioned v3",
+    ]);
+
+    // ...so the restore itself can be undone.
+    const undone = await route(env, restoreRequest(afterRestore[0]!.versionId));
+    expect(undone.status).toBe(200);
+    expect(await liveEntry()).toMatchObject({
+      name: "Versioned v3",
+      previewRevision: updateV3.previewRevision,
+    });
+    expect((await listVersions()).map((version) => version.name)).toEqual([
       "Versioned v2",
-      "Versioned v1",
     ]);
   });
 
@@ -220,9 +248,7 @@ describe("gallery version history", () => {
         }),
       )
     ).json()) as { versions: { versionNo: number }[] };
-    expect(listed.versions).toHaveLength(3);
-    expect(listed.versions[0]!.versionNo).toBe(4);
-    expect(listed.versions.at(-1)!.versionNo).toBe(2);
+    expect(listed.versions.map((version) => version.versionNo)).toEqual([4]);
 
     const prunedPreview = await route(
       env,

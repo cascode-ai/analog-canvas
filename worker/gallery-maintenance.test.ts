@@ -1103,7 +1103,7 @@ describe("gallery administration", () => {
     ).toBe(400);
   });
 
-  it("reapplies three-version retention when restoring a legacy backup", async () => {
+  it("reapplies one-version retention when restoring a legacy backup", async () => {
     const env = environment();
     const adminCookie = await adminOf(env);
     const id = await submitOne(env, "Legacy backup v1", {
@@ -1139,7 +1139,7 @@ describe("gallery administration", () => {
       versions
         .map((version) => Number(version.version_no))
         .sort((left, right) => left - right),
-    ).toEqual([1, 2]);
+    ).toEqual([2]);
     versions.push(
       {
         ...versions[0],
@@ -1163,10 +1163,10 @@ describe("gallery administration", () => {
     );
     expect(await restored.json()).toMatchObject({
       restored: true,
-      records: 4,
+      records: 2,
       tables: {
         galleryEntries: 1,
-        galleryEntryVersions: 3,
+        galleryEntryVersions: 1,
         cloudProjects: 0,
       },
     });
@@ -1179,6 +1179,6 @@ describe("gallery administration", () => {
         )
         .toArray()
         .map((version) => version.version_no),
-    ).toEqual([4, 2, 1]);
+    ).toEqual([4]);
   });
 });
