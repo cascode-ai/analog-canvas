@@ -280,19 +280,18 @@ export async function routeRegionalMaintenance(
         });
         received = await readSyncJson(response, 65536);
       } catch {
-        return answer({ error: "writer-unreachable", region }, 503);
+        // A failed send cannot be told apart from a reply lost after commit.
+        return answer({ error: "action-unconfirmed", region }, 503);
       }
       if (!response.ok) return answer(received, response.status);
-      if (
-        !(await catchUpResource(
-          call,
-          "gallery",
-          peer.origin,
-          env.RESOURCE_SYNC_PEER_TOKEN,
-          received.head,
-        ))
-      )
-        return fail("action-propagation-pending", 503);
+      const caughtUp = await catchUpResource(
+        call,
+        "gallery",
+        peer.origin,
+        env.RESOURCE_SYNC_PEER_TOKEN,
+        received.head,
+      ).catch(() => false);
+      if (!caughtUp) return fail("action-propagation-pending", 503);
       return answer(received.payload);
     }
     if (!user) return fail("unauthorized", 401);

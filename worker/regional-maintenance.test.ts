@@ -6,6 +6,8 @@ import {
   serializeProject,
 } from "@icm/project-protocol";
 import { pair } from "./regional-resource-actions.test-support";
+import { sha256Hex } from "@icm/derived";
+import { digest } from "./regional-auth-contract";
 import {
   recycleDuplicateGroup,
   DuplicateCleanupIncomplete,
@@ -468,7 +470,7 @@ it("migrates every Gallery row at its writer region from one entrance, versions 
   }
 });
 
-it("refuses a writer row changed since the entrance read it and names an unreachable writer", async () => {
+it("refuses a writer row changed since the entrance read it and reports a lost reply as unconfirmed", async () => {
   const t = await pair(),
     id = await t.publish(t.overseas);
   const seen = legacy(t.overseas, "gallery_entries", id);
@@ -496,7 +498,7 @@ it("refuses a writer row changed since the entrance read it and names an unreach
   const lost = await formatRequest(t.cn, cookie, body);
   expect(lost.status).toBe(503);
   expect(await lost.json()).toEqual({
-    error: "writer-unreachable",
+    error: "action-unconfirmed",
     region: "overseas",
   });
   const retried = await formatRequest(t.cn, cookie, body);
@@ -506,4 +508,91 @@ it("refuses a writer row changed since the entrance read it and names an unreach
     project_text: body.projectText,
     schema_version: CURRENT_PROJECT_FILE_VERSION,
   });
+});
+
+it("migrates a cn row from the overseas entrance and reports a catch-up failure as pending", async () => {
+  const t = await pair(),
+    id = await t.publish(t.cn);
+  const original = legacy(t.cn, "gallery_entries", id);
+  await sync(t.cn, t.overseas);
+  const cookie = await adminOf(t.auth.source);
+  const body = formatBody("galleryEntries", id, original);
+  t.loseNextCatchup();
+  const pending = await formatRequest(t.overseas, cookie, body);
+  expect(pending.status).toBe(503);
+  expect(await pending.json()).toEqual({
+    error: "action-propagation-pending",
+  });
+  expect(rowOf(t.cn, "gallery_entries", id).project_text).toBe(
+    body.projectText,
+  );
+  const retried = await formatRequest(t.overseas, cookie, body);
+  expect(retried.status, await retried.clone().text()).toBe(200);
+  expect(await retried.json()).toMatchObject({ changed: false });
+  expect(rowOf(t.overseas, "gallery_entries", id)).toEqual({
+    project_text: body.projectText,
+    schema_version: CURRENT_PROJECT_FILE_VERSION,
+  });
+});
+
+it("refuses format commands at the writer without an admin, for another writer or with a changed body", async () => {
+  const t = await pair(),
+    foreign = await t.publish(t.overseas),
+    local = await t.publish(t.cn);
+  const original = legacy(t.overseas, "gallery_entries", foreign);
+  const admin = await t.auth.connect(await adminOf(t.auth.source));
+  const command = (id: string, text: string) => ({
+    kind: "format",
+    target: "overseas",
+    commandId: "format-" + id,
+    body: {
+      table: "galleryEntries",
+      id,
+      originalSha256: sha256Hex(text),
+      projectSha256: sha256Hex(serializeProject(parseProject(text))),
+    },
+  });
+  const capability = async (cookie: string, value: unknown) =>
+    (
+      await (
+        await t.cn.env
+          .AUTH!.getByName("auth")
+          .fetch("https://auth/internal/resource-action-authorize", {
+            method: "POST",
+            headers: { cookie },
+            body: JSON.stringify({
+              binding: await digest(JSON.stringify(value)),
+            }),
+          })
+      ).json()
+    ).token as string;
+  const deliver = (token: string, value: unknown) =>
+    t.overseas.route(
+      new Request(ORIGIN + "/api/resource-actions/maintenance", {
+        method: "POST",
+        headers: { authorization: "Bearer " + token },
+        body: JSON.stringify(value),
+      }),
+    );
+  const migrate = command(foreign, original);
+  const maker = await deliver(await capability(t.cnCookie, migrate), migrate);
+  expect(maker.status).toBe(403);
+  const tampered = {
+    ...migrate,
+    body: { ...migrate.body, projectSha256: migrate.body.originalSha256 },
+  };
+  expect(
+    (await deliver(await capability(admin, migrate), tampered)).status,
+  ).toBe(401);
+  const elsewhere = command(local, original);
+  const wrong = await deliver(await capability(admin, elsewhere), elsewhere);
+  expect(wrong.status).toBe(409);
+  expect(await wrong.json()).toEqual({ error: "wrong-writer" });
+  const misrouted = { ...migrate, target: "cn" };
+  expect(
+    (await deliver(await capability(admin, misrouted), misrouted)).status,
+  ).toBe(400);
+  expect(rowOf(t.overseas, "gallery_entries", foreign).project_text).toBe(
+    original,
+  );
 });

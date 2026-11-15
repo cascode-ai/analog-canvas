@@ -25,6 +25,9 @@ the region components in [regional publications](regional-resources.md).
 - The writer commits the mutation and its per-account command receipt together. Keep at most 10,000 receipts per account; exhaustion refuses new
   commands before mutation. Receipts are retained with the writer's backups;
   do not discard them during rollback or reset an identity to bypass the limit.
+  Exception: Gallery Project format maintenance (`format`) is idempotent by
+  content and keeps no receipt, so a whole-Gallery migration cannot exhaust the
+  admin's quota.
   Recovery uses the native Durable Object history or a full stopped-state ECS
   capture. A Gallery content export alone does not include command receipts.
   A deletion receipt survives the removed entry; its authenticated actor can
@@ -146,9 +149,10 @@ the region components in [regional publications](regional-resources.md).
   permissions. A body-supplied account ID, replica snapshot, backup credential or
   replication token cannot authorize a user command. Keep existing session,
   account-switch and CSRF protections; forward no provider credentials.
-- A committed command has a durable receipt. An ambiguous response is reconciled
-  with the same operation identity; it is not replayed as a new edit or toggle.
-  Changed reuse of an identity is refused. Audit and version records occur once.
+- A committed command has a durable receipt (except `format`, above). An
+  ambiguous response is reconciled with the same operation identity; it is not
+  replayed as a new edit or toggle. Changed reuse of an identity is refused.
+  Audit and version records occur once.
 - A confirmed change is visible to its caller through that entrance. Subsequent
   reads must not silently restore the older replica state. Distinguish committed
   but pending propagation from a refused operation. Preserve ordered sync cursors,

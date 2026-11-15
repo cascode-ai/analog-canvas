@@ -93,7 +93,8 @@ const fields = (body: unknown, keys: string[]) =>
   typeof body === "object" &&
   !Array.isArray(body) &&
   Object.keys(body).every((key) => keys.includes(key)) &&
-  Object.hasOwn(PROJECT_FORMAT_TABLES, String((body as any).table)) &&
+  typeof (body as any).table === "string" &&
+  Object.hasOwn(PROJECT_FORMAT_TABLES, (body as any).table) &&
   typeof (body as any).id === "string" &&
   (body as any).id.length > 0
     ? (body as Record<string, unknown>)
