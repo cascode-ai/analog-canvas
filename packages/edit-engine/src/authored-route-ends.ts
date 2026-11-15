@@ -112,7 +112,7 @@ function runsAlong(a: Point, b: Point, c: Point, d: Point): boolean {
  * displace, read before conductor normalization: its Junction is gone or
  * stands elsewhere, no piece of the edited Route (itself, or what a physical
  * contact split it into) ends on it any more, or the piece that does arrives
- * along another wire of its Net. Normalization would fold that overlap into
+ * along another wire of its Net into a branch Junction. Normalization would fold that overlap into
  * one conductor and the edited wire would end on whatever lies first along
  * it, so the edit is refused instead.
  */
@@ -153,6 +153,10 @@ export function findDisplacedRouteEnd(
         ),
     );
     if (!arriving) return end;
+    // A wire that reaches a pin along another wire of its own Net still ends
+    // on that pin once the two are folded together (an ordinary segment
+    // drag); only a branch Junction can be folded away.
+    if (end.endpoint.kind !== "junction") continue;
     const points = geometry.routes.get(arriving.id)?.centerline;
     if (!points || points.length < 2) continue;
     const atStart = endpointKey(arriving.start) === key;
@@ -175,5 +179,5 @@ export function findDisplacedRouteEnd(
 export function displacedRouteEndMessage(end: KeptRouteEnd): string {
   if (end.endpoint.kind === "junction")
     return `Route ${end.routeId} would no longer end on Junction ${end.endpoint.junctionId}: its new path runs along another wire into the Junction, which would move or rebuild it. End the path where it meets that wire, or move the Junction first`;
-  return `Route ${end.routeId} would no longer end on ${end.endpoint.instanceId}.${end.endpoint.pinName}: its new path runs along another wire into that pin. End the path where it meets that wire`;
+  return `Route ${end.routeId} would no longer end on ${end.endpoint.instanceId}.${end.endpoint.pinName}: its new path no longer reaches that pin. End the path on the pin`;
 }
