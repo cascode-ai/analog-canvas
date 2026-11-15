@@ -502,7 +502,9 @@ export function buildNetContext(
       occupiedNames.set(encodedGenerated.collisionKey, noConnect.id);
       generated = encodedGenerated.token;
     }
-    const key = `${noConnect.endpoint.instanceId}\u0000${noConnect.endpoint.pinName}`;
+    // A bus member's mark leaves that member open, not the bus's others.
+    const { instanceId, pinName, memberId } = noConnect.endpoint;
+    const key = `${instanceId}\u0000${pinName}${memberId ? `\u0000${memberId}` : ""}`;
     noConnectNameByTerminal.set(key, generated);
     noConnectNets.push({ id: noConnect.id, name: generated, scope: "local" });
     // The author marked this pin unused; its node name is information, not
@@ -574,7 +576,7 @@ export function terminalNetName(
     );
   const name = net ? context.nameByNetId.get(net.id) : undefined;
   const noConnectName = context.noConnectNameByTerminal.get(
-    `${instance.id}\u0000${pinName}`,
+    `${instance.id}\u0000${pinName}${memberId ? `\u0000${memberId}` : ""}`,
   );
   if (noConnectName) return noConnectName;
   if (name) return name;

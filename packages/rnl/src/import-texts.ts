@@ -286,7 +286,7 @@ export function importTexts(
     });
   };
 
-  model.texts.forEach((text, index) => {
+  const readText = (text: LevelModel["texts"][number], index: number) => {
     if (consumed.has(text.id)) return;
     // A text no record writes is one a symbol draws by itself, such as the
     // name of the net or port a glyph stands for (`${p}`, rnl-std-basic):
@@ -311,7 +311,11 @@ export function importTexts(
     const exact = acPoint([text.anchor[0], text.anchor[1] + rise]);
     const at = { x: Math.round(exact.x) + 0, y: Math.round(exact.y) + 0 };
     const id = deriveStableId("annotation", document.id, level.id, text.id);
-    const rotation = ((360 - text.rotate) % 360) as 0 | 90 | 180 | 270;
+    // RNL turns a text counter-clockwise by any angle (13.3); Analog Canvas
+    // turns its own clockwise in eighths of a turn, the nearest.
+    const rotation = ((((Math.round((360 - text.rotate) / 45) * 45) % 360) +
+      360) %
+      360) as Annotation["rotation"];
     const written = (
       ["start", "middle", "end"].includes(text.halign) ? text.halign : "start"
     ) as "start" | "middle" | "end";
@@ -783,6 +787,18 @@ export function importTexts(
       ...(token ? { typographyToken: token } : {}),
       ...(Object.keys(styleOverride).length ? { styleOverride } : {}),
     });
+  };
+  // A hidden text is a hidden label (`textvisible=false`): it comes in with
+  // what it says and where it stands, not shown. A drawing text has no
+  // hidden form, so a hidden one comes in as none.
+  model.texts.forEach((text, index) => {
+    const labels = document.annotations.length;
+    const drawings = document.drafting?.objects.length ?? 0;
+    readText(text, index);
+    if (text.visible !== false) return;
+    for (const annotation of document.annotations.slice(labels))
+      annotation.visible = false;
+    document.drafting?.objects.splice(drawings);
   });
   for (const [glyph, port] of ports)
     if (!labelled.has(glyph)) portLabel(glyph, port);

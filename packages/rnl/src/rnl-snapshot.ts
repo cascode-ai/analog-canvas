@@ -32,10 +32,11 @@ const PORT_SYMBOLS: ReadonlySet<string> = new Set([
  * usage's role or the instance's terminal that pin binds; a net label drawn
  * with a port's symbol (the export's form of a Cell Pin on a net that is no
  * port) as the port tag it shows; the name of a glyph's net (`netname`) as
- * the glyph's name label; and only the texts drawn: a text its style hides
- * (`textvisible=false`, such as a default label `rnl-std-no-labels` hides)
- * shows nothing, nor does the centred label of a standard block (`label`),
- * which the editor's symbol draws itself.
+ * the glyph's name label; and the texts the file writes: one its style hides
+ * (`textvisible=false`) is a hidden label, but a label a package hides
+ * (`rnl-std-no-labels`) or a glyph's own net name hidden is none, nor is the
+ * centred label of a standard block (`label`), which the editor's symbol
+ * draws itself.
  */
 export function readableLevel(level: RnlLevelSnapshot): RnlLevelSnapshot {
   const model = level.model;
@@ -71,8 +72,12 @@ export function readableLevel(level: RnlLevelSnapshot): RnlLevelSnapshot {
       })),
       texts: model.texts.flatMap((text) => {
         const on = text.attach ? objects.get(text.attach) : undefined;
+        // A hidden text the file wrote is a hidden label; one a package's
+        // rule hides, or a glyph's own net name hidden (`${p}`), is none.
         if (
-          text.visible === false ||
+          (text.visible === false &&
+            (!text.written ||
+              (text.key === "netname" && text.markup.value === "${p}"))) ||
           (text.key === "label" && on?.kind === "instance")
         )
           return [];
