@@ -20,6 +20,7 @@ import {
 } from "@icm/devices";
 import {
   executeProjectTransaction,
+  planCreateCellPin,
   planSetVddConnectionMode,
   type ProjectStructureEdit,
 } from "@icm/edit-engine";
@@ -42,7 +43,7 @@ import {
   createDesignNetlistExport,
   projectElectricalGraph,
 } from "@icm/netlist";
-import { parseProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import {
   CANVAS_PACKAGE,
   CANVAS_PACKAGE_VERSION,
@@ -7984,3 +7985,379 @@ it.each(["spice", "spectre"] as const)(
     expect(await cellB(true)).toEqual(apart);
   },
 );
+
+describe("RNL 0.4: what the export no longer leaves out", () => {
+  /** The labels a project hides, as the census reads each. */
+  const hiddenLabels = (project: CircuitProject) =>
+    labelCensus(project)
+      .filter((label) => label.hidden)
+      .map(({ cell, kind, owner, parameter, text, at, alignment, rotation }) =>
+        [cell, kind, owner, parameter, text, at, alignment, rotation].join(" "),
+      )
+      .sort();
+
+  it.each(["spice", "spectre"] as const)(
+    "writes hidden labels hidden, where they stand, and reads them back hidden (%s)",
+    async (format) => {
+      const project = withImportedInstanceDisplays(
+        controlledSources(["vcvs", "vccs"]),
+      );
+      const labels = project.documents[0]!.annotations;
+      const nameOf = (instanceId: string) =>
+        labels.find(
+          (label) =>
+            label.binding?.kind === "instance-reference" &&
+            label.binding.instanceId === instanceId,
+        )!;
+      const name = nameOf("V1");
+      const value = nameOf("R1");
+      for (const label of [name, value]) label.visible = false;
+      // Moved where the editor would not put it by default.
+      if (name.anchor.kind === "object")
+        name.anchor.localOffset = { x: 40, y: -30 };
+      const hidden = hiddenLabels(project);
+      expect(hidden).toHaveLength(2);
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      expect(exported.diagnostics.map((item) => item.code)).not.toContain(
+        "RNL_TEXT_HIDDEN",
+      );
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      expect(written.text).toMatch(
+        /#V1[\s*/]+@TEXT\([^;]*key="name"[^;]*textvisible=false/u,
+      );
+      expect(
+        written.document.diagnostics.filter(
+          (item) => item.severity === "error",
+        ),
+      ).toEqual([]);
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      expect(hiddenLabels(plan.project)).toEqual(hidden);
+      expect(
+        labelDifferences(labelCensus(project), labelCensus(plan.project)),
+      ).toEqual([]);
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "writes a label at the turn the editor gives it, any angle, and reads it back (%s)",
+    async (format) => {
+      const project = withImportedInstanceDisplays(
+        controlledSources(["vcvs", "vccs"]),
+      );
+      const labels = project.documents[0]!.annotations.filter(
+        (label) =>
+          label.kind === "instance-label" || label.kind === "instance-value",
+      );
+      expect(labels.length).toBeGreaterThanOrEqual(3);
+      labels[0]!.rotation = 45;
+      labels[1]!.rotation = 135;
+      labels[2]!.rotation = 270;
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      expect(exported.diagnostics.map((item) => item.code)).not.toContain(
+        "RNL_TEXT_TILTED",
+      );
+      const texts = exported.request.ops.filter((op) => op.op === "add-text");
+      // RNL turns counter-clockwise; the editor's glyphs turn with the text
+      // and never back to read from below.
+      for (const rotate of [315, 225, 90])
+        expect(texts).toContainEqual(
+          expect.objectContaining({ rotate, upright: false }),
+        );
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      expect(
+        written.document.diagnostics.filter(
+          (item) => item.severity === "error",
+        ),
+      ).toEqual([]);
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      const turns = (circuit: CircuitProject) =>
+        labelCensus(circuit)
+          .map((label) => `${label.owner} ${label.kind} ${label.rotation}`)
+          .sort();
+      expect(turns(plan.project)).toEqual(turns(project));
+      expect(
+        labelDifferences(labelCensus(project), labelCensus(plan.project)),
+      ).toEqual([]);
+    },
+  );
+
+  /** R1 in Cell `dut`, both pins left open on purpose. */
+  function openResistor(reasons: readonly (string | undefined)[]) {
+    const project = createEmptyProject("open", "Open pins", "dut");
+    const dut = project.documents[0]!;
+    dut.netlist!.name = "dut";
+    dut.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "1k" },
+      },
+    });
+    ["1", "2"].forEach((pinName, index) =>
+      dut.noConnects.push({
+        id: `nc-${pinName}`,
+        endpoint: { kind: "terminal", instanceId: "R1", pinName },
+        ...(reasons[index] ? { reason: reasons[index] } : {}),
+      }),
+    );
+    return project;
+  }
+
+  it.each(["spice", "spectre"] as const)(
+    "writes a no-connect mark's reason as a comment on its terminal, and gives it back (%s)",
+    async (format) => {
+      const project = openResistor(["spare input", undefined]);
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      expect(exported.diagnostics.map((item) => item.code)).not.toContain(
+        "RNL_NO_CONNECT_REASON",
+      );
+      expect(exported.request.ops).toContainEqual(
+        expect.objectContaining({
+          op: "add-usage",
+          definition: "$COMMENT",
+          attach: { target: ["#R1:1"] },
+          params: { text: "spare input" },
+        }),
+      );
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      expect(written.text).toContain(
+        '$COMMENT @ATTACH(text="spare input") {#R1:1}(target)',
+      );
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      const marks = plan.project.documents[0]!.noConnects.map((mark) => [
+        mark.endpoint.pinName,
+        mark.reason,
+      ]);
+      expect(marks.sort()).toEqual([
+        ["1", "spare input"],
+        ["2", undefined],
+      ]);
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "marks a bus member of a Cell's call left open on the terminal the call prints it on (%s)",
+    async (format) => {
+      // Cell mixed has Pins A, B<1:0> and C; X1 in top leaves B<0> open.
+      let project = createEmptyProject("bus-open", "Bus open", "child");
+      project.documents[0]!.netlist!.name = "mixed";
+      let sequence = 0;
+      const transact = (edits: ProjectStructureEdit[]) => {
+        const result = executeProjectTransaction(project, {
+          transactionId: `bus-open-${++sequence}`,
+          projectId: project.id,
+          expectedStructureRevision: project.structureRevision,
+          actor: { kind: "human", id: "rnl-round-trip" },
+          edits,
+        });
+        if (!result.ok) throw new Error(JSON.stringify(result.error));
+        project = result.project;
+      };
+      const pin = (documentId: string, id: string, name: string, x: number) =>
+        transact(
+          planCreateCellPin(project, documentId, {
+            instance: {
+              id,
+              symbolId: "port",
+              placement: { position: { x, y: 0 }, rotation: 0, mirror: "none" },
+            },
+            terminal: {
+              id: `${id}-terminal`,
+              name,
+              netId: `${id}-net`,
+              direction: "passive",
+              interfaceInstanceIds: [id],
+            },
+            connectionEdits: [],
+            signalExpression: name,
+          }),
+        );
+      pin("child", "a", "A", 0);
+      pin("child", "b", "B<1:0>", 100);
+      pin("child", "c", "C", 200);
+      const top = createEmptyDocument("top", "mixed_top");
+      top.netlist!.name = "mixed_top";
+      top.instances.push({
+        id: "x",
+        reference: "X1",
+        symbolId: hierarchicalSymbolId("mixed"),
+        placement: { position: { x: 300, y: 0 }, rotation: 0, mirror: "none" },
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: "child" },
+          parameters: {},
+        },
+      });
+      project = {
+        ...project,
+        topDocumentId: top.id,
+        documents: [...project.documents, top],
+      };
+      pin(top.id, "ta", "TA", 0);
+      pin(top.id, "tb", "TB", 100);
+      pin(top.id, "tc", "TC", 200);
+      const members =
+        project.documents[0]!.netlist!.terminals[1]!.signal!.members;
+      const [used, open] = members as [
+        (typeof members)[number],
+        (typeof members)[number],
+      ];
+      const end = (instanceId: string, pinName: string, memberId?: string) => ({
+        kind: "terminal" as const,
+        instanceId,
+        pinName,
+        ...(memberId ? { memberId } : {}),
+      });
+      const document = project.documents.find((item) => item.id === top.id)!;
+      transact([
+        {
+          kind: "transact_document",
+          documentId: top.id,
+          expectedRevision: document.revision,
+          edits: [
+            {
+              kind: "connect_endpoints",
+              from: end("ta", "P"),
+              to: end("x", "A"),
+              newNetId: "net-a",
+            },
+            {
+              kind: "connect_endpoints",
+              from: end("tb", "P"),
+              to: end("x", "B<1:0>", used.id),
+              newNetId: "net-b",
+            },
+            {
+              kind: "connect_endpoints",
+              from: end("tc", "P"),
+              to: end("x", "C"),
+              newNetId: "net-c",
+            },
+          ],
+        },
+      ]);
+      project.documents
+        .find((item) => item.id === top.id)!
+        .noConnects.push({
+          id: "nc-member",
+          endpoint: end("x", "B<1:0>", open.id),
+          reason: "unused bit",
+        });
+      project = parseProject(serializeProject(project));
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported.netlistDiagnostics));
+      expect(exported.diagnostics.map((item) => item.code)).not.toContain(
+        "RNL_NO_CONNECT_UNNAMED",
+      );
+      const position = exported.request.netlist
+        .split("\n")
+        .find((line) => /^X1\b/u.test(line.trim()))!
+        .replace(/[()]/gu, " ")
+        .trim()
+        .split(/\s+/u)
+        .findIndex((node) => /^NC\d+$/u.test(node));
+      // Only the open member prints a node of its own; the other is wired.
+      expect(exported.request.netlist).toMatch(
+        format === "spice"
+          ? /^X1 TA TB NC0001 TC mixed$/mu
+          : /^X1 \(TA TB NC0001 TC\) mixed$/mu,
+      );
+      expect(position).toBeGreaterThan(0);
+      expect(exported.request.ops).toContainEqual(
+        expect.objectContaining({
+          definition: "$NO_CONNECT",
+          attach: { t: `#X1:${position}` },
+        }),
+      );
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      expect(
+        written.document.diagnostics.filter(
+          (item) => item.severity === "error",
+        ),
+      ).toEqual([]);
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      // The import reads the bus as the scalar Pins the call prints: the
+      // mark is on the one its member is printed as, with its reason.
+      const call = plan.project.documents
+        .flatMap((item) => item.instances)
+        .find((instance) => instance.reference === "X1")!;
+      const marks = plan.project.documents.flatMap((item) => item.noConnects);
+      expect(marks).toEqual([
+        expect.objectContaining({
+          endpoint: expect.objectContaining({ instanceId: call.id }),
+          reason: "unused bit",
+        }),
+      ]);
+      const netlist = (circuit: CircuitProject) => {
+        const result = createDesignNetlistExport(circuit, { format });
+        return result.status === "ready" ? result.file.text : result.status;
+      };
+      expect(netlist(plan.project)).toBe(netlist(project));
+    },
+  );
+
+  it("keeps a glyph's net where another tool marks the glyph's pin open, and the drawing", async () => {
+    const text = [
+      "* glyph mark",
+      '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-basic", version="0.4") }',
+      ".subckt dut a",
+      "R1 a 0 1k",
+      "* @RNL {",
+      '*   #R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 0) => @ORIENT("R0");',
+      "*   %p = $IO_PORT @ATTACH &a => @PLACE(0, 4);",
+      "*   %g = $GROUND @ATTACH &0 => @PLACE(0, -4);",
+      "*   &a @WIRE {#R1:1 %p::pin};",
+      "*   &0 @WIRE {#R1:2 %g::pin};",
+      "*   $NO_CONNECT @ATTACH %p::pin(t) => @PLACE(0, 4)",
+      "* }",
+      ".ends dut",
+      ".end",
+      "",
+    ].join("\n");
+    const plan = await importRnl(text, "spice");
+    expect(failures(plan)).toEqual([]);
+    expect(plan.drawing).not.toBe("discarded");
+    expect(plan.diagnostics.map((item) => item.code)).toContain(
+      "RNL_IMPORT_NO_CONNECT_CONNECTED",
+    );
+    expect(plan.project.documents.flatMap((d) => d.noConnects)).toEqual([]);
+  });
+
+  it("writes a reason with a line break on one line, and says so", () => {
+    const exported = createRnlExport(openResistor(["first\nsecond"]), {
+      format: "spice",
+    });
+    if (exported.status !== "ready") throw new Error("export blocked");
+    expect(exported.request.ops).toContainEqual(
+      expect.objectContaining({
+        definition: "$COMMENT",
+        params: { text: "first second" },
+      }),
+    );
+    expect(exported.diagnostics.map((item) => item.code)).toContain(
+      "RNL_NO_CONNECT_REASON",
+    );
+  });
+});

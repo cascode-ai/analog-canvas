@@ -10,7 +10,10 @@ import {
 } from "./import-scope.js";
 import { nameIfFree } from "./import-parts.js";
 
-/** What the Analog Canvas records of a level (`$CANVAS_*`, `$NO_CONNECT`) give back. */
+/**
+ * What the Analog Canvas records of a level (`$CANVAS_*`, `$NO_CONNECT`
+ * and a no-connect mark's reason, `$COMMENT`) give back.
+ */
 export interface CanvasRecords {
   /** Reads one usage if it is such a record; false for any other. */
   read(object: RnlObjectView): boolean;
@@ -227,9 +230,23 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
    * made for that node goes. A pin the file connects to anything else, or
    * whose node it names otherwise, keeps its net, without the mark.
    */
-  const opened: { node: string; endpoint: NoConnect["endpoint"] }[] = [];
+  const opened: {
+    node: string;
+    endpoint: NoConnect["endpoint"];
+    /** What the mark is on, as the file attaches its comment to it. */
+    target: string;
+  }[] = [];
   const openAgain = (object: RnlObjectView) => {
     const attached = object.attach?.["t"];
+    // A glyph's pin (`%gnd1::pin`, read as `pin(%gnd1,0)`) is on the net
+    // the glyph is drawn on: never open.
+    if (typeof attached === "string" && /^pin\(%/u.test(attached)) {
+      warn(
+        "RNL_IMPORT_NO_CONNECT_CONNECTED",
+        `RNL marks ${attached} as left unconnected, a glyph's pin, which is on its glyph's net; it keeps its net`,
+      );
+      return;
+    }
     const terminal = typeof attached === "string" ? terminalOf(attached) : null;
     const instance = terminal ? instanceOf(terminal.name) : undefined;
     const pinName =
@@ -299,7 +316,24 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
       opened.push({
         node,
         endpoint: { kind: "terminal", instanceId: instance.id, pinName },
+        target: String(attached),
       });
+  };
+  /** Each no-connect mark's reason, by what the comment is on (`$COMMENT`). */
+  const reasons = new Map<string, string>();
+  let comments = 0;
+  const commentAgain = (object: RnlObjectView) => {
+    comments += 1;
+    const target = object.attach?.["target"];
+    const text = object.params?.["text"];
+    if (
+      Array.isArray(target) &&
+      target.length === 1 &&
+      typeof target[0] === "string" &&
+      typeof text === "string" &&
+      text
+    )
+      reasons.set(target[0], text);
   };
 
   const skip = () => undefined;
@@ -316,6 +350,7 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
     ["$CANVAS_PARAMETER_TEXT", textAgain],
     ["$CANVAS_PARAMETER", keepAgain],
     ["$NO_CONNECT", openAgain],
+    ["$COMMENT", commentAgain],
   ]);
   const read = (object: RnlObjectView): boolean => {
     const reader = object.definition
@@ -332,10 +367,21 @@ export function readCanvasRecords(scope: LevelScope): CanvasRecords {
     );
     const base = deriveStableId("no-connect", document.id, level.id);
     const digits = Math.max(4, String(opened.length).length);
-    return opened.map(({ endpoint }, index) => ({
-      id: `${base}-${String(index + 1).padStart(digits, "0")}`,
-      endpoint,
-    }));
+    // A comment is read back only as the reason of the mark it is on.
+    const given = opened.filter(({ target }) => reasons.has(target)).length;
+    if (comments > given)
+      warn(
+        "RNL_IMPORT_MARK_SKIPPED",
+        `${comments - given} $COMMENT marks are not read back yet: Analog Canvas reads a comment only as a no-connect mark's reason`,
+      );
+    return opened.map(({ endpoint, target }, index) => {
+      const reason = reasons.get(target);
+      return {
+        id: `${base}-${String(index + 1).padStart(digits, "0")}`,
+        endpoint,
+        ...(reason ? { reason } : {}),
+      };
+    });
   };
   return { read, noConnects, cellNames, keptParameters, parameterTexts };
 }

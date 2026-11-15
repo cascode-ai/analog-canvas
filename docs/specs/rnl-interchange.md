@@ -207,7 +207,10 @@ the RNL language and its runtime belong to rnl.
   since `$IO_PORT` asserts a port; a Named Ground as `$GROUND` on its own
   net, drawn with `$NAMED_GROUND_SYMBOL`. A glyph's wire ends on its symbol's
   pin (`%gnd1::pin`). A `NoConnect` as the standard `$NO_CONNECT` on its
-  pin's terminal. Wires keep every bend. What the editor joins by contact (a
+  pin's terminal, a bus member's on the terminal the Cell's call prints the
+  member on (`#X1:3`), the block's bus pin binding every member's terminal;
+  its reason as a `$COMMENT` (rnl-std-basic) on the same terminal, on one
+  line. Wires keep every bend. What the editor joins by contact (a
   wire through a junction or pin, touching endpoints) is joined explicitly,
   since RNL never connects by position; the dots the editor draws are written
   as `$JUNCTION` usages. A usage has a point of its own (12.1), which a
@@ -231,7 +234,12 @@ the RNL language and its runtime belong to rnl.
   attached to it the same way, offset from it; one on a glyph is written
   where it stands, since a text on a glyph reads back as its net's label.
 - Labels are written as the text they show, styled as shown; RNL cannot style
-  part of a referenced name, so a written label does not follow a rename. The
+  part of a referenced name, so a written label does not follow a rename. A
+  hidden label is written too, where it stands, hidden (`textvisible=false`).
+  A text is written at the turn the editor gives it, any angle, its glyphs
+  turned with it and never back to read from below (`upright=false`), as the
+  editor draws them; a drawing text the editor sets level at a turn it keeps
+  for its layout keeps RNL's own reading. The
   name label of a part the author never named, which shows nothing, is
   written with the name the netlist gives the part, since RNL reads an empty
   label as one taken away; RNL's own viewers show that name.
@@ -309,14 +317,17 @@ the RNL language and its runtime belong to rnl.
   a part turned by 45°, 135°, 225° or 315°; a part with no RNL symbol.
 - Warnings keep the output and list there too, one per kind and drawing: a
   symbol from the `analog-canvas-extensions` package, labels written as fixed
-  text, hidden labels left out, text placed along a
-  wire written at a fixed place, formulas written as LaTeX source, tilted text
-  written level, a floating symbol with no RNL symbol, parts in the tray, a
-  block whose artwork RNL cannot
+  text, a hidden current or voltage marker left out, whose arrow or signs RNL
+  cannot hide (`RNL_TEXT_HIDDEN`), text placed along a
+  wire written at a fixed place, formulas written as LaTeX source, a drawing
+  text the editor sets level written at the turn it keeps for its layout, a
+  current marker on a slanted wire written without its arrow
+  (`RNL_TEXT_TILTED`), a floating symbol with no RNL symbol, parts in the
+  tray, a block whose artwork RNL cannot
   take drawn as RNL's stand-in box, a direction arrow on a slanted wire, a
-  `NoConnect` on a pin RNL cannot name (a glyph's, a bus member) left out
-  (`RNL_NO_CONNECT_UNNAMED`), a `NoConnect`'s reason, which `$NO_CONNECT`
-  does not keep (`RNL_NO_CONNECT_REASON`).
+  `NoConnect` on a pin RNL cannot name, a glyph's, whose glyph is on no net
+  (`RNL_NO_CONNECT_UNNAMED`), a `NoConnect`'s reason with a line break,
+  written on one line (`RNL_NO_CONNECT_REASON`).
 
 ### Import
 
@@ -435,8 +446,12 @@ the RNL language and its runtime belong to rnl.
     import keeps it a net of that name (#1784);
   - a pin marked `$NO_CONNECT` as a `NoConnect` again: the net the netlist
     import made for its node alone goes, and the marks keep the order the
-    netlist numbered those nodes in (NC0001 …); a pin the file connects to
-    anything else keeps its net (`RNL_IMPORT_NO_CONNECT_CONNECTED`);
+    netlist numbered those nodes in (NC0001 …), each with the reason a
+    `$COMMENT` on the same terminal gives (a comment on anything else is not
+    read, `RNL_IMPORT_MARK_SKIPPED`); a pin the file connects to anything
+    else, a glyph's among them, keeps its net
+    (`RNL_IMPORT_NO_CONNECT_CONNECTED`); a call's terminal is the scalar Pin
+    the import reads it as, a bus member's included;
   - wires with every bend, a route from each pin or point to the next, a
     wire running straight through a pin or point one route, but one through a
     point another wire (not a dashed body tie) also reaches a route each
@@ -462,8 +477,10 @@ the RNL language and its runtime belong to rnl.
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has, or as a power label where the export wrote one, hung on the
-    junction it was drawn at; a text its style hides (`textvisible=false`)
-    and a standard block's centred `label` as nothing; any other text as a drawing text, anchored to
+    junction it was drawn at; a label its style hides (`textvisible=false`)
+    as that label, hidden; a text a package hides, a glyph's own net name
+    hidden (`${p}`) and a standard block's centred `label` as nothing; any
+    other text as a drawing text, at its turn to the nearest eighth, anchored to
     the part or glyph it is attached to, else free, with the typography role
     `$CANVAS_TYPOGRAPHY` gives it and its size within that role; a label a
     symbol alone gives is left to the symbol; a part the drawing places

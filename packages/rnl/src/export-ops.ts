@@ -1,5 +1,6 @@
 import {
   contactRequiresJunctionDot,
+  draftTextTurn,
   deriveDocumentContactEvidence,
   isSchematicAnnotationVisible,
   objectStyleProfile,
@@ -967,7 +968,27 @@ function exportCell(
     resolveEndpointPoint(document, context.resolver, endpoint);
 
   // A pin left open on purpose: the standard no-connect mark on its
-  // terminal (12.6). RNL names no glyph's pin and no bus member.
+  // terminal (12.6), a part's own or the one a Cell's call prints a bus
+  // member on; its reason is a comment on the same (`$COMMENT`,
+  // rnl-std-basic). A glyph's pin is open only on a glyph on no net, which
+  // RNL does not draw (`RNL_GLYPH_UNCONNECTED`), so its mark has nothing to
+  // stand on.
+  const memberTerminal = (instanceId: StableId, memberId: string) => {
+    const binding = document.instances.find((item) => item.id === instanceId)
+      ?.netlist?.binding;
+    if (binding?.kind !== "subcircuit") return undefined;
+    // The child prints each member as a port of its own, keyed by the
+    // member's Net.
+    const member = context.project.documents
+      .find((item) => item.id === binding.childDocumentId)
+      ?.netlist?.terminals.flatMap((terminal) => terminal.signal?.members ?? [])
+      .find((item) => item.id === memberId);
+    const index =
+      context.ir.cells
+        .find((item) => item.id === binding.childDocumentId)
+        ?.ports.findIndex((port) => port.id === member?.netId) ?? -1;
+    return member && index >= 0 ? index + 1 : undefined;
+  };
   for (const mark of document.noConnects) {
     const { instanceId, pinName, memberId } = mark.endpoint;
     const reference = usageOf.has(instanceId)
@@ -976,24 +997,18 @@ function exportCell(
     const terminal =
       memberId === undefined
         ? terminalsOf.get(instanceId)?.(pinName)
-        : undefined;
-    const pin = `${references.get(instanceId) ?? instanceId}:${pinName}`;
+        : memberTerminal(instanceId, memberId);
     if (!reference || terminal === undefined) {
+      const pin = `${references.get(instanceId) ?? instanceId}:${pinName}`;
       report(
         "warning",
         "RNL_NO_CONNECT_UNNAMED",
-        `The no-connect mark on ${pin} is on a pin RNL cannot name; it is left out`,
+        `The no-connect mark on ${pin} is on a pin RNL cannot name (a glyph's, whose glyph is on no net); it is left out`,
         [mark.id],
       );
       continue;
     }
-    if (mark.reason)
-      report(
-        "warning",
-        "RNL_NO_CONNECT_REASON",
-        `The no-connect mark on ${pin} has a reason, which RNL's mark does not keep`,
-        [mark.id],
-      );
+    const marked = `${rnlName("#", reference)}:${terminal}`;
     // A usage has a point of its own (12.1), placed on its terminal's pin,
     // which the definition's alignment alone leaves to a solver.
     const at = pointOfEndpoint(mark.endpoint);
@@ -1001,8 +1016,25 @@ function exportCell(
       level,
       op: "add-usage",
       definition: "$NO_CONNECT",
-      attach: { t: `${rnlName("#", reference)}:${terminal}` },
+      attach: { t: marked },
       ...(at ? { at: toRnlPoint(at) } : {}),
+    });
+    if (!mark.reason) continue;
+    // A record holds no line break: such a reason is written on one line.
+    const reason = mark.reason.replace(/\s*[\r\n]+\s*/gu, " ");
+    if (reason !== mark.reason)
+      report(
+        "warning",
+        "RNL_NO_CONNECT_REASON",
+        `The no-connect mark on ${marked}'s reason is written on one line, as an RNL record holds no line break`,
+        [mark.id],
+      );
+    ops.push({
+      level,
+      op: "add-usage",
+      definition: "$COMMENT",
+      attach: { target: [marked] },
+      params: { text: reason },
     });
   }
 
@@ -1317,9 +1349,15 @@ function wireArrow(
 const rnlSize = (fontSize: number) =>
   Math.round((fontSize / AC_UNITS_PER_RNL_UNIT) * 1e4) / 1e4;
 
-/** A counter-clockwise quarter turn for an Analog Canvas clockwise rotation, or null. */
+/** RNL's counter-clockwise turn (13.3) for an Analog Canvas clockwise rotation. */
+function textTurn(rotation: number): number {
+  const turn = (((360 - rotation) % 360) + 360) % 360;
+  return Math.round(turn * 1e6) / 1e6 + 0;
+}
+
+/** A mark's counter-clockwise quarter turn (`ORIENT`, 14.8), or null. */
 function quarterTurn(rotation: number): 0 | 90 | 180 | 270 | null {
-  const turn = (360 - rotation) % 360;
+  const turn = textTurn(rotation);
   return turn % 90 === 0 ? (turn as 0 | 90 | 180 | 270) : null;
 }
 
@@ -1390,6 +1428,7 @@ function exportTexts(
   const alongWires: StableId[] = [];
   const formulas: StableId[] = [];
   const tilted: StableId[] = [];
+  const slanted: StableId[] = [];
   const drawings: StableId[] = [];
   // Each bound label says what it shows, so the import binds it again; a
   // label without one holds its own text. Two labels of one part with the
@@ -1421,6 +1460,14 @@ function exportTexts(
       params: { token },
     });
   };
+  /**
+   * A text, at the turn Analog Canvas gives it, any angle (0.4). Analog
+   * Canvas turns a text's glyphs with it and never turns them back to read
+   * from below (`upright=false`), but for a drawing text it sets level at a
+   * turn it keeps as the bearing of its layout (`level`), whose glyphs RNL
+   * then turns: those keep RNL's own reading (`upright`) and are reported.
+   * A hidden label is written hidden (`textvisible=false`).
+   */
   const write = (
     id: StableId,
     text: Parameters<typeof rnlTextLines>[0],
@@ -1429,23 +1476,33 @@ function exportTexts(
       Extract<RnlOp, { op: "add-text" }>,
       "level" | "op" | "lines" | "rotate"
     >,
+    { level: setLevel = false, hidden = false } = {},
   ) => {
     const { lines, formulas: count } = rnlTextLines(text);
     if (count) formulas.push(id);
-    const turn = quarterTurn(rotation);
-    if (turn === null) tilted.push(id);
+    const turn = textTurn(rotation);
+    if (turn && setLevel) tilted.push(id);
     ops.push({
       level,
       op: "add-text",
       lines,
       ...fields,
-      ...(turn ? { rotate: turn } : {}),
-      style: shownStyle(fields),
+      ...(turn
+        ? { rotate: turn, ...(setLevel ? {} : { upright: false }) }
+        : {}),
+      style: {
+        ...shownStyle(fields),
+        ...(hidden ? { textvisible: false } : {}),
+      },
     });
   };
 
   for (const annotation of document.annotations) {
-    if (annotation.visible === false) {
+    // A hidden label is written hidden, where it stands, with what it says
+    // (`textvisible=false`, 9.3); a hidden marker, whose arrow or signs RNL
+    // cannot hide, is left out.
+    const concealed = annotation.visible === false;
+    if (concealed && annotation.kind === "route-marker") {
       hidden.push(annotation.id);
       continue;
     }
@@ -1467,7 +1524,7 @@ function exportTexts(
     if (
       !isSchematicAnnotationVisible(
         document,
-        annotation,
+        concealed ? { ...annotation, visible: true } : annotation,
         logical,
         text,
         resolver,
@@ -1503,7 +1560,7 @@ function exportTexts(
         // label stands centred beside it, level.
         const turn = quarterTurn(marker.rotation);
         let name: string | undefined;
-        if (turn === null) tilted.push(annotation.id);
+        if (turn === null) slanted.push(annotation.id);
         else {
           // The full-size head Analog Canvas draws, which the standard
           // rule draws at half size; placed on its point (12.1).
@@ -1581,18 +1638,24 @@ function exportTexts(
               : "name"
             : "value";
       if (key === "netname") netnames.add(owner.object);
-      write(annotation.id, text, shown.rotation, {
-        ...common,
-        // A key's text takes what the scene leaves unsaid from the symbol's
-        // own label (13.3); Analog Canvas's labels stand on their baseline.
-        valign: "baseline",
-        attach: owner.object,
-        key,
-        offset: [
-          Math.round((anchor[0] - owner.at[0]) * 1e6) / 1e6 + 0,
-          Math.round((anchor[1] - owner.at[1]) * 1e6) / 1e6 + 0,
-        ],
-      });
+      write(
+        annotation.id,
+        text,
+        shown.rotation,
+        {
+          ...common,
+          // A key's text takes what the scene leaves unsaid from the symbol's
+          // own label (13.3); Analog Canvas's labels stand on their baseline.
+          valign: "baseline",
+          attach: owner.object,
+          key,
+          offset: [
+            Math.round((anchor[0] - owner.at[0]) * 1e6) / 1e6 + 0,
+            Math.round((anchor[1] - owner.at[1]) * 1e6) / 1e6 + 0,
+          ],
+        },
+        { hidden: concealed },
+      );
       bindLabel(`${owner.object}::${key}`, binding);
       continue;
     }
@@ -1625,21 +1688,27 @@ function exportTexts(
       net && annotation.anchor.kind === "object"
         ? placeOf.get(annotation.anchor.objectId)
         : undefined;
-    write(annotation.id, text, shown.rotation, {
-      ...common,
-      ...(wire
-        ? { attach: wire, at: anchor }
-        : object
-          ? {
-              attach: object.object,
-              offset: [
-                Math.round((anchor[0] - object.at[0]) * 1e6) / 1e6 + 0,
-                Math.round((anchor[1] - object.at[1]) * 1e6) / 1e6 + 0,
-              ],
-            }
-          : { ...(net ? { attach: rnlName("&", net) } : {}), at: anchor }),
-      ...(name ? { name } : {}),
-    });
+    write(
+      annotation.id,
+      text,
+      shown.rotation,
+      {
+        ...common,
+        ...(wire
+          ? { attach: wire, at: anchor }
+          : object
+            ? {
+                attach: object.object,
+                offset: [
+                  Math.round((anchor[0] - object.at[0]) * 1e6) / 1e6 + 0,
+                  Math.round((anchor[1] - object.at[1]) * 1e6) / 1e6 + 0,
+                ],
+              }
+            : { ...(net ? { attach: rnlName("&", net) } : {}), at: anchor }),
+        ...(name ? { name } : {}),
+      },
+      { hidden: concealed },
+    );
     if (name) bindLabel(name, binding);
   }
 
@@ -1757,33 +1826,44 @@ function exportTexts(
     const name =
       named(null).name ??
       (object.typographyToken ? nextName("text") : undefined);
-    write(object.id, object.content, anchor.rotation + object.rotation, {
-      ...(name ? { name } : {}),
-      ...(host
-        ? {
-            attach: host.object,
-            offset: [
-              Math.round((at[0] - host.at[0]) * 1e6) / 1e6 + 0,
-              Math.round((at[1] - host.at[1]) * 1e6) / 1e6 + 0,
-            ],
-          }
-        : { at }),
-      halign: object.alignment,
-      // On an object, or between polarity marks, a drawing text is centred
-      // on its anchor; free, it stands on it.
-      valign:
-        object.anchor.kind === "object" || object.polarity
-          ? "middle"
-          : "baseline",
-      size: rnlSize(
-        richTextMetrics(
-          profile,
-          object.typographyToken,
-          object.styleOverride?.sizeScale,
-        ).fontSize,
-      ),
-      ...(Object.keys(style).length ? { style } : {}),
-    });
+    const rotation = anchor.rotation + object.rotation;
+    write(
+      object.id,
+      object.content,
+      rotation,
+      {
+        ...(name ? { name } : {}),
+        ...(host
+          ? {
+              attach: host.object,
+              offset: [
+                Math.round((at[0] - host.at[0]) * 1e6) / 1e6 + 0,
+                Math.round((at[1] - host.at[1]) * 1e6) / 1e6 + 0,
+              ],
+            }
+          : { at }),
+        halign: object.alignment,
+        // On an object, or between polarity marks, a drawing text is centred
+        // on its anchor; free, it stands on it.
+        valign:
+          object.anchor.kind === "object" || object.polarity
+            ? "middle"
+            : "baseline",
+        size: rnlSize(
+          richTextMetrics(
+            profile,
+            object.typographyToken,
+            object.styleOverride?.sizeScale,
+          ).fontSize,
+        ),
+        ...(Object.keys(style).length ? { style } : {}),
+      },
+      {
+        // Analog Canvas turns a drawing text's glyphs at a quarter turn on
+        // its own (`draftTextTurn`), and sets them level at any other.
+        level: textTurn(rotation) !== textTurn(draftTextTurn(object)),
+      },
+    );
     if (name) typeset(name, object.typographyToken);
   }
 
@@ -1807,7 +1887,11 @@ function exportTexts(
     fixed,
     "labels are written as the text they show, styled as shown; RNL will not follow a rename",
   );
-  say("RNL_TEXT_HIDDEN", hidden, "hidden labels are left out");
+  say(
+    "RNL_TEXT_HIDDEN",
+    hidden,
+    "hidden current or voltage markers are left out: RNL cannot hide their arrows and signs",
+  );
   say(
     "RNL_TEXT_ALONG_WIRE",
     alongWires,
@@ -1821,7 +1905,12 @@ function exportTexts(
   say(
     "RNL_TEXT_TILTED",
     tilted,
-    "texts are turned by 45°; RNL turns text in quarter turns only, so they are written level",
+    "drawing texts are written at the turn Analog Canvas keeps for their layout, whose glyphs it draws level",
+  );
+  say(
+    "RNL_TEXT_TILTED",
+    slanted,
+    "current markers on slanted wires are written without their arrow, which RNL turns in quarter turns only",
   );
   say(
     "RNL_DRAWING_NOT_EXPORTED",

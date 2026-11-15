@@ -97,16 +97,21 @@ function cellPorts(
 function definedSymbol(
   name: string,
   definition: SymbolDefinition,
-  terminal: (pin: string) => number | string | undefined,
+  terminal: (
+    pin: string,
+  ) => number | string | readonly (number | string)[] | undefined,
 ): RnlSymbolDefinition | null {
   const prims = symbolShapes(definition.primitives);
   if (!prims) return null;
   const taken = new Set<number | string>();
   const pins = definition.pins.flatMap((pin): SymbolPin[] => {
-    const key = terminal(pin.name);
+    const found = terminal(pin.name);
+    // A bus pin binds the port each of its members prints as (9.2.4).
+    const keys =
+      found === undefined ? [] : Array.isArray(found) ? found : [found];
     // A port has one pin (9.2.4); a pin no port prints draws nothing.
-    if (key === undefined || taken.has(key)) return [];
-    taken.add(key);
+    if (!keys.length || keys.some((key) => taken.has(key))) return [];
+    for (const key of keys) taken.add(key);
     const shown =
       pin.presentation.showName !== false &&
       pin.presentation.visibility === "visible";
@@ -115,7 +120,8 @@ function definedSymbol(
       : plainLines(pin.presentation.displayName ?? pin.name);
     return [
       {
-        terminals: [key],
+        terminals: [...keys],
+        ...(keys.length > 1 ? { bus: true } : {}),
         at: toRnlPoint(pin.at),
         direction: DIRECTION[pin.direction],
         ...(shown ? { label: { lines: label } } : {}),
@@ -154,14 +160,30 @@ export function blockSymbols(
     printed: DesignNetlistCell,
     definition: SymbolDefinition,
     terminalOf: (pin: string) => number | undefined,
+    child: SchematicDocument | undefined,
   ) =>
     definedSymbol(rnlName("%", `${printed.name}_SYMBOL`), definition, (pin) => {
-      const index = terminalOf(pin);
-      if (index === undefined) return undefined;
       // A Spectre netlist escapes a port's other characters (`Vin\+`); the
       // pin shows the name it means.
-      const name = printed.ports[index - 1]!.name;
-      return format === "spectre" ? name.replace(/\\(.)/gu, "$1") : name;
+      const portName = (index: number) => {
+        const name = printed.ports[index]!.name;
+        return format === "spectre" ? name.replace(/\\(.)/gu, "$1") : name;
+      };
+      // A bus Pin prints each member as a port of its own, keyed by the
+      // member's Net.
+      const members = child?.netlist?.terminals.find(
+        (terminal) => terminal.name === pin,
+      )?.signal?.members;
+      if (members && members.length > 1) {
+        const indices = members.map((member) =>
+          printed.ports.findIndex((port) => port.id === member.netId),
+        );
+        return indices.every((index) => index >= 0)
+          ? indices.map(portName)
+          : undefined;
+      }
+      const index = terminalOf(pin);
+      return index === undefined ? undefined : portName(index - 1);
     });
   const unique = (name: string) => {
     let candidate = name;
@@ -186,7 +208,12 @@ export function blockSymbols(
         const printed = ir.cells.find(
           (item) => item.id === binding.childDocumentId,
         )!;
-        const symbol = cellSymbol(printed, definition, terminalOf);
+        const symbol = cellSymbol(
+          printed,
+          definition,
+          terminalOf,
+          project.documents.find((item) => item.id === binding.childDocumentId),
+        );
         if (symbol) cells.set(binding.childDocumentId, symbol);
       }
       if (
@@ -220,7 +247,7 @@ export function blockSymbols(
     )?.definition;
     const symbol =
       definition &&
-      cellSymbol(printed, definition, cellPorts(document, printed));
+      cellSymbol(printed, definition, cellPorts(document, printed), document);
     if (symbol) cells.set(printed.id, symbol);
   }
   return { cells, externals };

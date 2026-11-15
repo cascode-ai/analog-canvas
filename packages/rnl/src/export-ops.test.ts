@@ -174,14 +174,15 @@ describe("RNL export of the simulation examples", () => {
           expect(op.orient, op.name).toBeDefined();
       for (const label of of(ops, "add-text")) {
         // A glyph's own net name, where the export writes none: hidden.
-        if (label.style?.textvisible === false) {
-          expect(label).toMatchObject({ key: "netname", markup: "${p}" });
+        if (label.style?.textvisible === false && label.markup === "${p}") {
+          expect(label.key).toBe("netname");
           expect(levelOf.get(label.level)!.has(label.attach!)).toBe(true);
           continue;
         }
         // Every text says its weight, which the standard style makes bold.
         expect(typeof label.style?.bold, label.attach).toBe("boolean");
-        if (label.key) expect(label.style?.textvisible).toBe(true);
+        // A keyed label is shown, or a hidden label written hidden.
+        if (label.key) expect(typeof label.style?.textvisible).toBe("boolean");
         // A part's or glyph's label hangs on something declared, by key and
         // offset; a net's stands at an absolute place, on its net or on the
         // wire it hangs on, which has no point to offset from; a free text
@@ -224,7 +225,7 @@ describe("RNL export of the simulation examples", () => {
     );
   });
 
-  it("hangs a net's label on the wire it hangs on at its place, and leaves hidden labels out", () => {
+  it("hangs a net's label on the wire it hangs on at its place, and writes hidden labels hidden", () => {
     const { ops, diagnostics } = exported(example("simulation-rlc"));
     // The label of out hangs on a wire of out: that wire is named, and the
     // label attached to it, placed where it stands (13.3).
@@ -235,13 +236,23 @@ describe("RNL export of the simulation examples", () => {
     expect(of(ops, "add-text")).toContainEqual(
       expect.objectContaining({ attach: wire.name, at: expect.any(Array) }),
     );
-    expect(diagnostics.map((item) => item.code)).toEqual(
-      expect.arrayContaining(["RNL_TEXT_HIDDEN", "RNL_TEXT_ALONG_WIRE"]),
+    expect(diagnostics.map((item) => item.code)).toContain(
+      "RNL_TEXT_ALONG_WIRE",
     );
     // One warning per kind and drawing, naming every object it covers.
-    const hidden = diagnostics.find((item) => item.code === "RNL_TEXT_HIDDEN")!;
-    expect(hidden.objectIds).toHaveLength(2);
-    expect(hidden.message).toMatch(/^2 /);
+    const along = diagnostics.find(
+      (item) => item.code === "RNL_TEXT_ALONG_WIRE",
+    )!;
+    expect(along.message).toMatch(new RegExp(`^${along.objectIds.length} `));
+    // Its two hidden labels are written hidden (9.3), with what they say.
+    expect(diagnostics.map((item) => item.code)).not.toContain(
+      "RNL_TEXT_HIDDEN",
+    );
+    expect(
+      of(ops, "add-text").filter(
+        (op) => op.style?.textvisible === false && op.markup !== "${p}",
+      ),
+    ).toHaveLength(2);
   });
 
   it("joins a wire that runs through a junction there, and dots it", () => {
@@ -337,37 +348,38 @@ describe("RNL export of the simulation examples", () => {
         endpoint: { kind: "terminal", instanceId: "R9", pinName: "2" },
       },
       {
-        id: "open-bus",
-        endpoint: {
-          kind: "terminal",
-          instanceId: "R9",
-          pinName: "1",
-          memberId: "b0",
-        },
+        id: "open-1",
+        endpoint: { kind: "terminal", instanceId: "R9", pinName: "1" },
+        reason: "spare",
       },
     );
     const { ops, diagnostics, text } = exported(project);
     expect(text).toMatch(/^R9 NC\d+ NC\d+ 1k$/mu);
     expect(
       of(ops, "add-usage").filter((op) => op.definition === "$NO_CONNECT"),
+    ).toContainEqual({
+      level: expect.stringMatching(/^subckt:/u),
+      op: "add-usage",
+      definition: "$NO_CONNECT",
+      attach: { t: "#R9:2" },
+      // Placed on its pin: a usage has a point of its own (12.1).
+      at: [40, -42],
+    });
+    // Its reason is a comment on the same terminal.
+    expect(
+      of(ops, "add-usage").filter((op) => op.definition === "$COMMENT"),
     ).toEqual([
       {
         level: expect.stringMatching(/^subckt:/u),
         op: "add-usage",
-        definition: "$NO_CONNECT",
-        attach: { t: "#R9:2" },
-        // Placed on its pin: a usage has a point of its own (12.1).
-        at: [40, -42],
+        definition: "$COMMENT",
+        attach: { target: ["#R9:1"] },
+        params: { text: "spare" },
       },
     ]);
-    // A bus member has no terminal of its own in RNL.
-    expect(diagnostics).toContainEqual(
-      expect.objectContaining({
-        severity: "warning",
-        code: "RNL_NO_CONNECT_UNNAMED",
-        objectIds: ["open-bus"],
-      }),
-    );
+    expect(
+      diagnostics.filter((item) => item.code.startsWith("RNL_NO_CONNECT")),
+    ).toEqual([]);
   });
 
   it("wires a drawn Cell's block by its printed port positions", () => {
