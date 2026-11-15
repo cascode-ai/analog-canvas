@@ -264,6 +264,8 @@ describe("Gallery census through the editor commands", () => {
       );
       expect(result.insert.status).toBe("inserted");
     },
+    // A hundred Cells through the full editor commands take seconds on CI.
+    30_000,
   );
 
   it("opens the source and commits its drawing into a separate fresh canvas", async () => {

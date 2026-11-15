@@ -23,9 +23,12 @@ const retiredLock = {
   version: "0.0.0",
 };
 
-function withLock(lock: unknown, schemaVersion = 82): string {
-  const raw = JSON.parse(legacyText) as Record<string, unknown>;
-  return JSON.stringify({ ...raw, schemaVersion, symbolLibrary: lock });
+/** The fixture saved today, so loading it migrates nothing but its lock. */
+const currentText = serializeProject(parseProject(legacyText));
+
+function withLock(lock: unknown): string {
+  const raw = JSON.parse(currentText) as Record<string, unknown>;
+  return JSON.stringify({ ...raw, symbolLibrary: lock });
 }
 
 describe("retired Symbol Library lock", () => {
