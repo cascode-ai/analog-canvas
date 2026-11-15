@@ -25,7 +25,7 @@ import {
   placeResistors,
   recoveryProjectTexts,
   openEditor,
-  expectRecovered,
+  readRecoveredProjects,
   openProject,
   readAgentClaim,
 } from "./editor-fixtures.js";
@@ -161,7 +161,11 @@ test("fits and repairs an old booster symbol on open, and rejects invalid import
   }
   // Neither the live drawing nor its recovery copy is replaced.
   await expect(page.getByTestId("active-document-name")).toHaveText("dut");
-  await expectRecovered(page, '"name": "Old booster"');
+  await expect
+    .poll(async () =>
+      (await readRecoveredProjects(page)).map(({ name }) => name),
+    )
+    .toContain("Old booster");
 });
 
 test("File menu falls back to one scroll area in a short viewport", async ({
@@ -530,7 +534,8 @@ test("Cloud Save keeps one binding through rename and revert while export stays 
   await placeResistors(page, [320]);
   await expect(page.getByTestId("project-unsaved-indicator")).toBeVisible();
   // A local export is interchange: the drawing stays unsaved.
-  await downloadBytes(page, "File", "Export Project File…");
+  const portable = await downloadBytes(page, "File", "Export Project File…");
+  expect(portable.toString("utf8")).toContain('\n  "schemaVersion": ');
   await expectStatus(page, "Export requested");
   await expect(page.getByTestId("project-unsaved-indicator")).toBeVisible();
 
@@ -542,6 +547,7 @@ test("Cloud Save keeps one binding through rename and revert while export stays 
   const fileMenu = await openMenu(page, "File");
   await fileMenu.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => cloud.stored()?.name).toBe("Bandgap Reference");
+  expect(cloud.stored()!.projectText.trimEnd()).not.toContain("\n");
   await expect(page.getByTestId("project-unsaved-indicator")).toHaveCount(0);
   // A private save applies no Gallery quality gate.
   await expect(page.getByRole("dialog", { name: "Check Report" })).toHaveCount(

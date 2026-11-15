@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 82,
+  "schemaVersion": 83,
   "id": "project-minimal",
   "name": "Minimal Project",
   "topDocumentId": "document-main",
@@ -27,11 +27,8 @@
       "annotations": [],
       "drafting": { "objects": [] },
       "connectivityEvidence": [],
-      "layoutGroups": [],
-      "constraints": [],
       "sourceStatus": "in-sync",
-      "revision": 0,
-      "noConnects": []
+      "revision": 0
     }
   ],
   "externalSubcircuitDefinitions": [],

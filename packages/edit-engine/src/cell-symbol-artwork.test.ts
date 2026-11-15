@@ -21,6 +21,7 @@ import {
 } from "@icm/symbols";
 import { resolveEndpointPoint, resolveRouteGeometry } from "@icm/derived";
 import { buildSvgScene } from "@icm/render-svg";
+import { legacyProjectFile } from "../../project-protocol/src/legacy-project.test-support.js";
 
 import {
   capturedCellSymbolArtwork,
@@ -204,8 +205,7 @@ function expectWiresOnPins(project: CircuitProject) {
 
 describe("a Cell drawn with its author's artwork", () => {
   it("fills a captured automatic block and follows its manually resized body", () => {
-    const captured = JSON.parse(serializeProject(ota()));
-    captured.schemaVersion = 81;
+    const captured = legacyProjectFile(serializeProject(ota()), 81);
     for (const definition of captured.componentDefinitions)
       for (const primitive of definition.symbol.primitives)
         delete primitive.fillableBody;
@@ -284,8 +284,7 @@ describe("a Cell drawn with its author's artwork", () => {
     const saved = serializeProject(transformed);
     const reopened = parseProject(saved);
     expect(serializeProject(reopened)).toBe(saved);
-    const oldEnvelope = JSON.parse(saved);
-    oldEnvelope.schemaVersion = 81;
+    const oldEnvelope = legacyProjectFile(saved, 81);
     const rejected = tryParseProjectWithMetadata(JSON.stringify(oldEnvelope));
     expect(rejected).toMatchObject({
       ok: false,
@@ -541,8 +540,7 @@ describe("a Cell drawn with its author's artwork", () => {
       planSetCellSymbolArtwork(custom, CELL, { symbolMode: "automatic" }),
     );
     expect(cell(reset).presentation).toEqual(cell(original).presentation);
-    const older = JSON.parse(text) as { schemaVersion: number };
-    older.schemaVersion = 80;
+    const older = legacyProjectFile(text, 80);
     expect(cell(parseProject(JSON.stringify(older))).presentation).toEqual(
       cell(custom).presentation,
     );

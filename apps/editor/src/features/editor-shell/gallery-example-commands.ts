@@ -1,5 +1,5 @@
 import type { CircuitProject, GridRect } from "@icm/model";
-import { parseProject } from "@icm/project-protocol";
+import { formatProjectFile, parseProject } from "@icm/project-protocol";
 import type { ReplaceProjectOptions } from "../../document/use-project-file-lifecycle";
 import type { LibraryProjectExample } from "../../examples/library-examples";
 import type { SchematicClipboard } from "../clipboard/clipboard";
@@ -298,9 +298,16 @@ export function createGalleryExampleCommands({
       if (!response.ok) return;
       const payload = (await response.json()) as GalleryEntryPayload;
       if (!payload.projectText) return;
+      // Reopened tabs can carry a digest for either of the saved layouts.
       if (
         context.sourceDigest !== undefined &&
-        context.sourceDigest === (await textDigest(payload.projectText))
+        (context.sourceDigest === (await textDigest(payload.projectText)) ||
+          context.sourceDigest ===
+            (await textDigest(formatProjectFile(payload.projectText))) ||
+          context.sourceDigest ===
+            (await textDigest(
+              formatProjectFile(payload.projectText, "compact"),
+            )))
       )
         return;
       await installGalleryEntry(

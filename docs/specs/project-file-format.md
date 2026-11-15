@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Portable file schema `82`. Normalized editor model schema `58`.
+Portable file schema `83`. Normalized editor model schema `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec);
 `packages/model` validates the decoded editor model.
@@ -18,11 +18,11 @@ preserves.
 
 ```text
 import text -> parse JSON -> require supported Project file schema
--> migrate old files or decode 59–82 -> strict runtime model validation -> install unbound
+-> migrate old files or decode 59–83 -> strict runtime model validation -> install unbound
 export -> validate -> encode current file schema -> readable canonical JSON -> download
 ```
 
-- `parseProject` reads schemas 24–82. Writers emit the current schema. Envelope
+- `parseProject` reads schemas 24–83. Writers emit the current schema. Envelope
   metadata uses `CURRENT_PROJECT_FILE_VERSION`, never the model version.
   Optional additions keep model 58; older envelopes cannot carry them.
   Member No Connect endpoints require file schema 77.
@@ -32,6 +32,12 @@ export -> validate -> encode current file schema -> readable canonical JSON -> d
 - File schema 82 adds Symbol rectangles and fillable closed paths. On older
   reads, exact reviewed Symbol snapshots and matching automatic Cell blocks
   gain the declared fillable body while keeping their artwork.
+- Since schema 83, SourceSpan `start` and `end` are `[offset, line, column]`.
+  Captured Symbol line `from`/`to`, circle `center`, and pin `at` and
+  `routing.preferredLanding` are `[x, y]`, including variant geometry and
+  auxiliary pins. The decoder restores exact coordinates and source positions.
+  Older schemas use objects at these fields. An absent Document `layoutGroups`,
+  `constraints` or `noConnects` expands to `[]` in schema 83.
 - The reader rejects mixed legacy/current field names, conflicting endpoints,
   unknown fields and missing used component definitions; it never deletes
   unplaced or overlapping instances. An invalid candidate never replaces the
@@ -49,8 +55,11 @@ export -> validate -> encode current file schema -> readable canonical JSON -> d
   connect. Only explicit portable-file and Gallery imports may canonicalize
   legacy Wire geometry (incl. removing an unowned Route that resolves to an
   existing endpoint contact); parsing, Cloud open and recovery stay exact.
-- Canonical serialization ends with one newline and is byte-stable across
-  serialize/parse/serialize. `fixtures/projects/compatibility-corpus.json`:
+- Canonical serialization is byte-stable within each layout and ends with one
+  newline. Project Code and portable files use readable layout. Cloud Save,
+  browser recovery and workspace snapshots use compact JSON. Both layouts
+  decode the same fields and preserve literal source text.
+  `fixtures/projects/compatibility-corpus.json`:
   `current` entries are already canonical; `migrated` witnesses keep source
   bytes and version and load/save byte-stable; the rejected corpus names
   expected failures.

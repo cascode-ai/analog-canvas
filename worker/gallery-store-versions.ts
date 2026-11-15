@@ -7,7 +7,7 @@ import { forgetTransistorCount } from "./gallery-store-stats";
 import { readGalleryCuration, type GalleryCuration } from "./gallery-curation";
 import { sha256Hex } from "@icm/derived";
 import { designExtractsNetlist, NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import { parseProject, serializeCompactProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { storedProject, withTestbench } from "./gallery-testbench";
 import { locallyOwnedResources } from "./resource-replica";
@@ -211,7 +211,7 @@ export function restoreVersion(
       { status: 409 },
     );
   }
-  const restored = storedProject(serializeProject(restoredProject));
+  const restored = storedProject(serializeCompactProject(restoredProject));
   const netlistable = designExtractsNetlist(restoredProject) ? 1 : 0;
   const previewRevision = sha256Hex(version.svg_text);
   const previewDimensions = svgPreviewDimensions(version.svg_text);

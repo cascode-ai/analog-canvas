@@ -2,9 +2,13 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 
 import { createEmptyProject, freezeSnapshot } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import {
+  serializeCompactProject,
+  serializeProject,
+} from "@icm/project-protocol";
 
 import { createBrowserRecoveryStore } from "./browser-recovery-store";
+import { BROWSER_RECOVERY_MAX_RECORD_BYTES } from "./browser-recovery-contract";
 import { createProjectSnapshotSerializer } from "./project-snapshot-serializer";
 import {
   WORKING_COPY_STORAGE_KEY,
@@ -117,6 +121,52 @@ const projectB = createEmptyProject("project-alpha", "Beta");
 const projectC = createEmptyProject("project-gamma", "Gamma");
 
 describe("createRecoveryCoordinator", () => {
+  it("recovers a Project whose readable copy exceeds the snapshot budget", async () => {
+    const project = createEmptyProject(
+      "large-recovery",
+      "Large source archive",
+    );
+    project.source.files.push({
+      id: "source-archive",
+      path: "source.cir",
+      hash: "archive-v1",
+      content: { encoding: "utf-8", text: '* 偏置\n  "A" \\ B\n' },
+    });
+    const content = project.source.files[0]!.content!;
+    const padding =
+      BROWSER_RECOVERY_MAX_RECORD_BYTES -
+      Buffer.byteLength(serializeProject(project)) +
+      32;
+    content.text += "x".repeat(padding);
+    expect(Buffer.byteLength(serializeProject(project))).toBeGreaterThan(
+      BROWSER_RECOVERY_MAX_RECORD_BYTES,
+    );
+    const harness = createHarness();
+    harness.coordinator.stage(project);
+    expect(await harness.coordinator.flushNow()).toBe("stored");
+    const saved = await harness.coordinator.readSessionProject(
+      harness.coordinator.workingCopyId,
+      "latest",
+    );
+    expect(saved).toMatchObject({ status: "valid", project });
+    if (saved.status !== "valid") return;
+    expect(saved.record.projectText.trimEnd()).not.toContain("\n");
+    expect(saved.record.byteLength).toBeLessThanOrEqual(
+      BROWSER_RECOVERY_MAX_RECORD_BYTES,
+    );
+
+    const tooLarge = structuredClone(project);
+    tooLarge.source.files[0]!.content!.text += "x".repeat(1024);
+    harness.coordinator.stage(tooLarge);
+    expect(await harness.coordinator.flushNow()).toBe("failed");
+    expect(
+      await harness.coordinator.readSessionProject(
+        harness.coordinator.workingCopyId,
+        "latest",
+      ),
+    ).toEqual(saved);
+  });
+
   it("shares computed text with workspace saving without sharing persistence state", async () => {
     const projectA = freezeSnapshot(
       createEmptyProject("project-alpha", "Alpha"),
@@ -124,10 +174,10 @@ describe("createRecoveryCoordinator", () => {
     const projectB = freezeSnapshot(
       createEmptyProject("project-alpha", "Beta"),
     );
-    const serialize = vi.fn(serializeProject);
+    const serialize = vi.fn(serializeCompactProject);
     const cache = createProjectSnapshotSerializer(serialize);
-    const harness = createHarness({ serializeProject: cache.serialize });
-    const workspaceText = cache.serialize(projectA);
+    const harness = createHarness({ serializeProject: cache.serializeCompact });
+    const workspaceText = cache.serializeCompact(projectA);
     harness.coordinator.stage(projectA);
     expect(harness.states).toEqual([]);
     harness.fire();
@@ -149,7 +199,9 @@ describe("createRecoveryCoordinator", () => {
     expect(serialize).toHaveBeenCalledTimes(1);
     harness.coordinator.stage(projectB);
     await harness.coordinator.flushNow();
-    expect(cache.serialize(projectB)).toBe(serializeProject(projectB));
+    expect(cache.serializeCompact(projectB)).toBe(
+      serializeCompactProject(projectB),
+    );
     expect(serialize).toHaveBeenCalledTimes(2);
   });
   it("creates and persists a working-copy identity", () => {
@@ -176,7 +228,7 @@ describe("createRecoveryCoordinator", () => {
     const read = await harness.coordinator.store.readAll();
     expect(read.sessions).toHaveLength(1);
     expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeProject(projectA),
+      serializeCompactProject(projectA),
     );
     expect(read.sessions[0]?.latest?.source).toBe("new");
     expect(read.sessions[0]?.latest?.unsavedAtSnapshot).toBe(true);
@@ -191,7 +243,7 @@ describe("createRecoveryCoordinator", () => {
     const read = await harness.coordinator.store.readAll();
     expect(read.sessions).toHaveLength(1);
     expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeProject(projectB),
+      serializeCompactProject(projectB),
     );
     expect(read.sessions[0]?.previous).toBeNull();
   });
@@ -207,7 +259,7 @@ describe("createRecoveryCoordinator", () => {
     const read = await harness.coordinator.store.readAll();
     expect(read.sessions[0]?.previous).toBeNull();
     expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeProject(projectA),
+      serializeCompactProject(projectA),
     );
   });
 
@@ -229,7 +281,7 @@ describe("createRecoveryCoordinator", () => {
     expect(state).toBe("stored");
     const read = await harness.coordinator.store.readAll();
     expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeProject(projectA),
+      serializeCompactProject(projectA),
     );
   });
 
@@ -287,10 +339,10 @@ describe("createRecoveryCoordinator", () => {
     expect(state).toBe("stored");
     const read = await realStore.readAll();
     expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeProject(projectB),
+      serializeCompactProject(projectB),
     );
     expect(read.sessions[0]?.previous?.projectText).toBe(
-      serializeProject(projectA),
+      serializeCompactProject(projectA),
     );
   });
 
@@ -311,7 +363,9 @@ describe("createRecoveryCoordinator", () => {
       (session) => session.workingCopyId === next,
     );
     expect(incoming?.latest?.source).toBe("opened-file");
-    expect(incoming?.latest?.projectText).toBe(serializeProject(projectC));
+    expect(incoming?.latest?.projectText).toBe(
+      serializeCompactProject(projectC),
+    );
   });
 
   it("beginWorkingCopy drops a pending write for the outgoing Project", async () => {
@@ -339,7 +393,7 @@ describe("createRecoveryCoordinator", () => {
     expect(state).toBe("quota-exceeded");
     const read = await harness.coordinator.store.readAll();
     expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeProject(projectA),
+      serializeCompactProject(projectA),
     );
   });
 
@@ -378,7 +432,7 @@ describe("createRecoveryCoordinator", () => {
     // Seed one valid and one schema-99 record through the store directly.
     const store = harness.coordinator.store;
     const futureText = JSON.stringify({
-      ...JSON.parse(serializeProject(projectA)),
+      ...JSON.parse(serializeCompactProject(projectA)),
       schemaVersion: 99,
     });
     await store.writeRecord({

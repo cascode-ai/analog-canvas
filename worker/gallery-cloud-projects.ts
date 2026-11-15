@@ -5,7 +5,7 @@ import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import {
   CURRENT_PROJECT_FILE_VERSION,
   parseProject,
-  serializeProject,
+  serializeCompactProject,
 } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { type CircuitProject } from "@icm/model";
@@ -26,11 +26,19 @@ import {
   renderPreview,
 } from "./gallery-requests";
 
+interface CloudProjectSaveBody {
+  name?: unknown;
+  projectText?: unknown;
+  galleryEntryId?: unknown;
+  resolveHeads?: unknown;
+}
+
 /** Private, stable Cloud Projects. Save updates a bound Project in place. */
 async function handleCloudProjects(
   request: Request,
   env: GalleryEnv,
   projectId: string | null,
+  archived?: { name: string; projectText: string },
 ): Promise<Response> {
   if (request.method !== "GET" && !sameOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
@@ -77,12 +85,9 @@ async function handleCloudProjects(
     return Response.json(payload, { status });
   }
 
-  const body = (await request.json().catch(() => null)) as {
-    name?: unknown;
-    projectText?: unknown;
-    galleryEntryId?: unknown;
-    resolveHeads?: unknown;
-  } | null;
+  const body: CloudProjectSaveBody | null =
+    archived ??
+    ((await request.json().catch(() => null)) as CloudProjectSaveBody | null);
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
   if (!body || !name || typeof body.projectText !== "string") {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
@@ -94,17 +99,22 @@ async function handleCloudProjects(
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
   if (
+    !archived &&
     new TextEncoder().encode(body.projectText).length >
-    GALLERY_MAX_PROJECT_BYTES
+      GALLERY_MAX_PROJECT_BYTES
   ) {
     return Response.json({ error: "too-large" }, { status: 413 });
   }
   let project: CircuitProject;
+  let projectText: string;
   try {
     project = parseProject(body.projectText);
+    projectText = serializeCompactProject(project);
   } catch {
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
+  if (new TextEncoder().encode(projectText).length > GALLERY_MAX_PROJECT_BYTES)
+    return Response.json({ error: "too-large" }, { status: 413 });
   const operation =
     request.method === "POST" ? "cloud-project-create" : "cloud-project-update";
   const expectedRevisionMatch = request.headers
@@ -126,7 +136,6 @@ async function handleCloudProjects(
       { status: 428 },
     );
   }
-  const projectText = serializeProject(project);
   const createKey =
     env.PROJECTS && request.method === "POST"
       ? request.headers.get("idempotency-key")
@@ -233,18 +242,16 @@ async function handleCloudProjectHistory(
     );
   if (request.method === "POST" && action === "restore") {
     // Route through Save, including parsing, rendering, compare-and-swap and
-    // snapshotting the displaced draft. Publication/favorite bindings stay put.
+    // snapshotting the displaced draft. Apply the compact byte limit to the
+    // archive read from storage, which may still use the older readable layout.
     return handleCloudProjects(
       new Request(request.url, {
         method: "PUT",
         headers: request.headers,
-        body: JSON.stringify({
-          name: payload.version.name,
-          projectText: payload.version.project_text,
-        }),
       }),
       env,
       projectId,
+      { name: payload.version.name, projectText: payload.version.project_text },
     );
   }
   return Response.json({ error: "not-found" }, { status: 404, headers });

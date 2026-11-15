@@ -6,7 +6,7 @@ import { galleryComponentCount } from "./gallery-components";
 import {
   CURRENT_PROJECT_FILE_VERSION,
   parseProject,
-  serializeProject,
+  serializeCompactProject,
 } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { type CircuitProject } from "@icm/model";
@@ -148,7 +148,7 @@ export async function handleSourceImport(
     }
     project.name = name;
     // A testbench stays private as a submission's does (#1545).
-    const stored = storedProject(serializeProject(project));
+    const stored = storedProject(serializeCompactProject(project));
     const { status, payload } = await callGallery<Record<string, unknown>>(
       store,
       "import-entry",

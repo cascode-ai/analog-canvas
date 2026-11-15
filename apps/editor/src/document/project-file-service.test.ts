@@ -4,6 +4,7 @@ import { createProjectSnapshotSerializer } from "./project-snapshot-serializer";
 
 import { createEmptyProject } from "@icm/model";
 import {
+  serializeCompactProject,
   serializeProject,
   CURRENT_PROJECT_FILE_VERSION,
 } from "@icm/project-protocol";
@@ -47,12 +48,12 @@ function downloadSeams() {
 describe("portable Project files", () => {
   it("downloads the shared canonical snapshot and retains serialization failure handling", async () => {
     const controller = new EditorDocumentController(project);
-    const encode = vi.fn(serializeProject);
+    const encode = vi.fn(serializeCompactProject);
     const cache = createProjectSnapshotSerializer(encode);
-    const expected = cache.serialize(controller.project);
+    cache.serializeCompact(controller.project);
     const { seams } = downloadSeams();
     let blob: Blob | undefined;
-    const read = vi.fn(cache.serialize);
+    const read = vi.fn(cache.serializeReadable);
     const outcome = requestProjectDownload(controller.project, {
       ...seams,
       serializeProject: read,
@@ -62,7 +63,7 @@ describe("portable Project files", () => {
       },
     });
     expect(outcome.status).toBe("download-requested");
-    expect(await blob!.text()).toBe(expected);
+    expect(await blob!.text()).toBe(serializeProject(controller.project));
     expect(read).toHaveBeenCalledWith(controller.project);
     expect(encode).toHaveBeenCalledTimes(1);
     expect(

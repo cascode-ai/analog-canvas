@@ -16,7 +16,7 @@ import {
   type CloudProjectSummary,
 } from "../features/editor-shell/cloud-projects";
 import { noteCloudProjectDeleted } from "../document/cloud-project-session";
-import { parseProject } from "@icm/project-protocol";
+import { formatProjectFile, parseProject } from "@icm/project-protocol";
 import {
   VersionHistoryDialog,
   type VersionHistorySource,
@@ -210,7 +210,9 @@ export function ShelfWall() {
                 : loaded.message,
           );
         downloadBlob(
-          new Blob([loaded.project.projectText], { type: "application/json" }),
+          new Blob([formatProjectFile(loaded.project.projectText)], {
+            type: "application/json",
+          }),
           `${loaded.project.name.replace(/[\\/:*?"<>|]/gu, "_")}.icproj.json`,
         );
       } else {

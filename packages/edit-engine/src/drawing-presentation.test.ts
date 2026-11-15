@@ -4,6 +4,7 @@ import { parseProject, serializeProject } from "@icm/project-protocol";
 import { buildSvgScene, renderDocumentSvg } from "@icm/render-svg";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { expect, it } from "vitest";
+import { legacyProjectFile } from "../../project-protocol/src/legacy-project.test-support.js";
 
 import { executeProjectTransaction } from "./project-transaction.js";
 
@@ -438,8 +439,7 @@ it("keeps the legacy box and detached label when merely reopening an old drawing
     rotation: 0,
     locked: false,
   });
-  const legacy = JSON.parse(serializeProject(project));
-  legacy.schemaVersion = 80;
+  const legacy = legacyProjectFile(serializeProject(project), 80);
   for (const definition of legacy.componentDefinitions)
     for (const primitive of definition.symbol.primitives)
       delete primitive.fillableBody;

@@ -44,6 +44,7 @@ async function readProject(
 }
 
 const folders = (text: string) => parseProject(text).simulationFolders;
+const compact = (text: string) => `${JSON.stringify(JSON.parse(text))}\n`;
 
 function storedRow(env: Harness, id: string, table = "gallery_entries") {
   return env.gallerySql
@@ -111,11 +112,11 @@ describe("a circuit's testbench", () => {
     const id = await submitOne(env, "Amplifier", { cookie: maker, text });
 
     const row = storedRow(env, id);
-    expect(row.project_text).toBe(withoutFolders(text));
+    expect(row.project_text).toBe(compact(withoutFolders(text)));
     expect(row.project_text).not.toContain("gain_db");
     expect(row.testbench_text).toContain("gain_db > 40");
 
-    expect(await readProject(env, id, maker)).toBe(text);
+    expect(await readProject(env, id, maker)).toBe(compact(text));
     // One of the Owner's own accounts reads everyone's.
     expect(
       folders(await readProject(env, id, await ownerAccountOf(env))),
@@ -165,7 +166,7 @@ describe("a circuit's testbench", () => {
       (await update(env, id, maker, { name: "Amplifier", projectText: second }))
         .status,
     ).toBe(200);
-    expect(await readProject(env, id, maker)).toBe(second);
+    expect(await readProject(env, id, maker)).toBe(compact(second));
 
     const listed = await route(
       env,
@@ -183,7 +184,7 @@ describe("a circuit's testbench", () => {
       version!.versionId,
       "gallery_entry_versions",
     );
-    expect(versionRow.project_text).toBe(withoutFolders(first));
+    expect(versionRow.project_text).toBe(compact(withoutFolders(first)));
     expect(versionRow.testbench_text).toContain("gain_db > 40");
     const versionProject = async (cookie: string) =>
       (
@@ -197,10 +198,10 @@ describe("a circuit's testbench", () => {
           )
         ).json()) as { projectText: string }
       ).projectText;
-    expect(await versionProject(maker)).toBe(first);
+    expect(await versionProject(maker)).toBe(compact(first));
     // A curator reads the history, not the testbench in it.
     expect(await versionProject(await adminOf(env))).toBe(
-      withoutFolders(first),
+      compact(withoutFolders(first)),
     );
 
     const restored = await route(
@@ -211,9 +212,9 @@ describe("a circuit's testbench", () => {
       ),
     );
     expect(restored.status).toBe(200);
-    expect(await readProject(env, id, maker)).toBe(first);
+    expect(await readProject(env, id, maker)).toBe(compact(first));
     expect(storedRow(env, id)).toEqual({
-      project_text: withoutFolders(first),
+      project_text: compact(withoutFolders(first)),
       testbench_text: expect.stringContaining("gain_db > 40"),
     });
   });
@@ -235,7 +236,7 @@ describe("a circuit's testbench", () => {
         })
       ).status,
     ).toBe(200);
-    expect(await readProject(env, id, maker)).toBe(text);
+    expect(await readProject(env, id, maker)).toBe(compact(text));
     expect(
       (
         await update(env, id, curator, {
@@ -244,7 +245,7 @@ describe("a circuit's testbench", () => {
         })
       ).status,
     ).toBe(200);
-    expect(await readProject(env, id, maker)).toBe(text);
+    expect(await readProject(env, id, maker)).toBe(compact(text));
 
     // Its author's update replaces the content, testbench included.
     expect(
@@ -455,11 +456,25 @@ describe("moving existing testbenches out of the Project Code", () => {
       "https://gallery/schema-restore",
       { method: "POST", body: JSON.stringify({ backup }) },
     );
-    expect(await readProject(env, id, maker)).toBe(text);
+    expect(await readProject(env, id, maker)).toBe(compact(text));
   });
 });
 
 describe("splitting stored Project Code", () => {
+  it("separates the top-level testbench in compact JSON and rejoins it byte for byte", () => {
+    const hidden =
+      '{"schemaVersion":83,"documents":[{"simulationFolders":["nested"]}],"simulationFolders":[]}\n';
+    const text = compact(`{
+      "schemaVersion": 83,
+      "documents": [{"simulationFolders":["nested"]}],
+      "simulationFolders": ${JSON.stringify([{ text: 'a "]" }' }])}
+    }`);
+    const split = splitTestbench(text);
+    expect(split?.projectText).toBe(hidden);
+    expect(withTestbench(split!.projectText, split!.testbench)).toBe(text);
+    expect(withoutTestbench(text)).toBe(hidden);
+  });
+
   it("splits the schema 42-49 key byte for byte and drops the pre-42 one for other readers", () => {
     // A bracket and a quote inside a string do not end the value.
     const setups = `{\n  "schemaVersion": 49,\n  "simulationSetups": [\n    { "id": "s1", "text": "a \\"]\\" }" }\n  ],\n  "name": "x"\n}\n`;

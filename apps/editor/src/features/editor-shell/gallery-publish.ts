@@ -3,7 +3,7 @@ import type { GalleryEntryContext } from "./gallery-example-commands";
 
 import type { CloudProjectBinding } from "./cloud-projects";
 import type { CircuitProject } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import { serializeCompactProject } from "@icm/project-protocol";
 import { isDailyAllowanceRefusal } from "../../daily-allowance";
 import { requestFailureOf } from "../../request-failure";
 import { galleryPublicationRequest } from "../../gallery-publication-request";
@@ -223,7 +223,7 @@ async function sendGalleryProject(
         ...(fields.takeOver ? { takeOver: true } : {}),
         // Publishing a drawing must not also publish private source comments
         // or model files. The frozen topology still supports routing guidance.
-        projectText: serializeProject({
+        projectText: serializeCompactProject({
           ...project,
           source: {
             ...project.source,

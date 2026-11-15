@@ -1,6 +1,9 @@
 import type { CircuitProject } from "@icm/model";
 import { isFrozenSnapshot } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import {
+  formatProjectFile,
+  serializeCompactProject,
+} from "@icm/project-protocol";
 
 /** Browser-session computation cache, ONLY for immutable committed snapshots.
  * Public file serialization remains uncached for callers with mutable input.
@@ -8,7 +11,7 @@ import { serializeProject } from "@icm/project-protocol";
  * and project-level change. Bounds prevent retained undo generations growing
  * without limit; misses always use the canonical validating serializer. */
 export function createProjectSnapshotSerializer(
-  serialize: (project: CircuitProject) => string = serializeProject,
+  serialize: (project: CircuitProject) => string = serializeCompactProject,
   limits = { entries: 16, bytes: 16 * 1024 * 1024 },
 ) {
   const texts = new Map<CircuitProject, string>();
@@ -20,8 +23,8 @@ export function createProjectSnapshotSerializer(
     bytes -= text.length * 2;
     texts.delete(project);
   };
-  return {
-    serialize(project: CircuitProject): string {
+  const serializer = {
+    serializeCompact(project: CircuitProject): string {
       if (!isFrozenSnapshot(project)) return serialize(project);
       const cached = texts.get(project);
       if (cached !== undefined) {
@@ -47,6 +50,9 @@ export function createProjectSnapshotSerializer(
       }
       return text;
     },
+    serializeReadable(project: CircuitProject): string {
+      return formatProjectFile(serializer.serializeCompact(project));
+    },
     /** Drop closed tabs and older snapshots when the live workspace is saved. */
     retain(projects: readonly CircuitProject[]): void {
       const live = new Set(projects);
@@ -55,4 +61,5 @@ export function createProjectSnapshotSerializer(
         if (!live.has(project)) remove(project);
     },
   };
+  return serializer;
 }

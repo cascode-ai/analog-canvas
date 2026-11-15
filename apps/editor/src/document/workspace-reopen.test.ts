@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import {
+  parseProject,
+  serializeCompactProject,
+  serializeProject,
+} from "@icm/project-protocol";
 import { createBrowserRecoveryStore } from "./browser-recovery-store";
 import { recoveryRecordOf } from "./recovery-coordinator";
 import {
@@ -287,13 +291,13 @@ describe("tabs with unsaved work survive Reopen tabs and a fresh page (#1599)", 
     ).toEqual([
       {
         projectName: "Alpha",
-        projectText: serializeProject(alpha),
+        projectText: serializeCompactProject(alpha),
         unsavedAtSnapshot: true,
         cloudBinding: { id: "cloud-alpha", revision: 4 },
       },
       {
         projectName: "Gamma",
-        projectText: serializeProject(gamma),
+        projectText: serializeCompactProject(gamma),
         unsavedAtSnapshot: true,
         cloudBinding: undefined,
       },

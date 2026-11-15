@@ -6,6 +6,7 @@ import {
   serializeProject,
   validateProject,
 } from "./index.js";
+import { legacyProjectFile } from "./legacy-project.test-support.js";
 
 function fixture() {
   const project = createEmptyProject("model", "Model");
@@ -62,11 +63,11 @@ describe("Model source persistence", () => {
       expect(parseProject(JSON.stringify(encoded)).modelSources).toEqual(
         project.modelSources,
       );
-      encoded.schemaVersion = 70;
-      expect(() => parseProject(JSON.stringify(encoded))).toThrow(/schema 71/);
-      delete encoded.modelSources[0].draft.authoring[0].artworkInitialized;
+      const legacy = legacyProjectFile(JSON.stringify(encoded), 70);
+      expect(() => parseProject(JSON.stringify(legacy))).toThrow(/schema 71/);
+      delete legacy.modelSources[0].draft.authoring[0].artworkInitialized;
       expect(
-        parseProject(JSON.stringify(encoded)).modelSources![0]!.draft!
+        parseProject(JSON.stringify(legacy)).modelSources![0]!.draft!
           .authoring![0]!.artworkText,
       ).toBe("");
     },
@@ -112,8 +113,7 @@ describe("Model source persistence", () => {
   });
   it("round trips a native Spectre owner and independently saved SPICE draft while retaining schema 66 compatibility", () => {
     const project = fixture();
-    const legacy = JSON.parse(serializeProject(project));
-    legacy.schemaVersion = 66;
+    const legacy = legacyProjectFile(serializeProject(project), 66);
     expect(parseProject(JSON.stringify(legacy)).modelSources).toEqual(
       project.modelSources,
     );

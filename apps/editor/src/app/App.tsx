@@ -849,7 +849,7 @@ function WorkspaceEditor({
     readSessionProject: readRecoveryProject,
     deleteSession: deleteRecoverySession,
   } = useRecoveryCoordinator(setStatus, {
-    serializeProject: snapshotSerializer.serialize,
+    serializeProject: snapshotSerializer.serializeCompact,
     // Every tab's copy is kept while the tab is open, not only the active
     // one's: a third edited tab once evicted the first one's unsaved work.
     openWorkingCopyIds: () => openWorkingCopyIdsRef.current(),
@@ -1340,7 +1340,7 @@ function WorkspaceEditor({
     openProjectFile,
     openCloudProjectById,
   } = useProjectFileLifecycle({
-    serializeSnapshot: snapshotSerializer.serialize,
+    serializeReadable: snapshotSerializer.serializeReadable,
     projectStore,
     ...(nativeProjectStore ? { nativeProjectStore } : {}),
     exportDelivery,
@@ -6679,7 +6679,7 @@ function WorkspaceEditor({
                 ) : (
                   <ProjectCodePanel
                     key={projectSessionId}
-                    serializeProject={snapshotSerializer.serialize}
+                    serializeProject={snapshotSerializer.serializeReadable}
                     draftDocument={projectCodeDraft.document}
                     project={project}
                     selection={{

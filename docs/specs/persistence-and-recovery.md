@@ -34,9 +34,9 @@ current schema before import or Cloud Save.
 
 Complete canonical Project text in an app-specific IndexedDB store, keyed by
 random `workingCopyId` plus `latest`/`previous` (never `projectId` alone).
-Retention and size limits (20 closed sessions, one closed copy per Project
-with unsaved copies yielding only to newer unsaved ones, 4 MB per record,
-12 MB total) live in `apps/editor/src/document/browser-recovery-contract.ts`.
+Retention bounds are 20 closed sessions and one closed copy per Project, with
+unsaved copies yielding only to newer unsaved ones. The 4 MiB per-record and
+12 MiB retention budgets count UTF-8 bytes of the stored Project text.
 
 Envelope `analog-canvas-browser-recovery-v2` is separate from the Project
 schema. Input is decoded structurally first; an unsupported schema classifies

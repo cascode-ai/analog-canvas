@@ -1,6 +1,6 @@
 // Project tabs and their sessions: what a tab captures and restores, how the
 // window's tabs are saved and reopened, and what holds the editor on a tab.
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import { parseProject, serializeCompactProject } from "@icm/project-protocol";
 import type { RnlAppearance } from "@icm/rnl";
 import type {
   AgentLocalProjectReceipt,
@@ -475,7 +475,7 @@ export function useProjectTabSessions({
       throw new Error("Incomplete tab session");
     if (saved.file.savedBaseline)
       saved.file.savedBaseline.project = parseProject(
-        serializeProject(saved.file.savedBaseline.project),
+        serializeCompactProject(saved.file.savedBaseline.project),
       );
     const session: TabSession = {
       ...saved,
@@ -589,7 +589,7 @@ export function useProjectTabSessions({
         if (cached?.project !== controller.project) {
           cached = {
             project: controller.project,
-            text: snapshotSerializer.serialize(controller.project),
+            text: snapshotSerializer.serializeCompact(controller.project),
           };
           workspaceTexts.current.set(id, cached);
         }
@@ -1104,8 +1104,8 @@ export function useProjectTabSessions({
         // Independent local and Cloud edits can share the same revision token.
         // Only the acknowledged content may lose its unsaved protection.
         const dirty =
-          snapshotSerializer.serialize(session.controller.project) !==
-          snapshotSerializer.serialize(renamed.project);
+          snapshotSerializer.serializeCompact(session.controller.project) !==
+          snapshotSerializer.serializeCompact(renamed.project);
         session.file = {
           ...session.file,
           cloudBinding: {

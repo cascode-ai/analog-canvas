@@ -604,6 +604,23 @@ export async function recoveryProjectTexts(page: Page): Promise<string> {
   return records.map((record) => record.projectText).join("\n");
 }
 
+export async function readRecoveredProjects(page: Page) {
+  const records = await readRecoveryRecords(page);
+  return records.map((record) => parseProject(record.projectText));
+}
+
+export async function expectRecoveredRevision(page: Page, revision: number) {
+  await expect
+    .poll(async () =>
+      (await readRecoveredProjects(page)).map(
+        (project) =>
+          project.documents.find((cell) => cell.id === project.topDocumentId)
+            ?.revision,
+      ),
+    )
+    .toContain(revision);
+}
+
 /** Wait until a browser recovery copy holds this text. */
 export async function expectRecovered(page: Page, text: string): Promise<void> {
   await expect.poll(() => recoveryProjectTexts(page)).toContain(text);

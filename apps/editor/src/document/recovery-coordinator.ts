@@ -24,7 +24,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   CURRENT_PROJECT_FILE_VERSION,
-  serializeProject,
+  serializeCompactProject,
 } from "@icm/project-protocol";
 import type { CircuitProject } from "@icm/model";
 
@@ -238,7 +238,7 @@ export function recoveryRecordOf(
   candidate: RecoveryCandidate,
   recordId: string,
   updatedAt: string,
-  serialize: (project: CircuitProject) => string = serializeProject,
+  serialize: (project: CircuitProject) => string = serializeCompactProject,
 ): BrowserRecoveryRecordV2 {
   const { project, session } = candidate;
   const documentRevisions: Record<string, number> = {};

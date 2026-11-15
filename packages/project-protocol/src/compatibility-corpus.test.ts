@@ -9,6 +9,7 @@ import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
 import {
   parseProject,
   canonicalConnectionIndexes,
+  serializeCompactProject,
   serializeProject,
   tryParseProjectWithMetadata,
 } from "./index.js";
@@ -53,6 +54,9 @@ function assertCurrentForm(serialized: string): void {
   const project = parseProject(serialized);
   expect(project.schemaVersion).toBe(CURRENT_MODEL_SCHEMA_VERSION);
   expect(serializeProject(project)).toBe(serialized);
+  const compact = serializeCompactProject(project);
+  expect(compact.trimEnd()).not.toContain("\n");
+  expect(serializeProject(parseProject(compact))).toBe(serialized);
   expect(serialized).not.toContain('"spice.');
   expect(serialized).not.toContain('"routeAttachment"');
 }
@@ -89,9 +93,8 @@ describe("supported Project compatibility corpus", () => {
       { name: "DATA<3:0>", signal: undefined },
       { name: "CLK,RESET", signal: undefined },
     ]);
-    expect(serializeProject(parseProject(serializeProject(project)))).toBe(
-      text,
-    );
+    const saved = serializeProject(project);
+    expect(serializeProject(parseProject(saved))).toBe(saved);
   });
 
   it("loads retained migration witnesses and saves canonical current Projects", () => {
