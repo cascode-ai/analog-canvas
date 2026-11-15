@@ -45,6 +45,8 @@ import {
 import {
   allIds,
   galleryProjectFormat,
+  galleryProjectFormatByDigest,
+  projectFormatWriterKey,
   labelLooksRead,
   labelLooksStore,
   moveStoredTestbenches,
@@ -921,6 +923,10 @@ export class GalleryDO {
         return schemaBackup(this.sql, this.backupEpoch, body);
       case "gallery-project-format":
         return galleryProjectFormat(this.sql, body);
+      case "gallery-project-format-digest":
+        return galleryProjectFormatByDigest(this.sql, body);
+      case "gallery-project-format-key":
+        return projectFormatWriterKey(this.sql, body);
       case "schema-converge":
         return schemaConverge(this.state, body.apply === true);
       case "schema-restore":

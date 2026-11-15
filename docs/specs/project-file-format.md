@@ -258,8 +258,11 @@ Optional fields by first schema (older envelopes cannot carry them):
   `POST /api/gallery/maintenance/project-format`
   `{table, id, originalProjectText, projectText}` for `galleryEntries` or
   `galleryEntryVersions`: literal original comparison, re-run conversion, 409
-  on a concurrent edit, idempotent, never Cloud Projects. Read back every row
-  before declaring done; a Worker rollback does not undo writes.
+  on a concurrent edit, idempotent, never Cloud Projects. On a regional
+  deployment each row (a version by its entry) migrates at its writer region,
+  which receives only SHA-256 digests of both texts; 503 `writer-unreachable`
+  names an unreachable writer. Read back every row before declaring done; a
+  Worker rollback does not undo writes.
 - `GET /api/gallery/maintenance/schema-backup` needs `table` (`inventory`,
   `galleryEntries`, `galleryEntryVersions`, `galleryLikes`, `cloudProjects`,
   `cloudProjectVersions`) and optional opaque `after`, one raw row per page.

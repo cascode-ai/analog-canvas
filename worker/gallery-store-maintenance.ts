@@ -70,63 +70,88 @@ export const GALLERY_NETLIST_PAGE_CHARACTERS = 8_000_000;
  * phase is one Durable Object transaction, so a failed record cannot leave
  * the three storage surfaces at mixed schema versions.
  */
-/** Bounded Gallery-only conversion. Never touch history retention or row metadata. */
-export function galleryProjectFormat(
-  sql: SqlStorage,
-  body: Record<string, unknown>,
-): Response {
-  const tables = {
-    galleryEntries: "gallery_entries",
-    galleryEntryVersions: "gallery_entry_versions",
-  } as const;
-  if (
-    typeof body.table !== "string" ||
-    !Object.hasOwn(tables, body.table) ||
-    typeof body.id !== "string" ||
-    !body.id ||
-    typeof body.originalProjectText !== "string" ||
-    typeof body.projectText !== "string" ||
-    Object.keys(body).some(
-      (key) =>
-        !["table", "id", "originalProjectText", "projectText"].includes(key),
-    ) ||
-    new TextEncoder().encode(body.projectText).length >
-      GALLERY_MAX_PROJECT_BYTES ||
-    new TextEncoder().encode(body.originalProjectText).length >
-      GALLERY_MAX_PROJECT_BYTES
-  )
-    return Response.json({ error: "invalid-request" }, { status: 400 });
-  const table = tables[body.table as keyof typeof tables];
-  const row = sql
-    .exec<StoredProjectRow>(
-      `SELECT id, schema_version, project_text FROM ${table} WHERE id = ?`,
-      body.id,
-    )
-    .toArray()[0];
-  if (!row) return Response.json({ error: "not-found" }, { status: 404 });
-  if (
-    row.project_text === body.projectText &&
-    row.schema_version === CURRENT_PROJECT_FILE_VERSION
-  )
-    return Response.json({
-      id: row.id,
-      changed: false,
-      schemaVersion: CURRENT_PROJECT_FILE_VERSION,
-    });
-  if (row.project_text !== body.originalProjectText)
-    return Response.json(
-      { error: "concurrent-change", id: row.id },
-      { status: 409 },
-    );
+const PROJECT_FORMAT_TABLES = {
+  galleryEntries: "gallery_entries",
+  galleryEntryVersions: "gallery_entry_versions",
+} as const;
+type ProjectFormatTable = keyof typeof PROJECT_FORMAT_TABLES;
+export interface ProjectFormatRequest {
+  table: ProjectFormatTable;
+  id: string;
+  originalProjectText: string;
+  projectText: string;
+}
+/** What a regional writer receives: digests of both texts, never Project text. */
+export interface ProjectFormatDigests {
+  table: ProjectFormatTable;
+  id: string;
+  originalSha256: string;
+  projectSha256: string;
+}
+const fields = (body: unknown, keys: string[]) =>
+  body &&
+  typeof body === "object" &&
+  !Array.isArray(body) &&
+  Object.keys(body).every((key) => keys.includes(key)) &&
+  Object.hasOwn(PROJECT_FORMAT_TABLES, String((body as any).table)) &&
+  typeof (body as any).id === "string" &&
+  (body as any).id.length > 0
+    ? (body as Record<string, unknown>)
+    : null;
+const withinLimit = (value: unknown) =>
+  typeof value === "string" &&
+  new TextEncoder().encode(value).length <= GALLERY_MAX_PROJECT_BYTES;
+const hex = (value: unknown) =>
+  typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+
+export function projectFormatRequest(
+  body: unknown,
+): ProjectFormatRequest | null {
+  const value = fields(body, [
+    "table",
+    "id",
+    "originalProjectText",
+    "projectText",
+  ]);
+  return value &&
+    withinLimit(value.originalProjectText) &&
+    withinLimit(value.projectText)
+    ? (value as unknown as ProjectFormatRequest)
+    : null;
+}
+
+export function projectFormatDigests(
+  body: unknown,
+): ProjectFormatDigests | null {
+  const value = fields(body, [
+    "table",
+    "id",
+    "originalSha256",
+    "projectSha256",
+  ]);
+  return value &&
+    String(value.id).length <= 200 &&
+    hex(value.originalSha256) &&
+    hex(value.projectSha256)
+    ? (value as unknown as ProjectFormatDigests)
+    : null;
+}
+
+/** The converted text, or the 422 refusal when `isTarget` rejects it. */
+function convertedProject(
+  text: string,
+  isTarget: (text: string) => boolean,
+): string | Response {
   try {
     // Independently reproduce the offline conversion. Clients cannot use this
     // maintenance operation to alter circuit content or submit arbitrary JSON.
-    const expected = serializeProject(parseProject(row.project_text));
+    const expected = serializeProject(parseProject(text));
     if (
-      expected !== body.projectText ||
+      !isTarget(expected) ||
       serializeProject(parseProject(expected)) !== expected
     )
       return Response.json({ error: "conversion-mismatch" }, { status: 422 });
+    return expected;
   } catch (error) {
     return Response.json(
       {
@@ -136,14 +161,74 @@ export function galleryProjectFormat(
       { status: 422 },
     );
   }
+}
+
+/** The 422 refusal when `projectText` is not the conversion of the original. */
+export function projectFormatRefusal(
+  request: ProjectFormatRequest,
+): Response | null {
+  const converted = convertedProject(
+    request.originalProjectText,
+    (text) => text === request.projectText,
+  );
+  return typeof converted === "string" ? null : converted;
+}
+
+/** A row's replication key: an entry's id, or a version's entry id (null when absent). */
+export function projectFormatWriterKey(
+  sql: SqlStorage,
+  body: Record<string, unknown>,
+): Response {
+  if (body.table === "galleryEntries" && typeof body.id === "string")
+    return Response.json({ key: body.id });
+  const row = sql
+    .exec<{ entry_id: string }>(
+      "SELECT entry_id FROM gallery_entry_versions WHERE id = ?",
+      String(body.id),
+    )
+    .toArray()[0];
+  return Response.json({ key: row?.entry_id ?? null });
+}
+
+function formatStoredProject(
+  sql: SqlStorage,
+  tableName: ProjectFormatTable,
+  id: string,
+  isOriginal: (text: string) => boolean,
+  isTarget: (text: string) => boolean,
+): Response {
+  const table = PROJECT_FORMAT_TABLES[tableName];
+  const row = sql
+    .exec<StoredProjectRow>(
+      `SELECT id, schema_version, project_text FROM ${table} WHERE id = ?`,
+      id,
+    )
+    .toArray()[0];
+  if (!row) return Response.json({ error: "not-found" }, { status: 404 });
+  if (
+    row.schema_version === CURRENT_PROJECT_FILE_VERSION &&
+    isTarget(row.project_text)
+  )
+    return Response.json({
+      id: row.id,
+      changed: false,
+      schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+    });
+  if (!isOriginal(row.project_text))
+    return Response.json(
+      { error: "concurrent-change", id: row.id },
+      { status: 409 },
+    );
+  const converted = convertedProject(row.project_text, isTarget);
+  if (typeof converted !== "string") return converted;
   // Synchronous DO operation: no await between compare and update. The SQL
   // predicate also protects against future refactors introducing an await.
   sql.exec(
     `UPDATE ${table} SET project_text = ?, schema_version = ? WHERE id = ? AND project_text = ?`,
-    body.projectText,
+    converted,
     CURRENT_PROJECT_FILE_VERSION,
-    body.id,
-    body.originalProjectText,
+    id,
+    row.project_text,
   );
   testbenchesMayBeInline(sql);
   return Response.json({
@@ -151,6 +236,40 @@ export function galleryProjectFormat(
     changed: true,
     schemaVersion: CURRENT_PROJECT_FILE_VERSION,
   });
+}
+
+/** Bounded Gallery-only conversion. Never touch history retention or row metadata. */
+export function galleryProjectFormat(
+  sql: SqlStorage,
+  body: Record<string, unknown>,
+): Response {
+  const request = projectFormatRequest(body);
+  if (!request)
+    return Response.json({ error: "invalid-request" }, { status: 400 });
+  return formatStoredProject(
+    sql,
+    request.table,
+    request.id,
+    (text) => text === request.originalProjectText,
+    (text) => text === request.projectText,
+  );
+}
+
+/** The writer region's half of a regional migration, compared by digest. */
+export function galleryProjectFormatByDigest(
+  sql: SqlStorage,
+  body: Record<string, unknown>,
+): Response {
+  const request = projectFormatDigests(body);
+  if (!request)
+    return Response.json({ error: "invalid-request" }, { status: 400 });
+  return formatStoredProject(
+    sql,
+    request.table,
+    request.id,
+    (text) => sha256Hex(text) === request.originalSha256,
+    (text) => sha256Hex(text) === request.projectSha256,
+  );
 }
 
 export function schemaConverge(
