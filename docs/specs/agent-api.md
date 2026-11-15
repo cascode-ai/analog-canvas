@@ -24,10 +24,12 @@ not Document state or an operation.
 
 - `capabilities` reports operations, permissions, edit kinds,
   `commandKinds`, `transactionForms`, resource capabilities and server limits.
-  Requests are bounded by bytes (`maxRequestBytes`), never by a count of
-  edits, actions, wires, parts or selected objects; a transaction of any size
-  commits once, as one undo. `maxTransactionEdits` stays reported (256) for
-  clients that read it and is not enforced.
+  Requests are bounded by bytes (`maxRequestBytes`) and the
+  [Edit Engine transaction ceiling](edit-engine.md#operations-and-state-transitions),
+  never by a smaller Agent count of edits, actions, wires, parts or selected
+  objects; an accepted transaction commits once, as one undo.
+  `maxTransactionEdits` stays reported (256) for clients that read it and is
+  not enforced.
 - `snapshot` returns one complete read-only Document plus the bounded Project
   index (with `structureRevision`).
 - `render` returns a bounded formal or diagnostics SVG.

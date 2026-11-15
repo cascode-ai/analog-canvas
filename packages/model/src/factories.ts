@@ -56,6 +56,13 @@ export function createCellDocument(
   return child;
 }
 
+/** The Symbol Library every current Project locks (packages/components/catalog.json). */
+export const CURRENT_SYMBOL_LIBRARY_LOCK = Object.freeze({
+  id: "razavi-symbols",
+  version: "1",
+  hash: "razavi-reference-v1",
+});
+
 export function createEmptyProject(
   id: string,
   name: string,
@@ -71,11 +78,7 @@ export function createEmptyProject(
       sourcePolicy: "copy",
       files: [],
     },
-    symbolLibrary: {
-      id: "razavi-symbols",
-      version: "1",
-      hash: "razavi-reference-v1",
-    },
+    symbolLibrary: { ...CURRENT_SYMBOL_LIBRARY_LOCK },
     structureRevision: 0,
     topDocumentId: documentId,
     documents: [createEmptyDocument(documentId, "dut")],

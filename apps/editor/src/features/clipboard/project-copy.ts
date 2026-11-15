@@ -718,7 +718,8 @@ export function prepareProjectCopy(
     const symbolIds = new Map<string, string>();
     for (const rawDefinition of context.componentDefinitions) {
       const definition = ComponentDefinitionSchema.parse(rawDefinition);
-      // Cell/external symbols are regenerated from their imported interfaces.
+      // Cell and external symbols follow their imported owners: Cell import
+      // keeps a saved Cell drawing while its interface holds.
       if (definition.generatedFrom || definition.circuitBinding) continue;
       const originalId = definition.symbol.id;
       let id = originalId;
@@ -866,8 +867,17 @@ export function prepareProjectCopy(
             sourceId,
           );
           source.documents = structuredClone(context.documents);
+          // A copied Cell keeps its saved generated drawing while its
+          // interface is unchanged; Cell import decides, per Cell.
+          const generated = (context.componentDefinitions ?? []).filter(
+            (d) => d.generatedFrom && !d.circuitBinding,
+          );
+          const generatedIds = new Set(generated.map((d) => d.symbol.id));
           source.componentDefinitions = [
-            ...(componentDefinitions ?? []).filter((d) => !d.circuitBinding),
+            ...(componentDefinitions ?? []).filter(
+              (d) => !d.circuitBinding && !generatedIds.has(d.symbol.id),
+            ),
+            ...generated,
             ...(context.componentDefinitions ?? []).filter(
               (d) => d.circuitBinding,
             ),

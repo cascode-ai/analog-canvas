@@ -46,6 +46,7 @@ import { repairAmplifierPolaritySnapshots } from "./transforms/amplifier-polarit
 import { repairSupplyPinSnapshots } from "./transforms/supply-pins.js";
 import { repairAdcBodySnapshots } from "./transforms/adc-body.js";
 import { repairSymbolBodySnapshots } from "./transforms/symbol-body.js";
+import { upgradeRetiredSymbolLibraryLock } from "./transforms/symbol-library-lock.js";
 import { rejectClosedBodyGeometry } from "./closed-body-envelope.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
@@ -530,6 +531,9 @@ export function tryParseProjectWithMetadata(
   // author, a file that is gone.
   // SPICE invocation prefixes belong to export, never to file loading.
   current = repairBoundFormatOverrides(current);
+  const relocked = upgradeRetiredSymbolLibraryLock(current);
+  const lockMigrated = relocked !== current;
+  current = relocked;
   const validated = tryValidateProject(current);
   if (!validated.ok) return validated;
   // A Var Cap bound to the SKY130 varactor (#1298) could be neither wired nor
@@ -594,7 +598,7 @@ export function tryParseProjectWithMetadata(
     ok: true,
     project,
     sourceSchemaVersion,
-    migrated: migrated || validated.migrated,
+    migrated: migrated || lockMigrated || validated.migrated,
   };
 }
 

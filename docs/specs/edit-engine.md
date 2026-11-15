@@ -27,6 +27,9 @@ schema → document identity → revision → preflight → candidate apply
   original Document and revision; a commit advances revision exactly once; a
   dry run returns a proposed revision and deterministic diff without change.
   `STALE_REVISION`, `DOCUMENT_MISMATCH` and validation errors are typed.
+- A Schematic transaction holds 1–8192 edits, a denial-of-service ceiling
+  sized so a whole Gallery drawing inserts as one placement; a Project
+  transaction holds at most 256 edits.
 - Every page Point is validated against the Document grid, enumerated per
   edit kind (derived/symbol geometry is never a mutation coordinate). Off-grid
   values reject atomically with their path; nothing is silently snapped.

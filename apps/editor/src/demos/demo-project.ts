@@ -1,4 +1,8 @@
-import { CURRENT_MODEL_SCHEMA_VERSION, CircuitProjectSchema } from "@icm/model";
+import {
+  CURRENT_MODEL_SCHEMA_VERSION,
+  CURRENT_SYMBOL_LIBRARY_LOCK,
+  CircuitProjectSchema,
+} from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 
 const demoProject = CircuitProjectSchema.parse({
@@ -11,11 +15,7 @@ const demoProject = CircuitProjectSchema.parse({
     sourcePolicy: "copy",
     files: [],
   },
-  symbolLibrary: {
-    id: "razavi-symbols",
-    version: "1",
-    hash: "razavi-reference-v1",
-  },
+  symbolLibrary: { ...CURRENT_SYMBOL_LIBRARY_LOCK },
   structureRevision: 0,
   topDocumentId: "document-main",
   documents: [

@@ -560,9 +560,9 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
 ]);
 
 // Whole-document Gallery placement compiles one bounded edit per imported
-// object. Dense but legitimate circuits can exceed 256 edits, so keep a
-// deliberate denial-of-service ceiling while allowing current library scenes.
-export const MAX_SCHEMATIC_EDITS_PER_TRANSACTION = 1024;
+// object; published scenes already need about 1,850. A deliberate
+// denial-of-service ceiling (docs/specs/edit-engine.md).
+export const MAX_SCHEMATIC_EDITS_PER_TRANSACTION = 8192;
 
 export const EditTransactionSchema = z.strictObject({
   transactionId: StableIdSchema,

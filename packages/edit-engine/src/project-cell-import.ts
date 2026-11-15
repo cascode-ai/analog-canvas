@@ -1,13 +1,17 @@
 import {
   CircuitProjectSchema,
   deriveStableId,
+  SymbolDefinitionSchema,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
 import { bindsProjectCell, resolveReviewedExternalBinding } from "@icm/devices";
 import {
   externalSubcircuitSymbolId,
+  builtInSymbols,
+  createProjectSymbolResolver,
   hierarchicalSymbolId,
+  projectSymbolSources,
   resolvePdkSymbolMappingForTerminalOrder,
 } from "@icm/symbols";
 
@@ -59,16 +63,20 @@ const ID_VALUE_KEYS = new Set([
   "fileId",
   "id",
   "instanceId",
+  "interfaceAnnotationId",
   "junctionId",
   "legId",
   "memberId",
   "startMemberId",
   "endMemberId",
+  "negativeNetId",
   "netId",
   "nmosNetId",
   "objectId",
   "pmosNetId",
+  "positiveNetId",
   "routeId",
+  "sensorInstanceId",
   "sourceNetId",
   "terminalId",
 ]);
@@ -190,6 +198,75 @@ function importedCellNames(
     names.set(document.id, candidate);
   }
   return names;
+}
+
+/**
+ * The saved generated drawing of each imported Cell whose interface is
+ * unchanged. A stable interface keeps its captured artwork instead of being
+ * redrawn by whichever generator the destination ships (spec: Included
+ * component definitions); a Cell renamed on import, or whose captured
+ * drawing no longer matches its interface, is redrawn as before.
+ */
+function keptGeneratedArtwork(
+  source: CircuitProject,
+  destination: CircuitProject,
+  closure: readonly SchematicDocument[],
+  importedDocuments: readonly SchematicDocument[],
+  identifierMap: ReadonlyMap<string, string>,
+  memberIds: CopiedMemberIds,
+): ProjectStructureEdit[] {
+  const expectedTop = importedDocuments[0]!.id;
+  const expected = projectSymbolSources({
+    documents: [...importedDocuments],
+    topDocumentId: expectedTop,
+  });
+  let today: ReturnType<typeof createProjectSymbolResolver> | undefined;
+  const edits: ProjectStructureEdit[] = [];
+  for (const child of closure) {
+    if (!child.netlist) continue;
+    const symbolId = hierarchicalSymbolId(child.netlist.name);
+    const captured = source.componentDefinitions?.find(
+      (component) =>
+        component.symbol.id === symbolId &&
+        component.generatedFrom &&
+        !component.circuitBinding,
+    );
+    if (!captured?.generatedFrom || !expected.has(symbolId)) continue;
+    const generatedFrom = remapImportedIdentifierValues(
+      captured.generatedFrom,
+      identifierMap,
+    );
+    if (
+      JSON.stringify(generatedFrom) !== JSON.stringify(expected.get(symbolId))
+    )
+      continue;
+    // A destination that already holds this symbol (an earlier Cell of the
+    // same copy shares it) keeps what it has.
+    if (
+      destination.componentDefinitions?.some(
+        (component) => component.symbol.id === symbolId,
+      )
+    )
+      continue;
+    const copy = {
+      ...copyCallerArtwork(captured, child, memberIds, { keepSymbolId: true }),
+      generatedFrom,
+    } as typeof captured;
+    // A drawing today's generator reproduces needs no capture edit.
+    today ??= createProjectSymbolResolver(
+      { documents: [...importedDocuments], topDocumentId: expectedTop },
+      builtInSymbols,
+    );
+    const regenerated = today.resolve(symbolId)?.definition;
+    if (
+      regenerated &&
+      JSON.stringify(SymbolDefinitionSchema.parse(regenerated)) ===
+        JSON.stringify(SymbolDefinitionSchema.parse(copy.symbol))
+    )
+      continue;
+    edits.push({ kind: "capture_component_definition", definition: copy });
+  }
+  return edits;
 }
 
 /**
@@ -404,6 +481,16 @@ export function planProjectCellImport(
     }
     return remapped;
   });
+  artworkEdits.push(
+    ...keptGeneratedArtwork(
+      source,
+      destination,
+      closure,
+      importedDocuments,
+      identifierMap,
+      memberIds,
+    ),
+  );
   const rootDocumentId = identifierMap.get(sourceDocumentId)!;
   if (options.sharedSnapshot)
     for (const document of importedDocuments) {
