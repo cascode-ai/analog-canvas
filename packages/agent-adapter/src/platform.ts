@@ -90,25 +90,23 @@ export function base64EncodeBytes(bytes: Uint8Array): string {
 
 /** Decode canonical base64 without Node or browser-only globals. */
 export function base64DecodeBytes(value: string): Uint8Array | null {
-  if (
-    value.length === 0 ||
-    value.length % 4 !== 0 ||
-    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(
-      value,
-    )
-  ) {
-    return null;
-  }
+  if (value.length === 0 || value.length % 4 !== 0) return null;
   const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+  const contentLength = value.length - padding;
   const bytes = new Uint8Array((value.length / 4) * 3 - padding);
   let offset = 0;
+  // Validate while decoding so a large valid file does not exhaust the stack.
   for (let index = 0; index < value.length; index += 4) {
     const a = BASE64_ALPHABET.indexOf(value[index]!);
     const b = BASE64_ALPHABET.indexOf(value[index + 1]!);
     const c =
-      value[index + 2] === "=" ? 0 : BASE64_ALPHABET.indexOf(value[index + 2]!);
+      index + 2 < contentLength
+        ? BASE64_ALPHABET.indexOf(value[index + 2]!)
+        : 0;
     const d =
-      value[index + 3] === "=" ? 0 : BASE64_ALPHABET.indexOf(value[index + 3]!);
+      index + 3 < contentLength
+        ? BASE64_ALPHABET.indexOf(value[index + 3]!)
+        : 0;
     if (a < 0 || b < 0 || c < 0 || d < 0) return null;
     const packed = (a << 18) | (b << 12) | (c << 6) | d;
     if (offset < bytes.length) bytes[offset++] = packed >> 16;
