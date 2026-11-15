@@ -8361,3 +8361,278 @@ describe("RNL 0.4: what the export no longer leaves out", () => {
     );
   });
 });
+
+describe("RNL 0.4: arrows at any angle and the kinds of devices", () => {
+  /** simulation-rc with its two first wires run slanted through a bend. */
+  function slantedRc() {
+    const project = example("simulation-rc");
+    const document = project.documents.find(
+      (item) => item.id === project.topDocumentId,
+    )!;
+    const [first, second] = document.routes as [RouteBranch, RouteBranch];
+    // Each one 45° leg (a route marker stands on a leg at an eighth of a
+    // turn) and one level.
+    for (const [route, x, y] of [
+      [first, 130, 160],
+      [second, 250, 160],
+    ] as const) {
+      const bend = route.legs[0]!.to;
+      if (bend.kind !== "bend") throw new Error("expected a bend");
+      bend.position = { x, y };
+    }
+    first.styleOverride = { arrow: "middle" };
+    second.styleOverride = { arrow: "end" };
+    document.annotations.push({
+      id: "current",
+      kind: "route-marker",
+      content: { runs: [{ kind: "text", value: "I1" }] },
+      anchor: {
+        kind: "route",
+        routeId: first.id,
+        legId: first.legs[0]!.id,
+        t: 0.5,
+        normalOffset: -14,
+        direction: "forward",
+        orientation: "follow",
+        fallbackPosition: { x: 0, y: 0 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+      markerKind: "current",
+    });
+    return { project, document };
+  }
+
+  it.each(["spice", "spectre"] as const)(
+    "writes arrows on slanted wires as annotations of the arrow symbol, and reads them back (%s)",
+    async (format) => {
+      const { project, document } = slantedRc();
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      expect(
+        exported.diagnostics
+          .map((item) => item.code)
+          .filter((code) =>
+            ["RNL_WIRE_ARROW", "RNL_TEXT_TILTED"].includes(code),
+          ),
+      ).toEqual([]);
+      const annotations = exported.request.ops.filter(
+        (op) => op.op === "add-annotation",
+      );
+      expect(annotations).toHaveLength(3);
+      for (const op of annotations) {
+        expect(op).toMatchObject({ source: "$ARROW_SYMBOL" });
+        expect((op as { rotate: number }).rotate % 90).not.toBe(0);
+      }
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      expect(written.text).toMatch(
+        /@ANNOTATION\(rotate=[\d.]+\) \$ARROW_SYMBOL/u,
+      );
+      expect(
+        written.document.diagnostics.filter(
+          (item) => item.severity === "error",
+        ),
+      ).toEqual([]);
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      expect(plan.diagnostics.map((item) => item.code)).not.toContain(
+        "RNL_IMPORT_MARK_SKIPPED",
+      );
+      const cell = plan.project.documents.find(
+        (item) => item.netlist?.name === document.netlist?.name,
+      )!;
+      expect(
+        cell.routes.map((route) => route.styleOverride?.arrow).filter(Boolean),
+      ).toEqual(["middle", "end"]);
+      expect(
+        cell.annotations.find((item) => item.kind === "route-marker"),
+      ).toMatchObject({
+        markerKind: "current",
+        content: { runs: [{ kind: "text", value: "I1" }] },
+        anchor: {
+          t: 0.5,
+          normalOffset: -14,
+          direction: "forward",
+          orientation: "follow",
+        },
+      });
+      // The marker's label where it was drawn, as large and as turned.
+      const markers = (circuit: CircuitProject) =>
+        labelCensus(circuit).filter((label) => label.kind === "route-marker");
+      expect(markers(plan.project)).toEqual(markers(project));
+    },
+  );
+
+  it("reads another tool's arrow annotation on a slanted wire as that wire's direction arrow", async () => {
+    // The head's tip on the wire's middle, half a head (0.4) ahead of its
+    // point, along the wire from (0, 4) to (4, 0): turned 315°.
+    const back = 0.4 / Math.SQRT2;
+    const text = [
+      "* slanted arrow",
+      '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-basic", version="0.4") }',
+      "R1 0 a 1k",
+      "R2 a 0 1k",
+      "* @RNL {",
+      '*   #R1 @SET-SYMBOL $RESISTOR => @PLACE(0, 6) => @ORIENT("R0");',
+      '*   #R2 @SET-SYMBOL $RESISTOR => @PLACE(4, -2) => @ORIENT("R0");',
+      '*   &a @WIRE(mode="straight") {#R1:2 #R2:1};',
+      `*   (${2 - back}, ${2 + back}) @ANNOTATION(rotate=315) $ARROW_SYMBOL`,
+      "* }",
+      ".end",
+      "",
+    ].join("\n");
+    const plan = await importRnl(text, "spice");
+    expect(failures(plan)).toEqual([]);
+    expect(plan.diagnostics.map((item) => item.code)).not.toContain(
+      "RNL_IMPORT_MARK_SKIPPED",
+    );
+    const routes = plan.project.documents.flatMap(
+      (document) => document.routes,
+    );
+    expect(routes).toHaveLength(1);
+    expect(routes[0]!.styleOverride?.arrow).toBe("middle");
+  });
+
+  it.each(["spice", "spectre"] as const)(
+    "declares the kind of each device whose model or subcircuit the file does not ship (%s)",
+    async (format) => {
+      const project = prepareNetlistExample(
+        example("simulation-common-source"),
+        createDefaultNetlistExportPreferences().profiles.sky130,
+      );
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      // A SKY130 MOSFET is an X call of a subcircuit of the PDK, which the
+      // file includes and does not hold.
+      expect(
+        exported.request.ops.filter((op) => op.op === "declare-device"),
+      ).toEqual([
+        expect.objectContaining({
+          model: "sky130_fd_pr__nfet_01v8",
+          terminals: ["d", "g", "s", "b"],
+          type: "nmos",
+        }),
+      ]);
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      expect(written.text).toContain(
+        '@DEVICE(model="sky130_fd_pr__nfet_01v8", terminals=["d", "g", "s", "b"], type="nmos")',
+      );
+      expect(
+        written.document.diagnostics.filter(
+          (item) => item.severity === "error",
+        ),
+      ).toEqual([]);
+      const plan = await importRnl(written.text, format);
+      expect(failures(plan)).toEqual([]);
+      const netlist = (circuit: CircuitProject) => {
+        const result = createDesignNetlistExport(circuit, { format });
+        return result.status === "ready" ? result.file.text : result.status;
+      };
+      expect(netlist(plan.project)).toBe(netlist(project));
+    },
+  );
+
+  it.each(["spice", "spectre"] as const)(
+    "declares a model no card declares by its kind, and none the file ships (%s)",
+    (format) => {
+      const project = createEmptyProject("models", "Models", "dut");
+      const document = project.documents[0]!;
+      document.netlist!.name = "dut";
+      for (const [id, symbolId, model, x] of [
+        ["MN1", "nmos", "DN", 200],
+        ["MP1", "pmos", "DP", 400],
+      ] as const) {
+        document.instances.push({
+          id,
+          reference: id,
+          symbolId,
+          placement: { position: { x, y: 200 }, rotation: 0, mirror: "none" },
+          netlist: {
+            binding: { kind: "model", deviceClass: "mos", name: model },
+            parameters: { w: "1u", l: "1u" },
+          },
+        });
+        for (const pinName of ["D", "G", "S", "B"])
+          document.noConnects.push({
+            id: `${id}${pinName}`,
+            endpoint: { kind: "terminal", instanceId: id, pinName },
+          });
+      }
+      const exported = createRnlExport(project, { format });
+      if (exported.status !== "ready") throw new Error("export blocked");
+      // An M card's letter names its terminals; a Spectre instance of a
+      // model no file holds needs them named.
+      expect(
+        exported.request.ops.filter((op) => op.op === "declare-device"),
+      ).toEqual([
+        expect.objectContaining({ model: "DN", type: "nmos" }),
+        expect.objectContaining({ model: "DP", type: "pmos" }),
+      ]);
+      // The same circuit with its model cards declares nothing.
+      const shipped = example("simulation-common-source");
+      const own = createRnlExport(shipped, { format });
+      if (own.status !== "ready") throw new Error("export blocked");
+      for (const op of own.request.ops)
+        if (op.op === "declare-device")
+          expect(own.request.netlist.toLowerCase()).not.toMatch(
+            new RegExp(
+              `^\\s*\\.?(model|subckt)\\s+${op.model!.toLowerCase()}\\b`,
+              "mu",
+            ),
+          );
+    },
+  );
+
+  it("types a part another tool's file declares the kind of, whose model no card declares", async () => {
+    // M1 calls a model no card declares and is drawn with no symbol of its
+    // own: the standard series draws it as the type the file declares,
+    // which the import reads it by. Undeclared, nothing types it.
+    const text = (device: string) =>
+      [
+        "* declared device",
+        '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4");',
+        `* ${device} }`,
+        "M1 d g 0 0 nch w=1u l=1u",
+        "R1 d 0 1k",
+        "V1 g 0 1",
+        "* @RNL { #M1 @PLACE(0, 0); #R1 @PLACE(10, 0); #V1 @PLACE(-10, 0) }",
+        ".end",
+        "",
+      ].join("\n");
+    const plan = await importRnl(
+      text('@DEVICE(model="nch", type="nmos")'),
+      "spice",
+    );
+    expect(failures(plan)).toEqual([]);
+    const part = plan.project.documents
+      .flatMap((document) => document.instances)
+      .find((instance) => instance.reference === "M1")!;
+    expect(part.symbolId).toBe("nmos");
+    const undeclared = await planRnlImport({
+      inputs: [
+        {
+          path: "circuit.sp",
+          bytes: new TextEncoder().encode(
+            text('@USE-PACKAGE(name="rnl-std-basic", version="0.4")'),
+          ),
+        },
+      ],
+      entryPath: "circuit.sp",
+      runtime,
+    });
+    expect(
+      undeclared.status === "ready"
+        ? undeclared.project.documents
+            .flatMap((document) => document.instances)
+            .find((instance) => instance.reference === "M1")?.symbolId
+        : undefined,
+    ).not.toBe("nmos");
+  });
+});

@@ -140,6 +140,7 @@ export function createRnlExport(
     result.ir!,
     options.format,
     rootAsTopLevel,
+    result.file.text,
   );
   const printed = new Set(result.ir!.cells.map((cell) => cell.id));
   const left = project.documents.filter(

@@ -80,6 +80,7 @@ import {
   RNL_SYMBOLS,
   rnlSymbolFor,
   rnlSymbolForPart,
+  symbolModelType,
   terminalOfPin,
   type RnlSymbol,
 } from "./symbol-map.js";
@@ -174,6 +175,8 @@ export function rnlExportOps(
   format: NetlistFormat = "spice",
   /** The top is printed as the file's own cards, and drawn at the file level. */
   rootAsTopLevel = false,
+  /** The netlist as printed: the models and subcircuits it ships. */
+  netlist?: string,
 ): { ops: RnlOp[]; diagnostics: RnlExportDiagnostic[] } {
   const ops: RnlOp[] = [];
   const diagnostics: RnlExportDiagnostic[] = [];
@@ -243,6 +246,13 @@ export function rnlExportOps(
     name,
     version: name === CANVAS_PACKAGE ? CANVAS_PACKAGE_VERSION : RNL_STD_VERSION,
   }));
+  if (netlist !== undefined)
+    header.push(
+      ...deviceDeclarations(project, ir, netlist).map((device) => ({
+        level: top ? `subckt:${top.name}` : "",
+        ...device,
+      })),
+    );
   const fileSymbols: RnlOp[] = [...blocks.externals.values()].map((symbol) => ({
     level: "file",
     op: "define-symbol",
@@ -275,6 +285,82 @@ export function rnlExportOps(
       ...inlineRnlDefinition(row),
     });
   return { ops: [...header, ...fileSymbols, ...ops], diagnostics };
+}
+
+/**
+ * The kind of each device the netlist calls a model or subcircuit of that
+ * the file does not ship (a PDK's MOSFET, bipolar transistor or diode), as
+ * Analog Canvas knows it from the part's symbol: one `@DEVICE` of the header
+ * per such master (6.12), with its type and, for a call whose terminals its
+ * card does not name (`X`), their names, where every part calling it says
+ * the same. Meaning only: readers type the instances by it.
+ */
+function deviceDeclarations(
+  project: CircuitProject,
+  ir: DesignNetlistIR,
+  netlist: string,
+): Extract<Op, { op: "declare-device" }>[] {
+  const shipped = new Set(
+    netlist.split(/\r?\n/u).flatMap((line) => {
+      const found =
+        /^\s*\.?(?:model|subckt|inline\s+subckt)\s+([^\s(]+)/iu.exec(line);
+      return found ? [found[1]!.toLowerCase()] : [];
+    }),
+  );
+  const found = new Map<
+    string,
+    { model: string; type: string | null; terminals: string[] | null }
+  >();
+  for (const cell of ir.cells) {
+    if (cell.origin === "generated-model") continue;
+    const document = project.documents.find((item) => item.id === cell.id);
+    for (const call of cell.instances) {
+      const model = call.target;
+      if (!model || shipped.has(model.toLowerCase())) continue;
+      const instance = document?.instances.find((item) => item.id === call.id);
+      const type = instance
+        ? symbolModelType(instance.symbolId, project)
+        : undefined;
+      if (!instance || !type) continue;
+      // An X card names its terminals as its subcircuit's ports, which the
+      // file does not hold: by the symbol's terminal at each position, where
+      // the call prints each pin at its own.
+      const row = rnlSymbolForPart(instance, project);
+      const terminals =
+        call.invocationKind === "subcircuit" &&
+        row &&
+        call.nodes.length <= row.terminals.length &&
+        row.pins.every(
+          (pin) =>
+            pin.terminal > call.nodes.length ||
+            (call.nodes[pin.terminal - 1]?.canvasPinName ??
+              call.nodes[pin.terminal - 1]?.pinName) === pin.acPin,
+        )
+          ? call.nodes.map((_, index) => row.terminals[index]!.name)
+          : null;
+      const key = model.toLowerCase();
+      const before = found.get(key);
+      if (!before) {
+        found.set(key, { model, type, terminals });
+        continue;
+      }
+      if (before.type !== type) before.type = null;
+      if (before.terminals?.join(" ") !== terminals?.join(" "))
+        before.terminals = null;
+    }
+  }
+  return [...found.values()].flatMap(({ model, type, terminals }) =>
+    type
+      ? [
+          {
+            op: "declare-device" as const,
+            model,
+            ...(terminals ? { terminals } : {}),
+            type,
+          },
+        ]
+      : [],
+  );
 }
 
 interface ExportContext {
@@ -1216,20 +1302,14 @@ function exportCell(
       report(
         "warning",
         "RNL_WIRE_ARROW",
-        `Wire ${route.id} shows a direction arrow on a slanted run, which RNL cannot turn to`,
+        `Wire ${route.id} shows a direction arrow on a run of no length, which RNL cannot turn to`,
         [route.id],
       );
       continue;
     }
-    ops.push({
-      level,
-      op: "add-usage",
-      name: nextName("arrow"),
-      definition: "$ARROW",
-      attach: { at: arrow.at },
-      at: arrow.at,
-      orient: arrow.orient,
-    });
+    ops.push(
+      arrowHead(level, nextName("arrow"), arrow.at, arrow.rotate, "$ARROW"),
+    );
   }
 
   // Contacts: things that touch are joined by a wire of no length, since RNL
@@ -1293,16 +1373,16 @@ function exportCell(
 }
 
 /**
- * Where the arrow usage of a wire's direction arrow goes, and how it turns:
+ * Where the arrow head of a wire's direction arrow goes, and how it turns:
  * Analog Canvas puts the head's tip at the middle or the end of the wire's
  * run, on the segment it reaches there, and the arrow symbol is centred on
- * its point, its tip half a head ahead. Null on a slanted segment.
+ * its point, its tip half a head ahead. Null on a run of no length.
  */
 function wireArrow(
   centerline: readonly { x: number; y: number }[],
   placement: "middle" | "end",
   headLength: number,
-): { at: RnlPoint; orient: RnlOrient } | null {
+): { at: RnlPoint; rotate: number } | null {
   const segments = centerline.slice(1).flatMap((to, index) => {
     const from = centerline[index]!;
     const length = Math.hypot(to.x - from.x, to.y - from.y);
@@ -1324,24 +1404,56 @@ function wireArrow(
   const along = Math.min(segment.length, Math.max(0, target - before));
   const ux = (segment.to.x - segment.from.x) / segment.length;
   const uy = (segment.to.y - segment.from.y) / segment.length;
-  const orient: RnlOrient | null =
-    ux === 1
-      ? "R0"
-      : ux === -1
-        ? "R180"
-        : uy === -1
-          ? "R90"
-          : uy === 1
-            ? "R270"
-            : null;
-  if (!orient) return null;
   const back = along - headLength / 2;
   return {
     at: toRnlPoint({
       x: segment.from.x + ux * back,
       y: segment.from.y + uy * back,
     }),
-    orient,
+    // Counter-clockwise, y up (RNL's axes).
+    rotate: turnOf(Math.atan2(-uy, ux)),
+  };
+}
+
+/** An angle in radians as RNL's turn in degrees, from 0 below 360. */
+function turnOf(radians: number): number {
+  const degrees = ((((radians * 180) / Math.PI) % 360) + 360) % 360;
+  const rounded = Math.round(degrees * 1e6) / 1e6 + 0;
+  return rounded === 360 ? 0 : rounded;
+}
+
+/**
+ * An arrow head on a point: at a quarter turn a mark of `definition` turned
+ * by its orientation (`$ARROW`, `$CURRENT_ARROW` drawn with the full-size
+ * `$ARROW_SYMBOL`), at any other angle the arrow symbol's graphics as an
+ * annotation turned to it (13.5), named as the mark would be, which draws
+ * nothing else and means nothing.
+ */
+function arrowHead(
+  level: string,
+  name: string,
+  at: RnlPoint,
+  rotate: number,
+  definition: "$ARROW" | "$CURRENT_ARROW",
+): RnlOp {
+  if (rotate % 90 !== 0)
+    return {
+      level,
+      op: "add-annotation",
+      name,
+      source: "$ARROW_SYMBOL",
+      at,
+      rotate,
+    };
+  return {
+    level,
+    op: "add-usage",
+    name,
+    definition,
+    attach: definition === "$ARROW" ? { at } : { p: at },
+    ...(definition === "$CURRENT_ARROW" ? { symbol: "$ARROW_SYMBOL" } : {}),
+    at,
+    orient: `R${rotate}` as RnlOrient,
   };
 }
 
@@ -1353,12 +1465,6 @@ const rnlSize = (fontSize: number) =>
 function textTurn(rotation: number): number {
   const turn = (((360 - rotation) % 360) + 360) % 360;
   return Math.round(turn * 1e6) / 1e6 + 0;
-}
-
-/** A mark's counter-clockwise quarter turn (`ORIENT`, 14.8), or null. */
-function quarterTurn(rotation: number): 0 | 90 | 180 | 270 | null {
-  const turn = textTurn(rotation);
-  return turn % 90 === 0 ? (turn as 0 | 90 | 180 | 270) : null;
 }
 
 function annotationFontSize(
@@ -1428,7 +1534,6 @@ function exportTexts(
   const alongWires: StableId[] = [];
   const formulas: StableId[] = [];
   const tilted: StableId[] = [];
-  const slanted: StableId[] = [];
   const drawings: StableId[] = [];
   // Each bound label says what it shows, so the import binds it again; a
   // label without one holds its own text. Two labels of one part with the
@@ -1556,30 +1661,26 @@ function exportTexts(
       const marker = routeMarkerPlacement(annotation, shown, routing);
       const markerProfile = objectStyleProfile(profile, annotation);
       if (annotation.markerKind === "current") {
-        // The arrow's head alone, on the wire that is its shaft (15.2); the
-        // label stands centred beside it, level.
-        const turn = quarterTurn(marker.rotation);
-        let name: string | undefined;
-        if (turn === null) slanted.push(annotation.id);
-        else {
-          // The full-size head Analog Canvas draws, which the standard
-          // rule draws at half size; placed on its point (12.1).
-          name = nextName("current");
-          ops.push({
-            level,
-            op: "add-usage",
-            name,
-            definition: "$CURRENT_ARROW",
-            attach: { p: toRnlPoint(marker.position) },
-            symbol: "$ARROW_SYMBOL",
-            at: toRnlPoint(marker.position),
-            orient: `R${turn}` as RnlOrient,
-          });
-        }
+        // The arrow's head alone, on the wire that is its shaft (15.2), the
+        // full-size head Analog Canvas draws (the standard rule draws it at
+        // half size); the label stands centred beside it, level, as Analog
+        // Canvas draws it. At any other than a quarter turn the head is an
+        // annotation, which a text cannot hang on: the label is named for it.
+        const name = nextName("current");
+        const rotate = textTurn(marker.rotation);
+        const head = arrowHead(
+          level,
+          name,
+          toRnlPoint(marker.position),
+          rotate,
+          "$CURRENT_ARROW",
+        );
+        ops.push(head);
+        const onAnnotation = head.op === "add-annotation";
         write(annotation.id, text, 0, {
           ...common,
           halign: "middle",
-          ...(name ? { attach: name } : {}),
+          ...(onAnnotation ? { name: `${name}_label` } : { attach: name }),
           at: toRnlPoint(marker.labelPosition),
         });
         continue;
@@ -1906,11 +2007,6 @@ function exportTexts(
     "RNL_TEXT_TILTED",
     tilted,
     "drawing texts are written at the turn Analog Canvas keeps for their layout, whose glyphs it draws level",
-  );
-  say(
-    "RNL_TEXT_TILTED",
-    slanted,
-    "current markers on slanted wires are written without their arrow, which RNL turns in quarter turns only",
   );
   say(
     "RNL_DRAWING_NOT_EXPORTED",

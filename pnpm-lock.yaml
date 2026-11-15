@@ -174,8 +174,8 @@ importers:
         specifier: 1.0.3
         version: 1.0.3
       "@rich-netlist/runtime":
-        specifier: file:../../packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.6bdd5ce6.tgz
-        version: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.6bdd5ce6.tgz
+        specifier: file:../../packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz
+        version: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -485,8 +485,8 @@ importers:
         specifier: workspace:*
         version: link:../spice
       "@rich-netlist/runtime":
-        specifier: file:vendor/rich-netlist-runtime-0.6.0-dev.6bdd5ce6.tgz
-        version: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.6bdd5ce6.tgz
+        specifier: file:vendor/rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz
+        version: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz
 
   packages/simulation-service:
     dependencies:
@@ -2069,13 +2069,13 @@ packages:
       }
     engines: { node: ">= 10" }
 
-  "@rich-netlist/runtime@file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.6bdd5ce6.tgz":
+  "@rich-netlist/runtime@file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz":
     resolution:
       {
-        integrity: sha512-PFZNgk46FCVkmxifMVXjWqZbMTOGjwCd/eIcjRxoPuClumHwmfSIVgBx84QEFK3fnEdkgn8wRfLmogS7jSZAvw==,
-        tarball: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.6bdd5ce6.tgz,
+        integrity: sha512-5uKHAFnZMX0f5Pkhrn42n62lvDj+xRfiLD6+ct9xCg4izSz1BWgqTpn3uMp5bmEerX37zDDxyhDA5rQ0XVJP2Q==,
+        tarball: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz,
       }
-    version: 0.6.0-dev.6bdd5ce6
+    version: 0.6.0-dev.b4c3f857
 
   "@rolldown/binding-android-arm64@1.2.3":
     resolution:
@@ -4593,7 +4593,7 @@ snapshots:
 
   "@resvg/resvg-wasm@2.6.2": {}
 
-  "@rich-netlist/runtime@file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.6bdd5ce6.tgz":
+  "@rich-netlist/runtime@file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz":
     {}
 
   "@rolldown/binding-android-arm64@1.2.3":
