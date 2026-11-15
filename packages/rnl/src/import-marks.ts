@@ -43,6 +43,79 @@ export function readMarks(
         .annotationFontSize,
     ),
   });
+  /**
+   * A wire's direction arrow, or a current marker with its label, whose
+   * head stands centred on `point` pointing along `unit` (Analog Canvas axes).
+   */
+  const readArrow = (
+    definition: "$ARROW" | "$CURRENT_ARROW",
+    point: { x: number; y: number },
+    unit: { x: number; y: number },
+    label: RnlTextView | undefined,
+    id: string,
+  ) => {
+    if (definition === "$ARROW") {
+      // The head's tip, half a head ahead of its point, on the wire.
+      const tip = {
+        x: point.x + unit.x * (headLength / 2),
+        y: point.y + unit.y * (headLength / 2),
+      };
+      const leg = legAt(tip);
+      if (!leg) {
+        marks.set("$ARROW", (marks.get("$ARROW") ?? 0) + 1);
+        return;
+      }
+      const last = leg.corners.at(-1)!;
+      const atEnd =
+        Math.abs(last.x - tip.x) < NEAR && Math.abs(last.y - tip.y) < NEAR;
+      leg.route.styleOverride = {
+        ...leg.route.styleOverride,
+        arrow: atEnd ? "end" : "middle",
+      };
+      return;
+    }
+    // A current marker on the wire it sits on, its label beside.
+    const leg = legAt(point);
+    const content = label ? acRichText(label.lines) : null;
+    if (!leg || !content) {
+      marks.set("$CURRENT_ARROW", (marks.get("$CURRENT_ARROW") ?? 0) + 1);
+      return;
+    }
+    const dx = (leg.to.x - leg.from.x) / leg.length;
+    const dy = (leg.to.y - leg.from.y) / leg.length;
+    const along = dx * unit.x + dy * unit.y;
+    const labelPoint = acPoint(label!.anchor);
+    // RNL keeps a millionth of its unit, which a slanted wire's label point
+    // rounds: to a ten-thousandth of Analog Canvas's.
+    const normalOffset =
+      Math.round(
+        ((labelPoint.x - point.x) * -dy + (labelPoint.y - point.y) * dx) * 1e4,
+      ) /
+        1e4 +
+      0;
+    document.annotations.push({
+      id: deriveStableId("annotation", document.id, level.id, id),
+      kind: "route-marker",
+      content,
+      anchor: {
+        kind: "route",
+        routeId: leg.route.id,
+        legId: leg.route.legs[leg.index]!.id,
+        t: Math.round(leg.t * 1e9) / 1e9,
+        normalOffset: Math.abs(along) > 0.5 ? normalOffset : 0,
+        direction: along < 0 ? "reverse" : "forward",
+        // An arrow across its wire is the one set level.
+        orientation: Math.abs(along) > 0.5 ? "follow" : "horizontal",
+        fallbackPosition: { x: Math.round(point.x), y: Math.round(point.y) },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+      markerKind: "current",
+      ...markerLook(label!),
+    });
+    consumed.add(label!.id);
+  };
   for (const object of later) {
     const at = object.at.value ?? null;
     // A current arrow marks its point `p`; an arrow head or a figure is drawn
@@ -80,66 +153,42 @@ export function readMarks(
       });
       continue;
     }
-    if (object.definition === "$ARROW") {
-      // The head's tip, half a head ahead of its point, on the wire.
-      const tip = {
-        x: point.x + unit.x * (headLength / 2),
-        y: point.y + unit.y * (headLength / 2),
-      };
-      const leg = legAt(tip);
-      if (!leg) {
-        marks.set("$ARROW", (marks.get("$ARROW") ?? 0) + 1);
-        continue;
-      }
-      const last = leg.corners.at(-1)!;
-      const atEnd =
-        Math.abs(last.x - tip.x) < NEAR && Math.abs(last.y - tip.y) < NEAR;
-      leg.route.styleOverride = {
-        ...leg.route.styleOverride,
-        arrow: atEnd ? "end" : "middle",
-      };
+    if (
+      object.definition === "$ARROW" ||
+      object.definition === "$CURRENT_ARROW"
+    )
+      readArrow(
+        object.definition,
+        point,
+        unit,
+        object.definition === "$CURRENT_ARROW"
+          ? model.texts.find((text) => text.attach === object.id)
+          : undefined,
+        object.id,
+      );
+  }
+  // An arrow head at any other angle, an annotation of the arrow symbol
+  // (13.5): a current marker where its label stands by it, named for it
+  // (`%current1`, `%current1_label`), else a wire's direction arrow.
+  for (const annotation of model.annotations ?? []) {
+    if (
+      annotation.source !== "$ARROW_SYMBOL" ||
+      annotation.anchor_kind !== "independent" ||
+      annotation.mirror
+    )
       continue;
-    }
-    // $CURRENT_ARROW: a current marker on the wire it sits on, its label beside.
-    const leg = legAt(point);
-    const label = model.texts.find((text) => text.attach === object.id);
-    const content = label ? acRichText(label.lines) : null;
-    if (!leg || !content) {
-      marks.set("$CURRENT_ARROW", (marks.get("$CURRENT_ARROW") ?? 0) + 1);
-      continue;
-    }
-    const dx = (leg.to.x - leg.from.x) / leg.length;
-    const dy = (leg.to.y - leg.from.y) / leg.length;
-    const along = dx * unit.x + dy * unit.y;
-    const labelPoint = acPoint(label!.anchor);
-    const normalOffset =
-      Math.round(
-        ((labelPoint.x - point.x) * -dy + (labelPoint.y - point.y) * dx) * 1e6,
-      ) /
-        1e6 +
-      0;
-    document.annotations.push({
-      id: deriveStableId("annotation", document.id, level.id, object.id),
-      kind: "route-marker",
-      content,
-      anchor: {
-        kind: "route",
-        routeId: leg.route.id,
-        legId: leg.route.legs[leg.index]!.id,
-        t: Math.round(leg.t * 1e9) / 1e9,
-        normalOffset: Math.abs(along) > 0.5 ? normalOffset : 0,
-        direction: along < 0 ? "reverse" : "forward",
-        // An arrow across its wire is the one set level.
-        orientation: Math.abs(along) > 0.5 ? "follow" : "horizontal",
-        fallbackPosition: { x: Math.round(point.x), y: Math.round(point.y) },
-      },
-      alignment: "middle",
-      rotation: 0,
-      locked: false,
-      markerKind: "current",
-      ...markerLook(label!),
-    });
-    consumed.add(label!.id);
+    const radians = (annotation.rotate * Math.PI) / 180;
+    const unit = { x: Math.cos(radians), y: -Math.sin(radians) };
+    const label = /^%current\d+$/u.test(annotation.id)
+      ? model.texts.find((text) => text.id === `${annotation.id}_label`)
+      : undefined;
+    readArrow(
+      label ? "$CURRENT_ARROW" : "$ARROW",
+      acPoint(annotation.anchor),
+      unit,
+      label,
+      annotation.id,
+    );
   }
   for (const [definition, count] of marks)
     warn(

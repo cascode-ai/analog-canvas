@@ -193,6 +193,12 @@ the RNL language and its runtime belong to rnl.
   `rnl-std-functional` for an op-amp) and `analog-canvas-extensions`. It never
   uses `rnl-std-all`, whose fill would draw glyphs and labels the export
   draws itself. A tool without a version then says so at the first statement.
+- The header declares the kind of each device whose model or subcircuit the
+  netlist calls and the file does not ship (no `.model` or `.subckt` of it,
+  as a PDK's), where Analog Canvas knows it from the part's symbol: one
+  `@DEVICE(model=…, type=…)` (6.12) per such master, with its terminals'
+  names for a call whose card does not name them (`X`), where every part
+  calling it says the same.
 - `rnl-std-no-labels` hides the labels symbols bring with them (name, value,
   model; `textvisible=false`), so the drawing shows only the labels the
   editor writes; formulas stay. Each keyed label the export writes says it
@@ -281,7 +287,11 @@ the RNL language and its runtime belong to rnl.
   op-amp's rails, which choose its body.
 - A wire's direction arrow is an `$ARROW` mark on its point (`at`) on the
   wire, a current marker a `$CURRENT_ARROW` mark drawn with the full-size
-  `$ARROW_SYMBOL`, its label hung on it, and a voltage marker its label with
+  `$ARROW_SYMBOL`, its label hung on it; on a wire at any other than a
+  quarter turn the head is an `@ANNOTATION` of `$ARROW_SYMBOL` turned to it
+  (13.5), named as the mark (`%arrow1`, `%current1`), a current marker's
+  label named for it (`%current1_label`), level as the editor draws it; a
+  voltage marker is its label with
   - and − beside it, all where the editor draws them. A floating symbol is a
     `$FIGURE` mark on its point (`at`) drawn with the part's RNL symbol, the
     name, value and model labels that symbol brings empty.
@@ -320,11 +330,10 @@ the RNL language and its runtime belong to rnl.
   text, a hidden current or voltage marker left out, whose arrow or signs RNL
   cannot hide (`RNL_TEXT_HIDDEN`), text placed along a
   wire written at a fixed place, formulas written as LaTeX source, a drawing
-  text the editor sets level written at the turn it keeps for its layout, a
-  current marker on a slanted wire written without its arrow
+  text the editor sets level written at the turn it keeps for its layout
   (`RNL_TEXT_TILTED`), a floating symbol with no RNL symbol, parts in the
   tray, a block whose artwork RNL cannot
-  take drawn as RNL's stand-in box, a direction arrow on a slanted wire, a
+  take drawn as RNL's stand-in box, a direction arrow on a wire of no length, a
   `NoConnect` on a pin RNL cannot name, a glyph's, whose glyph is on no net
   (`RNL_NO_CONNECT_UNNAMED`), a `NoConnect`'s reason with a line break,
   written on one line (`RNL_NO_CONNECT_REASON`).
@@ -354,7 +363,8 @@ the RNL language and its runtime belong to rnl.
   ([circuit IR](circuit-ir.md)).
   - A model the files call but no model card declares is the device type the
     drawing draws its parts as (`$NMOS…` an nmos, `$PMOS…` a pmos, `$NPN`,
-    `$PNP`, `$DIODE`), where they all agree; a declared card decides.
+    `$PNP`, `$DIODE`), where they all agree, as the standard series draws
+    one it types by `@DEVICE`; a declared card decides.
   - Where the files draw a circuit, a subcircuit a SPICE file defines but
     writes no RNL of (a library's body, as the export prints a Project's model
     sources after its Cells) is no Cell, and nothing in it needs a symbol. It
@@ -473,7 +483,10 @@ the RNL language and its runtime belong to rnl.
     If the Canvas drawing cannot pass the electrical check, the importer
     keeps a verified source drawing with a warning where available;
   - wire direction arrows, current and voltage markers (a label on a wire
-    with + and − where the export puts them), and floating symbols;
+    with + and − where the export puts them), and floating symbols; an
+    `@ANNOTATION` of `$ARROW_SYMBOL` whose tip lies on a wire as that wire's
+    direction arrow, or as a current marker where the file names its label
+    for it (`%current1_label`);
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has, or as a power label where the export wrote one, hung on the
