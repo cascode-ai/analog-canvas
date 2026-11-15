@@ -353,7 +353,7 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
 
 - Every content-replacing update (`PUT`, restore) snapshots name, author,
   description, tags, Project text, testbench and preview into
-  `gallery_entry_versions`, keeping the newest 3 beside the live state;
+  `gallery_entry_versions`, keeping only the newest one beside the live state;
   maintenance re-serialization does not. Reading a public entry's history is
   open to anyone; a private one's, and restoring, to moderators and the
   owner.

@@ -182,7 +182,7 @@ const TOKENZHANG_BYLINE = "Zhishuai Zhang";
 const MAGIC_LI_BYLINE_MIGRATION = "2026-09-19-3187863239-netizen-to-magic-li";
 const MAGIC_LI_LEGACY_BYLINE = "3187863239-netizen";
 const MAGIC_LI_BYLINE = "Magic Li";
-const VERSION_RETENTION_MIGRATION = "2026-08-27-gallery-version-retention-2";
+const VERSION_RETENTION_MIGRATION = "2026-11-15-gallery-version-retention-1";
 const PREVIEW_DIMENSIONS_MIGRATION = "2026-09-02-gallery-preview-dimensions";
 
 /**
