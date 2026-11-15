@@ -390,7 +390,7 @@ describe("gallery data migrations", () => {
     ).toMatchObject({ owner_user_id: astra!.userId, author: "GPT-6 Astra" });
   });
 
-  it("migrates histories to three versions and removes orphaned data", () => {
+  it("keeps only the newest version of each history and removes orphaned data", () => {
     const state = sqliteState();
     new GalleryDO(state);
     for (const entryId of ["entry-a", "entry-b"]) {
@@ -453,11 +453,7 @@ describe("gallery data migrations", () => {
         .toArray(),
     ).toEqual([
       { entry_id: "entry-a", version_no: 4 },
-      { entry_id: "entry-a", version_no: 3 },
-      { entry_id: "entry-a", version_no: 2 },
       { entry_id: "entry-b", version_no: 3 },
-      { entry_id: "entry-b", version_no: 2 },
-      { entry_id: "entry-b", version_no: 1 },
     ]);
     expect(
       state.storage.sql

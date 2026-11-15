@@ -22,14 +22,19 @@ import {
 } from "./gallery-store";
 
 /** How many previous states each Gallery entry retains. */
-const GALLERY_MAX_VERSIONS_PER_ENTRY = 3;
+const GALLERY_MAX_VERSIONS_PER_ENTRY = 1;
 
 /** Enforce retention by count, even for imported rows with sparse versions. */
 export function pruneGalleryEntryVersions(
   sql: SqlStorage,
   entryId?: string,
 ): void {
-  const entryFilter = entryId === undefined ? "" : "WHERE entry_id = ?";
+  // A whole-store pass touches only this region's histories; the writer
+  // prunes its own, and the deletions replicate.
+  const entryFilter =
+    entryId === undefined
+      ? `WHERE ${locallyOwnedResources(sql, "entry_id")}`
+      : "WHERE entry_id = ?";
   sql.exec(
     `DELETE FROM gallery_entry_versions
      WHERE id IN (

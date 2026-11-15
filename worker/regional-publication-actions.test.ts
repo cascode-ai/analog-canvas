@@ -264,10 +264,18 @@ it("restores a foreign retained version once and refuses an unrelated account", 
   expect((await (await cn.call(`/api/gallery/${id}`)).json()).entry.name).toBe(
     "Regional lifecycle",
   );
+  // The restore snapshotted the later drawing exactly once: a replay would
+  // number a third version.
   expect(
-    (await (await overseas.call(`/api/gallery/${id}/versions`)).json())
-      .versions,
-  ).toHaveLength(2);
+    (
+      await (await overseas.call(`/api/gallery/${id}/versions`)).json()
+    ).versions.map(
+      ({ versionNo, name }: { versionNo: number; name: string }) => ({
+        versionNo,
+        name,
+      }),
+    ),
+  ).toEqual([{ versionNo: 2, name: "A later drawing" }]);
 });
 
 it("changes and removes a foreign reference image without repeating a lost upload", async () => {
@@ -612,10 +620,17 @@ it("reports a superseded drawing instead of replaying it over a later writer edi
   expect(
     (await (await overseas.call("/api/gallery/" + id)).json()).entry.name,
   ).toBe("Later writer edit");
+  // One snapshot per applied edit: a replayed first edit would number a third.
   expect(
-    (await (await overseas.call("/api/gallery/" + id + "/versions")).json())
-      .versions,
-  ).toHaveLength(2);
+    (
+      await (await overseas.call("/api/gallery/" + id + "/versions")).json()
+    ).versions.map(
+      ({ versionNo, name }: { versionNo: number; name: string }) => ({
+        versionNo,
+        name,
+      }),
+    ),
+  ).toEqual([{ versionNo: 2, name: "First edit" }]);
 });
 
 it("takes over a China-written AI drawing from overseas without granting a human the same ownership", async () => {
