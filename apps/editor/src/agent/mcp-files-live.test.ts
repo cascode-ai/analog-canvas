@@ -147,12 +147,13 @@ describe("MCP file tools on the live editor", () => {
     await expect(access(plotPath)).rejects.toThrow();
   });
 
-  it("stages a local Project file for the person's approval, leaving the live Project alone", async () => {
+  it("stages a 7 MB local Project for approval without replacing the live Project", async () => {
     const { tool, controller, http } = await connected();
     const source = parseProject(await readFile(otaLibraryPath, "utf8"));
     const directory = await tempDirectory();
     const path = join(directory, "source.icproj.json");
-    await writeFile(path, serializeProject(source), "utf8");
+    // Insignificant JSON whitespace exercises the transfer at this size.
+    await writeFile(path, serializeProject(source).padEnd(7_000_000), "utf8");
     const before = structuredClone(controller.project);
     const staged = await tool("import_file", {
       action: "stage-project",
