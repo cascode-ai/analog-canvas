@@ -559,21 +559,13 @@ export class EditorDocumentController {
         "HISTORY_EMPTY",
         `No ${kind} state is available`,
       );
-    // Never skip a newer entry just because the Agent targeted another Cell.
+    // Like Ctrl+Z, a step takes back the newest Project change whichever Cell
+    // the caller named; the result names the Cell it belonged to (#2292).
     const historyDocumentId = before.documents.some(
       (item) => item.id === entry.documentId,
     )
       ? entry.documentId
       : before.topDocumentId;
-    if (
-      request.actor.kind === "agent" &&
-      request.documentId !== historyDocumentId
-    )
-      return rejectTransaction(
-        document,
-        "EDIT_PRECONDITION",
-        `Project history is chronological; the next ${kind} belongs to Cell ${historyDocumentId}`,
-      );
     if (
       entry.structural &&
       request.actor.kind === "agent" &&
@@ -609,8 +601,12 @@ export class EditorDocumentController {
         }),
       });
       const restoredDocument =
+        restored.documents.find((item) => item.id === historyDocumentId) ??
         restored.documents.find((item) => item.id === request.documentId) ??
         restored.documents.find((item) => item.id === restored.topDocumentId)!;
+      const historyDocument =
+        before.documents.find((item) => item.id === restoredDocument.id) ??
+        document;
       const changedDocumentIds = [
         ...new Set(
           [...before.documents, ...restored.documents].map((item) => item.id),
@@ -635,7 +631,7 @@ export class EditorDocumentController {
       ];
       const diff = {
         documentId: restoredDocument.id,
-        fromRevision: document.revision,
+        fromRevision: historyDocument.revision,
         toRevision: restoredDocument.revision,
         editKinds: [kind],
         changedObjectIds,
@@ -644,9 +640,9 @@ export class EditorDocumentController {
         return {
           ok: true,
           applied: false,
-          revision: document.revision,
+          revision: historyDocument.revision,
           proposedRevision: restoredDocument.revision,
-          document,
+          document: historyDocument,
           diff,
           diagnostics: [],
         };

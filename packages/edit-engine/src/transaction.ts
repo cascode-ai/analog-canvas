@@ -73,6 +73,12 @@ import {
 } from "./transaction-junction-style.js";
 import { applyObjectDocumentStyleEdit } from "./transaction-object-document-style.js";
 import { applyRouteTopologyEdit } from "./transaction-route-topology.js";
+import {
+  captureKeptRouteEnds,
+  displacedRouteEndMessage,
+  findDisplacedRouteEnd,
+} from "./authored-route-ends.js";
+import { moveFreeNetLabelsWithJunctions } from "./junction-label-follow.js";
 import { applyPresentationLayoutEdit } from "./transaction-presentation-layout.js";
 import { applyInductorCouplingEdit } from "./transaction-inductor-coupling.js";
 import { fitReviewedSizes } from "./transaction-reviewed-size.js";
@@ -848,6 +854,18 @@ export function executeTransaction(
       membershipBeforeRebuild !== JSON.stringify(draft.nets);
   }
 
+  // A rerouted wire keeps the ends it states (#2288); see authored-route-ends.
+  const keptRouteEnds = captureKeptRouteEnds(
+    document,
+    draft,
+    transaction,
+    new Set([
+      ...transformedInstanceIds,
+      ...(context.pinsMovedInstanceIds ?? []),
+    ]),
+    movedJunctionIds,
+  );
+  const physicalSplitProducts = new Map<string, Set<string>>();
   if (resolver) {
     // Keep geometry incidence separate from the broader transaction diff.
     // Net merges retarget many Routes for bookkeeping, but that must not turn
@@ -1054,6 +1072,14 @@ export function executeTransaction(
         (candidate) => candidate.id === route!.id,
       );
       draft.routes.splice(routeIndex, 1, split.first, split.second);
+      physicalSplitProducts.set(
+        route.id,
+        new Set([
+          ...(physicalSplitProducts.get(route.id) ?? []),
+          split.first.id,
+          split.second.id,
+        ]),
+      );
       retargetConnectivityEvidenceOwner(
         draft,
         route.id,
@@ -1130,6 +1156,26 @@ export function executeTransaction(
 
   let coalescedEndpoints: ReadonlyMap<string, string> | undefined;
   if (resolver) {
+    const displacedEnd = findDisplacedRouteEnd(
+      draft,
+      resolver,
+      keptRouteEnds,
+      physicalSplitProducts,
+    );
+    if (displacedEnd) {
+      return rejectTransaction(
+        document,
+        "EDIT_PRECONDITION",
+        displacedRouteEndMessage(displacedEnd),
+        [],
+        [
+          displacedEnd.routeId,
+          displacedEnd.endpoint.kind === "junction"
+            ? displacedEnd.endpoint.junctionId
+            : displacedEnd.endpoint.instanceId,
+        ],
+      );
+    }
     const affectedNetIds = affectedConductorNetIds(
       document,
       draft,
@@ -1142,11 +1188,14 @@ export function executeTransaction(
       resolver,
       affectedNetIds,
       {
-        preserveJunctionIds: new Set(
-          transaction.edits.flatMap((edit) =>
+        preserveJunctionIds: new Set([
+          ...transaction.edits.flatMap((edit) =>
             edit.kind === "add_junction" ? [edit.junctionId] : [],
           ),
-        ),
+          ...keptRouteEnds.flatMap(({ endpoint }) =>
+            endpoint.kind === "junction" ? [endpoint.junctionId] : [],
+          ),
+        ]),
       },
     );
     if (normalized.changed) {
@@ -1189,6 +1238,7 @@ export function executeTransaction(
 
   if (resolver)
     reconcileJunctionContactAnchors(draft, resolver, changedObjectIds);
+  moveFreeNetLabelsWithJunctions(document, draft, changedObjectIds);
 
   const originalNetContractIssueKeys = connectivityChanged
     ? new Set(

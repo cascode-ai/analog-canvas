@@ -1010,13 +1010,14 @@ export function arrangeInstanceLabelsReport(
    * its bar half a grid step clear of it, as the Gallery's house style and
    * textbook figures draw it; `side:"right"` puts it back beside the bar
    * (#1528). Agents had moved it by a guessed offset, or not found it at all.
+   * An arranged name reads upright; one turned upside down is set upright
+   * even with no side asked, over the bar for `top`, else beside (#2290).
    */
   function arrangeSupplyNames(): SchematicEdit[] {
-    if (options.side !== "top" && options.side !== "right") return [];
     return [...ids].flatMap((id) => {
       const instance = document.instances.find((item) => item.id === id)!;
       const bar = context.symbols.find((symbol) => symbol.id === id)?.bounds;
-      const name = document.annotations.find(
+      const found = document.annotations.find(
         (annotation) =>
           annotation.kind === "power-label" &&
           annotation.anchor.kind === "object" &&
@@ -1026,20 +1027,24 @@ export function arrangeInstanceLabelsReport(
         instance.symbolId,
         instance.symbolVariantId,
       );
-      if (
-        instance.symbolId !== "vdd-port" ||
-        !bar ||
-        !name ||
-        name.locked ||
-        !resolved
-      )
-        return [];
+      if (!found || found.locked || !resolved) return [];
+      // An arranged supply name reads upright.
+      const upsideDown = found.rotation > 90 && found.rotation < 270;
+      const name: Annotation = { ...found, rotation: 0 };
+      const side =
+        options.side === "top" || options.side === "right"
+          ? options.side
+          : upsideDown
+            ? "right"
+            : undefined;
+      if (!side || (instance.symbolId !== "vdd-port" && !upsideDown)) return [];
       let next: Annotation;
-      if (options.side === "right") {
+      if (side === "right" || instance.symbolId !== "vdd-port") {
         const beside = defaultVddPowerLabelPlacement(instance, resolved, grid);
         if (!beside) return [];
         next = annotationAt(name, beside);
-      } else {
+      } else if (!bar) return [];
+      else {
         const clearOfBar = bar.y - grid / 2;
         const over = annotationAt(name, {
           position: { x: bar.x + bar.width / 2, y: clearOfBar },
@@ -1054,7 +1059,7 @@ export function arrangeInstanceLabelsReport(
           alignment: "middle",
         });
       }
-      if (JSON.stringify(next) === JSON.stringify(name)) return [];
+      if (JSON.stringify(next) === JSON.stringify(found)) return [];
       context.accept(next);
       return [{ kind: "upsert_schematic_annotation", annotation: next }];
     });

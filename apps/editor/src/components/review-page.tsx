@@ -54,6 +54,7 @@ import { NetlistPair, useNetlistText } from "./review-netlists";
 import { AutoCheck } from "./review-auto-check";
 import { ScopeSidebar } from "./review-sidebar";
 import { ReviewReferenceDrop } from "./review-reference-drop";
+import { followReviewDrawing } from "./review-drawing-refresh";
 import type { LayoutCheckKind, LayoutFinding } from "../layout-check";
 
 type Load =
@@ -376,42 +377,36 @@ export function ReviewPage({
     [scope, mine],
   );
 
-  // Back from the editor (Open puts it in a tab): a drawing changed
-  // there shows its new version here; reviews of the old one no longer count.
+  // Back from the editor (Open puts it in a tab), or on its publication from
+  // a window beside: a drawing changed there shows its new version here;
+  // reviews of the old one no longer count (#2304).
+  const revisionRef = useRef(card?.previewRevision ?? "");
+  revisionRef.current = card?.previewRevision ?? "";
+  const cardId = card?.id;
   useEffect(() => {
-    if (!card) return;
-    const id = card.id;
-    const revision = card.previewRevision;
-    const check = () => {
-      if (document.visibilityState !== "visible") return;
-      void fetchLike(`/api/gallery/${encodeURIComponent(id)}?summary=1`, {
-        credentials: "same-origin",
-      })
-        .then((response) => (response.ok ? response.json() : null))
-        .then(
-          (
-            payload: {
-              entry?: { previewRevision?: string; fixedBy?: string[] };
-            } | null,
-          ) => {
-            const entry = payload?.entry;
-            if (!entry?.previewRevision || entry.previewRevision === revision)
-              return;
-            replaceCard(id, (each) => ({
-              ...each,
-              previewRevision: entry.previewRevision!,
-              ...(entry.fixedBy ? { fixedBy: entry.fixedBy } : {}),
-              mine: each.mine ? { ...each.mine, current: false } : null,
-              reviews: 0,
-            }));
-            setMessage("This drawing just changed: here is its new version.");
-          },
-        )
-        .catch(() => undefined);
-    };
-    document.addEventListener("visibilitychange", check);
-    return () => document.removeEventListener("visibilitychange", check);
-  }, [card?.id, card?.previewRevision, fetchLike, replaceCard]);
+    if (!cardId) return;
+    return followReviewDrawing(
+      cardId,
+      () => revisionRef.current,
+      ({ previewRevision, fixedBy }) => {
+        const changed = previewRevision !== revisionRef.current;
+        replaceCard(cardId, (each) =>
+          each.previewRevision === previewRevision
+            ? { ...each, ...(fixedBy ? { fixedBy } : {}) }
+            : {
+                ...each,
+                previewRevision,
+                ...(fixedBy ? { fixedBy } : {}),
+                mine: each.mine ? { ...each.mine, current: false } : null,
+                reviews: 0,
+              },
+        );
+        if (changed)
+          setMessage("This drawing just changed: here is its new version.");
+      },
+      fetchLike,
+    );
+  }, [cardId, fetchLike, replaceCard]);
 
   // A new card starts clean, or with the reviewer's own current review.
   useEffect(() => {

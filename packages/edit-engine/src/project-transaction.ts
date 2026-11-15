@@ -68,9 +68,11 @@ import {
 import type { PreparedTransaction } from "./prepared-transaction.js";
 import { planInstanceSymbolGeometryRouteFollow } from "./transaction-route-follow.js";
 import {
+  planStretchedRouteRedraws,
   projectDrawnGeometry,
-  redrawStretchedRoutesClear,
 } from "./stretched-route-clearance.js";
+import { planSeparatedContactRoutes } from "./transaction-direct-contact.js";
+import { callerConnectivityRefusal } from "./caller-connectivity.js";
 import { planInstanceLabelReflow } from "./caller-label-reflow.js";
 import type {
   AppliedTransaction,
@@ -1389,13 +1391,27 @@ function applyProjectTransaction(
         }),
       );
       if (callerIds.size === 0) continue;
-      const followEdits = planInstanceSymbolGeometryRouteFollow(
+      const stretchEdits = planInstanceSymbolGeometryRouteFollow(
         parent,
         originalParent,
         originalResolver,
         resolver,
         callerIds,
       );
+      const drawnBefore = {
+        document: originalParent,
+        resolver: originalResolver,
+      };
+      // A part that stood on a moved pin, with no wire, is joined to the
+      // pin's new place by one, drawn clear with the stretched wires (#2289).
+      const followEdits: SchematicEdit[] = [
+        ...stretchEdits,
+        ...planSeparatedContactRoutes(
+          drawnBefore,
+          { document: projectDrawnGeometry(parent, stretchEdits), resolver },
+          callerIds,
+        ).map((route): SchematicEdit => ({ kind: "set_route_path", route })),
+      ];
       const reflowEdits = planInstanceLabelReflow(
         parent,
         callerIds,
@@ -1462,25 +1478,26 @@ function applyProjectTransaction(
           { symbolResolver: resolver, pinsMovedInstanceIds: callerIds },
         );
       // A wire the stretch lays over another Net's pin or wire, or across a
-      // part, is drawn clear of it, as a pin change in Properties is.
-      const routeEdits = withRedrawn(
-        redrawStretchedRoutesClear(
-          { document: originalParent, resolver: originalResolver },
-          resolver,
-          followEdits.flatMap((edit) =>
-            edit.kind === "set_route_path" ? [edit.route.id] : [],
-          ),
-          (extra) => {
-            const preview = follow(withRedrawn(extra));
-            return preview.ok ? preview.document : null;
-          },
-          // Judged as stretched, as a typed move is: an SRAM block's blb
-          // moved to its east side found its clear path down its own bit
-          // line, and normalization merged the two wires, so the redraw was
-          // refused for changing which wires there are.
-          (extra) => projectDrawnGeometry(parent, withRedrawn(extra)),
+      // part, is drawn clear of it, as a pin change in Properties is; it
+      // joins exactly the pins it joined before (#2287).
+      const redrawn = planStretchedRouteRedraws(
+        drawnBefore,
+        resolver,
+        followEdits.flatMap((edit) =>
+          edit.kind === "set_route_path" ? [edit.route.id] : [],
         ),
+        (extra) => {
+          const preview = follow(withRedrawn(extra));
+          return preview.ok ? preview.document : null;
+        },
+        // Judged as stretched, as a typed move is: an SRAM block's blb
+        // moved to its east side found its clear path down its own bit
+        // line, and normalization merged the two wires, so the redraw was
+        // refused for changing which wires there are.
+        (extra) => projectDrawnGeometry(parent, withRedrawn(extra)),
+        { keepBeforeJoins: true },
       );
+      const routeEdits = withRedrawn(redrawn.edits);
       // The callers' labels keep their place beside the changed block, and
       // labels its redrawn wiring or its grown block newly cover move clear
       // (#1366).
@@ -1504,6 +1521,21 @@ function applyProjectTransaction(
         : followed.ok
           ? followed
           : follow(routeEdits);
+      // A symbol change moves pins; it never joins, parts or leaves undrawn
+      // what the caller's drawing joined (#2287, #2289).
+      const connectivityRefusal = callerConnectivityRefusal(
+        candidate,
+        drawnBefore,
+        routeResult.ok ? { document: routeResult.document, resolver } : null,
+        callerIds,
+        redrawn.unresolved,
+      );
+      if (connectivityRefusal)
+        return rejectProjectTransaction(
+          project,
+          "DOCUMENT_TRANSACTION_REJECTED",
+          connectivityRefusal,
+        );
       documentResults.push(
         routeResult.ok
           ? withRedrawnCallers(

@@ -178,6 +178,157 @@ function uniqueDerivedId(
 }
 
 /**
+ * Wires for the direct contacts a change of the callers' symbol pulls apart
+ * (#2289): a part that stood on a block pin with no wire between them is
+ * joined to the pin's new place by one, as a move draws one. `before` is the
+ * caller as drawn with the old symbol; `after` the same caller drawn with the
+ * new one, its followed wires in place. A pair other drawing still joins is
+ * left alone, and so is one the caller no longer keeps on one Net.
+ */
+export function planSeparatedContactRoutes(
+  before: { document: SchematicDocument; resolver: SymbolResolver },
+  after: { document: SchematicDocument; resolver: SymbolResolver },
+  instanceIds: ReadonlySet<string>,
+): RouteBranch[] {
+  const { document, resolver } = after;
+  const evidence = deriveDocumentContactEvidence(document, resolver);
+  const delta = deriveDirectContactDelta(before.document, document, resolver, {
+    before: deriveDocumentContactEvidence(before.document, before.resolver),
+    after: evidence,
+  });
+  // Which endpoints the caller's drawing joins, as the new wires join more.
+  const parent = new Map<string, string>();
+  const find = (key: string): string => {
+    const next = parent.get(key) ?? key;
+    if (next === key) return key;
+    const root = find(next);
+    parent.set(key, root);
+    return root;
+  };
+  const grouped = new Set<string>();
+  const routes: RouteBranch[] = [];
+  for (const pair of delta.lost) {
+    const [left, right] = pair.endpoints;
+    if (
+      !pair.endpoints.some(
+        (endpoint) =>
+          endpoint.kind === "terminal" && instanceIds.has(endpoint.instanceId),
+      )
+    )
+      continue;
+    const netId = endpointOwnerNetId(document, left);
+    if (!netId || netId !== endpointOwnerNetId(document, right)) continue;
+    if (!grouped.has(netId)) {
+      grouped.add(netId);
+      for (const [first, ...rest] of netEndpointGroups(
+        document,
+        netId,
+        resolver,
+        evidence,
+      ))
+        for (const key of rest) parent.set(find(key), find(first!));
+    }
+    const [leftKey, rightKey] = [endpointKey(left), endpointKey(right)];
+    if (find(leftKey) === find(rightKey)) continue;
+    const leftConnection = resolveEndpointConnection(document, resolver, left);
+    const rightConnection = resolveEndpointConnection(
+      document,
+      resolver,
+      right,
+    );
+    if (
+      !leftConnection ||
+      !rightConnection ||
+      (leftConnection.contactPoint.x === rightConnection.contactPoint.x &&
+        leftConnection.contactPoint.y === rightConnection.contactPoint.y)
+    )
+      continue;
+    const geometry = buildManualWirePath(
+      { connection: leftConnection },
+      { connection: rightConnection },
+    );
+    routes.push(
+      createRoutePath({
+        id: uniqueDerivedId(document, pair.id),
+        netId,
+        start: structuredClone(left),
+        end: structuredClone(right),
+        bends: geometry.waypoints,
+        modes: geometry.segmentModes,
+        ...([left, right].some((endpoint) =>
+          isMosBulkTerminal(document, endpoint),
+        )
+          ? { presentation: "bulk-dashed" as const }
+          : {}),
+      }),
+    );
+    parent.set(find(leftKey), find(rightKey));
+  }
+  return routes;
+}
+
+/**
+ * Whether a caller's drawing still joins each of `instanceIds`' pins to every
+ * pin it joined before a change of their symbol: a connection may not stay
+ * with nothing drawn between the two (#2289). Returns the first pin left
+ * joined to another by its Net alone, or null.
+ */
+export function findUndrawnCallerJoin(
+  before: { document: SchematicDocument; resolver: SymbolResolver },
+  after: { document: SchematicDocument; resolver: SymbolResolver },
+  instanceIds: ReadonlySet<string>,
+): { pin: RouteEndpoint; other: RouteEndpoint } | null {
+  const groupsOf = (side: typeof before) => {
+    const evidence = deriveDocumentContactEvidence(
+      side.document,
+      side.resolver,
+    );
+    const groups = new Map<string, string[]>();
+    for (const net of side.document.nets)
+      for (const group of netEndpointGroups(
+        side.document,
+        net.id,
+        side.resolver,
+        evidence,
+      ))
+        for (const key of group) groups.set(key, group);
+    return groups;
+  };
+  const terminals = (document: SchematicDocument) =>
+    new Map(
+      document.nets.flatMap((net) =>
+        net.terminals.map((terminal) => {
+          const endpoint: RouteEndpoint = {
+            kind: "terminal",
+            instanceId: terminal.instanceId,
+            pinName: terminal.pinName,
+            ...(terminal.memberId ? { memberId: terminal.memberId } : {}),
+          };
+          return [endpointKey(endpoint), { endpoint, netId: net.id }] as const;
+        }),
+      ),
+    );
+  const beforeTerminals = terminals(before.document);
+  const afterTerminals = terminals(after.document);
+  const beforeGroups = groupsOf(before);
+  const afterGroups = groupsOf(after);
+  for (const [key, { endpoint }] of beforeTerminals) {
+    if (endpoint.kind !== "terminal" || !instanceIds.has(endpoint.instanceId))
+      continue;
+    const now = afterTerminals.get(key);
+    if (!now) continue;
+    const joined = new Set(afterGroups.get(key) ?? [key]);
+    for (const otherKey of beforeGroups.get(key) ?? []) {
+      const other = afterTerminals.get(otherKey);
+      // Only pins both drawings have, still on one Net, are compared.
+      if (!other || other.netId !== now.netId || joined.has(otherKey)) continue;
+      return { pin: endpoint, other: other.endpoint };
+    }
+  }
+  return null;
+}
+
+/**
  * A pin parked on a loose Route end is authored as an exact contact with the
  * endpoint Junction. When the pin moves inward along that Route's first leg,
  * keeping the Junction behind creates a visible wire tail even though the
