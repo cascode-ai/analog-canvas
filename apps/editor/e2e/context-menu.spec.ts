@@ -1,6 +1,7 @@
 import { createEmptyProject } from "@icm/model";
 import {
   clickDrawTool,
+  closeProjectTools,
   placeText,
   downloadBytes,
   editDocumentStyleCode,
@@ -38,7 +39,7 @@ async function captureImageClipboard(page: Page): Promise<void> {
   });
 }
 
-test("right-click on a device only offers direct selection actions", async ({
+test("right-click groups device commands and lets the pointer choose a transform", async ({
   page,
 }) => {
   await page.goto("/editor");
@@ -50,18 +51,43 @@ test("right-click on a device only offers direct selection actions", async ({
   await expect(menu.getByRole("menuitem")).toHaveText([
     "Edit Component Definition (E)",
     "Properties (Q)",
+    "Arrange",
+    "Copy (C)",
+    "Transform",
+    "Delete",
+  ]);
+
+  const arrange = menu.getByRole("menuitem", { name: "Arrange", exact: true });
+  const ordering = menu.getByRole("menu", { name: "Arrange" });
+  await arrange.hover();
+  await expect(ordering.getByRole("menuitem")).toHaveText([
     "Bring to front",
     "Move up one layer",
     "Move down one layer",
     "Send to back",
-    "Copy (C)",
+  ]);
+  const transform = menu.getByRole("menuitem", {
+    name: "Transform",
+    exact: true,
+  });
+  const transforms = menu.getByRole("menu", { name: "Transform" });
+  await transform.hover();
+  await page.mouse.move(0, 0);
+  await expect(ordering).toHaveCount(0);
+  await expect(transforms).toHaveCount(0);
+
+  await arrange.hover();
+  await expect(ordering).toBeVisible();
+  await transform.hover();
+  await expect(transforms.getByRole("menuitem")).toHaveText([
     "Rotate 90° (R)",
     "Mirror left/right (Shift+R)",
     "Mirror top/bottom (Ctrl+R)",
-    "Delete",
   ]);
+  await expect(ordering).toHaveCount(0);
 
-  await menu.getByRole("menuitem", { name: "Rotate 90° (R)" }).click();
+  await transforms.getByRole("menuitem", { name: "Rotate 90° (R)" }).click();
+  await expect(menu).toHaveCount(0);
   await expect(
     page.locator('[data-layer="symbols"] [data-object-id] > g').first(),
   ).toHaveAttribute("transform", /rotate\(90\)/u);
@@ -77,6 +103,154 @@ test("right-click on a device only offers direct selection actions", async ({
   await expect(page.locator('[data-canvas-hit-kind="instance"]')).toHaveCount(
     2,
   );
+});
+
+test("a submenu opens inward at the viewport edge and stays open across a diagonal move", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await closeProjectTools(page);
+  await placeComponentAt(page, "inductor", { x: 360, y: 240 });
+  await page.locator('[data-canvas-hit-kind="instance"]').first().click();
+  const canvas = await page.getByTestId("schematic-canvas").boundingBox();
+  if (!canvas) throw new Error("Canvas is not visible");
+  await page.mouse.click(
+    canvas.x + canvas.width - 16,
+    canvas.y + canvas.height - 20,
+    {
+      button: "right",
+    },
+  );
+
+  const menu = page.getByTestId("canvas-context-menu");
+  const arrange = menu.getByRole("menuitem", { name: "Arrange", exact: true });
+  await arrange.hover();
+  const submenu = menu.getByRole("menu", { name: "Arrange" });
+  const action = submenu.getByRole("menuitem", { name: "Send to back" });
+  const parent = await menu.boundingBox();
+  const trigger = await arrange.boundingBox();
+  const panel = await submenu.boundingBox();
+  const row = await action.boundingBox();
+  const viewport = page.viewportSize();
+  if (!parent || !trigger || !panel || !row || !viewport)
+    throw new Error("Menu is not visible");
+
+  expect(panel.x).toBeGreaterThanOrEqual(0);
+  expect(panel.x + panel.width).toBeLessThanOrEqual(trigger.x + 1);
+  expect(panel.y + panel.height).toBeLessThanOrEqual(viewport.height);
+  await page.mouse.move((parent.x + trigger.x) / 2, centre(trigger).y);
+  await expect(submenu.and(page.locator(":hover"))).toBeVisible();
+  await arrange.hover();
+  const destination = centre(row);
+  await page.mouse.move(destination.x, destination.y, { steps: 10 });
+  await expect(action).toBeVisible();
+  await page.mouse.click(destination.x, destination.y);
+  await expect(menu).toHaveCount(0);
+});
+
+test("keyboard navigation stays in each menu level and returns to the submenu trigger", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponentAt(page, "inductor", { x: 360, y: 240 });
+  const instance = page.locator('[data-canvas-hit-kind="instance"]').first();
+  await instance.click({ button: "right" });
+  const menu = page.getByTestId("canvas-context-menu");
+  const arrange = menu.getByRole("menuitem", { name: "Arrange", exact: true });
+  const commands = menu.getByRole("menu", { name: "Arrange" });
+  const first = commands.getByRole("menuitem", { name: "Bring to front" });
+  const last = commands.getByRole("menuitem", { name: "Send to back" });
+  const canvas = page.getByTestId("schematic-canvas");
+  const viewBox = await canvas.getAttribute("viewBox");
+  if (!viewBox) throw new Error("Canvas has no viewBox");
+  await expect(
+    menu.getByRole("menuitem", { name: "Edit Component Definition (E)" }),
+  ).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(arrange).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(arrange).toHaveAttribute("aria-expanded", "true");
+  await expect(first).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(last).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(commands).toHaveCount(0);
+  await expect(arrange).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(first).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(arrange).toBeFocused();
+  await expect(arrange).toHaveAttribute("aria-expanded", "false");
+  await menu.click({ position: { x: 15, y: 3 } });
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(canvas).toBeFocused();
+  await expect(canvas).toHaveAttribute("viewBox", viewBox);
+
+  await instance.click({ button: "right" });
+  await arrange.click();
+  await expect(first).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(menu).toHaveCount(0);
+
+  await instance.click({ button: "right" });
+  await page.keyboard.press("r");
+  await expect(
+    page.locator('[data-layer="symbols"] [data-object-id] > g').first(),
+  ).toHaveAttribute("transform", /rotate\(90\)/u);
+  await expect(menu).toHaveCount(0);
+});
+
+test("native copy and paste keep canvas ownership from the context menu", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await placeComponentAt(page, "inductor", { x: 360, y: 240 });
+  const instances = page.locator('[data-canvas-hit-kind="instance"]');
+  await instances.first().click({ button: "right" });
+  const menu = page.getByTestId("canvas-context-menu");
+  await menu.getByRole("menuitem", { name: "Arrange", exact: true }).click();
+  const expectCircuitCopyWithPageText = async () => {
+    await page.evaluate(() => navigator.clipboard.writeText(""));
+    const selectedText = await page
+      .getByTestId("status")
+      .evaluate((element) => {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return selection?.toString();
+      });
+    expect(selectedText).toBeTruthy();
+    await page.keyboard.press("ControlOrMeta+c");
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toContain('"format":"analog-canvas/clipboard"');
+  };
+
+  await expectCircuitCopyWithPageText();
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expectCircuitCopyWithPageText();
+
+  await instances.first().click({ button: "right" });
+  await menu.getByRole("menuitem", { name: "Arrange", exact: true }).click();
+  await page.keyboard.press("ControlOrMeta+v");
+  await expectStatus(page, "click to place");
+  await expect(menu).toHaveCount(0);
+  await page
+    .getByTestId("schematic-canvas")
+    .hover({ position: { x: 500, y: 280 } });
+  const preview = page.getByTestId("copy-placement-preview");
+  await expect(preview).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(preview).toHaveCount(0);
+  await expect(instances).toHaveCount(1);
 });
 
 test("drafting shapes, text and device labels join device selection from either order and share its context menu", async ({
@@ -153,9 +327,12 @@ test("drafting shapes, text and device labels join device selection from either 
   await expect(instance).toHaveClass(/selected/);
   await expect(text).toHaveClass(/selected/);
   await text.click({ button: "right" });
-  await expect(menu).toContainText("Align");
   await expect(menu).not.toContainText("Swap device");
-  await page.getByTestId("context-align-left").click();
+  await menu.getByRole("menuitem", { name: "Align", exact: true }).hover();
+  await menu
+    .getByRole("menu", { name: "Align" })
+    .getByRole("menuitem", { name: "Align left", exact: true })
+    .click();
   await expectStatus(page, "Aligned 2 selected objects");
 
   // Pressing the text member drags the whole mixed selection as one body,
@@ -235,7 +412,12 @@ test("bottom alignment lines up drawn text bottoms off the grid, a repeat is a n
     await labels.nth(index).click({ modifiers: index === 0 ? [] : ["Shift"] });
   const alignBottom = async () => {
     await labels.last().click({ button: "right" });
-    await page.getByTestId("context-align-bottom").click();
+    const menu = page.getByTestId("canvas-context-menu");
+    await menu.getByRole("menuitem", { name: "Align", exact: true }).hover();
+    await menu
+      .getByRole("menu", { name: "Align" })
+      .getByRole("menuitem", { name: "Align bottom", exact: true })
+      .click();
   };
   await alignBottom();
   await expectStatus(page, "Aligned 3 selected objects");

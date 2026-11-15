@@ -4420,6 +4420,7 @@ function WorkspaceEditor({
     const anchor = clipboardPlacementAnchor(clipboard);
     if (!anchor) throw new Error("Copied objects have no placeable origin");
     cancelAllTransientInteraction();
+    setCanvasContextMenu(null);
     beginCopyPlacementInteraction(clipboard, anchor, orientation);
     seedCopyPreviewFromPointer();
     setStatus(

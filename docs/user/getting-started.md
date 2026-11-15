@@ -49,9 +49,11 @@ browser-local workspace is not a backup: save or export what you need.
 - Click to select, `Shift`/`Ctrl`-click to add, drag on blank canvas to
   box-select. Dragging a selected part moves the whole selection; wires inside
   it move along and only wires leaving it stretch.
-- `R` rotates, `Shift+R` mirrors left/right and `Ctrl/Cmd+R` top/bottom (also
-  on the right-click menu). Everything selected mirrors together, wires alone
-  included, with every connection kept; mirroring again restores it.
+- `R` rotates, `Shift+R` mirrors left/right and `Ctrl/Cmd+R` top/bottom. Find
+  these commands under **Transform** in the canvas right-click menu. Everything
+  selected mirrors together, including wires selected on their own. Mirroring
+  preserves connections. Mirroring again restores the original orientation.
+  [Canvas menu shortcuts](../specs/editor-interaction.md#selection-alignment)
 - Press `W` (or **Wire**) and click pins, Junctions or wire segments. Click
   blank canvas to add bends; double-click or press `Enter` to finish,
   `Backspace` removes the last bend, `Esc` cancels. Crossing a wire does not
@@ -202,9 +204,10 @@ clear. [Symbol DSL](../specs/symbol-dsl.md#rules)
 
 Open **Objects & layers** from the toolbar to see the current Cell from front
 to back. Use **Locate** to frame a covered object, expand a component to reach
-its labels and Pins, or drag a row above or below another. The panel and
-right-click menu offer the same four ordering commands. `Alt`-click an overlap
-repeatedly to cycle through objects on the canvas.
+its labels and Pins, or drag a row above or below another. The four ordering
+commands are also available under **Arrange** in the canvas right-click menu.
+`Alt`-click an overlap repeatedly to cycle through objects on the canvas.
+[Ordering commands](../specs/editor-interaction.md#objects-and-layers)
 
 ## Save and recover
 

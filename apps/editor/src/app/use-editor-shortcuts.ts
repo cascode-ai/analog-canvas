@@ -316,6 +316,15 @@ function createEditorShortcutHandler({
           )) ||
         (event.target.closest(".project-tabs") &&
           ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) ||
+        // Leave menu navigation to the focused popup. Editing shortcuts
+        // still use the editor command router.
+        (event.target.closest(".canvas-context-menu") &&
+          (event.key === "Escape" ||
+            event.key === "Enter" ||
+            (event.key.startsWith("Arrow") &&
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !event.altKey))) ||
         // A surface marked data-plain-keys (the hierarchy tree and its Cell
         // dialogs) owns plain keys: arrows, F2, Delete, Escape, typing.
         // Modified shortcuts such as Undo still reach the editor.

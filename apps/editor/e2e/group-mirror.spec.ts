@@ -57,8 +57,12 @@ test("a free wire mirrors from its context menu; one held by an unselected part 
   const mirrorFromMenu = async (routeId: string, leg: number) => {
     const point = await wireLegPoint(page, routeId, leg);
     await page.mouse.click(point.x, point.y, { button: "right" });
-    await page
-      .getByTestId("canvas-context-menu")
+    const menu = page.getByTestId("canvas-context-menu");
+    await menu
+      .getByRole("menuitem", { name: "Transform", exact: true })
+      .hover();
+    await menu
+      .getByRole("menu", { name: "Transform" })
       .getByRole("menuitem", { name: "Mirror left/right (Shift+R)" })
       .click();
   };

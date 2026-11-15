@@ -3,14 +3,26 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type KeyboardEventHandler,
   type ReactNode,
 } from "react";
+
+export function fitContextMenuPosition(
+  { x, y }: { x: number; y: number },
+  { width, height }: { width: number; height: number },
+) {
+  const margin = 4;
+  return {
+    x: Math.max(margin, Math.min(x, window.innerWidth - width - margin)),
+    y: Math.max(margin, Math.min(y, window.innerHeight - height - margin)),
+  };
+}
 
 /**
  * A right-click menu at a pointer position, kept inside the window. Escape
  * or a press outside closes it without taking that press, which still
- * reaches what it lands on. Opened from the keyboard, it takes focus: the
- * arrow keys move through its commands and Escape hands focus back.
+ * reaches what it lands on. With takeFocus, the first command takes focus
+ * and Escape hands focus back.
  */
 export function ContextMenu({
   position,
@@ -18,7 +30,9 @@ export function ContextMenu({
   testId,
   className,
   takeFocus = false,
+  closeOnFocusLeave = false,
   onClose,
+  onKeyDownCapture,
   children,
 }: {
   position: { x: number; y: number };
@@ -26,33 +40,26 @@ export function ContextMenu({
   testId: string;
   className?: string;
   takeFocus?: boolean;
+  closeOnFocusLeave?: boolean;
   onClose: () => void;
+  onKeyDownCapture?: KeyboardEventHandler<HTMLDivElement>;
   children: ReactNode;
 }) {
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const focusBefore = useRef<HTMLElement | null>(null);
+  const focusBefore = useRef<HTMLElement | SVGElement | null>(null);
   const [placed, setPlaced] = useState(position);
 
   useLayoutEffect(() => {
     const menu = menuRef.current;
     if (!menu) return;
-    const bounds = menu.getBoundingClientRect();
-    setPlaced({
-      x: Math.max(
-        4,
-        Math.min(position.x, window.innerWidth - bounds.width - 4),
-      ),
-      y: Math.max(
-        4,
-        Math.min(position.y, window.innerHeight - bounds.height - 4),
-      ),
-    });
+    setPlaced(fitContextMenuPosition(position, menu.getBoundingClientRect()));
   }, [position]);
 
   useLayoutEffect(() => {
     if (!takeFocus) return;
-    if (document.activeElement instanceof HTMLElement)
-      focusBefore.current ??= document.activeElement;
+    const previous = document.activeElement;
+    if (previous instanceof HTMLElement || previous instanceof SVGElement)
+      focusBefore.current ??= previous;
     menuRef.current?.querySelector<HTMLElement>("button:enabled")?.focus();
   }, [takeFocus]);
 
@@ -84,20 +91,37 @@ export function ContextMenu({
       data-testid={testId}
       role="menu"
       aria-label={label}
+      tabIndex={closeOnFocusLeave ? -1 : undefined}
       style={{ left: placed.x, top: placed.y }}
+      onBlur={
+        closeOnFocusLeave
+          ? (event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) onClose();
+            }
+          : undefined
+      }
       onPointerDown={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.preventDefault()}
+      onKeyDownCapture={onKeyDownCapture}
       onKeyDown={(event) => {
+        if (
+          event.defaultPrevented ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey
+        )
+          return;
         const step =
           event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
-        if (!step) return;
+        const target = event.target as HTMLElement;
+        const menu = target.closest('[role="menu"]');
+        if (!step || !menu) return;
         event.preventDefault();
         const commands = [
-          ...event.currentTarget.querySelectorAll<HTMLElement>(
-            "button:enabled",
-          ),
-        ];
-        const at = commands.indexOf(event.target as HTMLElement);
+          ...menu.querySelectorAll<HTMLElement>("button:enabled"),
+        ].filter((button) => button.closest('[role="menu"]') === menu);
+        const current = commands.indexOf(target);
+        const at = current === -1 && step === -1 ? 0 : current;
         commands[(at + step + commands.length) % commands.length]?.focus();
       }}
     >

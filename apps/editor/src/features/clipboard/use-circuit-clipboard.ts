@@ -21,6 +21,14 @@ type Options = {
 // denies the optional async clipboard API. Native copy still crosses windows.
 let localClipboard: { text: string; synced: boolean } | null = null;
 
+function isCanvasClipboardTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[data-testid="schematic-canvas"], .canvas-context-menu') !==
+      null
+  );
+}
+
 /** Clipboard events are synchronous and need no clipboard permission or shared storage. */
 export function useCircuitClipboard(options: Options) {
   const current = useRef(options);
@@ -132,12 +140,10 @@ export function useCircuitClipboard(options: Options) {
           '[role="dialog"], dialog, .simulation-code-workspace, [data-workspace-interaction]',
         )
       ) &&
-      // Canvas focus owns circuit operations even when an earlier header/code
-      // text selection survived the pointer handler's preventDefault().
-      (Boolean(
-        event.target instanceof Element &&
-        event.target.closest('[data-testid="schematic-canvas"]'),
-      ) ||
+      // A native copy event may target a DOM selection while the canvas or
+      // its context menu holds focus.
+      (isCanvasClipboardTarget(event.target) ||
+        isCanvasClipboardTarget(window.document.activeElement) ||
         !window.getSelection()?.toString());
     const report = (error: unknown) =>
       options.setStatus(error instanceof Error ? error.message : String(error));
@@ -198,10 +204,7 @@ export function useCircuitClipboard(options: Options) {
       // Keep the platform chord native: synchronous copy/paste events work
       // without async clipboard permission. The other modifier must invoke
       // the same C/V operations because the browser emits no clipboard event.
-      if (
-        event.target instanceof Element &&
-        event.target.closest('[data-testid="schematic-canvas"]')
-      )
+      if (isCanvasClipboardTarget(event.target))
         window.getSelection()?.removeAllRanges();
       const apple = /Mac|iPhone|iPad|iPod/u.test(navigator.platform);
       if (apple ? event.metaKey : event.ctrlKey) return;

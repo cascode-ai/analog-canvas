@@ -100,7 +100,10 @@ test("fills the real ADC body and edits or reorders the visible symbol", async (
   await page.keyboard.up("Alt");
 
   await page.mouse.click(overlap.x, overlap.y, { button: "right" });
-  await page
+  const menu = page.getByTestId("canvas-context-menu");
+  await menu.getByRole("menuitem", { name: "Arrange", exact: true }).hover();
+  await menu
+    .getByRole("menu", { name: "Arrange" })
     .getByRole("menuitem", { name: "Send to back", exact: true })
     .click();
   const order = () =>
@@ -1465,7 +1468,10 @@ test("the layers panel selects an existing Layout Group and batches mixed body f
     { x: 170, y: 200 },
   ]);
   await page.mouse.click(rear.x, rear.y, { button: "right" });
-  await page
+  const menu = page.getByTestId("canvas-context-menu");
+  await menu.getByRole("menuitem", { name: "Arrange", exact: true }).hover();
+  await menu
+    .getByRole("menu", { name: "Arrange" })
     .getByRole("menuitem", { name: "Bring to front", exact: true })
     .click();
   await expect.poll(symbols).toEqual(["ADC3", "ADC1", "ADC2"]);
