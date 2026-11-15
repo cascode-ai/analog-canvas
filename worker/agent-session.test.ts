@@ -2916,6 +2916,108 @@ describe("public Agent session routes", () => {
     });
   });
 
+  it("tells an Agent naming a Cell of the tab's previous Project how to follow it (#2291)", async () => {
+    const { env, objects, sockets } = routedFixture();
+    const createdResponse = await routeAgentSessionRequest(
+      new Request("https://editor.example/api/agent/sessions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          projectSessionId: "project:follow",
+          projectId: "gallery-ag-1744",
+          documentIds: ["ag-1744-main"],
+          scopes: ["circuit.snapshot"],
+        }),
+      }),
+      env,
+    );
+    const created = (await createdResponse!.json()) as {
+      session: { sessionId: string; claimCode: string };
+    };
+    const { sessionId } = created.session;
+    const claimResponse = await routeAgentSessionRequest(
+      new Request("https://editor.example/api/agent/claims", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ claimCode: created.session.claimCode }),
+      }),
+      env,
+    );
+    const { agentToken } = (await claimResponse!.json()) as {
+      agentToken: string;
+    };
+    // The paired tab opens another Gallery circuit.
+    const socket = {
+      readyState: WebSocket.OPEN,
+      send: vi.fn(),
+    } as unknown as WebSocket;
+    sockets.set(sessionId, [socket]);
+    await objects.get(sessionId)!.webSocketMessage(
+      socket,
+      JSON.stringify({
+        protocolVersion: "1.0",
+        sessionId,
+        kind: "heartbeat",
+        nonce: "opened-ag-1755",
+        contextRevision: "context-ag-1755",
+        projectId: "gallery-ag-1755",
+        documentIds: ["ag-1755-main"],
+      }),
+    );
+    const snapshot = (headers: Record<string, string>) =>
+      routeAgentSessionRequest(
+        new Request(
+          `https://editor.example/api/agent/sessions/${sessionId}/circuit`,
+          {
+            method: "POST",
+            headers: {
+              authorization: `Bearer ${agentToken}`,
+              "content-type": "application/json",
+              ...headers,
+            },
+            body: JSON.stringify({
+              apiVersion: "3.0",
+              requestId: crypto.randomUUID(),
+              operation: "snapshot",
+              documentId: "ag-1744-main",
+            }),
+          },
+        ),
+        env,
+      );
+
+    // A client still on the old context is told to read the new one, which
+    // its client does before the next call.
+    const behind = await snapshot({ "x-agent-context": "context-ag-1744" });
+    expect(behind?.status).toBe(409);
+    expect(await behind!.json()).toMatchObject({
+      error: {
+        code: "PROJECT_CONTEXT_STALE",
+        message: expect.stringContaining("connect()"),
+      },
+    });
+    // One that read it yet names the old Cell learns how to follow the tab.
+    const stale = await snapshot({ "x-agent-context": "context-ag-1755" });
+    expect(stale?.status).toBe(403);
+    expect(await stale!.json()).toMatchObject({
+      error: {
+        code: "TOKEN_SCOPE_INSUFFICIENT",
+        message: expect.stringContaining("Call connect()"),
+      },
+    });
+    const status = await routeAgentSessionRequest(
+      new Request(
+        `https://editor.example/api/agent/sessions/${sessionId}/status`,
+        { headers: { authorization: `Bearer ${agentToken}` } },
+      ),
+      env,
+    );
+    expect(await status!.json()).toMatchObject({
+      projectId: "gallery-ag-1755",
+      documentIds: ["ag-1755-main"],
+    });
+  });
+
   it("keeps an idle Agent event stream alive with SSE comments", async () => {
     const storage = new MemoryStorage();
     const object = new AgentSessionDO(

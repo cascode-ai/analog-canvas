@@ -73,27 +73,26 @@ describe("Project working-copy history", () => {
     expect(controller.canRedo).toBe(false);
   });
 
-  it("does not let an Agent skip another Cell's newer entry or steal the foreground", () => {
+  it("lets an Agent undo the newest entry whichever Cell it names, without stealing the foreground (#2292)", () => {
     const controller = setup();
     add(controller, "Rtop");
     controller.openDocument("child");
     add(controller, "Rchild");
     const top = controller.project.topDocumentId;
     controller.openDocument(top);
-    const denied = agentHistory(controller, top, "undo");
-    expect(denied).toMatchObject({
-      ok: false,
-      error: { code: "EDIT_PRECONDITION" },
-    });
     const before = controller.project;
-    expect(agentHistory(controller, "child", "undo", true)).toMatchObject({
+    expect(agentHistory(controller, top, "undo", true)).toMatchObject({
       ok: true,
       applied: false,
+      diff: { documentId: "child" },
     });
     expect(controller.project).toBe(before);
-    expect(agentHistory(controller, "child", "undo")).toMatchObject({
+    // Named for the top Cell, it still takes back the child's newer change.
+    expect(agentHistory(controller, top, "undo")).toMatchObject({
       ok: true,
       applied: true,
+      document: { id: "child" },
+      diff: { documentId: "child", editKinds: ["undo"] },
     });
     expect(controller.activeDocumentId).toBe(top);
     expect(controller.document.instances).toHaveLength(1);

@@ -556,8 +556,8 @@ another review shows its boxes. Choosing a device's netlist line lights the
 device the other side's netlist pairs with it, matched by what the devices
 connect to (names differ; a reading aid rather than a check), and lights our
 device in our drawing (by its instance, as the editor's Project Code finds
-it). Fix in editor, on the drawing's title row, opens a tab; back in Review, a drawing changed there
-shows its new version. Under the pictures, Auto check lists by kind what the layout
+it). Fix in editor, on the drawing's title row, opens a tab; a drawing published there
+shows its new version in Review at once (same browser), or when Review is focused or shown again. Under the pictures, Auto check lists by kind what the layout
 checks (`apps/editor/src/layout-check.ts`) find in our drawing: a step of at
 most 20 in a wire between two runs; neighbours alike and turned alike whose
 pins miss a shared row or column by at most 15; branch dots off level or out

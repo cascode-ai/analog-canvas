@@ -5,7 +5,12 @@ import {
   resolveRouteGeometry,
 } from "@icm/derived";
 import { createRoutePath, routeEnd } from "@icm/model";
-import type { Point, RouteBranch, SchematicDocument } from "@icm/model";
+import type {
+  Point,
+  RouteBranch,
+  RouteEndpoint,
+  SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { SchematicEdit } from "./edit-schema.js";
@@ -67,6 +72,53 @@ function pinGroups(document: SchematicDocument): string {
 }
 
 /**
+ * Whether two Documents join the pins both have the same way: no two pins on
+ * one Net in `a` are on two in `b`, and no two on two are on one. Pins only
+ * one of them has, such as a renamed or a newly implicit pin, are left out.
+ */
+export function sameCommonPinJoins(
+  a: SchematicDocument,
+  b: SchematicDocument,
+): boolean {
+  const netOf = (document: SchematicDocument) =>
+    new Map(
+      document.nets.flatMap((net) =>
+        net.terminals.map(
+          (terminal) =>
+            [
+              `${terminal.instanceId}.${terminal.pinName}.${terminal.memberId ?? ""}`,
+              net.id,
+            ] as const,
+        ),
+      ),
+    );
+  const right = netOf(b);
+  const forward = new Map<string, string>();
+  const backward = new Map<string, string>();
+  for (const [pin, leftNet] of netOf(a)) {
+    const rightNet = right.get(pin);
+    if (rightNet === undefined) continue;
+    if ((forward.get(leftNet) ?? rightNet) !== rightNet) return false;
+    if ((backward.get(rightNet) ?? leftNet) !== leftNet) return false;
+    forward.set(leftNet, rightNet);
+    backward.set(rightNet, leftNet);
+  }
+  return true;
+}
+
+/** A wire left meeting what it must not. */
+export interface UnresolvedStretchedRoute {
+  readonly routeId: string;
+  /** The wire's ends, as it keeps them. */
+  readonly ends: readonly [RouteEndpoint, RouteEndpoint];
+  /** What the wire, as the change leaves it, meets. */
+  readonly conflict: string;
+  /** Whether a clear path was found, though refused as joining another
+   * Net; false when there is none. */
+  readonly clearPath: boolean;
+}
+
+/**
  * set_route_path edits that redraw each of `routeIds` along the cheapest
  * clear path when a change left it meeting what it must not (another Net's
  * pin or wire, or a part) while it met none of that `before` the change. The
@@ -80,51 +132,79 @@ function pinGroups(document: SchematicDocument): string {
  * merges a wire laid along another of its Net with it and so changes which
  * wires there are. A redraw then has to keep only which pins are joined.
  */
-export function redrawStretchedRoutesClear(
+function redrawStretchedRoutesClear(
   before: { document: SchematicDocument; resolver: SymbolResolver },
   resolver: SymbolResolver,
   routeIds: readonly string[],
   preview: (extra: readonly SchematicEdit[]) => SchematicDocument | null,
   drawn?: (extra: readonly SchematicEdit[]) => SchematicDocument | null,
 ): SchematicEdit[] {
+  return planStretchedRouteRedraws(before, resolver, routeIds, preview, drawn)
+    .edits;
+}
+
+/**
+ * redrawStretchedRoutesClear, and the wires it left meeting what they must
+ * not.
+ *
+ * `keepBeforeJoins` judges each redraw by the pins `before` joins, not by
+ * those the change alone leaves joined: a Cell's symbol change only moves its
+ * callers' pins, so whatever a wire stretched over another Net would join,
+ * its redraw must join exactly what `before` did (#2287). A redraw a preview
+ * refused, as while another stretched wire still merged two Nets, is tried
+ * again once a later wire has been redrawn. A wire that already met
+ * something before keeps it, unless the change is still left joining what
+ * `before` did not; then that wire is drawn clear too.
+ */
+export function planStretchedRouteRedraws(
+  before: { document: SchematicDocument; resolver: SymbolResolver },
+  resolver: SymbolResolver,
+  routeIds: readonly string[],
+  preview: (extra: readonly SchematicEdit[]) => SchematicDocument | null,
+  drawn?: (extra: readonly SchematicEdit[]) => SchematicDocument | null,
+  options: { keepBeforeJoins?: boolean } = {},
+): { edits: SchematicEdit[]; unresolved: UnresolvedStretchedRoute[] } {
   const judged = drawn ?? preview;
   const joins = drawn ? pinGroups : membership;
   let working = judged([]);
-  if (!working) return [];
+  if (!working) return { edits: [], unresolved: [] };
   // What the change alone leaves, previewed only once a redraw has to be
   // compared with it: most moves stretch no wire onto anything.
   let result: SchematicDocument | null | undefined = drawn
     ? undefined
     : working;
   const extra: SchematicEdit[] = [];
+  const unresolved = new Map<string, UnresolvedStretchedRoute>();
   // Wires still to be looked at are no obstacles yet: two pins that traded
   // places each sit on the other's stretched wire, and neither could leave.
   const pending = new Set(routeIds);
-  for (const routeId of [...routeIds].sort((left, right) =>
-    left.localeCompare(right, "en"),
-  )) {
-    const route = working.routes.find((candidate) => candidate.id === routeId);
+  /** Redraws one wire clear; false when it is left as it was, to retry. */
+  const redraw = (routeId: string, keepEarlier: boolean): boolean => {
+    const current = working!;
+    const route = current.routes.find((candidate) => candidate.id === routeId);
     const earlier = before.document.routes.find(
       (candidate) => candidate.id === routeId,
     );
-    const unchanged =
+    const now = route && routeConflict(current, resolver, route)?.reason;
+    if (
       !route ||
-      (earlier &&
-        routeConflict(before.document, before.resolver, earlier)?.reason) ||
-      !routeConflict(working, resolver, route)?.reason;
-    if (unchanged) {
+      !now ||
+      (keepEarlier &&
+        earlier &&
+        routeConflict(before.document, before.resolver, earlier)?.reason)
+    ) {
       pending.delete(routeId);
-      continue;
+      return true;
     }
     // Their open ends stay where they are, so those still block a path.
     const ownNet = route.netId;
-    const blockedPoints = working.routes.flatMap((candidate) =>
+    const blockedPoints = current.routes.flatMap((candidate) =>
       candidate.id !== routeId &&
       pending.has(candidate.id) &&
       candidate.netId !== ownNet
         ? [candidate.start, routeEnd(candidate)].flatMap((endpoint) =>
             endpoint.kind === "junction"
-              ? working!.junctions
+              ? current.junctions
                   .filter((junction) => junction.id === endpoint.junctionId)
                   .map((junction) => junction.position)
               : [],
@@ -133,8 +213,8 @@ export function redrawStretchedRoutesClear(
     );
     const found = routeConflict(
       {
-        ...working,
-        routes: working.routes.filter(
+        ...current,
+        routes: current.routes.filter(
           (candidate) => candidate.id === routeId || !pending.has(candidate.id),
         ),
       },
@@ -143,22 +223,31 @@ export function redrawStretchedRoutesClear(
       blockedPoints,
     );
     pending.delete(routeId);
-    if (!found) continue;
+    if (!found) return true;
+    const miss = (clearPath: boolean) => {
+      unresolved.set(routeId, {
+        routeId,
+        ends: [route.start, routeEnd(route)],
+        conflict: now,
+        clearPath,
+      });
+      return false;
+    };
     const clear = found.clearance.path(found.ends[0], found.ends[1]);
-    if (typeof clear === "string") continue;
+    if (typeof clear === "string") return miss(false);
     const from = resolveEndpointConnection(
-      working,
+      current,
       resolver,
       found.ends[0],
       found.context,
     );
     const to = resolveEndpointConnection(
-      working,
+      current,
       resolver,
       found.ends[1],
       found.context,
     );
-    if (!from || !to) continue;
+    if (!from || !to) return true;
     const compiled = compileWireDraft(
       { connection: from },
       { connection: to },
@@ -187,15 +276,59 @@ export function redrawStretchedRoutesClear(
     const next = preview([...extra, edit]);
     // A redraw changes where a wire runs, never what it joins: one that
     // brought a wire onto another Net's open end would merge the two.
-    if (result === undefined) result = preview([]);
-    if (!next || !result || joins(next) !== joins(result)) continue;
+    if (options.keepBeforeJoins) {
+      if (!next || !sameCommonPinJoins(before.document, next))
+        return miss(true);
+    } else {
+      if (result === undefined) result = preview([]);
+      if (!next || !result || joins(next) !== joins(result)) return miss(true);
+    }
     const nextDrawn = judged([...extra, edit]);
-    if (!nextDrawn) continue;
+    if (!nextDrawn) return miss(true);
     extra.push(edit);
+    unresolved.delete(routeId);
     result = next;
     working = nextDrawn;
+    return true;
+  };
+  const ordered = [...routeIds].sort((left, right) =>
+    left.localeCompare(right, "en"),
+  );
+  // Each pass looks again at the wires that may still move; until each is
+  // looked at, it is no obstacle, as in the first pass.
+  const pass = (routes: readonly string[], keepEarlier: boolean) => {
+    for (const routeId of routes) pending.add(routeId);
+    return routes.filter((routeId) => !redraw(routeId, keepEarlier));
+  };
+  let retry = pass(ordered, true);
+  if (options.keepBeforeJoins) {
+    for (let progress = extra.length > 0; progress && retry.length > 0;) {
+      const redrawn = extra.length;
+      retry = pass(retry, true);
+      progress = extra.length > redrawn;
+    }
+    const left = preview(extra);
+    if (!left || !sameCommonPinJoins(before.document, left))
+      pass(
+        ordered.filter((routeId) => {
+          const route = working!.routes.find(
+            (candidate) => candidate.id === routeId,
+          );
+          return route && routeConflict(working!, resolver, route)?.reason;
+        }),
+        false,
+      );
   }
-  return extra;
+  const last = working;
+  return {
+    edits: extra,
+    unresolved: [...unresolved.values()].filter((item) => {
+      const route = last.routes.find(
+        (candidate) => candidate.id === item.routeId,
+      );
+      return route && routeConflict(last, resolver, route)?.reason;
+    }),
+  };
 }
 
 /**

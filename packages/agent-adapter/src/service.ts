@@ -1665,7 +1665,19 @@ export function createAgentCircuitService(
                 ),
               }
             : undefined);
-        const beforeDiagnostics = diagnosticsFor(project, document, resolver);
+        // Undo/redo answers for the Cell the history step belonged to, which
+        // need not be the requested one (#2292).
+        const beforeDocument =
+          result.document.id === document.id
+            ? document
+            : (project?.documents.find(
+                (candidate) => candidate.id === result.document.id,
+              ) ?? document);
+        const beforeDiagnostics = diagnosticsFor(
+          project,
+          beforeDocument,
+          resolver,
+        );
         const diagnostics = diagnosticsFor(
           proposedProject,
           result.document,
@@ -1685,7 +1697,7 @@ export function createAgentCircuitService(
           proposedRevision: result.proposedRevision,
           diff: result.diff,
           terminalConnectivityChanged:
-            terminalConnectivity(document) !==
+            terminalConnectivity(beforeDocument) !==
             terminalConnectivity(result.document),
           ...(committedProject &&
           project &&

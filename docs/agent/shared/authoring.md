@@ -313,6 +313,7 @@ information). Hidden bulk needs no decorative wire.
   NMOS one), so a signal input (`VIN`) is a `port`, not a `vdd-port`. A
   `vdd-port`'s name stands beside its bar, `arrange-labels` `side:"top"`
   centres it (house style); a `named-ground`'s stands centred below its bars.
+  `arrange-labels` sets an upside-down supply name upright beside its marker.
 - `set-port-direction` sets one terminal or a whole Port; `set-vdd-mode`
   switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.

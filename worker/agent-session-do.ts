@@ -1116,16 +1116,13 @@ export class AgentSessionDO {
           machine.projectId,
           requestDocumentId,
         );
-        if (!document.ok) {
-          return jsonResponse(
-            errorBody(
-              document.code,
-              "Document is outside the authorized session",
-            ),
-            403,
+        if (!document.ok)
+          return this.refuseDocument(
+            request,
+            machine,
+            requestDocumentId,
             allowedOrigin,
           );
-        }
       }
     }
     const payloadHash = await scopedRequestHash(
@@ -1287,12 +1284,10 @@ export class AgentSessionDO {
         fileRequest.documentId,
       );
       if (!document.ok)
-        return jsonResponse(
-          errorBody(
-            document.code,
-            "Document is outside the authorized session",
-          ),
-          403,
+        return this.refuseDocument(
+          request,
+          machine,
+          fileRequest.documentId,
           allowedOrigin,
         );
     }
@@ -2252,6 +2247,38 @@ export class AgentSessionDO {
   }
 
   /** A trusted-device task is told it is local, and where the rest is done. */
+  /**
+   * A Cell outside the Project the paired tab has open (#2291). The session
+   * follows the tab's Project, so a caller that has not read the current
+   * context yet is told so (its client refreshes and re-plans); one that has
+   * named a Cell of the open Project's predecessor learns how to follow it.
+   */
+  private refuseDocument(
+    request: Request,
+    machine: AgentSessionMachine,
+    documentId: string,
+    allowedOrigin: string | null,
+  ): Response {
+    const current = machine.contextRevision;
+    if (current && request.headers.get("x-agent-context") !== current)
+      return jsonResponse(
+        errorBody(
+          "PROJECT_CONTEXT_STALE",
+          `The editor tab now has another Project open, without Cell ${documentId}. Read the current context (connect() resumes this pairing onto it) and re-plan; nothing was changed.`,
+        ),
+        transportStatus("PROJECT_CONTEXT_STALE"),
+        allowedOrigin,
+      );
+    return jsonResponse(
+      errorBody(
+        "TOKEN_SCOPE_INSUFFICIENT",
+        `Document ${documentId} is outside the authorized session: it is not a Cell of the Project the editor tab has open. Call connect() to resume onto the tab's current Project and use its documentIds.`,
+      ),
+      403,
+      allowedOrigin,
+    );
+  }
+
   private refuseScope(allowedOrigin: string | null): Response {
     const code = this.deviceTrust
       ? "TRUSTED_TASK_LOCAL_ONLY"

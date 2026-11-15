@@ -96,8 +96,9 @@ Simulation tools take arguments flat (`{action, …}`) or in `request`. `detail`
 - `disconnect` on a pin is the GUI's Delete connection where wires end on it,
   else Disconnect endpoint.
 - `undo`/`redo` share the Editor's one chronological Project history, not an
-  Agent or per-Cell stack; they cannot skip newer work on another Cell (the
-  rejection names it). Structural history needs the current
+  Agent or per-Cell stack: like Ctrl+Z they take back the newest Project change
+  whichever `documentId` is given, and the receipt's `diff.documentId` and
+  `revision` name the Cell they changed. Structural history needs the current
   `expectedStructureRevision` (the client supplies it). Choose a `reset-cell`
   mode deliberately; routine layout uses move/transform/align.
 - Colors use `set_instance_style_override`, `set_route_style_override`,
@@ -194,6 +195,9 @@ Tool descriptions cover each action; these are the extra rules.
   navigation do not. `PROJECT_CONTEXT_STALE` needs refreshed context and a new
   plan, not a Claim; `NO_ACTIVE_PROJECT` means the browser is in Gallery. The
   client never redirects old writes. Closing a panel is not a disconnect.
+  After the tab opens another Project, a Cell of the previous one is
+  `TOKEN_SCOPE_INSUFFICIENT`: `connect()` (no Claim) resumes onto the open
+  Project; use its `documentIds`.
 - `project_cells` Cloud import copies one Cell's dependency closure (no live
   link); sign-in, stale-revision and library-compatibility failures are
   recoverable. `bind-workspace` targets a copy for this client's Circuit,
