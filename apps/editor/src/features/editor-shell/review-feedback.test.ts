@@ -57,6 +57,7 @@ it("names the Cell, the object and its netlist line, then the comment", async ()
       `Object: R1 (instance ${resistor.id})`,
       "Source: amp.sp:3",
       `Object: A (net ${net.id})`,
+      "Source: unavailable",
       "",
       "Use 2k and check this Net.",
       "",
@@ -165,6 +166,10 @@ it("shows the printed netlist names for selected unnamed Nets and copies their I
   const feedback = await reviewFeedbackText([
     { target, comment: "Review the middle Nets." },
   ]);
-  expect(feedback).toContain(`Object: ${firstName} (net ${firstNet.id})`);
-  expect(feedback).toContain(`Object: ${lastName} (net ${lastNet.id})`);
+  expect(feedback).toContain(
+    `Object: ${firstName} (net ${firstNet.id})\nSource: unavailable`,
+  );
+  expect(feedback).toContain(
+    `Object: ${lastName} (net ${lastNet.id})\nSource: unavailable`,
+  );
 });
