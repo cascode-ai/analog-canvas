@@ -5,18 +5,27 @@ import { sameOrigin } from "./same-origin";
 import { readSyncJson } from "./project-sync-http";
 import { catchUpResource, type ResourceCall } from "./resource-action-catchup";
 import type { ResourceActionEnv } from "./regional-resource-actions";
+import { sha256Hex } from "@icm/derived";
+import {
+  projectFormatDigests,
+  projectFormatRefusal,
+  projectFormatRequest,
+  type ProjectFormatDigests,
+} from "./gallery-store-maintenance";
 
 const PATH = "/api/resource-actions/maintenance";
 const DUPLICATES = "/api/gallery/duplicates/recycle",
-  CHECKS = "/api/gallery/simulation-checks";
+  CHECKS = "/api/gallery/simulation-checks",
+  FORMAT = "/api/gallery/maintenance/project-format";
 type Reference = { id: string; previewRevision: string };
 type Input =
   | { keep: Reference; remove: Reference[] }
   | { ids: string[] }
   | { all: true }
+  | ProjectFormatDigests
   | Record<string, never>;
 type Command = {
-  kind: "duplicates" | "checks" | "progress";
+  kind: "duplicates" | "checks" | "progress" | "format";
   target: string;
   commandId: string;
   body: Input;
@@ -37,6 +46,7 @@ const ref = (value: any): value is Reference =>
 function valid(kind: string, body: any): body is Input {
   if (!body || typeof body !== "object") return false;
   if (kind === "progress") return Object.keys(body).length === 0;
+  if (kind === "format") return projectFormatDigests(body) !== null;
   if (kind === "checks")
     return (
       (body.all === true && body.ids === undefined) ||
@@ -73,9 +83,11 @@ export async function routeRegionalMaintenance(
   env: ResourceActionEnv,
 ): Promise<Response | null> {
   const url = new URL(request.url),
-    incoming = url.pathname === PATH;
+    incoming = url.pathname === PATH,
+    format = url.pathname === FORMAT && request.method === "POST";
   if (
     !incoming &&
+    !format &&
     !(url.pathname === DUPLICATES && request.method === "POST") &&
     !(url.pathname === CHECKS && ["GET", "POST"].includes(request.method))
   )
@@ -118,6 +130,10 @@ export async function routeRegionalMaintenance(
       if (!response.ok) throw new Error("Unknown writer");
       return String((await response.json()).origin);
     };
+    // Versions replicate under their entry's id, so they share its writer.
+    const writerKey = async (body: { table: string; id: string }) =>
+      (await (await call("gallery-project-format-key", body)).json()).key as
+        string | null;
     const catchUp = async () => {
       const head = await fetch(
         peer.origin + "/api/resource-sync/gallery/status",
@@ -144,10 +160,22 @@ export async function routeRegionalMaintenance(
     ): Promise<Response> => {
       if (command.target !== env.RESOURCE_REGION)
         return fail("wrong-writer", 409);
-      if (command.kind === "duplicates" ? !user.isAdmin : !user.isOwner)
+      if (
+        command.kind === "duplicates" || command.kind === "format"
+          ? !user.isAdmin
+          : !user.isOwner
+      )
         return fail("forbidden", 403);
       if (command.kind === "progress")
         return call("simulation-checks-progress", { ownedOnly: true });
+      // Format is idempotent by content, so it keeps no command receipt.
+      if (command.kind === "format") {
+        const key = await writerKey(command.body as ProjectFormatDigests);
+        if (key === null) return fail("not-found", 404);
+        if ((await location(key)) !== env.RESOURCE_REGION)
+          return fail("wrong-writer", 409);
+        return call("gallery-project-format-digest", command.body);
+      }
       for (const id of ids(command))
         if ((await location(id)) !== env.RESOURCE_REGION)
           return fail("wrong-writer", 409);
@@ -207,6 +235,65 @@ export async function routeRegionalMaintenance(
     if (request.method === "POST" && !sameOrigin(request))
       return fail("forbidden", 403);
     const user = await sessionUserOf(request, env);
+    if (format) {
+      if (!user?.isAdmin) return fail("unauthorized", 401);
+      const body = projectFormatRequest(await request.json().catch(() => null));
+      if (!body) return fail("invalid-request", 400);
+      const key = await writerKey(body);
+      if (key === null) return fail("not-found", 404);
+      const region = await location(key);
+      if (region === env.RESOURCE_REGION) {
+        const response = await call("gallery-project-format", body);
+        return answer(await response.json(), response.status);
+      }
+      if (region !== peerRegion) return fail("wrong-writer", 409);
+      const refusal = projectFormatRefusal(body);
+      if (refusal) return answer(await refusal.json(), refusal.status);
+      const input: ProjectFormatDigests = {
+        table: body.table,
+        id: body.id,
+        originalSha256: sha256Hex(body.originalProjectText),
+        projectSha256: sha256Hex(body.projectText),
+      };
+      const command: Command = {
+        kind: "format",
+        target: region,
+        commandId: await digest(JSON.stringify(input)),
+        body: input,
+      };
+      const authorized = await auth("authorize", {
+        binding: await digest(JSON.stringify(command)),
+      });
+      if (!authorized.ok) return fail("authorization-unavailable", 503);
+      const token = (await authorized.json()).token;
+      let response: Response, received: any;
+      try {
+        response = await fetch(peer.origin + PATH, {
+          method: "POST",
+          redirect: "manual",
+          signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
+          headers: {
+            authorization: "Bearer " + token,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(command),
+        });
+        received = await readSyncJson(response, 65536);
+      } catch {
+        // A failed send cannot be told apart from a reply lost after commit.
+        return answer({ error: "action-unconfirmed", region }, 503);
+      }
+      if (!response.ok) return answer(received, response.status);
+      const caughtUp = await catchUpResource(
+        call,
+        "gallery",
+        peer.origin,
+        env.RESOURCE_SYNC_PEER_TOKEN,
+        received.head,
+      ).catch(() => false);
+      if (!caughtUp) return fail("action-propagation-pending", 503);
+      return answer(received.payload);
+    }
     if (!user) return fail("unauthorized", 401);
     const kind =
       url.pathname === DUPLICATES

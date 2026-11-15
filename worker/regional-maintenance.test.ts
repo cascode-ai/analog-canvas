@@ -1,5 +1,13 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { CURRENT_MODEL_SCHEMA_VERSION } from "@icm/model";
+import {
+  CURRENT_PROJECT_FILE_VERSION,
+  parseProject,
+  serializeProject,
+} from "@icm/project-protocol";
 import { pair } from "./regional-resource-actions.test-support";
+import { sha256Hex } from "@icm/derived";
+import { digest } from "./regional-auth-contract";
 import {
   recycleDuplicateGroup,
   DuplicateCleanupIncomplete,
@@ -352,5 +360,239 @@ it("dispatches an Owner simulation check to its writer without treating a replic
   expect(await result.json()).toMatchObject({ noTestbench: [id], missing: [] });
   expect((await (await t.cn.call(`/api/gallery/${id}`)).json()).entry.id).toBe(
     id,
+  );
+});
+
+type Site = Awaited<ReturnType<typeof pair>>["cn"];
+const op = (site: Site, operation: string, body: unknown) =>
+  site.store.fetch(
+    new Request("https://gallery/" + operation, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  );
+async function sync(from: Site, to: Site) {
+  const after =
+    (await (await op(to, "resource-sync/status", { stream: "gallery" })).json())
+      .received?.sequence ?? 0;
+  const envelope = await (
+    await op(from, "resource-sync/changes", { stream: "gallery", after })
+  ).json();
+  expect(
+    (await op(to, "resource-sync/receive", { stream: "gallery", envelope }))
+      .status,
+  ).toBe(200);
+}
+const sqlOf = (site: Site) => (site.store as any).sql;
+const rowOf = (site: Site, table: string, id: string) =>
+  sqlOf(site)
+    .exec(`SELECT project_text, schema_version FROM ${table} WHERE id = ?`, id)
+    .one() as { project_text: string; schema_version: number };
+/** Store a row the way an older release wrote it; returns that text. */
+function legacy(site: Site, table: string, id: string, indent?: number) {
+  const text = JSON.stringify(
+    parseProject(rowOf(site, table, id).project_text),
+    null,
+    indent,
+  );
+  sqlOf(site).exec(
+    `UPDATE ${table} SET project_text = ?, schema_version = ? WHERE id = ?`,
+    text,
+    CURRENT_MODEL_SCHEMA_VERSION,
+    id,
+  );
+  return text;
+}
+const formatRequest = (site: Site, cookie: string, body: unknown) =>
+  site.route(
+    new Request(ORIGIN + "/api/gallery/maintenance/project-format", {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie },
+      body: JSON.stringify(body),
+    }),
+  );
+const formatBody = (
+  table: string,
+  id: string,
+  originalProjectText: string,
+) => ({
+  table,
+  id,
+  originalProjectText,
+  projectText: serializeProject(parseProject(originalProjectText)),
+});
+
+it("migrates every Gallery row at its writer region from one entrance, versions under their entry", async () => {
+  const t = await pair(),
+    local = await t.publish(t.cn),
+    foreign = await t.publish(t.overseas);
+  const update = await t.overseas.call(`/api/gallery/${foreign}`, "PUT", "v2", {
+    name: "Second",
+    description: "",
+    tags: [],
+    projectText: rowOf(t.overseas, "gallery_entries", foreign).project_text,
+  });
+  expect(update.status, await update.clone().text()).toBe(200);
+  const version = sqlOf(t.overseas)
+    .exec("SELECT id FROM gallery_entry_versions WHERE entry_id = ?", foreign)
+    .one().id as string;
+  const rows = [
+    ["galleryEntries", "gallery_entries", local, t.cn],
+    ["galleryEntries", "gallery_entries", foreign, t.overseas],
+    ["galleryEntryVersions", "gallery_entry_versions", version, t.overseas],
+  ] as const;
+  const originals = rows.map(([, table, id, writer]) =>
+    legacy(writer, table, id),
+  );
+  await sync(t.cn, t.overseas);
+  await sync(t.overseas, t.cn);
+  const cookie = await t.auth.connect(await adminOf(t.auth.source));
+  for (const [index, [table, sqlTable, id, writer]] of rows.entries()) {
+    const body = formatBody(table, id, originals[index]!);
+    expect((await formatRequest(t.cn, t.cnCookie, body)).status).toBe(401);
+    const result = await formatRequest(t.cn, cookie, body);
+    expect(result.status, await result.clone().text()).toBe(200);
+    expect(await result.json()).toEqual({
+      id,
+      changed: true,
+      schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+    });
+    for (const site of new Set([t.cn, writer]))
+      expect(rowOf(site, sqlTable, id)).toEqual({
+        project_text: body.projectText,
+        schema_version: CURRENT_PROJECT_FILE_VERSION,
+      });
+    expect(await (await formatRequest(t.cn, cookie, body)).json()).toEqual({
+      id,
+      changed: false,
+      schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+    });
+  }
+});
+
+it("refuses a writer row changed since the entrance read it and reports a lost reply as unconfirmed", async () => {
+  const t = await pair(),
+    id = await t.publish(t.overseas);
+  const seen = legacy(t.overseas, "gallery_entries", id);
+  await sync(t.overseas, t.cn);
+  // A concurrent edit at the writer that the entrance has not yet received.
+  const current = legacy(t.overseas, "gallery_entries", id, 1);
+  const cookie = await t.auth.connect(await adminOf(t.auth.source));
+  const altered = await formatRequest(t.cn, cookie, {
+    ...formatBody("galleryEntries", id, seen),
+    projectText: seen,
+  });
+  expect(altered.status).toBe(422);
+  const stale = await formatRequest(
+    t.cn,
+    cookie,
+    formatBody("galleryEntries", id, seen),
+  );
+  expect(stale.status).toBe(409);
+  expect(await stale.json()).toMatchObject({ error: "concurrent-change" });
+  expect(rowOf(t.overseas, "gallery_entries", id).project_text).toBe(current);
+  expect(rowOf(t.cn, "gallery_entries", id).project_text).toBe(seen);
+  await sync(t.overseas, t.cn);
+  const body = formatBody("galleryEntries", id, current);
+  t.loseNextReply();
+  const lost = await formatRequest(t.cn, cookie, body);
+  expect(lost.status).toBe(503);
+  expect(await lost.json()).toEqual({
+    error: "action-unconfirmed",
+    region: "overseas",
+  });
+  const retried = await formatRequest(t.cn, cookie, body);
+  expect(retried.status, await retried.clone().text()).toBe(200);
+  expect(await retried.json()).toMatchObject({ changed: false });
+  expect(rowOf(t.cn, "gallery_entries", id)).toEqual({
+    project_text: body.projectText,
+    schema_version: CURRENT_PROJECT_FILE_VERSION,
+  });
+});
+
+it("migrates a cn row from the overseas entrance and reports a catch-up failure as pending", async () => {
+  const t = await pair(),
+    id = await t.publish(t.cn);
+  const original = legacy(t.cn, "gallery_entries", id);
+  await sync(t.cn, t.overseas);
+  const cookie = await adminOf(t.auth.source);
+  const body = formatBody("galleryEntries", id, original);
+  t.loseNextCatchup();
+  const pending = await formatRequest(t.overseas, cookie, body);
+  expect(pending.status).toBe(503);
+  expect(await pending.json()).toEqual({
+    error: "action-propagation-pending",
+  });
+  expect(rowOf(t.cn, "gallery_entries", id).project_text).toBe(
+    body.projectText,
+  );
+  const retried = await formatRequest(t.overseas, cookie, body);
+  expect(retried.status, await retried.clone().text()).toBe(200);
+  expect(await retried.json()).toMatchObject({ changed: false });
+  expect(rowOf(t.overseas, "gallery_entries", id)).toEqual({
+    project_text: body.projectText,
+    schema_version: CURRENT_PROJECT_FILE_VERSION,
+  });
+});
+
+it("refuses format commands at the writer without an admin, for another writer or with a changed body", async () => {
+  const t = await pair(),
+    foreign = await t.publish(t.overseas),
+    local = await t.publish(t.cn);
+  const original = legacy(t.overseas, "gallery_entries", foreign);
+  const admin = await t.auth.connect(await adminOf(t.auth.source));
+  const command = (id: string, text: string) => ({
+    kind: "format",
+    target: "overseas",
+    commandId: "format-" + id,
+    body: {
+      table: "galleryEntries",
+      id,
+      originalSha256: sha256Hex(text),
+      projectSha256: sha256Hex(serializeProject(parseProject(text))),
+    },
+  });
+  const capability = async (cookie: string, value: unknown) =>
+    (
+      await (
+        await t.cn.env
+          .AUTH!.getByName("auth")
+          .fetch("https://auth/internal/resource-action-authorize", {
+            method: "POST",
+            headers: { cookie },
+            body: JSON.stringify({
+              binding: await digest(JSON.stringify(value)),
+            }),
+          })
+      ).json()
+    ).token as string;
+  const deliver = (token: string, value: unknown) =>
+    t.overseas.route(
+      new Request(ORIGIN + "/api/resource-actions/maintenance", {
+        method: "POST",
+        headers: { authorization: "Bearer " + token },
+        body: JSON.stringify(value),
+      }),
+    );
+  const migrate = command(foreign, original);
+  const maker = await deliver(await capability(t.cnCookie, migrate), migrate);
+  expect(maker.status).toBe(403);
+  const tampered = {
+    ...migrate,
+    body: { ...migrate.body, projectSha256: migrate.body.originalSha256 },
+  };
+  expect(
+    (await deliver(await capability(admin, migrate), tampered)).status,
+  ).toBe(401);
+  const elsewhere = command(local, original);
+  const wrong = await deliver(await capability(admin, elsewhere), elsewhere);
+  expect(wrong.status).toBe(409);
+  expect(await wrong.json()).toEqual({ error: "wrong-writer" });
+  const misrouted = { ...migrate, target: "cn" };
+  expect(
+    (await deliver(await capability(admin, misrouted), misrouted)).status,
+  ).toBe(400);
+  expect(rowOf(t.overseas, "gallery_entries", foreign).project_text).toBe(
+    original,
   );
 });

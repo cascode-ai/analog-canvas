@@ -257,9 +257,13 @@ Optional fields by first schema (older envelopes cannot carry them):
   kept outside Git, backups refreshed first) uses admin-only same-origin
   `POST /api/gallery/maintenance/project-format`
   `{table, id, originalProjectText, projectText}` for `galleryEntries` or
-  `galleryEntryVersions`: literal original comparison, re-run conversion, 409
-  on a concurrent edit, idempotent, never Cloud Projects. Read back every row
-  before declaring done; a Worker rollback does not undo writes.
+  `galleryEntryVersions`: literal original comparison, re-run conversion,
+  idempotent, never Cloud Projects. On a regional deployment each row (a
+  version by its entry) migrates at its writer region, which compares SHA-256
+  digests of both texts instead of the literal text. Outcomes: 200, 404, 409
+  `concurrent-change` or `wrong-writer`, 422, 503 `action-unconfirmed` or
+  `action-propagation-pending`. Read back every row before declaring done; a
+  Worker rollback does not undo writes.
 - `GET /api/gallery/maintenance/schema-backup` needs `table` (`inventory`,
   `galleryEntries`, `galleryEntryVersions`, `galleryLikes`, `cloudProjects`,
   `cloudProjectVersions`) and optional opaque `after`, one raw row per page.
