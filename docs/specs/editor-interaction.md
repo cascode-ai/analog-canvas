@@ -237,12 +237,15 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   every acquisition surface; changing it drops disabled classes from the
   selection. It never affects drawing, probing, visibility, connectivity,
   movement closure, Search or diagnostic navigation.
-- Click replaces; `Shift`/`Ctrl`-click toggles; right-clicking a selected object
-  keeps the mixed selection. The canvas menu holds the selection's commands:
-  Properties, Copy, Rotate, Mirror, Delete and Align, plus Edit Component
-  Definition, Enter Cell or Couple inductors where they apply. Rotate (R) turns a
-  free drawing text between reading across and reading up the page; a half turn
-  leaves it.
+- Click replaces the selection. `Shift`/`Ctrl`-click toggles membership.
+  Right-clicking a selected object keeps the mixed selection.
+- The canvas menu groups applicable commands under **Arrange**, **Transform**
+  (rotate and mirror), and **Align**. Properties, Copy, Delete, Edit Component
+  Definition, Enter Cell and Couple inductors are top-level when applicable.
+  Hover, click, or press `→` or `Enter` on a group to open it. `↑`/`↓` move
+  within the current menu, and `←` or `Esc` in a submenu return to its trigger.
+- Rotate (`R`) switches free drawing text between reading across and reading
+  up the page. A half turn returns to the same reading orientation.
 - Hit testing skips objects under an opaque region before applying selection
   priority. Repeat `Alt`-click to cycle through candidates at the same point,
   including covered objects.
@@ -261,9 +264,10 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   members. **Locate** frames the target in the visible canvas. A covered
   selection shows its outline above the drawing. Open an internal formula
   or double-click an editable text row to edit it in place.
-- Use the panel or canvas menu to bring to front, move up, move down or send to
-  back. The corresponding chords use `Alt+Shift` with `Home`, `↑`, `↓` and
-  `End`. Drag a row above or below a target to place the selection there.
+- Use the panel or the canvas menu's **Arrange** submenu to bring to front,
+  move up, move down or send to back. The corresponding chords use
+  `Alt+Shift` with `Home`, `↑`, `↓` and `End`. Drag a row above or below a
+  target to place the selection there.
   Each edit uses [the same transaction](edit-engine.md#edit-rules) and
   one Undo. Changing the drawing during a drag invalidates that drop.
 - A Pin row locates its real endpoint. While wiring, choosing a Pin in the

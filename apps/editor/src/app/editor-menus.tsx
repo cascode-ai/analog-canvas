@@ -13,7 +13,10 @@ import { deriveRoutingAffectedClosure } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { NetlistNamingProfile } from "@icm/netlist";
-import type { createEditorCommandRouter } from "../commands/editor-command";
+import type {
+  createEditorCommandRouter,
+  EditorCommandRequest,
+} from "../commands/editor-command";
 import type { UseRecoveryCoordinatorResult } from "../document/recovery-coordinator";
 import type { useProjectFileLifecycle } from "../document/use-project-file-lifecycle";
 import type { SchematicClipboard } from "../features/clipboard/clipboard";
@@ -768,14 +771,27 @@ export function EditorCanvasContextMenu({
   coupleInductors?: (() => void) | null;
   drawingOrderActions?: readonly ContextMenuAction[];
 }) {
+  const command = (
+    label: string,
+    request: EditorCommandRequest,
+  ): ContextMenuAction => ({
+    label,
+    enabled: editorCommands.state(request).enabled,
+    execute: () => editorCommands.execute(request),
+  });
   return (
     <CanvasContextMenu
       position={canvasContextMenu}
-      alignmentEnabled={alignmentParticipantCount >= 2}
-      onAlign={(mode) =>
-        editorCommands.execute({ id: "selection.align", mode })
-      }
-      actions={[
+      items={[
+        {
+          label: "Align",
+          actions:
+            alignmentParticipantCount >= 2
+              ? EDGE_ALIGNMENT_MODES.map(({ label, mode }) =>
+                  command(label, { id: "selection.align", mode }),
+                )
+              : [],
+        },
         {
           label: "Edit Component Definition (E)",
           enabled: hasDefinitionSelection,
@@ -799,12 +815,8 @@ export function EditorCanvasContextMenu({
               },
             ]
           : []),
-        {
-          label: "Properties (Q)",
-          enabled: editorCommands.state({ id: "properties.open" }).enabled,
-          execute: () => editorCommands.execute({ id: "properties.open" }),
-        },
-        ...drawingOrderActions,
+        command("Properties (Q)", { id: "properties.open" }),
+        { label: "Arrange", actions: drawingOrderActions },
         {
           label: "Copy (C)",
           enabled:
@@ -813,33 +825,18 @@ export function EditorCanvasContextMenu({
           execute: () => editorCommands.execute({ id: "selection.copy" }),
         },
         {
-          label: "Rotate 90° (R)",
-          enabled: editorCommands.state({ id: "transform.rotate" }).enabled,
-          execute: () => editorCommands.execute({ id: "transform.rotate" }),
-        },
-        {
-          label: "Mirror left/right (Shift+R)",
-          enabled: editorCommands.state({
-            id: "transform.mirror",
-            direction: "left-right",
-          }).enabled,
-          execute: () =>
-            editorCommands.execute({
+          label: "Transform",
+          actions: [
+            command("Rotate 90° (R)", { id: "transform.rotate" }),
+            command("Mirror left/right (Shift+R)", {
               id: "transform.mirror",
               direction: "left-right",
             }),
-        },
-        {
-          label: "Mirror top/bottom (Ctrl+R)",
-          enabled: editorCommands.state({
-            id: "transform.mirror",
-            direction: "top-bottom",
-          }).enabled,
-          execute: () =>
-            editorCommands.execute({
+            command("Mirror top/bottom (Ctrl+R)", {
               id: "transform.mirror",
               direction: "top-bottom",
             }),
+          ],
         },
         {
           label: "Delete",

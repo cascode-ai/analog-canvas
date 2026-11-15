@@ -53,7 +53,10 @@ test("starts a free wire over a covered ADC pin and snaps when exposed", async (
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("active-tool")).toHaveText("pointer");
   await page.mouse.click(out.x, out.y, { button: "right" });
-  await page
+  const menu = page.getByTestId("canvas-context-menu");
+  await menu.getByRole("menuitem", { name: "Arrange", exact: true }).hover();
+  await menu
+    .getByRole("menu", { name: "Arrange" })
     .getByRole("menuitem", { name: "Send to back", exact: true })
     .click();
   await clickDrawTool(page, "wire");
