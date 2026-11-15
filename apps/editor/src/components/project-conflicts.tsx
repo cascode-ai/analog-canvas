@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatProjectFile } from "@icm/project-protocol";
 import { InlineConfirm } from "./inline-confirm";
 import { downloadBlob } from "../hosts/download-link";
 
@@ -89,7 +90,7 @@ export function ProjectConflicts({
                 type="button"
                 onClick={() =>
                   downloadBlob(
-                    new Blob([branch.projectText], {
+                    new Blob([formatProjectFile(branch.projectText)], {
                       type: "application/json",
                     }),
                     `conflict-${index + 1}.icproj.json`,

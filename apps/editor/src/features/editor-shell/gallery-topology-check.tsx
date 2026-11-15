@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useState, useSyncExternalStore } from "react";
 import type { CircuitProject } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import { serializeCompactProject } from "@icm/project-protocol";
 import { galleryPreviewUrl } from "../../gallery-client";
 import { getGalleryTopologyTask } from "./gallery-topology-task";
 import {
@@ -14,7 +14,7 @@ const GalleryTopologyComparison = lazy(
 // Compare portable content, not page-local object identity. Revision counters
 // advance on undo/reload but do not change the drawing being checked.
 function comparisonContent(project: CircuitProject): string {
-  return serializeProject({
+  return serializeCompactProject({
     ...project,
     structureRevision: 0,
     documents: project.documents.map((document) => ({

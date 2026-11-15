@@ -15,6 +15,7 @@ import {
 import { CircuitProjectSchema, labelTypography } from "@icm/model";
 import { applyLabelSubscriptCase } from "../text-editing/label-subscript-case";
 import {
+  serializeCompactProject,
   serializeProject,
   tryParseProjectWithMetadata,
   type ProjectDiagnostic,
@@ -119,8 +120,8 @@ function sameAuthoredProject(
   right: CircuitProject,
 ): boolean {
   return (
-    serializeProject(projectWithoutManagedRevisions(left)) ===
-    serializeProject(projectWithoutManagedRevisions(right))
+    serializeCompactProject(projectWithoutManagedRevisions(left)) ===
+    serializeCompactProject(projectWithoutManagedRevisions(right))
   );
 }
 

@@ -3,7 +3,10 @@ import {
   createEmptyProject,
   createRoutePath,
 } from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
+import {
+  serializeCompactProject,
+  serializeProject,
+} from "@icm/project-protocol";
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
@@ -340,6 +343,22 @@ describe("Gallery and example commands", () => {
 
       expect(input.replaceActiveProject).not.toHaveBeenCalled();
       expect(input.setStatus).not.toHaveBeenCalled();
+    });
+
+    it("keeps the copy when only the Project Code layout changes", async () => {
+      const compact = serializeCompactProject(opened);
+      for (const [previous, received] of [
+        [openedText, compact],
+        [compact, openedText],
+      ]) {
+        const input = dependencies(serving(received!));
+        await createGalleryExampleCommands(input).refreshGalleryEntry({
+          ...context,
+          sourceDigest: digest(previous!),
+        });
+        expect(input.replaceActiveProject).not.toHaveBeenCalled();
+        expect(input.setStatus).not.toHaveBeenCalled();
+      }
     });
 
     it("updates a copy opened before its text was recorded", async () => {

@@ -2,9 +2,21 @@ import * as galleryRequests from "./gallery-requests";
 // Private Cloud Projects and the Shelf drafts a publication comes from.
 
 import { clearFormulaArtifactCacheForTests } from "../packages/math-typesetting/src/cache";
-import { CURRENT_PROJECT_FILE_VERSION } from "@icm/project-protocol";
+import { createEmptyProject } from "@icm/model";
+import {
+  CURRENT_PROJECT_FILE_VERSION,
+  formatProjectFile,
+  parseProject,
+  serializeCompactProject,
+  serializeProject,
+} from "@icm/project-protocol";
+import { legacyProjectFile } from "../packages/project-protocol/src/legacy-project.test-support";
 import { describe, expect, it, vi } from "vitest";
-import { CLOUD_PROJECT_LIMIT as EDITOR_CLOUD_PROJECT_LIMIT } from "../apps/editor/src/features/editor-shell/cloud-projects";
+import {
+  CLOUD_PROJECT_LIMIT as EDITOR_CLOUD_PROJECT_LIMIT,
+  openCloudProject,
+  saveCloudProject,
+} from "../apps/editor/src/features/editor-shell/cloud-projects";
 import { CLOUD_PROJECT_LIMIT } from "./gallery-store-cloud-projects";
 import { GalleryDO } from "./gallery";
 import { GALLERY_MAX_PROJECT_BYTES } from "./gallery-store";
@@ -26,6 +38,59 @@ import {
 } from "./gallery.test-support";
 
 describe("private Cloud Projects", () => {
+  it("saves and reopens a Project whose readable copy exceeds the byte limit", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const fetchLike: typeof fetch = (input, init) => {
+      const request = new Request(new URL(String(input), ORIGIN), init);
+      request.headers.set("Origin", ORIGIN);
+      request.headers.set("Cookie", cookie);
+      return route(env, request);
+    };
+    const project = createEmptyProject("large-cloud", "Large source archive");
+    project.source.files.push({
+      id: "source-archive",
+      path: "source.cir",
+      hash: "archive-v1",
+      content: { encoding: "utf-8", text: '* 偏置\n  "A" \\ B\n' },
+    });
+    const content = project.source.files[0]!.content!;
+    const padding =
+      GALLERY_MAX_PROJECT_BYTES -
+      Buffer.byteLength(serializeProject(project)) +
+      32;
+    content.text += "x".repeat(padding);
+    expect(Buffer.byteLength(serializeProject(project))).toBeGreaterThan(
+      GALLERY_MAX_PROJECT_BYTES,
+    );
+
+    const saved = await saveCloudProject(project, null, fetchLike);
+    expect(saved.status).toBe("saved");
+    if (saved.status !== "saved") return;
+    const reopened = await openCloudProject(saved.project.id, fetchLike);
+    expect(reopened.status).toBe("opened");
+    if (reopened.status !== "opened") return;
+    expect(reopened.project.projectText.trimEnd()).not.toContain("\n");
+    expect(Buffer.byteLength(reopened.project.projectText)).toBeLessThanOrEqual(
+      GALLERY_MAX_PROJECT_BYTES,
+    );
+    expect(parseProject(reopened.project.projectText)).toEqual(project);
+    expect(
+      await saveCloudProject(project, saved.project, fetchLike),
+    ).toMatchObject({
+      status: "saved",
+      project: { id: saved.project.id, revision: saved.project.revision },
+    });
+
+    content.text += "x".repeat(1024);
+    expect(await saveCloudProject(project, saved.project, fetchLike)).toEqual({
+      status: "too-large",
+    });
+    expect(await openCloudProject(saved.project.id, fetchLike)).toEqual(
+      reopened,
+    );
+  });
+
   it("limits distinct Projects without evicting an existing Project", async () => {
     const env = environment();
     const cookie = await makerOf(env);
@@ -340,6 +405,96 @@ describe("private Cloud Projects", () => {
     expect((await (await call("/versions")).json()).versions).toHaveLength(3);
     expect((await call(path + "/project")).status).toBe(200);
     expect(await (await call(path + "/preview.svg")).text()).toContain("<svg");
+  });
+
+  it("restores a legacy history record against the compact byte limit and keeps retries idempotent after maintenance", async () => {
+    const env = environment();
+    const cookie = await makerOf(env);
+    const archived = createEmptyProject("old-draft", "Old draft");
+    archived.source.files.push({
+      id: "archive",
+      path: "archived.cir",
+      hash: "source-v1",
+      content: { encoding: "utf-8", text: "* Archived netlist\n" },
+    });
+    const schema82 = legacyProjectFile(serializeProject(archived), 82);
+    const readable82 = () => formatProjectFile(JSON.stringify(schema82));
+    const initialBytes = Buffer.byteLength(readable82());
+    schema82.source.files[0].content.text += "x".repeat(
+      GALLERY_MAX_PROJECT_BYTES - initialBytes + 32,
+    );
+    const historyText = readable82();
+    const compact = serializeCompactProject(parseProject(historyText));
+    expect(Buffer.byteLength(historyText)).toBeGreaterThan(
+      GALLERY_MAX_PROJECT_BYTES,
+    );
+    expect(Buffer.byteLength(compact)).toBeLessThanOrEqual(
+      GALLERY_MAX_PROJECT_BYTES,
+    );
+
+    const saved = await route(env, saveRequest(cookie, "Old draft"));
+    const {
+      project: { id },
+    } = await saved.json();
+    env.gallerySql.exec(
+      "UPDATE cloud_projects SET project_text = ?, schema_version = 82 WHERE id = ?",
+      historyText,
+      id,
+    );
+    const base = `${ORIGIN}/api/projects/${id}`;
+    const call = (
+      path = "",
+      method = "GET",
+      revision?: number,
+      body?: unknown,
+    ) =>
+      route(
+        env,
+        new Request(base + path, {
+          method,
+          headers: {
+            Cookie: cookie,
+            Origin: ORIGIN,
+            ...(revision === undefined
+              ? {}
+              : { "If-Match": `revision-${revision}` }),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        }),
+      );
+    expect(
+      (
+        await call("", "PUT", 1, {
+          name: "New draft",
+          projectText: projectText("New draft"),
+        })
+      ).status,
+    ).toBe(200);
+    const restore = `/versions/${encodeURIComponent(`${id}:1`)}/restore`;
+    expect((await call(restore, "POST", 2)).status).toBe(200);
+    expect((await (await call()).json()).project).toMatchObject({
+      revision: 3,
+      projectText: compact,
+    });
+    const admin = await adminOf(env);
+    const maintenance = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
+        method: "POST",
+        headers: { Cookie: admin, Origin: ORIGIN },
+        body: JSON.stringify({ apply: true }),
+      }),
+    );
+    expect(await maintenance.json()).toMatchObject({
+      applied: true,
+      failures: [],
+    });
+    expect(
+      (await (await call(restore, "POST", 2)).json()).project,
+    ).toMatchObject({ id, revision: 3 });
+    expect((await (await call()).json()).project).toMatchObject({
+      projectText: compact,
+    });
   });
 
   it("is private to the account that saved it", async () => {

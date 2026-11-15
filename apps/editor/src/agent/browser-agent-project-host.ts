@@ -1,5 +1,6 @@
 import {
   AGENT_API_VERSION,
+  AgentGalleryEntryReadSchema,
   base64EncodeBytes,
   type AgentGalleryEntryRead,
   type AgentGalleryFigure,
@@ -18,7 +19,7 @@ import { planProjectCellImport } from "@icm/edit-engine";
 import { createBrowserFormalExportSource } from "@icm/exporters";
 import type { CircuitProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
-import { parseProject } from "@icm/project-protocol";
+import { formatProjectFile, parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import {
@@ -564,6 +565,12 @@ export class BrowserAgentProjectHost {
         );
       }
     }
+    const readableCode = formatProjectFile(payload.projectText);
+    // Large Gallery entries may need compact layout to fit the Agent wire limit.
+    const fitsResponse =
+      AgentGalleryEntryReadSchema.shape.projectCode.safeParse(
+        readableCode,
+      ).success;
     return {
       apiVersion: AGENT_API_VERSION,
       requestId: request.requestId,
@@ -571,7 +578,7 @@ export class BrowserAgentProjectHost {
       ok: true,
       entry,
       ...(figure ? { figure } : {}),
-      projectCode: payload.projectText,
+      projectCode: fitsResponse ? readableCode : payload.projectText,
       netlist:
         request.netlistFormat === null
           ? null

@@ -373,7 +373,7 @@ describe("Project Code", () => {
     const definition = source.componentDefinitions[0];
     definition.symbol.primitives.push({
       kind: "circle",
-      center: { x: 5, y: 5 },
+      center: [5, 5],
       radius: 3,
     });
     const plan = planProjectCodeCommit(
@@ -390,10 +390,15 @@ describe("Project Code", () => {
       project.componentDefinitions![0]!.electrical,
     );
     const resolver = createProjectSymbolResolver(plan.project, []);
+    const original = project.componentDefinitions![0]!.symbol;
     for (const instance of plan.project.documents[0]!.instances) {
-      expect(resolver.resolve(instance.symbolId)!.definition).toEqual(
-        definition.symbol,
-      );
+      expect(resolver.resolve(instance.symbolId)!.definition).toEqual({
+        ...original,
+        primitives: [
+          ...original.primitives,
+          { kind: "circle", center: { x: 5, y: 5 }, radius: 3 },
+        ],
+      });
     }
 
     // Canvas placement edits an instance, never the shared component artwork.

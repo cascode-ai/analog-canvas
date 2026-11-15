@@ -3,6 +3,7 @@ import {
   parseProject,
   serializeProject,
 } from "../../project-protocol/src/index.js";
+import { legacyProjectFile } from "../../project-protocol/src/legacy-project.test-support.js";
 import { importSpiceSources } from "./importer.js";
 import { convertNetlist } from "./conversion.js";
 
@@ -48,8 +49,7 @@ describe("immutable import reference storage", () => {
     ).project!;
     for (const document of project.documents) delete document.importReference;
     for (const file of project.source.files) delete file.content;
-    const encoded = JSON.parse(serializeProject(project));
-    encoded.schemaVersion = 62;
+    const encoded = legacyProjectFile(serializeProject(project), 62);
     const loaded = parseProject(JSON.stringify(encoded));
     expect(loaded.documents.every((d) => d.importReference === undefined)).toBe(
       true,

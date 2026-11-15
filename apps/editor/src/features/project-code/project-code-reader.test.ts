@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { createEmptyProject } from "@icm/model";
+import { serializeCompactProject } from "@icm/project-protocol";
 import { createProjectCodeReader } from "./project-code-reader";
 import {
   formatProjectCode,
@@ -9,17 +10,25 @@ import {
 import { EditorDocumentController } from "../../document/document-controller";
 import { createProjectSnapshotSerializer } from "../../document/project-snapshot-serializer";
 
-it("reads recovery's canonical bytes without encoding again and still validates edited text", () => {
+it("formats a shared recovery snapshot and treats layout-only edits as unchanged", () => {
   const controller = new EditorDocumentController(
     createEmptyProject("shared-text", "Shared text"),
   );
-  const encode = vi.fn(formatProjectCode);
+  const encode = vi.fn(serializeCompactProject);
   const serializer = createProjectSnapshotSerializer(encode);
-  const saved = serializer.serialize(controller.project);
-  const read = vi.fn(serializer.serialize);
+  const saved = serializer.serializeCompact(controller.project);
+  const read = vi.fn(serializer.serializeReadable);
   const reader = createProjectCodeReader(controller.project, read);
-  expect(reader.baseline).toBe(saved);
+  expect(reader.baseline).toBe(formatProjectCode(controller.project));
+  expect(reader.baseline).not.toBe(saved);
   expect(reader.validate(saved)).toEqual({ ok: true });
+  expect(
+    planProjectCodeCommit(
+      controller.project,
+      saved,
+      controller.project.topDocumentId,
+    ),
+  ).toMatchObject({ ok: true, changed: false });
   expect(reader.validate("{").ok).toBe(false);
   expect(encode).toHaveBeenCalledTimes(1);
   expect(read).toHaveBeenCalledWith(controller.project);

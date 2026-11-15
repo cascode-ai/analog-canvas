@@ -3,7 +3,7 @@ import type { CircuitProject } from "@icm/model";
 import {
   createIndependentProject,
   parseProject,
-  serializeProject,
+  serializeCompactProject,
 } from "@icm/project-protocol";
 import {
   OFFLINE_FAILURE,
@@ -131,7 +131,7 @@ export async function saveCloudProject(
   binding: CloudProjectBinding | null,
   fetchLike: typeof fetch = fetch,
   galleryEntryId?: string,
-  serialize: (project: CircuitProject) => string = serializeProject,
+  serialize: (project: CircuitProject) => string = serializeCompactProject,
 ): Promise<CloudProjectSaveOutcome> {
   cloudLists.delete(fetchLike);
   let response: Response;

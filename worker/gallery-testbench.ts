@@ -27,42 +27,48 @@ export const LEGACY_TESTBENCH = `instr(project_text, char(10) || '  "simulation"
 /** Rows whose circuit has a testbench, kept apart or still in its Project Code. */
 export const HAS_TESTBENCH = `(testbench_text IS NOT NULL OR ${INLINE_TESTBENCH} OR ${LEGACY_TESTBENCH})`;
 
-/**
- * Where the testbench's value stands in indented Project Code, or null when
- * the text has no such key: a raw newline never occurs inside a JSON string,
- * so a newline and two spaces before the key mark the top level.
- */
+/** Locate the top-level testbench array in either Project JSON layout. */
 function testbenchSpan(
   projectText: string,
 ): { key: string; start: number; end: number } | null {
-  for (const key of TESTBENCH_KEYS) {
-    const marker = `\n  "${key}": `;
-    const at = projectText.indexOf(marker);
-    if (at < 0) continue;
-    const start = at + marker.length;
-    if (projectText[start] !== "[") return null;
-    let depth = 0;
-    let quoted = false;
-    for (let index = start; index < projectText.length; index += 1) {
-      const character = projectText[index];
-      if (quoted) {
-        if (character === "\\") index += 1;
-        else if (character === '"') quoted = false;
-      } else if (character === '"') quoted = true;
-      else if (character === "[" || character === "{") depth += 1;
-      else if ((character === "]" || character === "}") && --depth === 0)
-        return { key, start, end: index + 1 };
-    }
+  if (!TESTBENCH_KEYS.some((key) => projectText.includes(`"${key}"`)))
     return null;
+  let depth = 0;
+  let quoted = false;
+  let span: { key: string; start: number } | undefined;
+  for (let index = 0; index < projectText.length; index += 1) {
+    const character = projectText[index];
+    if (quoted) {
+      if (character === "\\") index += 1;
+      else if (character === '"') quoted = false;
+    } else if (character === '"') {
+      quoted = true;
+      if (depth === 1) {
+        const key = TESTBENCH_KEYS.find((key) =>
+          projectText.startsWith(`"${key}"`, index),
+        );
+        if (key) {
+          const afterKey = index + key.length + 2;
+          const separator = /^\s*:\s*\[/u.exec(projectText.slice(afterKey));
+          if (separator)
+            span = { key, start: afterKey + separator[0].length - 1 };
+        }
+      }
+    } else if (character === "[" || character === "{") {
+      depth += 1;
+    } else if (character === "]" || character === "}") {
+      depth -= 1;
+      if (depth === 1 && span) return { ...span, end: index + 1 };
+    }
   }
   return null;
 }
 
 /**
- * Indented Project Code split from its testbench: the text with the value
+ * Project JSON split from its testbench: the text with the value
  * emptied to `[]` and every other byte as it was, and the value's exact text
  * (null when the Project has none). Null for text this cannot split that way
- * (not indented, or from before schema 42). Project Code a write stores is
+ * (for example, before schema 42). Project Code a write stores is
  * serialized, so a write always splits.
  */
 export function splitTestbench(
@@ -122,7 +128,7 @@ export function withTestbench(
 /**
  * Project Code for a reader who may not read its testbench: what the store
  * holds once it moved, and the same for a row still waiting for the move.
- * Text that does not split (not indented, or from before schema 42) loses
+ * Text that does not split (for example, from before schema 42) loses
  * its testbench keys' contents through JSON instead.
  */
 export function withoutTestbench(projectText: string): string {

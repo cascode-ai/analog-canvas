@@ -2,10 +2,13 @@
   "schemaVersion": 2,
   "description": "Project compatibility corpus: canonical current files, explicitly retained migration witnesses, and rejected inputs.",
   "current": [
-    "fixtures/projects/minimal/project.icproj.json",
-    "fixtures/projects/legacy-scalar-signals/project.icproj.json"
+    "fixtures/projects/minimal/project.icproj.json"
   ],
   "migrated": [
+    {
+      "path": "fixtures/projects/legacy-scalar-signals/project.icproj.json",
+      "sourceSchemaVersion": 82
+    },
     {
       "path": "netlists/ngspice-ota-qualification/source.icproj.json",
       "sourceSchemaVersion": 48

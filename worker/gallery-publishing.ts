@@ -7,7 +7,7 @@ import { galleryComponentCount } from "./gallery-components";
 import {
   CURRENT_PROJECT_FILE_VERSION,
   parseProject,
-  serializeProject,
+  serializeCompactProject,
 } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import {
@@ -182,7 +182,7 @@ export async function handleDatasetEntryEdit(
   const cover = coveringDrafting(project);
   if (cover) return cover;
   project.name = current.name;
-  const stored = storedProject(serializeProject(project));
+  const stored = storedProject(serializeCompactProject(project));
   const { status, payload } = await callGallery(store, "import-entry", {
     id,
     at: new Date().toISOString(),
@@ -267,7 +267,7 @@ export async function handleSubmission(
   project.name = name;
   const now = new Date();
   // The testbench is kept apart from the Project Code readers get (#1545).
-  const stored = storedProject(serializeProject(project));
+  const stored = storedProject(serializeCompactProject(project));
   const { status, payload } = await callGallery<{
     id?: string;
     previewRevision?: string;
@@ -488,7 +488,7 @@ export async function handleEntryUpdate(
     author: existing.payload.entry?.author,
   });
   if (preserveTestbench) project.simulationFolders = [];
-  const stored = storedProject(serializeProject(project));
+  const stored = storedProject(serializeCompactProject(project));
   // Every republication re-answers this; the badge follows the drawing.
   const netlistable = designExtractsNetlist(project) ? 1 : 0;
   const { status, payload } = await callGallery(env, "replace-entry", {

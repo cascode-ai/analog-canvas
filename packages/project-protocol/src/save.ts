@@ -82,15 +82,36 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
-export function serializeProject(project: CircuitProject): string {
-  const value = sortKeys(
+function orderedProjectFile(project: CircuitProject): unknown {
+  return sortKeys(
     encodeProjectFile(
       validateProjectReadSnapshot(
         withProjectComponentDefinitions(validateProjectReadSnapshot(project)),
       ),
     ),
   );
-  return `${projectJson(value)}\n`;
+}
+
+export function serializeProject(project: CircuitProject): string {
+  return `${projectJson(orderedProjectFile(project))}\n`;
+}
+
+export function serializeCompactProject(project: CircuitProject): string {
+  return `${JSON.stringify(orderedProjectFile(project))}\n`;
+}
+
+/** Reformat encoded Project JSON without changing its file schema. */
+export function formatProjectFile(
+  projectText: string,
+  layout: "readable" | "compact" = "readable",
+): string {
+  let value: unknown;
+  try {
+    value = JSON.parse(projectText);
+  } catch {
+    return projectText;
+  }
+  return `${layout === "compact" ? JSON.stringify(value) : projectJson(value)}\n`;
 }
 
 function inlineJson(value: unknown): string {

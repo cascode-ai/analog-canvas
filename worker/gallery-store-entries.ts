@@ -8,7 +8,7 @@ import { sha256Hex } from "@icm/derived";
 import {
   CURRENT_PROJECT_FILE_VERSION,
   parseProject,
-  serializeProject,
+  serializeCompactProject,
 } from "@icm/project-protocol";
 import { NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
 import { AI_SEATS } from "./auth";
@@ -506,7 +506,9 @@ function preservedTestbench(row: EntryRow): string | null {
   if (!testbench || row.schema_version === CURRENT_PROJECT_FILE_VERSION)
     return testbench;
   return storedProject(
-    serializeProject(parseProject(withTestbench(row.project_text, testbench))),
+    serializeCompactProject(
+      parseProject(withTestbench(row.project_text, testbench)),
+    ),
   ).testbench;
 }
 

@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RegionalProjectDO } from "./regional-projects";
 import { projectPayloadHash } from "./project-sync-journal";
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import {
+  parseProject,
+  serializeCompactProject,
+  serializeProject,
+} from "@icm/project-protocol";
 import {
   environment,
   makerOf,
@@ -325,7 +329,7 @@ describe("regional replication rejection and history over HTTP", () => {
         }),
       );
       expect((await current.json()).project.projectText).toBe(
-        serializeProject(document),
+        serializeCompactProject(document),
       );
     },
   );
@@ -491,7 +495,9 @@ describe("regional replication rejection and history over HTTP", () => {
         { headers: { Cookie: cookie } },
       ),
     );
-    expect((await old.json()).projectText).toBe(projectText("Save 3"));
+    expect((await old.json()).projectText).toBe(
+      serializeCompactProject(parseProject(projectText("Save 3"))),
+    );
     expect((await update(b, "Late edit", project.saveToken)).status).toBe(200);
     expect(
       (

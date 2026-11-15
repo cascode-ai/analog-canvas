@@ -7,7 +7,7 @@ import {
   clickDrawTool,
   expectStatus,
   setComponentCodeField,
-  expectRecovered,
+  expectRecoveredRevision,
   openProject,
 } from "./editor-fixtures";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
@@ -152,9 +152,10 @@ test("moves and copies converted bus groups across tabs with member bindings, hi
   expect(documentsWithoutRevision(restored)).toEqual(
     documentsWithoutRevision(copied),
   );
-  await expectRecovered(
+  await expectRecoveredRevision(
     page,
-    `"revision": ${restored.documents.find((cell) => cell.id === restored.topDocumentId)!.revision}`,
+    restored.documents.find((cell) => cell.id === restored.topDocumentId)!
+      .revision,
   );
   await page.reload();
   await awaitEditorReady(page);
@@ -257,7 +258,7 @@ test("connects copied multi-pin groups through a manually bent wire", async ({
   // the debounce window cannot carry the last edit: the browser aborts
   // uncommitted IndexedDB transactions while the page unloads.
   const revision = await page.getByTestId("revision").textContent();
-  await expectRecovered(page, `"revision": ${revision}`);
+  await expectRecoveredRevision(page, Number(revision));
   await page.reload();
   // Refresh restores this window's workspace without a second manual restore.
   await awaitEditorReady(page);

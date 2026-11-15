@@ -14,7 +14,7 @@ import {
   CURRENT_PROJECT_FILE_VERSION,
   parseProject,
   ProjectFormatError,
-  serializeProject,
+  serializeCompactProject,
 } from "@icm/project-protocol";
 
 import {
@@ -567,7 +567,7 @@ export async function migrateLegacyProjectRecovery(
     documentRevisions,
     source: "recovered",
     updatedAt: seams.now?.() ?? new Date().toISOString(),
-    projectText: serializeProject(project),
+    projectText: serializeCompactProject(project),
   });
 
   const outcome = await seams.store.writeRecord(record);

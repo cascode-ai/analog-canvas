@@ -6,6 +6,7 @@ import {
   serializeProject,
   CURRENT_PROJECT_FILE_VERSION,
 } from "./index.js";
+import { legacyProjectFile } from "./legacy-project.test-support.js";
 import { publishProjectToGallery } from "../../../apps/editor/src/features/editor-shell/gallery-publish";
 
 function fixture() {
@@ -127,8 +128,7 @@ describe("controlled-source portable persistence", () => {
     expect(controls(parseProject(serializeProject(before)))).toEqual(
       controls(before),
     );
-    const raw = JSON.parse(serializeProject(before));
-    raw.schemaVersion = 64;
+    const raw = legacyProjectFile(serializeProject(before), 64);
     expect(() => parseProject(JSON.stringify(raw))).toThrow(
       /requires Project schema 65/,
     );

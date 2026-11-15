@@ -14,8 +14,8 @@ import {
   openProjectFile,
   placeResistors,
   readRecoveryRecords,
-  recoveryProjectTexts,
-  expectRecovered,
+  readRecoveredProjects,
+  expectRecoveredRevision,
 } from "./editor-fixtures.js";
 
 const fixtureText = readFileSync(
@@ -59,7 +59,7 @@ test("startup recovery without a saved workspace restores into a new working cop
   // One lone component remains below the banner's meaningful-content threshold.
   await placeResistors(page, [360]);
   await expect(page.getByTestId("revision")).toHaveText("1");
-  await expectRecovered(page, '"revision": 1');
+  await expectRecoveredRevision(page, 1);
   await page.goto("/editor?recovery=small");
   const banner = page.getByTestId("startup-recovery-banner");
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
@@ -68,7 +68,7 @@ test("startup recovery without a saved workspace restores into a new working cop
   // Three objects clear the threshold and the banner offers the restore.
   await placeResistors(page, [360, 470, 580], 330);
   await expect(page.getByTestId("revision")).toHaveText("3");
-  await expectRecovered(page, '"revision": 3');
+  await expectRecoveredRevision(page, 3);
 
   await page.goto("/editor?recovery=meaningful");
   await expect(banner).toBeVisible();
@@ -84,13 +84,13 @@ test("a damaged copy restores its previous generation; a newer-schema copy downl
 }) => {
   await page.goto("/editor");
   await placeResistors(page, [360]);
-  await expectRecovered(page, '"revision": 1');
+  await expectRecoveredRevision(page, 1);
 
   // Place one more edit so a valid previous generation exists, then corrupt
   // the latest record's Project text in place.
   await placeResistors(page, [500]);
   await expect(page.getByTestId("revision")).toHaveText("2");
-  await expectRecovered(page, '"revision": 2');
+  await expectRecoveredRevision(page, 2);
   const latest = (await readRecoveryRecords(page)).find(
     (record) => record.generation === "latest",
   )!;
@@ -158,7 +158,7 @@ test("export keeps recovery; explicit discard removes it and hides a clean repla
   await page.goto("/editor");
   // Three authored objects: enough for the replacement guard to engage.
   await placeResistors(page, [300, 380, 460]);
-  await expectRecovered(page, '"revision": 3');
+  await expectRecoveredRevision(page, 3);
   // Exporting downloads the formal Project but never clears the browser
   // recovery copies: the next write rotates revision 3 into the previous
   // generation of the same session. That edit also invalidates the export's
@@ -166,11 +166,12 @@ test("export keeps recovery; explicit discard removes it and hides a clean repla
   await downloadBytes(page, "File", "Export Project File…");
   await placeResistors(page, [540]);
   await expect
-    .poll(async () => {
-      const texts = await recoveryProjectTexts(page);
-      return texts.includes('"revision": 4') && texts.includes('"revision": 3');
-    })
-    .toBe(true);
+    .poll(async () =>
+      (await readRecoveredProjects(page)).flatMap(({ documents }) =>
+        documents.map(({ revision }) => revision),
+      ),
+    )
+    .toEqual(expect.arrayContaining([4, 3]));
   const replacement = createEmptyProject(
     "clean-replacement",
     "Clean Replacement",
@@ -191,10 +192,15 @@ test("export keeps recovery; explicit discard removes it and hides a clean repla
   // Wait for the debounced seed write of the incoming clean working copy.
   // Explicit Discard removed the outgoing session, and a clean recovery seed
   // must not make the exceptional Recovery command permanently visible.
-  await expectRecovered(page, '"name": "Clean Replacement"');
   await expect
-    .poll(() => recoveryProjectTexts(page))
-    .not.toContain('"name": "New Circuit"');
+    .poll(async () => {
+      const names = (await readRecoveredProjects(page)).map(({ name }) => name);
+      return [
+        names.includes("Clean Replacement"),
+        names.includes("New Circuit"),
+      ];
+    })
+    .toEqual([true, false]);
   await page.reload();
 
   const fileMenu = await openMenu(page, "File");
@@ -208,7 +214,7 @@ test("dialog closes with Escape, keeps focus labels and deletes a copy", async (
 }) => {
   await page.goto("/editor");
   await placeResistors(page, [360]);
-  await expectRecovered(page, '"revision": 1');
+  await expectRecoveredRevision(page, 1);
   await page.reload();
 
   await clickCommand(page, "File", "Recover Unsaved Work…");
@@ -265,6 +271,9 @@ test("storage failure keeps editing, offers a backup and never acknowledges Clou
   await warning.getByRole("button", { name: "Download Backup" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toContain(".icproj.json");
+  const downloadedText = readFileSync(await download.path(), "utf8");
+  expect(downloadedText).toContain('\n  "schemaVersion": ');
+  expect(JSON.parse(downloadedText).documents[0].instances).toHaveLength(2);
   // A portable backup mitigates data loss but is not the Cloud Save
   // authority. Keep both the dirty truth and the still-actionable storage
   // warning until the user explicitly dismisses it.

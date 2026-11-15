@@ -12,6 +12,7 @@ import { designExtractsNetlist, NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
 import {
   CURRENT_PROJECT_FILE_VERSION,
   parseProject,
+  serializeCompactProject,
   serializeProject,
   upgradeSchema24To25,
   upgradeSchema25To26,
@@ -160,6 +161,7 @@ export function schemaConverge(
   const sources = [
     {
       table: "gallery_entries",
+      serialize: serializeProject,
       rows: sql
         .exec<StoredProjectRow>(
           "SELECT id, schema_version, project_text FROM gallery_entries",
@@ -168,6 +170,7 @@ export function schemaConverge(
     },
     {
       table: "gallery_entry_versions",
+      serialize: serializeProject,
       rows: sql
         .exec<StoredProjectRow>(
           "SELECT id, schema_version, project_text FROM gallery_entry_versions",
@@ -176,6 +179,7 @@ export function schemaConverge(
     },
     {
       table: "cloud_projects",
+      serialize: serializeCompactProject,
       rows: sql
         .exec<StoredProjectRow>(
           "SELECT id, schema_version, project_text FROM cloud_projects",
@@ -184,6 +188,7 @@ export function schemaConverge(
     },
     {
       table: "cloud_project_versions",
+      serialize: serializeCompactProject,
       rows: sql
         .exec<StoredProjectRow>(
           "SELECT id, schema_version, project_text FROM cloud_project_versions",
@@ -426,7 +431,7 @@ export function schemaConverge(
         updates.push({
           table: source.table,
           id: row.id,
-          projectText: serializeProject(project),
+          projectText: source.serialize(project),
         });
       } catch (error) {
         failures.push({

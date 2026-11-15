@@ -1,4 +1,4 @@
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import { parseProject, serializeCompactProject } from "@icm/project-protocol";
 import type { CircuitProject } from "@icm/model";
 import type { GalleryTopologyMatchReport } from "../../gallery-topology-match";
 import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
@@ -262,7 +262,10 @@ export function createDurableGalleryTopologyTask(
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ id, projectText: serializeProject(snapshot) }),
+          body: JSON.stringify({
+            id,
+            projectText: serializeCompactProject(snapshot),
+          }),
         });
         if (current !== generation) return;
         // Vite-only installations have no cloud backend. Keep that limitation explicit.

@@ -7,7 +7,7 @@ import {
   placeComponentAt,
   placeResistors,
   readRecoveryRecords,
-  expectRecovered,
+  expectRecoveredRevision,
 } from "./editor-fixtures.js";
 
 async function restoreThroughDialog(
@@ -34,11 +34,11 @@ test("a hard renderer crash restores the latest committed Project, which never e
   await page.goto("/editor");
   await placeResistors(page, [360]);
   await expect(page.getByTestId("revision")).toHaveText("1");
-  await expectRecovered(page, '"revision": 1');
+  await expectRecoveredRevision(page, 1);
   await placeResistors(page, [500]);
   await expect(page.getByTestId("revision")).toHaveText("2");
   // Both commits must be durably stored before the crash.
-  await expectRecovered(page, '"revision": 2');
+  await expectRecoveredRevision(page, 2);
 
   // Browser recovery is the only store of Project data: none of it enters
   // the offline shell's Cache Storage.

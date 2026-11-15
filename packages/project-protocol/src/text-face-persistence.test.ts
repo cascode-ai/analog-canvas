@@ -5,6 +5,7 @@ import {
   parseProject,
   serializeProject,
 } from "./index.js";
+import { legacyProjectFile } from "./legacy-project.test-support.js";
 
 function serifProject() {
   const project = createEmptyProject("text-face", "Text face");
@@ -47,8 +48,7 @@ describe("Document font persistence (#1725)", () => {
   );
 
   it("refuses a face other than the serif in a file older than schema 79", () => {
-    const raw = JSON.parse(serializeProject(serifProject()));
-    raw.schemaVersion = 78;
+    const raw = legacyProjectFile(serializeProject(serifProject()), 78);
     expect(
       parseProject(JSON.stringify(raw)).documents[0]!.presentation,
     ).toEqual(expect.objectContaining({ textFace: "serif" }));

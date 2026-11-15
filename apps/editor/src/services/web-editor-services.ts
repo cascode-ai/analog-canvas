@@ -33,7 +33,7 @@ export function createWebEditorServices(
           binding,
           fetchLike,
           galleryEntryId,
-          projectSerializer.serialize,
+          projectSerializer.serializeCompact,
         ),
       delete: (id) => deleteCloudProject(id, fetchLike),
     },

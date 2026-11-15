@@ -5,6 +5,7 @@ import {
   parseProject,
   serializeProject,
 } from "./index.js";
+import { legacyProjectFile } from "./legacy-project.test-support.js";
 
 function busProject(reversed = false, bent = false) {
   const project = createEmptyProject("bus-codec", "Bus codec");
@@ -239,8 +240,7 @@ it("round-trips an ordered slice selector and rejects its portable binding in ol
 
 it("loads schema 75 ranges without changing their stable members", () => {
   const project = busProject();
-  const source = JSON.parse(serializeProject(project));
-  source.schemaVersion = 75;
+  const source = legacyProjectFile(serializeProject(project), 75);
   const reopened = parseProject(JSON.stringify(source));
   expect(reopened.documents[0]!.netlist!.terminals).toEqual(
     project.documents[0]!.netlist!.terminals,
@@ -283,8 +283,7 @@ it.each(["DATA<3:0>", "CLK,RESET"])(
       scope: "local",
       owner: { kind: "net-label", annotationId: "label" },
     });
-    const source = JSON.parse(serializeProject(project));
-    source.schemaVersion = 74;
+    const source = legacyProjectFile(serializeProject(project), 74);
     const reopened = parseProject(JSON.stringify(source)).documents[0]!;
     expect(reopened.nets).toHaveLength(1);
     expect(reopened.netlist!.terminals[0]!.signal).toBeUndefined();

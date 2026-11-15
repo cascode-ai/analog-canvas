@@ -22,7 +22,9 @@ describe("Web editor composition", () => {
       "tab",
       () => ({ id: "tab", project: controller.project }),
     );
-    const recoveryText = services.projectSerializer.serialize(snapshot.project);
+    const recoveryText = services.projectSerializer.serializeCompact(
+      snapshot.project,
+    );
     controller.transact([
       {
         kind: "add_instance",
@@ -34,9 +36,9 @@ describe("Web editor composition", () => {
       JSON.parse(transport.mock.calls[0]![1]!.body as string).projectText,
     ).toBe(recoveryText);
     expect(snapshot.matchesCurrentProject()).toBe(false);
-    expect(services.projectSerializer.serialize(controller.project)).not.toBe(
-      recoveryText,
-    );
+    expect(
+      services.projectSerializer.serializeCompact(controller.project),
+    ).not.toBe(recoveryText);
   });
   it("starts no requests and shares the account session cache with existing chrome", async () => {
     const user = { id: "member", displayName: "Member" };

@@ -1,10 +1,17 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
-import { AGENT_API_VERSION } from "@icm/agent-adapter";
+import {
+  AGENT_API_VERSION,
+  AgentGalleryEntryReadSchema,
+} from "@icm/agent-adapter";
 import { executeProjectTransaction } from "@icm/edit-engine";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import {
+  parseProject,
+  serializeCompactProject,
+  serializeProject,
+} from "@icm/project-protocol";
 
 import {
   editorFetchAs,
@@ -229,7 +236,7 @@ describe("BrowserAgentProjectHost", () => {
             schemaVersion: galleryProject.schemaVersion,
             tags: ["ota"],
           },
-          projectText: serializeProject(galleryProject),
+          projectText: serializeCompactProject(galleryProject),
         });
       }
       return new Response(null, { status: 404 });
@@ -273,7 +280,7 @@ describe("BrowserAgentProjectHost", () => {
       ok: true,
       // An entry the Gallery does not mark says so too.
       entry: { id: "entry-1", aiGenerated: false },
-      projectCode: expect.stringContaining('"name": "Gallery OTA"'),
+      projectCode: serializeProject(galleryProject),
       netlist: { format: "spectre", status: "ready" },
     });
     await expect(
@@ -289,12 +296,53 @@ describe("BrowserAgentProjectHost", () => {
       entries: [
         {
           entry: { id: "entry-1" },
-          projectCode: expect.stringContaining('"name": "Gallery OTA"'),
+          projectCode: serializeProject(galleryProject),
           netlist: null,
         },
       ],
       remainingEntryIds: [],
     });
+  });
+
+  it("carries large Gallery Project Code within the Agent response limit", async () => {
+    const project = createEmptyProject(
+      "large-gallery-code",
+      "Large Gallery code",
+    );
+    project.source.files = Array.from({ length: 2300 }, (_, index) => ({
+      id: `source-${index}`,
+      path: `file-${index}.cir`,
+      hash: "imported",
+      content: { encoding: "utf-8", text: "* Archived source\n" },
+    }));
+    project.source.files[0]!.content!.text += "x".repeat(
+      2 * 1024 * 1024 - Buffer.byteLength(serializeCompactProject(project)),
+    );
+    const compact = serializeCompactProject(project);
+    expect(Buffer.byteLength(compact)).toBe(2 * 1024 * 1024);
+    const projectCodeSchema = AgentGalleryEntryReadSchema.shape.projectCode;
+    expect(projectCodeSchema.safeParse(serializeProject(project)).success).toBe(
+      false,
+    );
+
+    const host = new BrowserAgentProjectHost({
+      getProjectSessionId: () => "session",
+      getProject: () => project,
+      getActiveDocumentId: () => project.topDocumentId,
+      commitProjectStructure: () => undefined,
+      dispatchProjectTransaction: () => {
+        throw new Error("must not dispatch");
+      },
+      fetch: async () => Response.json({ projectText: compact }),
+    });
+    const result = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "large-gallery-read",
+      operation: "read-gallery-entry",
+      galleryEntryId: "large-gallery-entry",
+      netlistFormat: null,
+    });
+    expect(result).toMatchObject({ ok: true, projectCode: compact });
   });
 
   it("draws a Gallery entry's top Cell with the file exporter when asked", async () => {

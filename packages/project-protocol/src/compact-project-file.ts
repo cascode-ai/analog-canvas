@@ -1,5 +1,9 @@
 /** Readable structural shorthand. Every transform has an exact inverse. */
 import { InstanceNetlistDataSchema, SegmentModeSchema } from "@icm/model";
+import {
+  SHORT_FIELDS_FILE_VERSION,
+  transformShortProjectFields,
+} from "./project-file-short-fields.js";
 type RecordValue = Record<string, any>;
 const record = (value: unknown): value is RecordValue =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -112,11 +116,14 @@ export function compactProjectFile(input: RecordValue): RecordValue {
       }
     }
   symbolPoints(project, false);
+  transformShortProjectFields(project, false);
   return project;
 }
 
 export function expandProjectFile(input: RecordValue): RecordValue {
   const project = richText(input, true);
+  if (project.schemaVersion >= SHORT_FIELDS_FILE_VERSION)
+    transformShortProjectFields(project, true);
   const { instancesByType = {}, routeLeg, ...defaults } = project.defaults;
   if (
     !record(instancesByType) ||

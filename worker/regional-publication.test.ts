@@ -223,7 +223,8 @@ it("replicates both sides of a publication source change and refuses a stale ret
 });
 
 it("rolls back the publication and binding when its synchronization journal is full", async () => {
-  const trial = await publicationTrial(4000);
+  // Fit the initial compact Project event, then exhaust the journal on publish.
+  const trial = await publicationTrial(3000);
   const saved = await trial.create("Original");
   const before = await trial.open(trial.source, saved.id);
   const eventsBefore = await trial.events();

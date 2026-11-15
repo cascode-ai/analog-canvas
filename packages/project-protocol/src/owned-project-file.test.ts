@@ -14,6 +14,7 @@ import {
   CURRENT_PROJECT_FILE_VERSION,
   canonicalConnectionIndexes,
 } from "./index.js";
+import { legacyProjectFile } from "./legacy-project.test-support.js";
 import { planProjectCodeCommit } from "../../../apps/editor/src/features/project-code/project-code.js";
 
 const fixture = () =>
@@ -63,8 +64,7 @@ describe("instance-owned portable source", () => {
       symbolId: "legacy-flat",
       placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
     });
-    const source = JSON.parse(serializeProject(before));
-    source.schemaVersion = 81;
+    const source = legacyProjectFile(serializeProject(before), 81);
     const parsed = parseProject(JSON.stringify(source));
     expect(parsed.componentDefinitions?.[0]?.symbol.primitives).toEqual([
       polygon,
@@ -80,10 +80,10 @@ describe("instance-owned portable source", () => {
       ...instance.netlist,
       parameters: { ...instance.netlist?.parameters, bodyBounds: "1k" },
     };
-    const source = JSON.parse(
+    const source = legacyProjectFile(
       serializeProject(withProjectComponentDefinitions(before)),
+      73,
     );
-    source.schemaVersion = 73;
     const result = tryParseProjectWithMetadata(JSON.stringify(source));
     expect(result.ok).toBe(true);
     if (!result.ok) return;

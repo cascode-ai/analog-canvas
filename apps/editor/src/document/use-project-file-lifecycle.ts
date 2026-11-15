@@ -11,6 +11,8 @@ import { createEmptyProject, createId } from "@icm/model";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import {
   CURRENT_PROJECT_FILE_VERSION,
+  formatProjectFile,
+  serializeCompactProject,
   serializeProject,
 } from "@icm/project-protocol";
 import {
@@ -144,7 +146,7 @@ type RecoveryLifecycle = Pick<
 
 export interface UseProjectFileLifecycleOptions {
   /** Reuse canonical bytes for the exact committed snapshot; never acknowledges a save. */
-  serializeSnapshot?: (project: CircuitProject) => string;
+  serializeReadable?: (project: CircuitProject) => string;
   nativeProjectStore?: NativeProjectStore;
   projectStore: CloudProjectStore | null;
   exportDelivery?: EditorExportDelivery;
@@ -190,7 +192,7 @@ export interface UseProjectFileLifecycleOptions {
 }
 
 export function useProjectFileLifecycle({
-  serializeSnapshot = serializeProject,
+  serializeReadable = serializeProject,
   projectStore,
   nativeProjectStore,
   exportDelivery,
@@ -612,7 +614,7 @@ export function useProjectFileLifecycle({
       const fileName = `${projectFileBaseName(snapshot.name)}.icproj.json`;
       try {
         const result = await exportDelivery.deliverFile({
-          bytes: serializeSnapshot(snapshot),
+          bytes: serializeReadable(snapshot),
           mediaType: "application/json",
           suggestedName: fileName,
         });
@@ -635,7 +637,7 @@ export function useProjectFileLifecycle({
       return;
     }
     const outcome = requestProjectDownload(snapshot, {
-      serializeProject: serializeSnapshot,
+      serializeProject: serializeReadable,
     });
     if (outcome.status !== "download-requested") {
       setStatus(`Export failed: ${outcome.message}`);
@@ -657,7 +659,7 @@ export function useProjectFileLifecycle({
     if (!snapshot) return;
     let projectText: string;
     try {
-      projectText = serializeSnapshot(snapshot);
+      projectText = serializeReadable(snapshot);
     } catch (error) {
       setStatus(
         `Backup failed: ${error instanceof Error ? error.message : "serialization failed"}`,
@@ -913,7 +915,9 @@ export function useProjectFileLifecycle({
       );
       if (read.status === "valid" || read.status === "unsupported-schema") {
         const text =
-          read.status === "valid" ? read.record.projectText : read.projectText;
+          read.status === "valid"
+            ? formatProjectFile(read.record.projectText)
+            : read.projectText;
         const name =
           summary?.projectName ??
           (read.status === "valid" ? read.record.projectName : "recovery");
@@ -1029,7 +1033,8 @@ export function useProjectFileLifecycle({
     }
     if (
       options.allowExactCurrentReplacement &&
-      serializeProject(openedProject) === serializeProject(project)
+      serializeCompactProject(openedProject) ===
+        serializeCompactProject(project)
     ) {
       await performOpen();
       return applied;
@@ -1121,7 +1126,8 @@ export function useProjectFileLifecycle({
     };
     if (
       (inTab && openProjectInTab) ||
-      serializeProject(staged.project) === serializeProject(project)
+      serializeCompactProject(staged.project) ===
+        serializeCompactProject(project)
     ) {
       await install();
       return {

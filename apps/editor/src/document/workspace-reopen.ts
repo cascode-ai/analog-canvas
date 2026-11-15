@@ -1,5 +1,5 @@
 import { createId } from "@icm/model";
-import { parseProject, serializeProject } from "@icm/project-protocol";
+import { parseProject, serializeCompactProject } from "@icm/project-protocol";
 import {
   BROWSER_RECOVERY_SOURCES,
   type BrowserRecoverySource,
@@ -91,7 +91,10 @@ function unsavedCopy(session: unknown): Record<string, unknown> {
   );
   project.id = createId("project");
   project.name = `${project.name.slice(0, PROJECT_NAME_LIMIT - UNSAVED_COPY.length)}${UNSAVED_COPY}`;
-  return { ...unboundDraft(session), projectText: serializeProject(project) };
+  return {
+    ...unboundDraft(session),
+    projectText: serializeCompactProject(project),
+  };
 }
 
 /**
