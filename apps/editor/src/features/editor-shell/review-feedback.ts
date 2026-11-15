@@ -132,7 +132,10 @@ export async function reviewFeedbackText(
       ];
       for (const object of target.objects) {
         lines.push(`Object: ${object.label} (${object.kind} ${object.id})`);
-        if (!object.source) continue;
+        if (!object.source) {
+          lines.push("Source: unavailable");
+          continue;
+        }
         const { file, line } = object.source;
         if (!file.originalContent) {
           lines.push(`Source: ${file.path}:${line}`);
@@ -142,7 +145,11 @@ export async function reviewFeedbackText(
         const { originalSourceLine } =
           await import("../netlist-export/convert-import-sources");
         const originalLine = originalSourceLine(file, line);
-        if (originalLine) lines.push(`Source: ${file.path}:${originalLine}`);
+        lines.push(
+          originalLine
+            ? `Source: ${file.path}:${originalLine}`
+            : "Source: unavailable",
+        );
       }
       return [...lines, "", comment.trim()].join("\n");
     }),

@@ -614,11 +614,84 @@ test("copies several review notes with their selected objects and source version
   expect(group.match(new RegExp(`\\(net ${net.id}\\)`, "gu"))).toHaveLength(1);
   expect(group).toContain("Check these devices and this Net together.");
   const netNote = text.split("Note 3\n")[1] ?? "";
-  expect(netNote).toContain(`Object: OUT (net ${net.id})\n\nCheck this Net.`);
+  expect(netNote).toContain(
+    `Object: OUT (net ${net.id})\nSource: unavailable\n\nCheck this Net.`,
+  );
   expect(netNote).not.toContain("(instance ");
   expect(Number(/^Cell revision: (\d+)$/mu.exec(netNote)?.[1])).toBeGreaterThan(
     cell.revision,
   );
+  await tool("disconnect", {});
+});
+
+test("copies feedback for a locally delivered native Project", async ({
+  context,
+  baseURL,
+}, testInfo) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const { page, tool } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("connector.json"),
+  );
+  expect(
+    await tool("apply_actions", {
+      actions: [
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          reference: "R1",
+          position: { x: 200, y: 200 },
+          parameters: { value: "1k" },
+        },
+      ],
+    }),
+  ).toMatchObject({ ok: true, applied: true });
+  const rootPath = testInfo.outputPath("source");
+  const entryPath = "native.icproj.json";
+  const outputPath = join(rootPath, entryPath);
+  expect(
+    await tool("export_file", { artifact: "project", outputPath }),
+  ).toMatchObject({
+    ok: true,
+  });
+  const project = parseProject(await readFile(outputPath, "utf8"));
+  expect(project.source.files).toHaveLength(0);
+  const loaded = await tool("import_file", {
+    action: "open-local",
+    rootPath,
+    entryPath,
+  });
+  expect(loaded).toMatchObject({
+    ok: true,
+    delivery: { source: { format: "project" } },
+  });
+  const cell = project.documents.find(
+    ({ id }) => id === loaded.delivery.document.id,
+  )!;
+  const resistor = cell.instances.find(({ reference }) => reference === "R1")!;
+
+  await page.getByTestId(`hit-${resistor.id}`).click();
+  await page.getByRole("button", { name: "Project Info", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Review feedback", exact: true })
+    .click();
+  await page.getByLabel("Review comment").fill("Check this resistor.");
+  await page
+    .getByRole("button", { name: "Copy review feedback", exact: true })
+    .click();
+  await expect(
+    page.getByText("Copied. Paste it into the Agent chat."),
+  ).toBeVisible();
+  const feedback = await page.evaluate(() => navigator.clipboard.readText());
+  expect(feedback).toContain(
+    `Source version: ${loaded.delivery.source.version}`,
+  );
+  expect(feedback).toContain(
+    `Project: ${loaded.delivery.projectId} (structure revision`,
+  );
+  expect(feedback).toContain(`Object: R1 (instance ${resistor.id})`);
+  expect(feedback).toContain("Source: unavailable");
   await tool("disconnect", {});
 });
 

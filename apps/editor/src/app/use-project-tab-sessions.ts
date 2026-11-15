@@ -1165,12 +1165,12 @@ export function useProjectTabSessions({
         recordedSource?.source === project.source
           ? recordedSource.version
           : undefined;
-      const local = localDeliveryOf(editorDocumentController);
-      // The delivered netlist can stand in while its records are checked.
-      return (
-        embedded ??
-        (local?.source.format !== "project" ? local?.source.version : undefined)
-      );
+      if (embedded) return embedded;
+      const delivered = localDeliveryOf(editorDocumentController)?.source;
+      // Keep the native file version out of feedback while its netlist is checked.
+      if (delivered?.format === "project" && project.source.entry)
+        return undefined;
+      return delivered?.version;
     })(),
     flushNativeWorkspace,
     cloudManagementBusy,
