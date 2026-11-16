@@ -265,6 +265,8 @@ describe("MCP local mode (#1498)", () => {
         ),
       },
     });
+    // The figure is clean: Vout's circle stands at the open end (#2343).
+    expect(await tool("verify", {})).toMatchObject({ errors: 0, total: 0 });
     expect(
       await tool("export_file", {
         artifact: "png",
