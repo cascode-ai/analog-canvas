@@ -36,6 +36,7 @@ import {
   planRemoveCellTerminal,
   planRemoveCellTerminals,
   planSetCellSymbolPins,
+  planSetCellPinOrder,
   planSetCellSymbolSize,
   planSetCellSymbolArtwork,
   planMoveRouteClearance,
@@ -1652,6 +1653,10 @@ export function planBrowserAgentCommand(
           documentId,
           command.pins,
         ),
+      };
+    case "set-cell-pin-order":
+      return {
+        structureEdits: planSetCellPinOrder(project, documentId, command.pins),
       };
     case "set-cell-symbol-size":
       return {

@@ -156,10 +156,10 @@
           "$ref": "#/$defs/__schema270"
         },
         "structureEdits": {
-          "$ref": "#/$defs/__schema424"
+          "$ref": "#/$defs/__schema426"
         },
         "actions": {
-          "$ref": "#/$defs/__schema469"
+          "$ref": "#/$defs/__schema471"
         }
       },
       "required": [
@@ -7463,11 +7463,28 @@
             "kind": {
               "$ref": "#/$defs/__schema417"
             },
-            "width": {
+            "pins": {
               "$ref": "#/$defs/__schema418"
+            }
+          },
+          "required": [
+            "kind",
+            "pins"
+          ],
+          "additionalProperties": false,
+          "description": "Order this Cell's Pins (its .subckt port order) by name: those named first, as given; the rest after them in their order."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "$ref": "#/$defs/__schema419"
+            },
+            "width": {
+              "$ref": "#/$defs/__schema420"
             },
             "height": {
-              "$ref": "#/$defs/__schema419"
+              "$ref": "#/$defs/__schema421"
             }
           },
           "required": [
@@ -7482,16 +7499,16 @@
           "type": "object",
           "properties": {
             "symbolMode": {
-              "$ref": "#/$defs/__schema420"
-            },
-            "artworkText": {
-              "$ref": "#/$defs/__schema421"
-            },
-            "pinMap": {
               "$ref": "#/$defs/__schema422"
             },
-            "kind": {
+            "artworkText": {
               "$ref": "#/$defs/__schema423"
+            },
+            "pinMap": {
+              "$ref": "#/$defs/__schema424"
+            },
+            "kind": {
+              "$ref": "#/$defs/__schema425"
             }
           },
           "required": [
@@ -10041,30 +10058,42 @@
     },
     "__schema417": {
       "type": "string",
-      "const": "set-cell-symbol-size"
+      "const": "set-cell-pin-order"
     },
     "__schema418": {
-      "type": "integer",
-      "exclusiveMinimum": 0,
-      "maximum": 100000
+      "minItems": 1,
+      "maxItems": 256,
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/__schema302"
+      }
     },
     "__schema419": {
+      "type": "string",
+      "const": "set-cell-symbol-size"
+    },
+    "__schema420": {
       "type": "integer",
       "exclusiveMinimum": 0,
       "maximum": 100000
     },
-    "__schema420": {
+    "__schema421": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 100000
+    },
+    "__schema422": {
       "type": "string",
       "enum": [
         "automatic",
         "custom"
       ]
     },
-    "__schema421": {
+    "__schema423": {
       "type": "string",
       "maxLength": 1048576
     },
-    "__schema422": {
+    "__schema424": {
       "type": "object",
       "propertyNames": {
         "type": "string",
@@ -10104,18 +10133,18 @@
         ]
       }
     },
-    "__schema423": {
+    "__schema425": {
       "type": "string",
       "const": "set-cell-symbol-artwork"
     },
-    "__schema424": {
+    "__schema426": {
       "minItems": 1,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema425"
+        "$ref": "#/$defs/__schema427"
       }
     },
-    "__schema425": {
+    "__schema427": {
       "oneOf": [
         {
           "type": "object",
@@ -10242,7 +10271,7 @@
               "maxItems": 256,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema426"
+                "$ref": "#/$defs/__schema428"
               }
             }
           },
@@ -10462,7 +10491,7 @@
               "minItems": 1,
               "type": "array",
               "items": {
-                "$ref": "#/$defs/__schema427"
+                "$ref": "#/$defs/__schema429"
               }
             }
           },
@@ -10512,10 +10541,10 @@
                   "minLength": 1
                 },
                 "content": {
-                  "$ref": "#/$defs/__schema428"
+                  "$ref": "#/$defs/__schema430"
                 },
                 "originalContent": {
-                  "$ref": "#/$defs/__schema428"
+                  "$ref": "#/$defs/__schema430"
                 }
               },
               "required": [
@@ -10546,64 +10575,64 @@
                   "$ref": "#/$defs/__schema1"
                 },
                 "name": {
-                  "$ref": "#/$defs/__schema429"
-                },
-                "revision": {
-                  "$ref": "#/$defs/__schema430"
-                },
-                "sourceBinding": {
                   "$ref": "#/$defs/__schema431"
                 },
-                "importReference": {
+                "revision": {
                   "$ref": "#/$defs/__schema432"
                 },
+                "sourceBinding": {
+                  "$ref": "#/$defs/__schema433"
+                },
+                "importReference": {
+                  "$ref": "#/$defs/__schema434"
+                },
                 "sourceStatus": {
-                  "$ref": "#/$defs/__schema435"
+                  "$ref": "#/$defs/__schema437"
                 },
                 "netlist": {
-                  "$ref": "#/$defs/__schema436"
-                },
-                "instances": {
                   "$ref": "#/$defs/__schema438"
                 },
-                "nets": {
-                  "$ref": "#/$defs/__schema439"
-                },
-                "connectivityEvidence": {
+                "instances": {
                   "$ref": "#/$defs/__schema440"
                 },
-                "routes": {
+                "nets": {
                   "$ref": "#/$defs/__schema441"
                 },
-                "junctions": {
+                "connectivityEvidence": {
                   "$ref": "#/$defs/__schema442"
                 },
-                "annotations": {
+                "routes": {
                   "$ref": "#/$defs/__schema443"
                 },
-                "presentation": {
+                "junctions": {
                   "$ref": "#/$defs/__schema444"
                 },
-                "mosBulkDefaults": {
+                "annotations": {
                   "$ref": "#/$defs/__schema445"
                 },
-                "layoutGroups": {
+                "presentation": {
                   "$ref": "#/$defs/__schema446"
                 },
-                "constraints": {
+                "mosBulkDefaults": {
                   "$ref": "#/$defs/__schema447"
                 },
-                "noConnects": {
+                "layoutGroups": {
                   "$ref": "#/$defs/__schema448"
                 },
-                "inductorCouplings": {
+                "constraints": {
                   "$ref": "#/$defs/__schema449"
                 },
-                "drafting": {
+                "noConnects": {
                   "$ref": "#/$defs/__schema450"
                 },
-                "drawingOrder": {
+                "inductorCouplings": {
                   "$ref": "#/$defs/__schema451"
+                },
+                "drafting": {
+                  "$ref": "#/$defs/__schema452"
+                },
+                "drawingOrder": {
+                  "$ref": "#/$defs/__schema453"
                 }
               },
               "required": [
@@ -10706,28 +10735,28 @@
                   "$ref": "#/$defs/__schema1"
                 },
                 "name": {
-                  "$ref": "#/$defs/__schema452"
-                },
-                "libraryOrigin": {
-                  "$ref": "#/$defs/__schema453"
-                },
-                "terminals": {
                   "$ref": "#/$defs/__schema454"
                 },
-                "formalParameters": {
+                "libraryOrigin": {
+                  "$ref": "#/$defs/__schema455"
+                },
+                "terminals": {
                   "$ref": "#/$defs/__schema456"
                 },
-                "interfaceStatus": {
+                "formalParameters": {
                   "$ref": "#/$defs/__schema458"
                 },
-                "presentation": {
-                  "$ref": "#/$defs/__schema459"
-                },
-                "symbolId": {
+                "interfaceStatus": {
                   "$ref": "#/$defs/__schema460"
                 },
-                "implementation": {
+                "presentation": {
                   "$ref": "#/$defs/__schema461"
+                },
+                "symbolId": {
+                  "$ref": "#/$defs/__schema462"
+                },
+                "implementation": {
+                  "$ref": "#/$defs/__schema463"
                 }
               },
               "required": [
@@ -10782,7 +10811,7 @@
                   "type": "object",
                   "properties": {
                     "kind": {
-                      "$ref": "#/$defs/__schema462"
+                      "$ref": "#/$defs/__schema464"
                     },
                     "entry": {
                       "$ref": "#/$defs/__schema284"
@@ -10791,16 +10820,16 @@
                       "$ref": "#/$defs/__schema284"
                     },
                     "files": {
-                      "$ref": "#/$defs/__schema463"
+                      "$ref": "#/$defs/__schema465"
                     },
                     "circuitBindings": {
-                      "$ref": "#/$defs/__schema464"
-                    },
-                    "dependencies": {
                       "$ref": "#/$defs/__schema466"
                     },
+                    "dependencies": {
+                      "$ref": "#/$defs/__schema468"
+                    },
                     "drafts": {
-                      "$ref": "#/$defs/__schema467"
+                      "$ref": "#/$defs/__schema469"
                     }
                   },
                   "required": [
@@ -10890,15 +10919,15 @@
         }
       ]
     },
-    "__schema426": {
-      "type": "string",
-      "minLength": 1
-    },
-    "__schema427": {
-      "type": "string",
-      "minLength": 1
-    },
     "__schema428": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema429": {
+      "type": "string",
+      "minLength": 1
+    },
+    "__schema430": {
       "type": "object",
       "properties": {
         "text": {
@@ -10921,16 +10950,16 @@
       ],
       "additionalProperties": false
     },
-    "__schema429": {
+    "__schema431": {
       "type": "string",
       "minLength": 1
     },
-    "__schema430": {
+    "__schema432": {
       "type": "integer",
       "minimum": 0,
       "maximum": 9007199254740991
     },
-    "__schema431": {
+    "__schema433": {
       "type": "object",
       "properties": {
         "cellName": {
@@ -10947,14 +10976,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema432": {
+    "__schema434": {
       "type": "object",
       "properties": {
         "files": {
-          "$ref": "#/$defs/__schema433"
+          "$ref": "#/$defs/__schema435"
         },
         "nets": {
-          "$ref": "#/$defs/__schema434"
+          "$ref": "#/$defs/__schema436"
         }
       },
       "required": [
@@ -10963,7 +10992,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema433": {
+    "__schema435": {
       "default": [],
       "type": "array",
       "items": {
@@ -10979,7 +11008,7 @@
         "additionalProperties": false
       }
     },
-    "__schema434": {
+    "__schema436": {
       "type": "array",
       "items": {
         "type": "object",
@@ -11049,7 +11078,7 @@
         "additionalProperties": false
       }
     },
-    "__schema435": {
+    "__schema437": {
       "type": "string",
       "enum": [
         "in-sync",
@@ -11057,7 +11086,7 @@
         "connectivity-modified"
       ]
     },
-    "__schema436": {
+    "__schema438": {
       "type": "object",
       "properties": {
         "name": {
@@ -11074,7 +11103,7 @@
           "maxItems": 128,
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema437"
+            "$ref": "#/$defs/__schema439"
           }
         }
       },
@@ -11085,7 +11114,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema437": {
+    "__schema439": {
       "type": "object",
       "properties": {
         "name": {
@@ -11100,13 +11129,13 @@
       ],
       "additionalProperties": false
     },
-    "__schema438": {
+    "__schema440": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema17"
       }
     },
-    "__schema439": {
+    "__schema441": {
       "type": "array",
       "items": {
         "type": "object",
@@ -11128,19 +11157,19 @@
         "additionalProperties": false
       }
     },
-    "__schema440": {
+    "__schema442": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema149"
       }
     },
-    "__schema441": {
+    "__schema443": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema114"
       }
     },
-    "__schema442": {
+    "__schema444": {
       "type": "array",
       "items": {
         "type": "object",
@@ -11178,13 +11207,13 @@
         "additionalProperties": false
       }
     },
-    "__schema443": {
+    "__schema445": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema206"
       }
     },
-    "__schema444": {
+    "__schema446": {
       "type": "object",
       "properties": {
         "styleProfileId": {
@@ -11273,7 +11302,7 @@
       ],
       "additionalProperties": false
     },
-    "__schema445": {
+    "__schema447": {
       "type": "object",
       "properties": {
         "nmosNetId": {
@@ -11285,32 +11314,32 @@
       },
       "additionalProperties": false
     },
-    "__schema446": {
+    "__schema448": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema243"
       }
     },
-    "__schema447": {
+    "__schema449": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema246"
       }
     },
-    "__schema448": {
+    "__schema450": {
       "default": [],
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema157"
       }
     },
-    "__schema449": {
+    "__schema451": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema161"
       }
     },
-    "__schema450": {
+    "__schema452": {
       "type": "object",
       "properties": {
         "objects": {
@@ -11325,28 +11354,28 @@
       ],
       "additionalProperties": false
     },
-    "__schema451": {
+    "__schema453": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema86"
       }
     },
-    "__schema452": {
+    "__schema454": {
       "type": "string",
       "minLength": 1,
       "maxLength": 128
     },
-    "__schema453": {
+    "__schema455": {
       "$ref": "#/$defs/__schema280"
     },
-    "__schema454": {
+    "__schema456": {
       "maxItems": 128,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema455"
+        "$ref": "#/$defs/__schema457"
       }
     },
-    "__schema455": {
+    "__schema457": {
       "type": "object",
       "properties": {
         "id": {
@@ -11374,14 +11403,14 @@
       ],
       "additionalProperties": false
     },
-    "__schema456": {
+    "__schema458": {
       "maxItems": 128,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema457"
+        "$ref": "#/$defs/__schema459"
       }
     },
-    "__schema457": {
+    "__schema459": {
       "type": "object",
       "properties": {
         "name": {
@@ -11400,20 +11429,20 @@
       ],
       "additionalProperties": false
     },
-    "__schema458": {
+    "__schema460": {
       "type": "string",
       "enum": [
         "declared",
         "inferred-positional"
       ]
     },
-    "__schema459": {
+    "__schema461": {
       "$ref": "#/$defs/__schema167"
     },
-    "__schema460": {
+    "__schema462": {
       "$ref": "#/$defs/__schema1"
     },
-    "__schema461": {
+    "__schema463": {
       "oneOf": [
         {
           "type": "object",
@@ -11456,25 +11485,25 @@
         }
       ]
     },
-    "__schema462": {
+    "__schema464": {
       "type": "string",
       "const": "source"
     },
-    "__schema463": {
+    "__schema465": {
       "maxItems": 4096,
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema286"
       }
     },
-    "__schema464": {
+    "__schema466": {
       "maxItems": 1024,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema465"
+        "$ref": "#/$defs/__schema467"
       }
     },
-    "__schema465": {
+    "__schema467": {
       "type": "object",
       "properties": {
         "id": {
@@ -11502,21 +11531,21 @@
       ],
       "additionalProperties": false
     },
-    "__schema466": {
+    "__schema468": {
       "maxItems": 1024,
       "type": "array",
       "items": {
         "$ref": "#/$defs/__schema288"
       }
     },
-    "__schema467": {
+    "__schema469": {
       "maxItems": 4096,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema468"
+        "$ref": "#/$defs/__schema470"
       }
     },
-    "__schema468": {
+    "__schema470": {
       "type": "object",
       "properties": {
         "path": {
@@ -11529,7 +11558,7 @@
           "type": "string"
         },
         "binding": {
-          "$ref": "#/$defs/__schema465"
+          "$ref": "#/$defs/__schema467"
         }
       },
       "required": [
@@ -11539,13 +11568,13 @@
       ],
       "additionalProperties": false
     },
-    "__schema469": {
+    "__schema471": {
       "minItems": 1,
       "type": "array",
       "items": {
-        "$ref": "#/$defs/__schema470"
+        "$ref": "#/$defs/__schema472"
       }
     },
-    "__schema470": {}
+    "__schema472": {}
   }
 }

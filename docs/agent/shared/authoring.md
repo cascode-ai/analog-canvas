@@ -313,7 +313,8 @@ information). Hidden bulk needs no decorative wire.
   NMOS one), so a signal input (`VIN`) is a `port`, not a `vdd-port`. A
   `vdd-port`'s name stands beside its bar, `arrange-labels` `side:"top"`
   centres it (house style); a `named-ground`'s stands centred below its bars.
-  `arrange-labels` sets an upside-down supply name upright beside its marker.
+  `arrange-labels` sets an upside-down supply name upright beside its marker,
+  and puts a VDD name drawn over another part over its bar when that is clear.
 - `set-port-direction` sets one terminal or a whole Port; `set-vdd-mode`
   switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.
@@ -335,6 +336,14 @@ information). Hidden bulk needs no decorative wire.
   refused with the names or free slots. Callers keep their Nets; stretched
   wiring is redrawn and labels it crosses move clear;
   `projectStructure.changedDocumentIds` and `changedObjectIds` name what moved.
+- `set-cell-pin-order` (`circuit_transform`, the Cell's `documentId`) orders
+  its Pins, the netlist's `.subckt` port order, by name:
+  `{kind:"set-cell-pin-order",pins:["VDD","VSS","Vinp","Vinn","CLK"]}`. Named
+  Pins come first as given, the rest after them in their order; names match
+  as Port names do (any case). Unknown or repeated names are refused, and so
+  is an order the netlist would not print: a drawn Cell lists its supplies
+  (VDD, then VSS) before its signals. `verify`'s `fixes` carries it for a
+  `port-order` difference. Callers keep their Nets and print in the new order.
 - `set-cell-symbol-size` (`circuit_transform`, the Cell's `documentId`) sizes
   its block body: `{kind:"set-cell-symbol-size",width:80,height:60}`. A
   centred body takes multiples of 20, explicit edges multiples of 10 (top-left
@@ -517,8 +526,9 @@ means deleting the Cell.
   display that does not spell its name is refused.
 - `arrange-labels {instanceIds}` compacts default label slots and moves crowded
   labels to nearby clear spots in one undo, so no label reads as another
-  part's. `side` (`left|right|top|bottom`) tries that side first; `"outside"`
-  faces labels away from the centre line so differential halves mirror.
+  part's; a label keeps a word's space beside its part's own wires. `side`
+  (`left|right|top|bottom`) tries that side first; `"outside"` faces labels
+  away from the centre line so differential halves mirror.
   `place-component` arranges labels that would land crowded. Where parts sit
   too close the value is left touching a wire: hide values or move parts. A
   requested Port name now covered moves to its first clear side.
