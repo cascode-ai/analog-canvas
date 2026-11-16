@@ -1561,7 +1561,7 @@ it("names the account and installation on the launch prompt as inert text", asyn
   );
   expect(html).toContain("Trust this device");
   // The page reads the signed-in account itself; the name stays script data.
-  expect(html).toContain('fetch("/api/auth/me"');
+  expect(html).toContain('"/api/auth/me"');
   expect(html).not.toContain(name);
   expect(html).toContain(
     name.replace(

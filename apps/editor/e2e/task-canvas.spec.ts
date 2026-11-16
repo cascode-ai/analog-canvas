@@ -1346,6 +1346,10 @@ test("offers only the one-time approval when the Agent asks for it", async ({
     openBrowser: async (url) => {
       const page = await context.newPage();
       pages.push(page);
+      await page.addInitScript(() => {
+        if (location.pathname === "/api/agent/editor-launch")
+          Reflect.deleteProperty(AbortSignal, "timeout");
+      });
       await page.goto(url);
     },
   });
@@ -1388,3 +1392,95 @@ test("offers only the one-time approval when the Agent asks for it", async ({
   for (const { receipt } of [usual, once])
     await tool("disconnect", { taskRef: receipt.taskRef });
 });
+
+for (const failure of [
+  {
+    name: "occupied tab",
+    occupied: true,
+    reply: { status: 409 },
+    approvalRequests: 0,
+    message: "This tab already contains Canvas session data",
+  },
+  {
+    name: "approval conflict",
+    occupied: false,
+    reply: { status: 409 },
+    approvalRequests: 1,
+    message: "HTTP 409",
+  },
+  {
+    name: "interrupted approval request",
+    occupied: false,
+    reply: null,
+    approvalRequests: 1,
+    message: "The approval request failed",
+  },
+  {
+    name: "failed handoff after approval",
+    occupied: false,
+    reply: { status: 200 },
+    approvalRequests: 1,
+    message: "This tab could not open the editor",
+  },
+]) {
+  test(`gives a Canvas approval recovery step for ${failure.name}`, async ({
+    context,
+    baseURL,
+  }, testInfo) => {
+    const page = await context.newPage();
+    if (failure.occupied) {
+      await page.addInitScript(() => {
+        if (location.pathname === "/api/agent/editor-launch")
+          sessionStorage.setItem("occupied-canvas-tab", "existing data");
+      });
+    }
+    let approvalRequests = 0;
+    await page.route("**/api/agent/editor-launch", (route) => {
+      if (route.request().isNavigationRequest()) return route.fallback();
+      approvalRequests++;
+      if (!failure.reply) return route.abort();
+      if (failure.reply.status === 200) {
+        const fields = new URLSearchParams(route.request().postData() ?? "");
+        return route.fulfill({
+          status: 200,
+          json: {
+            version: 1,
+            sessionId: fields.get("sessionId"),
+            editorSecret: "incomplete-recovery-record",
+          },
+        });
+      }
+      return route.fulfill(failure.reply);
+    });
+    const server = assembleServer({
+      apiBaseUrl: baseURL!,
+      connectorPath: testInfo.outputPath("connector.json"),
+      openBrowser: async (url) => {
+        await page.goto(url);
+      },
+    });
+    const opening = server.handler.callTool("open_canvas", {
+      approval: "once",
+    });
+
+    const allow = page.getByRole("button", { name: "Allow Agent access" });
+    await expect(allow).toBeVisible();
+    await allow.click();
+    const notice = page
+      .getByRole("status")
+      .filter({ hasText: failure.message });
+    await expect(notice).toContainText(
+      "Ask the Agent to open a new Canvas task",
+    );
+    await expect(allow).toBeEnabled();
+    expect(approvalRequests).toBe(failure.approvalRequests);
+    if (failure.occupied) {
+      expect(
+        await page.evaluate(() =>
+          sessionStorage.getItem("occupied-canvas-tab"),
+        ),
+      ).toBe("existing data");
+    }
+    await opening;
+  });
+}

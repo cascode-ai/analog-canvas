@@ -3,6 +3,7 @@ import {
   BROWSER_LAUNCH_GRANT_PREFIX,
   BROWSER_LAUNCH_PATH,
 } from "@icm/agent-adapter/browser-launch";
+import { AgentSessionScopeSchema } from "@icm/agent-adapter/session-scope";
 import { AGENT_SESSION_RECOVERY_STORAGE_KEY } from "../apps/editor/src/agent/session-recovery-presence";
 import type { AgentSessionRouterEnv } from "./agent-session-runtime";
 import {
@@ -166,6 +167,7 @@ export async function editorLaunchPage(
   The connection also grants available file, simulation, and publishing tools.
   You can pause or disconnect from the editor's Agent panel.</p>
   <button type="button" id="allow">Allow Agent access</button>
+  <p id="status" role="status"></p>
   </section>
   ${
     hasDevice
@@ -176,12 +178,14 @@ export async function editorLaunchPage(
   <button type="button" id="trust">Trust this device</button></section>`
       : ""
   }
-  <p id="status" role="status"></p>
 </main>
 <script nonce="${nonce}">
   const button = document.getElementById("allow");
   const trust = document.getElementById("trust");
   const status = document.getElementById("status");
+  const account = document.getElementById("account");
+  const newLaunch = "Ask the Agent to open a new Canvas task.";
+  const sessionScopes = new Set(${scriptJson(AgentSessionScopeSchema.options)});
   const launch = ${scriptJson({
     fields: {
       sessionId,
@@ -194,48 +198,92 @@ export async function editorLaunchPage(
   })};
   if (launch.deviceName && trust)
     document.getElementById("device").textContent = launch.deviceName;
-  fetch("/api/auth/me", { cache: "no-store", signal: AbortSignal.timeout(8000) })
-    .then((response) => (response.ok ? response.json() : null))
-    .then((body) => {
-      const name = body && body.user && body.user.displayName;
-      document.getElementById("account").textContent =
-        typeof name === "string"
-          ? "Signed in to Canvas as " + name + "."
-          : "Not signed in to Canvas.";
-    })
-    .catch(() => { document.getElementById("account").textContent = "Canvas account status is unavailable."; });
-  async function approve(approval) {
-    button.disabled = true;
-    if (trust) trust.disabled = true;
+  async function requestJson(path, options) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let response;
     try {
-      if (sessionStorage.length !== 0) throw new Error();
-      const fields = launch.fields;
-      const response = await fetch(${scriptJson(BROWSER_LAUNCH_PATH)}, {
-        method: "POST",
-        mode: "same-origin",
-        referrerPolicy: "same-origin",
-        body: new URLSearchParams({ ...fields, approval }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (approval === "auto" && !response.ok) return;
-      if (approval === "trust" && response.status === 403) {
-        status.textContent = "Sign in to Canvas to trust this device, or allow access for this task.";
-        return;
-      }
-      if (!response.ok || sessionStorage.length !== 0) throw new Error();
-      sessionStorage.setItem(${scriptJson(AGENT_SESSION_RECOVERY_STORAGE_KEY)},
-        JSON.stringify(await response.json()));
+      response = await fetch(path, { ...options, signal: controller.signal });
+      return { response, body: response.ok ? await response.json() : null };
+    } catch {
+      return { response, timedOut: controller.signal.aborted };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  requestJson("/api/auth/me", { cache: "no-store" })
+    .then(({ response, body }) => {
+      const name = body && body.user && body.user.displayName;
+      if (typeof name === "string") account.textContent = "Signed in to Canvas as " + name + ".";
+      else if ((response?.ok && body !== undefined) || response?.status === 401 || response?.status === 403)
+        account.textContent = "Not signed in to Canvas.";
+      else account.textContent = "Canvas account status is unavailable.";
+    })
+    .catch(() => { account.textContent = "Canvas account status is unavailable."; });
+  function storageProblem() {
+    try {
+      return sessionStorage.length === 0 ? null : "This tab already contains Canvas session data.";
+    } catch {
+      return "Canvas could not access browser storage in this tab. Check your browser settings.";
+    }
+  }
+  async function approve(approval) {
+    const problem = storageProblem();
+    if (problem) {
+      status.textContent = problem + " " + newLaunch;
+      return false;
+    }
+    const automatic = approval === "auto";
+    status.textContent = automatic ? "Checking device trust…" : "Requesting Agent access…";
+    const { response, body, timedOut } = await requestJson(${scriptJson(BROWSER_LAUNCH_PATH)}, {
+      method: "POST",
+      mode: "same-origin",
+      referrerPolicy: "same-origin",
+      body: new URLSearchParams({ ...launch.fields, approval }),
+    });
+    if (!response?.ok) {
+      if (automatic && response?.status === 403) status.textContent = "";
+      else if (approval === "trust" && response?.status === 403)
+        status.textContent = "Canvas could not trust this device. You can allow access for this task.";
+      else if (response?.status === 409)
+        status.textContent = "Approval was unavailable (HTTP 409). It may have expired, been used, or still be in progress. " + newLaunch;
+      else if (response)
+        status.textContent = "Canvas could not approve this request (HTTP " + response.status + "). " + newLaunch;
+      else
+        status.textContent = (timedOut ? "The approval request timed out. " : "The approval request failed. ") + newLaunch;
+      return false;
+    }
+    try {
+      // The editor reads a v1 AgentSessionRecoveryRecord in the same tab.
+      if (body?.version !== 1 || body.sessionId !== launch.fields.sessionId ||
+          ![body.editorSecret, body.projectId, body.projectSessionId].every((value) => typeof value === "string" && value.length > 0) ||
+          !Array.isArray(body.scopes) || !body.scopes.every((scope) => sessionScopes.has(scope)) ||
+          !Number.isFinite(body.expiresAt))
+        throw new Error("Invalid approval response");
+      if (sessionStorage.length !== 0) throw new Error("Tab storage changed during approval");
+      sessionStorage.setItem(${scriptJson(AGENT_SESSION_RECOVERY_STORAGE_KEY)}, JSON.stringify(body));
+      status.textContent = "Agent access approved. Opening Canvas…";
       location.replace("/editor");
       return true;
     } catch {
-      if (approval !== "auto") status.textContent =
-        "This launch needs a fresh browser tab and may have expired. Open Canvas again from the Agent.";
+      status.textContent = "This tab could not open the editor after the approval response. " + newLaunch;
+      return false;
     }
   }
   async function attempt(approval) {
-    if (await approve(approval)) return;
-    button.disabled = false;
-    if (trust) trust.disabled = false;
+    button.disabled = true;
+    if (trust) trust.disabled = true;
+    let opening = false;
+    try {
+      opening = await approve(approval);
+    } catch {
+      status.textContent = "The browser could not complete approval. " + newLaunch;
+    } finally {
+      if (!opening) {
+        button.disabled = false;
+        if (trust) trust.disabled = false;
+      }
+    }
   }
   button.addEventListener("click", (event) => {
     if (event.isTrusted && !button.disabled) void attempt("once");
