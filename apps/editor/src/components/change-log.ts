@@ -13,6 +13,81 @@ export interface ChangeLogDay {
  */
 export const CHANGE_LOG: readonly ChangeLogDay[] = [
   {
+    date: "2026-11-15",
+    items: [
+      "Changing a Cell's symbol, rerouting a wire or moving a pin never quietly joins two Nets: wires are redrawn clear of other Nets, or the edit is refused.",
+      "Free Net labels follow the wire end they name, and arrange-labels sets an upside-down supply name upright.",
+      "Review shows a drawing published from the editor at once, and an Agent's undo takes back the newest change in any Cell.",
+      "Insert from Gallery works for older and very large circuits, and each Gallery circuit keeps its previous version.",
+      "The canvas right-click menu groups its actions in submenus.",
+      "RNL 0.4 writes hidden labels, turned text, every no-connect mark and arrows on slanted wires.",
+    ],
+  },
+  {
+    date: "2026-11-14",
+    items: [
+      "An Objects & layers panel sets the drawing order, and ADCs and closed custom symbols can be filled.",
+      "Analog Canvas reads and writes RNL 0.4.",
+      "IHP SG13G2 gains a MOS varactor part.",
+      "Selection boards can hold reference datasets' circuits.",
+      "Sign-in, saves and Agent sessions stay reliable across the regional entrances.",
+    ],
+  },
+  {
+    date: "2026-11-13",
+    items: [
+      "A command line draws circuits and exports PNG, SVG and netlists with no browser.",
+    ],
+  },
+  {
+    date: "2026-11-12",
+    items: [
+      "A Cell's symbol can take its author's own shape (Customize symbol…), and the Gallery's redrawn amplifiers are triangles.",
+      "Named Ground: a ground glyph that names its supply net, such as VSS or AGND.",
+      "RNL reads designs written by other tools, and Canvas's own files back with their drawing, port order and names kept.",
+    ],
+  },
+  {
+    date: "2026-11-11",
+    items: [
+      "Arial and Latin Modern (LaTeX) canvas fonts; the Times option is named Times New Roman, and every label name is drawn bold.",
+      "Schottky diode, electrolytic capacitor, photoresistor, sine source, ammeter, UJT, PUT and Shockley parts, and a wide chopper.",
+      "A one-minute film about Analog Canvas plays at /film.",
+      "Image2Net joins as a fifth reference dataset, and the Gallery opens on circuits with and without a netlist.",
+      "Deleting a supply tap keeps the rest of the rail connected.",
+    ],
+  },
+  {
+    date: "2026-11-10",
+    items: [
+      "JFET, LED, speaker, microphone and potentiometer parts.",
+      "The Gallery searches faster, shows real not-found pages, saves and signs in when signed out, fits narrow screens and returns to the circuit you opened.",
+      "PDF export keeps Chinese text, and locked objects survive Delete.",
+      "New Net labels keep their underscore, and Create Cell keeps every Net.",
+      "AnalogRetriever circuits can be compared with their reference figures.",
+    ],
+  },
+  {
+    date: "2026-11-09",
+    items: [
+      "The whole Gallery is open to bulk download, mirroring and AI training.",
+      "Review finds your own drawings by verdict or missing reference, its pictures zoom and pan, and Gallery tiles mark a reference image.",
+      "An Agent can hand a local circuit or Virtuoso netlist to Canvas Web for review and get the comments back.",
+      "Several netlist, editing and import fixes.",
+    ],
+  },
+  {
+    date: "2026-11-08",
+    items: [
+      "Every Gallery page can be read without signing in; only changes need an account.",
+      "Review is open to everyone, with search and an author filter.",
+      "Project Info is one floating window for a drawing's details and its reference picture, and a drawing opens on its canvas.",
+      "A switch's control is set in Properties, and SKY130 inductors draw their centre tap as a pin.",
+      "Testbench and Specs for every account; any Gallery tile's menu can report an issue.",
+      "The Agent's part catalog lists each part's parameters.",
+    ],
+  },
+  {
     date: "2026-11-07",
     items: [
       "Review, a new Gallery tab, lets members pass or flag each drawing beside its reference figure, with comments, likes and a layout check; Enter sends and → passes.",
