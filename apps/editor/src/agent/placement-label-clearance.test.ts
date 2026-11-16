@@ -119,3 +119,84 @@ describe("labels an Agent's placement puts clear of its neighbours (#1836)", () 
     expect(labelFindings(controller.document)).toEqual([]);
   });
 });
+
+describe("the textbook preset keeps a part's name off its own wires (#2346)", () => {
+  const part = (
+    symbol: string,
+    reference: string | null,
+    x: number,
+    y: number,
+    extra: Record<string, unknown> = {},
+  ) => ({
+    kind: "place-component",
+    symbol,
+    ...(reference ? { reference } : {}),
+    position: { x, y },
+    ...extra,
+  });
+  const mirrored = { mirror: "horizontal" };
+  const pin = (instance: string, name: string) => ({
+    kind: "pin",
+    instance,
+    pin: name,
+  });
+  const at = (x: number, y: number) => ({ kind: "wire-at", point: { x, y } });
+  const tie = (gate: string, x: number) => ({
+    kind: "connect",
+    from: pin(gate, "G"),
+    to: at(x, 100),
+    via: [
+      { x: x + 40, y: 60 },
+      { x: x + 40, y: 100 },
+    ],
+  });
+
+  it("puts a transistor's name a word's space from its drain wire, and a VDD name off the next bar", async () => {
+    // Two columns of a comparator's bias, 60 apart: M20 over M21 and M11
+    // over M10, each PMOS's gate tied to its drain wire, their sources on
+    // VDD markers, M10's gate on to M9's. M21's name beside it fills the
+    // row left of M10, and M20's VDD name beside its bar reaches M11's.
+    const { client, controller } = await editor();
+    for (const actions of [
+      [
+        part("nmos", "M21", 290, 220),
+        part("pmos", "M20", 310, 60, mirrored),
+        part("pmos", "M11", 370, 60, mirrored),
+        part("nmos", "M10", 370, 220, mirrored),
+        part("nmos", "M9", 470, 220),
+        ...[300, 360].map((x) =>
+          part("vdd-port", null, x, 20, { id: `vdd${x}` }),
+        ),
+        ...[300, 360, 480].map((x) =>
+          part("ground", null, x, 250, { id: `gnd${x}` }),
+        ),
+      ],
+      [
+        { kind: "connect", from: pin("M20", "D"), to: pin("M21", "D") },
+        tie("M20", 300),
+        { kind: "connect", from: pin("M11", "D"), to: pin("M10", "D") },
+        tie("M11", 360),
+        { kind: "connect", from: pin("M10", "G"), to: pin("M9", "G") },
+      ],
+      [{ kind: "apply-label-preset", preset: "textbook" }],
+    ]) {
+      const report = await client.applyActions(actions);
+      expect(report.ok, report.message).toBe(true);
+    }
+    expect(labelFindings(controller.document)).toEqual([]);
+    // M10's name stands clear of its drain wire, x = 360, by a word's space.
+    const document = controller.document;
+    const m10 = document.instances.find((item) => item.reference === "M10")!;
+    const name = document.annotations.find(
+      (annotation) =>
+        annotation.binding?.kind === "instance-reference" &&
+        annotation.binding.instanceId === m10.id,
+    )!;
+    const ink = createLabelClearanceContext(document, resolver).measure(
+      name,
+    ).inkBounds;
+    expect(
+      Math.max(ink.x - 360, 360 - ink.x - ink.width),
+    ).toBeGreaterThanOrEqual(4);
+  });
+});
