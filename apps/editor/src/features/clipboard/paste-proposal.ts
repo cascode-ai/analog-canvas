@@ -221,16 +221,25 @@ export function proposePaste(
       ...clipboard.instances.filter((item) => !keptReferences.has(item.id)),
     ];
     for (const source of allocationOrder) {
+      const policy = referencePolicyForInstance(source, project);
       const instance = createNewInstance(allocationDocument, source, {
         id: instanceIds.get(source.id)!,
         project,
         reference:
           keptReferences.get(source.id) ??
-          nextReference(
-            referenceIndex,
-            referencePolicyForInstance(source, project),
-            { reservedReferences: taken },
-          ),
+          // A part outside the device prefixes, such as a signal-flow unit
+          // delay, that still writes a netlist line needs a name of its own
+          // too: the next free one after its source's (#2341).
+          (policy.kind === "none" && source.reference && source.netlist
+            ? nextUnconstrainedReference(
+                source.reference,
+                sequence,
+                taken,
+                new Set(),
+              )
+            : nextReference(referenceIndex, policy, {
+                reservedReferences: taken,
+              })),
       });
       freshInstances.set(source.id, instance);
       allocationDocument.instances.push(instance);
