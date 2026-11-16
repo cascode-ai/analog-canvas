@@ -974,7 +974,27 @@ export function followAttachedAnnotations(
         slotLocal,
         visibleSymbolInkBounds(resolved, instance.signalFlowParameters),
       );
-      if (localSide) {
+      if (instance.symbolId === "port" || instance.symbolId === "port-filled") {
+        // A Cell Pin's label is untouched only where the Pin rule puts it,
+        // away from its wire; it follows by that rule at its own size, so a
+        // full turn brings it back (#2342). The Cell Pin name branch above
+        // takes a label at the default size or an earlier rule's place.
+        const placement = defaultInstanceLabelPlacement(
+          {
+            ...instance,
+            placement: { position: newPosition, ...newOrientation },
+          },
+          resolved,
+          styleProfile,
+          draft.presentation.grid,
+          canonicalLabelSlot(slot, row, nameOverValue),
+          annotation.sizeScale,
+        );
+        if (placement) {
+          position = placement.position;
+          transformedAlignment = placement.alignment;
+        }
+      } else if (localSide) {
         try {
           const placement = placeUprightInstanceLabel(
             instance,
