@@ -238,15 +238,27 @@ describe("built-in Analog Block subcircuits", () => {
       );
     });
 
-    it("refuses an older comparator's Project comparator named after the body's ports, not reaching it by position (#1928)", () => {
+    it("reaches an older comparator's Project comparator by the signs of its port names, never by position (#1928, #2350)", () => {
       const project = analogBlockProject(["comparator"], comparatorPins, false);
       addOwnSubcircuit(project, "comparator", [
         "VDD",
         "VSS",
-        "VIP",
         "VIN",
+        "VIP",
         "VOUT",
       ]);
+      const ready = createDesignNetlistExport(project);
+      if (ready.status !== "ready")
+        throw new Error(JSON.stringify(ready.diagnostics));
+      // VIN is IN- (minus) and VIP IN+ (plus), in the definition's order.
+      expect(ready.file.text).toMatch(
+        /^X\S* VDD VSS minus plus out comparator$/mu,
+      );
+    });
+
+    it("refuses an older comparator's Project comparator whose ports are not its pins, not reaching it by position (#1928)", () => {
+      const project = analogBlockProject(["comparator"], comparatorPins, false);
+      addOwnSubcircuit(project, "comparator", ["VDD", "VSS", "A", "B", "Y"]);
       const result = createDesignNetlistExport(project);
       expect(result.status).toBe("blocked");
       expect(

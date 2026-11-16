@@ -47,6 +47,7 @@ export function planSwitchControl(input: {
     alias: input.control,
     labelFor: input.labelFor,
     newLabelFor: input.newLabelFor,
+    notation: true,
   });
   if (!plan.ok) return plan;
   // The alias planner shows the label; a phase keeps the visibility asked for.

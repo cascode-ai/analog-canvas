@@ -30,6 +30,7 @@ import {
   drawnPinNames,
 } from "@icm/symbols";
 import type { ProjectStructureEdit } from "./project-transaction.js";
+import { boundMasterNameEdits } from "./bound-master-name.js";
 import {
   requireDocument,
   transactDocument,
@@ -242,6 +243,8 @@ interface PartImplementation {
     | { kind: "external-subcircuit"; definitionId: string };
   readonly match: GateCellPinMatch | undefined;
   readonly formalParameters: readonly { readonly name: string }[];
+  /** The Cell's or definition's name, which the part shows (#2348). */
+  readonly name: string;
 }
 
 /** A Cell a part drawn in `document` may call: never one that contains it. */
@@ -262,6 +265,7 @@ function cellImplementation(
     binding: { kind: "subcircuit", childDocumentId: cell.id },
     match: cellPinMatch(cell, instance.symbolId),
     formalParameters: cell.netlist.formalParameters,
+    name: cell.netlist.name,
   };
 }
 
@@ -273,7 +277,43 @@ function externalImplementation(
     binding: { kind: "external-subcircuit", definitionId: definition.id },
     match: matchGateExternalPins(instance.symbolId, definition),
     formalParameters: definition.formalParameters,
+    name: definition.name,
   };
+}
+
+/**
+ * The name of the Cell or external definition of its Project a part is
+ * bound to, which it shows while bound (#2348).
+ */
+function boundDefinitionName(
+  project: CircuitProject,
+  instance: SchematicDocument["instances"][number],
+): string | undefined {
+  const binding = instance.netlist?.binding;
+  if (binding?.kind === "subcircuit")
+    return project.documents.find(
+      (document) => document.id === binding.childDocumentId,
+    )?.netlist?.name;
+  if (binding?.kind === "external-subcircuit")
+    return project.externalSubcircuitDefinitions.find(
+      (definition) => definition.id === binding.definitionId,
+    )?.name;
+  return undefined;
+}
+
+/** A part's shown master name, taken away once it calls no definition. */
+function clearedMasterNameEdits(
+  project: CircuitProject,
+  document: SchematicDocument,
+  instance: SchematicDocument["instances"][number],
+): DocumentEdits {
+  return boundMasterNameEdits(
+    document,
+    instance,
+    createProjectSymbolResolver(project, builtInSymbols),
+    undefined,
+    boundDefinitionName(project, instance),
+  );
 }
 
 /**
@@ -295,10 +335,8 @@ function planGateCellBinding(
   const { binding, match } = implementation;
   if (match && !match.ok) throw new Error(match.message);
   const supplies = new Set(match?.pins.map((pin) => pin.supply));
-  const symbol = createProjectSymbolResolver(project, builtInSymbols).resolve(
-    instance.symbolId,
-    instance.symbolVariantId,
-  );
+  const resolver = createProjectSymbolResolver(project, builtInSymbols);
+  const symbol = resolver.resolve(instance.symbolId, instance.symbolVariantId);
   const drawn = new Set(symbol ? drawnPinNames(symbol) : []);
   const documentEdits: DocumentEdits = (["VDD", "VSS"] as const)
     .filter(
@@ -340,6 +378,16 @@ function planGateCellBinding(
         },
       ],
     });
+  // The part shows what it calls, as a placed Cell does (#2348).
+  documentEdits.push(
+    ...boundMasterNameEdits(
+      document,
+      instance,
+      resolver,
+      implementation.name,
+      boundDefinitionName(project, instance),
+    ),
+  );
   return documentEdits.length
     ? [transactDocument(project, document.id, documentEdits)]
     : [];
@@ -385,6 +433,7 @@ function planClearDeviceBinding(
           },
         ],
       },
+      ...clearedMasterNameEdits(project, document, instance),
     ]),
   ];
 }
@@ -544,6 +593,7 @@ export function planSetDeviceModelTarget(
               },
             ],
           },
+          ...clearedMasterNameEdits(project, document, instance),
         ]),
       ];
     }

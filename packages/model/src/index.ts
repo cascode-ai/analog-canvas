@@ -12,6 +12,7 @@ export * from "./immutable-snapshot.js";
 export * from "./project-snapshot.js";
 export * from "./snapshot-structural-sharing.js";
 export * from "./net-name.js";
+export * from "./part-pin-names.js";
 export * from "./orientation-reflect.js";
 export * from "./route-path.js";
 export * from "./rich-text.js";

@@ -137,9 +137,8 @@ their IDs, never resolved to the first.
   - an external subcircuit of the Project (SPICE-imported or model-source), by
     name or ID.
 
-  A Cell's Pins or a subcircuit's ports are the part's own pins, never an ideal
-  body's `VIP`/`VIN`/`VOUT`, in any order and letter case, plus `VDD`/`VSS`
-  unless its supplies are global:
+  A Cell's Pins or a subcircuit's ports are the part's own pins, in any order
+  and letter case, plus `VDD`/`VSS` unless its supplies are global:
 
   | Parts                                                                      | Pins                                                                                |
   | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
@@ -155,10 +154,17 @@ their IDs, never resolved to the first.
   | `xfmr`                                                                     | `P+`, `P-`, `S+`, `S-`                                                              |
   | `chopper`                                                                  | `INP`, `INN`, `OUTP`, `OUTN`, plus `CK` for the clock its label names unless global |
 
-  Others are refused by name, as is a subcircuit that names its ports only by
-  position. The call goes to the definition by Pin name, its parameters win, a
+  A part with inputs `IN+`/`IN-` also takes a set of usual names when none of
+  the set is named its own way: `INP`/`INN` (or `INM`), `VINP`/`VINN`,
+  `VIP`/`VIN` or `IP`/`IN` for the inputs, `VOUT`/`VO`/`OUTPUT` for `OUT`,
+  `OUTP`/`OUTN`, `VOUTP`/`VOUTN` or `VOP`/`VON` for `OUT+`/`OUT-`; Pins that
+  spell a set two ways (`INP`, `INN`, `INM`) are refused, naming what to
+  rename. Others are refused by name, as is a subcircuit that names its ports
+  only by position. The call goes to the definition by Pin name, its parameters win, a
   VDD/VSS Net it lacks a Pin for is cleared, the part's own Cell is refused,
-  and a Cell's used Pins cannot be renamed or removed. An empty model returns
+  and a Cell's used Pins cannot be renamed or removed. A placed part shows the
+  definition's name under its own, as a placed Cell does; it follows a Cell
+  rename and goes when the model is cleared. An empty model returns
   the generated body; the part's own parameters keep their values, or take
   their defaults where unset (a Delay Cell's all reset). A part with no model
   calls its ideal body; where a Cell or subcircuit of the Project has the

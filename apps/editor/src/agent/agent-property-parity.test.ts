@@ -8,6 +8,7 @@ import {
 import {
   createEmptyProject,
   flattenRichText,
+  plainNameDocument,
   type CircuitProject,
 } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
@@ -1235,6 +1236,73 @@ describe("Agent property actions are planned as Apply in Properties", () => {
       binding: { kind: "unresolved-subcircuit", name: "opamp" },
       parameters: { gain: "1e6", vhigh: "VDD", vlow: "VSS" },
     });
+  });
+
+  it("binds an op-amp to a Cell whose Pins are INP, INN and OUT, shows the Cell's name under its own, and draws an alias as written (#2347, #2348, #2350)", async () => {
+    const { client, controller, apply, instance } = await session();
+    await apply([{ kind: "create-cell", id: "amp", name: "L1_amp" }]);
+    const report = await client.applyActions(
+      ["INP", "INN", "OUT"].map((pin, index) => ({
+        kind: "place-component",
+        symbol: "port",
+        reference: pin,
+        position: { x: 0, y: index * 40 },
+      })),
+      { documentId: "amp" },
+    );
+    expect(report.ok, report.message).toBe(true);
+    // Turned over, its labels stand above it.
+    await apply([{ ...place("opamp", "X1", 200), rotation: 180 }]);
+    const target = { kind: "instance", reference: "X1" };
+    const labels = () => {
+      const document = controller.document;
+      const id = instance("X1").id;
+      const resolver = createProjectSymbolResolver(
+        controller.project,
+        builtInSymbols,
+      );
+      return document.annotations
+        .filter(
+          (annotation) =>
+            annotation.anchor.kind === "object" &&
+            annotation.anchor.objectId === id &&
+            annotation.visible !== false,
+        )
+        .map((annotation) => ({
+          text: flattenRichText(
+            resolveAnnotationText(document, annotation, undefined, resolver),
+          ),
+          offset:
+            annotation.anchor.kind === "object"
+              ? annotation.anchor.localOffset
+              : undefined,
+        }));
+    };
+    const [name] = labels();
+    expect(name?.text).toBe("X1");
+
+    await apply([{ kind: "set-model", target, model: "L1_amp" }]);
+    expect(instance("X1").netlist?.binding).toEqual({
+      kind: "subcircuit",
+      childDocumentId: "amp",
+    });
+    const bound = labels();
+    expect(bound.map((label) => label.text)).toEqual(["X1", "L1_amp"]);
+    // The name stands a row further out, over the Cell's name in its row.
+    expect(bound[0]!.offset!.y).toBeLessThan(name!.offset!.y);
+    expect(bound[1]!.offset).toEqual(name!.offset);
+
+    await apply([{ kind: "set-display-alias", target, text: "L1_amp" }]);
+    const alias = controller.document.annotations.find(
+      (annotation) =>
+        annotation.kind === "instance-label" &&
+        annotation.anchor.kind === "object" &&
+        annotation.anchor.objectId === instance("X1").id,
+    )!;
+    expect(alias.content).toEqual(plainNameDocument("L1_amp"));
+
+    await apply([{ kind: "set-model", target, model: "" }]);
+    expect(labels().map((label) => label.text)).toEqual(["L1_amp"]);
   });
 
   it("binds an adder to an external definition of the Project, as Properties offers it, and clears it (#1928)", async () => {

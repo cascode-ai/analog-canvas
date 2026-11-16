@@ -14,6 +14,7 @@ import { ProjectModelSourceSchema } from "./model-source.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 import { foldNetName } from "../net-name.js";
+import { cellPinsByUsualName } from "../part-pin-names.js";
 import { hierarchicalSymbolId } from "../ids.js";
 import { circuitComponentIssues } from "../circuit-component.js";
 export const ComponentAuthoringDraftSchema = z.strictObject({
@@ -489,6 +490,19 @@ export const CircuitProjectSchema = z
           instance.symbolId !== hierarchicalSymbolId(child.netlist.name);
         const optionalPin = (pinName: string) =>
           ownSymbol && ["vdd", "vss"].includes(foldNetName(pinName));
+        // Such a part's inputs and outputs also meet Pins named as netlists
+        // usually name them: an op-amp's IN+ the Cell's INP (#2350).
+        const usualPins = new Set(
+          ownSymbol
+            ? [
+                ...cellPinsByUsualName(
+                  projectCellInterface(child.netlist).ports.map(
+                    (port) => port.name,
+                  ),
+                ).byName.values(),
+              ].map(foldNetName)
+            : [],
+        );
         const referencedPins: Array<{
           pinName: string;
           path: Array<string | number>;
@@ -563,6 +577,7 @@ export const CircuitProjectSchema = z
         for (const reference of referencedPins) {
           if (
             childPinNames.has(foldNetName(reference.pinName)) ||
+            usualPins.has(foldNetName(reference.pinName)) ||
             optionalPin(reference.pinName)
           )
             continue;

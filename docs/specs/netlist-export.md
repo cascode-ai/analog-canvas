@@ -96,10 +96,12 @@ derive from `parameters`.
 - Any Library part with a generated body, the chopper and magnetic parts
   included, can be bound (`set-model`) to a Project Cell or external
   subcircuit without changing artwork or References. Its Pins or ports are the
-  part's own pins (an op-amp's `IN+`, `IN-`, `OUT`, not its body's
-  `VIP`/`VIN`/`VOUT`) and optional VDD/VSS, or a chopper's optional `CK` for
-  the clock its label names, met by name; the call follows the definition's
-  order. A mismatch, or an external subcircuit that names its
+  part's own pins (an op-amp's `IN+`, `IN-`, `OUT`) and optional VDD/VSS, or a
+  chopper's optional `CK` for the clock its label names, met by name; a part
+  with inputs `IN+`/`IN-` also meets a whole set of usual names (`INP`/`INN`,
+  `VIP`/`VIN`, `VOUT`; [list](../agent/shared/authoring.md)) while the set
+  has none of its own, never a set spelled two ways. The call follows the
+  definition's order. A mismatch, or an external subcircuit that names its
   ports only by position, is `GATE_CELL_PIN_MISMATCH`. The definition owns its
   parameters and supplies; clearing restores the body, and the part's own
   parameters keep their values or take their defaults where unset (a Delay

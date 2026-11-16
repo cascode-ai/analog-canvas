@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "586373af61afdc564c2a0db361316bc44fd4c45b6e5f6fd8f9796992c180f140"
+      "sha256": "a9423b9f5aede5712505457781a57230623cd0bd306eee8d842f75e76ec117b1"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "33c00f6de018f9cb611ef76944c9964588884549fce282c7ac014aef3242bd94"
+      "sha256": "b27c7d7f7578245a882f48a7c9d340759d7fb3c6c3d2d91193101a948cbdb6e6"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -708,7 +708,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "ebb4be0f5bb34e31a2b0688e9bcba431870bb138427a08e1ca5a800498229f46"
+      "sha256": "42a04322e9f43e626976315b7888888336e8f4c876c2c81428464c7361d7f518"
     },
     {
       "file": "packages/agent-adapter/src/agent-skills.generated.ts",

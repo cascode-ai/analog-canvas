@@ -5996,7 +5996,7 @@ function converter(symbolId: string): CircuitProject {
 describe("RNL round trip of built-in blocks", () => {
   it("refuses a comparator retargeted to the Project's master whose ports are not its own pins (#1928)", () => {
     const project = comparator("comparator-differential", {}, true);
-    const ports = ["VDD", "VSS", "VIP", "VIN", "VOP", "VON"];
+    const ports = ["VDD", "VSS", "A", "B", "Y", "Z"];
     project.documents[0]!.instances[0]!.netlist!.binding = {
       kind: "unresolved-subcircuit",
       name: "custom_cmp",
@@ -6011,7 +6011,7 @@ describe("RNL round trip of built-in blocks", () => {
         files: [
           {
             path: "cmp.sp",
-            text: `.subckt custom_cmp ${ports.join(" ")}\nRLOAD VOP VON 1k\n.ends custom_cmp\n`,
+            text: `.subckt custom_cmp ${ports.join(" ")}\nRLOAD Y Z 1k\n.ends custom_cmp\n`,
           },
         ],
       },
@@ -6035,8 +6035,8 @@ describe("RNL round trip of built-in blocks", () => {
       },
     ];
     // The retarget binds the comparator to custom_cmp, Pin by name, as
-    // set-model would; its VIP/VIN/VOP/VON are the ideal body's, not the
-    // comparator's, so the netlist refuses before any stencil is drawn.
+    // set-model would; its A, B, Y and Z are not the comparator's pins, so
+    // the netlist refuses before any stencil is drawn.
     const result = createRnlExport(project, { format: "spice" });
     expect(result.status).toBe("blocked");
     if (result.status !== "blocked") return;

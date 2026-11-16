@@ -10,6 +10,7 @@ import {
   flattenRichText,
   foldNetName,
   labelTextDocument,
+  plainNameDocument,
   richTextPresentsIdentifier,
   roleLabelFormat,
 } from "@icm/model";
@@ -297,7 +298,9 @@ export function groupNamingStatus(
  * in the netlist, as the Properties display alias does: an op-amp stays X1
  * and is drawn A1. Null, or the part's own name, names it again in its
  * standard look. A hidden label is shown; a part with no label gets one
- * (#1254, the Agent's set-display-alias).
+ * (#1254, the Agent's set-display-alias). `notation` reads the alias as a
+ * switch's phase is written, `_` starting a subscript and a final `_bar` an
+ * overbar (Φ_A_bar for Φ̄_A); otherwise it is drawn as written (#2347).
  */
 export function planDisplayAlias(input: {
   document: SchematicDocument;
@@ -305,6 +308,7 @@ export function planDisplayAlias(input: {
   alias: string | null;
   labelFor: GroupNamingInput["labelFor"];
   newLabelFor: GroupNamingInput["newLabelFor"];
+  notation?: boolean;
 }): { ok: true; edits: SchematicEdit[] } | { ok: false; message: string } {
   const { document, instanceId } = input;
   const [part] = namedParts(document, [instanceId]);
@@ -330,7 +334,9 @@ export function planDisplayAlias(input: {
             },
           ],
         };
-  // Drawn as a name is: A1 reads A₁ like a Reference.
+  // Drawn as a name is where it has a standard look (A1 reads A₁ like a
+  // Reference), else as written, as a placed Cell's name is: L1_amp keeps
+  // its underscore, never a subscript its author did not type (#2347).
   const look =
     (part.terminalId
       ? roleLabelFormat("voltage-node", alias)
@@ -340,7 +346,10 @@ export function planDisplayAlias(input: {
           part.deviceLetter && alias.startsWith(part.deviceLetter)
             ? { deviceLetter: part.deviceLetter }
             : {},
-        )) ?? labelTextDocument(alias, document.presentation);
+        )) ??
+    (input.notation
+      ? labelTextDocument(alias, document.presentation)
+      : plainNameDocument(alias));
   const {
     binding: _binding,
     content: _content,
