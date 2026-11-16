@@ -2169,4 +2169,74 @@ describe("expected-netlist verification against the live editor's export", () =>
       }),
     ).toMatchObject({ summary: "equal", status: "equal" });
   });
+
+  it("names the action that orders a Cell's Pins as the reference lists them (#2349)", async () => {
+    const editor = await connected();
+    await apply(editor, [
+      ...["VDD", "VSS", "CLK", "Vinp", "Vinn"].map((name, i) => ({
+        kind: "place-component",
+        symbol: "port",
+        reference: name,
+        position: { x: 100, y: 100 + i * 100 },
+      })),
+      ...["R1", "R2", "R3"].map((name, i) =>
+        place("resistor", name, 300 + i * 100),
+      ),
+    ]);
+    await apply(editor, [
+      { kind: "connect", from: pin("R1", "1"), to: cellPin(editor, "VDD") },
+      { kind: "connect", from: pin("R1", "2"), to: cellPin(editor, "Vinp") },
+      { kind: "connect", from: pin("R2", "1"), to: cellPin(editor, "Vinn") },
+      { kind: "connect", from: pin("R2", "2"), to: cellPin(editor, "VSS") },
+      { kind: "connect", from: pin("R3", "1"), to: cellPin(editor, "CLK") },
+      { kind: "connect", from: pin("R3", "2"), to: pin("R1", "2") },
+    ]);
+    const reference = {
+      text: ".subckt comp VDD VSS Vinp Vinn CLK\nR1 VDD Vinp 1k\nR2 Vinn VSS 1k\nR3 CLK Vinp 1k\n.ends comp",
+      compare: { parameters: false },
+    };
+    const fix = {
+      cell: "comp",
+      documentId: "main",
+      tool: "circuit_transform",
+      action: {
+        kind: "set-cell-pin-order",
+        pins: ["VDD", "VSS", "Vinp", "Vinn", "CLK"],
+      },
+    };
+    expect(
+      await compareExpectedNetlist(editor.client, "main", reference),
+    ).toMatchObject({
+      summary: "topology equal; 1 port-order difference",
+      fixes: [fix],
+    });
+    // The fix, sent as it reads, through the tool it names.
+    expect(
+      await editor.tool(fix.tool, { actions: [fix.action] }),
+    ).toMatchObject({ ok: true });
+    const after = await compareExpectedNetlist(
+      editor.client,
+      "main",
+      reference,
+    );
+    expect(after).toMatchObject({ summary: "equal", status: "equal" });
+    expect(after).not.toHaveProperty("fixes");
+    // An order the netlist cannot print, or a Pin the Cell lacks, is refused
+    // with why, and changes nothing.
+    const order = () =>
+      editor.controller.document.netlist!.terminals.map((item) => item.name);
+    const kept = order();
+    for (const [pins, why] of [
+      [["CLK", "VDD"], "supplies (VDD, VSS) before its signals"],
+      [["Vout"], "Vout is not a Pin of this Cell"],
+      [["clk", "CLK"], "CLK is named twice"],
+    ] as const) {
+      const refused = await editor.client.applyActions([
+        { kind: "set-cell-pin-order", pins },
+      ]);
+      expect(refused.ok).toBe(false);
+      expect(refused.message).toContain(why);
+    }
+    expect(order()).toEqual(kept);
+  });
 });

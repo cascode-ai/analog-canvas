@@ -20,6 +20,7 @@ import {
   type DocumentEdits,
 } from "./cell-document-edits.js";
 import { planRemoveCellTerminals } from "./cell-interface-change-planner.js";
+import { designNetlistCellPorts } from "@icm/netlist";
 
 /** The textbook edge for a supply terminal: VDD-like on top, ground-like
  * (a Named Ground's) below. Undefined for a signal. */
@@ -648,6 +649,81 @@ export function planReorderCellTerminal(
     terminalIds[next]!,
     terminalIds[index]!,
   ];
+  return [
+    transactDocument(project, documentId, [
+      { kind: "reorder_cell_terminals", terminalIds },
+    ]),
+  ];
+}
+
+/**
+ * Order a Cell's Pins by name, as a reference netlist lists them (#2349):
+ * the named Pins first, in the order given, the others after them in their
+ * own order; each keeps its marker declarations together. Names match a Pin
+ * as Port names do, by folded spelling. An unknown or repeated name is
+ * refused, and so is an order the netlist would not print: a drawn Cell's
+ * netlist lists its supplies before the signals (#2177).
+ */
+export function planSetCellPinOrder(
+  project: CircuitProject,
+  documentId: string,
+  names: readonly string[],
+): ProjectStructureEdit[] {
+  const document = requireDocument(project, documentId);
+  const ports = projectCellInterface(document.netlist).ports;
+  const named: (typeof ports)[number][] = [];
+  for (const name of names) {
+    const port = ports.find((candidate) => candidate.key === foldNetName(name));
+    if (!port)
+      throw new Error(
+        `set-cell-pin-order: ${name} is not a Pin of this Cell; its Pins are ${ports.map((candidate) => candidate.name).join(", ") || "none"}`,
+      );
+    if (named.includes(port))
+      throw new Error(`set-cell-pin-order: ${name} is named twice`);
+    named.push(port);
+  }
+  const ordered = [...named, ...ports.filter((port) => !named.includes(port))];
+  const terminalIds = ordered.flatMap((port) => port.terminalIds);
+  const terminals = document.netlist!.terminals;
+  const terminalById = new Map(
+    terminals.map((terminal) => [terminal.id, terminal]),
+  );
+  // The netlist as it would print in the new order: the named Pins must come
+  // out as asked.
+  const printed = designNetlistCellPorts(
+    {
+      ...project,
+      documents: project.documents.map((candidate) =>
+        candidate.id === documentId
+          ? {
+              ...document,
+              netlist: {
+                ...document.netlist!,
+                terminals: terminalIds.map((id) => terminalById.get(id)!),
+              },
+            }
+          : candidate,
+      ),
+    },
+    documentId,
+  );
+  if (printed) {
+    const order: (typeof ports)[number][] = [];
+    for (const item of printed) {
+      const port = named.find((candidate) =>
+        candidate.netIds.includes(item.id),
+      );
+      if (port && !order.includes(port)) order.push(port);
+    }
+    if (order.some((port, index) => port !== named[index]))
+      throw new Error(
+        `set-cell-pin-order: the netlist would list ${order.map((port) => port.name).join(" ")}; a drawn Cell's netlist puts its supplies (${printed
+          .filter((item) => item.supply)
+          .map((item) => item.name)
+          .join(", ")}) before its signals`,
+      );
+  }
+  if (terminalIds.every((id, index) => id === terminals[index]?.id)) return [];
   return [
     transactDocument(project, documentId, [
       { kind: "reorder_cell_terminals", terminalIds },

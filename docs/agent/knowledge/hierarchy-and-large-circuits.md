@@ -26,8 +26,8 @@ export/simulation roots stay separate. Undo each from the Cell it edited.
 
 `transact.command` (MCP `advanced_transact`) carries `bind-cell-parameter`,
 `rename-cell-parameter`, `set-cell-parameter-default`, `remove-cell-parameter`,
-`rename-cell-terminal`, `remove-cell-terminal`, `set-cell-symbol-pins` and
-`set-cell-symbol-size`
+`rename-cell-terminal`, `remove-cell-terminal`, `set-cell-symbol-pins`,
+`set-cell-pin-order` and `set-cell-symbol-size`
 ([authoring](../shared/authoring.md#cell-pins-and-supplies)). Read the schema and
 `commandKinds`; address the child `documentId` at the current
 `expectedStructureRevision`. They reuse GUI planners, commit affected callers

@@ -336,6 +336,14 @@ information). Hidden bulk needs no decorative wire.
   refused with the names or free slots. Callers keep their Nets; stretched
   wiring is redrawn and labels it crosses move clear;
   `projectStructure.changedDocumentIds` and `changedObjectIds` name what moved.
+- `set-cell-pin-order` (`circuit_transform`, the Cell's `documentId`) orders
+  its Pins, the netlist's `.subckt` port order, by name:
+  `{kind:"set-cell-pin-order",pins:["VDD","VSS","Vinp","Vinn","CLK"]}`. Named
+  Pins come first as given, the rest after them in their order; names match
+  as Port names do (any case). Unknown or repeated names are refused, and so
+  is an order the netlist would not print: a drawn Cell lists its supplies
+  (VDD, then VSS) before its signals. `verify`'s `fixes` carries it for a
+  `port-order` difference. Callers keep their Nets and print in the new order.
 - `set-cell-symbol-size` (`circuit_transform`, the Cell's `documentId`) sizes
   its block body: `{kind:"set-cell-symbol-size",width:80,height:60}`. A
   centred body takes multiples of 20, explicit edges multiples of 10 (top-left

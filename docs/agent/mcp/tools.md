@@ -164,6 +164,9 @@ guessing renames. Devices pair by card name, then Reference (`XM1` pairs `M1`);
 card versus call for one name is a `binding` difference. `summary` (e.g.
 `topology equal; 1 port-order, 8 binding-style differences`) precedes
 `status` and `topology` (devices, targets, port sets, scopes, connections).
+A `port-order` difference adds `fixes`: the `set-cell-pin-order` action, with
+the tool and the root Cell's `documentId`, that orders that Cell's Pins as the
+reference lists them.
 `compare` skips `{portOrder:false}`, `{bindings:false}`, `{parameters:false}`
 or `{declarations:false}`. The last leaves `.model` bodies, `.param`, Cell
 parameters and preserved statements out, lists them in `notes`, and compares
