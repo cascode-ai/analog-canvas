@@ -162,7 +162,9 @@ their IDs, never resolved to the first.
   rename. Others are refused by name, as is a subcircuit that names its ports
   only by position. The call goes to the definition by Pin name, its parameters win, a
   VDD/VSS Net it lacks a Pin for is cleared, the part's own Cell is refused,
-  and a Cell's used Pins cannot be renamed or removed. An empty model returns
+  and a Cell's used Pins cannot be renamed or removed. A placed part shows the
+  definition's name under its own, as a placed Cell does; it follows a Cell
+  rename and goes when the model is cleared. An empty model returns
   the generated body; the part's own parameters keep their values, or take
   their defaults where unset (a Delay Cell's all reset). A part with no model
   calls its ideal body; where a Cell or subcircuit of the Project has the

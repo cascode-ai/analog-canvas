@@ -12,7 +12,11 @@ import {
 } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  plainNameDocument,
+} from "@icm/model";
 import type { Annotation, RichTextDocument } from "@icm/model";
 import {
   createHierarchicalBlockSymbol,
@@ -804,6 +808,64 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
       binding: { kind: "unresolved-subcircuit", name: "opamp" },
       parameters: { gain: "1e6", vhigh: "VDD", vlow: "VSS" },
     });
+  });
+
+  it("shows the name of the Cell a placed op-amp calls, as a placed Cell does, and takes it away when cleared (#2348)", () => {
+    const project = amplifierProject("opamp", "opamp", {});
+    const document = project.documents[0]!;
+    document.instances[0]!.placement = {
+      position: { x: 200, y: 100 },
+      rotation: 0,
+      mirror: "none",
+    };
+    // X1's name label, where a person put it.
+    document.annotations.push({
+      id: "label-x1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "X1" },
+      anchor: {
+        kind: "object",
+        objectId: "X1",
+        localOffset: { x: 0, y: -60 },
+        fallbackPosition: { x: 200, y: 40 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    });
+    addCell(project, "l1", "L1_amp", ["INP", "INN", "OUT"]);
+    addCell(project, "l2", "L2_amp", ["IN+", "IN-", "OUT"]);
+    const master = (state: typeof project) =>
+      state.documents[0]!.annotations.find(
+        (annotation) => annotation.id === "instance-master-X1",
+      );
+    const bound = bind(project, "L1_amp");
+    expect(master(bound)).toMatchObject({
+      kind: "instance-value",
+      content: plainNameDocument("L1_amp"),
+      anchor: { kind: "object", objectId: "X1" },
+    });
+    // It stands apart from the name label, in the value's row.
+    expect(master(bound)!.anchor).not.toEqual(
+      bound.documents[0]!.annotations.find((item) => item.id === "label-x1")!
+        .anchor,
+    );
+    // The Pins the op-amp meets by their usual names are kept, as a pair
+    // (#2350).
+    expect(() => planRenameCellTerminal(bound, "l1", "l1-INP", "A")).toThrow(
+      "X1 in Cell dut is an opamp bound to this Cell, and its IN+, IN- would have no Pin",
+    );
+    expect(planRenameCellTerminal(bound, "l1", "l1-INP", "inp")).not.toEqual(
+      [],
+    );
+    // Another Cell, and a rename of it, name it again.
+    const rebound = bind(bound, "L2_amp");
+    expect(master(rebound)!.content).toEqual(plainNameDocument("L2_amp"));
+    expect(master(rebound)!.anchor).toEqual(master(bound)!.anchor);
+    const renamed = execute(rebound, planRenameCell(rebound, "l2", "L2_ota"));
+    expect(master(renamed)!.content).toEqual(plainNameDocument("L2_ota"));
+    // Cleared, the ideal op-amp calls no Cell.
+    expect(master(bind(renamed, ""))).toBeUndefined();
   });
 
   it("binds a comparator or a fully differential op-amp to a Cell, and clears each to its ideal body (#1878)", () => {
