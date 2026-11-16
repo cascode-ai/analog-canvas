@@ -1,5 +1,6 @@
 import {
   deriveStableId,
+  hierarchicalSymbolId,
   projectCellInterface,
   projectCellSymbolArtwork,
   semanticTextDocument,
@@ -33,9 +34,7 @@ export {
   type HierarchicalBlockPinSlot,
 } from "./hierarchical-block-geometry.js";
 
-export function hierarchicalSymbolId(cellName: string): string {
-  return deriveStableId("hierarchical-symbol", cellName.toLowerCase());
-}
+export { hierarchicalSymbolId };
 
 /** External symbols are keyed by immutable definition identity, never master spelling. */
 export function externalSubcircuitSymbolId(definitionId: string): string {

@@ -24,6 +24,11 @@ import {
   type DeviceDescriptor,
   type GateCellPinMatch,
 } from "@icm/devices";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  drawnPinNames,
+} from "@icm/symbols";
 import type { ProjectStructureEdit } from "./project-transaction.js";
 import {
   requireDocument,
@@ -277,7 +282,8 @@ function externalImplementation(
  * (#1928). The part keeps its symbol and pins; its call goes to the
  * definition, Pin by name. Its own parameters give way to the definition's,
  * and a VDD or VSS Net it was given is cleared where the definition takes
- * that supply globally.
+ * that supply globally. A supply pin its variant draws keeps the Net its
+ * wire gives it (#2337).
  */
 function planGateCellBinding(
   project: CircuitProject,
@@ -289,10 +295,16 @@ function planGateCellBinding(
   const { binding, match } = implementation;
   if (match && !match.ok) throw new Error(match.message);
   const supplies = new Set(match?.pins.map((pin) => pin.supply));
+  const symbol = createProjectSymbolResolver(project, builtInSymbols).resolve(
+    instance.symbolId,
+    instance.symbolVariantId,
+  );
+  const drawn = new Set(symbol ? drawnPinNames(symbol) : []);
   const documentEdits: DocumentEdits = (["VDD", "VSS"] as const)
     .filter(
       (supply) =>
         !supplies.has(supply) &&
+        !drawn.has(supply) &&
         document.nets.some((net) =>
           net.terminals.some(
             (terminal) =>
