@@ -495,7 +495,7 @@ it.each(["spice", "spectre"] as const)(
 );
 
 it.each(["spice", "spectre"] as const)(
-  "brings back blocks whose standard symbols renamed their terminals or left their label empty through %s+RNL",
+  "brings back blocks whose standard symbols renamed their terminals through %s+RNL",
   async (format) => {
     const kinds = ["transconductance", "adder", "multiplier", "xfmr"];
     const project = calledBlocks(kinds);
@@ -510,8 +510,8 @@ it.each(["spice", "spectre"] as const)(
     // call symbol of its own.)
     for (const symbol of ["$TRANSCONDUCTOR", "$ADDER_SYMBOL", "$TRANSFORMER"])
       expect(setsSymbol(written.text, symbol), symbol).toBe(true);
-    // The transconductor's gm, which the standard symbol no longer draws.
-    expect(written.text).toContain('key="label"');
+    // The transconductor's gm is the standard symbol's own label (#665).
+    expect(written.text).not.toContain('key="label"');
     const plan = await importRnl(written.text, format);
     expect(failures(plan)).toEqual([]);
     const dut = plan.project.documents.find(
@@ -3158,9 +3158,99 @@ it("keeps a wire RNL draws on a Cell's GND, which it reads as ground (#1784)", a
   expect(dut.routes).toHaveLength(1);
 });
 
+/** A block in its supply-pins variant whose VDD a wire takes to a rail. */
+function wiredSupplyBlock(symbolId: string): CircuitProject {
+  const project = createEmptyProject("supplies", "Supplies", "dut");
+  const document = project.documents[0]!;
+  document.netlist!.name = "dut";
+  const at = (x: number, y: number) => ({
+    position: { x, y },
+    rotation: 0 as const,
+    mirror: "none" as const,
+  });
+  const symbol = builtInSymbols.find((item) => item.id === symbolId)!;
+  const descriptor = subcircuitDescriptor(symbolId)!;
+  const vdd = symbol.pins.find((pin) => pin.name === "VDD")!.at;
+  // The marker's P straight above the block's VDD pin.
+  document.instances.push(
+    {
+      id: "block",
+      symbolId,
+      symbolVariantId: "supply-pins",
+      reference: "X1",
+      placement: at(100, 100),
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: descriptor.target },
+        parameters: {},
+      },
+    },
+    {
+      id: "rail",
+      symbolId: "vdd-port",
+      placement: at(100 + vdd.x, 100 + vdd.y - 80),
+    },
+  );
+  for (const { name: port, pinName } of descriptor.ports) {
+    if (!pinName) continue;
+    const id = `pin-${port}`;
+    document.instances.push({ id, symbolId: "port", placement: null });
+    document.nets.push({
+      id: `net-${port}`,
+      terminals: [
+        { instanceId: id, pinName: "P" },
+        { instanceId: "block", pinName },
+      ],
+    });
+    document.netlist!.terminals.push({
+      id: `terminal-${port}`,
+      name: port,
+      netId: `net-${port}`,
+      direction: "inout",
+      interfaceInstanceIds: [id],
+    });
+  }
+  document.nets.push({
+    id: "net-vdd",
+    terminals: [
+      { instanceId: "block", pinName: "VDD" },
+      { instanceId: "rail", pinName: "P" },
+    ],
+  });
+  document.routes.push(
+    createRoutePath({
+      id: "wire",
+      netId: "net-vdd",
+      start: { kind: "terminal", instanceId: "block", pinName: "VDD" },
+      end: { kind: "terminal", instanceId: "rail", pinName: "P" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  return project;
+}
+
+/** The block reads back with its VDD on the rail's Net. */
+async function expectSupplyKept(project: CircuitProject, symbolId: string) {
+  const plan = await roundTrip(project);
+  expect(failures(plan)).toEqual([]);
+  const dut = plan.project.documents.find((d) => d.netlist?.name === "dut")!;
+  const block = dut.instances.find((item) => item.symbolId === symbolId)!;
+  const netOf = (instanceId: string, pinName: string) =>
+    dut.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === pinName,
+      ),
+    )?.id;
+  const rail = dut.instances.find((item) => item.symbolId === "vdd-port");
+  expect(netOf(block.id, "VDD")).toBeDefined();
+  expect(rail).toBeDefined();
+  expect(netOf(block.id, "VDD")).toBe(netOf(rail!.id, "P"));
+  return block;
+}
+
 it.each([
   "opamp",
-  "inverter",
   "nand-gate-3",
   "d-flip-flop-reset",
   "comparator-differential",
@@ -3168,92 +3258,47 @@ it.each([
 ])(
   "keeps a %s's wired VDD on its Net through spice+RNL, which draws no supply pin (#1833, #1941)",
   async (symbolId) => {
-    const project = createEmptyProject("supplies", "Supplies", "dut");
-    const document = project.documents[0]!;
-    document.netlist!.name = "dut";
-    const at = (x: number, y: number) => ({
-      position: { x, y },
-      rotation: 0 as const,
-      mirror: "none" as const,
-    });
-    const symbol = builtInSymbols.find((item) => item.id === symbolId)!;
-    const descriptor = subcircuitDescriptor(symbolId)!;
-    const vdd = symbol.pins.find((pin) => pin.name === "VDD")!.at;
-    // The marker's P straight above the block's VDD pin.
-    document.instances.push(
-      {
-        id: "block",
-        symbolId,
-        symbolVariantId: "supply-pins",
-        reference: "X1",
-        placement: at(100, 100),
-        netlist: {
-          binding: { kind: "unresolved-subcircuit", name: descriptor.target },
-          parameters: {},
-        },
-      },
-      {
-        id: "rail",
-        symbolId: "vdd-port",
-        placement: at(100 + vdd.x, 100 + vdd.y - 80),
-      },
-    );
-    for (const { name: port, pinName } of descriptor.ports) {
-      if (!pinName) continue;
-      const id = `pin-${port}`;
-      document.instances.push({ id, symbolId: "port", placement: null });
-      document.nets.push({
-        id: `net-${port}`,
-        terminals: [
-          { instanceId: id, pinName: "P" },
-          { instanceId: "block", pinName },
-        ],
-      });
-      document.netlist!.terminals.push({
-        id: `terminal-${port}`,
-        name: port,
-        netId: `net-${port}`,
-        direction: "inout",
-        interfaceInstanceIds: [id],
-      });
-    }
-    document.nets.push({
-      id: "net-vdd",
-      terminals: [
-        { instanceId: "block", pinName: "VDD" },
-        { instanceId: "rail", pinName: "P" },
-      ],
-    });
-    document.routes.push(
-      createRoutePath({
-        id: "wire",
-        netId: "net-vdd",
-        start: { kind: "terminal", instanceId: "block", pinName: "VDD" },
-        end: { kind: "terminal", instanceId: "rail", pinName: "P" },
-        bends: [],
-        modes: ["manual"],
-      }),
-    );
+    const project = wiredSupplyBlock(symbolId);
     // RNL fails a wire to a terminal its symbol draws no pin for (9.2.4).
     const exported = createRnlExport(project, { format: "spice" });
     expect(exported.diagnostics.map((item) => item.code)).toContain(
       "RNL_PIN_NOT_DRAWN",
     );
-    const plan = await roundTrip(project);
-    expect(failures(plan)).toEqual([]);
+    await expectSupplyKept(project, symbolId);
+  },
+);
+
+it.each([
+  ["opamp-differential", "$DIFFERENTIAL_OPAMP_INVERTED_SUPPLY"],
+  ["opamp-differential-crossed", "$DIFFERENTIAL_OPAMP_TWISTED_INVERTED_SUPPLY"],
+  [
+    "differential-transconductance",
+    "$DIFFERENTIAL_TRANSCONDUCTOR_INVERTED_SUPPLY",
+  ],
+  ["opamp-differential-inputs-swapped", "$DIFFERENTIAL_OPAMP_TWISTED_SUPPLY"],
+  ["transconductance", "$TRANSCONDUCTOR_SUPPLY"],
+  ["adc", "$ADC_SUPPLY"],
+  ["inverter", "$INVERTER_SUPPLY"],
+  ["d-flip-flop", "$D_FLIP_FLOP_SUPPLY"],
+])(
+  "draws a %s's shown supplies as %s, its wire on VDD and all, and reads the variant back",
+  async (symbolId, rnlSymbol) => {
+    const project = wiredSupplyBlock(symbolId);
+    const exported = createRnlExport(project, { format: "spice" });
+    expect(exported.diagnostics.map((item) => item.code)).not.toContain(
+      "RNL_PIN_NOT_DRAWN",
+    );
+    if (exported.status !== "ready") throw new Error("export blocked");
+    const written = await runtime.write({
+      write: exported.request,
+      svg: false,
+    });
+    expect(setsSymbol(written.text, rnlSymbol)).toBe(true);
+    const block = await expectSupplyKept(project, symbolId);
+    expect(block.symbolVariantId).toBe("supply-pins");
+    const plan = await importRnl(written.text, "spice");
     const dut = plan.project.documents.find((d) => d.netlist?.name === "dut")!;
-    const block = dut.instances.find((item) => item.symbolId === symbolId)!;
-    const netOf = (instanceId: string, pinName: string) =>
-      dut.nets.find((net) =>
-        net.terminals.some(
-          (terminal) =>
-            terminal.instanceId === instanceId && terminal.pinName === pinName,
-        ),
-      )?.id;
-    const rail = dut.instances.find((item) => item.symbolId === "vdd-port");
-    expect(netOf(block.id, "VDD")).toBeDefined();
-    expect(rail).toBeDefined();
-    expect(netOf(block.id, "VDD")).toBe(netOf(rail!.id, "P"));
+    expect(dut.routes).toHaveLength(1);
   },
 );
 
@@ -4085,11 +4130,12 @@ const pathOf = (format: "spice" | "spectre") =>
 
 /**
  * Whether a written file draws a part with `symbol`, its pins bound by a
- * terminal map (`@SET-SYMBOL(terminals=…)`) or by name.
+ * terminal map (`@SET-SYMBOL(terminals=…)`, which may wrap the comment) or
+ * by name.
  */
 const setsSymbol = (text: string, symbol: string) =>
   new RegExp(
-    `@SET-SYMBOL(?:\\([^)]*\\))?\\s+${symbol.replaceAll("$", "\\$")}(?![A-Z0-9_])`,
+    `@SET-SYMBOL(?:\\([^)]*\\))?(?:\\s|\\*|/)+${symbol.replaceAll("$", "\\$")}(?![A-Z0-9_])`,
     "u",
   ).test(text);
 
@@ -8587,6 +8633,49 @@ describe("RNL 0.4: arrows at any angle and the kinds of devices", () => {
               "mu",
             ),
           );
+    },
+  );
+
+  it.each([
+    [
+      "not drawn",
+      "M1 d g 0 0 nch w=1u l=1u",
+      '@DEVICE(model="nch", type="nmos")',
+      "",
+    ],
+    [
+      "drawn with its own artwork",
+      "M1 d g 0 0 nch w=1u l=1u",
+      '@DEVICE(model="nch", type="nmos")',
+      '$OWN = @DEFINE-SYMBOL { (-2, 0) (2, 0) @LINE; (0, 2) @PIN(terminal="d"); (-2, 0) @PIN(terminal="g"); (0, -2) @PIN(terminal="s"); (2, 0) @PIN(terminal="b") }; #M1 @SET-SYMBOL $OWN => @PLACE(0, 0); ',
+    ],
+  ])(
+    "types a part %s by the kind the file declares its model, which no card declares",
+    async (_, card, device, drawing) => {
+      const text = [
+        "* declared device",
+        `* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-basic", version="0.4"); ${device} }`,
+        card,
+        "R1 d 0 1k",
+        "V1 g 0 1",
+        `* @RNL { ${drawing}#R1 @PLACE(10, 0); #V1 @PLACE(-10, 0) }`,
+        ".end",
+        "",
+      ].join("\n");
+      const plan = await importRnl(text, "spice");
+      expect(failures(plan)).toEqual([]);
+      const part = plan.project.documents
+        .flatMap((document) => document.instances)
+        .find((instance) => instance.reference === "M1")!;
+      expect(part.symbolId).toBe("nmos");
+      // Written again, it declares the kind itself, and reads back as it.
+      const again = await roundTrip(plan.project);
+      expect(failures(again)).toEqual([]);
+      expect(
+        again.project.documents
+          .flatMap((document) => document.instances)
+          .find((instance) => instance.reference === "M1")?.symbolId,
+      ).toBe("nmos");
     },
   );
 

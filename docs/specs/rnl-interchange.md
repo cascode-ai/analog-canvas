@@ -181,12 +181,25 @@ the RNL language and its runtime belong to rnl.
   positive output on top. An Analog Canvas variant with − on top is that
   symbol flipped top to bottom: it is written as the symbol turned by its own
   orientation after `MX`.
-- A block's VDD and VSS are the terminals `vp` and `vn` of its row, which its
-  RNL symbol draws no pin for, or a stencil the file defines its supply
-  terminals (RNL's import-only two-terminal Delay Cell has none). RNL fails a wire to a terminal
-  with no pin (9.2.4), so a wire on a shown supply pin is left out with
-  `RNL_PIN_NOT_DRAWN`; the netlist still joins it, and it reads back as that
-  supply's Net.
+- RNL stands the diodes (diode, Zener, LED, Schottky, Shockley, PUT) and the
+  transformer upright, where Analog Canvas lays them across: a part is
+  written turned by its row's quarter turn first (`R90`, the transformer
+  `R270`) and read back turned the other way.
+- A block's VDD and VSS are the terminals `vp` and `vn` of its row. A block
+  shown with its supply pins is written as the standard `*_SUPPLY` symbol
+  that draws them where Analog Canvas does (the differential op-amps,
+  transconductors, ADC, DAC, buffer, inverter, D flip-flops), a − on top
+  one as its `*_INVERTED_SUPPLY` symbol, which keeps VDD above and VSS below;
+  import reads each back in its supply-pins variant, the wire on a supply
+  pin included. Elsewhere its RNL symbol draws no pin for them: the
+  single-ended op-amp, comparator and voltage amplifier, whose standard
+  supply pins stand one unit left of Analog Canvas's, the 2- and 3-input
+  gates, whose stand one unit further out, the reset flip-flop, the lettered,
+  wide and unmarked variants, which have none, and a stencil the file defines
+  its supply terminals (RNL's import-only two-terminal Delay Cell has none).
+  RNL fails a wire to a terminal with no pin (9.2.4), so a wire on such a
+  shown supply pin is left out with `RNL_PIN_NOT_DRAWN`; the netlist still
+  joins it, and it reads back as that supply's Net.
 - The header says `@VERSION("0.4")` and uses, each with its version,
   `rnl-std-style`, `rnl-std-basic`, `rnl-std-semiconductors`,
   `rnl-std-no-labels`, each other package the drawing uses (such as
@@ -205,8 +218,9 @@ the RNL language and its runtime belong to rnl.
   is shown (`textvisible=true`), and every text its weight (`bold`), which
   the standard style makes bold. A glyph's name label is the glyph symbol's
   net name (`netname`); a glyph symbol that shows its net's name where the
-  editor shows none has it hidden. The standard transconductor's empty
-  centred label (`label`) is written with Analog Canvas's gm.
+  editor shows none has it hidden. The standard transconductors draw their
+  gm themselves (`label`, a differential one's `formula`); the export
+  writes none of its own.
 - Ground, supply and Cell Pin markers are written as `$GROUND`, `$SUPPLY` and
   `$IO_PORT`, each attached to its net; a Cell Pin on a net that is no port
   of its level (the file level) as `$NET_LABEL` drawn with the port's symbol,
@@ -342,8 +356,10 @@ the RNL language and its runtime belong to rnl.
 
 - A file whose language is not 0.4, and which writes RNL records, is refused
   whole (`RNL_IMPORT_VERSION`, naming its version and `rnl upgrade`, which
-  raises it): nothing of it is imported, its circuit included. A netlist with
-  no records imports as its circuit.
+  raises it): nothing of it is imported, its circuit included. An older
+  Analog Canvas file (`analog-canvas-extensions` 0.1–0.6) is upgraded the
+  same way: `rnl upgrade` moves it to 0.7. A netlist with no records imports
+  as its circuit.
 - File → Import → `RNL…` opens the source layout using Canvas conventions.
   `RNL (preserve source appearance)…` opens the authored appearance.
   Both read the same netlist, includes and package files and apply the
@@ -362,9 +378,11 @@ the RNL language and its runtime belong to rnl.
   circuit as a separate layer: CircuitIR never carries geometry
   ([circuit IR](circuit-ir.md)).
   - A model the files call but no model card declares is the device type the
-    drawing draws its parts as (`$NMOS…` an nmos, `$PMOS…` a pmos, `$NPN`,
-    `$PNP`, `$DIODE`), where they all agree, as the standard series draws
-    one it types by `@DEVICE`; a declared card decides.
+    file declares it (`@DEVICE(model=…, type=…)`, the snapshot's instance
+    `type`), else the type the drawing draws its parts as (`$NMOS…` an
+    nmos, `$PMOS…` a pmos, `$NPN`, `$PNP`, `$DIODE`), where they all agree;
+    a part drawn with its own artwork, or not drawn, is typed by the
+    declaration alone. A declared card decides.
   - Where the files draw a circuit, a subcircuit a SPICE file defines but
     writes no RNL of (a library's body, as the export prints a Project's model
     sources after its Cells) is no Cell, and nothing in it needs a symbol. It

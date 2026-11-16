@@ -92,7 +92,8 @@ const mappedVersion = (name: string) =>
 /**
  * Why a rich netlist is not read, or null: Analog Canvas reads the language
  * 0.4 only (16.1), so a file of another version, with records written in it,
- * is refused whole; `rnl upgrade` raises it to 0.4. A netlist with no records
+ * is refused whole; `rnl upgrade` raises it to 0.4, and an older Analog Canvas
+ * file's package to the one Analog Canvas writes. A netlist with no records
  * is no drawing of any version.
  */
 export function rnlVersionRefusal(
@@ -103,7 +104,7 @@ export function rnlVersionRefusal(
   return {
     severity: "error",
     code: "RNL_IMPORT_VERSION",
-    message: `The file is written in RNL ${snapshot.language}; Analog Canvas reads RNL ${RNL_LANGUAGE_VERSION} only. Raise it with \`rnl upgrade\`, then import it again`,
+    message: `The file is written in RNL ${snapshot.language}; Analog Canvas reads RNL ${RNL_LANGUAGE_VERSION} only. Raise it with \`rnl upgrade\`, which also moves an older Analog Canvas file (${CANVAS_PACKAGE} 0.1–0.6) to ${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}, then import it again`,
   };
 }
 
@@ -424,6 +425,32 @@ function renameCell(
       if (master) master.content = plainNameDocument(name);
     }
   return true;
+}
+
+/** The device types a model card can give, as the netlist import reads them. */
+const MODEL_TYPES = new Set(["nmos", "pmos", "npn", "pnp", "njf", "pjf", "d"]);
+
+/**
+ * The device type of each model the file's parts call, as the file declares
+ * it (`@DEVICE(model=…, type=…)`, 6.12) or its card gives it, for a netlist
+ * that calls a model no model card declares: a part drawn with its own
+ * artwork or not drawn at all is still that kind of device. A model whose
+ * parts are of different types has none.
+ */
+export function declaredModelTypes(snapshot: RnlSnapshot): Map<string, string> {
+  const seen = new Map<string, Set<string>>();
+  for (const level of snapshot.levels)
+    for (const instance of level.host?.instances ?? []) {
+      const type = instance.type?.toLowerCase();
+      if (!instance.master || !type || !MODEL_TYPES.has(type)) continue;
+      const key = instance.master.toLowerCase();
+      seen.set(key, new Set([...(seen.get(key) ?? []), type]));
+    }
+  return new Map(
+    [...seen].flatMap(([master, types]) =>
+      types.size === 1 ? [[master, [...types][0]!] as const] : [],
+    ),
+  );
 }
 
 /**

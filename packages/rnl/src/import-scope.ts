@@ -13,6 +13,7 @@ import {
   type RnlSymbolRef,
 } from "./rnl-snapshot.js";
 import { type RnlPowerLabelPort } from "./import-pins.js";
+import { rnlSymbolFor } from "./symbol-map.js";
 
 export interface RnlImportDiagnostic {
   /** An error leaves the drawing out; a warning keeps what could be drawn. */
@@ -165,11 +166,38 @@ export function levelScope(
     return name === null ? undefined : nets.get(name.toLowerCase());
   };
 
-  /** A part's terminal as its Analog Canvas pin, by the import's own mapping. */
-  const pinOf = (instance: Instance, n: number) =>
-    instance.importProvenance?.terminalMapping?.find(
+  /**
+   * A part's terminal as its Analog Canvas pin, by the import's own mapping;
+   * else the pin its symbol draws there: a block's supply, which the mapping
+   * leaves out (the part takes it as a property) and a `*_SUPPLY` symbol
+   * draws.
+   */
+  const pinOf = (instance: Instance, n: number) => {
+    const mapping = instance.importProvenance?.terminalMapping;
+    const mapped = mapping?.find(
       (terminal) => terminal.sourcePosition === n - 1,
     )?.pinName;
+    if (mapped || !mapping) return mapped;
+    const row = rnlSymbolFor(instance.symbolId, instance.symbolVariantId);
+    const object = model.objects.find(
+      (item) =>
+        item.kind === "instance" &&
+        instanceOf(rnlIdName(item.host[0] ?? item.id, "#") ?? "") === instance,
+    );
+    const at = object?.pins.find((pin) =>
+      pin.terminals.some((terminal) => terminal.endsWith(`:${n}`)),
+    )?.local_at;
+    const drawn =
+      at &&
+      row?.pins.find(
+        (pin) =>
+          Math.abs(pin.at[0] - at[0]) < NEAR &&
+          Math.abs(pin.at[1] - at[1]) < NEAR,
+      )?.acPin;
+    return drawn && !mapping.some((terminal) => terminal.pinName === drawn)
+      ? drawn
+      : undefined;
+  };
 
   // A part or a wire corner stays where RNL puts it, on a whole unit; the
   // Document's grid is then the coarsest that every part (the 10-unit grid
