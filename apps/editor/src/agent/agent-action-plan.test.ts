@@ -1594,6 +1594,114 @@ describe("the editor plans an Agent's action list", () => {
     expect(instance("M1")!.netlist!.binding?.kind).toBe("external-subcircuit");
   });
 
+  it("binds an op-amp drawing its supply pins to a Cell, keeping its wired VDD and VSS (#2337)", async () => {
+    const { controller, client, instance } = await editor();
+    const apply = async (actions: unknown[], documentId?: string) => {
+      const report = await client.applyActions(
+        actions,
+        documentId ? { documentId } : {},
+      );
+      expect(report.ok, report.message).toBe(true);
+    };
+    await apply([{ kind: "create-cell", id: "l1-amp", name: "L1_amp" }]);
+    await apply(
+      [
+        place("port", "IN+", 0),
+        place("port", "IN-", 200),
+        place("port", "OUT", 400),
+        {
+          kind: "place-component",
+          symbol: "vdd-port",
+          position: { x: 600, y: 0 },
+        },
+        {
+          kind: "place-component",
+          symbol: "ground",
+          position: { x: 600, y: 300 },
+        },
+      ],
+      "l1-amp",
+    );
+    await apply([
+      { ...place("opamp", "X1", 400), variant: "supply-pins" },
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "vdd",
+        position: { x: 400, y: -200 },
+      },
+      {
+        kind: "place-component",
+        symbol: "ground",
+        id: "gnd",
+        position: { x: 400, y: 400 },
+      },
+      { ...place("port", "INP", 0), id: "inp" },
+      { ...place("port", "INN", 0), id: "inn", position: { x: 0, y: 300 } },
+      { ...place("port", "VO", 800), id: "vo", mirror: "horizontal" },
+    ]);
+    const marker = (id: string, name: string) => ({
+      kind: "pin",
+      instance: { kind: "instance", id },
+      pin: name,
+    });
+    await apply([
+      { kind: "connect", from: pin("X1", "VDD"), to: marker("vdd", "P") },
+      { kind: "connect", from: pin("X1", "VSS"), to: marker("gnd", "0") },
+      { kind: "connect", from: pin("X1", "IN+"), to: marker("inp", "P") },
+      { kind: "connect", from: pin("X1", "IN-"), to: marker("inn", "P") },
+      { kind: "connect", from: pin("X1", "OUT"), to: marker("vo", "P") },
+    ]);
+    const main = () =>
+      controller.project.documents.find((item) => item.id === "main")!;
+    const supplyNets = () =>
+      ["VDD", "VSS"].map(
+        (supply) =>
+          main().nets.find((net) =>
+            net.terminals.some(
+              (terminal) =>
+                terminal.instanceId === instance("X1")!.id &&
+                terminal.pinName === supply,
+            ),
+          )?.id,
+      );
+    const wired = supplyNets();
+    expect(wired.every(Boolean)).toBe(true);
+
+    await apply([
+      {
+        kind: "set-model",
+        target: { kind: "instance", reference: "X1" },
+        model: "L1_amp",
+      },
+    ]);
+    expect(instance("X1")!.netlist!.binding).toEqual({
+      kind: "subcircuit",
+      childDocumentId: "l1-amp",
+    });
+    // The drawn supply pins stay on the Nets their wires give them.
+    expect(supplyNets()).toEqual(wired);
+    const exported = createDesignNetlistExport(controller.project, {
+      format: "spice",
+    });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // The call meets the Cell's VDD Pin, its ground on this Cell's ground
+    // (VSS), then IN+, IN- and OUT.
+    expect(exported.file.text).toMatch(/^X1 VDD VSS INP INN VO L1_amp$/mu);
+
+    // The Cell's Pins still change while the op-amp's VSS, which no Pin
+    // ever met, stays wired.
+    const out = controller.project.documents
+      .find((item) => item.id === "l1-amp")!
+      .netlist!.terminals.find((terminal) => terminal.name === "OUT")!;
+    await apply(
+      [{ kind: "rename-cell-terminal", terminalId: out.id, name: "out" }],
+      "l1-amp",
+    );
+    expect(supplyNets()).toEqual(wired);
+  });
+
   it("shows a device's multiplier as ×m beside it, bound to m (#1423)", async () => {
     const { controller, client, instance } = await editor();
     const placed = await client.applyActions([

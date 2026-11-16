@@ -14,6 +14,7 @@ import { ProjectModelSourceSchema } from "./model-source.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 import { foldNetName } from "../net-name.js";
+import { hierarchicalSymbolId } from "../ids.js";
 import { circuitComponentIssues } from "../circuit-component.js";
 export const ComponentAuthoringDraftSchema = z.strictObject({
   id: StableIdSchema,
@@ -480,6 +481,14 @@ export const CircuitProjectSchema = z
         const childPinNames = new Set(
           projectCellInterface(child.netlist).ports.map((port) => port.key),
         );
+        // A part drawn with its own symbol rather than the Cell's block (a
+        // Library op-amp or gate) meets the Cell's VDD and VSS Pins where the
+        // Cell has them: one that takes a supply globally leaves the part's
+        // drawn supply pin on the Net its wire gives it (#2337).
+        const ownSymbol =
+          instance.symbolId !== hierarchicalSymbolId(child.netlist.name);
+        const optionalPin = (pinName: string) =>
+          ownSymbol && ["vdd", "vss"].includes(foldNetName(pinName));
         const referencedPins: Array<{
           pinName: string;
           path: Array<string | number>;
@@ -552,7 +561,11 @@ export const CircuitProjectSchema = z
           });
         }
         for (const reference of referencedPins) {
-          if (childPinNames.has(foldNetName(reference.pinName))) continue;
+          if (
+            childPinNames.has(foldNetName(reference.pinName)) ||
+            optionalPin(reference.pinName)
+          )
+            continue;
           context.addIssue({
             code: "custom",
             message: `Hierarchy Instance ${instance.id} references unknown child terminal ${reference.pinName}`,

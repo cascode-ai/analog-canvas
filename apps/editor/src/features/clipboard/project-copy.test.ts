@@ -2127,6 +2127,134 @@ describe("one Project copy path", () => {
     expect(body && names.get(body.id)?.name).toBe("0");
     expect(names.get(netOf("R1", "1")!)?.name).toBeUndefined();
   });
+
+  it("names a copied signal-flow block that writes a netlist line", () => {
+    // A unit delay has no device prefix, yet one that emits needs a
+    // Reference; a copy beside its source used to get none (#2341).
+    const project = createEmptyProject("signal-flow", "Signal flow");
+    project.documents[0]!.instances.push({
+      id: "delay",
+      reference: "X2",
+      symbolId: "unit-delay",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: {} },
+    });
+    const copied = place(
+      project,
+      captureProjectCopy(project, project.documents[0]!, selection(["delay"]))!,
+    ).documents[0]!;
+    expect(copied.instances.map((item) => item.reference).sort()).toEqual([
+      "X2",
+      "X3",
+    ]);
+  });
+
+  it("keeps a part's labelled pin on its label's Net when copied without wires", () => {
+    // As a copy of a copy is: R1's top pin, wired to Cell Pin VB, carries a
+    // VB label on R1, and R1's undrawn body B travels on a grounded Net. The
+    // label used to land on the body's Net, VB and 0 on one Net (#2341).
+    const source = createEmptyProject("labelled-pin", "Labelled pin");
+    const created = executeProjectTransaction(source, {
+      transactionId: "create-vb",
+      projectId: source.id,
+      expectedStructureRevision: source.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planCreateCellPin(source, source.documents[0]!.id, {
+        instance: {
+          id: "P1",
+          symbolId: "port",
+          placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        },
+        terminal: {
+          id: "vb-terminal",
+          name: "VB",
+          netId: "bias",
+          direction: "input",
+          interfaceInstanceIds: ["P1"],
+        },
+        connectionEdits: [],
+        signalExpression: "VB",
+      }),
+    });
+    expect(created.ok, JSON.stringify(created)).toBe(true);
+    if (!created.ok) return;
+    const project = created.project;
+    const document = project.documents[0]!;
+    const top = new InMemorySymbolResolver(builtInSymbols).resolve("resistor")!
+      .definition.pins[0]!.name;
+    document.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 200, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    document.nets
+      .find((net) => net.id === "bias")!
+      .terminals.push({ instanceId: "R1", pinName: top });
+    document.nets.push({
+      id: "substrate",
+      terminals: [{ instanceId: "R1", pinName: "B" }],
+    });
+    const label = (id: string, netId: string, visible: boolean) => ({
+      id,
+      kind: "net-label" as const,
+      netId,
+      binding: { kind: "net-name" as const, netId },
+      visible,
+      anchor: {
+        kind: "object" as const,
+        objectId: "R1",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 200, y: 0 },
+      },
+      alignment: "start" as const,
+      rotation: 0 as const,
+      locked: false,
+    });
+    document.annotations.push(
+      label("vb-label", "bias", true),
+      label("substrate-label", "substrate", false),
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "vb-name",
+        kind: "name-claim",
+        netId: "bias",
+        name: "VB",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "vb-label" },
+      },
+      {
+        id: "substrate-name",
+        kind: "name-claim",
+        netId: "substrate",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "net-label", annotationId: "substrate-label" },
+      },
+    );
+    const plan = planProjectCopyPlacement(
+      project,
+      document,
+      captureProjectCopy(project, document, selection(["P1", "R1"]))!,
+      { x: 4000, y: 0 },
+      1,
+    );
+    const copied = applyProjectCopyPlacement(plan).documents[0]!;
+    const names = resolveDocumentLogicalNets(copied).byBaseNetId;
+    const copiedPin = (pinName: string) =>
+      copied.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === plan.mapping.objects.instances.R1 &&
+            terminal.pinName === pinName,
+        ),
+      )!.id;
+    expect(names.get(copiedPin(top))?.name).toBe("VB");
+    expect(names.get(copiedPin("B"))?.name).toBe("0");
+  });
 });
 
 function bundledExampleCopy(name: string) {

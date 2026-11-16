@@ -3046,6 +3046,101 @@ describe("Edit Transaction envelope", () => {
     },
   );
 
+  it.each([
+    ["a name with no Cell Pin binding", undefined, undefined],
+    [
+      "a resized Cell Pin name",
+      { kind: "cell-terminal-name", terminalId: "terminal-p1" } as const,
+      0.66,
+    ],
+  ] as const)(
+    "brings %s back to where the Pin rule puts it after a full turn (#2342)",
+    (_, binding, sizeScale) => {
+      // Gallery drawings carry Pin names from before the cell-terminal-name
+      // binding, and names a person made smaller. Each is untouched where the
+      // Pin rule puts it, so each turn must re-place it by that rule rather
+      // than by the generic side placer, or it turns rigidly from then on.
+      const document = createEmptyDocument("document-main", "Pin label turn");
+      const instance = {
+        id: "P1",
+        symbolId: "port",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 90 as const,
+          mirror: "none" as const,
+        },
+      };
+      document.instances.push(instance);
+      document.nets.push({
+        id: "net-vin",
+        terminals: [{ instanceId: "P1", pinName: "P" }],
+      });
+      defineCellPin(document, "P1", "VIN", "net-vin");
+      const resolved = resolver.resolve("port");
+      if (!resolved) throw new Error("missing port");
+      const profile = resolveSchematicStyleProfile(
+        document.presentation.styleProfileId,
+      );
+      const initial = defaultInstanceLabelPlacement(
+        instance,
+        resolved,
+        profile,
+        document.presentation.grid,
+        "reference",
+        sizeScale,
+      );
+      if (!initial) throw new Error("missing default Port label placement");
+      document.annotations.push({
+        id: "instance-label-P1",
+        kind: "instance-label",
+        ...(binding
+          ? { binding }
+          : { content: { runs: [{ kind: "text" as const, value: "VIN" }] } }),
+        anchor: {
+          kind: "object",
+          objectId: "P1",
+          localOffset: {
+            x: initial.position.x - instance.placement.position.x,
+            y: initial.position.y - instance.placement.position.y,
+          },
+          fallbackPosition: initial.position,
+        },
+        alignment: initial.alignment,
+        rotation: 0,
+        ...(sizeScale ? { sizeScale } : {}),
+        locked: false,
+      });
+      const before = structuredClone(document.annotations[0]!);
+
+      let current = document;
+      for (const rotation of [180, 270, 0, 90] as const) {
+        const result = executeTransaction(
+          current,
+          {
+            ...transaction(current.revision),
+            edits: [{ kind: "rotate_instance", instanceId: "P1", rotation }],
+          },
+          { symbolResolver: resolver },
+        );
+        if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+        current = result.document;
+        const expected = defaultInstanceLabelPlacement(
+          current.instances[0]!,
+          resolved,
+          profile,
+          current.presentation.grid,
+          "reference",
+          sizeScale,
+        );
+        const label = current.annotations[0]!;
+        if (label.anchor.kind !== "object") throw new Error("object anchor");
+        expect(label.anchor.fallbackPosition).toEqual(expected!.position);
+        expect(label.alignment).toBe(expected!.alignment);
+      }
+      expect(current.annotations[0]).toEqual(before);
+    },
+  );
+
   it.each(["current", "previous"] as const)(
     "reuses the canonical upright placement when a Cell Pin placed by the %s rule rotates",
     (rule) => {

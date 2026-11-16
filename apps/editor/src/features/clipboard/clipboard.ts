@@ -296,6 +296,27 @@ export function copySelection(
       symbol && !symbol.definition.pins.some((pin) => pin.name === pinName),
     );
   };
+  // A Net label on a part names the Net of the part's pin it labels, so that
+  // pin travels on the label's Net, as a wired pin travels with its wire. Left
+  // behind, the label named a Net its part had no pin on, and the Edit Engine
+  // moved it, name and all, onto the part's next pin: a copy of a copy put
+  // the gate's name on the copied body's ground (#2341).
+  const labelledPins = new Set(
+    annotations.flatMap((annotation) => {
+      if (
+        annotation.anchor.kind !== "object" ||
+        !selectedIds.has(annotation.anchor.objectId)
+      )
+        return [];
+      const netId =
+        annotation.binding?.kind === "net-name"
+          ? annotation.binding.netId
+          : annotation.netId;
+      return netId && netIds.has(netId)
+        ? [`${annotation.anchor.objectId}\u0000${netId}`]
+        : [];
+    }),
+  );
   const annotationIds = new Set(annotations.map((annotation) => annotation.id));
   const copiedLayoutObjectIds = new Set<string>([
     ...selectedIds,
@@ -359,6 +380,7 @@ export function copySelection(
                   endpointKey({ kind: "terminal", ...terminal }),
                 ) ||
                 undrawnPin(terminal.instanceId, terminal.pinName) ||
+                labelledPins.has(`${terminal.instanceId}\u0000${net.id}`) ||
                 (terminal.pinName === "B" &&
                   bodyNets.get(terminal.instanceId) === net.id)),
           ),
