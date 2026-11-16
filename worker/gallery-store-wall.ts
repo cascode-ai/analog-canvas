@@ -210,7 +210,9 @@ function feedConditions(
     conditions.push("e.owner_user_id = ?");
     bindings.push(ownerUserId);
   } else if (author) {
-    conditions.push("e.author = ?");
+    // A byline ignores letter case, as `q` does (#2345). The covering wall
+    // index still holds the byline, so the filter reads no wider rows.
+    conditions.push("e.author = ? COLLATE NOCASE");
     bindings.push(author);
   }
   if (options.tags) {
