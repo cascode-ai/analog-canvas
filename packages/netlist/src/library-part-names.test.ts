@@ -360,13 +360,7 @@ describe("a Library part retargeted to another name (#1928)", () => {
 
   it("refuses the Project's definition when its ports are not the part's own pins", () => {
     const project = unboundPart("comparator", {}, "comparator");
-    addOwnSubcircuit(project, "comparator", [
-      "VDD",
-      "VSS",
-      "VIP",
-      "VIN",
-      "VOUT",
-    ]);
+    addOwnSubcircuit(project, "comparator", ["VDD", "VSS", "A", "B", "Y"]);
     expect(
       errors(project).find((item) => item.code === "GATE_CELL_PIN_MISMATCH")
         ?.message,

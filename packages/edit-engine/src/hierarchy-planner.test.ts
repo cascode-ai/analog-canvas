@@ -854,15 +854,84 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     });
   });
 
+  it.each([
+    [["INP", "INN", "OUT"]],
+    [["inn", "inp", "vout"]],
+    [["VINP", "VINN", "VOUT"]],
+    [["VIP", "VIN", "VO"]],
+    [["IP", "IN", "OUT"]],
+    [["VINM", "VINP", "OUTPUT"]],
+  ] as const)(
+    "binds an op-amp to a Cell whose Pins are %j, its inputs by sign (#2350)",
+    (pins) => {
+      const project = amplifierProject("opamp", "opamp", {});
+      addCell(project, "amp", "amp", pins);
+      expect(
+        gateCellTargets(project, project.topDocumentId, "opamp").map(
+          (cell) => cell.id,
+        ),
+      ).toEqual(["amp"]);
+      const exported = createDesignNetlistExport(bind(project, "amp"), {
+        format: "spice",
+      });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported.diagnostics));
+      // IN+ is on net1, IN- on net0 and OUT on net2 (Nets are numbered by
+      // ID); each Pin takes the op-amp pin of its sign, in the Cell's order.
+      const net = (pin: string) =>
+        /^(V?IN?P|VIP|IP)$/iu.test(pin)
+          ? "net1"
+          : /^(V?IN[NM]|VIN|IN)$/iu.test(pin)
+            ? "net0"
+            : "net2";
+      expect(exported.file.text).toMatch(
+        new RegExp(`^X1 ${pins.map(net).join(" ")} amp$`, "mu"),
+      );
+    },
+  );
+
+  it("binds a fully differential op-amp to a Cell whose Pins are VINP, VINN, VOUTP and VOUTN (#2350)", () => {
+    const project = amplifierProject(
+      "opamp-differential",
+      "opamp_differential",
+      {},
+    );
+    addCell(project, "fda", "fda", ["VOUTN", "VOUTP", "VINN", "VINP"]);
+    const exported = createDesignNetlistExport(bind(project, "fda"), {
+      format: "spice",
+    });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    // OUT- net2, OUT+ net3, IN- net0, IN+ net1 (Nets are numbered by ID).
+    expect(exported.file.text).toMatch(/^X1 net2 net3 net0 net1 fda$/mu);
+  });
+
+  it("refuses a Cell whose input names could be either sign, naming what to rename (#2350)", () => {
+    const project = amplifierProject("opamp", "opamp", {});
+    addCell(project, "both", "both", ["INP", "INN", "INM", "OUT"]);
+    addCell(project, "outs", "outs", ["INP", "INN", "VOUT", "VO"]);
+    addCell(project, "mixed", "mixed", ["IN+", "INN", "OUT"]);
+    const plan = (model: string) =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
+    expect(() => plan("both")).toThrow(
+      "Cell both does not fit the opamp: its Pins INP, INN and INM could each be its IN+ or IN-. Rename its non-inverting input IN+ and its inverting input IN-",
+    );
+    expect(() => plan("outs")).toThrow(
+      "Cell outs does not fit the opamp: its Pins VOUT and VO could each be its OUT. Rename its output OUT",
+    );
+    // A Pin named IN+ takes the op-amp's own names for both inputs.
+    expect(() => plan("mixed")).toThrow(
+      "Cell mixed does not fit the opamp: it has no Pin IN-, and its Pin INN is not one of the op-amp's.",
+    );
+  });
+
   it("refuses a Cell that does not fit an op-amp, naming the pins it lacks (#1878)", () => {
     const project = amplifierProject("opamp", "opamp", {});
-    // VIP and VIN are what the ideal op-amp's body calls its inputs; a Cell
-    // implementing the op-amp takes the op-amp's own pin names.
-    addCell(project, "half", "half", ["VIP", "VIN", "OUT"]);
+    addCell(project, "half", "half", ["A", "B", "OUT"]);
     expect(() =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", "half"),
     ).toThrow(
-      "Cell half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins VIP and VIN are not of the op-amp's. Its Pins must be IN+, IN- and OUT, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
+      "Cell half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins A and B are not of the op-amp's. Its Pins must be IN+, IN- and OUT, in any letter case (or INP and INN, VINP and VINN, VIP and VIN, or IP and IN for the inputs, and VOUT, VO or OUTPUT for OUT), and VDD and VSS unless the Cell takes its supplies globally",
     );
     expect(() =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", "ota"),
@@ -1048,13 +1117,13 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
 
   it("refuses an external definition that does not fit, or declares its ports only by position (#1928)", () => {
     const project = amplifierProject("opamp", "opamp", {});
-    addExternal(project, "half", ["VIP", "VIN", "OUT"]);
+    addExternal(project, "half", ["A", "B", "OUT"]);
     addExternal(project, "imported", ["1", "2", "3"], "inferred-positional");
     addExternal(project, "ota", ["IN+", "IN-", "OUT"]);
     const plan = (model: string) =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
     expect(() => plan("half")).toThrow(
-      "External subcircuit half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins VIP and VIN are not of the op-amp's. Its Pins must be IN+, IN- and OUT, in any letter case, and VDD and VSS unless the subcircuit takes its supplies globally",
+      "External subcircuit half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins A and B are not of the op-amp's. Its Pins must be IN+, IN- and OUT, in any letter case (or INP and INN, VINP and VINN, VIP and VIN, or IP and IN for the inputs, and VOUT, VO or OUTPUT for OUT), and VDD and VSS unless the subcircuit takes its supplies globally",
     );
     expect(() => plan("imported")).toThrow(
       "External subcircuit imported names its ports only by position; name them IN+, IN- and OUT to bind the opamp to it",
@@ -1062,6 +1131,14 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     expect(() => plan("amp")).toThrow(
       "amp is not a Cell or external subcircuit of this Project that fits opamp; use ota",
     );
+    // Ports named as netlists usually name them fit too (#2350).
+    addExternal(project, "usual", ["VOUT", "INN", "INP"]);
+    const exported = createDesignNetlistExport(bind(project, "usual"), {
+      format: "spice",
+    });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    expect(exported.file.text).toMatch(/^X1 net2 net0 net1 usual$/mu);
   });
 
   /**

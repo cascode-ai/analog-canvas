@@ -1,11 +1,14 @@
 // Changes to a Cell's formal interface (Pin renames, label formats and
 // removals) and how every caller's symbol, Nets and wires follow them.
 import type { Annotation, CircuitProject, SchematicDocument } from "@icm/model";
-import { bindsProjectCell, libraryGateTerminals } from "@icm/devices";
+import {
+  bindsProjectCell,
+  libraryGateTerminals,
+  matchGateCellPins,
+} from "@icm/devices";
 import {
   canonicalPortTextDocument,
   deriveStableId,
-  foldNetName,
   removeCircuitComponentTerminals,
   isAutomaticPinLabelLook,
   projectCellInterface,
@@ -158,10 +161,10 @@ export function planCallerInterfaceChanges(
   const afterChild: ProjectStructureEdit[] = [];
   const capturedIds = new Set<string>();
   const symbolMigrations = new Map<string, string>();
-  /** The Cell's Pins after the change, by folded name, for gate callers. */
-  let gatePinsAfter: Set<string> | undefined;
-  /** The Cell's Pins before the change, by folded name. */
-  let gatePinsBefore: Set<string> | undefined;
+  /** The Cell's Pins after the change, for gate callers. */
+  let gatePinsAfter: string[] | undefined;
+  /** The Cell's Pins before the change. */
+  let gatePinsBefore: string[] | undefined;
 
   for (const parent of project.documents) {
     const callers = parent.instances.filter((instance) => {
@@ -188,32 +191,38 @@ export function planCallerInterfaceChanges(
       // whether the Cell still fits the gate, export says. A drawn supply
       // pin no Pin ever met stays wired to its own Net (#2337).
       if (!external && bindsProjectCell(instance.symbolId)) {
-        const pinsBefore = (gatePinsBefore ??= new Set(
-          projectCellInterface(
-            requireDocument(project, childDocumentId).netlist,
-          ).ports.map((port) => foldNetName(port.name)),
+        const cell = requireDocument(project, childDocumentId).netlist;
+        const pinsBefore = (gatePinsBefore ??= projectCellInterface(
+          cell,
+        ).ports.map((port) => port.name));
+        const pinsAfter = (gatePinsAfter ??= projectCellInterface(
+          cell,
+        ).ports.flatMap((port) =>
+          uniqueDisappearingPinNames.includes(port.name)
+            ? []
+            : [
+                uniquePinRenames.find((r) => r.source === port.name)?.target ??
+                  port.name,
+              ],
         ));
-        const pinsAfter = (gatePinsAfter ??= new Set(
-          projectCellInterface(
-            requireDocument(project, childDocumentId).netlist,
-          ).ports.flatMap((port) =>
-            uniqueDisappearingPinNames.includes(port.name)
-              ? []
-              : [
-                  foldNetName(
-                    uniquePinRenames.find((r) => r.source === port.name)
-                      ?.target ?? port.name,
-                  ),
-                ],
-          ),
-        ));
+        // The gate's pins the Cell's Pins meet, by name or a usual name of
+        // its inputs and outputs (INP, VOUT; #2350).
+        const met = (portNames: readonly string[]) =>
+          new Set(
+            matchGateCellPins(instance.symbolId, {
+              name: cell?.name ?? "",
+              portNames,
+            })?.pins.map((pin) => pin.pinName),
+          );
+        const metBefore = met(pinsBefore);
+        const metAfter = met(pinsAfter);
         const lost = libraryGateTerminals(instance.symbolId)
           .map((terminal) => terminal.pinName)
           .filter(
             (pinName) =>
               instanceReferencesPin(parent, instance.id, pinName) &&
-              pinsBefore.has(foldNetName(pinName)) &&
-              !pinsAfter.has(foldNetName(pinName)),
+              metBefore.has(pinName) &&
+              !metAfter.has(pinName),
           );
         const gateName = instance.reference ?? instance.id;
         const article = /^[aeiou]/iu.test(instance.symbolId) ? "an" : "a";
