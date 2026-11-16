@@ -49,9 +49,11 @@ export interface RnlSymbol {
   /** The RNL symbol, such as `$NMOS`. */
   symbol: string;
   /**
-   * How Analog Canvas's drawing turns the symbol: `R0`, or `MX` for the
+   * How Analog Canvas's drawing turns the symbol: `R0`; `MX` for the
    * variants that draw it flipped top to bottom (the op-amp kinds with − on
-   * top; RNL's have + on top). The export turns the part by this first.
+   * top; RNL's have + on top); `R90` or `R270` for a part RNL stands upright
+   * and Analog Canvas lays across (the diodes, the transformer). The export
+   * turns the part by this first.
    */
   orient: RnlOrient;
   /**

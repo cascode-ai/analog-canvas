@@ -251,7 +251,7 @@
     "package": "rnl-std-basic",
     "ac": "xfmr",
     "variant": null,
-    "orient": "R0",
+    "orient": "R270",
     "terminals": [
       {
         "n": 1,
@@ -280,29 +280,29 @@
         "terminal": 2,
         "name": "n1",
         "ac_pin": "P-",
-        "at": [-2, 1],
-        "dir": 180
+        "at": [-1, -2],
+        "dir": 270
       },
       {
         "terminal": 1,
         "name": "p1",
         "ac_pin": "P+",
-        "at": [2, 1],
-        "dir": 0
+        "at": [-1, 2],
+        "dir": 90
       },
       {
         "terminal": 4,
         "name": "n2",
         "ac_pin": "S-",
-        "at": [-2, -1],
-        "dir": 180
+        "at": [1, -2],
+        "dir": 270
       },
       {
         "terminal": 3,
         "name": "p2",
         "ac_pin": "S+",
-        "at": [2, -1],
-        "dir": 0
+        "at": [1, 2],
+        "dir": 90
       }
     ],
     "undrawn_pins": [],
@@ -1253,7 +1253,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "diode",
     "variant": null,
-    "orient": "R0",
+    "orient": "R90",
     "terminals": [
       {
         "n": 1,
@@ -1272,15 +1272,15 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-2, 0],
-        "dir": 180
+        "at": [0, 2],
+        "dir": 90
       },
       {
         "terminal": 2,
         "name": "k",
         "ac_pin": "K",
-        "at": [2, 0],
-        "dir": 0
+        "at": [0, -2],
+        "dir": 270
       }
     ],
     "undrawn_pins": [],
@@ -1294,7 +1294,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "zener-diode",
     "variant": null,
-    "orient": "R0",
+    "orient": "R90",
     "terminals": [
       {
         "n": 1,
@@ -1313,15 +1313,15 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-2, 0],
-        "dir": 180
+        "at": [0, 2],
+        "dir": 90
       },
       {
         "terminal": 2,
         "name": "k",
         "ac_pin": "K",
-        "at": [2, 0],
-        "dir": 0
+        "at": [0, -2],
+        "dir": 270
       }
     ],
     "undrawn_pins": [],
@@ -2956,6 +2956,94 @@
     "note": "电源不画；输入、输出都 + 在上"
   },
   {
+    "symbol": "$DIFFERENTIAL_OPAMP_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "opamp-differential-crossed-inputs-swapped",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [-1, 3],
+        "dir": 90
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [-1, -3],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-crossed-inputs-swapped 的 supply-pins 变体：画出 VDD、VSS"
+  },
+  {
     "symbol": "$DIFFERENTIAL_OPAMP",
     "definition": null,
     "package": "rnl-std-functional",
@@ -3040,6 +3128,94 @@
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$DIFFERENTIAL_OPAMP_INVERTED_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "opamp-differential",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 1],
+        "dir": 0
+      },
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [-1, 3],
+        "dir": 90
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [-1, -3],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential 的 supply-pins 变体：画出 VDD、VSS"
   },
   {
     "symbol": "$COMPARATOR",
@@ -3314,6 +3490,70 @@
     "note": ""
   },
   {
+    "symbol": "$TRANSCONDUCTOR_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "transconductance",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "in",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "in",
+        "ac_pin": "A",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "out",
+        "ac_pin": "Y",
+        "at": [3, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [0, 4],
+        "dir": 90
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [0, -4],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "in", "out"],
+    "note": "transconductance 的 supply-pins 变体：画出 VDD、VSS"
+  },
+  {
     "symbol": "$DIFFERENTIAL_TRANSCONDUCTOR",
     "definition": null,
     "package": "rnl-std-functional",
@@ -3386,6 +3626,82 @@
     "box": [-3.4, -3.9, 3.4, 3.9],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
     "note": "+ 在上"
+  },
+  {
+    "symbol": "$DIFFERENTIAL_TRANSCONDUCTOR_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "differential-transconductance-inputs-swapped",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-3, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-3, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "out",
+        "ac_pin": "OUT",
+        "at": [3, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [0, 4],
+        "dir": 90
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [0, -4],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
+    "note": "differential-transconductance-inputs-swapped 的 supply-pins 变体：画出 VDD、VSS"
   },
   {
     "symbol": "$DIFFERENTIAL_TRANSCONDUCTOR",
@@ -3462,6 +3778,82 @@
     "note": "differential-transconductance 画成本符号上下翻转（MX）"
   },
   {
+    "symbol": "$DIFFERENTIAL_TRANSCONDUCTOR_INVERTED_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "differential-transconductance",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-3, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-3, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "out",
+        "ac_pin": "OUT",
+        "at": [3, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [0, 4],
+        "dir": 90
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [0, -4],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "out"],
+    "note": "differential-transconductance 的 supply-pins 变体：画出 VDD、VSS"
+  },
+  {
     "symbol": "$ADC",
     "definition": null,
     "package": "rnl-std-functional",
@@ -3524,6 +3916,70 @@
     "note": ""
   },
   {
+    "symbol": "$ADC_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "adc",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "in",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "in",
+        "ac_pin": "IN",
+        "at": [-5, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "out",
+        "ac_pin": "OUT",
+        "at": [4, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [0, 3],
+        "dir": 90
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [0, -3],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "in", "out"],
+    "note": "adc 的 supply-pins 变体：画出 VDD、VSS"
+  },
+  {
     "symbol": "$DAC",
     "definition": null,
     "package": "rnl-std-functional",
@@ -3584,6 +4040,70 @@
     "box": [-4.4, -2.4, 5.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "in", "out"],
     "note": ""
+  },
+  {
+    "symbol": "$DAC_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "dac",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "in",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "out",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "in",
+        "ac_pin": "IN",
+        "at": [-4, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "out",
+        "ac_pin": "OUT",
+        "at": [5, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [0, 3],
+        "dir": 90
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [0, -3],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "in", "out"],
+    "note": "dac 的 supply-pins 变体：画出 VDD、VSS"
   },
   {
     "symbol": "$CENTER_TAP_INDUCTOR",
@@ -5308,6 +5828,70 @@
     "note": ""
   },
   {
+    "symbol": "$BUFFER_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-logic",
+    "ac": "buffer",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "y",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "y",
+        "ac_pin": "Y",
+        "at": [1, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [-1, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [-1, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "a", "y"],
+    "note": "buffer 的 supply-pins 变体：画出 VDD、VSS"
+  },
+  {
     "symbol": "$INVERTER",
     "definition": null,
     "package": "rnl-std-logic",
@@ -5368,6 +5952,70 @@
     "box": [-4.4, -2.4, 4.4, 2.4],
     "ac_netlist_order": ["vp", "vn", "a", "y"],
     "note": ""
+  },
+  {
+    "symbol": "$INVERTER_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-logic",
+    "ac": "inverter",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "a",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "y",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "a",
+        "ac_pin": "A",
+        "at": [-3, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "y",
+        "ac_pin": "Y",
+        "at": [2, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 3,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [-1, 2],
+        "dir": 90
+      },
+      {
+        "terminal": 4,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [-1, -2],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "a", "y"],
+    "note": "inverter 的 supply-pins 变体：画出 VDD、VSS"
   },
   {
     "symbol": "$D_FLIP_FLOP",
@@ -5456,6 +6104,94 @@
     "note": ""
   },
   {
+    "symbol": "$D_FLIP_FLOP_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-logic",
+    "ac": "d-flip-flop",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "ck",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "q",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "qb",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "ck",
+        "ac_pin": "CK",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "q",
+        "ac_pin": "Q",
+        "at": [4, 1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "qb",
+        "ac_pin": "QBAR",
+        "at": [4, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [0, 4],
+        "dir": 90
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [0, -4],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "d", "ck", "q", "qb"],
+    "note": "d-flip-flop 的 supply-pins 变体：画出 VDD、VSS"
+  },
+  {
     "symbol": "$D_FLIP_FLOP_Q_ONLY",
     "definition": null,
     "package": "rnl-std-logic",
@@ -5528,6 +6264,82 @@
     "box": [-4.2, -2.7, 4.2, 2.7],
     "ac_netlist_order": ["vp", "vn", "d", "ck", "q"],
     "note": ""
+  },
+  {
+    "symbol": "$D_FLIP_FLOP_Q_ONLY_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-logic",
+    "ac": "d-flip-flop-q",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "d",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "ck",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "q",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "d",
+        "ac_pin": "D",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "ck",
+        "ac_pin": "CK",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "q",
+        "ac_pin": "Q",
+        "at": [4, 0],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [0, 4],
+        "dir": 90
+      },
+      {
+        "terminal": 5,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [0, -4],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "d", "ck", "q"],
+    "note": "d-flip-flop-q 的 supply-pins 变体：画出 VDD、VSS"
   },
   {
     "symbol": "$D_FLIP_FLOP_WITH_RESET",
@@ -6660,6 +7472,94 @@
     "note": "同 $DIFFERENTIAL_OPAMP 的端子；输入 + 在上，输出 + 在下"
   },
   {
+    "symbol": "$DIFFERENTIAL_OPAMP_TWISTED_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "opamp-differential-inputs-swapped",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, 1],
+        "dir": 0
+      },
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [-1, 3],
+        "dir": 90
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [-1, -3],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-inputs-swapped 的 supply-pins 变体：画出 VDD、VSS"
+  },
+  {
     "symbol": "$DIFFERENTIAL_OPAMP_TWISTED",
     "definition": null,
     "package": "rnl-std-functional",
@@ -6744,6 +7644,94 @@
     "box": [-4.4, -3.4, 4.4, 3.4],
     "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
     "note": "opamp-differential-crossed 画成本符号上下翻转（MX）"
+  },
+  {
+    "symbol": "$DIFFERENTIAL_OPAMP_TWISTED_INVERTED_SUPPLY",
+    "definition": null,
+    "package": "rnl-std-functional",
+    "ac": "opamp-differential-crossed",
+    "variant": "supply-pins",
+    "orient": "R0",
+    "terminals": [
+      {
+        "n": 1,
+        "name": "inp",
+        "drawn": true
+      },
+      {
+        "n": 2,
+        "name": "inn",
+        "drawn": true
+      },
+      {
+        "n": 3,
+        "name": "outp",
+        "drawn": true
+      },
+      {
+        "n": 4,
+        "name": "outn",
+        "drawn": true
+      },
+      {
+        "n": 5,
+        "name": "vp",
+        "drawn": true
+      },
+      {
+        "n": 6,
+        "name": "vn",
+        "drawn": true
+      }
+    ],
+    "offset": [0, 0],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "inp",
+        "ac_pin": "IN+",
+        "at": [-4, -1],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "inn",
+        "ac_pin": "IN-",
+        "at": [-4, 1],
+        "dir": 180
+      },
+      {
+        "terminal": 3,
+        "name": "outp",
+        "ac_pin": "OUT+",
+        "at": [3, 1],
+        "dir": 0
+      },
+      {
+        "terminal": 4,
+        "name": "outn",
+        "ac_pin": "OUT-",
+        "at": [3, -1],
+        "dir": 0
+      },
+      {
+        "terminal": 5,
+        "name": "vp",
+        "ac_pin": "VDD",
+        "at": [-1, 3],
+        "dir": 90
+      },
+      {
+        "terminal": 6,
+        "name": "vn",
+        "ac_pin": "VSS",
+        "at": [-1, -3],
+        "dir": 270
+      }
+    ],
+    "undrawn_pins": [],
+    "ac_netlist_order": ["vp", "vn", "inp", "inn", "outp", "outn"],
+    "note": "opamp-differential-crossed 的 supply-pins 变体：画出 VDD、VSS"
   },
   {
     "symbol": "$CANVAS_OPAMP_DIFFERENTIAL_LETTERED",
@@ -8437,7 +9425,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "led",
     "variant": null,
-    "orient": "R0",
+    "orient": "R90",
     "terminals": [
       {
         "n": 1,
@@ -8456,15 +9444,15 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-2, 0],
-        "dir": 180
+        "at": [0, 2],
+        "dir": 90
       },
       {
         "terminal": 2,
         "name": "k",
         "ac_pin": "K",
-        "at": [2, 0],
-        "dir": 0
+        "at": [0, -2],
+        "dir": 270
       }
     ],
     "undrawn_pins": [],
@@ -8478,7 +9466,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "schottky-diode",
     "variant": null,
-    "orient": "R0",
+    "orient": "R90",
     "terminals": [
       {
         "n": 1,
@@ -8497,15 +9485,15 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-2, 0],
-        "dir": 180
+        "at": [0, 2],
+        "dir": 90
       },
       {
         "terminal": 2,
         "name": "k",
         "ac_pin": "K",
-        "at": [2, 0],
-        "dir": 0
+        "at": [0, -2],
+        "dir": 270
       }
     ],
     "undrawn_pins": [],
@@ -8519,7 +9507,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "shockley-diode",
     "variant": null,
-    "orient": "R0",
+    "orient": "R90",
     "terminals": [
       {
         "n": 1,
@@ -8538,15 +9526,15 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-2, 0],
-        "dir": 180
+        "at": [0, 2],
+        "dir": 90
       },
       {
         "terminal": 2,
         "name": "k",
         "ac_pin": "K",
-        "at": [2, 0],
-        "dir": 0
+        "at": [0, -2],
+        "dir": 270
       }
     ],
     "undrawn_pins": [],
@@ -8560,7 +9548,7 @@
     "package": "rnl-std-semiconductors",
     "ac": "put",
     "variant": null,
-    "orient": "R0",
+    "orient": "R90",
     "terminals": [
       {
         "n": 1,
@@ -8584,22 +9572,22 @@
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-2, 0],
-        "dir": 180
+        "at": [0, 2],
+        "dir": 90
       },
       {
         "terminal": 2,
         "name": "g",
         "ac_pin": "G",
-        "at": [-1, 2],
-        "dir": 90
+        "at": [2, 1],
+        "dir": 0
       },
       {
         "terminal": 3,
         "name": "k",
         "ac_pin": "K",
-        "at": [2, 0],
-        "dir": 0
+        "at": [0, -2],
+        "dir": 270
       }
     ],
     "undrawn_pins": [],

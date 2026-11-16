@@ -541,7 +541,7 @@ describe("what RNL cannot write", () => {
 });
 
 describe("the standard transconductor", () => {
-  it("draws Analog Canvas's gm in the label the standard symbol leaves empty", () => {
+  it("leaves the gm to the standard symbol, which draws it in its label", () => {
     const project = createEmptyProject("gm", "Gm", "dut");
     const document = project.documents[0]!;
     document.netlist!.name = "dut";
@@ -565,13 +565,8 @@ describe("the standard transconductor", () => {
     expect(of(ops, "set")).toContainEqual(
       expect.objectContaining({ object: "#X1", symbol: "$TRANSCONDUCTOR" }),
     );
-    expect(of(ops, "add-text")).toContainEqual(
-      expect.objectContaining({
-        attach: "#X1",
-        key: "label",
-        markup: String.raw`\textit{g}_{m}`,
-        style: { bold: false, textvisible: true },
-      }),
+    expect(of(ops, "add-text").filter((text) => text.attach === "#X1")).toEqual(
+      [],
     );
   });
 });

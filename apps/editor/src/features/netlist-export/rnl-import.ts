@@ -11,6 +11,7 @@ import {
   canvasTopDocument,
   drawnCalledBlocks,
   drawnExternalSymbolMappings,
+  declaredModelTypes,
   drawnModelTypes,
   undrawnBodies,
   withPowerLabelPorts,
@@ -452,12 +453,13 @@ async function buildImportPlan({
       namingProfile: "native",
       originalSources: inputs,
       builtInBodies: prepared.builtInBodies,
-      // A model no card declares is the type its parts are drawn as, unless
-      // a native card the converter keeps out gives its type; what the
-      // caller gives comes last.
+      // A model no card declares is the type the file declares it, else the
+      // type its parts are drawn as, unless a native card the converter
+      // keeps out gives its type; what the caller gives comes last.
       modelTypes: new Map([
         ...Object.entries(modelTypes),
         ...drawnTypes,
+        ...declaredModelTypes(snapshot),
         ...prepared.modelTypes,
       ]),
       ...(undeclaredModels ? { undeclaredModels } : {}),

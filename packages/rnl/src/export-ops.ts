@@ -959,17 +959,6 @@ function exportCell(
       ...paint,
       ...where,
     });
-    // The standard transconductor leaves its centred label empty; Analog
-    // Canvas draws its gm there, as series 0.3 did.
-    if (symbol?.symbol === "$TRANSCONDUCTOR")
-      ops.push({
-        level,
-        op: "add-text",
-        attach: object,
-        key: "label",
-        markup: String.raw`\textit{g}_{m}`,
-        style: { bold: false, textvisible: true },
-      });
     // The symbol the part is drawn as, where RNL draws it as another one
     // the import would take instead: an op-amp flipped top to bottom is the
     // op-amp with its inputs swapped, unflipped.

@@ -10,7 +10,7 @@ import {
 } from "@icm/symbols";
 
 import { inlineRnlDefinition } from "./inline-symbols.js";
-import { orientPoint } from "./orientation.js";
+import { inverseOrient, orientPoint } from "./orientation.js";
 import { toRnlPoint } from "./place.js";
 import {
   RNL_SYMBOLS,
@@ -220,7 +220,26 @@ describe("the RNL symbol list", () => {
       orient: "MX",
     });
     for (const entry of RNL_SYMBOLS)
-      expect(["R0", "MX"], entry.symbol).toContain(entry.orient);
+      expect(["R0", "MX", "R90", "R270"], entry.symbol).toContain(entry.orient);
+  });
+
+  it("lays the diodes and the transformer across, as Analog Canvas draws them, where RNL stands them upright", () => {
+    for (const symbolId of [
+      "diode",
+      "zener-diode",
+      "led",
+      "schottky-diode",
+      "shockley-diode",
+      "put",
+    ])
+      expect(rnlSymbolFor(symbolId)?.orient, symbolId).toBe("R90");
+    expect(
+      rnlSymbolFor("diode")?.pins.map((pin) => [pin.acPin, pin.at]),
+    ).toEqual([
+      ["A", [0, 2]],
+      ["K", [0, -2]],
+    ]);
+    expect(rnlSymbolFor("xfmr")?.orient).toBe("R270");
   });
 
   it("draws the 4-input gates as Analog Canvas does, and reads RNL's standard ones back", () => {
@@ -302,9 +321,9 @@ describe("the RNL symbol list", () => {
         const [x, y] = toRnlPoint(
           shown.find((item) => item.name === pin.acPin)!.at,
         );
-        // Analog Canvas draws the symbol turned by entry.orient (R0 or MX,
-        // each its own inverse) about the registration point.
-        const [sx, sy] = orientPoint(entry.orient, [
+        // Analog Canvas draws the symbol turned by entry.orient about the
+        // registration point.
+        const [sx, sy] = orientPoint(inverseOrient(entry.orient), [
           x - entry.offset[0],
           y - entry.offset[1],
         ]);
