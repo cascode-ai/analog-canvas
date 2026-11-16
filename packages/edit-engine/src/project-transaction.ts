@@ -24,7 +24,11 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { routeEnd } from "@icm/model";
-import { bindsProjectCell, resolveReviewedExternalBinding } from "@icm/devices";
+import {
+  bindsProjectCell,
+  matchGateExternalPins,
+  resolveReviewedExternalBinding,
+} from "@icm/devices";
 import { resolveEndpointPoint } from "@icm/derived";
 import {
   builtInSymbols,
@@ -355,11 +359,21 @@ function externalCallerValidationFailures(
       const terminalBindings = component
         ? circuitComponentTerminals(component, definition)
         : reviewed?.terminals;
+      // A Library part meets the definition's ports by its own pins, also
+      // ports named as netlists usually name them (an op-amp's IN+ on INP,
+      // #2350).
+      const partPins = terminalBindings
+        ? []
+        : (matchGateExternalPins(instance.symbolId, definition)?.pins.map(
+            (pin) => pin.pinName,
+          ) ?? []);
       const allowed = new Set(
-        (terminalBindings
-          ? terminalBindings.map((terminal) => terminal.pinName)
-          : definition.terminals.map((terminal) => terminal.name)
-        ).map((name) => name.toLowerCase()),
+        [
+          ...(terminalBindings
+            ? terminalBindings.map((terminal) => terminal.pinName)
+            : definition.terminals.map((terminal) => terminal.name)),
+          ...partPins,
+        ].map((name) => name.toLowerCase()),
       );
       const part = instance.reference ?? instance.id;
       const where = `${part} in Cell ${document.name}`;

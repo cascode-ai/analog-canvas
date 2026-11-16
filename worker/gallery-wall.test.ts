@@ -1061,6 +1061,55 @@ describe("newest-first gallery feed", () => {
     expect((await list("owner=owner-b&tags=amplifier")).authors).toEqual([]);
   });
 
+  it("matches a byline whatever its letter case, off the covering index (#2345)", async () => {
+    const env = environment();
+    const ids = await wallOf(env, 3);
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET author = 'Zengchun Chen' WHERE id IN (?, ?)",
+      ids[0]!,
+      ids[1]!,
+    );
+    const list = async (author: string) => {
+      const before = env.galleryQueries.length;
+      const body = (await (
+        await route(
+          env,
+          new Request(
+            `${ORIGIN}/api/gallery?author=${encodeURIComponent(author)}`,
+          ),
+        )
+      ).json()) as { entries: { id: string }[]; total: number };
+      return { body, queries: env.galleryQueries.slice(before) };
+    };
+    for (const author of ["Zengchun Chen", "zengchun chen", "ZENGCHUN CHEN"]) {
+      const { body } = await list(author);
+      expect(new Set(body.entries.map(({ id }) => id))).toEqual(
+        new Set(ids.slice(0, 2)),
+      );
+      expect(body.total).toBe(2);
+    }
+    expect((await list("Zengchun")).body.total).toBe(0);
+    // The counts read the byline off the covering wall index, never the rows.
+    const { queries } = await list("zengChun chen");
+    const counts = queries.filter(
+      (q) => q.includes("e.author = ?") && q.includes("AS total"),
+    );
+    expect(counts).toHaveLength(1);
+    const plan = env.gallerySql
+      .exec<{ detail: string }>(
+        `EXPLAIN QUERY PLAN ${counts[0]!}`,
+        ...Array.from(
+          { length: (counts[0]!.match(/\?/g) ?? []).length },
+          () => "",
+        ),
+      )
+      .toArray()
+      .map((step) => step.detail);
+    expect(plan[0]).toContain(
+      "COVERING INDEX idx_gallery_entries_feed_stats_wall",
+    );
+  });
+
   it("filters same-name contributors by stable owner identity", async () => {
     const env = environment();
     const ids = await wallOf(env, 2);

@@ -36,7 +36,8 @@
       "kind": "place-component",
       "symbol": "port",
       "reference": "Vout",
-      "position": { "x": 170, "y": 70 }
+      "position": { "x": 170, "y": 70 },
+      "rotation": 180
     }
   ]
 }

@@ -2007,8 +2007,12 @@ describe("a Library part bound to an external definition (#1928)", () => {
     expect(
       codes(boundOpamp(["out", "VSS", "in-", "VDD", "in+"])),
     ).not.toContain("ERC_PORT_NAME_MISMATCH");
+    // Ports named as netlists usually name them fit too (#2350).
+    expect(codes(boundOpamp(["VIP", "VIN", "VOUT"]))).not.toContain(
+      "ERC_PORT_NAME_MISMATCH",
+    );
     expect(
-      run(boundOpamp(["VIP", "VIN", "OUT"])).find(
+      run(boundOpamp(["A", "B", "OUT"])).find(
         (item) => item.code === "ERC_PORT_NAME_MISMATCH",
       )?.message,
     ).toContain(
@@ -2094,7 +2098,7 @@ describe("a Library part bound to an external definition (#1928)", () => {
       "ERC_PORT_NAME_MISMATCH",
     );
     expect(
-      run(retargeted(["VIP", "VIN", "VOUT"])).find(
+      run(retargeted(["A", "B", "Y"])).find(
         (item) => item.code === "ERC_PORT_NAME_MISMATCH",
       )?.message,
     ).toContain(

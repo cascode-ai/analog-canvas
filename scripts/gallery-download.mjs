@@ -25,7 +25,8 @@ gallery-download. Without a filter, every public circuit.
                      or community for the community's circuits alone
   --q TEXT           words in a name, byline, description or tag
   --tags A,B         any of these tags
-  --author NAME      one byline
+  --author NAME      one byline, in any letter case; one no circuit
+                     carries is reported and exits 1
   --parts 0-5,6-10   any of these sizes in parts
   --netlistable 1|0  only circuits that extract to a netlist, or that do not
   --url LINK         the filters of a Gallery wall link; flags override it
@@ -190,6 +191,29 @@ function reader(base) {
   };
 }
 
+/**
+ * Why --author selected nothing: the bylines the other filters select that
+ * contain it, ignoring letter case, from the first page's `authors`.
+ */
+async function unknownAuthor(get, params, author) {
+  const others = new URLSearchParams(params);
+  others.delete("author");
+  others.set("limit", "1");
+  const reply = await get(`/api/gallery?${others}`).catch(() => null);
+  const wanted = author.toLowerCase();
+  const near = (Array.isArray(reply?.authors) ? reply.authors : [])
+    .map((each) => each?.author)
+    .filter(
+      (name) => typeof name === "string" && name.toLowerCase().includes(wanted),
+    );
+  const narrowed = [...others.keys()].some((key) => key !== "limit");
+  return `No public circuit ${narrowed ? "under the other filters " : ""}has the byline "${author}".${
+    near.length > 0
+      ? ` Bylines containing it: ${[...new Set(near)].slice(0, 10).join(", ")}.`
+      : ""
+  }`;
+}
+
 export async function main(argv) {
   if (argv.includes("--help") || argv.includes("-h")) {
     console.log(USAGE);
@@ -246,9 +270,16 @@ export async function main(argv) {
     console.error(`\nThe list failed: ${error.message}`);
     return 1;
   }
+  console.log();
+  // A byline no circuit carries would download nothing and say nothing
+  // (#2345), so it is reported with the bylines the other filters select.
+  const author = params.get("author");
+  if (index.length === 0 && author) {
+    console.error(await unknownAuthor(get, params, author));
+    return 1;
+  }
   index.length = Math.min(index.length, max);
   writeWhole(join(out, "index.json"), JSON.stringify(index));
-  console.log();
 
   let downloaded = 0;
   let skipped = 0;

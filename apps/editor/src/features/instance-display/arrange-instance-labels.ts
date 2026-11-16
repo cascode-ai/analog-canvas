@@ -570,6 +570,28 @@ export function arrangeInstanceLabelsReport(
       );
     };
     /**
+     * Half a conflict for a label that a wire of its own part ends or passes
+     * within a word's space before or after, as two labels on a row keep, or
+     * a line's space above or below; one drawn across it counts already. A
+     * comparator's M10 had its name centred above it, 1.85 units from its
+     * drain wire: clear of the wire's line, it read as written on the wire
+     * (#2346). A bulk wire a line under a name, between it and its W/L,
+     * still reads as the part's.
+     */
+    const touchesOwnWire = (ink: Rect) => {
+      const across = context.wiresAt(ink);
+      return context
+        .wiresAt({
+          x: ink.x - OWN_WIRE_SPACE,
+          y: ink.y - OWN_WIRE_LINE_SPACE,
+          width: ink.width + 2 * OWN_WIRE_SPACE,
+          height: ink.height + 2 * OWN_WIRE_LINE_SPACE,
+        })
+        .some((id) => ownWires.includes(id) && !across.includes(id))
+        ? 0.5
+        : 0;
+    };
+    /**
      * Wires that pass between a part's own labels and cross none of them.
      * A wire just above a resistor's Reference row let its labels slide to
      * either side of it, the name above the wire and the value below. The
@@ -609,6 +631,7 @@ export function arrangeInstanceLabelsReport(
       !context.conflictsAt(ink, label.id).some((id) => !groupIds.has(id)) &&
       !context.dotsAt(ink).length &&
       !cutOff(ink) &&
+      !touchesOwnWire(ink) &&
       !strayed(ink) &&
       !mistaken(ink, label, siblings) &&
       !runsInto(ink, label, []);
@@ -647,6 +670,7 @@ export function arrangeInstanceLabelsReport(
         context.dotsAt(ink).filter((id) => !conflicts.includes(id)).length / 2 +
         (context.enclosedAt(ink) ? 1 : 0) +
         cutOff(ink) +
+        touchesOwnWire(ink) +
         strayed(ink) +
         mistaken(ink, candidate, siblings.map(box)) +
         runsInto(ink, candidate, conflicts)
@@ -1031,12 +1055,22 @@ export function arrangeInstanceLabelsReport(
       // An arranged supply name reads upright.
       const upsideDown = found.rotation > 90 && found.rotation < 270;
       const name: Annotation = { ...found, rotation: 0 };
+      // A VDD name beside its bar drawn over the next part goes over its bar
+      // where that is clear: a comparator's VDD names ran onto the next
+      // column's bar (#2346).
+      const struck =
+        options.side === undefined &&
+        !upsideDown &&
+        instance.symbolId === "vdd-port" &&
+        context.struckAt(box(found), found.id).length > 0;
       const side =
         options.side === "top" || options.side === "right"
           ? options.side
           : upsideDown
             ? "right"
-            : undefined;
+            : struck
+              ? "top"
+              : undefined;
       if (!side || (instance.symbolId !== "vdd-port" && !upsideDown)) return [];
       let next: Annotation;
       if (side === "right" || instance.symbolId !== "vdd-port") {
@@ -1060,6 +1094,7 @@ export function arrangeInstanceLabelsReport(
         });
       }
       if (JSON.stringify(next) === JSON.stringify(found)) return [];
+      if (struck && context.struckAt(box(next), next.id).length) return [];
       context.accept(next);
       return [{ kind: "upsert_schematic_annotation", annotation: next }];
     });
@@ -1329,6 +1364,10 @@ function nearbyShifts(grid: number): readonly Point[] {
 
 /** How much nearer another part a label may stand than its own part. */
 const ASSOCIATION_MARGIN = 5;
+/** Least gaps between a label and its part's own wires, as between two
+ * labels: a word space before or after it, a line space above or below. */
+const OWN_WIRE_SPACE = 4;
+const OWN_WIRE_LINE_SPACE = 1;
 
 /**
  * About a character of a label's text, in ems: 10 units at the default

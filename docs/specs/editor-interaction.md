@@ -394,7 +394,9 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   synthesized from IDs.
 - Defaults: instances get `instance-reference`; internal Cells their Cell/master
   name in the Reference slot (following renames unless customized); external
-  subcircuits also below the Reference; Cell Pins `cell-terminal-name`; values
+  subcircuits also below the Reference; a Library part bound to a Cell or
+  external subcircuit (`set-model`, Properties model) the definition's name
+  below its own, removed when cleared; Cell Pins `cell-terminal-name`; values
   `instance-value` when requested.
 - Editing an unaliased name renames `Instance.reference` with the same prefix and
   case-insensitive uniqueness validation as **Netlist Reference**.

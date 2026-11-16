@@ -643,6 +643,14 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
     ),
   z
     .strictObject({
+      kind: z.literal("set-cell-pin-order"),
+      pins: z.array(NameSchema).min(1).max(256),
+    })
+    .describe(
+      "Order this Cell's Pins (its .subckt port order) by name: those named first, as given; the rest after them in their order.",
+    ),
+  z
+    .strictObject({
       kind: z.literal("set-cell-symbol-size"),
       width: z.number().int().positive().max(100_000),
       height: z.number().int().positive().max(100_000),

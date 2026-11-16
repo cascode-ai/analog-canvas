@@ -84,11 +84,35 @@ export async function compareExpectedNetlist(
       result.differences.filter((d) => d.kind === kind).length,
     ]),
   );
+  // A Cell whose Pins only stand in another order is fixed by one action
+  // (#2349): the reference's port names, in its order.
+  const fixes = result.differences.flatMap((difference) => {
+    if (difference.kind !== "port-order") return [];
+    const cell = reference.ir!.cells.find(
+      (candidate) =>
+        candidate.name.toLowerCase() === difference.cell.toLowerCase(),
+    );
+    if (!cell) return [];
+    return [
+      {
+        cell: difference.cell,
+        ...(difference.cell.toLowerCase() === expectedRoot.toLowerCase()
+          ? { documentId }
+          : {}),
+        tool: "circuit_transform",
+        action: {
+          kind: "set-cell-pin-order",
+          pins: cell.ports.map((port) => port.name),
+        },
+      },
+    ];
+  });
   return {
     summary: result.summary,
     status: result.status,
     topology: result.topology,
     counts,
+    ...(fixes.length ? { fixes } : {}),
     reasons: result.reasons,
     ...(result.notes.length ? { notes: result.notes } : {}),
     comparedCells: result.comparedCells,

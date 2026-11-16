@@ -331,3 +331,56 @@ it("downloads in the requested parallelism without spacing requests apart", asyn
       ),
     ).toEqual({ entry, projectText: projectOf(entry.id) });
 });
+
+it("reports a byline no circuit carries, with the bylines containing it (#2345)", async () => {
+  const authors = [
+    { author: "Zengchun Chen", ownerUserId: "u-chen", count: 2 },
+    { author: "Ada", ownerUserId: null, count: 1 },
+  ];
+  const { base, asked } = await gallery([summary("a", 1)], (url) => {
+    if (url.pathname !== "/api/gallery" || url.searchParams.get("cursor"))
+      return null;
+    // First pages as GET /api/gallery answers them: a byline matching no
+    // circuit selects nothing; without it the other filters' bylines.
+    return url.searchParams.has("author")
+      ? {
+          status: 200,
+          body: { entries: [], nextCursor: null, total: 0, authors: [] },
+        }
+      : {
+          status: 200,
+          body: {
+            entries: [summary("a", 1)],
+            nextCursor: null,
+            total: 1,
+            authors,
+          },
+        };
+  });
+  const out = outDir();
+  const missing = await run([out, "--base", base, "--author", "zengchun"]);
+  expect(missing.code).toBe(1);
+  expect(missing.stderr).toContain(
+    'No public circuit has the byline "zengchun". Bylines containing it: Zengchun Chen.',
+  );
+  expect(asked.filter((path) => path.startsWith("/api/gallery?"))).toEqual([
+    "/api/gallery?author=zengchun&limit=60&order=oldest",
+    "/api/gallery?limit=1",
+  ]);
+  expect(readdirSync(join(out, "entries"))).toEqual([]);
+
+  const narrowed = await run([
+    outDir(),
+    "--base",
+    base,
+    "--author",
+    "Nobody",
+    "--tags",
+    "bias",
+  ]);
+  expect(narrowed.code).toBe(1);
+  expect(narrowed.stderr).toContain(
+    'No public circuit under the other filters has the byline "Nobody".',
+  );
+  expect(narrowed.stderr).not.toContain("Bylines containing it");
+});

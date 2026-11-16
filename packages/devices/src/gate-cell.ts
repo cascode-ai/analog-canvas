@@ -4,7 +4,9 @@
 // definition of its Project: the part keeps its symbol, and its call goes to
 // that subcircuit, Pin by name.
 import {
+  cellPinsByUsualName,
   foldNetName,
+  partPinNameSets,
   projectCellInterface,
   type CircuitProject,
   type ExternalSubcircuitDefinition,
@@ -313,10 +315,16 @@ function matchPartPins(
   const byName = new Map(
     terminals.map((terminal) => [foldNetName(terminal.pinName), terminal]),
   );
+  const partPins = terminals.map((terminal) => terminal.pinName);
+  const usual = cellPinsByUsualName(cell.portNames, partPins);
   const pins: GateCellPin[] = [];
   const extra: string[] = [];
   for (const portName of cell.portNames) {
-    const terminal = byName.get(foldNetName(portName));
+    const folded = foldNetName(portName);
+    const usualPin = usual.byName.get(folded);
+    const terminal =
+      byName.get(folded) ??
+      (usualPin === undefined ? undefined : byName.get(foldNetName(usualPin)));
     if (!terminal) extra.push(portName);
     else pins.push({ portName, ...terminal });
   }
@@ -324,6 +332,18 @@ function matchPartPins(
   const missing = signals
     .filter((terminal) => !pins.some((pin) => pin.pinName === terminal.pinName))
     .map((terminal) => terminal.pinName);
+  if (usual.ambiguous) {
+    const { set, portNames } = usual.ambiguous;
+    return {
+      ok: false,
+      pins,
+      missing,
+      extra,
+      message: `${title} ${cell.name} does not fit the ${symbolId}: its Pins ${spokenList(
+        portNames,
+      )} could each be its ${set.pins.join(" or ")}. Rename ${set.rename}`,
+    };
+  }
   if (!missing.length && !extra.length) return { ok: true, pins };
   const plural = (names: readonly string[], one: string, many: string) =>
     names.length > 1 ? many : one;
@@ -352,6 +372,10 @@ function matchPartPins(
         ]
       : []),
   ];
+  const sets = partPinNameSets(partPins);
+  const usualNames = sets.length
+    ? ` (or ${sets.map((set) => set.spoken).join(", and ")})`
+    : "";
   return {
     ok: false,
     pins,
@@ -359,7 +383,7 @@ function matchPartPins(
     extra,
     message: `${title} ${cell.name} does not fit the ${symbolId}: ${problems.join(", and ")}. Its Pins must be ${spokenList(
       signals.map((terminal) => terminal.pinName),
-    )}, in any letter case${optional.map((clause) => `, and ${clause}`).join("")}`,
+    )}, in any letter case${usualNames}${optional.map((clause) => `, and ${clause}`).join("")}`,
   };
 }
 

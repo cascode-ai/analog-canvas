@@ -831,7 +831,13 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
         parsed.detail ?? (report.mode === "claimed" ? "full" : "summary");
       return {
         ok: true,
-        mode: report.mode,
+        // A local workspace is opened, never claimed or resumed from a site.
+        mode:
+          session.localMode === true
+            ? session.localWorkspaceCreated
+              ? "new"
+              : "opened"
+            : report.mode,
         site: siteBinding(session),
         projectId: report.projectId,
         documentIds: report.documentIds,

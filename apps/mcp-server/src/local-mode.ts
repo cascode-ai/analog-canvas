@@ -444,6 +444,7 @@ export async function openLocalMode(
       () => true,
       () => false,
     );
+  let created = false;
   if (!(await exists())) {
     if (!options.create)
       throw new Error(`${dir} holds no workspace; add --new to create one`);
@@ -457,6 +458,7 @@ export async function openLocalMode(
         ...(name === undefined ? {} : { name }),
         ...(reference === undefined ? {} : { reference }),
       });
+      created = true;
     } catch (error) {
       // Another process created it a moment earlier: open that one.
       if (!(await exists())) throw error;
@@ -475,6 +477,7 @@ export async function openLocalMode(
   return {
     session: {
       localMode: true,
+      localWorkspaceCreated: created,
       client: new AgentSessionClient({
         http,
         connectorStore: new LocalConnectorStore(http),

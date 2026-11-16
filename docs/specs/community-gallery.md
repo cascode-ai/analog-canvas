@@ -59,7 +59,8 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   A rerun keeps a file only if it parses with its
   id and a non-empty `projectText`. It ends with downloaded, kept and failed
   counts and exits 1 when the list or any circuit failed; a `--source` that
-  `GET /api/gallery/sources` does not list is refused.
+  `GET /api/gallery/sources` does not list is refused, and an `--author` that
+  selects nothing is reported with the bylines containing it.
 - Bulk download is available through the public HTTP API and download script;
   the Gallery wall has no bulk-download button or menu.
 - No account is blocked for how it reads or writes; the account blocks and
@@ -88,7 +89,8 @@ entries, keyset cursor, limit ≤60.
   aggregate queries; callers retain the first page's statistics until a
   refresh or filter change.
 - Filters, all applied before the first page's statistics:
-  `author` (byline) or `owner` (account), `tags=a,b` (ANY), `netlistable=0|1`,
+  `author` (byline, ignoring ASCII letter case) or `owner` (account),
+  `tags=a,b` (ANY), `netlistable=0|1`,
   `ai=1|0|dataset` (the AI mark; community circuits without it; reference
   datasets' circuits), `reference=0` (no reference image from its author; not
   offered on a dataset's wall), `liked=1` (signed out selects none),

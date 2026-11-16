@@ -25,7 +25,10 @@ values, drafting text, formulas or Symbol body text.
   other.
 - A **display alias** shows text a name cannot hold (op-amp `X1` drawn A1,
   Net `VEA_OUT` drawn `VEA,OUT`) on a part's name label, a Port's (Cell Pin)
-  label or a Net label: the label's own literal text, with no identity. The
+  label or a Net label: the label's own literal text, with no identity. A
+  part's or Pin's alias takes the standard look its spelling has (A1 → A₁),
+  else is drawn as written (`L1_amp`, no subscript); a switch's clock phase
+  keeps its notation (`Φ_A_bar` → Φ̄_A). The
   Reference, Pin name or the Net label's name claim stays the electrical
   name, so netlists, connectivity, same-name joining and Agents never read
   the alias. Clearing it shows the name again in its standard look. The
