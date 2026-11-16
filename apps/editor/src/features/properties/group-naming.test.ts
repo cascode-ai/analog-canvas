@@ -13,6 +13,7 @@ import {
   createEmptyProject,
   flattenRichText,
   labelTextDocument,
+  plainNameDocument,
   roleLabelFormat,
   type Annotation,
   type CircuitProject,
@@ -402,6 +403,24 @@ describe("one part's display alias (#1254)", () => {
       instanceId: "amp",
     });
     expect(flattenRichText(resolveAnnotationText(document, named))).toBe("X1");
+  });
+
+  it("draws an alias with an underscore as written, as a placed Cell's name is (#2347)", () => {
+    let document = opampDocument();
+    const plan = planDisplayAlias({
+      document,
+      instanceId: "amp",
+      alias: "L1_amp",
+      ...labels,
+    });
+    if (!plan.ok) throw new Error(plan.message);
+    document = apply(document, plan.edits);
+    const shown = instanceLabelAnnotationFor(document, "amp")!;
+    expect(shown.content).toEqual(plainNameDocument("L1_amp"));
+    expect(flattenRichText(resolveAnnotationText(document, shown))).toBe(
+      "L1_amp",
+    );
+    expect(document.instances[0]!.reference).toBe("X1");
   });
 
   it("shows a hidden label with the alias, and refuses a part with no name", () => {
