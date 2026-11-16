@@ -110,9 +110,12 @@ describe("MCP local mode (#1498)", () => {
     });
     expect(await readFile(join(dir, "reference.sp"), "utf8")).toBe(REFERENCE);
 
-    // No claim code: the workspace is its owner's own.
+    // No claim code: the workspace is its owner's own. A new one says so,
+    // and names no site (#2344).
     expect(await tool("connect")).toMatchObject({
       ok: true,
+      mode: "new",
+      site: { apiOrigin: null, apiOriginSource: "local" },
       documentIds: ["main"],
       context: { projectName: "Divider", documentId: "main" },
     });
@@ -217,7 +220,11 @@ describe("MCP local mode (#1498)", () => {
     expect(JSON.parse(status.content[0]!.text)).toMatchObject({
       projectId: (await stored(dir)).id,
       documentIds: ["main"],
-      runtime: { apiBaseUrl: expect.stringMatching(/^file:\/\//u) },
+      runtime: {
+        apiBaseUrl: expect.stringMatching(/^file:\/\//u),
+        apiOrigin: null,
+        apiOriginSource: "local",
+      },
     });
 
     // The lock names this process until it lets the workspace go.
@@ -304,8 +311,13 @@ describe("MCP local mode (#1498)", () => {
       await first.tool("apply_actions", { actions: DIVIDER.slice(0, 1) }),
     ).toMatchObject({ ok: true });
     await first.mode.close();
-    // --new again (a restarted worker) keeps the drawing.
+    // --new again (a restarted worker) keeps the drawing, and says so.
     const again = await open({ dir, create: { name: "Second" } });
+    expect(await again.tool("connect")).toMatchObject({
+      ok: true,
+      mode: "opened",
+      site: { apiOrigin: null, apiOriginSource: "local" },
+    });
     expect(await again.tool("get_context")).toMatchObject({
       instanceCount: 1,
     });

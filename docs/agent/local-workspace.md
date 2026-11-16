@@ -19,8 +19,10 @@ saves. A `focus` in `apply_actions` is skipped (`VIEW_STEP_SKIPPED` warning).
   (`abstract`, `sky130` default, `sg13g2`, `custom`) sets
   the Process for new transistors; keep one per workspace.
 - As an MCP server (`node <package>/bin/analog-canvas-mcp.mjs --local /abs/jobs/opamp-12 --new`)
-  `connect` needs no claim and no tool needs `connect` first; each change
-  writes the file atomically; the process holds the workspace until it ends.
+  `connect` needs no claim and no tool needs `connect` first; it answers
+  `mode` `new` when this process created the workspace, else `opened`, and
+  `site.apiOrigin` null. Each change writes the file atomically; the process
+  holds the workspace until it ends.
 - As a command line, `--http <tool>` with JSON on stdin
   ([shared-client CLI](http-cli.md)) opens, runs, writes and releases per
   command; `--http batch` runs one call per line in one process.

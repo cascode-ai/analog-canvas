@@ -16,6 +16,8 @@ export interface OperationSession {
   client: AgentSessionClient;
   webTasks?: WebTasks;
   localMode?: true;
+  /** Local mode: whether this process created its workspace (#2344). */
+  localWorkspaceCreated?: boolean;
   taskRef?: string;
   /** ANALOG_CANVAS_API_URL was unset, so the client took the default site. */
   apiBaseUrlDefaulted?: boolean;
@@ -63,12 +65,17 @@ export function resolveConfig(
  * are refused, so connect, connection_status and the instructions name it.
  */
 export function siteBinding(
-  session: Pick<OperationSession, "client" | "apiBaseUrlDefaulted">,
+  session: Pick<
+    OperationSession,
+    "client" | "apiBaseUrlDefaulted" | "localMode"
+  >,
 ): {
-  apiOrigin: string;
-  apiOriginSource: "configured" | "default";
+  apiOrigin: string | null;
+  apiOriginSource: "configured" | "default" | "local";
   note?: string;
 } {
+  // A local workspace has no site: its file URL's origin is the text "null".
+  if (session.localMode) return { apiOrigin: null, apiOriginSource: "local" };
   const apiOrigin = new URL(session.client.apiBaseUrl).origin;
   return session.apiBaseUrlDefaulted
     ? {
