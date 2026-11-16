@@ -160,6 +160,8 @@ export function planCallerInterfaceChanges(
   const symbolMigrations = new Map<string, string>();
   /** The Cell's Pins after the change, by folded name, for gate callers. */
   let gatePinsAfter: Set<string> | undefined;
+  /** The Cell's Pins before the change, by folded name. */
+  let gatePinsBefore: Set<string> | undefined;
 
   for (const parent of project.documents) {
     const callers = parent.instances.filter((instance) => {
@@ -183,8 +185,14 @@ export function planCallerInterfaceChanges(
     for (const instance of callers) {
       // A Library gate bound to the Cell keeps its own pins (#1450). The
       // change goes ahead while each pin it uses keeps a Pin of its name;
-      // whether the Cell still fits the gate, export says.
+      // whether the Cell still fits the gate, export says. A drawn supply
+      // pin no Pin ever met stays wired to its own Net (#2337).
       if (!external && bindsProjectCell(instance.symbolId)) {
+        const pinsBefore = (gatePinsBefore ??= new Set(
+          projectCellInterface(
+            requireDocument(project, childDocumentId).netlist,
+          ).ports.map((port) => foldNetName(port.name)),
+        ));
         const pinsAfter = (gatePinsAfter ??= new Set(
           projectCellInterface(
             requireDocument(project, childDocumentId).netlist,
@@ -204,6 +212,7 @@ export function planCallerInterfaceChanges(
           .filter(
             (pinName) =>
               instanceReferencesPin(parent, instance.id, pinName) &&
+              pinsBefore.has(foldNetName(pinName)) &&
               !pinsAfter.has(foldNetName(pinName)),
           );
         const gateName = instance.reference ?? instance.id;
