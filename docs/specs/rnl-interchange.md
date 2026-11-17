@@ -18,7 +18,21 @@ the RNL language and its runtime belong to rnl.
   with the standard series 0.4 and `analog-canvas-extensions` 0.7, a package
   of that language
   ([decision 0017](https://github.com/rich-netlist/rnl/blob/main/docs/decisions/0017-isolate-language-0-4-packages.md)).
-  It keeps no compatibility with earlier languages or package versions.
+  It draws nothing of earlier languages or package versions; their circuits
+  still come in.
+- The version line, `packages/rnl/src/rnl-version-line.json`, holds the
+  language, the standard series, the first rnl release whose tools and RNL
+  Skill read that language, and the runtime with where it came from and the
+  one before it. The adapter, the scripts and the import's messages read it
+  there.
+- The language Analog Canvas reads and writes must be one the released rnl
+  tools read and the released RNL Skill teaches; Analog Canvas moves to a new
+  language together with an rnl release, and the circuit of a file of the
+  language before still comes in. `pnpm rnl:reconcile` names a broken
+  version line first. The line is broken until rnl releases 0.4
+  ([rich-netlist/rnl#620](https://github.com/rich-netlist/rnl/issues/620));
+  meanwhile Agents write and check 0.4 through the import, as the MCP
+  guide's "Draw a review in RNL" says.
 
 ### Dependency
 
@@ -29,7 +43,10 @@ the RNL language and its runtime belong to rnl.
 - The runtime is the package built from one commit of rich-netlist/rnl
   `main`, vendored as `packages/rnl/vendor/rich-netlist-runtime-*.tgz` and
   pinned by the lockfile's integrity, until a release on npm reads
-  language 0.4; then the npm release replaces it.
+  language 0.4; then the npm release replaces it. A commit is vendored as
+  the package upstream CI built and tested from it (`core-npm` of the
+  nightly or a pull request's core checks), never a local build:
+  `pnpm rnl:runtime:vendor -- --commit <sha>` records the run.
 - WebAssembly stays out of packages the Worker and MCP bundles import
   (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.
 - Upstream decisions this contract follows: Analog Canvas stays compatible
@@ -42,8 +59,12 @@ the RNL language and its runtime belong to rnl.
   ([decision 0013](https://github.com/rich-netlist/rnl/blob/main/docs/decisions/0013-independent-release-lines.md)).
 - Each runtime or package upgrade is one pull request that states the
   versions, the type and behavior differences, the rnl-benchmark L1/L2/L3
-  before and after, and how to roll back. `pnpm rnl:reconcile` reports, never
-  blocks, where the editor is behind upstream. The benchmark harness is
+  before and after, and the rollback drill: the RNL suites on the combination
+  before (`pnpm rnl:runtime:vendor -- --restore`, which a second run undoes)
+  and which files the upgrade writes that the combination before cannot read.
+  `pnpm rnl:reconcile` reports, never blocks, where the editor is behind
+  upstream, weekly on #2102 (`.github/workflows/rnl-reconcile.yml`). The
+  benchmark harness is
   `apps/editor/src/features/netlist-export/rnl-benchmark.test.ts`, skipped
   unless `RNL_BENCH_CORPUS` names the
   [rnl-benchmark](https://github.com/rich-netlist/rnl-benchmark) corpus.
@@ -354,9 +375,10 @@ the RNL language and its runtime belong to rnl.
 
 ### Import
 
-- A file whose language is not 0.4, and which writes RNL records, is refused
-  whole (`RNL_IMPORT_VERSION`, naming its version and `rnl upgrade`, which
-  raises it): nothing of it is imported, its circuit included. An older
+- A file whose language is not 0.4, and which writes RNL records, comes in
+  as its circuit, undrawn, with the error `RNL_IMPORT_VERSION` naming its
+  version and `rnl upgrade` of the version line's tools release, which raises
+  it; nothing the import takes from a drawing is taken from it. An older
   Analog Canvas file (`analog-canvas-extensions` 0.1–0.6) is upgraded the
   same way: `rnl upgrade` moves it to 0.7. A netlist with no records imports
   as its circuit.
@@ -644,7 +666,7 @@ the RNL language and its runtime belong to rnl.
   catalog.
 - Operations: the runtime's edit transaction and snapshot
   ([rnl-edit](https://github.com/rich-netlist/rnl/blob/main/crates/rnl-edit/README.md)).
-- Import refusal: `RNL_IMPORT_VERSION`.
+- A drawing of another language left out: `RNL_IMPORT_VERSION`.
 - Codes: errors `RNL_ROTATION_NOT_QUARTER`, `RNL_NO_SYMBOL`; warnings
   `RNL_NOT_STANDARD_SYMBOL`, `RNL_TEXT_FIXED`, `RNL_TEXT_HIDDEN`,
   `RNL_TEXT_ALONG_WIRE`, `RNL_TEXT_FORMULA`, `RNL_TEXT_TILTED`,
@@ -672,9 +694,14 @@ the RNL language and its runtime belong to rnl.
   `$CANVAS_TYPESETTING`) beside the standard style, basic, semiconductor and
   no-labels packages; an op-amp also names `rnl-std-functional`
   (`packages/rnl/src/export-ops.test.ts`).
-- A file of another language version is refused whole, and a netlist with
-  no records imports (`packages/rnl/src/rnl-import.test.ts`,
+- A file of another language version comes in as its circuit, undrawn,
+  with `RNL_IMPORT_VERSION` naming `rnl upgrade` of the tools release, and a
+  netlist with no records imports (`packages/rnl/src/rnl-import.test.ts`,
   `apps/editor/src/features/netlist-export/rnl-import-safety.test.ts`).
+- The version line's runtime is the vendored file the dependents name, CI's
+  build of its commit can be vendored and the combination before restored
+  (`scripts/rnl-runtime-vendor.test.mjs`); the report names a broken version
+  line first (`scripts/rnl-reconcile.test.mjs`).
 - The desktop host serves `.wasm` as `application/wasm` and allows
   WebAssembly compilation only (`apps/desktop/src/app-protocol.test.ts`).
 - A file the export wrote imports with every part where it was drawn, its

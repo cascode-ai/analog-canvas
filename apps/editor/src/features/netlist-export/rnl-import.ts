@@ -415,19 +415,19 @@ async function buildImportPlan({
   const entry = inputs.find((input) => input.path === entryPath);
   if (!entry) return failedPlan(`RNL import has no file ${entryPath}`);
   const dialect = isSpectreSource(entry) ? "spectre" : "spice";
-  const snapshot = await readRnlHost(runtime, inputs, entryPath, dialect);
-  // A file of another language version is refused whole: nothing of it is
-  // imported, the circuit included.
+  const answered = await readRnlHost(runtime, inputs, entryPath, dialect);
+  // A file of another language version comes in as its circuit: its drawing,
+  // and all the import would take from it, is left out.
   const refused = rnlVersionRefusal(
-    snapshot,
+    answered,
     inputs.some(({ bytes }) => /@RNL\b/u.test(new TextDecoder().decode(bytes))),
   );
-  if (refused)
-    return {
-      status: "failed",
-      message: refused.message,
-      diagnostics: [reported(refused)],
-    };
+  const snapshot: RnlSnapshot = refused
+    ? {
+        ...answered,
+        levels: answered.levels.map(({ model: _drawing, ...level }) => level),
+      }
+    : answered;
   const externalSubcircuitNames = rnlSubcircuitNames(snapshot);
   const symbolMappings = drawnExternalSymbolMappings(snapshot);
   const drawnTypes = drawnModelTypes(snapshot);
@@ -488,12 +488,14 @@ async function buildImportPlan({
   // beside it may call it, and so be the netlist's top in its place.
   const top = canvasTopDocument(imported.project, snapshot);
   if (top) imported.project.topDocumentId = top;
-  let drawn = snapshot.failed
-    ? {
-        code: "RNL_IMPORT_UNREADABLE",
-        message: `RNL could not read the file: ${snapshot.failed}`,
-      }
-    : drawingOf(imported.project, snapshot, appearance);
+  let drawn = refused
+    ? { code: refused.code, message: refused.message }
+    : snapshot.failed
+      ? {
+          code: "RNL_IMPORT_UNREADABLE",
+          message: `RNL could not read the file: ${snapshot.failed}`,
+        }
+      : drawingOf(imported.project, snapshot, appearance);
   const fileImported = imported.project;
   const verifyDrawing = async (drawing: typeof drawn) =>
     "code" in drawing
@@ -513,7 +515,12 @@ async function buildImportPlan({
         );
   let kept = await verifyDrawing(drawn);
   let appearanceFinding: SpiceDiagnostic | undefined;
-  if ("code" in kept && appearance === "canvas" && !snapshot.failed) {
+  if (
+    "code" in kept &&
+    appearance === "canvas" &&
+    !snapshot.failed &&
+    !refused
+  ) {
     const source = drawingOf(fileImported, snapshot, "source");
     const verifiedSource = await verifyDrawing(source);
     if ("project" in verifiedSource) {

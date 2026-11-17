@@ -1,0 +1,24 @@
+{
+  "language": "0.4",
+  "standardSeries": "0.4",
+  "toolsRelease": "0.6.0",
+  "runtime": {
+    "package": "@rich-netlist/runtime",
+    "source": "commit",
+    "commit": "7d9659817323a415b99c7db615ef1dc53ac91507",
+    "version": "0.6.0-dev.7d965981",
+    "file": "rich-netlist-runtime-0.6.0-dev.7d965981.tgz",
+    "built": "locally: node bindings/runtime-wasm/build.mjs --name @rich-netlist/runtime --version 0.6.0-dev.7d965981",
+    "solver": false
+  },
+  "previous": {
+    "package": "@rich-netlist/runtime",
+    "source": "commit",
+    "commit": "b4c3f857578893a95844db6c754e6fdb5eed9b43",
+    "version": "0.6.0-dev.b4c3f857",
+    "file": "rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz",
+    "built": "locally: node bindings/runtime-wasm/build.mjs --name @rich-netlist/runtime --version 0.6.0-dev.b4c3f857",
+    "solver": false,
+    "kept": "751e0e3ad"
+  }
+}

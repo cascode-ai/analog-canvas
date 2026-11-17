@@ -24,6 +24,7 @@
     "rnl:package:check": "node scripts/rnl-canvas-package.mjs --check",
     "rnl:package:fetch": "node scripts/rnl-canvas-package.mjs --fetch",
     "rnl:reconcile": "node scripts/rnl-reconcile.mjs",
+    "rnl:runtime:vendor": "node scripts/rnl-runtime-vendor.mjs",
     "build": "pnpm -r --if-present build",
     "release:package": "pnpm build && node scripts/package-mcp.mjs && node scripts/package-release.mjs",
     "performance:check": "pnpm build && node scripts/performance-baseline.mjs",
