@@ -13,6 +13,8 @@ import {
   drawnExternalSymbolMappings,
   declaredModelTypes,
   drawnModelTypes,
+  hasForeignDrawing,
+  layoutHintFindings,
   undrawnBodies,
   withPowerLabelPorts,
   rnlBodyPortOrder,
@@ -332,6 +334,37 @@ export async function planRnlImport(request: {
   }
 }
 
+/**
+ * RNL's geometry hints on the levels another tool or an Agent drew
+ * (`layoutHintFindings`); none where the runtime cannot build, where Analog
+ * Canvas drew every level, or where the build fails, since they are advice.
+ */
+async function layoutHints(
+  runtime: RnlRuntime,
+  inputs: readonly SpiceSourceInput[],
+  entryPath: string,
+  dialect: "spice" | "spectre",
+  snapshot: RnlSnapshot,
+): Promise<SpiceDiagnostic[]> {
+  if (!runtime.build || !hasForeignDrawing(snapshot)) return [];
+  try {
+    const document = await runtime.build({
+      entry: entryPath,
+      files: Object.fromEntries(
+        inputs.map(({ path, bytes }) => [
+          path,
+          new TextDecoder().decode(bytes),
+        ]),
+      ),
+      dialect,
+      hints: true,
+    });
+    return layoutHintFindings(document.levels, snapshot).map(reported);
+  } catch {
+    return [];
+  }
+}
+
 export function readRnlHost(
   runtime: RnlRuntime,
   inputs: readonly SpiceSourceInput[],
@@ -556,7 +589,12 @@ async function buildImportPlan({
     return {
       status: "ready",
       project: withParameterTexts(kept.project, parameterTexts),
-      diagnostics,
+      // Where the drawing could read better, as RNL sees it: advice, so the
+      // drawing it leaves is still the file's whole drawing.
+      diagnostics: [
+        ...diagnostics,
+        ...(await layoutHints(runtime, inputs, entryPath, dialect, snapshot)),
+      ],
       drawing:
         appearanceFinding || read?.diagnostics.length ? "partial" : "preserved",
       modelTypesUsed,

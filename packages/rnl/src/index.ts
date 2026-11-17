@@ -1,4 +1,5 @@
 export * from "./export-ops.js";
+export { hasForeignDrawing, layoutHintFindings } from "./import-findings.js";
 export * from "./orientation.js";
 export * from "./place.js";
 export * from "./rnl-export.js";

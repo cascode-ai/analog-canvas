@@ -339,20 +339,32 @@ and the RNL guide still read 0.3, so check the file by importing it. Lay it
 out as [Draw a review](#draw-a-review) plans; in the records:
 
 - Header after the title line: `* @RNL(type="header") { @USE-PACKAGE(name="rnl-std-all", version="0.4"); @VERSION("0.4")}`
-  (`//` comments in Spectre). Declare a model the files do not ship there,
-  `@DEVICE(name="*", model="nch_*", type="nmos")`, or pass `modelTypes`.
+  (`//` comments in Spectre). A subcircuit's records go between its `.subckt`
+  and `.ends`, in `* @RNL { … }`; the file level's after the header.
+- Declare each model the files do not ship in the header, with its terminals
+  so that a subcircuit call (`XM1 d g s b nch_lvt`) binds the symbol's pins:
+  `@DEVICE(name="*", model="nch*", terminals=["d", "g", "s", "b"], type="nmos")`.
+  Wires name terminals by number in the card's order, `#XM1:2` the gate.
 - `#M1 @PLACE(x, y)` for every part, `=> @ORIENT("MY")` where it turns or
   mirrors (`R0`, `R90`, `R180`, `R270`, `MX`, `MY`, `MXR90`, `MYR90`). Units
-  are grid steps, y up; one step is 10 Canvas units.
+  are grid steps, y up; one step is 10 Canvas units. Pins of the unturned
+  standard symbols: NMOS d (0, 2), g (−3, 0), s (0, −2); PMOS d (0, −2),
+  s (0, 2); BJT c (0, 2), b (−3, 0), e (0, −2); R, C, L, sources and diodes
+  (0, 2) and (0, −2); op-amp inp (−4, 1), inn (−4, −1), out (3, 0); a glyph's
+  at its place. `MY` mirrors x; `R90` turns counter-clockwise.
 - Name each node where wires branch, `%j = (x, y)`, mark it
   `$JUNCTION @ATTACH %j => @PLACE(x, y)`, and run the wires through it:
   `&x @WIRE {#M3:1 %j #M1:1}`. A wire may leave its corners to its mode
   (`auto` by default); Canvas follows the path RNL draws. Wires that only
   share a pin and run over each other show a branch with no junction.
+- Draw each port of the Cell, `%pi = $IO_PORT @ATTACH &in => @PLACE(x, y)`
+  and `&in @WIRE {%pi:p #M1:2}`, a supply or ground port as its glyph; the
+  first port, supply or ground on a port's net is the Cell's Pin.
 - Name a distant connection with a net label,
   `%lo = $NET_LABEL @ATTACH &out => @PLACE(x, y)` and `&out @WIRE {%j %lo:p}`.
-  Unturned, its pin faces right with the name on its left; for a wire coming
-  from the left, add `=> @ORIENT("R180")`.
+  Unturned, a label's or port's pin faces right with its name on the left:
+  for a wire coming from the left add `=> @ORIENT("R180")`, from below
+  `"R270"`, from above `"R90"`.
 - Place ground and supply glyphs on their nets,
   `%g = $GROUND @ATTACH #M5:3::net => @PLACE(x, y)` and
   `#M5:3::net @WIRE {#M5:3 %g:p}`; `$SUPPLY` likewise.
@@ -361,8 +373,11 @@ Then read `source.diagnostics`: `RNL_IMPORT_RNL_FINDING` and
 `RNL_IMPORT_RNL_ERROR` give what RNL finds, at file:line;
 `RNL_IMPORT_WIRE_WRONG_NET`, `RNL_IMPORT_WIRES_OVERLAP` and
 `RNL_IMPORT_WIRE_PATH` name the statements to fix (`@top.sp:12:5`);
-`RNL_IMPORT_UNPLACED` lists parts left on the shelf. Fix those lines,
-`open-local` again, and finish with the checks of [Start a review](#start-a-review).
+`RNL_IMPORT_UNPLACED` lists parts left on the shelf. `RNL_IMPORT_LAYOUT_HINT`
+is RNL's advice on the layout, by line: a wire over a symbol or a name,
+names over each other, a port facing into the drawing, crossings; move what
+it names. Fix those lines, `open-local` again, and finish with the checks of
+[Start a review](#start-a-review).
 
 #### Review an RNL import
 

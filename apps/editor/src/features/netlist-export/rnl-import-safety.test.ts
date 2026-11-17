@@ -29,13 +29,14 @@ it("keeps the circuit and the drawing, and leaves out a wire that joins nets the
   });
   if (plan.status !== "ready") throw new Error(plan.message);
   expect(plan.drawing).toBe("partial");
-  // RNL's own finding, at the line that writes the wire, and the wire left out.
+  // RNL's own finding, once for both ends at the line that writes the wire,
+  // and the wire left out.
   expect(plan.diagnostics).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
         code: "RNL_IMPORT_RNL_FINDING",
         message: expect.stringMatching(
-          /^RNL reset-chain\.scs:16:4 RNL4204 wire-net-mismatch: /u,
+          /^RNL reset-chain\.scs:16:4 RNL4204 wire-net-mismatch \(2 times\): /u,
         ),
       }),
       expect.objectContaining({
