@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "509a45f128a23bd249e3b5fe06b6d2c94a7ba322e1c50850b7c27698de41d738"
+      "sha256": "bffa313774453b50347f443a6affa59ea2e9a0a6b4bedb839503d005c7256d18"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -129,7 +129,7 @@
     },
     {
       "source": "docs/agent/skills/canvas-review/SKILL.md",
-      "sha256": "76ee462f92f452b2f5396bad1c8e43b0ea1e47d0fb5bbb0d9247a253753d132c"
+      "sha256": "811ce78c183ec0693c679a4520016705dc0081ccdee877c4b4969f76d9dc595e"
     },
     {
       "source": "docs/agent/skills/canvas-review/agents/openai.yaml",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "b27c7d7f7578245a882f48a7c9d340759d7fb3c6c3d2d91193101a948cbdb6e6"
+      "sha256": "7d0bfeb879603dd05db1e1dcf058cfdc6addef46752d9f3de43410b812aa26d2"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",

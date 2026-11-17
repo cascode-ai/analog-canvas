@@ -480,10 +480,19 @@ the RNL language and its runtime belong to rnl.
     else, a glyph's among them, keeps its net
     (`RNL_IMPORT_NO_CONNECT_CONNECTED`); a call's terminal is the scalar Pin
     the import reads it as, a bus member's included;
-  - wires with every bend, a route from each pin or point to the next, a
+  - wires along the path RNL draws for them, with every bend: the
+    coordinates the file writes and the corners its mode adds (`auto`,
+    `manhattan` …), a route from each pin or point to the next, a
     wire running straight through a pin or point one route, but one through a
     point another wire (not a dashed body tie) also reaches a route each
-    side, which reach it there;
+    side, which reach it there; a wire whose path the import cannot follow
+    through its vertices is drawn straight between them
+    (`RNL_IMPORT_WIRE_PATH`); wires a mode draws that run over another wire
+    of their net, which RNL joins only at the ends they share, are reported
+    by the statements that write them (`RNL_IMPORT_WIRES_OVERLAP`); a run
+    that reaches a pin or junction of another net, which RNL reports
+    (`RNL4204 wire-net-mismatch`), is left out and the rest of the drawing
+    comes in (`RNL_IMPORT_WIRE_WRONG_NET`, naming the statements);
     a bold wire as a power
     rail, a dashed one to a MOS body as a body tie, and a dashed one between
     junctions where it meets a body tie, any other line style or color as the
@@ -505,6 +514,9 @@ the RNL language and its runtime belong to rnl.
     `@ANNOTATION` of `$ARROW_SYMBOL` whose tip lies on a wire as that wire's
     direction arrow, or as a current marker where the file names its label
     for it (`%current1_label`);
+  - a `$NET_LABEL` the file places on a net of the Cell as a net label of
+    that net, where its wires end; one a package leaves to a solver is not
+    read;
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has, or as a power label where the export wrote one, hung on the
@@ -610,8 +622,15 @@ the RNL language and its runtime belong to rnl.
   (marks alone as the sign they show). A group that does not read back as
   one stays as drawn, with a warning (`RNL_IMPORT_DRAWING_UNJOINED`).
 - A part RNL does not place keeps the importer's placement, and a net it does
-  not wire keeps its guide lines. A place or corner off Analog Canvas's grid
-  (10 for a part, 2 for a corner) is moved onto it.
+  not wire keeps its guide lines. A place or corner stays where RNL puts it,
+  on a whole Analog Canvas unit, and the Document takes the coarsest grid
+  every place and corner fits; one between whole units is moved to the
+  nearest (`RNL_IMPORT_SNAPPED`).
+- What RNL itself finds in the file comes in the import report with the place
+  RNL finds it (`RNL top.sp:23:5 RNL4204 wire-net-mismatch: …`), as
+  `RNL_IMPORT_RNL_ERROR` or `RNL_IMPORT_RNL_FINDING`: errors, violations and
+  the warnings of the standard's domains (RNL0–RNL6); not hints, nor the
+  tools' or implementation's notes (RNL7–RNL9).
 - The imported Project's netlist is electrically equal to the plain SPICE /
   SCS import of the same files, or, where that import writes a netlist other
   than the one it read (a ground pin named VSS read as a port, and a GND pin
@@ -620,11 +639,10 @@ the RNL language and its runtime belong to rnl.
   comparison's "equal", never "unknown", and past its size limit, or with no
   devices, the same printed cards. The comparison reads parameters as their
   text, never evaluated. The Project is one the editor can save.
-  A drawing that would change the netlist, or of a circuit that cannot be
-  compared (`RNL_IMPORT_CHANGES_NETLIST`, which names why), or
-  that does not make a Project the editor can save, such as a wire joining
-  terminals the netlist keeps on different nets (`RNL_IMPORT_INVALID_DRAWING`),
-  is left out, and the circuit comes in undrawn with that error. An import
+  A drawing that would still change the netlist, or of a circuit that cannot
+  be compared (`RNL_IMPORT_CHANGES_NETLIST`, which names why), or that does
+  not make a Project the editor can save (`RNL_IMPORT_INVALID_DRAWING`), is
+  left out, and the circuit comes in undrawn with that error. An import
   that cannot complete returns its finding (`RNL_IMPORT_FAILED`) rather than
   failing outside the import report.
 - The imported Project replaces the active one with recovery source
@@ -693,9 +711,16 @@ the RNL language and its runtime belong to rnl.
   imports as the block and exports again unchanged
   (`packages/netlist/src/built-in-bodies.test.ts`).
 - A drawing whose wire joins terminals the netlist keeps on different nets
-  comes in undrawn, as a Project that saves, with `RNL_IMPORT_INVALID_DRAWING`;
+  comes in without that wire, as a Project that saves and prints the same
+  netlist, with RNL's finding at its line and `RNL_IMPORT_WIRE_WRONG_NET`;
   a runtime that fails gives a failed import with `RNL_IMPORT_FAILED`
   (`apps/editor/src/features/netlist-export/rnl-import-safety.test.ts`).
+- RNL written as an Agent writes it (`netlists/rnl-agent-drawing`): wires
+  left to their mode come in along RNL's path, every leg level or upright,
+  with the overlapping ones reported by line; placed `$NET_LABEL`s come in as
+  net labels with their wires; a wire drawn to a pin of another net is left
+  out and the rest drawn
+  (`apps/editor/src/features/netlist-export/rnl-agent-import.test.ts`).
 - In the built editor, the Netlist panel copies `SPICE+RNL` and `Spectre+RNL`
   as the runtime writes them in its Worker, and File → Import → `RNL…` brings
   the copied file back with every part where it was drawn and the same netlist;

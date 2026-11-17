@@ -6,6 +6,8 @@ import {
 } from "@icm/model";
 
 import {
+  type LevelModel,
+  type Point,
   type RnlSnapshotVertex,
   terminalOf,
   acPoint,
@@ -61,6 +63,18 @@ export function routeWires(
   { glyphOf, openGlyphs }: Pick<Glyphs, "glyphOf" | "openGlyphs">,
   nativeAppearance: boolean,
 ): WireRoutes {
+  // A wire's path runs through the vertices it writes, with the corners its
+  // mode adds between them (`auto`, `manhattan` …; 13.1): where each written
+  // vertex falls on the path, or, for a path that cannot be followed, the
+  // vertices alone.
+  const pathOf = new Map(
+    model.wires.map((wire) => [wire, viaOnPath(wire, model)] as const),
+  );
+  const unfollowed = new Set(
+    model.wires.flatMap((wire) => (pathOf.get(wire) ? [] : [wire.id])),
+  );
+  const onPath = (wire: LevelModel["wires"][number], index: number) =>
+    pathOf.get(wire)?.[index] ?? index;
   // Named points that wires meet become junctions, on the net of the first
   // wire of one net: a wire of several nets (a bus), which the import leaves
   // out, names no junction's net.
@@ -114,8 +128,9 @@ export function routeWires(
     wire.via.forEach((vertex, index) => {
       if (!("usage" in vertex) || openEnds.has(vertex.usage)) return;
       const glyph = openGlyphs.get(vertex.usage);
-      const place = wire.points[index];
-      const next = wire.points[index === 0 ? 1 : index - 1];
+      const at = onPath(wire, index);
+      const place = wire.points[at];
+      const next = wire.points[index === 0 ? at + 1 : at - 1];
       if (
         !glyph ||
         !place ||
@@ -179,6 +194,32 @@ export function routeWires(
     return null;
   };
   let skipped = 0;
+  /**
+   * The wires a run of which ends on a pin or a junction of another net
+   * (RNL reports it, 13.1): Analog Canvas leaves that run out, not the
+   * drawing.
+   */
+  const strays = new Set<string>();
+  const netOfJunction = new Map(
+    document.junctions.map((junction) => [junction.id, junction.netId]),
+  );
+  let netOfPin: Map<string, string> | undefined;
+  const netAt = (endpoint: RouteEndpoint) => {
+    if (endpoint.kind === "junction")
+      return netOfJunction.get(endpoint.junctionId);
+    netOfPin ??= new Map(
+      document.nets.flatMap((net) =>
+        net.terminals.map(
+          (terminal) =>
+            [
+              `${terminal.instanceId}\u0000${terminal.pinName}`,
+              net.id,
+            ] as const,
+        ),
+      ),
+    );
+    return netOfPin.get(`${endpoint.instanceId}\u0000${endpoint.pinName}`);
+  };
   /** Each route made, with its corners in Analog Canvas coordinates. */
   const drawn: {
     route: RouteBranch;
@@ -186,6 +227,12 @@ export function routeWires(
     /** The RNL wire it was read from. */
     wire: string;
   }[] = [];
+  /** The wires whose path their mode drew (`auto`, `manhattan` …). */
+  const modeDrawn = new Set(
+    model.wires.flatMap((wire) =>
+      wire.points.length === wire.via.length ? [] : [wire.id],
+    ),
+  );
   /**
    * How many wires reach each point. A dashed wire is a body tie, which
    * Analog Canvas ends on the wire it ties to without splitting it.
@@ -210,7 +257,8 @@ export function routeWires(
     // another wire also reaches still ends a route, since Analog Canvas
     // joins only what a route reaches, not a junction it passes over.
     const through = (index: number) => {
-      const [before, at, after] = [index - 1, index, index + 1].map(
+      const here = onPath(wire, index);
+      const [before, at, after] = [here - 1, here, here + 1].map(
         (item) => wire.points[item],
       );
       if (!before || !at || !after) return false;
@@ -255,7 +303,7 @@ export function routeWires(
       const vertices = indices.map((index) => wire.via[index]!);
       // A wire of no length joins things that touch; Analog Canvas joins
       // them by touching.
-      const places = indices.map((index) => wire.points[index]);
+      const places = indices.map((index) => wire.points[onPath(wire, index)]);
       if (
         places.every(
           (place) =>
@@ -269,11 +317,22 @@ export function routeWires(
         skipped += 1;
         return;
       }
-      const bends = vertices
+      if (
+        [start, end].some((endpoint) => (netAt(endpoint) ?? netId) !== netId)
+      ) {
+        strays.add(wire.id);
+        return;
+      }
+      const cornerPlaces = runCorners(wire, indices, (index) =>
+        onPath(wire, index),
+      );
+      if (!cornerPlaces) {
+        skipped += 1;
+        return;
+      }
+      const bends = cornerPlaces
         .slice(1, -1)
-        .flatMap((vertex) =>
-          "at" in vertex ? [snap(acPoint(vertex.at), CORNER_GRID)] : [],
-        );
+        .map((place) => snap(place, CORNER_GRID));
       // A dashed wire to a MOS body is Analog Canvas's body tie.
       const bodyTie =
         presentation !== "power-rail" &&
@@ -323,12 +382,7 @@ export function routeWires(
         // One corner per end of a leg: the start, each bend, the end. A
         // vertex the wire passes without a place of its own makes no leg, so
         // a text never reaches for a leg the route does not have (#1792).
-        corners: places
-          .filter(
-            (_, at) =>
-              at === 0 || at === places.length - 1 || "at" in vertices[at]!,
-          )
-          .map((place) => acPoint(place!)),
+        corners: cornerPlaces,
       });
     });
   });
@@ -365,6 +419,22 @@ export function routeWires(
     warn(
       "RNL_IMPORT_WIRE_SKIPPED",
       `${skipped} wires end somewhere Analog Canvas cannot name, or join several nets; they are left out`,
+    );
+  if (strays.size)
+    warn(
+      "RNL_IMPORT_WIRE_WRONG_NET",
+      `${strays.size} wires reach a pin or junction of another net, which RNL reports; they are left out and the rest is drawn: ${statements(strays)}`,
+    );
+  if (unfollowed.size)
+    warn(
+      "RNL_IMPORT_WIRE_PATH",
+      `${unfollowed.size} wires take a path Analog Canvas could not follow through the vertices they write; they are drawn straight between those vertices: ${statements(unfollowed)}`,
+    );
+  const overlaps = overlappingWires(drawn, modeDrawn);
+  if (overlaps.size)
+    warn(
+      "RNL_IMPORT_WIRES_OVERLAP",
+      `${overlaps.size} wires a mode draws run over another wire of their net, which they join only at their ends, so where they part shows no junction; give the branch a point with $JUNCTION and run the wires through it: ${statements(overlaps)}`,
     );
   /** The route leg a point lies on, and how far along it. */
   const legAt = (point: { x: number; y: number }) => {
@@ -439,6 +509,183 @@ export function routeWires(
   };
   return { drawn, openEnds, legAt, legNear };
 }
+
+/**
+ * Where each vertex a wire writes falls on the path its mode draws
+ * (`points`), in order: the vertices' own indices where the path is just
+ * them; null where a vertex's place is unknown or not on the path.
+ */
+function viaOnPath(
+  wire: LevelModel["wires"][number],
+  model: LevelModel,
+): number[] | null {
+  if (wire.points.length === wire.via.length)
+    return wire.via.map((_, index) => index);
+  const found: number[] = [];
+  let from = 0;
+  for (const vertex of wire.via) {
+    const place = placeOfVertex(vertex, model);
+    const index = place
+      ? wire.points.findIndex(
+          (point, at) => at >= from && samePlace(point, place),
+        )
+      : -1;
+    if (index < 0) return null;
+    found.push(index);
+    from = index;
+  }
+  return found;
+}
+
+/**
+ * One run of a wire as its corners in Analog Canvas coordinates: its ends,
+ * and between them each point of its path, the coordinates the file writes
+ * and the corners its mode adds, but no pin or point the wire runs straight
+ * through; null where its path lacks a point.
+ */
+function runCorners(
+  wire: LevelModel["wires"][number],
+  indices: readonly number[],
+  onPath: (index: number) => number,
+): { x: number; y: number }[] | null {
+  const [head] = indices;
+  const tail = indices.at(-1);
+  if (head === undefined || tail === undefined) return null;
+  const first = onPath(head);
+  const last = onPath(tail);
+  const passed = new Set(
+    indices
+      .slice(1, -1)
+      .filter((index) => {
+        const vertex = wire.via[index];
+        return vertex !== undefined && !("at" in vertex);
+      })
+      .map(onPath),
+  );
+  // A corner the file writes stays, even where it repeats the one before; one
+  // the mode adds there is no corner.
+  const written = new Set(indices.map(onPath));
+  const corners: { x: number; y: number }[] = [];
+  for (let index = first; index <= last; index++) {
+    const point = wire.points[index];
+    if (!point) return null;
+    if (index !== first && index !== last && passed.has(index)) continue;
+    const place = acPoint(point);
+    const previous = corners.at(-1);
+    if (
+      !written.has(index) &&
+      previous &&
+      Math.abs(place.x - previous.x) < NEAR &&
+      Math.abs(place.y - previous.y) < NEAR
+    )
+      continue;
+    corners.push(place);
+  }
+  return corners;
+}
+
+/** Each level's pins by the terminal or the usage's role they stand for. */
+const pinPlaces = new WeakMap<LevelModel, Map<string, Point>>();
+
+/** Where a vertex a wire writes stands in the scene, or null. */
+function placeOfVertex(
+  vertex: RnlSnapshotVertex,
+  model: LevelModel,
+): Point | null {
+  if ("at" in vertex) return vertex.at;
+  if ("point" in vertex)
+    return (
+      model.points.find((item) => item.id === vertex.point)?.at.value ?? null
+    );
+  if ("owner" in vertex) {
+    const owner = model.objects.find((item) => item.id === vertex.owner);
+    const pin =
+      owner?.pins.find((item) => item.index === vertex.pin) ??
+      owner?.pins[vertex.pin];
+    return pin?.at ?? null;
+  }
+  let places = pinPlaces.get(model);
+  if (!places) {
+    places = new Map();
+    for (const object of model.objects)
+      for (const { at, terminals } of object.pins)
+        for (const terminal of at ? terminals : []) {
+          const key =
+            object.kind === "usage"
+              ? `${object.id}\u0000${terminal}`
+              : terminal;
+          if (at && !places.has(key)) places.set(key, at);
+        }
+    pinPlaces.set(model, places);
+  }
+  return "terminal" in vertex
+    ? (places.get(vertex.terminal) ?? null)
+    : (places.get(`${vertex.usage}\u0000${vertex.role}`) ?? null);
+}
+
+/**
+ * The wires a mode draws that run along another wire of their net for some
+ * length, where RNL joins wires only at the pins and points they share.
+ */
+function overlappingWires(
+  drawn: readonly {
+    route: RouteBranch;
+    corners: { x: number; y: number }[];
+    wire: string;
+  }[],
+  modeDrawn: ReadonlySet<string>,
+): Set<string> {
+  const found = new Set<string>();
+  if (!modeDrawn.size) return found;
+  const segments = drawn.flatMap(({ route, corners, wire }) =>
+    corners.flatMap((from, index) => {
+      const to = corners[index + 1];
+      return to ? [{ net: route.netId, wire, from, to }] : [];
+    }),
+  );
+  for (const [index, a] of segments.entries()) {
+    for (const b of segments.slice(index + 1)) {
+      if (
+        a.net !== b.net ||
+        a.wire === b.wire ||
+        !(modeDrawn.has(a.wire) || modeDrawn.has(b.wire))
+      )
+        continue;
+      if (sharedLength(a, b) > NEAR) found.add(a.wire).add(b.wire);
+    }
+  }
+  return found;
+}
+
+/** How long two segments run along each other: 0 unless they are collinear. */
+function sharedLength(
+  a: { from: { x: number; y: number }; to: { x: number; y: number } },
+  b: { from: { x: number; y: number }; to: { x: number; y: number } },
+): number {
+  const dx = a.to.x - a.from.x;
+  const dy = a.to.y - a.from.y;
+  const length = Math.hypot(dx, dy);
+  if (!length) return 0;
+  const across = (point: { x: number; y: number }) =>
+    (dx * (point.y - a.from.y) - dy * (point.x - a.from.x)) / length;
+  if (Math.abs(across(b.from)) > NEAR || Math.abs(across(b.to)) > NEAR)
+    return 0;
+  const along = (point: { x: number; y: number }) =>
+    (dx * (point.x - a.from.x) + dy * (point.y - a.from.y)) / length;
+  const [from, to] = [along(b.from), along(b.to)];
+  return Math.max(
+    0,
+    Math.min(length, Math.max(from, to)) - Math.max(0, Math.min(from, to)),
+  );
+}
+
+/** RNL keeps coordinates to a millionth of its unit. */
+const samePlace = (a: Point, b: Point) =>
+  Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
+
+/** The statements that write some wires, as RNL names them (`@top.sp:12:5`). */
+const statements = (ids: ReadonlySet<string>) =>
+  [...ids].slice(0, 8).join(", ") + (ids.size > 8 ? ", …" : "");
 
 function sameEndpoint(a: RouteEndpoint, b: RouteEndpoint): boolean {
   return a.kind === "junction"

@@ -27,7 +27,7 @@ const GROUND_SYMBOLS: ReadonlySet<string> = new Set(["ground", "named-ground"]);
 export interface Glyphs {
   /** Each glyph drawn as a Cell Pin or a ground or supply glyph: the pin it is. */
   glyphOf: ReadonlyMap<string, { instanceId: string; pinName: string }>;
-  /** Glyphs drawn as no glyph of their net: their net, and the port drawn as its label. */
+  /** Glyphs drawn as no glyph of their net: their net, and the port or net label drawn as its label. */
   openGlyphs: ReadonlyMap<string, { netId: string; label?: RnlObjectView }>;
   /** The Cell Pins a glyph stands for, and those of them it places. */
   movedPins: ReadonlySet<string>;
@@ -278,6 +278,12 @@ export function readGlyphs(
     // What a package's rule makes and leaves to a solver, such as the
     // standard fill's net labels on pins, is no mark of the file's.
     if (at === null && /^@[^:]+\.rnl:/u.test(object.id)) return;
+    // A net label the file places is a label of its net, where its wires
+    // end, as a port on no port of the Cell is.
+    if (object.definition === "$NET_LABEL" && at && netId) {
+      openGlyphs.set(object.id, { netId, label: object });
+      return;
+    }
     marks.set(object.definition, (marks.get(object.definition) ?? 0) + 1);
   };
   return { glyphOf, openGlyphs, movedPins, placedPins, marks, read };
