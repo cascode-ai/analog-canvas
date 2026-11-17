@@ -293,7 +293,9 @@ the entry and its dependencies. Reuse the returned working copy. For a root,
 dependency or model-mapping question, see [Import a local source](#import-a-local-source).
 
 Reuse usable imported geometry. For missing geometry or an explicit redraw,
-read [Draw a review](#draw-a-review).
+read [Draw a review](#draw-a-review); to write the drawing into the source,
+so that the next delivery opens with it, or when the user asks for RNL, read
+[Draw a review in RNL](#draw-a-review-in-rnl).
 Read [Review an RNL import](#review-an-rnl-import) for an RNL import issue or a
 request for authored appearance.
 
@@ -329,6 +331,39 @@ Canvas appearance. Consult [Pin geometry and the normal path](../shared/authorin
 for an unfamiliar placement or pin, and [Wiring](../shared/authoring.md#wiring)
 for a routing or label detail.
 
+#### Draw a review in RNL
+
+Write the drawing as RNL 0.4 records in the source netlist, then import it
+with `open-local`. Analog Canvas reads RNL 0.4 only; the released `rnl` tools
+and the RNL guide still read 0.3, so check the file by importing it. Lay it
+out as [Draw a review](#draw-a-review) plans; in the records:
+
+- Header after the title line: `* @RNL(type="header") { @USE-PACKAGE(name="rnl-std-all", version="0.4"); @VERSION("0.4")}`
+  (`//` comments in Spectre). Declare a model the files do not ship there,
+  `@DEVICE(name="*", model="nch_*", type="nmos")`, or pass `modelTypes`.
+- `#M1 @PLACE(x, y)` for every part, `=> @ORIENT("MY")` where it turns or
+  mirrors (`R0`, `R90`, `R180`, `R270`, `MX`, `MY`, `MXR90`, `MYR90`). Units
+  are grid steps, y up; one step is 10 Canvas units.
+- Name each node where wires branch, `%j = (x, y)`, mark it
+  `$JUNCTION @ATTACH %j => @PLACE(x, y)`, and run the wires through it:
+  `&x @WIRE {#M3:1 %j #M1:1}`. A wire may leave its corners to its mode
+  (`auto` by default); Canvas follows the path RNL draws. Wires that only
+  share a pin and run over each other show a branch with no junction.
+- Name a distant connection with a net label,
+  `%lo = $NET_LABEL @ATTACH &out => @PLACE(x, y)` and `&out @WIRE {%j %lo:p}`.
+  Unturned, its pin faces right with the name on its left; for a wire coming
+  from the left, add `=> @ORIENT("R180")`.
+- Place ground and supply glyphs on their nets,
+  `%g = $GROUND @ATTACH #M5:3::net => @PLACE(x, y)` and
+  `#M5:3::net @WIRE {#M5:3 %g:p}`; `$SUPPLY` likewise.
+
+Then read `source.diagnostics`: `RNL_IMPORT_RNL_FINDING` and
+`RNL_IMPORT_RNL_ERROR` give what RNL finds, at file:line;
+`RNL_IMPORT_WIRE_WRONG_NET`, `RNL_IMPORT_WIRES_OVERLAP` and
+`RNL_IMPORT_WIRE_PATH` name the statements to fix (`@top.sp:12:5`);
+`RNL_IMPORT_UNPLACED` lists parts left on the shelf. Fix those lines,
+`open-local` again, and finish with the checks of [Start a review](#start-a-review).
+
 #### Review an RNL import
 
 The import receipt identifies an RNL source with `source.format:"rnl"`.
@@ -344,8 +379,9 @@ was available, reuse its workspace with `open_canvas({taskRef})`.
 If a package is missing or outside the root, see [Import a local source](#import-a-local-source)
 and use the package reference in the diagnostic.
 
-Use an RNL authoring or validation guide when the user requests RNL output,
-edits to RNL records, RNL validation or RNL-specific diagnosis. A Canvas
+For RNL output, edits to RNL records, RNL validation or RNL-specific
+diagnosis, follow [Draw a review in RNL](#draw-a-review-in-rnl): an RNL guide
+for another language version writes files Canvas does not read. A Canvas
 review of an existing imported drawing uses the Canvas workflow.
 
 #### Review feedback and source changes

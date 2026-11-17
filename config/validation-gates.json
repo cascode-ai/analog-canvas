@@ -467,6 +467,7 @@
     ],
     "editorRnl": [
       "packages/rnl/**",
+      "netlists/rnl-*/**",
       "apps/editor/src/app/editor-menus.tsx",
       "apps/editor/src/features/netlist-export/**",
       "apps/editor/src/features/instance-display/imported-instance-displays*",

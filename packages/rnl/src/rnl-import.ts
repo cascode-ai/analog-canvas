@@ -195,12 +195,23 @@ export function applyRnlSnapshot(
       powerLabelPorts,
     };
   }
+  // What RNL finds wrong in the file, at the line it finds it, so its author
+  // can fix that line: errors, violations, and the warnings of the standard's
+  // domains (RNL0–RNL6); not hints, nor the notes of the tools or of what the
+  // implementation leaves out (RNL7–RNL9, such as a K card it does not draw).
   for (const item of snapshot.diagnostics)
-    if (item.severity === "error")
+    if (
+      item.severity === "error" ||
+      item.severity === "violation" ||
+      (item.severity === "warning" && /^RNL[0-6]/u.test(item.code ?? ""))
+    )
       diagnostics.push({
         severity: "warning",
-        code: "RNL_IMPORT_RNL_ERROR",
-        message: `RNL: ${item.message}`,
+        code:
+          item.severity === "error"
+            ? "RNL_IMPORT_RNL_ERROR"
+            : "RNL_IMPORT_RNL_FINDING",
+        message: `RNL ${item.file}:${item.line}${item.col ? `:${item.col}` : ""}${item.code ? ` ${item.code}` : ""} ${item.name}: ${item.message}`,
       });
   for (const { name, version } of snapshot.packages) {
     const wanted = mappedVersion(name);

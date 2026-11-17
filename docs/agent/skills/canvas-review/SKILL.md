@@ -12,10 +12,10 @@ For a supplied Claim or an older adapter without that section, read
 Read linked sections by exact heading only when their branch applies.
 
 Use the given source path or stage pasted netlist text in a scratch file.
-Ask for a source if none was supplied. Draw plain netlists in Canvas and reuse
-usable imported drawings. An existing RNL drawing is reviewed in Canvas.
-Use the RNL Skill only for requested RNL output, edits, validation or
-RNL-specific diagnosis.
+Ask for a source if none was supplied. Draw a plain netlist in Canvas, or as
+RNL in the source where the review section says, and reuse usable imported
+drawings. An existing RNL drawing is reviewed in Canvas. Write and check RNL
+as that section says, not with an RNL Skill for another language version.
 
 For `TRUSTED_TASK_LOCAL_ONLY`, follow the quickstart's recovery branch without
 retrying the call in that task.

@@ -15,7 +15,7 @@ const core = await createRnlTestCore();
 afterAll(() => core.terminate());
 const runtime: RnlRuntime = core;
 
-it("keeps the circuit and leaves out a drawing whose wire joins nets the netlist keeps apart", async () => {
+it("keeps the circuit and the drawing, and leaves out a wire that joins nets the netlist keeps apart", async () => {
   const path = "reset-chain.scs";
   const plan = await planRnlImport({
     inputs: [
@@ -28,31 +28,44 @@ it("keeps the circuit and leaves out a drawing whose wire joins nets the netlist
     runtime,
   });
   if (plan.status !== "ready") throw new Error(plan.message);
+  expect(plan.drawing).toBe("partial");
+  // RNL's own finding, at the line that writes the wire, and the wire left out.
   expect(plan.diagnostics).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
-        code: "RNL_IMPORT_INVALID_DRAWING",
-        severity: "error",
+        code: "RNL_IMPORT_RNL_FINDING",
+        message: expect.stringMatching(
+          /^RNL reset-chain\.scs:16:4 RNL4204 wire-net-mismatch: /u,
+        ),
+      }),
+      expect.objectContaining({
+        code: "RNL_IMPORT_WIRE_WRONG_NET",
+        message: expect.stringContaining("@reset-chain.scs:16:4"),
       }),
     ]),
   );
-  // Undrawn, and a Project the editor can save.
-  expect(plan.project.documents[0]!.routes).toEqual([]);
+  expect(plan.diagnostics.map((item) => item.code)).not.toContain(
+    "RNL_IMPORT_INVALID_DRAWING",
+  );
+  // The parts stand where RNL puts them, the wire is out, and the editor can
+  // save the Project.
+  const [document] = plan.project.documents;
+  const flipFlops = document!.instances.filter(
+    (instance) => instance.symbolId === "d-flip-flop-reset",
+  );
+  expect(flipFlops).toHaveLength(2);
+  expect(flipFlops.every((instance) => instance.placement)).toBe(true);
+  expect(document!.routes).toEqual([]);
   expect(() => serializeProject(plan.project)).not.toThrow();
-  expect(
-    plan.project.documents[0]!.netlist!.terminals.map((port) => port.name),
-  ).toEqual([
-    "VDD",
-    "VSS",
-    "D1",
-    "CLK",
-    "RESET",
-    "Q1",
-    "QB1",
-    "D2",
-    "Q2",
-    "QB2",
-  ]);
+  // The subcircuit keeps every port, its supplies included, where the
+  // drawing shows them as the blocks' supplies rather than as Cell Pins.
+  const written = createDesignNetlistExport(plan.project, {
+    format: "spectre",
+  });
+  if (written.status !== "ready") throw new Error("export blocked");
+  expect(written.file.text).toMatch(
+    /subckt dut \(?VDD VSS D1 CLK RESET Q1 QB1 D2 Q2 QB2\)?/iu,
+  );
 });
 
 it("keeps the circuit undrawn when the drawing step cannot read the runtime's answer", async () => {
