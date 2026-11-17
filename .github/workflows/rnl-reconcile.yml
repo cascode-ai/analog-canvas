@@ -1,0 +1,40 @@
+name: RNL upstream reconcile
+
+# Where Analog Canvas stands against RNL upstream (#2102), weekly: a report
+# that never blocks, kept as one comment on #2102.
+on:
+  schedule:
+    # Mondays, 09:17 in Beijing
+    - cron: "17 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: rnl-reconcile
+  cancel-in-progress: true
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Report on #2102
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/rnl-reconcile.mjs --markdown > rnl-reconcile.md
+          cat rnl-reconcile.md >> "$GITHUB_STEP_SUMMARY"
+          gh issue comment 2102 --edit-last --body-file rnl-reconcile.md ||
+            gh issue comment 2102 --body-file rnl-reconcile.md

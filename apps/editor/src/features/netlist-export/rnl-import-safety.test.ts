@@ -387,7 +387,7 @@ it("keeps a drawing of a Cell the top does not call that keeps its netlist (#195
   ).toEqual({ x: 0, y: 0 });
 });
 
-it("refuses a file of another RNL version whole, and reads a netlist with no records", async () => {
+it("imports a file of another RNL version as its circuit without its drawing, and reads a netlist with no records", async () => {
   const text = (header: string) =>
     [
       "* version probe",
@@ -404,18 +404,23 @@ it("refuses a file of another RNL version whole, and reads a netlist with no rec
       entryPath: "top.sp",
       runtime,
     });
-  const refused = await plan(text('* @RNL(type="header") { @VERSION("0.3") }'));
-  expect(refused).toMatchObject({
-    status: "failed",
-    message: expect.stringContaining("rnl upgrade"),
-    diagnostics: [
-      expect.objectContaining({
-        code: "RNL_IMPORT_VERSION",
-        severity: "error",
-      }),
-    ],
-  });
-  expect("project" in refused).toBe(false);
+  const older = await plan(text('* @RNL(type="header") { @VERSION("0.3") }'));
+  if (older.status !== "ready") throw new Error(older.message);
+  // The circuit comes in, undrawn, and the report says how to raise the file.
+  expect(older.drawing).toBe("discarded");
+  expect(older.diagnostics).toEqual([
+    expect.objectContaining({
+      code: "RNL_IMPORT_VERSION",
+      severity: "error",
+      message: expect.stringMatching(/`rnl upgrade` \(rnl 0\.6\.0 or later\)/u),
+    }),
+  ]);
+  const [document] = older.project.documents;
+  expect(document!.instances.map((item) => item.id)).toEqual(
+    expect.arrayContaining(["R1", "V1"]),
+  );
+  expect(document!.routes).toEqual([]);
+  expect(() => serializeProject(older.project)).not.toThrow();
   const read = await plan(
     text(
       '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-basic", version="0.4") }',

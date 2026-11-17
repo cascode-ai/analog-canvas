@@ -29,6 +29,7 @@ import {
   CANVAS_PACKAGE_VERSION,
   RNL_LANGUAGE_VERSION,
   RNL_STD_VERSION,
+  RNL_TOOLS_RELEASE,
 } from "./rnl-packages.js";
 import {
   type RnlSnapshot,
@@ -90,11 +91,12 @@ const mappedVersion = (name: string) =>
       : undefined;
 
 /**
- * Why a rich netlist is not read, or null: Analog Canvas reads the language
- * 0.4 only (16.1), so a file of another version, with records written in it,
- * is refused whole; `rnl upgrade` raises it to 0.4, and an older Analog Canvas
- * file's package to the one Analog Canvas writes. A netlist with no records
- * is no drawing of any version.
+ * Why a rich netlist's drawing is not read, or null: Analog Canvas reads the
+ * language 0.4 only (16.1), so the drawing of a file of another version, with
+ * records written in it, is left out and its circuit comes in undrawn; `rnl
+ * upgrade` raises the file to 0.4, and an older Analog Canvas file's package
+ * to the one Analog Canvas writes. A netlist with no records is no drawing of
+ * any version.
  */
 export function rnlVersionRefusal(
   snapshot: Pick<RnlSnapshot, "language">,
@@ -104,7 +106,7 @@ export function rnlVersionRefusal(
   return {
     severity: "error",
     code: "RNL_IMPORT_VERSION",
-    message: `The file is written in RNL ${snapshot.language}; Analog Canvas reads RNL ${RNL_LANGUAGE_VERSION} only. Raise it with \`rnl upgrade\`, which also moves an older Analog Canvas file (${CANVAS_PACKAGE} 0.1–0.6) to ${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}, then import it again`,
+    message: `The file's drawing is written in RNL ${snapshot.language}; Analog Canvas reads RNL ${RNL_LANGUAGE_VERSION} only, so the circuit comes in without it. Raise the file with \`rnl upgrade\` (rnl ${RNL_TOOLS_RELEASE} or later), which also moves an older Analog Canvas file (${CANVAS_PACKAGE} 0.1–0.6) to ${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}, then import it again`,
   };
 }
 
