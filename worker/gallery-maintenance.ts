@@ -47,6 +47,17 @@ import {
  * the export is blocked, with every finding either way, so a reader sees a
  * wire that reaches no peer beside the netlist it did not stop.
  */
+/** A stored Project's content as SHA-256 hex. */
+async function projectRevision(projectText: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(projectText),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
 function galleryNetlist(
   projectText: string,
   format: "spice" | "spectre",
@@ -717,14 +728,22 @@ export async function routeGalleryMaintenance(
         { error: "not-found" },
         { status: 404, headers: noStore },
       );
+    // `revision` names the stored Project's content, so a reader keeping a
+    // copy exports again only what changed: `revisions=1` lists them
+    // without exporting anything, then `id=` reads each changed one.
+    const revisionsOnly = url.searchParams.get("revisions") === "1";
+    const entries = await Promise.all(
+      payload.entries.map(async ({ projectText, ...entry }) => ({
+        ...(revisionsOnly ? { id: entry.id } : entry),
+        revision: await projectRevision(projectText),
+        ...(revisionsOnly ? {} : galleryNetlist(projectText, format)),
+      })),
+    );
     return Response.json(
       {
         format: "analog-canvas-gallery-netlists-v1",
         netlistFormat: format,
-        entries: payload.entries.map(({ projectText, ...entry }) => ({
-          ...entry,
-          ...galleryNetlist(projectText, format),
-        })),
+        entries,
         nextCursor: payload.nextCursor ?? null,
       },
       { headers: noStore },

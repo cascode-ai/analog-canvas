@@ -384,6 +384,40 @@ describe("Gallery netlist read", () => {
     return result.status === "ready" ? result.file.text : null;
   }
 
+  it("names each Project's content, and lists only those names on request", async () => {
+    const env = environment();
+    const cookie = await adminOf(env);
+    const first = await submitOne(env, "First", { cookie });
+    const second = await submitOne(env, "Second", { cookie });
+    const { page } = await read(env, "", {});
+    const full = new Map(
+      page.entries.map((entry) => [
+        entry.id,
+        (entry as unknown as { revision: string }).revision,
+      ]),
+    );
+    expect(full.get(first)).toMatch(/^[0-9a-f]{64}$/u);
+    const listed = await read(env, "?revisions=1", {});
+    expect(listed.status).toBe(200);
+    // Only ids and revisions: nothing is exported.
+    expect(listed.page.entries).toEqual(
+      [first, second].sort().map((id) => ({ id, revision: full.get(id) })),
+    );
+    // A changed Project changes its revision; the other keeps its own.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET project_text = project_text || ' ' WHERE id = ?",
+      first,
+    );
+    const again = await read(env, `?id=${first}`, {});
+    expect(
+      (again.page.entries[0] as unknown as { revision: string }).revision,
+    ).not.toBe(full.get(first));
+    const other = await read(env, `?id=${second}`, {});
+    expect(
+      (other.page.entries[0] as unknown as { revision: string }).revision,
+    ).toBe(full.get(second));
+  });
+
   it("pages the public Gallery's netlists for the read-only credential or an admin", async () => {
     const env = environment();
     env.GALLERY_BACKUP_TOKEN = "backup-only-secret";
