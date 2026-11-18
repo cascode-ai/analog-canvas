@@ -18,19 +18,44 @@ import {
   rnlSymbolFor,
   symbolModelType,
   terminalOfPin,
+  type RnlSymbol,
 } from "./symbol-map.js";
 
 const symbols = new Map(builtInSymbols.map((symbol) => [symbol.id, symbol]));
 const drawnFromCanvas = RNL_SYMBOLS.filter((entry) => entry.ac !== null);
 
 /**
+ * How far series 0.4 moved the origin of a standard symbol, in RNL units along
+ * x, to put it on the column of its supply pins (the UJT: of its b1 and b2),
+ * with the art moved by as much the other way (rich-netlist/rnl#683).
+ */
+const MOVED_ORIGIN = new Map<string, number>([
+  ["$UJT", -1],
+  ...[
+    "$DIFFERENTIAL_OPAMP_SUPPLY",
+    "$DIFFERENTIAL_OPAMP_INVERTED_SUPPLY",
+    "$DIFFERENTIAL_OPAMP_TWISTED_SUPPLY",
+    "$DIFFERENTIAL_OPAMP_TWISTED_INVERTED_SUPPLY",
+    "$BUFFER_SUPPLY",
+    "$INVERTER_SUPPLY",
+  ].map((symbol): [string, number] => [symbol, 1]),
+]);
+
+/**
  * Where RNL registers a symbol, by the rules settled for the standard
  * library: a transistor on its main current path level with its control
  * pin, a switch in the middle of its switched path, a one-pin glyph on its
  * pin, a two-terminal part midway between its pins, anything else at Analog
- * Canvas's own origin. In RNL units, Analog Canvas's frame, y up.
+ * Canvas's own origin; but a standard symbol whose origin series 0.4 moved
+ * is registered back by as much, so its pins stay where Analog Canvas has
+ * them. In RNL units, Analog Canvas's frame, y up.
  */
-function registration(symbolId: string): readonly [number, number] {
+function registration(entry: RnlSymbol): readonly [number, number] {
+  const moved = entry.package.startsWith("rnl-std")
+    ? MOVED_ORIGIN.get(entry.symbol)
+    : undefined;
+  if (moved !== undefined) return [-moved + 0, 0];
+  const symbolId = entry.ac!;
   const symbol = symbols.get(symbolId)!;
   const at = new Map(symbol.pins.map((pin) => [pin.name, pin.at]));
   const mid = (a: { x: number; y: number }, b: { x: number; y: number }) => ({
@@ -287,7 +312,7 @@ describe("the RNL symbol list", () => {
 
   it("registers each symbol by the agreed rules", () => {
     for (const entry of drawnFromCanvas)
-      expect(entry.offset, entry.symbol).toEqual(registration(entry.ac!));
+      expect(entry.offset, entry.symbol).toEqual(registration(entry));
   });
 
   it("draws a pin wherever Analog Canvas shows one, and only there", () => {

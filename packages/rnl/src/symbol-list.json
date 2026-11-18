@@ -2994,48 +2994,48 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
+    "offset": [-1, 0],
     "pins": [
       {
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, 1],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, -1],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "outp",
         "ac_pin": "OUT+",
-        "at": [3, 1],
+        "at": [4, 1],
         "dir": 0
       },
       {
         "terminal": 4,
         "name": "outn",
         "ac_pin": "OUT-",
-        "at": [3, -1],
+        "at": [4, -1],
         "dir": 0
       },
       {
         "terminal": 5,
         "name": "vp",
         "ac_pin": "VDD",
-        "at": [-1, 3],
+        "at": [0, 3],
         "dir": 90
       },
       {
         "terminal": 6,
         "name": "vn",
         "ac_pin": "VSS",
-        "at": [-1, -3],
+        "at": [0, -3],
         "dir": 270
       }
     ],
@@ -3168,48 +3168,48 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
+    "offset": [-1, 0],
     "pins": [
       {
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, -1],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, 1],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "outp",
         "ac_pin": "OUT+",
-        "at": [3, -1],
+        "at": [4, -1],
         "dir": 0
       },
       {
         "terminal": 4,
         "name": "outn",
         "ac_pin": "OUT-",
-        "at": [3, 1],
+        "at": [4, 1],
         "dir": 0
       },
       {
         "terminal": 5,
         "name": "vp",
         "ac_pin": "VDD",
-        "at": [-1, 3],
+        "at": [0, 3],
         "dir": 90
       },
       {
         "terminal": 6,
         "name": "vn",
         "ac_pin": "VSS",
-        "at": [-1, -3],
+        "at": [0, -3],
         "dir": 270
       }
     ],
@@ -5856,34 +5856,34 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
+    "offset": [-1, 0],
     "pins": [
       {
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-3, 0],
+        "at": [-2, 0],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "y",
         "ac_pin": "Y",
-        "at": [1, 0],
+        "at": [2, 0],
         "dir": 0
       },
       {
         "terminal": 3,
         "name": "vp",
         "ac_pin": "VDD",
-        "at": [-1, 2],
+        "at": [0, 2],
         "dir": 90
       },
       {
         "terminal": 4,
         "name": "vn",
         "ac_pin": "VSS",
-        "at": [-1, -2],
+        "at": [0, -2],
         "dir": 270
       }
     ],
@@ -5982,34 +5982,34 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
+    "offset": [-1, 0],
     "pins": [
       {
         "terminal": 1,
         "name": "a",
         "ac_pin": "A",
-        "at": [-3, 0],
+        "at": [-2, 0],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "y",
         "ac_pin": "Y",
-        "at": [2, 0],
+        "at": [3, 0],
         "dir": 0
       },
       {
         "terminal": 3,
         "name": "vp",
         "ac_pin": "VDD",
-        "at": [-1, 2],
+        "at": [0, 2],
         "dir": 90
       },
       {
         "terminal": 4,
         "name": "vn",
         "ac_pin": "VSS",
-        "at": [-1, -2],
+        "at": [0, -2],
         "dir": 270
       }
     ],
@@ -7510,48 +7510,48 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
+    "offset": [-1, 0],
     "pins": [
       {
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, 1],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, -1],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "outp",
         "ac_pin": "OUT+",
-        "at": [3, -1],
+        "at": [4, -1],
         "dir": 0
       },
       {
         "terminal": 4,
         "name": "outn",
         "ac_pin": "OUT-",
-        "at": [3, 1],
+        "at": [4, 1],
         "dir": 0
       },
       {
         "terminal": 5,
         "name": "vp",
         "ac_pin": "VDD",
-        "at": [-1, 3],
+        "at": [0, 3],
         "dir": 90
       },
       {
         "terminal": 6,
         "name": "vn",
         "ac_pin": "VSS",
-        "at": [-1, -3],
+        "at": [0, -3],
         "dir": 270
       }
     ],
@@ -7684,48 +7684,48 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
+    "offset": [-1, 0],
     "pins": [
       {
         "terminal": 1,
         "name": "inp",
         "ac_pin": "IN+",
-        "at": [-4, -1],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "inn",
         "ac_pin": "IN-",
-        "at": [-4, 1],
+        "at": [-3, 1],
         "dir": 180
       },
       {
         "terminal": 3,
         "name": "outp",
         "ac_pin": "OUT+",
-        "at": [3, 1],
+        "at": [4, 1],
         "dir": 0
       },
       {
         "terminal": 4,
         "name": "outn",
         "ac_pin": "OUT-",
-        "at": [3, -1],
+        "at": [4, -1],
         "dir": 0
       },
       {
         "terminal": 5,
         "name": "vp",
         "ac_pin": "VDD",
-        "at": [-1, 3],
+        "at": [0, 3],
         "dir": 90
       },
       {
         "terminal": 6,
         "name": "vn",
         "ac_pin": "VSS",
-        "at": [-1, -3],
+        "at": [0, -3],
         "dir": 270
       }
     ],
@@ -9619,32 +9619,32 @@
         "drawn": true
       }
     ],
-    "offset": [0, 0],
+    "offset": [1, 0],
     "pins": [
       {
         "terminal": 1,
         "name": "e",
         "ac_pin": "E",
-        "at": [-2, -1],
+        "at": [-3, -1],
         "dir": 180
       },
       {
         "terminal": 2,
         "name": "b1",
         "ac_pin": "B1",
-        "at": [1, -2],
+        "at": [0, -2],
         "dir": 270
       },
       {
         "terminal": 3,
         "name": "b2",
         "ac_pin": "B2",
-        "at": [1, 2],
+        "at": [0, 2],
         "dir": 90
       }
     ],
     "undrawn_pins": [],
-    "box": [-2, -2, 1.4, 2],
+    "box": [-3, -2, 0.3999999999999999, 2],
     "ac_netlist_order": ["e", "b1", "b2"],
     "note": "AC 的扩展（0.6 起）：a call of the unijunction body Analog Canvas writes"
   },
