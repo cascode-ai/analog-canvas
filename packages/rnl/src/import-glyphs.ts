@@ -121,6 +121,13 @@ export function readGlyphs(
       ? symbols.get(object.symbol.value)
       : undefined;
     if (object.definition === "$JUNCTION") return; // dots are derived
+    // What a package's rule makes and leaves to a solver, such as the
+    // standard fill's port tags on ports the file draws no tag for and its
+    // net labels on pins, is no part of the file's drawing; nor is a usage
+    // that draws nothing, such as a differential pair, which only says what
+    // its members are.
+    if (at === null && /^@[^:]+\.rnl:/u.test(object.id)) return;
+    if (!object.symbol.value) return;
     const mapped =
       symbol && isOrient(orient)
         ? acSymbolFor(symbol, orient, { symbolId: "" }, [])
@@ -275,9 +282,6 @@ export function readGlyphs(
       glyphOf.set(object.id, { instanceId: id, pinName });
       return;
     }
-    // What a package's rule makes and leaves to a solver, such as the
-    // standard fill's net labels on pins, is no mark of the file's.
-    if (at === null && /^@[^:]+\.rnl:/u.test(object.id)) return;
     // A net label the file places is a label of its net, where its wires
     // end, as a port on no port of the Cell is.
     if (object.definition === "$NET_LABEL" && at && netId) {

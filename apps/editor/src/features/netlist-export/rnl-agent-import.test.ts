@@ -108,3 +108,37 @@ it("leaves out a wire drawn to a pin of another net, says where it is written, a
   expect(document.instances.filter((item) => !item.placement)).toEqual([]);
   expect(document.routes).toHaveLength(17);
 });
+
+it("places every Cell Pin a file draws as a port, supply or ground, adds none for the package's fill, and reads a structure as no mark", async () => {
+  const { plan, document } = await imported("pdk-inverter.sp");
+  expect(plan.drawing).toBe("preserved");
+  expect(plan.diagnostics).toEqual([]);
+  // VDD and VSS are the supply and the ground the file draws; the standard
+  // fill's port tags for them, which it leaves to a solver, add no Pin.
+  expect(document.instances.filter((item) => !item.placement)).toEqual([]);
+  const pins = (document.netlist?.terminals ?? []).map((terminal) => [
+    terminal.name,
+    terminal.interfaceInstanceIds.map(
+      (id) => document.instances.find((item) => item.id === id)?.symbolId,
+    ),
+  ]);
+  expect(pins).toEqual([
+    ["VDD", ["vdd-port"]],
+    ["VSS", ["named-ground"]],
+    ["IN", ["port"]],
+    ["OUT", ["port"]],
+  ]);
+});
+
+it("reports RNL's layout hints by line as advice, which leave the drawing the file's", async () => {
+  const { plan } = await imported("pdk-inverter-crossing.sp");
+  expect(plan.drawing).toBe("preserved");
+  expect(plan.diagnostics).toEqual([
+    expect.objectContaining({
+      severity: "warning",
+      code: "RNL_IMPORT_LAYOUT_HINT",
+      message:
+        "RNL pdk-inverter-crossing.sp:14 RNL7001 crossings: inv: 1 crossing of wires: &IN with &OUT at (-5, 1)",
+    }),
+  ]);
+});

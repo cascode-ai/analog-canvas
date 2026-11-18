@@ -1,5 +1,5 @@
 import type { RnlSnapshot, RnlWriteRequest } from "@icm/rnl";
-import type { Written } from "@rich-netlist/runtime";
+import type { Document, Written } from "@rich-netlist/runtime";
 
 import { importChunk } from "../../components/chunk-import";
 import { withCanvasPackage, type RnlWorkspace } from "./rnl-core";
@@ -48,6 +48,19 @@ export interface RnlRuntime {
       parts: { drawing: false; host: true; model: true };
     },
   ): Promise<RnlSnapshot>;
+  /**
+   * The Document a viewer shows of a rich netlist, here for its geometry
+   * hints (`hints`, as `rnl check` prints them); a runtime without it gives
+   * an import no hints.
+   */
+  build?(
+    request: RnlWorkspace & {
+      entry: string;
+      files: Record<string, string>;
+      dialect: "spice" | "spectre";
+      hints: true;
+    },
+  ): Promise<Pick<Document, "levels">>;
 }
 
 /** The Canvas package assets the editor ships, by file name beside this module. */
@@ -106,6 +119,7 @@ export function loadRnlRuntime(): Promise<RnlRuntime | null> {
     return {
       write: (request) => core.write(request),
       snapshot: (request) => core.snapshot(request),
+      build: (request) => core.build(request),
     } satisfies RnlRuntime;
   })().catch((error: unknown) => {
     started = null;

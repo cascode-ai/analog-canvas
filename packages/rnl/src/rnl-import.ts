@@ -64,6 +64,7 @@ import { reclaimGroundPins, readGlyphs, drawnPins } from "./import-glyphs.js";
 import { readCanvasRecords } from "./import-records.js";
 import { routeWires } from "./import-routes.js";
 import { readMarks, LATER } from "./import-marks.js";
+import { runtimeFindings } from "./import-findings.js";
 import { importDrawings } from "./import-drawings.js";
 import { FILE_LEVEL_CELL } from "./rnl-export.js";
 
@@ -197,24 +198,7 @@ export function applyRnlSnapshot(
       powerLabelPorts,
     };
   }
-  // What RNL finds wrong in the file, at the line it finds it, so its author
-  // can fix that line: errors, violations, and the warnings of the standard's
-  // domains (RNL0–RNL6); not hints, nor the notes of the tools or of what the
-  // implementation leaves out (RNL7–RNL9, such as a K card it does not draw).
-  for (const item of snapshot.diagnostics)
-    if (
-      item.severity === "error" ||
-      item.severity === "violation" ||
-      (item.severity === "warning" && /^RNL[0-6]/u.test(item.code ?? ""))
-    )
-      diagnostics.push({
-        severity: "warning",
-        code:
-          item.severity === "error"
-            ? "RNL_IMPORT_RNL_ERROR"
-            : "RNL_IMPORT_RNL_FINDING",
-        message: `RNL ${item.file}:${item.line}${item.col ? `:${item.col}` : ""}${item.code ? ` ${item.code}` : ""} ${item.name}: ${item.message}`,
-      });
+  diagnostics.push(...runtimeFindings(snapshot.diagnostics));
   for (const { name, version } of snapshot.packages) {
     const wanted = mappedVersion(name);
     if (wanted && version && version !== wanted)

@@ -462,7 +462,10 @@ the RNL language and its runtime belong to rnl.
     but not as a port (a flat file's inputs) as a label of its net, showing
     its own name text, else the net's name; the wires a floating glyph or
     such a port ends end at a junction at its pin; a usage a package's rule
-    makes and leaves unplaced, such as the standard fill's, is no mark;
+    makes and leaves unplaced, such as the standard fill's port tags and
+    labels, is neither a mark nor a Cell Pin, and a usage that draws nothing,
+    such as a structure (`$COMMON_SOURCE`), which only says what its members
+    are, is no mark;
   - a port the drawing shows only as a power label naming it, no Pin drawn:
     the label is the port again, as the editor keeps a local
     power label, claiming its net's name as a supply, so its rails are
@@ -652,7 +655,14 @@ the RNL language and its runtime belong to rnl.
   RNL finds it (`RNL top.sp:23:5 RNL4204 wire-net-mismatch: …`), as
   `RNL_IMPORT_RNL_ERROR` or `RNL_IMPORT_RNL_FINDING`: errors, violations and
   the warnings of the standard's domains (RNL0–RNL6); not hints, nor the
-  tools' or implementation's notes (RNL7–RNL9).
+  tools' or implementation's notes (RNL7–RNL9). Findings of one kind at one
+  place are one, with how many (`(2 times)`).
+- On a level another tool or an Agent wrote, RNL's layout hints (RNL7,
+  `rnl check`) come in by line as `RNL_IMPORT_LAYOUT_HINT`
+  (`RNL top.sp:14 RNL7001 crossings: …`): advice, which leaves the drawing
+  as the file draws it. Not on a level Analog Canvas wrote, nor `no-dot`
+  (Analog Canvas draws its own dots) or a hint on a value it does not show;
+  at most 30, the rest counted.
 - The imported Project's netlist is electrically equal to the plain SPICE /
   SCS import of the same files, or, where that import writes a netlist other
   than the one it read (a ground pin named VSS read as a port, and a GND pin
@@ -746,8 +756,13 @@ the RNL language and its runtime belong to rnl.
   left to their mode come in along RNL's path, every leg level or upright,
   with the overlapping ones reported by line; placed `$NET_LABEL`s come in as
   net labels with their wires; a wire drawn to a pin of another net is left
-  out and the rest drawn
-  (`apps/editor/src/features/netlist-export/rnl-agent-import.test.ts`).
+  out and the rest drawn; a PDK cell drawing each port as a port, supply or
+  ground comes in whole with each Cell Pin there, none for the standard
+  fill, its structure no mark; a crossing comes as one layout hint by line,
+  the drawing whole
+  (`apps/editor/src/features/netlist-export/rnl-agent-import.test.ts`);
+  RNL's findings group by kind and place, and layout hints skip Canvas's own
+  levels, dots and values, at most 30 (`packages/rnl/src/import-findings.test.ts`).
 - In the built editor, the Netlist panel copies `SPICE+RNL` and `Spectre+RNL`
   as the runtime writes them in its Worker, and File → Import → `RNL…` brings
   the copied file back with every part where it was drawn and the same netlist;
