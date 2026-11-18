@@ -1,12 +1,15 @@
 import {
   parseSharedComponentPayload,
+  type ComponentVisibility,
   type SharedDefinitionPayload,
 } from "./component-library-contract";
 import {
   publishSharedComponent,
+  readSameNameComponents,
   readSharedComponent,
   ComponentLibraryError,
   type ComponentPublicationReceipt,
+  type SameNameComponent,
   publicationAccount,
 } from "./component-library-client";
 export { publicationAccount } from "./component-library-client";
@@ -33,6 +36,31 @@ async function recordPublicationReceipt(
   }
 }
 
+/**
+ * The author's own record a new save of this name becomes a version of: the
+ * most recently changed one. Exact content is left to the duplicate refusal,
+ * which names the existing record, as before.
+ */
+export async function sameNameTarget(
+  payload: SharedDefinitionPayload,
+  options: { publicOnly?: boolean; fetch?: typeof fetch } = {},
+): Promise<SameNameComponent | undefined> {
+  const fetchLike = options.fetch ?? fetch;
+  const same = (
+    await readSameNameComponents(
+      payload.definition.symbol.name,
+      undefined,
+      fetchLike,
+    )
+  ).find((item) => !options.publicOnly || item.status === "shared");
+  if (!same) return undefined;
+  const current = await readSharedComponent(same.id, fetchLike);
+  return componentPublicationContent(current) ===
+    componentPublicationContent(payload)
+    ? undefined
+    : { ...same, revision: current.revision };
+}
+
 /** Private journal is independent of Project undo; retries send original bytes. */
 export async function executeComponentPublication(input: {
   componentId: string;
@@ -40,6 +68,8 @@ export async function executeComponentPublication(input: {
   payload: SharedDefinitionPayload;
   idempotencyKey?: string;
   fetch?: typeof fetch;
+  /** Omitted: a new record is public and an existing one keeps its status. */
+  visibility?: ComponentVisibility;
 }): Promise<ComponentPublicationReceipt & { recovered: boolean }> {
   const fetchLike = input.fetch ?? fetch;
   const user = await publicationAccount(fetchLike);
@@ -70,6 +100,7 @@ export async function executeComponentPublication(input: {
     componentId: input.componentId,
     revision: input.revision,
     idempotencyKey: input.idempotencyKey ?? crypto.randomUUID(),
+    ...(input.visibility ? { visibility: input.visibility } : {}),
     payload: structuredClone(parseSharedComponentPayload(input.payload)),
     pending: true,
   };
@@ -80,7 +111,11 @@ export async function executeComponentPublication(input: {
       operation.revision,
       operation.payload.definition,
       operation.payload.circuit,
-      { fetch: fetchLike, idempotencyKey: operation.idempotencyKey },
+      {
+        fetch: fetchLike,
+        idempotencyKey: operation.idempotencyKey,
+        ...(operation.visibility ? { visibility: operation.visibility } : {}),
+      },
     );
     await recordPublicationReceipt(operation, receipt);
     return { ...receipt, recovered: !!previous };
@@ -99,7 +134,9 @@ export async function executeComponentPublication(input: {
       if (
         current.status !== "deleted" &&
         (user.isAdmin ||
-          (current.authorId === user.id && current.status === "shared")) &&
+          (current.authorId === user.id &&
+            (current.status === "shared" || current.status === "private"))) &&
+        (operation.visibility !== "public" || current.status !== "private") &&
         (operation.receipt
           ? current.revision === operation.receipt.entry.revision
           : current.revision === operation.revision + 1 ||
@@ -127,15 +164,4 @@ export async function executeComponentPublication(input: {
     }
     throw error;
   }
-}
-
-export async function componentPublicationSnapshot(
-  componentId: string,
-  key: string,
-): Promise<SharedDefinitionPayload | undefined> {
-  const operation = (await publicationOperations(componentId)).find(
-    (operation) =>
-      operation.idempotencyKey === key && operation.componentId === componentId,
-  );
-  return operation ? structuredClone(operation.payload) : undefined;
 }

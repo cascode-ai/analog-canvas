@@ -3,12 +3,20 @@ import type { ComponentCatalogRow } from "./component-catalog";
 
 type History = {
   deleted_by: "author" | "admin";
-  previous_status: "shared" | "official";
+  previous_status: "shared" | "official" | "private";
   actor: string;
   action: string;
   from_revision: number;
   to_revision: number;
 };
+
+/** Author actions; administrators may also set a legacy status. */
+const AUTHOR_ACTIONS = ["delete", "restore", "make-public", "make-private"];
+/** Each visibility action's source and resulting status. */
+const VISIBILITY = {
+  "make-public": { from: "private", to: "shared" },
+  "make-private": { from: "shared", to: "private" },
+} as const;
 
 /** Lifecycle authority; works without parsing the published circuit. */
 export class ComponentManagement {
@@ -49,15 +57,17 @@ export class ComponentManagement {
     if (!row) return refuse(404, "Component not found", "COMPONENT_NOT_FOUND");
     const history = this.history(row.id);
     const action =
-      body.action === "restore"
-        ? "restore"
+      body.action === "restore" ||
+      body.action === "make-public" ||
+      body.action === "make-private"
+        ? body.action
         : body.action === "delete" || body.status === "deleted"
           ? "delete"
           : String(body.status);
     const admin = body.admin === true;
     if (
       !admin &&
-      (row.author_id !== body.userId || !["delete", "restore"].includes(action))
+      (row.author_id !== body.userId || !AUTHOR_ACTIONS.includes(action))
     )
       return refuse(
         403,
@@ -89,18 +99,38 @@ export class ComponentManagement {
         "This component changed. Refresh before managing it.",
         "COMPONENT_REVISION_CONFLICT",
       );
+    if (row.status === "superseded")
+      return refuse(
+        409,
+        "This component was merged into another record.",
+        "COMPONENT_SUPERSEDED",
+      );
+    const visibility =
+      action === "make-public" || action === "make-private"
+        ? VISIBILITY[action]
+        : undefined;
     if (
       (action === "delete" && row.status === "deleted") ||
-      (action === "restore" && row.status !== "deleted")
+      (action === "restore" && row.status !== "deleted") ||
+      (visibility && row.status === visibility.to)
     )
       return "unchanged";
-    const status =
-      action === "delete"
+    if (visibility && row.status !== visibility.from)
+      return refuse(
+        409,
+        row.status === "deleted"
+          ? "Restore the component before changing who can see it."
+          : "Only an administrator can change an official component.",
+        "COMPONENT_VISIBILITY_INVALID",
+      );
+    const status = visibility
+      ? visibility.to
+      : action === "delete"
         ? "deleted"
         : action === "restore"
           ? (history?.previous_status ?? "shared")
           : action;
-    if (!["deleted", "official", "shared"].includes(status))
+    if (!["deleted", "official", "shared", "private"].includes(status))
       return refuse(
         400,
         "Invalid component status",

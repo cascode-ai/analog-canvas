@@ -8,6 +8,8 @@ const OperationSchema = z.object({
   componentId: z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/u),
   revision: z.number().int().nonnegative(),
   idempotencyKey: z.string().min(1),
+  /** Part of the fixed request; absent in journals written before it. */
+  visibility: z.enum(["private", "public"]).optional(),
   payload: z
     .object({ definition: z.unknown(), circuit: z.unknown().optional() })
     .transform(parseSharedComponentPayload),

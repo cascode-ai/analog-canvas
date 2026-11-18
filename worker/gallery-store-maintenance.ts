@@ -1,4 +1,4 @@
-import { locallyOwnedResources } from "./resource-replica";
+import { locallyOwnedResources } from "./resource-ownership";
 // Maintenance passes over stored entries: Project format and schema
 // convergence, netlist marks and part counts, label looks, moving testbenches
 // out of the Project Code, and the pages of the netlist read.

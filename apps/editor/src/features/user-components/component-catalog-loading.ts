@@ -20,6 +20,8 @@ export async function loadComponentCatalog(
     retain(page: ComponentLibrarySummaryPage | undefined): void;
   },
   loadSummaries: typeof loadSharedComponentSummaries = loadSharedComponentSummaries,
+  /** Also the signed-in reader's own private records. */
+  includePrivate = false,
 ) {
   let page = progress?.resume ?? previous;
   let cursor = page?.nextCursor ?? null;
@@ -40,6 +42,7 @@ export async function loadComponentCatalog(
         fetch,
         catalog,
         replacing && !cursor ? previous?.catalogRevision : undefined,
+        includePrivate,
       );
     } catch (cause) {
       if (

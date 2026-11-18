@@ -1,5 +1,5 @@
 import { publicationResult } from "./gallery-publication-command";
-import { locallyOwnedResources } from "./resource-replica";
+import { locallyOwnedResources } from "./resource-ownership";
 // Moderation: curation, duplicate cleanup, rejection, the recycle bin, and
 // deleting an entry or a whole account's data.
 

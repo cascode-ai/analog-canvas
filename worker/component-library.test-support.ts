@@ -80,6 +80,7 @@ export function componentLibraryHarness() {
     ) as Promise<Response>;
   return Object.assign(route, {
     durable,
+    env,
     seed: (row: {
       id: string;
       authorId: string;

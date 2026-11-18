@@ -17,18 +17,56 @@ import {
   componentDefinitionDiagnostics,
 } from "./component-definition-error";
 
-export type ComponentLibraryStatus = "shared" | "official" | "deleted";
+/**
+ * `shared` is public; `private` is its author's own library; `superseded`
+ * was folded into the record named by `supersededBy`.
+ */
+export type ComponentLibraryStatus =
+  "shared" | "official" | "private" | "superseded" | "deleted";
+export const COMPONENT_LIBRARY_STATUSES: readonly ComponentLibraryStatus[] = [
+  "shared",
+  "official",
+  "private",
+  "superseded",
+  "deleted",
+];
+/** Where a save leaves its record; omitted keeps an existing record's status. */
+export type ComponentVisibility = "private" | "public";
+/** Statuses shown only to the record's author and administrators. */
+export const HIDDEN_COMPONENT_STATUSES: readonly ComponentLibraryStatus[] = [
+  "private",
+  "superseded",
+  "deleted",
+];
+/** One author's records of one component: trimmed, case-insensitive name. */
+export function componentNameKey(name: string): string {
+  return name.trim().toLowerCase();
+}
 export interface SharedComponent {
   id: string;
   revision: number;
   authorId: string;
   author: string;
   status: ComponentLibraryStatus;
-  deletion?: { by: "author" | "admin"; previousStatus: "shared" | "official" };
+  deletion?: {
+    by: "author" | "admin";
+    previousStatus: "shared" | "official" | "private";
+  };
+  /** The record a superseded record was folded into. */
+  supersededBy?: string;
   createdAt: string;
   updatedAt: string;
   definition: ComponentDefinition;
   circuit?: CircuitComponentResources;
+}
+/** An earlier definition of a record; inserting always uses the current one. */
+export interface ComponentVersionSummary {
+  /** The record revision at which this definition was replaced or folded. */
+  revision: number;
+  /** The record it was saved on: this record, or one folded into it. */
+  sourceId: string;
+  name: string;
+  savedAt: string;
 }
 export interface ComponentLibraryPage {
   entries: SharedComponent[];

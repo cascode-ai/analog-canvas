@@ -1,4 +1,4 @@
-import { locallyOwnedResources } from "./resource-replica";
+import { locallyOwnedResources } from "./resource-ownership";
 import { publicationResult } from "./gallery-publication-command";
 // The Gallery's simulation checks (#1545): the queue the Owner fills, one
 // entry at a time, and each entry's latest verdict. The verdict is a column

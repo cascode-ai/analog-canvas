@@ -98,6 +98,10 @@ export function ComponentLibraryRow({
       </button>
       {entry.status === "official" ? (
         <span className="component-row-mark">Official</span>
+      ) : entry.status === "private" ? (
+        <span className="component-row-mark" title="Only you can see it">
+          Private
+        </span>
       ) : entry.capability === "circuit" ? (
         <span className="component-row-mark">Circuit</span>
       ) : null}

@@ -30,6 +30,7 @@ export function useComponentCatalog({
   query,
   catalog,
   deleted = false,
+  includePrivate = false,
   refresh,
 }: {
   active: boolean;
@@ -37,6 +38,8 @@ export function useComponentCatalog({
   query: string;
   catalog: ComponentCatalogQuery;
   deleted?: boolean;
+  /** Also the signed-in member's own private records. */
+  includePrivate?: boolean;
   refresh: number;
 }) {
   const [page, setPage] = useState(EMPTY);
@@ -48,7 +51,13 @@ export function useComponentCatalog({
   const request = useRef<AbortController | null>(null);
   const listIdentity = useRef("");
   const term = query.trim();
-  const key = JSON.stringify([accountId, term.toLowerCase(), deleted, catalog]);
+  const key = JSON.stringify([
+    accountId,
+    term.toLowerCase(),
+    deleted,
+    catalog,
+    ...(includePrivate ? ["private"] : []),
+  ]);
 
   function progress(signal: AbortSignal) {
     return {
@@ -70,6 +79,8 @@ export function useComponentCatalog({
       show,
       previous,
       progress(signal),
+      undefined,
+      includePrivate,
     ).catch((failure: unknown) => {
       if (!signal.aborted)
         setError(failure instanceof Error ? failure.message : String(failure));

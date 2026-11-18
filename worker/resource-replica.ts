@@ -1,4 +1,5 @@
 import { sha256Hex } from "@icm/derived";
+import { identity, locallyOwnedResources } from "./resource-ownership";
 import { OPEN_STREAM_SUFFIX, RegionalOpenCounts } from "./regional-open-counts";
 import { ACTIVITY_STREAM_SUFFIX, RegionalActivity } from "./regional-activity";
 import {
@@ -47,6 +48,7 @@ const kinds = {
     tables: [
       ["components", "id"],
       ["component_lifecycle", "component_id"],
+      ["component_versions", "component_id"],
     ],
   },
   gallery: {
@@ -86,11 +88,6 @@ const fail = (error: string, status = 409) =>
   Response.json({ error }, { status });
 const metaTable = (prefix: string) =>
   prefix === "replica" ? "resource_replica" : `${prefix}_replica`;
-const identity = (key: string, ref = "") =>
-  key
-    .split(":")
-    .map((c) => ref + c)
-    .join("||':'||");
 /** Identity columns as a WHERE clause; bind with `keyParts`. */
 const keyMatch = (key: string) =>
   key
@@ -101,25 +98,6 @@ function keyParts(key: string, id: string): string[] {
   const count = key.split(":").length;
   const parts = id.split(":");
   return [...parts.slice(0, count - 1), parts.slice(count - 1).join(":")];
-}
-
-/** Aggregate maintenance must select authoritative rows before applying limits. */
-export function locallyOwnedResources(
-  sql: Sql,
-  key = "id",
-  scope: "resources" | "interactions" = "resources",
-): string {
-  if (!/^[a-z_.:]+$/.test(key)) throw new Error("Invalid resource key column");
-  const meta =
-    scope === "resources" ? "resource_replica" : "interaction_replica";
-  const enabled = sql
-    .exec(
-      `SELECT 1 FROM sqlite_master WHERE type='table' AND name='${meta}_meta'`,
-    )
-    .toArray().length;
-  return enabled
-    ? `(${identity(key)}) NOT IN (SELECT id FROM ${meta}_keys WHERE origin<>(SELECT region FROM ${meta}_meta WHERE id=1))`
-    : "1=1";
 }
 
 /**
@@ -643,8 +621,8 @@ export class ResourceReplica {
           typeof event.noop !== "boolean"
         : event.generation !== undefined || event.noop !== undefined) ||
       !Array.isArray(schema) ||
-      schema.length !== this.tables.length ||
-      this.tables.some((t, i) => {
+      schema.length < 1 ||
+      this.tables.slice(0, schema.length).some((t, i) => {
         const s = schema[i] as any;
         return (
           !s ||
@@ -664,11 +642,18 @@ export class ResourceReplica {
         );
       }) ||
       !Array.isArray(event.rows) ||
-      event.rows.length !== this.tables.length
+      event.rows.length !== schema.length
     )
       return fail("invalid-resource-event", 400);
     // One release of skew: an older sender's absent columns take the local
-    // default; a newer sender's extra column waits for this receiver's upgrade.
+    // default and its absent trailing tables hold no rows; a newer sender's
+    // extra column or table waits for this receiver's upgrade.
+    if (schema.length > this.tables.length)
+      return fail("resource-schema-newer");
+    while (schema.length < this.tables.length) {
+      schema.push({ columns: [] });
+      event.rows.push([]);
+    }
     if (
       this.tables.some((t, i) =>
         schema[i]!.columns.some((c) => !t.shared.includes(c)),

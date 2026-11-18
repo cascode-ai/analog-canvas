@@ -19,7 +19,9 @@ import {
   readSharedComponent,
   changeComponentLifecycle,
   readSharedComponentRecord,
+  readComponentVersions,
 } from "../features/user-components/component-library-client";
+import { publicationRequest } from "../features/user-components/component-publication-journal";
 import {
   parseSharedComponentPayload,
   type SharedComponent,
@@ -31,8 +33,8 @@ import {
 } from "../features/user-components/component-library-origin";
 import {
   executeComponentPublication,
-  componentPublicationSnapshot,
   publicationAccount,
+  sameNameTarget,
 } from "../features/user-components/component-publication-operation";
 import { publicationFromOrigin } from "../features/user-components/component-publication";
 import type { BrowserAgentProjectHostOptions } from "./browser-agent-project-host";
@@ -136,7 +138,30 @@ export async function handleAgentComponents(
   try {
     assertBound();
     const action = request.request;
-    if (action.action === "delete" || action.action === "restore") {
+    if (action.action === "versions") {
+      const { revision, versions } = await readComponentVersions(
+        { id: action.componentId },
+        undefined,
+        fetchLibrary,
+      );
+      assertBound();
+      return {
+        ...base,
+        ok: true,
+        result: {
+          action: "versions",
+          componentId: action.componentId,
+          revision,
+          versions,
+        },
+      };
+    }
+    if (
+      action.action === "delete" ||
+      action.action === "restore" ||
+      action.action === "make-public" ||
+      action.action === "make-private"
+    ) {
       const result = await changeComponentLifecycle(
         { id: action.componentId, revision: action.expectedLibraryRevision },
         action.action,
@@ -293,6 +318,7 @@ export async function handleAgentComponents(
         fetchLibrary,
         action.catalog,
         action.ifCatalogRevision,
+        action.includePrivate ?? false,
       );
       assertBound();
       return { ...base, ok: true, result: { action: "browse", ...page } };
@@ -369,10 +395,26 @@ export async function handleAgentComponents(
     }
     if (action.action === "publish" || action.action === "update") {
       const project = options.getProject();
-      const snapshot = await componentPublicationSnapshot(
-        action.componentId,
-        action.idempotencyKey,
-      );
+      // A retry resends its first request: the destination it chose included.
+      const account = await publicationAccount(fetchLibrary);
+      const keyed = account
+        ? await publicationRequest(account.id, action.idempotencyKey)
+        : undefined;
+      // Only a publish may have been sent to another record of its name;
+      // any other mismatch is refused by the publication journal.
+      const prior =
+        keyed &&
+        (keyed.componentId === action.componentId ||
+          (action.action === "publish" && action.onSameName !== "new"))
+          ? keyed
+          : undefined;
+      let componentId = prior?.componentId ?? action.componentId;
+      let revision =
+        prior?.revision ??
+        (action.action === "publish" ? 0 : action.expectedLibraryRevision);
+      // Omitted on publish: public, as before; on update: unchanged.
+      let visibility = prior ? prior.visibility : action.visibility;
+      const snapshot = prior ? structuredClone(prior.payload) : undefined;
       if (snapshot && project.id !== action.projectId)
         throw new ComponentOperationError(
           "PROJECT_REPLACED",
@@ -422,13 +464,32 @@ export async function handleAgentComponents(
           );
         payload = parseSharedComponentPayload({ definition });
       }
+      if (
+        !prior &&
+        account &&
+        action.action === "publish" &&
+        action.onSameName !== "new"
+      ) {
+        // A name the author already uses gets a new version, not a new card.
+        // An older call (no visibility) only ever versions a public record.
+        const same = await sameNameTarget(payload, {
+          publicOnly: !action.visibility,
+          fetch: fetchLibrary,
+        });
+        if (same) {
+          componentId = same.id;
+          revision = same.revision;
+          // Saving privately never withdraws a public record.
+          visibility = action.visibility === "public" ? "public" : undefined;
+        }
+      }
       const receipt = await executeComponentPublication({
-        componentId: action.componentId,
-        revision:
-          action.action === "publish" ? 0 : action.expectedLibraryRevision,
+        componentId,
+        revision,
         payload,
         fetch: fetchLibrary,
         idempotencyKey: action.idempotencyKey,
+        ...(visibility ? { visibility } : {}),
       });
       entry = receipt.entry;
       publication = {
@@ -463,11 +524,14 @@ export async function handleAgentComponents(
           error instanceof Error ? error.message : String(error);
       }
     } else if (action.action === "fork") {
-      const snapshot = await componentPublicationSnapshot(
-        action.newComponentId,
-        action.idempotencyKey,
-      );
-      let payload = snapshot;
+      const account = await publicationAccount(fetchLibrary);
+      const prior = account
+        ? await publicationRequest(account.id, action.idempotencyKey)
+        : undefined;
+      let payload =
+        prior?.componentId === action.newComponentId
+          ? structuredClone(prior.payload)
+          : undefined;
       if (!payload) {
         const source = await readSharedComponent(
           action.componentId,

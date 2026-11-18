@@ -482,9 +482,19 @@ The tool description lists actions and write fields; additionally:
   only strict `list`; both need only `circuit.snapshot`. Read before use.
 - `fork` publishes the current revision as a new `newComponentId` you own.
   `insert` needs `expectedLibraryRevision`, target Project/Cell revisions and a
-  position, in one undoable transaction. There is no history endpoint: reread
-  a changed record. `publish` never becomes `update`.
-- Names may repeat. Identical same-author packages return
+  position, in one undoable transaction; it always takes the current version.
+  `versions` lists a record's earlier versions (metadata only).
+- `publish` `visibility:"private"` saves to your own library (only you and
+  administrators see it; you place it in any Project); `"public"` publishes to
+  Community; omitted stays public, as before. `update` `visibility` changes it;
+  omitted keeps it. `make-public`/`make-private` (`componentId`,
+  `expectedLibraryRevision`) change only visibility. `browse`
+  `includePrivate:true` adds your private records.
+- A `publish` whose name (trimmed, any case) you already use adds a version to
+  that record, most recently changed first: the result's `entry.id` names it.
+  Without `visibility` only a public record is chosen; a private save never
+  withdraws a public one. `onSameName:"new"` keeps a separate record.
+- Identical same-author packages return
   `COMPONENT_ALREADY_PUBLISHED` with the ID (`error.component:{id,revision}`
   under `publicationVersion:1`); an identical update keeps the revision.
   `publicationVersion:1` returns `outcome`, `recovered`, `association` and

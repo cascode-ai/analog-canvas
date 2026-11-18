@@ -15,11 +15,16 @@ export interface ComponentLibraryEnv {
   AUTH?: AuthNamespaceLike;
 }
 
+/** Administrator cleanup of historical publications; dry run unless `dryRun:false`. */
+const COMPONENT_CONSOLIDATION_PATH = "/api/admin/components/consolidate";
+
 export async function routeComponentLibraryRequest(
   request: Request,
   env: ComponentLibraryEnv,
 ): Promise<Response | null> {
   const url = new URL(request.url);
+  if (url.pathname === COMPONENT_CONSOLIDATION_PATH)
+    return consolidate(request, env, url);
   if (
     url.pathname !== "/api/components" &&
     !url.pathname.startsWith("/api/components/")
@@ -51,6 +56,17 @@ export async function routeComponentLibraryRequest(
         { error: "Sign in to manage deleted components" },
         { status: 403 },
       );
+    if (isList && url.searchParams.get("view") === "same-name") {
+      if (!user)
+        return Response.json(
+          { error: "Sign in to find your components" },
+          { status: 401 },
+        );
+      return call("same-name", {
+        name: (url.searchParams.get("name") ?? "").slice(0, 100),
+        userId: user.id,
+      });
+    }
     if (isList && url.searchParams.get("view") === "previews") {
       const items = (url.searchParams.get("ids") ?? "")
         .split(",")
@@ -87,6 +103,7 @@ export async function routeComponentLibraryRequest(
           ownerOnly: deleted && !admin,
           userId: user?.id,
           summary: url.searchParams.get("view") === "summary",
+          includePrivate: url.searchParams.get("private") === "1",
           ...(url.searchParams.has("catalog")
             ? {
                 catalog: {
@@ -109,6 +126,7 @@ export async function routeComponentLibraryRequest(
           userId: user?.id,
           preview: url.searchParams.get("view") === "preview",
           identity: url.searchParams.get("view") === "identity",
+          versions: url.searchParams.get("view") === "versions",
           revision: Number(url.searchParams.get("revision")),
         });
   }
@@ -139,9 +157,56 @@ export async function routeComponentLibraryRequest(
     circuit: body.circuit,
     status: body.status,
     action: body.action,
+    visibility: body.visibility,
     userId: user.id,
     author: user.displayName,
     admin: user.isAdmin === true,
     idempotencyKey: body.idempotencyKey,
+  });
+}
+
+/** One administrator request; records only this region writes are changed. */
+async function consolidate(
+  request: Request,
+  env: ComponentLibraryEnv,
+  url: URL,
+): Promise<Response> {
+  const noStore = { "cache-control": "no-store" };
+  const refuse = (error: string, status: number) =>
+    Response.json({ error }, { status, headers: noStore });
+  if (request.method !== "POST") return refuse("Method not allowed", 405);
+  const origin = request.headers.get("origin");
+  const site = request.headers.get("sec-fetch-site");
+  if (
+    (origin && origin !== url.origin) ||
+    (site && !["same-origin", "none"].includes(site))
+  )
+    return refuse("Cross-origin writes are forbidden", 403);
+  const user = await sessionUserOf(request, env);
+  if (user?.isAdmin !== true)
+    return refuse("Only an administrator can consolidate components", 403);
+  if (!env.COMPONENT_LIBRARY)
+    return refuse("Shared component library is unavailable", 503);
+  const text = await request.text();
+  let body: unknown;
+  try {
+    if (new TextEncoder().encode(text).length > 64 * 1024) throw RangeError();
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    body = null;
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body))
+    return refuse("Send a JSON object of at most 64 KiB", 400);
+  const response = await env.COMPONENT_LIBRARY.getByName("components").fetch(
+    "https://components/consolidate",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...body, admin: true, userId: user.id }),
+    },
+  );
+  return new Response(response.body, {
+    status: response.status,
+    headers: { "content-type": "application/json", ...noStore },
   });
 }

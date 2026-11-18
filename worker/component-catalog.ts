@@ -11,7 +11,9 @@ export interface ComponentCatalogRow {
   revision: number;
   author_id: string;
   author: string;
-  status: "shared" | "official" | "deleted";
+  status: "shared" | "official" | "private" | "superseded" | "deleted";
+  /** Present once the column is migrated; set on superseded records. */
+  superseded_by?: string | null;
   created_at: string;
   updated_at: string;
   name: string;
@@ -111,6 +113,11 @@ export class ComponentCatalog {
     const search = String(body.query ?? "")
       .trim()
       .toLowerCase();
+    // A reader who asks for them also sees their own private records.
+    const ownPrivate =
+      !body.deleted &&
+      body.includePrivate === true &&
+      typeof body.userId === "string";
     const identity = JSON.stringify([
       search,
       catalog.type,
@@ -118,6 +125,7 @@ export class ComponentCatalog {
       catalog.order,
       !!body.deleted,
       body.ownerOnly ? body.userId : null,
+      ...(ownPrivate ? [body.userId] : []),
     ]);
     let cursor: ReturnType<typeof Cursor.parse> | undefined;
     if (body.cursor) {
@@ -165,10 +173,17 @@ export class ComponentCatalog {
         notModified: true,
       });
     const where = [
-      body.deleted ? "status='deleted'" : "status!='deleted'",
+      body.deleted
+        ? "status='deleted'"
+        : ownPrivate
+          ? "(status IN ('shared','official') OR (status='private' AND author_id=?))"
+          : "status IN ('shared','official')",
       "instr(lower(name), ?) > 0",
     ];
-    const bindings: (string | number | null)[] = [search];
+    const bindings: (string | number | null)[] = [
+      ...(ownPrivate ? [String(body.userId)] : []),
+      search,
+    ];
     if (body.ownerOnly) {
       where.push("author_id=?");
       bindings.push(String(body.userId));

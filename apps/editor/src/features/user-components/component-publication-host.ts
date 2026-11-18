@@ -2,6 +2,7 @@ import { saveNativeComponent } from "../../hosts/native-component-library";
 import { componentLibraryCapture } from "./component-library-origin";
 import { executeComponentPublication } from "./component-publication-operation";
 import type {
+  ComponentVisibility,
   SharedComponent,
   SharedDefinitionPayload,
 } from "./component-library-contract";
@@ -11,6 +12,8 @@ export async function saveLibraryComponent(request: {
   componentId: string;
   revision: number;
   payload: SharedDefinitionPayload;
+  /** Hosted only; the desktop library is the user's own. */
+  visibility?: ComponentVisibility;
 }) {
   if (!import.meta.env?.ICM_DESKTOP)
     return executeComponentPublication(request);

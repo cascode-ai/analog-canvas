@@ -14,6 +14,8 @@ import {
   ComponentLibraryError,
   checkSharedComponentRevision,
   changeComponentLifecycle,
+  readComponentVersions,
+  type ComponentLifecycleAction,
 } from "./component-library-client";
 import { LibraryCache } from "./library-cache";
 import { LibraryPreview } from "./library-preview";
@@ -107,6 +109,7 @@ export default function UserComponentsLibrary({
     accountId,
     query,
     catalog: user ? { ...catalog, authorId: user.id } : catalog,
+    includePrivate: true,
     refresh,
   });
   const removed = useComponentCatalog({
@@ -277,7 +280,7 @@ export default function UserComponentsLibrary({
   }
   async function manage(
     entry: ComponentLibrarySummary,
-    action: "delete" | "restore",
+    action: ComponentLifecycleAction,
   ) {
     const account = accountIdentity.current;
     const result = await changeComponentLifecycle(entry, action);
@@ -285,7 +288,13 @@ export default function UserComponentsLibrary({
     details.current.clear();
     for (const list of lists.current) list.forget(entry.id);
     showNotice(
-      action === "delete" ? "Removed from library." : "Restored to library.",
+      action === "delete"
+        ? "Removed from library."
+        : action === "restore"
+          ? "Restored to library."
+          : action === "make-public"
+            ? "Published to Community."
+            : "Moved to my library. Only you can see it now.",
       true,
     );
     setRestorable(action === "delete" ? result.entry : null);
@@ -333,8 +342,11 @@ export default function UserComponentsLibrary({
     const canEdit =
       !invalid &&
       !deleted &&
-      ((user?.id === entry.authorId && entry.status === "shared") ||
+      ((user?.id === entry.authorId &&
+        (entry.status === "shared" || entry.status === "private")) ||
         user?.isAdmin);
+    const failed = (error: unknown) =>
+      showNotice(error instanceof Error ? error.message : String(error));
     return (
       <ContextMenu
         position={surface.menu}
@@ -370,6 +382,26 @@ export default function UserComponentsLibrary({
                 ),
             )
           : null}
+        {canManage && entry.status === "private" ? (
+          <InlineConfirm
+            aria-label={`Publish ${entry.name} to Community`}
+            title="Everyone can see and place a Community component."
+            confirmLabel="Publish to Community"
+            cancelLabel="Keep private"
+            onConfirm={async () => {
+              await manage(entry, "make-public");
+              closeMenu();
+            }}
+          >
+            Publish to Community…
+          </InlineConfirm>
+        ) : null}
+        {canManage && entry.status === "shared"
+          ? menuItem(
+              "Make private",
+              () => void manage(entry, "make-private").catch(failed),
+            )
+          : null}
         {canManage && !deleted ? (
           <>
             <div className="hierarchy-context-divider" role="separator" />
@@ -389,7 +421,7 @@ export default function UserComponentsLibrary({
   };
 
   const filtered = catalog.type !== "all" || !!catalog.authorId;
-  const mineCount = community.page.authors?.find(
+  const mineCount = (mine.page.authors ?? community.page.authors)?.find(
     (author) => author.authorId === accountId,
   )?.count;
   const showMine = !!user || !!drafts?.entries.length || keepMine;
@@ -527,7 +559,9 @@ export default function UserComponentsLibrary({
               />
               {listState(
                 mine,
-                query ? "Nothing of yours matches." : "Nothing published yet.",
+                query
+                  ? "Nothing of yours matches."
+                  : "Nothing in your library yet.",
                 "Couldn’t load your components.",
               )}
             </>
@@ -609,6 +643,9 @@ export default function UserComponentsLibrary({
           artwork={artwork}
           entry={surface.card.entry}
           onClose={surface.closeCard}
+          readVersions={(signal) =>
+            readComponentVersions(surface.card!.summary, signal)
+          }
         />
       ) : null}
     </div>

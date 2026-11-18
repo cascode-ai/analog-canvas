@@ -1,4 +1,4 @@
-import { locallyOwnedResources } from "./resource-replica";
+import { locallyOwnedResources } from "./resource-ownership";
 // Bylines that follow an account: AI accounts' official names, GPT-6.1 Sol's
 // circuits moved off GPT-6 Astra's seat, and profile renames.
 

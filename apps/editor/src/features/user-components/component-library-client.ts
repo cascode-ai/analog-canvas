@@ -15,6 +15,8 @@ import {
   type SharedDefinitionPayload,
   type ComponentLibraryPage,
   type ComponentLibraryStatus,
+  type ComponentVersionSummary,
+  type ComponentVisibility,
   type SharedComponent,
   type RejectedSharedComponent,
   type ComponentLibrarySummaryPage,
@@ -127,6 +129,8 @@ export async function loadSharedComponentSummaries(
   fetchLibrary: typeof fetch = fetch,
   catalog?: ComponentCatalogQuery,
   ifCatalogRevision?: number,
+  /** Also the signed-in reader's own private records. */
+  includePrivate = false,
 ): Promise<ComponentLibrarySummaryPage> {
   const params = new URLSearchParams({
     q: query,
@@ -135,6 +139,7 @@ export async function loadSharedComponentSummaries(
   });
   if (cursor) params.set("cursor", cursor);
   if (deleted) params.set("status", "deleted");
+  if (includePrivate) params.set("private", "1");
   if (catalog) {
     params.set("catalog", String(catalog.version));
     params.set("type", catalog.type);
@@ -379,12 +384,96 @@ export async function readSharedComponent(
       "This component was removed from the library.",
       404,
     );
+  if (entry.status === "superseded" && !allowDeleted)
+    throw new ComponentLibraryError(
+      `This component was merged into ${entry.supersededBy ?? "another record"}.`,
+      404,
+      false,
+      "COMPONENT_SUPERSEDED",
+    );
   return entry;
 }
+/** The signed-in author's own editable records of one name, newest first. */
+export interface SameNameComponent {
+  id: string;
+  revision: number;
+  status: "shared" | "private";
+  name: string;
+  updatedAt: string;
+}
+export async function readSameNameComponents(
+  name: string,
+  signal?: AbortSignal,
+  fetchLibrary: typeof fetch = fetch,
+): Promise<SameNameComponent[]> {
+  const payload = await libraryJson(
+    `/api/components?view=same-name&name=${encodeURIComponent(name.trim().slice(0, 100))}`,
+    {},
+    fetchLibrary,
+    signal,
+  );
+  // An older service has no such view; it answers with a plain list.
+  if (!Array.isArray(payload.entries)) return [];
+  return payload.entries.filter(
+    (item): item is SameNameComponent =>
+      isRecord(item) &&
+      typeof item.id === "string" &&
+      Number.isSafeInteger(item.revision) &&
+      (item.status === "shared" || item.status === "private") &&
+      typeof item.name === "string" &&
+      typeof item.updatedAt === "string",
+  );
+}
+
+/** Earlier definitions of a record, newest first; inserting uses the current one. */
+export async function readComponentVersions(
+  entry: Pick<ComponentLibrarySummary, "id">,
+  signal?: AbortSignal,
+  fetchLibrary: typeof fetch = fetch,
+): Promise<{ revision: number; versions: ComponentVersionSummary[] }> {
+  const payload = await libraryJson(
+    `/api/components/${encodeURIComponent(entry.id)}?view=versions`,
+    {},
+    fetchLibrary,
+    signal,
+  );
+  return {
+    revision: Number(payload.revision),
+    versions: Array.isArray(payload.versions)
+      ? payload.versions.filter(
+          (item): item is ComponentVersionSummary =>
+            isRecord(item) &&
+            Number.isSafeInteger(item.revision) &&
+            typeof item.sourceId === "string" &&
+            typeof item.name === "string" &&
+            typeof item.savedAt === "string",
+        )
+      : [],
+  };
+}
+
+/** A record folded into another is read as the record it now belongs to. */
+export async function readCurrentComponent(
+  id: string,
+  fetchLibrary: typeof fetch = fetch,
+): Promise<SharedComponent> {
+  const entry = await readSharedComponent(id, fetchLibrary, true);
+  if (entry.status === "superseded" && entry.supersededBy)
+    return readSharedComponent(entry.supersededBy, fetchLibrary);
+  if (entry.status === "deleted")
+    throw new ComponentLibraryError(
+      "This component was removed from the library.",
+      404,
+    );
+  return entry;
+}
+
+export type ComponentLifecycleAction =
+  "delete" | "restore" | "make-public" | "make-private";
 /** Identity-only management also works for malformed historical definitions. */
 export async function changeComponentLifecycle(
   entry: { id: string; revision: number },
-  action: "delete" | "restore",
+  action: ComponentLifecycleAction,
   fetchLibrary: typeof fetch = fetch,
 ) {
   const payload = await libraryJson(
@@ -413,7 +502,12 @@ export async function publishSharedComponent(
   revision: number,
   definition: ComponentDefinition,
   circuit?: SharedDefinitionPayload["circuit"],
-  options: { idempotencyKey?: string; fetch?: typeof fetch } = {},
+  options: {
+    idempotencyKey?: string;
+    fetch?: typeof fetch;
+    /** Omitted: a new record is public and an existing one keeps its status. */
+    visibility?: ComponentVisibility;
+  } = {},
 ): Promise<ComponentPublicationReceipt> {
   const payload = await libraryJson(
     `/api/components/${encodeURIComponent(id)}`,
@@ -427,6 +521,7 @@ export async function publishSharedComponent(
         ...(options.idempotencyKey
           ? { idempotencyKey: options.idempotencyKey }
           : {}),
+        ...(options.visibility ? { visibility: options.visibility } : {}),
         ...(circuit ? { circuit } : {}),
       }),
     },

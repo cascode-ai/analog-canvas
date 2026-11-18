@@ -256,15 +256,19 @@ starts shut above them; **Edit → Community Components…** also opens it. Clic
 row to place it, or drag it onto the canvas. **⋯** or right-click holds
 **Details** (its large preview), **Create from…**, **Edit** and
 deletion, and the funnel filters by type and author. One author's records of one name share a row, and its count lists
-them. **My components**, inside Community, holds your publications, Project
-drafts and deleted records. Press `I` to find a component already in this
-Project, under its own name.
+them. **My components**, inside Community, holds your library (private records
+are tagged **Private**), Project drafts and deleted records. Press `I` to find a
+component already in this Project, under its own name.
 
-**Publish** shares an applied definition publicly (sign-in required) with its
-source, owned helper files and artwork, not drafts or testbenches. Authors and
-administrators update their records; others use **Publish as new component**.
-Placing a public component captures it in your Project, so later library
-changes or deletion never alter your circuit. **Details** on a row that
+**Save to my library** keeps an applied definition, with its source, owned
+helper files and artwork (not drafts or testbenches), for you alone to place in
+any Project (sign-in required). **Publish to Community…** asks once, then makes
+it public; a private record's **⋯** also has it, and a public one's has **Make
+private**. Saving a name you already use adds a version to that record; choose
+**Save as new component** to keep a separate one. **Details → Versions** lists
+earlier versions; placing always takes the current one. Placing captures the
+component in your Project, so later library changes or deletion never alter
+your circuit. **Details** on a row that
 **Needs repair** says why its definition no longer validates; **Copy raw record** and
 repair it in a new component. The list reads the library again when you return
 from editing or reopen it. Administrators can mark entries **Official**, delete
