@@ -683,6 +683,44 @@ export async function routeGalleryMaintenance(
   if (
     segments.length === 2 &&
     segments[0] === "maintenance" &&
+    segments[1] === "changes"
+  ) {
+    // Which public entries changed after a sequence number, for a reader
+    // keeping a copy: open to anyone, one store per call (`source=<key>`).
+    const noStore = { "cache-control": "no-store" };
+    if (request.method !== "GET")
+      return Response.json(
+        { error: "method-not-allowed" },
+        { status: 405, headers: { Allow: "GET", ...noStore } },
+      );
+    const sourceKey = url.searchParams.get("source");
+    const source =
+      sourceKey && sourceKey !== "community"
+        ? gallerySourceByKey(sourceKey)
+        : null;
+    if (sourceKey && sourceKey !== "community" && !source)
+      return Response.json(
+        { error: "unknown-source" },
+        { status: 400, headers: noStore },
+      );
+    const { status, payload } = await callGallery(
+      source ? withGalleryStore(env, source) : env,
+      "entry-changes",
+      {
+        after: url.searchParams.get("after"),
+        limit: url.searchParams.get("limit"),
+      },
+    );
+    return Response.json(
+      status === 200
+        ? { format: "analog-canvas-gallery-changes-v1", ...(payload as object) }
+        : payload,
+      { status, headers: noStore },
+    );
+  }
+  if (
+    segments.length === 2 &&
+    segments[0] === "maintenance" &&
     segments[1] === "netlists"
   ) {
     // The public Gallery's netlists for a reader elsewhere, open to anyone.

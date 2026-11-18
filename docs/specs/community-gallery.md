@@ -730,9 +730,18 @@ else 401.
   `limit=1..200`, `after`, or `id`; `source=<key>` pages a reference dataset, a dataset id reads from its own store, unknown key 400 `unknown-source`) with metadata, stored mark, netlist (or
   `null`) and diagnostics; pages end at 8,000,000 characters of Project Code.
   Each entry's `revision` is its stored Project's SHA-256; `revisions=1`
-  lists only `{id, revision}` and exports nothing, so a copy re-reads
-  (`id=`) just the entries that changed. A copy still re-reads everything
-  now and then, since an export rule can change while Projects stay put.
+  lists only `{id, revision}` and exports nothing.
+- `GET /api/gallery/maintenance/changes` (anyone, one store per call:
+  `source=<key>`, unknown key 400 `unknown-source`): each entry's latest
+  change after sequence number `after`, oldest first, up to 1,000 a page
+  (`limit`; `nextCursor` resumes as `after`). A public entry comes with its
+  wall card plus `referenceRevision` when it has a reference image; any
+  other is `removed`. `latest` is the store's newest change. Triggers record
+  changes as they are written (card, drawing, Project, status, reference
+  image; likes and opens are not changes), so a copy that keeps `latest`
+  reads only what changed. It re-exports changed entries' netlists by `id=`
+  and still re-reads everything now and then, since an export rule can
+  change while Projects stay put.
 - `POST …/schema-current`: `{apply: false}` validates; `{apply: true}` converges
   every Project to `CURRENT_PROJECT_FILE_VERSION` only if all are valid.
 - `POST …/netlist-badges` (`{limit?: 1..200}` → `{scanned, changed, unreadable,

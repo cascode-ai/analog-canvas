@@ -61,6 +61,7 @@ import {
   recountTransistors,
   refreshTransistorCounts,
 } from "./gallery-store-stats";
+import { entryChanges, installEntryChanges } from "./gallery-store-changes";
 import {
   authorCounts,
   catalog,
@@ -396,6 +397,8 @@ export class GalleryDO {
     installReferences(this.sql);
     // What a cached search answer follows (#2160).
     installSearchRevision(this.sql);
+    // Which entries changed since a copy's last read, recorded as written.
+    installEntryChanges(this.sql);
     // A tile's whole card, by id: a page's tiles and the Owner's lists read
     // it here, never the row, whose card fields sit behind its Project and
     // preview (about 100 kB, some 25 pages each; 30 cold tiles took about
@@ -854,6 +857,8 @@ export class GalleryDO {
         return labelLooksRead(this.sql, String(body.id), body.table);
       case "netlist-sources":
         return netlistSources(this.sql, body);
+      case "entry-changes":
+        return entryChanges(this.sql, body);
       case "label-looks-store":
         return labelLooksStore(this.sql, body);
       case "replace-entry":
