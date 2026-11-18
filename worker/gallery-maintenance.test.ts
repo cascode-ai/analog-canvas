@@ -403,6 +403,18 @@ describe("Gallery netlist read", () => {
     expect(listed.page.entries).toEqual(
       [first, second].sort().map((id) => ({ id, revision: full.get(id) })),
     );
+    // Pages of revisions follow the cursor, as netlist pages do.
+    const firstPage = await read(env, "?revisions=1&limit=1", {});
+    expect(firstPage.page.entries).toHaveLength(1);
+    const secondPage = await read(
+      env,
+      `?revisions=1&limit=1&after=${firstPage.page.nextCursor}`,
+      {},
+    );
+    expect(
+      [...firstPage.page.entries, ...secondPage.page.entries].map((e) => e.id),
+    ).toEqual([first, second].sort());
+    expect(secondPage.page.nextCursor).toBeNull();
     // A changed Project changes its revision; the other keeps its own.
     env.gallerySql.exec(
       "UPDATE gallery_entries SET project_text = project_text || ' ' WHERE id = ?",

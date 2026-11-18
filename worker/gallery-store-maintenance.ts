@@ -926,6 +926,60 @@ export function labelLooksRead(
  * large the drawings are. Sizes are read first and the page's text second,
  * by id range, so the rows past the budget are never loaded.
  */
+/** A stored Project's content as SHA-256 hex: its netlist row's `revision`. */
+export async function projectRevision(projectText: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(projectText),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+const GALLERY_REVISION_PAGE_LIMIT = 1000;
+
+/**
+ * Public entries' Project revisions in id order, hashed here so no Project
+ * leaves the store: a reader keeping a copy learns which changed. Pages of
+ * up to 1000 ids; pass `nextCursor` back as `after`.
+ */
+export async function netlistRevisions(
+  sql: SqlStorage,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const limit = Math.min(
+    Math.max(Math.trunc(Number(body.limit)) || GALLERY_REVISION_PAGE_LIMIT, 1),
+    GALLERY_REVISION_PAGE_LIMIT,
+  );
+  const ids = sql
+    .exec<{ id: string }>(
+      `SELECT id FROM gallery_entries WHERE status = 'public' AND id > ?
+       ORDER BY id LIMIT ?`,
+      typeof body.after === "string" ? body.after : "",
+      limit + 1,
+    )
+    .toArray()
+    .map((row) => row.id);
+  const page = ids.slice(0, limit);
+  const entries: { id: string; revision: string }[] = [];
+  // One Project in memory at a time.
+  for (const id of page) {
+    const row = sql
+      .exec<{ project_text: string }>(
+        "SELECT project_text FROM gallery_entries WHERE id = ?",
+        id,
+      )
+      .toArray()[0];
+    if (row)
+      entries.push({ id, revision: await projectRevision(row.project_text) });
+  }
+  return Response.json({
+    entries,
+    nextCursor: ids.length > limit ? (page.at(-1) ?? null) : null,
+  });
+}
+
 export function netlistSources(
   sql: SqlStorage,
   body: Record<string, unknown>,

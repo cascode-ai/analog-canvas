@@ -50,6 +50,7 @@ import {
   labelLooksRead,
   labelLooksStore,
   moveStoredTestbenches,
+  netlistRevisions,
   netlistSources,
   refreshNetlistable,
   schemaConverge,
@@ -854,6 +855,8 @@ export class GalleryDO {
         return labelLooksRead(this.sql, String(body.id), body.table);
       case "netlist-sources":
         return netlistSources(this.sql, body);
+      case "netlist-revisions":
+        return netlistRevisions(this.sql, body);
       case "label-looks-store":
         return labelLooksStore(this.sql, body);
       case "replace-entry":

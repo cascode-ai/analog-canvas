@@ -33,6 +33,7 @@ import {
   type GallerySource,
 } from "./gallery-sources";
 import { GALLERY_MAX_PROJECT_BYTES, type GalleryEnv } from "./gallery-store";
+import { projectRevision } from "./gallery-store-maintenance";
 import {
   callGallery,
   hasGalleryReadToken,
@@ -47,17 +48,6 @@ import {
  * the export is blocked, with every finding either way, so a reader sees a
  * wire that reaches no peer beside the netlist it did not stop.
  */
-/** A stored Project's content as SHA-256 hex. */
-async function projectRevision(projectText: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(projectText),
-  );
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
-
 function galleryNetlist(
   projectText: string,
   format: "spice" | "spectre",
@@ -713,10 +703,38 @@ export async function routeGalleryMaintenance(
         { error: "unknown-source" },
         { status: 400, headers: noStore },
       );
+    const store = source ? withGalleryStore(env, source) : env;
+    // `revision` names the stored Project's content, so a reader keeping a
+    // copy exports again only what changed: `revisions=1` lists them, hashed
+    // in the store, without exporting anything; then `id=` reads each
+    // changed one.
+    if (url.searchParams.get("revisions") === "1" && !id) {
+      const listed = await callGallery<{
+        entries?: { id: string; revision: string }[];
+        nextCursor?: string | null;
+      }>(store, "netlist-revisions", {
+        after: url.searchParams.get("after"),
+        limit: url.searchParams.get("limit"),
+      });
+      if (listed.status !== 200 || !listed.payload.entries)
+        return Response.json(listed.payload, {
+          status: listed.status,
+          headers: noStore,
+        });
+      return Response.json(
+        {
+          format: "analog-canvas-gallery-netlists-v1",
+          netlistFormat: format,
+          entries: listed.payload.entries,
+          nextCursor: listed.payload.nextCursor ?? null,
+        },
+        { headers: noStore },
+      );
+    }
     const { status, payload } = await callGallery<{
       entries?: (Record<string, unknown> & { projectText: string })[];
       nextCursor?: string | null;
-    }>(source ? withGalleryStore(env, source) : env, "netlist-sources", {
+    }>(store, "netlist-sources", {
       id,
       after: url.searchParams.get("after"),
       limit: url.searchParams.get("limit"),
@@ -728,15 +746,11 @@ export async function routeGalleryMaintenance(
         { error: "not-found" },
         { status: 404, headers: noStore },
       );
-    // `revision` names the stored Project's content, so a reader keeping a
-    // copy exports again only what changed: `revisions=1` lists them
-    // without exporting anything, then `id=` reads each changed one.
-    const revisionsOnly = url.searchParams.get("revisions") === "1";
     const entries = await Promise.all(
       payload.entries.map(async ({ projectText, ...entry }) => ({
-        ...(revisionsOnly ? { id: entry.id } : entry),
+        ...entry,
         revision: await projectRevision(projectText),
-        ...(revisionsOnly ? {} : galleryNetlist(projectText, format)),
+        ...galleryNetlist(projectText, format),
       })),
     );
     return Response.json(
