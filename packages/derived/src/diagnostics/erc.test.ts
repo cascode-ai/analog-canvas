@@ -662,6 +662,91 @@ describe("ERC engine", () => {
     });
   });
 
+  it("leaves a wire end whose Junction stands on a pin off the dangling list (#2357)", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances.push(roleInstance());
+    document.nets.push({
+      id: "drain",
+      terminals: [{ instanceId: "M1", pinName: "D" }],
+    });
+    document.junctions.push(
+      {
+        id: "pin-end",
+        netId: "drain",
+        position: { x: 0, y: -20 },
+        role: "route-anchor",
+      },
+      {
+        id: "open-end",
+        netId: "drain",
+        position: { x: 100, y: -20 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "drain-wire",
+        netId: "drain",
+        start: { kind: "junction", junctionId: "pin-end" },
+        end: { kind: "junction", junctionId: "open-end" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const dangling = roleRun(project).filter(
+      (diagnostic) => diagnostic.code === "ERC_DANGLING_WIRE",
+    );
+    // The Junction at (0, -20) is the D pin's contact, so the wire reaches a
+    // pin there. Only the far end, with nothing at it, ends in the open.
+    expect(dangling.map((item) => item.parameters)).toEqual([
+      { routeId: "drain-wire", junctionId: "open-end" },
+    ]);
+  });
+
+  it("still names a wire end that stands on another Net's pin (#2357)", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances.push(roleInstance());
+    document.nets.push(
+      { id: "drain", terminals: [] },
+      { id: "gate-net", terminals: [{ instanceId: "M1", pinName: "G" }] },
+    );
+    document.junctions.push(
+      {
+        id: "foreign-end",
+        netId: "drain",
+        position: { x: -20, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "open-end",
+        netId: "drain",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "drain-wire",
+        netId: "drain",
+        start: { kind: "junction", junctionId: "foreign-end" },
+        end: { kind: "junction", junctionId: "open-end" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const dangling = roleRun(project).filter(
+      (diagnostic) => diagnostic.code === "ERC_DANGLING_WIRE",
+    );
+    // The G pin is another Net's endpoint: drawing over it does not connect,
+    // so both ends of this wire remain open.
+    expect(dangling.map((item) => item.parameters)).toEqual([
+      { routeId: "drain-wire", junctionId: "foreign-end" },
+      { routeId: "drain-wire", junctionId: "open-end" },
+    ]);
+  });
+
   it("counts a Net Label dragged off its stub as that stub's label (#1300)", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

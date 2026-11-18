@@ -758,7 +758,7 @@ export function runErcChecks(
       resolver,
       diagnostics,
     );
-    reportDanglingWires(document, diagnostics);
+    reportDanglingWires(document, docIndex, diagnostics);
     reportNetLabelsNamingNothing(document, diagnostics);
     reportOverbarNameMismatches(document, diagnostics);
     reportLabelsNamingAnotherPart(document, diagnostics);
@@ -1328,6 +1328,7 @@ function reportOverbarNameMismatches(
 
 function reportDanglingWires(
   document: CircuitProject["documents"][number],
+  docIndex: ReturnType<ProjectConnectivityIndex["documents"]["get"]>,
   diagnostics: ErcDiagnostic[],
 ): void {
   const routesByJunction = new Map<
@@ -1341,6 +1342,16 @@ function reportDanglingWires(
           ...(routesByJunction.get(endpoint.junctionId) ?? []),
           route,
         ]);
+  // A Junction standing on a pin is a contact, not an open end: the shared
+  // contact evidence joins the two endpoints and the Netlist's terminal
+  // membership connects the pin. Counting Route arms alone (#2357) reported
+  // that wire as ending in the open and invited deleting it.
+  const contactedJunctions = new Set<string>();
+  for (const contact of docIndex?.contactEvidence.contacts ?? [])
+    if (contact.endpoints.length > 1)
+      for (const endpoint of contact.endpoints)
+        if (endpoint.kind === "junction")
+          contactedJunctions.add(endpoint.junctionId);
   const labelledObjects = new Set(
     document.annotations.flatMap((annotation) =>
       annotation.anchor.kind === "object"
@@ -1380,6 +1391,7 @@ function reportDanglingWires(
     const route = routes[0]!;
     if (
       route.presentation === "power-rail" ||
+      contactedJunctions.has(junction.id) ||
       labelledObjects.has(junction.id) ||
       labelledObjects.has(route.id) ||
       freeLabels.some(

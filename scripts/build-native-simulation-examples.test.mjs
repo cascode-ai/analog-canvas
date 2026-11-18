@@ -55,15 +55,14 @@ const expectedClearanceLabels = {
   "ota-library/document-ota-5t-testbench": libraryTbClearanceLabels,
   "ota-library/document-ota-5t-testbench-sin": libraryTbClearanceLabels,
 };
-// The reviewed common-source drawing has two wires ending in the open, which
-// ERC_DANGLING_WIRE names: a stub from the supply's minus pin, and the dashed
-// bulk wire from XM1. Pinned by owner, not by count, so a new open end still
-// fails; the reviewed geometry is not changed here.
+// The reviewed common-source drawing leaves one wire ending in the open, which
+// ERC_DANGLING_WIRE names: the dashed bulk wire from XM1. The stub from the
+// supply's minus pin ends on a Junction exactly on the Ground marker's pin, so
+// the two are one same-Net contact and the wire does not end in the open
+// (#2357). Pinned by owner, not by count, so a new open end still fails; the
+// reviewed geometry is not changed here.
 const expectedOpenWireEnds = {
-  "common-source/cell-common-source": [
-    "wire-52:junction-lifecycle-18-1",
-    "route-ui-5:junction-ui-4",
-  ],
+  "common-source/cell-common-source": ["route-ui-5:junction-ui-4"],
 };
 
 // The full-library case stays an acceptance obligation during migration. Do not
