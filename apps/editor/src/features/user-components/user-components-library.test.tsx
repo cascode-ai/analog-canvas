@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UserComponentsLibrary from "./user-components-library";
 import { clearComponentCatalogPages } from "./use-component-catalog";
 import type { ComponentLibrarySummaryPage } from "./component-library-contract";
+import { builtInSymbols } from "@icm/symbols";
+import { componentLibraryHarness } from "../../../../../worker/component-library.test-support";
 
 function page(
   names: string[],
@@ -210,5 +212,79 @@ describe("User Components catalog wiring", () => {
     await render(true, "");
     expect(rows()).toHaveLength(1);
     expect(container.textContent).toContain("Couldn’t refresh components.");
+  });
+});
+
+describe("My library against the component library service", () => {
+  it("lists a private record only in My components and publishes it after confirmation", async () => {
+    const library = componentLibraryHarness();
+    const definition = (name: string, width: number) => {
+      const symbol = structuredClone(
+        builtInSymbols.find((item) => item.id === "resistor")!,
+      );
+      symbol.viewBox.width += width;
+      return { symbol: { ...symbol, name } };
+    };
+    await library(
+      "PUT",
+      "/private-mine",
+      { definition: definition("Mine", 0), revision: 0, visibility: "private" },
+      "alice",
+    );
+    await library(
+      "PUT",
+      "/public-theirs",
+      { definition: definition("Theirs", 1), revision: 0 },
+      "bob",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input), "http://localhost");
+        if (url.pathname === "/api/auth/me")
+          return Response.json({
+            user: { id: "alice", displayName: "alice", isAdmin: false },
+          });
+        return library(
+          init?.method ?? "GET",
+          url.pathname.slice("/api/components".length) + url.search,
+          init?.body ? JSON.parse(String(init.body)) : undefined,
+          "alice",
+        );
+      }),
+    );
+    await render();
+    await tick();
+    const mine = container.querySelector<HTMLDetailsElement>(
+      '[data-testid="community-mine"]',
+    )!;
+    // Community rows: those outside the My components fold.
+    const community = () =>
+      [...container.querySelectorAll(".component-row-name")]
+        .filter((name) => !mine.contains(name))
+        .map((name) => name.textContent);
+    expect(community()).toEqual(["Theirs"]);
+    await act(async () => {
+      mine.open = true;
+      mine.dispatchEvent(new Event("toggle"));
+    });
+    await tick();
+    await tick();
+    const mineRows = () =>
+      [...mine.querySelectorAll(".component-row")].map((row) =>
+        row.textContent?.replace(/\s+/g, " "),
+      );
+    expect(mineRows()).toEqual([expect.stringContaining("Private")]);
+    expect(mineRows()[0]).toContain("Mine");
+    await click("Actions for Mine");
+    await click("Publish Mine to Community");
+    await click("Publish to Community");
+    await tick();
+    expect(container.textContent).toContain("Published to Community.");
+    expect(
+      (await (await library("GET", "/private-mine")).json()).entry,
+    ).toMatchObject({ status: "shared", revision: 2 });
+    await tick();
+    expect(community().sort()).toEqual(["Mine", "Theirs"]);
   });
 });

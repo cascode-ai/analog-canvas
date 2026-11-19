@@ -129,6 +129,7 @@ export async function routeRegionalComponentActions(
           circuit: parsed.circuit,
           status: parsed.status,
           action: parsed.action,
+          visibility: parsed.visibility,
         }),
       );
       const operation = request.method === "PUT" ? "save" : "status";

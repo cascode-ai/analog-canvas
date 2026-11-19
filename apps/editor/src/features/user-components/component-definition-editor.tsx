@@ -7,6 +7,7 @@ import {
   saveLibraryComponent,
   captureLibraryComponent as componentLibraryCapture,
 } from "./component-publication-host";
+import { sameNameTarget } from "./component-publication-operation";
 import { componentPublicationContent } from "./component-publication-content";
 import { definitionError } from "./component-definition-error";
 import {
@@ -61,10 +62,14 @@ import {
   parseSharedDefinition,
   componentCapability,
   type SharedComponent,
+  type SharedDefinitionPayload,
 } from "./component-library-contract";
 import {
   manageSharedComponent,
+  readCurrentComponent,
+  readSameNameComponents,
   readSharedComponent,
+  type SameNameComponent,
 } from "./component-library-client";
 import { ComponentLibraryError } from "./component-library-error";
 import { readNativeComponent } from "../../hosts/native-component-library";
@@ -222,9 +227,25 @@ export default function ComponentDefinitionEditor(
     )
       return;
     originResolved.current = true;
-    void readSharedComponent(origin.componentId)
+    void readCurrentComponent(origin.componentId)
       .then((entry) => {
         setRecord(entry);
+        if (entry.id !== origin.componentId) {
+          // Its record was folded into another of the author's records.
+          setPublication(
+            entry.authorId === user.id || user.isAdmin
+              ? {
+                  kind: "update",
+                  componentId: entry.id,
+                  expectedLibraryRevision: entry.revision,
+                }
+              : { kind: "new", componentId: crypto.randomUUID() },
+          );
+          setNotice(
+            "This component was merged into another record. Saving adds a version there.",
+          );
+          return;
+        }
         setPublication(publicationFromOrigin(origin, entry, user));
         if (entry.authorId === user.id || user.isAdmin) {
           if (entry.revision !== origin.revision) {
@@ -484,12 +505,107 @@ export default function ComponentDefinitionEditor(
     !!record &&
     (import.meta.env?.ICM_DESKTOP ||
       user?.isAdmin ||
-      (record.authorId === user?.id && record.status === "shared"));
+      (record.authorId === user?.id &&
+        (record.status === "shared" || record.status === "private")));
   const id = publication.componentId;
   const revision =
     publication.kind === "update"
       ? (publication.expectedLibraryRevision ?? record?.revision ?? 0)
       : 0;
+  // A new component whose name the author already uses becomes a new
+  // version of that record unless they choose a separate one.
+  const [separate, setSeparate] = useState(false);
+  const [sameName, setSameName] = useState<SameNameComponent | null>(null);
+  // The name the lookup last answered for: until it answers for the current
+  // one, saving waits, so the buttons cannot change under a person's click.
+  const [sameNameChecked, setSameNameChecked] = useState<string | null>(null);
+  const candidateName = native
+    ? (native.project.componentDefinitions?.find(
+        (definition) => definition.symbol.id === native.symbolId,
+      )?.symbol.name ??
+      nativeOwner?.name ??
+      "")
+    : (parsed.definition?.symbol.name ?? "");
+  useEffect(() => {
+    if (
+      import.meta.env?.ICM_DESKTOP ||
+      !user ||
+      publication.kind !== "new" ||
+      !candidateName.trim()
+    ) {
+      setSameName(null);
+      setSameNameChecked(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void readSameNameComponents(candidateName, controller.signal)
+        .then((entries) => {
+          if (controller.signal.aborted) return;
+          setSameName(entries[0] ?? null);
+          setSameNameChecked(candidateName);
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setSameName(null);
+          setSameNameChecked(candidateName);
+        });
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [user?.id, publication.kind, candidateName]);
+  const versioning = publication.kind === "new" && !!sameName && !separate;
+  /** Where this save goes; exact content keeps its duplicate refusal. */
+  async function destinationFor(payload: SharedDefinitionPayload) {
+    const target =
+      !import.meta.env?.ICM_DESKTOP && versioning
+        ? await sameNameTarget(payload)
+        : undefined;
+    return target
+      ? { componentId: target.id, revision: target.revision, versioned: true }
+      : { componentId: id, revision, versioned: false };
+  }
+  /** Already in Community: saving adds a public version. */
+  const publicTarget = versioning
+    ? sameName!.status === "shared"
+    : publication.kind === "update" && record?.status !== "private";
+  /** Save to my library never publishes and never withdraws a record. */
+  const visibilityFor = (
+    intent: "library" | "community",
+    versioned: boolean,
+  ) =>
+    import.meta.env?.ICM_DESKTOP
+      ? {}
+      : intent === "community"
+        ? { visibility: "public" as const }
+        : publication.kind === "new" && !versioned
+          ? { visibility: "private" as const }
+          : {};
+  function savedNotice(
+    intent: "library" | "community",
+    outcome: "created" | "updated" | "unchanged",
+    saved: SharedComponent,
+    associationError: string | null | undefined,
+    draftError: string | null,
+  ) {
+    const done =
+      outcome === "unchanged"
+        ? "Already up to date."
+        : intent === "community"
+          ? "Published to Community."
+          : saved.status === "private"
+            ? outcome === "updated"
+              ? "Saved a new version to my library."
+              : "Saved to my library."
+            : "Saved a new version. It stays public in Community.";
+    return associationError
+      ? `${done} Project association pending: ${associationError}`
+      : draftError
+        ? `${done} Draft: ${draftError}`
+        : done;
+  }
   function requestLeave(
     action: () => void,
     trigger: "back" | "close" | "variant" | "type" = "close",
@@ -614,7 +730,7 @@ export default function ComponentDefinitionEditor(
       entry,
     );
   }
-  async function save() {
+  async function save(intent: "library" | "community" = "library") {
     if (native) {
       if (
         !nativeDefinitionId ||
@@ -644,10 +760,12 @@ export default function ComponentDefinitionEditor(
         );
         const pendingError = saveCircuitPublicationDraft(record, packaged);
         if (pendingError) throw Error(pendingError);
+        const destination = await destinationFor(packaged);
         const result = await saveLibraryComponent({
-          componentId: id,
-          revision,
+          componentId: destination.componentId,
+          revision: destination.revision,
           payload: packaged,
+          ...visibilityFor(intent, destination.versioned),
         });
         const saved = result.entry;
         const captured = await componentLibraryCapture(saved);
@@ -686,14 +804,16 @@ export default function ComponentDefinitionEditor(
             ? draftError
               ? `Saved to the local library. Draft: ${draftError}`
               : "Saved to the local library."
-            : associationError
-              ? `Published. Project association pending: ${associationError}`
-              : draftError
-                ? `Saved to the public library. Draft: ${draftError}`
-                : result.outcome === "unchanged"
-                  ? "Already up to date."
-                  : "Saved to the public library.",
+            : savedNotice(
+                intent,
+                result.outcome,
+                saved,
+                associationError,
+                draftError,
+              ),
         );
+        setSameName(null);
+        setSeparate(false);
       } catch (error) {
         if (
           error instanceof ComponentLibraryError &&
@@ -738,10 +858,12 @@ export default function ComponentDefinitionEditor(
         localAppliedText,
       );
       if (pendingError) throw Error(pendingError);
+      const destination = await destinationFor({ definition: localApplied });
       const result = await saveLibraryComponent({
-        componentId: id,
-        revision,
+        componentId: destination.componentId,
+        revision: destination.revision,
         payload: { definition: localApplied },
+        ...visibilityFor(intent, destination.versioned),
       });
       const saved = result.entry;
       const captured = await componentLibraryCapture(saved);
@@ -776,14 +898,16 @@ export default function ComponentDefinitionEditor(
           ? draftError
             ? `Saved to the local library. Draft: ${draftError}`
             : "Saved to the local library."
-          : associationError
-            ? `Published. Project association pending: ${associationError}`
-            : draftError
-              ? `Published to the public library. Draft: ${draftError}`
-              : result.outcome === "unchanged"
-                ? "Already up to date."
-                : "Published to the public library.",
+          : savedNotice(
+              intent,
+              result.outcome,
+              saved,
+              associationError,
+              draftError,
+            ),
       );
+      setSameName(null);
+      setSeparate(false);
     } catch (error) {
       if (
         error instanceof ComponentLibraryError &&
@@ -933,40 +1057,75 @@ export default function ComponentDefinitionEditor(
         }}
       />
     ) : null;
+  const sameNamePending =
+    !import.meta.env?.ICM_DESKTOP &&
+    !!user &&
+    publication.kind === "new" &&
+    !!candidateName.trim() &&
+    sameNameChecked !== candidateName;
+  const saveDisabled =
+    (!import.meta.env?.ICM_DESKTOP && (!authReady || !user)) ||
+    sameNamePending ||
+    originLoading ||
+    publicationConflict ||
+    (publication.kind === "update" && !canUpdate) ||
+    (native
+      ? !nativeReady || nativeDirty
+      : !localApplied || source !== localAppliedText) ||
+    busy ||
+    (publication.kind === "update" && record?.status === "deleted");
   const publishAction = (
-    <button
-      type="button"
-      className="primary"
-      disabled={
-        (!import.meta.env?.ICM_DESKTOP && (!authReady || !user)) ||
-        originLoading ||
-        publicationConflict ||
-        (publication.kind === "update" && !canUpdate) ||
-        (native
-          ? !nativeReady || nativeDirty
-          : !localApplied || source !== localAppliedText) ||
-        busy ||
-        (publication.kind === "update" && record?.status === "deleted")
-      }
-      onClick={() => void save()}
-    >
-      {import.meta.env?.ICM_DESKTOP
-        ? busy
-          ? "Saving…"
-          : publication.kind === "update"
-            ? "Update local component"
-            : "Save to local library"
-        : busy
-          ? "Publishing…"
-          : publication.kind === "new" && record
-            ? "Publish as new component"
+    <>
+      <button
+        type="button"
+        className="primary"
+        disabled={saveDisabled}
+        onClick={() => void save("library")}
+      >
+        {import.meta.env?.ICM_DESKTOP
+          ? busy
+            ? "Saving…"
             : publication.kind === "update"
-              ? user?.isAdmin && record?.authorId !== user.id
-                ? "Update component (admin)"
-                : "Update my component"
-              : "Publish"}
-    </button>
+              ? "Update local component"
+              : "Save to local library"
+          : busy
+            ? "Saving…"
+            : publication.kind === "update" &&
+                user?.isAdmin &&
+                record?.authorId !== user.id
+              ? "Update component (admin)"
+              : publicTarget
+                ? "Save new version"
+                : "Save to my library"}
+      </button>
+      {!import.meta.env?.ICM_DESKTOP && !publicTarget ? (
+        <InlineConfirm
+          disabled={saveDisabled}
+          title="Everyone can see and place a Community component."
+          confirmLabel="Publish to Community"
+          cancelLabel="Keep private"
+          onConfirm={() => save("community")}
+        >
+          Publish to Community…
+        </InlineConfirm>
+      ) : null}
+    </>
   );
+  const sameNameChoice =
+    !import.meta.env?.ICM_DESKTOP && publication.kind === "new" && sameName ? (
+      <p className="component-definition-note" role="status">
+        {separate
+          ? "Saves a separate component. "
+          : `Saves a new version of your “${sameName.name}”${sameName.status === "shared" ? " in Community" : ""}. `}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setSeparate(!separate)}
+        >
+          {separate ? "Add a version instead" : "Save as new component"}
+        </button>
+      </p>
+    ) : null;
   return (
     <dialog
       ref={dialog}
@@ -1228,6 +1387,7 @@ export default function ComponentDefinitionEditor(
         </>
       ) : null}
       {native && notice ? <p role="status">{notice}</p> : null}
+      {sameNameChoice}
       {!import.meta.env?.ICM_DESKTOP &&
       props.mode === "instance" &&
       !props.definition.libraryOrigin ? (
@@ -1302,6 +1462,7 @@ export default function ComponentDefinitionEditor(
             disabled={busy}
             onClick={() => {
               setPublication({ kind: "new", componentId: crypto.randomUUID() });
+              setSeparate(true);
               setPublicationConflict(false);
               setNotice(
                 import.meta.env?.ICM_DESKTOP

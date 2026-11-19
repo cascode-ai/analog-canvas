@@ -38,11 +38,18 @@ export async function readComponentWrite(
         definition: body.definition,
         ...(body.circuit === undefined ? {} : { circuit: body.circuit }),
       });
+      if (
+        body.visibility !== undefined &&
+        body.visibility !== "private" &&
+        body.visibility !== "public"
+      )
+        throw Error("Use visibility private or public");
       body.definition = parsed.definition;
       body.circuit = parsed.circuit;
     } else if (
-      body.action !== "delete" &&
-      body.action !== "restore" &&
+      !["delete", "restore", "make-public", "make-private"].includes(
+        String(body.action),
+      ) &&
       !["shared", "official", "deleted"].includes(String(body.status))
     )
       throw new Error("Invalid component status");

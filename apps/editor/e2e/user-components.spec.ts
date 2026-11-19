@@ -176,8 +176,11 @@ async function openBlankEditor(page: Page) {
   await expect(page.getByTestId("shapes-category-user-defined")).toHaveCount(0);
 }
 
-/** The commit button, named after the destination it currently offers. */
-const PUBLISH = /^(Publish|Update my component)$/;
+/**
+ * The commit to Community: a first publication, confirmed, or the next
+ * version of a public record.
+ */
+const PUBLISH = /^(Publish to Community…|Save new version)$/;
 const text = (scope: Page | Locator, value: string) =>
   scope.getByText(value, { exact: true });
 const button = (scope: Page | Locator, name: string | RegExp) =>
@@ -228,6 +231,15 @@ const putComponent = (page: Page, id: string, body: unknown) =>
 /** An administrator's soft deletion of revision 1, returning its status. */
 const deleteComponent = (page: Page, id: string) =>
   requestComponent(page, id, "PATCH", { revision: 1, status: "deleted" });
+/** Commits the candidate to Community as a person does. */
+async function commitComponent(editor: Locator) {
+  const commit = button(editor, PUBLISH);
+  // The labels settle once the same-name lookup answers and saving is enabled.
+  await expect(commit).toBeEnabled();
+  const first = (await commit.textContent())?.startsWith("Publish");
+  await commit.click();
+  if (first) await button(editor, "Publish to Community").click();
+}
 async function copyText(page: Page, field: Locator) {
   await field.focus();
   await page.keyboard.press("ControlOrMeta+a");
@@ -992,11 +1004,11 @@ test("Create from keeps a new publication destination through draft reopening ev
   await continueWithoutSaving(page);
   await awaitEditorReady(page);
   await openProjectDraft(page, "Library draft Derivative device");
-  await button(editor, "Publish as new component").click();
+  await commitComponent(editor);
   await expect(editor.getByRole("status")).toContainText(
-    "Published to the public library",
+    "Published to Community.",
   );
-  await expect(button(editor, "Update my component")).toBeEnabled();
+  await expect(button(editor, "Save new version")).toBeEnabled();
   const entries = await libraryEntries(page);
   expect(entries).toHaveLength(2);
   expect(
@@ -1052,7 +1064,7 @@ test("captured origin lookup failure preserves its target and refuses implicit n
     name: "Publication recovery",
   });
   await expect(recovery).toBeVisible();
-  await expect(button(editor, "Update my component")).toBeDisabled();
+  await expect(button(editor, "Save new version")).toBeDisabled();
   await recovery
     .getByRole("button", { name: "Reload published version" })
     .click();
@@ -1063,7 +1075,7 @@ test("captured origin lookup failure preserves its target and refuses implicit n
     .getByLabel("Component definition code")
     .fill(JSON.stringify(variant));
   await button(editor, "Apply").click();
-  await expect(button(editor, "Update my component")).toBeDisabled();
+  await expect(button(editor, "Save new version")).toBeDisabled();
   expect(newWrites).toBe(0);
 });
 
@@ -1087,7 +1099,7 @@ test("publication conflicts retain update intent until explicit reload or create
     .fill(JSON.stringify(symbolDefinition("My pending edit")));
   await button(editor, "Apply").click();
   expect(await publish(1, "Concurrent revision")).toBe(200);
-  await button(editor, "Update my component").click();
+  await button(editor, "Save new version").click();
   const recovery = editor.getByRole("group", {
     name: "Publication recovery",
   });
@@ -1105,12 +1117,12 @@ test("publication conflicts retain update intent until explicit reload or create
     "Concurrent revision",
   );
   await service.connect(context, "bob");
-  await button(editor, "Update my component").click();
+  await button(editor, "Save new version").click();
   await expect(recovery).toBeVisible();
   await recovery.getByRole("button", { name: "Create separate copy" }).click();
-  await button(editor, "Publish as new component").click();
+  await commitComponent(editor);
   await expect(editor.getByRole("status")).toContainText(
-    "Published to the public library",
+    "Published to Community.",
   );
   const entries = await libraryEntries(page);
   expect(entries).toHaveLength(2);
@@ -1133,7 +1145,7 @@ test("new native publication survives a lost response, Project reopen and anothe
   );
   await button(editor, "Apply model").click();
   service.dropNextPublicationResponse();
-  await button(editor, "Publish").click();
+  await commitComponent(editor);
   await expect(
     editor.getByText(
       "Publication outcome is unknown. Retry the same operation before editing again.",
@@ -1150,11 +1162,11 @@ test("new native publication survives a lost response, Project reopen and anothe
     await openProjectDraft(page, /^Library draft /);
   }
   await reopenPublication();
-  await button(editor, "Publish").click();
-  await expect(button(editor, "Update my component")).toBeEnabled();
+  await commitComponent(editor);
+  await expect(button(editor, "Save new version")).toBeEnabled();
   await editor.getByLabel("Close component editor").click();
   await reopenPublication();
-  await expect(button(editor, "Update my component")).toBeEnabled();
+  await expect(button(editor, "Save new version")).toBeEnabled();
   const entries = await libraryEntries(page);
   expect(entries).toHaveLength(1);
   expect(entries[0]).toMatchObject({ revision: 1, authorId: "alice" });
@@ -1162,9 +1174,9 @@ test("new native publication survives a lost response, Project reopen and anothe
     ".subckt retry_source IN OUT\nR1 IN OUT 2k\n.ends retry_source\n",
   );
   await button(editor, "Apply model").click();
-  await button(editor, "Update my component").click();
+  await button(editor, "Save new version").click();
   await expect(
-    editor.getByText(/^(Saved|Published) to the public library\.$/),
+    editor.getByText(/^Saved a new version\. It stays public in Community\.$/),
   ).toBeVisible();
   const updated = await libraryEntries(page);
   expect(updated).toHaveLength(1);
@@ -1233,8 +1245,8 @@ test("public circuit authoring drafts survive closing and portable reopening wit
   await service.openEditorAs(page, "alice");
   const editor = await openFiniteGain(page);
   await button(editor, "Apply model").click();
-  await button(editor, PUBLISH).click();
-  await expect(text(editor, "Saved to the public library.")).toBeVisible();
+  await commitComponent(editor);
+  await expect(text(editor, "Published to Community.")).toBeVisible();
   await editor.getByLabel("Close component editor").click();
   const before = await readProject(page);
   await openUserComponents(page);
@@ -2193,8 +2205,8 @@ test("publishes an applied native component and captures another user's complete
     const editor = await openFiniteGain(page, "custom");
     await applyModel(editor);
     await expect(button(editor, PUBLISH)).toBeEnabled();
-    await button(editor, PUBLISH).click();
-    await expect(text(editor, "Saved to the public library.")).toBeVisible();
+    await commitComponent(editor);
+    await expect(text(editor, "Published to Community.")).toBeVisible();
     const [published] = await libraryEntries(page);
     expect(published).toMatchObject({
       revision: 1,
@@ -2255,9 +2267,9 @@ test("publishes an applied native component and captures another user's complete
     );
     await expect(button(libraryEditor, PUBLISH)).toBeDisabled();
     await button(libraryEditor, "Apply model").click();
-    await button(libraryEditor, PUBLISH).click();
+    await commitComponent(libraryEditor);
     await expect(
-      text(libraryEditor, "Saved to the public library."),
+      text(libraryEditor, "Saved a new version. It stays public in Community."),
     ).toBeVisible();
     const [updated] = await libraryEntries(page);
     expect(updated.revision).toBe(2);
@@ -2934,8 +2946,10 @@ test("explicitly upgrades a symbol-only public entry without rewriting captured 
   await authoringView(editor, "Circuit");
   await netlist(editor).fill(body);
   await applyModel(editor);
-  await button(editor, "Update my component").click();
-  await expect(text(editor, "Saved to the public library.")).toBeVisible();
+  await button(editor, "Save new version").click();
+  await expect(
+    text(editor, "Saved a new version. It stays public in Community."),
+  ).toBeVisible();
   await editor.getByLabel("Close component editor", { exact: true }).click();
   const edited = await readProject(page);
   expect(edited).toEqual({
@@ -3876,7 +3890,7 @@ test("publication checkpoints the published JSON without marking later input as 
     await route.fallback();
   });
   try {
-    await button(editor, PUBLISH).click();
+    await commitComponent(editor);
     await expect.poll(() => publishing).toBe(true);
     const code = editor.getByRole("textbox", {
       name: "Component definition code",
@@ -3889,7 +3903,7 @@ test("publication checkpoints the published JSON without marking later input as 
   } finally {
     release();
   }
-  await expect(text(editor, "Published to the public library.")).toBeVisible();
+  await expect(text(editor, "Published to Community.")).toBeVisible();
   await button(editor, "Close component editor").click();
   await expect(button(editor, "Save draft & leave")).toBeVisible();
   await button(editor, "Save draft & leave").click();

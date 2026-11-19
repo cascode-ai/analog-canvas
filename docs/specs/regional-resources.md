@@ -93,8 +93,10 @@ operations through either entrance and lists the delivered command coverage.
   still govern access to them and to hidden publications.
 - Schemas match by table names and keys, independent of physical column order.
   A receiver accepts a snapshot whose columns are a subset of its own; absent
-  columns take the local default. A column the receiver lacks blocks the stream
-  with 409 `resource-schema-newer` without advancing its cursor; the same receipt
+  columns take the local default, and absent trailing tables (such as an older
+  sender's `component_versions`) hold no rows. A column or table the receiver
+  lacks blocks the stream with 409 `resource-schema-newer` without advancing
+  its cursor; the same receipt
   applies after the receiver upgrades. Release overseas first, then China.
 - A column migration recreates the replica guard and change triggers, so new
   columns are change-detected and read-only on copies. The previous release's

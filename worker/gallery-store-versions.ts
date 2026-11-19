@@ -10,7 +10,7 @@ import { designExtractsNetlist, NETLIST_MARK_RULE_VERSION } from "@icm/netlist";
 import { parseProject, serializeCompactProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
 import { storedProject, withTestbench } from "./gallery-testbench";
-import { locallyOwnedResources } from "./resource-replica";
+import { locallyOwnedResources } from "./resource-ownership";
 import {
   type DurableObjectStateLike,
   type EntryRow,

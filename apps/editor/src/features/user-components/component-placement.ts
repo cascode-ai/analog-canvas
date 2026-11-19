@@ -14,6 +14,7 @@ import { componentPublicationContent } from "./component-publication-content";
 import { componentLibraryAssociation } from "./component-library-origin";
 import {
   sharedComponentNetlist,
+  type ComponentLibraryStatus,
   type SharedDefinitionPayload,
 } from "./component-library-contract";
 
@@ -189,6 +190,6 @@ export interface PendingCircuitCapture {
   library?: {
     id: string;
     revision: number;
-    status: "shared" | "official" | "deleted";
+    status: ComponentLibraryStatus;
   };
 }

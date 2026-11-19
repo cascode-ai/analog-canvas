@@ -20,8 +20,10 @@ import { EditorDocumentController } from "../document/document-controller";
 import type { CircuitProject } from "@icm/model";
 import { externalSubcircuitSymbolId } from "@icm/symbols";
 
-function publicationEditor(project: CircuitProject) {
-  const library = componentLibraryHarness();
+function publicationEditor(
+  project: CircuitProject,
+  library = componentLibraryHarness(),
+) {
   return liveAgentEditor({
     project,
     projectHost: {
@@ -248,5 +250,124 @@ describe("publication through a live Editor", () => {
       parseProject(serializeProject(controller.project))
         .externalSubcircuitDefinitions[0]!.libraryOrigin?.componentId,
     ).toBe("automatic-native-publication");
+  });
+
+  it("saves privately, versions a name the author already uses, and keeps old publishes public", async () => {
+    const library = componentLibraryHarness();
+    const variant = (width: number) => {
+      const packaged = nativePackage();
+      packaged.definition.symbol.viewBox.width += width;
+      return packaged;
+    };
+    const editor = async (width: number) => {
+      const packaged = variant(width);
+      const { client, controller } = publicationEditor(
+        createCircuitComponentPackageProject(packaged, `variant-${width}`),
+        library,
+      );
+      await client.connect("session-1.code");
+      await client.snapshot();
+      const call = async (request: Record<string, unknown>) =>
+        AgentProjectResourceResponseSchema.parse(
+          await client.projectResource(
+            AgentProjectResourceRequestSchema.parse({
+              apiVersion: AGENT_API_VERSION,
+              operation: "components",
+              requestId: crypto.randomUUID(),
+              request,
+            }),
+          ),
+        );
+      const publish = (request: Record<string, unknown>) =>
+        call({
+          action: "publish",
+          publicationVersion: 1,
+          projectId: controller.project.id,
+          expectedStructureRevision: controller.project.structureRevision,
+          selection: {
+            kind: "circuit",
+            definitionId: packaged.circuit.externalDefinition.id,
+            symbolId: packaged.definition.symbol.id,
+            sourceRevision: 1,
+          },
+          ...request,
+        });
+      return { call, publish };
+    };
+    const first = await editor(0);
+    expect(
+      await first.publish({
+        componentId: "private-component",
+        idempotencyKey: "private-one",
+        visibility: "private",
+      }),
+    ).toMatchObject({
+      ok: true,
+      result: {
+        entry: { id: "private-component", revision: 1, status: "private" },
+        publication: { outcome: "created" },
+      },
+    });
+    // An older call without visibility never versions a private record.
+    const legacy = await (
+      await editor(3)
+    ).publish({ componentId: "legacy-component", idempotencyKey: "legacy" });
+    expect(legacy).toMatchObject({
+      ok: true,
+      result: { entry: { id: "legacy-component", status: "shared" } },
+    });
+    const second = await editor(1);
+    expect(
+      await second.publish({
+        componentId: "would-be-new",
+        idempotencyKey: "private-two",
+        visibility: "private",
+      }),
+    ).toMatchObject({
+      ok: true,
+      result: {
+        entry: { id: "legacy-component", revision: 2, status: "shared" },
+        publication: { outcome: "updated" },
+      },
+    });
+    expect(
+      await second.publish({
+        componentId: "separate-component",
+        idempotencyKey: "separate",
+        visibility: "private",
+        onSameName: "new",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "COMPONENT_ALREADY_PUBLISHED" },
+    });
+    expect(
+      await first.call({ action: "versions", componentId: "legacy-component" }),
+    ).toMatchObject({
+      ok: true,
+      result: { revision: 2, versions: [{ revision: 1 }] },
+    });
+    expect(
+      await first.call({
+        action: "make-public",
+        componentId: "private-component",
+        expectedLibraryRevision: 1,
+      }),
+    ).toMatchObject({
+      ok: true,
+      result: { entry: { status: "shared", revision: 2 }, outcome: "changed" },
+    });
+    const browsed = await first.call({
+      action: "browse",
+      includePrivate: true,
+      catalog: { version: 1, type: "all", order: "newest" },
+    });
+    expect(browsed).toMatchObject({ ok: true, result: { action: "browse" } });
+    const { entries } = (browsed as { result: { entries: { id: string }[] } })
+      .result;
+    expect(entries.map((entry) => entry.id).sort()).toEqual([
+      "legacy-component",
+      "private-component",
+    ]);
   });
 });

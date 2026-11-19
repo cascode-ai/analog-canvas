@@ -656,5 +656,6 @@ export, clipboard and simulation use the applied revision and owned helpers.
 Raw upsert may add an imported owner, never replace an applied one; fork by
 applying a new owner and definition ID with nonconflicting names. Never
 duplicate a Project model in an experiment. Apply neither runs SPICE nor
-certifies behaviour. `user_components` `browse`/`read` discover public
-components; publishing is a separate guarded operation.
+certifies behaviour. `user_components` `browse`/`read` discover library
+components; saving to your library or publishing is a separate guarded
+operation.

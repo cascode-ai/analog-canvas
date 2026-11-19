@@ -131,7 +131,7 @@ export class ComponentPublicationIndex {
     return this.sql
       .exec<{ id: string; revision: number }>(
         `SELECT c.id,c.revision FROM components c JOIN component_content_index i ON c.id=i.component_id
-      WHERE c.author_id=? AND c.status!='deleted' AND i.version=? AND i.digest=? AND i.content=?
+      WHERE c.author_id=? AND c.status NOT IN ('deleted','superseded') AND i.version=? AND i.digest=? AND i.content=?
       ORDER BY c.created_at,c.id LIMIT 1`,
         authorId,
         COMPONENT_CONTENT_VERSION,

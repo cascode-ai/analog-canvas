@@ -163,6 +163,11 @@ owns visual authority.
   applied facts. Local Apply and Place need no account and never publish;
   Place applies pending changes first. Interface-only definitions refuse
   execution.
+- Signed in, the primary action is **Save to my library** (private for a new
+  record; a version of an existing one keeps its visibility, shown as **Save
+  new version** for a public record). **Publish to Community…** is separate and
+  confirms first. A new candidate whose name the author already uses says it
+  will add a version to that record and offers **Save as new component**.
 - The open authoring workspace owns raw GUI/Agent input and shared Undo/Redo.
   Its Project session, draft ID, open-session epoch and monotonic candidate
   revision guard writes; stale handles and active composition refuse them.
@@ -182,8 +187,11 @@ owns visual authority.
   drawing captures; destination and write rules are in
   [publication](component-publication.md).
 - The Library's **Community** fold shows public discovery. **My components**,
-  inside it, holds personal publications, Project drafts/capacity and authorized
-  deleted records; administrators can review all removals. Management results
+  inside it, holds the member's library (public and **Private** records),
+  Project drafts/capacity and authorized deleted records; administrators can
+  review all removals. Row menus offer **Publish to Community…** (confirmed) on
+  a private record and **Make private** on a public one, to their author and
+  administrators. **Details → Versions** lists retained versions. Management results
   use one dismissible message in the fold; successful deletion/restoration
   messages expire and recovery remains in **Deleted**. A row needing repair keeps
   its diagnostic in its **Details**, without a global repair banner. Type and
@@ -232,8 +240,8 @@ Payload: `definition` (raw artwork, checked `circuitBinding`) plus
 `ProjectModelSource` entry; only the applied version publishes; only
 reachable owned files are packaged; third-party dependencies keep IDs, mount
 paths and SHA-256. The Component Library Durable Object keeps one current row
-per entry (`components` table; the revision is a concurrency guard, not an
-archive). Insertion captures source, owner and artwork via dependency-copy
+per entry (`components` table, the authority) and retains replaced definitions
+as [versions](component-publication.md#versions). Insertion captures source, owner and artwork via dependency-copy
 planning (no cloud lookup), reuses equivalent resources and refuses
 incompatible ones first; later public changes never alter captures.
 

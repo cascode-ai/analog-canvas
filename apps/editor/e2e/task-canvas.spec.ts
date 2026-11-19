@@ -116,9 +116,10 @@ async function prepareReviewSource(rootPath: string) {
       // by position.
       '// #C0 @SET-SYMBOL(terminals=[[1, "p"], [2, "n"]]) $CAPACITOR => @PLACE(0, 0) => @ORIENT("R0");',
       '// #R1 @SET-SYMBOL $RESISTOR => @PLACE(8, 0) => @ORIENT("R0");',
-      '// &OUT @WIRE(mode="straight") {#C0:2 (0,-10)};',
-      '// &OUT @WIRE(mode="straight") {(0,-10) (8,-10)};',
-      '// &OUT @WIRE(mode="straight") {(8,-10) #R1:2};',
+      "// %j1 = (0,-10); %j2 = (8,-10);",
+      '// &OUT @WIRE(mode="straight") {#C0:2 %j1};',
+      '// &OUT @WIRE(mode="straight") {%j1 %j2};',
+      '// &OUT @WIRE(mode="straight") {%j2 #R1:2};',
       "// }",
       "ends dut",
       "",
@@ -207,15 +208,23 @@ test("delivers a local RNL revision into its own Project tab and reuses the edit
     (item) => item.id === loaded.delivery.document.id,
   )!;
   expect(drawn.routes).toHaveLength(3);
+  // The named points %j1 and %j2 join the three wires, one Junction each.
   expect(drawn.junctions.map((item) => item.position)).toEqual([
     { x: 0, y: 100 },
-    { x: 0, y: 100 },
-    { x: 80, y: 100 },
     { x: 80, y: 100 },
   ]);
-  expect(drawn.junctions.every((item) => item.role === "route-anchor")).toBe(
-    true,
-  );
+  const ends = drawn.routes.flatMap((route) => [
+    route.start,
+    ...route.legs.map((leg) =>
+      leg.to.kind === "endpoint" ? leg.to.endpoint : leg.to,
+    ),
+  ]);
+  for (const junction of drawn.junctions)
+    expect(
+      ends.filter(
+        (end) => end.kind === "junction" && end.junctionId === junction.id,
+      ),
+    ).toHaveLength(2);
   expect(source.files.map((file: { path: string }) => file.path)).toEqual([
     entryPath,
     "draw.rnl",

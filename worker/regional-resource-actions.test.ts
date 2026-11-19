@@ -581,6 +581,39 @@ it("updates a foreign User Component with the same revision checks and confirms 
       )
     ).status,
   ).toBe(409);
+  // Visibility changes and versions take the same route to their writer.
+  const hidden = await cn.call(
+    "/api/components/regional-resistor",
+    "PATCH",
+    "foreign-private",
+    { revision: 2, action: "make-private" },
+  );
+  expect(hidden.status, await hidden.clone().text()).toBe(200);
+  expect((await hidden.json()).entry).toMatchObject({
+    revision: 3,
+    status: "private",
+  });
+  definition.symbol.name = "Published from China";
+  const published = await cn.call(
+    "/api/components/regional-resistor",
+    "PUT",
+    "foreign-publish",
+    { revision: 3, definition, visibility: "public" },
+  );
+  expect(published.status, await published.clone().text()).toBe(200);
+  expect((await published.json()).entry).toMatchObject({
+    revision: 4,
+    status: "shared",
+  });
+  const versions = await (
+    await overseas.call(
+      "/api/components/regional-resistor?view=versions",
+      "GET",
+    )
+  ).json();
+  expect(
+    versions.versions.map((version: { revision: number }) => version.revision),
+  ).toEqual([3, 1]);
 });
 
 it("reconciles deletion of an oversized historical Component after restart without undoing a later restoration", async () => {

@@ -1,5 +1,7 @@
 import {
+  COMPONENT_LIBRARY_STATUSES,
   parseSharedComponentPayload,
+  type ComponentLibraryStatus,
   type SharedComponent,
 } from "./component-library-contract";
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -18,9 +20,7 @@ export function parseSharedComponentMetadata(
     typeof value.author !== "string" ||
     typeof value.createdAt !== "string" ||
     typeof value.updatedAt !== "string" ||
-    (value.status !== "shared" &&
-      value.status !== "official" &&
-      value.status !== "deleted")
+    !COMPONENT_LIBRARY_STATUSES.includes(value.status as ComponentLibraryStatus)
   )
     throw new Error("Component library unavailable: invalid entry");
   return {
@@ -30,11 +30,15 @@ export function parseSharedComponentMetadata(
     author: value.author,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
-    status: value.status,
+    status: value.status as ComponentLibraryStatus,
+    ...(typeof value.supersededBy === "string"
+      ? { supersededBy: value.supersededBy }
+      : {}),
     ...(isRecord(value.deletion) &&
     (value.deletion.by === "author" || value.deletion.by === "admin") &&
     (value.deletion.previousStatus === "shared" ||
-      value.deletion.previousStatus === "official")
+      value.deletion.previousStatus === "official" ||
+      value.deletion.previousStatus === "private")
       ? {
           deletion: {
             by: value.deletion.by,

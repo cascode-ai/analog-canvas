@@ -1287,6 +1287,89 @@ it("holds a newer release's extra column until the receiver upgrades, and fills 
   ).toBe(7);
 });
 
+it("copies a private component with its versions, and tolerates one release of skew in its version table", async () => {
+  const auth = environment(),
+    overseas = await region("overseas", auth),
+    cn = await region("cn", auth);
+  const definition = (name: string) => ({
+    symbol: { ...builtInSymbols.find((s) => s.id === "resistor")!, name },
+    electrical: deviceDescriptor("resistor"),
+  });
+  const path = "/api/components/versioned-fixture";
+  await overseas.call(path, "PUT", {
+    definition: definition("First"),
+    revision: 0,
+    visibility: "private",
+  });
+  await overseas.call(path, "PUT", {
+    definition: definition("Second"),
+    revision: 1,
+  });
+  const latest = await firstChange(overseas, "components", 1);
+  const event = JSON.parse(latest.payload);
+  expect(event.schema.map((table: { name: string }) => table.name)).toEqual([
+    "components",
+    "component_lifecycle",
+    "component_versions",
+  ]);
+  // A newer sender's extra table waits for this receiver's upgrade.
+  const newer = await deliver(
+    cn,
+    resign({
+      ...event,
+      after: 0,
+      schema: [...event.schema, { name: "future", key: "id", columns: ["id"] }],
+      rows: [...event.rows, []],
+    }),
+    "components",
+  );
+  expect(newer.status).toBe(409);
+  expect(await newer.json()).toEqual({ error: "resource-schema-newer" });
+  // An older sender has no version table: its absence holds no rows.
+  const older = await deliver(
+    cn,
+    resign({
+      ...event,
+      after: 0,
+      schema: event.schema.slice(0, 2),
+      rows: event.rows.slice(0, 2),
+    }),
+    "components",
+  );
+  expect(older.status).toBe(200);
+  expect(
+    cn
+      .sql("components")
+      .exec(
+        "SELECT * FROM component_versions WHERE component_id=?",
+        "versioned-fixture",
+      )
+      .toArray(),
+  ).toEqual([]);
+  // The current release's next change carries the versions.
+  await overseas.call("/api/components/versioned-fixture", "PATCH", {
+    revision: 2,
+    action: "make-public",
+  });
+  await transfer(overseas, cn, "components");
+  expect(
+    cn
+      .sql("components")
+      .exec<{
+        revision: number;
+        name: string;
+      }>(
+        "SELECT revision, name FROM component_versions WHERE component_id=?",
+        "versioned-fixture",
+      )
+      .toArray(),
+  ).toEqual([{ revision: 1, name: "First" }]);
+  expect((await (await cn.call(path)).json()).entry).toMatchObject({
+    status: "shared",
+    revision: 3,
+  });
+});
+
 it("recreates replica triggers after a migration adds a column, so the column is replicated and guarded", async () => {
   const auth = environment(),
     overseas = await region("overseas", auth),

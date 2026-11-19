@@ -19,6 +19,25 @@ import {
 const Id = z.string().min(1).max(256);
 const LibraryId = z.string().regex(/^[a-zA-Z0-9_-]{8,80}$/u);
 const Revision = z.number().int().nonnegative();
+/** `shared` is public; `private` is the author's own library. */
+const ComponentStatus = z.enum([
+  "shared",
+  "official",
+  "private",
+  "superseded",
+  "deleted",
+]);
+/**
+ * `private` saves to the author's own library, `public` publishes to
+ * Community. Omitted on publish: public, as before; on update: unchanged.
+ */
+const Visibility = z.enum(["private", "public"]);
+const ComponentVersionSchema = z.strictObject({
+  revision: Revision.min(1),
+  sourceId: LibraryId,
+  name: z.string(),
+  savedAt: z.string(),
+});
 export const ComponentCatalogQuerySchema = z.strictObject({
   version: z.literal(1),
   type: z
@@ -80,10 +99,11 @@ export const AgentComponentLibraryActionSchema = z.discriminatedUnion(
       dryRun: z.boolean().default(false),
     }),
     z.strictObject({
-      action: z.enum(["delete", "restore"]),
+      action: z.enum(["delete", "restore", "make-public", "make-private"]),
       componentId: LibraryId,
       expectedLibraryRevision: Revision.min(1),
     }),
+    z.strictObject({ action: z.literal("versions"), componentId: LibraryId }),
     z.strictObject({
       action: z.literal("list"),
       query: z.string().max(100).optional(),
@@ -96,6 +116,8 @@ export const AgentComponentLibraryActionSchema = z.discriminatedUnion(
       cursor: z.string().max(2048).optional(),
       catalog: ComponentCatalogQuerySchema.optional(),
       ifCatalogRevision: Revision.optional(),
+      /** Also the caller's own private records. */
+      includePrivate: z.boolean().optional(),
     }),
     z.strictObject({ action: z.literal("read"), componentId: LibraryId }),
     z.strictObject({
@@ -109,12 +131,19 @@ export const AgentComponentLibraryActionSchema = z.discriminatedUnion(
       action: z.literal("publish"),
       ...WriteIdentity,
       ...ProjectSelection,
+      visibility: Visibility.optional(),
+      /**
+       * Default `version`: a name the author already uses (trimmed, any case)
+       * adds a version to that record; `new` makes a separate record.
+       */
+      onSameName: z.enum(["version", "new"]).optional(),
     }),
     z.strictObject({
       action: z.literal("update"),
       ...WriteIdentity,
       ...ProjectSelection,
       expectedLibraryRevision: Revision.min(1),
+      visibility: Visibility.optional(),
     }),
     z.strictObject({
       action: z.literal("fork"),
@@ -146,13 +175,14 @@ const AgentSharedComponentSchema = z.strictObject({
   revision: Revision.min(1),
   authorId: Id,
   author: z.string(),
-  status: z.enum(["shared", "official", "deleted"]),
+  status: ComponentStatus,
   deletion: z
     .strictObject({
       by: z.enum(["author", "admin"]),
-      previousStatus: z.enum(["shared", "official"]),
+      previousStatus: z.enum(["shared", "official", "private"]),
     })
     .optional(),
+  supersededBy: LibraryId.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   definition: ComponentDefinitionSchema,
@@ -178,13 +208,14 @@ export const ComponentLibrarySummarySchema = z.strictObject({
   revision: Revision.min(1),
   authorId: Id,
   author: z.string(),
-  status: z.enum(["shared", "official", "deleted"]),
+  status: ComponentStatus,
   deletion: z
     .strictObject({
       by: z.enum(["author", "admin"]),
-      previousStatus: z.enum(["shared", "official"]),
+      previousStatus: z.enum(["shared", "official", "private"]),
     })
     .optional(),
+  supersededBy: LibraryId.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
   name: z.string(),
@@ -212,7 +243,13 @@ export const AgentComponentLibraryResultSchema = z.discriminatedUnion(
       record: z.record(z.string(), z.unknown()),
     }),
     z.strictObject({
-      action: z.enum(["delete", "restore"]),
+      action: z.literal("versions"),
+      componentId: LibraryId,
+      revision: Revision.min(1),
+      versions: z.array(ComponentVersionSchema),
+    }),
+    z.strictObject({
+      action: z.enum(["delete", "restore", "make-public", "make-private"]),
       entry: AgentSharedComponentSchema.omit({
         definition: true,
         circuit: true,

@@ -7,7 +7,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { ComponentLibrarySummary } from "@icm/agent-adapter";
-import type { SharedComponent } from "./component-library-contract";
+import type {
+  ComponentVersionSummary,
+  SharedComponent,
+} from "./component-library-contract";
 
 const capabilityLabel = (entry: ComponentLibrarySummary) =>
   entry.capability === "symbol-only"
@@ -28,6 +31,7 @@ export function ComponentDetailsCard({
   entry,
   onClose,
   authorImplied = false,
+  readVersions,
 }: {
   summary: ComponentLibrarySummary;
   row: HTMLElement;
@@ -41,6 +45,10 @@ export function ComponentDetailsCard({
   onClose(): void;
   /** Every record in the list is this author's, as on the desktop. */
   authorImplied?: boolean;
+  /** The record's earlier versions; absent where a library keeps none. */
+  readVersions?(
+    signal: AbortSignal,
+  ): Promise<{ versions: ComponentVersionSummary[] }>;
 }) {
   const card = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 });
@@ -94,6 +102,25 @@ export function ComponentDetailsCard({
     ? (entry.circuit?.externalDefinition.terminals ??
       entry.definition.symbol.pins)
     : null;
+  // Earlier definitions, read when the list is opened; placing uses the current one.
+  const [versions, setVersions] = useState<
+    ComponentVersionSummary[] | string | null
+  >(null);
+  const versionsRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => versionsRequest.current?.abort(), []);
+  const loadVersions = () => {
+    if (!readVersions || versions !== null || versionsRequest.current) return;
+    const controller = new AbortController();
+    versionsRequest.current = controller;
+    void readVersions(controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setVersions(result.versions);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted)
+          setVersions(error instanceof Error ? error.message : String(error));
+      });
+  };
   return createPortal(
     <div
       ref={card}
@@ -116,6 +143,31 @@ export function ComponentDetailsCard({
         <p>{summary.diagnostic}</p>
       ) : null}
       {pins?.length ? <p>{pins.map((pin) => pin.name).join(" · ")}</p> : null}
+      {entry && readVersions ? (
+        <details
+          onToggle={(event) => {
+            if (event.currentTarget.open) loadVersions();
+          }}
+        >
+          <summary>Versions</summary>
+          {versions === null ? (
+            <p role="status">Loading versions…</p>
+          ) : typeof versions === "string" ? (
+            <p role="status">{versions}</p>
+          ) : (
+            <ol className="component-versions">
+              <li>
+                {`Revision ${summary.revision} · current · ${summary.updatedAt.slice(0, 16).replace("T", " ")}`}
+              </li>
+              {versions.map((version) => (
+                <li key={`${version.sourceId}:${version.revision}`}>
+                  {`Revision ${version.revision}${version.sourceId === summary.id ? "" : ` of ${version.sourceId}`} · ${version.name} · ${version.savedAt.slice(0, 16).replace("T", " ")}`}
+                </li>
+              ))}
+            </ol>
+          )}
+        </details>
+      ) : null}
       {entry ? (
         <details>
           <summary>Definition</summary>
