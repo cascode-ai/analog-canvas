@@ -430,17 +430,19 @@ export function runAgent({
       group("SIGTERM");
       running?.delete(group);
       const wallSeconds = (performance.now() - started) / 1000;
+      // The log is complete on disk before the caller reads it.
       log.end(
         `\n[draw-batch] exit ${exitCode ?? signal ?? error} after ${wallSeconds.toFixed(1)} s\n`,
+        () =>
+          done({
+            exitCode,
+            signal,
+            timedOut,
+            wallSeconds,
+            stdout,
+            ...(error ? { error } : {}),
+          }),
       );
-      done({
-        exitCode,
-        signal,
-        timedOut,
-        wallSeconds,
-        stdout,
-        ...(error ? { error } : {}),
-      });
     };
     child.on("error", (error) => finish(null, null, error.message));
     child.on("close", (code, signal) => finish(code, signal));
