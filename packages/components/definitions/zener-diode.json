@@ -152,6 +152,15 @@
         "placeholder": "1m",
         "help": "Optional reverse current at BV for the built-in diode model",
         "displayRole": "none"
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "help": "Area factor, scaling the model's junction currents and capacitances",
+        "displayRole": "none"
       }
     ],
     "dialects": ["spice", "spectre"],

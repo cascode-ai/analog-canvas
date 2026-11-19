@@ -86,6 +86,9 @@ revision; it never silently changes `ngspice-46-core`.
   Ports and terminals are contiguous and zero-based.
 - Known X masters bind to cells; unknown ones stay opaque with positional
   pins. Families keep terminal order per the matrix.
+- A D, J or Q card's one number after its model (`Q1 c b e qmod 8`) is its
+  `area`, as SPICE reads it, unless the card also names `area`; any other
+  tail after a model stays whole as written.
 - Nets are cell-scoped; `0` and `.global` names are global. A `.global` name a
   subcircuit also takes as a port is the supply that port states, one node.
   Roots are cells no bound subcircuit calls.

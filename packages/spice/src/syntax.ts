@@ -539,6 +539,33 @@ function valueParameter(
   return rawText ? [{ name, rawText, sourceRef }] : [];
 }
 
+/**
+ * What follows a device card's model: the area factor where it is a D, J or
+ * Q card's one number (`Q1 c b e qmod 8`), as SPICE reads it, unless the card
+ * also names its area; else the words as they are.
+ */
+function positionalTail(
+  prefix: string,
+  tail: readonly string[],
+  named: readonly RawSpiceParameter[],
+  sourceRef: SourceSpan,
+): RawSpiceParameter[] {
+  const [only] = tail;
+  if (
+    only !== undefined &&
+    tail.length === 1 &&
+    ["D", "J", "Q"].includes(prefix) &&
+    (parseSpiceNumber(only) !== null || /^\{.*\}$/u.test(only)) &&
+    !named.some((parameter) => parameter.name.toLowerCase() === "area")
+  )
+    return valueParameter("area", only, sourceRef);
+  return valueParameter(
+    "positional-tail",
+    tail.join(" ") || undefined,
+    sourceRef,
+  );
+}
+
 function parseInstance(
   fields: string[],
   line: LogicalLine,
@@ -735,9 +762,10 @@ function parseInstance(
         master: positional[modeledShape.nodes]!,
         parameters: [
           ...parameters,
-          ...valueParameter(
-            "positional-tail",
-            positional.slice(modeledShape.nodes + 1).join(" ") || undefined,
+          ...positionalTail(
+            prefix,
+            positional.slice(modeledShape.nodes + 1),
+            parameters,
             line.sourceRef,
           ),
         ],
@@ -766,9 +794,10 @@ function parseInstance(
         master: positional[nodeCount]!,
         parameters: [
           ...parameters,
-          ...valueParameter(
-            "positional-tail",
-            positional.slice(nodeCount + 1).join(" ") || undefined,
+          ...positionalTail(
+            prefix,
+            positional.slice(nodeCount + 1),
+            parameters,
             line.sourceRef,
           ),
         ],

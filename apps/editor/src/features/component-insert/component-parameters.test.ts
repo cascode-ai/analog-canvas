@@ -51,7 +51,7 @@ describe("component parameter catalogue", () => {
       parameters: { bv: "5.1" },
     });
   });
-  it("exposes a parallel multiplier for both bipolar transistor polarities", () => {
+  it("exposes a parallel multiplier and an area factor for both bipolar transistor polarities", () => {
     for (const symbolId of ["npn", "pnp"]) {
       expect(componentParameters(symbolId)).toMatchObject([
         {
@@ -60,8 +60,18 @@ describe("component parameter catalogue", () => {
           defaultValue: "1",
           help: "Parallel multiplier",
         },
+        // The area a Q card writes after its model; no default, so it
+        // prints only where set.
+        { key: "area", label: "Area", placeholder: "1" },
       ]);
-      expect(initialComponentParameterValues(symbolId)).toEqual({ m: "1" });
+      expect(initialComponentParameterValues(symbolId)).toEqual({
+        m: "1",
+        area: "",
+      });
+      // An empty field places nothing: a new part prints its multiplier only.
+      expect(placedInstanceNetlist(symbolId, {})?.parameters).toEqual({
+        m: "1",
+      });
     }
   });
 

@@ -168,6 +168,15 @@
         "defaultValue": "1",
         "help": "Parallel multiplier",
         "displayRole": "multiplier"
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "help": "Area factor, scaling the model's junction currents and capacitances",
+        "displayRole": "none"
       }
     ],
     "dialects": ["spice", "spectre"],

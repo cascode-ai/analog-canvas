@@ -1894,7 +1894,11 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
-      parameters: [],
+      parameters: [
+        {
+          name: "area",
+        },
+      ],
       bounds: {
         x: -20,
         y: -7.34,
@@ -1933,7 +1937,11 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
-      parameters: [],
+      parameters: [
+        {
+          name: "area",
+        },
+      ],
       bounds: {
         x: -20,
         y: -15,
@@ -1972,7 +1980,11 @@ export const agentRazaviAuthoringCatalog = {
       labelVisibility: "shown",
       formula: false,
       coefficient: false,
-      parameters: [],
+      parameters: [
+        {
+          name: "area",
+        },
+      ],
       bounds: {
         x: -20,
         y: -7.34,
@@ -3054,6 +3066,9 @@ export const agentRazaviAuthoringCatalog = {
           name: "m",
           default: "1",
         },
+        {
+          name: "area",
+        },
       ],
       bounds: {
         x: -30,
@@ -4013,6 +4028,9 @@ export const agentRazaviAuthoringCatalog = {
         {
           name: "m",
           default: "1",
+        },
+        {
+          name: "area",
         },
       ],
       bounds: {
@@ -5573,6 +5591,9 @@ export const agentRazaviAuthoringCatalog = {
         },
         {
           name: "ibv",
+        },
+        {
+          name: "area",
         },
       ],
       bounds: {
