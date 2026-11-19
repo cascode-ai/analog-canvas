@@ -107,25 +107,43 @@ describe("SPICE K cards (#1648)", () => {
   });
 
   it("import from Spectre's mutual_inductor through its SPICE form", async () => {
+    const spectre = [
+      "subckt tf (a b c d)",
+      "L1 (a b) inductor l=1u",
+      "L2 (c d) inductor l=4u",
+      "TF1 mutual_inductor coupling=0.7 ind1=L1 ind2=L2",
+      "ends tf",
+      "",
+    ].join("\n");
     const converted = convertNetlist({
-      text: [
-        "subckt tf (a b c d)",
-        "L1 (a b) inductor l=1u",
-        "L2 (c d) inductor l=4u",
-        "TF1 mutual_inductor coupling=0.7 ind1=L1 ind2=L2",
-        "ends tf",
-        "",
-      ].join("\n"),
+      text: spectre,
       source: "spectre",
       target: "spice",
       fragment: true,
     });
     if (converted.status === "blocked")
       throw new Error(JSON.stringify(converted.issues));
-    const { document, id } = await imported(converted.text.split("\n"));
+    expect(converted.text).toContain("KTF1 L1 L2 0.7");
+    const path = "tf.scs";
+    const result = await importSpiceSources(
+      [{ path, bytes: new TextEncoder().encode(converted.text) }],
+      path,
+      undefined,
+      {
+        originalSources: [{ path, bytes: new TextEncoder().encode(spectre) }],
+      },
+    );
+    expect(result.successful, JSON.stringify(result.diagnostics)).toBe(true);
+    const document = result.project!.documents.find(
+      (candidate) => candidate.name === "tf",
+    )!;
+    const id = (reference: string) =>
+      document.instances.find((instance) => instance.reference === reference)!
+        .id;
+    // The coupling keeps the name Spectre wrote, not its SPICE form's.
     expect(document.inductorCouplings).toEqual([
       expect.objectContaining({
-        name: "KTF1",
+        name: "TF1",
         members: [
           { instanceId: id("L1"), dotPin: "1" },
           { instanceId: id("L2"), dotPin: "1" },

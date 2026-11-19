@@ -363,8 +363,9 @@ Printers are pure functions of a validated IR.
 - Values hold numbers as SPICE reads them; Spectre prints each one in its own
   spelling: the digits as written, the scale respelled (SPICE's `Meg` is
   Spectre's `M`, SPICE's `M` and `m` its `m`, `mil` a plain decimal) and no
-  unit after it (`100fF` as `100f`, `1MegΩ` as `1M`, `50ps` as `50p`).
-  Expressions and names print as written. An edit of such a number in the
+  unit after it (`100fF` as `100f`, `1MegΩ` as `1M`, `50ps` as `50p`), a
+  number in braces too (`{10meg}` as `10M`). Expressions and names print as
+  written. An edit of such a number in the
   netlist panel is stored in SPICE's spelling (`4.7M` as `4.7Meg`); SPICE
   prints every value as written.
 

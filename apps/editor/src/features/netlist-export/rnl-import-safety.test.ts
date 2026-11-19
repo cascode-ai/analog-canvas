@@ -413,7 +413,9 @@ it("imports a file of another RNL version as its circuit without its drawing, an
     expect.objectContaining({
       code: "RNL_IMPORT_VERSION",
       severity: "error",
-      message: expect.stringMatching(/`rnl upgrade` \(rnl 0\.6\.0 or later\)/u),
+      message: expect.stringMatching(
+        /`rnl upgrade FILE -o DIR` of rnl 0\.5\.7.*`--package-dir rnl-packages\/packages\/analog-canvas-extensions`/u,
+      ),
     }),
   ]);
   const [document] = older.project.documents;

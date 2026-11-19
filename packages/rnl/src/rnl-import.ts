@@ -29,7 +29,7 @@ import {
   CANVAS_PACKAGE_VERSION,
   RNL_LANGUAGE_VERSION,
   RNL_STD_VERSION,
-  RNL_TOOLS_RELEASE,
+  RNL_UPGRADE_RELEASE,
 } from "./rnl-packages.js";
 import {
   type RnlSnapshot,
@@ -95,9 +95,10 @@ const mappedVersion = (name: string) =>
  * Why a rich netlist's drawing is not read, or null: Analog Canvas reads the
  * language 0.4 only (16.1), so the drawing of a file of another version, with
  * records written in it, is left out and its circuit comes in undrawn; `rnl
- * upgrade` raises the file to 0.4, and an older Analog Canvas file's package
- * to the one Analog Canvas writes. A netlist with no records is no drawing of
- * any version.
+ * upgrade` of the upgrade release raises the file to 0.4, and an older
+ * Analog Canvas file's package to the one Analog Canvas writes, given that
+ * package's earlier versions (rich-netlist/rnl#675). A netlist with no
+ * records is no drawing of any version.
  */
 export function rnlVersionRefusal(
   snapshot: Pick<RnlSnapshot, "language">,
@@ -107,7 +108,7 @@ export function rnlVersionRefusal(
   return {
     severity: "error",
     code: "RNL_IMPORT_VERSION",
-    message: `The file's drawing is written in RNL ${snapshot.language}; Analog Canvas reads RNL ${RNL_LANGUAGE_VERSION} only, so the circuit comes in without it. Raise the file with \`rnl upgrade\` (rnl ${RNL_TOOLS_RELEASE} or later), which also moves an older Analog Canvas file (${CANVAS_PACKAGE} 0.1–0.6) to ${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}, then import it again`,
+    message: `The file's drawing is written in RNL ${snapshot.language}; Analog Canvas reads RNL ${RNL_LANGUAGE_VERSION} only, so the circuit comes in without it. Raise the file with \`rnl upgrade FILE -o DIR\` of rnl ${RNL_UPGRADE_RELEASE}, the last release that has it; for an older Analog Canvas file (${CANVAS_PACKAGE} 0.1–0.6), which it moves to ${CANVAS_PACKAGE} ${CANVAS_PACKAGE_VERSION}, add \`--package-dir rnl-packages/packages/${CANVAS_PACKAGE}\` from a clone of github.com/rich-netlist/rnl-packages. Then import it again`,
   };
 }
 

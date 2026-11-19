@@ -17,11 +17,11 @@ export const RNL_LANGUAGE_VERSION = line.language;
 export const RNL_STD_VERSION = line.standardSeries;
 
 /**
- * The first rnl release whose `rnl` command, runtime and RNL Skill read the
- * language the adapter writes: what an Agent writes, checks and upgrades
- * files with.
+ * The rnl release whose `rnl upgrade` raises a file of the language before to
+ * the one the adapter writes: the last of its line, since a core reads one
+ * language and the next has no upgrade (rich-netlist/rnl#686).
  */
-export const RNL_TOOLS_RELEASE = line.toolsRelease;
+export const RNL_UPGRADE_RELEASE = line.upgradeRelease;
 
 /**
  * The Analog Canvas package, not standard: Analog Canvas's appearance

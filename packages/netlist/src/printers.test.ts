@@ -367,9 +367,13 @@ describe("design netlist printers", () => {
       { name: "cl", defaultValue: "100fF" },
       { name: "rb", defaultValue: "1M" },
       { name: "w", defaultValue: "1µ" },
+      // A number in braces is still that number.
+      { name: "rs", defaultValue: "{10meg}" },
     ];
-    expect(printSpectreNetlist(ir)).toContain("parameters cl=100f rb=1m w=1µ");
-    expect(printSpiceNetlist(ir)).toContain("cl=100fF rb=1M w=1µ");
+    expect(printSpectreNetlist(ir)).toContain(
+      "parameters cl=100f rb=1m w=1µ rs=10M",
+    );
+    expect(printSpiceNetlist(ir)).toContain("cl=100fF rb=1M w=1µ rs={10meg}");
   });
 
   it("returns explicit browser file metadata", () => {
