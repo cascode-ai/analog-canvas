@@ -125,7 +125,7 @@
     },
     {
       "source": "docs/agent/local-workspace.md",
-      "sha256": "7184cccc99b3514a776b5d879007769e9d178684f0c741ed4e80ff3456c659b2"
+      "sha256": "02d6bf51b34292a6484b936087a2cf8b9b2938c6f6a6b8aa4afba5c659bf883a"
     },
     {
       "source": "docs/agent/skills/canvas-review/SKILL.md",
@@ -137,7 +137,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "8c9ca33c6bbfa4ea50a464b25c6c465576f9ae9085257b47749ee3ea0d84b325"
+      "sha256": "4a61ed38b322713419dafcd78405dee2a0103ea0bed447dff9ca8cb6a2716312"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -732,7 +732,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "7269b19dc95094454bc733d7d1c53d74dbcb8805458f58a5feeb2cb5e70ae53e"
+      "sha256": "f5bd788037101329390a7c07c5c68182978dc6f6d412e9d9ad8d37b0b8459bf1"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

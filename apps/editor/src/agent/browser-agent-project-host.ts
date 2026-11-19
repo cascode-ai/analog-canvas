@@ -33,6 +33,7 @@ import {
 import { loadGalleryFeed, type GalleryFeedEntry } from "../gallery-client";
 import { isRequestFailure, requestFailureOf } from "../request-failure";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
+import { projectInNetlistProcess } from "../features/netlist-export/netlist-process";
 import { importChunk } from "../components/chunk-import";
 import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
@@ -248,7 +249,19 @@ export class BrowserAgentProjectHost {
       };
     }
     if (request.operation === "read-netlist") {
-      const project = this.options.getProject();
+      let project = this.options.getProject();
+      if (request.process) {
+        try {
+          project = projectInNetlistProcess(project, request.process);
+        } catch (error) {
+          return this.error(
+            request,
+            "NETLIST_PROCESS_FAILED",
+            error instanceof Error ? error.message : String(error),
+            "fix-input",
+          );
+        }
+      }
       const rootDocumentId = request.documentId ?? request.rootDocumentId;
       return {
         apiVersion: AGENT_API_VERSION,

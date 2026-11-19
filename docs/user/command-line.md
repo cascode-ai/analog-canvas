@@ -59,6 +59,8 @@ A refused call changes nothing.
 - Place parts, then wire them, in separate `apply_actions` calls. Positions
   sit on a 10-unit grid; a tap on a wire (`wire-at`) on a 2-unit grid.
 - `netlist_code` `{"action":"read"}` shows the netlist and why it is blocked;
+  `netlist <dir> --process abstract|sky130|sg13g2` writes it in that Process
+  without changing the Project;
   `verify` compares it with an expected netlist.
 
 Simulation, the Gallery and Cloud Projects need the website. Open the
