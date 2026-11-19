@@ -234,6 +234,8 @@ const deleteComponent = (page: Page, id: string) =>
 /** Commits the candidate to Community as a person does. */
 async function commitComponent(editor: Locator) {
   const commit = button(editor, PUBLISH);
+  // The labels settle once the same-name lookup answers and saving is enabled.
+  await expect(commit).toBeEnabled();
   const first = (await commit.textContent())?.startsWith("Publish");
   await commit.click();
   if (first) await button(editor, "Publish to Community").click();

@@ -516,6 +516,9 @@ export default function ComponentDefinitionEditor(
   // version of that record unless they choose a separate one.
   const [separate, setSeparate] = useState(false);
   const [sameName, setSameName] = useState<SameNameComponent | null>(null);
+  // The name the lookup last answered for: until it answers for the current
+  // one, saving waits, so the buttons cannot change under a person's click.
+  const [sameNameChecked, setSameNameChecked] = useState<string | null>(null);
   const candidateName = native
     ? (native.project.componentDefinitions?.find(
         (definition) => definition.symbol.id === native.symbolId,
@@ -531,16 +534,21 @@ export default function ComponentDefinitionEditor(
       !candidateName.trim()
     ) {
       setSameName(null);
+      setSameNameChecked(null);
       return;
     }
     const controller = new AbortController();
     const timer = setTimeout(() => {
       void readSameNameComponents(candidateName, controller.signal)
         .then((entries) => {
-          if (!controller.signal.aborted) setSameName(entries[0] ?? null);
+          if (controller.signal.aborted) return;
+          setSameName(entries[0] ?? null);
+          setSameNameChecked(candidateName);
         })
         .catch(() => {
-          if (!controller.signal.aborted) setSameName(null);
+          if (controller.signal.aborted) return;
+          setSameName(null);
+          setSameNameChecked(candidateName);
         });
     }, 300);
     return () => {
@@ -1049,8 +1057,15 @@ export default function ComponentDefinitionEditor(
         }}
       />
     ) : null;
+  const sameNamePending =
+    !import.meta.env?.ICM_DESKTOP &&
+    !!user &&
+    publication.kind === "new" &&
+    !!candidateName.trim() &&
+    sameNameChecked !== candidateName;
   const saveDisabled =
     (!import.meta.env?.ICM_DESKTOP && (!authReady || !user)) ||
+    sameNamePending ||
     originLoading ||
     publicationConflict ||
     (publication.kind === "update" && !canUpdate) ||
