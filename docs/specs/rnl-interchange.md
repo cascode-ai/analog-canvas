@@ -29,10 +29,7 @@ the RNL language and its runtime belong to rnl.
   tools read and the released RNL Skill teaches; Analog Canvas moves to a new
   language together with an rnl release, and the circuit of a file of the
   language before still comes in. `pnpm rnl:reconcile` names a broken
-  version line first. The line is broken until rnl releases 0.4
-  ([rich-netlist/rnl#620](https://github.com/rich-netlist/rnl/issues/620));
-  meanwhile Agents write and check 0.4 through the import, as the MCP
-  guide's "Draw a review in RNL" says.
+  version line first.
 
 ### Dependency
 
@@ -40,12 +37,15 @@ the RNL language and its runtime belong to rnl.
   demand) writes and reads every RNL statement. The editor never spells RNL
   syntax: it hands the runtime edit-transaction operations and reads its
   snapshot, so an rnl upgrade changes the written RNL without editor changes.
-- The runtime is the package built from one commit of rich-netlist/rnl
-  `main`, vendored as `packages/rnl/vendor/rich-netlist-runtime-*.tgz` and
-  pinned by the lockfile's integrity, until a release on npm reads
-  language 0.4; then the npm release replaces it. A commit is vendored as
-  the package upstream CI built and tested from it (`core-npm` of the
-  nightly or a pull request's core checks), never a local build:
+- The runtime is an rnl release from npm, named by its exact version and
+  pinned by the lockfile's integrity; its SHA-256 must be the one the GitHub
+  release `core-v<version>` lists in SHA256SUMS.txt:
+  `pnpm rnl:runtime:vendor -- --npm <version>` checks and records it. Before
+  a release reads the language, the runtime may be the package built from
+  one commit of rich-netlist/rnl `main`, vendored as
+  `packages/rnl/vendor/rich-netlist-runtime-*.tgz`: the package upstream CI
+  built and tested from it (`core-npm` of the nightly or a pull request's
+  core checks), never a local build;
   `pnpm rnl:runtime:vendor -- --commit <sha>` records the run.
 - WebAssembly stays out of packages the Worker and MCP bundles import
   (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.

@@ -4,21 +4,22 @@
   "toolsRelease": "0.6.0",
   "runtime": {
     "package": "@rich-netlist/runtime",
+    "source": "npm",
+    "commit": "9c76ba0abae5dea781bdd83c214e53bebb66d8b5",
+    "version": "0.6.0",
+    "built": "npm, the rich-netlist/rnl release core-v0.6.0",
+    "sha256": "090d9acc95e8edd726bb3a4326451d71cf9940c989edd1ee55eeb812842fa584",
+    "solver": true,
+    "integrity": "sha512-bpJqcxPWBdFAeCvAicQGwOYlYw5xL48cxPW4OEvu0UA6WPRY46ocvrZ+SUt77R2dxsZEpsb7CGzfhCdyUGXDyA=="
+  },
+  "previous": {
+    "package": "@rich-netlist/runtime",
     "source": "commit",
     "commit": "7d9659817323a415b99c7db615ef1dc53ac91507",
     "version": "0.6.0-dev.7d965981",
     "file": "rich-netlist-runtime-0.6.0-dev.7d965981.tgz",
     "built": "locally: node bindings/runtime-wasm/build.mjs --name @rich-netlist/runtime --version 0.6.0-dev.7d965981",
-    "solver": false
-  },
-  "previous": {
-    "package": "@rich-netlist/runtime",
-    "source": "commit",
-    "commit": "b4c3f857578893a95844db6c754e6fdb5eed9b43",
-    "version": "0.6.0-dev.b4c3f857",
-    "file": "rich-netlist-runtime-0.6.0-dev.b4c3f857.tgz",
-    "built": "locally: node bindings/runtime-wasm/build.mjs --name @rich-netlist/runtime --version 0.6.0-dev.b4c3f857",
     "solver": false,
-    "kept": "751e0e3ad"
+    "kept": "7bca6054d"
   }
 }

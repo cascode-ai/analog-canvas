@@ -1,9 +1,11 @@
-// The rnl runtime Analog Canvas builds against (#2102), until a release on
-// npm reads the language it writes: the npm package upstream CI built from
-// one commit of rich-netlist/rnl, never a local build, and a way back to the
-// combination before it for the rollback drill. Where each package came from
-// is recorded in packages/rnl/src/rnl-version-line.json.
+// The rnl runtime Analog Canvas builds against (#2102): an rnl release on
+// npm, checked against the SHA-256 its GitHub release lists, or the npm
+// package upstream CI built from one commit of rich-netlist/rnl, never a local
+// build; and a way back to the combination before it for the rollback drill.
+// Where each package came from is recorded in
+// packages/rnl/src/rnl-version-line.json.
 //
+//   pnpm rnl:runtime:vendor -- --npm <version>  that release, from npm
 //   pnpm rnl:runtime:vendor -- --commit <sha>   CI's build of that commit
 //   pnpm rnl:runtime:vendor -- --restore        the combination before
 //
@@ -11,6 +13,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  mkdir,
   mkdtemp,
   readFile,
   readdir,
@@ -24,6 +27,7 @@ import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
 const REPO = "rich-netlist/rnl";
+const REGISTRY = "https://registry.npmjs.org";
 /** The upstream workflows that build and test the npm package from a commit. */
 const WORKFLOWS = ["core-nightly.yml", "core-release.yml"];
 const ARTIFACT = "core-npm";
@@ -103,23 +107,119 @@ async function writeJson(root, path, value) {
   await writeFile(join(root, path), `${JSON.stringify(value, null, 2)}\n`);
 }
 
-/** Point every dependent at a vendored file. */
-async function depend(root, file) {
+/** Point every dependent at a runtime: its exact npm version, or its vendored file. */
+async function depend(root, runtime) {
   for (const [path, folder] of Object.entries(DEPENDENTS)) {
     const manifest = await readJson(root, path);
     const field = manifest.dependencies?.[PACKAGE]
       ? "dependencies"
       : "devDependencies";
-    manifest[field][PACKAGE] = `${folder}${file}`;
+    manifest[field][PACKAGE] =
+      runtime.source === "npm" ? runtime.version : `${folder}${runtime.file}`;
     await writeJson(root, path, manifest);
   }
 }
 
 /**
+ * Make `runtime` the current one: its file (if it is vendored) in place of
+ * the current one's, the dependents pointed at it, and the current one kept
+ * as `previous` with the Analog Canvas commit (`kept`) that holds it.
+ */
+async function replace(root, line, runtime, tgz, git) {
+  if (runtime.file) {
+    // Git keeps no empty folder: with an npm release there is none.
+    await mkdir(join(root, VENDOR), { recursive: true });
+    await writeFile(join(root, VENDOR, runtime.file), tgz);
+  }
+  if (line.runtime.file && line.runtime.file !== runtime.file)
+    await unlink(join(root, VENDOR, line.runtime.file));
+  await depend(root, runtime);
+  line.previous = {
+    ...line.runtime,
+    kept: git(["rev-parse", "--short", "HEAD"]).trim(),
+  };
+  line.runtime = runtime;
+  await writeJson(root, LINE, line);
+  return line;
+}
+
+/** The SHA-256 a release's SHA256SUMS.txt lists for one file, or undefined. */
+export function listedSha256(sums, file) {
+  for (const row of sums.split(/\r?\n/u)) {
+    const [hash, name] = row.trim().split(/\s+\*?/u);
+    if (name === file) return hash;
+  }
+  return undefined;
+}
+
+/**
+ * Lock an rnl release from npm: the package npm serves, checked to be the
+ * runtime and to have the SHA-256 that the release `core-v<version>` lists in
+ * SHA256SUMS.txt, recorded with its tag's commit. The dependents name the
+ * exact version, and pnpm-lock.yaml its integrity.
+ */
+export async function lockRelease({ root, version, get, gh, git }) {
+  const tag = `core-v${version}`;
+  const { dist } = JSON.parse(
+    (await get(`${REGISTRY}/${PACKAGE}/${version}`)).toString("utf8"),
+  );
+  const tgz = await get(dist.tarball);
+  const built = inspectPackage(tgz);
+  if (built.name !== PACKAGE || built.version !== version)
+    throw new Error(
+      `npm served ${built.name} ${built.version}, not ${PACKAGE} ${version}`,
+    );
+  if (built.integrity !== dist.integrity)
+    throw new Error(
+      `npm's ${PACKAGE} ${version} does not have the integrity npm lists`,
+    );
+  // The release's checksum, so npm and the release are the same bytes.
+  const sha256 = createHash("sha256").update(tgz).digest("hex");
+  const listed = listedSha256(
+    gh([
+      "release",
+      "download",
+      tag,
+      "--repo",
+      REPO,
+      "--pattern",
+      "SHA256SUMS.txt",
+      "--output",
+      "-",
+    ]),
+    `rich-netlist-runtime-${version}.tgz`,
+  );
+  if (listed !== sha256)
+    throw new Error(
+      `npm's ${PACKAGE} ${version} has SHA-256 ${sha256}; the release ${tag} lists ${listed ?? "no runtime package"}`,
+    );
+  const commit = gh([
+    "api",
+    `repos/${REPO}/commits/${tag}`,
+    "--jq",
+    ".sha",
+  ]).trim();
+  return await replace(
+    root,
+    await readJson(root, LINE),
+    {
+      package: PACKAGE,
+      source: "npm",
+      commit,
+      version,
+      built: `npm, the ${REPO} release ${tag}`,
+      sha256,
+      solver: built.solver,
+      integrity: built.integrity,
+    },
+    tgz,
+    git,
+  );
+}
+
+/**
  * Vendor CI's build of one upstream commit: download its `core-npm`
- * artifact, check it is the runtime, put it beside the one it replaces,
- * point the dependents at it and record both, the replaced one as
- * `previous` with the Analog Canvas commit (`kept`) that holds its file.
+ * artifact, check it is the runtime, and make it the current one.
  */
 export async function vendorCommit({ root, commit, gh, git }) {
   const sha = gh([
@@ -155,28 +255,22 @@ export async function vendorCommit({ root, commit, gh, git }) {
     const built = inspectPackage(tgz);
     if (built.name !== PACKAGE)
       throw new Error(`Run ${found.run} built ${built.name}, not ${PACKAGE}`);
-    const line = await readJson(root, LINE);
-    const file = `rich-netlist-runtime-main-${sha.slice(0, 8)}.tgz`;
-    await writeFile(join(root, VENDOR, file), tgz);
-    if (line.runtime.file !== file)
-      await unlink(join(root, VENDOR, line.runtime.file));
-    await depend(root, file);
-    line.previous = {
-      ...line.runtime,
-      kept: git(["rev-parse", "--short", "HEAD"]).trim(),
-    };
-    line.runtime = {
-      package: PACKAGE,
-      source: "commit",
-      commit: sha,
-      version: built.version,
-      file,
-      built: `${REPO} actions run ${found.run} (${found.workflow}, artifact ${ARTIFACT})`,
-      solver: built.solver,
-      integrity: built.integrity,
-    };
-    await writeJson(root, LINE, line);
-    return line;
+    return await replace(
+      root,
+      await readJson(root, LINE),
+      {
+        package: PACKAGE,
+        source: "commit",
+        commit: sha,
+        version: built.version,
+        file: `rich-netlist-runtime-main-${sha.slice(0, 8)}.tgz`,
+        built: `${REPO} actions run ${found.run} (${found.workflow}, artifact ${ARTIFACT})`,
+        solver: built.solver,
+        integrity: built.integrity,
+      },
+      tgz,
+      git,
+    );
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -184,29 +278,21 @@ export async function vendorCommit({ root, commit, gh, git }) {
 
 /**
  * Go back to the combination before the current one, for the rollback drill:
- * its file from the Analog Canvas commit that kept it, the dependents pointed
- * at it, and the two swapped in the record, so that a second restore returns.
+ * its file from the Analog Canvas commit that kept it (an npm release has no
+ * file: pnpm fetches it by its version), the dependents pointed at it, and
+ * the two swapped in the record, so that a second restore returns.
  */
 export async function restorePrevious({ root, git }) {
   const line = await readJson(root, LINE);
-  const { previous, runtime } = line;
-  if (!previous?.kept)
+  if (!line.previous?.kept)
     throw new Error(`${LINE} names no previous runtime to restore`);
-  const bytes = git(["show", `${previous.kept}:${VENDOR}/${previous.file}`], {
-    encoding: "buffer",
-  });
-  await writeFile(join(root, VENDOR, previous.file), bytes);
-  if (runtime.file !== previous.file)
-    await unlink(join(root, VENDOR, runtime.file));
-  await depend(root, previous.file);
-  const { kept: _kept, ...restored } = previous;
-  line.runtime = restored;
-  line.previous = {
-    ...runtime,
-    kept: git(["rev-parse", "--short", "HEAD"]).trim(),
-  };
-  await writeJson(root, LINE, line);
-  return line;
+  const { kept, ...restored } = line.previous;
+  const bytes = restored.file
+    ? git(["show", `${kept}:${VENDOR}/${restored.file}`], {
+        encoding: "buffer",
+      })
+    : null;
+  return replace(root, line, restored, bytes, git);
 }
 
 if (
@@ -224,16 +310,34 @@ if (
         ...options,
       });
   const args = process.argv.slice(2).filter((arg) => arg !== "--");
-  const commit = args[args.indexOf("--commit") + 1];
+  const value = (flag) =>
+    args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;
+  const [commit, version] = [value("--commit"), value("--npm")];
+  const get = async (url) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+    return Buffer.from(await response.arrayBuffer());
+  };
+  const name = (runtime) =>
+    runtime.file ?? `${runtime.package}@${runtime.version}`;
   try {
     const line = args.includes("--restore")
       ? await restorePrevious({ root, git: run("git") })
-      : args.includes("--commit") && commit
-        ? await vendorCommit({ root, commit, gh: run("gh"), git: run("git") })
-        : null;
-    if (!line) throw new Error("Give --commit <sha> or --restore");
+      : version
+        ? await lockRelease({
+            root,
+            version,
+            get,
+            gh: run("gh"),
+            git: run("git"),
+          })
+        : commit
+          ? await vendorCommit({ root, commit, gh: run("gh"), git: run("git") })
+          : null;
+    if (!line)
+      throw new Error("Give --npm <version>, --commit <sha> or --restore");
     console.log(
-      `Runtime: ${line.runtime.file} (${line.runtime.built}); before it: ${line.previous.file}.\nRun pnpm install, then the RNL suites; record both combinations in the pull request.`,
+      `Runtime: ${name(line.runtime)} (${line.runtime.built}); before it: ${name(line.previous)}.\nRun pnpm install, then the RNL suites; record both combinations in the pull request.`,
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
