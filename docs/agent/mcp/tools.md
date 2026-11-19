@@ -334,9 +334,10 @@ for a routing or label detail.
 #### Draw a review in RNL
 
 Write the drawing as RNL 0.4 records in the source netlist, then import it
-with `open-local`. Analog Canvas reads RNL 0.4 only; the released `rnl` tools
-and the RNL guide still read 0.3, so check the file by importing it. Lay it
-out as [Draw a review](#draw-a-review) plans; in the records:
+with `open-local`. Analog Canvas reads RNL 0.4 only, as `rnl` core 0.6.0 and
+later and their RNL guide do; check the file with `rnl check` or by
+importing it. Lay it out as [Draw a review](#draw-a-review) plans; in the
+records:
 
 - Header after the title line: `* @RNL(type="header") { @USE-PACKAGE(name="rnl-std-all", version="0.4"); @VERSION("0.4")}`
   (`//` comments in Spectre). A subcircuit's records go between its `.subckt`

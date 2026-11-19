@@ -174,8 +174,8 @@ importers:
         specifier: 1.0.3
         version: 1.0.3
       "@rich-netlist/runtime":
-        specifier: file:../../packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.7d965981.tgz
-        version: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.7d965981.tgz
+        specifier: 0.6.0
+        version: 0.6.0
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -485,8 +485,8 @@ importers:
         specifier: workspace:*
         version: link:../spice
       "@rich-netlist/runtime":
-        specifier: file:vendor/rich-netlist-runtime-0.6.0-dev.7d965981.tgz
-        version: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.7d965981.tgz
+        specifier: 0.6.0
+        version: 0.6.0
 
   packages/simulation-service:
     dependencies:
@@ -2069,13 +2069,11 @@ packages:
       }
     engines: { node: ">= 10" }
 
-  "@rich-netlist/runtime@file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.7d965981.tgz":
+  "@rich-netlist/runtime@0.6.0":
     resolution:
       {
-        integrity: sha512-E3CE+GG2Shs9IjS4J6QzFTJxqyV110J2VTs+Ez+WshfCuBLVzbEXYu8Hc+WebDVwF6FVPfWmyLcT5PyF03gUOw==,
-        tarball: file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.7d965981.tgz,
+        integrity: sha512-bpJqcxPWBdFAeCvAicQGwOYlYw5xL48cxPW4OEvu0UA6WPRY46ocvrZ+SUt77R2dxsZEpsb7CGzfhCdyUGXDyA==,
       }
-    version: 0.6.0-dev.7d965981
 
   "@rolldown/binding-android-arm64@1.2.3":
     resolution:
@@ -4593,8 +4591,7 @@ snapshots:
 
   "@resvg/resvg-wasm@2.6.2": {}
 
-  "@rich-netlist/runtime@file:packages/rnl/vendor/rich-netlist-runtime-0.6.0-dev.7d965981.tgz":
-    {}
+  "@rich-netlist/runtime@0.6.0": {}
 
   "@rolldown/binding-android-arm64@1.2.3":
     optional: true
