@@ -133,18 +133,33 @@ export function levelScope(
   // The conversion from Spectre also puts a card's designator before a name
   // that lacks it (M1 as XM1 when its master is a subcircuit, a resistor
   // load as Rload); such a card is found by the name after its first letter,
-  // where that names one card only.
-  const byConvertedName = new Map<string, Instance | null>();
-  for (const instance of document.instances) {
-    if (instance.id.length < 2) continue;
-    const key = instance.id.slice(1).toLowerCase();
-    byConvertedName.set(key, byConvertedName.has(key) ? null : instance);
-  }
+  // where that names one card only: as written first, since the conversion
+  // keeps the name's letters (XM1's M1 is not Cm1's m1), then in any case.
+  // A card the file names as it is (CM3 beside M3) was renamed by nothing.
+  const written = new Set(
+    (level.host?.instances ?? []).flatMap(({ id }) => {
+      const name = rnlIdName(id, "#");
+      return name === null ? [] : [name.toLowerCase()];
+    }),
+  );
+  const convertedNames = (fold: (name: string) => string) => {
+    const found = new Map<string, Instance | null>();
+    for (const instance of document.instances) {
+      if (instance.id.length < 2 || written.has(instance.id.toLowerCase()))
+        continue;
+      const key = fold(instance.id.slice(1));
+      found.set(key, found.has(key) ? null : instance);
+    }
+    return found;
+  };
+  const byConvertedName = convertedNames((name) => name);
+  const byConvertedFolded = convertedNames((name) => name.toLowerCase());
   const instanceOf = (name: string) =>
     document.instances.find((instance) => instance.id === name) ??
     byName.get(name.toLowerCase()) ??
     byReference.get(name.toLowerCase()) ??
-    byConvertedName.get(name.toLowerCase()) ??
+    byConvertedName.get(name) ??
+    byConvertedFolded.get(name.toLowerCase()) ??
     undefined;
 
   // Nets by their RNL name, from the import's own record of the names. A

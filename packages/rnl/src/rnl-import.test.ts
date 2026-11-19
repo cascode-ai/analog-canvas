@@ -173,7 +173,7 @@ describe("RNL snapshot import", () => {
         severity: "error",
         code: "RNL_IMPORT_VERSION",
         message: expect.stringMatching(
-          /RNL 0\.3.*RNL 0\.4 only.*rnl upgrade.*analog-canvas-extensions 0\.1–0\.6\) to analog-canvas-extensions 0\.7/u,
+          /RNL 0\.3.*RNL 0\.4 only.*rnl upgrade.*analog-canvas-extensions 0\.1–0\.6\), which it moves to analog-canvas-extensions 0\.7, add `--package-dir/u,
         ),
       }),
     ]);

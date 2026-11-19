@@ -377,11 +377,13 @@ the RNL language and its runtime belong to rnl.
 
 - A file whose language is not 0.4, and which writes RNL records, comes in
   as its circuit, undrawn, with the error `RNL_IMPORT_VERSION` naming its
-  version and `rnl upgrade` of the version line's tools release, which raises
-  it; nothing the import takes from a drawing is taken from it. An older
+  version and `rnl upgrade` of the version line's upgrade release (core
+  0.5.7, the last with the command, rich-netlist/rnl#686), which raises it;
+  nothing the import takes from a drawing is taken from it. An older
   Analog Canvas file (`analog-canvas-extensions` 0.1–0.6) is upgraded the
-  same way: `rnl upgrade` moves it to 0.7. A netlist with no records imports
-  as its circuit.
+  same way, with `--package-dir` naming a clone's
+  `packages/analog-canvas-extensions` (rich-netlist/rnl#675): it moves to
+  0.7. A netlist with no records imports as its circuit.
 - File → Import → `RNL…` opens the source layout using Canvas conventions.
   `RNL (preserve source appearance)…` opens the authored appearance.
   Both read the same netlist, includes and package files and apply the
@@ -723,7 +725,7 @@ the RNL language and its runtime belong to rnl.
   no-labels packages; an op-amp also names `rnl-std-functional`
   (`packages/rnl/src/export-ops.test.ts`).
 - A file of another language version comes in as its circuit, undrawn,
-  with `RNL_IMPORT_VERSION` naming `rnl upgrade` of the tools release, and a
+  with `RNL_IMPORT_VERSION` naming `rnl upgrade` of the upgrade release, and a
   netlist with no records imports (`packages/rnl/src/rnl-import.test.ts`,
   `apps/editor/src/features/netlist-export/rnl-import-safety.test.ts`).
 - The version line's runtime is the vendored file the dependents name, CI's

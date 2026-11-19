@@ -90,7 +90,8 @@ revision; it never silently changes `ngspice-46-core`.
   subcircuit also takes as a port is the supply that port states, one node.
   Roots are cells no bound subcircuit calls.
 - A `K` card of two inductors of its cell imports as a Document coupling named
-  as the card (text as k, each inductor dotted at its first node's pin).
+  as the card (text as k, each inductor dotted at its first node's pin); one
+  converted from Spectre is named as Spectre wrote it (`TF1`, not `KTF1`).
   Other counts, missing/repeated inductors or an already-coupled pair are
   skipped with `SPICE_IMPORT_COUPLING_SKIPPED`.
 - A subcircuit that is a body Analog Canvas writes itself (an op-amp's, a

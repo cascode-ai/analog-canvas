@@ -23,25 +23,27 @@ const SPECTRE_SCALE: Readonly<Record<string, string>> = {
   a: "a",
 };
 
+/** A SPICE number: digits, a scale and a unit, as `spectreNumber` reads it. */
+const SPICE_NUMBER =
+  /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|mil|[tgkmunpfa])?([\p{L}°]*)\s*$/iu;
+
 /**
  * A number as Spectre writes it, where Analog Canvas holds it as SPICE does:
  * the digits as written, the scale in Spectre's spelling (SPICE's Meg is
  * Spectre's M, and SPICE's M milli), and no unit after it, which Spectre
  * does not read (100fF as 100f, 1MegΩ as 1M). A SPICE {expression} loses its
  * braces, which Spectre does not read, and is parenthesized where it has
- * spaces, which would end a Spectre value; anything else, such as a bare
- * name, as it is.
+ * spaces, which would end a Spectre value; a number in braces is that number
+ * ({10meg} as 10M); anything else, such as a bare name, as it is.
  */
 export function spectreNumber(raw: string): string {
   const braced = /^\s*\{([^{}]*)\}\s*$/u.exec(raw);
   if (braced) {
     const expression = braced[1]!.trim();
+    if (SPICE_NUMBER.test(expression)) return spectreNumber(expression);
     return /\s/u.test(expression) ? `(${expression})` : expression;
   }
-  const match =
-    /^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|mil|[tgkmunpfa])?([\p{L}°]*)\s*$/iu.exec(
-      raw,
-    );
+  const match = SPICE_NUMBER.exec(raw);
   if (!match) return raw;
   const [, digits, scale = "", unit = ""] = match;
   if (!scale && !unit) return raw;

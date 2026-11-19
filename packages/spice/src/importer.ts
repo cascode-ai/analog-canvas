@@ -912,16 +912,27 @@ function isMutualInductor(instance: CircuitInstanceIR): boolean {
  * the card's own name and coupling text. SPICE dots an inductor at its first
  * node, so each member is dotted at the pin that node landed on. A card that
  * cannot be one coupling of two of the Cell's inductors is left out with a
- * warning saying why, as a part without a Symbol is.
+ * warning saying why, as a part without a Symbol is. A coupling Spectre
+ * wrote keeps the name it wrote (TF1), which its SPICE form starts with the
+ * K a K element needs (KTF1).
  */
 function importedInductorCouplings(
   cell: CircuitCellIR,
   documentId: string,
   importedInstanceById: ReadonlyMap<string, Instance>,
   diagnostics: SpiceDiagnostic[],
+  spectreFileIds: ReadonlySet<string>,
+  spectreCouplings: ReadonlySet<string>,
 ): NonNullable<SchematicDocument["inductorCouplings"]> {
   const couplings: NonNullable<SchematicDocument["inductorCouplings"]> = [];
   for (const card of cell.instances.filter(isMutualInductor)) {
+    const name =
+      spectreFileIds.has(card.sourceRef.fileId) &&
+      /^k/iu.test(card.name) &&
+      spectreCouplings.has(card.name.slice(1)) &&
+      !spectreCouplings.has(card.name)
+        ? card.name.slice(1)
+        : card.name;
     const skip = (reason: string) => {
       diagnostics.push(
         diagnostic(
@@ -987,9 +998,9 @@ function importedInductorCouplings(
       continue;
     }
     const named = couplings.find(
-      (coupling) => coupling.name.toLowerCase() === card.name.toLowerCase(),
+      (coupling) => coupling.name.toLowerCase() === name.toLowerCase(),
     );
-    if (named || card.name.length > 64 || k.length > 256) {
+    if (named || name.length > 64 || k.length > 256) {
       skip(
         named
           ? `another coupling is already named ${named.name}`
@@ -999,7 +1010,7 @@ function importedInductorCouplings(
     }
     couplings.push({
       id: deriveStableId("inductor-coupling", documentId, card.id),
-      name: card.name,
+      name,
       members: [first, second],
       k,
     });
@@ -1014,6 +1025,7 @@ function importDocument(
   options: SpiceImportOptions,
   builtInBodies: ReadonlyMap<string, ImportedBody>,
   spectreFileIds: ReadonlySet<string>,
+  spectreCouplings: ReadonlySet<string>,
 ): SchematicDocument {
   const symbolMappings = options.symbolMappings ?? [];
   const externalSymbolMappings = [
@@ -1208,6 +1220,8 @@ function importDocument(
     documentId,
     importedInstanceById,
     diagnostics,
+    spectreFileIds,
+    spectreCouplings,
   );
   const placed = withShelfPlacements(
     instances,
@@ -1758,6 +1772,18 @@ function importCircuitIR(
       )
       .map((file) => file.id),
   );
+  // The names Spectre gives its couplings, as the sources were written.
+  const spectreCouplings = new Set(
+    (options.originalSources ?? [])
+      .filter(isSpectreSource)
+      .flatMap((input) =>
+        [
+          ...decodeSourceContent(input.bytes).text.matchAll(
+            /^[ \t]*([^\s(]+)[ \t]+mutual_inductor\b/gimu,
+          ),
+        ].map((match) => match[1]!),
+      ),
+  );
   const library = libraryCells(ir, options, isBody, spectreFileIds);
   const inLibrary = (name: string) => library.has(name.toLowerCase());
   const cells = ir.cells
@@ -1789,6 +1815,7 @@ function importCircuitIR(
       options,
       builtInBodies,
       spectreFileIds,
+      spectreCouplings,
     ),
   );
   const { documents, externalSubcircuitDefinitions } =
