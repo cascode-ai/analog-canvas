@@ -1666,6 +1666,44 @@ it.each(["spice", "spectre"] as const)(
   },
 );
 
+it("keeps an AC source drawn as the sine source a DC and AC source, and a BJT's area after its model, as another tool writes them", async () => {
+  // As the RNL 0.4 solver draws rich-netlist/rnl-gallery's examples: an AC
+  // source with $SINE_VOLTAGE_SOURCE, whose own default would be SIN, and a
+  // Q card with its area factor after its model.
+  const text = [
+    "* drawn elsewhere",
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+    ".model qp pnp is=1e-16 bf=100",
+    "VS src 0 DC 0 AC 2",
+    "RS src x 50",
+    "Q1 0 0 x qp 8",
+    "* @RNL {",
+    "*   #VS @SET-SYMBOL $SINE_VOLTAGE_SOURCE;",
+    '*   #VS @PLACE(0, 0) => @ORIENT("R0");',
+    '*   #RS @PLACE(4, 3) => @ORIENT("R90");',
+    '*   #Q1 @PLACE(10, 0) => @ORIENT("R0");',
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  expect(plan.drawing).not.toBe("discarded");
+  const parts = plan.project.documents.flatMap((d) => d.instances);
+  const vs = parts.find((item) => item.reference === "VS")!;
+  expect(vs.symbolId).toBe("sine-voltage-source");
+  expect(vs.netlist?.parameters["waveform"]).toBe("dc");
+  expect(parts.find((item) => item.reference === "Q1")).toMatchObject({
+    symbolId: "pnp",
+    netlist: { parameters: { area: "8" } },
+  });
+  const exported = createDesignNetlistExport(plan.project, { format: "spice" });
+  expect(exported.status).toBe("ready");
+  if (exported.status !== "ready") return;
+  expect(exported.file.text).toMatch(/^VS src \S+ DC 0 AC 2/mu);
+  expect(exported.file.text).toMatch(/^Q1 \S+ \S+ x qp area=8$/mu);
+});
+
 it("ends a wire to a port on no port at a junction there, and draws a ground on VSS as a Named Ground", async () => {
   // A flat file has no ports, and its VSS is no ground: the port is its
   // net's label, where its wire ends at a junction; the ground is a Named

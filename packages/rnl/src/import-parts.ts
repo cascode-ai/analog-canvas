@@ -23,6 +23,7 @@ import {
   cellSymbolOf,
   cellArtwork,
   externalArtwork,
+  keepSourceWaveform,
 } from "./import-symbols.js";
 import { type LevelScope, type RnlHiddenLabels } from "./import-scope.js";
 
@@ -269,7 +270,9 @@ export function placeParts(scope: LevelScope): PlacedParts {
       );
     if (mapped) {
       const pinSwitch = switchControl(instance.symbolId) === "pin";
+      const before = instance.symbolId;
       instance.symbolId = mapped.row.ac!;
+      keepSourceWaveform(instance, before);
       if (mapped.row.variant) instance.symbolVariantId = mapped.row.variant;
       else delete instance.symbolVariantId;
       if (pinSwitch && switchControl(instance.symbolId) === "phase")

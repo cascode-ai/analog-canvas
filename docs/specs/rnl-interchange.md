@@ -177,7 +177,10 @@ the RNL language and its runtime belong to rnl.
   sources and ammeter (V cards), the Shockley diode, PUT, UJT and
   potentiometer (calls of their bodies), the chopper (`$CHOPPER_SYMBOL`) and
   the crossed differential op-amp (`$DIFFERENTIAL_OPAMP_TWISTED`); import
-  reads each back as that part. A Spectre card whose name the conversion prefixed with its
+  reads each back as that part. A source drawn with another source's symbol
+  (an AC source drawn as the sine source, as the RNL solver draws one) keeps
+  the waveform its card gives, its symbol's own default aside. A Spectre card
+  whose name the conversion prefixed with its
   element's letter (the ammeter's `A1 … vsource` read as `VA1`) gets its own
   name back where the part as drawn can have it.
 - The MOS Varactor, which no package draws, is defined in the file

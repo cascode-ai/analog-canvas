@@ -121,7 +121,17 @@
     "referencePrefix": "D",
     "pinOrder": ["A", "K"],
     "targetPolicy": "required-model",
-    "parameters": [],
+    "parameters": [
+      {
+        "name": "area",
+        "label": "Area",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "help": "Area factor, scaling the model's junction currents and capacitances",
+        "displayRole": "none"
+      }
+    ],
     "dialects": ["spice", "spectre"],
     "capabilities": {
       "supportsModel": true,

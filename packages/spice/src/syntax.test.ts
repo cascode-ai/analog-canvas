@@ -133,4 +133,35 @@ describe("SPICE statement profile", () => {
     ).toBe(".save A");
     expect(bundle.diagnostics).toEqual([]);
   });
+
+  it("reads a lone number after a D, J or Q card's model as its area", async () => {
+    const text = [
+      "* area",
+      "D1 a k dmod 2",
+      "J1 d g s jmod {2*w}",
+      "Q1 c b e qmod 8",
+      "Q2 c b e qmod 8 area=4",
+      "Q3 c b e qmod off",
+      "M1 d g s b nch 2",
+      "",
+    ].join("\n");
+    const bundle = await createSourceBundle(
+      [{ path: "area.spi", bytes: encoder.encode(text) }],
+      "area.spi",
+    );
+    const tails = bundle.syntaxFiles[0]!.statements.flatMap((statement) =>
+      statement.kind === "instance"
+        ? [statement.parameters.map((p) => `${p.name}=${p.rawText}`)]
+        : [],
+    );
+    expect(tails).toEqual([
+      ["area=2"],
+      ["area={2*w}"],
+      ["area=8"],
+      // One the card names itself, a flag, or a MOS's tail stays as written.
+      ["area=4", "positional-tail=8"],
+      ["positional-tail=off"],
+      ["positional-tail=2"],
+    ]);
+  });
 });

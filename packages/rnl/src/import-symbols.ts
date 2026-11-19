@@ -135,6 +135,25 @@ function positionalPins(
   return new Set(names.values()).size === names.size ? names : null;
 }
 
+/**
+ * A source drawn with another source's symbol, as an RNL solver draws an AC
+ * source with the sine source's, keeps the waveform its card gives: where
+ * the card names none, the new symbol's own default would stand in for it,
+ * so the part states the one it had (rich-netlist/rnl-gallery's examples).
+ */
+export function keepSourceWaveform(
+  instance: Pick<Instance, "symbolId" | "netlist">,
+  before: string,
+): void {
+  const had = deviceDescriptor(before)?.sourceWaveformDefault;
+  const now = deviceDescriptor(instance.symbolId)?.sourceWaveformDefault;
+  const parameters = instance.netlist?.parameters;
+  if (!had || !now || had === now || !parameters) return;
+  if (Object.keys(parameters).some((name) => name.toLowerCase() === "waveform"))
+    return;
+  parameters["waveform"] = had;
+}
+
 /** What closes a switch Analog Canvas draws: the phase its label names, its CTRL pin, or a chopper's clock. */
 export const switchControl = (symbolId: string) => {
   const definition = deviceDescriptor(symbolId);
