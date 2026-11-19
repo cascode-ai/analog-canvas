@@ -19,6 +19,8 @@ const ProjectTextSchema = z.string().max(2_200_000);
 const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
+/** Export as if this Process were applied, as the Netlist panel's Process does; the Project is unchanged. */
+const NetlistProcessSchema = z.enum(["abstract", "sky130", "sg13g2"]);
 const ProjectNameSchema = z.string().min(1).max(256);
 const GalleryEntryStatusSchema = z.enum(["public", "rejected", "recycled"]);
 /**
@@ -197,6 +199,7 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       format: NetlistFormatSchema.optional(),
       namingProfile: NetlistNamingProfileSchema.optional(),
       portCase: NetlistPortCaseSchema.optional(),
+      process: NetlistProcessSchema.optional(),
       /** Public Cell-scoped spelling; rootDocumentId remains wire-compatible. */
       documentId: StableIdSchema.optional(),
       rootDocumentId: StableIdSchema.optional(),

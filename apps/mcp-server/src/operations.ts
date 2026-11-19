@@ -277,6 +277,7 @@ const NetlistCodeArgs = z.discriminatedUnion("action", [
     format: z.enum(["spice", "spectre"]).optional(),
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
+    process: z.enum(["abstract", "sky130", "sg13g2"]).optional(),
     documentId: z.string().min(1).optional(),
     rootDocumentId: z.string().min(1).optional(),
   }),
@@ -1142,6 +1143,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           requestId: crypto.randomUUID(),
           operation: "read-netlist",
           ...(parsed.format ? { format: parsed.format } : {}),
+          ...(parsed.process ? { process: parsed.process } : {}),
           ...(parsed.namingProfile
             ? { namingProfile: parsed.namingProfile }
             : {}),

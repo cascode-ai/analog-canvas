@@ -10,7 +10,7 @@
 //   node canvas-local.mjs call <dir> resource <uri>
 //   node canvas-local.mjs png <dir> [<out.png>]
 //   node canvas-local.mjs svg <dir> [<out.svg>]
-//   node canvas-local.mjs netlist <dir> [<out.sp>] [--format spice|spectre]
+//   node canvas-local.mjs netlist <dir> [<out.sp>] [--format spice|spectre] [--process <id>]
 //   node canvas-local.mjs setup [--version <x.y.z>]
 //
 // The interface follows each release and changes often; pin one with
@@ -45,7 +45,7 @@ const USAGE = `Analog Canvas from the command line (docs/user/command-line.md)
   call <dir> resource <uri>                    read a reference, e.g. the part catalog
   png <dir> [<out.png>]                        export the top Cell as PNG
   svg <dir> [<out.svg>]                        export the top Cell as SVG
-  netlist <dir> [<out.sp>] [--format spice|spectre]
+  netlist <dir> [<out.sp>] [--format spice|spectre] [--process <id>]
                                                export the top Cell's netlist
   setup [--version <x.y.z>]                    download and check a release now
 
@@ -228,7 +228,11 @@ if (command === "new") {
     adapter,
     dir,
     "netlist_code",
-    JSON.stringify({ action: "read", format }),
+    JSON.stringify({
+      action: "read",
+      format,
+      ...(flags.process ? { process: flags.process } : {}),
+    }),
   );
   const netlist = result?.netlist;
   if (

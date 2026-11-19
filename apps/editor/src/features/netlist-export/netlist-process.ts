@@ -17,6 +17,7 @@ import {
 } from "@icm/edit-engine";
 import { deriveStableId, type CircuitProject, type Instance } from "@icm/model";
 import {
+  createNetlistExportProfile,
   NETLIST_DEVICE_TARGET_OPTIONS,
   NETLIST_HIGH_VOLTAGE_TARGETS,
   NETLIST_QUICK_TARGET_FAMILIES,
@@ -655,6 +656,27 @@ export function prepareNetlistProcess(
     }
   }
   return { edits, instanceCount: filled.size };
+}
+
+/** The Project as Apply process would leave it, for one export; nothing is committed. */
+export function projectInNetlistProcess(
+  project: CircuitProject,
+  process: Exclude<NetlistProfileId, "custom">,
+): CircuitProject {
+  const edits = planNetlistProcess(
+    project,
+    createNetlistExportProfile(process),
+  );
+  if (!edits.length) return project;
+  const result = executeProjectTransaction(project, {
+    transactionId: "export-netlist-process",
+    projectId: project.id,
+    expectedStructureRevision: project.structureRevision,
+    actor: { kind: "human", id: "netlist-process" },
+    edits,
+  });
+  if (!result.ok) throw new Error(result.error.message);
+  return result.project;
 }
 
 /** Defaults belong to creating an example, never to mounting a reader of a saved Project. */
