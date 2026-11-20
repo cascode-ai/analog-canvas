@@ -12,6 +12,7 @@ import {
   formatLabelFirstLetter,
   formatLabelIdentifier,
   formatLabelSubscripts,
+  isFrozenSnapshot,
   labelTypography,
   mirrorScale,
   rewriteRichTextIdentifier,
@@ -38,6 +39,7 @@ import {
 } from "@icm/symbols";
 import type {
   AdaptiveSignalFlowBlockLayout,
+  ResolvedSymbol,
   SignalFlowLayoutParameters,
   SymbolDefinition,
   SymbolPrimitive,
@@ -195,6 +197,58 @@ export function renderSymbolDefinitionBody(
       ),
     )
     .join("");
+}
+
+/** Reuse only equivalent local artwork during this one scene build. */
+export function createInstanceArtworkRenderer(share: boolean) {
+  type Instance = SchematicDocument["instances"][number];
+  type Artwork = {
+    variant: ResolvedSymbol["variant"];
+    instance: Instance;
+    profile: SchematicStyleProfile;
+    body: string;
+  };
+  const previous = share ? new Map<SymbolDefinition, Artwork>() : undefined;
+  return (
+    symbol: ResolvedSymbol,
+    instance: Instance,
+    profile: SchematicStyleProfile,
+  ) => {
+    const last = previous?.get(symbol.definition);
+    const foreground = instance.styleOverride?.foreground;
+    const pose = instance.placement;
+    if (
+      last &&
+      last.variant === symbol.variant &&
+      last.profile === profile &&
+      last.instance.styleOverride?.foreground === foreground &&
+      last.instance.signalFlowParameters === instance.signalFlowParameters &&
+      last.instance.placement?.rotation === pose?.rotation &&
+      last.instance.placement?.mirror === pose?.mirror
+    )
+      return last.body;
+    const body = renderSymbolDefinitionBody(
+      symbol.definition,
+      symbol.variant?.hiddenPrimitiveParts,
+      symbol.variant?.additionalPrimitives,
+      profile,
+      foreground,
+      instance.signalFlowParameters,
+      pose ?? undefined,
+    );
+    if (
+      previous &&
+      isFrozenSnapshot(symbol.definition) &&
+      (!symbol.variant || isFrozenSnapshot(symbol.variant))
+    )
+      previous.set(symbol.definition, {
+        variant: symbol.variant,
+        instance,
+        profile,
+        body,
+      });
+    return body;
+  };
 }
 
 export function instanceTransform(

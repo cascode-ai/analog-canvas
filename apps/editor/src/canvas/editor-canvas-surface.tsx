@@ -356,6 +356,7 @@ export function EditorCanvasSurface({
       <svg
         ref={svgRef}
         className={className}
+        data-viewport-culling={paintRuns ? true : undefined}
         data-testid="schematic-canvas"
         style={
           textFontFamily

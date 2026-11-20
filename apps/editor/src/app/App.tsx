@@ -54,6 +54,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -1900,6 +1901,7 @@ function WorkspaceEditor({
       releaseFormulaArtifacts();
     };
   }, [renderedDocument]);
+  const canvasGeometryPrefix = useId();
   const committedSceneState = useMemo(() => {
     const outcome = buildSceneSafely(() => {
       if (sceneCrashRequested()) {
@@ -1913,7 +1915,7 @@ function WorkspaceEditor({
         document.id,
       );
       return buildSvgScene(document, resolver, {
-        canvasPaintRuns: usesCanvasViewport(document),
+        canvasPaintRuns: usesCanvasViewport(document) && canvasGeometryPrefix,
         ...(documentConnectivity
           ? {
               routingGeometry: documentConnectivity.routingGeometry,
@@ -1924,7 +1926,13 @@ function WorkspaceEditor({
     }, lastGoodSceneRef.current);
     if (!outcome.degraded) lastGoodSceneRef.current = outcome.scene;
     return outcome;
-  }, [document, formulaArtifactRevision, projectConnectivityIndex, resolver]);
+  }, [
+    canvasGeometryPrefix,
+    document,
+    formulaArtifactRevision,
+    projectConnectivityIndex,
+    resolver,
+  ]);
   const sceneState = useMemo(() => {
     if (renderedDocument === document) return committedSceneState;
     const outcome = buildSceneSafely(() => {
@@ -4023,6 +4031,7 @@ function WorkspaceEditor({
   } = createEditorNavigationController({
     project,
     document,
+    currentCellBounds: contentSceneBounds,
     resolver,
     connectivityIndex: projectConnectivityIndex,
     documentStack,

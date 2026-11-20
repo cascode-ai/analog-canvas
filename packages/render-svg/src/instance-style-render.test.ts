@@ -16,6 +16,51 @@ import { renderDocumentSvg, buildSvgScene } from "./render.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("instance style override rendering", () => {
+  it("reuses the same vector artwork within each canvas while keeping the full drawing portable", () => {
+    const doc = createEmptyDocument("repeated-mos", "Repeated MOS");
+    doc.instances.push(
+      {
+        id: "M1",
+        symbolId: "nmos",
+        placement: { position: { x: 10, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "M2",
+        symbolId: "nmos",
+        placement: { position: { x: 70, y: 0 }, rotation: 90, mirror: "both" },
+      },
+    );
+    const full = buildSvgScene(doc, resolver, { canvasPaintRuns: true });
+    const original = full.canvasPaintRuns!.find(
+      (run) => run.layer === "symbols",
+    )!;
+    const references = ["first", "second"].map((prefix) => {
+      const scene = buildSvgScene(doc, resolver, { canvasPaintRuns: prefix });
+      expect(scene.viewBox).toEqual(full.viewBox);
+      expect(scene.formalBody).toBe(full.formalBody);
+      const ink = scene.canvasPaintRuns!.map((run) => run.html).join("");
+      const placements = [...ink.matchAll(/<use href="#([^"]+)"\s*\/>/gu)];
+      expect(placements).toHaveLength(2);
+      const id = placements[0]![1]!;
+      expect(placements[1]![1]).toBe(id);
+      expect(ink.match(new RegExp(`id="${id}"`, "gu"))).toHaveLength(1);
+      const geometry = /<defs><g id="[^"]+">(.+?)<\/g><\/defs>/u.exec(ink)?.[1];
+      expect(geometry).toBeDefined();
+      const symbols = scene.canvasPaintRuns!.find(
+        (run) => run.layer === "symbols",
+      )!;
+      expect(
+        symbols.html.replaceAll(`<use href="#${id}"/>`, () => geometry!),
+      ).toBe(original.html);
+      expect(ink).toContain(
+        'transform="translate(70 0) scale(-1 -1) rotate(90)"',
+      );
+      return id;
+    });
+    expect(references[0]).not.toBe(references[1]);
+    expect(renderDocumentSvg(doc, resolver)).not.toContain("<use");
+  });
+
   it.each([
     ["voltage-source", 1],
     ["opamp", 1],

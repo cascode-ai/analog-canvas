@@ -29,6 +29,13 @@
   -webkit-user-select: none;
 }
 
+/* The panel already owns the viewport's size. Measuring a large SVG as grid
+   content makes a change of viewBox lay out its text again to size the panel. */
+.schematic-canvas[data-viewport-culling] {
+  position: absolute;
+  inset: 0;
+}
+
 /* Focus exists only to hand global shortcuts back from a prior input. The
    canvas is not a form control and must never gain a browser-drawn frame. */
 .schematic-canvas:focus {

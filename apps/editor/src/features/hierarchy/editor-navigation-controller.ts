@@ -47,6 +47,8 @@ type SetViewBox = (
 export interface EditorNavigationControllerDependencies {
   project: CircuitProject;
   document: SchematicDocument;
+  /** The shown Cell's committed bounds; null when its scene degraded. */
+  currentCellBounds?: CameraRectInput | null;
   resolver: SymbolResolver;
   connectivityIndex: ProjectConnectivityIndex;
   documentStack: readonly HierarchyFrame[];
@@ -102,6 +104,7 @@ export interface EditorNavigationControllerDependencies {
 export function createEditorNavigationController({
   project,
   document,
+  currentCellBounds,
   resolver,
   connectivityIndex,
   documentStack,
@@ -364,11 +367,14 @@ export function createEditorNavigationController({
     }
     // A Cell whose scene cannot be built fits the default view, as F does
     // on a degraded scene; the navigation that asked for the fit completes.
-    let bounds: CameraRectInput = defaultViewBox;
-    try {
-      bounds = buildSvgScene(target, resolver).viewBox;
-    } catch {
-      // Keep the default view.
+    const committed = target === document ? currentCellBounds : undefined;
+    let bounds: CameraRectInput = committed ?? defaultViewBox;
+    if (committed === undefined) {
+      try {
+        bounds = buildSvgScene(target, resolver).viewBox;
+      } catch {
+        // Keep the default view.
+      }
     }
     const grid = target.presentation.grid;
     setViewBox(

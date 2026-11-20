@@ -54,7 +54,12 @@ import {
 } from "./annotation-render.js";
 import type { ResolvedSvgAnnotation } from "./annotation-render.js";
 import { renderDraftingObject } from "./drafting-render.js";
-import { composeDrawing, type SvgPaintRun } from "./compose-drawing.js";
+import {
+  composeDrawing,
+  shareCanvasSymbols,
+  type InstanceInk,
+  type SvgPaintRun,
+} from "./compose-drawing.js";
 import { renderInductorCouplingLayer } from "./inductor-coupling-render.js";
 import {
   busStrokeProfile,
@@ -69,14 +74,14 @@ import { wireHopPaths } from "./wire-hops.js";
 import { escapeXml, pointList } from "./svg-markup.js";
 import {
   instanceTransform,
+  createInstanceArtworkRenderer,
   renderFilledRegion,
-  renderSymbolDefinitionBody,
   renderVisiblePinNames,
 } from "./symbol-render.js";
 
 export interface SvgRenderOptions {
-  /** Also expose ordered, stable paint fragments for a large interactive canvas. */
-  canvasPaintRuns?: boolean;
+  /** A surface-unique SVG ID prefix also shares repeated artwork in the paint fragments. */
+  canvasPaintRuns?: boolean | string;
   /** Read-only paint filter. Geometry and electrical facts still use the full Document. */
   objectIds?: ReadonlySet<string>;
   /** Page background only; explicit object fills are preserved. */
@@ -537,6 +542,10 @@ export function buildSvgScene(
   const noConnectLayer = noConnectMarkers
     ? `<g data-layer="no-connects">${noConnectMarkers}</g>`
     : "";
+  const canvasPrefix = options.canvasPaintRuns;
+  const canvasSymbols =
+    typeof canvasPrefix === "string" ? new Map<string, InstanceInk>() : null;
+  const renderArtwork = createInstanceArtworkRenderer(!!canvasSymbols);
   const symbols = new Map(
     document.instances
       .filter((instance) => included(instance.id))
@@ -549,15 +558,7 @@ export function buildSvgScene(
         const instanceProfile = objectStyleProfile(profile, instance);
         const styleOverride = instance.styleOverride;
         const foregroundOverride = styleOverride?.foreground;
-        const primitives = renderSymbolDefinitionBody(
-          resolved.definition,
-          resolved.variant?.hiddenPrimitiveParts,
-          resolved.variant?.additionalPrimitives,
-          instanceProfile,
-          foregroundOverride,
-          instance.signalFlowParameters,
-          instance.placement ?? undefined,
-        );
+        const primitives = renderArtwork(resolved, instance, instanceProfile);
         const pinNames = renderVisiblePinNames(
           resolved.definition,
           resolved.variant?.hiddenPinNames ?? [],
@@ -614,10 +615,15 @@ export function buildSvgScene(
             .join("") ?? "";
         const symbolRole =
           styleOverride === undefined ? "" : ' data-role="instance-symbol"';
-        return [
-          instance.id,
-          `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"><g transform="${instanceTransform(instance)}">${background}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${instanceProfile.strokes.symbol}" stroke-linecap="${instanceProfile.lineCap}" stroke-linejoin="${instanceProfile.lineJoin}"${profileMiterAttribute(instanceProfile)}>${primitives}</g></g>${formula}${pinNames}</g>`,
-        ] as const;
+        const before = `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"><g transform="${instanceTransform(instance)}">${background}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${instanceProfile.strokes.symbol}" stroke-linecap="${instanceProfile.lineCap}" stroke-linejoin="${instanceProfile.lineJoin}"${profileMiterAttribute(instanceProfile)}>`;
+        const after = `</g></g>${formula}${pinNames}</g>`;
+        if (primitives && !resolved.definition.formulaPresentation)
+          canvasSymbols?.set(instance.id, {
+            before,
+            geometry: primitives,
+            after,
+          });
+        return [instance.id, before + primitives + after] as const;
       }),
   );
   const annotations = new Map(
@@ -829,6 +835,9 @@ export function buildSvgScene(
     },
     !document.drawingOrder,
     canvasRuns,
+    canvasRuns && canvasSymbols && typeof canvasPrefix === "string"
+      ? shareCanvasSymbols(canvasPrefix, canvasSymbols, canvasRuns)
+      : undefined,
   );
   return {
     viewBox,
