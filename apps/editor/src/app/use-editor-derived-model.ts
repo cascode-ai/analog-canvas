@@ -8,7 +8,7 @@ import {
   isVisibleEndpoint,
   resolveCommittedDocumentLogicalNets,
   resolveEndpointConnection,
-  traceHierarchyNet,
+  traceHierarchyNetView,
 } from "@icm/derived";
 import type {
   Flightline,
@@ -262,7 +262,7 @@ export function useEditorDerivedModel({
   const highlightedTrace = useMemo(
     () =>
       highlightedNetOrigin
-        ? traceHierarchyNet(
+        ? traceHierarchyNetView(
             projectConnectivityIndex,
             highlightedNetOrigin.documentId,
             highlightedNetOrigin.netId,

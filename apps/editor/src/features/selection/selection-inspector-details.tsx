@@ -6,7 +6,7 @@ import type {
   Diagnostic,
   DiagnosticSeverity,
   GlobalNetTraceHop,
-  HierarchyNetTrace,
+  HierarchyNetTraceView,
   HierarchyNetTraceHop,
   LiveDiagnosticSnapshot,
   VisualDiagnostic,
@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SpiceDiagnostic } from "@icm/spice";
 
 import type { EditorTool } from "../../interaction/interaction-state";
+import { NetTraceHopList } from "./net-trace-hop-list";
 
 export interface SelectionInspectorSnapshot {
   selected: string;
@@ -155,7 +156,7 @@ export interface ProjectDiagnosticsSectionProps {
 }
 
 export interface NetTraceSectionProps {
-  trace: HierarchyNetTrace;
+  trace: HierarchyNetTraceView;
   documentLabel(documentId: string): string;
   onNavigateHop(hop: HierarchyNetTraceHop | GlobalNetTraceHop): void;
 }
@@ -185,23 +186,16 @@ export function NetTraceSection({
       className="diagnostics erc-diagnostics net-trace"
     >
       <h2>Hierarchy Net trace ({trace.highlights.length} Cells)</h2>
-      <ul data-testid="net-trace-hops">
-        {trace.hops.map((hop, index) => (
-          <li
-            key={`${hop.direction}-${hop.from.documentId}-${hop.from.netId}-${netTraceHopDetail(hop)}-${index}`}
-          >
-            <button
-              type="button"
-              data-testid={`net-trace-hop-${index}`}
-              onClick={() => onNavigateHop(hop)}
-            >
-              <strong>{netTraceHopAction(hop)}</strong>:{" "}
-              {netTraceHopDetail(hop)} → {documentLabel(hop.to.documentId)} /{" "}
-              {hop.to.netId}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <NetTraceHopList
+        hops={trace.hops}
+        onNavigateHop={onNavigateHop}
+        renderLabel={(hop) => (
+          <>
+            <strong>{netTraceHopAction(hop)}</strong>: {netTraceHopDetail(hop)}{" "}
+            → {documentLabel(hop.to.documentId)} / {hop.to.netId}
+          </>
+        )}
+      />
     </section>
   );
 }

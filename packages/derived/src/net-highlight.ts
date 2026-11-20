@@ -1,4 +1,8 @@
-import type { ProjectConnectivityIndex } from "./connectivity-index.js";
+import { foldNetName } from "@icm/model";
+import type {
+  GlobalNetGroup,
+  ProjectConnectivityIndex,
+} from "./connectivity-index.js";
 import type {
   EndpointRef,
   HierarchyEdge,
@@ -55,6 +59,13 @@ export interface HierarchyNetTrace {
   hops: readonly (HierarchyNetTraceHop | GlobalNetTraceHop)[];
 }
 
+type TraceHop = HierarchyNetTraceHop | GlobalNetTraceHop;
+
+/** The editor can visit any ordered hop without constructing the others. */
+export interface HierarchyNetTraceView extends Omit<HierarchyNetTrace, "hops"> {
+  hops: Pick<readonly TraceHop[], "length" | "at">;
+}
+
 function hierarchyPathKey(path: readonly HierarchyFrame[]): string {
   return path
     .map(
@@ -69,6 +80,89 @@ function sameHierarchyPath(
   right: readonly HierarchyFrame[],
 ): boolean {
   return hierarchyPathKey(left) === hierarchyPathKey(right);
+}
+
+function occurrenceKey(ref: HierarchyNetRef): string {
+  return `${hierarchyPathKey(ref.hierarchyPath)}\u0000${ref.documentId}\u0000${ref.netId}`;
+}
+
+interface HopRun {
+  key: string;
+  length: number;
+  hopAt(offset: number): TraceHop;
+}
+
+function hopOrder(
+  direction: TraceHop["direction"],
+  from: HierarchyNetRef,
+  suffix: string,
+): string {
+  return `${direction}\u0000${from.hierarchyPath.map((frame) => frame.instanceId).join("/")}\u0000${from.documentId}\u0000${from.netId}\u0000${suffix}`;
+}
+
+function hierarchyRun(hop: HierarchyNetTraceHop): HopRun {
+  const { frame } = hop;
+  return {
+    key: hopOrder(
+      hop.direction,
+      hop.from,
+      `${frame.instanceId}\u0000${frame.parentPinName}\u0000${frame.parentMemberId ?? ""}`,
+    ),
+    length: 1,
+    hopAt: () => hop,
+  };
+}
+
+interface GlobalOccurrences {
+  targets: HierarchyNetRef[];
+  positions: Map<string, number[]>;
+}
+
+function globalRun(
+  group: GlobalNetGroup,
+  occurrences: GlobalOccurrences,
+  from: HierarchyNetRef,
+): HopRun {
+  const excluded = occurrences.positions.get(occurrenceKey(from)) ?? [];
+  return {
+    key: hopOrder("global", from, group.foldedName),
+    length: occurrences.targets.length - excluded.length,
+    hopAt(offset) {
+      // The original directed traversal visits all targets except this occurrence.
+      for (const i of excluded) {
+        if (i > offset) break;
+        offset++;
+      }
+      return {
+        direction: "global",
+        from,
+        to: occurrences.targets[offset]!,
+        foldedName: group.foldedName,
+      };
+    },
+  };
+}
+
+function orderedHops(runs: HopRun[]): HierarchyNetTraceView["hops"] {
+  runs.sort((left, right) => left.key.localeCompare(right.key, "en"));
+  let length = 0;
+  const ends = runs.map((run) => (length += run.length));
+  return {
+    length,
+    at(index) {
+      const offset = Math.trunc(index) || 0;
+      const row = offset < 0 ? length + offset : offset;
+      if (row < 0 || row >= length) return undefined;
+      let low = 0;
+      let high = ends.length - 1;
+      while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if (row < ends[mid]!) high = mid;
+        else low = mid + 1;
+      }
+      return runs[low]!.hopAt(row - (ends[low]! - runs[low]!.length));
+    },
+  };
 }
 
 export function computeNetHighlight(
@@ -122,13 +216,13 @@ export function computeNetHighlight(
  * hops are retained independently so two parent instances of one child Cell
  * remain distinguishable to a later hierarchy-aware UI.
  */
-export function traceHierarchyNet(
+export function traceHierarchyNetView(
   index: ProjectConnectivityIndex,
   documentId: string,
   netId: string,
   origin?: EndpointRef,
   hierarchyPath: readonly HierarchyFrame[] = [],
-): HierarchyNetTrace | undefined {
+): HierarchyNetTraceView | undefined {
   const primary = computeNetHighlight(
     index,
     documentId,
@@ -149,12 +243,13 @@ export function traceHierarchyNet(
   ];
   const visited = new Set<string>();
   const highlights: NetHighlight[] = [];
-  const hops: Array<HierarchyNetTraceHop | GlobalNetTraceHop> = [];
+  const runs: HopRun[] = [];
+  const globalOccurrences = new Map<GlobalNetGroup, GlobalOccurrences>();
+  const pathsByCell = new Map<string, readonly (readonly HierarchyFrame[])[]>();
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const pathKey = hierarchyPathKey(current.hierarchyPath);
-    const key = `${pathKey}\u0000${current.documentId}\u0000${current.netId}`;
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const current = queue[cursor]!;
+    const key = occurrenceKey(current);
     if (visited.has(key)) continue;
     const highlight =
       current.documentId === documentId &&
@@ -209,7 +304,9 @@ export function traceHierarchyNet(
             },
           ],
         });
-        hops.push({ direction: "down", from: current, to, frame });
+        runs.push(
+          hierarchyRun({ direction: "down", from: current, to, frame }),
+        );
         queue.push(to);
       }
       if (edge.childDocumentId === current.documentId) {
@@ -240,50 +337,45 @@ export function traceHierarchyNet(
           netId: parentNetId,
           hierarchyPath: current.hierarchyPath.slice(0, -1),
         });
-        hops.push({ direction: "up", from: current, to, frame });
+        runs.push(hierarchyRun({ direction: "up", from: current, to, frame }));
         queue.push(to);
       }
     }
 
-    const globalRecord = currentRecord;
-    // The index record intentionally contains no persisted name. Resolve the
-    // group through the global map by matching the stable local Net reference.
-    const group = [...index.globalNets.values()].find((candidate) =>
-      candidate.nets.some(
-        (ref) =>
-          ref.documentId === current.documentId && ref.netId === current.netId,
-      ),
+    const logicalNet = currentDocumentIndex?.logicalNetResolution.byId.get(
+      current.netId,
     );
-    if (globalRecord && group) {
+    const group =
+      logicalNet?.scope === "global" && logicalNet.name
+        ? index.globalNets.get(foldNetName(logicalNet.name))
+        : undefined;
+    if (!group) continue;
+    let occurrences = globalOccurrences.get(group);
+    if (!occurrences) {
+      occurrences = { targets: [], positions: new Map() };
       for (const target of group.nets) {
-        const targetPaths =
-          target.documentId === index.topDocumentId
-            ? [[]]
-            : (findHierarchyPaths(
-                index,
-                index.topDocumentId,
-                target.documentId,
-              ) ?? [[]]);
+        let targetPaths = pathsByCell.get(target.documentId);
+        if (!targetPaths) {
+          targetPaths = findHierarchyPaths(
+            index,
+            index.topDocumentId,
+            target.documentId,
+          ) ?? [[]];
+          pathsByCell.set(target.documentId, targetPaths);
+        }
         for (const targetPath of targetPaths) {
           const to = canonicalRef({ ...target, hierarchyPath: targetPath });
-          const samePath = sameHierarchyPath(targetPath, current.hierarchyPath);
-          if (
-            to.documentId === current.documentId &&
-            to.netId === current.netId &&
-            samePath
-          ) {
-            continue;
-          }
-          hops.push({
-            direction: "global",
-            from: current,
-            to,
-            foldedName: group.foldedName,
-          });
+          const targetKey = occurrenceKey(to);
+          const positions = occurrences.positions.get(targetKey) ?? [];
+          positions.push(occurrences.targets.length);
+          occurrences.positions.set(targetKey, positions);
+          occurrences.targets.push(to);
           queue.push(to);
         }
       }
+      globalOccurrences.set(group, occurrences);
     }
+    runs.push(globalRun(group, occurrences, current));
   }
 
   highlights.sort((left, right) =>
@@ -292,19 +384,27 @@ export function traceHierarchyNet(
       "en",
     ),
   );
-  hops.sort((left, right) => {
-    const leftSuffix =
-      left.direction === "global"
-        ? left.foldedName
-        : `${left.frame.instanceId}\u0000${left.frame.parentPinName}\u0000${left.frame.parentMemberId ?? ""}`;
-    const rightSuffix =
-      right.direction === "global"
-        ? right.foldedName
-        : `${right.frame.instanceId}\u0000${right.frame.parentPinName}\u0000${right.frame.parentMemberId ?? ""}`;
-    return `${left.direction}\u0000${left.from.hierarchyPath.map((frame) => frame.instanceId).join("/")}\u0000${left.from.documentId}\u0000${left.from.netId}\u0000${leftSuffix}`.localeCompare(
-      `${right.direction}\u0000${right.from.hierarchyPath.map((frame) => frame.instanceId).join("/")}\u0000${right.from.documentId}\u0000${right.from.netId}\u0000${rightSuffix}`,
-      "en",
-    );
-  });
-  return { primary, highlights, hops };
+  return { primary, highlights, hops: orderedHops(runs) };
+}
+
+/** Materialize every ordered edge for complete reads, including Agent snapshots. */
+export function traceHierarchyNet(
+  index: ProjectConnectivityIndex,
+  documentId: string,
+  netId: string,
+  origin?: EndpointRef,
+  hierarchyPath: readonly HierarchyFrame[] = [],
+): HierarchyNetTrace | undefined {
+  const view = traceHierarchyNetView(
+    index,
+    documentId,
+    netId,
+    origin,
+    hierarchyPath,
+  );
+  if (!view) return undefined;
+  const hops = Array.from({ length: view.hops.length }, (_, i) =>
+    view.hops.at(i)!,
+  );
+  return { primary: view.primary, highlights: view.highlights, hops };
 }
