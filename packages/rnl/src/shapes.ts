@@ -6,11 +6,60 @@ import { AC_UNITS_PER_RNL_UNIT, toRnlPoint, type RnlPoint } from "./place.js";
 type Point = { readonly x: number; readonly y: number };
 
 /**
- * An SVG path of absolute M, L, H, V, C and Z commands as RNL shapes, one
- * for each subpath: straight legs only make a line; with a cubic leg, a
+ * An SVG circular arc (A with equal radii) from `from` to `to` as RNL's
+ * three-point arc, through the middle of the curve; null for an elliptical
+ * arc or one of no length.
+ */
+function arcShape(
+  from: Point,
+  to: Point,
+  [rx, ry, , large, sweep]: readonly number[],
+): RnlShape | null {
+  const chord = Math.hypot(to.x - from.x, to.y - from.y);
+  if (rx !== ry || !(rx! > 0) || !(chord > 0)) return null;
+  // SVG scales up a radius too short for its chord.
+  const radius = Math.max(rx!, chord / 2);
+  const middle = between(from, to, 1 / 2);
+  const rise = Math.sqrt(Math.max(0, radius * radius - (chord / 2) ** 2));
+  const normal = {
+    x: -(to.y - from.y) / chord,
+    y: (to.x - from.x) / chord,
+  };
+  for (const side of [1, -1]) {
+    const center = {
+      x: middle.x + side * rise * normal.x,
+      y: middle.y + side * rise * normal.y,
+    };
+    const start = Math.atan2(from.y - center.y, from.x - center.x);
+    let turn = Math.atan2(to.y - center.y, to.x - center.x) - start;
+    if (sweep && turn < 0) turn += 2 * Math.PI;
+    if (!sweep && turn > 0) turn -= 2 * Math.PI;
+    if (Math.abs(turn) > Math.PI + 1e-9 !== Boolean(large) && rise > 1e-9)
+      continue;
+    const angle = start + turn / 2;
+    return {
+      shape: "arc",
+      points: [
+        toRnlPoint(from),
+        toRnlPoint({
+          x: center.x + radius * Math.cos(angle),
+          y: center.y + radius * Math.sin(angle),
+        }),
+        toRnlPoint(to),
+      ],
+    };
+  }
+  return null;
+}
+
+/**
+ * An SVG path of absolute M, L, H, V, C, A and Z commands as RNL shapes,
+ * one for each subpath: straight legs only make a line; with a cubic leg, a
  * Bézier whose straight legs are cubics with their controls on the leg, so
- * the curve is the one drawn, not an approximation. Any other command
- * (relative, S, Q, A) gives null.
+ * the curve is the one drawn, not an approximation; a circular arc an arc,
+ * the legs either side of it shapes of their own. Any other command
+ * (relative, S, Q, an elliptical arc, a closed subpath with an arc) gives
+ * null.
  */
 function pathShapes(data: string): RnlShape[] | null {
   const tokens = data.match(
@@ -39,6 +88,8 @@ function pathShapes(data: string): RnlShape[] | null {
   };
   let index = 0;
   let command = "";
+  // The subpath has an arc, so its first point is not where Z goes back to.
+  let arced = false;
   const point = (): Point | null => {
     const x = Number(tokens[index]);
     const y = Number(tokens[index + 1]);
@@ -52,6 +103,7 @@ function pathShapes(data: string): RnlShape[] | null {
   while (index < tokens.length) {
     if (/^[A-Za-z]$/u.test(tokens[index]!)) command = tokens[index++]!;
     if (command === "Z") {
+      if (arced) return null;
       const [first] = points;
       const last = points.at(-1);
       if (points.length > 1 && (first!.x !== last!.x || first!.y !== last!.y)) {
@@ -70,6 +122,7 @@ function pathShapes(data: string): RnlShape[] | null {
       if (!start) return null;
       points = [start];
       controls = [];
+      arced = false;
       // Further pairs after M are line legs.
       command = "L";
     } else if (command === "L") {
@@ -92,6 +145,20 @@ function pathShapes(data: string): RnlShape[] | null {
       if (!a || !b || !to || !points.length) return null;
       points.push(to);
       controls.push([a, b]);
+    } else if (command === "A") {
+      const radii = [coordinate(), coordinate(), coordinate()];
+      const flags = [coordinate(), coordinate()];
+      const to = point();
+      const from = points.at(-1);
+      if (!to || !from || [...radii, ...flags].some((value) => value === null))
+        return null;
+      const arc = arcShape(from, to, [...radii, ...flags] as number[]);
+      if (!arc) return null;
+      flush();
+      shapes.push(arc);
+      points = [to];
+      controls = [];
+      arced = true;
     } else return null;
   }
   flush();

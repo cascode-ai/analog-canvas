@@ -171,7 +171,8 @@ the RNL language and its runtime belong to rnl.
   which the call prints the Cell Pin that meets that pin by name (`inp` meets
   IN+), the variant chosen as for any part below; any other call keeps its
   block and warns `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
-  as a cubic, a straight one as a cubic with its controls on the leg.
+  as a cubic, a straight one as a cubic with its controls on the leg, a
+  circular arc as an arc.
 - Diamond appearances of VCVS and CCVS export as the standard
   `$CONTROLLED_VOLTAGE_SOURCE`, of VCCS and CCCS as
   `$CONTROLLED_CURRENT_SOURCE`; the card's letter (E, H, G, F) tells them
@@ -357,8 +358,8 @@ the RNL language and its runtime belong to rnl.
   A Cell drawn with its
   author's artwork (`cellSymbol.artwork`) is defined the same way from that
   artwork, its mapped pins naming the printed ports; a box with other
-  shapes, or a shape a symbol cannot draw (an ellipse, an arc), reads back
-  as the nearest box (`RNL_IMPORT_BLOCK_APPROXIMATE`).
+  shapes, or a shape a symbol cannot draw (an ellipse), reads back as the
+  nearest box (`RNL_IMPORT_BLOCK_APPROXIMATE`).
 - Drawing objects are RNL shapes, each in the line style it is drawn with
   (its override, else its own), in their stacking order: rectangles,
   circles, lines and curves (a quadratic leg as the cubic that draws it),
@@ -457,14 +458,20 @@ the RNL language and its runtime belong to rnl.
     default op-amp, unturned the inputs-swapped one; RNL's standard 4-input
     gates and 4-terminal MOSFETs read back as Analog Canvas's own, their
     wires ending at its pins;
+  - a bundle (`@BUNDLE`), whose members one symbol draws, as its first
+    member, placed, drawn and named as the bundle, the wires on its pins
+    ending on that member's; Analog Canvas draws no instance arrays, so the
+    other members are in the tray, in the netlist as before;
   - controlled sources as diamonds from `$CONTROLLED_VOLTAGE_SOURCE` and
     `$CONTROLLED_CURRENT_SOURCE`, the card's letter naming the source, and as
     circles from `$CANVAS_*_CIRCLE`;
   - a Cell's block as the symbol the file defines for it: each pin's side and
     place, and the body; an external subcircuit's block as the symbol the
     file level defines for its calls: each pin where the symbol has it, and
-    its lines, outlines, circles and curves (one with an ellipse or an arc
-    keeps the generated block);
+    its lines, outlines, circles, curves and arcs (one with an ellipse keeps
+    the generated block); a pin that writes no direction leaves by the side
+    of the symbol's box it stands nearest, and a terminal the symbol draws
+    more than once is placed at its first pin;
   - Cell Pins, the importer's own, moved where RNL draws `$IO_PORT` (or a
     supply or ground drawn on a port, which draws that Pin as VDD Power or a
     Named Ground); ground glyphs on ground; a ground glyph on any other net

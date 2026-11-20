@@ -158,8 +158,38 @@ describe("RNL shapes", () => {
         ],
       },
     ]);
+    // A circular arc is RNL's arc through the middle of the curve, the legs
+    // beside it shapes of their own; an elliptical one has no RNL form.
     expect(
-      symbolShapes([{ kind: "path", data: "M 0 0 A 5 5 0 0 1 10 0" }]),
+      symbolShapes([
+        { kind: "path", data: "M -10 0 L 0 0 A 5 5 0 0 1 10 0 L 20 0" },
+      ]),
+    ).toEqual([
+      {
+        shape: "line",
+        points: [
+          [-1, 0],
+          [0, 0],
+        ],
+      },
+      {
+        shape: "arc",
+        points: [
+          [0, 0],
+          [0.5, 0.5],
+          [1, 0],
+        ],
+      },
+      {
+        shape: "line",
+        points: [
+          [1, 0],
+          [2, 0],
+        ],
+      },
+    ]);
+    expect(
+      symbolShapes([{ kind: "path", data: "M 0 0 A 5 3 0 0 1 10 0" }]),
     ).toBeNull();
     expect(
       symbolShapes([{ kind: "path", data: "m 0 0 c 1 2 3 4 5 6" }]),

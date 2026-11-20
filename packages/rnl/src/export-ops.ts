@@ -958,10 +958,7 @@ function exportCell(
               : [],
           )
         : [];
-    ops.push({
-      level,
-      op: "set",
-      object,
+    const settings = {
       ...(symbol
         ? { symbol: symbol.symbol }
         : blockSymbol && binding?.kind === "external-subcircuit"
@@ -970,7 +967,11 @@ function exportCell(
       ...(bound.length ? { terminals: bound } : {}),
       ...paint,
       ...where,
-    });
+    };
+    // A Cell's call in the tray, drawn with its Cell's own symbol, has
+    // nothing to set, which RNL refuses.
+    if (Object.keys(settings).length)
+      ops.push({ level, op: "set", object, ...settings });
     // The symbol the part is drawn as, where RNL draws it as another one
     // the import would take instead: an op-amp flipped top to bottom is the
     // op-amp with its inputs swapped, unflipped.

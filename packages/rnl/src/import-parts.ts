@@ -299,6 +299,13 @@ export function placeParts(scope: LevelScope): PlacedParts {
     };
     Object.assign(instance, paintOf(object));
     placed.push(instance);
+    // A bundle is drawn as its first member (`readableLevel`); Analog Canvas
+    // draws no instance arrays, so the other members go to the tray.
+    for (const member of object.host.slice(1)) {
+      const memberName = rnlIdName(member, "#");
+      const other = memberName === null ? undefined : instanceOf(memberName);
+      if (other && other !== instance) other.placement = null;
+    }
     // A Cell's call drawn with the symbol the file defines for it: the
     // Cell's block takes that layout, its pins where the symbol has them.
     // A gate's call symbol draws the gate, not the Cell's block.

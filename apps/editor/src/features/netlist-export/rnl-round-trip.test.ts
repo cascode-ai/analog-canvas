@@ -1704,6 +1704,119 @@ it("keeps an AC source drawn as the sine source a DC and AC source, and a BJT's 
   expect(exported.file.text).toMatch(/^Q1 \S+ \S+ x qp area=8$/mu);
 });
 
+it("draws a bundle as its first member, a Cell's own pins with no direction where they stand, and an arc in a symbol, as another tool writes them", async () => {
+  // As a Virtuoso exporter writes a decap farm (rich-netlist/rnl-gallery's
+  // risca): the Cell's own symbol with pins that write no direction, one
+  // terminal drawn twice, its capacitor drawn with an arc, and three calls
+  // drawn as one bundle.
+  const text = [
+    "* drawn elsewhere",
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+    ".subckt decap GND VDD",
+    "XC0 VDD GND cfmom nr=28",
+    "* @RNL {",
+    "*   %block = @DEFINE-SYMBOL(box=[-1.1, -3, 1.1, 0]) {",
+    "*     @LINE {(0, 0) (0, -1)}; @LINE {(-1, -1) (1, -1)};",
+    "*     @LINE {(0, -3) (0, -2)}; @LINE {(-1, -2) (1, -2)};",
+    '*     (0, 0) @PIN(terminal="VDD"); (0, -3) @PIN(terminal="GND");',
+    '*     (1, -3) @PIN(terminal="GND")',
+    "*   };",
+    "*   # @SET-SYMBOL %block;",
+    "*   %cap = @DEFINE-SYMBOL(box=[-2, -6, 2, 0]) {",
+    "*     @LINE {(1, -2.2) (-1, -2.2)}; @LINE {(0, 0) (0, -2.2)};",
+    "*     @LINE {(0, -2.8) (0, -6)}; @ARC {(1, -3.2) (0, -2.8) (-1, -3.2)};",
+    "*     (0, 0) @PIN(terminal=1); (0, -6) @PIN(terminal=2)",
+    "*   };",
+    '*   #XC0 @SET-SYMBOL %cap => @PLACE(0, 0) => @ORIENT("R0");',
+    '*   %pv = $IO_PORT @ATTACH &VDD => @PLACE(-6, 0) => @ORIENT("R0");',
+    '*   %pg = $IO_PORT @ATTACH &GND => @PLACE(-6, -6) => @ORIENT("R0");',
+    "*   &VDD @WIRE { %pv::pin #XC0:1 };",
+    "*   &GND @WIRE { %pg::pin #XC0:2 }",
+    "* }",
+    ".ends decap",
+    "X1 0 vdd decap",
+    "X2 0 vdd decap",
+    "X3 0 vdd decap",
+    "* @RNL {",
+    "*   %b = {#X1 #X2 #X3} @BUNDLE;",
+    '*   %b @PLACE(10, 10) => @ORIENT("R0");',
+    '*   %b @TEXT("X<3:1>", key="name");',
+    "*   %sup = $SUPPLY @ATTACH &vdd => @PLACE(10, 14);",
+    "*   &vdd @WIRE { %sup::pin %b:2 }",
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  expect(plan.drawing).not.toBe("discarded");
+  const top = plan.project.documents.find(
+    (document) => document.id === plan.project.topDocumentId,
+  )!;
+  const calls = new Map(top.instances.map((item) => [item.reference, item]));
+  // The bundle's place is its first member's; the others are in the tray,
+  // still in the netlist.
+  expect(calls.get("X1")?.placement?.position).toEqual({ x: 100, y: -100 });
+  expect(calls.get("X2")?.placement).toBeNull();
+  expect(calls.get("X3")?.placement).toBeNull();
+  // The wire to the bundle's pin ends on that member's.
+  const supply = top.routes.find((route) => {
+    const end = route.legs.at(-1)!.to;
+    return [route.start, end.kind === "endpoint" ? end.endpoint : null].some(
+      (item) =>
+        item?.kind === "terminal" &&
+        item.instanceId === calls.get("X1")!.id &&
+        item.pinName === "VDD",
+    );
+  });
+  expect(supply).toBeDefined();
+  const artwork = (symbolId: string) =>
+    plan.project.componentDefinitions?.find(
+      (definition) => definition.symbol.id === symbolId,
+    )?.symbol;
+  // The Cell's pins stand where its symbol has them, on the side nearest.
+  expect(
+    artwork(calls.get("X1")!.symbolId)?.pins.map(({ name, at, direction }) => ({
+      name,
+      at,
+      direction,
+    })),
+  ).toEqual(
+    expect.arrayContaining([
+      { name: "VDD", at: { x: 0, y: 0 }, direction: "north" },
+      { name: "GND", at: { x: 0, y: 30 }, direction: "south" },
+    ]),
+  );
+  const decap = plan.project.documents.find(
+    (document) => document.netlist?.name === "decap",
+  )!;
+  // A terminal drawn twice is placed once on the Cell's block, where first.
+  const names = new Map(
+    decap.netlist!.terminals.map((terminal) => [terminal.id, terminal.name]),
+  );
+  expect(
+    decap.presentation.cellSymbol?.pinPlacements?.map(
+      (pin) => `${names.get(pin.terminalId)} ${pin.side} ${pin.offset}`,
+    ),
+  ).toEqual(["VDD north 0", "GND south 0"]);
+  // The capacitor keeps its arc, and writes it as an arc again.
+  const cap = decap.instances.find((item) => item.reference === "XC0")!;
+  expect(artwork(cap.symbolId)?.primitives).toContainEqual(
+    expect.objectContaining({
+      kind: "path",
+      data: "M 10 32 A 14.5 14.5 0 0 0 -10 32",
+    }),
+  );
+  const exported = createRnlExport(plan.project, { format: "spice" });
+  if (exported.status !== "ready") throw new Error("export blocked");
+  const written = await runtime.write({ write: exported.request, svg: false });
+  expect(written.text).toMatch(
+    /@ARC\s*\{\s*\(1, -3\.2\)\s*\(0, -2\.8\)\s*\(-1, -3\.2\)\s*\}/u,
+  );
+  expect(written.text).toMatch(/#X1 @PLACE\(10, 10\)/u);
+  expect(written.text).not.toMatch(/#X[23] @PLACE/u);
+});
+
 it("ends a wire to a port on no port at a junction there, and draws a ground on VSS as a Named Ground", async () => {
   // A flat file has no ports, and its VSS is no ground: the port is its
   // net's label, where its wire ends at a junction; the ground is a Named
