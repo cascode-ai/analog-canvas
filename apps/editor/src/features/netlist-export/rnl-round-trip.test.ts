@@ -1704,6 +1704,119 @@ it("keeps an AC source drawn as the sine source a DC and AC source, and a BJT's 
   expect(exported.file.text).toMatch(/^Q1 \S+ \S+ x qp area=8$/mu);
 });
 
+it("draws a bundle as its first member, a Cell's own pins with no direction where they stand, and an arc in a symbol, as another tool writes them", async () => {
+  // As a Virtuoso exporter writes a decap farm (rich-netlist/rnl-gallery's
+  // risca): the Cell's own symbol with pins that write no direction, one
+  // terminal drawn twice, its capacitor drawn with an arc, and three calls
+  // drawn as one bundle.
+  const text = [
+    "* drawn elsewhere",
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+    ".subckt decap GND VDD",
+    "XC0 VDD GND cfmom nr=28",
+    "* @RNL {",
+    "*   %block = @DEFINE-SYMBOL(box=[-1.1, -3, 1.1, 0]) {",
+    "*     @LINE {(0, 0) (0, -1)}; @LINE {(-1, -1) (1, -1)};",
+    "*     @LINE {(0, -3) (0, -2)}; @LINE {(-1, -2) (1, -2)};",
+    '*     (0, 0) @PIN(terminal="VDD"); (0, -3) @PIN(terminal="GND");',
+    '*     (1, -3) @PIN(terminal="GND")',
+    "*   };",
+    "*   # @SET-SYMBOL %block;",
+    "*   %cap = @DEFINE-SYMBOL(box=[-2, -6, 2, 0]) {",
+    "*     @LINE {(1, -2.2) (-1, -2.2)}; @LINE {(0, 0) (0, -2.2)};",
+    "*     @LINE {(0, -2.8) (0, -6)}; @ARC {(1, -3.2) (0, -2.8) (-1, -3.2)};",
+    "*     (0, 0) @PIN(terminal=1); (0, -6) @PIN(terminal=2)",
+    "*   };",
+    '*   #XC0 @SET-SYMBOL %cap => @PLACE(0, 0) => @ORIENT("R0");',
+    '*   %pv = $IO_PORT @ATTACH &VDD => @PLACE(-6, 0) => @ORIENT("R0");',
+    '*   %pg = $IO_PORT @ATTACH &GND => @PLACE(-6, -6) => @ORIENT("R0");',
+    "*   &VDD @WIRE { %pv::pin #XC0:1 };",
+    "*   &GND @WIRE { %pg::pin #XC0:2 }",
+    "* }",
+    ".ends decap",
+    "X1 0 vdd decap",
+    "X2 0 vdd decap",
+    "X3 0 vdd decap",
+    "* @RNL {",
+    "*   %b = {#X1 #X2 #X3} @BUNDLE;",
+    '*   %b @PLACE(10, 10) => @ORIENT("R0");',
+    '*   %b @TEXT("X<3:1>", key="name");',
+    "*   %sup = $SUPPLY @ATTACH &vdd => @PLACE(10, 14);",
+    "*   &vdd @WIRE { %sup::pin %b:2 }",
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  expect(plan.drawing).not.toBe("discarded");
+  const top = plan.project.documents.find(
+    (document) => document.id === plan.project.topDocumentId,
+  )!;
+  const calls = new Map(top.instances.map((item) => [item.reference, item]));
+  // The bundle's place is its first member's; the others are in the tray,
+  // still in the netlist.
+  expect(calls.get("X1")?.placement?.position).toEqual({ x: 100, y: -100 });
+  expect(calls.get("X2")?.placement).toBeNull();
+  expect(calls.get("X3")?.placement).toBeNull();
+  // The wire to the bundle's pin ends on that member's.
+  const supply = top.routes.find((route) => {
+    const end = route.legs.at(-1)!.to;
+    return [route.start, end.kind === "endpoint" ? end.endpoint : null].some(
+      (item) =>
+        item?.kind === "terminal" &&
+        item.instanceId === calls.get("X1")!.id &&
+        item.pinName === "VDD",
+    );
+  });
+  expect(supply).toBeDefined();
+  const artwork = (symbolId: string) =>
+    plan.project.componentDefinitions?.find(
+      (definition) => definition.symbol.id === symbolId,
+    )?.symbol;
+  // The Cell's pins stand where its symbol has them, on the side nearest.
+  expect(
+    artwork(calls.get("X1")!.symbolId)?.pins.map(({ name, at, direction }) => ({
+      name,
+      at,
+      direction,
+    })),
+  ).toEqual(
+    expect.arrayContaining([
+      { name: "VDD", at: { x: 0, y: 0 }, direction: "north" },
+      { name: "GND", at: { x: 0, y: 30 }, direction: "south" },
+    ]),
+  );
+  const decap = plan.project.documents.find(
+    (document) => document.netlist?.name === "decap",
+  )!;
+  // A terminal drawn twice is placed once on the Cell's block, where first.
+  const names = new Map(
+    decap.netlist!.terminals.map((terminal) => [terminal.id, terminal.name]),
+  );
+  expect(
+    decap.presentation.cellSymbol?.pinPlacements?.map(
+      (pin) => `${names.get(pin.terminalId)} ${pin.side} ${pin.offset}`,
+    ),
+  ).toEqual(["VDD north 0", "GND south 0"]);
+  // The capacitor keeps its arc, and writes it as an arc again.
+  const cap = decap.instances.find((item) => item.reference === "XC0")!;
+  expect(artwork(cap.symbolId)?.primitives).toContainEqual(
+    expect.objectContaining({
+      kind: "path",
+      data: "M 10 32 A 14.5 14.5 0 0 0 -10 32",
+    }),
+  );
+  const exported = createRnlExport(plan.project, { format: "spice" });
+  if (exported.status !== "ready") throw new Error("export blocked");
+  const written = await runtime.write({ write: exported.request, svg: false });
+  expect(written.text).toMatch(
+    /@ARC\s*\{\s*\(1, -3\.2\)\s*\(0, -2\.8\)\s*\(-1, -3\.2\)\s*\}/u,
+  );
+  expect(written.text).toMatch(/#X1 @PLACE\(10, 10\)/u);
+  expect(written.text).not.toMatch(/#X[23] @PLACE/u);
+});
+
 it("ends a wire to a port on no port at a junction there, and draws a ground on VSS as a Named Ground", async () => {
   // A flat file has no ports, and its VSS is no ground: the port is its
   // net's label, where its wire ends at a junction; the ground is a Named
@@ -1771,6 +1884,125 @@ it("ends a wire to a port on no port at a junction there, and draws a ground on 
   expect(netlist.status === "ready" && netlist.file.text).toMatch(
     /^R1 in VSS 1k$/mu,
   );
+});
+
+it("writes a net label drawn where its wires end back as the standard tag, its lead and the dot it makes", async () => {
+  // %b ends the wire from R1; %a stands on the tap of a straight wire, its
+  // lead the third branch of the dot there.
+  const text = [
+    "* tags",
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+    "R1 top out 1k",
+    "R2 out 0 1k",
+    "* @RNL {",
+    "*   %a = $NET_LABEL @ATTACH &out;",
+    "*   %b = $NET_LABEL @ATTACH &top;",
+    "*   %t = (0, 0);",
+    '*   #R1 @PLACE(0, 4) => @ORIENT("R0");',
+    '*   #R2 @PLACE(0, -4) => @ORIENT("R0");',
+    '*   %a @PLACE(0, 0) => @ORIENT("R180");',
+    '*   %b @PLACE(4, 8) => @ORIENT("MY");',
+    '*   &out @WIRE(mode="straight") {#R1:n %t};',
+    '*   &out @WIRE(mode="straight") {%t #R2:p};',
+    '*   &out @WIRE(mode="straight") {%t %a::pin};',
+    '*   &top @WIRE(mode="straight") {#R1:p (0, 8) %b::pin};',
+    "*   $JUNCTION @ATTACH %t => @PLACE(0, 0)",
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const top = plan.project.documents.find((d) =>
+    d.instances.some((i) => i.id.toLowerCase() === "r1"),
+  )!;
+  const name = (netId: string) =>
+    top.importReference?.nets.find((net) => net.id === netId)?.name;
+  // Each name stands beyond its lead, on the side the tag turns it to.
+  const offsets = Object.fromEntries(
+    top.annotations.flatMap((label) =>
+      label.kind === "net-label" && label.anchor.kind === "object"
+        ? [[name(label.netId!), label.anchor.localOffset]]
+        : [],
+    ),
+  );
+  expect(offsets).toEqual({
+    out: { x: 14, y: 3 },
+    top: { x: 14, y: 3 },
+  });
+
+  const exported = createRnlExport(plan.project, { format: "spice" });
+  if (exported.status !== "ready") throw new Error("export blocked");
+  const written = await core.write({
+    write: exported.request,
+    svg: false,
+    primitives: true,
+  });
+  expect(written.text).toMatch(
+    /\$NET_LABEL @ATTACH &top\(p\) => @SET-SYMBOL \$NET_LABEL_SYMBOL => @PLACE\(4, 8\) => @ORIENT\("MY"\) => (%port\d)/u,
+  );
+  expect(written.text).toMatch(
+    /&top @WIRE\(mode="straight"\) \{#R1:1 \(0, 8\) %port\d::pin\}/u,
+  );
+  // The line art drawn: each lead, and one dot, on the tap.
+  const art = written.document.levels.flatMap((level) =>
+    (level.primitives ?? []).flatMap((primitive) =>
+      primitive.kind === "circle"
+        ? [`C ${primitive.center.join(",")}`]
+        : primitive.kind === "path" && primitive.segments.length === 2
+          ? [
+              `L ${primitive.segments
+                .map((segment) => ("to" in segment ? segment.to : []).join(","))
+                .join(" ")}`,
+            ]
+          : [],
+    ),
+  );
+  expect(art).toEqual(expect.arrayContaining(["L 4,8 5,8", "L 0,0 1,0"]));
+  expect(art.filter((item) => item.startsWith("C "))).toEqual(["C 0,0"]);
+
+  // Read back, the tags are the same net labels again.
+  const again = await importRnl(written.text, "spice");
+  expect(failures(again)).toEqual([]);
+  const back = again.project.documents.find((d) =>
+    d.instances.some((i) => i.id.toLowerCase() === "r1"),
+  )!;
+  expect(
+    back.annotations.flatMap((label) =>
+      label.kind === "net-label" && label.anchor.kind === "object"
+        ? [label.anchor.localOffset]
+        : [],
+    ),
+  ).toEqual([
+    { x: 14, y: 3 },
+    { x: 14, y: 3 },
+  ]);
+
+  // One hung on a branch, as the editor hangs one, stays a label.
+  const branched = structuredClone(plan.project);
+  const cell = branched.documents.find((d) => d.id === top.id)!;
+  const tap = cell.junctions.find((junction) =>
+    cell.routes.some(
+      (route) =>
+        route.start.kind === "junction" &&
+        route.start.junctionId === junction.id,
+    ),
+  )!;
+  for (const label of cell.annotations)
+    if (
+      label.kind === "net-label" &&
+      label.anchor.kind === "object" &&
+      name(label.netId!) === "out"
+    )
+      label.anchor.objectId = tap.id;
+  const plain = createRnlExport(branched, { format: "spice" });
+  if (plain.status !== "ready") throw new Error("export blocked");
+  const { text: labelled } = await core.write({
+    write: plain.request,
+    svg: false,
+  });
+  expect(labelled).not.toMatch(/\$NET_LABEL @ATTACH &out/u);
+  expect(labelled).toMatch(/&out @TEXT\(/u);
 });
 
 it("joins a wire that ends on a point another wire runs straight through", async () => {
@@ -1885,6 +2117,201 @@ it("reads a Cell's call drawn with the standard gate in its terminal order as th
     ),
   );
   expect(pins.sort()).toEqual(["A", "Y"]);
+});
+
+/**
+ * The line art of a file's top level, as the RNL conformance suite compares
+ * it: each drawn object's straight pieces as undirected segments and its
+ * circles, rounded to 0.01 units, texts aside; and each wire's points.
+ */
+async function topLineArt(text: string, format: "spice" | "spectre") {
+  const path = pathOf(format);
+  const snapshot = await core.snapshot({
+    entry: path,
+    files: { [path]: text },
+    dialect: format,
+    svg: false,
+    primitives: true,
+    parts: { drawing: true, host: true, model: true },
+  });
+  const index = snapshot.levels.findIndex((level) => level.kind === "file");
+  const r = (value: number) => Math.round(value * 100) / 100;
+  const pt = ([x, y]: readonly number[]) => `${r(x!)},${r(y!)}`;
+  const items = new Map<string, Set<string>>();
+  for (const prim of snapshot.drawing?.levels[index]?.primitives ?? []) {
+    if (!prim.owner.startsWith("item-")) continue;
+    const parts = items.get(prim.owner) ?? new Set<string>();
+    items.set(prim.owner, parts);
+    const segment = (a: readonly number[], b: readonly number[]) => {
+      const [p, q] = [pt(a), pt(b)].sort();
+      if (p !== q) parts.add(`L ${p} ${q}`);
+    };
+    if (prim.kind === "circle") parts.add(`C ${pt(prim.center)} ${r(prim.r)}`);
+    if (prim.kind !== "path") continue;
+    let start: readonly number[] | undefined;
+    let at: readonly number[] | undefined;
+    for (const seg of prim.segments) {
+      if (seg.kind === "move") start = at = seg.to;
+      else if (seg.kind === "line") (segment(at!, seg.to), (at = seg.to));
+      else if (seg.kind === "close") (segment(at!, start!), (at = start));
+    }
+  }
+  return {
+    items: [...items.values()]
+      .map((parts) => [...parts].sort().join(";"))
+      .sort(),
+    wires: (snapshot.levels[index]?.model?.wires ?? [])
+      .map((wire) => wire.points.map(pt).join(" "))
+      .sort(),
+  };
+}
+
+/**
+ * Calls of an op-amp Cell as an RNL solver draws them: the Cell's own
+ * symbol `$OPAMP`, its three pins bound to the Cell's three ports.
+ */
+const opampCalls = (calls: readonly string[], drawing: readonly string[]) =>
+  [
+    "* op-amp calls",
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+    ".subckt amp inp inn out",
+    "R1 inp out 1k",
+    "R2 inn out 2k",
+    "* @RNL {",
+    '*   # @SET-SYMBOL(terminals=[[1, "inp"], [2, "inn"], [3, "out"]]) $OPAMP;',
+    '*   #R1 @PLACE(0, 0) => @ORIENT("R0");',
+    '*   #R2 @PLACE(4, 0) => @ORIENT("R0")',
+    "* }",
+    ".ends amp",
+    ...calls,
+    "* @RNL {",
+    ...drawing.map((line) => `*   ${line}`),
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+
+it("reads a Cell's call drawn with $OPAMP as the op-amp bound to that Cell and writes the same drawing", async () => {
+  // X1 turned MX is the op-amp, X2 unturned the inputs-swapped one.
+  const text = opampCalls(
+    ["X1 a b c amp", "X2 b a d amp", "R3 c d 1k"],
+    [
+      '#X1 @PLACE(0, 0) => @ORIENT("MX");',
+      '#X2 @PLACE(0, 10) => @ORIENT("R0");',
+      '#R3 @PLACE(8, -3) => @ORIENT("R0");',
+      "&c @WIRE {#X1:3 (8, 0) #R3:1};",
+      "&a @WIRE {#X1:1 (-6, -1) (-6, 9) #X2:2}",
+    ],
+  );
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  expect(
+    plan.diagnostics.filter(
+      (item) => item.code === "RNL_IMPORT_UNMAPPED_SYMBOL",
+    ),
+  ).toEqual([]);
+  const top = plan.project.documents.find((d) =>
+    d.instances.some((i) => i.id.toLowerCase() === "x1"),
+  )!;
+  const cell = plan.project.documents.find((d) => d.netlist?.name === "amp")!;
+  const part = (id: string) =>
+    top.instances.find((i) => i.id.toLowerCase() === id)!;
+  expect(part("x1")).toMatchObject({
+    symbolId: "opamp",
+    placement: { rotation: 0, mirror: "none" },
+    netlist: { binding: { kind: "subcircuit", childDocumentId: cell.id } },
+  });
+  expect(part("x2").symbolId).toBe("opamp-inputs-swapped");
+  // Each wire ends on the op-amp pin its card's terminal is.
+  const net = (name: string) =>
+    top.nets.find((item) =>
+      item.terminals.some(
+        (t) => t.instanceId === part("x1").id && t.pinName === name,
+      ),
+    );
+  expect(net("OUT")?.terminals).toContainEqual(
+    expect.objectContaining({ instanceId: part("r3").id }),
+  );
+  expect(net("IN+")?.terminals).toContainEqual(
+    expect.objectContaining({ instanceId: part("x2").id, pinName: "IN-" }),
+  );
+  // The netlist prints each call as the file does.
+  expect(printed(plan.project, "spice")).toMatch(/^X1 a b c amp$/imu);
+  const exported = createRnlExport(plan.project, { format: "spice" });
+  if (exported.status !== "ready") throw new Error("export blocked");
+  const written = await runtime.write({ write: exported.request, svg: false });
+  expect(await topLineArt(written.text, "spice")).toEqual(
+    await topLineArt(text, "spice"),
+  );
+});
+
+it("keeps the block of an op-amp Cell's call whose $OPAMP pins are bound to other ports", async () => {
+  // The + pin on the Cell's inn: as an op-amp it would move a wire's net.
+  const text = opampCalls(
+    ["X3 a b e amp", "R4 a e 1k"],
+    [
+      '#X3 @SET-SYMBOL(terminals=[[2, "inp"], [1, "inn"], [3, "out"]]) $OPAMP;',
+      '#X3 @PLACE(0, 0) => @ORIENT("R0");',
+      '#R4 @PLACE(8, 0) => @ORIENT("R0")',
+    ],
+  );
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const x3 = plan.project.documents
+    .flatMap((d) => d.instances)
+    .find((i) => i.id.toLowerCase() === "x3")!;
+  expect(x3.symbolId).not.toMatch(/opamp/u);
+  expect(
+    plan.diagnostics
+      .filter((item) => item.code === "RNL_IMPORT_UNMAPPED_SYMBOL")
+      .map((item) => item.message.split(" ")[0]),
+  ).toEqual(["X3"]);
+  expect(printed(plan.project, "spice")).toMatch(/^X3 a b e amp$/imu);
+});
+
+it("reads a Cell's call drawn with $DIFFERENTIAL_OPAMP_TWISTED as the differential op-amp bound to that Cell", async () => {
+  const text = [
+    "* differential op-amp call",
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+    ".subckt fd inp inn outp outn",
+    "R1 inp outn 1k",
+    "R2 inn outp 1k",
+    '* @RNL { #R1 @PLACE(0, 0) => @ORIENT("R0"); #R2 @PLACE(4, 0) => @ORIENT("R0") }',
+    ".ends fd",
+    "X1 a b c d fd",
+    "R3 c d 1k",
+    "* @RNL {",
+    "*   #X1 @SET-SYMBOL $DIFFERENTIAL_OPAMP_TWISTED;",
+    '*   #X1 @PLACE(0, 0) => @ORIENT("MX");',
+    '*   #R3 @PLACE(8, 0) => @ORIENT("R0");',
+    "*   &c @WIRE {#X1:3 (6, 1) (6, 4) (8, 4) #R3:1};",
+    "*   &d @WIRE {#X1:4 (4, -1) (4, -4) (8, -4) #R3:2};",
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const x1 = plan.project.documents
+    .flatMap((d) => d.instances)
+    .find((i) => i.id.toLowerCase() === "x1")!;
+  expect(x1).toMatchObject({
+    symbolId: "opamp-differential-crossed",
+    placement: { rotation: 0, mirror: "none" },
+    netlist: { binding: { kind: "subcircuit" } },
+  });
+  expect(
+    plan.diagnostics.filter(
+      (item) => item.code === "RNL_IMPORT_UNMAPPED_SYMBOL",
+    ),
+  ).toEqual([]);
+  const exported = createRnlExport(plan.project, { format: "spice" });
+  if (exported.status !== "ready") throw new Error("export blocked");
+  const written = await runtime.write({ write: exported.request, svg: false });
+  expect(setsSymbol(written.text, "$DIFFERENTIAL_OPAMP_TWISTED")).toBe(true);
+  expect(await topLineArt(written.text, "spice")).toEqual(
+    await topLineArt(text, "spice"),
+  );
 });
 
 it("refuses a $CANVAS_NAME that is no netlist name and a typesetting it does not know, and keeps the drawing", async () => {

@@ -13,8 +13,10 @@ import {
   acPoint,
   NEAR,
   CORNER_GRID,
+  isOrient,
   type Junction,
 } from "./rnl-snapshot.js";
+import { orientPoint } from "./orientation.js";
 import { type LevelScope } from "./import-scope.js";
 import { type Glyphs } from "./import-glyphs.js";
 
@@ -139,7 +141,17 @@ export function routeWires(
       )
         return;
       const position = snap(acPoint(place), CORNER_GRID);
-      const toward = next ? acPoint(next) : position;
+      // A tag's body leaves its pin the way its glyph turns it (a net
+      // label's lead, a port's outline: −x unturned), else away from the
+      // wire, which may be of no length.
+      const orient = glyph.label?.orient.value ?? null;
+      const [x, y] = isOrient(orient) ? orientPoint(orient, [-1, 0]) : [0, 0];
+      const toward =
+        x || y
+          ? { x: position.x - x, y: position.y + y }
+          : next
+            ? acPoint(next)
+            : position;
       openEnds.set(vertex.usage, {
         junction: {
           id: deriveStableId("junction", document.id, level.id, vertex.usage),

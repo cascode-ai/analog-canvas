@@ -36,14 +36,33 @@ const PORT_SYMBOLS: ReadonlySet<string> = new Set([
  * (`textvisible=false`) is a hidden label, but a label a package hides
  * (`rnl-std-no-labels`) or a glyph's own net name hidden is none, nor is the
  * centred label of a standard block (`label`), which the editor's symbol
- * draws itself.
+ * draws itself. A bundle (`@BUNDLE`), whose members one symbol
+ * draws, is its first member, which Analog Canvas draws for them all: the
+ * bundle's place, pins, wires and texts are that member's (`host` still
+ * names every member).
  */
 export function readableLevel(level: RnlLevelSnapshot): RnlLevelSnapshot {
   const model = level.model;
   if (!model) return level;
   const symbols = new Map(model.symbols.map((symbol) => [symbol.id, symbol]));
   const objects = new Map(model.objects.map((object) => [object.id, object]));
+  const firstMember = new Map(
+    model.objects.flatMap((object) =>
+      object.kind === "bundle" && object.host[0]
+        ? [[object.id, object.host[0]] as const]
+        : [],
+    ),
+  );
+  /** An id or terminal (`%bundle_0:2`) of a bundle as its first member's. */
+  const member = (id: string) => {
+    const first = firstMember.get(id);
+    if (first !== undefined) return first;
+    const colon = id.lastIndexOf(":");
+    const owner = colon > 0 ? firstMember.get(id.slice(0, colon)) : undefined;
+    return owner === undefined ? id : `${owner}${id.slice(colon)}`;
+  };
   const vertex = (item: RnlSnapshotVertex): RnlSnapshotVertex => {
+    if ("terminal" in item) return { terminal: member(item.terminal) };
     if (!("owner" in item)) return item;
     const owner = objects.get(item.owner);
     const pin =
@@ -53,18 +72,49 @@ export function readableLevel(level: RnlLevelSnapshot): RnlLevelSnapshot {
     if (!owner || bound === undefined) return item;
     return owner.kind === "usage"
       ? { usage: owner.id, role: bound }
-      : { terminal: bound };
+      : { terminal: member(bound) };
   };
+  // A usage attached to a bundle, or to its pin, is attached to its member.
+  const attached = (object: RnlObjectView): RnlObjectView =>
+    firstMember.size && object.attach
+      ? {
+          ...object,
+          attach: Object.fromEntries(
+            Object.entries(object.attach).map(([role, value]) => [
+              role,
+              typeof value === "string"
+                ? member(value)
+                : value.map((item) =>
+                    typeof item === "string" ? member(item) : item,
+                  ),
+            ]),
+          ) as RnlObjectView["attach"],
+        }
+      : object;
   return {
     ...level,
     model: {
       ...model,
       objects: model.objects.map((object) =>
-        object.kind === "usage" &&
-        object.definition === "$NET_LABEL" &&
-        PORT_SYMBOLS.has(symbols.get(object.symbol.value ?? "")?.name ?? "")
-          ? { ...object, definition: "$IO_PORT" }
-          : object,
+        object.kind === "bundle" && object.host[0]
+          ? {
+              ...object,
+              kind: "instance",
+              id: object.host[0],
+              pins: object.pins.map((pin) => ({
+                ...pin,
+                terminals: pin.terminals.map(member),
+              })),
+            }
+          : attached(
+              object.kind === "usage" &&
+                object.definition === "$NET_LABEL" &&
+                PORT_SYMBOLS.has(
+                  symbols.get(object.symbol.value ?? "")?.name ?? "",
+                )
+                ? { ...object, definition: "$IO_PORT" }
+                : object,
+            ),
       ),
       wires: model.wires.map((wire) => ({
         ...wire,
@@ -78,9 +128,11 @@ export function readableLevel(level: RnlLevelSnapshot): RnlLevelSnapshot {
           (text.visible === false &&
             (!text.written ||
               (text.key === "netname" && text.markup.value === "${p}"))) ||
-          (text.key === "label" && on?.kind === "instance")
+          (text.key === "label" &&
+            (on?.kind === "instance" || on?.kind === "bundle"))
         )
           return [];
+        if (on?.kind === "bundle") return [{ ...text, attach: member(on.id) }];
         return text.key === "netname" && on?.kind === "usage"
           ? [{ ...text, key: "name" }]
           : [text];

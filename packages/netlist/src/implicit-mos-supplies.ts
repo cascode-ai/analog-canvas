@@ -30,6 +30,7 @@ import {
   idealAnalogBlockCell,
 } from "./ideal-analog-block-models.js";
 import type { NetlistFormat } from "./net-name-codec.js";
+import { pinsGround } from "./extract-ground-pin.js";
 
 /**
  * The supplies a built-in body reads. The ideal amplifiers and the adder in
@@ -265,7 +266,7 @@ export function withImplicitMosSupplies(
     });
     const formal =
       positive &&
-      options.groundPin === "pin" &&
+      pinsGround(options.groundPin) &&
       !(options.rootAsTopLevel && document.id === options.rootDocumentId) &&
       document.netlist;
     if (formal) {

@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import type { DesignNetlistIR } from "./ir.js";
 import { analyzeDesignNetlist } from "./extract.js";
+import { createDesignNetlistExport } from "./export.js";
 import { printSpectreNetlist, printSpiceNetlist } from "./printers.js";
 
 function claimNet(
@@ -508,6 +509,43 @@ describe("structural SPICE round trip", () => {
         namingProfile: "cadence-bang",
       }).ir,
     ).toEqual(cadence.ir);
+  });
+
+  it("writes a subcircuit that met ground as global 0 so again only where asked as read", async () => {
+    const text = [
+      "* tow-thomas",
+      ".subckt opamp inp inn out",
+      "E1 out 0 inp inn 1e5",
+      ".ends opamp",
+      "X1 0 n1 bp opamp",
+      "R1 n1 bp 10k",
+      ".end",
+      "",
+    ].join("\n");
+    const imported = await importSpiceSources(
+      [{ path: "tt.sp", bytes: new TextEncoder().encode(text) }],
+      "tt.sp",
+    );
+    expect(imported.successful, JSON.stringify(imported.diagnostics)).toBe(
+      true,
+    );
+    const print = (groundPin: "pin" | "as-read") => {
+      const result = createDesignNetlistExport(imported.project!, {
+        format: "spice",
+        groundPin,
+        rootAsTopLevel: true,
+      });
+      if (result.status !== "ready")
+        throw new Error(JSON.stringify(result.diagnostics));
+      return result.file.text;
+    };
+    // A netlist handed out states the subcircuit's ground as its pin.
+    expect(print("pin")).toContain(".subckt opamp VSS inp inn out\n");
+    expect(print("pin")).toMatch(/^X1 0 0 n1 bp opamp$/mu);
+    // An interchange file writes it as the file did.
+    const asRead = print("as-read");
+    expect(asRead).toContain(".subckt opamp inp inn out\nE1 out 0 inp inn 1e5");
+    expect(asRead).toMatch(/^X1 0 n1 bp opamp$/mu);
   });
 
   it("keeps capacitor plate pin order independent of schematic orientation", () => {

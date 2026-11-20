@@ -133,7 +133,19 @@ const NETNAME_SYMBOLS = new Set([
   "$SUPPLY_SYMBOL",
   "$IO_PORT_SYMBOL",
   "$CANVAS_PORT_FILLED",
+  "$NET_LABEL_SYMBOL",
 ]);
+
+/**
+ * The standard net label's turn whose one-unit lead leaves its pin toward
+ * `away` (Analog Canvas axes, y down); unturned, the lead runs to −x.
+ */
+const LEAD_ORIENTS: Readonly<Record<string, RnlOrient>> = {
+  "-1,0": "R0",
+  "1,0": "MY",
+  "0,1": "R90",
+  "0,-1": "R270",
+};
 
 /**
  * The packages every file uses, a series 0.4 file bringing in none by itself
@@ -946,10 +958,7 @@ function exportCell(
               : [],
           )
         : [];
-    ops.push({
-      level,
-      op: "set",
-      object,
+    const settings = {
       ...(symbol
         ? { symbol: symbol.symbol }
         : blockSymbol && binding?.kind === "external-subcircuit"
@@ -958,7 +967,11 @@ function exportCell(
       ...(bound.length ? { terminals: bound } : {}),
       ...paint,
       ...where,
-    });
+    };
+    // A Cell's call in the tray, drawn with its Cell's own symbol, has
+    // nothing to set, which RNL refuses.
+    if (Object.keys(settings).length)
+      ops.push({ level, op: "set", object, ...settings });
     // The symbol the part is drawn as, where RNL draws it as another one
     // the import would take instead: an op-amp flipped top to bottom is the
     // op-amp with its inputs swapped, unflipped.
@@ -1113,10 +1126,74 @@ function exportCell(
     });
   }
 
+  // A net label hung on the junction at a wire's open end (one wire ends
+  // there, or none) is the standard tag there, as the import reads a
+  // `$NET_LABEL`: its one-unit lead toward the name, the wire ending on its
+  // pin. One on a branch stays a label.
+  /** How many wire arms meet each junction: two where a route runs through. */
+  const armsAt = new Map<StableId, number>();
+  const arm = (endpoint: RouteEndpoint, arms: number) => {
+    if (endpoint.kind === "junction")
+      armsAt.set(
+        endpoint.junctionId,
+        (armsAt.get(endpoint.junctionId) ?? 0) + arms,
+      );
+  };
+  for (const route of document.routes) {
+    arm(route.start, 1);
+    route.legs.forEach((leg, index) => {
+      if (leg.to.kind === "endpoint")
+        arm(leg.to.endpoint, index === route.legs.length - 1 ? 1 : 2);
+    });
+  }
+  const tagAt = new Map<
+    StableId,
+    { object: string; at: RnlPoint; away: { x: number; y: number } }
+  >();
+  const tagOf = new Map<StableId, { object: string; at: RnlPoint }>();
+  for (const annotation of document.annotations) {
+    const anchor = annotation.anchor;
+    if (annotation.kind !== "net-label" || anchor.kind !== "object") continue;
+    const junction = document.junctions.find(
+      (item) => item.id === anchor.objectId,
+    );
+    const net = annotation.netId ? netOf(annotation.netId) : undefined;
+    if (
+      !junction ||
+      !net ||
+      tagAt.has(junction.id) ||
+      (armsAt.get(junction.id) ?? 0) > 1
+    )
+      continue;
+    const { x, y } = anchor.localOffset;
+    const away =
+      Math.abs(x) >= Math.abs(y) && x
+        ? { x: Math.sign(x), y: 0 }
+        : y
+          ? { x: 0, y: Math.sign(y) }
+          : { x: -1, y: 0 };
+    const name = nextName(USAGE_PREFIX["$NET_LABEL"]!);
+    const at = toRnlPoint(junction.position);
+    tagAt.set(junction.id, { object: name, at, away });
+    tagOf.set(annotation.id, { object: name, at });
+    glyphSymbols.set(name, "$NET_LABEL_SYMBOL");
+    ops.push({
+      level,
+      op: "add-usage",
+      name,
+      definition: "$NET_LABEL",
+      attach: { p: rnlName("&", net) },
+      symbol: "$NET_LABEL_SYMBOL",
+      at,
+      orient: LEAD_ORIENTS[`${away.x},${away.y}`]!,
+    });
+  }
+
   // Junctions are named points; the dots come below.
   const pointOf = new Map<StableId, string>();
   const pointAt = new Map<string, RnlPoint>();
   for (const junction of document.junctions) {
+    if (tagAt.has(junction.id)) continue;
     const name = nextName("j");
     pointOf.set(junction.id, name);
     pointAt.set(name, toRnlPoint(junction.position));
@@ -1125,6 +1202,8 @@ function exportCell(
 
   const vertex = (endpoint: RouteEndpoint): Vertex | undefined => {
     if (endpoint.kind === "junction") {
+      const tag = tagAt.get(endpoint.junctionId)?.object;
+      if (tag) return { owner: tag, pin: 0, reference: `${tag}::pin` };
       const point = pointOf.get(endpoint.junctionId);
       return point ? { point } : undefined;
     }
@@ -1316,11 +1395,23 @@ function exportCell(
           mode: "straight",
         });
     }
-    if (!contactRequiresJunctionDot(contact)) continue;
+    // A tag's lead is one more branch where it stands, as RNL draws it.
+    const lead = contact.endpoints.flatMap((endpoint) =>
+      endpoint.kind === "junction" && tagAt.has(endpoint.junctionId)
+        ? [tagAt.get(endpoint.junctionId)!.away]
+        : [],
+    )[0];
+    const branches = new Set(
+      [...contact.branchDirections, ...(lead ? [lead] : [])].map(
+        (direction) => `${Math.sign(direction.x)},${Math.sign(direction.y)}`,
+      ),
+    );
+    if (!contactRequiresJunctionDot(contact) && branches.size < 3) continue;
     // A dot is a usage placed on its point (12.1): on the junction's named
     // point, else on the contact's.
     const junction = contact.endpoints.find(
-      (endpoint) => endpoint.kind === "junction",
+      (endpoint) =>
+        endpoint.kind === "junction" && pointOf.has(endpoint.junctionId),
     );
     const point =
       junction?.kind === "junction" ? pointOf.get(junction.junctionId) : null;
@@ -1341,6 +1432,7 @@ function exportCell(
     logical,
     routing,
     placeOf,
+    tagOf,
     wireOf,
     netOf,
     nextName,
@@ -1491,6 +1583,7 @@ function exportTexts(
     logical,
     routing,
     placeOf,
+    tagOf,
     wireOf,
     netOf,
     nextName,
@@ -1501,6 +1594,8 @@ function exportTexts(
     logical: ReturnType<typeof resolveDocumentLogicalNets>;
     routing: ResolvedDocumentRoutingGeometry;
     placeOf: ReadonlyMap<StableId, { object: string; at: RnlPoint }>;
+    /** The net label tag each net label hung on a junction names. */
+    tagOf: ReadonlyMap<StableId, { object: string; at: RnlPoint }>;
     /** The wire each route a label hangs on is written as. */
     wireOf: ReadonlyMap<StableId, string>;
     netOf: (baseNetId: string) => string | undefined;
@@ -1747,6 +1842,30 @@ function exportTexts(
         { hidden: concealed },
       );
       bindLabel(`${owner.object}::${key}`, binding);
+      continue;
+    }
+    // A net label hung on a junction is the name of its tag (`netname`),
+    // offset from it, as a glyph's name label is.
+    const tag = tagOf.get(annotation.id);
+    if (tag) {
+      netnames.add(tag.object);
+      write(
+        annotation.id,
+        text,
+        shown.rotation,
+        {
+          ...common,
+          valign: "baseline",
+          attach: tag.object,
+          key: "netname",
+          offset: [
+            Math.round((anchor[0] - tag.at[0]) * 1e6) / 1e6 + 0,
+            Math.round((anchor[1] - tag.at[1]) * 1e6) / 1e6 + 0,
+          ],
+        },
+        { hidden: concealed },
+      );
+      bindLabel(`${tag.object}::netname`, binding);
       continue;
     }
     const netId =

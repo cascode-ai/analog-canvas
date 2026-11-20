@@ -105,6 +105,10 @@ the RNL language and its runtime belong to rnl.
 - A top the import made from a file's own cards, outside every subcircuit,
   and given no pins since, prints there again with its drawing at the file
   level; `SPICE` and `SCS` keep printing it as a subcircuit.
+- A Cell the import read from a subcircuit that met ground as SPICE's global
+  `0` prints so again, with no ground pin, and its calls pass it none; `SPICE`
+  and `SCS` keep giving it its `VSS` pin (netlist export, Ground). Like them,
+  an RNL format prints the `.model` cards of the imported files its parts call.
 - An RNL format is read-only in the panel; Copy and Save take its text.
 - Under an RNL format the panel carries an "About RNL" link to the
   introduction to RNL (<https://rich-netlist.github.io/rnl/en/>): a new tab in
@@ -160,11 +164,15 @@ the RNL language and its runtime belong to rnl.
   pin where the card prints it. Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
   Delay Cell, op-amp or comparator) back as that library symbol, a gate's
   pins meeting its Cell's Pins by name, only when the name, artwork and positional pins are the ones
-  the export writes. A call drawn with a standard gate symbol reads back as
-  that Library gate when it prints the Cell's Pins in the symbol's terminal
-  order and they meet the gate's pins by name; any other call keeps its block and warns
-  `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
-  as a cubic, a straight one as a cubic with its controls on the leg.
+  the export writes. A call drawn with the standard symbol of such a part (a
+  gate; an op-amp's `$OPAMP` or `$DIFFERENTIAL_OPAMP_TWISTED`, as an RNL
+  solver draws an op-amp Cell's call) reads back as that Library part bound
+  to the Cell when each pin the symbol draws is bound to the terminal at
+  which the call prints the Cell Pin that meets that pin by name (`inp` meets
+  IN+), the variant chosen as for any part below; any other call keeps its
+  block and warns `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
+  as a cubic, a straight one as a cubic with its controls on the leg, a
+  circular arc as an arc.
 - Diamond appearances of VCVS and CCVS export as the standard
   `$CONTROLLED_VOLTAGE_SOURCE`, of VCCS and CCCS as
   `$CONTROLLED_CURRENT_SOURCE`; the card's letter (E, H, G, F) tells them
@@ -274,9 +282,14 @@ the RNL language and its runtime belong to rnl.
   attached where it hangs (13.3): on the wire of the route it hangs on,
   that wire named for it and the label placed where it stands, since a
   wire has no point to offset from; on the part, glyph or Cell Pin it hangs
-  on, offset from it; else on its net. A drawing text anchored to a part is
-  attached to it the same way, offset from it; one on a glyph is written
-  where it stands, since a text on a glyph reads back as its net's label.
+  on, offset from it; else on its net. A net label hung on the junction at
+  a wire's open end (one wire ends there, or none), where the import hangs a
+  `$NET_LABEL`, is that tag: the standard `$NET_LABEL_SYMBOL` on the
+  junction, its one-unit lead toward the label, which is its name
+  (`netname`), the wire ending on its pin, and the dot written where the
+  lead is a third branch. A drawing text anchored to a part is attached to
+  it the same way, offset from it; one on a glyph is written where it
+  stands, since a text on a glyph reads back as its net's label.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename. A
   hidden label is written too, where it stands, hidden (`textvisible=false`).
@@ -345,8 +358,8 @@ the RNL language and its runtime belong to rnl.
   A Cell drawn with its
   author's artwork (`cellSymbol.artwork`) is defined the same way from that
   artwork, its mapped pins naming the printed ports; a box with other
-  shapes, or a shape a symbol cannot draw (an ellipse, an arc), reads back
-  as the nearest box (`RNL_IMPORT_BLOCK_APPROXIMATE`).
+  shapes, or a shape a symbol cannot draw (an ellipse), reads back as the
+  nearest box (`RNL_IMPORT_BLOCK_APPROXIMATE`).
 - Drawing objects are RNL shapes, each in the line style it is drawn with
   (its override, else its own), in their stacking order: rectangles,
   circles, lines and curves (a quadratic leg as the cubic that draws it),
@@ -445,14 +458,20 @@ the RNL language and its runtime belong to rnl.
     default op-amp, unturned the inputs-swapped one; RNL's standard 4-input
     gates and 4-terminal MOSFETs read back as Analog Canvas's own, their
     wires ending at its pins;
+  - a bundle (`@BUNDLE`), whose members one symbol draws, as its first
+    member, placed, drawn and named as the bundle, the wires on its pins
+    ending on that member's; Analog Canvas draws no instance arrays, so the
+    other members are in the tray, in the netlist as before;
   - controlled sources as diamonds from `$CONTROLLED_VOLTAGE_SOURCE` and
     `$CONTROLLED_CURRENT_SOURCE`, the card's letter naming the source, and as
     circles from `$CANVAS_*_CIRCLE`;
   - a Cell's block as the symbol the file defines for it: each pin's side and
     place, and the body; an external subcircuit's block as the symbol the
     file level defines for its calls: each pin where the symbol has it, and
-    its lines, outlines, circles and curves (one with an ellipse or an arc
-    keeps the generated block);
+    its lines, outlines, circles, curves and arcs (one with an ellipse keeps
+    the generated block); a pin that writes no direction leaves by the side
+    of the symbol's box it stands nearest, and a terminal the symbol draws
+    more than once is placed at its first pin;
   - Cell Pins, the importer's own, moved where RNL draws `$IO_PORT` (or a
     supply or ground drawn on a port, which draws that Pin as VDD Power or a
     Named Ground); ground glyphs on ground; a ground glyph on any other net
@@ -545,8 +564,9 @@ the RNL language and its runtime belong to rnl.
     direction arrow, or as a current marker where the file names its label
     for it (`%current1_label`);
   - a `$NET_LABEL` the file places on a net of the Cell as a net label of
-    that net, where its wires end; one a package leaves to a solver is not
-    read;
+    that net, hung on the junction where its wires end, its name beyond the
+    tag's one-unit lead, the way the tag turns it; one a package leaves to a
+    solver is not read;
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has, or as a power label where the export wrote one, hung on the

@@ -41,6 +41,8 @@ import {
   GROUND_PORT_NAME,
   cellReachesGround,
   groundPinName,
+  pinsGround,
+  readsGlobalGround,
   groundPortIndex,
 } from "./extract-ground-pin.js";
 import { undrivenPhaseNodes } from "./extract-switch.js";
@@ -180,9 +182,15 @@ export function extractCell(
     options.rootAsTopLevel && document.id === options.rootDocumentId
   );
   if (
-    options.groundPin === "pin" &&
+    pinsGround(options.groundPin) &&
+    !(options.groundPin === "as-read" && readsGlobalGround(document)) &&
     printedAsSubcircuit &&
-    cellReachesGround(document, documentsById)
+    cellReachesGround(
+      document,
+      documentsById,
+      undefined,
+      options.groundPin === "as-read",
+    )
   ) {
     const groundName = groundPinName(document);
     const encodedGround = encodeCandidate(groundName.name, "local", options);
