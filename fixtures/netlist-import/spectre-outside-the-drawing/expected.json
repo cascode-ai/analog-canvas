@@ -1,0 +1,18 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.scs:1 preserved (dialect switch)",
+    "top.scs:2 definition (subcircuit)",
+    "top.scs:3 instance (resistor)",
+    "top.scs:4 definition (subcircuit)",
+    "top.scs:5 preserved (outside the drawing, not converted)",
+    "top.scs:6 preserved (outside the drawing, not converted)",
+    "top.scs:7 preserved (outside the drawing, not converted)",
+    "top.scs:8 preserved (outside the drawing, not converted)"
+  ],
+  "instances": [
+    "R1 primitive:resistor resolved resistor"
+  ],
+  "findings": []
+}

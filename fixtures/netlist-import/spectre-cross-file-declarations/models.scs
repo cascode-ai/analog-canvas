@@ -1,0 +1,2 @@
+simulator lang=spectre
+model nch bsim3v3 type=n

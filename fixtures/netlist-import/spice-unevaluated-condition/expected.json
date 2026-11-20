@@ -1,0 +1,20 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.sp:2 instance (resistor)",
+    "top.sp:3 unresolved (condition not evaluated)",
+    "top.sp:4 unresolved (condition not evaluated)",
+    "top.sp:5 unresolved (condition not evaluated)",
+    "top.sp:6 unresolved (condition not evaluated)",
+    "top.sp:7 unresolved (condition not evaluated)",
+    "top.sp:8 preserved (end)"
+  ],
+  "instances": [
+    "R0 primitive:resistor resolved resistor"
+  ],
+  "findings": [
+    "warning SPICE_BIND_CONDITION_UNRESOLVED: Conditional expression was preserved but not elaborated: missing_flag",
+    "warning SPICE_IMPORT_COVERAGE: 7 statements: 1 instance, 1 preserved, 5 unresolved (top.sp:3, top.sp:4, top.sp:5, top.sp:6, top.sp:7)"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "status": "refused",
+  "complete": true,
+  "ledger": [
+    "top.sp:2 definition (subcircuit)",
+    "top.sp:3 instance (resistor)",
+    "top.sp:4 definition (subcircuit)",
+    "top.sp:5 definition (subcircuit)",
+    "top.sp:6 refused (X1 has 130 terminals; a part takes at most 128, so the design cannot be imported)",
+    "top.sp:7 definition (subcircuit)"
+  ],
+  "instances": [],
+  "findings": [
+    "error SPICE_IMPORT_LIMIT: X1 has 130 terminals; a part takes at most 128, so the design cannot be imported as it is",
+    "warning SPICE_IMPORT_COVERAGE: 6 statements: 1 instance, 4 definition, 1 refused (top.sp:6)"
+  ]
+}

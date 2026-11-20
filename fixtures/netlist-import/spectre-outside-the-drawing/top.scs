@@ -1,0 +1,8 @@
+simulator lang=spectre
+subckt top a b
+R1 (a b) resistor r=1k
+ends top
+save a b
+simulatorOptions options reltol=1e-3
+tran1 tran stop=10n
+noise1 (a 0) noise start=1 stop=1G

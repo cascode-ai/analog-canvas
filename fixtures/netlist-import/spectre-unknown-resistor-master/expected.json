@@ -1,0 +1,16 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.scs:1 preserved (dialect switch)",
+    "top.scs:2 definition (subcircuit)",
+    "top.scs:3 instance (subcircuit)",
+    "top.scs:4 definition (subcircuit)"
+  ],
+  "instances": [
+    "R1 opaque:rupolym missing external"
+  ],
+  "findings": [
+    "warning SPICE_IMPORT_EXTERNAL_CALLS: No declaration in the design names rupolym (R1): each comes in as a call of its master, with its ports in order and its parameters as written. To draw one as a device, include the library that defines it."
+  ]
+}

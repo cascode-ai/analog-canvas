@@ -130,7 +130,11 @@ edits; it chooses no topology and yields no edits on conflict
   delivered local circuit by its source version, reading a tab's review
   (`review`: the netlist the Project was imported from, the Cells still
   missing an Instance or a connection, and the whole design compared with
-  that netlist; it keeps no review state), simulation workspaces and
+  that netlist; it keeps no review state). The comparison's notes give the
+  compiler's findings, the reference's statement coverage, and that both
+  sides share one conversion and parser, which it therefore cannot check;
+  a condition the reference could not evaluate leaves topology
+  inconclusive), simulation workspaces and
   artifacts ([File Resource schema](../../packages/agent-adapter/src/file-resource.ts)).
   A local-circuit stage may give the
   device types of models whose

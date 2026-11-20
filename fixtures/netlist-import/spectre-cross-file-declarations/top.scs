@@ -1,0 +1,7 @@
+simulator lang=spectre
+include "cells.scs"
+include "models.scs"
+subckt top a b d g s
+I0 (a b) mycell
+M1 (d g s s) nch w=1u l=30n
+ends top

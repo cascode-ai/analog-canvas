@@ -1,0 +1,4 @@
+simulator lang=spectre
+subckt top a b
+C1 (a b) cfmom_2t nr=8 lr=2u w=50n s=50n multi=2
+ends top

@@ -1,0 +1,16 @@
+{
+  "status": "refused",
+  "complete": true,
+  "ledger": [
+    "top.scs:1 preserved (dialect switch)",
+    "top.scs:2 refused (Include target was not selected or found: models.scs)",
+    "top.scs:3 definition (subcircuit)",
+    "top.scs:4 instance (resistor)",
+    "top.scs:5 definition (subcircuit)"
+  ],
+  "instances": [],
+  "findings": [
+    "error SPICE_SOURCE_INCLUDE_MISSING: Include target was not selected or found: models.scs",
+    "warning SPICE_IMPORT_COVERAGE: 5 statements: 1 instance, 2 definition, 1 preserved, 1 refused (top.scs:2)"
+  ]
+}

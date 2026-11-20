@@ -1,0 +1,17 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.scs:1 preserved (dialect switch)",
+    "top.scs:2 declaration (Verilog-A dependency, not converted)",
+    "top.scs:3 definition (subcircuit)",
+    "top.scs:4 instance (subcircuit)",
+    "top.scs:5 definition (subcircuit)"
+  ],
+  "instances": [
+    "U1 opaque:va_block missing external"
+  ],
+  "findings": [
+    "warning SPICE_IMPORT_EXTERNAL_CALLS: No declaration in the design names va_block (U1): each comes in as a call of its master, with its ports in order and its parameters as written. To draw one as a device, include the library that defines it."
+  ]
+}

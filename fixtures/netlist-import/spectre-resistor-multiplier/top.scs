@@ -1,0 +1,4 @@
+simulator lang=spectre
+subckt top a b
+R1 (a b) resistor r=1k m=2
+ends top

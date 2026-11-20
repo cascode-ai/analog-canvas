@@ -1,0 +1,10 @@
+{
+  "about": "The same MOS with the caller's type: an NMOS whose model the reader's library holds.",
+  "entry": "top.scs",
+  "policy": {
+    "modelTypes": {
+      "nch_mac": "nmos"
+    },
+    "givesModelTypes": true
+  }
+}

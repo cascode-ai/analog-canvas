@@ -1,0 +1,9 @@
+{
+  "status": "refused",
+  "complete": false,
+  "ledger": [],
+  "instances": [],
+  "findings": [
+    "error SPICE_CONVERSION_BLOCKED: top.scs:2: Unsupported parameters: cj."
+  ]
+}

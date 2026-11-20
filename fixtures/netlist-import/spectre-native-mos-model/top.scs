@@ -1,0 +1,5 @@
+simulator lang=spectre
+model nch psp103 type=n
+subckt top d g s b
+M1 (d g s b) nch w=1u l=30n
+ends top

@@ -26,6 +26,14 @@ adapter.
   `;`, `//` comments are ignored for projection only.
 - Unrecognized or malformed statements become opaque with a located
   diagnostic, never discarded.
+- Every non-comment logical statement of a reachable file has exactly one
+  fate in the statement ledger (`statementLedger`): instance, definition,
+  declaration, preserved, unresolved or refused. A native Spectre file is
+  accounted by its own lines. The ledger is recomputed from the sources, never
+  persisted; a statement without a fate leaves coverage unknown, never
+  complete. Each import reports it as `SPICE_IMPORT_COVERAGE`: each fate's
+  count and where statements went unresolved or were refused (a warning when
+  any did).
 - `.include`, `.incpslt` and `.lib file section` share one sandboxed resolver:
   relative to the including file; root-escaping paths denied; missing targets
   and cycles are errors; repeats suppressed; unreachable files excluded; no
@@ -34,8 +42,17 @@ adapter.
 - An absolute, drive-qualified or URL path names an external library (a
   foundry's models): kept as written, never read, a located warning
   (`SPICE_SOURCE_INCLUDE_EXTERNAL`). A model it would define has no card in
-  the sources, so its device type comes from the caller, or the device is
-  refused naming the model.
+  the sources, so its device type comes from the caller.
+- A device naming a model no card declares records `importProvenance.status`
+  `missing`; a type from the caller draws it and is never its model. With no
+  type, a D card is the diode its letter says, and an M, Q or J card comes in
+  as a Project component box of its family (pins in SPICE's order, the card's
+  letter, a required model) that prints as the card it was; no name decides
+  n or p. `SPICE_IMPORT_UNTYPED_DEVICE` names them and asks for the defining
+  library (or, from a caller that gives types, a type), never a card.
+- A part with more than 128 terminals, an external call setting more than 128
+  parameters, or a Cell declaring more than 128 is refused by name and line
+  (`SPICE_IMPORT_LIMIT`).
 
 ## Compatibility profile
 
@@ -80,8 +97,16 @@ revision; it never silently changes `ngspice-46-core`.
   card. A plain DC value stays `dc` alone, with no waveform. A tail that fits
   no field (EXP, a PULSE with defaulted arguments, a parameter reference)
   stays whole as written. The SCS import reaches the same fields through its
-  SPICE conversion; the export prints them as the same card. A bounded evaluator handles conditions; an unevaluable
-  condition excludes all its branches with a warning.
+  SPICE conversion; the export prints them as the same card.
+- A bounded evaluator handles conditions. A reachable condition it cannot
+  evaluate excludes all its branches with a warning and marks them
+  unresolved: the devices they add are unknown, not absent, so a structural
+  comparison leaves topology inconclusive whether or not it compares
+  declarations.
+- Each rewrite the import makes keeps meaning, pinned by an import, export,
+  import round trip: a controlled source's gain read as `gm`/`rm`, a source
+  tail split into its fields, a Spectre number's suffix spelled as SPICE
+  reads it, a reviewed PDK card's size.
 - Identifiers match case-insensitively, keeping display spelling and order.
   Ports and terminals are contiguous and zero-based.
 - Known X masters bind to cells; unknown ones stay opaque with positional

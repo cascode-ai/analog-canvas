@@ -1,0 +1,6 @@
+simulator lang=spectre
+subckt outer a
+subckt inner b
+R1 (b 0) resistor r=1k
+ends inner
+ends outer

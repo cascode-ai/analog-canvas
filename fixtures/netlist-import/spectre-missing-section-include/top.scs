@@ -1,0 +1,5 @@
+simulator lang=spectre
+include "models.scs" section=tt
+subckt top a b
+R1 (a b) resistor r=1k
+ends top

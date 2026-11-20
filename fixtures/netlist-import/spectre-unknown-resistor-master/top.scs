@@ -1,0 +1,4 @@
+simulator lang=spectre
+subckt top a b
+R1 (a b) rupolym l=17.13u w=1u m=1 multi=(2)
+ends top

@@ -1,0 +1,18 @@
+{
+  "status": "refused",
+  "complete": true,
+  "ledger": [
+    "top.sp:2 definition (subcircuit)",
+    "top.sp:3 refused (Unsupported SPICE device B1 (primitive:behavioral-source): the approved Razavi c)",
+    "top.sp:4 refused (Unsupported SPICE device T1 (primitive:lossless-transmission-line): the approved)",
+    "top.sp:5 instance (bjt)",
+    "top.sp:6 definition (subcircuit)"
+  ],
+  "instances": [],
+  "findings": [
+    "error SPICE_IMPORT_UNSUPPORTED_SYMBOL: Unsupported SPICE device B1 (primitive:behavioral-source): the approved Razavi catalog has no symbol. Add and review a Razavi symbol mapping before importing.",
+    "error SPICE_IMPORT_UNSUPPORTED_SYMBOL: Unsupported SPICE device T1 (primitive:lossless-transmission-line): the approved Razavi catalog has no symbol. Add and review a Razavi symbol mapping before importing.",
+    "warning SPICE_IMPORT_UNTYPED_DEVICE: Q1 uses qmod, which no card declares: it comes in as BJT (C B E S) of unknown type, a box with its pins as SPICE orders them. To draw one as the device it is, include the library that defines it.",
+    "warning SPICE_IMPORT_COVERAGE: 5 statements: 1 instance, 2 definition, 2 refused (top.sp:3, top.sp:4)"
+  ]
+}

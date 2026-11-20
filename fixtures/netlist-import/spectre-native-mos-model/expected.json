@@ -1,0 +1,17 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.scs:1 preserved (dialect switch)",
+    "top.scs:2 declaration (native model card, not converted)",
+    "top.scs:3 definition (subcircuit)",
+    "top.scs:4 instance (mosfet)",
+    "top.scs:5 definition (subcircuit)"
+  ],
+  "instances": [
+    "M1 model:nch resolved nmos"
+  ],
+  "findings": [
+    "warning SPICE_CONVERSION_MODEL_EXTERNAL: top.scs:2: psp103 model nch is drawn as nmos and not converted; simulating it in Analog Canvas needs a converted model."
+  ]
+}

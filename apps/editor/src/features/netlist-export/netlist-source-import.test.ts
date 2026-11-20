@@ -171,9 +171,9 @@ describe("netlist source import: model evidence", () => {
         { modelTypes: { nch_mac: "nmos" } },
       ),
     );
-    expect(
-      erc(project).filter(({ severity }) => severity === "error"),
-    ).toEqual([]);
+    expect(erc(project).filter(({ severity }) => severity === "error")).toEqual(
+      [],
+    );
   });
 
   it("keeps checking a part placed in Canvas against its own parameters", async () => {

@@ -1,0 +1,4 @@
+simulator lang=spectre
+subckt top d g s b
+M1 (d g s b) nch_mac w=1u l=30n ad=1p nrd=0.1 multi=2
+ends top
