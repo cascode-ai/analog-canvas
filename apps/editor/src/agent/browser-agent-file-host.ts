@@ -31,8 +31,7 @@ import {
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { RnlAppearance } from "@icm/rnl";
-import { findBuiltInBodies } from "@icm/netlist";
-import { importSpiceSources } from "@icm/spice";
+import { importNetlistSources } from "../features/netlist-export/netlist-source-import";
 import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
@@ -736,28 +735,15 @@ export class BrowserAgentFileHost {
           path: file.name,
           bytes: file.bytes,
         }));
-        const result = await importSpiceSources(
-          inputs,
-          entryPath,
-          {},
-          {
-            namingProfile: request.namingProfile ?? "native",
-            builtInBodies: inputs.flatMap(
-              (input) =>
-                findBuiltInBodies(
-                  new TextDecoder().decode(input.bytes),
-                  "spice",
-                  input.path,
-                ).bodies,
-            ),
-          },
-        );
+        const result = await importNetlistSources(inputs, entryPath, {
+          namingProfile: request.namingProfile ?? "native",
+        });
         diagnostics = result.diagnostics.flatMap((item) =>
           item.severity === "warning" || item.severity === "error"
             ? [{ severity: item.severity, message: item.message }]
             : [],
         );
-        if (!result.successful || !result.project) {
+        if (result.status !== "imported") {
           return this.error(
             request,
             "FILE_IMPORT_FAILED",

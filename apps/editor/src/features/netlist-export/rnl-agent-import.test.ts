@@ -112,7 +112,13 @@ it("leaves out a wire drawn to a pin of another net, says where it is written, a
 it("places every Cell Pin a file draws as a port, supply or ground, adds none for the package's fill, and reads a structure as no mark", async () => {
   const { plan, document } = await imported("pdk-inverter.sp");
   expect(plan.drawing).toBe("preserved");
-  expect(plan.diagnostics).toEqual([]);
+  expect(plan.diagnostics).toEqual([
+    expect.objectContaining({
+      code: "SPICE_IMPORT_COVERAGE",
+      severity: "info",
+      message: "4 statements: 2 instance, 2 definition",
+    }),
+  ]);
   // VDD and VSS are the supply and the ground the file draws; the standard
   // fill's port tags for them, which it leaves to a solver, add no Pin.
   expect(document.instances.filter((item) => !item.placement)).toEqual([]);
@@ -134,6 +140,11 @@ it("reports RNL's layout hints by line as advice, which leave the drawing the fi
   const { plan } = await imported("pdk-inverter-crossing.sp");
   expect(plan.drawing).toBe("preserved");
   expect(plan.diagnostics).toEqual([
+    expect.objectContaining({
+      code: "SPICE_IMPORT_COVERAGE",
+      severity: "info",
+      message: "4 statements: 2 instance, 2 definition",
+    }),
     expect.objectContaining({
       severity: "warning",
       code: "RNL_IMPORT_LAYOUT_HINT",

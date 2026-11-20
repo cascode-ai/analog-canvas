@@ -93,6 +93,40 @@ describe("Canvas review of an imported netlist", () => {
     );
   });
 
+  it("states the reference's statement coverage and what this comparison cannot check", async () => {
+    const { project, source } = await delivered();
+    const result = await compareReviewSource(project, source);
+    expect(result.notes).toEqual(
+      expect.arrayContaining([
+        "Reference coverage: 17 statements: 5 instance, 4 definition, 5 declaration, 3 preserved",
+        "The drawing's netlist and the reference are read by the same conversion and parser: what those drop, both sides drop, so this comparison cannot see it",
+        expect.stringContaining("/pdk/tsmc28/models/spectre/toplevel.scs"),
+      ]),
+    );
+  });
+
+  it("leaves topology inconclusive where the reference has a condition it could not evaluate (#2294)", async () => {
+    const netlist = input(
+      "top.sp",
+      "* conditional\n.subckt top a\nR0 a 0 1k\n.if missing_flag\nR1 a 0 1k\n.else\nR2 a 0 2k\n.endif\n.ends top\n",
+    );
+    const { project } = await importLocalCircuit([netlist], "top.sp");
+    const source = await embeddedReviewBundle(project.source);
+    const result = await compareReviewSource(project, source!);
+    expect(result).toMatchObject({
+      status: "inconclusive",
+      topology: "inconclusive",
+      reasons: expect.arrayContaining([
+        expect.stringContaining(".if missing_flag could not be evaluated"),
+      ]),
+    });
+    expect(result.notes).toEqual(
+      expect.arrayContaining([
+        "Reference coverage: 8 statements: 1 instance, 2 definition, 5 unresolved (top.sp:4, top.sp:5, top.sp:6, top.sp:7, top.sp:8)",
+      ]),
+    );
+  });
+
   it("reports an edit anywhere in the design with its original line", async () => {
     const { project, source } = await delivered();
     // The top Cell and a Cell it calls, whichever Cell is open.

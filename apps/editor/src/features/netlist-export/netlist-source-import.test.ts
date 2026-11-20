@@ -263,6 +263,27 @@ describe("netlist source import: statement ledger", () => {
       "top.sp:18 preserved",
     ]);
     expect(result.ledger.complete).toBe(true);
+    expect(
+      result.diagnostics.find(({ code }) => code === "SPICE_IMPORT_COVERAGE"),
+    ).toMatchObject({
+      severity: "info",
+      message:
+        "18 statements: 4 instance, 2 definition, 2 declaration, 6 preserved, 4 unresolved (top.sp:10, top.sp:11, top.sp:12, top.sp:16)",
+    });
+  });
+
+  it("refuses a Spectre file it cannot convert with its location, and keeps the Project as it was", async () => {
+    const result = await importNetlistSources(
+      [file("top.scs", "simulator lang=spectre\nR1 (a A) resistor r=1k\n")],
+      "top.scs",
+    );
+    expect(result.status).toBe("refused");
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        message: expect.stringContaining("top.scs:2"),
+      }),
+    ]);
   });
 
   it("accounts for a Spectre file by its own lines, statements with no SPICE form included", async () => {

@@ -8,17 +8,14 @@ import { parseProject } from "@icm/project-protocol";
 import type { RnlAppearance } from "@icm/rnl";
 import {
   decodeSourceContent,
-  importSpiceSources,
   isSpectreSource,
   type SpiceCompileOptions,
   type SpiceDiagnostic,
   type SpiceSourceInput,
 } from "@icm/spice";
 import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
-import {
-  givenModelTypesUsed,
-  prepareImportSources,
-} from "../features/netlist-export/convert-import-sources";
+import { givenModelTypesUsed } from "../features/netlist-export/convert-import-sources";
+import { importNetlistSources } from "../features/netlist-export/netlist-source-import";
 
 type LocalCircuitInput = SpiceSourceInput & { sha256: string };
 
@@ -111,29 +108,23 @@ export async function importLocalCircuit(
       diagnostics,
     } as const;
   }
-  const prepared = prepareImportSources(inputs);
   // A card the sources give decides, then a native card's own type, then
   // what the Agent states.
   const given = options.modelTypes ?? {};
-  const result = await importSpiceSources(
-    prepared.inputs,
-    entryPath,
+  const result = await importNetlistSources(inputs, entryPath, {
     compileOptions,
-    {
-      originalSources: inputs,
-      builtInBodies: prepared.builtInBodies,
-      modelTypes: new Map([...Object.entries(given), ...prepared.modelTypes]),
-      undeclaredModels: "give-type",
-    },
-  );
-  if (!result.successful || !result.project)
+    modelTypes: given,
+    givesModelTypes: true,
+  });
+  if (result.status !== "imported")
     throw importError(result.diagnostics, "Structural netlist import failed");
-  const used = givenModelTypesUsed(given, result.project, [
-    ...(result.ir?.models.map((model) => model.name) ?? []),
-    ...prepared.modelTypes.keys(),
-  ]);
+  const used = givenModelTypesUsed(
+    given,
+    result.project,
+    result.declaredModelNames,
+  );
   const diagnostics: AgentLocalSource["diagnostics"] = [
-    ...diagnosticsOf([...prepared.diagnostics, ...result.diagnostics]),
+    ...diagnosticsOf(result.diagnostics),
     ...givenTypesReport(used),
   ];
   return {

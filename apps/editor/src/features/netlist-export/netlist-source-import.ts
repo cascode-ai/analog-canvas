@@ -5,6 +5,7 @@ import {
   importCompileResult,
   statementLedger,
   type SpiceCompileOptions,
+  type SpiceCompileResult,
   type SpiceDiagnostic,
   type SpiceImportOptions,
   type SpiceSourceInput,
@@ -25,10 +26,20 @@ import {
  */
 export interface NetlistImportPolicy {
   /** Device types of models the sources call but no card declares, by
-   * name, as the caller states them. A card the sources give decides. */
+   * name, as the caller states them, in its own order of precedence. A
+   * native card's type comes after, and a card the sources give decides. */
   modelTypes?: Readonly<Record<string, string>>;
+  /** The caller takes device types itself (an Agent's delivery), so a
+   * finding on a model of unknown type asks for one. */
+  givesModelTypes?: boolean;
   namingProfile?: SpiceImportOptions["namingProfile"];
   compileOptions?: SpiceCompileOptions;
+  /** Another reading of the same files (an RNL drawing). */
+  externalSubcircuitNames?: readonly string[];
+  externalSubcircuitCalls?: readonly string[];
+  externalSymbolMappings?: SpiceImportOptions["externalSymbolMappings"];
+  calledBlocks?: SpiceImportOptions["calledBlocks"];
+  libraryBodies?: SpiceImportOptions["libraryBodies"];
 }
 
 export type NetlistSourceImport = (
@@ -38,7 +49,18 @@ export type NetlistSourceImport = (
   diagnostics: SpiceDiagnostic[];
   /** Every statement of the files the entry reaches, with its fate. */
   ledger: StatementLedger;
+  /** Models the sources declare, as cards or native cards. */
+  declaredModelNames: string[];
 };
+
+export interface CompiledNetlistSources {
+  compiled: SpiceCompileResult | null;
+  prepared: ReturnType<typeof prepareImportSources> | null;
+  diagnostics: SpiceDiagnostic[];
+  ledger: StatementLedger;
+}
+
+const EMPTY_LEDGER: StatementLedger = { entries: [], complete: false };
 
 const FATE_PRIORITY: readonly StatementFateKind[] = [
   "refused",
@@ -133,17 +155,113 @@ function sourceLedger(
   };
 }
 
-export async function importNetlistSources(
+/** What the ledger counts: each fate, and where a statement went
+ * unresolved or was refused. */
+export function ledgerSummary(ledger: StatementLedger): string {
+  const order: StatementFateKind[] = [
+    "instance",
+    "definition",
+    "declaration",
+    "preserved",
+    "unresolved",
+    "refused",
+  ];
+  const parts = order.flatMap((fate) => {
+    const entries = ledger.entries.filter((entry) => entry.fate === fate);
+    if (!entries.length) return [];
+    const where =
+      fate === "unresolved" || fate === "refused"
+        ? ` (${entries
+            .slice(0, 20)
+            .map(({ path, line }) => `${path}:${line}`)
+            .join(", ")}${entries.length > 20 ? `, and ${entries.length - 20} more` : ""})`
+        : "";
+    return [`${entries.length} ${fate}${where}`];
+  });
+  const unknown = ledger.entries.filter(({ fate }) => fate === "unknown");
+  return `${ledger.entries.length} statements: ${parts.join(", ")}${
+    unknown.length
+      ? `; coverage unknown for ${unknown.length} (${unknown
+          .slice(0, 20)
+          .map(({ path, line }) => `${path}:${line}`)
+          .join(", ")})`
+      : ""
+  }`;
+}
+
+/** The ledger as one finding, a warning where coverage is unknown. */
+function coverageDiagnostic(ledger: StatementLedger): SpiceDiagnostic {
+  return {
+    code: "SPICE_IMPORT_COVERAGE",
+    severity: ledger.complete ? "info" : "warning",
+    stage: "import",
+    message: ledgerSummary(ledger),
+  };
+}
+
+/**
+ * Prepare (convert native Spectre) and compile, as every entry does: the
+ * review's reference stops here.
+ */
+export async function compileNetlistSources(
   inputs: readonly SpiceSourceInput[],
   entryPath: string,
   policy: NetlistImportPolicy = {},
-): Promise<NetlistSourceImport> {
-  const prepared = prepareImportSources(inputs);
+): Promise<CompiledNetlistSources> {
+  let prepared: ReturnType<typeof prepareImportSources>;
+  try {
+    prepared = prepareImportSources(
+      inputs,
+      policy.externalSubcircuitNames,
+      policy.externalSubcircuitCalls,
+    );
+  } catch (error) {
+    return {
+      compiled: null,
+      prepared: null,
+      diagnostics: [
+        {
+          code: "SPICE_CONVERSION_BLOCKED",
+          severity: "error",
+          stage: "import",
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ],
+      ledger: EMPTY_LEDGER,
+    };
+  }
   const compiled = await compileSpiceSources(
     prepared.inputs,
     entryPath,
     policy.compileOptions ?? {},
   );
+  return {
+    compiled,
+    prepared,
+    diagnostics: [...prepared.diagnostics, ...compiled.diagnostics],
+    ledger: sourceLedger(
+      statementLedger(compiled),
+      compiled.bundle.files.map(({ path }) => path),
+      inputs,
+      prepared,
+    ),
+  };
+}
+
+export async function importNetlistSources(
+  inputs: readonly SpiceSourceInput[],
+  entryPath: string,
+  policy: NetlistImportPolicy = {},
+): Promise<NetlistSourceImport> {
+  const { compiled, prepared, diagnostics: refusals } =
+    await compileNetlistSources(inputs, entryPath, policy);
+  if (!compiled || !prepared)
+    return {
+      status: "refused",
+      diagnostics: refusals,
+      ledger: EMPTY_LEDGER,
+      declaredModelNames: [],
+    };
   const result = importCompileResult(compiled, {
     originalSources: inputs,
     builtInBodies: prepared.builtInBodies,
@@ -153,15 +271,35 @@ export async function importNetlistSources(
     ]),
     declaredModelNames: [...prepared.modelTypes.keys()],
     ...(policy.namingProfile ? { namingProfile: policy.namingProfile } : {}),
+    ...(policy.givesModelTypes ? { undeclaredModels: "give-type" } : {}),
+    ...(policy.externalSymbolMappings
+      ? { externalSymbolMappings: policy.externalSymbolMappings }
+      : {}),
+    ...(policy.calledBlocks ? { calledBlocks: policy.calledBlocks } : {}),
+    ...(policy.libraryBodies ? { libraryBodies: policy.libraryBodies } : {}),
   });
-  const diagnostics = [...prepared.diagnostics, ...result.diagnostics];
   const ledger = sourceLedger(
     statementLedger(compiled, result),
     compiled.bundle.files.map(({ path }) => path),
     inputs,
     prepared,
   );
+  const diagnostics = [
+    ...prepared.diagnostics,
+    ...result.diagnostics,
+    coverageDiagnostic(ledger),
+  ];
+  const declaredModelNames = [
+    ...(compiled.ir?.models.map(({ name }) => name) ?? []),
+    ...prepared.modelTypes.keys(),
+  ];
   return result.successful && result.project
-    ? { status: "imported", project: result.project, diagnostics, ledger }
-    : { status: "refused", diagnostics, ledger };
+    ? {
+        status: "imported",
+        project: result.project,
+        diagnostics,
+        ledger,
+        declaredModelNames,
+      }
+    : { status: "refused", diagnostics, ledger, declaredModelNames };
 }
