@@ -1,4 +1,5 @@
 import type { DrawingOrderEntry } from "@icm/model";
+import { escapeXml } from "./svg-markup.js";
 
 interface DrawingInk {
   readonly electrical: string;
@@ -18,12 +19,46 @@ export interface SvgPaintRun {
   readonly html: string;
 }
 
+/** The pose, fill and independent upright text stay on the actual instance. */
+export interface InstanceInk {
+  readonly before: string;
+  readonly geometry: string;
+  readonly after: string;
+}
+
+/** Only artwork with identical paint and geometry in this scene can share a definition. */
+export function shareCanvasSymbols(
+  prefix: string,
+  symbols: ReadonlyMap<string, InstanceInk>,
+  runs: SvgPaintRun[],
+): ReadonlyMap<string, string> {
+  const references = new Map<string, string | null>();
+  const definitions: string[] = [];
+  for (const { geometry } of symbols.values()) {
+    if (!references.has(geometry)) references.set(geometry, null);
+    else if (references.get(geometry) === null) {
+      const id = `${escapeXml(prefix)}-symbol-${definitions.length}`;
+      definitions.push(`<g id="${id}">${geometry}</g>`);
+      references.set(geometry, `<use href="#${id}"/>`);
+    }
+  }
+  if (definitions.length)
+    runs.push({ html: `<defs>${definitions.join("")}</defs>` });
+  const shared = new Map<string, string>();
+  for (const [id, { before, geometry, after }] of symbols) {
+    const reference = references.get(geometry);
+    if (reference) shared.set(id, before + reference + after);
+  }
+  return shared;
+}
+
 /** Emit consecutive runs of like paint without moving any object across another. */
 export function composeDrawing(
   order: readonly DrawingOrderEntry[],
   ink: DrawingInk,
   implicitOrder: boolean,
   canvasRuns?: SvgPaintRun[],
+  canvasSymbols?: ReadonlyMap<string, string>,
 ): string {
   const parts: string[] = [];
   let layer: Group | undefined;
@@ -47,7 +82,14 @@ export function composeDrawing(
           layer,
           ...(layer === "drafting" ? { plane: draftingPlane } : {}),
           ids: ids.slice(start, start + 4),
-          html: body.slice(start, start + 4).join(""),
+          html: body
+            .slice(start, start + 4)
+            .map((part, offset) =>
+              layer === "symbols"
+                ? (canvasSymbols?.get(ids[start + offset]!) ?? part)
+                : part,
+            )
+            .join(""),
         });
       }
     }

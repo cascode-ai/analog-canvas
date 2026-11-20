@@ -372,6 +372,18 @@ describe("editor navigation controller", () => {
     expect(input.resetInteractionState).toHaveBeenCalled();
     expect(vi.mocked(input.setViewBox).mock.calls.length).toBeGreaterThan(1);
   });
+
+  it("fits the default view when the displayed Cell's committed scene is degraded", () => {
+    const input = dependencies();
+    input.defaultViewBox = { x: 300, y: 160, width: 120, height: 100 };
+    input.currentCellBounds = null;
+    const controller = createEditorNavigationController(input);
+    controller.fitDocument(input.document.id);
+    expect(input.setViewBox).toHaveBeenLastCalledWith(
+      input.defaultViewBox,
+      input.document.presentation.grid,
+    );
+  });
 });
 
 describe("entering or leaving a Cell fits the view (#1686)", () => {
