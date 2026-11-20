@@ -21216,13 +21216,7 @@
                 "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema19"
               },
               "modelTypes": {
-                "type": "object",
-                "propertyNames": {
-                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
-                },
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema21"
-                }
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
               }
             },
             "required": [
@@ -21260,6 +21254,9 @@
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "modelTypes": {
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
               }
             },
             "required": [
@@ -21802,11 +21799,20 @@
             "description": "RNL appearance in Canvas. Defaults to native Canvas conventions. Use source for authored styling."
           },
           "__schema20": {
+            "type": "object",
+            "propertyNames": {
+              "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema21"
+            },
+            "additionalProperties": {
+              "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema22"
+            }
+          },
+          "__schema21": {
             "type": "string",
             "minLength": 1,
             "maxLength": 128
           },
-          "__schema21": {
+          "__schema22": {
             "type": "string",
             "enum": [
               "nmos",

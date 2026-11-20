@@ -140,6 +140,9 @@ edits; it chooses no topology and yields no edits on conflict
   device types of models whose
   cards the sources lack; a card the sources give decides. Staging never
   changes the browser Project; replacement needs explicit human approval.
+  `locate-local` finds an open copy by source version, task, RNL appearance
+  and those device types (names in any case): the same files delivered
+  under other types are another copy.
 - `/simulation`: prepare/run through the shared SimulationService
   ([execution](simulation-execution.md)); saved setup changes are Project
   structure edits.

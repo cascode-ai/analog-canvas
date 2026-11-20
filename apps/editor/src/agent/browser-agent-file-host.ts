@@ -9,6 +9,7 @@ import {
   type AgentFileCandidateSummary,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
+  type AgentLocalModelTypes,
   type AgentLocalProjectReceipt,
   type AgentLocalSource,
   type AgentReviewReceipt,
@@ -43,6 +44,8 @@ type StoredCandidate = {
   project: CircuitProject;
   summary: AgentFileCandidateSummary;
   rnlAppearance?: RnlAppearance;
+  /** The device types the local circuit was staged with. */
+  modelTypes?: AgentLocalModelTypes;
 };
 
 export type OpenLocalProject = (request: {
@@ -50,6 +53,9 @@ export type OpenLocalProject = (request: {
   background: boolean;
   rnlAppearance: RnlAppearance;
   taskRef?: string;
+  /** Device types the Agent gave: a copy imported under others is another
+   * delivery (`matchesLocalDelivery`). */
+  modelTypes?: AgentLocalModelTypes;
   candidate?: { project: CircuitProject; source: AgentLocalSource };
 }) => Promise<AgentLocalProjectReceipt | "blocked" | null>;
 
@@ -174,6 +180,7 @@ export class BrowserAgentFileHost {
           background: request.background ?? false,
           rnlAppearance: request.rnlAppearance ?? "canvas",
           ...(request.taskRef ? { taskRef: request.taskRef } : {}),
+          ...(request.modelTypes ? { modelTypes: request.modelTypes } : {}),
         });
         if (delivery === "blocked") return this.openBlocked(request);
         return {
@@ -269,6 +276,9 @@ export class BrowserAgentFileHost {
             background: request.background ?? false,
             rnlAppearance: candidate.rnlAppearance ?? "canvas",
             ...(request.taskRef ? { taskRef: request.taskRef } : {}),
+            ...(candidate.modelTypes
+              ? { modelTypes: candidate.modelTypes }
+              : {}),
             candidate: { project: candidate.project, source },
           });
           if (delivery === "blocked") return this.openBlocked(request);
@@ -780,6 +790,9 @@ export class BrowserAgentFileHost {
         summary,
         ...(local?.source.format === "rnl"
           ? { rnlAppearance: request.rnlAppearance ?? "canvas" }
+          : {}),
+        ...(local && request.kind === "local-circuit" && request.modelTypes
+          ? { modelTypes: request.modelTypes }
           : {}),
       });
       return {
