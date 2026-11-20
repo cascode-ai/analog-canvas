@@ -129,6 +129,34 @@ describe("Canvas review of an imported netlist", () => {
     );
   });
 
+  it("reads the reference with the device types the delivery was imported with (#2377)", async () => {
+    // A foundry library kept external: only the Agent's types say what the
+    // MOS are. The reference must read them so, or every typed part looks
+    // like a call of an unknown master.
+    const netlist = input(
+      "top.scs",
+      [
+        "simulator lang=spectre",
+        'include "/pdk/tsmc28/models/spectre/toplevel.scs" section=tt',
+        "subckt inv (in out vdd vss)",
+        "M1 (out in vdd vdd) pch_mac w=2u l=30n",
+        "M0 (out in vss vss) nch_mac w=1u l=30n",
+        "ends inv",
+        "",
+      ].join("\n"),
+    );
+    const { project } = await importLocalCircuit([netlist], "top.scs", {
+      modelTypes: { nch_mac: "nmos", pch_mac: "pmos" },
+    });
+    const source = await embeddedReviewBundle(project.source);
+    const result = await compareReviewSource(project, source!);
+    expect(result, JSON.stringify(result.differences)).toMatchObject({
+      status: "equal",
+      topology: "equal",
+      differences: [],
+    });
+  });
+
   it("reports an edit anywhere in the design with its original line", async () => {
     const { project, source } = await delivered();
     // The top Cell and a Cell it calls, whichever Cell is open.

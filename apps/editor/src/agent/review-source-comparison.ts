@@ -116,14 +116,34 @@ async function rnlLibraryNames(
   return rnlSubcircuitNames(snapshot);
 }
 
-/** The reference, read as every import reads it (the shared entry). */
-async function compileReference(source: ReviewSource) {
+/**
+ * The device types the Project's parts were imported with, by model name:
+ * a delivery's `modelTypes` (or a native card's `type=`), as each imported
+ * part's provenance records it. A card the sources give still decides.
+ */
+function importedModelTypes(project: CircuitProject): Record<string, string> {
+  const types: Record<string, string> = {};
+  for (const document of project.documents)
+    for (const { importProvenance } of document.instances)
+      if (importProvenance?.kind === "model" && importProvenance.modelType)
+        types[importProvenance.sourceMasterName.toLowerCase()] =
+          importProvenance.modelType;
+  return types;
+}
+
+/** The reference, read as its import read it: the same entry and the same
+ * type evidence, or a typed part looks like a call of an unknown master. */
+async function compileReference(
+  source: ReviewSource,
+  modelTypes: Readonly<Record<string, string>>,
+) {
   const externalSubcircuitNames = await rnlLibraryNames(
     source.files,
     source.entryPath,
   );
   return compileNetlistSources(source.files, source.entryPath, {
     compileOptions: { includeRoot: "workspace" },
+    modelTypes,
     ...(externalSubcircuitNames ? { externalSubcircuitNames } : {}),
   });
 }
@@ -177,7 +197,7 @@ export async function compareReviewSource(
         ],
         actualPath,
       ),
-      compileReference(source),
+      compileReference(source, importedModelTypes(project)),
     ]);
   } catch (error) {
     return unavailable([
