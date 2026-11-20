@@ -5,10 +5,12 @@ import {
 import { routeEndpoints, type Point, type SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import {
+  createPlacementContactContext,
   placementWireSources,
   proposePlacementContact,
 } from "./instance-contact-planner.js";
 import { prepareRoutingTransform } from "./routing-transform-planner.js";
+import { physicalContactPointKey } from "./transaction-connectivity.js";
 import {
   createRoutingOperationPlan,
   type RoutingOperationPlan,
@@ -80,23 +82,54 @@ function planContactAtDrop(
   const movingIds = new Set(seed.instanceIds);
   const instances = projected.instances.filter((i) => movingIds.has(i.id));
   if (!instances.length) return transform;
-  const targets: WireSource[] = projected.instances
-    .filter((i) => !movingIds.has(i.id))
-    .flatMap((i) => placementWireSources(projected, resolver, i));
-  const carriedJunctions = new Set(transform.affected.internalJunctions);
-  for (const junction of projected.junctions) {
-    // A carried anchor belongs to the move, not to the stationary conductors
-    // an explicitly snapped pin may join at drop.
-    if (carriedJunctions.has(junction.id)) continue;
-    const endpoint = { kind: "junction" as const, junctionId: junction.id };
-    const connection = resolveEndpointConnection(projected, resolver, endpoint);
-    if (connection)
-      targets.push({
+  const context = createPlacementContactContext(projected, resolver);
+  function targetsAtDrop(sources: readonly WireSource[]): WireSource[] {
+    const dropPoints = new Set(
+      sources.map((source) =>
+        physicalContactPointKey(source.connection.contactPoint),
+      ),
+    );
+    if (!dropPoints.size) return [];
+    const atDropPoint = (point: Point) =>
+      dropPoints.has(physicalContactPointKey(point));
+    // Duplicate IDs on unvalidated inputs retain the original find-first lookup.
+    const targetContext =
+      context.lookup.instancesById.size === projected.instances.length &&
+      context.lookup.junctionsById.size === projected.junctions.length
+        ? context
+        : undefined;
+    const targets: WireSource[] = projected.instances
+      .filter((i) => !movingIds.has(i.id))
+      .flatMap((i) =>
+        placementWireSources(
+          projected,
+          resolver,
+          i,
+          targetContext,
+          atDropPoint,
+        ),
+      );
+    const carriedJunctions = new Set(transform.affected.internalJunctions);
+    for (const junction of projected.junctions) {
+      // A carried anchor belongs to the move, not to the stationary conductors
+      // an explicitly snapped pin may join at drop.
+      if (carriedJunctions.has(junction.id)) continue;
+      const endpoint = { kind: "junction" as const, junctionId: junction.id };
+      const connection = resolveEndpointConnection(
+        projected,
+        resolver,
         endpoint,
-        connection,
-        netId: junction.netId,
-        preludeEdits: [],
-      });
+        targetContext?.lookup,
+      );
+      if (connection && atDropPoint(connection.contactPoint))
+        targets.push({
+          endpoint,
+          connection,
+          netId: junction.netId,
+          preludeEdits: [],
+        });
+    }
+    return targets;
   }
   // The moved parts' own wires follow them, and so do the wires moved with
   // them: their new geometry is the move's, not a conductor the parts were
@@ -115,10 +148,11 @@ function planContactAtDrop(
     projected,
     resolver,
     instances[0]!,
-    targets,
+    targetsAtDrop,
     {
       mode: "move",
       instances,
+      context,
       routeIds: new Set(
         projected.routes
           .map((route) => route.id)

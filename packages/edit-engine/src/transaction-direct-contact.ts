@@ -1,6 +1,7 @@
 import {
   createRoutePath,
   deriveStableId,
+  junctionElectricalEndpoints,
   routeEnd,
   routeEndpoints,
 } from "@icm/model";
@@ -21,7 +22,10 @@ import {
   resolveEndpointConnection,
   resolveEndpointPoint,
 } from "@icm/derived";
-import type { DocumentContactEvidence } from "@icm/derived";
+import type {
+  DocumentContactEvidence,
+  EndpointObjectLookup,
+} from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import { buildManualWirePath } from "./wire-draft.js";
@@ -76,16 +80,29 @@ export function transformMaySeparateDirectContact(
   resolver: SymbolResolver,
   instanceIds: ReadonlySet<string>,
   junctionIds: ReadonlySet<string>,
+  lookup?: EndpointObjectLookup,
 ): boolean {
+  const movedJunctionNets = new Set(
+    document.junctions
+      .filter((junction) => junctionIds.has(junction.id))
+      .flatMap((junction) =>
+        junctionElectricalEndpoints(junction).map((item) => item.netId),
+      ),
+  );
   for (const net of document.nets) {
+    if (
+      !movedJunctionNets.has(net.id) &&
+      !net.terminals.some((terminal) => instanceIds.has(terminal.instanceId))
+    )
+      continue;
     const positions = new Map<
       string,
       { count: number; containsTransformedEndpoint: boolean }
     >();
     const movedEndpoints: { endpoint: RouteEndpoint; point: Point }[] = [];
     for (const endpoint of netEndpoints(document, net)) {
-      if (!isVisibleEndpoint(document, resolver, endpoint)) continue;
-      const point = resolveEndpointPoint(document, resolver, endpoint);
+      if (!isVisibleEndpoint(document, resolver, endpoint, lookup)) continue;
+      const point = resolveEndpointPoint(document, resolver, endpoint, lookup);
       if (!point) continue;
       const key = `${point.x},${point.y}`;
       const current = positions.get(key) ?? {
@@ -93,18 +110,13 @@ export function transformMaySeparateDirectContact(
         containsTransformedEndpoint: false,
       };
       current.count += 1;
-      current.containsTransformedEndpoint ||=
+      const moved =
         (endpoint.kind === "terminal" &&
           instanceIds.has(endpoint.instanceId)) ||
         (endpoint.kind === "junction" && junctionIds.has(endpoint.junctionId));
+      current.containsTransformedEndpoint ||= moved;
       positions.set(key, current);
-      if (
-        (endpoint.kind === "terminal" &&
-          instanceIds.has(endpoint.instanceId)) ||
-        (endpoint.kind === "junction" && junctionIds.has(endpoint.junctionId))
-      ) {
-        movedEndpoints.push({ endpoint, point });
-      }
+      if (moved) movedEndpoints.push({ endpoint, point });
     }
     if (
       [...positions.values()].some(
