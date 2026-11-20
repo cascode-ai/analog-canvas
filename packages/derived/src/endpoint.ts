@@ -57,13 +57,7 @@ export interface EndpointObjectLookup {
     string,
     SchematicDocument["junctions"][number]
   >;
-  /**
-   * Optional, and only read for a variant-hidden MOS bulk pin. That path asks
-   * the bulk policy, which resolves the whole Document's Logical Nets when it
-   * is not handed them — once per endpoint, which is what made a commit spend
-   * seconds deciding whether a body lead is visible. A builder that resolves
-   * them once per index sets this.
-   */
+  /** Logical Nets for this Document, shared by MOS body visibility and bus Junction member names. */
   readonly logicalNetResolution?: ResolvedDocumentLogicalNets;
 }
 

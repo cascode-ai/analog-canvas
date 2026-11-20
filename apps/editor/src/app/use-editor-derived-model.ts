@@ -134,7 +134,12 @@ function visibleWireSources(
             endpoint,
             index,
           );
-          const members = signalEndpointMembers(document, resolver, endpoint);
+          const members = signalEndpointMembers(
+            document,
+            resolver,
+            endpoint,
+            index,
+          );
           return connection
             ? [
                 {
@@ -180,6 +185,7 @@ function visibleWireSources(
                         document,
                         resolver,
                         endpoint,
+                        index,
                       )!,
                     }
                   : {}),

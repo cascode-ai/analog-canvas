@@ -202,11 +202,16 @@ export function validateConnectableEndpoint(
       ) {
         return `Symbol pin does not exist: ${endpoint.instanceId}.${endpoint.pinName}`;
       }
-      const members = signalEndpointMembers(document, resolver, {
-        kind: "terminal",
-        instanceId: endpoint.instanceId,
-        pinName: endpoint.pinName,
-      });
+      const members = signalEndpointMembers(
+        document,
+        resolver,
+        {
+          kind: "terminal",
+          instanceId: endpoint.instanceId,
+          pinName: endpoint.pinName,
+        },
+        lookup,
+      );
       // A Cell Pin's member Nets are established before its formal declaration
       // in the same transaction; the completed Project validates that owner.
       if (
