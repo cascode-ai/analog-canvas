@@ -4,6 +4,11 @@ import { normalizeCameraRect, type CameraRectInput } from "./fit-view";
 
 export type CameraUpdate =
   GridRect | CameraRectInput | ((current: GridRect) => CameraRectInput);
+type ViewportListener = (
+  camera: GridRect,
+  surface: DOMRect,
+  animationFrame: boolean,
+) => void;
 
 interface CameraBoundedElement {
   setAttribute(name: string, value: string): void;
@@ -33,6 +38,7 @@ export interface CameraRuntime {
   refreshSurface(): void;
   measureSurface(surface: SVGSVGElement, refresh?: boolean): DOMRect;
   invalidateSurfaceBounds(): void;
+  observeViewport(listener: ViewportListener): () => void;
   dispose(): void;
 }
 
@@ -70,8 +76,14 @@ export function createCameraRuntime(
   let frameHandle: number | null = null;
   let commitHandle: number | null = null;
   let dirty = false;
+  const listeners = new Set<ViewportListener>();
+  const notifyViewport = (animationFrame = false) => {
+    if (!surface || !listeners.size) return;
+    bounds ??= surface.getBoundingClientRect();
+    for (const listener of listeners) listener(live, bounds, animationFrame);
+  };
 
-  const apply = (): void => {
+  const apply = (animationFrame = false): void => {
     if (!surface) return;
     surface.setAttribute("viewBox", cameraString(live));
     for (const element of boundedElements) {
@@ -80,6 +92,7 @@ export function createCameraRuntime(
       element.setAttribute("width", String(live.width));
       element.setAttribute("height", String(live.height));
     }
+    notifyViewport(animationFrame);
   };
 
   const cancelScheduledCommit = (): void => {
@@ -107,7 +120,7 @@ export function createCameraRuntime(
     if (frameHandle !== null) return;
     frameHandle = requestFrame(() => {
       frameHandle = null;
-      apply();
+      apply(true);
     });
   };
 
@@ -171,6 +184,15 @@ export function createCameraRuntime(
     },
     invalidateSurfaceBounds() {
       bounds = null;
+      notifyViewport();
+    },
+    observeViewport(listener) {
+      listeners.add(listener);
+      if (surface)
+        listener(live, (bounds ??= surface.getBoundingClientRect()), false);
+      return () => {
+        listeners.delete(listener);
+      };
     },
     dispose() {
       cancelScheduledFrame();
@@ -179,6 +201,7 @@ export function createCameraRuntime(
       boundedElements = [];
       bounds = null;
       dirty = false;
+      listeners.clear();
     },
   };
 }

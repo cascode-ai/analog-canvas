@@ -1,5 +1,7 @@
 import type { Point } from "@icm/model";
 
+import { retainCanvasDragObjects } from "./canvas-object-retention";
+
 export interface CanvasDragVisual {
   translate(delta: Point): void;
   translateObject(objectId: string, delta: Point): void;
@@ -205,6 +207,7 @@ export function startCanvasDragVisual(
   root: ParentNode,
   objectIds: readonly string[],
 ): CanvasDragVisual {
+  const releaseObjects = retainCanvasDragObjects(root, objectIds);
   const ids = new Set(objectIds);
   const elements = Array.from(
     root.querySelectorAll("[data-object-id], [data-drag-object-id]"),
@@ -399,6 +402,7 @@ export function startCanvasDragVisual(
         if (item.points === null) item.element.removeAttribute("points");
         else item.element.setAttribute("points", item.points);
       }
+      releaseObjects?.();
     },
   };
 }

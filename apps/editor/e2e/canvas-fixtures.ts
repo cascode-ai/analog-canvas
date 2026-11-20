@@ -3,6 +3,7 @@
 // and the small document pieces their Projects are built from.
 
 import {
+  createEmptyProject,
   createRoutePath,
   type Point,
   type SchematicDocument,
@@ -25,6 +26,29 @@ export function placedInstance(
     symbolId,
     placement: { position: { x, y }, rotation: 0, mirror: "none" },
   };
+}
+
+/** A searchable, widely spaced cell large enough to exercise a local camera. */
+export function largeCameraProject() {
+  const project = createEmptyProject("large-cell-camera", "Large Cell");
+  project.documents[0]!.instances = Array.from({ length: 640 }, (_, i) => ({
+    ...placedInstance(
+      `R${i + 1}`,
+      "resistor",
+      (i % 32) * 200,
+      Math.floor(i / 32) * 220,
+    ),
+    reference: `R${i + 1}`,
+  }));
+  return project;
+}
+
+export async function findCanvasInstance(page: Page, id: string) {
+  await page.getByTestId("schematic-canvas").focus();
+  await page.keyboard.press("Control+f");
+  await page.getByTestId("project-search-input").fill(id);
+  await page.getByTestId("project-search-result-" + id).click();
+  await expect(page.getByTestId("hit-" + id)).toHaveClass(/selected/);
 }
 
 /** A Junction anchoring a Route end at (x, y). */

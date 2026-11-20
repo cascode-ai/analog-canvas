@@ -189,15 +189,17 @@ export function useCanvasHitController({
     const dotKey = (event.target as Element)
       .closest('.endpoint-hit[data-junction-dot="true"]')
       ?.getAttribute("data-endpoint-key");
-    const junctionDotEndpoint = visibleEndpoints.find(
-      (candidate) =>
-        endpointKey(candidate.endpoint) === dotKey &&
-        drawingScene.isEndpointVisibleAt(
-          candidate.endpoint,
-          candidate.connection.contactPoint,
-        ) &&
-        selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select"),
-    )?.endpoint;
+    const junctionDotEndpoint = dotKey
+      ? visibleEndpoints.find(
+          (candidate) =>
+            endpointKey(candidate.endpoint) === dotKey &&
+            drawingScene.isEndpointVisibleAt(
+              candidate.endpoint,
+              candidate.connection.contactPoint,
+            ) &&
+            selectionPolicy.allowsEndpoint(candidate.endpoint.kind, "select"),
+        )?.endpoint
+      : undefined;
     // A terminal has a more precise electrical identity than the enclosing
     // Instance hit box. Let its own handler pick it before body hit resolution.
     if (

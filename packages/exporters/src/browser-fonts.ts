@@ -31,7 +31,7 @@ import type { SchematicTextFace } from "@icm/derived";
  */
 
 /** The family each face is served as. */
-const SCHEMATIC_TEXT_FACE_FAMILIES: Readonly<
+export const SCHEMATIC_TEXT_FACE_FAMILIES: Readonly<
   Record<SchematicTextFace, string>
 > = {
   metropolis: "Metropolis",

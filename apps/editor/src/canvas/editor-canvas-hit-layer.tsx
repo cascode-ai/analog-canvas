@@ -224,11 +224,13 @@ function AnalogBlockHitGeometry({
 }
 
 interface SelectionHitTargetProps {
+  visibleIds?: ReadonlySet<string> | null;
   controlSensorCandidate?: (instanceId: string, pinName?: string) => boolean;
   document: SchematicDocument;
   resolver: SymbolResolver;
   routeGeometryRecords: readonly RouteGeometryRecord[];
   styleProfile: StyleProfile;
+  formulaArtifactRevision?: number;
   tool: EditorTool;
   selectedInstanceIds: readonly string[];
   selectedRouteId: string | null;
@@ -259,6 +261,7 @@ interface SelectionHitTargetProps {
 }
 
 interface EndpointHitTargetProps {
+  visibleIds?: ReadonlySet<string> | null;
   drawingScene?: ResolvedDrawingScene;
   controlCurrentPreview?: {
     instanceId?: string | undefined;
@@ -307,22 +310,26 @@ interface EndpointHitTargetProps {
 export function EditorCanvasHitLayer({
   selection,
   endpoints,
+  visibleIds,
 }: {
   selection: SelectionHitTargetProps;
   endpoints: EndpointHitTargetProps;
+  visibleIds?: ReadonlySet<string> | null;
 }) {
   return (
-    <SelectionHitTargets {...selection}>
-      <EndpointHitTargets {...endpoints} />
+    <SelectionHitTargets {...selection} visibleIds={visibleIds ?? null}>
+      <EndpointHitTargets {...endpoints} visibleIds={visibleIds ?? null} />
     </SelectionHitTargets>
   );
 }
 
 function SelectionHitTargets({
+  visibleIds,
   document,
   resolver,
   routeGeometryRecords,
   styleProfile,
+  formulaArtifactRevision,
   tool,
   selectedInstanceIds,
   selectedRouteId,
@@ -366,12 +373,21 @@ function SelectionHitTargets({
       ),
     [document, resolver],
   );
-  const annotationHitBoxes = useMemo(
+  const hitAnnotations = useMemo(
     () =>
-      new Map(
-        document.annotations.map((annotation) => [
-          annotation.id,
-          annotationHitBox(
+      document.annotations
+        .filter((annotation) =>
+          isSchematicAnnotationVisible(
+            document,
+            annotation,
+            logicalNets,
+            undefined,
+            resolver,
+          ),
+        )
+        .map((annotation) => ({
+          annotation,
+          hitBox: annotationHitBox(
             document,
             resolver,
             annotation,
@@ -380,8 +396,7 @@ function SelectionHitTargets({
             routingGeometry,
             logicalNets,
           ),
-        ]),
-      ),
+        })),
     [
       document,
       resolver,
@@ -389,12 +404,17 @@ function SelectionHitTargets({
       styleProfile,
       routingGeometry,
       logicalNets,
+      formulaArtifactRevision,
     ],
   );
   return (
     <>
       {document.instances
-        .filter((instance) => instance.placement !== null)
+        .filter(
+          (instance) =>
+            instance.placement !== null &&
+            (!visibleIds || visibleIds.has(instance.id)),
+        )
         .map((instance) => {
           const hitBox = instanceHitBoxes.get(instance.id);
           if (!hitBox || cellSymbolLayoutInstanceId === instance.id)
@@ -470,65 +490,60 @@ function SelectionHitTargets({
             />
           );
         })}
-      {routeGeometryRecords.map(({ route, geometry }) => (
-        <polyline
-          key={route.id}
-          data-testid={`route-hit-${route.id}`}
-          data-canvas-hit-kind="route"
-          data-canvas-hit-id={route.id}
-          data-drag-object-id={route.id}
-          className={
-            selectedRouteId === route.id ||
-            supplementalRouteIds.includes(route.id) ||
-            selectedInternalRouteIds.has(route.id)
-              ? "route-hit selected"
-              : wouldMoveIds.has(route.id)
-                ? "route-hit would-move"
-                : "route-hit"
-          }
-          points={serializePolylinePoints(geometry.centerline)}
-          // Drawing tools only: under the pointer tool the capture-phase
-          // router has already claimed this press and stopped it, so this
-          // handler runs for the wire gesture and for nothing else.
-          onPointerDown={(event) => {
-            if (
-              tool === "pointer" &&
-              !selectionPolicy.allowsCanvasHit(
-                { kind: "route", id: route.id },
-                "drag",
-              )
-            )
-              return;
-            onRoutePointerDown(event, route.id);
-          }}
-          onPointerEnter={() => onNetPointerEnter?.(route.netId)}
-          onPointerLeave={() => onNetPointerLeave?.()}
-          onClick={(event) => {
-            if (
-              tool !== "pointer" ||
-              selectionPolicy.allowsCanvasHit(
-                { kind: "route", id: route.id },
-                "select",
-              )
-            ) {
-              event.stopPropagation();
+      {routeGeometryRecords
+        .filter(({ route }) => !visibleIds || visibleIds.has(route.id))
+        .map(({ route, geometry }) => (
+          <polyline
+            key={route.id}
+            data-testid={`route-hit-${route.id}`}
+            data-canvas-hit-kind="route"
+            data-canvas-hit-id={route.id}
+            data-drag-object-id={route.id}
+            className={
+              selectedRouteId === route.id ||
+              supplementalRouteIds.includes(route.id) ||
+              selectedInternalRouteIds.has(route.id)
+                ? "route-hit selected"
+                : wouldMoveIds.has(route.id)
+                  ? "route-hit would-move"
+                  : "route-hit"
             }
-          }}
-        />
-      ))}
+            points={serializePolylinePoints(geometry.centerline)}
+            // Drawing tools only: under the pointer tool the capture-phase
+            // router has already claimed this press and stopped it, so this
+            // handler runs for the wire gesture and for nothing else.
+            onPointerDown={(event) => {
+              if (
+                tool === "pointer" &&
+                !selectionPolicy.allowsCanvasHit(
+                  { kind: "route", id: route.id },
+                  "drag",
+                )
+              )
+                return;
+              onRoutePointerDown(event, route.id);
+            }}
+            onPointerEnter={() => onNetPointerEnter?.(route.netId)}
+            onPointerLeave={() => onNetPointerLeave?.()}
+            onClick={(event) => {
+              if (
+                tool !== "pointer" ||
+                selectionPolicy.allowsCanvasHit(
+                  { kind: "route", id: route.id },
+                  "select",
+                )
+              ) {
+                event.stopPropagation();
+              }
+            }}
+          />
+        ))}
       {children}
-      {document.annotations
-        .filter((annotation) =>
-          isSchematicAnnotationVisible(
-            document,
-            annotation,
-            logicalNets,
-            undefined,
-            resolver,
-          ),
+      {hitAnnotations
+        .filter(
+          ({ annotation }) => !visibleIds || visibleIds.has(annotation.id),
         )
-        .map((annotation) => {
-          const hitBox = annotationHitBoxes.get(annotation.id)!;
+        .map(({ annotation, hitBox }) => {
           const selected =
             selectedAnnotationId === annotation.id ||
             supplementalAnnotationIds.includes(annotation.id);
@@ -581,6 +596,7 @@ function SelectionHitTargets({
 }
 
 function EndpointHitTargets({
+  visibleIds,
   drawingScene,
   document,
   endpoints,
@@ -638,7 +654,8 @@ function EndpointHitTargets({
       controlHover.endpoint.pinName,
     )
       ? controlHover
-      : endpoints.find(
+      : controlCurrentPreview &&
+        endpoints.find(
           (item) =>
             item.endpoint.kind === "terminal" &&
             item.endpoint.instanceId === controlCurrentPreview?.instanceId &&
@@ -682,18 +699,29 @@ function EndpointHitTargets({
           )
           .sort((left, right) => left.position.x - right.position.x) ?? [])
       : [];
-  const pickEntries = endpoints.flatMap((candidate) => {
-    if (candidate.endpoint.kind !== "terminal" || !terminalPickState) return [];
-    return [
-      {
-        candidate,
-        state: terminalPickState(candidate.endpoint),
-      },
-    ];
-  });
+  const pickEntries = terminalPickState
+    ? endpoints.flatMap((candidate) => {
+        if (candidate.endpoint.kind !== "terminal") return [];
+        return [
+          {
+            candidate,
+            state: terminalPickState(candidate.endpoint),
+          },
+        ];
+      })
+    : [];
   const pickOrigin = pickEntries.find(({ state }) => state === "origin");
   const pickPartners = pickEntries.filter(({ state }) => state === "partner");
   const hitTargets = endpoints
+    .filter(
+      ({ endpoint }) =>
+        !visibleIds ||
+        visibleIds.has(
+          endpoint.kind === "terminal"
+            ? endpoint.instanceId
+            : endpoint.junctionId,
+        ),
+    )
     .filter(
       (candidate) =>
         (selectedEndpoint &&
@@ -737,6 +765,7 @@ function EndpointHitTargets({
           data-testid={label}
           data-endpoint-kind={candidate.endpoint.kind}
           data-endpoint-key={candidateKey}
+          data-terminal-owner={visibleIds ? terminal?.instanceId : undefined}
           data-junction-dot={
             candidate.endpoint.kind === "terminal" &&
             junctionDotEndpointKeys?.has(candidateKey)

@@ -1,12 +1,19 @@
 import { expect, test } from "@playwright/test";
+import {
+  findCanvasInstance,
+  largeCameraProject,
+  onScreen,
+} from "./canvas-fixtures.js";
 
 import {
   awaitEditorReady,
+  closeProjectTools,
   chooseComponent,
   expectStatus,
   openExternalCircuits,
   placeResistors,
   openEditor,
+  openProject,
 } from "./editor-fixtures.js";
 
 /** The App module as the dev server serves it, or its chunk in the built editor. */
@@ -177,4 +184,44 @@ test("a scene build failure degrades to the last good view and recovers", async 
   await expect(page.getByTestId("hit-R3")).toBeVisible();
   await expect(painted("R2")).toBeVisible();
   await expect(painted("R3")).toBeVisible();
+});
+
+test("a large cell retains the last good painted annotation when a newer revision fails to render", async ({
+  page,
+}) => {
+  const project = largeCameraProject();
+  project.documents[0]!.annotations.push({
+    id: "sentinel",
+    kind: "instance-label",
+    locked: false,
+    content: { runs: [{ kind: "text", value: "last good revision" }] },
+    anchor: { kind: "free", position: { x: 1400, y: 42 } },
+    alignment: "start",
+    rotation: 0,
+  });
+  await openProject(page, project);
+  await closeProjectTools(page);
+  await findCanvasInstance(page, "R8");
+  const canvas = page.getByTestId("schematic-canvas");
+  const painted = canvas.locator(
+    '[data-layer="formal"] [data-object-id="sentinel"]',
+  );
+  await expect(painted).toBeInViewport();
+  const [ink] = await onScreen(canvas, [{ x: 1410, y: 38 }]);
+  await page.mouse.click(ink.x, ink.y);
+  const hit = page.getByTestId("annotation-hit-sentinel");
+  await expect(hit).toHaveClass(/selected/);
+  await page.evaluate(() => {
+    window.__ICM_TEST_SCENE_CRASH__ = true;
+  });
+  await page.keyboard.press("Delete");
+  await expectStatus(page, "Scene rendering failed");
+  await expect(hit).toHaveCount(0);
+  await expect(painted).toBeInViewport();
+  await page.evaluate(() => {
+    window.__ICM_TEST_SCENE_CRASH__ = false;
+  });
+  await page.keyboard.press("Control+z");
+  await expect(hit).toBeAttached();
+  await expect(painted).toBeInViewport();
 });

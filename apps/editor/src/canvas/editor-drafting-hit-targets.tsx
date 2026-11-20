@@ -36,6 +36,7 @@ import { serializePolylinePoints } from "./canvas-geometry";
 const ROTATE_HANDLE_GAP = 22;
 
 export function EditorDraftingHitTargets({
+  visibleIds,
   document,
   resolver,
   drawingScene,
@@ -48,6 +49,7 @@ export function EditorDraftingHitTargets({
   onTextEdit,
   onTextContextMenu,
 }: {
+  visibleIds?: ReadonlySet<string> | null;
   document: SchematicDocument;
   resolver: SymbolResolver;
   drawingScene?: ResolvedDrawingScene;
@@ -74,14 +76,17 @@ export function EditorDraftingHitTargets({
     () => drawingScene ?? resolveDrawingScene(document, resolver),
     [document, resolver, drawingScene],
   );
-  const objects = new Map(
-    (document.drafting?.objects ?? []).map((object) => [object.id, object]),
-  );
-  const draftingObjects = scene.order.flatMap((entry) =>
-    entry.kind === "drafting" && objects.has(entry.id)
-      ? [objects.get(entry.id)!]
-      : [],
-  );
+  const draftingObjects = useMemo(() => {
+    const objects = new Map(
+      (document.drafting?.objects ?? []).map((object) => [object.id, object]),
+    );
+    if (!objects.size) return [];
+    return scene.order.flatMap((entry) =>
+      entry.kind === "drafting" && objects.has(entry.id)
+        ? [objects.get(entry.id)!]
+        : [],
+    );
+  }, [scene, document.drafting]);
   const electricalRank = scene.rank({ kind: "electrical" });
   // `resolveDraftingObjectGeometry` re-derived the whole Document's route
   // geometry on every call, so a Project with hundreds of drafting objects
@@ -91,7 +96,10 @@ export function EditorDraftingHitTargets({
     () => resolveDocumentRoutingGeometry(document, resolver),
     [document, resolver],
   );
-  return draftingObjects.map((object) => {
+  const visibleObjects = draftingObjects.filter(
+    (object) => !visibleIds || visibleIds.has(object.id),
+  );
+  return visibleObjects.map((object) => {
     const background =
       scene.rank({ kind: "drafting", id: object.id }) < electricalRank;
     const drawingThroughScene =

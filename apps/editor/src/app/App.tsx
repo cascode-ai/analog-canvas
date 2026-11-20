@@ -158,6 +158,7 @@ import {
   type CameraRuntime,
 } from "../canvas/camera-runtime";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
+import { usesCanvasViewport } from "../canvas/canvas-visible-objects";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
@@ -1912,6 +1913,7 @@ function WorkspaceEditor({
         document.id,
       );
       return buildSvgScene(document, resolver, {
+        canvasPaintRuns: usesCanvasViewport(document),
         ...(documentConnectivity
           ? {
               routingGeometry: documentConnectivity.routingGeometry,
@@ -8008,6 +8010,9 @@ function WorkspaceEditor({
           }
           grid={{ visible: gridDotsVisible, viewBox }}
           sceneInnerHtml={sceneInnerHtml}
+          canvasPaintRuns={
+            sceneState.degraded ? undefined : scene.canvasPaintRuns
+          }
           selectionHalo={{
             document: renderedDocument,
             resolver,
@@ -8212,6 +8217,7 @@ function WorkspaceEditor({
               resolver,
               routeGeometryRecords,
               styleProfile,
+              formulaArtifactRevision,
               tool,
               selectedInstanceIds: selectedIds,
               selectedRouteId,
