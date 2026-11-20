@@ -1,18 +1,35 @@
-import type { PointerEvent as ReactPointerEvent } from "react";
+import { useMemo, type PointerEvent as ReactPointerEvent } from "react";
 
 import {
   endpointKey,
+  instanceGroupDisplay,
   resolveEndpointConnection,
   type NetHighlight,
   type ResolvedRouteGeometry,
 } from "@icm/derived";
 import type { Diagnostic } from "@icm/derived";
-import type { GridRect, RouteBranch, SchematicDocument } from "@icm/model";
+import type {
+  GridRect,
+  RouteBranch,
+  RouteEndpoint,
+  SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditorTool } from "../interaction/interaction-state";
 import { serializePolylinePoints } from "./canvas-geometry";
 import type { DiagnosticMarker } from "./diagnostic-markers";
+
+function endpointHidden(
+  endpoint: RouteEndpoint,
+  hidden: ReadonlySet<string> | undefined,
+): boolean {
+  return (
+    hidden?.has(
+      endpoint.kind === "terminal" ? endpoint.instanceId : endpoint.junctionId,
+    ) ?? false
+  );
+}
 
 export function CanvasGridOverlay({
   visible,
@@ -99,6 +116,10 @@ export function NetHighlightOverlay({
     geometry: ResolvedRouteGeometry;
   }[];
 }) {
+  const hidden = useMemo(
+    () => instanceGroupDisplay(document)?.hidden,
+    [document],
+  );
   if (!highlight) return null;
   const highlightedRoutes = routeGeometryRecords.filter(({ route }) =>
     highlight.routes.includes(route.id),
@@ -125,7 +146,11 @@ export function NetHighlightOverlay({
         />
       ))}
       {document.junctions
-        .filter((junction) => highlight.junctions.includes(junction.id))
+        .filter(
+          (junction) =>
+            !hidden?.has(junction.id) &&
+            highlight.junctions.includes(junction.id),
+        )
         .map((junction) => (
           <circle
             key={junction.id}
@@ -135,6 +160,7 @@ export function NetHighlightOverlay({
           />
         ))}
       {highlight.visibleEndpoints.flatMap((endpoint) => {
+        if (endpointHidden(endpoint, hidden)) return [];
         const connection = resolveEndpointConnection(
           document,
           resolver,
@@ -175,11 +201,16 @@ export function ConnectedNetGlow({
   }[];
   front?: boolean;
 }) {
+  const hidden = useMemo(
+    () => instanceGroupDisplay(document)?.hidden,
+    [document],
+  );
   if (highlights.length === 0) return null;
   const routeIds = new Set(highlights.flatMap(({ routes }) => routes));
   const endpoints = new Map(
     highlights
       .flatMap(({ visibleEndpoints }) => visibleEndpoints)
+      .filter((endpoint) => !endpointHidden(endpoint, hidden))
       .map((endpoint) => [endpointKey(endpoint), endpoint] as const),
   );
   return (

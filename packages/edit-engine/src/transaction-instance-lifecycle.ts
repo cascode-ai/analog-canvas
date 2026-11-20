@@ -155,6 +155,18 @@ export function applyInstanceLifecycleEdit(
         changedObjectIds,
       );
       draft.instances.splice(index, 1);
+      if (draft.instanceGroups) {
+        const retained = draft.instanceGroups.flatMap((group) => {
+          if (!group.memberIds.includes(edit.instanceId)) return [group];
+          changedObjectIds.add(group.id);
+          const memberIds = group.memberIds.filter(
+            (id) => id !== edit.instanceId,
+          );
+          return memberIds.length >= 2 ? [{ ...group, memberIds }] : [];
+        });
+        if (retained.length) draft.instanceGroups = retained;
+        else delete draft.instanceGroups;
+      }
       changedObjectIds.add(edit.instanceId);
       for (const netId of ownerNetIds) deferNetPrune(netId);
       return { ok: true, connectivityChanged: true };

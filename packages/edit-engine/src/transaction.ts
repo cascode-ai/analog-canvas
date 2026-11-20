@@ -654,6 +654,7 @@ export function executeTransaction(
       case "upsert_drafting_object":
       case "remove_drafting_object":
       case "set_layout_group":
+      case "set_instance_group":
       case "remove_layout_group":
       case "set_layout_constraint":
       case "remove_layout_constraint":

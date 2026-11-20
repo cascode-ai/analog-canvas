@@ -458,10 +458,10 @@ the RNL language and its runtime belong to rnl.
     default op-amp, unturned the inputs-swapped one; RNL's standard 4-input
     gates and 4-terminal MOSFETs read back as Analog Canvas's own, their
     wires ending at its pins;
-  - a bundle (`@BUNDLE`), whose members one symbol draws, as its first
-    member, placed, drawn and named as the bundle, the wires on its pins
-    ending on that member's; Analog Canvas draws no instance arrays, so the
-    other members are in the tray, in the netlist as before;
+  - a bundle (`@BUNDLE`) as an ordered, collapsed [Instance group](schematic-model.md#instance-groups).
+    Its first member keeps the bundle's symbol, place, labels and wire
+    endpoints. Other unplaced members can be inspected or placed through the
+    group. Every member keeps its own netlist identity and connections;
   - controlled sources as diamonds from `$CONTROLLED_VOLTAGE_SOURCE` and
     `$CONTROLLED_CURRENT_SOURCE`, the card's letter naming the source, and as
     circles from `$CANVAS_*_CIRCLE`;

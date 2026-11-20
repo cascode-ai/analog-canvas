@@ -30,6 +30,7 @@ import {
   LazyComponentPropertyCodeEditor as ComponentPropertyCodeEditor,
   LazyDocumentSettingsSection as DocumentSettingsSection,
   LazyDraftingPropertiesPanel as DraftingPropertiesPanel,
+  LazyInstanceGroupProperties as InstanceGroupProperties,
 } from "./lazy-editor-dialogs";
 
 interface ComponentPropertiesModel {
@@ -58,6 +59,7 @@ export interface EditorPropertiesDockProps {
   groupProperties: ComponentProps<typeof GroupPropertiesSection>;
   keptStyle: ComponentProps<typeof KeptDocumentStyleSection>;
   component: ComponentPropertiesModel | null;
+  instanceGroup?: ComponentProps<typeof InstanceGroupProperties>;
   bodyFill?: ComponentProps<typeof BodyFillProperties>;
   annotationText: ComponentProps<typeof AnnotationColorProperties> | null;
   netName: ComponentProps<typeof NetNameProperties> | null;
@@ -91,6 +93,7 @@ export function EditorPropertiesDock({
   groupProperties,
   keptStyle,
   component,
+  instanceGroup,
   bodyFill,
   annotationText,
   netName,
@@ -169,6 +172,14 @@ export function EditorPropertiesDock({
               <p className="inspect-empty">Select an object to inspect.</p>
             ) : null}
             <GroupPropertiesSection {...groupProperties} />
+            {instanceGroup ? (
+              <Suspense fallback={null}>
+                <InstanceGroupProperties
+                  key={instanceGroup.group.id}
+                  {...instanceGroup}
+                />
+              </Suspense>
+            ) : null}
             <KeptDocumentStyleSection {...keptStyle} />
             {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
             {onConvertSignal ? (

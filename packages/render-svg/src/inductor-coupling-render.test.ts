@@ -99,6 +99,36 @@ describe("inductor coupling layer", () => {
     });
     expect(both.formalBody).toContain('data-kind="inductor-coupling"');
   });
+  it("keeps visible No Connect marks and hides coupling ink when a member is collapsed", () => {
+    const document = coupledDocument();
+    document.instanceGroups = [
+      { id: "coils", memberIds: ["L1", "L2"], collapsed: true },
+    ];
+    document.noConnects = [
+      {
+        id: "visible",
+        endpoint: { kind: "terminal", instanceId: "L1", pinName: "2" },
+      },
+      {
+        id: "hidden",
+        endpoint: { kind: "terminal", instanceId: "L2", pinName: "P1" },
+      },
+    ];
+    const collapsed = buildSvgScene(document, resolver).formalBody;
+    expect(collapsed).toContain(
+      'data-object-id="visible" data-role="no-connect"',
+    );
+    expect(collapsed).not.toContain(
+      'data-object-id="hidden" data-role="no-connect"',
+    );
+    expect(collapsed).not.toContain('data-kind="inductor-coupling"');
+    document.instanceGroups[0]!.collapsed = false;
+    const expanded = buildSvgScene(document, resolver).formalBody;
+    expect(expanded).toContain(
+      'data-object-id="hidden" data-role="no-connect"',
+    );
+    expect(expanded).toContain('data-kind="inductor-coupling"');
+  });
 
   it("draws nothing for a Document without couplings", () => {
     const document = coupledDocument();

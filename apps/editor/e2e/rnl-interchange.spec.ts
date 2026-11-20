@@ -13,6 +13,71 @@ import {
 } from "./editor-fixtures.js";
 import { labelCensus, labelDifferences } from "./label-census.js";
 import { bipolarProject } from "./bipolar-project.js";
+import { openSelectionShelf } from "./manual-editor-fixtures.js";
+
+test("inspects and expands an imported RNL bundle without replacing its members", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await page.getByTestId("rnl-files").setInputFiles({
+    name: "instance-bundle.spi",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      [
+        "* Instance bundle",
+        '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+        ".subckt decap GND VDD",
+        "R0 GND VDD 1k",
+        ".ends decap",
+        "X1 0 vdd decap",
+        "X2 0 vdd decap",
+        "X3 0 vdd decap",
+        "* @RNL {",
+        "*   %b = {#X1 #X2 #X3} @BUNDLE;",
+        '*   %b @PLACE(10, 10) => @ORIENT("R0");',
+        "* }",
+        ".end",
+        "",
+      ].join("\n"),
+    ),
+  });
+  await expectStatus(page, /^Imported \d+ Documents?/u);
+  await page.getByTestId("hit-X1").click();
+  await openSelectionShelf(page);
+  const group = page.getByRole("region", {
+    name: "Instance group",
+    exact: true,
+  });
+  await expect(group.getByRole("listitem")).toHaveCount(3);
+  await group.getByRole("button", { name: "Locate X2" }).click();
+  await expect(
+    group.getByRole("button", { name: "Locate X2" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(group.getByRole("listitem").nth(1)).toContainText("Unplaced");
+  await expect(group.getByRole("listitem").nth(1)).toContainText("VDD → vdd");
+  await expect(group.getByRole("listitem").nth(1)).toContainText(
+    /GND → (0|GND)/iu,
+  );
+  await group.getByRole("button", { name: "Expand and place members" }).click();
+  await expect(group.getByRole("listitem").nth(1)).toContainText("Placed");
+  await expect(page.getByTestId("hit-X2")).toHaveCount(1);
+  await group.getByRole("button", { name: "Locate X1" }).click();
+  const glowDots = page
+    .getByTestId("connected-net-glow")
+    .first()
+    .locator("circle.net-highlight-endpoint");
+  await expect.poll(() => glowDots.count()).toBeGreaterThanOrEqual(6);
+  const expandedDots = await glowDots.count();
+  await group.getByRole("button", { name: "Collapse group" }).click();
+  await expect(page.getByTestId("hit-X2")).toHaveCount(0);
+  await expect.poll(() => glowDots.count()).toBe(expandedDots - 4);
+  const saved: CircuitProject = await exportedProject(page);
+  const top = saved.documents.find(({ id }) => id === saved.topDocumentId)!;
+  expect(top.instanceGroups).toMatchObject([
+    { memberIds: ["X1", "X2", "X3"], collapsed: true },
+  ]);
+  expect(top.instances.find(({ id }) => id === "X2")?.placement).not.toBeNull();
+});
 
 test("imports native bulk styling by default and offers the source appearance", async ({
   page,

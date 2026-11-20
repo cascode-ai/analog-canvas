@@ -21,6 +21,33 @@ const anchor = { kind: "free" as const, position: { x: 0, y: 0 } };
 const content = { runs: [{ kind: "text" as const, value: "text" }] };
 
 describe("selection filter", () => {
+  it("targets only the drawn representative of a collapsed Instance group", () => {
+    const document = createEmptyProject("group-selection", "Group selection")
+      .documents[0]!;
+    document.instances = ["R1", "R2"].map((id, index) => ({
+      id,
+      symbolId: "resistor",
+      placement: {
+        position: { x: index * 100, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      },
+    }));
+    document.instanceGroups = [
+      { id: "group", memberIds: ["R1", "R2"], collapsed: true },
+    ];
+    const before = createSelectionPolicy(document, DEFAULT_SELECTION_FILTER);
+    expect(before.selectAll().instanceIds).toEqual(["R1"]);
+    expect(
+      before.allowsCanvasHit({ kind: "instance", id: "R2" }, "select"),
+    ).toBe(false);
+    document.instanceGroups[0]!.collapsed = false;
+    const after = createSelectionPolicy(document, DEFAULT_SELECTION_FILTER);
+    expect(after.selectAll().instanceIds).toEqual(["R1", "R2"]);
+    expect(
+      after.allowsCanvasHit({ kind: "instance", id: "R2" }, "select"),
+    ).toBe(true);
+  });
   it("classifies electrical text by semantic owner", () => {
     const annotations: Annotation[] = [
       {

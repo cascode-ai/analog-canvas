@@ -169,6 +169,8 @@ export function agentEditCategory(
   kind: SchematicEdit["kind"],
 ): "geometry" | "connectivity" | "presentation" | "unsupported" {
   switch (kind) {
+    case "set_instance_group":
+      return "unsupported";
     case "noop":
     case "add_instance":
     case "remove_instance":

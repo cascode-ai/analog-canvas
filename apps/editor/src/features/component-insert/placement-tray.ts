@@ -1,5 +1,8 @@
 import type { SchematicEdit } from "@icm/edit-engine";
-import type { GridRect, SchematicDocument } from "@icm/model";
+import type { GridRect, Instance, SchematicDocument } from "@icm/model";
+import { instanceGroupDisplay, type SchematicStyleProfile } from "@icm/derived";
+import type { SymbolResolver } from "@icm/symbols";
+import { missingDefaultInstanceDisplayAnnotations } from "../instance-display/default-instance-display";
 
 const HORIZONTAL_PITCH = 180;
 const VERTICAL_PITCH = 140;
@@ -13,9 +16,18 @@ const VIEW_MARGIN = 80;
 export function planPlaceAllUnplacedInstances(
   document: SchematicDocument,
   viewBox: GridRect,
+  onlyIds?: ReadonlySet<string>,
 ): SchematicEdit[] {
-  const unplaced = document.instances.filter(
-    (instance) => instance.placement === null,
+  const hidden = onlyIds ? undefined : instanceGroupDisplay(document)?.hidden;
+  const byId = onlyIds
+    ? new Map(document.instances.map((instance) => [instance.id, instance]))
+    : undefined;
+  const candidates = onlyIds
+    ? [...onlyIds].map((id) => byId!.get(id))
+    : document.instances;
+  const unplaced = candidates.filter(
+    (instance): instance is Instance =>
+      instance?.placement === null && !hidden?.has(instance.id),
   );
   if (unplaced.length === 0) return [];
 
@@ -55,4 +67,28 @@ export function planPlaceAllUnplacedInstances(
 
 function snapUp(value: number, grid: number): number {
   return Math.ceil(value / grid) * grid;
+}
+
+export function retainedPlacementDisplayEdits(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  styleProfile: SchematicStyleProfile,
+  edits: readonly SchematicEdit[],
+): SchematicEdit[] {
+  return edits.flatMap((edit) => {
+    if (edit.kind !== "place_instance") return [];
+    const instance = document.instances.find(
+      ({ id }) => id === edit.instanceId,
+    );
+    if (!instance) return [];
+    return missingDefaultInstanceDisplayAnnotations(
+      document,
+      { ...instance, placement: edit.placement },
+      resolver,
+      styleProfile,
+    ).map((annotation) => ({
+      kind: "upsert_schematic_annotation",
+      annotation,
+    }));
+  });
 }

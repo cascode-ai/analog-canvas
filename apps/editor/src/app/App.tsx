@@ -5,6 +5,8 @@ import {
   stableRootOrder,
 } from "../features/hierarchy/project-hierarchy";
 import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
+import { instanceGroupDisplay } from "@icm/derived";
+import { planInstanceGroupView } from "../features/instance-groups/instance-group-edits";
 import { NewCellDialog } from "../features/hierarchy/new-cell-dialog";
 import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
 import type {
@@ -2027,8 +2029,13 @@ function WorkspaceEditor({
   // returned or pasted Instance lands in the same state — and an Instance
   // nothing lists is one nobody can place or delete, while it still holds its
   // reference, its Net terminals and its place in the netlist.
+  const hiddenGroupObjects = useMemo(
+    () => instanceGroupDisplay(document)?.hidden,
+    [document],
+  );
   const unplaced = document.instances.filter(
-    (instance) => instance.placement === null,
+    (instance) =>
+      instance.placement === null && !hiddenGroupObjects?.has(instance.id),
   );
   const styleProfile = resolveDocumentStyleProfile(document.presentation);
   const {
@@ -2132,6 +2139,7 @@ function WorkspaceEditor({
     selectedHighlightEndpoint,
     searchActive: searchOpen,
     searchQuery,
+    hiddenGroupObjects,
     routingGuidanceView,
     wireSource,
     bulkDrawInstanceId,
@@ -4098,6 +4106,11 @@ function WorkspaceEditor({
     selectedInstance,
     setStatus,
   });
+  const selectedInstanceGroup =
+    selectedInstance &&
+    document.instanceGroups?.find((group) =>
+      group.memberIds.includes(selectedInstance.id),
+    );
   // A navigation fits before its instance path appears over the canvas or
   // goes. Once the path is drawn, before it is painted, fit the Cell again
   // with the path's inset, so entering, leaving and F land on one view.
@@ -7238,6 +7251,52 @@ function WorkspaceEditor({
                   };
                 },
               }}
+              {...(selectedInstanceGroup && selectedInstance
+                ? {
+                    instanceGroup: {
+                      document,
+                      group: selectedInstanceGroup,
+                      resolver,
+                      selectedId: selectedInstance.id,
+                      onLocate: (id: string, label: string) => {
+                        const member = document.instances.find(
+                          (instance) => instance.id === id,
+                        );
+                        if (!member?.placement || hiddenGroupObjects?.has(id)) {
+                          selectOnly("instance", [id]);
+                          setStatus(
+                            `Selected ${label} (${member?.placement ? "collapsed" : "unplaced"})`,
+                          );
+                        } else {
+                          navigateToLocator(
+                            {
+                              documentId: document.id,
+                              kind: "instance",
+                              objectId: id,
+                              hierarchyPath: documentStack,
+                            },
+                            `Located ${label}`,
+                            { keepPanel: true, showInstanceOutline: true },
+                          );
+                        }
+                      },
+                      onToggle: () => {
+                        const result = transact(
+                          planInstanceGroupView(
+                            document,
+                            selectedInstanceGroup,
+                            viewBox,
+                            resolver,
+                          ),
+                        );
+                        if (result.ok && !selectedInstanceGroup.collapsed)
+                          selectOnly("instance", [
+                            selectedInstanceGroup.memberIds[0]!,
+                          ]);
+                      },
+                    },
+                  }
+                : {})}
               component={
                 selectedInstance
                   ? {
