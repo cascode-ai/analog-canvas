@@ -109,6 +109,12 @@ export interface SpiceImportOptions {
    */
   modelTypes?: ReadonlyMap<string, string>;
   /**
+   * Models the original sources declare in a form the conversion left out
+   * (a foundry's native MOS card): declared, so a part naming one has its
+   * model, though only `modelTypes` gives its type.
+   */
+  declaredModelNames?: readonly string[];
+  /**
    * How a refused device whose model no card declares is told to recover:
    * by adding a card (the default), or, for a caller that takes device types
    * itself (an Agent's delivery), by giving its type in `modelTypes`.
@@ -506,6 +512,7 @@ function targetDescription(
 function importProvenance(
   instance: CircuitInstanceIR,
   modelTypeByName: ReadonlyMap<string, string>,
+  declaredModels: ReadonlySet<string>,
   symbolMappings: readonly PdkSymbolMappingOverride[],
 ): NonNullable<Instance["importProvenance"]> {
   switch (instance.target.kind) {
@@ -520,11 +527,14 @@ function importProvenance(
       const modelType = modelTypeByName.get(
         instance.target.modelName.toLowerCase(),
       );
+      // A type the caller gives draws the part; only a card is its model.
       return {
         kind: "model",
         sourceMasterName: instance.target.modelName,
         sourceTarget: targetDescription(instance, symbolMappings),
-        status: "resolved",
+        status: declaredModels.has(instance.target.modelName.toLowerCase())
+          ? "resolved"
+          : "missing",
         ...(modelType ? { modelType } : {}),
       };
     }
@@ -618,6 +628,7 @@ function importInstance(
   instance: CircuitInstanceIR,
   diagnostics: SpiceDiagnostic[],
   modelTypeByName: ReadonlyMap<string, string>,
+  declaredModels: ReadonlySet<string>,
   symbolMappings: readonly PdkSymbolMappingOverride[],
   builtInBodies: ReadonlyMap<string, ImportedBody>,
   spectre: boolean,
@@ -704,7 +715,12 @@ function importInstance(
     symbolId: mapping.symbolId,
     sourceRef: instance.sourceRef,
     importProvenance: {
-      ...importProvenance(instance, modelTypeByName, symbolMappings),
+      ...importProvenance(
+        instance,
+        modelTypeByName,
+        declaredModels,
+        symbolMappings,
+      ),
       ...(mapping.registryId
         ? { symbolMappingRegistryId: mapping.registryId }
         : {}),
@@ -1022,6 +1038,7 @@ function importDocument(
   cell: CircuitCellIR,
   diagnostics: SpiceDiagnostic[],
   modelTypeByName: ReadonlyMap<string, string>,
+  declaredModels: ReadonlySet<string>,
   options: SpiceImportOptions,
   builtInBodies: ReadonlyMap<string, ImportedBody>,
   spectreFileIds: ReadonlySet<string>,
@@ -1055,6 +1072,7 @@ function importDocument(
         instance,
         diagnostics,
         modelTypeByName,
+        declaredModels,
         instance.target.kind === "external-subcircuit"
           ? externalSymbolMappings
           : symbolMappings,
@@ -1714,6 +1732,18 @@ function importCircuitIR(
         [model.name.toLowerCase(), model.modelType.toLowerCase()] as const,
     ),
   ]);
+  // A card declares a model, a binned `nch.1` its group `nch` too; a type
+  // from elsewhere only draws it.
+  const declaredModels = new Set(
+    [
+      ...ir.models.map((model) => model.name),
+      ...(options.declaredModelNames ?? []),
+    ].flatMap((name) => {
+      const lower = name.toLowerCase();
+      const group = /^(.+)\.\d+$/u.exec(lower)?.[1];
+      return group ? [lower, group] : [lower];
+    }),
+  );
   const builtInBodies = new Map<string, ImportedBody>([
     // A call the sources give no definition for is all a called block's
     // calls are; a Cell of that name is the author's own.
@@ -1812,6 +1842,7 @@ function importCircuitIR(
       cell,
       diagnostics,
       modelTypeByName,
+      declaredModels,
       options,
       builtInBodies,
       spectreFileIds,

@@ -171,6 +171,7 @@ function collectDefinitions(
                 statement.sourceRef,
               ),
             );
+            if (parentActive) preserved.at(-1)!.unresolved = true;
           }
           conditions.push({
             parentActive,
@@ -197,6 +198,23 @@ function collectDefinitions(
               statement.rawExpression ?? "",
               current ? currentSymbols : globalSymbols,
             );
+            if (
+              value === null &&
+              frame.parentActive &&
+              frame.resolved &&
+              !frame.branchTaken
+            ) {
+              diagnostics.push(
+                diagnostic(
+                  "SPICE_BIND_CONDITION_UNRESOLVED",
+                  "warning",
+                  "bind",
+                  `Conditional expression was preserved but not elaborated: ${statement.rawExpression ?? ""}`,
+                  statement.sourceRef,
+                ),
+              );
+              preserved.at(-1)!.unresolved = true;
+            }
             frame.resolved = frame.resolved && value !== null;
             frame.active =
               frame.parentActive &&

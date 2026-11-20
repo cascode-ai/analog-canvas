@@ -6,13 +6,14 @@ import {
   builtInModelContract,
   type BuiltInModelContract,
 } from "./built-in-model-contracts.js";
+import { instanceEvidence, type EvidenceOwner } from "./instance-evidence.js";
 import { resolveReviewedExternalBinding } from "./reviewed-external.js";
 
 /**
  * The part of an Instance this needs. Structural, so an Agent Snapshot's
  * Instance qualifies as well as a Project's.
  */
-export interface ParameterOwner {
+export interface ParameterOwner extends EvidenceOwner {
   readonly symbolId: string;
   readonly netlist?:
     | {
@@ -40,6 +41,12 @@ export interface InstanceParameterContract {
    * author's to choose, not errors.
    */
   readonly open: boolean;
+  /**
+   * No schema describes the model: an imported part naming a model no card
+   * declares, which no reviewed table knows. Its parameters stay as written
+   * and none is checked against `definitions` beyond its value.
+   */
+  readonly unverified?: true;
 }
 
 /** Explicit authored bindings win over the Symbol's default black-box master. */
@@ -75,7 +82,10 @@ export function instanceParameterContract(
   project: Partial<
     Pick<
       CircuitProject,
-      "componentDefinitions" | "externalSubcircuitDefinitions" | "documents"
+      | "componentDefinitions"
+      | "externalSubcircuitDefinitions"
+      | "documents"
+      | "source"
     >
   >,
   instance: ParameterOwner,
@@ -154,6 +164,14 @@ export function instanceParameterContract(
     };
   if (binding?.kind === "unresolved-subcircuit")
     return { definitions: descriptor?.parameters ?? [], open: true };
+  // A PDK model no card in the sources declares has parameters no
+  // descriptor knows (ad, nrd, multi…): kept, and left unchecked (#2294).
+  if (binding?.kind === "model" && instanceEvidence(project, instance) === "typed-only")
+    return {
+      definitions: descriptor?.parameters ?? [],
+      open: true,
+      unverified: true,
+    };
   return descriptor
     ? { definitions: descriptor.parameters, open: false }
     : undefined;

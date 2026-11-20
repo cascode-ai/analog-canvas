@@ -17,6 +17,7 @@ import {
   createReferenceIndex,
   instanceBuiltInSubcircuit,
   hasBuiltInSubcircuitInterface,
+  instanceEvidence,
   isLibraryPart,
   nextReference,
 } from "@icm/devices";
@@ -75,6 +76,7 @@ import {
   definesGenericModel,
   reportGenericDiodes,
   reportGenericSchottkys,
+  reportImportedModelsWithoutCards,
   reportUndefinedGenericModels,
   reportGenericBjts,
   reportGenericDepletionMos,
@@ -444,6 +446,17 @@ export function extractCell(
   // Export carries stand-ins in either dialect so they read back. Spectre
   // runs keep relying on the reader's libraries; SPICE runs carry the cards
   // (VACASK prints them from the SPICE cards). Names match as SPICE reads them.
+  // An imported part naming a model no card declares never takes one,
+  // whatever the name: its type draws it, and its model is the reader's.
+  // A netlist Canvas wrote, imported again, holds only the stand-in, which
+  // keeps it (#1789).
+  const typedOnly = new Set(
+    document.instances
+      .filter(
+        (instance) => instanceEvidence(project, instance) === "typed-only",
+      )
+      .map((instance) => instance.id),
+  );
   const carryGenericCard = (
     model: DesignNetlistModel,
     deviceClass: DesignNetlistDeviceClass,
@@ -454,6 +467,7 @@ export function extractCell(
         ? instances.filter(
             (instance) =>
               instance.deviceClass === deviceClass &&
+              !typedOnly.has(instance.id) &&
               (everyFormat
                 ? instance.target?.toUpperCase() === model.name
                 : instance.target === model.name),
@@ -533,6 +547,13 @@ export function extractCell(
       diagnostics,
       new Set(genericMos.map(({ model }) => model.name)),
     );
+  reportImportedModelsWithoutCards(
+    project,
+    document,
+    instances,
+    options.run ? options.deckSources : undefined,
+    diagnostics,
+  );
   for (const extracted of instances) {
     const source = document.instances.find(
       (candidate) => candidate.id === extracted.id,

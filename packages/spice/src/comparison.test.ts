@@ -341,6 +341,52 @@ R1 VDD OUT 10k
       compareCircuitIR(bodies, bodies, "amp", "amp", { declarations: false }),
     ).toMatchObject({ status: "equal", reasons: [] });
   });
+  it("leaves topology inconclusive where a condition could not be evaluated, declarations or not (#2294)", async () => {
+    const conditional = await ir(
+      [
+        ".subckt amp a",
+        "R0 a 0 1k",
+        ".if missing_flag",
+        "R1 a 0 1k",
+        ".else",
+        "R2 a 0 2k",
+        ".endif",
+        ".ends amp",
+      ].join("\n"),
+    );
+    const plain = await ir(".subckt amp a\nR0 a 0 1k\n.ends amp");
+    for (const declarations of [false, true])
+      for (const [actual, expected] of [
+        [plain, conditional],
+        [conditional, plain],
+      ] as const)
+        expect(
+          compareCircuitIR(actual, expected, "amp", "amp", { declarations }),
+        ).toMatchObject({
+          status: "inconclusive",
+          topology: "inconclusive",
+          reasons: expect.arrayContaining([
+            expect.stringContaining("missing_flag"),
+          ]),
+        });
+  });
+  it("compares a condition it evaluated as the branch it took", async () => {
+    const taken = await ir(
+      [
+        ".param flag=0",
+        ".subckt amp a",
+        "R0 a 0 1k",
+        ".if flag",
+        "R1 a 0 1k",
+        ".endif",
+        ".ends amp",
+      ].join("\n"),
+    );
+    const plain = await ir(".subckt amp a\nR0 a 0 1k\n.ends amp");
+    expect(
+      compareCircuitIR(plain, taken, "amp", "amp", { declarations: false }),
+    ).toMatchObject({ topology: "equal" });
+  });
   it("lists the declarations it leaves out, and compares an expression by its text", async () => {
     const text = [
       ".param wn=1u",

@@ -2,6 +2,10 @@
 // Process without its own, and the findings on parts that lean on a generic
 // model.
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import {
+  instanceEvidence,
+  reviewedExternalBindingForMaster,
+} from "@icm/devices";
 import type {
   DesignNetlistInstance,
   DesignNetlistModel,
@@ -166,6 +170,25 @@ export function definesGenericModel(
   );
 }
 
+function isTypedOnly(
+  project: CircuitProject,
+  document: SchematicDocument,
+  part: DesignNetlistInstance,
+): boolean {
+  const source = document.instances.find((item) => item.id === part.id);
+  return !!source && instanceEvidence(project, source) === "typed-only";
+}
+
+/** `.model NAME` in SPICE, `model NAME` in Spectre, a bin `NAME.1` alike. */
+function textsDefineModel(texts: readonly string[], name: string): boolean {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const definition = new RegExp(
+    String.raw`^[ \t]*\.?model[ \t]+${escaped}(?:\.\d+)?(?=[\s(]|$)`,
+    "imu",
+  );
+  return texts.some((text) => definition.test(text));
+}
+
 /** Printed parts by the References their Cell shows, in reading order. */
 function namedParts(
   document: SchematicDocument,
@@ -324,10 +347,13 @@ export function reportUndefinedGenericModels(
     if (carried.has(name)) return [];
     // SPICE reads model names in any case. Only a device of that class names
     // the model: a call to a Cell named sw names the Cell.
+    // An imported part naming a model no card declares is the reader's
+    // (`reportImportedModelsWithoutCards`), not a generic target.
     const parts = instances.filter(
       (instance) =>
         instance.deviceClass === deviceClass &&
-        instance.target?.toUpperCase() === name,
+        instance.target?.toUpperCase() === name &&
+        !isTypedOnly(project, document, instance),
     );
     return parts.length &&
       !definesGenericModel(project, deckSources, {
@@ -352,6 +378,69 @@ export function reportUndefinedGenericModels(
     named.flatMap(({ parts }) => parts.map((part) => part.id)),
     "info",
   );
+}
+
+/**
+ * Imported parts naming a model no card in the sources declares (#2294):
+ * their type draws them, and their model is the reader's library, so the
+ * netlist keeps each reference and carries no card. A netlist handed out
+ * says so, as information. A run says which parts its files leave without a
+ * model and refuses, since nothing it loads defines them: its own files, a
+ * Project model source or a reviewed PDK table would.
+ */
+export function reportImportedModelsWithoutCards(
+  project: CircuitProject,
+  document: SchematicDocument,
+  instances: readonly DesignNetlistInstance[],
+  deckSources: readonly string[] | undefined,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const run = deckSources !== undefined;
+  const loaded = [
+    ...(deckSources ?? []),
+    ...(project.modelSources ?? []).flatMap((source) =>
+      source.files.map((file) => file.text),
+    ),
+  ];
+  const byModel = new Map<string, DesignNetlistInstance[]>();
+  for (const part of instances) {
+    if (!part.target || !isTypedOnly(project, document, part)) continue;
+    if (run && reviewedExternalBindingForMaster(part.target)) continue;
+    if (run && textsDefineModel(loaded, part.target)) continue;
+    byModel.set(part.target, [...(byModel.get(part.target) ?? []), part]);
+  }
+  if (!byModel.size) return;
+  const uses = [...byModel].map(([model, parts]) => {
+    const names = namedParts(document, parts).map((part) => part.name);
+    return `${partList(names)} ${names.length === 1 ? "names" : "name"} ${model}`;
+  });
+  const models = [...byModel.keys()];
+  const ids = [...byModel.values()].flat().map((part) => part.id);
+  // A file of the run that includes a library this check cannot read may
+  // define them: say so, rather than refuse a run that would work.
+  const includesLibrary = loaded.some((text) =>
+    /^[ \t]*\.?(?:include|inc|lib)\b/imu.test(text),
+  );
+  if (run)
+    diagnostic(
+      diagnostics,
+      document.id,
+      "IMPORTED_MODEL_MISSING",
+      includesLibrary
+        ? `${partList(uses)}, which no card in the imported sources declares and no file of this run defines: unless a library this run includes defines ${models.length === 1 ? "it" : "them"}, add ${models.length === 1 ? "its model library" : "their model libraries"} to the simulation folder`
+        : `${partList(uses)}, which no card in the imported sources declares and no file of this run defines: add ${models.length === 1 ? "its model library" : "their model libraries"} to the simulation folder`,
+      ids,
+      includesLibrary ? "warning" : "error",
+    );
+  else
+    diagnostic(
+      diagnostics,
+      document.id,
+      "IMPORTED_MODEL_EXTERNAL",
+      `${partList(uses)}, which no card in the imported sources declares: the netlist keeps ${models.length === 1 ? "the reference" : "each reference"} and carries no card, so ${models.length === 1 ? "its model comes" : "their models come"} from the reader's library`,
+      ids,
+      "info",
+    );
 }
 
 /**

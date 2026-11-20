@@ -136,6 +136,9 @@ export const PreservedStatementIRSchema = z.strictObject({
   name: z.string().min(1),
   rawText: z.string(),
   sourceRef: SourceSpanSchema,
+  /** A reachable `.if`/`.elseif` whose condition could not be evaluated:
+   * the devices its branches add are unknown, not absent. */
+  unresolved: z.literal(true).optional(),
 });
 export const CircuitIRSchema = z
   .strictObject({
