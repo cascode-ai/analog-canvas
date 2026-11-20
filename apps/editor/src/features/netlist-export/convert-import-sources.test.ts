@@ -10,7 +10,7 @@ const file = (path: string, text: string) => ({
   bytes: new TextEncoder().encode(text),
 });
 describe("Spectre import conversion", () => {
-  it("keeps native Spectre repair advice for a recognizable include without an SCS extension", async () => {
+  it("reads a recognizable Spectre include without an SCS extension as Spectre, its undeclared master as a call (#2294)", async () => {
     const inputs = [
       file("entry.scs", 'simulator lang=spectre\ninclude "leaf.inc"\n'),
       file("leaf.inc", "simulator lang=spectre\nQ1 (c b e) mystery\n"),
@@ -20,15 +20,23 @@ describe("Spectre import conversion", () => {
       prepared.inputs,
       "entry.scs",
       {},
-      { originalSources: inputs },
+      {
+        originalSources: inputs,
+        callReferences: prepared.callReferences,
+      },
     );
+    const q1 = result.project?.documents
+      .flatMap((document) => document.instances)
+      .find((instance) => instance.reference === "Q1");
+    expect(q1?.importProvenance).toMatchObject({
+      kind: "opaque",
+      sourceMasterName: "mystery",
+    });
     expect(
-      result.diagnostics.find(
-        (item) => item.code === "SPICE_IMPORT_UNSUPPORTED_SYMBOL",
+      prepared.diagnostics.find(
+        (item) => item.code === "SPICE_IMPORT_EXTERNAL_CALLS",
       )?.message,
-    ).toBe(
-      'Q1 uses model mystery, which no model statement declares, so its device type is unknown. Add "model mystery bjt type=npn" or "model mystery bjt type=pnp".',
-    );
+    ).toContain("No declaration in the design names mystery (Q1)");
   });
   it.each(["unreferenced file", "inactive branch"])(
     "keeps an author's Cell when an %s defines a built-in of the same name",
@@ -179,11 +187,11 @@ ends top`;
   it("leaves ordinary SPICE unchanged and rejects lossy SCS with a file/line", () => {
     const spice = file("circuit.spi", "R1 a 0 1k");
     expect(prepareImportSources([spice]).inputs[0]).toBe(spice);
-    expect(() =>
+    expect(
       prepareImportSources([
         file("circuit.scs", "// heading\nR1 (a 0) resistor r=1k tc1=1"),
-      ]),
-    ).toThrow("circuit.scs:2: Unsupported parameters: tc1");
+      ]).refusals.map(({ message }) => message),
+    ).toEqual(["circuit.scs:2: Unsupported parameters: tc1."]);
   });
   it.each(["spice", "spectre"] as const)(
     "brings the blocks of a %s export back as the blocks that wrote them",

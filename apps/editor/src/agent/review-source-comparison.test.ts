@@ -93,6 +93,70 @@ describe("Canvas review of an imported netlist", () => {
     );
   });
 
+  it("states the reference's statement coverage and what this comparison cannot check", async () => {
+    const { project, source } = await delivered();
+    const result = await compareReviewSource(project, source);
+    expect(result.notes).toEqual(
+      expect.arrayContaining([
+        "Reference coverage: 17 statements: 5 instance, 4 definition, 5 declaration, 3 preserved",
+        "Reference coverage by Cell: file level 8, inv 4, buf 5",
+        "The drawing's netlist and the reference are read by the same conversion and parser: what those drop, both sides drop, so this comparison cannot see it",
+        expect.stringContaining("/pdk/tsmc28/models/spectre/toplevel.scs"),
+      ]),
+    );
+  });
+
+  it("leaves topology inconclusive where the reference has a condition it could not evaluate (#2294)", async () => {
+    const netlist = input(
+      "top.sp",
+      "* conditional\n.subckt top a\nR0 a 0 1k\n.if missing_flag\nR1 a 0 1k\n.else\nR2 a 0 2k\n.endif\n.ends top\n",
+    );
+    const { project } = await importLocalCircuit([netlist], "top.sp");
+    const source = await embeddedReviewBundle(project.source);
+    const result = await compareReviewSource(project, source!);
+    expect(result).toMatchObject({
+      status: "inconclusive",
+      topology: "inconclusive",
+      reasons: expect.arrayContaining([
+        expect.stringContaining(".if missing_flag could not be evaluated"),
+      ]),
+    });
+    expect(result.notes).toEqual(
+      expect.arrayContaining([
+        "Reference coverage: 8 statements: 1 instance, 2 definition, 5 unresolved (top.sp:4, top.sp:5, top.sp:6, top.sp:7, top.sp:8)",
+        "Reference coverage by Cell: top 8 (5 unresolved)",
+      ]),
+    );
+  });
+
+  it("reads the reference with the device types the delivery was imported with (#2377)", async () => {
+    // A foundry library kept external: only the Agent's types say what the
+    // MOS are. The reference must read them so, or every typed part looks
+    // like a call of an unknown master.
+    const netlist = input(
+      "top.scs",
+      [
+        "simulator lang=spectre",
+        'include "/pdk/tsmc28/models/spectre/toplevel.scs" section=tt',
+        "subckt inv (in out vdd vss)",
+        "M1 (out in vdd vdd) pch_mac w=2u l=30n",
+        "M0 (out in vss vss) nch_mac w=1u l=30n",
+        "ends inv",
+        "",
+      ].join("\n"),
+    );
+    const { project } = await importLocalCircuit([netlist], "top.scs", {
+      modelTypes: { nch_mac: "nmos", pch_mac: "pmos" },
+    });
+    const source = await embeddedReviewBundle(project.source);
+    const result = await compareReviewSource(project, source!);
+    expect(result, JSON.stringify(result.differences)).toMatchObject({
+      status: "equal",
+      topology: "equal",
+      differences: [],
+    });
+  });
+
   it("reports an edit anywhere in the design with its original line", async () => {
     const { project, source } = await delivered();
     // The top Cell and a Cell it calls, whichever Cell is open.

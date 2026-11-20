@@ -1,0 +1,16 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.sp:2 instance (resistor)",
+    "top.sp:3 unresolved (unparsed)",
+    "top.sp:4 preserved (end)"
+  ],
+  "instances": [
+    "R0 primitive:resistor resolved resistor"
+  ],
+  "findings": [
+    "warning SPICE_SYNTAX_OPAQUE: Statement preserved as opaque: unsupported element family",
+    "warning SPICE_IMPORT_COVERAGE: 3 statements: 1 instance, 1 preserved, 1 unresolved (top.sp:3)"
+  ]
+}

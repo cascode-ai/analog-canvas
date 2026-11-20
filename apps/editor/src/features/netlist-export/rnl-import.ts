@@ -25,7 +25,7 @@ import {
   type RnlSnapshot,
 } from "@icm/rnl";
 import {
-  importSpiceSources,
+  type importSpiceSources,
   type SpiceCompileOptions,
   type SpiceDiagnostic,
   type SpiceSourceInput,
@@ -33,11 +33,8 @@ import {
 
 import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
 
-import {
-  givenModelTypesUsed,
-  isSpectreSource,
-  prepareImportSources,
-} from "./convert-import-sources";
+import { givenModelTypesUsed, isSpectreSource } from "./convert-import-sources";
+import { importNetlistSources } from "./netlist-source-import";
 import type { RnlRuntime } from "./rnl-runtime";
 
 export type RnlImportPlan =
@@ -202,25 +199,15 @@ export async function writesFileNetlist(
       ? { ...input, bytes: new TextEncoder().encode(written.file.text) }
       : input,
   );
-  const prepared = prepareImportSources(
-    rewritten,
+  const again = await importNetlistSources(rewritten, entryPath, {
+    namingProfile: "native",
+    compileOptions,
     externalSubcircuitNames,
     externalSubcircuitCalls,
-  );
-  const again = await importSpiceSources(
-    prepared.inputs,
-    entryPath,
-    compileOptions,
-    {
-      namingProfile: "native",
-      originalSources: rewritten,
-      builtInBodies: prepared.builtInBodies,
-      modelTypes: prepared.modelTypes,
-      libraryBodies,
-      externalSymbolMappings: symbolMappings,
-    },
-  );
-  if (!again.project || !again.successful) return false;
+    libraryBodies,
+    externalSymbolMappings: symbolMappings,
+  });
+  if (again.status !== "imported") return false;
   return sameCircuits(fileImported, again.project, true);
 }
 
@@ -469,42 +456,32 @@ async function buildImportPlan({
     drawnTypes,
     modelTypes,
   );
-  const prepared = prepareImportSources(
-    inputs,
-    externalSubcircuitNames,
-    externalSubcircuitCalls,
-  );
   const libraryBodies = undrawnBodies(
     snapshot,
     inputs.map((input) => input.path),
   );
-  const imported = await importSpiceSources(
-    prepared.inputs,
-    entryPath,
+  const imported = await importNetlistSources(inputs, entryPath, {
+    namingProfile: "native",
     compileOptions,
-    {
-      namingProfile: "native",
-      originalSources: inputs,
-      builtInBodies: prepared.builtInBodies,
-      // A model no card declares is the type the file declares it, else the
-      // type its parts are drawn as, unless a native card the converter
-      // keeps out gives its type; what the caller gives comes last.
-      modelTypes: new Map([
-        ...Object.entries(modelTypes),
-        ...drawnTypes,
-        ...declaredModelTypes(snapshot),
-        ...prepared.modelTypes,
-      ]),
-      ...(undeclaredModels ? { undeclaredModels } : {}),
-      externalSymbolMappings: symbolMappings,
-      // A library block the file calls without its body is the block its
-      // parts are drawn as.
-      calledBlocks: drawnCalledBlocks(snapshot, dialect),
-      // A library body the drawing's parts call stays the text it is.
-      libraryBodies,
-    },
-  );
-  if (!imported.project || !imported.successful)
+    externalSubcircuitNames,
+    externalSubcircuitCalls,
+    // A model no card declares is the type the file declares it, else the
+    // type its parts are drawn as, unless a native card the converter
+    // keeps out gives its type; what the caller gives comes last.
+    modelTypes: Object.fromEntries([
+      ...Object.entries(modelTypes),
+      ...drawnTypes,
+      ...declaredModelTypes(snapshot),
+    ]),
+    givesModelTypes: undeclaredModels === "give-type",
+    externalSymbolMappings: symbolMappings,
+    // A library block the file calls without its body is the block its
+    // parts are drawn as.
+    calledBlocks: drawnCalledBlocks(snapshot, dialect),
+    // A library body the drawing's parts call stays the text it is.
+    libraryBodies,
+  });
+  if (imported.status !== "imported")
     return {
       status: "failed",
       message:
@@ -513,9 +490,8 @@ async function buildImportPlan({
       diagnostics: imported.diagnostics,
     };
   const modelTypesUsed = givenModelTypesUsed(modelTypes, imported.project, [
-    ...(imported.ir?.models.map((model) => model.name) ?? []),
+    ...imported.declaredModelNames,
     ...drawnTypes.keys(),
-    ...prepared.modelTypes.keys(),
   ]);
   // The editor's top where the file names it: a Cell printed
   // beside it may call it, and so be the netlist's top in its place.
@@ -570,7 +546,6 @@ async function buildImportPlan({
   const read = "code" in drawn ? null : drawn;
   const parameterTexts = read?.parameterTexts ?? [];
   const diagnostics = [
-    ...prepared.diagnostics,
     ...imported.diagnostics,
     ...(read?.diagnostics ?? []).map(reported),
     ...(appearanceFinding ? [appearanceFinding] : []),

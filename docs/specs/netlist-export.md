@@ -304,6 +304,17 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   (#1420: VACASK has no mapping for a Cell's own MOS card) and, like `SW`
   everywhere, SPICE reports information `GENERIC_MODEL_UNDEFINED`, silenced
   likewise.
+- An imported part naming a model no card in its sources declares
+  (`instanceEvidence` `typed-only`, or `untyped` for its family's box) takes
+  no stand-in, whatever the name, until its model target is changed in Canvas
+  to another name. A netlist handed out keeps the reference without a card
+  (information `IMPORTED_MODEL_EXTERNAL`, each part with its source location).
+  A run whose files, Project model sources and reviewed tables define none of
+  them refuses (`IMPORTED_MODEL_MISSING`); it warns instead when a file of the
+  run includes another file (`.include`, `.lib FILE SECTION`, Spectre
+  `include`) this check cannot read. Neither kind, nor a part whose target was
+  changed in Canvas, raises `ERC_MISSING_MODEL`: the reader's library holds its
+  card.
 
 ### Magnetics
 

@@ -68,6 +68,28 @@ export interface NetlistConversionOptions {
    * statement limit. The public endpoint keeps both, which protect the
    * service, not the conversion. Only the editor's import sets it. */
   unbounded?: boolean;
+  /**
+   * The editor's import of a design the user gives (#2294). A master no
+   * declaration names is a subcircuit call kept as written, whatever the
+   * letter of the instance's name (`externalCalls` reports each); a value
+   * outside the common arithmetic stays as written, with a finding; a
+   * statement outside the drawing with no SPICE form (options, save, an
+   * analysis outside the subset) prints nothing; Spectre library sections
+   * read as SPICE ones. Only the editor's import sets it.
+   */
+  importsDesign?: boolean;
+  /** Models the rest of the design declares, by the designator their type
+   * gives (M, Q, J, D): another file's card, or a type the caller states. */
+  declaredModels?: Readonly<Record<string, string>>;
+}
+/** A call of a master no declaration names, as `importsDesign` keeps it. */
+export interface ExternalCall {
+  line: number;
+  /** The instance's name as written, and as the SPICE card spells it. */
+  name: string;
+  written: string;
+  master: string;
+  ports: number;
 }
 export interface ExternalNativeModel {
   name: string;
@@ -87,8 +109,24 @@ export type NetlistConversionResult =
       lineOrigins?: number[];
       /** Set with `externalNativeModels`. */
       externalModels?: ExternalNativeModel[];
+      /** Set with `withLineOrigins`: each input statement by its first
+       * line, with why it has no output line where it has none. */
+      statementLines?: ConvertedStatementLine[];
+      /** Set with `importsDesign`. */
+      externalCalls?: ExternalCall[];
     }
   | { status: "blocked"; issues: NetlistConversionIssue[] };
+export interface ConvertedStatementLine {
+  line: number;
+  /** Why the statement printed nothing: a dialect switch, a native model
+   * card left out, a subcircuit's parameters folded into its header. */
+  dropped?:
+    | "dialect switch"
+    | "native model card"
+    | "subcircuit parameters"
+    | OutsideDrawing
+    | "no output";
+}
 export const MAX_CONVERSION_BYTES = 512 * 1024;
 export const isNetlistDialect = (value: unknown): value is NetlistDialect =>
   value === "spice" || value === "ngspice" || value === "spectre";
@@ -195,6 +233,164 @@ function spectreInclude(
   };
 }
 
+/** What one file of a design declares, each where it sits: its subcircuits,
+ * its models by the designator their type gives (M, Q, J, D), the library
+ * sections its includes select, and the names Spectre tells apart by case. */
+export interface NetlistDeclarations {
+  subcircuits: { name: string; section?: string }[];
+  models: {
+    name: string;
+    designator: string;
+    line: number;
+    section?: string;
+  }[];
+  /** A library section an include selects, by the path as written. */
+  includes: { path: string; section: string }[];
+  /** Each subcircuit, model, file-level parameter and global name as
+   * spelled, where: Spectre tells `VDD!` from `vdd!`, SPICE joins them. */
+  spellings: {
+    kind: "subcircuit" | "model" | "parameter" | "global";
+    name: string;
+    line: number;
+  }[];
+}
+
+/** The device a SPICE model type or a caller's device type draws. */
+export const MODEL_TYPE_DESIGNATOR: Readonly<Record<string, string>> = {
+  nmos: "M",
+  pmos: "M",
+  npn: "Q",
+  pnp: "Q",
+  njf: "J",
+  pjf: "J",
+  d: "D",
+};
+
+/** The device a native Spectre model kind the converter reads draws. */
+const NATIVE_MODEL_DESIGNATOR: Readonly<Record<string, string>> = {
+  bsim4: "M",
+  bjt: "Q",
+  diode: "D",
+  jfet: "J",
+};
+
+/**
+ * The declarations of one file, read from the same logical statements the
+ * converter reads: what a design read whole classifies another file's calls
+ * by (#2294). A file it cannot read declares nothing; its conversion says why.
+ */
+export function netlistDeclarations(
+  text: string,
+  source: NetlistDialect,
+): NetlistDeclarations {
+  const result: NetlistDeclarations = {
+    subcircuits: [],
+    models: [],
+    includes: [],
+    spellings: [],
+  };
+  let read: Statement[];
+  try {
+    read = statements(
+      text,
+      source === "spectre" ? "spectre" : "spice",
+      true,
+      false,
+    );
+  } catch {
+    return result;
+  }
+  let section: string | undefined;
+  let depth = 0;
+  const spelled = (
+    kind: NetlistDeclarations["spellings"][number]["kind"],
+    name: string,
+    line: number,
+  ) => result.spellings.push({ kind, name, line });
+  const declareModel = (
+    name: string,
+    designator: string | undefined,
+    line: number,
+  ) => {
+    if (!designator) return;
+    for (const group of modelGroupNames(name))
+      result.models.push({
+        name: group,
+        designator,
+        line,
+        ...(section ? { section } : {}),
+      });
+  };
+  for (const s of read) {
+    const f = s.text.split(/\s+/u);
+    const head = f[0]!.toLowerCase();
+    // A global name: one a global statement lists, or a bang name anywhere.
+    const globals =
+      head === "global" || head === ".global"
+        ? f.slice(1)
+        : (s.text.match(/[^\s()=]+!(?=[\s()]|$)/gu) ?? []);
+    for (const name of globals) spelled("global", name, s.line);
+    const spectre = s.dialect === "spectre";
+    const subckt = spectre
+      ? head === "subckt"
+        ? f[1]
+        : head === "inline" && f[1]?.toLowerCase() === "subckt"
+          ? f[2]
+          : undefined
+      : head === ".subckt"
+        ? f[1]
+        : undefined;
+    if (subckt) {
+      result.subcircuits.push({
+        name: subckt,
+        ...(section ? { section } : {}),
+      });
+      spelled("subcircuit", subckt, s.line);
+      depth++;
+      continue;
+    }
+    if (spectre ? head === "ends" : head === ".ends") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (spectre && head === "section") section = f[1]?.toLowerCase();
+    else if (spectre && head === "endsection") section = undefined;
+    else if (!spectre && head === ".lib" && f.length === 2)
+      section = f[1]!.toLowerCase();
+    else if (!spectre && head === ".endl") section = undefined;
+    else if (spectre && head === "include") {
+      const selected = /^section=(\S+)$/iu.exec(f[2] ?? "")?.[1];
+      if (selected)
+        result.includes.push({
+          path: f[1]!.replace(/^"|"$/gu, ""),
+          section: selected.toLowerCase(),
+        });
+    } else if (!spectre && head === ".lib" && f.length >= 3)
+      result.includes.push({
+        path: f[1]!.replace(/^["']|["']$/gu, ""),
+        section: f[2]!.toLowerCase(),
+      });
+    else if (spectre ? head === "model" : head === ".model") {
+      if (!f[1] || !f[2]) continue;
+      spelled("model", f[1], s.line);
+      const kind = f[2].split("(")[0]!.toLowerCase();
+      declareModel(
+        f[1],
+        spectre
+          ? (NATIVE_MODEL_DESIGNATOR[kind] ??
+              (isExternalNativeMos(kind) ? "M" : undefined))
+          : MODEL_TYPE_DESIGNATOR[kind],
+        s.line,
+      );
+    } else if (!depth && (spectre ? head === "parameters" : head === ".param"))
+      for (const assignment of f.slice(1)) {
+        const name = /^([A-Za-z_]\w*)=/u.exec(assignment)?.[1];
+        if (name) spelled("parameter", name, s.line);
+      }
+  }
+  return result;
+}
+
 /** File references from the same logical statements the converter reads. */
 export function spectreSourceIncludes(
   text: string,
@@ -254,6 +450,7 @@ function statements(
   source: NetlistDialect,
   uncountedSpiceSections = false,
   bounded = true,
+  dialectSwitches: number[] = [],
 ): Statement[] {
   const result: Statement[] = [];
   let dialect: Statement["dialect"] =
@@ -275,6 +472,7 @@ function statements(
       if (!["spice", "spectre"].includes(language[1]!.toLowerCase()))
         refuse({ line, text: raw, dialect }, "Unsupported simulator language.");
       dialect = language[1]!.toLowerCase() as Statement["dialect"];
+      dialectSwitches.push(line);
       continue;
     }
     if (
@@ -429,10 +627,29 @@ function parameters(tokens: string[], s: Statement): Parameters {
   }
   return result;
 }
-function emitParameters(p: Parameters, s: Statement): string {
+function emitParameters(p: Parameters, s: Statement, ctx?: Context): string {
   return [...p.values()]
-    .map(({ name, raw }) => `${name}=${value(raw, s.dialect, s)}`)
+    .map(({ name, raw }) => `${name}=${keptValue(raw, s, ctx)}`)
     .join(" ");
+}
+/** A value as SPICE reads it; one outside the common arithmetic stays as
+ * written where a design is read whole, with a finding. */
+function keptValue(raw: string, s: Statement, ctx?: Context): string {
+  if (!ctx?.kept) return value(raw, s.dialect, s);
+  try {
+    return value(raw, s.dialect, s);
+  } catch (error) {
+    if (
+      !(error instanceof ConversionError) ||
+      error.issue.code !== "UNSUPPORTED_VALUE"
+    )
+      throw error;
+    ctx.kept.push({
+      ...error.issue,
+      message: `${error.issue.message} It is kept as written, unchecked.`,
+    });
+    return `{${raw.trim().replace(/^\{([\s\S]*)\}$/u, "$1")}}`;
+  }
 }
 function take(
   p: Parameters,
@@ -481,7 +698,7 @@ function isExternalNativeMos(kind: string | undefined): boolean {
   return !!kind && EXTERNAL_NATIVE_MOS.has(kind.toLowerCase());
 }
 /** A binned model `nch.1` is called by its group's name `nch` as well. */
-function modelGroupNames(name: string): string[] {
+export function modelGroupNames(name: string): string[] {
   const group = /^(.+)\.\d+$/u.exec(name)?.[1];
   return group ? [name, group] : [name];
 }
@@ -492,6 +709,14 @@ interface Context {
   models: Map<string, string>;
   ownedIncludes: Set<string>;
   externalModels?: ExternalNativeModel[];
+  /** Set with `importsDesign`: the calls of masters no declaration names. */
+  /** Set with `importsDesign`: a design read whole. */
+  importsDesign?: true;
+  calls?: ExternalCall[];
+  /** Set with `importsDesign`: values kept as written. */
+  kept?: NetlistConversionIssue[];
+  /** The Spectre library section being read, for its `endsection`. */
+  section?: string | undefined;
 }
 function spectreInstance(s: Statement, ctx: Context): string {
   const match = /^(\S+)\s*\(([^()]*)\)\s+(\S+)(?:\s+(.*))?$/u.exec(s.text);
@@ -592,6 +817,26 @@ function spectreInstance(s: Statement, ctx: Context): string {
     ctx.subckts.has(kind) ||
     !!reviewedExternalBindingForMaster(master!) ||
     (!declared && ctx.externalCalls.has(kind));
+  // A design read whole: a master nothing declares is a call of it, kept
+  // as written; its instance's first letter says nothing (#2294). One
+  // another reading of the files names (an RNL drawing) is declared there.
+  if (
+    ctx.importsDesign &&
+    ctx.calls &&
+    !isSubckt &&
+    !declared &&
+    !ctx.externalSubckts.has(kind)
+  ) {
+    const written = prefix(name!, "X");
+    ctx.calls.push({
+      line: s.line,
+      name: name!,
+      written,
+      master: master!,
+      ports: nodes.length,
+    });
+    return output("X", `${master} ${emitParameters(p, s, ctx)}`);
+  }
   const conventional = /^[MDQJX]/iu.exec(name!)?.[0].toUpperCase();
   if (!isSubckt && !declared && !conventional && !ctx.externalSubckts.has(kind))
     refuse(
@@ -729,6 +974,105 @@ function spiceInstance(s: Statement): string {
   }
   refuse(s, `Unsupported SPICE instance ${name}.`);
 }
+/** Statements of a design read whole that the drawing does not hold. */
+type OutsideDrawing =
+  "outside the drawing" | "dependency" | "library structure";
+
+/** Analyses and control statements, as the word after a name gives them. */
+const SPECTRE_CONTROL = new Set([
+  "ac",
+  "acmatch",
+  "alter",
+  "altergroup",
+  "check",
+  "checklimit",
+  "dc",
+  "dcmatch",
+  "envlp",
+  "hb",
+  "hbac",
+  "hbnoise",
+  "info",
+  "montecarlo",
+  "noise",
+  "op",
+  "options",
+  "pac",
+  "pnoise",
+  "psp",
+  "pss",
+  "pxf",
+  "pz",
+  "qpac",
+  "qpnoise",
+  "qpss",
+  "reliability",
+  "sens",
+  "set",
+  "shell",
+  "sp",
+  "stb",
+  "sweep",
+  "tdr",
+  "tran",
+  "xf",
+]);
+const SPECTRE_OUTSIDE = new Set(["save", "ic", "nodeset", "export", "real"]);
+
+/**
+ * Whether a design read whole keeps a Spectre statement out of the drawing:
+ * an analysis or option (`tran1 tran …`, `noise1 (out 0) noise …`), a save
+ * or initial condition, a Verilog-A include, a library's structure.
+ */
+function outsideDrawing(
+  s: Statement,
+  ctx: Context,
+): OutsideDrawing | undefined {
+  if (!ctx.importsDesign || s.dialect !== "spectre") return undefined;
+  const head = s.text.split(/\s+/u)[0]!.toLowerCase();
+  if (head === "ahdl_include") return "dependency";
+  if (["library", "endlibrary", "section", "endsection"].includes(head))
+    return "library structure";
+  if (SPECTRE_OUTSIDE.has(head)) return "outside the drawing";
+  const control = /^\S+\s+(?:\([^()]*\)\s+)?(\S+)/u
+    .exec(s.text)?.[1]
+    ?.toLowerCase();
+  return control && SPECTRE_CONTROL.has(control)
+    ? "outside the drawing"
+    : undefined;
+}
+
+/** A section reads as SPICE's; an analysis converts where the subset has
+ * it, and otherwise prints nothing; the rest prints nothing. */
+function translateOutsideDrawing(
+  s: Statement,
+  ctx: Context,
+  outside: OutsideDrawing,
+): string[] {
+  const f = s.text.split(/\s+/u);
+  const head = f[0]!.toLowerCase();
+  if (head === "section") {
+    ctx.section = f[1];
+    return [`.lib ${f[1] ?? ""}`];
+  }
+  if (head === "endsection") {
+    const name = f[1] ?? ctx.section ?? "";
+    ctx.section = undefined;
+    return [`.endl ${name}`];
+  }
+  if (
+    outside !== "outside the drawing" ||
+    !/^\S+\s+(?:op|ac|dc|tran)\b/iu.test(s.text)
+  )
+    return [];
+  try {
+    return translate(s, ctx);
+  } catch (error) {
+    if (error instanceof ConversionError) return [];
+    throw error;
+  }
+}
+
 function translate(s: Statement, ctx: Context): string[] {
   // Normalize assignment whitespace, while preserving quoted paths/expressions.
   const f = fields(s.text, s),
@@ -1100,11 +1444,16 @@ export function convertNetlist(
       source !== "spectre" && options.fragment === false
         ? text.replace(/^[^\r\n]*/u, "")
         : text;
+    const dialectSwitches: number[] = [];
     const input = statements(
       inputText,
       source,
       options.uncountedSpiceSections,
       !options.unbounded,
+      dialectSwitches,
+    );
+    const statementLines: ConvertedStatementLine[] = dialectSwitches.map(
+      (line) => ({ line, dropped: "dialect switch" }),
     );
     const ctx: Context = {
       subckts: new Set(
@@ -1116,68 +1465,88 @@ export function convertNetlist(
       externalCalls: new Set(
         options.externalSubcircuitCalls?.map((name) => name.toLowerCase()),
       ),
-      models: new Map(),
+      models: new Map(
+        Object.entries(options.declaredModels ?? {}).map(([name, kind]) => [
+          name.toLowerCase(),
+          kind,
+        ]),
+      ),
       ownedIncludes: new Set(options.ownedIncludes),
       ...(options.externalNativeModels ? { externalModels: [] } : {}),
+      ...(options.importsDesign
+        ? { importsDesign: true, calls: [], kept: [] }
+        : {}),
+    };
+    // Every statement it refuses, not only the first, so a design read whole
+    // lists all it cannot convert (#2294).
+    const refusedIssues: NetlistConversionIssue[] = [];
+    const collecting = (convert: () => void): void => {
+      try {
+        convert();
+      } catch (error) {
+        // The endpoint answers its first refusal, as it always has.
+        if (!(error instanceof ConversionError) || !options.importsDesign)
+          throw error;
+        refusedIssues.push(error.issue);
+      }
     };
     const declared = new Set<string>();
     const globals = new Map<string, string>();
-    for (const s of input) {
-      const f = fields(s.text, s);
-      if (["global", ".global"].includes(f[0]!.toLowerCase()))
-        for (const node of f.slice(1)) {
-          const prior = globals.get(node.toLowerCase());
-          if (prior && prior !== node)
-            refuse(
-              s,
-              "Global nodes differ only in case.",
-              "NODE_CASE_COLLISION",
-            );
-          globals.set(node.toLowerCase(), node);
+    for (const s of input)
+      collecting(() => {
+        const f = fields(s.text, s);
+        if (["global", ".global"].includes(f[0]!.toLowerCase()))
+          for (const node of f.slice(1)) {
+            const prior = globals.get(node.toLowerCase());
+            if (prior && prior !== node)
+              refuse(
+                s,
+                "Global nodes differ only in case.",
+                "NODE_CASE_COLLISION",
+              );
+            globals.set(node.toLowerCase(), node);
+          }
+        if (["subckt", ".subckt"].includes(f[0]!.toLowerCase()) && !f[1])
+          refuse(s, "Subcircuit name is missing.");
+        if (["subckt", ".subckt"].includes(f[0]!.toLowerCase()) && f[1]) {
+          if (declared.has(f[1].toLowerCase()))
+            refuse(s, "Duplicate subcircuit name.", "REFERENCE_COLLISION");
+          declared.add(f[1].toLowerCase());
+          ctx.subckts.add(f[1].toLowerCase());
         }
-      if (["subckt", ".subckt"].includes(f[0]!.toLowerCase()) && !f[1])
-        refuse(s, "Subcircuit name is missing.");
-      if (["subckt", ".subckt"].includes(f[0]!.toLowerCase()) && f[1]) {
-        if (declared.has(f[1].toLowerCase()))
-          refuse(s, "Duplicate subcircuit name.", "REFERENCE_COLLISION");
-        declared.add(f[1].toLowerCase());
-        ctx.subckts.add(f[1].toLowerCase());
-      }
-      if (
-        s.dialect === "spice" &&
-        f[0]?.toLowerCase() === ".model" &&
-        f[1] &&
-        f[2]
-      ) {
-        const modelClass = f[2].split("(")[0]!.toLowerCase();
-        const designator = ["nmos", "pmos"].includes(modelClass)
-          ? "M"
-          : ["npn", "pnp"].includes(modelClass)
-            ? "Q"
-            : ["njf", "pjf"].includes(modelClass)
-              ? "J"
-              : modelClass === "d"
-                ? "D"
-                : undefined;
-        if (designator) ctx.models.set(f[1].toLowerCase(), designator);
-      }
-      if (
-        s.dialect === "spectre" &&
-        f[0]?.toLowerCase() === "model" &&
-        f[1] &&
-        f[2]
-      ) {
-        const designator =
-          { bsim4: "M", bjt: "Q", diode: "D", jfet: "J" }[f[2].toLowerCase()] ??
-          (ctx.externalModels && isExternalNativeMos(f[2]) ? "M" : undefined);
-        // Only the editor's import calls a binned card by its group's name.
-        if (designator)
-          for (const name of ctx.externalModels
-            ? modelGroupNames(f[1])
-            : [f[1]])
-            ctx.models.set(name.toLowerCase(), designator);
-      }
-    }
+        if (
+          s.dialect === "spice" &&
+          f[0]?.toLowerCase() === ".model" &&
+          f[1] &&
+          f[2]
+        ) {
+          const modelClass = f[2].split("(")[0]!.toLowerCase();
+          const designator = MODEL_TYPE_DESIGNATOR[modelClass];
+          if (designator) ctx.models.set(f[1].toLowerCase(), designator);
+        }
+        if (
+          s.dialect === "spectre" &&
+          f[0]?.toLowerCase() === "model" &&
+          f[1] &&
+          f[2]
+        ) {
+          const designator =
+            NATIVE_MODEL_DESIGNATOR[f[2].toLowerCase()] ??
+            (ctx.externalModels && isExternalNativeMos(f[2]) ? "M" : undefined);
+          // Only the editor's import calls a binned card by its group's name.
+          if (designator)
+            for (const name of ctx.externalModels
+              ? modelGroupNames(f[1])
+              : [f[1]])
+              ctx.models.set(name.toLowerCase(), designator);
+        }
+      });
+    // A declaration it refuses leaves nothing sound to translate.
+    if (refusedIssues.length)
+      return {
+        status: "blocked",
+        issues: refusedIssues.sort((a, b) => a.line - b.line),
+      };
     const out = [
       target === "spectre"
         ? "simulator lang=spectre"
@@ -1194,66 +1563,92 @@ export function convertNetlist(
     let scope = "",
       depth = 0,
       subcircuitOutput = -1;
-    for (const s of input) {
-      const head = s.text.split(/\s+/u)[0]!.toLowerCase();
-      if (head === "subckt" || head === ".subckt") {
-        if (depth) refuse(s, "Nested subcircuit definitions are unsupported.");
-        depth++;
-        scope = fields(s.text, s)[1]!.toLowerCase();
-        subcircuitOutput = out.length;
-      }
-      if (head === "ends" || head === ".ends") {
-        if (!depth) refuse(s, "Unmatched subcircuit end.");
-        if (
-          fields(s.text, s)[1] &&
-          fields(s.text, s)[1]!.toLowerCase() !== scope
-        )
-          refuse(s, "Subcircuit end name does not match.");
-        depth--;
-      }
-      if (!(s.dialect === "spice" && target !== "spectre"))
-        checkNodeCase(s, scope, nodeNames, globals);
-      const translated =
-        s.dialect === "spice" && target !== "spectre"
-          ? [s.text]
-          : translate(s, ctx);
-      if (source !== "spectre" && target === "spectre")
-        caseRecords.push({ statement: s, scope, lines: translated });
-      // Spectre subcircuit parameters are callable defaults, not a SPICE
-      // local .param body that could overwrite an instance override.
-      if (
-        s.dialect === "spectre" &&
-        target !== "spectre" &&
-        head === "parameters" &&
-        depth
-      ) {
-        const defaults = translated[0]!.slice(".param ".length);
-        out[subcircuitOutput] +=
-          `${out[subcircuitOutput]!.includes(" params:") ? " " : " params: "}${defaults}`;
-        continue;
-      }
-      for (const line of translated) {
-        if (!line) continue;
-        const isInstance =
-          s.dialect === "spectre"
-            ? /^(\S+)\s*\(/u.test(s.text) && head !== "subckt"
-            : target === "spectre" && !head.startsWith(".");
-        if (isInstance) {
-          const name = line.split(/\s+/u)[0]!;
-          const key = `${scope}/${name.toLowerCase()}`;
-          if (names.has(key))
-            refuse(
-              s,
-              `Converted reference ${name} collides in this cell.`,
-              "REFERENCE_COLLISION",
-            );
-          names.add(key);
+    for (const s of input)
+      collecting(() => {
+        const head = s.text.split(/\s+/u)[0]!.toLowerCase();
+        if (head === "subckt" || head === ".subckt") {
+          if (depth)
+            refuse(s, "Nested subcircuit definitions are unsupported.");
+          depth++;
+          scope = fields(s.text, s)[1]!.toLowerCase();
+          subcircuitOutput = out.length;
         }
-        out.push(line);
-        for (const _line of line.split("\n")) lineOrigins.push(s.line);
-      }
-      if (!depth) scope = "";
-    }
+        if (head === "ends" || head === ".ends") {
+          if (!depth) refuse(s, "Unmatched subcircuit end.");
+          if (
+            fields(s.text, s)[1] &&
+            fields(s.text, s)[1]!.toLowerCase() !== scope
+          )
+            refuse(s, "Subcircuit end name does not match.");
+          depth--;
+        }
+        if (!(s.dialect === "spice" && target !== "spectre"))
+          checkNodeCase(s, scope, nodeNames, globals);
+        const outside = outsideDrawing(s, ctx);
+        const translated =
+          s.dialect === "spice" && target !== "spectre"
+            ? [s.text]
+            : outside
+              ? translateOutsideDrawing(s, ctx, outside)
+              : translate(s, ctx);
+        if (source !== "spectre" && target === "spectre")
+          caseRecords.push({ statement: s, scope, lines: translated });
+        // Spectre subcircuit parameters are callable defaults, not a SPICE
+        // local .param body that could overwrite an instance override.
+        if (
+          s.dialect === "spectre" &&
+          target !== "spectre" &&
+          head === "parameters" &&
+          depth
+        ) {
+          const defaults = translated[0]!.slice(".param ".length);
+          out[subcircuitOutput] +=
+            `${out[subcircuitOutput]!.includes(" params:") ? " " : " params: "}${defaults}`;
+          statementLines.push({
+            line: s.line,
+            dropped: "subcircuit parameters",
+          });
+          return;
+        }
+        statementLines.push(
+          translated.some(Boolean)
+            ? { line: s.line }
+            : {
+                line: s.line,
+                dropped:
+                  outside ??
+                  (s.dialect === "spectre" && head === "model"
+                    ? "native model card"
+                    : "no output"),
+              },
+        );
+        for (const line of translated) {
+          if (!line) continue;
+          const isInstance =
+            s.dialect === "spectre"
+              ? /^(\S+)\s*\(/u.test(s.text) && head !== "subckt"
+              : target === "spectre" && !head.startsWith(".");
+          if (isInstance) {
+            const name = line.split(/\s+/u)[0]!;
+            const key = `${scope}/${name.toLowerCase()}`;
+            if (names.has(key))
+              refuse(
+                s,
+                `Converted reference ${name} collides in this cell.`,
+                "REFERENCE_COLLISION",
+              );
+            names.add(key);
+          }
+          out.push(line);
+          for (const _line of line.split("\n")) lineOrigins.push(s.line);
+        }
+        if (!depth) scope = "";
+      });
+    if (refusedIssues.length)
+      return {
+        status: "blocked",
+        issues: refusedIssues.sort((a, b) => a.line - b.line),
+      };
     if (depth) refuse(input.at(-1)!, "Unclosed subcircuit definition.");
     if (caseRecords.length)
       checkSpiceReferenceCase(caseRecords, options.subcircuitNames ?? []);
@@ -1281,8 +1676,14 @@ export function convertNetlist(
       text: converted,
       source,
       target,
-      issues: [],
-      ...(options.withLineOrigins ? { lineOrigins } : {}),
+      issues: ctx.kept ?? [],
+      ...(ctx.calls ? { externalCalls: ctx.calls } : {}),
+      ...(options.withLineOrigins
+        ? {
+            lineOrigins,
+            statementLines: statementLines.sort((a, b) => a.line - b.line),
+          }
+        : {}),
       ...(ctx.externalModels ? { externalModels: ctx.externalModels } : {}),
     };
   } catch (error) {

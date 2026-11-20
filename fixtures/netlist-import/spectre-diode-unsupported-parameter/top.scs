@@ -1,0 +1,5 @@
+simulator lang=spectre
+model dmod diode is=1e-14 cj=1p
+subckt top a k
+D1 (a k) dmod
+ends top

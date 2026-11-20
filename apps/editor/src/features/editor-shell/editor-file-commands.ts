@@ -1,8 +1,8 @@
-import { prepareImportSources } from "../netlist-export/convert-import-sources";
+import { importNetlistSources } from "../netlist-export/netlist-source-import";
 import type { NetlistNamingProfile } from "@icm/netlist";
 import type { CircuitProject, GridRect, SchematicDocument } from "@icm/model";
 import type { RnlAppearance } from "@icm/rnl";
-import { importSpiceSources } from "@icm/spice";
+import type { SpiceDiagnostic } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
 import { safeExportBaseName } from "@icm/exporters";
 import type { EditorExportDelivery } from "../../hosts/export-delivery";
@@ -32,10 +32,9 @@ import {
 const CLIPBOARD_FALLBACK =
   "Clipboard unavailable; select the netlist in the sidebar and copy it";
 
-type SpiceImportResult = Awaited<ReturnType<typeof importSpiceSources>>;
 export interface SpiceImportReport {
   entryPath: string;
-  diagnostics: SpiceImportResult["diagnostics"];
+  diagnostics: SpiceDiagnostic[];
 }
 
 export interface EditorFileCommandDependencies {
@@ -347,23 +346,16 @@ export function createEditorFileCommands({
     const { sourceInputs, entryCandidates } = sources;
     setStatus("Importing SPICE sources");
     try {
-      const prepared = prepareImportSources(sourceInputs);
-      const result = await importSpiceSources(
-        prepared.inputs,
+      const result = await importNetlistSources(
+        sourceInputs,
         entryCandidates[0]!.path,
-        {},
-        {
-          namingProfile,
-          originalSources: sourceInputs,
-          builtInBodies: prepared.builtInBodies,
-          modelTypes: prepared.modelTypes,
-        },
+        { namingProfile },
       );
       const nextImportReport: SpiceImportReport = {
         entryPath: entryCandidates[0]!.path,
-        diagnostics: [...prepared.diagnostics, ...result.diagnostics],
+        diagnostics: result.diagnostics,
       };
-      if (!result.project || !result.successful) {
+      if (result.status !== "imported") {
         const firstError = result.diagnostics.find(
           (item) => item.severity === "error",
         );

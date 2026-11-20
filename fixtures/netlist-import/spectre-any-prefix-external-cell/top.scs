@@ -1,0 +1,4 @@
+simulator lang=spectre
+subckt top a b
+I0 (a b) external_cell
+ends top

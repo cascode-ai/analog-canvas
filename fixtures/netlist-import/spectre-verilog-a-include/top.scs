@@ -1,0 +1,5 @@
+simulator lang=spectre
+ahdl_include "block.va"
+subckt top a b
+U1 (a b) va_block gain=2
+ends top

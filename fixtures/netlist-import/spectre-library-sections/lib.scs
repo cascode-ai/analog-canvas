@@ -1,0 +1,9 @@
+simulator lang=spectre
+library corners
+section tt
+model nch bsim3v3 type=n
+endsection tt
+section ff
+model nch bsim3v3 type=n
+endsection ff
+endlibrary corners

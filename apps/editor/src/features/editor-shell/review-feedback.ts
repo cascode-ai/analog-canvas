@@ -14,7 +14,9 @@ interface ReviewObject {
   kind: "instance" | "net";
   id: string;
   label: string;
-  source?: { file: SourceRecord; line: number };
+  /** The record, and the design's other records: a converted Spectre
+   * file reads with every file's declarations. */
+  source?: { file: SourceRecord; line: number; design: SourceRecord[] };
 }
 
 export interface ReviewFeedbackTarget {
@@ -77,7 +79,11 @@ export function reviewFeedbackTarget({
         ({ id }) => id === reference.fileId,
       );
       if (file?.hash.startsWith("sha256:"))
-        object.source = { file, line: reference.start.line };
+        object.source = {
+          file,
+          line: reference.start.line,
+          design: project.source.files,
+        };
     }
     objects.push(object);
   }
@@ -136,7 +142,7 @@ export async function reviewFeedbackText(
           lines.push("Source: unavailable");
           continue;
         }
-        const { file, line } = object.source;
+        const { file, line, design } = object.source;
         if (!file.originalContent) {
           lines.push(`Source: ${file.path}:${line}`);
           continue;
@@ -144,7 +150,7 @@ export async function reviewFeedbackText(
         // Converted Spectre references point back to the file as delivered.
         const { originalSourceLine } =
           await import("../netlist-export/convert-import-sources");
-        const originalLine = originalSourceLine(file, line);
+        const originalLine = originalSourceLine(file, line, design);
         lines.push(
           originalLine
             ? `Source: ${file.path}:${originalLine}`

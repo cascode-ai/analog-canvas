@@ -91,6 +91,11 @@ it("keeps the circuit undrawn when the drawing step cannot read the runtime's an
   if (plan.status !== "ready") throw new Error(plan.message);
   expect(plan.diagnostics).toEqual([
     expect.objectContaining({
+      code: "SPICE_IMPORT_COVERAGE",
+      severity: "info",
+      message: "3 statements: 1 instance, 2 definition",
+    }),
+    expect.objectContaining({
       code: "RNL_IMPORT_INVALID_DRAWING",
       severity: "error",
     }),
@@ -410,6 +415,11 @@ it("imports a file of another RNL version as its circuit without its drawing, an
   // The circuit comes in, undrawn, and the report says how to raise the file.
   expect(older.drawing).toBe("discarded");
   expect(older.diagnostics).toEqual([
+    expect.objectContaining({
+      code: "SPICE_IMPORT_COVERAGE",
+      severity: "info",
+      message: "3 statements: 2 instance, 1 preserved",
+    }),
     expect.objectContaining({
       code: "RNL_IMPORT_VERSION",
       severity: "error",

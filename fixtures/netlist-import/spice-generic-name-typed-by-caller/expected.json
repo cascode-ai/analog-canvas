@@ -1,0 +1,13 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.sp:2 definition (subcircuit)",
+    "top.sp:3 instance (mosfet)",
+    "top.sp:4 definition (subcircuit)"
+  ],
+  "instances": [
+    "M1 model:NMOS missing nmos"
+  ],
+  "findings": []
+}

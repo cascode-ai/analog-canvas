@@ -1,0 +1,14 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.scs:1 preserved (dialect switch)",
+    "top.scs:2 definition (subcircuit)",
+    "top.scs:3 instance (mosfet)",
+    "top.scs:4 definition (subcircuit)"
+  ],
+  "instances": [
+    "M1 model:nch_mac missing nmos"
+  ],
+  "findings": []
+}

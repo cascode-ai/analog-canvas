@@ -35,9 +35,16 @@ const symbols = (project: { documents: { instances: unknown[] }[] }) =>
     .sort();
 
 describe("Agent local circuit import", () => {
-  it("names the model whose type an external library hides", async () => {
-    await expect(importLocalCircuit([virtuoso], "top.scs")).rejects.toThrow(
-      /(?:nch_mac|pch_mac).*external library may hold its card.*Give its device type in modelTypes/u,
+  it("brings in the parts whose model an external library hides as calls, and says how to type them (#2294)", async () => {
+    const imported = await importLocalCircuit([virtuoso], "top.scs");
+    expect(symbols(imported.project)).toEqual([
+      expect.stringContaining("external"),
+      expect.stringContaining("external"),
+    ]);
+    expect(
+      imported.diagnostics.map(({ message }) => message).join("\n"),
+    ).toMatch(
+      /No declaration in the design names (?:nch_mac|pch_mac).*give its device type in modelTypes/u,
     );
   });
 
@@ -74,19 +81,20 @@ describe("Agent local circuit import", () => {
     ).not.toContain("unused");
   });
 
-  it("asks only for a card where the caller cannot give device types", async () => {
-    const { importSpiceSources } = await import("@icm/spice");
-    const { prepareImportSources } =
-      await import("../features/netlist-export/convert-import-sources");
-    const prepared = prepareImportSources([virtuoso]);
-    const result = await importSpiceSources(prepared.inputs, "top.scs", {
-      includeRoot: "workspace",
+  it("asks a caller that cannot give device types for the library, never for a made-up card", async () => {
+    const { importNetlistSources } =
+      await import("../features/netlist-export/netlist-source-import");
+    const result = await importNetlistSources([virtuoso], "top.scs", {
+      compileOptions: { includeRoot: "workspace" },
     });
-    const refused = result.diagnostics.find(
-      (item) => item.code === "SPICE_IMPORT_UNSUPPORTED_SYMBOL",
-    );
-    expect(refused?.message).toMatch(/Add "model (?:nch|pch)_mac bsim4/u);
-    expect(refused?.message).not.toContain("modelTypes");
+    const hint = result.diagnostics.find(
+      (item) => item.code === "SPICE_IMPORT_EXTERNAL_CALLS",
+    )?.message;
+    expect(hint).toContain("include the library that defines it");
+    expect(hint).not.toContain("modelTypes");
+    expect(
+      result.diagnostics.map(({ message }) => message).join("\n"),
+    ).not.toMatch(/model (?:nch|pch)_mac bsim4|\.model/u);
   });
 
   it("draws a delivered native model card it does not convert by its type", async () => {

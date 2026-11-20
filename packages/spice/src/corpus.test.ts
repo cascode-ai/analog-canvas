@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { compileSourceBundle } from "./compiler.js";
 import { importCompileResult } from "./importer.js";
+import { statementLedger } from "./ledger.js";
 import { loadSourceBundleFromFile } from "./node-source.js";
 
 const entries = [
@@ -45,6 +46,13 @@ describe("current netlist corpus", () => {
         expect(JSON.stringify(imported.project)).not.toContain('"ports"');
       }
       expect(compiled.ir?.unresolvedStatements, directory).toEqual([]);
+      // Every statement has exactly one fate (#2294).
+      const ledger = statementLedger(compiled, imported);
+      expect(
+        ledger.entries.filter(({ fate }) => fate === "unknown"),
+        directory,
+      ).toEqual([]);
+      expect(ledger.complete, directory).toBe(true);
     }
   });
 });

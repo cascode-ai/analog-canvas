@@ -267,6 +267,11 @@ their device types in `modelTypes` (values `nmos`, `pmos`, `npn`, `pnp` or
 `d`). A supplied model card takes precedence, followed by the authored drawing
 symbol. `LOCAL_MODEL_TYPES_GIVEN` lists types used. A Spectre MOS card the
 importer cannot convert draws by its `type=` (`SPICE_CONVERSION_MODEL_EXTERNAL`).
+Without a type, such a part still imports: a Spectre call as a call of its
+master (`SPICE_IMPORT_EXTERNAL_CALLS`), a SPICE M, Q or J card as a box of its
+family (`SPICE_IMPORT_UNTYPED_DEVICE`). Delivering the same files again with
+other `modelTypes` opens another copy in its own tab; the same types, in any
+case or order, locate the existing copy.
 A refusal reports its error, recovery hint and `timingMs` for completed stages.
 
 The load receipt includes task, session, workspace, Project, Cell and revisions, plus

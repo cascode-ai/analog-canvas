@@ -31,7 +31,9 @@ import {
   gateExternalBinding,
   libraryPartBinding,
   type GateCellPinMatch,
+  instanceEvidence,
   instanceParameterContract,
+  namesModelOutsideSources,
   milliScaleReading,
   validateDeviceParameters,
   type QuantityForms,
@@ -113,6 +115,12 @@ export function runErcChecks(
   const documents = [...project.documents].sort((a, b) =>
     a.id.localeCompare(b.id, "en"),
   );
+  // Parameters of imported PDK models no schema describes, by Cell: one
+  // finding each, not one error per name (#2294).
+  const unverifiedByDocument = new Map<
+    string,
+    { instanceId: string; text: string }[]
+  >();
 
   for (const collision of findExternalMasterCollisions(project, documents)) {
     diagnostics.push({
@@ -203,7 +211,17 @@ export function runErcChecks(
       const missingExternalMaster =
         instance.netlist?.binding?.kind === "external-subcircuit" ||
         instance.netlist?.binding?.kind === "unresolved-subcircuit";
-      if (instance.importProvenance?.status === "missing") {
+      // A model a library outside the sources holds, typed by the caller or
+      // a box of its family, is the supported case of a foundry design:
+      // export and runs report it, not ERC (#2294). A model target changed
+      // in Canvas since is Canvas's, which the import's status no longer
+      // describes.
+      const evidence = instanceEvidence(project, instance);
+      if (
+        instance.importProvenance?.status === "missing" &&
+        evidence !== "canvas" &&
+        !namesModelOutsideSources(evidence)
+      ) {
         const code = missingExternalMaster
           ? "ERC_MISSING_EXTERNAL_MASTER"
           : "ERC_MISSING_MODEL";
@@ -264,6 +282,25 @@ export function runErcChecks(
         // The parameters the Instance's model owns, as export reads them: a
         // reviewed SKY130 binding owns its w/l/mult, not the built-in value.
         const contract = instanceParameterContract(project, instance);
+        if (contract?.unverified && instance.netlist?.parameters) {
+          const known = new Set(
+            contract.definitions.map((parameter) =>
+              parameter.name.toLowerCase(),
+            ),
+          );
+          const names = Object.keys(instance.netlist.parameters).filter(
+            (name) => !known.has(name.toLowerCase()),
+          );
+          const binding = instance.netlist.binding;
+          if (names.length)
+            unverifiedByDocument.set(document.id, [
+              ...(unverifiedByDocument.get(document.id) ?? []),
+              {
+                instanceId: instance.id,
+                text: `${instance.reference ?? instance.id} (${binding?.kind === "model" ? binding.name : "?"}): ${names.join(", ")}`,
+              },
+            ]);
+        }
         if (contract && instance.netlist?.parameters) {
           const allowed = contract.definitions.map(
             (parameter) => parameter.name,
@@ -870,6 +907,28 @@ export function runErcChecks(
       },
     });
   }
+
+  for (const [documentId, parts] of unverifiedByDocument)
+    diagnostics.push({
+      id: `erc:unverified-device-parameters:${documentId}`,
+      domain: "erc",
+      code: "ERC_UNVERIFIED_DEVICE_PARAMETERS",
+      severity: "info",
+      confidence: "high",
+      gateEligible: false,
+      message: `Parameters kept as written, which no model schema describes, so none is checked: ${parts.map(({ text }) => text).join("; ")}`,
+      primary: directObjectLocator(
+        documentId,
+        "instance",
+        parts[0]!.instanceId,
+      ),
+      related: parts
+        .slice(1)
+        .map(({ instanceId }) =>
+          directObjectLocator(documentId, "instance", instanceId),
+        ),
+      parameters: { count: parts.length },
+    });
 
   return diagnostics.sort(
     (a, b) =>

@@ -1,0 +1,6 @@
+simulator lang=spectre
+subckt top a b
+B1 (a b) bsource i=v(a)*1m
+F1 (a b) cccs probe=V1 gain=2
+V1 (b 0) vsource dc=0
+ends top

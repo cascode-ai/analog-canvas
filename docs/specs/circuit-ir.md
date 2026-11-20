@@ -21,7 +21,8 @@ SourceBundle → lossless syntax + typed projections → elaboration
   instance parameter expressions keep raw text.
 - Unknown statements stay opaque source references; recognized non-schematic
   statements stay typed in `preservedStatements` (diagnostics and round-trip
-  evidence only, never persisted or executed).
+  evidence only, never persisted or executed). A reachable `.if`/`.elseif`
+  whose condition could not be evaluated carries `unresolved`.
 - Placement, routes, Junctions, symbols, layout intent and SVG never enter the
   IR; a cell with a `placement` property is rejected.
 - No pin roles are guessed from names. The fixed capacitor maps source

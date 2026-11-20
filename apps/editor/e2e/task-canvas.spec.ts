@@ -996,19 +996,32 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
       entryPath: "top.scs",
       ...(modelTypes ? { modelTypes } : {}),
     });
-  expect(await deliver()).toMatchObject({
-    ok: false,
-    error: {
-      code: "FILE_IMPORT_FAILED",
-      message: expect.stringContaining("modelTypes"),
+  // Untyped, the foundry's MOS come in as calls of their masters, and the
+  // finding says how to draw them as devices (#2294); nothing is refused.
+  const untyped = await deliver();
+  expect(untyped, JSON.stringify(untyped.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      disposition: "opened",
+      source: {
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            code: "SPICE_IMPORT_EXTERNAL_CALLS",
+            message: expect.stringContaining("modelTypes"),
+          }),
+        ]),
+      },
     },
-    timingMs: { transfer: expect.any(Number), open: 0 },
   });
+  // The same files with the types the finding asked for: another copy, in
+  // a tab of its own, not the untyped one handed back (#2377).
   const typed = await deliver({ nch_mac: "nmos", pch_mac: "pmos" });
   expect(typed, JSON.stringify(typed.error)).toMatchObject({
     ok: true,
     delivery: {
+      disposition: "opened",
       source: {
+        version: untyped.delivery.source.version,
         format: "spectre",
         files: [{ path: "top.scs" }, { path: "models.scs" }],
         diagnostics: expect.arrayContaining([
@@ -1017,6 +1030,16 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
           expect.objectContaining({ code: "SPICE_CONVERSION_MODEL_EXTERNAL" }),
         ]),
       },
+    },
+  });
+  expect(typed.delivery.workspaceId).not.toBe(untyped.delivery.workspaceId);
+  // The same types, however spelled, find that copy again.
+  const again = await deliver({ PCH_MAC: "pmos", NCH_MAC: "nmos" });
+  expect(again, JSON.stringify(again.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      disposition: "reused",
+      workspaceId: typed.delivery.workspaceId,
     },
   });
   // What the review leaves out is named, and the drawing still gets a verdict.

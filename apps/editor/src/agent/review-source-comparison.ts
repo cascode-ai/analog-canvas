@@ -19,7 +19,11 @@ import {
   type SpiceSourceInput,
 } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
-import { prepareImportSources } from "../features/netlist-export/convert-import-sources";
+import {
+  compileNetlistSources,
+  ledgerByCell,
+  ledgerSummary,
+} from "../features/netlist-export/netlist-source-import";
 
 const MAX_DIFFERENCES = 200;
 
@@ -89,39 +93,59 @@ function drawingModelTypes(project: CircuitProject, design: DesignNetlistIR) {
   return types;
 }
 
-async function prepareReference(
+/** The levels an RNL drawing leaves undrawn, which are a library's. */
+async function rnlLibraryNames(
   inputs: readonly SpiceSourceInput[],
   entryPath: string,
-) {
+): Promise<string[] | undefined> {
   const entry = inputs.find(({ path }) => path === entryPath);
   if (
-    entry &&
-    isSpectreSource(entry) &&
-    hasRnlCommentRecords(decodeSourceContent(entry.bytes).text)
-  ) {
-    const [{ loadRnlRuntime }, { readRnlHost, rnlSubcircuitNames }] =
-      await Promise.all([
-        import("../features/netlist-export/rnl-runtime"),
-        import("../features/netlist-export/rnl-import"),
-      ]);
-    const runtime = await loadRnlRuntime();
-    if (!runtime) throw new Error("The native RNL host reader is unavailable");
-    const snapshot = await readRnlHost(runtime, inputs, entryPath, "spectre");
-    return prepareImportSources(inputs, rnlSubcircuitNames(snapshot));
-  }
-  return prepareImportSources(inputs);
+    !entry ||
+    !isSpectreSource(entry) ||
+    !hasRnlCommentRecords(decodeSourceContent(entry.bytes).text)
+  )
+    return undefined;
+  const [{ loadRnlRuntime }, { readRnlHost, rnlSubcircuitNames }] =
+    await Promise.all([
+      import("../features/netlist-export/rnl-runtime"),
+      import("../features/netlist-export/rnl-import"),
+    ]);
+  const runtime = await loadRnlRuntime();
+  if (!runtime) throw new Error("The native RNL host reader is unavailable");
+  const snapshot = await readRnlHost(runtime, inputs, entryPath, "spectre");
+  return rnlSubcircuitNames(snapshot);
 }
 
-async function compileReference(source: ReviewSource) {
-  const prepared = await prepareReference(source.files, source.entryPath);
-  const compiled = await compileSpiceSources(
-    prepared.inputs,
+/**
+ * The device types the Project's parts were imported with, by model name:
+ * a delivery's `modelTypes` (or a native card's `type=`), as each imported
+ * part's provenance records it. A card the sources give still decides.
+ */
+function importedModelTypes(project: CircuitProject): Record<string, string> {
+  const types: Record<string, string> = {};
+  for (const document of project.documents)
+    for (const { importProvenance } of document.instances)
+      if (importProvenance?.kind === "model" && importProvenance.modelType)
+        types[importProvenance.sourceMasterName.toLowerCase()] =
+          importProvenance.modelType;
+  return types;
+}
+
+/** The reference, read as its import read it: the same entry and the same
+ * type evidence, or a typed part looks like a call of an unknown master. */
+async function compileReference(
+  source: ReviewSource,
+  modelTypes: Readonly<Record<string, string>>,
+) {
+  const externalSubcircuitNames = await rnlLibraryNames(
+    source.files,
     source.entryPath,
-    {
-      includeRoot: "workspace",
-    },
   );
-  return { ...compiled, prepared };
+  return compileNetlistSources(source.files, source.entryPath, {
+    compileOptions: { includeRoot: "workspace" },
+    modelTypes,
+    ...(externalSubcircuitNames ? { externalSubcircuitNames } : {}),
+  });
 }
 
 /**
@@ -173,18 +197,20 @@ export async function compareReviewSource(
         ],
         actualPath,
       ),
-      compileReference(source),
+      compileReference(source, importedModelTypes(project)),
     ]);
   } catch (error) {
     return unavailable([
       error instanceof Error ? error.message : String(error),
     ]);
   }
+  const compiled = reference.compiled;
   if (
     !actual.successful ||
     !actual.ir ||
-    !reference.successful ||
-    !reference.ir
+    !compiled?.successful ||
+    !compiled.ir ||
+    !reference.prepared
   )
     return unavailable([
       "The drawing or its netlist could not be compiled",
@@ -193,12 +219,13 @@ export async function compareReviewSource(
         .slice(0, 12)
         .map(({ message }) => message),
     ]);
+  const prepared = reference.prepared;
   const top = project.documents.find(({ id }) => id === documentId);
   const name = top?.sourceBinding?.cellName.toLowerCase();
   const expectedRoot = name
-    ? reference.ir.cells.find((cell) => cell.name.toLowerCase() === name)?.name
-    : reference.ir.topCells.length === 1
-      ? reference.ir.topCells[0]
+    ? compiled.ir.cells.find((cell) => cell.name.toLowerCase() === name)?.name
+    : compiled.ir.topCells.length === 1
+      ? compiled.ir.topCells[0]
       : undefined;
   const actualRoot = actualDesign.ir.cells.find(
     ({ id }) => id === documentId,
@@ -210,7 +237,7 @@ export async function compareReviewSource(
 
   // Resolved local includes have already contributed their Cells to this IR.
   const resolvedIncludes = new Set(
-    reference.bundle.dependencies
+    compiled.bundle.dependencies
       .filter(
         ({ status, section }) =>
           status === "resolved" || (status === "duplicate" && !section),
@@ -218,8 +245,8 @@ export async function compareReviewSource(
       .map(({ sourceRef }) => statementKey(sourceRef)),
   );
   const expected = {
-    ...reference.ir,
-    preservedStatements: reference.ir.preservedStatements.filter(
+    ...compiled.ir,
+    preservedStatements: compiled.ir.preservedStatements.filter(
       (statement) =>
         !(
           statement.kind === "directive" &&
@@ -240,7 +267,7 @@ export async function compareReviewSource(
     },
   );
   const files = new Map(
-    reference.bundle.files.map(({ id, path }) => [id, path]),
+    compiled.bundle.files.map(({ id, path }) => [id, path]),
   );
   return {
     sourceVersion: source.version,
@@ -252,7 +279,14 @@ export async function compareReviewSource(
     notes: [
       ...new Set([
         ...result.notes,
-        ...reference.prepared.diagnostics.map(({ message }) => message),
+        // Conversion findings, then the compiler's (a condition it could
+        // not evaluate, a library it did not read).
+        ...reference.diagnostics
+          .filter(({ severity }) => severity !== "error")
+          .map(({ message }) => message),
+        `Reference coverage: ${ledgerSummary(reference.ledger)}`,
+        `Reference coverage by Cell: ${ledgerByCell(reference.ledger)}`,
+        "The drawing's netlist and the reference are read by the same conversion and parser: what those drop, both sides drop, so this comparison cannot see it",
       ]),
     ],
     detailsTruncated: result.differences.length > MAX_DIFFERENCES,
@@ -263,7 +297,7 @@ export async function compareReviewSource(
         const location =
           path &&
           expectedSource &&
-          reference.prepared.originalLocation(path, expectedSource.start.line);
+          prepared.originalLocation(path, expectedSource.start.line);
         return location ? { ...difference, source: location } : difference;
       }),
   };

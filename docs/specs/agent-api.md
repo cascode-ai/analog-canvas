@@ -130,12 +130,19 @@ edits; it chooses no topology and yields no edits on conflict
   delivered local circuit by its source version, reading a tab's review
   (`review`: the netlist the Project was imported from, the Cells still
   missing an Instance or a connection, and the whole design compared with
-  that netlist; it keeps no review state), simulation workspaces and
+  that netlist; it keeps no review state). The comparison's notes give the
+  compiler's findings, the reference's statement coverage (whole and by Cell), and that both
+  sides share one conversion and parser, which it therefore cannot check;
+  a condition the reference could not evaluate leaves topology
+  inconclusive), simulation workspaces and
   artifacts ([File Resource schema](../../packages/agent-adapter/src/file-resource.ts)).
   A local-circuit stage may give the
   device types of models whose
   cards the sources lack; a card the sources give decides. Staging never
   changes the browser Project; replacement needs explicit human approval.
+  `locate-local` finds an open copy by source version, task, RNL appearance
+  and those device types (names in any case): the same files delivered
+  under other types are another copy.
 - `/simulation`: prepare/run through the shared SimulationService
   ([execution](simulation-execution.md)); saved setup changes are Project
   structure edits.

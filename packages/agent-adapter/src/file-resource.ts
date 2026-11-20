@@ -334,6 +334,9 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       background: z.boolean().optional(),
       rnlAppearance: AgentRnlAppearanceSchema.optional(),
       taskRef: z.uuid().optional(),
+      // The source version names the files alone: a copy imported under
+      // other device types is another delivery.
+      modelTypes: AgentLocalModelTypesSchema.optional(),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("review"),

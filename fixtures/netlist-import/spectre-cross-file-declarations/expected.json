@@ -1,0 +1,27 @@
+{
+  "status": "imported",
+  "complete": true,
+  "ledger": [
+    "top.scs:1 preserved (dialect switch)",
+    "top.scs:2 declaration (include)",
+    "top.scs:3 declaration (include)",
+    "top.scs:4 definition (subcircuit)",
+    "top.scs:5 instance (subcircuit)",
+    "top.scs:6 instance (mosfet)",
+    "top.scs:7 definition (subcircuit)",
+    "cells.scs:1 preserved (dialect switch)",
+    "cells.scs:2 definition (subcircuit)",
+    "cells.scs:3 instance (resistor)",
+    "cells.scs:4 definition (subcircuit)",
+    "models.scs:1 preserved (dialect switch)",
+    "models.scs:2 declaration (native model card, not converted)"
+  ],
+  "instances": [
+    "M1 model:nch resolved nmos",
+    "R0 primitive:resistor resolved resistor",
+    "XI0 subcircuit:mycell resolved hierarchical-symbol-f300d760c715ac53"
+  ],
+  "findings": [
+    "warning SPICE_CONVERSION_MODEL_EXTERNAL: models.scs:2: bsim3v3 model nch is drawn as nmos and not converted; simulating it in Analog Canvas needs a converted model."
+  ]
+}

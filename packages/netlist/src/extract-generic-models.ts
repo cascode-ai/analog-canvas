@@ -2,6 +2,12 @@
 // Process without its own, and the findings on parts that lean on a generic
 // model.
 import type { CircuitProject, SchematicDocument } from "@icm/model";
+import {
+  instanceEvidence,
+  namesModelOutsideSources,
+  reviewedExternalBindingForMaster,
+  sourcesDefineModel,
+} from "@icm/devices";
 import type {
   DesignNetlistInstance,
   DesignNetlistModel,
@@ -166,6 +172,17 @@ export function definesGenericModel(
   );
 }
 
+function namesModelOutside(
+  project: CircuitProject,
+  document: SchematicDocument,
+  part: DesignNetlistInstance,
+): boolean {
+  const source = document.instances.find((item) => item.id === part.id);
+  return (
+    !!source && namesModelOutsideSources(instanceEvidence(project, source))
+  );
+}
+
 /** Printed parts by the References their Cell shows, in reading order. */
 function namedParts(
   document: SchematicDocument,
@@ -324,10 +341,13 @@ export function reportUndefinedGenericModels(
     if (carried.has(name)) return [];
     // SPICE reads model names in any case. Only a device of that class names
     // the model: a call to a Cell named sw names the Cell.
+    // An imported part naming a model no card declares is the reader's
+    // (`reportImportedModelsWithoutCards`), not a generic target.
     const parts = instances.filter(
       (instance) =>
         instance.deviceClass === deviceClass &&
-        instance.target?.toUpperCase() === name,
+        instance.target?.toUpperCase() === name &&
+        !namesModelOutside(project, document, instance),
     );
     return parts.length &&
       !definesGenericModel(project, deckSources, {
@@ -352,6 +372,88 @@ export function reportUndefinedGenericModels(
     named.flatMap(({ parts }) => parts.map((part) => part.id)),
     "info",
   );
+}
+
+/**
+ * Imported parts naming a model no card in the sources declares (#2294):
+ * their type draws them, and their model is the reader's library, so the
+ * netlist keeps each reference and carries no card. A netlist handed out
+ * says so, as information. A run says which parts its files leave without a
+ * model and refuses, since nothing it loads defines them: its own files, a
+ * Project model source or a reviewed PDK table would.
+ */
+export function reportImportedModelsWithoutCards(
+  project: CircuitProject,
+  document: SchematicDocument,
+  instances: readonly DesignNetlistInstance[],
+  deckSources: readonly string[] | undefined,
+  diagnostics: NetlistDiagnostic[],
+): void {
+  const run = deckSources !== undefined;
+  const loaded = [
+    ...(deckSources ?? []),
+    ...(project.modelSources ?? []).flatMap((source) =>
+      source.files.map((file) => file.text),
+    ),
+  ];
+  const byModel = new Map<string, DesignNetlistInstance[]>();
+  for (const part of instances) {
+    if (!part.target || !namesModelOutside(project, document, part)) continue;
+    if (run && reviewedExternalBindingForMaster(part.target)) continue;
+    if (run && sourcesDefineModel(loaded, part.target)) continue;
+    byModel.set(part.target, [...(byModel.get(part.target) ?? []), part]);
+  }
+  if (!byModel.size) return;
+  // Each part where its sources put it, as the dependency list says: a
+  // converted file's lines are the conversion's, so it is named alone.
+  const files = new Map(
+    (project.source?.files ?? []).map((file) => [file.id, file]),
+  );
+  const located = (part: { id: string; name: string }) => {
+    const span = document.instances.find(
+      (item) => item.id === part.id,
+    )?.sourceRef;
+    const file = span && files.get(span.fileId);
+    if (!file) return part.name;
+    return file.originalContent
+      ? `${part.name} (${file.path})`
+      : `${part.name} (${file.path}:${span.start.line})`;
+  };
+  const uses = [...byModel].map(([model, parts]) => {
+    const names = namedParts(document, parts).map(located);
+    return `${partList(names)} ${names.length === 1 ? "names" : "name"} ${model}`;
+  });
+  const models = [...byModel.keys()];
+  const ids = [...byModel.values()].flat().map((part) => part.id);
+  // A file of the run that includes another file (`.include`, `.lib FILE
+  // SECTION`, Spectre `include`) may define them through it: say so, rather
+  // than refuse a run that would work. A library's own `.lib tt` header
+  // includes nothing.
+  const includesLibrary = loaded.some((text) =>
+    /^[ \t]*(?:\.?include|\.inc)[ \t]+\S|^[ \t]*\.lib[ \t]+\S+[ \t]+\S/imu.test(
+      text,
+    ),
+  );
+  if (run)
+    diagnostic(
+      diagnostics,
+      document.id,
+      "IMPORTED_MODEL_MISSING",
+      includesLibrary
+        ? `${partList(uses)}, which no card in the imported sources declares and no file of this run defines: unless a library this run includes defines ${models.length === 1 ? "it" : "them"}, add ${models.length === 1 ? "its model library" : "their model libraries"} to the simulation folder`
+        : `${partList(uses)}, which no card in the imported sources declares and no file of this run defines: add ${models.length === 1 ? "its model library" : "their model libraries"} to the simulation folder`,
+      ids,
+      includesLibrary ? "warning" : "error",
+    );
+  else
+    diagnostic(
+      diagnostics,
+      document.id,
+      "IMPORTED_MODEL_EXTERNAL",
+      `${partList(uses)}, which no card in the imported sources declares: the netlist keeps ${models.length === 1 ? "the reference" : "each reference"} and carries no card, so ${models.length === 1 ? "its model comes" : "their models come"} from the reader's library`,
+      ids,
+      "info",
+    );
 }
 
 /**

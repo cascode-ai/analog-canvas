@@ -1,0 +1,9 @@
+{
+  "about": "A model named NMOS that no card declares, typed by the caller: no Canvas stand-in.",
+  "entry": "top.sp",
+  "policy": {
+    "modelTypes": {
+      "NMOS": "nmos"
+    }
+  }
+}

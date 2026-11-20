@@ -41,7 +41,16 @@ import {
   isSpectreSource,
   normalizeSourcePath,
 } from "./source.js";
+import { modelGroupNames } from "./conversion.js";
+import { importLimitDiagnostics } from "./import-limits.js";
 import { parseNgspiceSourceParameters } from "./source-parameters.js";
+import {
+  untypedComponents,
+  untypedFamily,
+  untypedDeviceDiagnostic,
+  untypedParameterSymbol,
+  untypedSymbolId,
+} from "./untyped-devices.js";
 
 export interface SpiceImportResult extends SpiceCompileResult {
   project: CircuitProject | null;
@@ -108,6 +117,19 @@ export interface SpiceImportOptions {
    * drawing draws its parts with. A card the sources declare decides.
    */
   modelTypes?: ReadonlyMap<string, string>;
+  /**
+   * Models the original sources declare in a form the conversion left out
+   * (a foundry's native MOS card): declared, so a part naming one has its
+   * model, though only `modelTypes` gives its type.
+   */
+  declaredModelNames?: readonly string[];
+  /**
+   * The name a call of an external master was written with, by its card's
+   * file path and line, where the conversion put SPICE's X before it
+   * (`C1 (a b) cfmom_2t` printed as `XC1`): its Reference, as Spectre
+   * names it.
+   */
+  callReferences?: ReadonlyMap<string, string>;
   /**
    * How a refused device whose model no card declares is told to recover:
    * by adding a card (the default), or, for a caller that takes device types
@@ -268,6 +290,9 @@ interface ImportSymbolMapping {
   registryId?: string;
   /** A reviewed subcircuit an M card names, imported as the X call it is. */
   reviewedMaster?: string;
+  /** A card of unknown type drawn with the Project's box of its family
+   * (`untypedComponent`), whose class the registry does not hold. */
+  untyped?: { letter: string; deviceClass: NetlistDeviceClass };
 }
 
 function explicitSymbolOverride(
@@ -318,6 +343,16 @@ function netlistDeviceClass(symbolId: string): NetlistDeviceClass | null {
   return classes[symbolId] ?? null;
 }
 
+/** A D card of two nodes is the diode its letter says, whatever its model. */
+function isDiodeCard(instance: CircuitInstanceIR): boolean {
+  return /^d/iu.test(instance.name) && instance.terminals.length === 2;
+}
+
+/** The Document an imported Cell becomes, by its name. */
+export function importedDocumentId(cellName: string): string {
+  return deriveStableId("document", cellName.toLowerCase());
+}
+
 function importedNetlistBinding(
   instance: CircuitInstanceIR,
   mapping: ImportSymbolMapping,
@@ -340,7 +375,8 @@ function importedNetlistBinding(
       definitionId: externalDefinitionId(mapping.reviewedMaster),
     };
   }
-  const deviceClass = netlistDeviceClass(mapping.symbolId);
+  const deviceClass =
+    mapping.untyped?.deviceClass ?? netlistDeviceClass(mapping.symbolId);
   if (!deviceClass) return undefined;
   switch (instance.target.kind) {
     case "primitive":
@@ -441,6 +477,22 @@ function symbolFor(
         registryId: reviewed.id,
         reviewedMaster: reviewed.masterName,
       };
+    // No type for its model: a D card is the diode SPICE says it is; an M,
+    // Q or J card is a box of its family, which no name decides (#2294).
+    if (modelType === undefined) {
+      if (isDiodeCard(instance))
+        return { symbolId: "diode", pinNames: ["A", "K"] };
+      const untyped = untypedFamily(instance);
+      if (untyped)
+        return {
+          symbolId: untypedSymbolId(untyped.letter, untyped.pins.length),
+          pinNames: untyped.pins,
+          untyped: {
+            letter: untyped.letter,
+            deviceClass: untyped.family.deviceClass,
+          },
+        };
+    }
     return null;
   }
   if (instance.target.kind === "opaque") {
@@ -506,6 +558,7 @@ function targetDescription(
 function importProvenance(
   instance: CircuitInstanceIR,
   modelTypeByName: ReadonlyMap<string, string>,
+  declaredModels: ReadonlySet<string>,
   symbolMappings: readonly PdkSymbolMappingOverride[],
 ): NonNullable<Instance["importProvenance"]> {
   switch (instance.target.kind) {
@@ -517,14 +570,18 @@ function importProvenance(
         status: "resolved",
       };
     case "model": {
-      const modelType = modelTypeByName.get(
-        instance.target.modelName.toLowerCase(),
-      );
+      // A D card's type is its letter's, whatever its model.
+      const modelType =
+        modelTypeByName.get(instance.target.modelName.toLowerCase()) ??
+        (isDiodeCard(instance) ? "d" : undefined);
+      // A type the caller gives draws the part; only a card is its model.
       return {
         kind: "model",
         sourceMasterName: instance.target.modelName,
         sourceTarget: targetDescription(instance, symbolMappings),
-        status: "resolved",
+        status: declaredModels.has(instance.target.modelName.toLowerCase())
+          ? "resolved"
+          : "missing",
         ...(modelType ? { modelType } : {}),
       };
     }
@@ -556,8 +613,10 @@ function importProvenance(
 }
 
 /**
- * A device card naming a model no .model card declares cannot say what it
- * is. The symbol catalog is not what is missing, so say what is.
+ * A device card naming a model no card declares, whose card fits no family
+ * Analog Canvas draws (an M card of three nodes): say what is missing. It
+ * never asks for a made-up card (#2294): the library that defines the model
+ * is what is missing, or, for a caller that gives them, its device type.
  */
 function undeclaredModelMessage(
   instance: CircuitInstanceIR,
@@ -568,25 +627,8 @@ function undeclaredModelMessage(
   if (instance.target.kind !== "model") return undefined;
   const model = instance.target.modelName;
   if (modelTypeByName.has(model.toLowerCase())) return undefined;
-  const types =
-    { 2: ["d"], 3: ["npn", "pnp"], 4: ["nmos", "pmos"] }[
-      instance.terminals.length
-    ] ?? [];
-  if (!types.length) return undefined;
-  const declaration = spectre ? "model statement" : ".model card";
-  if (givesModelTypes)
-    return `${instance.name} uses model ${model}, which no ${declaration} declares (an external library may hold its card), so its device type is unknown. Give its device type in modelTypes, such as {"${model}":"${types[0]}"}, rather than editing the files.`;
-  const suggestions = types.map((type) => {
-    if (!spectre) return `".model ${model} ${type}"`;
-    const native =
-      type === "d"
-        ? "diode"
-        : type === "npn" || type === "pnp"
-          ? `bjt type=${type}`
-          : `bsim4 type=${type === "nmos" ? "n" : "p"}`;
-    return `"model ${model} ${native}"`;
-  });
-  return `${instance.name} uses model ${model}, which no ${declaration} declares, so its device type is unknown. Add ${suggestions.join(" or ")}.`;
+  const declaration = spectre ? "model statement" : "card";
+  return `${instance.name} uses model ${model}, which no ${declaration} declares, and its card of ${instance.terminals.length} nodes fits no device family. Include the library that defines ${model}${givesModelTypes ? ", or give its device type in modelTypes" : ""}.`;
 }
 
 /**
@@ -618,6 +660,7 @@ function importInstance(
   instance: CircuitInstanceIR,
   diagnostics: SpiceDiagnostic[],
   modelTypeByName: ReadonlyMap<string, string>,
+  declaredModels: ReadonlySet<string>,
   symbolMappings: readonly PdkSymbolMappingOverride[],
   builtInBodies: ReadonlyMap<string, ImportedBody>,
   spectre: boolean,
@@ -652,6 +695,25 @@ function importInstance(
           instance.terminals.length,
         )
       : undefined;
+  // A part whose master or model the sources do not define keeps each name
+  // as written (Spectre reads `AS` and `as` as two, #2294), except the names
+  // its device type defines, which read as that device's own. A repeated
+  // name keeps its key, so no two collapse into one.
+  const outsideSources =
+    (instance.target.kind === "external-subcircuit" && !reviewed) ||
+    (instance.target.kind === "model" &&
+      !declaredModels.has(instance.target.modelName.toLowerCase()));
+  const deviceNames = new Set(
+    (
+      deviceDescriptor(
+        mapping.untyped
+          ? untypedParameterSymbol(mapping.untyped.letter)
+          : mapping.symbolId,
+      )?.parameters ?? []
+    ).map((parameter) => parameter.name.toLowerCase()),
+  );
+  const keepsSpelling = (name: string) =>
+    outsideSources && !name.includes("#") && !deviceNames.has(name);
   const parameters = Object.fromEntries(
     Object.entries(instance.parameters)
       .filter(([name]) => name !== "control-source")
@@ -668,7 +730,9 @@ function importInstance(
             ? "gm"
             : name === "gain" && mapping.symbolId === "ccvs"
               ? "rm"
-              : name;
+              : keepsSpelling(name)
+                ? (parameter.spelling ?? name)
+                : name;
         const reviewedParameter = reviewed?.parameters.find(
           (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
         );
@@ -704,7 +768,12 @@ function importInstance(
     symbolId: mapping.symbolId,
     sourceRef: instance.sourceRef,
     importProvenance: {
-      ...importProvenance(instance, modelTypeByName, symbolMappings),
+      ...importProvenance(
+        instance,
+        modelTypeByName,
+        declaredModels,
+        symbolMappings,
+      ),
       ...(mapping.registryId
         ? { symbolMappingRegistryId: mapping.registryId }
         : {}),
@@ -1022,6 +1091,7 @@ function importDocument(
   cell: CircuitCellIR,
   diagnostics: SpiceDiagnostic[],
   modelTypeByName: ReadonlyMap<string, string>,
+  declaredModels: ReadonlySet<string>,
   options: SpiceImportOptions,
   builtInBodies: ReadonlyMap<string, ImportedBody>,
   spectreFileIds: ReadonlySet<string>,
@@ -1033,7 +1103,7 @@ function importDocument(
     ...(options.externalSymbolMappings ?? []),
   ];
   const namingProfile = options.namingProfile ?? "native";
-  const documentId = deriveStableId("document", cell.name.toLowerCase());
+  const documentId = importedDocumentId(cell.name);
   const visibleInstances = cell.instances.filter((instance) => {
     if (instance.terminals.length > 0) return true;
     // A K card becomes a coupling of the inductors it names, below.
@@ -1055,6 +1125,7 @@ function importDocument(
         instance,
         diagnostics,
         modelTypeByName,
+        declaredModels,
         instance.target.kind === "external-subcircuit"
           ? externalSymbolMappings
           : symbolMappings,
@@ -1714,6 +1785,14 @@ function importCircuitIR(
         [model.name.toLowerCase(), model.modelType.toLowerCase()] as const,
     ),
   ]);
+  // A card declares a model, a binned `nch.1` its group `nch` too; a type
+  // from elsewhere only draws it.
+  const declaredModels = new Set(
+    [
+      ...ir.models.map((model) => model.name),
+      ...(options.declaredModelNames ?? []),
+    ].flatMap((name) => modelGroupNames(name.toLowerCase())),
+  );
   const builtInBodies = new Map<string, ImportedBody>([
     // A call the sources give no definition for is all a called block's
     // calls are; a Cell of that name is the author's own.
@@ -1812,6 +1891,7 @@ function importCircuitIR(
       cell,
       diagnostics,
       modelTypeByName,
+      declaredModels,
       options,
       builtInBodies,
       spectreFileIds,
@@ -1820,6 +1900,19 @@ function importCircuitIR(
   );
   const { documents, externalSubcircuitDefinitions } =
     bindImportedChildDocuments(importedDocuments, kept?.definitions);
+  if (options.callReferences?.size) {
+    const paths = new Map(bundle.files.map(({ id, path }) => [id, path]));
+    for (const instance of documents.flatMap(
+      (document) => document.instances,
+    )) {
+      if (instance.importProvenance?.kind !== "opaque" || !instance.sourceRef)
+        continue;
+      const written = options.callReferences.get(
+        `${paths.get(instance.sourceRef.fileId)}:${instance.sourceRef.start.line}`,
+      );
+      if (written) instance.reference = written;
+    }
+  }
   for (const document of documents) {
     document.importReference!.files = bundle.files.map((file) => ({
       fileId: file.id,
@@ -1838,6 +1931,17 @@ function importCircuitIR(
   const entryHash = bundle.files.find(
     (file) => file.id === bundle.entryFileId,
   )?.hash;
+  // Cards of unknown type, drawn with the Project's boxes of their family;
+  // one finding names them and how to draw each as the device it is.
+  const placedInstances = documents.flatMap((document) => document.instances);
+  const untyped = untypedComponents(
+    new Set(placedInstances.map(({ symbolId }) => symbolId)),
+  );
+  const untypedFinding = untypedDeviceDiagnostic(
+    placedInstances,
+    options.undeclaredModels === "give-type",
+  );
+  if (untypedFinding) diagnostics.push(untypedFinding);
   const project = CircuitProjectSchema.parse({
     schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     id: deriveStableId("project", bundle.entryPath, entryHash ?? "missing"),
@@ -1871,6 +1975,7 @@ function importCircuitIR(
     topDocumentId: topDocument.id,
     documents,
     externalSubcircuitDefinitions,
+    ...(untyped.length ? { componentDefinitions: untyped } : {}),
     // Kept where a call is bound to it.
     ...(kept &&
     externalSubcircuitDefinitions.some(
@@ -1888,6 +1993,14 @@ export function importCompileResult(
   options: SpiceImportOptions = {},
 ): SpiceImportResult {
   if (!result.ir) return { ...result, project: null };
+  const limits = importLimitDiagnostics(result.ir);
+  if (limits.length)
+    return {
+      ...result,
+      project: null,
+      diagnostics: [...result.diagnostics, ...limits],
+      successful: false,
+    };
   try {
     const imported = importCircuitIR(
       result.ir,

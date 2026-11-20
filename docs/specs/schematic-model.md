@@ -35,7 +35,10 @@ cross-Document edits use one Project transaction guarded by
   project `CellTerminal.name` instead.
 - Parameters live in `Instance.netlist`, defined by the selected model
   contract (reviewed external binding, declared Cell/external parameters, or
-  built-in Device Descriptor). Insert, Properties, validation, parameter display
+  built-in Device Descriptor). An imported model no card declares and no
+  reviewed table knows has an open, unverified contract: its parameters stay
+  as written, no name of it is an error or gets a rename suggestion, and ERC
+  reports one information finding per Cell (`ERC_UNVERIFIED_DEVICE_PARAMETERS`). Insert, Properties, validation, parameter display
   and export consume the same names and meanings.
   Import terminal order and symbol mapping live only in
   `Instance.importProvenance`; `Instance.properties` does not persist.

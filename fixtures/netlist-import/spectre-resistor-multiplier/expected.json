@@ -1,0 +1,11 @@
+{
+  "status": "refused",
+  "complete": false,
+  "ledger": [
+    "top.scs:3 refused (top.scs:3: Unsupported parameters: m.)"
+  ],
+  "instances": [],
+  "findings": [
+    "error SPICE_CONVERSION_BLOCKED: top.scs:3: Unsupported parameters: m."
+  ]
+}

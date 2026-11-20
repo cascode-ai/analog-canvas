@@ -1,0 +1,4 @@
+{
+  "about": "Two subcircuits in two files differing only in case: Spectre keeps them apart, SPICE would join them.",
+  "entry": "top.scs"
+}

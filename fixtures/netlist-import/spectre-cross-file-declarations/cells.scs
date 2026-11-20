@@ -1,0 +1,4 @@
+simulator lang=spectre
+subckt mycell x y
+R0 (x y) resistor r=1k
+ends mycell

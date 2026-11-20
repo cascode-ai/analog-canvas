@@ -1,0 +1,4 @@
+simulator lang=spectre
+subckt leaf a
+R2 (a VDD!) resistor r=1k
+ends leaf

@@ -73,9 +73,26 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
   parenthesis, a brace, a quote or another backslash, which escapes no name.
   SPICE→Spectre does not add escapes.
 - Spectre instance names gain the SPICE prefix if needed (collisions block);
-  declared subcircuits and reviewed SKY130 wrappers use X even when named M…;
-  undeclared M/D/Q follow model designators; other masters need an explicit X
-  or declaration.
+  declared subcircuits and reviewed SKY130 wrappers use X even when named M….
+  At the endpoint, undeclared M/D/Q follow model designators and other
+  masters need an explicit X or declaration.
+- The editor's import reads a design whole (#2294):
+  - Every file's declarations (subcircuits, models by designator) outside a
+    library section or in a section some include selects, and a caller's
+    device types, classify every file's calls; a card in an unselected section
+    declares and types nothing.
+  - A master nothing declares is a call of it, whatever its instance's first
+    letter, keeping ordered ports, parameters as written and its Spectre name
+    as the Reference; `SPICE_IMPORT_EXTERNAL_CALLS` names each such master.
+  - In a call of such a master, a value outside the common arithmetic stays as
+    written, with a finding; any other part's still refuses.
+  - Analyses, options, `save`/`ic`/`nodeset` and `ahdl_include` stay out of the
+    drawing (an analysis the subset has still converts); Spectre `section`
+    reads as SPICE's `.lib`/`.endl`.
+  - Every refusal of every file is listed with its location (the endpoint
+    still answers its first). Names Spectre tells apart only by case across
+    files (subcircuits, models, file-level parameters, `vdd!`/`VDD!`), and
+    one master called with two port counts, are refused before conversion.
 - Never invents model cards, maps PDK aliases, infers geometry or searches the
   server. Blocked: `.control`, unsupported device parameters, Spectre model
   equations, UIC, arbitrary simulator functions. SCS output is not qualified
@@ -86,5 +103,8 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
 File → Open accepts `.scs` beside SPICE. UTF-8 SCS and recognizable Spectre
 local includes are converted without changing original bytes, then go through
 the existing SPICE importer (includes, bounds, validation, placement).
-Unsupported source or unresolved dependencies leave the Project unchanged.
-Import builds the circuit only; simulation decks belong in source folders.
+File → Open, an Agent's staging and local circuit, RNL import and a review's
+reference all read through one import entry (`importNetlistSources`), differing
+only in the evidence they bring. Unsupported source or unresolved dependencies
+leave the Project unchanged. Import builds the circuit only; simulation decks
+belong in source folders.

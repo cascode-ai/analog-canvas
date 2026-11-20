@@ -1,0 +1,13 @@
+{
+  "status": "refused",
+  "complete": false,
+  "ledger": [
+    "top.scs:3 refused (blk is called with 2 and 3 ports: top.scs:3 XA (2), top.scs:4 XB (3))",
+    "top.scs:4 refused (blk is called with 2 and 3 ports: top.scs:3 XA (2), top.scs:4 XB (3))"
+  ],
+  "instances": [],
+  "findings": [
+    "error SPICE_CONVERSION_BLOCKED: blk is called with 2 and 3 ports: top.scs:3 XA (2), top.scs:4 XB (3)",
+    "warning SPICE_IMPORT_EXTERNAL_CALLS: No declaration in the design names blk (XA, XB): each comes in as a call of its master, with its ports in order and its parameters as written. To draw one as a device, include the library that defines it."
+  ]
+}

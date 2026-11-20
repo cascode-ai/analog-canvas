@@ -269,6 +269,8 @@ export async function openLocalFile(
         background,
         ...appearance,
         ...(options.taskRef ? { taskRef: options.taskRef } : {}),
+        // Typed and untyped deliveries of the same files are two copies.
+        ...(options.modelTypes ? { modelTypes: options.modelTypes } : {}),
       },
       "session",
     );

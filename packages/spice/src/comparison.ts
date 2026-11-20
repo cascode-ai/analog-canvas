@@ -277,6 +277,13 @@ export function compareCircuitIR(
   ] as const) {
     if (ir.unresolvedStatements.length)
       structural(`${label}: unparsed statements need manual comparison`);
+    // A condition not evaluated hides devices, not declarations: no
+    // comparison purpose leaves it out (#2294).
+    for (const statement of ir.preservedStatements)
+      if (statement.kind === "conditional" && statement.unresolved)
+        structural(
+          `${label}: ${statement.rawText.trim()} could not be evaluated, so the devices its branches add are unknown`,
+        );
     if (options.declarations === false) continue;
     // Nearly every file has a title line and .end, and they made every
     // comparison inconclusive.

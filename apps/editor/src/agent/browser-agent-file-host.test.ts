@@ -669,6 +669,69 @@ describe("BrowserAgentFileHost", () => {
     expect(host.consumeApproved(stage.candidate.candidateId)).toBeNull();
   });
 
+  it("asks the editor for the copy delivered with the same device types (#2377)", async () => {
+    const live = createEmptyProject("live", "Live Project");
+    const asked: { modelTypes?: unknown; candidate: boolean }[] = [];
+    const host = new BrowserAgentFileHost({
+      getProjectSessionId: () => "live-session",
+      getProject: () => live,
+      getDocument: (id) =>
+        live.documents.find((document) => document.id === id) ?? null,
+      getResolver: () => ({}) as SymbolResolver,
+      onApprovalRequested: () => {},
+      openLocalProject: async ({ modelTypes, candidate }) => {
+        asked.push({
+          ...(modelTypes ? { modelTypes } : {}),
+          candidate: !!candidate,
+        });
+        return null;
+      },
+    });
+    const modelTypes = { nch_mac: "nmos" } as const;
+    const bytes = new TextEncoder().encode(
+      "* pdk\n.subckt top d g s b\nM1 d g s b nch_mac w=1u l=30n\n.ends top\n",
+    );
+    const sha = await sha256(bytes);
+    const located = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "locate-typed",
+      operation: "locate-local",
+      sourceVersion: "a".repeat(64),
+      modelTypes,
+    });
+    expect(located).toMatchObject({ ok: true, operation: "locate-local" });
+    const stage = await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "stage-typed",
+      operation: "stage",
+      kind: "local-circuit",
+      entryPath: "top.sp",
+      modelTypes,
+      files: [
+        {
+          name: "top.sp",
+          mediaType: "text/plain",
+          encoding: "base64",
+          data: base64EncodeBytes(bytes),
+          byteLength: bytes.byteLength,
+          sha256: sha,
+        },
+      ],
+    });
+    if (!stage.ok || stage.operation !== "stage")
+      throw new Error(JSON.stringify(stage));
+    await host.handle({
+      apiVersion: AGENT_API_VERSION,
+      requestId: "open-typed",
+      operation: "open",
+      candidateId: stage.candidate.candidateId,
+    });
+    expect(asked).toEqual([
+      { modelTypes, candidate: false },
+      { modelTypes, candidate: true },
+    ]);
+  });
+
   it("names what blocks opening a staged import, and keeps the candidate (#1462)", async () => {
     const live = createEmptyProject("live", "Live Project");
     const staged = createEmptyProject("staged", "Staged Project");

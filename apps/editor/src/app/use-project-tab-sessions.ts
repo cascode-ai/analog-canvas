@@ -3,10 +3,15 @@
 import { parseProject, serializeCompactProject } from "@icm/project-protocol";
 import type { RnlAppearance } from "@icm/rnl";
 import type {
+  AgentLocalModelTypes,
   AgentLocalProjectReceipt,
   AgentLocalSource,
 } from "@icm/agent-adapter";
 import type { OpenLocalProject } from "../agent/browser-agent-file-host";
+import {
+  canonicalModelTypes,
+  matchesLocalDelivery,
+} from "./local-delivery-identity";
 import type { HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
@@ -92,6 +97,8 @@ interface LocalDelivery {
   source: AgentLocalSource;
   taskRef?: string;
   rnlAppearance?: RnlAppearance;
+  /** The device types the Agent gave, as `canonicalModelTypes` states them. */
+  modelTypes?: AgentLocalModelTypes;
   importedRevision: string;
   recovered: boolean;
 }
@@ -922,13 +929,18 @@ export function useProjectTabSessions({
     background,
     rnlAppearance,
     taskRef,
+    modelTypes: requestedTypes,
     candidate,
   }) => {
+    // The same files delivered the same way, device types included (#2377).
+    const modelTypes = canonicalModelTypes(requestedTypes);
     const matches = (local: LocalDelivery | undefined) =>
-      local?.source.version === sourceVersion &&
-      (!taskRef || !local.taskRef || local.taskRef === taskRef) &&
-      // Earlier RNL tabs did not record which appearance was requested.
-      (local.source.format !== "rnl" || local.rnlAppearance === rnlAppearance);
+      matchesLocalDelivery(local, {
+        sourceVersion,
+        rnlAppearance,
+        ...(taskRef ? { taskRef } : {}),
+        ...(modelTypes ? { modelTypes } : {}),
+      });
     const existing = projectTabs
       .entries()
       .find(({ session }) => matches(localDeliveryOf(session.controller)));
@@ -951,6 +963,9 @@ export function useProjectTabSessions({
           source: candidate.source,
           ...(taskRef ? { taskRef } : {}),
           ...(candidate.source.format === "rnl" ? { rnlAppearance } : {}),
+          ...(modelTypes && candidate.source.format !== "project"
+            ? { modelTypes }
+            : {}),
           importedRevision: projectChangeToken(controller.project),
           recovered: false,
         };
