@@ -458,7 +458,7 @@ export function useSelectionInteraction(
   const startPointerSelectionMove = (
     event: ReactPointerEvent<SVGElement>,
     hitTarget: SVGElement,
-    preview: SelectionMovePreview,
+    preparePreview: () => SelectionMovePreview,
     source: SchematicDocument,
     prefixEdits: SchematicEdit[],
     onFinish?: (dragged: boolean) => void,
@@ -466,11 +466,11 @@ export function useSelectionInteraction(
   ): void => {
     options.canvasDragSessionRef.current?.cancel();
     const svg = (hitTarget.ownerSVGElement ?? hitTarget) as SVGSVGElement;
-    const session = createMoveSession(preview, source, prefixEdits);
+    let session: MoveGestureSession | undefined;
     const restore = () => {
-      session.visual?.restore();
-      session.routeVisual?.restore();
-      session.controller.dispose();
+      session?.visual?.restore();
+      session?.routeVisual?.restore();
+      options.moveController.dispose();
       options.setProjectedMovePreview(null);
       options.snapGuides([]);
     };
@@ -480,6 +480,8 @@ export function useSelectionInteraction(
       startClient: { x: event.clientX, y: event.clientY },
       thresholdPx,
       onPreview: (client) => {
+        // A stationary click owns the pointer but never needs a move plan.
+        session ??= createMoveSession(preparePreview(), source, prefixEdits);
         paintMoveFrame(
           session,
           options.pointFromClient(client.x, client.y, svg, false),
@@ -492,7 +494,7 @@ export function useSelectionInteraction(
         pointerMoveSessionRef.current = null;
         options.canvasDragSessionRef.current = null;
         try {
-          if (dragged) {
+          if (dragged && session) {
             const point = options.pointFromClient(
               client.x,
               client.y,
@@ -515,7 +517,7 @@ export function useSelectionInteraction(
             session.visual?.restore();
             session.routeVisual?.restore();
             session.controller.completeSelectionMove(
-              preview,
+              session.selectionPreview,
               point,
               options.logicalRadiusForPixels(svg, 7),
               suppressSnap,
@@ -942,15 +944,12 @@ export function useSelectionInteraction(
         return;
       }
     }
-    const movePlan = planSelectionMove(previewBaseDocument, movingSelection);
-    const movingIds = movePlan.instanceIds;
     // A detach drag defers selection: a threshold-crossing drag selects the
     // moved part on finish, while a mere modifier-click keeps its
     // toggle-selection meaning (pre-selecting here would make that toggle
     // deselect what it just selected).
     if (!detachDrag && !options.selectedIds.includes(instanceId))
       selectInstance(instanceId, false);
-    if (movingIds.length === 0) return;
     options.canvasDragSessionRef.current?.cancel();
     const svg = (hitTarget.ownerSVGElement ?? hitTarget) as SVGSVGElement;
     const pointerStart = options.pointFromClient(
@@ -959,25 +958,30 @@ export function useSelectionInteraction(
       svg,
       false,
     );
-    const preview: SelectionMovePreview = {
-      instanceIds: movingIds,
-      primaryInstanceId: instanceId,
-      originalPositions: Object.fromEntries(
-        movingIds.map((id) => {
-          const candidate = options.document.instances.find(
-            (item) => item.id === id,
-          )!;
-          return [id, { ...candidate.placement!.position }];
-        }),
-      ),
-      pointerStart,
-      movePlan,
-    };
     options.setProjectedMovePreview(null);
     startPointerSelectionMove(
       event,
       hitTarget,
-      preview,
+      () => {
+        const movePlan = planSelectionMove(
+          previewBaseDocument,
+          movingSelection,
+        );
+        return {
+          instanceIds: movePlan.instanceIds,
+          primaryInstanceId: instanceId,
+          originalPositions: Object.fromEntries(
+            movePlan.instanceIds.map((id) => {
+              const candidate = options.document.instances.find(
+                (item) => item.id === id,
+              )!;
+              return [id, { ...candidate.placement!.position }];
+            }),
+          ),
+          pointerStart,
+          movePlan,
+        };
+      },
       previewBaseDocument,
       detachEdits,
       (dragged) => {
@@ -1018,7 +1022,13 @@ export function useSelectionInteraction(
       ),
       movePlan,
     };
-    startPointerSelectionMove(event, hitTarget, preview, options.document, []);
+    startPointerSelectionMove(
+      event,
+      hitTarget,
+      () => preview,
+      options.document,
+      [],
+    );
   };
 
   const deleteSelectedJunction = (): void => {
@@ -1406,9 +1416,19 @@ export function useSelectionInteraction(
     markEndpointNoConnect,
     disconnectSelectedEndpoint,
     updateCommandMovePreview,
-    canBeginKeyboardSelectionMove: () =>
-      planSelectionMove(options.document, options.visualSelection)
-        .previewObjectIds.length > 0,
+    canBeginKeyboardSelectionMove: () => {
+      // Every placed member appears in the move plan. Routing closure only
+      // decides enablement when the selection has no placed Instance.
+      const ids = options.visualSelection.instanceIds;
+      return (
+        (ids.length > 0 &&
+          options.document.instances.some(
+            (instance) => instance.placement && ids.includes(instance.id),
+          )) ||
+        planSelectionMove(options.document, options.visualSelection)
+          .previewObjectIds.length > 0
+      );
+    },
     canTransformCommandMove: () => commandMoveTransformReason() === null,
     rotateCommandMove: (deltaDegrees: 45 | -45 | 90 | -90) =>
       transformCommandMove({ kind: "rotate", deltaDegrees }),

@@ -54,7 +54,7 @@ import {
 } from "./annotation-render.js";
 import type { ResolvedSvgAnnotation } from "./annotation-render.js";
 import { renderDraftingObject } from "./drafting-render.js";
-import { composeDrawing } from "./compose-drawing.js";
+import { composeDrawing, type SvgPaintRun } from "./compose-drawing.js";
 import { renderInductorCouplingLayer } from "./inductor-coupling-render.js";
 import {
   busStrokeProfile,
@@ -75,6 +75,8 @@ import {
 } from "./symbol-render.js";
 
 export interface SvgRenderOptions {
+  /** Also expose ordered, stable paint fragments for a large interactive canvas. */
+  canvasPaintRuns?: boolean;
   /** Read-only paint filter. Geometry and electrical facts still use the full Document. */
   objectIds?: ReadonlySet<string>;
   /** Page background only; explicit object fills are preserved. */
@@ -93,6 +95,7 @@ export interface SvgScene {
   /** Formal visual bounds may include fractional text/curve geometry. */
   viewBox: DerivedRect;
   formalBody: string;
+  canvasPaintRuns?: readonly SvgPaintRun[];
   drawingScene: ResolvedDrawingScene;
 }
 
@@ -812,6 +815,9 @@ export function buildSvgScene(
         ),
       ]),
   );
+  const canvasRuns: SvgPaintRun[] | undefined = options.canvasPaintRuns
+    ? []
+    : undefined;
   const drawing = composeDrawing(
     drawingScene.order,
     {
@@ -822,10 +828,12 @@ export function buildSvgScene(
       drafting,
     },
     !document.drawingOrder,
+    canvasRuns,
   );
   return {
     viewBox,
     formalBody: `<g data-layer="formal">${drawing}</g>`,
+    ...(canvasRuns ? { canvasPaintRuns: canvasRuns } : {}),
     drawingScene,
   };
 }

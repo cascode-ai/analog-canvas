@@ -7,6 +7,7 @@ import type { BoxPreviewRuntime } from "./box-preview-runtime";
 import { isDrawingTool } from "../interaction/interaction-state";
 import { schematicRoundPeriodFontFaceCss } from "@icm/derived";
 import { schematicWebFontFaceCss } from "@icm/exporters/browser-fonts";
+import type { SvgScene } from "@icm/render-svg";
 
 import {
   CanvasGridOverlay,
@@ -19,6 +20,7 @@ import {
   type LabelTether,
 } from "./editor-canvas-overlays";
 import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
+import { useCanvasVisibleObjects } from "./canvas-visible-objects";
 import { EditorCellSymbolLayoutOverlay } from "./editor-cell-symbol-layout-overlay";
 import { EditorRouteHandles } from "./editor-route-handles";
 import { EditorSelectionHalo } from "./editor-selection-halo";
@@ -99,6 +101,7 @@ export interface EditorCanvasSurfaceProps {
   ) => void;
   grid: ComponentProps<typeof CanvasGridOverlay>;
   sceneInnerHtml: { __html: string };
+  canvasPaintRuns?: SvgScene["canvasPaintRuns"];
   selectionHalo: ComponentProps<typeof EditorSelectionHalo>;
   drawingLocation: Pick<
     ComponentProps<typeof DrawingLocationOutline>,
@@ -151,6 +154,7 @@ export function EditorCanvasSurface({
   onPinch,
   grid,
   sceneInnerHtml,
+  canvasPaintRuns,
   selectionHalo,
   drawingLocation,
   cellSymbolLayout,
@@ -175,6 +179,29 @@ export function EditorCanvasSurface({
   noConnectPreview,
 }: EditorCanvasSurfaceProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const visibleIds = useCanvasVisibleObjects(
+    selectionHitLayer.selection,
+    selectionHitLayer.endpoints.endpoints,
+    cameraRuntime,
+    svgRef,
+    selectionHitLayer.selection.wouldMoveIds,
+    selectionHitLayer.endpoints.endpointHitRadius,
+  );
+  const paintRuns = useMemo(
+    () =>
+      canvasPaintRuns?.map((run, index) => ({
+        ids: run.ids,
+        node: (
+          <g
+            key={index}
+            data-layer={run.layer}
+            data-drafting-layer={run.plane}
+            dangerouslySetInnerHTML={{ __html: run.html }}
+          />
+        ),
+      })),
+    [canvasPaintRuns],
+  );
   useLayoutEffect(() => {
     const svg = svgRef.current;
     if (svg) boxPreviewRuntime.attach(svg);
@@ -378,7 +405,21 @@ export function EditorCanvasSurface({
         <CanvasGridOverlay {...grid} />
         <EditorSelectionHalo {...selectionHalo} />
         {!connectedNets.front ? <ConnectedNetGlow {...connectedNets} /> : null}
-        <g dangerouslySetInnerHTML={sceneInnerHtml} />
+        {paintRuns ? (
+          <g>
+            <g data-layer="formal">
+              {paintRuns.map((run) =>
+                !visibleIds ||
+                !run.ids ||
+                run.ids.some((id) => visibleIds.has(id))
+                  ? run.node
+                  : null,
+              )}
+            </g>
+          </g>
+        ) : (
+          <g dangerouslySetInnerHTML={sceneInnerHtml} />
+        )}
         {connectedNets.front ? <ConnectedNetGlow {...connectedNets} /> : null}
         <DrawingLocationOutline
           document={selectionHalo.document}
@@ -402,8 +443,14 @@ export function EditorCanvasSurface({
           <EditorPlacementPreview {...placementPreview} />
           <EditorWiringOverlay {...wiring} />
           <EditorRouteHandles {...routeHandles} />
-          <EditorCanvasHitLayer {...selectionHitLayer} />
-          <EditorDraftingHitTargets {...draftingHitTargets} />
+          <EditorCanvasHitLayer
+            {...selectionHitLayer}
+            visibleIds={visibleIds}
+          />
+          <EditorDraftingHitTargets
+            {...draftingHitTargets}
+            visibleIds={visibleIds}
+          />
           <WireUnderSymbolOverlay {...wireUnderSymbol} />
           <DiagnosticMarkersOverlay {...diagnosticMarkers} />
           {/* Above the diagnostics so a voltage is never hidden by a marker,
