@@ -34,6 +34,7 @@ Proposed regional deployment contract:
 | [`persistence-and-recovery.md`](persistence-and-recovery.md)       | Cloud Save, browser recovery, workspace, desktop files                |
 | [`export.md`](export.md)                                           | Formal SVG/PNG/PDF                                                    |
 | [`netlist-export.md`](netlist-export.md)                           | Extraction, SPICE/Spectre printing, refusals (sole owner)             |
+| [`netlist-process-presets.md`](netlist-process-presets.md)         | Custom Process presets per account and per Project                    |
 | [`netlist-conversion.md`](netlist-conversion.md)                   | SPICE/SCS conversion protocol and import boundary                     |
 | [`rnl-interchange.md`](rnl-interchange.md)                         | RNL export formats and import (proposed)                              |
 | [`performance.md`](performance.md)                                 | Benchmark workloads and release budgets                               |
