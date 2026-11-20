@@ -34,8 +34,8 @@ const inputs = [
 ];
 
 it("types a part by the caller's device type only where nothing else does", async () => {
-  // Untyped, the part comes in as a call of its master, with a finding
-  // that says how to type it (#2294).
+  // Untyped, the M card comes in as a MOS box of unknown type, with a
+  // finding that says how to type it (#2294).
   const untyped = await planRnlImport({
     inputs,
     entryPath: path,
@@ -49,9 +49,10 @@ it("types a part by the caller's device type only where nothing else does", asyn
       .map((instance) => instance.symbolId),
   ).not.toContain("nmos");
   expect(
-    untyped.diagnostics.find(({ code }) => code === "SPICE_IMPORT_EXTERNAL_CALLS")
-      ?.message,
-  ).toContain("modelTypes");
+    untyped.diagnostics.find(
+      ({ code }) => code === "SPICE_IMPORT_UNTYPED_DEVICE",
+    )?.message,
+  ).toContain('{"nch_mac":"nmos"} or {"nch_mac":"pmos"}');
 
   const plan = await planRnlImport({
     inputs,

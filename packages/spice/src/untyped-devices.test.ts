@@ -48,11 +48,15 @@ describe("device cards of unknown type (#2294)", () => {
   );
 
   it("asks a caller that gives types for one of the part's own family", async () => {
+    // The letter says the family, never which of its types.
     expect(finding(await imported("Q1 a b c qmod", true))).toContain(
-      '{"qmod":"npn"}',
+      '{"qmod":"npn"} or {"qmod":"pnp"}',
     );
     expect(finding(await imported("J1 a b c jmod", true))).toContain(
-      '{"jmod":"njf"}',
+      '{"jmod":"njf"} or {"jmod":"pjf"}',
+    );
+    expect(finding(await imported("M1 a b c d pch_mac", true))).toContain(
+      '{"pch_mac":"nmos"} or {"pch_mac":"pmos"}',
     );
   });
 

@@ -996,13 +996,21 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
       entryPath: "top.scs",
       ...(modelTypes ? { modelTypes } : {}),
     });
-  expect(await deliver()).toMatchObject({
-    ok: false,
-    error: {
-      code: "FILE_IMPORT_FAILED",
-      message: expect.stringContaining("modelTypes"),
+  // Untyped, the foundry's MOS come in as calls of their masters, and the
+  // finding says how to draw them as devices (#2294); nothing is refused.
+  const untyped = await deliver();
+  expect(untyped, JSON.stringify(untyped.error)).toMatchObject({
+    ok: true,
+    delivery: {
+      source: {
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            code: "SPICE_IMPORT_EXTERNAL_CALLS",
+            message: expect.stringContaining("modelTypes"),
+          }),
+        ]),
+      },
     },
-    timingMs: { transfer: expect.any(Number), open: 0 },
   });
   const typed = await deliver({ nch_mac: "nmos", pch_mac: "pmos" });
   expect(typed, JSON.stringify(typed.error)).toMatchObject({

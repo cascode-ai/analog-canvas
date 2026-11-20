@@ -818,8 +818,15 @@ function spectreInstance(s: Statement, ctx: Context): string {
     !!reviewedExternalBindingForMaster(master!) ||
     (!declared && ctx.externalCalls.has(kind));
   // A design read whole: a master nothing declares is a call of it, kept
-  // as written; its instance's first letter says nothing (#2294).
-  if (ctx.importsDesign && ctx.calls && !isSubckt && !declared) {
+  // as written; its instance's first letter says nothing (#2294). One
+  // another reading of the files names (an RNL drawing) is declared there.
+  if (
+    ctx.importsDesign &&
+    ctx.calls &&
+    !isSubckt &&
+    !declared &&
+    !ctx.externalSubckts.has(kind)
+  ) {
     const written = prefix(name!, "X");
     ctx.calls.push({
       line: s.line,

@@ -462,6 +462,50 @@ describe("netlist source import: Spectre masters", () => {
     expect(instanceNamed(project, "M1").symbolId).toBe("nmos");
   });
 
+  it("does not call a master undeclared when another reading of the files names it", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.scs",
+          "simulator lang=spectre\nsubckt top a b\nC0 (a b) process_mim w=2u\nends top\n",
+        ),
+      ],
+      "top.scs",
+      { externalSubcircuitNames: ["process_mim"] },
+    );
+    expect(
+      importedProject(result)
+        .documents.flatMap(({ instances }) => instances)
+        .find(
+          ({ importProvenance }) =>
+            importProvenance?.sourceMasterName === "process_mim",
+        )?.importProvenance?.kind,
+    ).toBe("opaque");
+    expect(
+      result.diagnostics.filter(
+        ({ code }) => code === "SPICE_IMPORT_EXTERNAL_CALLS",
+      ),
+    ).toEqual([]);
+  });
+
+  it("offers a caller that gives types both types of the call's family, guessing neither", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.scs",
+          "simulator lang=spectre\nsubckt top d g s b\nM1 (d g s b) pch_mac w=1u l=30n\nends top\n",
+        ),
+      ],
+      "top.scs",
+      { givesModelTypes: true },
+    );
+    expect(
+      result.diagnostics.find(
+        ({ code }) => code === "SPICE_IMPORT_EXTERNAL_CALLS",
+      )?.message,
+    ).toContain('such as {"pch_mac":"nmos"} or {"pch_mac":"pmos"}');
+  });
+
   it("brings a MOS no declaration names in as a call, and as the device the caller types", async () => {
     const netlist = file(
       "top.scs",

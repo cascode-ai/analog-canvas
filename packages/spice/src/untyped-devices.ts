@@ -23,8 +23,9 @@ interface UntypedFamily {
   pins: Readonly<Record<number, readonly string[]>>;
   /** The typed part whose parameters an untyped one offers. */
   parametersOf: string;
-  /** A device type of this family, as a caller states one in modelTypes. */
-  typeExample: string;
+  /** The device types of this family, as a caller states one in
+   * modelTypes: the letter says the family, never which of them. */
+  types: readonly string[];
 }
 
 const UNTYPED_FAMILIES: Readonly<Record<string, UntypedFamily>> = {
@@ -33,21 +34,21 @@ const UNTYPED_FAMILIES: Readonly<Record<string, UntypedFamily>> = {
     label: "MOS",
     pins: { 4: ["D", "G", "S", "B"] },
     parametersOf: "nmos",
-    typeExample: "nmos",
+    types: ["nmos", "pmos"],
   },
   Q: {
     deviceClass: "bjt",
     label: "BJT",
     pins: { 3: ["C", "B", "E"], 4: ["C", "B", "E", "S"] },
     parametersOf: "npn",
-    typeExample: "npn",
+    types: ["npn", "pnp"],
   },
   J: {
     deviceClass: "jfet",
     label: "JFET",
     pins: { 3: ["D", "G", "S"] },
     parametersOf: "njfet",
-    typeExample: "njf",
+    types: ["njf", "pjf"],
   },
 };
 
@@ -137,7 +138,9 @@ export function untypedDeviceDiagnostic(
       `${partNames(names)} ${names.length === 1 ? "uses" : "use"} ${model}, which no card declares: ${names.length === 1 ? "it comes" : "they come"} in as ${family.label} (${pins.join(" ")}) of unknown type, a box with its pins as SPICE orders them`,
   );
   const typed = givesModelTypes
-    ? `, or give its device type in modelTypes, such as {"${first[0]}":"${first[1].family.typeExample}"}`
+    ? `, or give its device type in modelTypes, such as ${first[1].family.types
+        .map((type) => `{"${first[0]}":"${type}"}`)
+        .join(" or ")}`
     : "";
   return diagnostic(
     "SPICE_IMPORT_UNTYPED_DEVICE",

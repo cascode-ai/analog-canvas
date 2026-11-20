@@ -83,13 +83,25 @@ function includedPath(from: string, path: string): string {
 }
 
 /** The device type a call of these ports could be given, by its letter. */
-function typeExample(name: string, ports: number): string | undefined {
+function typeExample(
+  name: string,
+  ports: number,
+): readonly string[] | undefined {
   const letter = name[0]?.toUpperCase();
-  if (letter === "M" && ports === 4) return "nmos";
-  if (letter === "Q" && (ports === 3 || ports === 4)) return "npn";
-  if (letter === "J" && ports === 3) return "njf";
-  if (letter === "D" && ports === 2) return "d";
+  if (letter === "M" && ports === 4) return ["nmos", "pmos"];
+  if (letter === "Q" && (ports === 3 || ports === 4)) return ["npn", "pnp"];
+  if (letter === "J" && ports === 3) return ["njf", "pjf"];
+  if (letter === "D" && ports === 2) return ["d"];
   return undefined;
+}
+
+/** A modelTypes example for each type a family may be: the letter says the
+ * family, never which of its types (#2294). */
+export function modelTypesExample(
+  model: string,
+  types: readonly string[],
+): string {
+  return types.map((type) => `{"${model}":"${type}"}`).join(" or ");
 }
 
 /**
@@ -411,14 +423,14 @@ export function prepareImportSources(
     // A type only where a call's letter and ports fit a family that has
     // one: a capacitor master takes none.
     const typed = calls
-      .map((call) => ({ call, type: typeExample(call.name, call.ports) }))
-      .find(({ type }) => type);
+      .map((call) => ({ call, types: typeExample(call.name, call.ports) }))
+      .find(({ types }) => types);
     diagnostics.push({
       code: "SPICE_IMPORT_EXTERNAL_CALLS",
       // A part may be a device drawn as a box: worth an Agent's attention.
       severity: "warning",
       stage: "import",
-      message: `No declaration in the design names ${named.join(", ")}: each comes in as a call of its master, with its ports in order and its parameters as written. To draw one as a device, include the library that defines it${evidence.givesModelTypes && typed ? `, or give its device type in modelTypes, such as {"${typed.call.master}":"${typed.type}"}` : ""}.`,
+      message: `No declaration in the design names ${named.join(", ")}: each comes in as a call of its master, with its ports in order and its parameters as written. To draw one as a device, include the library that defines it${evidence.givesModelTypes && typed?.types ? `, or give its device type in modelTypes, such as ${modelTypesExample(typed.call.master, typed.types)}` : ""}.`,
     });
   }
   return {
