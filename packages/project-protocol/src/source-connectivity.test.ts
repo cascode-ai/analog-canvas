@@ -52,6 +52,29 @@ const groups = (p: CircuitProject) =>
     .sort();
 
 describe("connections authored once in Project Code", () => {
+  it("retains empty Nets and orders joined terminals under the first Net identity", () => {
+    const s = source();
+    const document = s.documents[0];
+    document.nets = [
+      { id: "spare", at: null },
+      { id: "signal", at: { terminal: ["d", "1"] } },
+      { id: "alias", at: { terminal: ["b", "1"] } },
+    ];
+    document.routes = [wire("db", "d", "b"), wire("ba", "b", "a")];
+    const nets = read(s).documents[0]!.nets;
+    expect(nets).toEqual([
+      { id: "spare", terminals: [] },
+      {
+        id: "signal",
+        terminals: [
+          { instanceId: "a", pinName: "1" },
+          { instanceId: "b", pinName: "1" },
+          { instanceId: "d", pinName: "1" },
+        ],
+      },
+    ]);
+  });
+
   it("adds, joins, splits and repoints networks by editing only routes", () => {
     const s = source();
     s.documents[0].routes.push(wire("ab", "a", "b"), wire("cd", "c", "d"));

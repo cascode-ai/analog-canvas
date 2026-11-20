@@ -12,6 +12,7 @@ import {
   type ResolvedDocumentRoutingGeometry,
 } from "./resolved-route-geometry.js";
 import { resolveRouteAttachment } from "./route-attachment.js";
+import { annotationInstance } from "./annotation-instances.js";
 
 // ADR 0010 general VisualAnchor resolver. It generalizes the existing
 // route attachment resolution (current-marker-specific) to the free | object |
@@ -173,9 +174,7 @@ export function resolveAnchorTargetPosition(
   document: SchematicDocument,
   objectId: string,
 ): GridPoint | null {
-  const instance = document.instances.find(
-    (candidate) => candidate.id === objectId,
-  );
+  const instance = annotationInstance(document, objectId);
   if (instance?.placement) return instance.placement.position;
   const junction = document.junctions.find(
     (candidate) => candidate.id === objectId,

@@ -2,6 +2,7 @@ import {
   routeElectricalConnections,
   junctionElectricalEndpoints,
   type CircuitProject,
+  type Net,
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
@@ -252,22 +253,26 @@ export function materializeSourceConnectivity(
     }
     route.netId = assign(endpointKey(edges[0]!.endpoints[0]), route.id);
   }
-  for (const [key] of endpoints) assign(key, key.replaceAll(":", "-"));
-  const netByEndpoint = new Map(
-    [...endpoints.keys()].map((key) => [key, netForRoot.get(graph.root(key))!]),
-  );
-  document.nets = [...netForRoot].map(([root, id]) => ({
+  const netByEndpoint = new Map<string, string>();
+  const terminalsByNet = new Map<
+    string,
+    [string, Net["terminals"][number]][]
+  >();
+  for (const [key, endpoint] of endpoints) {
+    const id = assign(key, key.replaceAll(":", "-"));
+    netByEndpoint.set(key, id);
+    if (endpoint.kind === "terminal") {
+      const { kind: _, ...terminal } = endpoint;
+      const members = terminalsByNet.get(id) ?? [];
+      members.push([key, terminal]);
+      terminalsByNet.set(id, members);
+    }
+  }
+  document.nets = [...netForRoot.values()].map((id) => ({
     id,
-    terminals: [...endpoints]
-      .filter(([key, e]) => e.kind === "terminal" && graph.root(key) === root)
+    terminals: (terminalsByNet.get(id) ?? [])
       .sort(([a], [b]) => a.localeCompare(b, "en"))
-      .map(([, e]) => {
-        const { kind: _, ...terminal } = e as Extract<
-          RouteEndpoint,
-          { kind: "terminal" }
-        >;
-        return terminal;
-      }),
+      .map(([, terminal]) => terminal),
   }));
   for (const junction of document.junctions) {
     if (junction.members) {

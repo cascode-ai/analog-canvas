@@ -11,6 +11,10 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { resolveVisualAnchor, type ResolvedAnchor } from "./anchor.js";
 import { resolveAnnotationText } from "./annotation-text.js";
+import {
+  annotationInstance,
+  hasUnplacedAnnotationOwner,
+} from "./annotation-instances.js";
 import { valuePrintsMultiplier } from "./instance-value.js";
 import {
   labelInkDescentEm,
@@ -91,10 +95,7 @@ export function isSchematicAnnotationVisible(
       : undefined;
   if (
     anchoredInstanceId !== undefined &&
-    document.instances.some(
-      (instance) =>
-        instance.id === anchoredInstanceId && instance.placement === null,
-    )
+    hasUnplacedAnnotationOwner(document, anchoredInstanceId)
   ) {
     return false;
   }
@@ -105,7 +106,7 @@ export function isSchematicAnnotationVisible(
     binding?.kind === "instance-value" &&
     binding.parameter !== undefined &&
     valuePrintsMultiplier(
-      document.instances.find((item) => item.id === binding.instanceId),
+      annotationInstance(document, binding.instanceId),
       binding.parameter,
       resolver,
     ) &&
