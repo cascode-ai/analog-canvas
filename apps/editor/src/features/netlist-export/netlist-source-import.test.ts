@@ -158,6 +158,24 @@ describe("netlist source import: model evidence", () => {
     ]);
   });
 
+  it("raises no ERC error for a typed PDK model a library outside the sources holds", async () => {
+    const project = importedProject(
+      await importNetlistSources(
+        [
+          file(
+            "top.sp",
+            "* pdk model\n.subckt top d g s b\nM1 d g s b nch_mac w=1u l=30n\n.ends top\n",
+          ),
+        ],
+        "top.sp",
+        { modelTypes: { nch_mac: "nmos" } },
+      ),
+    );
+    expect(
+      erc(project).filter(({ severity }) => severity === "error"),
+    ).toEqual([]);
+  });
+
   it("keeps checking a part placed in Canvas against its own parameters", async () => {
     const project = importedProject(
       await importNetlistSources(
@@ -575,5 +593,102 @@ describe("netlist source import: Spectre masters", () => {
     expect(result.diagnostics[0]?.message).toBe(
       "blk is called with 2 and 3 ports: top.scs:3 XA (2), top.scs:4 XB (3)",
     );
+  });
+});
+
+describe("netlist source import: SPICE device cards without a model card", () => {
+  const spice = (body: string) =>
+    file("top.sp", `* untyped\n.subckt top a b c d\n${body}\n.ends top\n`);
+
+  it("brings in a MOS card of unknown type as a MOS box, its pins in SPICE's order, printed as the card it was", async () => {
+    const result = await importNetlistSources(
+      [spice("M1 a b c d nch_mac w=1u l=30n")],
+      "top.sp",
+    );
+    const project = importedProject(result);
+    const m1 = instanceNamed(project, "M1");
+    const component = project.componentDefinitions?.find(
+      ({ symbol }) => symbol.id === m1.symbolId,
+    );
+    expect(component?.electrical).toMatchObject({
+      deviceClass: "mos",
+      referencePrefix: "M",
+      pinOrder: ["D", "G", "S", "B"],
+      targetPolicy: "required-model",
+    });
+    expect(component?.electrical?.mosBulkClass).toBeUndefined();
+    expect(
+      m1.importProvenance?.terminalMapping?.map(({ pinName }) => pinName),
+    ).toEqual(["D", "G", "S", "B"]);
+    expect(carriedModels(project)).toEqual([]);
+    const exported = createDesignNetlistExport(project, { format: "spice" });
+    expect(exported.status === "ready" ? exported.file.text : "").toMatch(
+      /^M1 a b c d nch_mac /mu,
+    );
+    const finding = result.diagnostics.find(
+      ({ code }) => code === "SPICE_IMPORT_UNTYPED_DEVICE",
+    );
+    expect(finding).toMatchObject({ severity: "warning" });
+    expect(finding?.message).toContain("M1 uses nch_mac");
+    expect(finding?.message).toContain("include the library that defines it");
+    expect(
+      result.diagnostics.map(({ message }) => message).join("\n"),
+    ).not.toMatch(/\.model|bsim4/u);
+  });
+
+  it("brings in a BJT card of unknown type as a BJT box", async () => {
+    const project = importedProject(
+      await importNetlistSources([spice("Q1 a b c qmod")], "top.sp"),
+    );
+    const q1 = instanceNamed(project, "Q1");
+    expect(
+      project.componentDefinitions?.find(
+        ({ symbol }) => symbol.id === q1.symbolId,
+      )?.electrical,
+    ).toMatchObject({ deviceClass: "bjt", pinOrder: ["C", "B", "E"] });
+  });
+
+  it("brings in a diode card as the diode SPICE says it is, its model the reader's", async () => {
+    const project = importedProject(
+      await importNetlistSources([spice("D1 a b dmod")], "top.sp"),
+    );
+    expect(instanceNamed(project, "D1").symbolId).toBe("diode");
+    const exported = createDesignNetlistExport(project, { format: "spice" });
+    expect(exported.status === "ready" ? exported.file.text : "").toMatch(
+      /^D1 a b dmod$/mu,
+    );
+  });
+});
+
+describe("netlist source import: limits", () => {
+  it("refuses a part with more terminals than a part takes, naming it and its line", async () => {
+    const ports = Array.from({ length: 130 }, (_, index) => `p${index}`);
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.sp",
+          [
+            "* wide block",
+            `.subckt big ${ports.join(" ")}`,
+            "R1 p0 p1 1k",
+            ".ends big",
+            `.subckt top ${ports.join(" ")}`,
+            `X1 ${ports.join(" ")} big`,
+            ".ends top",
+          ].join("\n"),
+        ),
+      ],
+      "top.sp",
+    );
+    expect(result.status).toBe("refused");
+    expect(
+      result.diagnostics.filter(({ severity }) => severity === "error"),
+    ).toEqual([
+      expect.objectContaining({
+        code: "SPICE_IMPORT_LIMIT",
+        message:
+          "X1 has 130 terminals; a part takes at most 128, so the design cannot be imported as it is",
+      }),
+    ]);
   });
 });

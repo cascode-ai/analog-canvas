@@ -169,7 +169,7 @@ it("keeps an M card a model card when the deck declares that .model", async () =
   ).toMatchObject({ kind: "model", name: "sky130_fd_pr__nfet_01v8" });
 });
 
-it("says which .model card a device of unknown type needs", async () => {
+it("brings in a device of unknown type as its family's box and asks for its library, never a made-up card (#2294)", async () => {
   const text = [
     ".subckt top d g s b",
     "M1 d g s b mystery w=1u l=1u",
@@ -178,11 +178,12 @@ it("says which .model card a device of unknown type needs", async () => {
     "",
   ].join("\n");
   const result = await importSpiceSources([input("m.spi", text)], "m.spi");
+  expect(result.successful).toBe(true);
   expect(
-    result.diagnostics.find((d) => d.code === "SPICE_IMPORT_UNSUPPORTED_SYMBOL")
+    result.diagnostics.find((d) => d.code === "SPICE_IMPORT_UNTYPED_DEVICE")
       ?.message,
   ).toBe(
-    'M1 uses model mystery, which no .model card declares, so its device type is unknown. Add ".model mystery nmos" or ".model mystery pmos".',
+    "M1 uses mystery, which no card declares: it comes in as MOS (D G S B) of unknown type, a box with its pins as SPICE orders them. To draw one as the device it is, include the library that defines it.",
   );
 });
 
@@ -219,17 +220,18 @@ it("takes an undeclared model's device type from another reading of the files, a
   expect(part("M2").symbolId).toBe("pmos");
 });
 
-it("suggests native Spectre model statements for an undeclared model in SCS", async () => {
+it("asks for an undeclared model's library in converted SCS too, never a made-up model statement (#2294)", async () => {
   const result = await importSpiceSources(
     [input("bipolar.scs", "* converted SCS\nQ1 c b e mystery\n.end\n")],
     "bipolar.scs",
   );
-  expect(
-    result.diagnostics.find((d) => d.code === "SPICE_IMPORT_UNSUPPORTED_SYMBOL")
-      ?.message,
-  ).toBe(
-    'Q1 uses model mystery, which no model statement declares, so its device type is unknown. Add "model mystery bjt type=npn" or "model mystery bjt type=pnp".',
-  );
+  expect(result.successful).toBe(true);
+  const message = result.diagnostics.find(
+    (d) => d.code === "SPICE_IMPORT_UNTYPED_DEVICE",
+  )?.message;
+  expect(message).toContain("Q1 uses mystery");
+  expect(message).toContain("include the library that defines it");
+  expect(message).not.toMatch(/bjt type=|\bmodel mystery\b/u);
 });
 
 it("imports a standard-cell call as the external block it declares, not a Library gate (#1450)", async () => {

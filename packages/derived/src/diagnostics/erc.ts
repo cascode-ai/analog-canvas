@@ -209,7 +209,13 @@ export function runErcChecks(
       const missingExternalMaster =
         instance.netlist?.binding?.kind === "external-subcircuit" ||
         instance.netlist?.binding?.kind === "unresolved-subcircuit";
-      if (instance.importProvenance?.status === "missing") {
+      // A typed model a library outside the sources holds is the supported
+      // case of a foundry design (the caller gives its type, the reader its
+      // card): export and runs report it, not ERC (#2294).
+      const typedOnly =
+        instance.importProvenance?.kind === "model" &&
+        instance.importProvenance.modelType !== undefined;
+      if (instance.importProvenance?.status === "missing" && !typedOnly) {
         const code = missingExternalMaster
           ? "ERC_MISSING_EXTERNAL_MASTER"
           : "ERC_MISSING_MODEL";

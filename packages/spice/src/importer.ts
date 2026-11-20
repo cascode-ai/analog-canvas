@@ -42,6 +42,12 @@ import {
   normalizeSourcePath,
 } from "./source.js";
 import { parseNgspiceSourceParameters } from "./source-parameters.js";
+import {
+  untypedComponents,
+  untypedFamily,
+  untypedLabel,
+  untypedSymbolId,
+} from "./untyped-devices.js";
 
 export interface SpiceImportResult extends SpiceCompileResult {
   project: CircuitProject | null;
@@ -281,6 +287,9 @@ interface ImportSymbolMapping {
   registryId?: string;
   /** A reviewed subcircuit an M card names, imported as the X call it is. */
   reviewedMaster?: string;
+  /** A card of unknown type drawn with the Project's box of its family
+   * (`untypedComponent`), whose class the registry does not hold. */
+  untyped?: { letter: string; deviceClass: NetlistDeviceClass };
 }
 
 function explicitSymbolOverride(
@@ -353,7 +362,8 @@ function importedNetlistBinding(
       definitionId: externalDefinitionId(mapping.reviewedMaster),
     };
   }
-  const deviceClass = netlistDeviceClass(mapping.symbolId);
+  const deviceClass =
+    mapping.untyped?.deviceClass ?? netlistDeviceClass(mapping.symbolId);
   if (!deviceClass) return undefined;
   switch (instance.target.kind) {
     case "primitive":
@@ -454,6 +464,22 @@ function symbolFor(
         registryId: reviewed.id,
         reviewedMaster: reviewed.masterName,
       };
+    // No type for its model: a D card is the diode SPICE says it is; an M,
+    // Q or J card is a box of its family, which no name decides (#2294).
+    if (modelType === undefined) {
+      if (/^d/iu.test(instance.name) && instance.terminals.length === 2)
+        return { symbolId: "diode", pinNames: ["A", "K"] };
+      const untyped = untypedFamily(instance);
+      if (untyped)
+        return {
+          symbolId: untypedSymbolId(untyped.letter, untyped.pins.length),
+          pinNames: untyped.pins,
+          untyped: {
+            letter: untyped.letter,
+            deviceClass: untyped.family.deviceClass,
+          },
+        };
+    }
     return null;
   }
   if (instance.target.kind === "opaque") {
@@ -531,9 +557,12 @@ function importProvenance(
         status: "resolved",
       };
     case "model": {
-      const modelType = modelTypeByName.get(
-        instance.target.modelName.toLowerCase(),
-      );
+      // A D card's type is its letter's, whatever its model.
+      const modelType =
+        modelTypeByName.get(instance.target.modelName.toLowerCase()) ??
+        (/^d/iu.test(instance.name) && instance.terminals.length === 2
+          ? "d"
+          : undefined);
       // A type the caller gives draws the part; only a card is its model.
       return {
         kind: "model",
@@ -572,9 +601,21 @@ function importProvenance(
   }
 }
 
+/** Part names in reading order, five at most. */
+function partNames(names: readonly string[]): string {
+  const shown = names.slice(0, 5);
+  const rest = names.length - shown.length;
+  if (rest > 0) return `${shown.join(", ")} and ${rest} more`;
+  return shown.length > 1
+    ? `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}`
+    : (shown[0] ?? "");
+}
+
 /**
- * A device card naming a model no .model card declares cannot say what it
- * is. The symbol catalog is not what is missing, so say what is.
+ * A device card naming a model no card declares, whose card fits no family
+ * Analog Canvas draws (an M card of three nodes): say what is missing. It
+ * never asks for a made-up card (#2294): the library that defines the model
+ * is what is missing, or, for a caller that gives them, its device type.
  */
 function undeclaredModelMessage(
   instance: CircuitInstanceIR,
@@ -585,25 +626,8 @@ function undeclaredModelMessage(
   if (instance.target.kind !== "model") return undefined;
   const model = instance.target.modelName;
   if (modelTypeByName.has(model.toLowerCase())) return undefined;
-  const types =
-    { 2: ["d"], 3: ["npn", "pnp"], 4: ["nmos", "pmos"] }[
-      instance.terminals.length
-    ] ?? [];
-  if (!types.length) return undefined;
-  const declaration = spectre ? "model statement" : ".model card";
-  if (givesModelTypes)
-    return `${instance.name} uses model ${model}, which no ${declaration} declares (an external library may hold its card), so its device type is unknown. Give its device type in modelTypes, such as {"${model}":"${types[0]}"}, rather than editing the files.`;
-  const suggestions = types.map((type) => {
-    if (!spectre) return `".model ${model} ${type}"`;
-    const native =
-      type === "d"
-        ? "diode"
-        : type === "npn" || type === "pnp"
-          ? `bjt type=${type}`
-          : `bsim4 type=${type === "nmos" ? "n" : "p"}`;
-    return `"model ${model} ${native}"`;
-  });
-  return `${instance.name} uses model ${model}, which no ${declaration} declares, so its device type is unknown. Add ${suggestions.join(" or ")}.`;
+  const declaration = spectre ? "model statement" : "card";
+  return `${instance.name} uses model ${model}, which no ${declaration} declares, and its card of ${instance.terminals.length} nodes fits no device family. Include the library that defines ${model}${givesModelTypes ? ", or give its device type in modelTypes" : ""}.`;
 }
 
 /**
@@ -1887,6 +1911,35 @@ function importCircuitIR(
   const entryHash = bundle.files.find(
     (file) => file.id === bundle.entryFileId,
   )?.hash;
+  // Cards of unknown type, drawn with the Project's boxes of their family;
+  // one finding names them and how to draw each as the device it is.
+  const placedInstances = documents.flatMap((document) => document.instances);
+  const untyped = untypedComponents(
+    new Set(placedInstances.map(({ symbolId }) => symbolId)),
+  );
+  const byModel = new Map<string, { names: string[]; family: string }>();
+  for (const instance of placedInstances) {
+    const family = untypedLabel(instance.symbolId);
+    const binding = instance.netlist?.binding;
+    if (!family || binding?.kind !== "model") continue;
+    const entry = byModel.get(binding.name) ?? { names: [], family };
+    entry.names.push(instance.reference ?? instance.id);
+    byModel.set(binding.name, entry);
+  }
+  if (byModel.size)
+    diagnostics.push(
+      diagnostic(
+        "SPICE_IMPORT_UNTYPED_DEVICE",
+        "warning",
+        "import",
+        `${[...byModel]
+          .map(
+            ([model, { names, family }]) =>
+              `${partNames(names)} ${names.length === 1 ? "uses" : "use"} ${model}, which no card declares: ${names.length === 1 ? "it comes" : "they come"} in as ${family} of unknown type, a box with its pins as SPICE orders them`,
+          )
+          .join("; ")}. To draw one as the device it is, include the library that defines it${options.undeclaredModels === "give-type" ? ', or give its device type in modelTypes, such as {"' + [...byModel.keys()][0] + '":"nmos"}' : ""}.`,
+      ),
+    );
   const project = CircuitProjectSchema.parse({
     schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
     id: deriveStableId("project", bundle.entryPath, entryHash ?? "missing"),
@@ -1920,6 +1973,7 @@ function importCircuitIR(
     topDocumentId: topDocument.id,
     documents,
     externalSubcircuitDefinitions,
+    ...(untyped.length ? { componentDefinitions: untyped } : {}),
     // Kept where a call is bound to it.
     ...(kept &&
     externalSubcircuitDefinitions.some(
@@ -1932,11 +1986,69 @@ function importCircuitIR(
   return { project, diagnostics };
 }
 
+/** What a Project holds of one part or Cell at most. */
+const MAX_PART_TERMINALS = 128;
+const MAX_FORMAL_PARAMETERS = 128;
+
+/**
+ * Parts and Cells beyond what a Project holds, each named where it is, so
+ * the import refuses them by name rather than as an invalid Project.
+ */
+function limitDiagnostics(ir: CircuitIR): SpiceDiagnostic[] {
+  const found: SpiceDiagnostic[] = [];
+  for (const cell of ir.cells) {
+    if (cell.parameters.length > MAX_FORMAL_PARAMETERS)
+      found.push(
+        diagnostic(
+          "SPICE_IMPORT_LIMIT",
+          "error",
+          "import",
+          `${cell.name} declares ${cell.parameters.length} parameters; a Cell takes at most ${MAX_FORMAL_PARAMETERS}, so the design cannot be imported as it is`,
+          cell.sourceRef,
+        ),
+      );
+    for (const instance of cell.instances) {
+      if (instance.terminals.length > MAX_PART_TERMINALS)
+        found.push(
+          diagnostic(
+            "SPICE_IMPORT_LIMIT",
+            "error",
+            "import",
+            `${instance.name} has ${instance.terminals.length} terminals; a part takes at most ${MAX_PART_TERMINALS}, so the design cannot be imported as it is`,
+            instance.sourceRef,
+          ),
+        );
+      if (
+        instance.target.kind === "external-subcircuit" &&
+        Object.keys(instance.parameters).length > MAX_FORMAL_PARAMETERS
+      )
+        found.push(
+          diagnostic(
+            "SPICE_IMPORT_LIMIT",
+            "error",
+            "import",
+            `${instance.name} sets ${Object.keys(instance.parameters).length} parameters of ${instance.target.masterName}; an external master takes at most ${MAX_FORMAL_PARAMETERS}, so the design cannot be imported as it is`,
+            instance.sourceRef,
+          ),
+        );
+    }
+  }
+  return found;
+}
+
 export function importCompileResult(
   result: SpiceCompileResult,
   options: SpiceImportOptions = {},
 ): SpiceImportResult {
   if (!result.ir) return { ...result, project: null };
+  const limits = limitDiagnostics(result.ir);
+  if (limits.length)
+    return {
+      ...result,
+      project: null,
+      diagnostics: [...result.diagnostics, ...limits],
+      successful: false,
+    };
   try {
     const imported = importCircuitIR(
       result.ir,
