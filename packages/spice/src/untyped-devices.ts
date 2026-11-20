@@ -152,7 +152,7 @@ export function untypedDeviceDiagnostic(
 
 /** The Project's component an untyped card draws with: a box, the family's
  * pins, and the card's letter, bound to the model it names. */
-export function untypedComponent(
+function untypedComponent(
   letter: string,
   pins: readonly string[],
 ): ComponentDefinition {

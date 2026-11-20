@@ -97,10 +97,7 @@ function typeExample(
 
 /** A modelTypes example for each type a family may be: the letter says the
  * family, never which of its types (#2294). */
-export function modelTypesExample(
-  model: string,
-  types: readonly string[],
-): string {
+function modelTypesExample(model: string, types: readonly string[]): string {
   return types.map((type) => `{"${model}":"${type}"}`).join(" or ");
 }
 
