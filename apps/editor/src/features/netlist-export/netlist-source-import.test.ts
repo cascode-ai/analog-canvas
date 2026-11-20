@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { buildProjectConnectivityIndex, runErcChecks } from "@icm/derived";
-import type { CircuitProject } from "@icm/model";
+import {
+  assessImportReference,
+  buildProjectConnectivityIndex,
+  runErcChecks,
+} from "@icm/derived";
+import { createRoutePath, type CircuitProject } from "@icm/model";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import { analyzeDesignNetlist, createDesignNetlistExport } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import { normalizeImportedProject } from "../../document/project-import-normalization";
 import { importNetlistSources } from "./netlist-source-import.js";
 
 function erc(project: CircuitProject) {
@@ -690,5 +696,77 @@ describe("netlist source import: limits", () => {
           "X1 has 130 terminals; a part takes at most 128, so the design cannot be imported as it is",
       }),
     ]);
+  });
+});
+
+describe("netlist source import: saved and opened again", () => {
+  it("keeps every imported connection drawn when opening drops a wire two touching pins make redundant (#2294)", async () => {
+    const project = importedProject(
+      await importNetlistSources(
+        [
+          file(
+            "top.sp",
+            "* series\n.subckt top a c\nR1 a b 1k\nR2 b c 1k\n.ends top\n",
+          ),
+        ],
+        "top.sp",
+      ),
+    );
+    const document = project.documents.find(({ name }) => name === "top")!;
+    const at = (reference: string, y: number) => {
+      instanceNamed(project, reference).placement = {
+        position: { x: 100, y },
+        rotation: 0,
+        mirror: "none",
+      };
+    };
+    // R1's pin 2 and R2's pin 1 meet at (100, 120), and a wire a former
+    // save kept joins them as well.
+    at("R1", 100);
+    at("R2", 140);
+    const r1 = instanceNamed(project, "R1").id;
+    const r2 = instanceNamed(project, "R2").id;
+    const shared = document.nets.find((net) =>
+      net.terminals.some(
+        ({ instanceId, pinName }) => instanceId === r1 && pinName === "2",
+      ),
+    )!;
+    document.routes.push(
+      createRoutePath({
+        id: "redundant-contact-wire",
+        netId: shared.id,
+        start: { kind: "terminal", instanceId: r1, pinName: "2" },
+        end: { kind: "terminal", instanceId: r2, pinName: "1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const resolver = createProjectSymbolResolver(project, builtInSymbols);
+    const saved = parseProject(serializeProject(project));
+    const reopened = normalizeImportedProject(saved, resolver).project;
+    const reopenedDocument = reopened.documents.find(
+      ({ name }) => name === "top",
+    )!;
+    // The wire is gone, the pins still share their Net, and the import's
+    // routing hints are the ones the saved drawing had.
+    expect(reopenedDocument.routes.map(({ id }) => id)).not.toContain(
+      "redundant-contact-wire",
+    );
+    const members = (doc: typeof document) =>
+      doc.nets
+        .map((net) =>
+          net.terminals
+            .map(({ instanceId, pinName }) => `${instanceId}.${pinName}`)
+            .sort()
+            .join(" "),
+        )
+        .sort();
+    expect(members(reopenedDocument)).toEqual(members(document));
+    const hints = (doc: typeof document, of: CircuitProject) =>
+      assessImportReference(
+        doc,
+        createProjectSymbolResolver(of, builtInSymbols),
+      );
+    expect(hints(reopenedDocument, reopened)).toEqual(hints(document, project));
   });
 });
