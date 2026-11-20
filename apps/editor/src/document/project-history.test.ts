@@ -51,6 +51,41 @@ function agentHistory(
 }
 
 describe("Project working-copy history", () => {
+  it.each(["document", "structure"] as const)(
+    "reports the correct field and preserves history when the next %s revision is unrepresentable",
+    (field) => {
+      const project = createEmptyProject("history", "Last revision");
+      if (field === "document")
+        project.documents[0]!.revision = Number.MAX_SAFE_INTEGER - 1;
+      else project.structureRevision = Number.MAX_SAFE_INTEGER - 1;
+      const controller = new EditorDocumentController(project);
+      if (field === "document") add(controller, "R1");
+      else rename(controller, "Renamed");
+      const before = controller.project;
+      const rejected = controller.transact([{ kind: "undo" }]);
+      expect(rejected).toMatchObject({
+        ok: false,
+        applied: false,
+        error: { code: "INTERNAL_ERROR" },
+      });
+      if (rejected.ok) throw new Error("Unexpected successful Undo");
+      const issues = JSON.parse(
+        rejected.error.message.replace(/^History restoration failed: /u, ""),
+      );
+      expect(issues).toContainEqual(
+        expect.objectContaining({
+          path:
+            field === "document"
+              ? ["documents", 0, "revision"]
+              : ["structureRevision"],
+        }),
+      );
+      expect(controller.project).toBe(before);
+      expect(controller.canUndo).toBe(true);
+      expect(controller.canRedo).toBe(false);
+    },
+  );
+
   it("interleaves structural and document edits without jumping or losing redo (#1233)", () => {
     const controller = setup();
     rename(controller, "First");

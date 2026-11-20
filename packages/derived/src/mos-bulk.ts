@@ -57,6 +57,44 @@ const bulkRouteIndexes = registerDocumentCache(
   new WeakMap<SchematicDocument, BulkRouteIndex>(),
 );
 
+const bodyNetsByMembership = new WeakMap<readonly Net[], Map<string, Net>>();
+const supplyMarkerInstances = new WeakMap<readonly Instance[], Instance[]>();
+
+function supplyMarkerCandidates(instances: Instance[]): readonly Instance[] {
+  if (!isFrozenSnapshot(instances)) return instances;
+  let markers = supplyMarkerInstances.get(instances);
+  if (!markers) {
+    markers = instances.filter((instance) =>
+      supplyMarkerForSymbol(instance.symbolId),
+    );
+    supplyMarkerInstances.set(instances, markers);
+  }
+  return markers;
+}
+
+/** First physical B membership in document order, including legacy duplicates. */
+function connectedMosBodyNet(document: SchematicDocument, instanceId: string) {
+  if (!isFrozenSnapshot(document.nets))
+    return document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instanceId && terminal.pinName === "B",
+      ),
+    );
+  let bodies = bodyNetsByMembership.get(document.nets);
+  if (!bodies) {
+    bodies = new Map();
+    for (const net of document.nets) {
+      for (const terminal of net.terminals) {
+        if (terminal.pinName === "B" && !bodies.has(terminal.instanceId))
+          bodies.set(terminal.instanceId, net);
+      }
+    }
+    bodyNetsByMembership.set(document.nets, bodies);
+  }
+  return bodies.get(instanceId);
+}
+
 function bulkContactKeys(index: BulkRouteIndex, route: RouteBranch): string[] {
   return [route.start, routeEnd(route)].flatMap((endpoint) => {
     if (endpoint.kind === "junction")
@@ -374,7 +412,7 @@ function drawnSupplyNets(
     if (foldNetName(terminal.name) === formalName) addCandidate(terminal.netId);
   // A wired marker remains an independent declaration when another Port or
   // claim exists; a disagreement must not silently select either supply.
-  for (const instance of document.instances) {
+  for (const instance of supplyMarkerCandidates(document.instances)) {
     const marker = supplyMarkerForSymbol(instance.symbolId);
     if (marker?.domain !== domain) continue;
     const net = document.nets.find((candidate) =>
@@ -428,12 +466,7 @@ export function resolveMosBulkConnection(
       : instanceOrId;
   if (!instance || !mosBulkKind(instance)) return undefined;
 
-  const connectedNet = document.nets.find((net) =>
-    net.terminals.some(
-      (terminal) =>
-        terminal.instanceId === instance.id && terminal.pinName === "B",
-    ),
-  );
+  const connectedNet = connectedMosBodyNet(document, instance.id);
   // A body alone on the Net its own policy binding named, with no geometry,
   // no name and no Cell terminal, is what a paste or a deleted supply marker
   // left behind — not a connection anybody drew. Reading it as one strands
@@ -656,12 +689,7 @@ export function strandedMosBulkNet(
   // a deleted marker left behind. Residue is what this editor writes for a
   // Cell's policy or for one instance.
   if (instance.mosBulkBinding.origin === "supply-default") return undefined;
-  const net = document.nets.find((candidate) =>
-    candidate.terminals.some(
-      (terminal) =>
-        terminal.instanceId === instance.id && terminal.pinName === "B",
-    ),
-  );
+  const net = connectedMosBodyNet(document, instance.id);
   if (!net || instance.mosBulkBinding.netId !== net.id) return undefined;
   const sole =
     net.terminals.length === 1 &&
@@ -703,12 +731,7 @@ export function resolveDetachedMosBulkDefault(
   const configuredNet = configuredNetId
     ? document.nets.find((net) => net.id === configuredNetId)
     : undefined;
-  const connectedNet = document.nets.find((net) =>
-    net.terminals.some(
-      (terminal) =>
-        terminal.instanceId === instance.id && terminal.pinName === "B",
-    ),
-  );
+  const connectedNet = connectedMosBodyNet(document, instance.id);
   if (
     !configuredNet ||
     !connectedNet ||

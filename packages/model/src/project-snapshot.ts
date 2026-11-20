@@ -1,6 +1,7 @@
 import { CircuitProjectSchema } from "./schema/project.js";
+import { SchematicDocumentSchema } from "./schema/document.js";
 import { freezeSnapshot, isFrozenSnapshot } from "./immutable-snapshot.js";
-import type { CircuitProject } from "./schema/types.js";
+import type { CircuitProject, SchematicDocument } from "./schema/types.js";
 import { shareEqualProjectStructure } from "./snapshot-structural-sharing.js";
 
 const validatedSnapshots = new WeakSet<CircuitProject>();
@@ -70,6 +71,36 @@ export function shareProjectSnapshot(
   const project = freezeSnapshot(shareEqualProjectStructure(before, validated));
   validatedSnapshots.add(project);
   return project;
+}
+
+/** History restores validated content with fresh live revision numbers. */
+export function restoreProjectSnapshot(
+  retained: CircuitProject,
+  structureRevision: number,
+  documentRevision: (document: SchematicDocument) => number,
+): CircuitProject {
+  const source = parseProjectSnapshot(retained);
+  const documents = source.documents.map((document) => {
+    const revision = documentRevision(document);
+    return revision === document.revision
+      ? document
+      : { ...document, revision };
+  });
+  const next = { ...source, documents, structureRevision };
+  // The source owns every field except the revisions. Delegate invalid values
+  // to the full schema so callers receive the original paths and diagnostics.
+  if (
+    !CircuitProjectSchema.shape.structureRevision.safeParse(structureRevision)
+      .success ||
+    documents.some(
+      (doc) =>
+        !SchematicDocumentSchema.shape.revision.safeParse(doc.revision).success,
+    )
+  )
+    return parseProjectSnapshot(next, source);
+  const snapshot = freezeSnapshot(next);
+  validatedSnapshots.add(snapshot);
+  return snapshot;
 }
 
 export function parseProjectSnapshot(

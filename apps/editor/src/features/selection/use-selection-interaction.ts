@@ -1281,6 +1281,8 @@ export function useSelectionInteraction(
     }
     const gate = gateRoutingOperationPlan(options.document, deletionPlan, {
       symbolResolver: options.resolver,
+      externalSubcircuitDefinitions:
+        options.project.externalSubcircuitDefinitions,
     });
     if (!gate.ok) {
       options.setStatus(gate.message);

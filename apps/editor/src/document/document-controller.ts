@@ -24,6 +24,7 @@ import {
   isFrozenSnapshot,
   ComponentDefinitionSchema,
   freezeSnapshot,
+  restoreProjectSnapshot,
 } from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { DocumentContactEvidence } from "@icm/derived";
@@ -578,28 +579,20 @@ export class EditorDocumentController {
       );
     try {
       const current = new Map(before.documents.map((item) => [item.id, item]));
-      // shareDocuments owns full Project validation before the history cursor
-      // changes; a generic parse here would clone and validate it twice.
-      const restored = this.shareDocuments(entry.project, {
-        ...entry.project,
-        structureRevision:
-          before.structureRevision + (entry.structural ? 1 : 0),
-        documents: entry.project.documents.map((saved) => {
+      const restored = restoreProjectSnapshot(
+        entry.project,
+        before.structureRevision + (entry.structural ? 1 : 0),
+        (saved) => {
           const live = current.get(saved.id);
           // Revisions identify live versions, never the historical snapshot.
-          const unchanged = live && sameDocumentJson(live, saved, true);
-          return unchanged
-            ? live
-            : {
-                ...saved,
-                revision:
-                  Math.max(
-                    saved.revision,
-                    this.documentRevisions.get(saved.id) ?? 0,
-                  ) + 1,
-              };
-        }),
-      });
+          return live && sameDocumentJson(live, saved, true)
+            ? live.revision
+            : Math.max(
+                saved.revision,
+                this.documentRevisions.get(saved.id) ?? 0,
+              ) + 1;
+        },
+      );
       const restoredDocument =
         restored.documents.find((item) => item.id === historyDocumentId) ??
         restored.documents.find((item) => item.id === request.documentId) ??

@@ -3,7 +3,10 @@ import {
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
-import { resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  resolveDocumentLogicalNets,
+  type EndpointObjectLookup,
+} from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 /** Read aggregate membership from the electrical declaration, never label spelling. */
@@ -11,14 +14,17 @@ export function signalEndpointMembers(
   document: SchematicDocument,
   resolver: SymbolResolver,
   endpoint: RouteEndpoint,
+  lookup?: EndpointObjectLookup,
 ): Array<{ id: string; netId: string; name?: string }> | undefined {
   if (endpoint.memberId) return undefined;
   if (endpoint.kind === "junction") {
-    const members = document.junctions.find(
-      (item) => item.id === endpoint.junctionId,
-    )?.members;
+    const junction = lookup
+      ? lookup.junctionsById.get(endpoint.junctionId)
+      : document.junctions.find((item) => item.id === endpoint.junctionId);
+    const members = junction?.members;
     if (!members) return undefined;
-    const logical = resolveDocumentLogicalNets(document);
+    const logical =
+      lookup?.logicalNetResolution ?? resolveDocumentLogicalNets(document);
     return members.map((member) => ({
       ...member,
       ...(logical.byBaseNetId.get(member.netId)?.name
@@ -33,9 +39,9 @@ export function signalEndpointMembers(
   );
   if (declaration?.signal && declaration.signal.members.length > 1)
     return declaration.signal.members;
-  const instance = document.instances.find(
-    (item) => item.id === endpoint.instanceId,
-  );
+  const instance = lookup
+    ? lookup.instancesById.get(endpoint.instanceId)
+    : document.instances.find((item) => item.id === endpoint.instanceId);
   const members =
     instance &&
     resolver
