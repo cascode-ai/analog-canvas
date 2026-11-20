@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "2e953b3a015ed432c72b4a648fa20f343f8dc17b2dd3f35767d8d594b52d2339"
+      "sha256": "84268a003b1be8f380a4b2332347700491ffea6fe88640dd3eda342b2de8504c"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -125,7 +125,7 @@
     },
     {
       "source": "docs/agent/local-workspace.md",
-      "sha256": "283ba12540043cb0433b8479b33f686801647701be79db14bcc88aa671ea3d38"
+      "sha256": "dc1b54689820f8724bde3546ba07f6f8dfabbb2ee8e9eedcb7d8452e074467ef"
     },
     {
       "source": "docs/agent/skills/canvas-review/SKILL.md",
@@ -137,7 +137,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "840a786d2279aaead805f5870244840f731d3646904e2ca963d7613d4e63f43a"
+      "sha256": "ac6acdc4ea64cd17973749a05584ff435fc07584d74dd587c828837358ce1746"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "2216daac9d31426f9e0f1862f47e55a22817cb1074dc251f86674c6b75e247ab"
+      "sha256": "0ebdddd5ffe6314f2275f2687239bde801072cc99c8f4e6da8f903e556a6718b"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -732,7 +732,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "560a749ffae229baba651f1da70cc0a31f7a4e4d13e83012f546577379cbe2ea"
+      "sha256": "a7ee57a4be2f95438773b8bd01501d58d66448d925ff708433802ad2d45a67ce"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",

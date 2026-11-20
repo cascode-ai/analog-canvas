@@ -232,6 +232,10 @@ Tool descriptions cover each action; these are the extra rules.
   `AI_ACCOUNT_REQUIRED`.
 - `project_code` and `netlist_code` reads return the requested export plus
   each Cell in `cells`, so one broken Cell cannot hide another.
+- `netlist_code` with `action:"read", rnl:true` returns the same netlist with
+  its drawing written as RNL comments (SPICE+RNL or Spectre+RNL; `format`
+  chooses the dialect). It is the Netlist panel's export, and works without a
+  browser in `--local` mode. `cells` is empty: RNL is a whole-file export.
 
 `export_file` downloads a local artifact; its `warnings`, when present, say
 what the artifact leaves out (a PDF names characters no PDF font holds, which

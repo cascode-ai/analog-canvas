@@ -205,6 +205,12 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       namingProfile: NetlistNamingProfileSchema.optional(),
       portCase: NetlistPortCaseSchema.optional(),
       process: NetlistProcessSchema.optional(),
+      /**
+       * Write the drawing into the same netlist as RNL comments. The editor's
+       * own export mode, available here so a headless workspace can produce
+       * an RNL file without a page. The root Cell only.
+       */
+      rnl: z.boolean().optional(),
       /** Public Cell-scoped spelling; rootDocumentId remains wire-compatible. */
       documentId: StableIdSchema.optional(),
       rootDocumentId: StableIdSchema.optional(),
@@ -269,6 +275,8 @@ const AgentNetlistDiagnosticSchema = z.strictObject({
 export const AgentNetlistReadSchema = z.strictObject({
   documentId: StableIdSchema.optional(),
   format: NetlistFormatSchema,
+  /** True when `text` carries the drawing, written as RNL comments. */
+  rnl: z.boolean().optional(),
   status: z.enum(["ready", "blocked"]),
   text: z.string().nullable(),
   diagnostics: z.array(AgentNetlistDiagnosticSchema),

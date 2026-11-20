@@ -21,6 +21,7 @@ import {
   planProjectCopyPlacement,
 } from "../features/clipboard/project-copy";
 import type { CloudProjectSummary } from "../features/editor-shell/cloud-projects";
+import { readRnlBrowser } from "../features/netlist-export/rnl-read";
 import type { createProjectStructureCommands } from "../features/hierarchy/project-structure-commands";
 import { ProjectRunHistory } from "../features/simulation/project-run-history";
 import type { EditorServices } from "../services/editor-services";
@@ -500,6 +501,7 @@ export function createAgentWorkspaceTargets({
     const projectHost = new runtime.BrowserAgentProjectHost({
       projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
       workspace: (request) => agentWorkspaceRef.current(request, workspaceId),
+      readRnl: readRnlBrowser,
       // A tab in the background has nothing on show to publish.
       publishToGallery: runtime.createAgentGalleryPublisher({
         current: () => null,

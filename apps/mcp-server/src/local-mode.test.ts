@@ -159,6 +159,22 @@ describe("MCP local mode (#1498)", () => {
       ok: true,
       netlist: { status: "ready", text: expect.stringContaining("R2") },
     });
+    // The same netlist with the drawing written as RNL, without a page.
+    expect(
+      await tool("netlist_code", {
+        action: "read",
+        format: "spice",
+        rnl: true,
+      }),
+    ).toMatchObject({
+      ok: true,
+      netlist: {
+        status: "ready",
+        rnl: true,
+        text: expect.stringContaining('@RNL(type="header")'),
+      },
+      cells: [],
+    });
     const reference = await readFile(join(dir, "reference.sp"), "utf8");
     expect(
       await tool("verify", { expectedNetlist: { text: reference } }),

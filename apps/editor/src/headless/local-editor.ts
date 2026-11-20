@@ -30,6 +30,7 @@ import {
   placementProcessFill,
   processTargetForShortName,
 } from "../features/netlist-export/netlist-process";
+import { createHeadlessRnlRead } from "./rnl";
 
 /** Every scope a person can grant; a local workspace is its owner's own. */
 export const LOCAL_AGENT_SCOPES: readonly AgentSessionScope[] =
@@ -103,6 +104,7 @@ export function createLocalEditor(options: LocalEditorOptions) {
     dispatchProjectTransaction: (request) =>
       host.dispatchProjectTransaction(request),
     fetch: unavailable,
+    readRnl: createHeadlessRnlRead(),
   });
   const service = createAgentCircuitService(
     agentCircuitServiceOptions({

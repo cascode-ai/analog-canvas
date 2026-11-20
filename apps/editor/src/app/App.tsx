@@ -38,6 +38,7 @@ import {
 } from "../features/netlist-export/netlist-panel-start";
 import { NetlistProfileCode } from "../features/netlist-export/netlist-profile-code";
 import { useNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
+import { readRnlBrowser } from "../features/netlist-export/rnl-read";
 import {
   placementModelTarget,
   placementProcessFill,
@@ -1218,6 +1219,7 @@ function WorkspaceEditor({
                 ),
             }),
             workspace: (request) => agentWorkspaceRef.current(request),
+            readRnl: readRnlBrowser,
             getProjectSessionId: () =>
               editorDocumentController.projectSessionId,
             getProject: () => editorDocumentController.project,

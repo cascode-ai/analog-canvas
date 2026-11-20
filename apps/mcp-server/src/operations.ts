@@ -279,6 +279,12 @@ const NetlistCodeArgs = z.discriminatedUnion("action", [
     namingProfile: z.enum(["native", "cadence-bang"]).optional(),
     portCase: z.enum(["lower", "upper"]).optional(),
     process: NetlistProcessSchema.optional(),
+    /**
+     * Write the drawing into the netlist as RNL comments (SPICE+RNL or
+     * Spectre+RNL), the same export the Netlist panel writes. Works without a
+     * browser in a local workspace.
+     */
+    rnl: z.boolean().optional(),
     documentId: z.string().min(1).optional(),
     rootDocumentId: z.string().min(1).optional(),
   }),
@@ -1144,6 +1150,7 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           requestId: crypto.randomUUID(),
           operation: "read-netlist",
           ...(parsed.format ? { format: parsed.format } : {}),
+          ...(parsed.rnl ? { rnl: true } : {}),
           ...(parsed.process ? { process: parsed.process } : {}),
           ...(parsed.namingProfile
             ? { namingProfile: parsed.namingProfile }
