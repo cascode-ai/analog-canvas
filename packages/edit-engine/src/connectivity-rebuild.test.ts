@@ -258,4 +258,27 @@ describe("connectivity reconstructed from final wire topology", () => {
     ]);
     expect(groups(after)).toEqual(["b"]);
   });
+  it("reassigns two unrouted terminals in one transaction without joining their old Nets", () => {
+    const before = commit(fixture(), [
+      {
+        kind: "connect_endpoints",
+        from: pin("a"),
+        to: pin("b"),
+        newNetId: "first",
+      },
+      {
+        kind: "connect_endpoints",
+        from: pin("c"),
+        to: pin("d"),
+        newNetId: "second",
+      },
+    ]);
+    const after = commit(before, [
+      { kind: "disconnect_endpoint", endpoint: pin("a") },
+      { kind: "disconnect_endpoint", endpoint: pin("c") },
+      { kind: "connect_endpoints", from: pin("a"), to: pin("d") },
+      { kind: "connect_endpoints", from: pin("c"), to: pin("b") },
+    ]);
+    expect(groups(after)).toEqual(["a,d", "b,c"]);
+  });
 });

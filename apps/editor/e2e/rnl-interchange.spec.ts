@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { CircuitProject } from "@icm/model";
 import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
+import { importSpiceSources } from "@icm/spice";
 
 import {
   exampleProject,
@@ -77,6 +78,72 @@ test("inspects and expands an imported RNL bundle without replacing its members"
     { memberIds: ["X1", "X2", "X3"], collapsed: true },
   ]);
   expect(top.instances.find(({ id }) => id === "X2")?.placement).not.toBeNull();
+});
+
+test("creates an ordered native array and applies the reversed bit preview as one edit", async ({
+  page,
+}) => {
+  const path = "array-source.spi";
+  const source = [
+    "Native array",
+    ".subckt units VSS EN<3> EN<2> EN<1> EN<0>",
+    "R3 EN<3> VSS 1k",
+    ".ends units",
+    ".end",
+  ].join("\n");
+  const imported = await importSpiceSources(
+    [{ path, bytes: new TextEncoder().encode(source) }],
+    path,
+  );
+  const project = imported.project!;
+  const document = project.documents.find(
+    (cell) => cell.id === project.topDocumentId,
+  )!;
+  const seed = document.instances.find(
+    (instance) => instance.reference === "R3",
+  )!;
+  seed.placement = {
+    position: { x: 200, y: 200 },
+    rotation: 0,
+    mirror: "none",
+  };
+  await openProject(page, project);
+  await page.getByTestId(`hit-${seed.id}`).click();
+  await openSelectionShelf(page);
+  await page.getByText("Create instance array", { exact: true }).click();
+  await page.getByRole("button", { name: "Create array", exact: true }).click();
+  const group = page.getByRole("region", {
+    name: "Instance group",
+    exact: true,
+  });
+  await expect(group.getByRole("listitem")).toHaveCount(4);
+  await group.getByText("Connect array terminals", { exact: true }).click();
+  const apply = group.getByRole("button", { name: "Apply array connections" });
+  await group.getByLabel("Array terminal", { exact: true }).selectOption("2");
+  const expression = group.getByLabel("Net or signal expression", {
+    exact: true,
+  });
+  await expression.fill("VSS");
+  await apply.click();
+  await group.getByLabel("Array terminal", { exact: true }).selectOption("1");
+  await expression.fill("EN<2:0>");
+  await expect(group.getByRole("alert")).toContainText("4 members");
+  await expect(apply).toBeDisabled();
+  await expression.fill("EN<3:0>");
+  await apply.click();
+  await group.getByLabel("Reverse bit order", { exact: true }).check();
+  await expect(
+    group.getByRole("table", { name: "Array connection preview" }),
+  ).toContainText("EN<0>");
+  await apply.click();
+  const live = await showNetlistPanel(page);
+  const code = live.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText("R3 EN_0_ VSS");
+  await expect(code).toContainText("R0 EN_3_ VSS");
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(code).toContainText("R3 EN_3_ VSS");
+  await page.getByTestId("draw-tool-redo").click();
+  await expect(code).toContainText("R3 EN_0_ VSS");
 });
 
 test("imports native bulk styling by default and offers the source appearance", async ({

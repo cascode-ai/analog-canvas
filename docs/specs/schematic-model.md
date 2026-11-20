@@ -131,6 +131,13 @@ annotations and unlocked layout references.
   than two members.
 - Each member keeps its own reference, parameters and terminal connectivity.
   The SPICE and Spectre writers emit each member through the normal Instance path.
+- A native array starts with a selected circuit Instance and adds the other
+  ordered members as independent Instances. Its range accepts 2–256 members.
+  A common scalar terminal can share one existing Net or pair with an ordered
+  signal of equal width. Reverse changes the pairing order. Creation, layout
+  and connection each use one undoable transaction.
+- Array connection previews the resulting pairings and any wire paths removed
+  from reassigned terminals. Undo restores the previous pairing and paths.
 
 ## Presentation authority
 

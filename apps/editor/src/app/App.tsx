@@ -6,7 +6,10 @@ import {
 } from "../features/hierarchy/project-hierarchy";
 import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
 import { instanceGroupDisplay } from "@icm/derived";
-import { planInstanceGroupView } from "../features/instance-groups/instance-group-edits";
+import {
+  canCreateInstanceArray,
+  planInstanceGroupView,
+} from "../features/instance-groups/instance-group-edits";
 import { NewCellDialog } from "../features/hierarchy/new-cell-dialog";
 import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
 import type {
@@ -7258,6 +7261,7 @@ function WorkspaceEditor({
                       group: selectedInstanceGroup,
                       resolver,
                       selectedId: selectedInstance.id,
+                      onEdit: (edits: SchematicEdit[]) => transact(edits).ok,
                       onLocate: (id: string, label: string) => {
                         const member = document.instances.find(
                           (instance) => instance.id === id,
@@ -7296,7 +7300,16 @@ function WorkspaceEditor({
                       },
                     },
                   }
-                : {})}
+                : selectedInstance &&
+                    canCreateInstanceArray(document, selectedInstance)
+                  ? {
+                      instanceArray: {
+                        document,
+                        seed: selectedInstance,
+                        onEdit: (edits: SchematicEdit[]) => transact(edits).ok,
+                      },
+                    }
+                  : {})}
               component={
                 selectedInstance
                   ? {

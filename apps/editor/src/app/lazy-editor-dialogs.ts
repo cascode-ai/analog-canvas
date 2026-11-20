@@ -120,6 +120,14 @@ export const LazyInstanceGroupProperties = lazyChunk("dialog", () =>
   ),
 );
 
+export const LazyInstanceArrayCreation = lazyChunk("dialog", () =>
+  import("../features/instance-groups/instance-group-properties").then(
+    (module) => ({
+      default: module.InstanceArrayCreation,
+    }),
+  ),
+);
+
 export const LazyInsertComponentDialog = lazyChunk("dialog", () =>
   import("../features/component-insert/insert-component-dialog").then(
     (module) => ({ default: module.InsertComponentDialog }),

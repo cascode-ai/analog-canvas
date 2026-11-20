@@ -280,30 +280,46 @@ export function rebuildEditedConnectivity(
       : deriveDocumentContactEvidence(before, resolver)
     : undefined;
   const sourceGroups = prepareNetEndpointGroupRead(sourceRead, beforeContacts);
+  const explicitlyDisconnected = new Map(
+    transaction.edits.flatMap((edit, index) =>
+      edit.kind === "disconnect_endpoint"
+        ? [[endpointKey(edit.endpoint), index] as const]
+        : [],
+    ),
+  );
   // Legacy/imported Nets can contain intentional, not-yet-routed components.
   // Preserve a bridge between their surviving representatives, not between
-  // every member: doing the latter would resurrect a deleted physical wire.
+  // every member. A departed terminal may already have a different owner in
+  // the draft, so membership alone cannot make it a surviving representative.
   for (const net of before.nets) {
     const groups = sourceGroups(net.id);
     if (cutNetIds.has(net.id)) {
-      keepUndrawableMembersAfterCut(draft, groups, graph, endpoints, resolver);
+      const retained = explicitlyDisconnected.size
+        ? groups.map((group) =>
+            group.filter((key) => !explicitlyDisconnected.has(key)),
+          )
+        : groups;
+      keepUndrawableMembersAfterCut(
+        draft,
+        retained,
+        graph,
+        endpoints,
+        resolver,
+      );
       continue;
     }
     const representatives = groups.flatMap((group) => {
       const key = group.find((key) => {
         const e = endpoints.get(key);
-        return e && read.ownerOf(e) !== null;
+        return (
+          e && !explicitlyDisconnected.has(key) && read.ownerOf(e) !== null
+        );
       });
       return key ? [key] : [];
     });
     graph.join(representatives);
   }
-  const explicitlyDisconnected = new Set(
-    transaction.edits.flatMap((edit) =>
-      edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
-    ),
-  );
-  for (const edit of transaction.edits) {
+  for (const [index, edit] of transaction.edits.entries()) {
     if (edit.kind === "unplace_instance") {
       for (const net of before.nets.filter((n) =>
         n.terminals.some((t) => t.instanceId === edit.instanceId),
@@ -312,7 +328,9 @@ export function rebuildEditedConnectivity(
           sourceRead
             .netEndpoints(net)
             .map(endpointKey)
-            .filter((key) => endpoints.has(key)),
+            .filter(
+              (key) => endpoints.has(key) && !explicitlyDisconnected.has(key),
+            ),
         );
       }
     }
@@ -320,7 +338,13 @@ export function rebuildEditedConnectivity(
       // A later disconnect/removal in this transaction owns the final state.
       // Do not replay an earlier logical request over that completed edit.
       const pair = [edit.from, edit.to];
-      if (pair.every((e) => read.ownerOf(e) !== null)) {
+      if (
+        pair.every(
+          (e) =>
+            read.ownerOf(e) !== null &&
+            (explicitlyDisconnected.get(endpointKey(e)) ?? -1) < index,
+        )
+      ) {
         graph.join(pair.map(remember));
       }
     }
