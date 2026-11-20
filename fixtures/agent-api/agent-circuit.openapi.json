@@ -31435,6 +31435,14 @@
               "portCase": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema77"
               },
+              "process": {
+                "type": "string",
+                "enum": [
+                  "abstract",
+                  "sky130",
+                  "sg13g2"
+                ]
+              },
               "documentId": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
               },

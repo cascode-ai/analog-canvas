@@ -24,6 +24,8 @@ import {
   testbenchProjectText,
 } from "../../../../worker/gallery.test-support";
 import { BrowserAgentProjectHost } from "./browser-agent-project-host";
+import { createLibraryExampleProject } from "../examples/library-examples";
+import { projectInNetlistProcess } from "../features/netlist-export/netlist-process";
 
 // Measuring a figure's crop needs a real browser layout; everything around
 // it, the same formal SVG included, runs as it does in the Editor.
@@ -596,6 +598,39 @@ describe("BrowserAgentProjectHost", () => {
       ok: false,
       error: { code: "STALE_STRUCTURE_REVISION", recovery: "refresh" },
     });
+  });
+
+  it("reads a netlist in another Process without changing the Project", async () => {
+    const sky130 = projectInNetlistProcess(
+      createLibraryExampleProject("common-source-amplifier")!,
+      "sky130",
+    );
+    const host = new BrowserAgentProjectHost({
+      getProjectSessionId: () => "session",
+      getProject: () => sky130,
+      getActiveDocumentId: () => sky130.topDocumentId,
+      commitProjectStructure: () => {
+        throw new Error("must not commit");
+      },
+      dispatchProjectTransaction: () => {
+        throw new Error("must not dispatch");
+      },
+    });
+    const read = async (process?: "abstract" | "sky130" | "sg13g2") => {
+      const reply = await host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: `netlist-${process ?? "own"}`,
+        operation: "read-netlist",
+        ...(process ? { process } : {}),
+      });
+      if (!reply.ok || reply.operation !== "read-netlist")
+        throw new Error(JSON.stringify(reply));
+      return reply.netlist.text ?? "";
+    };
+    expect(await read()).toMatch(/^XM1 .*sky130_fd_pr__nfet_01v8 l=0.15 w=1/mu);
+    expect(await read("sg13g2")).toMatch(/^XM1 .*sg13_lv_nmos w=1u l=150n/mu);
+    expect(await read("abstract")).toMatch(/^M1 .* NMOS l=150n .*w=1u/mu);
+    expect(await read()).toBe(await read("sky130"));
   });
 
   it("reads the live netlist and accepts an unchanged replacement without a commit", async () => {
