@@ -46,7 +46,11 @@ interface Props {
   onChange?(source: string): void;
   onModEnter?(): void;
   onEnter?(): void;
-  onCursorChange?(position: number): void;
+  onCursorChange?(
+    position: number,
+    characterOffset: number,
+    externalSourceUpdate: boolean,
+  ): void;
   onBlur?(): void;
   /**
    * Spans lit line by line: the parts selected on the canvas, or in the
@@ -85,7 +89,7 @@ function languageExtension(language: ProjectTextLanguage): Extension {
 export interface HighlightedRange {
   from: number;
   to: number;
-  tone?: "warning";
+  tone?: "warning" | "node";
 }
 
 const setHighlight = StateEffect.define<readonly HighlightedRange[]>();
@@ -93,6 +97,7 @@ const TONE_CLASS = {
   selection: "cm-code-highlight",
   warning: "cm-code-warning",
 };
+const NODE_HIGHLIGHT = "cm-netlist-node-highlight";
 
 function highlightDecorations(
   state: EditorState,
@@ -100,8 +105,17 @@ function highlightDecorations(
 ): DecorationSet {
   // A line can be both selected and flagged: it carries both classes.
   const lines = new Map<number, Set<string>>();
+  const nodes = [];
   for (const range of ranges) {
     if (range.from > state.doc.length) continue;
+    if (range.tone === "node") {
+      const end = Math.min(range.to, state.doc.length);
+      if (end > range.from)
+        nodes.push(
+          Decoration.mark({ class: NODE_HIGHLIGHT }).range(range.from, end),
+        );
+      continue;
+    }
     const first = state.doc.lineAt(range.from).number;
     const last = state.doc.lineAt(Math.min(range.to, state.doc.length)).number;
     for (let line = first; line <= last; line++)
@@ -123,14 +137,20 @@ function highlightDecorations(
       Decoration.line({ class: [...classes].join(" ") }),
     );
   }
-  return builder.finish();
+  return builder.finish().update({ add: nodes, sort: true });
 }
 
 /** Lit lines, carried through edits until the next selection replaces them. */
 const highlightField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update(lines, transaction) {
-    let next = lines.map(transaction.changes);
+    let next = (
+      transaction.docChanged
+        ? lines.update({
+            filter: (_from, _to, span) => span.spec.class !== NODE_HIGHLIGHT,
+          })
+        : lines
+    ).map(transaction.changes);
     for (const effect of transaction.effects)
       if (effect.is(setHighlight))
         next = highlightDecorations(transaction.state, effect.value);
@@ -194,20 +214,31 @@ export default function ProjectTextEditor(props: Props) {
             indentWithTab,
           ]),
           EditorView.updateListener.of((update) => {
-            if (
-              update.docChanged &&
-              !update.transactions.some((transaction) =>
-                transaction.annotation(externalUpdate),
-              )
-            )
+            const externalSourceUpdate = update.transactions.some(
+              (transaction) => transaction.annotation(externalUpdate),
+            );
+            if (update.docChanged && !externalSourceUpdate)
               read().onChange?.(update.state.doc.toString());
             if (
               update.selectionSet ||
               update.docChanged ||
               update.focusChanged
             ) {
-              if (update.view.hasFocus)
-                read().onCursorChange?.(update.state.selection.main.head);
+              if (update.view.hasFocus) {
+                const { head, empty, assoc } = update.state.selection.main;
+                // A pointer can place the caret after the glyph it hit.
+                const clickedPreviousGlyph =
+                  empty &&
+                  assoc < 0 &&
+                  update.transactions.some((transaction) =>
+                    transaction.isUserEvent("select.pointer"),
+                  );
+                read().onCursorChange?.(
+                  head,
+                  clickedPreviousGlyph ? head - 1 : head,
+                  externalSourceUpdate,
+                );
+              }
             }
           }),
         ],

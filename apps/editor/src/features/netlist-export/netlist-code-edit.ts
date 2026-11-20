@@ -11,6 +11,7 @@ import type {
 import type {
   DesignNetlistExportResult,
   PrintedNetlistInstance,
+  PrintedNetlistNode,
 } from "@icm/netlist";
 import { expressionIsStructurallyValid } from "@icm/spice";
 import {
@@ -412,6 +413,22 @@ export function netlistInstanceAtLine(
       (instance) => instance.startOffset <= end && instance.endOffset > start,
     ) ?? null
   );
+}
+
+/** Find the printed node that owns a character offset. */
+export function netlistNodeAtOffset(
+  nodes: readonly PrintedNetlistNode[],
+  position: number,
+): PrintedNetlistNode | null {
+  let low = 0;
+  let high = nodes.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (nodes[middle]!.endOffset <= position) low = middle + 1;
+    else high = middle;
+  }
+  const node = nodes[low];
+  return node && node.startOffset <= position ? node : null;
 }
 
 /** Where the given parts of one Cell are printed, to light them in the code. */

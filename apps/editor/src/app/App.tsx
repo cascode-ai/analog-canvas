@@ -1082,6 +1082,10 @@ function WorkspaceEditor({
     documentId: string;
     instanceId: string;
   } | null>(null);
+  const [netlistFocusedNode, setNetlistFocusedNode] = useState<{
+    documentId: string;
+    netId: string;
+  } | null>(null);
   // The canvas and the Netlist light the same parts. A part picked on the
   // canvas takes over from the one the netlist cursor named; an emptied
   // selection, as when the netlist cursor opens another Cell, keeps it.
@@ -2359,10 +2363,38 @@ function WorkspaceEditor({
   useEffect(() => {
     setControlOptionPreview(null);
   }, [selectionOpen, documentSettingsOpen, document.id, selectedInstance?.id]);
+  const netlistNodeHighlight = useMemo(
+    () =>
+      projectPanel === "netlist" &&
+      netlistFocusedNode?.documentId === document.id
+        ? computeNetHighlight(
+            projectConnectivityIndex,
+            document.id,
+            netlistFocusedNode.netId,
+            undefined,
+            documentStack,
+          )
+        : undefined,
+    [
+      projectPanel,
+      netlistFocusedNode,
+      document.id,
+      projectConnectivityIndex,
+      documentStack,
+    ],
+  );
+  const schematicNetChoice = selectedHighlightNetId ?? highlightedNet?.netId;
+  const schematicNetlistNetId = schematicNetChoice
+    ? (logicalNets.byBaseNetId.get(schematicNetChoice)?.id ??
+      logicalNets.byId.get(schematicNetChoice)?.id)
+    : undefined;
   const shownNetHighlight =
     simulationPickNetsActive || controlPickMode === "net"
       ? simulationPickHighlight
-      : (controlOptionHighlight ?? codeNetHighlight ?? highlightedNet);
+      : (controlOptionHighlight ??
+        codeNetHighlight ??
+        netlistNodeHighlight ??
+        highlightedNet);
   // What the selection connects to glows faintly unless a Net is already
   // highlighted or being picked (2026-10-14).
   const connectedNetHighlights = useMemo(
@@ -6626,9 +6658,30 @@ function WorkspaceEditor({
                         selectDocumentFromHierarchy(instance.documentId);
                       setNetlistFocusedInstance(instance);
                     }}
+                    onFocusNode={(node) => {
+                      if (!node) {
+                        setNetlistFocusedNode(null);
+                        return;
+                      }
+                      if (node.documentId !== document.id)
+                        selectDocumentFromHierarchy(node.documentId);
+                      setNetlistFocusedNode((current) =>
+                        current?.documentId === node.documentId &&
+                        current.netId === node.netId
+                          ? current
+                          : { documentId: node.documentId, netId: node.netId },
+                      );
+                      const named = projectConnectivityIndex.documents
+                        .get(node.documentId)
+                        ?.logicalNetResolution.byId.get(node.netId)?.name;
+                      setStatus(
+                        `Located ${named ? `Net ${named}` : "unnamed Net"}${node.pinLabel ? ` at ${node.pinLabel}` : ""}`,
+                      );
+                    }}
                     selection={{
                       documentId: document.id,
                       instanceIds: visualSelection.instanceIds,
+                      netId: schematicNetlistNetId,
                     }}
                     onNavigateDiagnostic={(diagnostic) =>
                       navigateToNetlistDiagnostic(diagnostic, {

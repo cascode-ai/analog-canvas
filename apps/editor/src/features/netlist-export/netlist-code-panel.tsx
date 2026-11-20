@@ -15,8 +15,13 @@ import {
   createNetlistCodeEditSession,
   netlistInstanceAtLine,
   netlistInstanceRanges,
+  netlistNodeAtOffset,
 } from "./netlist-code-edit";
-import type { NetlistDiagnostic, PrintedNetlistInstance } from "@icm/netlist";
+import type {
+  NetlistDiagnostic,
+  PrintedNetlistInstance,
+  PrintedNetlistNode,
+} from "@icm/netlist";
 import type { CircuitProject, ObjectLocator } from "@icm/model";
 import { NetlistCodeSelect, NetlistCopyButton } from "./netlist-code-controls";
 import {
@@ -118,6 +123,7 @@ export function NetlistCodePanel({
   configurationError,
   onApply,
   onFocusInstance,
+  onFocusNode,
   selection,
   onNavigateDiagnostic,
   profiles,
@@ -148,8 +154,13 @@ export function NetlistCodePanel({
   configurationError: string | null;
   onApply(edits: ProjectStructureEdit[]): boolean;
   onFocusInstance(instance: PrintedNetlistInstance | null): void;
+  onFocusNode?(node: PrintedNetlistNode | null): void;
   /** Parts selected on the canvas: their printed lines are lit and shown. */
-  selection?: { documentId: string; instanceIds: readonly string[] };
+  selection?: {
+    documentId: string;
+    instanceIds: readonly string[];
+    netId?: string | undefined;
+  };
   /** Show a finding's object on the canvas. */
   onNavigateDiagnostic?(diagnostic: NetlistDiagnostic): void;
   profiles: Record<NetlistProfileId, NetlistExportProfile>;
@@ -211,6 +222,7 @@ export function NetlistCodePanel({
             format,
             namingProfile,
             includeLocations: true,
+            includeNodeLocations: !rnl,
             ...(rootDocumentId ? { rootDocumentId } : {}),
           }),
     [
@@ -220,6 +232,7 @@ export function NetlistCodePanel({
       configurationError,
       rootDocumentId,
       compileRevision,
+      rnl,
     ],
   );
   // A drawing that does not extract yet still shows what it says: a draft,
@@ -231,10 +244,11 @@ export function NetlistCodePanel({
         ? createDraftNetlistPreview(project, {
             format,
             namingProfile,
+            includeNodeLocations: !rnl,
             ...(rootDocumentId ? { rootDocumentId } : {}),
           })
         : null,
-    [project, format, namingProfile, rootDocumentId, result],
+    [project, format, namingProfile, rootDocumentId, result, rnl],
   );
   const unfinished = result
     ? unfinishedDrawingDiagnostics(result.diagnostics)
@@ -277,13 +291,21 @@ export function NetlistCodePanel({
   draftRef.current = draft;
   const focusRef = useRef(onFocusInstance);
   focusRef.current = onFocusInstance;
+  const nodeFocusRef = useRef(onFocusNode);
+  nodeFocusRef.current = onFocusNode;
   const [cursorInstance, setCursorInstance] =
     useState<PrintedNetlistInstance | null>(null);
   const focusInstance = (instance: PrintedNetlistInstance | null) => {
     setCursorInstance(instance);
     onFocusInstance(instance);
   };
-  useEffect(() => () => focusRef.current(null), []);
+  useEffect(
+    () => () => {
+      focusRef.current(null);
+      nodeFocusRef.current?.(null);
+    },
+    [],
+  );
   useLayoutEffect(() => {
     if (!dirty) setApplyError(null);
   }, [source]);
@@ -378,7 +400,30 @@ export function NetlistCodePanel({
     const timer = setTimeout(() => applyRef.current(), 500);
     return () => clearTimeout(timer);
   }, [draft, dirty, conflict, hasModelSources]);
-  function focus(position: number) {
+  const nodeLocations =
+    draftPreview?.locations.nodes ??
+    (!dirty && draft === source && result?.status === "ready"
+      ? result.locations.nodes
+      : undefined);
+  useEffect(() => {
+    nodeFocusRef.current?.(null);
+  }, [nodeLocations]);
+
+  function focus(
+    position: number,
+    characterOffset: number,
+    externalSourceUpdate: boolean,
+  ) {
+    // onChange updates the ref synchronously before CodeMirror reports its
+    // caret, including before React has rendered the unsaved draft.
+    const node =
+      !externalSourceUpdate &&
+      nodeLocations &&
+      (draftPreview || draftRef.current === source)
+        ? netlistNodeAtOffset(nodeLocations, characterOffset)
+        : null;
+    onFocusNode?.(node);
+    if (node) return focusInstance(null);
     if (draftPreview)
       return focusInstance(
         netlistInstanceAtLine(
@@ -399,10 +444,15 @@ export function NetlistCodePanel({
   // canvas, and the one the cursor names here. A part picked on the canvas
   // takes over from the cursor's, and only a new pick scrolls the code.
   const selectionKey = selection
-    ? `${selection.documentId}\u0000${selection.instanceIds.join("\u0000")}`
+    ? JSON.stringify([
+        selection.documentId,
+        selection.instanceIds,
+        selection.netId,
+      ])
     : "";
   useEffect(() => {
-    if (selection?.instanceIds.length) setCursorInstance(null);
+    if (selection?.instanceIds.length || selection?.netId)
+      setCursorInstance(null);
     // Keyed by content: the same ids in a new array are the same pick.
   }, [selectionKey]);
   const highlightedRanges = useMemo(() => {
@@ -427,13 +477,35 @@ export function NetlistCodePanel({
             cursorInstance.instanceId,
           ])
         : []),
+      ...(selection?.netId
+        ? (nodeLocations ?? []).flatMap((node) =>
+            node.documentId === selection.documentId &&
+            node.netId === selection.netId
+              ? [
+                  {
+                    from: node.startOffset,
+                    to: node.endOffset,
+                    tone: "node" as const,
+                  },
+                ]
+              : [],
+          )
+        : []),
       ...(draftPreview?.flagged ?? []).map((card) => ({
         from: card.startOffset,
         to: card.endOffset,
         tone: "warning" as const,
       })),
     ];
-  }, [editSession, result, draft, draftPreview, selectionKey, cursorInstance]);
+  }, [
+    editSession,
+    result,
+    draft,
+    draftPreview,
+    selectionKey,
+    cursorInstance,
+    nodeLocations,
+  ]);
   const editError = conflict
     ? "The canvas or Agent changed the netlist. Reload before applying your draft."
     : applyError;
@@ -612,6 +684,7 @@ export function NetlistCodePanel({
               }}
               onModEnter={apply}
               onBlur={() => {
+                onFocusNode?.(null);
                 if (!hasModelSources) applyRef.current();
               }}
               onCursorChange={focus}

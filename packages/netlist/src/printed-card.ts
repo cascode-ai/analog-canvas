@@ -15,11 +15,19 @@ import {
 type Field = Omit<PrintedNetlistField, "documentId" | "instanceId">;
 interface Text {
   text: string;
-  fields: Field[];
+  fields: CardSpan[];
 }
+type CardSpan =
+  | Field
+  | {
+      kind: "node";
+      node: DesignNetlistInstance["nodes"][number];
+      startOffset: number;
+      endOffset: number;
+    };
 const plain = (text: string): Text => ({ text, fields: [] });
 function join(parts: Text[], separator = ""): Text {
-  const fields: Field[] = [];
+  const fields: CardSpan[] = [];
   let offset = 0;
   for (const [index, part] of parts.entries()) {
     if (index) offset += separator.length;
@@ -172,7 +180,8 @@ export function printInstanceCard(
   instance: DesignNetlistInstance,
   format: NetlistFormat,
   locations = false,
-): { text: string; lines: string[]; fields: Field[] } {
+  nodeLocations = false,
+): { text: string; lines: string[]; fields: CardSpan[] } {
   // Primitive scalar lookup has always used the first authored match; source
   // normalization uses the last. Assignment tokens retain their own value.
   const parameters = new Map<string, DesignNetlistParameter>();
@@ -406,7 +415,21 @@ export function printInstanceCard(
     ]);
   };
   const reference = owned(instance.reference, "reference");
-  const nodes = instance.nodes.map((n) => plain(n.netName));
+  const nodes = instance.nodes.map((node): Text =>
+    nodeLocations
+      ? {
+          text: node.netName,
+          fields: [
+            {
+              kind: "node",
+              node,
+              startOffset: 0,
+              endOffset: node.netName.length,
+            },
+          ],
+        }
+      : plain(node.netName),
+  );
   let master: Text | undefined;
   let values: Text[];
   switch (instance.deviceClass) {
@@ -469,7 +492,7 @@ export function printInstanceCard(
     format === "spectre"
       ? [
           reference,
-          plain(`(${instance.nodes.map((n) => n.netName).join(" ")})`),
+          join([plain("("), join(nodes, " "), plain(")")]),
           master!,
           ...values,
         ]
