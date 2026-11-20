@@ -33,6 +33,7 @@ import {
   type RnlSymbolDefinitionView,
   type RnlObjectView,
   acPoint,
+  terminalOf,
 } from "./rnl-snapshot.js";
 
 /**
@@ -184,56 +185,74 @@ export function phaseSwitchSymbol(
 }
 
 /**
- * The Library gate a Cell's call reads back as when RNL draws it with the
- * call symbol the export defines for it (`symbolForCall`), or with the
- * standard package's own gate where the call prints its pins in that
- * symbol's terminal order, and the gate pin each Pin of its Cell becomes: by
- * name, as a gate meets its Cell (#1450), and only when each drawn pin is on
- * the position that Pin is printed at.
+ * The Library part (a gate, an op-amp) a Cell's call reads back as when RNL
+ * draws it with the call symbol the export defines for it (`symbolForCall`)
+ * or with a standard symbol of that part, as an RNL solver draws an op-amp
+ * Cell's call with `$OPAMP`, and the part's pin each Pin of its Cell
+ * becomes: by name, as a part meets its Cell (#1450), and only when each pin
+ * the symbol draws is bound to the terminal the call prints that Pin at, so
+ * every wire stays on its net. Of a symbol two variants draw, the one the
+ * file names (`$CANVAS_VARIANT`), else the one that needs no mirror.
  */
 export function gateCallSymbol(
   symbol: RnlSymbolRef,
   orient: RnlOrient,
   instance: Pick<Instance, "netlist" | "importProvenance">,
+  drawn: RnlObjectView["pins"],
+  variant?: string,
 ): {
   row: RnlSymbol;
   orient: RnlOrient;
   pins: ReadonlyMap<string, string>;
 } | null {
-  const row =
-    callSymbolFromDefinition(symbol) ??
-    RNL_SYMBOLS.find(
-      (item) =>
-        !item.inline &&
-        !item.definition &&
-        item.symbol === symbol.name &&
-        family(item.package) === family(symbol.package),
-    );
-  if (
-    !row?.ac ||
-    !bindsProjectCell(row.ac) ||
-    instance.netlist?.binding?.kind !== "subcircuit"
-  )
-    return null;
+  if (instance.netlist?.binding?.kind !== "subcircuit") return null;
+  const own = callSymbolFromDefinition(symbol);
+  const rows = own
+    ? [own]
+    : RNL_SYMBOLS.filter(
+        (item) =>
+          !item.inline &&
+          !item.definition &&
+          item.symbol === symbol.name &&
+          family(item.package) === family(symbol.package),
+      );
   const printed = [...(instance.importProvenance?.terminalMapping ?? [])].sort(
     (a, b) => a.sourcePosition - b.sourcePosition,
   );
-  if (printed.length !== row.terminals.length) return null;
-  const gate = matchGateCellPins(row.ac, {
-    name: symbol.name,
-    portNames: printed.map((terminal) => terminal.pinName),
-  });
-  if (!gate?.ok) return null;
-  const pins = new Map(gate.pins.map((pin) => [pin.portName, pin.pinName]));
-  const fits = row.pins.every((pin) => {
-    const terminal = printed.find(
-      (item) => item.sourcePosition === pin.terminal - 1,
+  // The printed terminal the drawn pin at a symbol's pin is bound to.
+  const printedAt = ([x, y]: readonly [number, number]) => {
+    const pin = drawn.find(
+      (item) => item.local_at?.[0] === x && item.local_at?.[1] === y,
     );
-    return terminal && pins.get(terminal.pinName) === pin.acPin;
+    const terminal =
+      pin?.terminals.length === 1 ? terminalOf(pin.terminals[0]!) : null;
+    return terminal
+      ? printed.find((item) => item.sourcePosition === terminal.n - 1)
+      : undefined;
+  };
+  const found = rows.flatMap((row) => {
+    if (!row.ac || !bindsProjectCell(row.ac)) return [];
+    const gate = matchGateCellPins(row.ac, {
+      name: symbol.name,
+      portNames: printed.map((terminal) => terminal.pinName),
+    });
+    if (!gate?.ok || drawn.length !== row.pins.length) return [];
+    const pins = new Map(gate.pins.map((pin) => [pin.portName, pin.pinName]));
+    const fits = row.pins.every((pin) => {
+      const terminal = printedAt(pin.at);
+      return terminal && pins.get(terminal.pinName) === pin.acPin;
+    });
+    return fits
+      ? [{ row, orient: composeOrient(orient, inverse(row.orient)), pins }]
+      : [];
   });
-  return fits
-    ? { row, orient: composeOrient(orient, inverse(row.orient)), pins }
-    : null;
+  return (
+    found.sort(
+      (a, b) =>
+        Number(a.row.ac !== variant) - Number(b.row.ac !== variant) ||
+        Number(a.orient.startsWith("M")) - Number(b.orient.startsWith("M")),
+    )[0] ?? null
+  );
 }
 
 /**

@@ -164,10 +164,13 @@ the RNL language and its runtime belong to rnl.
   pin where the card prints it. Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
   Delay Cell, op-amp or comparator) back as that library symbol, a gate's
   pins meeting its Cell's Pins by name, only when the name, artwork and positional pins are the ones
-  the export writes. A call drawn with a standard gate symbol reads back as
-  that Library gate when it prints the Cell's Pins in the symbol's terminal
-  order and they meet the gate's pins by name; any other call keeps its block and warns
-  `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
+  the export writes. A call drawn with the standard symbol of such a part (a
+  gate; an op-amp's `$OPAMP` or `$DIFFERENTIAL_OPAMP_TWISTED`, as an RNL
+  solver draws an op-amp Cell's call) reads back as that Library part bound
+  to the Cell when each pin the symbol draws is bound to the terminal at
+  which the call prints the Cell Pin that meets that pin by name (`inp` meets
+  IN+), the variant chosen as for any part below; any other call keeps its
+  block and warns `RNL_IMPORT_UNMAPPED_SYMBOL`. Symbol artwork, curved SVG paths included, is written exactly: a cubic leg
   as a cubic, a straight one as a cubic with its controls on the leg.
 - Diamond appearances of VCVS and CCVS export as the standard
   `$CONTROLLED_VOLTAGE_SOURCE`, of VCCS and CCCS as

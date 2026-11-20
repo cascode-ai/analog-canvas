@@ -233,9 +233,11 @@ export function placeParts(scope: LevelScope): PlacedParts {
       instance.importProvenance?.terminalMapping?.map(
         (terminal) => terminal.pinName,
       ) ?? [];
+    const variant =
+      name === null ? undefined : variantOf.get(name.toLowerCase());
     const gateCall =
       symbol && !symbol.default
-        ? gateCallSymbol(symbol, orient, instance)
+        ? gateCallSymbol(symbol, orient, instance, object.pins, variant)
         : null;
     // A called block's call symbol draws the block the part already is.
     const blockCall =
@@ -248,13 +250,8 @@ export function placeParts(scope: LevelScope): PlacedParts {
         ? { row: blockCall, orient }
         : null) ??
       (symbol && !symbol.default
-        ? (acSymbolFor(
-            symbol,
-            orient,
-            instance,
-            pinNames,
-            name === null ? undefined : variantOf.get(name.toLowerCase()),
-          ) ?? phaseSwitchSymbol(symbol, orient, instance))
+        ? (acSymbolFor(symbol, orient, instance, pinNames, variant) ??
+          phaseSwitchSymbol(symbol, orient, instance))
         : null);
     if (
       symbol &&
