@@ -12,6 +12,7 @@ import {
   deviceDescriptor,
   bindsProjectCell,
   boundPartParameters,
+  ics55MosType,
   matchGateCellPins,
   matchGateExternalPins,
   placedSubcircuitTarget,
@@ -752,9 +753,16 @@ export function planSetDeviceModelTarget(
       parameter.name.toLowerCase(),
     ),
   );
-  const unset = Object.keys(instance.netlist.parameters).filter(
-    (name) => !ordinaryParameterNames.has(name.toLowerCase()),
-  );
+  // Threshold variants share the same CDL instance parameters, including MR.
+  const keepsIcs55Parameters =
+    instance.netlist.binding?.kind === "model" &&
+    ics55MosType(instance.netlist.binding.name) === sourceSymbolId &&
+    ics55MosType(normalizedName) === sourceSymbolId;
+  const unset = keepsIcs55Parameters
+    ? []
+    : Object.keys(instance.netlist.parameters).filter(
+        (name) => !ordinaryParameterNames.has(name.toLowerCase()),
+      );
   const documentEdits: DocumentEdits = removedPropertyTerminalEdits(
     document,
     instanceId,

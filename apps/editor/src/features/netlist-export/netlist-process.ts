@@ -1,6 +1,7 @@
 import {
   createReferenceIndex,
   deviceDescriptor,
+  ics55MosType,
   referenceIssuesForInstance,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
@@ -102,9 +103,11 @@ export function inferNetlistProcess(
   );
   if (!targets.length) return fallback;
   return (
-    (["abstract", "sky130", "sg13g2"] as const).find((id) =>
+    (["abstract", "sky130", "sg13g2", "ics55"] as const).find((id) =>
       targets.every(({ family, target }) =>
-        NETLIST_DEVICE_TARGET_OPTIONS[id][family].includes(target),
+        id === "ics55"
+          ? ics55MosType(target) === family
+          : NETLIST_DEVICE_TARGET_OPTIONS[id][family].includes(target),
       ),
     ) ?? "custom"
   );
@@ -136,9 +139,16 @@ export function placementModelTarget(
       ? "custom"
       : inferNetlistProcess(project, preferences.selected);
   const target = preferences.profiles[process].devices[family].target;
-  return target && !reviewedExternalBindingForMaster(target)
+  return target &&
+    fitsPrimitiveMos(target, symbolId) &&
+    !reviewedExternalBindingForMaster(target)
     ? target
     : undefined;
+}
+
+function fitsPrimitiveMos(target: string, symbolId: string): boolean {
+  const channel = ics55MosType(target);
+  return channel === undefined || channel === symbolId;
 }
 
 /**
@@ -165,7 +175,7 @@ export function processPlacementTarget(
   if (deviceDescriptor(symbolId)?.targetPolicy === "none")
     return processOwnDevice(profile.id, symbolId);
   const target = profile.devices[family].target;
-  if (!target) return undefined;
+  if (!target || !fitsPrimitiveMos(target, symbolId)) return undefined;
   const reviewed = reviewedExternalBindingForMaster(target);
   if (
     reviewed &&
@@ -423,6 +433,7 @@ export function planNetlistProcess(
       // one it keeps its finding for the author, and the rest still fills.
       const drawn = drawnSymbolId(project, original);
       const fits = (master: string) => {
+        if (!fitsPrimitiveMos(master, drawn)) return false;
         const binding = reviewedExternalBindingForMaster(master);
         return (
           !binding || reviewedExternalBindingSupportsSymbol(binding, drawn)
@@ -434,7 +445,14 @@ export function planNetlistProcess(
         (drawn === "ndmos" || drawn === "pdmos")
           ? NETLIST_HIGH_VOLTAGE_TARGETS[profile.id]?.[drawn]
           : undefined;
-      const target = own ?? highVoltage ?? rule.target;
+      // A whole-process read keeps the threshold mix of an ICS55 Cell.
+      const keepVariant =
+        profile.id === "ics55" &&
+        !options.family &&
+        ics55MosType(originalTarget) === family;
+      const target = keepVariant
+        ? originalTarget
+        : (own ?? highVoltage ?? rule.target);
       if (!fits(target)) continue;
       const reviewed = reviewedExternalBindingForMaster(target, drawn);
       // A high-voltage device brings its own geometry, not the family's.
@@ -456,7 +474,10 @@ export function planNetlistProcess(
       )!;
       const external =
         instance.netlist!.binding?.kind === "external-subcircuit";
-      if (target || external || descriptor.targetPolicy === "required-model") {
+      if (
+        !keepVariant &&
+        (target || external || descriptor.targetPolicy === "required-model")
+      ) {
         stage(
           planSetDeviceModelTarget(
             projection.project,

@@ -6,6 +6,7 @@ import {
 } from "@icm/model";
 import {
   deviceDescriptor,
+  ICS55_MOS_MODELS,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingForTerminalCount,
   sky130MicrometresToProjectLength,
@@ -1777,6 +1778,9 @@ function importCircuitIR(
 ): { project: CircuitProject; diagnostics: SpiceDiagnostic[] } {
   const diagnostics = [...inputDiagnostics];
   const modelTypeByName = new Map([
+    ...Object.entries(ICS55_MOS_MODELS).flatMap(([type, names]) =>
+      names.map((name) => [name, type] as const),
+    ),
     ...[...(options.modelTypes ?? [])].map(
       ([name, type]) => [name.toLowerCase(), type.toLowerCase()] as const,
     ),

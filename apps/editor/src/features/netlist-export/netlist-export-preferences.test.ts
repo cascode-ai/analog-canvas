@@ -89,6 +89,7 @@ describe("netlist authoring preferences", () => {
       "abstract",
       "sky130",
       "sg13g2",
+      "ics55",
       "custom",
     ]);
   });
@@ -127,6 +128,7 @@ describe("netlist authoring preferences", () => {
       "abstract",
       "sky130",
       "sg13g2",
+      "ics55",
       "custom",
     ]);
     expect(restored.profiles.custom.id).toBe("custom");
@@ -166,16 +168,19 @@ describe("netlist authoring preferences", () => {
           selected: "tsmc28",
         }),
       ),
-    ).toThrow("selected must be one of: abstract, sky130, sg13g2, custom.");
+    ).toThrow(
+      "selected must be one of: abstract, sky130, sg13g2, ics55, custom.",
+    );
   });
 
   it("adds the IHP SG13G2 template to preferences saved before it existed", () => {
     const saved = createDefaultNetlistExportPreferences();
-    const { sg13g2: _added, ...older } = saved.profiles;
+    const { sg13g2: _ihp, ics55: _ics55, ...older } = saved.profiles;
     const restored = readNetlistExportPreferences(
       JSON.stringify({ ...saved, selected: "sky130", profiles: older }),
     );
     expect(restored.selected).toBe("sky130");
+    expect(restored.profiles.ics55.devices.pmos.target).toBe("pm1p2_svt_lp");
     expect(restored.profiles.sg13g2.devices.nmos.target).toBe("sg13_lv_nmos");
     expect(restored.profiles.sg13g2.devices.npn.target).toBe("npn13G2");
     expect(restored.profiles.sg13g2.devices.nmos.parameters).toMatchObject({

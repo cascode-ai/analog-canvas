@@ -257,14 +257,14 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 
 ### Generic models
 
-- Diodes in a Process without its own (Abstract, SKY130, IHP SG13G2, Custom)
+- Diodes in a Process without its own (Abstract, SKY130, IHP SG13G2, ICS55, Custom)
   bind to `DIODE`; Zeners never do: one is placed with `bv` 5.1, which builds
   its own SPICE model, and one with neither `bv` nor a model reports
   `MISSING_MODEL_TARGET`. Each Cell
   naming `DIODE` carries `.model DIODE D(IS=1e-14 N=1)` (information
   `GENERIC_DIODE_MODEL`). Schottky diodes in every Process bind to `DSCH`,
   `.model DSCH D(IS=1e-8 N=1.05 RS=1)` (information `GENERIC_SCHOTTKY_MODEL`).
-- BJTs in Abstract or Custom bind to `NPN`/`PNP` with cards
+- BJTs in Abstract, ICS55 or Custom bind to `NPN`/`PNP` with cards
   `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` and
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (information `GENERIC_BJT_MODEL`).
 - JFETs (`J<ref> d g s`) in every Process bind to `NJF`/`PJF` with cards
@@ -410,7 +410,7 @@ parameters or renumbers first.
 #### Process configuration
 
 - Netlist configuration stores `format`, the process and device templates for
-  Abstract, SKY130 (starting process), IHP SG13G2 and Custom.
+  Abstract, SKY130 (starting process), IHP SG13G2, ICsprout55 (ICS55) and Custom.
   Process selection is one undoable transaction writing ordinary bindings;
   Simulation Profiles never rewrite them. Opening the panel never edits the
   Project or refills deliberately missing parameters.
@@ -424,6 +424,7 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   `sg13_hv_svaricap` (`G1 W G2 bn`; `w l Nx m`) on the MOS Varactor symbol
   only, which has no netlist form without it and which placement or a
   Process fill under SG13G2 binds; metres throughout.
+- ICS55 uses the four-terminal MOS names in the [v2 9T standard-cell CDL](https://github.com/openecos-projects/icsprout55-pdk/tree/10054695f86cf26a96ea8aba69f7ec414afde593/IP/STD_cell). New targets default to SVT. Existing ICS55 threshold variants retain their names when the whole process is applied. These structural bindings supply device identity and terminal order only.
 - SG13G2 R/C presets use `rppd`/`cap_cmim`. The Netlist shortcuts include NPN
   and PNP; R/C retain an explicit Ideal choice. Old blank SG13 R/C browser
   presets move to these defaults once; subsequent explicit Ideal choices stay.

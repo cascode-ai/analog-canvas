@@ -16,6 +16,7 @@ import {
   designExtractsNetlist,
 } from "@icm/netlist";
 import { createLibraryExampleProject } from "../../examples/library-examples";
+import { importSpiceSources } from "@icm/spice";
 import { placedInstanceNetlist } from "../component-insert/placed-instance-netlist";
 import { createDefaultNetlistExportPreferences } from "./netlist-export-preferences";
 import {
@@ -33,6 +34,7 @@ import {
   instanceModelTarget,
   placementModelTarget,
   placementProcessFill,
+  projectInNetlistProcess,
   processPlacementTarget,
   processReviewedLibrary,
 } from "./netlist-process";
@@ -72,6 +74,33 @@ function exported(
   if (result.status !== "ready") throw new Error("Export blocked");
   return result.file.text;
 }
+
+it("reads an ICS55 inverter and retains its threshold variants, bulk nets and sizes on export", async () => {
+  const text = [
+    ".subckt inverter A Y VDD VSS PW NW",
+    "MN Y A VSS PW nm1p2_lvt_lp W=180n L=60n MR=1",
+    "MP Y A VDD NW pm1p2_hvt_lp W=300n L=60n MR=2",
+    ".ends inverter",
+  ].join("\n");
+  const imported = await importSpiceSources(
+    [{ path: "inverter.sp", bytes: new TextEncoder().encode(text) }],
+    "inverter.sp",
+  );
+  const project = imported.project!;
+  expect(inferNetlistProcess(project, "sky130")).toBe("ics55");
+  const netlist = exported(projectInNetlistProcess(project, "ics55"));
+  expect(netlist).toMatch(
+    /^MN Y A VSS PW nm1p2_lvt_lp .*l=60n.*mr=1.*w=180n/imu,
+  );
+  expect(netlist).toMatch(
+    /^MP Y A VDD NW pm1p2_hvt_lp .*l=60n.*mr=2.*w=300n/imu,
+  );
+  expect(netlist).not.toMatch(/\.model\s+[np]m1p2/iu);
+  const switched = apply(project, createNetlistExportProfile("ics55"), {
+    family: "pmos",
+  });
+  expect(exported(switched)).toMatch(/^MP Y A VDD NW pm1p2_svt_lp .*mr=2/imu);
+});
 
 describe("what the process still owes a circuit", () => {
   it("prepares many devices with one complete validation, preserving the exact Fill plan", () => {

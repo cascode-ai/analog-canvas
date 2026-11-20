@@ -10,7 +10,13 @@ import type { InstanceStatement } from "@icm/spice";
 import { inspectProjectModelSource } from "./project-model-source.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 
-export type ModelSourceProcess = "abstract" | "sky130" | "sg13g2" | "custom";
+export const MODEL_SOURCE_PROCESSES = [
+  "abstract",
+  "sky130",
+  "sg13g2",
+  "custom",
+] as const;
+export type ModelSourceProcess = (typeof MODEL_SOURCE_PROCESSES)[number];
 // Reviewed core MOS counterparts. Threshold/high-voltage variants are not
 // equivalent to these defaults, even if their port lists happen to match.
 const CORE_MOS = [

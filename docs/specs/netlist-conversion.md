@@ -81,7 +81,9 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
     library section or in a section some include selects, and a caller's
     device types, classify every file's calls; a card in an unselected section
     declares and types nothing.
-  - A master nothing declares is a call of it, whatever its instance's first
+  - Exact [ICS55 MOS names](netlist-export.md#process-configuration) with no
+    overriding declaration or explicit call binding identify four-terminal MOS devices.
+    Any other unrecognized master is a call of it, whatever its instance's first
     letter, keeping ordered ports, parameters as written and its Spectre name
     as the Reference; `SPICE_IMPORT_EXTERNAL_CALLS` names each such master.
   - In a call of such a master, a value outside the common arithmetic stays as

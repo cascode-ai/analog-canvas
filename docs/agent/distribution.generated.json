@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "de7a86e13cfeb296337997bfcab235fa65dbd6c8860eb034b3b83d4c4ef6b291"
+      "sha256": "80f55f47c4e48819fd90dbd4930b47b7795c63332068f614ff3ca55f768f03ab"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -125,7 +125,7 @@
     },
     {
       "source": "docs/agent/local-workspace.md",
-      "sha256": "02d6bf51b34292a6484b936087a2cf8b9b2938c6f6a6b8aa4afba5c659bf883a"
+      "sha256": "283ba12540043cb0433b8479b33f686801647701be79db14bcc88aa671ea3d38"
     },
     {
       "source": "docs/agent/skills/canvas-review/SKILL.md",
@@ -137,7 +137,7 @@
     },
     {
       "source": "docs/agent/mcp/tool-help.json",
-      "sha256": "4a61ed38b322713419dafcd78405dee2a0103ea0bed447dff9ca8cb6a2716312"
+      "sha256": "840a786d2279aaead805f5870244840f731d3646904e2ca963d7613d4e63f43a"
     },
     {
       "source": "docs/agent/http-kit/api-help.json",
@@ -676,7 +676,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "8146f0f69f08a992eb3754d79c8540d7f427d0eda9d608f77b41453b118f2d4a"
+      "sha256": "2216daac9d31426f9e0f1862f47e55a22817cb1074dc251f86674c6b75e247ab"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -708,7 +708,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "827aed2c341930ea5f922f85fb7c5a07d6980b93ca10de107f317fc8524c2653"
+      "sha256": "6beeef447d7b50398aa68044c693cc3c188fe83ce4f4499c583fb032bfb8e93c"
     },
     {
       "file": "packages/agent-adapter/src/agent-skills.generated.ts",
@@ -732,7 +732,7 @@
         "docs/agent/mcp/instructions.md",
         "docs/agent/mcp/tool-help.json"
       ],
-      "sha256": "f5bd788037101329390a7c07c5c68182978dc6f6d412e9d9ad8d37b0b8459bf1"
+      "sha256": "560a749ffae229baba651f1da70cc0a31f7a4e4d13e83012f546577379cbe2ea"
     },
     {
       "file": "apps/editor/src/agent/connection-guidance.generated.ts",
