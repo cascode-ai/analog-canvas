@@ -281,9 +281,14 @@ the RNL language and its runtime belong to rnl.
   attached where it hangs (13.3): on the wire of the route it hangs on,
   that wire named for it and the label placed where it stands, since a
   wire has no point to offset from; on the part, glyph or Cell Pin it hangs
-  on, offset from it; else on its net. A drawing text anchored to a part is
-  attached to it the same way, offset from it; one on a glyph is written
-  where it stands, since a text on a glyph reads back as its net's label.
+  on, offset from it; else on its net. A net label hung on the junction at
+  a wire's open end (one wire ends there, or none), where the import hangs a
+  `$NET_LABEL`, is that tag: the standard `$NET_LABEL_SYMBOL` on the
+  junction, its one-unit lead toward the label, which is its name
+  (`netname`), the wire ending on its pin, and the dot written where the
+  lead is a third branch. A drawing text anchored to a part is attached to
+  it the same way, offset from it; one on a glyph is written where it
+  stands, since a text on a glyph reads back as its net's label.
 - Labels are written as the text they show, styled as shown; RNL cannot style
   part of a referenced name, so a written label does not follow a rename. A
   hidden label is written too, where it stands, hidden (`textvisible=false`).
@@ -552,8 +557,9 @@ the RNL language and its runtime belong to rnl.
     direction arrow, or as a current marker where the file names its label
     for it (`%current1_label`);
   - a `$NET_LABEL` the file places on a net of the Cell as a net label of
-    that net, where its wires end; one a package leaves to a solver is not
-    read;
+    that net, hung on the junction where its wires end, its name beyond the
+    tag's one-unit lead, the way the tag turns it; one a package leaves to a
+    solver is not read;
   - labels where RNL shows them: a part's name and values bound to it, a
     Cell Pin's name, a net's name as a net label claiming the net by the
     name it has, or as a power label where the export wrote one, hung on the

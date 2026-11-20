@@ -1773,6 +1773,125 @@ it("ends a wire to a port on no port at a junction there, and draws a ground on 
   );
 });
 
+it("writes a net label drawn where its wires end back as the standard tag, its lead and the dot it makes", async () => {
+  // %b ends the wire from R1; %a stands on the tap of a straight wire, its
+  // lead the third branch of the dot there.
+  const text = [
+    "* tags",
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+    "R1 top out 1k",
+    "R2 out 0 1k",
+    "* @RNL {",
+    "*   %a = $NET_LABEL @ATTACH &out;",
+    "*   %b = $NET_LABEL @ATTACH &top;",
+    "*   %t = (0, 0);",
+    '*   #R1 @PLACE(0, 4) => @ORIENT("R0");',
+    '*   #R2 @PLACE(0, -4) => @ORIENT("R0");',
+    '*   %a @PLACE(0, 0) => @ORIENT("R180");',
+    '*   %b @PLACE(4, 8) => @ORIENT("MY");',
+    '*   &out @WIRE(mode="straight") {#R1:n %t};',
+    '*   &out @WIRE(mode="straight") {%t #R2:p};',
+    '*   &out @WIRE(mode="straight") {%t %a::pin};',
+    '*   &top @WIRE(mode="straight") {#R1:p (0, 8) %b::pin};',
+    "*   $JUNCTION @ATTACH %t => @PLACE(0, 0)",
+    "* }",
+    ".end",
+    "",
+  ].join("\n");
+  const plan = await importRnl(text, "spice");
+  expect(failures(plan)).toEqual([]);
+  const top = plan.project.documents.find((d) =>
+    d.instances.some((i) => i.id.toLowerCase() === "r1"),
+  )!;
+  const name = (netId: string) =>
+    top.importReference?.nets.find((net) => net.id === netId)?.name;
+  // Each name stands beyond its lead, on the side the tag turns it to.
+  const offsets = Object.fromEntries(
+    top.annotations.flatMap((label) =>
+      label.kind === "net-label" && label.anchor.kind === "object"
+        ? [[name(label.netId!), label.anchor.localOffset]]
+        : [],
+    ),
+  );
+  expect(offsets).toEqual({
+    out: { x: 14, y: 3 },
+    top: { x: 14, y: 3 },
+  });
+
+  const exported = createRnlExport(plan.project, { format: "spice" });
+  if (exported.status !== "ready") throw new Error("export blocked");
+  const written = await core.write({
+    write: exported.request,
+    svg: false,
+    primitives: true,
+  });
+  expect(written.text).toMatch(
+    /\$NET_LABEL @ATTACH &top\(p\) => @SET-SYMBOL \$NET_LABEL_SYMBOL => @PLACE\(4, 8\) => @ORIENT\("MY"\) => (%port\d)/u,
+  );
+  expect(written.text).toMatch(
+    /&top @WIRE\(mode="straight"\) \{#R1:1 \(0, 8\) %port\d::pin\}/u,
+  );
+  // The line art drawn: each lead, and one dot, on the tap.
+  const art = written.document.levels.flatMap((level) =>
+    (level.primitives ?? []).flatMap((primitive) =>
+      primitive.kind === "circle"
+        ? [`C ${primitive.center.join(",")}`]
+        : primitive.kind === "path" && primitive.segments.length === 2
+          ? [
+              `L ${primitive.segments
+                .map((segment) => ("to" in segment ? segment.to : []).join(","))
+                .join(" ")}`,
+            ]
+          : [],
+    ),
+  );
+  expect(art).toEqual(expect.arrayContaining(["L 4,8 5,8", "L 0,0 1,0"]));
+  expect(art.filter((item) => item.startsWith("C "))).toEqual(["C 0,0"]);
+
+  // Read back, the tags are the same net labels again.
+  const again = await importRnl(written.text, "spice");
+  expect(failures(again)).toEqual([]);
+  const back = again.project.documents.find((d) =>
+    d.instances.some((i) => i.id.toLowerCase() === "r1"),
+  )!;
+  expect(
+    back.annotations.flatMap((label) =>
+      label.kind === "net-label" && label.anchor.kind === "object"
+        ? [label.anchor.localOffset]
+        : [],
+    ),
+  ).toEqual([
+    { x: 14, y: 3 },
+    { x: 14, y: 3 },
+  ]);
+
+  // One hung on a branch, as the editor hangs one, stays a label.
+  const branched = structuredClone(plan.project);
+  const cell = branched.documents.find((d) => d.id === top.id)!;
+  const tap = cell.junctions.find((junction) =>
+    cell.routes.some(
+      (route) =>
+        route.start.kind === "junction" &&
+        route.start.junctionId === junction.id,
+    ),
+  )!;
+  for (const label of cell.annotations)
+    if (
+      label.kind === "net-label" &&
+      label.anchor.kind === "object" &&
+      name(label.netId!) === "out"
+    )
+      label.anchor.objectId = tap.id;
+  const plain = createRnlExport(branched, { format: "spice" });
+  if (plain.status !== "ready") throw new Error("export blocked");
+  const { text: labelled } = await core.write({
+    write: plain.request,
+    svg: false,
+  });
+  expect(labelled).not.toMatch(/\$NET_LABEL @ATTACH &out/u);
+  expect(labelled).toMatch(/&out @TEXT\(/u);
+});
+
 it("joins a wire that ends on a point another wire runs straight through", async () => {
   // The gate wire runs straight through %j; the port's wire ends there.
   const text = [

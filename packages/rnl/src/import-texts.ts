@@ -221,12 +221,18 @@ export function importTexts(
     const id = deriveStableId("annotation", document.id, level.id, glyph);
     const { junction, away = { x: 0, y: 0 } } = port;
     const gap = 2 * CORNER_GRID;
+    // A net label's name stands beyond its one-unit lead, as RNL draws it,
+    // a level one centred on it as a Cell Pin's name is.
+    const lead =
+      port.object.definition === "$NET_LABEL" ? AC_UNITS_PER_RNL_UNIT : 0;
     const at =
       text?.at ??
       (junction
         ? {
-            x: junction.position.x + away.x * gap,
-            y: junction.position.y + away.y * 2 * gap,
+            x: junction.position.x + away.x * (lead + gap),
+            y:
+              junction.position.y +
+              (away.y ? away.y * (lead + 2 * gap) : lead && 0.3 * lead),
           }
         : acPoint(port.object.at.value ?? [0, 0]));
     const colour = port.object.style?.["textcolor"];
