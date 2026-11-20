@@ -791,6 +791,7 @@ export function executeTransaction(
         resolver,
         transformedInstanceIds,
         movedJunctionIds,
+        originalEndpointLookup,
       )
     ) {
       const directContact = reconcileTransformDirectContacts(

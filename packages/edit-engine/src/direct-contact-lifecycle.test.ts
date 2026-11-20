@@ -204,6 +204,47 @@ describe("direct-contact transform lifecycle", () => {
     );
   });
 
+  it("keeps the second bus member connected when its Junction moves away from a scalar tap", () => {
+    const document = createEmptyDocument("bus-tap", "Bus tap");
+    document.nets.push(
+      { id: "d0", terminals: [] },
+      { id: "d1", terminals: [] },
+    );
+    document.junctions.push(
+      {
+        id: "bus",
+        netId: "d0",
+        members: [
+          { id: "low", netId: "d0" },
+          { id: "high", netId: "d1" },
+        ],
+        position: { x: 100, y: 100 },
+      },
+      { id: "tap", netId: "d1", position: { x: 100, y: 100 } },
+    );
+    const result = executeTransaction(
+      document,
+      transaction(document, [
+        {
+          kind: "move_junction",
+          junctionId: "bus",
+          position: { x: 130, y: 100 },
+        },
+      ]),
+      context,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.document.routes).toHaveLength(1);
+    const route = result.document.routes[0]!;
+    expect(route.netId).toBe("d1");
+    expect([route.start, routeEnd(route)]).toEqual(
+      expect.arrayContaining([
+        { kind: "junction", junctionId: "bus", memberId: "high" },
+        { kind: "junction", junctionId: "tap" },
+      ]),
+    );
+  });
+
   it("materializes a Route when alignment pulls a direct contact apart", () => {
     // align_instances rewrites placements exactly like move_instance, so the
     // direct-contact reconcile gate must run for it too (audit finding #2).

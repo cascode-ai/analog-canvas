@@ -39,7 +39,12 @@ import type {
   ResolvedDrawingScene,
 } from "@icm/derived";
 import { deriveStableId, routeEndpoints } from "@icm/model";
-import type { Instance, RouteEndpoint, SchematicDocument } from "@icm/model";
+import type {
+  Instance,
+  Point,
+  RouteEndpoint,
+  SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 export const powerConnectionForSymbol = supplyMarkerForSymbol;
@@ -165,6 +170,7 @@ export function placementWireSources(
   resolver: SymbolResolver,
   instance: Instance,
   context?: PlacementContactContext,
+  atContactPoint?: (point: Point) => boolean,
 ): readonly WireSource[] {
   context?.assertSnapshot(document, resolver);
   if (!instance.placement) return [];
@@ -202,6 +208,7 @@ export function placementWireSources(
       lookup,
     );
     return connection &&
+      (!atContactPoint || atContactPoint(connection.contactPoint)) &&
       isVisibleEndpoint(placedDocument, resolver, endpoint, lookup)
       ? [
           {
@@ -344,7 +351,9 @@ export function proposePlacementContact(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: Instance,
-  targets: readonly WireSource[],
+  targets:
+    | readonly WireSource[]
+    | ((sources: readonly WireSource[]) => readonly WireSource[]),
   options: {
     mode?: "placement" | "move";
     instances?: readonly Instance[];
@@ -367,6 +376,8 @@ export function proposePlacementContact(
   const sources = (options.instances ?? [instance]).flatMap((item) =>
     placementWireSources(document, resolver, item, context),
   );
+  const targetEndpoints =
+    typeof targets === "function" ? targets(sources) : targets;
   for (const source of sources) {
     const sourceKey = endpointKey(source.endpoint);
     const point = source.connection.contactPoint;
@@ -376,7 +387,7 @@ export function proposePlacementContact(
       !drawing.isEndpointVisibleAt(source.endpoint, point)
     )
       continue;
-    const candidates: ElectricalContactCandidate[] = targets
+    const candidates: ElectricalContactCandidate[] = targetEndpoints
       .filter(
         (target) =>
           endpointKey(target.endpoint) !== sourceKey &&
