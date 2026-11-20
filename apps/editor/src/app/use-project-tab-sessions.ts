@@ -11,7 +11,7 @@ import type { OpenLocalProject } from "../agent/browser-agent-file-host";
 import {
   canonicalModelTypes,
   matchesLocalDelivery,
-} from "../agent/local-delivery-identity";
+} from "./local-delivery-identity";
 import type { HierarchyFrame } from "@icm/derived";
 import {
   createEmptyProject,
