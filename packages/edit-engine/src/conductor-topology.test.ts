@@ -90,6 +90,45 @@ describe("same-Net conductor topology normalization", () => {
     expect(contact && contactRequiresJunctionDot(contact)).toBe(true);
   });
 
+  it("repairs multiple Base Nets without collapsing another Net's owned joint", () => {
+    const document = createEmptyDocument("main", "Main");
+    for (const [row, netId] of ["b", "a", "c"].entries()) {
+      document.nets.push({ id: netId, terminals: [] });
+      for (const [column, name] of ["left", "joint", "right"].entries()) {
+        document.junctions.push({
+          ...junction(`${netId}-${name}`, column * 50, row * 50),
+          netId,
+        });
+      }
+      document.routes.push(
+        { ...route(`${netId}-1`, `${netId}-left`, `${netId}-joint`), netId },
+        { ...route(`${netId}-2`, `${netId}-joint`, `${netId}-right`), netId },
+      );
+    }
+    document.layoutGroups.push({
+      id: "group",
+      kind: "custom",
+      objectIds: ["c-joint"],
+      locked: false,
+    });
+
+    const result = normalizeSameNetConductorTopology(document, resolver);
+
+    expect([...result.coalescedEndpoints]).toEqual([
+      ["junction:a-joint", "a"],
+      ["junction:b-joint", "b"],
+    ]);
+    expect(document.routes.map(({ id }) => id)).toEqual([
+      "c-1",
+      "c-2",
+      "a-1",
+      "b-1",
+    ]);
+    expect(normalizeSameNetConductorTopology(document, resolver).changed).toBe(
+      false,
+    );
+  });
+
   it("unions an overlapping branch path and materializes its missing T vertex", () => {
     const document = documentWith(
       [
@@ -439,6 +478,7 @@ describe("same-Net conductor topology normalization", () => {
   it.each([
     ["a MOS bulk presentation", "bulk-dashed"],
     ["a locked leg", "locked"],
+    ["a power-rail presentation", "power-rail"],
   ])(
     "keeps a Junction whose third arm has %s, which the pass leaves alone (#2294)",
     (_name, kind) => {
@@ -458,7 +498,8 @@ describe("same-Net conductor topology normalization", () => {
           route("tie", "top", "middle"),
         ],
       );
-      if (kind === "bulk-dashed") document.routes[2]!.presentation = kind;
+      if (kind === "bulk-dashed" || kind === "power-rail")
+        document.routes[2]!.presentation = kind;
       else document.routes[2]!.legs[0]!.mode = "locked";
       const before = structuredClone(document);
 

@@ -22,6 +22,7 @@ import {
 } from "./logical-net.js";
 import type { SymbolResolver } from "@icm/symbols";
 import type { RouteEndpoint } from "@icm/model";
+import { annotationInstance } from "./annotation-instances.js";
 
 function selectedMemberName(
   document: SchematicDocument,
@@ -41,9 +42,7 @@ function selectedMemberName(
       (member) => member.id === selected.memberId,
     )?.name;
     if (localName) return localName;
-    const instance = document.instances.find(
-      (item) => item.id === selected.instanceId,
-    );
+    const instance = annotationInstance(document, selected.instanceId);
     return (
       instance &&
       resolver
@@ -102,15 +101,11 @@ export function resolveAnnotationText(
   }
   switch (binding.kind) {
     case "instance-reference": {
-      const instance = document.instances.find(
-        (candidate) => candidate.id === binding.instanceId,
-      );
+      const instance = annotationInstance(document, binding.instanceId);
       return semanticLabel(instance?.reference ?? "");
     }
     case "instance-value": {
-      const instance = document.instances.find(
-        (candidate) => candidate.id === binding.instanceId,
-      );
+      const instance = annotationInstance(document, binding.instanceId);
       if (!instance) return EMPTY_TEXT;
       const display = binding.parameter
         ? displayableInstanceParameter(

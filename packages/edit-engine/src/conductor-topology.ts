@@ -2,6 +2,7 @@ import {
   createRoutePath,
   deriveStableId,
   routeEnd,
+  routeEndpoints,
   type Point,
   type RouteBranch,
   type RouteEndpoint,
@@ -158,6 +159,36 @@ function routeCanNormalize(route: RouteBranch): boolean {
   );
 }
 
+function normalizableRoutesByNet(
+  routes: readonly RouteBranch[],
+  netIds?: ReadonlySet<string>,
+): Map<string, RouteBranch[]> {
+  const groups = new Map<string, RouteBranch[]>();
+  for (const route of routes) {
+    if (route.members || (netIds && !netIds.has(route.netId))) continue;
+    if (!routeCanNormalize(route)) continue;
+    const group = groups.get(route.netId) ?? [];
+    group.push(route);
+    groups.set(route.netId, group);
+  }
+  return groups;
+}
+
+function routeIdsByJunction(
+  routes: readonly RouteBranch[],
+): Map<string, string[]> {
+  const idsByJunction = new Map<string, string[]>();
+  for (const route of routes) {
+    for (const endpoint of routeEndpoints(route)) {
+      if (endpoint.kind !== "junction") continue;
+      const ids = idsByJunction.get(endpoint.junctionId) ?? [];
+      ids.push(route.id);
+      idsByJunction.set(endpoint.junctionId, ids);
+    }
+  }
+  return idsByJunction;
+}
+
 function endpointAtRouteSide(
   route: RouteBranch,
   point: Point,
@@ -248,18 +279,18 @@ export function normalizeSameNetConductorTopology(
     ...document.connectivityEvidence.map((evidence) => evidence.id),
   ]);
   const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
+  let routesByNet: Map<string, RouteBranch[]> | undefined;
+  let junctionRouteIds: Map<string, string[]> | undefined;
+  let protectedIds: Set<string> | undefined;
 
   for (const net of [...document.nets].sort((left, right) =>
     left.id.localeCompare(right.id, "en"),
   )) {
     if (netIds && !netIds.has(net.id)) continue;
-    const routes = document.routes
-      .filter(
-        (route) =>
-          !route.members && route.netId === net.id && routeCanNormalize(route),
-      )
-      .sort((left, right) => left.id.localeCompare(right.id, "en"));
-    if (routes.length === 0) continue;
+    routesByNet ??= normalizableRoutesByNet(document.routes, netIds);
+    const routes = routesByNet.get(net.id);
+    if (!routes) continue;
+    routes.sort((left, right) => left.id.localeCompare(right.id, "en"));
 
     const routePoints = new Map(
       routes.flatMap((route) => {
@@ -323,38 +354,17 @@ export function normalizeSameNetConductorTopology(
       }
     }
 
-    const protectedIds = protectedObjectIds(document);
     const junctions = document.junctions.filter(
       (junction) => !junction.members && junction.netId === net.id,
     );
-    const junctionsByPoint = new Map<string, typeof junctions>();
-    for (const junction of junctions) {
-      const key = pointKey(junction.position);
-      const atPoint = junctionsByPoint.get(key) ?? [];
-      atPoint.push(junction);
-      junctionsByPoint.set(key, atPoint);
-    }
-    // A Route this pass leaves alone (a MOS bulk tie, locked geometry, a
-    // member mapping) is still an arm of the Junction it ends at: counted
-    // out, a body tie's Junction looked two-armed and was merged away, and
-    // the tie ended on the wire's interior, unconnected (#2294).
+    if (junctions.length) protectedIds ??= protectedObjectIds(document);
     const normalized = new Set(routes.map((route) => route.id));
-    const heldJunctionIds = new Set(
-      document.routes.flatMap((route) =>
-        normalized.has(route.id)
-          ? []
-          : [route.start, routeEnd(route)].flatMap((endpoint) =>
-              endpoint.kind === "junction" ? [endpoint.junctionId] : [],
-            ),
-      ),
-    );
     const collapsibleJunctionIds = new Set<string>();
     for (const junction of junctions) {
       const role = junction.role ?? "branch";
       if (
         (role !== "branch" && role !== "route-anchor") ||
-        protectedIds.has(junction.id) ||
-        heldJunctionIds.has(junction.id) ||
+        protectedIds?.has(junction.id) ||
         options.preserveJunctionIds?.has(junction.id)
       ) {
         continue;
@@ -367,6 +377,14 @@ export function normalizeSameNetConductorTopology(
       // becomes an interior bend. Protected and same-transaction Junctions
       // were excluded above, so stable external ownership is preserved.
       if (incident.length === 2) {
+        // A bulk tie, locked Route, member mapping or other external arm
+        // still holds this Junction even when the two ordinary arms line up.
+        junctionRouteIds ??= routeIdsByJunction(document.routes);
+        if (
+          junctionRouteIds.get(junction.id)?.some((id) => !normalized.has(id))
+        ) {
+          continue;
+        }
         collapsibleJunctionIds.add(junction.id);
       }
     }
@@ -613,7 +631,7 @@ export function normalizeSameNetConductorTopology(
         .filter(
           (junction) =>
             !referencedJunctionIds.has(junction.id) &&
-            !protectedIds.has(junction.id),
+            !protectedIds?.has(junction.id),
         )
         .map((junction) => junction.id),
     );
@@ -683,6 +701,10 @@ export function normalizeSameNetConductorTopology(
         changedObjectIds.add(constraint.id);
       }
     }
+    // A repair can replace routes and retarget their external owners.
+    routesByNet = undefined;
+    junctionRouteIds = undefined;
+    protectedIds = undefined;
     changed = true;
   }
 
