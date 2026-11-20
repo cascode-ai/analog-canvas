@@ -34,16 +34,24 @@ const inputs = [
 ];
 
 it("types a part by the caller's device type only where nothing else does", async () => {
-  const refused = await planRnlImport({
+  // Untyped, the part comes in as a call of its master, with a finding
+  // that says how to type it (#2294).
+  const untyped = await planRnlImport({
     inputs,
     entryPath: path,
     runtime,
     undeclaredModels: "give-type",
   });
-  expect(refused).toMatchObject({
-    status: "failed",
-    message: expect.stringContaining("modelTypes"),
-  });
+  if (untyped.status !== "ready") throw new Error(untyped.message);
+  expect(
+    untyped.project.documents
+      .flatMap((document) => document.instances)
+      .map((instance) => instance.symbolId),
+  ).not.toContain("nmos");
+  expect(
+    untyped.diagnostics.find(({ code }) => code === "SPICE_IMPORT_EXTERNAL_CALLS")
+      ?.message,
+  ).toContain("modelTypes");
 
   const plan = await planRnlImport({
     inputs,

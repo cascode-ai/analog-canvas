@@ -115,6 +115,13 @@ export interface SpiceImportOptions {
    */
   declaredModelNames?: readonly string[];
   /**
+   * The name a call of an external master was written with, by its card's
+   * file path and line, where the conversion put SPICE's X before it
+   * (`C1 (a b) cfmom_2t` printed as `XC1`): its Reference, as Spectre
+   * names it.
+   */
+  callReferences?: ReadonlyMap<string, string>;
+  /**
    * How a refused device whose model no card declares is told to recover:
    * by adding a card (the default), or, for a caller that takes device types
    * itself (an Agent's delivery), by giving its type in `modelTypes`.
@@ -1851,6 +1858,17 @@ function importCircuitIR(
   );
   const { documents, externalSubcircuitDefinitions } =
     bindImportedChildDocuments(importedDocuments, kept?.definitions);
+  if (options.callReferences?.size) {
+    const paths = new Map(bundle.files.map(({ id, path }) => [id, path]));
+    for (const instance of documents.flatMap((document) => document.instances)) {
+      if (instance.importProvenance?.kind !== "opaque" || !instance.sourceRef)
+        continue;
+      const written = options.callReferences.get(
+        `${paths.get(instance.sourceRef.fileId)}:${instance.sourceRef.start.line}`,
+      );
+      if (written) instance.reference = written;
+    }
+  }
   for (const document of documents) {
     document.importReference!.files = bundle.files.map((file) => ({
       fileId: file.id,

@@ -43,8 +43,7 @@ export interface NetlistImportPolicy {
 }
 
 export type NetlistSourceImport = (
-  | { status: "imported"; project: CircuitProject }
-  | { status: "refused" }
+  { status: "imported"; project: CircuitProject } | { status: "refused" }
 ) & {
   diagnostics: SpiceDiagnostic[];
   /** Every statement of the files the entry reaches, with its fate. */
@@ -79,6 +78,9 @@ const DROPPED_FATE: Record<
   "native model card": ["declaration", "native model card, not converted"],
   "subcircuit parameters": ["declaration", "subcircuit parameters"],
   "built-in body": ["definition", "built-in body"],
+  "outside the drawing": ["preserved", "outside the drawing, not converted"],
+  dependency: ["declaration", "Verilog-A dependency, not converted"],
+  "library structure": ["declaration", "library structure"],
   "no output": ["preserved", "no SPICE form"],
 };
 
@@ -110,7 +112,12 @@ function sourceLedger(
       const at = `${origin.path}:${origin.line}`;
       converted.set(at, [
         ...(converted.get(at) ?? []),
-        { ...entry, path: origin.path, line: origin.line, endLine: origin.line },
+        {
+          ...entry,
+          path: origin.path,
+          line: origin.line,
+          endLine: origin.line,
+        },
       ]);
     } else {
       reach(entry.path);
@@ -174,7 +181,9 @@ export function ledgerSummary(ledger: StatementLedger): string {
         ? ` (${entries
             .slice(0, 20)
             .map(({ path, line }) => `${path}:${line}`)
-            .join(", ")}${entries.length > 20 ? `, and ${entries.length - 20} more` : ""})`
+            .join(
+              ", ",
+            )}${entries.length > 20 ? `, and ${entries.length - 20} more` : ""})`
         : "";
     return [`${entries.length} ${fate}${where}`];
   });
@@ -193,7 +202,13 @@ export function ledgerSummary(ledger: StatementLedger): string {
 function coverageDiagnostic(ledger: StatementLedger): SpiceDiagnostic {
   return {
     code: "SPICE_IMPORT_COVERAGE",
-    severity: ledger.complete ? "info" : "warning",
+    // A statement unresolved, refused or unaccounted is worth attention
+    // (an Agent receives warnings, not information).
+    severity: ledger.entries.some(({ fate }) =>
+      ["unresolved", "refused", "unknown"].includes(fate),
+    )
+      ? "warning"
+      : "info",
     stage: "import",
     message: ledgerSummary(ledger),
   };
@@ -208,28 +223,23 @@ export async function compileNetlistSources(
   entryPath: string,
   policy: NetlistImportPolicy = {},
 ): Promise<CompiledNetlistSources> {
-  let prepared: ReturnType<typeof prepareImportSources>;
-  try {
-    prepared = prepareImportSources(
-      inputs,
-      policy.externalSubcircuitNames,
-      policy.externalSubcircuitCalls,
-    );
-  } catch (error) {
+  const prepared = prepareImportSources(inputs, {
+    ...(policy.externalSubcircuitNames
+      ? { externalSubcircuitNames: policy.externalSubcircuitNames }
+      : {}),
+    ...(policy.externalSubcircuitCalls
+      ? { externalSubcircuitCalls: policy.externalSubcircuitCalls }
+      : {}),
+    ...(policy.modelTypes ? { modelTypes: policy.modelTypes } : {}),
+    ...(policy.givesModelTypes ? { givesModelTypes: true } : {}),
+  });
+  if (prepared.refusals.length)
     return {
       compiled: null,
       prepared: null,
-      diagnostics: [
-        {
-          code: "SPICE_CONVERSION_BLOCKED",
-          severity: "error",
-          stage: "import",
-          message: error instanceof Error ? error.message : String(error),
-        },
-      ],
+      diagnostics: [...prepared.refusals, ...prepared.diagnostics],
       ledger: EMPTY_LEDGER,
     };
-  }
   const compiled = await compileSpiceSources(
     prepared.inputs,
     entryPath,
@@ -253,8 +263,11 @@ export async function importNetlistSources(
   entryPath: string,
   policy: NetlistImportPolicy = {},
 ): Promise<NetlistSourceImport> {
-  const { compiled, prepared, diagnostics: refusals } =
-    await compileNetlistSources(inputs, entryPath, policy);
+  const {
+    compiled,
+    prepared,
+    diagnostics: refusals,
+  } = await compileNetlistSources(inputs, entryPath, policy);
   if (!compiled || !prepared)
     return {
       status: "refused",
@@ -270,6 +283,7 @@ export async function importNetlistSources(
       ...prepared.modelTypes,
     ]),
     declaredModelNames: [...prepared.modelTypes.keys()],
+    callReferences: prepared.callReferences,
     ...(policy.namingProfile ? { namingProfile: policy.namingProfile } : {}),
     ...(policy.givesModelTypes ? { undeclaredModels: "give-type" } : {}),
     ...(policy.externalSymbolMappings

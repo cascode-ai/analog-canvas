@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildProjectConnectivityIndex, runErcChecks } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
-import { analyzeDesignNetlist } from "@icm/netlist";
+import { analyzeDesignNetlist, createDesignNetlistExport } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { importNetlistSources } from "./netlist-source-import.js";
 
@@ -84,9 +84,7 @@ describe("netlist source import: model evidence", () => {
     expect(carriedModels(project)).toEqual([]);
     expect(design.ir?.cells[0]?.instances[0]?.target).toBe("nch_mac");
     expect(
-      design.diagnostics.find(
-        ({ code }) => code === "IMPORTED_MODEL_EXTERNAL",
-      ),
+      design.diagnostics.find(({ code }) => code === "IMPORTED_MODEL_EXTERNAL"),
     ).toMatchObject({
       severity: "info",
       message: expect.stringContaining("M1 names nch_mac"),
@@ -147,7 +145,9 @@ describe("netlist source import: model evidence", () => {
       findings.filter(({ code }) => code === "ERC_UNKNOWN_DEVICE_PARAMETER"),
     ).toEqual([]);
     expect(
-      findings.filter(({ code }) => code === "ERC_UNVERIFIED_DEVICE_PARAMETERS"),
+      findings.filter(
+        ({ code }) => code === "ERC_UNVERIFIED_DEVICE_PARAMETERS",
+      ),
     ).toEqual([
       expect.objectContaining({
         severity: "info",
@@ -181,7 +181,9 @@ describe("netlist source import: model evidence", () => {
       binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
     };
     expect(
-      erc(project).filter(({ code }) => code === "ERC_UNKNOWN_DEVICE_PARAMETER"),
+      erc(project).filter(
+        ({ code }) => code === "ERC_UNKNOWN_DEVICE_PARAMETER",
+      ),
     ).toEqual([
       expect.objectContaining({
         message: expect.stringContaining("unknown parameter ad"),
@@ -266,7 +268,7 @@ describe("netlist source import: statement ledger", () => {
     expect(
       result.diagnostics.find(({ code }) => code === "SPICE_IMPORT_COVERAGE"),
     ).toMatchObject({
-      severity: "info",
+      severity: "warning",
       message:
         "18 statements: 4 instance, 2 definition, 2 declaration, 6 preserved, 4 unresolved (top.sp:10, top.sp:11, top.sp:12, top.sp:16)",
     });
@@ -317,5 +319,261 @@ describe("netlist source import: statement ledger", () => {
       "top.scs:8 preserved",
     ]);
     expect(result.ledger.complete).toBe(true);
+  });
+});
+
+function instanceNamed(project: CircuitProject, reference: string) {
+  return project.documents
+    .flatMap((document) => document.instances)
+    .find((instance) => instance.reference === reference)!;
+}
+
+function masterOf(project: CircuitProject, reference: string) {
+  const binding = instanceNamed(project, reference).netlist?.binding;
+  return binding?.kind === "external-subcircuit"
+    ? project.externalSubcircuitDefinitions.find(
+        ({ id }) => id === binding.definitionId,
+      )?.name
+    : undefined;
+}
+
+describe("netlist source import: Spectre masters", () => {
+  it("imports a master it does not know as an external call: its name, ordered ports, parameters and location", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.scs",
+          [
+            "simulator lang=spectre",
+            "subckt top a b c",
+            "C1 (a b) cfmom_2t nr=8 lr=2u w=50n s=50n multi=2",
+            "R1 (b c) rupolym l=17.13u w=1u m=1 multi=(2)",
+            "I0 (a c) external_cell",
+            "ends top",
+          ].join("\n"),
+        ),
+      ],
+      "top.scs",
+    );
+    const project = importedProject(result);
+    expect(["C1", "R1", "I0"].map((name) => masterOf(project, name))).toEqual([
+      "cfmom_2t",
+      "rupolym",
+      "external_cell",
+    ]);
+    expect(instanceNamed(project, "C1").netlist?.parameters).toEqual({
+      nr: "8",
+      lr: "2u",
+      w: "50n",
+      s: "50n",
+      multi: "2",
+    });
+    expect(
+      instanceNamed(project, "R1").importProvenance?.terminalMapping?.map(
+        ({ sourcePosition }) => sourcePosition,
+      ),
+    ).toEqual([0, 1]);
+    expect(fates(result)).toEqual([
+      "top.scs:1 preserved",
+      "top.scs:2 definition",
+      "top.scs:3 instance",
+      "top.scs:4 instance",
+      "top.scs:5 instance",
+      "top.scs:6 definition",
+    ]);
+    // A netlist handed out to run still refuses calls without bodies, naming
+    // each; an interchange file prints them as the source wrote them.
+    const handedOut = createDesignNetlistExport(project, { format: "spectre" });
+    expect(handedOut.status).toBe("blocked");
+    expect(
+      handedOut.diagnostics
+        .filter(({ code }) => code === "MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED")
+        .map(({ message }) => message)
+        .join("\n"),
+    ).toMatch(/cfmom_2t[\s\S]*rupolym[\s\S]*external_cell|cfmom_2t/u);
+    const interchange = createDesignNetlistExport(project, {
+      format: "spectre",
+      callsWithoutBodies: true,
+    });
+    // Named parameters print in the printer's order, each as written.
+    const printed = interchange.status === "ready" ? interchange.file.text : "";
+    expect(printed).toContain(
+      "C1 (a b) cfmom_2t lr=2u multi=2 nr=8 s=50n w=50n",
+    );
+    expect(printed).toContain("R1 (b c) rupolym l=17.13u m=1 multi=(2) w=1u");
+    expect(printed).toContain("I0 (a c) external_cell");
+  });
+
+  it("classifies a call by its declaration in another file of the design", async () => {
+    const project = importedProject(
+      await importNetlistSources(
+        [
+          file(
+            "top.scs",
+            [
+              "simulator lang=spectre",
+              'include "cells.scs"',
+              'include "models.scs"',
+              "subckt top a b d g s",
+              "I0 (a b) mycell",
+              "M1 (d g s s) nch w=1u l=30n",
+              "ends top",
+            ].join("\n"),
+          ),
+          file(
+            "cells.scs",
+            "simulator lang=spectre\nsubckt mycell x y\nR0 (x y) resistor r=1k\nends mycell\n",
+          ),
+          file(
+            "models.scs",
+            "simulator lang=spectre\nmodel nch bsim3v3 type=n\n",
+          ),
+        ],
+        "top.scs",
+      ),
+    );
+    expect(instanceNamed(project, "XI0").netlist?.binding?.kind).toBe(
+      "subcircuit",
+    );
+    expect(instanceNamed(project, "M1").symbolId).toBe("nmos");
+  });
+
+  it("brings a MOS no declaration names in as a call, and as the device the caller types", async () => {
+    const netlist = file(
+      "top.scs",
+      "simulator lang=spectre\nsubckt top d g s b\nM1 (d g s b) nch_mac w=1u l=30n\nends top\n",
+    );
+    const untyped = await importNetlistSources([netlist], "top.scs");
+    expect(masterOf(importedProject(untyped), "M1")).toBe("nch_mac");
+    expect(
+      untyped.diagnostics.find(
+        ({ code }) => code === "SPICE_IMPORT_EXTERNAL_CALLS",
+      )?.message,
+    ).toContain("No declaration in the design names nch_mac (M1)");
+    const typed = importedProject(
+      await importNetlistSources([netlist], "top.scs", {
+        modelTypes: { nch_mac: "nmos" },
+      }),
+    );
+    expect(instanceNamed(typed, "M1").symbolId).toBe("nmos");
+  });
+
+  it("lists every refusal of every file, each with its location", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.scs",
+          'simulator lang=spectre\ninclude "leaf.scs"\nR1 (a A) resistor r=1k\n',
+        ),
+        file(
+          "leaf.scs",
+          "simulator lang=spectre\nR2 (b 0) resistor r=1k tc1=1\nR3 (c C) resistor r=1k\n",
+        ),
+      ],
+      "top.scs",
+    );
+    expect(result.status).toBe("refused");
+    expect(
+      result.diagnostics
+        .filter(({ severity }) => severity === "error")
+        .map(({ message }) => message.split(":").slice(0, 2).join(":")),
+    ).toEqual(["top.scs:3", "leaf.scs:2", "leaf.scs:3"]);
+  });
+
+  it("keeps statements outside the drawing that have no SPICE form, without refusing the design", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.scs",
+          [
+            "simulator lang=spectre",
+            'ahdl_include "block.va"',
+            "subckt top a b",
+            "R1 (a b) resistor r=1k",
+            "U1 (a b) va_block gain=2",
+            "ends top",
+            "save a b",
+            "simulatorOptions options reltol=1e-3",
+            "tran1 tran stop=10n",
+            "noise1 (a 0) noise start=1 stop=1G",
+          ].join("\n"),
+        ),
+      ],
+      "top.scs",
+    );
+    expect(result.status).toBe("imported");
+    expect(fates(result)).toEqual([
+      "top.scs:1 preserved",
+      "top.scs:2 declaration",
+      "top.scs:3 definition",
+      "top.scs:4 instance",
+      "top.scs:5 instance",
+      "top.scs:6 definition",
+      "top.scs:7 preserved",
+      "top.scs:8 preserved",
+      "top.scs:9 preserved",
+      "top.scs:10 preserved",
+    ]);
+    expect(masterOf(importedProject(result), "U1")).toBe("va_block");
+  });
+
+  it("reads a Spectre library's sections as the sections an include selects", async () => {
+    const project = importedProject(
+      await importNetlistSources(
+        [
+          file(
+            "top.scs",
+            'simulator lang=spectre\ninclude "lib.scs" section=tt\nsubckt top d g s b\nM1 (d g s b) nch w=1u l=30n\nends top\n',
+          ),
+          file(
+            "lib.scs",
+            "simulator lang=spectre\nlibrary corners\nsection tt\nmodel nch bsim3v3 type=n\nendsection tt\nsection ff\nmodel nch bsim3v3 type=n\nendsection ff\nendlibrary corners\n",
+          ),
+        ],
+        "top.scs",
+      ),
+    );
+    expect(instanceNamed(project, "M1").symbolId).toBe("nmos");
+  });
+
+  it("refuses names one file spells in another case, as SPICE would join them", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.scs",
+          'simulator lang=spectre\ninclude "leaf.scs"\nsubckt top a\nR1 (a vdd!) resistor r=1k\nX1 (a) leaf\nends top\n',
+        ),
+        file(
+          "leaf.scs",
+          "simulator lang=spectre\nsubckt leaf a\nR2 (a VDD!) resistor r=1k\nends leaf\nsubckt Leaf a\nR3 (a 0) resistor r=1k\nends Leaf\n",
+        ),
+      ],
+      "top.scs",
+    );
+    expect(result.status).toBe("refused");
+    expect(
+      result.diagnostics
+        .filter(({ severity }) => severity === "error")
+        .map(({ message }) => message),
+    ).toEqual([
+      "Names differ only in case, which SPICE reads as one: vdd! (top.scs:4), VDD! (leaf.scs:3)",
+      "Names differ only in case, which SPICE reads as one: leaf (leaf.scs:2), Leaf (leaf.scs:5)",
+    ]);
+  });
+
+  it("refuses one master called with two port counts, naming each call", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.scs",
+          "simulator lang=spectre\nsubckt top a b c\nXA (a b) blk\nXB (a b c) blk\nends top\n",
+        ),
+      ],
+      "top.scs",
+    );
+    expect(result.status).toBe("refused");
+    expect(result.diagnostics[0]?.message).toBe(
+      "blk is called with 2 and 3 ports: top.scs:3 XA (2), top.scs:4 XB (3)",
+    );
   });
 });
