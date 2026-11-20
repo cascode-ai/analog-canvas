@@ -365,6 +365,26 @@
   text-align: left;
 }
 
+.net-trace-block {
+  list-style: none;
+}
+
+/* Inherit the actual button's text metrics, including user font overrides. */
+.net-trace-metrics {
+  position: absolute;
+  visibility: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.diagnostics .net-trace-block-rows {
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  list-style-type: disc;
+}
+
 .diagnostics [data-severity="error"] {
   color: var(--icm-error);
 }

@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { compileNgspiceSourceSimulation } from "@icm/netlist";
+import { importSpiceSources } from "@icm/spice";
+import { createSharedSupplyInput } from "../../../scripts/lib/scaling-fixtures.mjs";
 import {
   completedNgspiceRun,
   ngspiceCapabilities,
@@ -26,6 +28,7 @@ import {
 import { serializeProject } from "@icm/project-protocol";
 
 import {
+  awaitTwoFrames,
   revealPropertiesShelf,
   clickCommand,
   exportedProject,
@@ -51,6 +54,85 @@ import { resolveDocumentLogicalNets } from "@icm/derived";
 function fitsWidth(locator: Locator): Promise<boolean> {
   return locator.evaluate((el) => el.scrollWidth <= el.clientWidth);
 }
+
+async function openSharedSupplyTrace(page: Page) {
+  const file = await createSharedSupplyInput(importSpiceSources);
+  await openProject(page, file, "loads.icproj.json");
+  const canvas = page.getByTestId("schematic-canvas");
+  await expect(page.getByTestId("hit-Rtop")).toBeAttached();
+  await canvas.focus();
+  await page.keyboard.press("ControlOrMeta+f");
+  await page.getByTestId("project-search-input").fill("VDD");
+  await page.getByTestId("project-search-result-net-e601849b263a5bd1").click();
+  await revealPropertiesShelf(page);
+  await expect(
+    page.getByRole("heading", { name: "Hierarchy Net trace (129 Cells)" }),
+  ).toBeVisible();
+  return page.getByTestId("net-trace-hops");
+}
+
+test("opens the last global Net hop by keyboard and returns to that caller", async ({
+  page,
+}) => {
+  await openSharedSupplyTrace(page);
+  const first = page.getByTestId("net-trace-hop-0");
+  const last = page.getByTestId("net-trace-hop-16511");
+  await page.getByTestId("statusbar-issues").focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(last).toBeFocused();
+  await page
+    .locator("summary")
+    .filter({
+      has: page.getByRole("heading", { name: "Issues", exact: true }),
+    })
+    .focus();
+  await page.keyboard.press("Tab");
+  await expect(first).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(last).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByTestId("net-trace-hop-16510")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("hierarchy-breadcrumb")).toContainText(
+    "X99: load",
+  );
+  await page.getByRole("button", { name: "Up to the caller" }).click();
+  await expect(page.getByTestId("hit-X99")).toHaveClass(/selected/);
+});
+
+test("updates the scroll range of global Net hops when a reader's font changes", async ({
+  page,
+}) => {
+  const list = await openSharedSupplyTrace(page);
+  const first = page.getByTestId("net-trace-hop-0");
+  const width = await list.evaluate((el) => el.clientWidth);
+  const originalHeight = (await first.boundingBox())!.height;
+  for (let spot = 1; spot <= 24; spot++) {
+    await list.evaluate((el, fraction) => {
+      el.scrollTop = el.scrollHeight * fraction;
+    }, spot / 25);
+    await awaitTwoFrames(page);
+  }
+  await list.evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await expect(first).toBeInViewport();
+  await page.addStyleTag({
+    content: ".net-trace button { font: 18px/2 monospace; }",
+  });
+  const height = (await first.boundingBox())!.height;
+  expect(height).toBeGreaterThan(originalHeight * 2);
+  expect(await list.evaluate((el) => el.clientWidth)).toBe(width);
+  // All but 128 of the 16,512 rows have the same destination label as row 0.
+  const extent = height * 16_512;
+  await expect
+    .poll(() => list.evaluate((el) => el.scrollHeight))
+    .toBeGreaterThan(extent * 0.98);
+  expect(await list.evaluate((el) => el.scrollHeight)).toBeLessThan(
+    extent * 1.02,
+  );
+});
 
 function modelNetlist(manager: Locator): Locator {
   return manager.getByLabel("External model netlist");
