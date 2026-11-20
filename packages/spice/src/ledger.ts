@@ -1,11 +1,8 @@
-import {
-  deriveStableId,
-  type CircuitProject,
-  type SourceSpan,
-} from "@icm/model";
+import type { CircuitProject, SourceSpan } from "@icm/model";
 
 import type { SpiceCompileResult } from "./compiler.js";
 import type { SpiceDiagnostic } from "./diagnostics.js";
+import { importedDocumentId } from "./importer.js";
 
 /**
  * Where a source statement went (#2294): every non-comment logical
@@ -70,9 +67,16 @@ export function statementLedger(
     diagnostics: readonly SpiceDiagnostic[];
   },
 ): StatementLedger {
-  const decided = new Map(
-    (compiled.statementFates ?? []).map((fate) => [key(fate.sourceRef), fate]),
-  );
+  // One fate each: a statement given two says the accounting has a gap.
+  const decided = new Map<string, StatementFate>();
+  const doubled = new Map<string, StatementFateKind[]>();
+  for (const fate of compiled.statementFates ?? []) {
+    const at = key(fate.sourceRef);
+    const prior = decided.get(at);
+    if (prior)
+      doubled.set(at, [...(doubled.get(at) ?? [prior.fate]), fate.fate]);
+    else decided.set(at, fate);
+  }
   const project = imported?.project ?? null;
   const placed = new Set(
     (project?.documents ?? []).flatMap((document) =>
@@ -89,7 +93,9 @@ export function statementLedger(
   ])
     if (item.sourceRef && !diagnosed.has(key(item.sourceRef)))
       diagnosed.set(key(item.sourceRef), item);
-  const paths = new Map(compiled.bundle.files.map(({ id, path }) => [id, path]));
+  const paths = new Map(
+    compiled.bundle.files.map(({ id, path }) => [id, path]),
+  );
   const entries: StatementLedgerEntry[] = [];
   for (const syntax of compiled.bundle.syntaxFiles)
     for (const statement of syntax.statements) {
@@ -99,10 +105,7 @@ export function statementLedger(
       let fate: StatementLedgerEntry["fate"] = base?.fate ?? "unknown";
       let reason = base?.reason;
       if (fate === "instance" && project && !placed.has(at)) {
-        const document = deriveStableId(
-          "document",
-          (base?.cell ?? "__flat__").toLowerCase(),
-        );
+        const document = importedDocumentId(base?.cell ?? "__flat__");
         if (diagnostic?.code === "SPICE_IMPORT_NON_VISUAL_INSTANCE") {
           fate = "preserved";
           reason = "no electrical terminals";
@@ -123,8 +126,14 @@ export function statementLedger(
         fate = "refused";
         reason = diagnostic.message;
       }
+      const twice = doubled.get(at);
+      if (twice) {
+        fate = "unknown";
+        reason = `given ${twice.join(" and ")}`;
+      }
       entries.push({
-        path: paths.get(statement.sourceRef.fileId) ?? statement.sourceRef.fileId,
+        path:
+          paths.get(statement.sourceRef.fileId) ?? statement.sourceRef.fileId,
         line: statement.sourceRef.start.line,
         endLine: statement.sourceRef.end.line,
         fate,

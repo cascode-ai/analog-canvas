@@ -5,7 +5,12 @@ import {
   ComponentLibraryOriginSchema,
 } from "./component-definition.js";
 
-import { CURRENT_MODEL_SCHEMA_VERSION, StableIdSchema } from "./common.js";
+import {
+  CURRENT_MODEL_SCHEMA_VERSION,
+  MAX_FORMAL_PARAMETERS,
+  MAX_PART_TERMINALS,
+  StableIdSchema,
+} from "./common.js";
 import { SourceManifestSchema, SymbolLibraryLockSchema } from "./source.js";
 import { SchematicDocumentSchema } from "./document.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
@@ -56,8 +61,12 @@ export const ExternalSubcircuitDefinitionSchema = z
     name: z.string().min(1).max(128),
     /** Automatic artwork has no captured class; publication origin belongs to its owner. */
     libraryOrigin: ComponentLibraryOriginSchema.optional(),
-    terminals: z.array(ExternalSubcircuitTerminalSchema).max(128),
-    formalParameters: z.array(ExternalSubcircuitFormalParameterSchema).max(128),
+    terminals: z
+      .array(ExternalSubcircuitTerminalSchema)
+      .max(MAX_PART_TERMINALS),
+    formalParameters: z
+      .array(ExternalSubcircuitFormalParameterSchema)
+      .max(MAX_FORMAL_PARAMETERS),
     /** Imported positional interfaces are valid, but remain visibly provisional. */
     interfaceStatus: z.enum(["declared", "inferred-positional"]),
     presentation: CellSymbolPresentationSchema.optional(),

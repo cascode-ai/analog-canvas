@@ -18,7 +18,7 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
 
 - 200 `{ status: "converted", text, source, target, issues }`.
 - 422 `{ status: "blocked", issues }` with original `line`, `statement`,
-  `code`, `message`, one per statement refused; no partial text.
+  `code`, `message`; no partial text.
 - 400 invalid JSON/envelope, 405 method, 415 media type, 413 size: text ≤
   512 KiB and 10,000 non-comment statements, body ≤ 1 MiB; 500 a converter
   failure.
@@ -77,19 +77,22 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
   At the endpoint, undeclared M/D/Q follow model designators and other
   masters need an explicit X or declaration.
 - The editor's import reads a design whole (#2294):
-  - Every file's declarations (subcircuits, models by designator, from every
-    section of the closure) and a caller's device types classify every
-    file's calls.
+  - Every file's declarations (subcircuits, models by designator) outside a
+    library section or in a section some include selects, and a caller's
+    device types, classify every file's calls; a card in an unselected section
+    declares and types nothing.
   - A master nothing declares is a call of it, whatever its instance's first
     letter, keeping ordered ports, parameters as written and its Spectre name
     as the Reference; `SPICE_IMPORT_EXTERNAL_CALLS` names each such master.
-  - A value outside the common arithmetic stays as written, with a finding.
+  - In a call of such a master, a value outside the common arithmetic stays as
+    written, with a finding; any other part's still refuses.
   - Analyses, options, `save`/`ic`/`nodeset` and `ahdl_include` stay out of the
     drawing (an analysis the subset has still converts); Spectre `section`
     reads as SPICE's `.lib`/`.endl`.
-  - Every file's refusals are listed; names Spectre tells apart only by case
-    across files (`vdd!`/`VDD!`, subcircuits), and one master called with two
-    port counts, are refused before conversion.
+  - Every refusal of every file is listed with its location (the endpoint
+    still answers its first). Names Spectre tells apart only by case across
+    files (subcircuits, models, file-level parameters, `vdd!`/`VDD!`), and
+    one master called with two port counts, are refused before conversion.
 - Never invents model cards, maps PDK aliases, infers geometry or searches the
   server. Blocked: `.control`, unsupported device parameters, Spectre model
   equations, UIC, arbitrary simulator functions. SCS output is not qualified

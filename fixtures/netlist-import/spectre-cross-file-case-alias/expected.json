@@ -1,0 +1,12 @@
+{
+  "status": "refused",
+  "complete": false,
+  "ledger": [
+    "leaf.scs:2 refused (Names differ only in case, which SPICE reads as one: leaf (leaf.scs:2), Leaf (le)",
+    "leaf.scs:5 refused (Names differ only in case, which SPICE reads as one: leaf (leaf.scs:2), Leaf (le)"
+  ],
+  "instances": [],
+  "findings": [
+    "error SPICE_CONVERSION_BLOCKED: Names differ only in case, which SPICE reads as one: leaf (leaf.scs:2), Leaf (leaf.scs:5)"
+  ]
+}

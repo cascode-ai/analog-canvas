@@ -1,0 +1,6 @@
+simulator lang=spectre
+include "leaf.scs"
+subckt top a
+R1 (a vdd!) resistor r=1k
+X1 (a) leaf
+ends top

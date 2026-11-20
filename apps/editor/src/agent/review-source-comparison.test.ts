@@ -99,6 +99,7 @@ describe("Canvas review of an imported netlist", () => {
     expect(result.notes).toEqual(
       expect.arrayContaining([
         "Reference coverage: 17 statements: 5 instance, 4 definition, 5 declaration, 3 preserved",
+        "Reference coverage by Cell: file level 8, inv 4, buf 5",
         "The drawing's netlist and the reference are read by the same conversion and parser: what those drop, both sides drop, so this comparison cannot see it",
         expect.stringContaining("/pdk/tsmc28/models/spectre/toplevel.scs"),
       ]),
@@ -123,6 +124,7 @@ describe("Canvas review of an imported netlist", () => {
     expect(result.notes).toEqual(
       expect.arrayContaining([
         "Reference coverage: 8 statements: 1 instance, 2 definition, 5 unresolved (top.sp:4, top.sp:5, top.sp:6, top.sp:7, top.sp:8)",
+        "Reference coverage by Cell: top 8 (5 unresolved)",
       ]),
     );
   });

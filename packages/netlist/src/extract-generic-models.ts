@@ -4,7 +4,9 @@
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import {
   instanceEvidence,
+  namesModelOutsideSources,
   reviewedExternalBindingForMaster,
+  sourcesDefineModel,
 } from "@icm/devices";
 import type {
   DesignNetlistInstance,
@@ -170,23 +172,15 @@ export function definesGenericModel(
   );
 }
 
-function isTypedOnly(
+function namesModelOutside(
   project: CircuitProject,
   document: SchematicDocument,
   part: DesignNetlistInstance,
 ): boolean {
   const source = document.instances.find((item) => item.id === part.id);
-  return !!source && instanceEvidence(project, source) === "typed-only";
-}
-
-/** `.model NAME` in SPICE, `model NAME` in Spectre, a bin `NAME.1` alike. */
-function textsDefineModel(texts: readonly string[], name: string): boolean {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const definition = new RegExp(
-    String.raw`^[ \t]*\.?model[ \t]+${escaped}(?:\.\d+)?(?=[\s(]|$)`,
-    "imu",
+  return (
+    !!source && namesModelOutsideSources(instanceEvidence(project, source))
   );
-  return texts.some((text) => definition.test(text));
 }
 
 /** Printed parts by the References their Cell shows, in reading order. */
@@ -353,7 +347,7 @@ export function reportUndefinedGenericModels(
       (instance) =>
         instance.deviceClass === deviceClass &&
         instance.target?.toUpperCase() === name &&
-        !isTypedOnly(project, document, instance),
+        !namesModelOutside(project, document, instance),
     );
     return parts.length &&
       !definesGenericModel(project, deckSources, {
@@ -404,22 +398,41 @@ export function reportImportedModelsWithoutCards(
   ];
   const byModel = new Map<string, DesignNetlistInstance[]>();
   for (const part of instances) {
-    if (!part.target || !isTypedOnly(project, document, part)) continue;
+    if (!part.target || !namesModelOutside(project, document, part)) continue;
     if (run && reviewedExternalBindingForMaster(part.target)) continue;
-    if (run && textsDefineModel(loaded, part.target)) continue;
+    if (run && sourcesDefineModel(loaded, part.target)) continue;
     byModel.set(part.target, [...(byModel.get(part.target) ?? []), part]);
   }
   if (!byModel.size) return;
+  // Each part where its sources put it, as the dependency list says: a
+  // converted file's lines are the conversion's, so it is named alone.
+  const files = new Map(
+    (project.source?.files ?? []).map((file) => [file.id, file]),
+  );
+  const located = (part: { id: string; name: string }) => {
+    const span = document.instances.find(
+      (item) => item.id === part.id,
+    )?.sourceRef;
+    const file = span && files.get(span.fileId);
+    if (!file) return part.name;
+    return file.originalContent
+      ? `${part.name} (${file.path})`
+      : `${part.name} (${file.path}:${span.start.line})`;
+  };
   const uses = [...byModel].map(([model, parts]) => {
-    const names = namedParts(document, parts).map((part) => part.name);
+    const names = namedParts(document, parts).map(located);
     return `${partList(names)} ${names.length === 1 ? "names" : "name"} ${model}`;
   });
   const models = [...byModel.keys()];
   const ids = [...byModel.values()].flat().map((part) => part.id);
-  // A file of the run that includes a library this check cannot read may
-  // define them: say so, rather than refuse a run that would work.
+  // A file of the run that includes another file (`.include`, `.lib FILE
+  // SECTION`, Spectre `include`) may define them through it: say so, rather
+  // than refuse a run that would work. A library's own `.lib tt` header
+  // includes nothing.
   const includesLibrary = loaded.some((text) =>
-    /^[ \t]*\.?(?:include|inc|lib)\b/imu.test(text),
+    /^[ \t]*(?:\.?include|\.inc)[ \t]+\S|^[ \t]*\.lib[ \t]+\S+[ \t]+\S/imu.test(
+      text,
+    ),
   );
   if (run)
     diagnostic(

@@ -1,7 +1,9 @@
 {
   "status": "refused",
   "complete": false,
-  "ledger": [],
+  "ledger": [
+    "top.scs:3 refused (top.scs:3: Node names a and A differ only in case; use one spelling before chang)"
+  ],
   "instances": [],
   "findings": [
     "error SPICE_CONVERSION_BLOCKED: top.scs:3: Node names a and A differ only in case; use one spelling before changing dialect."

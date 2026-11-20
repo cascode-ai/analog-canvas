@@ -1,0 +1,5 @@
+simulator lang=spectre
+include "leaf.scs"
+subckt top a
+X1 (a) leaf
+ends top

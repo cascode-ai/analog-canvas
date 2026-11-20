@@ -1,0 +1,12 @@
+{
+  "status": "refused",
+  "complete": false,
+  "ledger": [
+    "a.scs:2 refused (Names differ only in case, which SPICE reads as one: nch (a.scs:2), NCH (b.scs:2)",
+    "b.scs:2 refused (Names differ only in case, which SPICE reads as one: nch (a.scs:2), NCH (b.scs:2)"
+  ],
+  "instances": [],
+  "findings": [
+    "error SPICE_CONVERSION_BLOCKED: Names differ only in case, which SPICE reads as one: nch (a.scs:2), NCH (b.scs:2)"
+  ]
+}

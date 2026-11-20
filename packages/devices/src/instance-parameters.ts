@@ -6,7 +6,11 @@ import {
   builtInModelContract,
   type BuiltInModelContract,
 } from "./built-in-model-contracts.js";
-import { instanceEvidence, type EvidenceOwner } from "./instance-evidence.js";
+import {
+  instanceEvidence,
+  namesModelOutsideSources,
+  type EvidenceOwner,
+} from "./instance-evidence.js";
 import { resolveReviewedExternalBinding } from "./reviewed-external.js";
 
 /**
@@ -166,7 +170,10 @@ export function instanceParameterContract(
     return { definitions: descriptor?.parameters ?? [], open: true };
   // A PDK model no card in the sources declares has parameters no
   // descriptor knows (ad, nrd, multi…): kept, and left unchecked (#2294).
-  if (binding?.kind === "model" && instanceEvidence(project, instance) === "typed-only")
+  if (
+    binding?.kind === "model" &&
+    namesModelOutsideSources(instanceEvidence(project, instance))
+  )
     return {
       definitions: descriptor?.parameters ?? [],
       open: true,

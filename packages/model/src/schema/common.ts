@@ -10,6 +10,11 @@ import { z } from "zod";
  */
 export const CURRENT_MODEL_SCHEMA_VERSION = 58;
 
+/** What a Project holds of one part: its terminals, as an import maps them. */
+export const MAX_PART_TERMINALS = 128;
+/** What a Project holds of one Cell or external master: its parameters. */
+export const MAX_FORMAL_PARAMETERS = 128;
+
 export const StableIdSchema = z.string().min(1).max(256);
 /** Strict persisted/presentation hex color token. Format: `#RRGGBB`. */
 export const HexColorSchema = z

@@ -1,7 +1,12 @@
-import { deriveStableId, type ComponentDefinition } from "@icm/model";
+import {
+  deriveStableId,
+  type ComponentDefinition,
+  type Instance,
+} from "@icm/model";
 import { deviceDescriptor } from "@icm/devices";
 import { createBlockSymbol } from "@icm/symbols";
 
+import { diagnostic, type SpiceDiagnostic } from "./diagnostics.js";
 import type { CircuitInstanceIR } from "./ir.js";
 
 /**
@@ -18,6 +23,8 @@ interface UntypedFamily {
   pins: Readonly<Record<number, readonly string[]>>;
   /** The typed part whose parameters an untyped one offers. */
   parametersOf: string;
+  /** A device type of this family, as a caller states one in modelTypes. */
+  typeExample: string;
 }
 
 const UNTYPED_FAMILIES: Readonly<Record<string, UntypedFamily>> = {
@@ -26,18 +33,21 @@ const UNTYPED_FAMILIES: Readonly<Record<string, UntypedFamily>> = {
     label: "MOS",
     pins: { 4: ["D", "G", "S", "B"] },
     parametersOf: "nmos",
+    typeExample: "nmos",
   },
   Q: {
     deviceClass: "bjt",
     label: "BJT",
     pins: { 3: ["C", "B", "E"], 4: ["C", "B", "E", "S"] },
     parametersOf: "npn",
+    typeExample: "npn",
   },
   J: {
     deviceClass: "jfet",
     label: "JFET",
     pins: { 3: ["D", "G", "S"] },
     parametersOf: "njfet",
+    typeExample: "njf",
   },
 };
 
@@ -49,6 +59,11 @@ export function untypedFamily(
   const family = UNTYPED_FAMILIES[letter];
   const pins = family?.pins[instance.terminals.length];
   return family && pins ? { letter, family, pins } : null;
+}
+
+/** The typed part whose parameters an untyped box of this letter offers. */
+export function untypedParameterSymbol(letter: string): string {
+  return UNTYPED_FAMILIES[letter]!.parametersOf;
 }
 
 export function untypedSymbolId(letter: string, pinCount: number): string {
@@ -69,13 +84,67 @@ export function untypedComponents(
   );
 }
 
-/** The family label of an untyped box's Symbol, if it is one. */
-export function untypedLabel(symbolId: string): string | undefined {
+/** The family of an untyped box's Symbol, if it is one, with its pins. */
+function untypedBox(
+  symbolId: string,
+): { family: UntypedFamily; pins: readonly string[] } | undefined {
   for (const [letter, family] of Object.entries(UNTYPED_FAMILIES))
     for (const pins of Object.values(family.pins))
       if (untypedSymbolId(letter, pins.length) === symbolId)
-        return `${family.label} (${pins.join(" ")})`;
+        return { family, pins };
   return undefined;
+}
+
+/** Part names in reading order, five at most. */
+function partNames(names: readonly string[]): string {
+  const shown = names.slice(0, 5);
+  const rest = names.length - shown.length;
+  if (rest > 0) return `${shown.join(", ")} and ${rest} more`;
+  return shown.length > 1
+    ? `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}`
+    : (shown[0] ?? "");
+}
+
+/**
+ * One finding for the parts an import drew as untyped boxes: what each came
+ * in as, and how to draw it as the device it is. It never asks for a card:
+ * the library that defines the model is what is missing, or, from a caller
+ * that gives them, its device type.
+ */
+export function untypedDeviceDiagnostic(
+  instances: readonly Pick<
+    Instance,
+    "symbolId" | "reference" | "id" | "netlist"
+  >[],
+  givesModelTypes: boolean,
+): SpiceDiagnostic | undefined {
+  const byModel = new Map<
+    string,
+    { names: string[]; family: UntypedFamily; pins: readonly string[] }
+  >();
+  for (const instance of instances) {
+    const box = untypedBox(instance.symbolId);
+    const binding = instance.netlist?.binding;
+    if (!box || binding?.kind !== "model") continue;
+    const entry = byModel.get(binding.name) ?? { names: [], ...box };
+    entry.names.push(instance.reference ?? instance.id);
+    byModel.set(binding.name, entry);
+  }
+  const [first] = byModel;
+  if (!first) return undefined;
+  const uses = [...byModel].map(
+    ([model, { names, family, pins }]) =>
+      `${partNames(names)} ${names.length === 1 ? "uses" : "use"} ${model}, which no card declares: ${names.length === 1 ? "it comes" : "they come"} in as ${family.label} (${pins.join(" ")}) of unknown type, a box with its pins as SPICE orders them`,
+  );
+  const typed = givesModelTypes
+    ? `, or give its device type in modelTypes, such as {"${first[0]}":"${first[1].family.typeExample}"}`
+    : "";
+  return diagnostic(
+    "SPICE_IMPORT_UNTYPED_DEVICE",
+    "warning",
+    "import",
+    `${uses.join("; ")}. To draw one as the device it is, include the library that defines it${typed}.`,
+  );
 }
 
 /** The Project's component an untyped card draws with: a box, the family's

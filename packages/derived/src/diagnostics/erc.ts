@@ -31,7 +31,9 @@ import {
   gateExternalBinding,
   libraryPartBinding,
   type GateCellPinMatch,
+  instanceEvidence,
   instanceParameterContract,
+  namesModelOutsideSources,
   milliScaleReading,
   validateDeviceParameters,
   type QuantityForms,
@@ -209,13 +211,17 @@ export function runErcChecks(
       const missingExternalMaster =
         instance.netlist?.binding?.kind === "external-subcircuit" ||
         instance.netlist?.binding?.kind === "unresolved-subcircuit";
-      // A typed model a library outside the sources holds is the supported
-      // case of a foundry design (the caller gives its type, the reader its
-      // card): export and runs report it, not ERC (#2294).
-      const typedOnly =
-        instance.importProvenance?.kind === "model" &&
-        instance.importProvenance.modelType !== undefined;
-      if (instance.importProvenance?.status === "missing" && !typedOnly) {
+      // A model a library outside the sources holds, typed by the caller or
+      // a box of its family, is the supported case of a foundry design:
+      // export and runs report it, not ERC (#2294). A model target changed
+      // in Canvas since is Canvas's, which the import's status no longer
+      // describes.
+      const evidence = instanceEvidence(project, instance);
+      if (
+        instance.importProvenance?.status === "missing" &&
+        evidence !== "canvas" &&
+        !namesModelOutsideSources(evidence)
+      ) {
         const code = missingExternalMaster
           ? "ERC_MISSING_EXTERNAL_MASTER"
           : "ERC_MISSING_MODEL";
@@ -911,7 +917,11 @@ export function runErcChecks(
       confidence: "high",
       gateEligible: false,
       message: `Parameters kept as written, which no model schema describes, so none is checked: ${parts.map(({ text }) => text).join("; ")}`,
-      primary: directObjectLocator(documentId, "instance", parts[0]!.instanceId),
+      primary: directObjectLocator(
+        documentId,
+        "instance",
+        parts[0]!.instanceId,
+      ),
       related: parts
         .slice(1)
         .map(({ instanceId }) =>

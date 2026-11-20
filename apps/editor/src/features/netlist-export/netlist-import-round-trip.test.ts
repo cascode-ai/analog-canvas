@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { CircuitProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
-import { parseSpiceNumber } from "@icm/spice";
-import { importNetlistSources } from "./netlist-source-import.js";
+import { compareCircuitIR, parseSpiceNumber } from "@icm/spice";
+import {
+  compileNetlistSources,
+  importNetlistSources,
+} from "./netlist-source-import.js";
 
 /**
  * Every value or parameter the import rewrites (#2294) comes back the same
@@ -104,9 +107,17 @@ async function roundTrip(
   path: string,
   text: string,
   format: "spice" | "spectre",
+  /** Differences the import makes on purpose, which the source comparison
+   * names; any other is a loss. */
+  intended: readonly Record<string, unknown>[] = [],
 ) {
   const first = await imported(path, text);
-  const exported = createDesignNetlistExport(first, { format });
+  // Ground as SPICE's global node, as the imported deck has it: a netlist
+  // handed out gives each Cell a VSS pin instead, which no source wrote.
+  const exported = createDesignNetlistExport(first, {
+    format,
+    groundPin: "global",
+  });
   if (exported.status !== "ready")
     throw new Error(
       exported.diagnostics.map(({ message }) => message).join("\n"),
@@ -118,6 +129,32 @@ async function roundTrip(
   const result = { first: facts(first), second: facts(second) };
   // The comparison reaches connectivity, not only parts.
   expect(result.first.flatMap(({ nets }) => nets).length).toBeGreaterThan(0);
+  // A loss both imports share would pass the comparison above, so the
+  // exported netlist is compared with the source itself as well.
+  const [source, written] = await Promise.all([
+    compileNetlistSources([file(path, text)], path),
+    compileNetlistSources(
+      [
+        file(
+          format === "spectre" ? "again.scs" : "again.sp",
+          exported.file.text,
+        ),
+      ],
+      format === "spectre" ? "again.scs" : "again.sp",
+    ),
+  ]);
+  const comparison = compareCircuitIR(
+    written.compiled!.ir!,
+    source.compiled!.ir!,
+    "top",
+    "top",
+    { declarations: false },
+  );
+  expect(comparison.reasons).toEqual([]);
+  expect(
+    comparison.differences,
+    JSON.stringify(comparison.differences),
+  ).toEqual(intended.map((difference) => expect.objectContaining(difference)));
   return result;
 }
 
@@ -129,7 +166,9 @@ describe("import rewrites survive export and import", () => {
     ],
     [
       "a source's card tail, split into its DC, AC and waveform",
-      "* source\n.subckt top vdd\nV1 vdd 0 DC 1.8 AC 1 PULSE(0 1.8 1n 1n 1n 5n 10n)\n.ends top\n",
+      // The export states the AC phase a card may leave out (0); the facts
+      // above compare that spelling, the source comparison compares text.
+      "* source\n.subckt top vdd\nV1 vdd 0 DC 1.8 AC 1 0 PULSE(0 1.8 1n 1n 1n 5n 10n)\n.ends top\n",
     ],
   ])("SPICE: %s", async (_name, text) => {
     const { first, second } = await roundTrip("top.sp", text, "spice");
@@ -156,6 +195,15 @@ describe("import rewrites survive export and import", () => {
       "top.sp",
       "* reviewed\n.subckt top d g s b\nM1 d g s b sky130_fd_pr__nfet_01v8 w=1e-6 l=150e-9\n.ends top\n",
       "spice",
+      // The M card comes back as the X call the Profile runs (#1249).
+      [
+        {
+          kind: "binding",
+          object: "m1",
+          expected: "model",
+          actual: "external-subcircuit",
+        },
+      ],
     );
     expect(second).toEqual(first);
   });

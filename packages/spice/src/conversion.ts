@@ -233,17 +233,30 @@ function spectreInclude(
   };
 }
 
-/** What one file of a design declares: its subcircuits, and its models by
- * the designator their type gives (M, Q, J, D). */
+/** What one file of a design declares, each where it sits: its subcircuits,
+ * its models by the designator their type gives (M, Q, J, D), the library
+ * sections its includes select, and the names Spectre tells apart by case. */
 export interface NetlistDeclarations {
-  subcircuits: string[];
-  models: Record<string, string>;
-  /** Each subcircuit and global name as spelled, where: Spectre tells
-   * `VDD!` from `vdd!`, SPICE joins them. */
-  spellings: { kind: "subcircuit" | "global"; name: string; line: number }[];
+  subcircuits: { name: string; section?: string }[];
+  models: {
+    name: string;
+    designator: string;
+    line: number;
+    section?: string;
+  }[];
+  /** A library section an include selects, by the path as written. */
+  includes: { path: string; section: string }[];
+  /** Each subcircuit, model, file-level parameter and global name as
+   * spelled, where: Spectre tells `VDD!` from `vdd!`, SPICE joins them. */
+  spellings: {
+    kind: "subcircuit" | "model" | "parameter" | "global";
+    name: string;
+    line: number;
+  }[];
 }
 
-const SPICE_MODEL_DESIGNATOR: Record<string, string> = {
+/** The device a SPICE model type or a caller's device type draws. */
+export const MODEL_TYPE_DESIGNATOR: Readonly<Record<string, string>> = {
   nmos: "M",
   pmos: "M",
   npn: "Q",
@@ -251,6 +264,14 @@ const SPICE_MODEL_DESIGNATOR: Record<string, string> = {
   njf: "J",
   pjf: "J",
   d: "D",
+};
+
+/** The device a native Spectre model kind the converter reads draws. */
+const NATIVE_MODEL_DESIGNATOR: Readonly<Record<string, string>> = {
+  bsim4: "M",
+  bjt: "Q",
+  diode: "D",
+  jfet: "J",
 };
 
 /**
@@ -264,7 +285,8 @@ export function netlistDeclarations(
 ): NetlistDeclarations {
   const result: NetlistDeclarations = {
     subcircuits: [],
-    models: {},
+    models: [],
+    includes: [],
     spellings: [],
   };
   let read: Statement[];
@@ -278,6 +300,27 @@ export function netlistDeclarations(
   } catch {
     return result;
   }
+  let section: string | undefined;
+  let depth = 0;
+  const spelled = (
+    kind: NetlistDeclarations["spellings"][number]["kind"],
+    name: string,
+    line: number,
+  ) => result.spellings.push({ kind, name, line });
+  const declareModel = (
+    name: string,
+    designator: string | undefined,
+    line: number,
+  ) => {
+    if (!designator) return;
+    for (const group of modelGroupNames(name))
+      result.models.push({
+        name: group,
+        designator,
+        line,
+        ...(section ? { section } : {}),
+      });
+  };
   for (const s of read) {
     const f = s.text.split(/\s+/u);
     const head = f[0]!.toLowerCase();
@@ -286,44 +329,64 @@ export function netlistDeclarations(
       head === "global" || head === ".global"
         ? f.slice(1)
         : (s.text.match(/[^\s()=]+!(?=[\s()]|$)/gu) ?? []);
-    for (const name of globals)
-      result.spellings.push({ kind: "global", name, line: s.line });
-    if (s.dialect === "spectre") {
-      const subckt = head === "inline" ? f[2] : f[1];
-      if (
-        (head === "subckt" ||
-          (head === "inline" && f[1]?.toLowerCase() === "subckt")) &&
-        subckt
-      ) {
-        result.subcircuits.push(subckt);
-        result.spellings.push({
-          kind: "subcircuit",
-          name: subckt,
-          line: s.line,
-        });
-      }
-      if (head === "model" && f[1] && f[2]) {
-        const native = f[2].toLowerCase();
-        const designator =
-          { bsim4: "M", bjt: "Q", diode: "D", jfet: "J" }[native] ??
-          (isExternalNativeMos(native) ? "M" : undefined);
-        if (designator)
-          for (const name of modelGroupNames(f[1]))
-            result.models[name] = designator;
-      }
-    } else {
-      if (head === ".subckt" && f[1]) {
-        result.subcircuits.push(f[1]);
-        result.spellings.push({ kind: "subcircuit", name: f[1], line: s.line });
-      }
-      if (head === ".model" && f[1] && f[2]) {
-        const designator =
-          SPICE_MODEL_DESIGNATOR[f[2].split("(")[0]!.toLowerCase()];
-        if (designator)
-          for (const name of modelGroupNames(f[1]))
-            result.models[name] = designator;
-      }
+    for (const name of globals) spelled("global", name, s.line);
+    const spectre = s.dialect === "spectre";
+    const subckt = spectre
+      ? head === "subckt"
+        ? f[1]
+        : head === "inline" && f[1]?.toLowerCase() === "subckt"
+          ? f[2]
+          : undefined
+      : head === ".subckt"
+        ? f[1]
+        : undefined;
+    if (subckt) {
+      result.subcircuits.push({
+        name: subckt,
+        ...(section ? { section } : {}),
+      });
+      spelled("subcircuit", subckt, s.line);
+      depth++;
+      continue;
     }
+    if (spectre ? head === "ends" : head === ".ends") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (spectre && head === "section") section = f[1]?.toLowerCase();
+    else if (spectre && head === "endsection") section = undefined;
+    else if (!spectre && head === ".lib" && f.length === 2)
+      section = f[1]!.toLowerCase();
+    else if (!spectre && head === ".endl") section = undefined;
+    else if (spectre && head === "include") {
+      const selected = /^section=(\S+)$/iu.exec(f[2] ?? "")?.[1];
+      if (selected)
+        result.includes.push({
+          path: f[1]!.replace(/^"|"$/gu, ""),
+          section: selected.toLowerCase(),
+        });
+    } else if (!spectre && head === ".lib" && f.length >= 3)
+      result.includes.push({
+        path: f[1]!.replace(/^["']|["']$/gu, ""),
+        section: f[2]!.toLowerCase(),
+      });
+    else if (spectre ? head === "model" : head === ".model") {
+      if (!f[1] || !f[2]) continue;
+      spelled("model", f[1], s.line);
+      const kind = f[2].split("(")[0]!.toLowerCase();
+      declareModel(
+        f[1],
+        spectre
+          ? (NATIVE_MODEL_DESIGNATOR[kind] ??
+              (isExternalNativeMos(kind) ? "M" : undefined))
+          : MODEL_TYPE_DESIGNATOR[kind],
+        s.line,
+      );
+    } else if (!depth && (spectre ? head === "parameters" : head === ".param"))
+      for (const assignment of f.slice(1)) {
+        const name = /^([A-Za-z_]\w*)=/u.exec(assignment)?.[1];
+        if (name) spelled("parameter", name, s.line);
+      }
   }
   return result;
 }
@@ -635,7 +698,7 @@ function isExternalNativeMos(kind: string | undefined): boolean {
   return !!kind && EXTERNAL_NATIVE_MOS.has(kind.toLowerCase());
 }
 /** A binned model `nch.1` is called by its group's name `nch` as well. */
-function modelGroupNames(name: string): string[] {
+export function modelGroupNames(name: string): string[] {
   const group = /^(.+)\.\d+$/u.exec(name)?.[1];
   return group ? [name, group] : [name];
 }
@@ -647,6 +710,8 @@ interface Context {
   ownedIncludes: Set<string>;
   externalModels?: ExternalNativeModel[];
   /** Set with `importsDesign`: the calls of masters no declaration names. */
+  /** Set with `importsDesign`: a design read whole. */
+  importsDesign?: true;
   calls?: ExternalCall[];
   /** Set with `importsDesign`: values kept as written. */
   kept?: NetlistConversionIssue[];
@@ -754,7 +819,7 @@ function spectreInstance(s: Statement, ctx: Context): string {
     (!declared && ctx.externalCalls.has(kind));
   // A design read whole: a master nothing declares is a call of it, kept
   // as written; its instance's first letter says nothing (#2294).
-  if (ctx.calls && !isSubckt && !declared) {
+  if (ctx.importsDesign && ctx.calls && !isSubckt && !declared) {
     const written = prefix(name!, "X");
     ctx.calls.push({
       line: s.line,
@@ -956,7 +1021,7 @@ function outsideDrawing(
   s: Statement,
   ctx: Context,
 ): OutsideDrawing | undefined {
-  if (!ctx.calls || s.dialect !== "spectre") return undefined;
+  if (!ctx.importsDesign || s.dialect !== "spectre") return undefined;
   const head = s.text.split(/\s+/u)[0]!.toLowerCase();
   if (head === "ahdl_include") return "dependency";
   if (["library", "endlibrary", "section", "endsection"].includes(head))
@@ -1401,7 +1466,9 @@ export function convertNetlist(
       ),
       ownedIncludes: new Set(options.ownedIncludes),
       ...(options.externalNativeModels ? { externalModels: [] } : {}),
-      ...(options.importsDesign ? { calls: [], kept: [] } : {}),
+      ...(options.importsDesign
+        ? { importsDesign: true, calls: [], kept: [] }
+        : {}),
     };
     // Every statement it refuses, not only the first, so a design read whole
     // lists all it cannot convert (#2294).
@@ -1410,7 +1477,9 @@ export function convertNetlist(
       try {
         convert();
       } catch (error) {
-        if (!(error instanceof ConversionError)) throw error;
+        // The endpoint answers its first refusal, as it always has.
+        if (!(error instanceof ConversionError) || !options.importsDesign)
+          throw error;
         refusedIssues.push(error.issue);
       }
     };
@@ -1445,15 +1514,7 @@ export function convertNetlist(
           f[2]
         ) {
           const modelClass = f[2].split("(")[0]!.toLowerCase();
-          const designator = ["nmos", "pmos"].includes(modelClass)
-            ? "M"
-            : ["npn", "pnp"].includes(modelClass)
-              ? "Q"
-              : ["njf", "pjf"].includes(modelClass)
-                ? "J"
-                : modelClass === "d"
-                  ? "D"
-                  : undefined;
+          const designator = MODEL_TYPE_DESIGNATOR[modelClass];
           if (designator) ctx.models.set(f[1].toLowerCase(), designator);
         }
         if (
@@ -1463,9 +1524,7 @@ export function convertNetlist(
           f[2]
         ) {
           const designator =
-            { bsim4: "M", bjt: "Q", diode: "D", jfet: "J" }[
-              f[2].toLowerCase()
-            ] ??
+            NATIVE_MODEL_DESIGNATOR[f[2].toLowerCase()] ??
             (ctx.externalModels && isExternalNativeMos(f[2]) ? "M" : undefined);
           // Only the editor's import calls a binned card by its group's name.
           if (designator)

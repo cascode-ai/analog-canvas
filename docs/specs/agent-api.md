@@ -131,7 +131,7 @@ edits; it chooses no topology and yields no edits on conflict
   (`review`: the netlist the Project was imported from, the Cells still
   missing an Instance or a connection, and the whole design compared with
   that netlist; it keeps no review state). The comparison's notes give the
-  compiler's findings, the reference's statement coverage, and that both
+  compiler's findings, the reference's statement coverage (whole and by Cell), and that both
   sides share one conversion and parser, which it therefore cannot check;
   a condition the reference could not evaluate leaves topology
   inconclusive), simulation workspaces and

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  MAX_PART_TERMINALS,
   HexColorSchema,
   MirrorSchema,
   PointSchema,
@@ -158,7 +159,10 @@ const InstanceImportProvenanceSchema = z.strictObject({
   status: z.enum(["resolved", "missing", "unsupported"]).optional(),
   modelType: z.string().min(1).optional(),
   symbolMappingRegistryId: z.string().min(1).max(128).optional(),
-  terminalMapping: z.array(InstanceTerminalMappingSchema).max(128).optional(),
+  terminalMapping: z
+    .array(InstanceTerminalMappingSchema)
+    .max(MAX_PART_TERMINALS)
+    .optional(),
 });
 const MosBulkBindingSchema = z.strictObject({
   origin: z.enum(["cell-default", "instance-override", "supply-default"]),

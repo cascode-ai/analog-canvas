@@ -77,8 +77,13 @@ describe("netlist import corpus", () => {
         writeFileSync(expectedPath, `${JSON.stringify(actual, null, 2)}\n`);
       const expected = JSON.parse(readFileSync(expectedPath, "utf8"));
       expect(actual).toEqual(expected);
-      // Every statement of an import that reached the ledger has a fate.
-      if (actual.ledger.length) expect(actual.complete).toBe(true);
+      // Every statement of an import has a fate; a refused design lists
+      // each refused statement where it is.
+      if (actual.status === "imported") expect(actual.complete).toBe(true);
+      else
+        expect(actual.ledger.some((entry) => / refused/u.test(entry))).toBe(
+          true,
+        );
     });
   }
 });

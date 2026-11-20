@@ -19,6 +19,7 @@ import {
   hasBuiltInSubcircuitInterface,
   instanceEvidence,
   isLibraryPart,
+  namesModelOutsideSources,
   nextReference,
 } from "@icm/devices";
 import type {
@@ -450,10 +451,10 @@ export function extractCell(
   // whatever the name: its type draws it, and its model is the reader's.
   // A netlist Canvas wrote, imported again, holds only the stand-in, which
   // keeps it (#1789).
-  const typedOnly = new Set(
+  const outsideSources = new Set(
     document.instances
-      .filter(
-        (instance) => instanceEvidence(project, instance) === "typed-only",
+      .filter((instance) =>
+        namesModelOutsideSources(instanceEvidence(project, instance)),
       )
       .map((instance) => instance.id),
   );
@@ -467,7 +468,7 @@ export function extractCell(
         ? instances.filter(
             (instance) =>
               instance.deviceClass === deviceClass &&
-              !typedOnly.has(instance.id) &&
+              !outsideSources.has(instance.id) &&
               (everyFormat
                 ? instance.target?.toUpperCase() === model.name
                 : instance.target === model.name),

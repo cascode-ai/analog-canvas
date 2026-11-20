@@ -93,7 +93,7 @@ describe("netlist source import: model evidence", () => {
       design.diagnostics.find(({ code }) => code === "IMPORTED_MODEL_EXTERNAL"),
     ).toMatchObject({
       severity: "info",
-      message: expect.stringContaining("M1 names nch_mac"),
+      message: expect.stringContaining("M1 (top.sp:3) names nch_mac"),
     });
   });
 
@@ -116,7 +116,7 @@ describe("netlist source import: model evidence", () => {
       );
     expect(missing([])).toMatchObject({
       severity: "error",
-      message: expect.stringContaining("M1 names nch_mac"),
+      message: expect.stringContaining("M1 (top.sp:3) names nch_mac"),
     });
     expect(missing([".model nch_mac nmos level=54\n"])).toBeUndefined();
   });
@@ -141,7 +141,7 @@ describe("netlist source import: model evidence", () => {
       w: "1u",
       l: "30n",
       ad: "1p",
-      as: "1p",
+      AS: "1p",
       nrd: "0.1",
       multi: "2",
       dfm_flag: "1",
@@ -158,7 +158,7 @@ describe("netlist source import: model evidence", () => {
       expect.objectContaining({
         severity: "info",
         message: expect.stringContaining(
-          "M1 (nch_mac): ad, as, nrd, multi, dfm_flag",
+          "M1 (nch_mac): ad, AS, nrd, multi, dfm_flag",
         ),
       }),
     ]);

@@ -4,6 +4,7 @@ import {
   convertNetlist,
   decodeSourceContent,
   isSpectreSource,
+  MODEL_TYPE_DESIGNATOR,
   netlistDeclarations,
   type ConvertedStatementLine,
   type ExternalCall,
@@ -58,19 +59,6 @@ function spiceSections(
   return sections;
 }
 
-/**
- * Sources as the ordinary SPICE loader takes them, which keeps ownership of
- * include resolution and import validation: native Spectre converted, and
- * in either dialect the bodies Analog Canvas writes itself found, so that a
- * call of one imports as the block that wrote it. No remote request is
- * necessary. A native MOS model card the converter does not translate gives
- * its instances their device type (`modelTypes`, for the importer) and
- * stays out of the converted text, with a warning.
- *
- * The design is read whole (#2294): every file's declarations classify every
- * other file's calls, a master nothing declares is a call of it, kept as
- * written, and every file's refusals are listed, not only the first.
- */
 export type NativeStatementLine =
   ConvertedStatementLine | { line: number; dropped: "built-in body" };
 
@@ -84,16 +72,40 @@ export interface ImportEvidence {
   givesModelTypes?: boolean;
 }
 
-const TYPE_DESIGNATOR: Record<string, string> = {
-  nmos: "M",
-  pmos: "M",
-  npn: "Q",
-  pnp: "Q",
-  njf: "J",
-  pjf: "J",
-  d: "D",
-};
+/** A path as an include names it, relative to the including file. */
+function includedPath(from: string, path: string): string {
+  const parts = [...from.split("/").slice(0, -1), ...path.split("/")];
+  const resolved: string[] = [];
+  for (const part of parts)
+    if (part === "..") resolved.pop();
+    else if (part && part !== ".") resolved.push(part);
+  return resolved.join("/");
+}
 
+/** The device type a call of these ports could be given, by its letter. */
+function typeExample(name: string, ports: number): string | undefined {
+  const letter = name[0]?.toUpperCase();
+  if (letter === "M" && ports === 4) return "nmos";
+  if (letter === "Q" && (ports === 3 || ports === 4)) return "npn";
+  if (letter === "J" && ports === 3) return "njf";
+  if (letter === "D" && ports === 2) return "d";
+  return undefined;
+}
+
+/**
+ * Sources as the ordinary SPICE loader takes them, which keeps ownership of
+ * include resolution and import validation: native Spectre converted, and
+ * in either dialect the bodies Analog Canvas writes itself found, so that a
+ * call of one imports as the block that wrote it. No remote request is
+ * necessary. A native MOS model card the converter does not translate gives
+ * its instances their device type (`modelTypes`, for the importer) and
+ * stays out of the converted text, with a warning.
+ *
+ * The design is read whole (#2294): every file's declarations, in the
+ * library sections its includes select, classify every other file's calls;
+ * a master nothing declares is a call of it, kept as written; and every
+ * file's refusals are listed, each where it is.
+ */
 export function prepareImportSources(
   inputs: readonly SpiceSourceInput[],
   evidence: ImportEvidence = {},
@@ -104,6 +116,8 @@ export function prepareImportSources(
   diagnostics: SpiceDiagnostic[];
   /** Located refusals of every file; with any, nothing imports. */
   refusals: SpiceDiagnostic[];
+  /** Where each refusal is: the statement ledger lists them. */
+  refusedStatements: { path: string; line: number; reason: string }[];
   /** Each native Spectre file's statements by first line, with why one
    * printed nothing: what the statement ledger accounts by. */
   nativeStatements: Map<string, NativeStatementLine[]>;
@@ -119,6 +133,8 @@ export function prepareImportSources(
   const modelTypes = new Map<string, string>();
   const diagnostics: SpiceDiagnostic[] = [];
   const refusals: SpiceDiagnostic[] = [];
+  const refusedStatements: { path: string; line: number; reason: string }[] =
+    [];
   const nativeStatements = new Map<string, NativeStatementLine[]>();
   const callReferences = new Map<string, string>();
   const calls: (ExternalCall & { path: string })[] = [];
@@ -126,35 +142,64 @@ export function prepareImportSources(
     string,
     (line: number) => { path: string; line: number } | undefined
   >();
-  const refuse = (message: string) =>
+  const refuse = (
+    message: string,
+    at: readonly { path: string; line: number }[] = [],
+  ) => {
     refusals.push({
       code: "SPICE_CONVERSION_BLOCKED",
       severity: "error",
       stage: "import",
       message,
     });
+    for (const { path, line } of at)
+      refusedStatements.push({ path, line, reason: message });
+  };
   // Every file's declarations, so a call is classified by the design, not
-  // by the one file it sits in; then the types the caller states.
+  // by the one file it sits in: those in no library section, and those in
+  // a section some include selects; then the types the caller states.
+  const declared = inputs.map((input) => ({
+    input,
+    native: isSpectreSource(input),
+    declarations: netlistDeclarations(
+      decodeSourceContent(input.bytes).text,
+      isSpectreSource(input) ? "spectre" : "spice",
+    ),
+  }));
+  const selected = new Set(
+    declared.flatMap(({ input, declarations }) =>
+      declarations.includes.map(
+        ({ path, section }) =>
+          `${includedPath(input.path, path)}\u0000${section}`,
+      ),
+    ),
+  );
+  const counts = (path: string, section: string | undefined) =>
+    !section || selected.has(`${path}\u0000${section}`);
   const subcircuitNames: string[] = [];
   const declaredModels: Record<string, string> = {};
   // Spectre tells names apart by case; SPICE, which reads the converted
   // design, joins them: two spellings of one name in native files cannot
   // be read without merging what the author kept apart.
-  const spellings = new Map<string, Map<string, string>>();
-  for (const input of inputs) {
-    const native = isSpectreSource(input);
-    const declarations = netlistDeclarations(
-      decodeSourceContent(input.bytes).text,
-      native ? "spectre" : "spice",
-    );
-    subcircuitNames.push(...declarations.subcircuits);
-    for (const [name, designator] of Object.entries(declarations.models))
-      declaredModels[name.toLowerCase()] = designator;
+  const spellings = new Map<
+    string,
+    Map<string, { path: string; line: number }>
+  >();
+  // A card in a section no include selects declares nothing and types
+  // nothing: no part draws with it.
+  const unselectedModels = new Set<string>();
+  for (const { input, native, declarations } of declared) {
+    for (const { name, section } of declarations.subcircuits)
+      if (counts(input.path, section)) subcircuitNames.push(name);
+    for (const { name, designator, line, section } of declarations.models)
+      if (counts(input.path, section))
+        declaredModels[name.toLowerCase()] = designator;
+      else unselectedModels.add(`${input.path}:${line}`);
     if (!native) continue;
     for (const { kind, name, line } of declarations.spellings) {
       const key = `${kind}:${name.toLowerCase()}`;
-      const spelled = spellings.get(key) ?? new Map<string, string>();
-      if (!spelled.has(name)) spelled.set(name, `${input.path}:${line}`);
+      const spelled = spellings.get(key) ?? new Map();
+      if (!spelled.has(name)) spelled.set(name, { path: input.path, line });
       spellings.set(key, spelled);
     }
   }
@@ -162,8 +207,9 @@ export function prepareImportSources(
     if (spelled.size > 1)
       refuse(
         `Names differ only in case, which SPICE reads as one: ${[...spelled]
-          .map(([name, at]) => `${name} (${at})`)
+          .map(([name, { path, line }]) => `${name} (${path}:${line})`)
           .join(", ")}`,
+        [...spelled.values()],
       );
   if (refusals.length)
     return {
@@ -172,12 +218,13 @@ export function prepareImportSources(
       modelTypes,
       diagnostics,
       refusals,
+      refusedStatements,
       nativeStatements,
       callReferences,
       originalLocation: (path, line) => ({ path, line }),
     };
   for (const [name, type] of Object.entries(evidence.modelTypes ?? {})) {
-    const designator = TYPE_DESIGNATOR[type.toLowerCase()];
+    const designator = MODEL_TYPE_DESIGNATOR[type.toLowerCase()];
     if (designator && !(name.toLowerCase() in declaredModels))
       declaredModels[name.toLowerCase()] = designator;
   }
@@ -196,7 +243,9 @@ export function prepareImportSources(
     try {
       text = new TextDecoder("utf-8", { fatal: true }).decode(input.bytes);
     } catch {
-      refuse(`${input.path}: save Spectre source as UTF-8 before importing.`);
+      refuse(`${input.path}: save Spectre source as UTF-8 before importing.`, [
+        { path: input.path, line: 1 },
+      ]);
       return [];
     }
     // A body Analog Canvas writes itself goes to the converter without the
@@ -225,7 +274,9 @@ export function prepareImportSources(
     });
     if (converted.status === "blocked") {
       for (const issue of converted.issues)
-        refuse(`${input.path}:${issue.line}: ${issue.message}`);
+        refuse(`${input.path}:${issue.line}: ${issue.message}`, [
+          { path: input.path, line: issue.line },
+        ]);
       return [];
     }
     for (const issue of converted.issues)
@@ -254,6 +305,7 @@ export function prepareImportSources(
     ]);
     const reported = new Set<number>();
     for (const model of converted.externalModels ?? []) {
+      if (unselectedModels.has(`${input.path}:${model.line}`)) continue;
       modelTypes.set(model.name, model.type);
       if (reported.has(model.line)) continue;
       reported.add(model.line);
@@ -342,6 +394,7 @@ export function prepareImportSources(
               `${path}:${line} ${name} (${ports})`,
           )
           .join(", ")}`,
+        group,
       );
   // What a master nothing declares came in as, and how to draw it as the
   // device it may be.
@@ -355,12 +408,17 @@ export function prepareImportSources(
             ", ",
           )}${group.length > 3 ? `, and ${group.length - 3} more` : ""})`,
     );
+    // A type only where a call's letter and ports fit a family that has
+    // one: a capacitor master takes none.
+    const typed = calls
+      .map((call) => ({ call, type: typeExample(call.name, call.ports) }))
+      .find(({ type }) => type);
     diagnostics.push({
       code: "SPICE_IMPORT_EXTERNAL_CALLS",
       // A part may be a device drawn as a box: worth an Agent's attention.
       severity: "warning",
       stage: "import",
-      message: `No declaration in the design names ${named.join(", ")}: each comes in as a call of its master, with its ports in order and its parameters as written. To draw one as a device, include the library that defines it${evidence.givesModelTypes ? ', or give its device type in modelTypes, such as {"' + calls[0]!.master + '":"nmos"}' : ""}.`,
+      message: `No declaration in the design names ${named.join(", ")}: each comes in as a call of its master, with its ports in order and its parameters as written. To draw one as a device, include the library that defines it${evidence.givesModelTypes && typed ? `, or give its device type in modelTypes, such as {"${typed.call.master}":"${typed.type}"}` : ""}.`,
     });
   }
   return {
@@ -369,6 +427,7 @@ export function prepareImportSources(
     modelTypes,
     diagnostics,
     refusals,
+    refusedStatements,
     nativeStatements,
     callReferences,
     originalLocation(path, line) {

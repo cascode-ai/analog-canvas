@@ -1,0 +1,5 @@
+simulator lang=spectre
+subckt top a b c
+XA (a b) blk
+XB (a b c) blk
+ends top

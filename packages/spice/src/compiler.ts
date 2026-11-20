@@ -176,7 +176,8 @@ function collectDefinitions(
     const selectedSections = selectedSectionsByFile.get(syntaxFile.fileId);
     const conditions: ConditionFrame[] = [];
     const isActive = (): boolean => conditions.every((frame) => frame.active);
-    const ambiguous = (): boolean => conditions.some((frame) => frame.ambiguous);
+    const ambiguous = (): boolean =>
+      conditions.some((frame) => frame.ambiguous);
     const conditionalFate = (statement: SpiceStatement) =>
       fate(
         statement,
@@ -494,7 +495,11 @@ function parameterRecord(
     occurrences.set(normalizedName, occurrence);
     const key =
       occurrence === 1 ? normalizedName : `${normalizedName}#${occurrence}`;
-    result[key] = { normalizedName, rawText };
+    result[key] = {
+      normalizedName,
+      rawText,
+      ...(name !== normalizedName ? { spelling: name } : {}),
+    };
   };
   for (const parameter of parameters) add(parameter.name, parameter.rawText);
   if (controlSource) add("control-source", controlSource);

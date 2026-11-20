@@ -5,14 +5,13 @@ export interface EvidenceOwner {
   readonly importProvenance?:
     | Pick<
         NonNullable<Instance["importProvenance"]>,
-        "kind" | "sourceMasterName" | "status"
+        "kind" | "sourceMasterName" | "status" | "modelType"
       >
     | undefined;
   readonly netlist?:
     | {
         readonly binding?:
-          | { readonly kind?: unknown; readonly name?: unknown }
-          | undefined;
+          { readonly kind?: unknown; readonly name?: unknown } | undefined;
       }
     | null
     | undefined;
@@ -20,22 +19,26 @@ export interface EvidenceOwner {
 
 /**
  * What an Instance's model is known to be, by where it came from. Export,
- * parameter checks, simulation and comparison ask this one question and
- * never decide by a model's name.
+ * parameter checks, ERC and simulation ask this one question and never
+ * decide by a model's name.
  *
- * - `canvas`: placed from the library, or its model target chosen in Canvas
- *   since it was imported.
+ * - `canvas`: placed from the library, or its model target changed in Canvas
+ *   to another name since it was imported.
  * - `resolved`: imported, and the sources define its model or subcircuit.
  * - `typed-only`: imported; its device type comes from the caller's
  *   evidence or the card's own letter, and no card in the sources defines
  *   its model. The type draws the part; it is not a model implementation.
+ * - `untyped`: imported; no card defines its model and nothing gives its
+ *   type: a box of its card's family.
  * - `external-call`: imported call of a master the sources do not define.
  */
 export type InstanceEvidence =
-  | "canvas"
-  | "resolved"
-  | "typed-only"
-  | "external-call";
+  "canvas" | "resolved" | "typed-only" | "untyped" | "external-call";
+
+/** An imported part naming a model its sources do not define. */
+export function namesModelOutsideSources(evidence: InstanceEvidence): boolean {
+  return evidence === "typed-only" || evidence === "untyped";
+}
 
 export function instanceEvidence(
   project: Partial<Pick<CircuitProject, "source">>,
@@ -52,24 +55,31 @@ export function instanceEvidence(
   const target = binding.name;
   if (target.toLowerCase() !== provenance.sourceMasterName.toLowerCase())
     return "canvas";
-  if (provenance.status === "missing") return "typed-only";
+  const outside = provenance.modelType === undefined ? "untyped" : "typed-only";
+  if (provenance.status === "missing") return outside;
   // Projects imported before the status was written said `resolved` for
-  // every model: the sources the Project keeps decide.
+  // every model: the sources the Project keeps decide. One that keeps none
+  // (a Gallery copy, which leaves its sources out) can tell neither way, so
+  // its status stands and its netlist does not change.
   const texts = (project.source?.files ?? []).flatMap((file) =>
     [file.content?.text, file.originalContent?.text].filter(
       (text): text is string => text !== undefined,
     ),
   );
-  return !texts.length || texts.some((text) => definesModel(text, target))
+  return !texts.length || sourcesDefineModel(texts, target)
     ? "resolved"
-    : "typed-only";
+    : outside;
 }
 
 /** `.model NAME` in SPICE, `model NAME` in Spectre, a bin `NAME.1` alike. */
-function definesModel(text: string, name: string): boolean {
+export function sourcesDefineModel(
+  texts: readonly string[],
+  name: string,
+): boolean {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  return new RegExp(
+  const definition = new RegExp(
     String.raw`^[ \t]*\.?model[ \t]+${escaped}(?:\.\d+)?(?=[\s(]|$)`,
     "imu",
-  ).test(text);
+  );
+  return texts.some((text) => definition.test(text));
 }

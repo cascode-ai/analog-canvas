@@ -34,6 +34,9 @@ export const CircuitInstanceTargetIRSchema = z.discriminatedUnion("kind", [
 const CircuitParameterIRSchema = z.strictObject({
   rawText: z.string(),
   normalizedName: z.string().min(1),
+  /** The name as written, where it differs from `normalizedName`: a call of
+   * a master outside the sources passes it on as Spectre reads it. */
+  spelling: z.string().min(1).optional(),
 });
 export const CircuitParameterDeclarationIRSchema = z.strictObject({
   name: z.string().min(1),

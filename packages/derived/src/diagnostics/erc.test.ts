@@ -1720,6 +1720,83 @@ describe("ERC engine", () => {
     ]);
   });
 
+  it("reports a model a library outside the sources holds once per Cell, as information, not as missing (#2294)", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    const pdkMos = (id: string, modelType?: string) => ({
+      id,
+      symbolId: "nmos",
+      reference: id,
+      placement: {
+        position: { x: id === "M1" ? 0 : 200, y: 0 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+      netlist: {
+        binding: {
+          kind: "model" as const,
+          deviceClass: "mos" as const,
+          name: "nch_mac",
+        },
+        parameters: { w: "1u", l: "30n", ad: "1p", nrd: "0.1" },
+      },
+      importProvenance: {
+        kind: "model" as const,
+        sourceMasterName: "nch_mac",
+        sourceTarget: "model:nch_mac",
+        status: "missing" as const,
+        ...(modelType ? { modelType } : {}),
+      },
+    });
+    // One typed by its caller, one of unknown type.
+    document.instances = [pdkMos("M1", "nmos"), pdkMos("M2")];
+    const findings = run(project);
+    expect(findings.map(({ code }) => code)).not.toContain("ERC_MISSING_MODEL");
+    expect(findings.map(({ code }) => code)).not.toContain(
+      "ERC_UNKNOWN_DEVICE_PARAMETER",
+    );
+    expect(
+      findings.filter(
+        ({ code }) => code === "ERC_UNVERIFIED_DEVICE_PARAMETERS",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        severity: "info",
+        gateEligible: false,
+        message: expect.stringContaining(
+          "M1 (nch_mac): ad, nrd; M2 (nch_mac): ad, nrd",
+        ),
+      }),
+    ]);
+  });
+
+  it("reports no missing model for an imported part whose target was changed in Canvas", () => {
+    const project = emptyProject();
+    project.documents[0]!.instances = [
+      {
+        id: "M1",
+        symbolId: "nmos",
+        reference: "M1",
+        placement: {
+          position: { x: 0, y: 0 },
+          rotation: 0 as const,
+          mirror: "none" as const,
+        },
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+          parameters: { w: "1u", l: "150n" },
+        },
+        importProvenance: {
+          kind: "model",
+          sourceMasterName: "nch_mac",
+          sourceTarget: "model:nch_mac",
+          status: "missing",
+        },
+      },
+    ];
+    expect(codes(project)).not.toContain("ERC_MISSING_MODEL");
+  });
+
   it("uses only typed binding evidence for missing and unsupported model ERC", () => {
     const project = emptyProject();
     const document = project.documents[0]!;

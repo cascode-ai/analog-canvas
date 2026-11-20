@@ -1,0 +1,6 @@
+simulator lang=spectre
+include "lib.scs" section=tt
+subckt top d g s b
+M1 (d g s b) nch w=1u l=30n
+M2 (d g s b) nfast w=1u l=30n
+ends top

@@ -21,6 +21,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 import {
   compileNetlistSources,
+  ledgerByCell,
   ledgerSummary,
 } from "../features/netlist-export/netlist-source-import";
 
@@ -264,6 +265,7 @@ export async function compareReviewSource(
           .filter(({ severity }) => severity !== "error")
           .map(({ message }) => message),
         `Reference coverage: ${ledgerSummary(reference.ledger)}`,
+        `Reference coverage by Cell: ${ledgerByCell(reference.ledger)}`,
         "The drawing's netlist and the reference are read by the same conversion and parser: what those drop, both sides drop, so this comparison cannot see it",
       ]),
     ],

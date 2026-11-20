@@ -30,10 +30,11 @@ adapter.
   fate in the statement ledger (`statementLedger`): instance, definition,
   declaration, preserved, unresolved or refused. A native Spectre file is
   accounted by its own lines. The ledger is recomputed from the sources, never
-  persisted; a statement without a fate leaves coverage unknown, never
-  complete. Each import reports it as `SPICE_IMPORT_COVERAGE`: each fate's
-  count and where statements went unresolved or were refused (a warning when
-  any did).
+  persisted; a statement without a fate, or given two, leaves coverage
+  unknown, never complete. A design the conversion refuses lists each refused
+  statement where it is. Each import reports it as `SPICE_IMPORT_COVERAGE`:
+  each fate's count and where statements went unresolved or were refused (a
+  warning when any did).
 - `.include`, `.incpslt` and `.lib file section` share one sandboxed resolver:
   relative to the including file; root-escaping paths denied; missing targets
   and cycles are errors; repeats suppressed; unreachable files excluded; no
@@ -49,7 +50,12 @@ adapter.
   as a Project component box of its family (pins in SPICE's order, the card's
   letter, a required model) that prints as the card it was; no name decides
   n or p. `SPICE_IMPORT_UNTYPED_DEVICE` names them and asks for the defining
-  library (or, from a caller that gives types, a type), never a card.
+  library (or, from a caller that gives types, a type of the part's family),
+  never a card.
+- A part whose model or master its sources do not define keeps each
+  parameter name as written (Spectre reads `AS` and `as` as two), except the
+  names its device type defines (`w`, `l`, `nf`, `m` of a MOS), which read as
+  the device's own. Every other part's names read case-insensitively.
 - A part with more than 128 terminals, an external call setting more than 128
   parameters, or a Cell declaring more than 128 is refused by name and line
   (`SPICE_IMPORT_LIMIT`).
@@ -103,10 +109,10 @@ revision; it never silently changes `ngspice-46-core`.
   unresolved: the devices they add are unknown, not absent, so a structural
   comparison leaves topology inconclusive whether or not it compares
   declarations.
-- Each rewrite the import makes keeps meaning, pinned by an import, export,
-  import round trip: a controlled source's gain read as `gm`/`rm`, a source
-  tail split into its fields, a Spectre number's suffix spelled as SPICE
-  reads it, a reviewed PDK card's size.
+- A value or parameter the import rewrites keeps its meaning: exported in its
+  dialect, it compiles to what the source compiled to, and imports again to
+  the same Instances, values and connections. A rewrite that cannot show this
+  is not made.
 - Identifiers match case-insensitively, keeping display spelling and order.
   Ports and terminals are contiguous and zero-based.
 - Known X masters bind to cells; unknown ones stay opaque with positional

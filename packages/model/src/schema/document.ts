@@ -8,7 +8,7 @@ import {
 } from "../supply-port-symbol.js";
 import { z } from "zod";
 
-import { StableIdSchema } from "./common.js";
+import { MAX_FORMAL_PARAMETERS, StableIdSchema } from "./common.js";
 import { SourceSpanSchema, ImportReferenceSchema } from "./source.js";
 import {
   InstanceSchema,
@@ -86,7 +86,7 @@ export const CellNetlistInterfaceSchema = z.strictObject({
   terminals: z.array(CellNetlistTerminalSchema),
   formalParameters: z
     .array(CellNetlistFormalParameterSchema)
-    .max(128)
+    .max(MAX_FORMAL_PARAMETERS)
     .default([]),
 });
 
