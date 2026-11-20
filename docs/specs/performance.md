@@ -58,3 +58,24 @@ review; a faster machine is no reason to lower one. The same policy covers
 Browser target (not a CI threshold): single-component copy and wire
 input-to-paint P95 below 100 ms over ≥ 30 warm production-browser samples on
 a representative medium circuit, with viewport, browser and machine recorded.
+
+## Large Canvas comparison
+
+For the 2,048-MOS production benchmark, build the editor in each checkout
+with the hosted Agent UI enabled (`VITE_ICM_AGENT_UI=enabled pnpm --filter
+@icm/editor... --if-present build`). Run the same harness against the
+fixed baseline and candidate, on one machine with the same Chrome. Prepare
+inputs once. From the checkout containing the harness:
+
+```sh
+node scripts/scaling-benchmark.mjs prepare --inputs <inputs>
+node scripts/scaling-benchmark.mjs measure --checkout <baseline> --inputs <inputs> --output <baseline-results>
+node scripts/scaling-benchmark.mjs measure --checkout <candidate> --inputs <inputs> --output <candidate-results>
+node scripts/scaling-benchmark.mjs report --output <candidate-results> --compare <baseline-results>
+```
+
+`measure --group <action> --case <fixture>` collects one part independently.
+Use `--resume` to finish an interrupted matrix and `--dist` for an alternate
+production build directory. The [benchmark matrix](../../scripts/lib/scaling-metrics.mjs)
+defines the fixed revision, actions, fixtures and sample floors. The report
+compares complete semantic outputs and per-action timings.
