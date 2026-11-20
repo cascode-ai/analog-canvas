@@ -14,6 +14,7 @@ import {
   type NetlistFileDescriptor,
 } from "./printers.js";
 import type { NetlistPortCase } from "./net-name-codec.js";
+import { sourceModelCards } from "./source-model-cards.js";
 
 import type { DesignNetlistLocations } from "./printed-netlist.js";
 import {
@@ -319,7 +320,10 @@ export function createDesignNetlistExport(
   if (format === "spice") file.text = `\n${file.text}`;
   const shift = file.text.length - originalLength;
   const composed = appendProjectModelSources(file.text, models.sources, format);
-  file.text = composed.text;
+  const cards = sourceModelCards(project, ir, models.sources, format);
+  file.text = cards.length
+    ? `${composed.text}\n${format === "spice" ? "*" : "//"} Models of the imported files\n${cards.join("\n")}\n`
+    : composed.text;
   const locations = printed
     ? shiftDesignNetlistLocations(printed.locations, shift)
     : { instances: [], fields: [] };

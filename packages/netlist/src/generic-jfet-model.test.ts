@@ -133,7 +133,9 @@ describe("the generic junction FET models", () => {
       },
     });
     const replaced = exported(project, "spice");
-    expect(replaced.file.text).not.toContain(".model");
+    // The file's own card, once, and no stand-in.
+    expect(replaced.file.text.match(/^\.model /gmu)).toEqual([".model "]);
+    expect(replaced.file.text).toContain(".model NJF NJF(VTO=-3 BETA=2e-3)");
     expect(
       replaced.diagnostics.filter((item) => item.code === "GENERIC_JFET_MODEL"),
     ).toEqual([]);

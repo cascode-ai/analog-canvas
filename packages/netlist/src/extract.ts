@@ -56,7 +56,11 @@ import {
   diagnostic,
 } from "./extract-common.js";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
-import { sortsSupplyPorts, supplyPortRank } from "./extract-ground-pin.js";
+import {
+  pinsGround,
+  sortsSupplyPorts,
+  supplyPortRank,
+} from "./extract-ground-pin.js";
 import { bubblePhasePins } from "./extract-switch.js";
 import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
@@ -209,9 +213,13 @@ export interface DesignNetlistAnalysisOptions {
    * A block handed to somebody else should say where its reference comes
    * from: `"pin"` gives every such Cell that reaches ground a `VSS` pin
    * beside its supplies, and the one Cell printed as the deck itself keeps
-   * node `0`, so its calls tie the two together. `"global"` — the default —
-   * leaves SPICE's global node where it was, which is what an imported deck
-   * must round-trip to and what a Snapshot reads.
+   * node `0`, so its calls tie the two together. `"as-read"` is `"pin"`
+   * but for a Cell read from a file whose subcircuit met ground as SPICE's
+   * global `0` (`readsGlobalGround`), which prints so again, as it was read:
+   * the interchange files (`SPICE+RNL`, `Spectre+RNL`) write what they read.
+   * `"global"` — the default — leaves SPICE's global node where it was,
+   * which is what an imported deck must round-trip to and what a Snapshot
+   * reads.
    */
   groundPin?: GroundPinPolicy;
   /**
@@ -234,7 +242,7 @@ export interface DesignNetlistAnalysisOptions {
 }
 
 /** Ground as the Cell's own pin, or as SPICE's global node. */
-export type GroundPinPolicy = "pin" | "global";
+export type GroundPinPolicy = "pin" | "as-read" | "global";
 
 /**
  * What a deck this editor runs shares with the netlist it hands out: the same
@@ -490,7 +498,7 @@ function analyzeDesign(
         );
     }
   }
-  if (resolvedOptions.groundPin === "pin") {
+  if (pinsGround(resolvedOptions.groundPin)) {
     // Supply markers share identity inside the drawing. Once that supply is
     // exposed by a module pin, its exported node belongs to that module:
     // callers pass it explicitly instead of also reaching for a global.

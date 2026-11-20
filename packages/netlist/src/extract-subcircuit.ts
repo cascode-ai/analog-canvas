@@ -42,6 +42,7 @@ import { switchPhaseNode } from "./extract-switch.js";
 import {
   addsGroundPin,
   groundPinName,
+  pinsGround,
   groundPortIndex,
 } from "./extract-ground-pin.js";
 
@@ -227,7 +228,15 @@ export function extractHierarchyInstance(
   // The child's ground pin is not in its authored interface; both sides
   // derive it from the Documents, so the call carries this Cell's own ground
   // node at the position the child's definition puts it.
-  if (options.groundPin === "pin" && addsGroundPin(child, documentsById)) {
+  if (
+    pinsGround(options.groundPin) &&
+    addsGroundPin(
+      child,
+      documentsById,
+      undefined,
+      options.groundPin === "as-read",
+    )
+  ) {
     const callerGround = context.nameByAuthoredName.get(foldNetName("0"));
     if (callerGround) {
       nodes.splice(

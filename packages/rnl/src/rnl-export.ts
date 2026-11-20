@@ -80,6 +80,9 @@ export function createRnlExport(
     createDesignNetlistExport(project, {
       ...options,
       rootAsTopLevel,
+      // A subcircuit read from a file that met ground as the global 0 writes
+      // it so again.
+      groundPin: "as-read",
       bodyPortOrder: rnlBodyPortOrder(project),
       includeIr: true,
       // An interchange file calls a library it does not carry, as its

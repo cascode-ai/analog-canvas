@@ -105,6 +105,10 @@ the RNL language and its runtime belong to rnl.
 - A top the import made from a file's own cards, outside every subcircuit,
   and given no pins since, prints there again with its drawing at the file
   level; `SPICE` and `SCS` keep printing it as a subcircuit.
+- A Cell the import read from a subcircuit that met ground as SPICE's global
+  `0` prints so again, with no ground pin, and its calls pass it none; `SPICE`
+  and `SCS` keep giving it its `VSS` pin (netlist export, Ground). Like them,
+  an RNL format prints the `.model` cards of the imported files its parts call.
 - An RNL format is read-only in the panel; Copy and Save take its text.
 - Under an RNL format the panel carries an "About RNL" link to the
   introduction to RNL (<https://rich-netlist.github.io/rnl/en/>): a new tab in

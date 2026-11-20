@@ -5,6 +5,11 @@ import { resolveCommittedDocumentLogicalNets } from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
 import { isDrawnSwitch } from "./extract-switch.js";
+import type { GroundPinPolicy } from "./extract.js";
+
+/** Whether a policy gives Cells printed as subcircuits a ground pin. */
+export const pinsGround = (policy: GroundPinPolicy | undefined) =>
+  policy === "pin" || policy === "as-read";
 
 /** The formal pin name a Cell's ground takes, matching the Block libraries. */
 export const GROUND_PORT_NAME = "VSS";
@@ -23,6 +28,7 @@ export function cellReachesGround(
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   seen: Set<string> = new Set(),
+  asRead = false,
 ): boolean {
   if (seen.has(document.id)) return false;
   seen.add(document.id);
@@ -41,7 +47,7 @@ export function cellReachesGround(
     const binding = instance.netlist?.binding;
     if (binding?.kind !== "subcircuit") return false;
     const child = documentsById.get(binding.childDocumentId);
-    return child ? addsGroundPin(child, documentsById, seen) : false;
+    return child ? addsGroundPin(child, documentsById, seen, asRead) : false;
   });
 }
 
@@ -49,14 +55,17 @@ export function cellReachesGround(
  * Whether a Cell printed as a subcircuit adds a ground pin of its own
  * making: it meets ground, and its author gave ground no pin. A caller passes
  * its ground only to such a pin. A call to a Cell whose author's GNDA was its
- * ground carried one node more than the Cell had pins.
+ * ground carried one node more than the Cell had pins. `asRead`: the
+ * `"as-read"` policy, under which a Cell that `readsGlobalGround` adds none.
  */
 export function addsGroundPin(
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   seen: Set<string> = new Set(),
+  asRead = false,
 ): boolean {
-  if (!cellReachesGround(document, documentsById, seen)) return false;
+  if (asRead && readsGlobalGround(document)) return false;
+  if (!cellReachesGround(document, documentsById, seen, asRead)) return false;
   const logical = resolveCommittedDocumentLogicalNets(
     withNetlistPowerMarkerClaims(document),
   );
@@ -64,6 +73,18 @@ export function addsGroundPin(
     const name = logical.byBaseNetId.get(terminal.netId)?.name;
     return name !== undefined && foldNetName(name) === foldNetName("0");
   });
+}
+
+/**
+ * Whether a Cell was read from a netlist file whose subcircuit met ground as
+ * SPICE's global node `0`, as a library's or another tool's subcircuit does.
+ */
+export function readsGlobalGround(document: SchematicDocument): boolean {
+  return Boolean(
+    document.importReference?.nets.some(
+      (net) => net.name === "0" && net.scope === "global",
+    ),
+  );
 }
 
 /**

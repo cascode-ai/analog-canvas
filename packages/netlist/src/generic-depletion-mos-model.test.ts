@@ -121,7 +121,9 @@ describe("the generic depletion MOS models", () => {
       },
     });
     const replaced = exported(project, "spice");
-    expect(replaced.file.text).not.toContain(".model");
+    // The file's own card, once, and no stand-in.
+    expect(replaced.file.text.match(/^\.model /gmu)).toEqual([".model "]);
+    expect(replaced.file.text).toContain(".model NMOS_DEP nmos level=1 vto=-2");
     expect(
       replaced.diagnostics.filter(
         (item) => item.code === "GENERIC_DEPLETION_MOS_MODEL",

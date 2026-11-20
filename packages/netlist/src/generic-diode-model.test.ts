@@ -221,7 +221,9 @@ describe("the generic diode model (#1310)", () => {
     });
     const result = spice(fromImport);
     expect(result.file.text).toContain("D1 anode cathode DIODE");
-    expect(result.file.text).not.toContain(".model");
+    // The file's own card prints instead of the stand-in.
+    expect(result.file.text).toContain(".MODEL diode d");
+    expect(result.file.text).not.toContain(CARD);
     expect(genericFindings(result)).toEqual([]);
     // A comment, or another name that starts the same, defines nothing.
     fromImport.source.files[0]!.content!.text =
@@ -230,7 +232,10 @@ describe("the generic diode model (#1310)", () => {
     // The author's card that starts as the stand-in does and goes on.
     fromImport.source.files[0]!.content!.text =
       "D1 anode cathode DIODE\n.model DIODE D(IS=1e-14 N=1\n+ RS=10)\n";
-    expect(spice(fromImport).file.text).not.toContain(".model");
+    expect(spice(fromImport).file.text).toContain(
+      ".model DIODE D(IS=1e-14 N=1\n+ RS=10)",
+    );
+    expect(spice(fromImport).file.text).not.toContain(CARD);
   });
 
   it.each([

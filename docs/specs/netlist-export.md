@@ -277,7 +277,13 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `GENERIC_DEPLETION_MOS_MODEL`), carried in a run's SPICE deck too; Spectre
   `model NMOS_DEP bsim4 type=n vth0=-1` (`PMOS_DEP` `type=p vth0=1`).
 - A same-name model in the imported SPICE suppresses the card everywhere; one in
-  a folder's files only for that folder's runs. The stand-in card itself, as the
+  a folder's files only for that folder's runs. A netlist handed out prints the
+  imported files' top-level cards its parts call, as written, after the Cells
+  (`* Models of the imported files`; Spectre keeps a Spectre file's own
+  statements, and a SPICE card goes in Spectre as the converter writes it), so
+  it never calls a model it read but no longer defines; a card a Cell carries
+  or a Project model source declares prints there instead. Cards inside a
+  subcircuit, a `.lib` section or a `.control` block are not the file's. The stand-in card itself, as the
   export writes it in SPICE or Spectre (type and parameters, in any case or
   order), suppresses nothing: a netlist the editor wrote, imported again, holds
   it (#1789). VACASK prints `sp_diode`/`sp_bjt`
