@@ -9,6 +9,7 @@ import {
   type SpiceDialectEvidence,
 } from "./dialect.js";
 import { evaluateSpiceExpression } from "./expression.js";
+import type { StatementFate, StatementFateKind } from "./ledger.js";
 import { CircuitIRSchema } from "./ir.js";
 import type {
   CircuitCellIR,
@@ -47,6 +48,8 @@ export interface SpiceCompileResult {
   diagnostics: SpiceDiagnostic[];
   dialectEvidence: SpiceDialectEvidence;
   successful: boolean;
+  /** What elaboration made of each statement (`statementLedger`). */
+  statementFates?: StatementFate[];
 }
 
 function normalizeName(name: string): string {
@@ -77,6 +80,28 @@ function opaqueIr(statement: OpaqueSyntaxStatement): OpaqueStatement {
   };
 }
 
+/** An elaborated statement's fate, as its kind decides it. */
+function activeStatementFate(
+  statement: SpiceStatement,
+): [StatementFateKind, string] {
+  switch (statement.kind) {
+    case "subckt_start":
+    case "subckt_end":
+      return ["definition", "subcircuit"];
+    case "instance":
+      return ["instance", statement.family];
+    case "opaque":
+      return ["unresolved", "unparsed"];
+    case "control_boundary":
+    case "control_command":
+      return ["preserved", "control"];
+    case "directive":
+      return ["preserved", statement.name];
+    default:
+      return ["declaration", statement.kind];
+  }
+}
+
 function collectDefinitions(
   bundle: SourceBundle,
   diagnostics: SpiceDiagnostic[],
@@ -87,7 +112,22 @@ function collectDefinitions(
   globalNames: Set<string>;
   opaque: OpaqueStatement[];
   preserved: PreservedStatementIR[];
+  fates: StatementFate[];
 } {
+  const fates: StatementFate[] = [];
+  const fate = (
+    statement: SpiceStatement,
+    kind: StatementFateKind,
+    reason?: string,
+    cell?: string,
+  ): void => {
+    fates.push({
+      sourceRef: statement.sourceRef,
+      fate: kind,
+      ...(reason ? { reason } : {}),
+      ...(cell ? { cell } : {}),
+    });
+  };
   const definitions: CellDefinition[] = [];
   const parameters: CircuitParameterDeclarationIR[] = [];
   const models: ModelDeclarationIR[] = [];
@@ -124,6 +164,9 @@ function collectDefinitions(
     active: boolean;
     branchTaken: boolean;
     resolved: boolean;
+    /** A reachable condition here was not evaluated before a branch was
+     * taken: which branches count is unknown. */
+    ambiguous?: boolean;
   }
 
   for (const syntaxFile of bundle.syntaxFiles) {
@@ -133,6 +176,14 @@ function collectDefinitions(
     const selectedSections = selectedSectionsByFile.get(syntaxFile.fileId);
     const conditions: ConditionFrame[] = [];
     const isActive = (): boolean => conditions.every((frame) => frame.active);
+    const ambiguous = (): boolean => conditions.some((frame) => frame.ambiguous);
+    const conditionalFate = (statement: SpiceStatement) =>
+      fate(
+        statement,
+        ambiguous() ? "unresolved" : "preserved",
+        ambiguous() ? "condition not evaluated" : "conditional",
+        current?.name,
+      );
     for (const statement of syntaxFile.statements) {
       if (statement.kind === "library") {
         preserve(
@@ -140,6 +191,7 @@ function collectDefinitions(
           "library",
           `${statement.mode}:${statement.section}`,
         );
+        fate(statement, "declaration", "library", current?.name);
         if (statement.mode === "section-start") {
           librarySection = normalizeName(statement.section);
         } else if (statement.mode === "section-end") {
@@ -151,6 +203,7 @@ function collectDefinitions(
         selectedSections &&
         (!librarySection || !selectedSections.has(librarySection))
       ) {
+        fate(statement, "preserved", "section not selected", current?.name);
         continue;
       }
       if (statement.kind === "conditional") {
@@ -178,7 +231,9 @@ function collectDefinitions(
             active: parentActive && value !== null && value !== 0,
             branchTaken: value !== null && value !== 0,
             resolved: value !== null,
+            ...(parentActive && value === null ? { ambiguous: true } : {}),
           });
+          conditionalFate(statement);
         } else {
           const frame = conditions.at(-1);
           if (!frame) {
@@ -191,6 +246,7 @@ function collectDefinitions(
                 statement.sourceRef,
               ),
             );
+            fate(statement, "refused", undefined, current?.name);
             continue;
           }
           if (statement.form === "elseif") {
@@ -214,6 +270,7 @@ function collectDefinitions(
                 ),
               );
               preserved.at(-1)!.unresolved = true;
+              frame.ambiguous = true;
             }
             frame.resolved = frame.resolved && value !== null;
             frame.active =
@@ -222,17 +279,33 @@ function collectDefinitions(
               !frame.branchTaken &&
               value !== 0;
             if (value !== null && value !== 0) frame.branchTaken = true;
+            conditionalFate(statement);
           } else if (statement.form === "else") {
             frame.active =
               frame.parentActive && frame.resolved && !frame.branchTaken;
             frame.branchTaken = true;
+            conditionalFate(statement);
           } else {
+            conditionalFate(statement);
             conditions.pop();
           }
         }
         continue;
       }
-      if (!isActive()) continue;
+      if (!isActive()) {
+        fate(
+          statement,
+          ambiguous() ? "unresolved" : "preserved",
+          ambiguous() ? "condition not evaluated" : "branch not taken",
+          current?.name,
+        );
+        continue;
+      }
+      fate(
+        statement,
+        ...activeStatementFate(statement),
+        statement.kind === "subckt_start" ? statement.name : current?.name,
+      );
       switch (statement.kind) {
         case "include":
           preserve(statement, "directive", "include");
@@ -405,6 +478,7 @@ function collectDefinitions(
     globalNames,
     opaque,
     preserved,
+    fates,
   };
 }
 
@@ -686,11 +760,13 @@ export function compileSourceBundle(
       diagnostics,
       dialectEvidence: dialect,
       successful: false,
+      statementFates: collected.fates,
     };
   }
   return {
     bundle,
     ir: candidate.data,
+    statementFates: collected.fates,
     diagnostics,
     dialectEvidence: dialect,
     successful: !diagnostics.some((item) => item.severity === "error"),

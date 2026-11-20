@@ -204,3 +204,97 @@ describe("netlist source import: model evidence", () => {
     expect(carriedModels(project)).toEqual([]);
   });
 });
+
+function fates(result: Awaited<ReturnType<typeof importNetlistSources>>) {
+  return result.ledger.entries.map(
+    ({ path, line, fate }) => `${path}:${line} ${fate}`,
+  );
+}
+
+describe("netlist source import: statement ledger", () => {
+  it("gives every statement of a SPICE netlist exactly one fate", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.sp",
+          [
+            "Ledger example",
+            ".param gain=2 flag=0",
+            ".model nfet nmos level=1",
+            ".subckt amp in out vdd vss",
+            "M1 out in vss vss nfet w=1u l=1u",
+            "R1 vdd out 10k",
+            ".ends amp",
+            "X1 a b vdd 0 amp",
+            "V1 vdd 0 1.8",
+            ".if missing_flag",
+            "R2 a 0 1k",
+            ".endif",
+            ".if flag",
+            "R3 a 0 1k",
+            ".endif",
+            "A1 a b xmod",
+            ".tran 1n 10n",
+            ".end",
+          ].join("\n"),
+        ),
+      ],
+      "top.sp",
+    );
+    expect(result.status).toBe("imported");
+    expect(fates(result)).toEqual([
+      "top.sp:1 preserved",
+      "top.sp:2 declaration",
+      "top.sp:3 declaration",
+      "top.sp:4 definition",
+      "top.sp:5 instance",
+      "top.sp:6 instance",
+      "top.sp:7 definition",
+      "top.sp:8 instance",
+      "top.sp:9 instance",
+      "top.sp:10 unresolved",
+      "top.sp:11 unresolved",
+      "top.sp:12 unresolved",
+      "top.sp:13 preserved",
+      "top.sp:14 preserved",
+      "top.sp:15 preserved",
+      "top.sp:16 unresolved",
+      "top.sp:17 preserved",
+      "top.sp:18 preserved",
+    ]);
+    expect(result.ledger.complete).toBe(true);
+  });
+
+  it("accounts for a Spectre file by its own lines, statements with no SPICE form included", async () => {
+    const result = await importNetlistSources(
+      [
+        file(
+          "top.scs",
+          [
+            "simulator lang=spectre",
+            "global 0 vdd!",
+            "subckt inv in out vdd vss",
+            "M1 (out in vss vss) nch w=1u l=30n",
+            "ends inv",
+            "model nch bsim3v3 type=n",
+            "I0 (a b vdd! 0) inv",
+            "tran1 tran step=1n stop=10n",
+          ].join("\n"),
+        ),
+      ],
+      "top.scs",
+    );
+    expect(result.status).toBe("imported");
+    expect(fates(result)).toEqual([
+      "top.scs:1 preserved",
+      "top.scs:2 declaration",
+      "top.scs:3 definition",
+      "top.scs:4 instance",
+      "top.scs:5 definition",
+      "top.scs:6 declaration",
+      "top.scs:7 instance",
+      "top.scs:8 preserved",
+    ]);
+    expect(result.ledger.complete).toBe(true);
+  });
+});

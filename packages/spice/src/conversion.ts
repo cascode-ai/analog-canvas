@@ -87,8 +87,17 @@ export type NetlistConversionResult =
       lineOrigins?: number[];
       /** Set with `externalNativeModels`. */
       externalModels?: ExternalNativeModel[];
+      /** Set with `withLineOrigins`: each input statement by its first
+       * line, with why it has no output line where it has none. */
+      statementLines?: ConvertedStatementLine[];
     }
   | { status: "blocked"; issues: NetlistConversionIssue[] };
+export interface ConvertedStatementLine {
+  line: number;
+  /** Why the statement printed nothing: a dialect switch, a native model
+   * card left out, a subcircuit's parameters folded into its header. */
+  dropped?: "dialect switch" | "native model card" | "subcircuit parameters" | "no output";
+}
 export const MAX_CONVERSION_BYTES = 512 * 1024;
 export const isNetlistDialect = (value: unknown): value is NetlistDialect =>
   value === "spice" || value === "ngspice" || value === "spectre";
@@ -254,6 +263,7 @@ function statements(
   source: NetlistDialect,
   uncountedSpiceSections = false,
   bounded = true,
+  dialectSwitches: number[] = [],
 ): Statement[] {
   const result: Statement[] = [];
   let dialect: Statement["dialect"] =
@@ -275,6 +285,7 @@ function statements(
       if (!["spice", "spectre"].includes(language[1]!.toLowerCase()))
         refuse({ line, text: raw, dialect }, "Unsupported simulator language.");
       dialect = language[1]!.toLowerCase() as Statement["dialect"];
+      dialectSwitches.push(line);
       continue;
     }
     if (
@@ -1100,11 +1111,16 @@ export function convertNetlist(
       source !== "spectre" && options.fragment === false
         ? text.replace(/^[^\r\n]*/u, "")
         : text;
+    const dialectSwitches: number[] = [];
     const input = statements(
       inputText,
       source,
       options.uncountedSpiceSections,
       !options.unbounded,
+      dialectSwitches,
+    );
+    const statementLines: ConvertedStatementLine[] = dialectSwitches.map(
+      (line) => ({ line, dropped: "dialect switch" }),
     );
     const ctx: Context = {
       subckts: new Set(
@@ -1230,8 +1246,20 @@ export function convertNetlist(
         const defaults = translated[0]!.slice(".param ".length);
         out[subcircuitOutput] +=
           `${out[subcircuitOutput]!.includes(" params:") ? " " : " params: "}${defaults}`;
+        statementLines.push({ line: s.line, dropped: "subcircuit parameters" });
         continue;
       }
+      statementLines.push(
+        translated.some(Boolean)
+          ? { line: s.line }
+          : {
+              line: s.line,
+              dropped:
+                s.dialect === "spectre" && head === "model"
+                  ? "native model card"
+                  : "no output",
+            },
+      );
       for (const line of translated) {
         if (!line) continue;
         const isInstance =
@@ -1282,7 +1310,12 @@ export function convertNetlist(
       source,
       target,
       issues: [],
-      ...(options.withLineOrigins ? { lineOrigins } : {}),
+      ...(options.withLineOrigins
+        ? {
+            lineOrigins,
+            statementLines: statementLines.sort((a, b) => a.line - b.line),
+          }
+        : {}),
       ...(ctx.externalModels ? { externalModels: ctx.externalModels } : {}),
     };
   } catch (error) {

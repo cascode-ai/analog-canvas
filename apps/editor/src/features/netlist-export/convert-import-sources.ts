@@ -4,6 +4,7 @@ import {
   convertNetlist,
   decodeSourceContent,
   isSpectreSource,
+  type ConvertedStatementLine,
   type SpiceBuiltInBody,
   type SpiceDiagnostic,
   type SpiceSourceInput,
@@ -64,6 +65,10 @@ function spiceSections(
  * its instances their device type (`modelTypes`, for the importer) and
  * stays out of the converted text, with a warning.
  */
+export type NativeStatementLine =
+  | ConvertedStatementLine
+  | { line: number; dropped: "built-in body" };
+
 export function prepareImportSources(
   inputs: readonly SpiceSourceInput[],
   externalSubcircuitNames?: readonly string[],
@@ -73,6 +78,9 @@ export function prepareImportSources(
   builtInBodies: SpiceBuiltInBody[];
   modelTypes: Map<string, string>;
   diagnostics: SpiceDiagnostic[];
+  /** Each native Spectre file's statements by first line, with why one
+   * printed nothing: what the statement ledger accounts by. */
+  nativeStatements: Map<string, NativeStatementLine[]>;
   originalLocation(
     path: string,
     line: number,
@@ -81,6 +89,7 @@ export function prepareImportSources(
   const builtInBodies: SpiceBuiltInBody[] = [];
   const modelTypes = new Map<string, string>();
   const diagnostics: SpiceDiagnostic[] = [];
+  const nativeStatements = new Map<string, NativeStatementLine[]>();
   const originsByPath = new Map<
     string,
     (line: number) => { path: string; line: number } | undefined
@@ -125,6 +134,20 @@ export function prepareImportSources(
       const issue = converted.issues[0]!;
       throw new Error(`${input.path}:${issue.line}: ${issue.message}`);
     }
+    // A body Analog Canvas writes itself reaches the converter blanked,
+    // line for line: its statements are that body's definition.
+    const foundLines = found.text.split(/\r\n?|\n/u);
+    const blanked = new Set(
+      text
+        .split(/\r\n?|\n/u)
+        .flatMap((line, index) =>
+          line.trim() && !foundLines[index]?.trim() ? [index + 1] : [],
+        ),
+    );
+    nativeStatements.set(input.path, [
+      ...(converted.statementLines ?? []),
+      ...[...blanked].map((line) => ({ line, dropped: "built-in body" as const })),
+    ]);
     const reported = new Set<number>();
     for (const model of converted.externalModels ?? []) {
       modelTypes.set(model.name, model.type);
@@ -194,6 +217,7 @@ export function prepareImportSources(
     builtInBodies,
     modelTypes,
     diagnostics,
+    nativeStatements,
     originalLocation(path, line) {
       const locate = originsByPath.get(path);
       return locate ? locate(line) : { path, line };

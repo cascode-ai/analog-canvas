@@ -4,6 +4,7 @@ export * from "./diagnostics.js";
 export * from "./dialect.js";
 export * from "./expression.js";
 export * from "./importer.js";
+export * from "./ledger.js";
 export * from "./ir.js";
 export * from "./source.js";
 export * from "./local-dependencies.js";
