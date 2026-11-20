@@ -298,13 +298,21 @@ export function useEditorDerivedModel({
         endpointKey(highlightedNetOrigin.endpoint) ===
           endpointKey(selectedHighlightEndpoint))),
   );
-  const searchResults = useMemo(() => {
-    if (!searchActive || searchQuery.trim().length === 0) return [];
+  const searchIndex = useMemo(() => {
+    if (!searchActive) return undefined;
     return buildProjectSearchIndex(project, {
       connectivityIndex: projectConnectivityIndex,
       resolver,
-    }).search(searchQuery);
-  }, [project, projectConnectivityIndex, resolver, searchActive, searchQuery]);
+    });
+  }, [project, projectConnectivityIndex, resolver, searchActive]);
+  const { results: searchResults, truncated: searchTruncated } = useMemo(
+    () =>
+      searchIndex?.searchWithCoverage(searchQuery) ?? {
+        results: [],
+        truncated: false,
+      },
+    [searchIndex, searchQuery],
+  );
   const flightlines = useMemo(
     () => [
       ...new Map(
@@ -385,6 +393,7 @@ export function useEditorDerivedModel({
     highlightedNetId,
     selectedHighlightIsActive,
     searchResults,
+    searchTruncated,
     flightlines,
     displayedFlightlines,
     crossings,

@@ -2110,6 +2110,7 @@ function WorkspaceEditor({
     highlightedNet,
     selectedHighlightIsActive,
     searchResults,
+    searchTruncated,
     flightlines,
     displayedFlightlines,
     crossings,
@@ -6235,6 +6236,16 @@ function WorkspaceEditor({
         publishDraft={publishDraft}
         setPublishDraft={setPublishDraft}
         searchResults={searchResults}
+        searchTruncated={searchTruncated}
+        selectSearchMatches={(ids) => {
+          resetInteractionState();
+          selectOnly("instance", ids);
+          setSelectionOpen(true);
+          closeSearch();
+          setStatus(
+            `Selected ${ids.length} matching ${ids.length === 1 ? "instance" : "instances"} in ${document.name}`,
+          );
+        }}
         requestElectricalDiagnostics={requestElectricalDiagnostics}
         cellInsertCandidates={cellInsertCandidates}
         insertDialogExternalCandidates={insertDialogExternalCandidates}
