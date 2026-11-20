@@ -616,7 +616,9 @@ describe("BrowserAgentProjectHost", () => {
         throw new Error("must not dispatch");
       },
     });
-    const read = async (process?: "abstract" | "sky130" | "sg13g2") => {
+    const read = async (
+      process?: "abstract" | "sky130" | "sg13g2" | "ics55",
+    ) => {
       const reply = await host.handle({
         apiVersion: AGENT_API_VERSION,
         requestId: `netlist-${process ?? "own"}`,
@@ -629,6 +631,7 @@ describe("BrowserAgentProjectHost", () => {
     };
     expect(await read()).toMatch(/^XM1 .*sky130_fd_pr__nfet_01v8 l=0.15 w=1/mu);
     expect(await read("sg13g2")).toMatch(/^XM1 .*sg13_lv_nmos w=1u l=150n/mu);
+    expect(await read("ics55")).toMatch(/^M1 .* nm1p2_svt_lp l=150n .*w=1u/mu);
     expect(await read("abstract")).toMatch(/^M1 .* NMOS l=150n .*w=1u/mu);
     expect(await read()).toBe(await read("sky130"));
   });

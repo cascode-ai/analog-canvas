@@ -32,15 +32,12 @@ import {
 import {
   inspectProjectModelSource,
   inspectProjectModelProcess,
+  MODEL_SOURCE_PROCESSES,
   renderProjectModelSource,
   transformProjectModelSource,
   type SimulationSourceDiagnostic,
 } from "@icm/netlist";
-import {
-  NETLIST_PROFILE_IDS,
-  NETLIST_PROFILE_LABELS,
-  type NetlistProfileId,
-} from "../netlist-export/netlist-process-presets";
+import { NETLIST_PROFILE_LABELS } from "../netlist-export/netlist-process-presets";
 import {
   NetlistCodeSelect,
   NetlistCopyButton,
@@ -663,7 +660,7 @@ export function ExternalModelSourceEditor({
   };
   const changeProcess = (value: string) => {
     const converted = transformProjectModelSource(source, {
-      process: value as NetlistProfileId,
+      process: value as typeof modelProcess,
     });
     if (!converted.ok) {
       setConversionDiagnostic(converted.diagnostic);
@@ -1079,7 +1076,7 @@ export function ExternalModelSourceEditor({
               label="Process"
               ariaLabel="Model process"
               value={modelProcess}
-              options={NETLIST_PROFILE_IDS.map((value) => ({
+              options={MODEL_SOURCE_PROCESSES.map((value) => ({
                 value,
                 label: NETLIST_PROFILE_LABELS[value],
               }))}

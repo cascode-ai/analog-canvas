@@ -11,6 +11,7 @@ import {
   replaceSpiceModelProcess,
   type ModelSourceProcess,
 } from "./model-source-process.js";
+export { MODEL_SOURCE_PROCESSES } from "./model-source-process.js";
 
 /** GUI draft shortcuts and Agent Apply use this same bounded native operation. */
 export function transformProjectModelSource(

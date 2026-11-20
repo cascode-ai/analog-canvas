@@ -31446,7 +31446,8 @@
                 "enum": [
                   "abstract",
                   "sky130",
-                  "sg13g2"
+                  "sg13g2",
+                  "ics55"
                 ]
               },
               "documentId": {

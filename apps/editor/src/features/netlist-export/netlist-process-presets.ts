@@ -1,5 +1,6 @@
 import {
   deviceDescriptor,
+  ICS55_MOS_MODELS,
   LIBRARY_PROCESS,
   reviewedExternalDeviceBindings,
   reviewedExternalBindingForMaster,
@@ -18,6 +19,7 @@ export const NETLIST_PROFILE_IDS = [
   "abstract",
   "sky130",
   "sg13g2",
+  "ics55",
   "custom",
 ] as const;
 export type NetlistProfileId = (typeof NETLIST_PROFILE_IDS)[number];
@@ -25,6 +27,7 @@ export const NETLIST_PROFILE_LABELS = {
   abstract: "Abstract",
   sky130: "SKY130",
   sg13g2: "IHP SG13G2",
+  ics55: "ICsprout55 (ICS55)",
   custom: "Custom",
 } as const;
 export const NETLIST_QUICK_TARGET_FAMILIES = [
@@ -109,6 +112,14 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
   },
   ...SKY130_QUICK_TARGETS,
   ...SG13G2_QUICK_TARGETS,
+  ics55: {
+    ...ICS55_MOS_MODELS,
+    npn: [GENERIC_NPN_MODEL.name],
+    pnp: [GENERIC_PNP_MODEL.name],
+    resistor: [""],
+    capacitor: [""],
+    inductor: [""],
+  },
   custom: {
     npn: [
       GENERIC_NPN_MODEL.name,
@@ -132,6 +143,7 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__nfet_20v0_nvt",
       "sky130_fd_pr__nfet_20v0_zvt",
       ...SG13G2_QUICK_TARGETS.sg13g2.nmos,
+      ...ICS55_MOS_MODELS.nmos,
     ],
     pmos: [
       "PMOS",
@@ -142,6 +154,7 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__pfet_g5v0d16v0",
       "sky130_fd_pr__pfet_20v0",
       ...SG13G2_QUICK_TARGETS.sg13g2.pmos,
+      ...ICS55_MOS_MODELS.pmos,
     ],
     resistor: [
       ...SKY130_QUICK_TARGETS.sky130.resistor,
@@ -284,12 +297,13 @@ export function netlistDeviceFamily(
 export function createNetlistExportProfile(
   id: NetlistProfileId,
 ): NetlistExportProfile {
-  const foundryTargets =
-    id === "sky130"
-      ? SKY130_TARGETS
-      : id === "sg13g2"
-        ? SG13G2_TARGETS
-        : undefined;
+  const foundryTargets: Partial<Record<NetlistDeviceFamily, string>> = {
+    abstract: GENERIC_TARGETS,
+    custom: GENERIC_TARGETS,
+    sky130: SKY130_TARGETS,
+    sg13g2: SG13G2_TARGETS,
+    ics55: { nmos: ICS55_MOS_MODELS.nmos[0], pmos: ICS55_MOS_MODELS.pmos[0] },
+  }[id];
   const devices = Object.fromEntries(
     NETLIST_DEVICE_FAMILIES.map((family) => {
       const parameters = Object.fromEntries(
@@ -306,6 +320,11 @@ export function createNetlistExportProfile(
         if (id === "sg13g2") {
           // The core devices' minimum length; SG13G2 counts fingers as ng.
           parameters.l = "130n";
+          delete parameters.nf;
+        }
+        if (id === "ics55") {
+          // The CDL carries its own multiplicity (MR). Keep authored parameters.
+          delete parameters.m;
           delete parameters.nf;
         }
       }

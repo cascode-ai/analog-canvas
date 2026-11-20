@@ -20,7 +20,12 @@ const NetlistFormatSchema = z.enum(["spice", "spectre"]);
 const NetlistNamingProfileSchema = z.enum(["native", "cadence-bang"]);
 const NetlistPortCaseSchema = z.enum(["lower", "upper"]);
 /** Export as if this Process were applied, as the Netlist panel's Process does; the Project is unchanged. */
-const NetlistProcessSchema = z.enum(["abstract", "sky130", "sg13g2"]);
+export const NetlistProcessSchema = z.enum([
+  "abstract",
+  "sky130",
+  "sg13g2",
+  "ics55",
+]);
 const ProjectNameSchema = z.string().min(1).max(256);
 const GalleryEntryStatusSchema = z.enum(["public", "rejected", "recycled"]);
 /**

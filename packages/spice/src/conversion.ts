@@ -26,7 +26,7 @@ SOFTWARE.
  * See ../third-party/netlist-crawler/LICENSE and README.md.
  * Pure strict-subset translation: no file access, model discovery or execution.
  */
-import { reviewedExternalBindingForMaster } from "@icm/devices";
+import { ics55MosType, reviewedExternalBindingForMaster } from "@icm/devices";
 import { parseSpiceSource } from "./syntax.js";
 
 export type NetlistDialect = "spice" | "ngspice" | "spectre";
@@ -820,11 +820,14 @@ function spectreInstance(s: Statement, ctx: Context): string {
   // A design read whole: a master nothing declares is a call of it, kept
   // as written; its instance's first letter says nothing (#2294). One
   // another reading of the files names (an RNL drawing) is declared there.
+  const ics55Mos =
+    !isSubckt && !ctx.externalSubckts.has(kind) && ics55MosType(kind);
   if (
     ctx.importsDesign &&
     ctx.calls &&
     !isSubckt &&
     !declared &&
+    !ics55Mos &&
     !ctx.externalSubckts.has(kind)
   ) {
     const written = prefix(name!, "X");
@@ -837,7 +840,9 @@ function spectreInstance(s: Statement, ctx: Context): string {
     });
     return output("X", `${master} ${emitParameters(p, s, ctx)}`);
   }
-  const conventional = /^[MDQJX]/iu.exec(name!)?.[0].toUpperCase();
+  const conventional = ics55Mos
+    ? "M"
+    : /^[MDQJX]/iu.exec(name!)?.[0].toUpperCase();
   if (!isSubckt && !declared && !conventional && !ctx.externalSubckts.has(kind))
     refuse(
       s,
