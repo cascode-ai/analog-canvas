@@ -436,6 +436,39 @@ describe("same-Net conductor topology normalization", () => {
     });
   });
 
+  it.each([
+    ["a MOS bulk presentation", "bulk-dashed"],
+    ["a locked leg", "locked"],
+  ])(
+    "keeps a Junction whose third arm has %s, which the pass leaves alone (#2294)",
+    (_name, kind) => {
+      // A body tie drawn dashed to a Junction on the source wire: merging the
+      // two plain arms through it left the tie ending on the wire's interior,
+      // no longer connected in the drawing.
+      const document = documentWith(
+        [
+          junction("left", 0, 0),
+          junction("middle", 50, 0),
+          junction("right", 100, 0),
+          junction("top", 50, 50),
+        ],
+        [
+          route("left-arm", "left", "middle"),
+          route("right-arm", "middle", "right"),
+          route("tie", "top", "middle"),
+        ],
+      );
+      if (kind === "bulk-dashed") document.routes[2]!.presentation = kind;
+      else document.routes[2]!.legs[0]!.mode = "locked";
+      const before = structuredClone(document);
+
+      const result = normalizeSameNetConductorTopology(document, resolver);
+
+      expect(result.changed).toBe(false);
+      expect(document).toEqual(before);
+    },
+  );
+
   it("leaves an already canonical three-arm Junction unchanged", () => {
     const document = documentWith(
       [

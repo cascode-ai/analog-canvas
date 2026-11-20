@@ -334,12 +334,27 @@ export function normalizeSameNetConductorTopology(
       atPoint.push(junction);
       junctionsByPoint.set(key, atPoint);
     }
+    // A Route this pass leaves alone (a MOS bulk tie, locked geometry, a
+    // member mapping) is still an arm of the Junction it ends at: counted
+    // out, a body tie's Junction looked two-armed and was merged away, and
+    // the tie ended on the wire's interior, unconnected (#2294).
+    const normalized = new Set(routes.map((route) => route.id));
+    const heldJunctionIds = new Set(
+      document.routes.flatMap((route) =>
+        normalized.has(route.id)
+          ? []
+          : [route.start, routeEnd(route)].flatMap((endpoint) =>
+              endpoint.kind === "junction" ? [endpoint.junctionId] : [],
+            ),
+      ),
+    );
     const collapsibleJunctionIds = new Set<string>();
     for (const junction of junctions) {
       const role = junction.role ?? "branch";
       if (
         (role !== "branch" && role !== "route-anchor") ||
         protectedIds.has(junction.id) ||
+        heldJunctionIds.has(junction.id) ||
         options.preserveJunctionIds?.has(junction.id)
       ) {
         continue;
