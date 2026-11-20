@@ -1,11 +1,6 @@
 // One Cell as the netlist sees it: its pins and ground pin, references,
 // instances and the model cards it carries.
-import {
-  deriveStableId,
-  foldNetName,
-  projectScalarCellInterface,
-  spellGreekLetters,
-} from "@icm/model";
+import { deriveStableId, foldNetName, spellGreekLetters } from "@icm/model";
 import {
   portableCellIdentifier,
   resolveCommittedDocumentLogicalNets,
@@ -21,6 +16,7 @@ import {
   isLibraryPart,
   namesModelOutsideSources,
   nextReference,
+  resolveExternalTerminalBindings,
 } from "@icm/devices";
 import type {
   DesignNetlistCell,
@@ -30,6 +26,7 @@ import type {
   NetlistDiagnostic,
 } from "./ir.js";
 import { bodySupplies } from "./implicit-mos-supplies.js";
+import type { CellInterface } from "./extract-interface.js";
 import { builtInBlockCallTarget } from "./ideal-analog-block-models.js";
 import { extractInductorCouplings } from "./extract-coupling.js";
 import { IDEAL_SWITCH_MODEL } from "./ideal-switch-model.js";
@@ -56,6 +53,7 @@ import {
 import {
   extractHierarchyInstance,
   extractExternalSubcircuitInstance,
+  type ExternalSubcircuitCall,
 } from "./extract-subcircuit.js";
 import { extractBuiltInSubcircuitInstance } from "./extract-block.js";
 import {
@@ -91,6 +89,7 @@ export function extractCell(
   project: CircuitProject,
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
+  interfaces: ReadonlyMap<string, CellInterface>,
   cellNameByDocumentId: ReadonlyMap<string, string>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   placedBodies: PlacedMosBodies | undefined,
@@ -123,21 +122,44 @@ export function extractCell(
       `Cell has ${document.instances.length} instances; maximum is ${MAX_INSTANCES_PER_CELL}`,
     );
   }
+  const definitions = new Map(
+    project.externalSubcircuitDefinitions.map((definition) => [
+      definition.id,
+      definition,
+    ]),
+  );
+  const components = new Map(
+    project.componentDefinitions?.map((component) => [
+      component.symbol.id,
+      component,
+    ]),
+  );
+  const externalCalls = new Map<string, ExternalSubcircuitCall>();
+  for (const instance of document.instances) {
+    const binding = instance.netlist?.binding;
+    if (binding?.kind !== "external-subcircuit") continue;
+    const definition = definitions.get(binding.definitionId);
+    if (!definition) continue;
+    externalCalls.set(instance.id, {
+      definition,
+      binding: resolveExternalTerminalBindings(
+        definition,
+        instance.symbolId,
+        components.get(instance.symbolId),
+      ),
+    });
+  }
   const context = buildNetContext(
     project,
     document,
     documentsById,
-    new Map(
-      project.externalSubcircuitDefinitions.map((definition) => [
-        definition.id,
-        definition,
-      ]),
-    ),
+    externalCalls,
     projectedNames,
     options,
     diagnostics,
   );
-  const interfaceProjection = projectScalarCellInterface(document.netlist);
+  const interfaceDraft = interfaces.get(document.id)!;
+  const interfaceProjection = interfaceDraft.authored;
   // Formal pins read the authored Document, not buildNetContext's recovered
   // power-marker claims. All pins share that same logical projection.
   const interfaceLogicalNets = resolveCommittedDocumentLogicalNets(document);
@@ -174,7 +196,20 @@ export function extractCell(
       }
       const representativeNetId = port.netIds[0]!;
       const netName = context.nameByNetId.get(representativeNetId) ?? port.name;
-      return [{ id: representativeNetId, name: encodedPort.token, netName }];
+      const projected = {
+        id: representativeNetId,
+        name: encodedPort.token,
+        netName,
+      };
+      const scalar = interfaceDraft.scalarByName.get(port.key);
+      interfaceDraft.sources.set(projected, {
+        kind: "pin",
+        port,
+        rowId:
+          scalar &&
+          interfaceDraft.rowByName.get(foldNetName(scalar.aggregateName)),
+      });
+      return [projected];
     },
   );
   // Ground becomes this Cell's own pin: the node inside is named for it, and
@@ -208,6 +243,14 @@ export function extractCell(
     const authoredPin = groundNet
       ? ports.find((port) => port.netName === groundNet.name)
       : undefined;
+    const insertGroundPort = (id: string) => {
+      const port = { id, name: groundToken, netName: groundToken };
+      ports.splice(groundPortIndex(document, ports), 0, port);
+      interfaceDraft.sources.set(port, {
+        kind: "ground",
+        pinName: groundName.name,
+      });
+    };
     if (authoredPin && groundNet) {
       for (const [netId, name] of context.nameByNetId)
         if (name === groundNet.name)
@@ -222,11 +265,7 @@ export function extractCell(
       context.nameByAuthoredName.set(foldNetName("0"), groundToken);
       groundNet.name = groundToken;
       groundNet.scope = "local";
-      ports.splice(groundPortIndex(document, ports), 0, {
-        id: groundNet.id,
-        name: groundToken,
-        netName: groundToken,
-      });
+      insertGroundPort(groundNet.id);
     } else {
       // Nothing in this Cell touches ground; it exists only to carry the
       // reference down to a child that does.
@@ -243,11 +282,7 @@ export function extractCell(
       });
       context.nameByNetId.set(passThroughId, groundToken);
       context.nameByAuthoredName.set(foldNetName("0"), groundToken);
-      ports.splice(groundPortIndex(document, ports), 0, {
-        id: passThroughId,
-        name: groundToken,
-        netName: groundToken,
-      });
+      insertGroundPort(passThroughId);
     }
     // The author may have meant that Net as ground, or not: say which name
     // ground's pin took, and how to make the two one.
@@ -265,6 +300,8 @@ export function extractCell(
         "info",
       );
   }
+  interfaceDraft.groundNode =
+    context.nameByAuthoredName.get(foldNetName("0")) ?? "0";
   // Node names are final here, ground included, so findings use them.
   reportDefaultBodySupplies(document, context, ports, diagnostics);
   reportBodiesOffSourceSupply(document, context, placedBodies, diagnostics);
@@ -369,9 +406,7 @@ export function extractCell(
     }
     if (cellPinInstanceIds.has(instance.id)) continue;
     const binding = instance.netlist?.binding;
-    const captured = project.componentDefinitions?.find(
-      (component) => component.symbol.id === instance.symbolId,
-    );
+    const captured = components.get(instance.symbolId);
     if (
       (!binding || binding.kind === "unresolved-subcircuit") &&
       captured?.subcircuit &&
@@ -407,6 +442,7 @@ export function extractCell(
             document,
             instance,
             documentsById,
+            interfaces,
             cellNameByDocumentId,
             context,
             options,
@@ -416,10 +452,7 @@ export function extractCell(
           ? extractExternalSubcircuitInstance(
               document,
               instance,
-              project.externalSubcircuitDefinitions.find(
-                (definition) => definition.id === binding.definitionId,
-              ),
-              captured,
+              externalCalls.get(instance.id),
               context,
               options,
               diagnostics,
@@ -583,7 +616,9 @@ export function extractCell(
   if (printedAsSubcircuit)
     for (const token of undrivenPhaseNodes.get(context) ?? []) {
       const net = context.nets.find((candidate) => candidate.name === token)!;
-      ports.push({ id: net.id, name: token, netName: token });
+      const port = { id: net.id, name: token, netName: token };
+      ports.push(port);
+      interfaceDraft.sources.set(port, { kind: "phase" });
     }
   return {
     id: document.id,

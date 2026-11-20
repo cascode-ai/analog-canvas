@@ -2296,6 +2296,61 @@ describe("a part wired at pins its model does not have (#1298)", () => {
       parameters: { documentId: source.topDocumentId, instanceId: "CV1" },
     });
   });
+
+  it.each(["route", "unrouted"])(
+    "refuses a new %s connection through an existing invalid Var Cap pin",
+    (connection) => {
+      const source = project(true);
+      const document = source.documents[0]!;
+      document.instances[0]!.placement = {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      };
+      document.instances.push({
+        id: "R1",
+        symbolId: "resistor",
+        placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+      });
+      const from = {
+        kind: "terminal" as const,
+        instanceId: "CV1",
+        pinName: "P1",
+      };
+      const to = { kind: "terminal" as const, instanceId: "R1", pinName: "1" };
+      const result = transact(source, [
+        {
+          kind: "transact_document",
+          documentId: document.id,
+          expectedRevision: document.revision,
+          edits:
+            connection === "route"
+              ? [
+                  {
+                    kind: "set_route_path",
+                    route: createRoutePath({
+                      id: "new-route",
+                      netId: "net-tune",
+                      start: from,
+                      end: to,
+                      bends: [],
+                      modes: ["manual"],
+                    }),
+                  },
+                ]
+              : [{ kind: "connect_endpoints", from, to }],
+        },
+      ]);
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          code: "INVALID_RESULT",
+          message: expect.stringContaining("CV1.P1"),
+        },
+        project: source,
+      });
+    },
+  );
 });
 
 describe("a Cell symbol's pins change sides (#1316)", () => {

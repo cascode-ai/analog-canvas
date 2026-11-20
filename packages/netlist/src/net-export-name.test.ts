@@ -1,8 +1,15 @@
-import { createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  freezeSnapshot,
+  hierarchicalSymbolId,
+} from "@icm/model";
+import { parseProject, serializeProject } from "@icm/project-protocol";
 import { importSpiceSources } from "@icm/spice";
 import { describe, expect, it } from "vitest";
 
 import { createDesignNetlistExport } from "./export.js";
+import { createDraftNetlistPreview } from "./draft-preview.js";
 import {
   designNetlistCellPorts,
   designNetlistNetName,
@@ -69,6 +76,17 @@ describe("the name a netlist writes a Net under (2026-10-14)", () => {
 });
 
 describe("designNetlistCellPorts", () => {
+  it("reads distinct formal row IDs when cached analysis returns a defensive copy", () => {
+    const project = freezeSnapshot(stageWithCallers(true));
+    const ports = designNetlistCellPorts(project, "stage");
+    expect(ports?.map(({ portId }) => portId)).toEqual([
+      "port-IN",
+      "port-SENSE",
+      "port-OUT",
+    ]);
+    expect(designNetlistCellPorts(project, "stage")).toEqual(ports);
+  });
+
   it("lists a Cell's Pins as the netlist writes them, ground's added pin included (#2177)", async () => {
     const deck =
       ".subckt amp IN OUT\nR1 IN OUT 1k\nC1 OUT 0 1p\n.ends amp\nX1 a b amp\n.end\n";
@@ -128,3 +146,138 @@ describe("designNetlistCellPorts", () => {
     expect(written).toMatch(/^X2 a b c d core$/mu);
   });
 });
+
+function stageWithCallers(tied: boolean) {
+  const project = createEmptyProject("project", "Project");
+  const parent = project.documents[0]!;
+  const child = createEmptyDocument("stage", "stage");
+  project.documents.push(child);
+  for (const [document, names] of [
+    [child, ["IN", "SENSE", "OUT"]],
+    [parent, ["A_IN", "A_SENSE", "A_OUT", "B_IN", "B_SENSE", "B_OUT"]],
+  ] as const) {
+    for (const name of names) {
+      const pinId = `pin-${name}`;
+      const netId =
+        tied && document === child && name === "SENSE"
+          ? "net-IN"
+          : `net-${name}`;
+      document.instances.push({ id: pinId, symbolId: "port", placement: null });
+      const endpoint = { instanceId: pinId, pinName: "P" };
+      const net = document.nets.find(({ id }) => id === netId);
+      if (net) net.terminals.push(endpoint);
+      else document.nets.push({ id: netId, terminals: [endpoint] });
+      document.netlist!.terminals.push({
+        id: `port-${name}`,
+        name,
+        netId,
+        direction: "passive",
+        interfaceInstanceIds: [pinId],
+      });
+    }
+  }
+  for (const [index, prefix] of ["A", "B"].entries()) {
+    const id = `X${index + 1}`;
+    parent.instances.push({
+      id,
+      reference: id,
+      symbolId: hierarchicalSymbolId(child.name),
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+        parameters: {},
+      },
+    });
+    for (const pinName of ["IN", "SENSE", "OUT"])
+      parent.nets
+        .find((net) => net.id === `net-${prefix}_${pinName}`)!
+        .terminals.push({ instanceId: id, pinName });
+  }
+  return project;
+}
+
+it.each(["spice", "spectre"] as const)(
+  "keeps both callers in declaration order even when a %s draft ties distinct ports",
+  (format) => {
+    const tied = stageWithCallers(true);
+    const separate = stageWithCallers(false);
+    const declaration =
+      format === "spice"
+        ? ".subckt stage IN SENSE OUT"
+        : "subckt stage (IN SENSE OUT)";
+    const call = (reference: string, prefix: string) => {
+      const nodes = `${prefix}_IN ${prefix}_SENSE ${prefix}_OUT`;
+      return format === "spice"
+        ? `${reference} ${nodes} stage`
+        : `${reference} (${nodes}) stage`;
+    };
+    for (const groundPin of ["global", "pin", "as-read"] as const) {
+      const preview = createDraftNetlistPreview(tied, { format, groundPin });
+      expect(preview?.text.split("\n")).toEqual(
+        expect.arrayContaining([declaration, call("X1", "A"), call("X2", "B")]),
+      );
+      const strict = createDesignNetlistExport(tied, { format, groundPin });
+      expect(strict.status).toBe("blocked");
+      expect(strict.diagnostics.map(({ code }) => code)).toContain(
+        "MULTIPLE_PORTS_SHARE_NET",
+      );
+      const ready = createDesignNetlistExport(separate, { format, groundPin });
+      expect(ready.status === "ready" && ready.file.text.split("\n")).toEqual(
+        expect.arrayContaining([declaration, call("X1", "A"), call("X2", "B")]),
+      );
+    }
+  },
+);
+
+it.each(["spice", "spectre"] as const)(
+  "keeps %s scalar and bus positions distinct when their owners use the same member ID",
+  (format) => {
+    const project = stageWithCallers(false);
+    const [parent, child] = project.documents;
+    const [control, bus, out] = child!.netlist!.terminals;
+    const expression = "DATA<1:0>";
+    const members = [
+      { id: control!.id, name: "DATA<1>", netId: bus!.netId },
+      { id: "data-low", name: "DATA<0>", netId: out!.netId },
+    ];
+    child!.netlist!.terminals = [
+      control!,
+      { ...bus!, name: expression, signal: { expression, members } },
+    ];
+    child!.instances = child!.instances.filter(({ id }) => id !== "pin-OUT");
+    for (const member of members) {
+      child!.nets.find(({ id }) => id === member.netId)!.terminals = [
+        { instanceId: "pin-SENSE", pinName: "P", memberId: member.id },
+      ];
+    }
+    for (const net of parent!.nets) {
+      for (const endpoint of net.terminals) {
+        const member =
+          endpoint.pinName === "SENSE"
+            ? members[0]
+            : endpoint.pinName === "OUT"
+              ? members[1]
+              : undefined;
+        if (member) {
+          endpoint.pinName = expression;
+          endpoint.memberId = member.id;
+        }
+      }
+    }
+    const restored = parseProject(serializeProject(project));
+    const result = createDesignNetlistExport(restored, { format });
+    if (result.status !== "ready")
+      throw new Error(JSON.stringify(result.diagnostics));
+    const nodes = "A_IN A_SENSE A_OUT";
+    const declaration =
+      format === "spice"
+        ? ".subckt stage IN DATA_1_ DATA_0_"
+        : "subckt stage (IN DATA\\<1\\> DATA\\<0\\>)";
+    expect(result.file.text.split("\n")).toEqual(
+      expect.arrayContaining([
+        declaration,
+        format === "spice" ? `X1 ${nodes} stage` : `X1 (${nodes}) stage`,
+      ]),
+    );
+  },
+);

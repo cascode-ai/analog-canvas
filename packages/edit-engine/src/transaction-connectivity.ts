@@ -422,6 +422,10 @@ export function retargetOwnerEvidenceAfterSplit(
   draft: SchematicDocument,
   originalNetId: string,
   changedObjectIds: Set<string>,
+  options: {
+    routeAnchorsOnly?: boolean;
+    movedPropertyOwners?: ReadonlyMap<string, string>;
+  } = {},
 ): void {
   const instanceNetId = (instanceId: string): string | undefined =>
     draft.nets
@@ -455,7 +459,7 @@ export function retargetOwnerEvidenceAfterSplit(
         net.terminals.some((terminal) => terminal.instanceId === objectId),
     )
       ? currentNetId
-      : objectNetId(objectId);
+      : (options.movedPropertyOwners?.get(objectId) ?? objectNetId(objectId));
   };
   const retargetAnnotation = (
     annotation: SchematicDocument["annotations"][number],
@@ -463,7 +467,7 @@ export function retargetOwnerEvidenceAfterSplit(
     const targetNetId =
       annotation.anchor.kind === "route"
         ? objectNetId(annotation.anchor.routeId)
-        : annotation.anchor.kind === "object"
+        : !options.routeAnchorsOnly && annotation.anchor.kind === "object"
           ? partNetId(annotation, annotation.anchor.objectId)
           : undefined;
     if (!targetNetId) return undefined;
@@ -539,7 +543,10 @@ export function retargetOwnerEvidenceAfterSplit(
     );
     if (ownedAnnotation) {
       targetNetId = retargetAnnotation(ownedAnnotation);
-    } else if (evidence.owner.kind === "power-marker") {
+    } else if (
+      !options.routeAnchorsOnly &&
+      evidence.owner.kind === "power-marker"
+    ) {
       targetNetId = objectNetId(evidence.owner.objectId);
     }
     if (targetNetId && targetNetId !== evidence.netId) {

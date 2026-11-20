@@ -58,7 +58,7 @@ export function cellReachesGround(
  * ground carried one node more than the Cell had pins. `asRead`: the
  * `"as-read"` policy, under which a Cell that `readsGlobalGround` adds none.
  */
-export function addsGroundPin(
+function addsGroundPin(
   document: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
   seen: Set<string> = new Set(),

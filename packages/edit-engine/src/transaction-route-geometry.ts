@@ -38,7 +38,9 @@ export interface RouteGeometryEditContext {
   reject: RejectEdit;
 }
 
-export type RouteGeometryEditOutcome = EditMutationOutcome;
+export type RouteGeometryEditOutcome = EditMutationOutcome & {
+  readonly removedRoute?: RouteBranch;
+};
 
 export function applyRouteGeometryEdit(
   edit: RouteGeometryEdit,
@@ -287,6 +289,7 @@ export function applyRouteGeometryEdit(
       return {
         ok: true,
         connectivityChanged: ownerNetIds.length > 0,
+        removedRoute: route,
       };
     }
   }

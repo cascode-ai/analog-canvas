@@ -1,25 +1,25 @@
 import {
   routeEndpoints,
   routeElectricalConnections,
-  isFrozenSnapshot,
+  junctionElectricalEndpoints,
   type Net,
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
 import {
   ConnectionGraph,
-  buildDocumentDerivedContext,
-  deriveDocumentContactEvidence,
+  buildEndpointObjectLookup,
   endpointKey,
+  groupCoincidentEndpoints,
   isMosBulkTerminal,
   isVisibleEndpoint,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
-import type { EditTransaction } from "./edit-schema.js";
+import type { RouteEdits } from "./transaction-route-edits.js";
 import {
   addEndpointToNet,
-  prepareNetEndpointGroupRead,
+  netEndpointGroupsFromEdges,
 } from "./transaction-routing.js";
 import { prepareConnectivityPhaseRead } from "./connectivity-phase-read.js";
 import {
@@ -189,6 +189,23 @@ function memberless(document: SchematicDocument, netId: string): boolean {
   );
 }
 
+export interface CutPropertyGroup {
+  stranded: Extract<RouteEndpoint, { kind: "terminal" }>[];
+  drawn: RouteEndpoint[];
+}
+
+function isUndrawablePropertyPin(
+  draft: SchematicDocument,
+  resolver: SymbolResolver,
+  endpoint: RouteEndpoint | undefined,
+): boolean {
+  return (
+    endpoint?.kind === "terminal" &&
+    !isMosBulkTerminal(draft, endpoint) &&
+    !isVisibleEndpoint(draft, resolver, endpoint)
+  );
+}
+
 /**
  * A cut releases its Net's unrouted intent, but not a pin no one can draw: a
  * hidden supply pin (an op-amp's VDD) or a model's substrate has no geometry
@@ -202,16 +219,11 @@ function keepUndrawableMembersAfterCut(
   graph: ConnectionGraph,
   endpoints: ReadonlyMap<string, RouteEndpoint>,
   resolver: SymbolResolver | undefined,
-): void {
+  edits: RouteEdits,
+): CutPropertyGroup | undefined {
   if (!resolver) return;
-  const undrawable = (key: string) => {
-    const endpoint = endpoints.get(key);
-    return (
-      endpoint?.kind === "terminal" &&
-      !isMosBulkTerminal(draft, endpoint) &&
-      !isVisibleEndpoint(draft, resolver, endpoint)
-    );
-  };
+  const undrawable = (key: string) =>
+    isUndrawablePropertyPin(draft, resolver, endpoints.get(key));
   const stranded = groups.filter((group) => group.every(undrawable));
   if (stranded.length === 0) return;
   const drawn = groups
@@ -222,28 +234,203 @@ function keepUndrawableMembersAfterCut(
   const largest = graph
     .groups(drawn)
     .reduce((best, group) => (group.length > best.length ? group : best));
-  graph.join([
-    largest[0]!,
-    ...stranded.flat().filter((key) => endpoints.has(key)),
-  ]);
+  const propertyKeys = stranded
+    .flat()
+    .filter(
+      (key) => !edits.boundProperties.has(key) && !edits.disconnected.has(key),
+    );
+  const propertyTerminals = propertyKeys.flatMap((key) => {
+    const endpoint = endpoints.get(key);
+    return endpoint?.kind === "terminal" ? [endpoint] : [];
+  });
+  if (propertyTerminals.length === 0) return;
+  graph.join([largest[0]!, ...propertyTerminals.map(endpointKey)]);
+  return {
+    stranded: propertyTerminals,
+    drawn: drawn.map((key) => endpoints.get(key)!),
+  };
+}
+
+/** A licensed contact can change which side of a cut is largest. */
+export function reconcileCutPropertyTerminals(
+  draft: SchematicDocument,
+  groups: readonly CutPropertyGroup[],
+  resolver: SymbolResolver,
+  changed: Set<string>,
+): void {
+  if (groups.length === 0) return;
+  const read = prepareConnectivityPhaseRead(draft);
+  const departed = new Map<string, Map<string, string>>();
+  const counts = new Map<string, number>();
+  const sizeOf = (netId: string) => {
+    const cached = counts.get(netId);
+    if (cached !== undefined) return cached;
+    const net = read.netsById.get(netId);
+    const count = net
+      ? read
+          .netEndpoints(net)
+          .filter((e) => !isUndrawablePropertyPin(draft, resolver, e)).length
+      : 0;
+    counts.set(netId, count);
+    return count;
+  };
+  for (const { stranded, drawn } of groups) {
+    let largest: { id: string; size: number } | undefined;
+    for (const endpoint of drawn) {
+      const owner = read.ownerOf(endpoint);
+      if (!owner) continue;
+      const size = sizeOf(owner);
+      if (!largest || size > largest.size) largest = { id: owner, size };
+    }
+    if (!largest) continue;
+    for (const endpoint of stranded) {
+      const owner = read.ownerOf(endpoint);
+      if (!owner || largest.size <= sizeOf(owner)) continue;
+      const net = read.netsById.get(owner);
+      if (!net) continue;
+      net.terminals = net.terminals.filter(
+        (terminal) =>
+          terminal.instanceId !== endpoint.instanceId ||
+          terminal.pinName !== endpoint.pinName ||
+          terminal.memberId !== endpoint.memberId,
+      );
+      addEndpointToNet(draft, largest.id, endpoint);
+      const moved = departed.get(owner) ?? new Map<string, string>();
+      moved.set(endpoint.instanceId, largest.id);
+      departed.set(owner, moved);
+      changed.add(owner);
+      changed.add(largest.id);
+      changed.add(endpoint.instanceId);
+    }
+  }
+  for (const [owner, movedPropertyOwners] of departed)
+    retargetOwnerEvidenceAfterSplit(draft, owner, changed, {
+      movedPropertyOwners,
+    });
+}
+
+type ConnectivityRead = ReturnType<typeof prepareConnectivityPhaseRead>;
+type Route = SchematicDocument["routes"][number];
+
+/** Follow actual endpoint incidence in both revisions. Route Net hints never
+ * enlarge the closure. A newly authored path can re-use an occupied hint. */
+function affectedConductors(
+  before: SchematicDocument,
+  draft: SchematicDocument,
+  source: ConnectivityRead,
+  read: ConnectivityRead,
+  edits: RouteEdits,
+  changed: ReadonlySet<string>,
+) {
+  const edges = draft.routes.flatMap((route) =>
+    routeElectricalConnections(route).map((edge) => ({ route, edge })),
+  );
+  const incident = new Map<string, typeof edges>();
+  for (const entry of edges) {
+    for (const endpoint of entry.edge.endpoints) {
+      const key = endpointKey(endpoint);
+      const connected = incident.get(key) ?? [];
+      connected.push(entry);
+      incident.set(key, connected);
+    }
+  }
+  const endpoints = new Set<string>();
+  const netIds = new Set<string>();
+  const activeEdges = new Set<(typeof edges)[number]>();
+  const pending: RouteEndpoint[] = [];
+  const addNet = (id: string) => {
+    if (netIds.has(id)) return;
+    netIds.add(id);
+    const original = source.netsById.get(id);
+    const current = read.netsById.get(id);
+    if (original)
+      for (const endpoint of source.netEndpoints(original))
+        pending.push(endpoint);
+    if (current)
+      for (const endpoint of read.netEndpoints(current)) pending.push(endpoint);
+  };
+  for (const snapshot of [before, draft]) {
+    for (const net of snapshot.nets) {
+      if (
+        changed.has(net.id) ||
+        net.terminals.some(
+          ({ instanceId }) =>
+            changed.has(instanceId) || edits.unplaced.has(instanceId),
+        )
+      )
+        addNet(net.id);
+    }
+    for (const junction of snapshot.junctions)
+      if (changed.has(junction.id))
+        for (const { endpoint, netId } of junctionElectricalEndpoints(
+          junction,
+        )) {
+          pending.push(endpoint);
+          addNet(netId);
+        }
+    for (const route of snapshot.routes)
+      if (changed.has(route.id))
+        for (const { endpoints } of routeElectricalConnections(route))
+          pending.push(...endpoints);
+  }
+  for (const id of edits.cutEndsByNet.keys()) addNet(id);
+  for (const merge of edits.merges) for (const id of merge) addNet(id);
+  for (const endpoint of edits.disconnected.values()) pending.push(endpoint);
+  for (const pair of edits.connections) pending.push(...pair);
+  for (const { endpoints } of edits.keptUnrouted) pending.push(...endpoints);
+  while (pending.length) {
+    const endpoint = pending.pop()!;
+    const key = endpointKey(endpoint);
+    if (endpoints.has(key)) continue;
+    endpoints.add(key);
+    const old = source.ownerOf(endpoint);
+    const current = read.ownerOf(endpoint);
+    if (old !== null) addNet(old);
+    if (current !== null) addNet(current);
+    for (const entry of incident.get(key) ?? []) {
+      if (activeEdges.has(entry)) continue;
+      activeEdges.add(entry);
+      pending.push(...entry.edge.endpoints);
+    }
+  }
+  return {
+    netIds,
+    endpoints,
+    edges: edges.filter((entry) => activeEdges.has(entry)),
+  };
 }
 
 /**
  * Materialize Base Nets once geometry is final, before contact/overlap cleanup.
  * Explicit unrouted intent survives, but a formerly routed edge is never
- * recreated from its old membership. A cut deliberately releases the old
- * Net's unrouted intent, just as the historical cut command did.
+ * recreated from its old membership. A cut releases the old Net's unrouted
+ * intent except for its property-only endpoints.
  */
 export function rebuildEditedConnectivity(
   before: SchematicDocument,
   draft: SchematicDocument,
-  transaction: EditTransaction,
+  edits: RouteEdits,
   resolver: SymbolResolver | undefined,
   changed: Set<string>,
-): ReturnType<typeof mergeBaseNets> {
+):
+  | Extract<ReturnType<typeof mergeBaseNets>, { ok: false }>
+  | { ok: true; cutPropertyGroups: CutPropertyGroup[] } {
   const graph = new ConnectionGraph();
+  const cutPropertyGroups: CutPropertyGroup[] = [];
   let read = prepareConnectivityPhaseRead(draft);
   const sourceRead = prepareConnectivityPhaseRead(before);
+  const affected = affectedConductors(
+    before,
+    draft,
+    sourceRead,
+    read,
+    edits,
+    changed,
+  );
+  const beforeNets = before.nets.filter(({ id }) => affected.netIds.has(id));
+  const draftNets = draft.nets.filter(({ id }) => affected.netIds.has(id));
+  const beforeLookup = resolver && buildEndpointObjectLookup(before);
+  const draftLookup = resolver && buildEndpointObjectLookup(draft);
   const endpoints = new Map<string, RouteEndpoint>();
   const remember = (e: RouteEndpoint) => {
     const key = endpointKey(e);
@@ -251,42 +438,42 @@ export function rebuildEditedConnectivity(
     graph.add(key);
     return key;
   };
-  for (const net of draft.nets)
-    for (const e of read.netEndpoints(net)) remember(e);
-  for (const route of draft.routes)
-    for (const edge of routeElectricalConnections(route))
-      graph.join(edge.endpoints.map(remember));
-  // Coincidence of confirmed endpoint contacts is an edge; an interior X is
-  // never an edge. Newly made cross-Net contacts are settled by the ordinary
-  // endpoint-contact normalizer immediately after this rebuild.
-  for (const contact of resolver
-    ? deriveDocumentContactEvidence(draft, resolver).contacts
-    : []) {
-    graph.join(contact.endpoints.map(remember));
-  }
-  const cutNetIds = new Set(
-    transaction.edits.flatMap((edit) =>
-      edit.kind === "cut_connection"
-        ? before.routes
-            .filter((r) => r.id === edit.routeId)
-            .flatMap(routeElectricalConnections)
-            .map((edge) => edge.netId)
-        : [],
-    ),
-  );
-  const beforeContacts = resolver
-    ? isFrozenSnapshot(before)
-      ? buildDocumentDerivedContext(before, resolver).contactEvidence
-      : deriveDocumentContactEvidence(before, resolver)
-    : undefined;
-  const sourceGroups = prepareNetEndpointGroupRead(sourceRead, beforeContacts);
-  // Legacy/imported Nets can contain intentional, not-yet-routed components.
-  // Preserve a bridge between their surviving representatives, not between
-  // every member: doing the latter would resurrect a deleted physical wire.
-  for (const net of before.nets) {
-    const groups = sourceGroups(net.id);
-    if (cutNetIds.has(net.id)) {
-      keepUndrawableMembersAfterCut(draft, groups, graph, endpoints, resolver);
+  for (const net of draftNets)
+    for (const endpoint of read.netEndpoints(net)) remember(endpoint);
+  for (const { edge } of affected.edges)
+    graph.join(edge.endpoints.map(remember));
+  // The graph reads confirmed same-Net contacts. Newly allowed cross-Net
+  // contact still goes through the edit's contact license after this phase.
+  if (resolver)
+    for (const net of draftNets)
+      for (const contact of groupCoincidentEndpoints(
+        draft,
+        resolver,
+        read.netEndpoints(net),
+        draftLookup,
+      ))
+        graph.join(contact.endpoints.map(remember));
+  // Preserve intent between surviving representatives of old components.
+  for (const net of beforeNets) {
+    const members = sourceRead.netEndpoints(net);
+    const contacts = resolver
+      ? groupCoincidentEndpoints(before, resolver, members, beforeLookup)
+      : [];
+    const groups = netEndpointGroupsFromEdges(
+      members.map(endpointKey),
+      sourceRead.routesByNet.get(net.id) ?? [],
+      contacts,
+    );
+    if (edits.cutEndsByNet.has(net.id)) {
+      const group = keepUndrawableMembersAfterCut(
+        draft,
+        groups,
+        graph,
+        endpoints,
+        resolver,
+        edits,
+      );
+      if (group) cutPropertyGroups.push(group);
       continue;
     }
     const representatives = groups.flatMap((group) => {
@@ -298,109 +485,53 @@ export function rebuildEditedConnectivity(
     });
     graph.join(representatives);
   }
-  const explicitlyDisconnected = new Set(
-    transaction.edits.flatMap((edit) =>
-      edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
-    ),
-  );
-  for (const edit of transaction.edits) {
-    if (edit.kind === "unplace_instance") {
-      for (const net of before.nets.filter((n) =>
-        n.terminals.some((t) => t.instanceId === edit.instanceId),
-      )) {
-        graph.join(
-          sourceRead
-            .netEndpoints(net)
-            .map(endpointKey)
-            .filter((key) => endpoints.has(key)),
-        );
-      }
-    }
-    if (edit.kind === "connect_endpoints") {
-      // A later disconnect/removal in this transaction owns the final state.
-      // Do not replay an earlier logical request over that completed edit.
-      const pair = [edit.from, edit.to];
-      if (pair.every((e) => read.ownerOf(e) !== null)) {
-        graph.join(pair.map(remember));
-      }
-    }
-    if (edit.kind === "remove_route_geometry") {
-      const route = before.routes.find((r) => r.id === edit.routeId);
-      if (route)
-        for (const edge of routeElectricalConnections(route))
-          graph.join(
-            edge.endpoints
-              .filter(
-                (e) =>
-                  endpoints.has(endpointKey(e)) &&
-                  !explicitlyDisconnected.has(endpointKey(e)),
-              )
-              .map(remember),
-          );
-    }
-    // An explicit logical merge is still supported by the typed Agent API.
-    // The Wire planner does not emit one merely to draw a path.
-    if (edit.kind === "merge_nets") {
-      graph.join(
-        before.nets
-          .filter((n) => n.id === edit.sourceNetId || n.id === edit.targetNetId)
-          .flatMap((n) => sourceRead.netEndpoints(n))
+  const survivingKeys = (netId: string) => {
+    const net = sourceRead.netsById.get(netId);
+    return net
+      ? sourceRead
+          .netEndpoints(net)
           .map(endpointKey)
-          .filter((key) => endpoints.has(key)),
-      );
-    }
+          .filter((key) => endpoints.has(key))
+      : [];
+  };
+  for (const net of beforeNets)
+    if (net.terminals.some(({ instanceId }) => edits.unplaced.has(instanceId)))
+      graph.join(survivingKeys(net.id));
+
+  for (const pair of edits.connections) {
+    // A later disconnect/removal owns the final state.
+    if (pair.every((endpoint) => read.ownerOf(endpoint) !== null))
+      graph.join(pair.map(remember));
   }
-  // A property-only terminal, such as a model's substrate, has no geometry to
-  // hold it on its Net: the Net an edit of this transaction named for it is
-  // its connection, as a logical join is. Tie it to the members that Net
-  // holds by other means, or a paste that binds it and draws the Net's wires
-  // at once would strand it on a Net of its own.
-  const boundProperties = new Set(
-    transaction.edits.flatMap((edit) =>
-      edit.kind === "set_property_terminal_net" && edit.netId !== null
-        ? [
-            endpointKey({
-              kind: "terminal",
-              instanceId: edit.instanceId,
-              pinName: edit.pinName,
-            }),
-          ]
-        : [],
+  const retained = edits.keptUnrouted.filter(({ endpoints }) =>
+    endpoints.every(
+      (endpoint) =>
+        !edits.disconnected.has(endpointKey(endpoint)) &&
+        (endpoint.kind === "terminal"
+          ? draft.instances.some(({ id }) => id === endpoint.instanceId)
+          : draft.junctions.some(({ id }) => id === endpoint.junctionId)),
     ),
   );
-  if (boundProperties.size > 0) {
-    for (const net of draft.nets) {
-      const keys = read
-        .netEndpoints(net)
-        .map(endpointKey)
-        .filter((key) => endpoints.has(key));
-      const bound = keys.filter((key) => boundProperties.has(key));
-      if (bound.length === 0) continue;
-      const anchor = keys.find((key) => !boundProperties.has(key));
+  for (const { endpoints } of retained) graph.join(endpoints.map(remember));
+  for (const netIds of edits.merges) graph.join(netIds.flatMap(survivingKeys));
+
+  // A hidden property terminal's chosen Net is a connection, like a logical
+  // join. Preserve it when a paste binds it and draws the same Net at once.
+  if (edits.boundProperties.size > 0) {
+    for (const net of draftNets) {
+      const keys = read.netEndpoints(net).map(endpointKey);
+      const bound = keys.filter((key) => edits.boundProperties.has(key));
+      if (!bound.length) continue;
+      const anchor = keys.find((key) => !edits.boundProperties.has(key));
       graph.join(anchor ? [anchor, ...bound] : bound);
     }
   }
-  for (const net of [...draft.nets]) {
+  for (const net of draftNets) {
     const keys = read.netEndpoints(net).map(endpointKey);
     const groups = graph.groups(keys);
-    // Retain the original identity on the authored cut's start side.
-    const cutRoute = transaction.edits.flatMap((edit) =>
-      edit.kind === "cut_connection"
-        ? before.routes.filter(
-            (r) =>
-              r.id === edit.routeId &&
-              routeElectricalConnections(r).some(
-                (edge) => edge.netId === net.id,
-              ),
-          )
-        : [],
-    )[0];
-    const preferredKeys = cutRoute
-      ? routeElectricalConnections(cutRoute)
-          .filter((edge) => edge.netId === net.id)
-          .flatMap((edge) => edge.endpoints)
-          .map(endpointKey)
-      : net.terminals.map((t) => endpointKey({ kind: "terminal", ...t }));
+    const preferredKeys =
+      edits.cutEndsByNet.get(net.id) ??
+      net.terminals.map((t) => endpointKey({ kind: "terminal", ...t }));
     const primary = preferredKeys
       .map((key) => groups.findIndex((group) => group.includes(key)))
       .find((index) => index >= 0);
@@ -412,15 +543,28 @@ export function rebuildEditedConnectivity(
   // Existing Net IDs choose stable identities only after the graph is known.
   // Two unconnected paths carrying the same stale hint remain separate.
   const occupiedHints = new Set(draft.nets.map((n) => n.id));
+  const reassignedRouteHints = new Set<string>();
+  const unroutedHints = new Map(
+    retained.map(({ endpoints, netId }) => [
+      graph.root(endpointKey(endpoints[0])),
+      netId,
+    ]),
+  );
   const routesByRoot = new Map<
     string,
     Array<{
-      route: SchematicDocument["routes"][number];
+      route: Route;
       edge: ReturnType<typeof routeElectricalConnections>[number];
     }>
   >();
-  for (const route of draft.routes) {
+  for (const route of new Set(affected.edges.map((entry) => entry.route))) {
     for (const edge of routeElectricalConnections(route)) {
+      if (
+        !edge.endpoints.every((endpoint) =>
+          affected.endpoints.has(endpointKey(endpoint)),
+        )
+      )
+        continue;
       const root = graph.root(endpointKey(edge.endpoints[0]));
       const routes = routesByRoot.get(root) ?? [];
       routes.push({ route, edge });
@@ -436,8 +580,10 @@ export function rebuildEditedConnectivity(
           .filter((id): id is string => id !== null),
       ),
     ];
-    const routes = routesByRoot.get(graph.root(keys[0]!)) ?? [];
-    if (owners.length === 0 && routes.length === 0) continue;
+    const root = graph.root(keys[0]!);
+    const routes = routesByRoot.get(root) ?? [];
+    const hint = routes[0]?.edge.netId ?? unroutedHints.get(root);
+    if (owners.length === 0 && hint === undefined) continue;
     let netId = owners[0];
     for (const other of owners.slice(1)) {
       const [target, source] = preferredPhysicalMergeTarget(
@@ -450,8 +596,7 @@ export function rebuildEditedConnectivity(
       read = prepareConnectivityPhaseRead(draft);
       netId = target;
     }
-    if (!netId) {
-      const hint = routes[0]!.edge.netId;
+    if (!netId && hint !== undefined) {
       netId = occupiedHints.has(hint)
         ? uniquePhysicalContactId(draft, "net", keys[0]!)
         : hint;
@@ -459,6 +604,7 @@ export function rebuildEditedConnectivity(
       draft.nets.push({ id: netId, terminals: [] });
       changed.add(netId);
     }
+    if (netId === undefined) continue;
     for (const e of groupEndpoints) {
       if (read.ownerOf(e) !== netId) {
         addEndpointToNet(draft, netId, e);
@@ -468,6 +614,9 @@ export function rebuildEditedConnectivity(
       removeNoConnectForEndpoint(draft, e, changed);
     }
     for (const { route, edge } of routes) {
+      // The old hint can still hold this Route's name claim. Repair those
+      // owners even when the hint selected an unrelated Net.
+      if (edge.netId !== netId) reassignedRouteHints.add(edge.netId);
       const member = route.members?.find((item) => item.id === edge.memberId);
       if (member) member.netId = netId;
       if (route.netId !== netId && (!member || member === route.members?.[0])) {
@@ -480,8 +629,14 @@ export function rebuildEditedConnectivity(
   // Net with no pin, wire or Junction before or after has none to follow: a
   // hidden process label on a part names its own empty Net, and moving it to
   // the part's first Net gave a pin two names (#2254).
-  for (const net of draft.nets)
-    if (!(memberless(before, net.id) && memberless(draft, net.id)))
-      retargetOwnerEvidenceAfterSplit(draft, net.id, changed);
-  return { ok: true };
+  for (const { id } of draft.nets) {
+    const reassigned = reassignedRouteHints.has(id);
+    if (!reassigned && !affected.netIds.has(id) && !changed.has(id)) continue;
+    const empty = memberless(before, id) && memberless(draft, id);
+    if (reassigned || !empty)
+      retargetOwnerEvidenceAfterSplit(draft, id, changed, {
+        routeAnchorsOnly: empty,
+      });
+  }
+  return { ok: true, cutPropertyGroups };
 }

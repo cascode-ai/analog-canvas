@@ -1,4 +1,7 @@
-import { deviceDescriptor, resolveReviewedExternalBinding } from "@icm/devices";
+import {
+  deviceDescriptor,
+  reviewedExternalDefinitionBinding,
+} from "@icm/devices";
 import {
   endpointKey,
   deriveMosBulkRouteFamily,
@@ -107,15 +110,10 @@ export function deriveSelectionInspectionModel({
           (definition) => definition.id === selectedBinding.definitionId,
         )
       : undefined;
-  const selectedReviewedExternalBinding = selectedExternalSubcircuit
-    ? selectedExternalSubcircuit.presentation
-      ? undefined
-      : resolveReviewedExternalBinding(
-          selectedExternalSubcircuit.name,
-          selectedExternalSubcircuit.terminals.map((terminal) => terminal.name),
-          selectedInstance?.symbolId,
-        )
-    : undefined;
+  const selectedReviewedExternalBinding = reviewedExternalDefinitionBinding(
+    selectedExternalSubcircuit,
+    selectedInstance?.symbolId,
+  );
   const selectedPropertyDevice =
     selectedDevice ??
     (selectedReviewedExternalBinding
