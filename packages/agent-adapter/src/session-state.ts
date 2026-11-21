@@ -159,6 +159,7 @@ interface PendingRequest {
   completedAt?: number;
   /** Read-only requests may be retried after eviction and need no durable ID. */
   replayMode?: "read" | "write";
+  circuitWriteSucceeded?: true;
 }
 
 /**
@@ -170,6 +171,7 @@ export interface CompletedAgentRequest {
   payloadHash: string;
   startedAt: number;
   completedAt: number;
+  circuitWriteSucceeded?: true;
 }
 
 interface SessionInternals {
@@ -778,7 +780,12 @@ export class AgentSessionMachine {
   }
 
   /** Cache a terminal forwarded result for idempotent replay. */
-  completeRequest(requestId: string, result: unknown, now: number): void {
+  completeRequest(
+    requestId: string,
+    result: unknown,
+    now: number,
+    circuitWriteSucceeded = false,
+  ): void {
     const pending = this.internals.pending.get(requestId);
     this.activeRequests.delete(requestId);
     if (pending?.replayMode === "read")
@@ -789,6 +796,7 @@ export class AgentSessionMachine {
         startedAt: pending?.startedAt ?? now,
         completedAt: now,
         replayMode: "write",
+        ...(circuitWriteSucceeded ? { circuitWriteSucceeded: true } : {}),
       });
     const byteLength = new TextEncoder().encode(
       JSON.stringify(result),
@@ -871,6 +879,9 @@ export class AgentSessionMachine {
           payloadHash: value.payloadHash,
           startedAt: value.startedAt,
           completedAt: value.completedAt,
+          ...(value.circuitWriteSucceeded
+            ? { circuitWriteSucceeded: true }
+            : {}),
         },
       ]);
     }

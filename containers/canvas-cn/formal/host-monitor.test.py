@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 import hashlib
+import http.client
 import json
 from types import SimpleNamespace
 from pathlib import Path
@@ -18,6 +19,138 @@ def sample(at=1000):
 
 
 class MonitorTests(unittest.TestCase):
+    def test_version_lag_uses_verified_production_during_an_ingress_fence(self):
+        installed = 'a' * 40
+        production = 'b' * 40
+
+        class Production:
+            def get(self, path, limit):
+                digest = 'c' * 64
+                if path == '/regional-release/current.json':
+                    return json.dumps({'commit': production, 'sha256': digest,
+                                       'manifest': f'/regional-release/{production}/release.json',
+                                       'attempt': '123-1'}).encode()
+                if path == f'/api/regional-release/verification/{production}/{digest}/123-1':
+                    return json.dumps({'schemaVersion': 1, 'commit': production,
+                                       'sha256': digest, 'attempt': '123-1',
+                                       'verified': True}).encode()
+                raise AssertionError(f'unexpected Production read: {path}')
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            release = root / installed
+            release.mkdir()
+            (release / '.verified').touch()
+            current = root / 'current-formal'
+            current.symlink_to(release, target_is_directory=True)
+            state = root / 'monitor.json'
+            state.write_text(json.dumps({'status': 'uncertain-write', 'serving': installed}))
+            metrics = sample()
+            metrics['release'] = monitor.observe_release(current, state, Production())
+            _, since = evaluate(metrics, {}, {}, 1000)
+            self.assertEqual(metrics['release']['status'], 'uncertain-write')
+            self.assertIn('version-lag', evaluate(metrics, {}, since, 2800)[0])
+
+    def test_version_lag_escalates_even_when_backup_already_alerted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'delivery.json'
+            messages = []
+
+            def accepted(pending, _config):
+                messages.append(pending['conditions'])
+                return 'receipt'
+
+            notify(path, ['daily-backup-failed'], {}, 1000, accepted)
+            notify(path, ['daily-backup-failed', 'version-lag'], {}, 2800, accepted)
+            notify(path, ['daily-backup-failed', 'version-lag'], {}, 2860, accepted)
+            self.assertEqual(messages, [['daily-backup-failed'], ['daily-backup-failed', 'version-lag']])
+
+    def test_temporary_source_observation_loss_does_not_restart_the_lag_clock(self):
+        first = sample()
+        first['release'] = {'fresh': True, 'serving': 'old', 'candidate': 'first'}
+        _, since = evaluate(first, {}, {}, 1000)
+        missed = sample(2800)
+        missed['release'] = {'fresh': False, 'serving': 'old'}
+        conditions, since = evaluate(missed, first, since, 2800)
+        self.assertEqual(conditions, [])
+        self.assertEqual(since, {'version-lag': 1000})
+        latest = sample(2860)
+        latest['release'] = {'fresh': True, 'serving': 'old', 'candidate': 'latest'}
+        self.assertEqual(evaluate(latest, missed, since, 2860)[0], ['version-lag'])
+        latest['release']['serving'] = 'latest'
+        self.assertEqual(evaluate(latest, missed, since, 2860), ([], {}))
+
+    def test_truncated_release_observation_returns_unknown(self):
+        class Truncated:
+            def get(self, path, limit):
+                raise http.client.IncompleteRead(b'{')
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            result = monitor.observe_release(root / 'current', root / 'monitor.json', Truncated())
+            self.assertEqual(result, {'fresh': False, 'status': None})
+
+    def test_release_must_stay_converged_through_recovery_confirmation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'delivery.json'
+            messages = []
+
+            def accepted(pending, _config):
+                messages.append(pending['conditions'])
+                return 'receipt'
+
+            notify(path, ['version-lag'], {}, 1000, accepted)
+            notify(path, [], {}, 1060, accepted)
+            # The lag clock may have restarted, or Production may have been
+            # unavailable. Neither sample proves that the release still matches.
+            notify(path, [], {}, 1660, accepted, release_converged=False)
+            notify(path, [], {}, 1720, accepted)
+            self.assertEqual(messages, [['version-lag']])
+            notify(path, [], {}, 2320, accepted)
+            self.assertEqual(messages, [['version-lag'], []])
+
+    def test_lag_escalation_survives_an_uncertain_email_and_then_convergence(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'delivery.json'
+            deliveries = []
+
+            def send(pending, _config):
+                deliveries.append((pending['key'], pending['conditions']))
+                if len(deliveries) <= 2:
+                    raise TimeoutError()
+                return 'receipt'
+
+            with self.assertRaises(TimeoutError):
+                notify(path, ['backup-stale'], {}, 1000, send)
+            with self.assertRaises(TimeoutError):
+                notify(path, ['backup-stale', 'version-lag'], {}, 1060, send)
+            notify(path, [], {}, 1120, send)
+            notify(path, [], {}, 1180, send)
+            self.assertEqual(deliveries[:3], [deliveries[0]] * 3)
+            self.assertEqual(deliveries[3][1], ['version-lag'])
+            self.assertNotEqual(deliveries[3][0], deliveries[0][0])
+
+    def test_lag_recurring_during_uncertain_recovery_is_delivered(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'delivery.json'
+            deliveries = []
+
+            def send(pending, _config):
+                deliveries.append(pending['conditions'])
+                if len(deliveries) in (2, 3):
+                    raise TimeoutError()
+                return 'receipt'
+
+            notify(path, ['version-lag'], {}, 1000, send)
+            notify(path, [], {}, 1060, send)
+            with self.assertRaises(TimeoutError):
+                notify(path, [], {}, 1660, send)
+            with self.assertRaises(TimeoutError):
+                notify(path, ['version-lag'], {}, 3500, send)
+            notify(path, [], {}, 3560, send)
+            notify(path, [], {}, 3620, send)
+            self.assertEqual(deliveries, [['version-lag'], [], [], [], ['version-lag']])
+
     def test_stalled_business_is_reported_without_completed_http_requests(self):
         m = sample()
         m['business'] = {'ready': False}

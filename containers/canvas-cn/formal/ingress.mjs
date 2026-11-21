@@ -1,9 +1,133 @@
 // The domestic entrance survives a workerd handover. Requests not yet sent
 // upstream may wait; a request already sent is NEVER replayed here.
 import http from "node:http";
+import { createHash } from "node:crypto";
+import { once } from "node:events";
 import { chmod, lstat, unlink } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { existsSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+
+const agentCircuitPath =
+  /^\/api\/agent\/(?:sessions|region)\/([A-Za-z0-9_-]+)\/circuit(?:\?[^#]*)?$/u;
+const maxInspectionBytes = 16 * 1024;
+const agentWriteReceipt = "x-icm-agent-write-receipt";
+const unclassified = "unclassified";
+const maxRecordedWrites = 128;
+
+function stableId(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= 256;
+}
+
+function observeAgentCircuit(req) {
+  if (req.method !== "POST") return null;
+  const sessionId = agentCircuitPath.exec(req.url)?.[1];
+  const encoding = req.headers["content-encoding"];
+  if (!sessionId || (encoding !== undefined && encoding !== "identity"))
+    return null;
+
+  // Inspect the same complete JSON envelope the relay parses. The inspection
+  // budget does not change the size or streaming of the forwarded request.
+  let inspected = Buffer.allocUnsafe(maxInspectionBytes);
+  let bytes = 0;
+  const observed = { discovery: false };
+  const workspaceId = req.headers["x-agent-workspace"];
+  const hash = createHash("sha256")
+    .update(
+      JSON.stringify([
+        sessionId,
+        workspaceId,
+        workspaceId ? null : req.headers["x-agent-context"],
+      ]),
+    )
+    .update("\0");
+  req.on("data", (chunk) => {
+    hash.update(chunk);
+    if (inspected === null) return;
+    if (bytes + chunk.length > inspected.length) {
+      inspected = null;
+      return;
+    }
+    chunk.copy(inspected, bytes);
+    bytes += chunk.length;
+  });
+  req.once("end", () => {
+    if (!req.complete) return;
+    observed.fingerprint = hash.digest("hex");
+    if (inspected === null) return;
+    try {
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(
+        inspected.subarray(0, bytes),
+      );
+      const { apiVersion, operation, requestId, documentId } = JSON.parse(text);
+      // Only complete Circuit v3 discovery envelopes qualify here.
+      observed.discovery =
+        apiVersion === "3.0" &&
+        stableId(requestId) &&
+        (operation === "capabilities" ||
+          (operation === "snapshot" && stableId(documentId)));
+      if (stableId(requestId))
+        observed.requestIdHash = createHash("sha256")
+          .update(requestId)
+          .digest("hex");
+    } catch {
+      // Malformed or unclassified input keeps ordinary write protection.
+    } finally {
+      inspected = null;
+    }
+  });
+  return observed;
+}
+
+function loadUncertainty(path) {
+  try {
+    const state = JSON.parse(readFileSync(path, "utf8"));
+    if (
+      state?.version === 1 &&
+      Array.isArray(state.records) &&
+      state.records.length > 0 &&
+      state.records.length <= maxRecordedWrites + 1 &&
+      state.records.every(
+        (record) =>
+          typeof record?.at === "string" &&
+          typeof record.category === "string" &&
+          (record.fingerprint === undefined ||
+            /^[a-f0-9]{64}$/u.test(record.fingerprint)),
+      )
+    )
+      return state.records;
+    // A pre-receipt marker has no evidence that can resolve it automatically.
+    return [
+      {
+        at: typeof state?.at === "string" ? state.at : new Date().toISOString(),
+        category:
+          typeof state?.category === "string" ? state.category : unclassified,
+      },
+    ];
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    return [{ at: new Date().toISOString(), category: unclassified }];
+  }
+}
+
+function storeUncertainty(path, records) {
+  const temporary = path + ".next";
+  if (!records.length) {
+    rmSync(temporary, { force: true });
+    rmSync(path, { force: true });
+    return;
+  }
+  writeFileSync(temporary, JSON.stringify({ version: 1, records }) + "\n", {
+    mode: 0o600,
+    flush: true,
+  });
+  renameSync(temporary, path);
+}
 
 export function createIngress({
   upstreamPort = 8792,
@@ -14,11 +138,61 @@ export function createIngress({
   maxHeavy = 32,
   queueMs = 5_000,
   drainMs = 3_000,
-  initialUncertainty = false,
-  onUncertain = () => {},
+  uncertaintyRecords = [],
+  onUncertaintyChange = () => {},
 } = {}) {
   let holding = false;
-  let uncertain = initialUncertainty;
+  let uncertainWrites = new Map(
+    uncertaintyRecords.map((record) => [
+      record.fingerprint ?? unclassified,
+      record,
+    ]),
+  );
+  function persistUncertainty(writes) {
+    try {
+      onUncertaintyChange([...writes.values()]);
+      return true;
+    } catch {
+      // Keep maintenance fenced in memory if the state directory cannot be written.
+      console.error("Regional ingress could not persist write reconciliation.");
+      return false;
+    }
+  }
+
+  function rememberUnknown(category, request) {
+    if (uncertainWrites.has(request?.fingerprint)) return;
+    const fingerprint =
+      uncertainWrites.size < maxRecordedWrites
+        ? request?.fingerprint
+        : undefined;
+    const key = fingerprint ?? unclassified;
+    if (uncertainWrites.has(key)) return;
+    uncertainWrites.set(key, {
+      at: new Date().toISOString(),
+      category,
+      ...(fingerprint
+        ? { fingerprint, requestIdHash: request.requestIdHash }
+        : {}),
+    });
+    persistUncertainty(uncertainWrites);
+  }
+
+  function reconcileWrite(fingerprint) {
+    const record = uncertainWrites.get(fingerprint);
+    if (!record) return;
+    const remaining = new Map(uncertainWrites);
+    remaining.delete(fingerprint);
+    if (persistUncertainty(remaining)) {
+      uncertainWrites = remaining;
+      console.info(
+        JSON.stringify({
+          event: "agent-write-reconciled",
+          fingerprint,
+          requestIdHash: record.requestIdHash,
+        }),
+      );
+    }
+  }
   const pending = new Set();
   const active = new Map();
   const counts = { critical: 0, heavy: 0, ordinary: 0 };
@@ -145,9 +319,10 @@ export function createIngress({
     const forward = () => {
       let response;
       const readOnly = ["GET", "HEAD", "OPTIONS"].includes(req.method);
+      const agentCircuit = observeAgentCircuit(req);
+      let completedWrite = false;
       const markUnknown = () => {
-        if (!readOnly && !uncertain) {
-          uncertain = true;
+        if (!readOnly && !agentCircuit?.discovery && !completedWrite) {
           const category = req.url.startsWith("/api/agent/")
             ? "agent"
             : req.url.startsWith("/api/auth/")
@@ -155,7 +330,7 @@ export function createIngress({
               : req.url.startsWith("/api/project")
                 ? "projects"
                 : "other";
-          onUncertain({ at: new Date().toISOString(), category });
+          rememberUnknown(category, agentCircuit);
         }
       };
       const upstream = http.request(
@@ -164,11 +339,23 @@ export function createIngress({
           port: upstreamPort,
           method: req.method,
           path: req.url,
-          headers: req.headers,
+          headers: agentCircuit
+            ? { ...req.headers, [agentWriteReceipt]: "request" }
+            : req.headers,
           agent: false,
         },
         (reply) => {
           response = reply;
+          const fingerprint = agentCircuit?.fingerprint;
+          if (
+            fingerprint &&
+            [200, 403, 409].includes(reply.statusCode) &&
+            reply.headers[agentWriteReceipt] === "complete"
+          ) {
+            completedWrite = true;
+            reconcileWrite(fingerprint);
+          }
+          delete reply.headers[agentWriteReceipt];
           if (!res.destroyed) res.writeHead(reply.statusCode, reply.headers);
           reply.on("end", () => release(upstream));
           reply.on("error", () => {
@@ -294,16 +481,16 @@ export function createIngress({
       holding,
       pending: pending.size,
       active: active.size,
-      uncertain,
+      uncertain: uncertainWrites.size > 0,
     }),
     async hold() {
-      if (holding || uncertain) return false;
+      if (holding || uncertainWrites.size) return false;
       holding = true;
       const deadline = performance.now() + drainMs;
       while (active.size && performance.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
-      if (active.size || uncertain) {
+      if (active.size || uncertainWrites.size) {
         resume();
         return false;
       }
@@ -314,11 +501,13 @@ export function createIngress({
     resume,
     async close() {
       holding = true;
+      const drained = active.size === 0;
       for (const item of pending) item.reject();
       for (const req of active.keys()) req.destroy();
       for (const close of streams.values()) close();
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));
+      return drained;
     },
   };
 }
@@ -327,22 +516,30 @@ export function createIngress({
 export async function serveIngress({
   port = 8794,
   controlPath = "/run/canvas-cn-ingress/control.sock",
+  uncertaintyPath = "/var/lib/canvas-cn-ingress/uncertain-write",
   ...options
 } = {}) {
-  const uncertainPath = "/var/lib/canvas-cn-ingress/uncertain-write";
+  const running = uncertaintyPath + ".running";
+  const interrupted =
+    existsSync(running) || existsSync(uncertaintyPath + ".next");
+  const uncertaintyRecords = loadUncertainty(uncertaintyPath);
+  if (interrupted && uncertaintyRecords.every((record) => record.fingerprint))
+    uncertaintyRecords.push({
+      at: new Date().toISOString(),
+      category: unclassified,
+    });
+  // Keep durable evidence before accepting traffic, even if a later marker
+  // update fails before any bytes can be written.
+  writeFileSync(running, "", { mode: 0o600, flag: "a", flush: true });
+  let stateStored = !interrupted;
   const ingress = createIngress({
     ...options,
-    initialUncertainty: existsSync(uncertainPath),
-    onUncertain: (details) =>
-      writeFileSync(
-        uncertainPath,
-        JSON.stringify({
-          ...details,
-          reason:
-            "A sent write lost its response; reconcile before maintenance.",
-        }) + "\n",
-        { mode: 0o600 },
-      ),
+    uncertaintyRecords,
+    onUncertaintyChange(records) {
+      stateStored = false;
+      storeUncertainty(uncertaintyPath, records);
+      stateStored = true;
+    },
   });
   const control = http.createServer(async (req, res) => {
     req.resume();
@@ -376,12 +573,32 @@ export async function serveIngress({
   });
   await chmod(controlPath, 0o600);
   ingress.server.listen(port, "127.0.0.1");
-  return { ingress, control };
+  await once(ingress.server, "listening");
+  let stopped;
+  const stop = () =>
+    (stopped ??= (async () => {
+      const results = await Promise.all([
+        ingress.close(),
+        new Promise((resolve) => {
+          control.close(resolve);
+          control.closeAllConnections();
+        }),
+      ]);
+      if (results[0] && stateStored) rmSync(running);
+    })());
+  return { ingress, control, stop };
 }
 
 if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  await serveIngress();
+  const { stop } = await serveIngress();
+  const shutdown = () =>
+    void stop().catch(() => {
+      console.error("Regional ingress shutdown could not record a clean stop.");
+      process.exitCode = 1;
+    });
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
 }

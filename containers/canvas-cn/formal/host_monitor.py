@@ -5,6 +5,8 @@ Network counters include all eth0 traffic; they are NOT billable traffic.
 """
 import argparse
 import datetime
+import http.client
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -13,9 +15,9 @@ import socket
 import ssl
 import subprocess
 import time
+import urllib.error
 import urllib.request
 import uuid
-import importlib.util
 import hashlib
 import ipaddress
 
@@ -29,7 +31,7 @@ RECORD_ONLY = {'http-agent-errors', 'service-canvas-cn-operator', 'cpu-high',
                'memoryPct', 'egress-high', 'http-auth-slow', 'http-projects-slow',
                'http-gallery-slow', 'http-api-other-slow', 'certificate-expiring'}
 CRITICAL = {'disk-critical', 'certificate-critical', 'public-listener-drift',
-            'egress-critical', 'daily-backup-failed', 'backup-stale',
+            'egress-critical', 'daily-backup-failed', 'backup-stale', 'version-lag',
             'runtime-config-drift', 'certificate-urgent', 'certificate-check-failed',
             'service-canvas-cn-formal', 'service-canvas-cn-ingress', 'service-nginx',
             'http-page-errors', 'http-auth-errors', 'http-projects-errors',
@@ -116,6 +118,28 @@ def business_probe():
         return {'ready': False}
 
 
+def observe_release(current, monitor_path, fetcher):
+    """Observe Production even while the updater or the handover is blocked."""
+    release = {'fresh': False}
+    try:
+        release['status'] = load(monitor_path).get('status')
+    except (OSError, ValueError, AttributeError):
+        pass
+    try:
+        installed = current.resolve(strict=True)
+        if _observations.SHA.fullmatch(installed.name) and (installed / '.verified').is_file():
+            release['serving'] = installed.name
+    except OSError:
+        pass
+    try:
+        published = _observations.read_current(fetcher)
+        if _observations.verified_overseas(fetcher, published):
+            release.update(candidate=published['commit'], fresh=True)
+    except (OSError, ValueError, http.client.HTTPException, _observations.ReleaseError):
+        pass
+    return release
+
+
 def collect():
     now = time.time()
     memory = {line.split(':')[0]: int(line.split()[1]) for line in
@@ -158,15 +182,14 @@ def collect():
     metrics['runtime'] = runtime_checks()
     metrics['business'] = business_probe()
     metrics['processMemory'] = process_memory()
-    try:
-        release = load(Path('/var/lib/canvas-cn-release/monitor.json'))
-        candidate = (release.get('pending') or {}).get('commit')
-        metrics['release'] = {'serving': release.get('serving'), 'candidate': candidate,
-                              'fresh': 0 <= now - release.get('lastAttemptAt', 0) <= 180,
-                              'status': release.get('status')}
-    except (OSError, ValueError, TypeError, AttributeError):
-        metrics['release'] = {'fresh': False}
+    metrics['release'] = observe_release(Path('/opt/analog-canvas/current-formal'),
+                                         Path('/var/lib/canvas-cn-release/monitor.json'),
+                                         _observations.Fetcher(_observations.TRANSPORT_ORIGIN, timeout=5))
     return metrics
+
+
+def release_observed(release):
+    return bool(release.get('fresh') and release.get('serving') and release.get('candidate'))
 
 
 def evaluate(metrics, previous, since, now):
@@ -212,11 +235,6 @@ def evaluate(metrics, previous, since, now):
     for service, active in metrics['services'].items():
         if not active:
             raw['service-' + service] = 120
-    release = metrics.get('release', {})
-    if (release.get('fresh') and release.get('serving') and release.get('candidate')
-            and release['serving'] != release['candidate']):
-        # A new upstream candidate cannot hide a region which never catches up.
-        raw['version-lag'] = 1800
     http = metrics.get('http')
     if http is not None:
         if not http['available']:
@@ -234,6 +252,9 @@ def evaluate(metrics, previous, since, now):
                 slower_than_three = sum(group['histogram'][4:])
                 if slower_than_three / count >= .2:
                     raw['http-' + category + '-slow'] = 300
+    lag_started = since.get('version-lag')
+    if not isinstance(lag_started, (float, int)) or not 0 <= lag_started <= now:
+        lag_started = None
     elapsed = now - previous.get('at', now)
     if previous and (metrics['boot'] != previous.get('boot') or elapsed > 180 or elapsed < 0):
         since = {}
@@ -259,8 +280,17 @@ def evaluate(metrics, previous, since, now):
         if not isinstance(started, (float, int)) or not 0 <= started <= now:
             started = now
         sustained[condition] = started
-    conditions = sorted(k for k, started in sustained.items() if now - started >= raw[k])
-    return conditions, sustained
+    conditions = [k for k, started in sustained.items() if now - started >= raw[k]]
+    release = metrics.get('release', {})
+    if release_observed(release):
+        if release['serving'] != release['candidate']:
+            started = now if lag_started is None else lag_started
+            sustained['version-lag'] = started
+            if now - started >= 1800:
+                conditions.append('version-lag')
+    elif lag_started is not None:
+        sustained['version-lag'] = lag_started
+    return sorted(conditions), sustained
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -288,12 +318,25 @@ def send_pending(pending, config):
         return receipt['id']
 
 
-def notify(path, conditions, config, now, sender=send_pending):
+def notify(path, conditions, config, now, sender=send_pending, *, release_converged=True):
     conditions = sorted(set(conditions) - RECORD_ONLY)
     state = load(path)
     previous = state.get('accepted', [])
-    if 'pending' not in state:
+    pending = state.get('pending')
+    if pending:
+        queued = set(state.get('queuedCritical', []))
+        known = set(previous) | set(pending['conditions']) if pending['conditions'] else set()
+        escalation = (set(conditions) & CRITICAL) - known
+        if escalation - queued:
+            state['queuedCritical'] = sorted(queued | escalation)
+            save(path, state)
+    else:
+        conditions = sorted(set(conditions) | set(state.pop('queuedCritical', [])))
         if not conditions and previous:
+            if 'version-lag' in previous and not release_converged:
+                state.pop('healthySince', None)
+                save(path, state)
+                return 'recovery-confirming'
             state.setdefault('healthySince', now)
             save(path, state)
             if now - state['healthySince'] < RECOVERY_SECONDS:
@@ -330,6 +373,8 @@ def main():
         previous = load(root / 'sample.json')
         metrics = collect()
         conditions, since = evaluate(metrics, previous.get('metrics', {}), previous.get('since', {}), metrics['at'])
+        if 'version-lag' in since:
+            metrics['release']['lagSeconds'] = round(metrics['at'] - since['version-lag'])
         history = record_history(load(root / 'history.json'), metrics, previous.get('metrics', {}))
         save(root / 'history.json', history)
         save(root / 'sample.json', {'metrics': metrics, 'since': since})
@@ -341,7 +386,10 @@ def main():
             if any(not isinstance(config.get(k), str) or not config[k].strip()
                    or '\n' in config[k] or '\r' in config[k] for k in ['apiKey', 'from', 'to']):
                 raise ValueError('invalid-mail-config')
-            outcome = notify(root / 'delivery.json', conditions, config, metrics['at'])
+            release = metrics['release']
+            converged = release_observed(release) and release['serving'] == release['candidate']
+            outcome = notify(root / 'delivery.json', conditions, config, metrics['at'],
+                             release_converged=converged)
         print(json.dumps({'conditions': conditions, 'notification': outcome}))
         return 0
     except Exception as error:

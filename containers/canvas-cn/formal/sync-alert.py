@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 CONFIRMATION_SECONDS = 120
 RECOVERY_SECONDS = 600
 IMMEDIATE_SYNC_FAILURES = {'blocked', 'disabled', 'journal-capacity'}
+IMMEDIATE_RELEASE_FAILURES = {'uncertain-write'}
 PROGRESS_STALL_SECONDS = 300
 BACKLOG_LIMIT_SECONDS = 1800
 
@@ -39,6 +40,8 @@ def condition(path, now, stale_seconds=120):
             return 'stale-monitor'
         if status.get('health') == 'ok':
             return 'ok'
+        if status.get('status') == 'uncertain-write':
+            return 'uncertain-write'
         reasons = {'retry', 'blocked', 'disabled', 'write-fenced', 'journal-capacity',
                    'replication-lag', 'transport-or-invalid-status',
                    'release-failed', 'release-rolled-back'}
@@ -54,24 +57,23 @@ def observe_confirmation(state, field, now):
     return now - since < (RECOVERY_SECONDS if field == 'recoverySince' else CONFIRMATION_SECONDS)
 
 
-def observe_sync_health(path, state, previous, health, now):
+def observe_scope_health(path, state, previous, health, now, immediate, retry_grace):
     pending = state.get('pending')
     pending_condition = pending['condition'] if pending is not None else 'ok'
     before = state.copy()
-    if (pending is not None and health in IMMEDIATE_SYNC_FAILURES
-            and pending_condition not in IMMEDIATE_SYNC_FAILURES
-            and (pending_condition == 'ok' or previous not in IMMEDIATE_SYNC_FAILURES)):
+    if (pending is not None and health in immediate and pending_condition not in immediate
+            and (pending_condition == 'ok' or previous not in immediate)):
         state.setdefault('queuedUrgent', health)
 
     if health == 'ok':
         incident_open = (previous != 'ok' or pending_condition not in ('ok', 'test')
                          or 'queuedUrgent' in state)
         field = 'recoverySince' if incident_open else None
-    elif health in IMMEDIATE_SYNC_FAILURES:
-        field = None
-    else:
+    elif health not in immediate and retry_grace:
         # Keep the existing retry clock across upgrades and soft reason changes.
         field = 'retrySince'
+    else:
+        field = None
 
     for other in ('retrySince', 'recoverySince'):
         if other != field:
@@ -150,33 +152,19 @@ def run(args):
         progressing = publication_progress(state, pathlib.Path(args.monitor), health, now)
         write_state(state_path, state)
     previous = state.get('acceptedCondition', 'ok')
-    waiting = False
-    if scope == 'Release':
-        if health != 'retry' and state.pop('retrySince', None) is not None:
-            write_state(state_path, state)
-        if health == 'ok':
-            waiting = observe_sync_health(state_path, state, previous, health, now)
-        elif state.pop('recoverySince', None) is not None:
-            write_state(state_path, state)
-    else:
-        waiting = observe_sync_health(state_path, state, previous, health, now)
+    immediate = IMMEDIATE_RELEASE_FAILURES if scope == 'Release' else IMMEDIATE_SYNC_FAILURES
+    waiting = observe_scope_health(state_path, state, previous, health, now, immediate,
+                                   retry_grace=scope != 'Release' or health == 'retry')
     pending = state.get('pending')
     if pending is None:
-        queued_urgent = state.get('queuedUrgent') if scope != 'Release' else None
+        queued_urgent = state.get('queuedUrgent')
         if not args.test and queued_urgent is None:
             if progressing:
                 return {'result': 'progressing-backlog-recorded', 'condition': health}
             if waiting:
-                return {'result': 'waiting-for-confirmation'}
-            if scope == 'Release' and health == 'retry':
-                since = state.get('retrySince')
-                waiting = observe_confirmation(state, 'retrySince', now)
-                if state['retrySince'] != since:
-                    write_state(state_path, state)
-                if waiting:
-                    return {'result': 'waiting-for-retry'}
-        escalated = (scope != 'Release' and health in IMMEDIATE_SYNC_FAILURES
-                     and previous not in IMMEDIATE_SYNC_FAILURES)
+                return {'result': 'waiting-for-retry' if scope == 'Release' and health == 'retry'
+                        else 'waiting-for-confirmation'}
+        escalated = health in immediate and previous not in immediate
         if args.test:
             if state.get('testAccepted'):
                 return {'result': 'already-tested'}

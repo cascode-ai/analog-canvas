@@ -1,12 +1,89 @@
-"""Bounded metric history and anonymous Nginx latency summaries."""
+"""Read-only release and bounded host observations."""
 import datetime
+import http.client
 import json
 import math
+import re
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 CATEGORIES = {'page', 'sync', 'auth', 'projects', 'simulation', 'agent',
               'gallery', 'api-other', 'static'}
 HISTOGRAM = [0.1, 0.3, 1, 3, 10, 30, 120]
+
+
+TRANSPORT_ORIGIN = 'https://analog-canvas-origin.tokenzhang.com'
+SHA = re.compile(r'^[0-9a-f]{40}$')
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+class ReleaseError(Exception):
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
+class Fetcher:
+    def __init__(self, origin, timeout=120):
+        if not re.match(r'^https://[A-Za-z0-9.-]+$', origin):
+            raise ValueError('HTTPS origin required')
+        self.origin = origin
+        self.timeout = timeout
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+
+    def get(self, path, limit=64 * 1024 * 1024):
+        request = urllib.request.Request(self.origin + path, headers={
+            'Accept-Encoding': 'identity',
+            'User-Agent': 'Analog-Canvas-Regional-Release/1',
+        })
+        try:
+            with self.opener.open(request, timeout=self.timeout) as response:
+                data = response.read(limit + 1)
+        except http.client.HTTPException as error:
+            raise ReleaseError('transport-or-invalid-status') from error
+        if len(data) > limit:
+            # A missing release file answers with the editor shell.
+            raise ReleaseError('transport-or-invalid-status')
+        return data
+
+
+def read_current(fetcher):
+    try:
+        current = json.loads(fetcher.get('/regional-release/current.json', 4096))
+    except ValueError:
+        raise ReleaseError('transport-or-invalid-status')
+    commit = current.get('commit') if isinstance(current, dict) else None
+    if not isinstance(commit, str) or not SHA.fullmatch(commit):
+        raise ReleaseError('transport-or-invalid-status')
+    if current.get('manifest') != f'/regional-release/{commit}/release.json':
+        raise ReleaseError('transport-or-invalid-status')
+    return current
+
+
+def verified_overseas(fetcher, current):
+    """Only CI writes proof, after its live checks; assets alone are not proof."""
+    digest, attempt = current.get('sha256'), current.get('attempt')
+    if not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest):
+        return False
+    if not isinstance(attempt, str) or not re.fullmatch(r'[1-9][0-9]*-[1-9][0-9]*', attempt):
+        return False
+    try:
+        proof = json.loads(fetcher.get(
+            f"/api/regional-release/verification/{current['commit']}/{digest}/{attempt}", 4096))
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return False
+        raise
+    except ValueError:
+        return False
+    return isinstance(proof, dict) and proof == {
+        'schemaVersion': 1, 'commit': current['commit'], 'sha256': digest,
+        'attempt': attempt, 'verified': True}
 
 
 def http_window(path, now, window=300, limit=2 * 1024 * 1024):
