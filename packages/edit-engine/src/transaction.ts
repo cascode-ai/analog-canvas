@@ -1256,7 +1256,7 @@ export function executeTransaction(
           : introducedNetContractIssue.code ===
               "CONFLICTING_LOGICAL_NET_POWER_DOMAIN"
             ? "Transaction connects incompatible power markers"
-            : "Transaction introduces conflicting Logical Net names";
+            : `Transaction introduces conflicting Logical Net names${conflictingNetNames(draft, introducedNetContractIssue.netIds)}`;
     return rejectTransaction(
       document,
       "INVALID_RESULT",
@@ -1407,4 +1407,28 @@ export function executeTransaction(
     diagnostics: [],
     ...(coalescedEndpoints ? { coalescedEndpoints } : {}),
   };
+}
+
+/**
+ * The names one Net would carry, and what claims each, so a refusal names
+ * what to rename (#2429).
+ */
+function conflictingNetNames(
+  document: SchematicDocument,
+  netIds: readonly string[],
+): string {
+  const owners = new Map<string, Set<string>>();
+  for (const evidence of document.connectivityEvidence) {
+    if (evidence.kind !== "name-claim" || !netIds.includes(evidence.netId))
+      continue;
+    const owner =
+      evidence.owner.kind === "net-label" ? "label" : evidence.owner.kind;
+    const set = owners.get(evidence.name) ?? new Set<string>();
+    set.add(owner);
+    owners.set(evidence.name, set);
+  }
+  if (owners.size < 2) return "";
+  return `: one Net would be ${[...owners]
+    .map(([name, by]) => `${name} (${[...by].join(", ")})`)
+    .join(" and ")}`;
 }
