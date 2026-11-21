@@ -58,6 +58,11 @@ export interface PropertyApplyContext {
    * on the part's pins with no wire (#1531).
    */
   carriedInstanceIds?: readonly string[];
+  /**
+   * Whether a typed move joins a pin or wire it lands on. Properties joins,
+   * as a drag does; an Agent's move joins only when asked (`join: true`).
+   */
+  connectAtDrop?: boolean;
 }
 
 /** How one Properties apply commits, decided before anything is written. */
@@ -375,6 +380,7 @@ export function planPropertyApply(
     instance,
     edits,
     context.carriedInstanceIds,
+    context.connectAtDrop ?? true,
   );
   if (contactMove && !contactMove.ok)
     return { kind: "rejected", message: contactMove.message };

@@ -479,8 +479,9 @@ call, in order (placements apart from their wires; a `focus` with the last).
 ## Move, delete and reset
 
 Clean up with move/mirror/group transforms and route edits. Geometry moves do
-not perform GUI drag-to-connect snapping; a moved part joins only a pin it
-lands on. An unturned, unmirrored `move` carries grounds, supply markers
+not perform GUI drag-to-connect snapping; a moved part joins nothing unless
+the `move` says `join: true`, and then only a pin or wire it lands on;
+landing on another Net without it is warned (`LANDED_ON_OTHER_NET`). An unturned, unmirrored `move` carries grounds, supply markers
 and Cell Pins standing unwired on the part's pins (`MARKERS_MOVED_ALONG`);
 wired, shared or locked ones stay, joined by a wire. A selection `transform`
 mirror without a center reflects the whole selection about its own axis as the

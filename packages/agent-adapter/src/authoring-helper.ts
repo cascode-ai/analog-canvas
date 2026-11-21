@@ -1078,9 +1078,12 @@ export function compileActions(
             });
           else
             pushProperties(instance, {
-              placement: action.pinAnchor
-                ? { pinAnchor: action.pinAnchor }
-                : { position: action.position! },
+              placement: {
+                ...(action.pinAnchor
+                  ? { pinAnchor: action.pinAnchor }
+                  : { position: action.position! }),
+                ...(action.join ? { join: true } : {}),
+              },
             });
         }
         break;

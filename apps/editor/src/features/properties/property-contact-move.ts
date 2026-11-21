@@ -36,6 +36,7 @@ export function planPropertyContactMove(
   instance: Instance,
   edits: readonly SchematicEdit[],
   carriedInstanceIds: readonly string[] = [],
+  connectAtDrop = true,
 ): PropertyContactMove | null {
   const move = edits.find(
     (edit): edit is Extract<SchematicEdit, { kind: "move_instance" }> =>
@@ -59,7 +60,7 @@ export function planPropertyContactMove(
       x: move.position.x - instance.placement.position.x,
       y: move.position.y - instance.placement.position.y,
     },
-    true,
+    connectAtDrop,
   );
   const blocking = plan.diagnostics.find((item) => item.severity === "error");
   if (blocking) return { ok: false, message: blocking.message };

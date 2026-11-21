@@ -374,8 +374,20 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       pinAnchor: AgentPinAnchorSchema.optional().describe(
         "Placed Instance only; instead of position. Keeps orientation.",
       ),
+      join: z
+        .boolean()
+        .optional()
+        .describe(
+          "Placed Instance only. true: join a pin or wire it lands on, as a drag does. Default: it only moves, and the receipt warns (LANDED_ON_OTHER_NET) when it lands on another Net.",
+        ),
     })
     .superRefine((action, ctx) => {
+      if (action.join !== undefined && action.target.kind !== "instance")
+        ctx.addIssue({
+          code: "custom",
+          path: ["join"],
+          message: "join requires an Instance target",
+        });
       if ((action.position === undefined) === (action.pinAnchor === undefined))
         ctx.addIssue({
           code: "custom",

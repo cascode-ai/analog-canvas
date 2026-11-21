@@ -154,11 +154,17 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
             .enum(["x", "y"])
             .optional()
             .describe("Reflect in place: y flips left-right, x top-bottom."),
+          join: z
+            .boolean()
+            .optional()
+            .describe(
+              "true: a moved part joins a pin or wire it lands on, as a drag does. Default: it only moves; landing on another Net is warned (LANDED_ON_OTHER_NET).",
+            ),
         })
         .optional(),
     })
     .describe(
-      "Change one part as Apply in Properties does, through the same planner: a moved part joins a pin it lands on, as a drag does.",
+      "Change one part as Apply in Properties does, through the same planner. A move changes no connection unless placement.join is true.",
     ),
   z
     .strictObject({

@@ -37,6 +37,7 @@ import {
   type LogicGateInputCount,
 } from "../features/properties/logic-gate-input-count";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
+import { planPropertyContactMove } from "../features/properties/property-contact-move";
 import { switchControlOf } from "../features/properties/switch-control";
 
 type SetProperties = Extract<AgentAuthoringCommand, { kind: "set-properties" }>;
@@ -213,6 +214,50 @@ function markersMovedAlongNote(
     message: `${instance.reference ?? instance.id} moved with ${list}, which touched it with no wire`,
     objectIds: carried.map(({ marker }) => marker.id),
   };
+}
+
+/**
+ * A move that does not join still says when its pins now lie on another
+ * Net's pin, wire end or Junction: the join it would have made, unmade.
+ */
+function landedOnOtherNetNotes(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instance: Instance,
+  edits: readonly SchematicEdit[],
+  carried: readonly { marker: Instance }[],
+): AgentCommandPlanNote[] {
+  const move = edits.find(
+    (edit) => edit.kind === "move_instance" && edit.instanceId === instance.id,
+  );
+  if (!move) return [];
+  const joined = planPropertyContactMove(
+    document,
+    resolver,
+    instance,
+    [move],
+    carried.map(({ marker }) => marker.id),
+    true,
+  );
+  if (!joined?.ok || joined.expectedElectricalEffect.kind !== "merge")
+    return [];
+  const pins = [
+    ...new Set(
+      joined.expectedElectricalEffect.endpointGroups
+        .flat()
+        .filter((key) => key.startsWith(`terminal:${instance.id}:`))
+        .map(
+          (key) => key.slice(`terminal:${instance.id}:`.length).split(":")[0]!,
+        ),
+    ),
+  ];
+  return [
+    {
+      code: "LANDED_ON_OTHER_NET",
+      message: `${instance.reference ?? instance.id} now touches another Net${pins.length ? ` at pin ${pins.join(", ")}` : ""} and was not joined to it; move it with join: true to connect, or move it clear`,
+      objectIds: [instance.id],
+    },
+  ];
 }
 
 /**
@@ -440,6 +485,8 @@ export function planSetProperties(
       ...(carried.length
         ? { carriedInstanceIds: carried.map(({ marker }) => marker.id) }
         : {}),
+      // A move changes no connection unless the call asks it to (#2429).
+      connectAtDrop: command.placement?.join === true,
     },
     value,
   );
@@ -451,9 +498,13 @@ export function planSetProperties(
           edit.kind === "move_instance" && edit.instanceId === marker.id,
       ),
     );
-    return moved.length
-      ? { edits, notes: [markersMovedAlongNote(instance, moved)] }
-      : { edits };
+    const notes = [
+      ...(moved.length ? [markersMovedAlongNote(instance, moved)] : []),
+      ...(command.placement?.join === true
+        ? []
+        : landedOnOtherNetNotes(document, resolver, instance, edits, carried)),
+    ];
+    return notes.length ? { edits, notes } : { edits };
   };
   const controlEdits = clearControl
     ? [

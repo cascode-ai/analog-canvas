@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "80f55f47c4e48819fd90dbd4930b47b7795c63332068f614ff3ca55f768f03ab"
+      "sha256": "55fe40d985a93f7459a7989b34430b957fbbb253b0a3e78e134c6ecd1f74644e"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "acf248f7804b7b009f7b126292671f47df58b5dd05f60ffacba523c87167e2c4"
+      "sha256": "f2c27abd57f0a4a8db2764f572eba064b5096946a39b623d9e13db629a433c74"
     },
     {
       "source": "packages/rnl/src/rnl-version-line.json",
@@ -660,7 +660,7 @@
         "docs/agent/mcp/rnl-review-versions.md.tmpl",
         "packages/rnl/src/rnl-version-line.json"
       ],
-      "sha256": "acf248f7804b7b009f7b126292671f47df58b5dd05f60ffacba523c87167e2c4"
+      "sha256": "f2c27abd57f0a4a8db2764f572eba064b5096946a39b623d9e13db629a433c74"
     },
     {
       "file": "apps/mcp-server/src/resources.generated.ts",
@@ -695,7 +695,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "2a4864563a25a0a6b1ec3bf1f8d515e2173d76a0bf5355742cb012e4487869d4"
+      "sha256": "c3bdde26beb41867507de833ab744a856ceeeb5881b89b59a8dec377edcc92df"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -727,7 +727,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "ec94ec5c779d4e6581fea8a647004367ca9525b78668560207887bf74052d641"
+      "sha256": "a759a75d8e4e4751ece7ec35424d17e9528a2606b7aca0e509bfd7c6fa717282"
     },
     {
       "file": "packages/agent-adapter/src/agent-skills.generated.ts",
