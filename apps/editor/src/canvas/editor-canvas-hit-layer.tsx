@@ -316,9 +316,18 @@ export function EditorCanvasHitLayer({
   endpoints: EndpointHitTargetProps;
   visibleIds?: ReadonlySet<string> | null;
 }) {
+  const hitIds = useMemo(
+    () =>
+      instanceGroupVisibleIds(
+        selection.document,
+        instanceGroupDisplay(selection.document)?.hidden,
+        visibleIds,
+      ),
+    [selection.document, visibleIds],
+  );
   return (
-    <SelectionHitTargets {...selection} visibleIds={visibleIds ?? null}>
-      <EndpointHitTargets {...endpoints} visibleIds={visibleIds ?? null} />
+    <SelectionHitTargets {...selection} visibleIds={hitIds ?? null}>
+      <EndpointHitTargets {...endpoints} visibleIds={hitIds ?? null} />
     </SelectionHitTargets>
   );
 }
@@ -1008,3 +1017,4 @@ function TerminalCurrentDirectionPreview({
     </g>
   );
 }
+import { instanceGroupDisplay, instanceGroupVisibleIds } from "@icm/derived";

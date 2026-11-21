@@ -121,6 +121,24 @@ visible Route endpoints detach to a Junction at the grid landing. Deletion is
 a separate atomic composition clearing membership, NoConnect, owned
 annotations and unlocked layout references.
 
+## Instance groups
+
+- An Instance group belongs to one Cell. It references two or more distinct
+  Instances in authored order. Each Instance belongs to at most one group.
+- Expand and place uses existing members. Collapse shows the first member
+  when placed and retains all authored member placements and connectivity.
+  Removing a member removes its reference and dissolves a group with fewer
+  than two members.
+- Each member keeps its own reference, parameters and terminal connectivity.
+  The SPICE and Spectre writers emit each member through the normal Instance path.
+- A native array starts with a selected circuit Instance and adds the other
+  ordered members as independent Instances. Its range accepts 2–256 members.
+  A common scalar terminal can share one existing Net or pair with an ordered
+  signal of equal width. Reverse changes the pairing order. Creation, layout
+  and connection each use one undoable transaction.
+- Array connection previews the resulting pairings and any wire paths removed
+  from reassigned terminals. Undo restores the previous pairing and paths.
+
 ## Presentation authority
 
 - Every visible editable label is a `SchematicAnnotation`: bounded RichText

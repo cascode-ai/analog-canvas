@@ -563,6 +563,10 @@ never invents an identifier.
 - While strict export is blocked the panel shows a read-only draft
   (`createDraftNetlistPreview`) with `?` for missing facts and a draft first
   line; Copy, export and `designExtractsNetlist` never use it.
+- An identifiable instance node token locates its logical Net in the owning
+  Cell. Selecting a Net in the drawing marks its node tokens in that Cell.
+  The printer supplies read-only ranges for the exact text on display.
+  Ranges expire with the text and occupy no bytes in saved Projects or netlists.
 - The copy/export projection drops the generated title and adds no comments;
   names print exactly as authored (`portCase` only on explicit Agent request);
   SPICE keeps an empty first title line; SCS starts with its language line.

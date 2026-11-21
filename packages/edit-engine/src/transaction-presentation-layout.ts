@@ -39,6 +39,7 @@ type PresentationLayoutEdit = Extract<
       | "upsert_drafting_object"
       | "remove_drafting_object"
       | "set_layout_group"
+      | "set_instance_group"
       | "remove_layout_group"
       | "set_layout_constraint"
       | "remove_layout_constraint"
@@ -330,6 +331,15 @@ export function applyPresentationLayoutEdit(
       });
       changedObjectIds.add(object.id);
       return { ok: true, connectivityChanged: false };
+    }
+    case "set_instance_group": {
+      const groups = (draft.instanceGroups ??= []);
+      const index = groups.findIndex(({ id }) => id === edit.group.id);
+      if (index >= 0) groups[index] = edit.group;
+      else groups.push(edit.group);
+      changedObjectIds.add(edit.group.id);
+      for (const id of edit.group.memberIds) changedObjectIds.add(id);
+      return { ok: true };
     }
     case "set_layout_group": {
       const index = draft.layoutGroups.findIndex(

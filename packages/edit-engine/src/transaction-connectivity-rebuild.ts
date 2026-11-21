@@ -375,7 +375,8 @@ function affectedConductors(
   }
   for (const id of edits.cutEndsByNet.keys()) addNet(id);
   for (const merge of edits.merges) for (const id of merge) addNet(id);
-  for (const endpoint of edits.disconnected.values()) pending.push(endpoint);
+  for (const { endpoint } of edits.disconnected.values())
+    pending.push(endpoint);
   for (const pair of edits.connections) pending.push(...pair);
   for (const { endpoints } of edits.keptUnrouted) pending.push(...endpoints);
   while (pending.length) {
@@ -454,6 +455,7 @@ export function rebuildEditedConnectivity(
       ))
         graph.join(contact.endpoints.map(remember));
   // Preserve intent between surviving representatives of old components.
+  // A disconnected terminal may already have a new owner in the draft.
   for (const net of beforeNets) {
     const members = sourceRead.netEndpoints(net);
     const contacts = resolver
@@ -464,10 +466,15 @@ export function rebuildEditedConnectivity(
       sourceRead.routesByNet.get(net.id) ?? [],
       contacts,
     );
+    const survivingGroups = edits.disconnected.size
+      ? groups
+          .map((group) => group.filter((key) => !edits.disconnected.has(key)))
+          .filter((group) => group.length > 0)
+      : groups;
     if (edits.cutEndsByNet.has(net.id)) {
       const group = keepUndrawableMembersAfterCut(
         draft,
-        groups,
+        survivingGroups,
         graph,
         endpoints,
         resolver,
@@ -476,7 +483,7 @@ export function rebuildEditedConnectivity(
       if (group) cutPropertyGroups.push(group);
       continue;
     }
-    const representatives = groups.flatMap((group) => {
+    const representatives = survivingGroups.flatMap((group) => {
       const key = group.find((key) => {
         const e = endpoints.get(key);
         return e && read.ownerOf(e) !== null;
@@ -496,10 +503,12 @@ export function rebuildEditedConnectivity(
   };
   for (const net of beforeNets)
     if (net.terminals.some(({ instanceId }) => edits.unplaced.has(instanceId)))
-      graph.join(survivingKeys(net.id));
+      graph.join(
+        survivingKeys(net.id).filter((key) => !edits.disconnected.has(key)),
+      );
 
   for (const pair of edits.connections) {
-    // A later disconnect/removal owns the final state.
+    // A terminal removed later in the transaction has no owner.
     if (pair.every((endpoint) => read.ownerOf(endpoint) !== null))
       graph.join(pair.map(remember));
   }

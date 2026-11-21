@@ -211,6 +211,7 @@ export function applyCellResetEdit(
       ]);
       for (const object of [
         ...draft.instances,
+        ...(draft.instanceGroups ?? []),
         ...draft.nets,
         ...draft.routes,
         ...draft.junctions,
@@ -242,6 +243,7 @@ export function applyCellResetEdit(
         }
       }
       draft.instances = retainedInstances;
+      delete draft.instanceGroups;
       draft.nets = retainedNets;
       draft.routes = [];
       draft.junctions = retainedJunctions;

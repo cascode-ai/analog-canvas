@@ -136,6 +136,13 @@ describe("staged Cell body composition", () => {
         { kind: "circuit-marks" },
         { kind: "instance", id: "front" },
       ];
+      sourceCell.instanceGroups = [
+        {
+          id: "adc-array",
+          memberIds: ["front", "rear"],
+          collapsed: true,
+        },
+      ];
       const destination = createEmptyProject("destination", "Destination");
       const target = destination.documents[0]!;
       target.instances.push({
@@ -161,6 +168,15 @@ describe("staged Cell body composition", () => {
       const instancesById = new Map(
         changed.instances.map((instance) => [instance.id, instance]),
       );
+      expect(
+        changed.instanceGroups?.map((group) => ({
+          collapsed: group.collapsed,
+          members: group.memberIds.map(
+            (id) => instancesById.get(id)?.reference,
+          ),
+        })),
+      ).toEqual([{ collapsed: true, members: ["front", "rear"] }]);
+      expect(changed.instanceGroups?.[0]?.id).not.toBe("adc-array");
       expect(
         resolveDrawingOrder(changed).flatMap((entry) =>
           entry.kind === "instance"

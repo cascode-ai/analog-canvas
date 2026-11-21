@@ -80,7 +80,11 @@ const ID_VALUE_KEYS = new Set([
   "sourceNetId",
   "terminalId",
 ]);
-const ID_ARRAY_KEYS = new Set(["interfaceInstanceIds", "objectIds"]);
+const ID_ARRAY_KEYS = new Set([
+  "interfaceInstanceIds",
+  "memberIds",
+  "objectIds",
+]);
 
 function importId(
   destinationProjectId: string,

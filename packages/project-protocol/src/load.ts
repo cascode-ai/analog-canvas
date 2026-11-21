@@ -496,6 +496,20 @@ export function tryParseProjectWithMetadata(
         },
       ]);
     if (sourceSchemaVersion < 64) rejectKeptDocumentStyle(parsed);
+    if (
+      sourceSchemaVersion < 84 &&
+      Array.isArray(parsed.documents) &&
+      parsed.documents.some(
+        (document) => document?.instanceGroups !== undefined,
+      )
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          message: "Instance groups require Project schema 84",
+          path: ["documents"],
+        },
+      ]);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (
       let version = current.schemaVersion as number;

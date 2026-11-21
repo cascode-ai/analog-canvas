@@ -2,15 +2,20 @@
 // direction, Net highlight and ERC diagnostics.
 
 import {
+  createEmptyDocument,
   createEmptyProject,
   resolveDrawingOrder,
   type DrawingOrderEntry,
 } from "@icm/model";
+import { hierarchicalSymbolId } from "@icm/symbols";
 import { serializeProject } from "@icm/project-protocol";
 import { expect, test } from "@playwright/test";
 import {
   clickNetlistWorkflowCommand,
+  editComponentPropertyCode,
+  exportedProject,
   downloadBytes,
+  hierarchyRowCommand,
   parseSavedProject,
   openProjectFile,
   expectStatus,
@@ -31,6 +36,108 @@ import {
   placedInstance,
   copySelectionAt,
 } from "./canvas-fixtures.js";
+
+test("Find follows non-top callers and selects each matching definition object once in its Cell", async ({
+  page,
+}) => {
+  const project = createEmptyProject(
+    "find-occurrences",
+    "Find occurrences",
+    "top",
+  );
+  const top = project.documents[0]!;
+  top.netlist!.name = "top";
+  const bench = createEmptyDocument("bench", "Bench");
+  const gain = createEmptyDocument("gain", "Gain");
+  const mos = (id: string, index: number, w: string, l: string) => ({
+    ...placedInstance(id, "nmos", 160 * index, 160),
+    reference: id,
+    netlist: {
+      binding: {
+        kind: "model" as const,
+        deviceClass: "mos" as const,
+        name: "NMOS",
+      },
+      parameters: { w, l },
+    },
+  });
+  top.instances.push(mos("M4", 1, "2u", "180n"));
+  gain.instances.push(
+    mos("M1", 1, "2u", "180n"),
+    mos("M2", 2, "1u", "2u"),
+    mos("M3", 3, "2u", "180n"),
+  );
+  for (const [index, reference] of ["X1", "X2"].entries()) {
+    bench.instances.push({
+      ...placedInstance(
+        reference,
+        hierarchicalSymbolId(gain.netlist!.name),
+        140 + index * 160,
+        100,
+      ),
+      reference,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: gain.id },
+        parameters: {},
+      },
+    });
+  }
+  project.documents.push(bench, gain);
+  await openProject(page, project);
+  await expect(page.getByTestId("active-document-id")).toHaveText(top.id);
+  const find = page.getByRole("dialog", { name: "Find in Circuit" });
+  for (const root of [top, bench]) {
+    if (root === bench)
+      await hierarchyRowCommand(page, /^Bench$/u, "Set as Top");
+    expect((await exportedProject(page)).topDocumentId).toBe(root.id);
+    for (const caller of ["X1", "X2"]) {
+      await page.keyboard.press("Control+f");
+      await find.getByRole("textbox").fill("w=2u");
+      await find
+        .getByRole("button", { name: new RegExp(`M1.*Bench / ${caller}`, "u") })
+        .click();
+      await expect(page.getByTestId("active-document-id")).toHaveText(gain.id);
+      await expect(
+        page.getByTestId("hierarchy-breadcrumb").locator("[aria-current]"),
+      ).toHaveText(`${caller}: Gain`);
+    }
+  }
+  await page.keyboard.press("Control+f");
+  await find.getByRole("textbox").fill("w=2u");
+  await find
+    .getByRole("button", { name: "Select matching instances in this Cell (2)" })
+    .click();
+  await expect(page.getByTestId("group-property-code-editor")).toContainText(
+    "2 selected",
+  );
+  await editComponentPropertyCode(page, (code) => {
+    code.parameters.l = "220n";
+  });
+  const saved = await exportedProject(page);
+  const parameters = (cell: string) =>
+    saved.documents
+      .find(({ id }: { id: string }) => id === cell)
+      .instances.map(
+        ({
+          reference,
+          netlist,
+        }: {
+          reference: string;
+          netlist: { parameters: { l: string } };
+        }) => [reference, netlist.parameters.l],
+      );
+  expect(parameters("gain")).toEqual([
+    ["M1", "220n"],
+    ["M2", "2u"],
+    ["M3", "220n"],
+  ]);
+  expect(parameters("top")).toEqual([["M4", "180n"]]);
+  await page.keyboard.press("Control+f");
+  await find.getByRole("textbox").fill("M4");
+  await find.getByRole("button", { name: /^M4/u }).click();
+  await expect(page.getByTestId("active-document-id")).toHaveText(top.id);
+  await expect(page.getByTestId("hierarchy-breadcrumb")).toHaveCount(0);
+});
 
 test("marquee release uses the last pointer sample before a browser frame", async ({
   page,

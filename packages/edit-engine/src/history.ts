@@ -40,6 +40,7 @@ function collectObjects(
       ...document.noConnects,
       ...document.annotations,
       ...document.layoutGroups,
+      ...(document.instanceGroups ?? []),
       ...document.constraints,
       ...(document.inductorCouplings ?? []),
       ...(document.drafting?.objects ?? []),

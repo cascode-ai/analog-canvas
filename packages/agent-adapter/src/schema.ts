@@ -41,7 +41,7 @@ import {
 } from "@icm/model";
 import { ObjectLocatorSchema, HierarchyFrameSchema } from "@icm/derived";
 import {
-  ProjectStructureEditSchema,
+  createProjectStructureEditSchema,
   SchematicEditSchema,
 } from "@icm/edit-engine";
 import { z } from "zod";
@@ -289,7 +289,17 @@ export const CELL_STRUCTURE_EDIT_KINDS = [
   "set_cell_formal_parameters",
   "set_cell_symbol_presentation",
 ] as const;
-export const AgentSchematicEditSchema = SchematicEditSchema.superRefine(
+// Groups can travel with a complete Cell. Canvas edits their membership.
+const [firstAgentEdit, ...remainingAgentEdits] =
+  SchematicEditSchema.options.filter(
+    (option) => option.shape.kind.value !== "set_instance_group",
+  );
+if (!firstAgentEdit) throw new Error("The Agent needs a schematic edit schema");
+const AgentDocumentEditSchema = z.discriminatedUnion("kind", [
+  firstAgentEdit,
+  ...remainingAgentEdits,
+]);
+export const AgentSchematicEditSchema = AgentDocumentEditSchema.superRefine(
   (edit, context) => {
     if (CELL_STRUCTURE_EDIT_KINDS.some((kind) => edit.kind === kind)) {
       context.addIssue({
@@ -328,6 +338,11 @@ export const AgentSchematicEditSchema = SchematicEditSchema.superRefine(
     }
   },
 );
+/** The structure path also permits Cell interface edits nested in a Cell transaction. */
+export const AgentProjectStructureEditSchema = createProjectStructureEditSchema(
+  AgentDocumentEditSchema,
+);
+
 const TransactionPayloadShape = {
   edits: z.array(AgentSchematicEditSchema).min(1).optional(),
   wireIntent: z
@@ -335,16 +350,12 @@ const TransactionPayloadShape = {
     .optional(),
   semanticIntent: AgentSemanticIntentSchema.optional(),
   command: AgentAuthoringCommandSchema.optional(),
-  structureEdits: z.array(ProjectStructureEditSchema).min(1).optional(),
+  structureEdits: z.array(AgentProjectStructureEditSchema).min(1).optional(),
   /** High-level authoring actions, which the editor plans as the MCP
    * client compiles them: see the authoring contract. A list with malformed
    * actions is refused with ACTION_COMPILE_FAILED naming each of them. */
   actions: z.array(z.unknown()).min(1).optional(),
 };
-/** A Project structure edit, as advanced_transact's structureEdits take
- * one; describe_tool reads each kind's contract from it (#1231). */
-export const AgentProjectStructureEditSchema = ProjectStructureEditSchema;
-
 function oneTransactionForm(
   request: {
     edits?: unknown;

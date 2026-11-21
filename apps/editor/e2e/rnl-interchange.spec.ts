@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { CircuitProject } from "@icm/model";
 import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
+import { importSpiceSources } from "@icm/spice";
 
 import {
   exampleProject,
@@ -13,6 +14,137 @@ import {
 } from "./editor-fixtures.js";
 import { labelCensus, labelDifferences } from "./label-census.js";
 import { bipolarProject } from "./bipolar-project.js";
+import { openSelectionShelf } from "./manual-editor-fixtures.js";
+
+test("inspects and expands an imported RNL bundle without replacing its members", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await page.getByTestId("rnl-files").setInputFiles({
+    name: "instance-bundle.spi",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      [
+        "* Instance bundle",
+        '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+        ".subckt decap GND VDD",
+        "R0 GND VDD 1k",
+        ".ends decap",
+        "X1 0 vdd decap",
+        "X2 0 vdd decap",
+        "X3 0 vdd decap",
+        "* @RNL {",
+        "*   %b = {#X1 #X2 #X3} @BUNDLE;",
+        '*   %b @PLACE(10, 10) => @ORIENT("R0");',
+        "* }",
+        ".end",
+        "",
+      ].join("\n"),
+    ),
+  });
+  await expectStatus(page, /^Imported \d+ Documents?/u);
+  await page.getByTestId("hit-X1").click();
+  await openSelectionShelf(page);
+  const group = page.getByRole("region", {
+    name: "Instance group",
+    exact: true,
+  });
+  await expect(group.getByRole("listitem")).toHaveCount(3);
+  await group.getByRole("button", { name: "Locate X2" }).click();
+  await expect(
+    group.getByRole("button", { name: "Locate X2" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(group.getByRole("listitem").nth(1)).toContainText("Unplaced");
+  await expect(group.getByRole("listitem").nth(1)).toContainText("VDD → vdd");
+  await expect(group.getByRole("listitem").nth(1)).toContainText(
+    /GND → (0|GND)/iu,
+  );
+  await group.getByRole("button", { name: "Expand and place members" }).click();
+  await expect(group.getByRole("listitem").nth(1)).toContainText("Placed");
+  await expect(page.getByTestId("hit-X2")).toHaveCount(1);
+  await group.getByRole("button", { name: "Locate X1" }).click();
+  const glowDots = page
+    .getByTestId("connected-net-glow")
+    .first()
+    .locator("circle.net-highlight-endpoint");
+  await expect.poll(() => glowDots.count()).toBeGreaterThanOrEqual(6);
+  const expandedDots = await glowDots.count();
+  await group.getByRole("button", { name: "Collapse group" }).click();
+  await expect(page.getByTestId("hit-X2")).toHaveCount(0);
+  await expect.poll(() => glowDots.count()).toBe(expandedDots - 4);
+  const saved: CircuitProject = await exportedProject(page);
+  const top = saved.documents.find(({ id }) => id === saved.topDocumentId)!;
+  expect(top.instanceGroups).toMatchObject([
+    { memberIds: ["X1", "X2", "X3"], collapsed: true },
+  ]);
+  expect(top.instances.find(({ id }) => id === "X2")?.placement).not.toBeNull();
+});
+
+test("creates an ordered native array and applies the reversed bit preview as one edit", async ({
+  page,
+}) => {
+  const path = "array-source.spi";
+  const source = [
+    "Native array",
+    ".subckt units VSS EN<3> EN<2> EN<1> EN<0>",
+    "R3 EN<3> VSS 1k",
+    ".ends units",
+    ".end",
+  ].join("\n");
+  const imported = await importSpiceSources(
+    [{ path, bytes: new TextEncoder().encode(source) }],
+    path,
+  );
+  const project = imported.project!;
+  const document = project.documents.find(
+    (cell) => cell.id === project.topDocumentId,
+  )!;
+  const seed = document.instances.find(
+    (instance) => instance.reference === "R3",
+  )!;
+  seed.placement = {
+    position: { x: 200, y: 200 },
+    rotation: 0,
+    mirror: "none",
+  };
+  await openProject(page, project);
+  await page.getByTestId(`hit-${seed.id}`).click();
+  await openSelectionShelf(page);
+  await page.getByText("Create instance array", { exact: true }).click();
+  await page.getByRole("button", { name: "Create array", exact: true }).click();
+  const group = page.getByRole("region", {
+    name: "Instance group",
+    exact: true,
+  });
+  await expect(group.getByRole("listitem")).toHaveCount(4);
+  await group.getByText("Connect array terminals", { exact: true }).click();
+  const apply = group.getByRole("button", { name: "Apply array connections" });
+  await group.getByLabel("Array terminal", { exact: true }).selectOption("2");
+  const expression = group.getByLabel("Net or signal expression", {
+    exact: true,
+  });
+  await expression.fill("VSS");
+  await apply.click();
+  await group.getByLabel("Array terminal", { exact: true }).selectOption("1");
+  await expression.fill("EN<2:0>");
+  await expect(group.getByRole("alert")).toContainText("4 members");
+  await expect(apply).toBeDisabled();
+  await expression.fill("EN<3:0>");
+  await apply.click();
+  await group.getByLabel("Reverse bit order", { exact: true }).check();
+  await expect(
+    group.getByRole("table", { name: "Array connection preview" }),
+  ).toContainText("EN<0>");
+  await apply.click();
+  const live = await showNetlistPanel(page);
+  const code = live.getByLabel("Netlist code", { exact: true });
+  await expect(code).toContainText("R3 EN_0_ VSS");
+  await expect(code).toContainText("R0 EN_3_ VSS");
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(code).toContainText("R3 EN_3_ VSS");
+  await page.getByTestId("draw-tool-redo").click();
+  await expect(code).toContainText("R3 EN_0_ VSS");
+});
 
 test("imports native bulk styling by default and offers the source appearance", async ({
   page,

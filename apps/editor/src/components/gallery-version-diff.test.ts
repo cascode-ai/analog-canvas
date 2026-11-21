@@ -1,8 +1,24 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, createEmptyDocument } from "@icm/model";
+import {
+  createEmptyProject,
+  createEmptyDocument,
+  createRoutePath,
+  type CircuitProject,
+  type RouteEndpoint,
+} from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
-import { withProjectComponentDefinitions } from "@icm/symbols";
+import {
+  hierarchicalSymbolId,
+  withProjectComponentDefinitions,
+} from "@icm/symbols";
+import {
+  executeProjectTransaction,
+  planCreateCellPin,
+  type ProjectStructureEdit,
+  type SchematicEdit,
+} from "@icm/edit-engine";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { compareGalleryVersions } from "./gallery-version-diff";
 import {
   branchGalleryVersion,
@@ -39,7 +55,141 @@ function fixture() {
   return project;
 }
 
+function apply(project: CircuitProject, edits: ProjectStructureEdit[]) {
+  const result = executeProjectTransaction(project, {
+    projectId: project.id,
+    transactionId: `history-${project.structureRevision}`,
+    expectedStructureRevision: project.structureRevision,
+    actor: { kind: "human", id: "history-reviewer" },
+    edits,
+  });
+  if (!result.ok)
+    throw new Error(
+      JSON.stringify({ error: result.error, diagnostics: result.diagnostics }),
+    );
+  return result.project;
+}
+
+function editParent(project: CircuitProject, edits: SchematicEdit[]) {
+  return apply(project, [
+    {
+      kind: "transact_document",
+      documentId: "parent",
+      expectedRevision: project.documents[0]!.revision,
+      edits,
+    },
+  ]);
+}
+
+function busFixture() {
+  const child = createEmptyDocument("dut", "dut");
+  const empty = createEmptyProject("bus-history", "parent", "parent");
+  empty.documents[0]!.netlist!.name = "parent";
+  let project = apply(empty, [{ kind: "add_document", document: child }]);
+  for (const [documentId, id, name, x] of [
+    ["parent", "a", "A", 0],
+    ["parent", "b", "B", 60],
+    ["dut", "data", "DATA<1:0>", 0],
+  ] as const) {
+    project = apply(
+      project,
+      planCreateCellPin(project, documentId, {
+        instance: {
+          id,
+          symbolId: "port",
+          placement: { position: { x, y: 0 }, rotation: 0, mirror: "none" },
+        },
+        terminal: {
+          id: `${id}-terminal`,
+          name,
+          netId: `${id}-net`,
+          direction: "passive",
+          interfaceInstanceIds: [id],
+        },
+        signalExpression: name,
+        connectionEdits: [],
+      }),
+    );
+  }
+  project = editParent(project, [
+    {
+      kind: "add_instance",
+      instance: {
+        id: "caller",
+        reference: "X1",
+        symbolId: hierarchicalSymbolId(child.netlist!.name),
+        placement: null,
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: "dut" },
+          parameters: {},
+        },
+      },
+    },
+  ]);
+  const bits = project.documents[1]!.netlist!.terminals[0]!.signal!.members.map(
+    ({ id }): Extract<RouteEndpoint, { kind: "terminal" }> => ({
+      kind: "terminal",
+      instanceId: "caller",
+      pinName: "DATA<1:0>",
+      memberId: id,
+    }),
+  );
+  const connect = (bit: number, port: "a" | "b"): SchematicEdit => ({
+    kind: "connect_endpoints",
+    from: { kind: "terminal", instanceId: port, pinName: "P" },
+    to: bits[bit]!,
+    newNetId: `to-${port}`,
+  });
+  return { project, bits, connect };
+}
+
+function reopen(project: CircuitProject) {
+  return parseProject(serializeProject(project));
+}
+
 describe("Gallery component history", () => {
+  it("shows the old and new Net for each swapped bus member after reopening versions", () => {
+    const { project, bits, connect } = busFixture();
+    const before = reopen(
+      editParent(project, [connect(0, "a"), connect(1, "b")]),
+    );
+    const disconnected = editParent(
+      before,
+      bits.map((endpoint) => ({ kind: "disconnect_endpoint", endpoint })),
+    );
+    const after = reopen(
+      editParent(disconnected, [connect(0, "b"), connect(1, "a")]),
+    );
+    for (const [format, oldLine, newLine] of [
+      ["spice", "X1 A B dut", "X1 B A dut"],
+      ["spectre", "X1 (A B) dut", "X1 (B A) dut"],
+    ] as const) {
+      for (const [snapshot, line] of [
+        [before, oldLine],
+        [after, newLine],
+      ] as const) {
+        const exported = createDesignNetlistExport(snapshot, { format });
+        expect(exported.status).toBe("ready");
+        if (exported.status === "ready")
+          expect(exported.file.text.split("\n")).toContain(line);
+      }
+    }
+    const caller = compareGalleryVersions(before, after).filter(
+      (change) => change.instanceId === "caller",
+    );
+    expect(caller).toEqual([
+      {
+        documentId: "parent",
+        instanceId: "caller",
+        name: "X1",
+        status: "modified",
+        fields: expect.arrayContaining([
+          { path: "connections.DATA<1>", before: "A", after: "B" },
+          { path: "connections.DATA<0>", before: "B", after: "A" },
+        ]),
+      },
+    ]);
+  });
   it("reports parameter, name and placement edits on the same device without mutating either snapshot", () => {
     const before = fixture();
     const after = structuredClone(before);
@@ -63,6 +213,85 @@ describe("Gallery component history", () => {
       ]),
     );
     expect(JSON.stringify([before, after])).toBe(frozen);
+  });
+  it("reports the member that lost No Connect and the one that gained it", () => {
+    const { project, bits } = busFixture();
+    const before = reopen(
+      editParent(project, [
+        {
+          kind: "add_no_connect",
+          noConnect: { id: "nc-old", endpoint: bits[0]! },
+        },
+      ]),
+    );
+    const after = reopen(
+      editParent(before, [
+        { kind: "remove_no_connect", noConnectId: "nc-old" },
+        {
+          kind: "add_no_connect",
+          noConnect: { id: "nc-new", endpoint: bits[1]! },
+        },
+      ]),
+    );
+    expect(compareGalleryVersions(before, after)).toMatchObject([
+      {
+        instanceId: "caller",
+        status: "modified",
+        fields: expect.arrayContaining([
+          { path: "noConnects.DATA<1>", before: "No Connect", after: "—" },
+          { path: "noConnects.DATA<0>", before: "—", after: "No Connect" },
+        ]),
+      },
+    ]);
+    expect(compareGalleryVersions(before, after)[0]!.fields).toHaveLength(2);
+  });
+  it("keeps No Connect on its stable member when the aggregate is reordered", () => {
+    const { project, bits } = busFixture();
+    const before = reopen(
+      editParent(project, [
+        { kind: "add_no_connect", noConnect: { id: "nc", endpoint: bits[0]! } },
+      ]),
+    );
+    const after = reopen(
+      apply(before, [
+        {
+          kind: "migrate_cell_signal",
+          documentId: "dut",
+          terminalId: "data-terminal",
+          expression: "DATA<0:1>",
+          expectedRevisions: Object.fromEntries(
+            before.documents.map(({ id, revision }) => [id, revision]),
+          ),
+        },
+      ]),
+    );
+    const changes = compareGalleryVersions(before, after);
+    expect(
+      changes.find(({ instanceId }) => instanceId === "caller"),
+    ).toBeDefined();
+    expect(
+      changes
+        .flatMap(({ fields }) => fields)
+        .filter(({ path }) => path.startsWith("noConnects")),
+    ).toEqual([]);
+  });
+  it("reports a single bus member disconnected or reconnected", () => {
+    const { project, bits, connect } = busFixture();
+    const before = reopen(editParent(project, [connect(0, "a")]));
+    const disconnected = reopen(
+      editParent(before, [{ kind: "disconnect_endpoint", endpoint: bits[0]! }]),
+    );
+    const reconnected = reopen(editParent(disconnected, [connect(0, "b")]));
+    const callerFields = (after: CircuitProject) =>
+      compareGalleryVersions(before, after).find(
+        ({ instanceId }) => instanceId === "caller",
+      )?.fields;
+    expect(callerFields(disconnected)).toEqual([
+      { path: "connections.DATA<1>", before: "A", after: "—" },
+    ]);
+    expect(callerFields(reconnected)).toEqual([
+      { path: "connections.DATA<1>", before: "A", after: "B" },
+    ]);
   });
   it("distinguishes recreation from rename, detects additions/deletions and affected neighbors", () => {
     const before = fixture();
@@ -91,6 +320,33 @@ describe("Gallery component history", () => {
       w: "2u",
     };
     after.structureRevision++;
+    expect(compareGalleryVersions(before, after)).toEqual([]);
+  });
+  it("ignores a route detour between the same two terminals", () => {
+    const project = fixture();
+    const direct = createRoutePath({
+      id: "drain-wire",
+      netId: "n1",
+      start: { kind: "terminal", instanceId: "M1", pinName: "D" },
+      end: { kind: "terminal", instanceId: "M2", pinName: "D" },
+      bends: [],
+      modes: ["manual"],
+    });
+    project.documents[0]!.routes.push(direct);
+    const before = reopen(project);
+    const bent = structuredClone(project);
+    bent.documents[0]!.routes = [
+      createRoutePath({
+        id: direct.id,
+        netId: direct.netId,
+        start: direct.start,
+        end: { kind: "terminal", instanceId: "M2", pinName: "D" },
+        bends: [{ x: 60, y: -100 }],
+        modes: ["manual", "manual"],
+      }),
+    ];
+    const after = reopen(bent);
+    expect(before.documents[0]!.routes).not.toEqual(after.documents[0]!.routes);
     expect(compareGalleryVersions(before, after)).toEqual([]);
   });
   it("identifies disconnections and NoConnect changes", () => {

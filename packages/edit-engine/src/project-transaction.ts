@@ -126,7 +126,7 @@ export const ApplyModelSourceEditSchema = z.strictObject({
     .max(256),
 });
 
-export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
+const projectStructureEditOptions = [
   CellSignalMigrationEditSchema,
   z.strictObject({
     kind: z.literal("associate_component_library"),
@@ -216,16 +216,24 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     kind: z.literal("remove_simulation_folder"),
     folderId: z.string().min(1),
   }),
-  z.strictObject({
-    kind: z.literal("transact_document"),
-    documentId: z.string().min(1),
-    expectedRevision: z.number().int().nonnegative(),
-    edits: z
-      .array(SchematicEditSchema)
-      .min(1)
-      .max(MAX_SCHEMATIC_EDITS_PER_TRANSACTION),
-  }),
-]);
+] as const;
+
+export function createProjectStructureEditSchema<
+  Edits extends z.ZodType<SchematicEdit>,
+>(edits: Edits) {
+  return z.discriminatedUnion("kind", [
+    ...projectStructureEditOptions,
+    z.strictObject({
+      kind: z.literal("transact_document"),
+      documentId: z.string().min(1),
+      expectedRevision: z.number().int().nonnegative(),
+      edits: z.array(edits).min(1).max(MAX_SCHEMATIC_EDITS_PER_TRANSACTION),
+    }),
+  ]);
+}
+
+export const ProjectStructureEditSchema =
+  createProjectStructureEditSchema(SchematicEditSchema);
 
 export const ProjectTransactionSchema = z.strictObject({
   transactionId: z.string().min(1),

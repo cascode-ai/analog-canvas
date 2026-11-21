@@ -177,11 +177,13 @@ describe("DocumentHistory", () => {
         end: { offset: 1, line: 1, column: 2 },
       },
     };
-    document.instances.push({
-      id: "R1",
-      symbolId: "resistor",
-      placement: null,
-    });
+    document.instances.push(
+      { id: "R1", symbolId: "resistor", placement: null },
+      { id: "R2", symbolId: "resistor", placement: null },
+    );
+    document.instanceGroups = [
+      { id: "resistors", memberIds: ["R2", "R1"], collapsed: true },
+    ];
     document.nets.push({
       id: "net-vss",
 
@@ -228,10 +230,12 @@ describe("DocumentHistory", () => {
         editKinds: ["reset_cell_body"],
         changedObjectIds: [
           "R1",
+          "R2",
           "document-main",
           "label-R1",
           "net-vss",
           "note-1",
+          "resistors",
         ],
       },
     });
@@ -245,10 +249,12 @@ describe("DocumentHistory", () => {
       sourceStatus: "connectivity-modified",
     });
     expect(history.document.mosBulkDefaults).toBeUndefined();
+    expect(history.document.instanceGroups).toBeUndefined();
 
     const undone = history.transact(transaction(1, [{ kind: "undo" }]));
     expect(undone).toMatchObject({ ok: true, revision: 2 });
-    expect(history.document.instances).toHaveLength(1);
+    expect(history.document.instances).toHaveLength(2);
+    expect(history.document.instanceGroups).toEqual(document.instanceGroups);
     expect(history.document.annotations).toHaveLength(1);
     expect(history.document.drafting?.objects).toHaveLength(1);
     expect(history.document.mosBulkDefaults).toEqual({

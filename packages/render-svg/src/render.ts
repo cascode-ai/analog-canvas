@@ -72,6 +72,7 @@ import {
 import { deriveBounds } from "./scene-bounds.js";
 import { wireHopPaths } from "./wire-hops.js";
 import { escapeXml, pointList } from "./svg-markup.js";
+import { instanceGroupDisplay, instanceGroupVisibleIds } from "@icm/derived";
 import {
   instanceTransform,
   createInstanceArtworkRenderer,
@@ -114,7 +115,12 @@ export function buildSvgScene(
   options: SvgRenderOptions = {},
 ): SvgScene {
   const document = SchematicDocumentSchema.parse(input);
-  const objectIds = options.objectIds;
+  const groupDisplay = instanceGroupDisplay(document);
+  const objectIds = instanceGroupVisibleIds(
+    document,
+    groupDisplay?.hidden,
+    options.objectIds,
+  );
   const included = (id: string): boolean => !objectIds || objectIds.has(id);
   const profile = resolveDocumentStyleProfile(document.presentation);
   const drawingScene = resolveDrawingScene(document, resolver, objectIds);
@@ -615,8 +621,15 @@ export function buildSvgScene(
             .join("") ?? "";
         const symbolRole =
           styleOverride === undefined ? "" : ' data-role="instance-symbol"';
-        const before = `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"><g transform="${instanceTransform(instance)}">${background}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${instanceProfile.strokes.symbol}" stroke-linecap="${instanceProfile.lineCap}" stroke-linejoin="${instanceProfile.lineJoin}"${profileMiterAttribute(instanceProfile)}>`;
-        const after = `</g></g>${formula}${pinNames}</g>`;
+        const group = groupDisplay?.representatives.get(instance.id);
+        const groupAttribute = group
+          ? ` data-instance-group-id="${escapeXml(group.id)}"`
+          : "";
+        const count = group
+          ? `<text data-role="instance-group-count" x="${instance.placement!.position.x}" y="${instance.placement!.position.y - 12}" text-anchor="middle" font-size="8" fill="${strokeColor}">×${group.memberIds.length}</text>`
+          : "";
+        const before = `<g data-object-id="${escapeXml(instance.id)}" data-symbol-id="${escapeXml(resolved.definition.id)}"${groupAttribute}><g transform="${instanceTransform(instance)}">${background}<g${symbolRole} fill="none" stroke="${strokeColor}" stroke-width="${instanceProfile.strokes.symbol}" stroke-linecap="${instanceProfile.lineCap}" stroke-linejoin="${instanceProfile.lineJoin}"${profileMiterAttribute(instanceProfile)}>`;
+        const after = `</g></g>${formula}${pinNames}${count}</g>`;
         if (primitives && !resolved.definition.formulaPresentation)
           canvasSymbols?.set(instance.id, {
             before,

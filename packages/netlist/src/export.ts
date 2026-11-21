@@ -13,6 +13,7 @@ import {
   printDesignNetlist,
   type NetlistFileDescriptor,
 } from "./printers.js";
+import { designNodeLocations } from "./node-location.js";
 import type { NetlistPortCase } from "./net-name-codec.js";
 import { sourceModelCards } from "./source-model-cards.js";
 
@@ -237,6 +238,8 @@ export function createDesignNetlistExport(
     portCase?: NetlistPortCase;
     /** Only interactive source editors need field-level locations. */
     includeLocations?: boolean;
+    /** Capture read-only schematic Net provenance along with field locations. */
+    includeNodeLocations?: boolean;
     /**
      * Print the bodies the netlist writes itself with their ports in another
      * order (`withBodyPortOrder`). Only the RNL export modes ask for it.
@@ -308,9 +311,17 @@ export function createDesignNetlistExport(
     ? withBodyPortOrder(ir, options.bodyPortOrder)
     : ir;
   const atTop = options.rootAsTopLevel ?? false;
-  const printed = options.includeLocations
-    ? printDesignNetlistWithLocations(format, printedIr, atTop)
-    : null;
+  const printed =
+    options.includeLocations || options.includeNodeLocations
+      ? printDesignNetlistWithLocations(
+          format,
+          printedIr,
+          atTop,
+          options.includeNodeLocations
+            ? designNodeLocations(project)
+            : undefined,
+        )
+      : null;
   const file = printed?.file ?? printDesignNetlist(format, printedIr, atTop);
   const originalLength = file.text.length;
   // Presentation export omits the strict printer's title. Keep that printer

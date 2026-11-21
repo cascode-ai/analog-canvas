@@ -6,7 +6,10 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import { missingDefaultInstanceDisplayAnnotations } from "../instance-display/default-instance-display";
 import type { SchematicStyleProfile } from "@icm/derived";
-import { planPlaceAllUnplacedInstances } from "./placement-tray";
+import {
+  planPlaceAllUnplacedInstances,
+  retainedPlacementDisplayEdits,
+} from "./placement-tray";
 
 type TransactionResult = { ok: boolean };
 
@@ -67,22 +70,12 @@ export function createPlacementTrayCommands({
       setStatus("The Placement Tray is empty");
       return;
     }
-    const displayEdits = edits.flatMap((edit) => {
-      if (edit.kind !== "place_instance") return [];
-      const instance = document.instances.find(
-        (candidate) => candidate.id === edit.instanceId,
-      );
-      if (!instance) return [];
-      return missingDefaultInstanceDisplayAnnotations(
-        document,
-        { ...instance, placement: edit.placement },
-        resolver,
-        styleProfile,
-      ).map((annotation) => ({
-        kind: "upsert_schematic_annotation" as const,
-        annotation,
-      }));
-    });
+    const displayEdits = retainedPlacementDisplayEdits(
+      document,
+      resolver,
+      styleProfile,
+      edits,
+    );
     if (transact([...edits, ...displayEdits]).ok) {
       resetSelection();
       setStatus(

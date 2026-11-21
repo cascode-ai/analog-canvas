@@ -52,13 +52,19 @@ export function readRouteEdits(transaction: EditTransaction) {
   const cutRouteByNet = new Map<string, string>();
   const cutEndsByNet = new Map<string, string[]>();
   const unroutedByPair = new Map<string, RouteConductor>();
-  const connections: Array<readonly RouteEndpoint[]> = [];
-  const disconnected = new Map<string, RouteEndpoint>();
+  const requestedConnections: Array<{
+    endpoints: readonly [RouteEndpoint, RouteEndpoint];
+    editIndex: number;
+  }> = [];
+  const disconnected = new Map<
+    string,
+    { endpoint: RouteEndpoint; editIndex: number }
+  >();
   const unplaced = new Set<string>();
   const merges: Array<readonly [string, string]> = [];
   const boundProperties = new Set<string>();
   let rebuild = false;
-  for (const edit of transaction.edits) {
+  for (const [editIndex, edit] of transaction.edits.entries()) {
     // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- these edits affect route connectivity
     switch (edit.kind) {
       case "set_route_path":
@@ -91,11 +97,17 @@ export function readRouteEdits(transaction: EditTransaction) {
         rebuild = true;
         break;
       case "connect_endpoints":
-        connections.push([edit.from, edit.to]);
+        requestedConnections.push({
+          endpoints: [edit.from, edit.to],
+          editIndex,
+        });
         rebuild = true;
         break;
       case "disconnect_endpoint":
-        disconnected.set(endpointKey(edit.endpoint), edit.endpoint);
+        disconnected.set(endpointKey(edit.endpoint), {
+          endpoint: edit.endpoint,
+          editIndex,
+        });
         rebuild = true;
         break;
       case "merge_nets":
@@ -116,6 +128,15 @@ export function readRouteEdits(transaction: EditTransaction) {
         break;
     }
   }
+  const connections = requestedConnections
+    .filter(({ endpoints, editIndex }) =>
+      endpoints.every(
+        (endpoint) =>
+          (disconnected.get(endpointKey(endpoint))?.editIndex ?? -1) <
+          editIndex,
+      ),
+    )
+    .map(({ endpoints }) => endpoints);
   // Capture the actual removed conductor, which can be a split product of a
   // preceding edit. Independent cuts choose the same start side in any order.
   const recordCut = (route: RouteBranch, edges: readonly RouteConductor[]) => {

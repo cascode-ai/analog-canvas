@@ -44,6 +44,8 @@ import {
   projectElectricalGraph,
 } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
+import { buildSvgScene } from "@icm/render-svg";
+import { planInstanceGroupView } from "../instance-groups/instance-group-edits";
 import {
   CANVAS_PACKAGE,
   CANVAS_PACKAGE_VERSION,
@@ -1759,6 +1761,94 @@ it("draws a bundle as its first member, a Cell's own pins with no direction wher
   expect(calls.get("X1")?.placement?.position).toEqual({ x: 100, y: -100 });
   expect(calls.get("X2")?.placement).toBeNull();
   expect(calls.get("X3")?.placement).toBeNull();
+  const reopened = parseProject(serializeProject(plan.project));
+  const reopenedTop = reopened.documents.find(
+    (document) => document.id === top.id,
+  )!;
+  expect(reopenedTop.instanceGroups).toEqual([
+    expect.objectContaining({
+      collapsed: true,
+      memberIds: ["X1", "X2", "X3"].map(
+        (reference) => calls.get(reference)!.id,
+      ),
+    }),
+  ]);
+  const group = reopenedTop.instanceGroups![0]!;
+  const changeView = (project: CircuitProject) => {
+    const doc = project.documents.find(({ id }) => id === top.id)!;
+    const result = executeProjectTransaction(project, {
+      projectId: project.id,
+      transactionId: `group-view-${doc.revision}`,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "reviewer" },
+      edits: [
+        {
+          kind: "transact_document",
+          documentId: doc.id,
+          expectedRevision: doc.revision,
+          edits: planInstanceGroupView(
+            doc,
+            doc.instanceGroups![0]!,
+            {
+              x: 0,
+              y: 0,
+              width: 600,
+              height: 360,
+            },
+            createProjectSymbolResolver(project, builtInSymbols),
+          ),
+        },
+      ],
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    return result.project;
+  };
+  const expanded = changeView(reopened);
+  const collapsed = parseProject(serializeProject(changeView(expanded)));
+  const svg = (project: CircuitProject) =>
+    buildSvgScene(
+      project.documents.find(({ id }) => id === top.id)!,
+      createProjectSymbolResolver(project, builtInSymbols),
+    ).formalBody;
+  expect(svg(expanded)).toContain(
+    `data-object-id="${calls.get("X2")!.id}" data-symbol-id=`,
+  );
+  expect(svg(collapsed)).not.toContain(
+    `data-object-id="${calls.get("X2")!.id}" data-symbol-id=`,
+  );
+  expect(svg(collapsed)).toContain(`data-instance-group-id="${group.id}"`);
+  const collapsedTop = collapsed.documents.find(({ id }) => id === top.id)!;
+  expect(collapsedTop.instanceGroups).toEqual([group]);
+  expect(
+    collapsedTop.instances.find(({ id }) => id === calls.get("X2")!.id)
+      ?.placement,
+  ).not.toBeNull();
+  const print = (project: CircuitProject, format: "spice" | "spectre") => {
+    const result = createDesignNetlistExport(project, {
+      format,
+      callsWithoutBodies: true,
+    });
+    if (result.status !== "ready")
+      throw new Error(JSON.stringify(result.diagnostics));
+    return result.file.text;
+  };
+  for (const format of ["spice", "spectre"] as const) {
+    const original = print(reopened, format);
+    expect(original.match(/^X[123] .*decap\b/gmu)).toHaveLength(3);
+    expect(print(expanded, format)).toBe(original);
+    expect(print(collapsed, format)).toBe(original);
+  }
+  const independent = await importRnl(
+    text.replace(/\n\* @RNL \{\n\*   %b =[\s\S]*?\n\* \}\n/u, "\n"),
+    "spice",
+  );
+  const independentTop = independent.project.documents.find(
+    ({ id }) => id === independent.project.topDocumentId,
+  )!;
+  expect(independentTop.instances.map(({ reference }) => reference)).toEqual(
+    expect.arrayContaining(["X1", "X2", "X3"]),
+  );
+  expect(independentTop.instanceGroups).toBeUndefined();
   // The wire to the bundle's pin ends on that member's.
   const supply = top.routes.find((route) => {
     const end = route.legs.at(-1)!.to;
@@ -1815,7 +1905,7 @@ it("draws a bundle as its first member, a Cell's own pins with no direction wher
   );
   expect(written.text).toMatch(/#X1 @PLACE\(10, 10\)/u);
   expect(written.text).not.toMatch(/#X[23] @PLACE/u);
-});
+}, 15_000);
 
 it("ends a wire to a port on no port at a junction there, and draws a ground on VSS as a Named Ground", async () => {
   // A flat file has no ports, and its VSS is no ground: the port is its

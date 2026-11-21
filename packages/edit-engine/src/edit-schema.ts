@@ -10,6 +10,7 @@ import {
   InductorCouplingSchema,
   InstanceNetlistDataSchema,
   InstanceNetlistBindingSchema,
+  InstanceGroupSchema,
   InstanceSchema,
   SignalFlowParametersSchema,
   SignalDeclarationSchema,
@@ -457,6 +458,10 @@ const SetLayoutGroupEditSchema = z.strictObject({
   kind: z.literal("set_layout_group"),
   group: LayoutGroupSchema,
 });
+const SetInstanceGroupEditSchema = z.strictObject({
+  kind: z.literal("set_instance_group"),
+  group: InstanceGroupSchema,
+});
 const RemoveLayoutGroupEditSchema = z.strictObject({
   kind: z.literal("remove_layout_group"),
   groupId: StableIdSchema,
@@ -551,6 +556,7 @@ export const SchematicEditSchema = z.discriminatedUnion("kind", [
   UpsertDraftingObjectEditSchema,
   RemoveDraftingObjectEditSchema,
   SetLayoutGroupEditSchema,
+  SetInstanceGroupEditSchema,
   RemoveLayoutGroupEditSchema,
   SetLayoutConstraintEditSchema,
   RemoveLayoutConstraintEditSchema,
