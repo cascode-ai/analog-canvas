@@ -317,15 +317,31 @@
   padding: 0 0 var(--icm-space-2) var(--icm-space-2);
 }
 
+/* Every single-value setting is one row: its name, then its value or action
+   from the same column. */
 .instance-property-tools .instance-property-row {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   align-items: center;
-  gap: var(--icm-space-2);
+  gap: var(--icm-space-1) var(--icm-space-2);
   min-height: var(--icm-control-h);
   color: var(--icm-text-muted);
   font-size: var(--icm-font-sm);
   overflow-wrap: anywhere;
+}
+
+/* An action is as wide as its words, where the row's value starts. */
+.instance-property-tools .instance-property-row > button {
+  justify-self: start;
+  max-width: 100%;
+  min-height: var(--icm-control-h);
+  padding: 0 var(--icm-space-2);
+  font-size: var(--icm-font-sm);
+}
+
+.instance-property-tools .instance-property-row > small {
+  grid-column: 1 / -1;
+  font-size: var(--icm-font-xs);
 }
 
 .instance-property-tools input,
@@ -334,18 +350,19 @@
   padding: 0.2rem 0.35rem;
 }
 
-.instance-fill-controls {
+.instance-property-value {
   display: flex;
   align-items: center;
   gap: var(--icm-space-1);
-}
-
-.instance-fill-controls label {
-  flex: 1;
   min-width: 0;
 }
 
-.instance-fill-controls input[type="color"] {
+.instance-property-value > select {
+  flex: 1;
+}
+
+.instance-property-value > input[type="color"] {
+  flex: none;
   width: var(--icm-control-h);
   padding: 2px;
 }
@@ -377,7 +394,6 @@
   text-align: left;
 }
 
-.instance-property-tools .cell-symbol-layout-properties,
 .instance-property-tools .property-terminal-card {
   margin: 0;
   padding: 0;
@@ -1108,10 +1124,6 @@
   font-size: var(--icm-font-xs);
 }
 
-.cell-symbol-layout-toggle {
-  justify-self: start;
-}
-
 .cell-symbol-pin-layout-table {
   width: 100%;
   table-layout: fixed;
@@ -1380,32 +1392,4 @@
 
 .signal-flow-actions button {
   margin: 0;
-}
-
-.cell-instance-shared {
-  margin: 0;
-  color: var(--icm-text-muted);
-  font-size: var(--icm-font-xs);
-}
-.cell-instance-parameter {
-  display: grid;
-  grid-template-columns: minmax(48px, 30%) minmax(0, 1fr) 22px;
-  align-items: center;
-  gap: 6px;
-}
-.cell-instance-parameter label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cell-instance-parameter input {
-  min-width: 0;
-}
-.cell-instance-parameter[data-overridden] input {
-  font-weight: 600;
-}
-.cell-instance-parameter-reset {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--icm-text-muted);
 }

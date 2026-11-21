@@ -112,16 +112,16 @@ directions in one Port and external names that collide with local Cells;
 unfinished work can still be saved.
 
 **Cell properties** is one sheet for the Cell's name, its Pins (direction,
-block side and netlist order), its parameters and the block's size; **Auto**
-returns a pin to its default side. Its Pins read in netlist order: supply
-Pins (VDD, VSS) lead and keep their place, the others move up and down, and
-a pin the netlist adds, such as ground's `VSS`, is marked **Added by the
-netlist**. A Cell imported from a netlist file keeps the file's order, its
-supply Pins among the others, each free to move. Select a parent instance and open
-**Properties → Cell symbol** for pin offsets, or **Edit symbol layout on canvas** for drag
-grips. The offsets apply to instances drawn with that Cell symbol. Highlight a Net (`H`) to see its
-**Hierarchy Net trace** in Properties, with **Enter** and **Return** across
-instance boundaries.
+block side, offset along that side and netlist order), its parameters and the
+block's size; **Auto** returns a pin to its default side. Its Pins read in
+netlist order: supply Pins (VDD, VSS) lead and keep their place, the others
+move up and down, and a pin the netlist adds, such as ground's `VSS`, is
+marked **Added by the netlist**. A Cell imported from a netlist file keeps the
+file's order, its supply Pins among the others, each free to move. A selected
+instance's **Properties → Cell** opens the sheet; **Symbol layout → Edit on
+canvas** gives drag grips. Both apply to instances drawn with that Cell
+symbol. Highlight a Net (`H`) to see its **Hierarchy Net trace** in
+Properties, with **Enter** and **Return** across instance boundaries.
 
 ## Cell parameters
 
@@ -132,12 +132,13 @@ override keys in one undo step. A parameter cannot be deleted while the Cell
 uses it or an instance overrides it.
 Cells need defaults for every parameter to export.
 
-Select a Cell instance and open **Properties → Cell parameters**. Its summary
-counts the overrides. **↺** removes an override and inherits the default.
-The form shows stored expressions, without pretending to evaluate them.
+Select a Cell instance and edit `parameters` in its Properties JSON. An empty
+value inherits the default, which the JSON shows beside it. The JSON shows
+stored expressions, without pretending to evaluate them.
 An override belongs to the instance in its parent definition: if that parent
-is reused, every occurrence of the parent shares the override. Editing the
-child definition affects all uses; **×N** on its row lists them in the tree.
+is reused, every occurrence of the parent shares the override, and the
+instance's **Cell** row says so. Editing the child definition affects all
+uses; **×N** on its row lists them in the tree.
 
 ## External circuits
 

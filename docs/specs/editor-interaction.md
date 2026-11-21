@@ -59,10 +59,16 @@ rendering and recovery.
 `[x, y]`, `rotation` in 45° steps, `mirror` `none|horizontal|vertical|both`),
 `appearance.color`, `display`, `displayName`, `parameters`, `netlistName`,
 `netlistTarget`, optional `symbol` and `signalFlow`. The selected Instance's
-JSON opens above its other controls. **Instance group** shows the member
-count and identifies the selected member by reference or, if absent, by ID.
-Open it to inspect, locate, place or connect members. Opening the section
-adds no circuit history entry.
+JSON opens above its other controls, after [Bulk](#mos-bulk). **Instance
+group** shows the member count and identifies the selected member by reference
+or, if absent, by ID. Open it to inspect, locate, place or connect members.
+Opening the section adds no circuit history entry.
+
+- Below the JSON each other setting is one row; settings of several rows fold
+  after the rows.
+- A Cell instance's overrides are its JSON `parameters`. Its **Cell** row opens
+  the Cell's sheet, where the block's size and each pin's side and offset are
+  fields; Properties keeps only the block's **Symbol layout → Edit on canvas**.
 
 - A two-terminal switch or chopper shows `control` instead of `displayName`:
   the clock phase its name label names, written as a name (`Φ_1`; `Φ_A_bar`
@@ -111,9 +117,9 @@ adds no circuit history entry.
 
 - `nmos`/`pmos` default to `textbook-3terminal` artwork but keep D/G/S/B; body
   resolution follows [connectivity](connectivity-and-routing.md#mos-bulk).
-- Properties shows Bulk as one row (Net, Unconnected or No Connect) with a draw
-  action, disabled while unplaced. A bulk route inherits its MOS color and
-  offers only a bulk delete.
+- Properties shows Bulk first, as one row (Net, Unconnected or No Connect)
+  with a draw action, disabled while unplaced. A bulk route inherits its MOS
+  color and offers only a bulk delete.
 
 ## Formula-capable behavioral blocks
 

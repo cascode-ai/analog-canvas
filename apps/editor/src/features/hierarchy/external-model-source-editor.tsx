@@ -1631,7 +1631,6 @@ export function ExternalModelSourceEditor({
                   terminals: layoutDefinition.terminals,
                   presentation: layoutDefinition.presentation,
                 }}
-                enabled={false}
                 readOnly={viewingApplied}
                 onReset={() =>
                   updateLayout({ ...layoutDefinition, presentation: {} })

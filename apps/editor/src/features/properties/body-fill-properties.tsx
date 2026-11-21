@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { BodyFill, Instance } from "@icm/model";
 
 export interface BodyFillPropertiesProps {
@@ -13,6 +14,7 @@ export function BodyFillProperties({
   background,
   onChange,
 }: BodyFillPropertiesProps) {
+  const selectId = useId();
   const eligible = instances.filter(supportsBodyFill);
   const legacy = instances.filter(
     (instance) => instance.styleOverride?.background,
@@ -40,11 +42,11 @@ export function BodyFillProperties({
   return (
     <section className="instance-body-fill" aria-label="Symbol body">
       {eligible.length > 0 ? (
-        <div className="instance-fill-controls">
-          <label className="instance-property-row">
-            Body fill
+        <div className="instance-property-row">
+          <label htmlFor={selectId}>Body fill</label>
+          <span className="instance-property-value">
             <select
-              aria-label="Body fill"
+              id={selectId}
               value={mode}
               onChange={(event) => {
                 const next = event.currentTarget.value;
@@ -69,21 +71,21 @@ export function BodyFillProperties({
               <option value="background">Document background</option>
               <option value="color">Custom color</option>
             </select>
-          </label>
-          {mode === "color" ? (
-            <input
-              type="color"
-              value={customColor}
-              aria-label="Body fill color"
-              title="Body fill color"
-              onChange={(event) =>
-                onChange(ids, {
-                  kind: "color",
-                  color: event.currentTarget.value,
-                })
-              }
-            />
-          ) : null}
+            {mode === "color" ? (
+              <input
+                type="color"
+                value={customColor}
+                aria-label="Body fill color"
+                title="Body fill color"
+                onChange={(event) =>
+                  onChange(ids, {
+                    kind: "color",
+                    color: event.currentTarget.value,
+                  })
+                }
+              />
+            ) : null}
+          </span>
         </div>
       ) : null}
       {eligible.length > 0 && eligible.length !== instances.length ? (

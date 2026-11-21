@@ -3,6 +3,7 @@ import { createHierarchyInstance } from "@icm/edit-engine";
 import { createEmptyProject } from "@icm/model";
 import { hierarchyNavigationFixture as fixture } from "../../../netlists/hierarchy-navigation/fixture";
 import {
+  expectComponentCodeField,
   exportedProject,
   hierarchyRowCommand,
   openCellProperties,
@@ -10,6 +11,7 @@ import {
   openProject,
   revealHierarchyRow,
   revealPropertiesShelf,
+  setComponentParameter,
 } from "./editor-fixtures";
 
 const path = (page: Page) =>
@@ -54,49 +56,31 @@ test("unified tree follows four levels, shared uses and detached definitions, an
   await expect(crumbs(page)).toHaveText(["Top", "X2: Channel"]);
   await page.getByTestId("hit-XA").click();
   await revealPropertiesShelf(page);
-  const parameters = page.getByRole("region", { name: "Instance parameters" });
-  const gain = parameters.getByLabel("Instance parameter gain", {
-    exact: true,
-  });
-  const reset = parameters.getByLabel("Reset gain to default");
-  await expect(gain).toBeHidden();
-  await parameters.getByText("1 override of 1", { exact: true }).click();
-  // The field shows gain's default of 10, and the row is marked while an
-  // override replaces it.
-  await expect(gain).toHaveAttribute("placeholder", "10");
-  const gainRow = parameters.locator(".cell-instance-parameter").filter({
-    has: page.getByLabel("Instance parameter gain", { exact: true }),
-  });
-  const overridden = () =>
-    expect(gainRow).toHaveAttribute("data-overridden", "true");
-  const inherited = () =>
-    expect(gainRow).not.toHaveAttribute("data-overridden");
-  // Both uses of Channel share the overrides of its parts.
-  await expect(parameters).toContainText("Shared by all 2 uses of Channel.");
-  await gain.fill("25");
-  await gain.press("Enter");
-  await overridden();
-  // A pointer Reset also discards the draft.
-  await gain.fill("30");
-  await reset.click();
-  await inherited();
-  await expect(parameters).toContainText("0 overrides of 1");
-  await expect(gain).toHaveValue("");
+  // XA's overrides are its JSON `parameters`; both uses of Channel share
+  // them, as its Cell row says.
+  await expect(
+    page.getByRole("group", { name: "Cell", exact: true }),
+  ).toContainText("Shared by all 2 uses of Channel.");
+  await expect(page.getByLabel("Instance parameter gain")).toHaveCount(0);
+  const storedGain = async () =>
+    (await exportedProject(page)).documents
+      .find((document: { id: string }) => document.id === "channel")
+      .instances.find((instance: { id: string }) => instance.id === "XA")
+      .netlist.parameters.gain;
+  await expectComponentCodeField(page, "parameters.gain", "{gain}");
+  await setComponentParameter(page, "gain", "25");
+  await expectComponentCodeField(page, "parameters.gain", "25");
   // A literal "inherit" is an override like any other value.
-  await gain.fill("inherit");
-  await gain.press("Enter");
-  await overridden();
-  await reset.click();
-  await expect(gain).toHaveValue("");
-  // Tab commits the draft and reaches Reset, which keeps it until clicked.
-  await gain.fill("40");
-  await gain.press("Tab");
-  await expect(reset).toBeFocused();
-  await overridden();
-  await reset.press("Tab");
-  await overridden();
-  await reset.click();
-  await inherited();
+  await setComponentParameter(page, "gain", "inherit");
+  await expectComponentCodeField(page, "parameters.gain", "inherit");
+  expect(await storedGain()).toBe("inherit");
+  // An empty value removes the override, and the JSON names the default.
+  await setComponentParameter(page, "gain", "");
+  await expectComponentCodeField(page, "parameters.gain", "");
+  await expect(page.getByLabel("Editable Canvas property code")).toContainText(
+    "Default: 10",
+  );
+  expect(await storedGain()).toBeUndefined();
 
   await tree.getByRole("button", { name: "XP: Pair", exact: true }).click();
   await page

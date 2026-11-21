@@ -1,29 +1,46 @@
-import { executeProjectTransaction, planSwapCellPorts } from "@icm/edit-engine";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+// @vitest-environment jsdom
+import {
+  executeProjectTransaction,
+  planSetCellSymbolPresentation,
+  planSwapCellPorts,
+} from "@icm/edit-engine";
+import {
+  createEmptyProject,
+  projectCellInterface,
+  type CircuitProject,
+} from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { importSpiceSources } from "@icm/spice";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { hierarchyNavigationFixture } from "../../../../../netlists/hierarchy-navigation/fixture";
-import { CellPropertiesDialog } from "./cell-properties-dialog";
+import {
+  CellPropertiesDialog,
+  type CellPropertiesDialogProps,
+} from "./cell-properties-dialog";
+
+const props = (
+  project: CircuitProject,
+  cellId: string,
+): CellPropertiesDialogProps => ({
+  project,
+  cellId,
+  onClose: vi.fn(),
+  onSetTop: vi.fn(),
+  onRename: vi.fn(),
+  onRenamePin: vi.fn(),
+  onSetPinDirection: vi.fn(),
+  onMovePin: vi.fn(),
+  onEditParameter: vi.fn(() => ({ ok: true, message: "" })),
+  onSymbolSizeChange: vi.fn(),
+  onPinPlacementChange: vi.fn(),
+});
 
 const render = (project: CircuitProject, cellId: string) =>
-  renderToStaticMarkup(
-    <CellPropertiesDialog
-      project={project}
-      cellId={cellId}
-      onClose={vi.fn()}
-      onSetTop={vi.fn()}
-      onRename={vi.fn()}
-      onRenamePin={vi.fn()}
-      onSetPinDirection={vi.fn()}
-      onMovePin={vi.fn()}
-      onEditParameter={vi.fn(() => ({ ok: true, message: "" }))}
-      onSymbolSizeChange={vi.fn()}
-      onPinSideChange={vi.fn()}
-    />,
-  );
+  renderToStaticMarkup(<CellPropertiesDialog {...props(project, cellId)} />);
 
 describe("CellPropertiesDialog", () => {
   it("edits one shared definition on one sheet and leaves Cell actions to the tree", () => {
@@ -48,6 +65,89 @@ describe("CellPropertiesDialog", () => {
       ">Delete<",
     ])
       expect(markup).not.toContain(moved);
+  });
+
+  it("edits a pin's offset beside its side, and none while the side is Auto", async () => {
+    let project = hierarchyNavigationFixture();
+    const port = projectCellInterface(
+      project.documents.find((item) => item.id === "channel")!.netlist!,
+    ).ports.find((item) => item.name === "IN")!;
+    const onPinPlacementChange = vi.fn();
+    // jsdom lays nothing out and loads no fonts; the symbol preview only
+    // measures.
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    Object.defineProperty(document, "fonts", {
+      configurable: true,
+      value: {
+        ready: Promise.resolve(),
+        addEventListener() {},
+        removeEventListener() {},
+      },
+    });
+    const host = document.body.appendChild(document.createElement("div"));
+    const root = createRoot(host);
+    const show = () =>
+      act(async () =>
+        root.render(
+          <CellPropertiesDialog
+            {...props(project, "channel")}
+            onPinPlacementChange={onPinPlacementChange}
+          />,
+        ),
+      );
+    const field = () =>
+      host.querySelector<HTMLInputElement>(
+        '[aria-label="Cell symbol IN pin offset"]',
+      )!;
+    await show();
+    // An automatic side places the pin itself.
+    expect(field().disabled).toBe(true);
+    expect(field().placeholder).toBe("Auto");
+    expect(field().value).toBe("");
+
+    const placed = executeProjectTransaction(project, {
+      transactionId: "place-in-north",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetCellSymbolPresentation(project, "channel", {
+        pinPlacements: [{ terminalId: port.id, side: "north", offset: 20 }],
+      }),
+    });
+    expect(placed.ok).toBe(true);
+    project = placed.project;
+    await show();
+    expect(field().disabled).toBe(false);
+    expect(field().value).toBe("20");
+
+    // Leaving the field commits the typed offset with the pin's side.
+    await act(async () => field().focus());
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )!.set!.call(field(), "40");
+      field().dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => field().blur());
+    expect(onPinPlacementChange).toHaveBeenCalledOnce();
+    expect(onPinPlacementChange).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "cell", ownerId: "channel" }),
+      port.id,
+      "north",
+      40,
+    );
+    await act(async () => root.unmount());
+    host.remove();
+    Reflect.deleteProperty(document, "fonts");
+    vi.unstubAllGlobals();
   });
 
   it("lists the projected Ports that the generated symbol consumes", () => {

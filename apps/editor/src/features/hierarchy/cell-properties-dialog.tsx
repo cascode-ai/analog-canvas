@@ -78,7 +78,7 @@ export interface CellPropertiesDialogProps {
     width: number,
     height: number,
   ): void;
-  onPinSideChange(
+  onPinPlacementChange(
     target: BlockSymbolLayoutTarget,
     terminalId: string,
     side: PinSide,
@@ -253,8 +253,8 @@ function ParameterRow({
 /**
  * One Cell definition, edited in one place: its name and how widely it is
  * shared, its block symbol as it will be drawn, its Pins with their direction,
- * order and side, and its parameters. Every edit applies at once; placing,
- * opening, Top and deletion stay on the hierarchy tree.
+ * order, side and offset, and its parameters. Every edit applies at once;
+ * placing, opening, Top and deletion stay on the hierarchy tree.
  */
 export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
   const { project, cellId, onClose } = props;
@@ -484,6 +484,9 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                     <span role="columnheader" className="cell-pin-side">
                       Side
                     </span>
+                    <span role="columnheader" className="cell-pin-offset">
+                      Offset
+                    </span>
                     <span
                       role="columnheader"
                       className="cell-pin-actions"
@@ -583,7 +586,7 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                             aria-label={`Cell symbol ${port.name} pin side`}
                             value={placement?.side ?? "auto"}
                             onChange={(event) =>
-                              props.onPinSideChange(
+                              props.onPinPlacementChange(
                                 target,
                                 port.id,
                                 event.currentTarget.value as PinSide,
@@ -597,6 +600,27 @@ export function CellPropertiesDialog(props: CellPropertiesDialogProps) {
                               </option>
                             ))}
                           </select>
+                        </span>
+                        <span role="cell" className="cell-pin-offset">
+                          {/* An automatic side places the pin itself. */}
+                          <CommitField
+                            aria-label={`Cell symbol ${port.name} pin offset`}
+                            inputMode="numeric"
+                            placeholder="Auto"
+                            disabled={!placement}
+                            value={placement ? String(placement.offset) : ""}
+                            // The placement command refuses an offset off
+                            // the grid, naming the rule.
+                            onCommit={(next) => {
+                              if (placement)
+                                props.onPinPlacementChange(
+                                  target,
+                                  port.id,
+                                  placement.side,
+                                  Number(next.trim() || "0"),
+                                );
+                            }}
+                          />
                         </span>
                         <span
                           role="cell"
