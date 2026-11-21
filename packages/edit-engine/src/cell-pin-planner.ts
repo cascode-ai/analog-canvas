@@ -710,9 +710,7 @@ export function planSetCellPinOrder(
   if (printed) {
     const order: (typeof ports)[number][] = [];
     for (const item of printed) {
-      const port = named.find((candidate) =>
-        candidate.netIds.includes(item.id),
-      );
+      const port = named.find((candidate) => candidate.id === item.portId);
       if (port && !order.includes(port)) order.push(port);
     }
     if (order.some((port, index) => port !== named[index]))

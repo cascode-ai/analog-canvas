@@ -20,6 +20,93 @@ function transaction(
 }
 
 describe("subcircuit interface proposals", () => {
+  it("refuses a new mixed amplifier alias set and allows repairing an existing one", () => {
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    const definition = {
+      id: "gain",
+      name: "gain_two",
+      interfaceStatus: "declared" as const,
+      formalParameters: [],
+      terminals: ["INP", "INN", "OUT"].map((name, index) => ({
+        id: `p${index}`,
+        name,
+        direction: "passive" as const,
+      })),
+    };
+    project.externalSubcircuitDefinitions.push(definition);
+    document.instances.push({
+      id: "amp",
+      reference: "XAMP",
+      symbolId: "opamp",
+      placement: null,
+      netlist: {
+        parameters: {},
+        binding: { kind: "external-subcircuit", definitionId: "gain" },
+      },
+    });
+    document.nets.push(
+      { id: "positive", terminals: [{ instanceId: "amp", pinName: "IN+" }] },
+      { id: "negative", terminals: [{ instanceId: "amp", pinName: "IN-" }] },
+    );
+    const wrongLocalSpelling = transaction(project, [
+      {
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        edits: [
+          {
+            kind: "set_property_terminal_net",
+            instanceId: "amp",
+            pinName: "in+",
+            netId: "negative",
+          },
+        ],
+      },
+    ]);
+    expect(wrongLocalSpelling).toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_RESULT",
+        message: expect.stringContaining("XAMP.in+"),
+      },
+      project,
+    });
+    const mixed = {
+      ...definition,
+      terminals: [
+        ...definition.terminals,
+        { id: "alias", name: "VIP", direction: "passive" as const },
+      ],
+    };
+    const withOdds = {
+      ...mixed,
+      terminals: [
+        ...mixed.terminals,
+        { id: "unknown", name: "BAD", direction: "passive" as const },
+      ],
+    };
+    const refused = transaction(project, [
+      { kind: "upsert_external_subcircuit_definition", definition: mixed },
+    ]);
+    expect(refused).toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_RESULT",
+        message: expect.stringContaining("XAMP"),
+      },
+    });
+    project.externalSubcircuitDefinitions[0] = withOdds;
+    const partial = transaction(project, [
+      { kind: "upsert_external_subcircuit_definition", definition: mixed },
+    ]);
+    if (!partial.ok) throw new Error(partial.error.message);
+    const repaired = transaction(partial.project, [
+      { kind: "upsert_external_subcircuit_definition", definition },
+    ]);
+    expect(repaired).toMatchObject({ ok: true });
+  });
+
   it("protects reviewed PDK identity and mapping but allows presentation updates", () => {
     const project = createEmptyProject("project", "Project");
     const reviewed = reviewedExternalBindingForMaster(

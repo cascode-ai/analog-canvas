@@ -5,7 +5,6 @@ import {
   componentInterfaceIssues,
   freezeSnapshot,
   isFrozenSnapshot,
-  projectScalarCellInterface,
 } from "@icm/model";
 import { lowerTerminalCurrentControls } from "./controlled-current.js";
 import {
@@ -14,7 +13,6 @@ import {
   findExternalMasterCollisions,
   libraryPartMaster,
   directObjectLocator,
-  resolveCommittedDocumentLogicalNets,
 } from "@icm/derived";
 import type { CircuitProject, SchematicDocument, StableId } from "@icm/model";
 import {
@@ -55,13 +53,11 @@ import {
   compareText,
   diagnostic,
 } from "./extract-common.js";
-import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
 import {
-  pinsGround,
-  sortsSupplyPorts,
-  supplyPortRank,
-} from "./extract-ground-pin.js";
-import { bubblePhasePins } from "./extract-switch.js";
+  analysisPortRows,
+  finalizeCellInterfaces,
+  prepareCellInterface,
+} from "./extract-interface.js";
 import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
 import {
@@ -319,6 +315,13 @@ const analysisCache = new WeakMap<
   Map<string, DesignNetlistAnalysisResult>
 >();
 
+function cloneAnalysisResult(result: DesignNetlistAnalysisResult) {
+  const copy = structuredClone(result);
+  const rows = analysisPortRows.get(result);
+  if (rows) analysisPortRows.set(copy, rows);
+  return copy;
+}
+
 function analyzeSnapshot(
   project: CircuitProject,
   options: DesignNetlistAnalysisOptions,
@@ -345,10 +348,10 @@ function analyzeSnapshot(
     new Map<string, DesignNetlistAnalysisResult>();
   analysisCache.set(project, cache);
   const cached = cache.get(key);
-  if (cached) return structuredClone(cached);
+  if (cached) return cloneAnalysisResult(cached);
   const result = analyzeDesign(project, resolvedOptions, authoring);
   if (cache.size >= 16) cache.delete(cache.keys().next().value!);
-  cache.set(key, freezeSnapshot(structuredClone(result)));
+  cache.set(key, freezeSnapshot(cloneAnalysisResult(result)));
   return result;
 }
 
@@ -377,6 +380,9 @@ function analyzeDesign(
   }
   if (interfaceDiagnostics.length)
     return { ir: null, diagnostics: interfaceDiagnostics };
+  const authoredDocuments = new Map(
+    project.documents.map((document) => [document.id, document]),
+  );
   const projection = withImplicitMosSupplies(
     withRetargetBindings(project),
     resolvedOptions,
@@ -397,6 +403,15 @@ function analyzeDesign(
   );
   const documentsById = new Map(
     project.documents.map((document) => [document.id, document]),
+  );
+  const interfaces = new Map(
+    project.documents.map((document) => [
+      document.id,
+      prepareCellInterface(
+        document,
+        authoredDocuments.get(document.id) ?? document,
+      ),
+    ]),
   );
   const cellNameByDocumentId = new Map<string, string>();
   const cellNames = new Map<
@@ -447,6 +462,7 @@ function analyzeDesign(
       project,
       document,
       documentsById,
+      interfaces,
       cellNameByDocumentId,
       nameProjection.byDocumentId.get(document.id) ?? new Map(),
       projection.placedBodies.get(document.id),
@@ -476,7 +492,12 @@ function analyzeDesign(
       cells.push(cell);
     }
   }
-  bubblePhasePins(cells, documentsById, resolvedOptions);
+  const portRows = finalizeCellInterfaces(
+    cells,
+    documentsById,
+    interfaces,
+    resolvedOptions,
+  );
   // Each kind of drawn magnetic device calls one coupled-winding subcircuit,
   // defined once in the file under the library's name, which yields to an
   // author's definition of that name like every generated body below. One
@@ -496,70 +517,6 @@ function analyzeDesign(
           network.subcircuit,
           magneticSubcircuit(network, definition),
         );
-    }
-  }
-  if (pinsGround(resolvedOptions.groundPin)) {
-    // Supply markers share identity inside the drawing. Once that supply is
-    // exposed by a module pin, its exported node belongs to that module:
-    // callers pass it explicitly instead of also reaching for a global.
-    for (const cell of cells) {
-      if (
-        resolvedOptions.rootAsTopLevel &&
-        cell.id === resolvedOptions.rootDocumentId
-      )
-        continue;
-      const logical = resolveCommittedDocumentLogicalNets(
-        withNetlistPowerMarkerClaims(documentsById.get(cell.id)!),
-      );
-      const rank = (port: DesignNetlistCell["ports"][number]) =>
-        supplyPortRank(logical, port);
-      for (const port of cell.ports) {
-        if (rank(port) === 2) continue;
-        const net = cell.nets.find(
-          (candidate) => candidate.name === port.netName,
-        );
-        if (net) net.scope = "local";
-      }
-      if (sortsSupplyPorts(documentsById.get(cell.id)!))
-        cell.ports.sort((left, right) => rank(left) - rank(right));
-    }
-    // Port order is positional in both SPICE and Spectre. Reorder internal
-    // calls from the final child interface; external PDK pin order is untouched.
-    const cellsById = new Map(cells.map((cell) => [cell.id, cell]));
-    for (const cell of cells) {
-      const document = documentsById.get(cell.id)!;
-      const bindings = new Map(
-        document.instances.map((instance) => [
-          instance.id,
-          instance.netlist?.binding,
-        ]),
-      );
-      for (const instance of cell.instances) {
-        const binding = bindings.get(instance.id);
-        if (binding?.kind !== "subcircuit") continue;
-        const child = cellsById.get(binding.childDocumentId);
-        if (!child) continue;
-        // A call names each node by the Pin's authored name (B<3>); the
-        // child's port carries the printed token (B_3_). Meet them by the
-        // port's Net, else a bus member that encodes differently sorts last
-        // and the call shifts its neighbours (#2005).
-        const authoredName = new Map(
-          projectScalarCellInterface(
-            documentsById.get(binding.childDocumentId)?.netlist,
-          ).ports.map((port) => [port.netIds[0], port.name]),
-        );
-        const order = new Map(
-          child.ports.map((port, index) => [
-            authoredName.get(port.id) ?? port.name,
-            index,
-          ]),
-        );
-        instance.nodes.sort(
-          (left, right) =>
-            (order.get(left.pinName) ?? Infinity) -
-            (order.get(right.pinName) ?? Infinity),
-        );
-      }
     }
   }
   // A subcircuit descriptor is only a call contract. Logic symbols and other
@@ -875,7 +832,7 @@ function analyzeDesign(
       ? { kind: "behavioral" as const, name: as, body: name }
       : { kind: "behavioral" as const, name };
   };
-  return {
+  const result: DesignNetlistAnalysisResult = {
     ir: {
       topCellId: resolvedOptions.rootDocumentId,
       cells: [
@@ -902,4 +859,6 @@ function analyzeDesign(
     },
     diagnostics,
   };
+  analysisPortRows.set(result, portRows);
+  return result;
 }

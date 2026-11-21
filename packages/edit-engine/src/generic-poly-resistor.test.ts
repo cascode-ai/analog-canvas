@@ -136,6 +136,31 @@ it.each([
   },
 );
 
+it("keeps the reviewed resistor terminals when editing only the model's appearance", () => {
+  const bound = bind(bind(resistorProject(), "R1"), "R2");
+  const definition = bound.externalSubcircuitDefinitions[0]!;
+  const edited = run(bound, [
+    {
+      kind: "upsert_external_subcircuit_definition",
+      definition: {
+        ...definition,
+        presentation: { minimumBodySize: { width: 80, height: 60 } },
+      },
+    },
+  ]);
+  const reopened = parseProject(serializeProject(edited));
+  expect(reopened.documents[0]!.instances[0]!.symbolId).toBe("resistor");
+  for (const [format, call] of [
+    ["spice", "XR1 net0 net1 sky130_fd_pr__res_generic_po w=1 l=1"],
+    ["spectre", "R1 (net0 net1) sky130_fd_pr__res_generic_po w=1 l=1"],
+  ] as const) {
+    const exported = createDesignNetlistExport(reopened, { format });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    expect(exported.file.text.split("\n")).toContain(call);
+  }
+});
+
 it.each(["", "Rauth t1 t2 2k\n"])(
   "refuses to replace a same-name authored source, preserving its body %j",
   (body) => {

@@ -13,6 +13,7 @@ import {
 } from "@icm/model";
 
 import { createDesignNetlistExport } from "./export.js";
+import { analyzeDesignNetlist } from "./extract.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 
 /** One terminal on a Net, the Net made when it is new. */
@@ -279,6 +280,51 @@ describe("a Library op-amp bound to a Cell of its Project (#1878)", () => {
     expect(text).toMatch(/^X1 VDD VSS OUT OUT IN ota$/mu);
     expect(text).not.toContain("icm_opamp");
   });
+
+  it.each(["spice", "spectre"] as const)(
+    "keeps %s current probes on the Library pin when its child uses an alias",
+    (format) => {
+      const project = followerOverOta();
+      const [top, child] = project.documents;
+      for (const terminal of child!.netlist!.terminals) {
+        if (terminal.name === "in+") terminal.name = "INP";
+        if (terminal.name === "in-") terminal.name = "INN";
+      }
+      top!.instances.push({
+        id: "F1",
+        symbolId: "cccs",
+        reference: "F1",
+        placement: null,
+        netlist: {
+          parameters: { gain: "2" },
+          control: {
+            kind: "terminal-current",
+            instanceId: "amp",
+            pinName: "IN+",
+            direction: "into",
+          },
+        },
+      });
+      connect(top!, "OUT", "F1", "+");
+      connect(top!, "VSS", "F1", "-");
+      const analyzed = analyzeDesignNetlist(project, { format });
+      expect(
+        analyzed.diagnostics.filter(({ severity }) => severity === "error"),
+      ).toEqual([]);
+      const cell = analyzed.ir?.cells.find(({ id }) => id === top!.id);
+      const probe = cell?.instances.find(
+        (instance) => instance.terminalCurrentSense,
+      );
+      const input = cell?.instances
+        .find(({ id }) => id === "amp")
+        ?.nodes.find(({ pinName }) => pinName === "INP");
+      expect(probe?.nodes[0]?.netName).toBe("IN");
+      expect(input?.netName).toBe(probe?.nodes[1]?.netName);
+      expect(createDesignNetlistExport(project, { format }).status).toBe(
+        "ready",
+      );
+    },
+  );
 });
 
 function ngspiceOnPath(): boolean {

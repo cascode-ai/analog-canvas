@@ -1,4 +1,8 @@
-import { JunctionSchema, routeEndpoints } from "@icm/model";
+import {
+  JunctionSchema,
+  junctionElectricalEndpoints,
+  routeEndpoints,
+} from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import { endpointKey, resolveEndpointConnection } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
@@ -23,6 +27,10 @@ import {
   remapRouteMarkersAfterSplit,
 } from "./transaction-route-annotation-follow.js";
 import { splitRoute } from "./transaction-route-follow.js";
+import {
+  cutConductors,
+  type RouteConductor,
+} from "./transaction-route-edits.js";
 import {
   addEndpointToNet,
   endpointOwnerNetId,
@@ -53,9 +61,15 @@ export interface RouteTopologyEditContext {
   changedObjectIds: Set<string>;
   deferNetPrune(netId: string): void;
   reject: RejectEdit;
+  originalCutRoute?: SchematicDocument["routes"][number];
 }
 
-export type RouteTopologyEditOutcome = EditMutationOutcome;
+export type RouteTopologyEditOutcome = EditMutationOutcome & {
+  readonly cut?: {
+    route: SchematicDocument["routes"][number];
+    conductors: readonly RouteConductor[];
+  };
+};
 
 export function applyRouteTopologyEdit(
   edit: RouteTopologyEdit,
@@ -486,26 +500,23 @@ export function applyRouteTopologyEdit(
           [anchoredAnnotation.id, route.id],
         );
       }
-      const net = draft.nets.find((candidate) => candidate.id === route.netId);
-      if (!net) {
-        return rejectAt(
-          "OBJECT_NOT_FOUND",
-          `Route Net does not exist: ${route.netId}`,
-        );
-      }
+      const cut = cutConductors(draft, route, editContext.originalCutRoute);
+      const cutNetIds = new Set(cut.map(({ netId }) => netId));
       // Capture inherited marker authority before any physical partition.
       // Owner retargeting below then follows every surviving marker, not just
       // the component that happens to retain the imported Base-Net ID.
-      for (const claim of missingPowerMarkerClaims(draft, { netId: net.id })) {
-        draft.connectivityEvidence.push(claim);
-        changedObjectIds.add(claim.id);
+      for (const netId of cutNetIds) {
+        for (const claim of missingPowerMarkerClaims(draft, { netId })) {
+          draft.connectivityEvidence.push(claim);
+          changedObjectIds.add(claim.id);
+        }
       }
       // Once visible Ground markers own node 0, an inherited source-wide
       // declaration must not keep a newly detached, unmarked pin grounded.
-      const hasGroundOwner = draft.connectivityEvidence.some(
-        (claim) =>
+      const groundNets = new Set(
+        draft.connectivityEvidence.flatMap((claim) =>
           claim.kind === "name-claim" &&
-          claim.netId === net.id &&
+          cutNetIds.has(claim.netId) &&
           claim.name === "0" &&
           claim.scope === "global" &&
           claim.owner.kind === "power-marker" &&
@@ -514,14 +525,17 @@ export function applyRouteTopologyEdit(
               claim.owner.kind === "power-marker" &&
               instance.id === claim.owner.objectId &&
               instance.symbolId === "ground",
-          ),
+          )
+            ? [claim.netId]
+            : [],
+        ),
       );
-      if (hasGroundOwner) {
+      if (groundNets.size > 0) {
         draft.connectivityEvidence = draft.connectivityEvidence.filter(
           (claim) => {
             if (
               claim.kind !== "name-claim" ||
-              claim.netId !== net.id ||
+              !groundNets.has(claim.netId) ||
               claim.owner.kind !== "global-declaration" ||
               claim.name !== "0"
             )
@@ -562,34 +576,34 @@ export function applyRouteTopologyEdit(
         ...draft.layoutGroups.flatMap((group) => group.objectIds),
         ...draft.constraints.flatMap((constraint) => constraint.objectIds),
       ]);
-      const removedJunctionIds = draft.junctions
-        .filter(
-          (junction) =>
-            junction.netId === net.id &&
-            candidateOrphanJunctionIds.has(junction.id) &&
-            !referencedJunctionIds.has(junction.id) &&
-            !preservedObjectIds.has(junction.id),
-        )
-        .map((junction) => junction.id);
+      const removedJunctions = draft.junctions.filter(
+        (junction) =>
+          candidateOrphanJunctionIds.has(junction.id) &&
+          !referencedJunctionIds.has(junction.id) &&
+          !preservedObjectIds.has(junction.id),
+      );
+      const removedJunctionIds = new Set(removedJunctions.map(({ id }) => id));
       for (const netId of removeConnectivityEvidenceOwnedBy(
         draft,
-        new Set(removedJunctionIds),
+        removedJunctionIds,
         changedObjectIds,
       )) {
         ownerNetIds.add(netId);
       }
       draft.junctions = draft.junctions.filter(
-        (junction) => !removedJunctionIds.includes(junction.id),
+        (junction) => !removedJunctionIds.has(junction.id),
       );
-      for (const junctionId of removedJunctionIds) {
-        changedObjectIds.add(junctionId);
+      for (const junction of removedJunctions) {
+        changedObjectIds.add(junction.id);
+        for (const { netId } of junctionElectricalEndpoints(junction))
+          ownerNetIds.add(netId);
       }
 
       // The final topology owns partitioning. A replacement Route later in
       // this same transaction may reconnect both sides of this cut.
       for (const netId of ownerNetIds) deferNetPrune(netId);
-      deferNetPrune(net.id);
-      break;
+      for (const netId of cutNetIds) deferNetPrune(netId);
+      return { ok: true, connectivityChanged, cut: { route, conductors: cut } };
     }
     case "connect_endpoints": {
       const fromError = validateConnectableEndpoint(

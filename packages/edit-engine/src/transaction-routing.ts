@@ -26,7 +26,6 @@ import type {
   EndpointObjectLookup,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
-import { prepareConnectivityPhaseRead } from "./connectivity-phase-read.js";
 
 import type { SchematicEdit } from "./edit-schema.js";
 import { resolveRouteEditPath } from "./route-operations.js";
@@ -98,36 +97,10 @@ export function netEndpointGroups(
   return netEndpointGroupsFromEdges(keys, routes, contacts);
 }
 
-/** One source phase for a full rebuild; no mutable-draft/revision cache. */
-export function prepareNetEndpointGroupRead(
-  read: ReturnType<typeof prepareConnectivityPhaseRead>,
-  contactEvidence: DocumentContactEvidence | undefined,
-) {
-  const contactsByNet = new Map<
-    string,
-    Array<DocumentContactEvidence["contacts"][number]>
-  >();
-  for (const contact of contactEvidence?.contacts ?? []) {
-    const contacts = contactsByNet.get(contact.netId) ?? [];
-    contacts.push(contact);
-    contactsByNet.set(contact.netId, contacts);
-  }
-  return (netId: string): string[][] => {
-    const net = read.netsById.get(netId);
-    return net
-      ? netEndpointGroupsFromEdges(
-          read.netEndpoints(net).map(endpointKey),
-          read.routesByNet.get(netId) ?? [],
-          contactsByNet.get(netId) ?? [],
-        )
-      : [];
-  };
-}
-
-function netEndpointGroupsFromEdges(
+export function netEndpointGroupsFromEdges(
   keys: string[],
   routes: readonly RouteBranch[],
-  contacts: DocumentContactEvidence["contacts"],
+  contacts: Iterable<{ readonly endpoints: readonly RouteEndpoint[] }>,
 ): string[][] {
   const parent = new Map(keys.map((key) => [key, key]));
   const find = (key: string): string => {

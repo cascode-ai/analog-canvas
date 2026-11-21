@@ -22,7 +22,7 @@ import {
   instanceBuiltInSubcircuit,
   isIdealOpampBody,
   isLibraryPart,
-  resolveReviewedExternalBinding,
+  reviewedExternalDefinitionBinding,
 } from "@icm/devices";
 import type { DesignNetlistAnalysisOptions } from "./extract.js";
 import {
@@ -155,10 +155,8 @@ function boundGateRails(
   const definition = source.externalSubcircuitDefinitions.find(
     (candidate) => candidate.id === binding.definitionId,
   );
-  if (!definition || definition.implementation) return [];
-  const reviewed = resolveReviewedExternalBinding(
-    definition.name,
-    definition.terminals.map((terminal) => terminal.name),
+  const reviewed = reviewedExternalDefinitionBinding(
+    definition,
     instance.symbolId,
   );
   return (

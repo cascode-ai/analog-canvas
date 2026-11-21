@@ -8,9 +8,15 @@ import type {
   ExternalSubcircuitDefinition,
   SchematicDocument,
 } from "@icm/model";
-import { cellSymbolPinFitsBody, foldNetName, routeEnd } from "@icm/model";
+import {
+  cellSymbolPinFitsBody,
+  circuitComponentIssues,
+  foldNetName,
+  routeEnd,
+} from "@icm/model";
 import {
   resolveReviewedExternalBinding,
+  resolveExternalTerminalBindings,
   resolveReviewedLibraryInterface,
 } from "@icm/devices";
 import {
@@ -333,23 +339,6 @@ export function proposeUpsertExternalSubcircuitDefinition(
       [reviewedIssue],
     );
   }
-  // A caller's pins are its reviewed device's, or its gate's behind a
-  // standard cell (#1450), else the definition's terminals.
-  const allowedPinsFor = (symbolId: string) => {
-    const reviewed = definition.implementation
-      ? undefined
-      : resolveReviewedExternalBinding(
-          definition.name,
-          definition.terminals.map((terminal) => terminal.name),
-          symbolId,
-        );
-    return new Set(
-      (reviewed
-        ? reviewed.terminals.map((terminal) => terminal.pinName)
-        : definition.terminals.map((terminal) => terminal.name)
-      ).map((name) => name.toLowerCase()),
-    );
-  };
   const diagnostics = project.documents.flatMap((document) =>
     document.instances.flatMap((instance) => {
       const binding = instance.netlist?.binding;
@@ -359,7 +348,22 @@ export function proposeUpsertExternalSubcircuitDefinition(
       ) {
         return [];
       }
-      const allowedPins = allowedPinsFor(instance.symbolId);
+      const component = project.componentDefinitions?.find(
+        (item) =>
+          item.symbol.id === instance.symbolId &&
+          item.circuitBinding?.definitionId === definition.id,
+      );
+      const mappingIssue =
+        component && circuitComponentIssues(component, definition)[0];
+      if (mappingIssue)
+        return [`${document.id}.${instance.id}: ${mappingIssue.message}`];
+      const allowedPins = new Set(
+        resolveExternalTerminalBindings(
+          definition,
+          instance.symbolId,
+          component,
+        ).pinNames,
+      );
       const pins = new Set<string>();
       for (const net of document.nets) {
         for (const terminal of net.terminals) {
@@ -377,7 +381,7 @@ export function proposeUpsertExternalSubcircuitDefinition(
         }
       }
       return [...pins]
-        .filter((pinName) => !allowedPins.has(pinName.toLowerCase()))
+        .filter((pinName) => !allowedPins.has(pinName))
         .map(
           (pinName) =>
             `${document.id}.${instance.id} references removed external terminal ${pinName}`,
