@@ -15,7 +15,6 @@ import {
   SimulationRawFileSchema,
   SimulationRawDependencySchema,
   flattenRichText,
-  circuitComponentTerminals,
   circuitComponentIssues,
   CircuitComponentMappingError,
   plainNameDocument,
@@ -26,8 +25,7 @@ import {
 import { routeEnd } from "@icm/model";
 import {
   bindsProjectCell,
-  matchGateExternalPins,
-  resolveReviewedExternalBinding,
+  resolveExternalTerminalBindings,
 } from "@icm/devices";
 import { resolveEndpointPoint } from "@icm/derived";
 import {
@@ -36,7 +34,6 @@ import {
   externalSubcircuitSymbolId,
   hierarchicalSymbolId,
   referencedProjectSymbolIds,
-  resolvePdkSymbolMappingForTerminalOrder,
   type SymbolResolver,
 } from "@icm/symbols";
 import { z } from "zod";
@@ -60,6 +57,7 @@ import {
   type SchematicEdit,
 } from "./edit-schema.js";
 import { executeTransaction } from "./transaction.js";
+import { prepareConnectivityPhaseRead } from "./connectivity-phase-read.js";
 import { diffDocumentObjectIds } from "./history.js";
 import {
   CellSignalMigrationEditSchema,
@@ -128,7 +126,7 @@ export const ApplyModelSourceEditSchema = z.strictObject({
     .max(256),
 });
 
-export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
+const projectStructureEditOptions = [
   CellSignalMigrationEditSchema,
   z.strictObject({
     kind: z.literal("associate_component_library"),
@@ -218,16 +216,24 @@ export const ProjectStructureEditSchema = z.discriminatedUnion("kind", [
     kind: z.literal("remove_simulation_folder"),
     folderId: z.string().min(1),
   }),
-  z.strictObject({
-    kind: z.literal("transact_document"),
-    documentId: z.string().min(1),
-    expectedRevision: z.number().int().nonnegative(),
-    edits: z
-      .array(SchematicEditSchema)
-      .min(1)
-      .max(MAX_SCHEMATIC_EDITS_PER_TRANSACTION),
-  }),
-]);
+] as const;
+
+export function createProjectStructureEditSchema<
+  Edits extends z.ZodType<SchematicEdit>,
+>(edits: Edits) {
+  return z.discriminatedUnion("kind", [
+    ...projectStructureEditOptions,
+    z.strictObject({
+      kind: z.literal("transact_document"),
+      documentId: z.string().min(1),
+      expectedRevision: z.number().int().nonnegative(),
+      edits: z.array(edits).min(1).max(MAX_SCHEMATIC_EDITS_PER_TRANSACTION),
+    }),
+  ]);
+}
+
+export const ProjectStructureEditSchema =
+  createProjectStructureEditSchema(SchematicEditSchema);
 
 export const ProjectTransactionSchema = z.strictObject({
   transactionId: z.string().min(1),
@@ -315,12 +321,13 @@ function replaceDocument(
 }
 
 interface ExternalCallerFailure {
-  /** What is wrong, independent of which Net, Route or flag shows it. */
+  /** Legacy membership survives independently of its Base Net identity. */
   key: string;
   message: string;
   objectIds: string[];
   documentId: string;
   instanceId: string;
+  unknownPin?: string;
 }
 
 /**
@@ -345,56 +352,56 @@ function externalCallerValidationFailures(
       if (binding?.kind !== "external-subcircuit") continue;
       const definition = definitions.get(binding.definitionId);
       if (!definition) continue;
-      const reviewed =
-        definition.presentation || definition.implementation
-          ? undefined
-          : resolveReviewedExternalBinding(
-              definition.name,
-              definition.terminals.map((terminal) => terminal.name),
-              instance.symbolId,
-            );
       const component = project.componentDefinitions?.find(
-        (item) => item.symbol.id === instance.symbolId && item.circuitBinding,
+        (item) => item.symbol.id === instance.symbolId,
       );
-      const terminalBindings = component
-        ? circuitComponentTerminals(component, definition)
-        : reviewed?.terminals;
-      // A Library part meets the definition's ports by its own pins, also
-      // ports named as netlists usually name them (an op-amp's IN+ on INP,
-      // #2350).
-      const partPins = terminalBindings
-        ? []
-        : (matchGateExternalPins(instance.symbolId, definition)?.pins.map(
-            (pin) => pin.pinName,
-          ) ?? []);
-      const allowed = new Set(
-        [
-          ...(terminalBindings
-            ? terminalBindings.map((terminal) => terminal.pinName)
-            : definition.terminals.map((terminal) => terminal.name)),
-          ...partPins,
-        ].map((name) => name.toLowerCase()),
+      const { terminals, pinNames, gate } = resolveExternalTerminalBindings(
+        definition,
+        instance.symbolId,
+        component,
       );
+      const allowed = new Set(pinNames);
       const part = instance.reference ?? instance.id;
       const where = `${part} in Cell ${document.name}`;
       const failure = (
-        kind: "unknown-pin" | "property-pin-drawn",
+        kind: "unknown-pin" | "property-pin-drawn" | "gate-pin-mismatch",
         pinName: string,
         message: string,
         objectIds: string[],
+        reference?: { kind: "route" | "no-connect"; id: string },
       ): ExternalCallerFailure => ({
         key: [
           kind,
           document.id,
           instance.id,
           definition.id,
-          pinName.toLowerCase(),
+          kind === "gate-pin-mismatch" ? pinName.toLowerCase() : pinName,
+          ...(reference ? [reference.kind, reference.id] : []),
         ].join("\u0000"),
         message,
         objectIds,
         documentId: document.id,
         instanceId: instance.id,
+        ...(kind === "unknown-pin" ? { unknownPin: pinName } : {}),
       });
+      if (gate && !gate.ok) {
+        // A saved caller can lose one existing defect at a time. Its current
+        // diagnostic describes the full mismatch, but refusals compare defects.
+        const defects = [
+          ...gate.missing.map((pin) => `missing:${pin}`),
+          ...gate.extra.map((pin) => `extra:${pin}`),
+          ...(definition.interfaceStatus !== "declared" ? ["positional"] : []),
+        ];
+        for (const defect of defects)
+          failures.push(
+            failure(
+              "gate-pin-mismatch",
+              defect,
+              `${where}: ${gate.message}. Fix its ports or clear ${part}'s model.`,
+              [instance.id, definition.id],
+            ),
+          );
+      }
       const references = [
         ...document.nets.flatMap((net) =>
           net.terminals
@@ -402,7 +409,7 @@ function externalCallerValidationFailures(
             .map((terminal) => ({
               pinName: terminal.pinName,
               objectIds: [instance.id, net.id],
-              canvas: false,
+              reference: undefined,
             })),
         ),
         ...document.routes.flatMap((route) =>
@@ -412,7 +419,7 @@ function externalCallerValidationFailures(
                   {
                     pinName: endpoint.pinName,
                     objectIds: [instance.id, route.id],
-                    canvas: true,
+                    reference: { kind: "route" as const, id: route.id },
                   },
                 ]
               : [],
@@ -424,7 +431,7 @@ function externalCallerValidationFailures(
                 {
                   pinName: noConnect.endpoint.pinName,
                   objectIds: [instance.id, noConnect.id],
-                  canvas: true,
+                  reference: { kind: "no-connect" as const, id: noConnect.id },
                 },
               ]
             : [],
@@ -432,28 +439,29 @@ function externalCallerValidationFailures(
       ];
       for (const reference of references) {
         const pin = `${part}.${reference.pinName}`;
-        if (!allowed.has(reference.pinName.toLowerCase())) {
+        if (!allowed.has(reference.pinName)) {
           failures.push(
             failure(
               "unknown-pin",
               reference.pinName,
               `${where} uses pin ${reference.pinName}, which its model ${definition.name} does not have. Disconnect ${pin}, clear ${part}'s model, or delete ${part}.`,
               reference.objectIds,
+              reference.reference,
             ),
           );
           continue;
         }
-        const terminal = terminalBindings?.find(
-          (candidate) =>
-            candidate.pinName.toLowerCase() === reference.pinName.toLowerCase(),
+        const terminal = terminals.find(
+          (candidate) => candidate.pinName === reference.pinName,
         );
-        if (reference.canvas && terminal?.interaction === "property") {
+        if (reference.reference && terminal?.interaction === "property") {
           failures.push(
             failure(
               "property-pin-drawn",
               reference.pinName,
               `${where} has a Wire or No Connect at ${pin}, a property-only terminal of its model ${definition.name}. Remove it and choose the Net in Properties, clear ${part}'s model, or delete ${part}.`,
               reference.objectIds,
+              reference.reference,
             ),
           );
         }
@@ -474,6 +482,7 @@ function externalCallerValidationFailures(
 export function introducedExternalCallerFailure(
   before: CircuitProject,
   after: CircuitProject,
+  edits: readonly ProjectStructureEdit[] = [],
 ): ExternalCallerFailure | null {
   const supplyFailure = changedPropertySupplyFailure(before, after);
   if (supplyFailure) return supplyFailure;
@@ -482,7 +491,48 @@ export function introducedExternalCallerFailure(
   const existing = new Set(
     externalCallerValidationFailures(before).map((failure) => failure.key),
   );
-  return failures.find((failure) => !existing.has(failure.key)) ?? null;
+  const introduced = failures.find((failure) => !existing.has(failure.key));
+  if (introduced) return introduced;
+  // Extending an old bad pin through a typed logical connection creates no
+  // new Route to name in the defect key. Compare the pair's actual membership.
+  for (const edit of edits) {
+    if (edit.kind !== "transact_document") continue;
+    const connections = edit.edits.filter(
+      (operation) => operation.kind === "connect_endpoints",
+    );
+    if (connections.length === 0) continue;
+    const invalid = failures.filter(
+      ({ documentId, unknownPin }) =>
+        documentId === edit.documentId && unknownPin !== undefined,
+    );
+    if (invalid.length === 0) continue;
+    const source = before.documents.find(({ id }) => id === edit.documentId);
+    const candidate = after.documents.find(({ id }) => id === edit.documentId);
+    if (!source || !candidate) continue;
+    const first = prepareConnectivityPhaseRead(source);
+    const final = prepareConnectivityPhaseRead(candidate);
+    for (const operation of connections) {
+      const { from, to } = operation;
+      const destination = final.ownerOf(from);
+      const origin = first.ownerOf(from);
+      if (
+        !destination ||
+        destination !== final.ownerOf(to) ||
+        (origin && origin === first.ownerOf(to))
+      )
+        continue;
+      const failure = invalid.find(({ instanceId, unknownPin }) =>
+        [from, to].some(
+          (endpoint) =>
+            endpoint.kind === "terminal" &&
+            endpoint.instanceId === instanceId &&
+            endpoint.pinName === unknownPin,
+        ),
+      );
+      if (failure) return failure;
+    }
+  }
+  return null;
 }
 
 /** A symbol change must retain implicit supply semantics or make its connection explicit. */
@@ -1088,13 +1138,6 @@ function applyProjectTransaction(
           edit.definition,
         );
       }
-      const reviewedMapping =
-        edit.definition.presentation || edit.definition.implementation
-          ? undefined
-          : resolvePdkSymbolMappingForTerminalOrder(
-              edit.definition.name,
-              edit.definition.terminals.map((terminal) => terminal.name),
-            );
       const externalSymbolId = externalSubcircuitSymbolId(edit.definition.id);
       const currentResolver = plannedModelWrites.size
         ? modelSourceMigrationResolver(candidate, project)
@@ -1126,17 +1169,21 @@ function applyProjectTransaction(
               )
           )
             continue;
-          // A gate keeps its symbol behind the standard cell of its
-          // function (#1450), as a PDK device keeps its native artwork.
-          const symbolId =
-            reviewedMapping?.symbolId === instance.symbolId ||
-            (!edit.definition.presentation &&
-              !edit.definition.implementation &&
-              resolveReviewedExternalBinding(
-                edit.definition.name,
-                edit.definition.terminals.map((terminal) => terminal.name),
+          const component = candidate.componentDefinitions?.find(
+            (item) => item.symbol.id === instance.symbolId,
+          );
+          // The explicit interface planner above handles changed custom
+          // correspondences. Known callers keep their artwork on refresh.
+          const resolved = component?.circuitBinding
+            ? undefined
+            : resolveExternalTerminalBindings(
+                edit.definition,
                 instance.symbolId,
-              )) ||
+              );
+          const symbolId =
+            component?.circuitBinding?.definitionId === edit.definition.id ||
+            resolved?.reviewed ||
+            resolved?.gate ||
             (instance.symbolId !== externalSymbolId &&
               edit.definition.terminals.every((terminal) =>
                 currentResolver
@@ -1584,6 +1631,7 @@ function applyProjectTransaction(
   const externalCallerFailure = introducedExternalCallerFailure(
     project,
     candidate,
+    transaction.edits,
   );
   if (externalCallerFailure) {
     return rejectProjectTransaction(

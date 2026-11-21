@@ -1,3 +1,4 @@
+import type { ExternalSubcircuitDefinition } from "@icm/model";
 import type { DeviceParameterDefinition } from "./contract.js";
 import { parameterExpressionBody } from "./parameter-expression.js";
 
@@ -279,23 +280,6 @@ const partEntry = (
   Object.entries(parameters).find(
     ([key]) => key.toLowerCase() === name.toLowerCase(),
   );
-
-/**
- * The reviewed device an external definition calls, unless the Project gives
- * the definition its own artwork or body.
- */
-export function reviewedBindingOfDefinition(definition: {
-  readonly name: string;
-  readonly terminals: readonly { readonly name: string }[];
-  readonly presentation?: unknown;
-  readonly implementation?: unknown;
-}): ReviewedExternalDeviceBinding | undefined {
-  if (definition.presentation || definition.implementation) return undefined;
-  return resolveReviewedExternalBinding(
-    definition.name,
-    definition.terminals.map((terminal) => terminal.name),
-  );
-}
 
 /** One of a part's sizes, as a reviewed device takes it. */
 export interface ReviewedSize {
@@ -1575,6 +1559,25 @@ export function resolveReviewedExternalBinding(
         terminal.targetName.toLowerCase() ===
         terminalNames[index]?.toLowerCase(),
     )
+    ? binding
+    : undefined;
+}
+
+/** A reviewed interface applies to its artwork and library body. Applied
+ * native source owns its own interface, and appearance does not select a body. */
+export function reviewedExternalDefinitionBinding(
+  definition: ExternalSubcircuitDefinition | undefined,
+  symbolId?: string,
+): ReviewedExternalDeviceBinding | undefined {
+  if (!definition || definition.implementation) return undefined;
+  const binding = resolveReviewedExternalBinding(
+    definition.name,
+    definition.terminals.map((terminal) => terminal.name),
+    symbolId,
+  );
+  return binding &&
+    (symbolId === undefined ||
+      reviewedExternalBindingSupportsSymbol(binding, symbolId))
     ? binding
     : undefined;
 }

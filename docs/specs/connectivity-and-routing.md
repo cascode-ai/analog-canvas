@@ -116,14 +116,14 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
 
 ## Completed-edit connectivity
 
-- Wire authoring submits endpoints and a path; `set_route_path` and
-  `route_orthogonal` `netId` is a hint, not a connection.
-- After all geometry and endpoint-follow edits, one transient graph of surviving
-  Routes and confirmed contacts partitions/merges Base Nets, retargets labels,
-  interfaces and bulk bindings, settles contacts and normalizes coverage; naming
-  and schema validation run on that final candidate, so cut order never matters.
-  A repointed Route releases a pin nothing else holds; a shared Net ID connects
-  nothing.
+- Wire edits record endpoints, cut or unrouted intent, and the contacts the
+  transaction allows. `set_route_path` and `route_orthogonal` use `netId` as
+  an identity hint. Electrical incidence comes from endpoints and contacts.
+- After geometry and endpoint following, the edit graph follows affected Base
+  Nets through their full surviving components. It partitions or merges Nets,
+  retargets owners, then settles allowed contacts and normalizes coverage.
+  Naming and schema validation read the final candidate, independently of cut
+  order. A repointed Route releases a pin that nothing else holds.
 - Unrouted/imported membership is intent: reconstruction keeps bridges between
   its former components (no clique) and never restores a formerly routed edge.
   `cut_connection` releases it; `remove_route_geometry` and returning a part to
@@ -181,8 +181,8 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
   evidence hides a disconnection; `remove_route_geometry` removes geometry only.
   Route-anchored labels are removed by a typed edit first. A cut never strands
   a pin no one can draw (a hidden supply pin, a model's substrate): it stays
-  with its Net's largest remaining component. A label naming a Net that holds
-  no pin, wire or Junction stays on it.
+  with its Net's largest remaining component after allowed contacts settle.
+  A label naming a Net that holds no pin, wire or Junction stays on it.
 - Transform, `C` copy, graph deletion, marker rename and whole-Net rename compile
   one transient `RoutingOperationPlan` (stable-ID closure, expected effect,
   typed edits, ID remap) validated by an independent before/after projection.
@@ -262,7 +262,8 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
   remaining Routes and contacts, never suppressed by global, imported or name
   evidence; a redundant cycle keeps the Net.
 - The component with the deleted Route's first surviving endpoint (start before
-  end) keeps the ID, else the first deterministic component; others get
+  end) keeps the ID, else the first deterministic component. In a batch the
+  first cut Route by stable ID supplies this ordering for each Net. Others get
   deterministic new IDs. Orphaned Junctions go unless owned; Route-anchored
   annotations need a preceding typed edit.
 - The [Edit Engine](edit-engine.md#operations-and-state-transitions) owns

@@ -1,5 +1,5 @@
 import {
-  reviewedBindingOfDefinition,
+  reviewedExternalDefinitionBinding,
   reviewedModelledSizeChanges,
   reviewedSize,
   type ReviewedSizeRole,
@@ -30,7 +30,10 @@ export function fitReviewedSizes(
     const binding = instance.netlist?.binding;
     if (binding?.kind !== "external-subcircuit") continue;
     const definition = byId.get(binding.definitionId);
-    const reviewed = definition && reviewedBindingOfDefinition(definition);
+    const reviewed = reviewedExternalDefinitionBinding(
+      definition,
+      instance.symbolId,
+    );
     if (!reviewed?.modelledSizes) continue;
     const parameters = instance.netlist!.parameters;
     const now = reviewedSize(reviewed, parameters);

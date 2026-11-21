@@ -215,6 +215,7 @@ export function EditorDialogs({
   publishDraft,
   setPublishDraft,
   searchResults,
+  searchTruncated,
   requestElectricalDiagnostics,
   cellInsertCandidates,
   insertDialogExternalCandidates,
@@ -229,6 +230,7 @@ export function EditorDialogs({
   openCreatedCell,
   navigateToNetlistDiagnostic,
   selectSearchResult,
+  selectSearchMatches,
   jumpToProjectDiagnostic,
   editorCommands,
   exportDesignNetlist,
@@ -341,6 +343,7 @@ export function EditorDialogs({
   publishDraft: PublishGalleryDraft | null;
   setPublishDraft: Dispatch<SetStateAction<PublishGalleryDraft | null>>;
   searchResults: EditorDerivedModel["searchResults"];
+  searchTruncated: boolean;
   requestElectricalDiagnostics: () => ReturnType<typeof runErcChecks>;
   cellInsertCandidates: readonly CellInsertCandidate[];
   insertDialogExternalCandidates: readonly ExternalSubcircuitInsertCandidate[];
@@ -357,6 +360,7 @@ export function EditorDialogs({
   openCreatedCell(documentId: string): void;
   navigateToNetlistDiagnostic: NavigationController["navigateToNetlistDiagnostic"];
   selectSearchResult: NavigationController["selectSearchResult"];
+  selectSearchMatches: (ids: readonly string[]) => void;
   jumpToProjectDiagnostic: NavigationController["jumpToProjectDiagnostic"];
   editorCommands: ReturnType<typeof createEditorCommandRouter>;
   exportDesignNetlist: ReturnType<
@@ -554,6 +558,9 @@ export function EditorDialogs({
                 open: searchOpen,
                 query: searchQuery,
                 results: searchResults,
+                truncated: searchTruncated,
+                currentCellId: document.id,
+                onSelectMatching: selectSearchMatches,
                 onQueryChange: setSearchQuery,
                 onSelect: selectSearchResult,
                 onClose: closeSearch,

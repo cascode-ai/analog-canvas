@@ -1,5 +1,6 @@
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
+import { importSpiceSources } from "@icm/spice";
 
 import { createDraftNetlistPreview } from "./draft-preview.js";
 import { createDesignNetlistExport } from "./export.js";
@@ -32,7 +33,9 @@ describe("draft netlist preview", () => {
       placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
     });
     expect(createDesignNetlistExport(project).status).toBe("blocked");
-    const draft = createDraftNetlistPreview(project)!;
+    const draft = createDraftNetlistPreview(project, {
+      includeNodeLocations: true,
+    })!;
     expect(draft.text).toContain("R1 ? ? ?");
     expect(draft.text.match(/^\.subckt gain_block\b/gm)).toHaveLength(1);
     expect(draft.text.match(/^\.subckt helper\b/gm)).toHaveLength(1);
@@ -50,13 +53,16 @@ describe("draft netlist preview", () => {
       ["R2", "resistor", 200],
     ]);
     expect(createDesignNetlistExport(project).status).toBe("blocked");
-    const draft = createDraftNetlistPreview(project)!;
+    const draft = createDraftNetlistPreview(project, {
+      includeNodeLocations: true,
+    })!;
     expect(draft.text.split("\n")[0]).toBe(
       "* Draft: each ? is something the drawing does not say yet",
     );
     const lines = draft.text.split("\n");
     expect(lines).toContain("R1 ? ? ?");
     expect(lines).toContain("R2 ? ? ?");
+    expect(draft.locations.nodes).toEqual([]);
     // Each flagged card is where a finding points, and its text is the card.
     expect(draft.flagged.map((card) => card.instanceId).sort()).toEqual([
       "R1",
@@ -86,5 +92,43 @@ describe("draft netlist preview", () => {
     })!;
     expect(draft.text.startsWith("// Draft: each ?")).toBe(true);
     expect(draft.text).toContain("R1 (? ?) resistor r=?");
+  });
+  it("locates unambiguous nodes in a Cell even if two other Nets print the same token", async () => {
+    const path = "colliding-nodes.spi";
+    const text = [
+      "Colliding names",
+      ".subckt collision EN<1> EN_1_ VSS",
+      "R1 EN<1> VSS 1k",
+      "R2 EN_1_ VSS 1k",
+      ".ends collision",
+      ".end",
+    ].join("\n");
+    const imported = await importSpiceSources(
+      [{ path, bytes: new TextEncoder().encode(text) }],
+      path,
+    );
+    expect(imported.successful).toBe(true);
+    const project = imported.project!;
+    for (const document of project.documents)
+      document.instances
+        .filter((instance) => ["R1", "R2"].includes(instance.reference ?? ""))
+        .forEach((instance, i) => {
+          instance.placement = {
+            position: { x: i * 100, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          };
+        });
+    const draft = createDraftNetlistPreview(project, {
+      includeNodeLocations: true,
+    })!;
+    expect(
+      draft.diagnostics.some(({ code }) => code === "DIALECT_NAME_COLLISION"),
+    ).toBe(true);
+    expect(
+      draft.locations.nodes?.map(({ startOffset, endOffset }) =>
+        draft.text.slice(startOffset, endOffset),
+      ),
+    ).toEqual(["VSS", "VSS"]);
   });
 });

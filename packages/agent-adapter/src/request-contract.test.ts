@@ -1,3 +1,4 @@
+import { createEmptyDocument } from "@icm/model";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -5,6 +6,7 @@ import {
   AgentTransportErrorResponseSchema,
 } from "./envelope.js";
 import {
+  agentCircuitRequestJsonSchema,
   AgentProductionCircuitRequestSchema,
   AgentCircuitResponseSchema,
 } from "./schema.js";
@@ -20,6 +22,55 @@ import {
 } from "./request-contract.js";
 
 describe("Agent golden request contract", () => {
+  it("keeps direct Instance group editing in Canvas", () => {
+    const request = {
+      apiVersion: "3.0",
+      requestId: "group-edit",
+      operation: "transact",
+      documentId: "document-main",
+      transactionId: "tx-1",
+      expectedRevision: 0,
+      expectedStructureRevision: 0,
+    };
+    const group = { id: "group", memberIds: ["X1", "X2"], collapsed: true };
+    const edit = { kind: "set_instance_group", group };
+    const wrap = (edit: unknown) => ({
+      kind: "transact_document",
+      documentId: request.documentId,
+      expectedRevision: 0,
+      edits: [edit],
+    });
+    for (const payload of [{ edits: [edit] }, { structureEdits: [wrap(edit)] }])
+      expect(
+        AgentProductionCircuitRequestSchema.safeParse({
+          ...request,
+          ...payload,
+        }).success,
+      ).toBe(false);
+
+    const document = createEmptyDocument("imported", "Imported");
+    document.instances.push(
+      ...group.memberIds.map((id) => ({
+        id,
+        symbolId: "resistor",
+        placement: null,
+      })),
+    );
+    document.instanceGroups = [group];
+    expect(
+      AgentProductionCircuitRequestSchema.safeParse({
+        ...request,
+        structureEdits: [
+          { kind: "add_document", document },
+          wrap({ kind: "set_cell_formal_parameters", formalParameters: [] }),
+        ],
+      }).success,
+    ).toBe(true);
+    const published = JSON.stringify(agentCircuitRequestJsonSchema());
+    expect(published).not.toContain('"set_instance_group"');
+    expect(published).toContain('"instanceGroups"');
+  });
+
   it("validates every published Circuit example with the production schema", () => {
     for (const example of Object.values(agentCircuitRequestExamples)) {
       expect(

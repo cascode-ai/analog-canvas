@@ -2,6 +2,7 @@ export * from "./anchor.js";
 export * from "./annotation-presentation.js";
 export * from "./annotation-color.js";
 export * from "./annotation-text.js";
+export * from "./instance-group-display.js";
 export * from "./connectivity.js";
 export * from "./import-reference.js";
 export * from "./contact.js";

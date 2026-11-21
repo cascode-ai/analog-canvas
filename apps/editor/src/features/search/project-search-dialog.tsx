@@ -6,6 +6,9 @@ export interface ProjectSearchDialogProps {
   open: boolean;
   query: string;
   results: readonly SearchResult[];
+  truncated?: boolean;
+  currentCellId?: string;
+  onSelectMatching?: (ids: readonly string[]) => void;
   onQueryChange(query: string): void;
   onSelect(result: SearchResult): void;
   onClose(): void;
@@ -15,6 +18,9 @@ export function ProjectSearchDialog({
   open,
   query,
   results,
+  truncated,
+  currentCellId,
+  onSelectMatching,
   onQueryChange,
   onSelect,
   onClose,
@@ -24,6 +30,15 @@ export function ProjectSearchDialog({
     if (open) return deferFocus(() => inputRef.current);
   }, [open]);
   if (!open) return null;
+  const matchingInCell = [
+    ...new Set(
+      results.flatMap(({ locator }) =>
+        locator.kind === "instance" && locator.documentId === currentCellId
+          ? [locator.objectId]
+          : [],
+      ),
+    ),
+  ];
   return (
     <div
       className="search-backdrop"
@@ -63,11 +78,24 @@ export function ProjectSearchDialog({
             }
           }}
         />
+        {matchingInCell.length > 0 && onSelectMatching ? (
+          <button
+            type="button"
+            onClick={() => onSelectMatching(matchingInCell)}
+          >
+            Select matching instances in this Cell ({matchingInCell.length})
+          </button>
+        ) : null}
+        {truncated ? (
+          <p role="status">
+            Some caller paths were omitted from these results.
+          </p>
+        ) : null}
         <div className="project-search-results" aria-live="polite">
           {query.trim().length === 0 ? (
             <p>
               Search instance IDs, component names, symbols, Nets, ports,
-              property keys or values.
+              property keys or values. Use a condition like w=2u to match both.
             </p>
           ) : results.length === 0 ? (
             <p>No matching project objects.</p>
@@ -75,7 +103,12 @@ export function ProjectSearchDialog({
             results.map((result) => (
               <button
                 type="button"
-                key={`${result.locator.documentId}:${result.locator.kind}:${result.locator.objectId}:${result.locator.hierarchyPath.map((frame) => frame.instanceId).join("/")}`}
+                key={JSON.stringify([
+                  result.locator.documentId,
+                  result.locator.kind,
+                  result.locator.objectId,
+                  result.locator.hierarchyPath,
+                ])}
                 data-testid={`project-search-result-${result.locator.objectId}${result.locator.hierarchyPath.length > 0 ? `-${result.locator.hierarchyPath.map((frame) => frame.instanceId).join("-")}` : ""}`}
                 onClick={() => onSelect(result)}
               >
@@ -84,7 +117,7 @@ export function ProjectSearchDialog({
                   {result.locator.kind} · {result.locator.documentId} ·{" "}
                   {result.field}
                   {result.locator.hierarchyPath.length > 0
-                    ? ` · via ${result.locator.hierarchyPath.map((frame) => frame.instanceId).join(" / ")}`
+                    ? ` · via ${result.hierarchyLabel ?? result.locator.hierarchyPath.map((frame) => frame.instanceId).join(" / ")}`
                     : ""}
                 </small>
               </button>

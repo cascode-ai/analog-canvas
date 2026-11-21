@@ -1,30 +1,20 @@
 // Calls to subcircuits: a hierarchy Cell, or an external subcircuit with the
 // size and substrate checks of a reviewed PDK device.
-import {
-  circuitComponentTerminals,
-  foldNetName,
-  projectScalarCellInterface,
-  scalarCellTerminals,
-  routeEndpoints,
-} from "@icm/model";
+import { foldNetName, routeEndpoints } from "@icm/model";
 import { drawnSupplyNet, namesNegativeSupply } from "@icm/derived";
 import type {
-  ComponentDefinition,
   ExternalSubcircuitDefinition,
   Instance,
   SchematicDocument,
 } from "@icm/model";
 import {
-  bindsExternalByPartPins,
   bindsProjectCell,
-  libraryGateTerminals,
   matchGateCellPins,
-  matchGateExternalPins,
   projectLengthToSky130Micrometres,
-  resolveReviewedExternalBinding,
   reviewedSize,
   reviewedSizeModelled,
   reviewedParameterIssues,
+  type ExternalTerminalBindings,
   type GateCellPin,
   type PartTerminal,
   type ReviewedExternalDeviceBinding,
@@ -39,12 +29,7 @@ import {
 } from "./extract-common.js";
 import { type CellNetContext, terminalNetName } from "./extract-nets.js";
 import { switchPhaseNode } from "./extract-switch.js";
-import {
-  addsGroundPin,
-  groundPinName,
-  pinsGround,
-  groundPortIndex,
-} from "./extract-ground-pin.js";
+import type { CellInterface } from "./extract-interface.js";
 
 /**
  * The Net of a gate's rail that no Net was chosen for, whether the gate calls
@@ -123,6 +108,7 @@ export function extractHierarchyInstance(
   document: SchematicDocument,
   instance: Instance,
   documentsById: Map<string, SchematicDocument>,
+  interfaces: ReadonlyMap<string, CellInterface>,
   cellNameByDocumentId: ReadonlyMap<string, string>,
   context: CellNetContext,
   options: ResolvedDesignNetlistAnalysisOptions,
@@ -169,8 +155,8 @@ export function extractHierarchyInstance(
     diagnostics,
   );
   // Callers and definitions share the authored interface, including its order.
-  const childPorts = projectScalarCellInterface(child.netlist).ports;
-  const scalarTerminals = scalarCellTerminals(child.netlist);
+  const childDraft = interfaces.get(child.id)!;
+  const childPorts = childDraft.authored.ports;
   // A Library gate bound to the Cell keeps its own pins, and meets the
   // Cell's Pins by name (#1450).
   const gate = bindsProjectCell(instance.symbolId)
@@ -198,7 +184,7 @@ export function extractHierarchyInstance(
     ),
   );
   const nodes = childPorts.map((port) => {
-    const member = scalarTerminals.find((terminal) => terminal.id === port.id);
+    const member = childDraft.scalarByName.get(port.key);
     const supply = member?.memberId ? undefined : supplies.get(port.id);
     const pin: Omit<GateCellPin, "portName"> | undefined = gate
       ? gate.pins.find((item) => item.portName === port.name)
@@ -222,33 +208,13 @@ export function extractHierarchyInstance(
         );
     return {
       pinName: port.name,
+      ...(gate && pin && !member?.memberId && pin.pinName !== port.name
+        ? { canvasPinName: pin.pinName }
+        : {}),
       netName: netName ?? `<unconnected:${port.name}>`,
     };
   });
-  // The child's ground pin is not in its authored interface; both sides
-  // derive it from the Documents, so the call carries this Cell's own ground
-  // node at the position the child's definition puts it.
-  if (
-    pinsGround(options.groundPin) &&
-    addsGroundPin(
-      child,
-      documentsById,
-      undefined,
-      options.groundPin === "as-read",
-    )
-  ) {
-    const callerGround = context.nameByAuthoredName.get(foldNetName("0"));
-    if (callerGround) {
-      nodes.splice(
-        groundPortIndex(
-          child,
-          childPorts.map((port) => ({ id: port.netIds[0]!, name: port.name })),
-        ),
-        0,
-        { pinName: groundPinName(child).name, netName: callerGround },
-      );
-    }
-  }
+  interfaces.get(document.id)!.childByCaller.set(instance.id, child.id);
   return {
     id: instance.id,
     reference: instance.reference!,
@@ -309,24 +275,22 @@ function validateFormalParameterOverrides(
   }
 }
 
-/** One port of an external call, and the part's terminal written on it. */
-interface ExternalCallTerminal extends PartTerminal {
-  readonly targetName: string;
-  readonly interaction: string;
+export interface ExternalSubcircuitCall {
+  readonly definition: ExternalSubcircuitDefinition;
+  readonly binding: ExternalTerminalBindings;
 }
 
 export function extractExternalSubcircuitInstance(
   document: SchematicDocument,
   instance: Instance,
-  definition: ExternalSubcircuitDefinition | undefined,
-  component: ComponentDefinition | undefined,
+  call: ExternalSubcircuitCall | undefined,
   context: CellNetContext,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistInstance | null {
   const netlist = instance.netlist;
   if (!netlist || netlist.binding?.kind !== "external-subcircuit") return null;
-  if (!definition) {
+  if (!call) {
     diagnostic(
       diagnostics,
       document.id,
@@ -336,6 +300,10 @@ export function extractExternalSubcircuitInstance(
     );
     return null;
   }
+  const {
+    definition,
+    binding: { reviewed, gate, terminals, pinNames },
+  } = call;
   if (!isIdentifier(instance.reference!) || !isIdentifier(definition.name)) {
     diagnostic(
       diagnostics,
@@ -352,23 +320,6 @@ export function extractExternalSubcircuitInstance(
     diagnostics,
     { allowAdditional: true },
   );
-  const reviewed = definition.implementation
-    ? undefined
-    : resolveReviewedExternalBinding(
-        definition.name,
-        definition.terminals.map((terminal) => terminal.name),
-        instance.symbolId,
-      );
-  // A Library part bound to the definition keeps its own pins, and meets the
-  // definition's ports by name (#1928).
-  const gate =
-    !reviewed &&
-    bindsExternalByPartPins(
-      { componentDefinitions: component ? [component] : [] },
-      instance.symbolId,
-    )
-      ? matchGateExternalPins(instance.symbolId, definition)
-      : undefined;
   if (gate && !gate.ok) {
     const reference = instance.reference ?? instance.id;
     diagnostic(
@@ -379,28 +330,7 @@ export function extractExternalSubcircuitInstance(
       [instance.id, definition.id],
     );
   }
-  const terminalBindings: readonly ExternalCallTerminal[] =
-    component?.circuitBinding
-      ? circuitComponentTerminals(component, definition)
-      : reviewed
-        ? reviewed.terminals
-        : definition.terminals.map((terminal) => {
-            const pin = gate?.pins.find(
-              (item) => item.portName === terminal.name,
-            );
-            return {
-              targetName: terminal.name,
-              pinName: pin?.pinName ?? terminal.name,
-              interaction: "canvas" as const,
-              ...(pin?.supply ? { supply: pin.supply } : {}),
-              ...(pin?.clock ? { clock: true as const } : {}),
-            };
-          });
-  const allowedPins = new Set(
-    (gate ? libraryGateTerminals(instance.symbolId) : terminalBindings).map(
-      (terminal) => terminal.pinName.toLowerCase(),
-    ),
-  );
+  const allowedPins = new Set(pinNames);
   const referencedPins = new Set<string>();
   for (const net of document.nets) {
     for (const terminal of net.terminals) {
@@ -412,7 +342,7 @@ export function extractExternalSubcircuitInstance(
     for (const endpoint of routeEndpoints(route)) {
       if (endpoint.kind === "terminal" && endpoint.instanceId === instance.id) {
         referencedPins.add(endpoint.pinName);
-        const propertyTerminal = terminalBindings.find(
+        const propertyTerminal = terminals.find(
           (terminal) =>
             terminal.pinName === endpoint.pinName &&
             terminal.interaction === "property",
@@ -430,7 +360,7 @@ export function extractExternalSubcircuitInstance(
     }
   }
   for (const pinName of referencedPins) {
-    if (allowedPins.has(pinName.toLowerCase())) continue;
+    if (allowedPins.has(pinName)) continue;
     diagnostic(
       diagnostics,
       document.id,
@@ -441,7 +371,7 @@ export function extractExternalSubcircuitInstance(
   }
   for (const noConnect of document.noConnects) {
     if (noConnect.endpoint.instanceId !== instance.id) continue;
-    const propertyTerminal = terminalBindings.find(
+    const propertyTerminal = terminals.find(
       (terminal) =>
         terminal.pinName === noConnect.endpoint.pinName &&
         terminal.interaction === "property",
@@ -457,7 +387,7 @@ export function extractExternalSubcircuitInstance(
     }
   }
   const railsAsked = new Set<string>();
-  const nodes = terminalBindings.map((terminal) => {
+  const nodes = terminals.map((terminal) => {
     const netName = callTerminalNetName(
       document,
       instance,

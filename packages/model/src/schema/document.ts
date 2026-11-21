@@ -90,6 +90,13 @@ export const CellNetlistInterfaceSchema = z.strictObject({
     .default([]),
 });
 
+export const InstanceGroupSchema = z.strictObject({
+  id: StableIdSchema,
+  memberIds: z.array(StableIdSchema).min(2),
+  collapsed: z.boolean(),
+});
+export type InstanceGroup = z.infer<typeof InstanceGroupSchema>;
+
 const SchematicDocumentBaseSchema = z.strictObject({
   id: StableIdSchema,
   name: z.string().min(1),
@@ -103,6 +110,7 @@ const SchematicDocumentBaseSchema = z.strictObject({
   ]),
   netlist: CellNetlistInterfaceSchema.optional(),
   instances: z.array(InstanceSchema),
+  instanceGroups: z.array(InstanceGroupSchema).min(1).optional(),
   nets: z.array(NetSchema),
   connectivityEvidence: z.array(ConnectivityEvidenceSchema),
   routes: z.array(RouteBranchSchema),
@@ -164,6 +172,7 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
     }
     const objectCollections = [
       ...document.instances,
+      ...(document.instanceGroups ?? []),
       ...document.nets,
       ...document.connectivityEvidence,
       ...document.routes,
@@ -612,6 +621,20 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
     const instanceIds = new Set(
       document.instances.map((instance) => instance.id),
     );
+    const groupedMembers = new Set<string>();
+    for (const [groupIndex, group] of (
+      document.instanceGroups ?? []
+    ).entries()) {
+      for (const [memberIndex, id] of group.memberIds.entries()) {
+        if (!instanceIds.has(id) || groupedMembers.has(id))
+          context.addIssue({
+            code: "custom",
+            path: ["instanceGroups", groupIndex, "memberIds", memberIndex],
+            message: `Instance group member must be a distinct Instance in this Cell: ${id}`,
+          });
+        groupedMembers.add(id);
+      }
+    }
     const netIds = new Set(document.nets.map((net) => net.id));
     const netById = new Map(document.nets.map((net) => [net.id, net]));
     const junctionById = new Map(

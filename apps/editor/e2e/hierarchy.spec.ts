@@ -21,6 +21,7 @@ import {
   withProjectComponentDefinitions,
 } from "@icm/symbols";
 import { hierarchyParameterFixture } from "../../../netlists/hierarchy-parameters/fixture";
+import { pinOrderOpProject } from "../../../netlists/editor-pin-order/fixture";
 import {
   executeProjectTransaction,
   createExternalSubcircuitInstance,
@@ -1228,6 +1229,75 @@ async function setCellTerminalDirection(
     .selectOption(direction);
   await properties.getByLabel("Close Cell properties").click();
 }
+
+test("Cell Properties and both netlist formats show the saved OP circuit's interface", async ({
+  page,
+}) => {
+  await openProject(
+    page,
+    serializeProject(await pinOrderOpProject()),
+    "polarity-op.icproj.json",
+  );
+  const properties = await openCellProperties(page, /divider/i);
+  const rows = properties
+    .getByRole("table", { name: "Formal port order" })
+    .getByRole("row")
+    .filter({ has: page.getByRole("cell") });
+  await expect(rows).toHaveCount(3);
+  for (const [index, name] of ["VIN", "MID", "VSS"].entries())
+    await expect(rows.nth(index).getByLabel(`Port ${name} name`)).toHaveValue(
+      name,
+    );
+  await properties.getByLabel("Close Cell properties").click();
+  const spice = await copyNetlistText(page, "spice");
+  expect(spice).toContain(".subckt divider VIN MID VSS\n");
+  expect(spice).toMatch(/^XAMP ref out mid gain_two$/mu);
+  const spectre = await copyNetlistText(page, "spectre");
+  expect(spectre).toContain("subckt divider (VIN MID VSS)\n");
+  expect(spectre).toMatch(/^XAMP \(ref out mid\) gain_two$/mu);
+});
+
+test("Cell Properties keeps separate editable Ports on one Base Net and shows the generated ground", async ({
+  page,
+}) => {
+  const project = createEmptyProject("shared-port-net", "Shared port Net");
+  const [cell] = project.documents;
+  cell!.nets = [
+    { id: "signal", terminals: [] },
+    { id: "output", terminals: [] },
+    { id: "ground", terminals: [{ instanceId: "gnd", pinName: "0" }] },
+  ];
+  cell!.instances = [{ id: "gnd", symbolId: "ground", placement: null }];
+  for (const [index, name] of ["IN", "SENSE", "OUT"].entries()) {
+    const id = `pin-${name}`;
+    const net = cell!.nets[index < 2 ? 0 : 1]!;
+    net.terminals.push({ instanceId: id, pinName: "P" });
+    cell!.instances.push({ id, symbolId: "port", placement: null });
+    cell!.netlist!.terminals.push({
+      id: `port-${name}`,
+      name,
+      netId: net.id,
+      direction: "passive",
+      interfaceInstanceIds: [id],
+    });
+  }
+  await openProject(
+    page,
+    serializeProject(project),
+    "shared-port-net.icproj.json",
+  );
+  const properties = await openCellProperties(page);
+  const rows = properties
+    .getByRole("table", { name: "Formal port order" })
+    .getByRole("row")
+    .filter({ has: page.getByRole("cell") });
+  await expect(rows).toHaveCount(4);
+  await expect(rows.nth(0).locator(".cell-pin-added-name")).toHaveText("VSS");
+  for (const [index, name] of ["IN", "SENSE", "OUT"].entries())
+    await expect(
+      rows.nth(index + 1).getByLabel(`Port ${name} name`),
+    ).toHaveValue(name);
+});
 
 test("manages external declarations independently of local Cell interfaces", async ({
   page,

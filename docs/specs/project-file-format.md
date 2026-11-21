@@ -2,7 +2,7 @@
 
 Status: `accepted`
 
-Portable file schema `83`. Normalized editor model schema `58`.
+Portable file schema `84`. Normalized editor model schema `58`.
 
 Primary owner: `packages/project-protocol` (portable source and codec);
 `packages/model` validates the decoded editor model.
@@ -18,11 +18,11 @@ preserves.
 
 ```text
 import text -> parse JSON -> require supported Project file schema
--> migrate old files or decode 59–83 -> strict runtime model validation -> install unbound
+-> migrate old files or decode 59–84 -> strict runtime model validation -> install unbound
 export -> validate -> encode current file schema -> readable canonical JSON -> download
 ```
 
-- `parseProject` reads schemas 24–83. Writers emit the current schema. Envelope
+- `parseProject` reads schemas 24–84. Writers emit the current schema. Envelope
   metadata uses `CURRENT_PROJECT_FILE_VERSION`, never the model version.
   Optional additions keep model 58; older envelopes cannot carry them.
   Member No Connect endpoints require file schema 77.
@@ -38,6 +38,8 @@ export -> validate -> encode current file schema -> readable canonical JSON -> d
   auxiliary pins. The decoder restores exact coordinates and source positions.
   Older schemas use objects at these fields. An absent Document `layoutGroups`,
   `constraints` or `noConnects` expands to `[]` in schema 83.
+- Since schema 84, a Cell may store `instanceGroups`. See the
+  [Instance group rules](schematic-model.md#instance-groups).
 - The reader rejects mixed legacy/current field names, conflicting endpoints,
   unknown fields and missing used component definitions; it never deletes
   unplaced or overlapping instances. An invalid candidate never replaces the

@@ -34,6 +34,7 @@ function sortKeys(value: unknown): unknown {
             "presentation",
             "drawingOrder",
             "instances",
+            "instanceGroups",
             "routes",
             "connections",
             "nets",

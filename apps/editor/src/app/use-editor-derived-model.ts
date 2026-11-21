@@ -49,6 +49,7 @@ interface UseEditorDerivedModelOptions {
   selectedHighlightEndpoint: RouteEndpoint | undefined;
   searchActive: boolean;
   searchQuery: string;
+  hiddenGroupObjects?: ReadonlySet<string> | undefined;
   routingGuidanceView: RoutingGuidanceView;
   wireSource: WireSource | null;
   bulkDrawInstanceId: string | null;
@@ -244,6 +245,7 @@ export function useEditorDerivedModel({
   selectedHighlightEndpoint,
   searchActive,
   searchQuery,
+  hiddenGroupObjects,
   routingGuidanceView,
   wireSource,
   bulkDrawInstanceId,
@@ -258,12 +260,13 @@ export function useEditorDerivedModel({
   const routeGeometryRecords = useMemo(
     () =>
       document.routes.flatMap((route): RouteGeometryRecord[] => {
+        if (hiddenGroupObjects?.has(route.id)) return [];
         const geometry = documentConnectivity?.routingGeometry.routes.get(
           route.id,
         );
         return geometry ? [{ route, geometry }] : [];
       }),
-    [document, documentConnectivity],
+    [document, documentConnectivity, hiddenGroupObjects],
   );
   const highlightedTrace = useMemo(
     () =>
@@ -298,22 +301,41 @@ export function useEditorDerivedModel({
         endpointKey(highlightedNetOrigin.endpoint) ===
           endpointKey(selectedHighlightEndpoint))),
   );
-  const searchResults = useMemo(() => {
-    if (!searchActive || searchQuery.trim().length === 0) return [];
+  const searchIndex = useMemo(() => {
+    if (!searchActive) return undefined;
     return buildProjectSearchIndex(project, {
       connectivityIndex: projectConnectivityIndex,
       resolver,
-    }).search(searchQuery);
-  }, [project, projectConnectivityIndex, resolver, searchActive, searchQuery]);
+    });
+  }, [project, projectConnectivityIndex, resolver, searchActive]);
+  const { results: searchResults, truncated: searchTruncated } = useMemo(
+    () =>
+      searchIndex?.searchWithCoverage(searchQuery) ?? {
+        results: [],
+        truncated: false,
+      },
+    [searchIndex, searchQuery],
+  );
   const flightlines = useMemo(
     () => [
       ...new Map(
-        [...(documentConnectivity?.routingGuidance ?? [])].map(
-          (line) => [line.id, line] as const,
-        ),
+        (documentConnectivity?.routingGuidance ?? [])
+          .filter(
+            (line) =>
+              !hiddenGroupObjects ||
+              [line.from, line.to].every(
+                (endpoint) =>
+                  !hiddenGroupObjects.has(
+                    endpoint.kind === "terminal"
+                      ? endpoint.instanceId
+                      : endpoint.junctionId,
+                  ),
+              ),
+          )
+          .map((line) => [line.id, line] as const),
       ).values(),
     ],
-    [documentConnectivity],
+    [documentConnectivity, hiddenGroupObjects],
   );
   const displayedFlightlines = useMemo(() => {
     const focusedNetIds = new Set(
@@ -347,19 +369,30 @@ export function useEditorDerivedModel({
     () => buildEndpointObjectIndex(document),
     [document],
   );
-  const visibleEndpoints = useMemo(
-    () => visibleWireSources(document, resolver, endpointIndex),
-    [document, endpointIndex, resolver],
-  );
+  const visibleEndpoints = useMemo(() => {
+    const sources = visibleWireSources(document, resolver, endpointIndex);
+    return hiddenGroupObjects
+      ? sources.filter(
+          ({ endpoint }) =>
+            !hiddenGroupObjects.has(
+              endpoint.kind === "terminal"
+                ? endpoint.instanceId
+                : endpoint.junctionId,
+            ),
+        )
+      : sources;
+  }, [document, endpointIndex, resolver, hiddenGroupObjects]);
   const visibleBulkEndpoints = useMemo(
     () =>
-      visibleBulkWireSources(
-        document,
-        resolver,
-        bulkDrawInstanceId,
-        endpointIndex,
-      ),
-    [bulkDrawInstanceId, document, endpointIndex, resolver],
+      bulkDrawInstanceId && hiddenGroupObjects?.has(bulkDrawInstanceId)
+        ? []
+        : visibleBulkWireSources(
+            document,
+            resolver,
+            bulkDrawInstanceId,
+            endpointIndex,
+          ),
+    [bulkDrawInstanceId, document, endpointIndex, resolver, hiddenGroupObjects],
   );
   const wiringEndpoints = useMemo(() => {
     const byKey = new Map<string, WireSource>();
@@ -385,6 +418,7 @@ export function useEditorDerivedModel({
     highlightedNetId,
     selectedHighlightIsActive,
     searchResults,
+    searchTruncated,
     flightlines,
     displayedFlightlines,
     crossings,

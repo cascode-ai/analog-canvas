@@ -224,8 +224,10 @@ height budget. It needs no Profile, Prepare, Run or hosted access (#2110).
   replaces it; nothing overwrites silently.
 - Import (files, a folder, or a drop) is reviewed first: each file is new,
   replaces, unchanged, or skipped (unsafe path, binary, or a path Canvas
-  writes, such as `circuit.spice`). Chosen files apply as one Project edit,
-  re-planned against the current folder.
+  writes, such as `circuit.spice`). Chosen files apply as one Project edit
+  against the reviewed target and structure revision. If the revision changes,
+  keep the files and selections and require a fresh review. If the target
+  changes, block the import.
 
 ## Workspace interaction
 

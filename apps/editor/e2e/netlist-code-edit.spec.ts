@@ -1,15 +1,17 @@
 import { test, expect, type Page } from "@playwright/test";
-import { createEmptyProject } from "@icm/model";
+import { createEmptyProject, createRoutePath } from "@icm/model";
 import {
   clickCommand,
+  downloadBytes,
   expectStatus,
   exportedProject,
   openProjectFile,
   renameProject,
   openEditor,
   openProject,
+  showNetlistPanel,
 } from "./editor-fixtures.js";
-import { placedInstance } from "./canvas-fixtures.js";
+import { clickRoute, placedInstance } from "./canvas-fixtures.js";
 
 function fixture() {
   const project = createEmptyProject("netlist-edit", "Editable netlist");
@@ -59,6 +61,98 @@ const netlistAlert = (page: Page) =>
 async function openEditorOn(page: Page, project: object) {
   await openProject(page, project);
 }
+
+test("cross-probes individual node tokens in both dialects without changing the Project", async ({
+  page,
+}) => {
+  const project = fixture();
+  for (const [pinName, y] of [
+    ["1", 100],
+    ["2", 300],
+  ] as const) {
+    const netId = `net-${pinName}`;
+    project.documents[0]!.routes.push(
+      createRoutePath({
+        id: `route-${pinName}`,
+        netId,
+        start: { kind: "terminal", instanceId: "R1", pinName },
+        end: { kind: "terminal", instanceId: "R2", pinName },
+        bends: [
+          { x: 200, y },
+          { x: 360, y },
+        ],
+        modes: ["manual", "manual", "manual"],
+      }),
+    );
+  }
+  await openEditorOn(page, project);
+  const toggle = page.getByTestId("netlist-panel-toggle");
+  if ((await toggle.getAttribute("aria-pressed")) === "true")
+    await toggle.click();
+  const before = await downloadBytes(page, "File", "Export Project File…");
+  const code = page.getByLabel("Netlist code", { exact: true });
+  const card = code.locator(".cm-line").filter({ hasText: /^R1 /u });
+  const overlay = page.getByTestId("net-highlight-overlay");
+  const clickGlyph = async (token: string, fraction: number, index = 0) => {
+    const point = await card.evaluate(
+      (line, { token, fraction, index }) => {
+        let offset = line.textContent!.indexOf(token);
+        if (offset < 0) throw new Error(`Missing node ${token}`);
+        offset += index;
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+          const length = text.textContent!.length;
+          if (offset >= length) {
+            offset -= length;
+            continue;
+          }
+          const range = document.createRange();
+          range.setStart(text, offset);
+          range.setEnd(text, offset + 1);
+          const bounds = range.getBoundingClientRect();
+          return {
+            x: bounds.x + bounds.width * fraction,
+            y: bounds.y + bounds.height / 2,
+          };
+        }
+        throw new Error("Could not locate printed node");
+      },
+      { token, fraction, index },
+    );
+    await page.mouse.click(point.x, point.y);
+  };
+  const format = page.getByLabel("Netlist format", { exact: true });
+  for (const dialect of ["spice", "spectre"] as const) {
+    await showNetlistPanel(page);
+    await format.selectOption(dialect);
+    await expect(card).toContainText(
+      dialect === "spice" ? "R1 net0 net1" : "R1 (net0 net1)",
+    );
+    const beforeDeck = await downloadBytes(page, "File", "Export Netlist");
+    await clickGlyph("net0", 0.75);
+    await expect(overlay).toHaveAttribute("data-net-id", "net-1");
+    await clickGlyph("net1", 0.75, 3);
+    await expect(overlay).toHaveAttribute("data-net-id", "net-2");
+    if (dialect === "spectre") {
+      await clickGlyph(")", 0.25);
+      await expect(overlay).toHaveCount(0);
+    }
+    await clickRoute(page, "route-1", 0.5, 1);
+    const marks = code.locator(".cm-netlist-node-highlight");
+    await expect(marks).toHaveText(["net0", "net0"]);
+    await toggle.click();
+    const afterDeck = await downloadBytes(page, "File", "Export Netlist");
+    expect(afterDeck).toEqual(beforeDeck);
+  }
+  const after = await downloadBytes(page, "File", "Export Project File…");
+  expect(after).toEqual(before);
+  await showNetlistPanel(page);
+  const originalText = await code.innerText();
+  await code.fill(`invalid draft\n${originalText}`);
+  await clickGlyph("net1", 0.25);
+  await expect(overlay).toHaveCount(0);
+  await expect(code.locator(".cm-netlist-node-highlight")).toHaveCount(0);
+});
 
 test("selects an export entry independently of saved Top and edits only that Cell", async ({
   page,

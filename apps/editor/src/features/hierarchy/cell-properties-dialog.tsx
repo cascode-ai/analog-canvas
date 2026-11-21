@@ -14,7 +14,10 @@ import {
   type ProjectedFormalCellPort,
   type SchematicDocument,
 } from "@icm/model";
-import { designNetlistCellPorts } from "@icm/netlist";
+import {
+  designNetlistCellPorts,
+  type DesignNetlistCellPort,
+} from "@icm/netlist";
 import {
   builtInSymbols,
   createProjectSymbolResolver,
@@ -104,7 +107,7 @@ type PinRow =
  */
 function cellPinRows(
   ports: readonly ProjectedFormalCellPort[],
-  exported: readonly { id: string; name: string; supply: boolean }[] | null,
+  exported: readonly DesignNetlistCellPort[] | null,
 ): PinRow[] {
   let rows: PinRow[] = ports.map((port) => ({
     kind: "pin" as const,
@@ -113,14 +116,17 @@ function cellPinRows(
   }));
   if (exported) {
     const listed: PinRow[] = [];
-    const seen = new Set<number>();
+    const portsById = new Map(ports.map((port) => [port.id, port]));
+    const seen = new Set<string>();
     for (const item of exported) {
-      const index = ports.findIndex((port) => port.netIds.includes(item.id));
-      if (index < 0) listed.push({ kind: "added", name: item.name });
-      else if (!seen.has(index)) {
-        seen.add(index);
-        listed.push({ kind: "pin", port: ports[index]!, supply: item.supply });
+      if (item.portId === undefined) {
+        listed.push({ kind: "added", name: item.name });
+        continue;
       }
+      const port = portsById.get(item.portId);
+      if (!port || seen.has(item.portId)) continue;
+      seen.add(item.portId);
+      listed.push({ kind: "pin", port, supply: item.supply });
     }
     if (seen.size === ports.length) rows = listed;
   }

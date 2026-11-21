@@ -82,6 +82,13 @@ export function marqueeSelection(
       : []
     )
       .filter((instance) => {
+        if (
+          !policy.allowsCanvasHit(
+            { kind: "instance", id: instance.id },
+            "select",
+          )
+        )
+          return false;
         const bounds = instanceHitBox(instance, resolver);
         return bounds !== null && boxSelected(bounds);
       })
@@ -90,25 +97,33 @@ export function marqueeSelection(
       ? routeGeometryRecords
       : []
     )
-      .filter(({ geometry }) =>
-        window
-          ? polylineInRect(geometry.centerline, rect)
-          : geometry.centerline
-              .slice(0, -1)
-              .some((from, index) =>
-                segmentIntersectsRect(
-                  from,
-                  geometry.centerline[index + 1]!,
-                  rect,
-                ),
-              ),
+      .filter(
+        ({ route, geometry }) =>
+          policy.allowsCanvasHit({ kind: "route", id: route.id }, "select") &&
+          (window
+            ? polylineInRect(geometry.centerline, rect)
+            : geometry.centerline
+                .slice(0, -1)
+                .some((from, index) =>
+                  segmentIntersectsRect(
+                    from,
+                    geometry.centerline[index + 1]!,
+                    rect,
+                  ),
+                )),
       )
       .map(({ route }) => route.id),
     junctionIds: (policy.allowsClass("junction", "select")
       ? document.junctions
       : []
     )
-      .filter((junction) => pointInRect(junction.position, rect))
+      .filter(
+        (junction) =>
+          policy.allowsCanvasHit(
+            { kind: "junction", id: junction.id },
+            "select",
+          ) && pointInRect(junction.position, rect),
+      )
       .map((junction) => junction.id),
     annotationIds: document.annotations
       .filter(

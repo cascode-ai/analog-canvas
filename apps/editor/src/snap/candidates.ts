@@ -1,4 +1,5 @@
 import {
+  instanceGroupDisplay,
   resolveDrawingScene,
   resolveDocumentRoutingGeometry,
   resolveDraftingObjectGeometry,
@@ -425,7 +426,9 @@ export function buildSceneSnapTargetIndex(
   // One derivation for every drafting object below. Without it each object
   // re-resolved the whole Document's route geometry, which dominated a commit.
   const targets: IndexedSceneSnapTarget[] = [];
+  const hidden = instanceGroupDisplay(document)?.hidden;
   for (const instance of document.instances) {
+    if (hidden?.has(instance.id)) continue;
     for (const anchor of buildInstanceGeometryAnchors(instance, resolver)) {
       targets.push({ anchor, objectId: instance.id });
     }

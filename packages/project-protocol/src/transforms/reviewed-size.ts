@@ -1,5 +1,5 @@
 import {
-  reviewedBindingOfDefinition,
+  reviewedExternalDefinitionBinding,
   reviewedModelledSizeChanges,
 } from "@icm/devices";
 import type { CircuitProject } from "@icm/model";
@@ -34,7 +34,10 @@ export function repairUnmodelledReviewedSizes(
       const binding = instance.netlist?.binding;
       if (binding?.kind !== "external-subcircuit") continue;
       const definition = definitions.get(binding.definitionId);
-      const reviewed = definition && reviewedBindingOfDefinition(definition);
+      const reviewed = reviewedExternalDefinitionBinding(
+        definition,
+        instance.symbolId,
+      );
       if (!reviewed?.modelledSizes) continue;
       const changes = reviewedModelledSizeChanges(
         reviewed,

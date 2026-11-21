@@ -1,4 +1,5 @@
 import type { Annotation, DraftingObject, SchematicDocument } from "@icm/model";
+import { instanceGroupDisplay } from "@icm/derived";
 
 import type { VisualSelection } from "./visual-selection";
 
@@ -192,8 +193,10 @@ export function createSelectionPolicy(
   document: SchematicDocument,
   filter: SelectionFilter,
 ): SelectionPolicy {
+  const hidden = instanceGroupDisplay(document)?.hidden;
   const allowsClass = (kind: SelectionClass): boolean => filter[kind];
   const allowsAnnotation = (annotation: Annotation): boolean =>
+    !hidden?.has(annotation.id) &&
     allowsClass(selectionClassForAnnotation(annotation));
   const allowsDrafting = (object: DraftingObject): boolean =>
     allowsClass(selectionClassForDrafting(object));
@@ -203,6 +206,7 @@ export function createSelectionPolicy(
     // start an edit; a handle that exists is therefore already authorized and
     // must remain a passthrough target for its specialized drag controller.
     if (hit.kind === "handle") return true;
+    if (hidden?.has(hit.id)) return false;
     const kind = selectionClassForCanvasHit(document, hit);
     return kind !== null && allowsClass(kind);
   };
@@ -259,19 +263,25 @@ export function selectionForDocument(
   document: SchematicDocument,
   filter: SelectionFilter,
 ): VisualSelection {
+  const hidden = instanceGroupDisplay(document)?.hidden;
+  const visible = ({ id }: { id: string }) => !hidden?.has(id);
   return {
     instanceIds: filter.instance
       ? document.instances
-          .filter((instance) => instance.placement)
+          .filter((instance) => instance.placement && visible(instance))
           .map((instance) => instance.id)
       : [],
-    routeIds: filter.route ? document.routes.map((route) => route.id) : [],
+    routeIds: filter.route
+      ? document.routes.filter(visible).map((route) => route.id)
+      : [],
     junctionIds: filter.junction
-      ? document.junctions.map((junction) => junction.id)
+      ? document.junctions.filter(visible).map((junction) => junction.id)
       : [],
     annotationIds: document.annotations
-      .filter((annotation) =>
-        selectionFilterAllowsAnnotation(filter, annotation),
+      .filter(
+        (annotation) =>
+          visible(annotation) &&
+          selectionFilterAllowsAnnotation(filter, annotation),
       )
       .map((annotation) => annotation.id),
     draftingIds: (document.drafting?.objects ?? [])

@@ -270,9 +270,14 @@ export function planProjectCellBodyImport(
         return { ...coupling, name };
       }),
     );
+    const instanceGroups = append(
+      target.instanceGroups ?? [],
+      incoming.instanceGroups ?? [],
+    );
     incoming = {
       ...target,
       instances: append(target.instances, incoming.instances),
+      ...(instanceGroups.length ? { instanceGroups } : {}),
       nets,
       routes: append(target.routes, incoming.routes),
       junctions: append(target.junctions, incoming.junctions),

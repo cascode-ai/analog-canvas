@@ -16,7 +16,7 @@ import {
   matchGateCellPins,
   matchGateExternalPins,
   placedSubcircuitTarget,
-  resolveReviewedExternalBinding,
+  reviewedExternalDefinitionBinding,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
   reviewedExternalModelSuggestions,
@@ -58,13 +58,14 @@ function matchingReviewedExternalDefinition(
   const definition = project.externalSubcircuitDefinitions.find(
     (candidate) => candidate.id === definitionId,
   );
-  if (!definition || definition.presentation || definition.implementation)
-    return undefined;
-  const binding = resolveReviewedExternalBinding(
-    definition.name,
-    definition.terminals.map((terminal) => terminal.name),
-    symbolId,
-  );
+  if (!definition) return undefined;
+  const binding =
+    reviewedExternalDefinitionBinding(definition, symbolId) ??
+    // A pre-#1298 Var Cap can still clear its old PDK binding. It cannot
+    // select that model again because the new target checks the artwork.
+    (definition.presentation
+      ? undefined
+      : reviewedExternalDefinitionBinding(definition));
   if (!binding) return undefined;
   return { definition, binding };
 }
@@ -111,7 +112,7 @@ function removedPropertyTerminalEdits(
 function substrateDefaultEdits(
   document: SchematicDocument,
   instanceId: string,
-  binding: NonNullable<ReturnType<typeof resolveReviewedExternalBinding>>,
+  binding: NonNullable<ReturnType<typeof reviewedExternalDefinitionBinding>>,
 ): DocumentEdits {
   const net = pdkSubstrateDefaultNet(document);
   if (!net) return [];
@@ -637,18 +638,11 @@ export function planSetDeviceModelTarget(
         })),
         interfaceStatus: "declared" as const,
       } satisfies ExternalSubcircuitDefinition);
-    const verified =
-      definition.presentation || definition.implementation
-        ? undefined
-        : resolveReviewedExternalBinding(
-            definition.name,
-            definition.terminals.map((terminal) => terminal.name),
-            sourceSymbolId,
-          );
-    if (
-      !verified ||
-      !reviewedExternalBindingSupportsSymbol(verified, sourceSymbolId)
-    ) {
+    const verified = reviewedExternalDefinitionBinding(
+      definition,
+      sourceSymbolId,
+    );
+    if (!verified) {
       throw new Error(
         `Existing external definition ${definition.name} does not match its reviewed public terminal order`,
       );

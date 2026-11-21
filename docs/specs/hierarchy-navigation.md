@@ -10,6 +10,13 @@ The editor projects the Project's Cell calls as one navigation tree.
 
 ## Rules
 
+- Find in Circuit lists matching objects by occurrence across the hierarchy
+  roots. Independent definitions can be opened directly. Bounded occurrence
+  results identify when paths were omitted.
+- `key=value` matches a single authored parameter pair using Find's
+  case-insensitive spelling. Batch selection uses each matching Instance in
+  the current Cell once.
+
 - Hierarchy keeps no resident row or column: the tree opens on demand, and the
   instance path floats over the canvas only away from a root (inside a child
   occurrence, or in a directly opened definition something calls).

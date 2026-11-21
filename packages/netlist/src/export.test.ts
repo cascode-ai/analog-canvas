@@ -8,6 +8,8 @@ import type { SchematicDocument } from "@icm/model";
 import { deviceDescriptor } from "@icm/devices";
 import { importSpiceSources } from "@icm/spice";
 import { analyzeDesignNetlist } from "./extract.js";
+import { resolveDocumentLogicalNets } from "@icm/derived";
+import { serializeProject } from "@icm/project-protocol";
 import { printDesignNetlist } from "./printers.js";
 import {
   createDesignNetlistExport,
@@ -219,6 +221,153 @@ function cards(text: string) {
 }
 
 describe("copy/export netlist projection", () => {
+  it("leaves a legacy supply token unlinked when it names a different committed Net", () => {
+    const project = createEmptyProject("power-provenance", "Power provenance");
+    const document = project.documents[0]!;
+    for (const [index, letter] of ["a", "b"].entries()) {
+      const id = `R${index + 1}`;
+      document.instances.push(
+        {
+          id,
+          reference: id,
+          symbolId: "resistor",
+          placement: null,
+          netlist: {
+            binding: { kind: "primitive", deviceClass: "resistor" },
+            parameters: { value: "1k" },
+          },
+        },
+        { id: `supply-${letter}`, symbolId: "vdd-port", placement: null },
+      );
+      document.nets.push({
+        id: `vdd-${letter}`,
+        terminals: [
+          { instanceId: id, pinName: "1" },
+          { instanceId: `supply-${letter}`, pinName: "P" },
+        ],
+      });
+    }
+    document.instances.push({
+      id: "E1",
+      reference: "E1",
+      symbolId: "vcvs",
+      placement: null,
+      netlist: {
+        parameters: { gain: "2" },
+        control: {
+          kind: "voltage",
+          positiveNetId: "vdd-b",
+          negativeNetId: "shared-return",
+        },
+      },
+    });
+    document.nets[0]!.terminals.push({ instanceId: "E1", pinName: "+" });
+    document.nets.push({
+      id: "shared-return",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "R2", pinName: "2" },
+        { instanceId: "E1", pinName: "-" },
+      ],
+    });
+    const result = createDesignNetlistExport(project, {
+      includeNodeLocations: true,
+    });
+    if (result.status !== "ready")
+      throw new Error(JSON.stringify(result.diagnostics));
+    expect(result.file.text).toMatch(/^R2 VDD /mu);
+    expect(result.file.text).toMatch(/^E1 VDD (\S+) VDD \1 2$/mu);
+    expect(
+      result.locations.nodes
+        ?.filter(
+          (node) =>
+            result.file.text.slice(node.startOffset, node.endOffset) === "VDD",
+        )
+        .map(({ instanceId, netId }) => [instanceId, netId]),
+    ).toEqual([
+      ["E1", "vdd-a"],
+      ["R1", "vdd-a"],
+    ]);
+  });
+  it.each([
+    ["spice", "A_1_"],
+    ["spectre", "A\\<1\\>"],
+  ] as const)(
+    "maps the exact %s node token to the correct logical Net and Cell",
+    async (format, token) => {
+      const path = "node-locations.spi";
+      const source = [
+        "Node locations",
+        ".subckt child A<1> B",
+        "Rchild A<1> B 1k",
+        ".ends child",
+        ".subckt top A<1> B",
+        "X1 A<1> B child",
+        "Rside A<1> B 2k",
+        ".ends top",
+        ".end",
+      ].join("\n");
+      const imported = await importSpiceSources(
+        [{ path, bytes: new TextEncoder().encode(source) }],
+        path,
+      );
+      expect(imported.successful).toBe(true);
+      const project = imported.project!;
+      const before = serializeProject(project);
+      const withLocations = createDesignNetlistExport(project, {
+        format,
+        includeNodeLocations: true,
+      });
+      const plain = createDesignNetlistExport(project, { format });
+      if (withLocations.status !== "ready" || plain.status !== "ready")
+        throw new Error(JSON.stringify(withLocations.diagnostics));
+      expect(withLocations.file.text).toBe(plain.file.text);
+      expect(plain.locations.nodes).toBeUndefined();
+      const fieldsOnly = createDesignNetlistExport(project, {
+        format,
+        includeLocations: true,
+      });
+      expect(
+        fieldsOnly.status === "ready" && fieldsOnly.locations.nodes,
+      ).toBeUndefined();
+      const top = project.documents.find((doc) => doc.netlist?.name === "top")!;
+      const child = project.documents.find(
+        (doc) => doc.netlist?.name === "child",
+      )!;
+      const idFor = (document: SchematicDocument) =>
+        resolveDocumentLogicalNets(document).groups.find(
+          ({ name }) => name === "A<1>",
+        )!.id;
+      const spans = withLocations.locations.nodes!.filter(
+        ({ startOffset, endOffset }) =>
+          withLocations.file.text.slice(startOffset, endOffset) === token,
+      );
+      expect(
+        spans.filter(
+          ({ documentId, netId }) =>
+            documentId === top.id && netId === idFor(top),
+        ),
+      ).toHaveLength(2);
+      expect(
+        spans.filter(
+          ({ documentId, netId }) =>
+            documentId === child.id && netId === idFor(child),
+        ),
+      ).toHaveLength(1);
+      const caller = top.instances.find(({ reference }) => reference === "X1")!;
+      expect(
+        spans.find(
+          ({ instanceId, documentId }) =>
+            instanceId === caller.id && documentId === top.id,
+        )?.endpoint,
+      ).toMatchObject({
+        kind: "terminal",
+        instanceId: caller.id,
+        pinName: "A<1>",
+      });
+      expect(serializeProject(project)).toBe(before);
+    },
+  );
   it("imports E/G control nodes and F/H voltage-probe identity as typed relations", async () => {
     const imported = await importSpiceSources(
       [

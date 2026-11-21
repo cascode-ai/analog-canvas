@@ -11,7 +11,7 @@ import {
   namesModelOutsideSources,
   type EvidenceOwner,
 } from "./instance-evidence.js";
-import { resolveReviewedExternalBinding } from "./reviewed-external.js";
+import { reviewedExternalDefinitionBinding } from "./reviewed-external.js";
 
 /**
  * The part of an Instance this needs. Structural, so an Agent Snapshot's
@@ -122,13 +122,10 @@ export function instanceParameterContract(
     const definition = project.externalSubcircuitDefinitions?.find(
       (candidate) => candidate.id === definitionId,
     );
-    const reviewed = definition
-      ? resolveReviewedExternalBinding(
-          definition.name,
-          definition.terminals.map((terminal) => terminal.name),
-          instance.symbolId,
-        )
-      : undefined;
+    const reviewed = reviewedExternalDefinitionBinding(
+      definition,
+      instance.symbolId,
+    );
     return reviewed
       ? { definitions: reviewed.parameters, open: false }
       : {

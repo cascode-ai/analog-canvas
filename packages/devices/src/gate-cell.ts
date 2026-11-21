@@ -5,10 +5,12 @@
 // that subcircuit, Pin by name.
 import {
   cellPinsByUsualName,
+  circuitComponentTerminals,
   foldNetName,
   partPinNameSets,
   projectCellInterface,
   type CircuitProject,
+  type ComponentDefinition,
   type ExternalSubcircuitDefinition,
   type SchematicDocument,
 } from "@icm/model";
@@ -26,7 +28,9 @@ import type { ParameterOwner } from "./instance-parameters.js";
 import { deviceDescriptor, subcircuitDescriptor } from "./registry.js";
 import {
   isLibraryLogicGate,
-  resolveReviewedExternalBinding,
+  reviewedExternalDefinitionBinding,
+  type ReviewedExternalDeviceBinding,
+  type ReviewedExternalTerminalBinding,
 } from "./reviewed-external.js";
 
 /** The Library D flip-flops, which a Cell implements as it does a gate. */
@@ -305,6 +309,63 @@ export function matchGateExternalPins(
   };
 }
 
+interface ExternalCallTerminal extends ReviewedExternalTerminalBinding {
+  readonly clock?: true;
+}
+
+export interface ExternalTerminalBindings {
+  readonly source: "component" | "reviewed" | "library" | "definition";
+  readonly terminals: readonly ExternalCallTerminal[];
+  /** Drawable Library pins can exist even when the body uses a global rail. */
+  readonly pinNames: readonly string[];
+  readonly reviewed?: ReviewedExternalDeviceBinding;
+  readonly gate?: GateCellPinMatch;
+}
+
+/** The ordered actual call interface for an external definition on this artwork. */
+export function resolveExternalTerminalBindings(
+  definition: ExternalSubcircuitDefinition,
+  symbolId: string,
+  component?: ComponentDefinition,
+): ExternalTerminalBindings {
+  if (component?.circuitBinding) {
+    const terminals = circuitComponentTerminals(component, definition);
+    return {
+      source: "component",
+      terminals,
+      pinNames: terminals.map(({ pinName }) => pinName),
+    };
+  }
+  const reviewed = reviewedExternalDefinitionBinding(definition, symbolId);
+  if (reviewed)
+    return {
+      source: "reviewed",
+      reviewed,
+      terminals: reviewed.terminals,
+      pinNames: reviewed.terminals.map(({ pinName }) => pinName),
+    };
+  const gate = matchGateExternalPins(symbolId, definition);
+  const byPortName = new Map(gate?.pins.map((pin) => [pin.portName, pin]));
+  const terminals = definition.terminals.map(({ name }) => {
+    const pin = byPortName.get(name);
+    return {
+      targetName: name,
+      pinName: pin?.pinName ?? name,
+      interaction: "canvas" as const,
+      ...(pin?.supply ? { supply: pin.supply } : {}),
+      ...(pin?.clock ? { clock: true as const } : {}),
+    };
+  });
+  return {
+    source: gate ? "library" : "definition",
+    terminals,
+    pinNames: (gate ? libraryGateTerminals(symbolId) : terminals).map(
+      ({ pinName }) => pinName,
+    ),
+    ...(gate ? { gate } : {}),
+  };
+}
+
 function matchPartPins(
   symbolId: string,
   cell: { readonly name: string; readonly portNames: readonly string[] },
@@ -434,16 +495,10 @@ export function gateExternalBinding(
     (candidate) => candidate.id === binding.definitionId,
   );
   if (!definition) return undefined;
-  if (
-    !definition.implementation &&
-    resolveReviewedExternalBinding(
-      definition.name,
-      definition.terminals.map((terminal) => terminal.name),
-      instance.symbolId,
-    )
-  )
-    return undefined;
-  const match = matchGateExternalPins(instance.symbolId, definition);
+  const { gate: match } = resolveExternalTerminalBindings(
+    definition,
+    instance.symbolId,
+  );
   return match && { definition, match };
 }
 

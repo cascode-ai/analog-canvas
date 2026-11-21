@@ -30,6 +30,8 @@ import {
   LazyComponentPropertyCodeEditor as ComponentPropertyCodeEditor,
   LazyDocumentSettingsSection as DocumentSettingsSection,
   LazyDraftingPropertiesPanel as DraftingPropertiesPanel,
+  LazyInstanceArrayCreation as InstanceArrayCreation,
+  LazyInstanceGroupProperties as InstanceGroupProperties,
 } from "./lazy-editor-dialogs";
 
 interface ComponentPropertiesModel {
@@ -58,6 +60,8 @@ export interface EditorPropertiesDockProps {
   groupProperties: ComponentProps<typeof GroupPropertiesSection>;
   keptStyle: ComponentProps<typeof KeptDocumentStyleSection>;
   component: ComponentPropertiesModel | null;
+  instanceGroup?: ComponentProps<typeof InstanceGroupProperties>;
+  instanceArray?: ComponentProps<typeof InstanceArrayCreation>;
   bodyFill?: ComponentProps<typeof BodyFillProperties>;
   annotationText: ComponentProps<typeof AnnotationColorProperties> | null;
   netName: ComponentProps<typeof NetNameProperties> | null;
@@ -91,6 +95,8 @@ export function EditorPropertiesDock({
   groupProperties,
   keptStyle,
   component,
+  instanceGroup,
+  instanceArray,
   bodyFill,
   annotationText,
   netName,
@@ -169,6 +175,22 @@ export function EditorPropertiesDock({
               <p className="inspect-empty">Select an object to inspect.</p>
             ) : null}
             <GroupPropertiesSection {...groupProperties} />
+            {instanceGroup || instanceArray ? (
+              <Suspense fallback={null}>
+                {instanceGroup ? (
+                  <InstanceGroupProperties
+                    key={instanceGroup.group.id}
+                    {...instanceGroup}
+                  />
+                ) : null}
+                {instanceArray ? (
+                  <InstanceArrayCreation
+                    key={instanceArray.seed.id}
+                    {...instanceArray}
+                  />
+                ) : null}
+              </Suspense>
+            ) : null}
             <KeptDocumentStyleSection {...keptStyle} />
             {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
             {onConvertSignal ? (

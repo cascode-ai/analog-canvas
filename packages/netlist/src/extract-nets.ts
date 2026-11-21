@@ -18,18 +18,16 @@ import {
 import type {
   CircuitProject,
   ConnectivityEvidence,
-  ExternalSubcircuitDefinition,
   Instance,
   SchematicDocument,
 } from "@icm/model";
 import {
   deviceDescriptor,
-  bindsExternalByPartPins,
   bindsProjectCell,
   libraryGateTerminals,
-  resolveReviewedExternalBinding,
 } from "@icm/devices";
 import type { DesignNetlistCell, NetlistDiagnostic } from "./ir.js";
+import type { ExternalSubcircuitCall } from "./extract-subcircuit.js";
 import {
   encodedNetNameCollisionKey,
   encodeNetName,
@@ -133,7 +131,7 @@ export function buildNetContext(
   project: CircuitProject,
   sourceDocument: SchematicDocument,
   documentsById: Map<string, SchematicDocument>,
-  externalDefinitionsById: ReadonlyMap<string, ExternalSubcircuitDefinition>,
+  externalCalls: ReadonlyMap<string, ExternalSubcircuitCall>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
@@ -424,38 +422,14 @@ export function buildNetContext(
           binding?.kind === "subcircuit"
             ? documentsById.get(binding.childDocumentId)
             : undefined;
-        const externalDefinition =
-          binding?.kind === "external-subcircuit"
-            ? externalDefinitionsById.get(binding.definitionId)
-            : undefined;
-        const reviewed =
-          externalDefinition && !externalDefinition.implementation
-            ? resolveReviewedExternalBinding(
-                externalDefinition.name,
-                externalDefinition.terminals.map((terminal) => terminal.name),
-                instance.symbolId,
-              )
-            : undefined;
-        // A Library part bound to a Cell or to an external definition keeps
-        // its own pins (#1450, #1689, #1928); a Circuit Component that takes
-        // its symbol's id names its definition's terminals.
-        const partPins = (keeps: boolean) =>
-          keeps
-            ? libraryGateTerminals(instance.symbolId).map(
-                (gateTerminal) => gateTerminal.pinName,
-              )
-            : undefined;
         const allowedPins = child?.netlist
-          ? (partPins(bindsProjectCell(instance.symbolId)) ??
-            projectCellInterface(child.netlist).ports.map((port) => port.name))
-          : reviewed
-            ? reviewed.terminals.map((terminal) => terminal.pinName)
-            : externalDefinition
-              ? (partPins(
-                  bindsExternalByPartPins(project, instance.symbolId),
-                ) ??
-                externalDefinition.terminals.map((terminal) => terminal.name))
-              : deviceDescriptor(instance.symbolId, project)?.pinOrder;
+          ? bindsProjectCell(instance.symbolId)
+            ? libraryGateTerminals(instance.symbolId).map(
+                ({ pinName }) => pinName,
+              )
+            : projectCellInterface(child.netlist).ports.map(({ name }) => name)
+          : (externalCalls.get(instance.id)?.binding.pinNames ??
+            deviceDescriptor(instance.symbolId, project)?.pinOrder);
         if (allowedPins && !allowedPins.includes(terminal.pinName)) {
           diagnostic(
             diagnostics,

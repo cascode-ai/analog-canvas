@@ -8,7 +8,6 @@ import {
   executeTransaction,
   executeProjectTransaction,
   planWireBatch,
-  SchematicEditSchema,
 } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { CircuitProject, Point, SchematicDocument } from "@icm/model";
@@ -37,6 +36,7 @@ import {
   AGENT_SNAPSHOT_VERSION,
   AgentCircuitResponseSchema,
   AgentProjectStructureEditSchema,
+  AgentSchematicEditSchema,
 } from "./schema.js";
 import type {
   AgentCircuitResponse,
@@ -64,12 +64,11 @@ import { terminalConnectivity } from "./terminal-connectivity.js";
 const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
 
 /**
- * The Edit Engine schema is the sole list of typed edit kinds. `wire` is the
- * one deliberate extra capability: it advertises the mutually-exclusive
+ * Advertise the typed edits the Agent can use. `wire` advertises the mutually-exclusive
  * high-level `wireIntent` transaction form, not a SchematicEdit member.
  */
 export const AGENT_EDIT_KINDS = Object.freeze([
-  ...SchematicEditSchema.options
+  ...AgentSchematicEditSchema.options
     .map((option) => option.shape.kind.value)
     .filter((kind) => agentEditCategory(kind) !== "unsupported"),
   "wire",
@@ -169,6 +168,8 @@ export function agentEditCategory(
   kind: SchematicEdit["kind"],
 ): "geometry" | "connectivity" | "presentation" | "unsupported" {
   switch (kind) {
+    case "set_instance_group":
+      return "unsupported";
     case "noop":
     case "add_instance":
     case "remove_instance":

@@ -9,6 +9,7 @@ import {
 } from "@icm/devices";
 import { callOnlyBlock, createDesignNetlistExport } from "@icm/netlist";
 import {
+  deriveStableId,
   flattenRichText,
   plainNameDocument,
   type CircuitProject,
@@ -37,6 +38,7 @@ import {
   type LevelModel,
   hasCanvasTypesetting,
   readableLevel,
+  rnlIdName,
   type RnlObjectView,
   isOrient,
 } from "./rnl-snapshot.js";
@@ -247,6 +249,7 @@ export function applyRnlSnapshot(
         document,
         level,
         model: level.model,
+        sourceObjects: read.model.objects,
         format: snapshot.dialect === "spectre" ? "spectre" : "spice",
         wiresNamed: canvasWritten,
         tiedToGround,
@@ -699,6 +702,7 @@ interface LevelInput {
   document: SchematicDocument;
   level: RnlLevelSnapshot;
   model: LevelModel;
+  sourceObjects: LevelModel["objects"];
   /** The dialect the file is written in, which spells its names. */
   format: "spice" | "spectre";
   /** The file says which wire each net label is on. */
@@ -730,6 +734,34 @@ function applyLevel(input: LevelInput, records: ImportRecords): void {
     records.diagnostics,
   );
   const parts = placeParts(scope);
+  const grouped = new Set(
+    document.instanceGroups?.flatMap(({ memberIds }) => memberIds),
+  );
+  for (const bundle of input.sourceObjects) {
+    if (bundle.kind !== "bundle" || bundle.host.length < 2) continue;
+    const memberIds = bundle.host.flatMap((id) => {
+      const name = rnlIdName(id, "#");
+      const instance = name && scope.instanceOf(name);
+      return instance ? [instance.id] : [];
+    });
+    if (
+      memberIds.length !== bundle.host.length ||
+      new Set(memberIds).size !== memberIds.length ||
+      memberIds.some((id) => grouped.has(id))
+    ) {
+      scope.warn(
+        "RNL_IMPORT_INSTANCE_GROUP",
+        `Cannot resolve distinct, ungrouped Instances for ${bundle.id}`,
+      );
+      continue;
+    }
+    memberIds.forEach((id) => grouped.add(id));
+    (document.instanceGroups ??= []).push({
+      id: deriveStableId("instance-group", document.id, bundle.id),
+      memberIds,
+      collapsed: true,
+    });
+  }
   records.hiddenLabels.push(...parts.hiddenLabels);
   const groundPins = reclaimGroundPins(scope, input.tiedToGround);
   const canvas = readCanvasRecords(scope);

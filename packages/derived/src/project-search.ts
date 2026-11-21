@@ -2,7 +2,7 @@ import type { CircuitProject, Instance } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { ProjectConnectivityIndex } from "./connectivity-index.js";
-import { findHierarchyPaths } from "./hierarchy-navigation.js";
+import { buildProjectHierarchy } from "./project-hierarchy.js";
 import { directObjectLocator, type ObjectLocator } from "./object-locator.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
 
@@ -36,6 +36,7 @@ export interface SearchResult {
   label: string;
   field: SearchField;
   matchType: MatchType;
+  hierarchyLabel?: string;
 }
 
 const MATCH_RANK: Record<MatchType, number> = {
@@ -54,6 +55,7 @@ interface Candidate {
   label: string;
   field: SearchField;
   value: string; // lowercased match target
+  property?: { key: string; value: string; reference: string };
 }
 
 function classifyMatch(value: string, query: string): MatchType | null {
@@ -168,6 +170,11 @@ function collectCandidates(
           label: `${key}=${String(rawValue)}`,
           field: "property",
           value: String(rawValue).toLowerCase(),
+          property: {
+            key: key.toLowerCase(),
+            value: String(rawValue).trim().toLowerCase(),
+            reference: label,
+          },
         });
         candidates.push({
           locator,
@@ -201,6 +208,10 @@ function collectCandidates(
 
 export interface ProjectSearchIndex {
   search(query: string): readonly SearchResult[];
+  searchWithCoverage(query: string): {
+    results: readonly SearchResult[];
+    truncated: boolean;
+  };
 }
 
 export function buildProjectSearchIndex(
@@ -216,66 +227,127 @@ export function buildProjectSearchIndex(
     options.connectivityIndex?.objectIndex,
     options.resolver,
   );
-  return {
-    search(query) {
-      const normalized = query.trim().toLowerCase();
-      if (normalized.length === 0) return [];
+  const hierarchy = buildProjectHierarchy(project);
+  const propertyKeys = new Set(
+    candidates.flatMap(({ property }) => (property ? [property.key] : [])),
+  );
+  const usage = new Map<string, ReturnType<typeof hierarchy.usage>>();
+  const references = new Map(
+    project.documents.map((document) => [
+      document.id,
+      new Map(
+        document.instances.map((instance) => [
+          instance.id,
+          instance.reference ?? instance.id,
+        ]),
+      ),
+    ]),
+  );
+  const searchWithCoverage: ProjectSearchIndex["searchWithCoverage"] = (
+    query,
+  ) => {
+    const normalized = query.trim().toLowerCase();
+    if (normalized.length === 0) return { results: [], truncated: false };
+    const separator = normalized.indexOf("=");
+    const propertyKey = normalized.slice(0, separator).trim();
+    const propertyValue = normalized.slice(separator + 1).trim();
+    const property =
+      separator > 0 &&
+      normalized[separator + 1] !== "=" &&
+      propertyKeys.has(propertyKey) &&
+      !!propertyValue;
 
-      // Keep the best-scoring candidate per object.
-      const bestByObject = new Map<
-        string,
-        { candidate: Candidate; match: MatchType }
-      >();
-      for (const candidate of candidates) {
-        const match = classifyMatch(candidate.value, normalized);
-        if (!match) continue;
-        const key = `${candidate.locator.documentId}\u0000${candidate.locator.kind}\u0000${candidate.locator.objectId}`;
-        const current = bestByObject.get(key);
-        if (
-          !current ||
-          MATCH_RANK[match] < MATCH_RANK[current.match] ||
-          (MATCH_RANK[match] === MATCH_RANK[current.match] &&
-            candidate.field.localeCompare(current.candidate.field, "en") < 0)
-        ) {
-          bestByObject.set(key, { candidate, match });
-        }
+    // Keep the best-scoring candidate per object.
+    const bestByObject = new Map<
+      string,
+      { candidate: Candidate; match: MatchType }
+    >();
+    for (const candidate of candidates) {
+      const match =
+        property && candidate.locator.kind === "instance"
+          ? candidate.property &&
+            candidate.property.key === propertyKey &&
+            candidate.property.value === propertyValue
+            ? "exact"
+            : null
+          : classifyMatch(candidate.value, normalized);
+      if (!match) continue;
+      const key = `${candidate.locator.documentId}\u0000${candidate.locator.kind}\u0000${candidate.locator.objectId}`;
+      const current = bestByObject.get(key);
+      if (
+        !current ||
+        MATCH_RANK[match] < MATCH_RANK[current.match] ||
+        (MATCH_RANK[match] === MATCH_RANK[current.match] &&
+          candidate.field.localeCompare(current.candidate.field, "en") < 0)
+      ) {
+        bestByObject.set(key, { candidate, match });
       }
+    }
 
-      return [...bestByObject.values()]
-        .flatMap(({ candidate, match }): SearchResult[] => {
-          const paths = options.connectivityIndex
-            ? (findHierarchyPaths(
-                options.connectivityIndex,
-                project.topDocumentId,
-                candidate.locator.documentId,
-              ) ?? [candidate.locator.hierarchyPath])
-            : [candidate.locator.hierarchyPath];
-          return paths.map((hierarchyPath) => ({
+    let truncated = false;
+    const results = [...bestByObject.values()]
+      .flatMap(({ candidate, match }): SearchResult[] => {
+        const id = candidate.locator.documentId;
+        const uses = usage.get(id) ?? hierarchy.usage(id);
+        usage.set(id, uses);
+        truncated ||= uses.truncated;
+        const paths = uses.occurrences.length
+          ? uses.occurrences.map(({ path }) => path)
+          : [candidate.locator.hierarchyPath];
+        const label =
+          property && candidate.property
+            ? `${candidate.property.reference} · ${candidate.label}`
+            : candidate.label;
+        return paths.map((hierarchyPath) => {
+          const rootId = hierarchyPath[0]?.parentDocumentId;
+          return {
             locator: { ...candidate.locator, hierarchyPath },
-            label: candidate.label,
+            label,
             field: candidate.field,
             matchType: match,
-          }));
-        })
-        .sort(
-          (left, right) =>
-            MATCH_RANK[left.matchType] - MATCH_RANK[right.matchType] ||
-            left.locator.documentId.localeCompare(
-              right.locator.documentId,
+            ...(rootId
+              ? {
+                  hierarchyLabel: [
+                    hierarchy.document(rootId)?.name ?? rootId,
+                    ...hierarchyPath.map(
+                      ({ parentDocumentId, instanceId }) =>
+                        references.get(parentDocumentId)?.get(instanceId) ??
+                        instanceId,
+                    ),
+                  ].join(" / "),
+                }
+              : {}),
+          };
+        });
+      })
+      .sort(
+        (left, right) =>
+          MATCH_RANK[left.matchType] - MATCH_RANK[right.matchType] ||
+          left.locator.documentId.localeCompare(
+            right.locator.documentId,
+            "en",
+          ) ||
+          KIND_RANK[left.locator.kind] - KIND_RANK[right.locator.kind] ||
+          left.locator.objectId.localeCompare(right.locator.objectId, "en") ||
+          left.locator.hierarchyPath
+            .map(
+              (frame) => `${frame.parentDocumentId}\u0001${frame.instanceId}`,
+            )
+            .join("\u0000")
+            .localeCompare(
+              right.locator.hierarchyPath
+                .map(
+                  (frame) =>
+                    `${frame.parentDocumentId}\u0001${frame.instanceId}`,
+                )
+                .join("\u0000"),
               "en",
-            ) ||
-            KIND_RANK[left.locator.kind] - KIND_RANK[right.locator.kind] ||
-            left.locator.objectId.localeCompare(right.locator.objectId, "en") ||
-            left.locator.hierarchyPath
-              .map((frame) => frame.instanceId)
-              .join("\u0000")
-              .localeCompare(
-                right.locator.hierarchyPath
-                  .map((frame) => frame.instanceId)
-                  .join("\u0000"),
-                "en",
-              ),
-        );
-    },
+            ),
+      );
+    return { results, truncated };
+  };
+  return {
+    search: (query) => searchWithCoverage(query).results,
+    searchWithCoverage,
   };
 }

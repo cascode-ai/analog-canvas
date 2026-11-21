@@ -5,6 +5,11 @@ import {
   stableRootOrder,
 } from "../features/hierarchy/project-hierarchy";
 import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
+import { instanceGroupDisplay } from "@icm/derived";
+import {
+  canCreateInstanceArray,
+  planInstanceGroupView,
+} from "../features/instance-groups/instance-group-edits";
 import { NewCellDialog } from "../features/hierarchy/new-cell-dialog";
 import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
 import type {
@@ -1083,6 +1088,10 @@ function WorkspaceEditor({
     documentId: string;
     instanceId: string;
   } | null>(null);
+  const [netlistFocusedNode, setNetlistFocusedNode] = useState<{
+    documentId: string;
+    netId: string;
+  } | null>(null);
   // The canvas and the Netlist light the same parts. A part picked on the
   // canvas takes over from the one the netlist cursor named; an emptied
   // selection, as when the netlist cursor opens another Cell, keeps it.
@@ -2025,8 +2034,13 @@ function WorkspaceEditor({
   // returned or pasted Instance lands in the same state — and an Instance
   // nothing lists is one nobody can place or delete, while it still holds its
   // reference, its Net terminals and its place in the netlist.
+  const hiddenGroupObjects = useMemo(
+    () => instanceGroupDisplay(document)?.hidden,
+    [document],
+  );
   const unplaced = document.instances.filter(
-    (instance) => instance.placement === null,
+    (instance) =>
+      instance.placement === null && !hiddenGroupObjects?.has(instance.id),
   );
   const styleProfile = resolveDocumentStyleProfile(document.presentation);
   const {
@@ -2112,6 +2126,7 @@ function WorkspaceEditor({
     highlightedNet,
     selectedHighlightIsActive,
     searchResults,
+    searchTruncated,
     flightlines,
     displayedFlightlines,
     crossings,
@@ -2129,6 +2144,7 @@ function WorkspaceEditor({
     selectedHighlightEndpoint,
     searchActive: searchOpen,
     searchQuery,
+    hiddenGroupObjects,
     routingGuidanceView,
     wireSource,
     bulkDrawInstanceId,
@@ -2360,10 +2376,38 @@ function WorkspaceEditor({
   useEffect(() => {
     setControlOptionPreview(null);
   }, [selectionOpen, documentSettingsOpen, document.id, selectedInstance?.id]);
+  const netlistNodeHighlight = useMemo(
+    () =>
+      projectPanel === "netlist" &&
+      netlistFocusedNode?.documentId === document.id
+        ? computeNetHighlight(
+            projectConnectivityIndex,
+            document.id,
+            netlistFocusedNode.netId,
+            undefined,
+            documentStack,
+          )
+        : undefined,
+    [
+      projectPanel,
+      netlistFocusedNode,
+      document.id,
+      projectConnectivityIndex,
+      documentStack,
+    ],
+  );
+  const schematicNetChoice = selectedHighlightNetId ?? highlightedNet?.netId;
+  const schematicNetlistNetId = schematicNetChoice
+    ? (logicalNets.byBaseNetId.get(schematicNetChoice)?.id ??
+      logicalNets.byId.get(schematicNetChoice)?.id)
+    : undefined;
   const shownNetHighlight =
     simulationPickNetsActive || controlPickMode === "net"
       ? simulationPickHighlight
-      : (controlOptionHighlight ?? codeNetHighlight ?? highlightedNet);
+      : (controlOptionHighlight ??
+        codeNetHighlight ??
+        netlistNodeHighlight ??
+        highlightedNet);
   // What the selection connects to glows faintly unless a Net is already
   // highlighted or being picked (2026-10-14).
   const connectedNetHighlights = useMemo(
@@ -4067,6 +4111,11 @@ function WorkspaceEditor({
     selectedInstance,
     setStatus,
   });
+  const selectedInstanceGroup =
+    selectedInstance &&
+    document.instanceGroups?.find((group) =>
+      group.memberIds.includes(selectedInstance.id),
+    );
   // A navigation fits before its instance path appears over the canvas or
   // goes. Once the path is drawn, before it is painted, fit the Cell again
   // with the path's inset, so entering, leaving and F land on one view.
@@ -6237,6 +6286,16 @@ function WorkspaceEditor({
         publishDraft={publishDraft}
         setPublishDraft={setPublishDraft}
         searchResults={searchResults}
+        searchTruncated={searchTruncated}
+        selectSearchMatches={(ids) => {
+          resetInteractionState();
+          selectOnly("instance", ids);
+          setSelectionOpen(true);
+          closeSearch();
+          setStatus(
+            `Selected ${ids.length} matching ${ids.length === 1 ? "instance" : "instances"} in ${document.name}`,
+          );
+        }}
         requestElectricalDiagnostics={requestElectricalDiagnostics}
         cellInsertCandidates={cellInsertCandidates}
         insertDialogExternalCandidates={insertDialogExternalCandidates}
@@ -6617,9 +6676,30 @@ function WorkspaceEditor({
                         selectDocumentFromHierarchy(instance.documentId);
                       setNetlistFocusedInstance(instance);
                     }}
+                    onFocusNode={(node) => {
+                      if (!node) {
+                        setNetlistFocusedNode(null);
+                        return;
+                      }
+                      if (node.documentId !== document.id)
+                        selectDocumentFromHierarchy(node.documentId);
+                      setNetlistFocusedNode((current) =>
+                        current?.documentId === node.documentId &&
+                        current.netId === node.netId
+                          ? current
+                          : { documentId: node.documentId, netId: node.netId },
+                      );
+                      const named = projectConnectivityIndex.documents
+                        .get(node.documentId)
+                        ?.logicalNetResolution.byId.get(node.netId)?.name;
+                      setStatus(
+                        `Located ${named ? `Net ${named}` : "unnamed Net"}${node.pinLabel ? ` at ${node.pinLabel}` : ""}`,
+                      );
+                    }}
                     selection={{
                       documentId: document.id,
                       instanceIds: visualSelection.instanceIds,
+                      netId: schematicNetlistNetId,
                     }}
                     onNavigateDiagnostic={(diagnostic) =>
                       navigateToNetlistDiagnostic(diagnostic, {
@@ -7176,6 +7256,62 @@ function WorkspaceEditor({
                   };
                 },
               }}
+              {...(selectedInstanceGroup && selectedInstance
+                ? {
+                    instanceGroup: {
+                      document,
+                      group: selectedInstanceGroup,
+                      resolver,
+                      selectedId: selectedInstance.id,
+                      onEdit: (edits: SchematicEdit[]) => transact(edits).ok,
+                      onLocate: (id: string, label: string) => {
+                        const member = document.instances.find(
+                          (instance) => instance.id === id,
+                        );
+                        if (!member?.placement || hiddenGroupObjects?.has(id)) {
+                          selectOnly("instance", [id]);
+                          setStatus(
+                            `Selected ${label} (${member?.placement ? "collapsed" : "unplaced"})`,
+                          );
+                        } else {
+                          navigateToLocator(
+                            {
+                              documentId: document.id,
+                              kind: "instance",
+                              objectId: id,
+                              hierarchyPath: documentStack,
+                            },
+                            `Located ${label}`,
+                            { keepPanel: true, showInstanceOutline: true },
+                          );
+                        }
+                      },
+                      onToggle: () => {
+                        const result = transact(
+                          planInstanceGroupView(
+                            document,
+                            selectedInstanceGroup,
+                            viewBox,
+                            resolver,
+                          ),
+                        );
+                        if (result.ok && !selectedInstanceGroup.collapsed)
+                          selectOnly("instance", [
+                            selectedInstanceGroup.memberIds[0]!,
+                          ]);
+                      },
+                    },
+                  }
+                : selectedInstance &&
+                    canCreateInstanceArray(document, selectedInstance)
+                  ? {
+                      instanceArray: {
+                        document,
+                        seed: selectedInstance,
+                        onEdit: (edits: SchematicEdit[]) => transact(edits).ok,
+                      },
+                    }
+                  : {})}
               component={
                 selectedInstance
                   ? {

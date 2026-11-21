@@ -6,6 +6,7 @@ import {
   analyzeDesignNetlistForAuthoring,
   type DesignNetlistAnalysisOptions,
 } from "./extract.js";
+import { analysisPortRows } from "./extract-interface.js";
 import { sortsSupplyPorts, supplyPortRank } from "./extract-ground-pin.js";
 import { withNetlistPowerMarkerClaims } from "./extract-nets.js";
 
@@ -83,10 +84,19 @@ export function designNetlistNetNames(
  * the export puts before the signals (#2177). A drawing that does not
  * extract yet answers with its draft's pins; one with no draft, null.
  */
+export interface DesignNetlistCellPort {
+  /** Representative Net ID used by existing callers. */
+  readonly id: string;
+  readonly name: string;
+  readonly supply: boolean;
+  /** The authored Port row, shared by all printed members of a bus. */
+  readonly portId?: string;
+}
+
 export function designNetlistCellPorts(
   project: CircuitProject,
   documentId: string,
-): readonly { id: string; name: string; supply: boolean }[] | null {
+): readonly DesignNetlistCellPort[] | null {
   const source = project.documents.find(
     (document) => document.id === documentId,
   );
@@ -101,24 +111,28 @@ export function designNetlistCellPorts(
   };
   // A Cell read from a file keeps its own Pins where the file has them; the
   // supplies the export adds still take their places.
-  const own = new Set(
-    source.netlist?.terminals.map((terminal) => terminal.netId) ?? [],
-  );
   for (const analyze of [
     analyzeDesignNetlist,
     analyzeDesignNetlistForAuthoring,
   ]) {
-    const cell = analyze(project, analysisOptions).ir?.cells.find(
+    const analysis = analyze(project, analysisOptions);
+    const cell = analysis.ir?.cells.find(
       (candidate) => candidate.id === documentId,
     );
-    if (cell)
-      return cell.ports.map(({ id, name }) => ({
-        id,
-        name,
-        supply:
-          supplyPortRank(logical, { id, name }) < 2 &&
-          (sortsSupplyPorts(source) || !own.has(id)),
-      }));
+    if (cell) {
+      const rows = analysisPortRows.get(analysis)?.get(cell.id);
+      return cell.ports.map((port, index) => {
+        const portId = rows?.[index];
+        return {
+          id: port.id,
+          name: port.name,
+          supply:
+            supplyPortRank(logical, port) < 2 &&
+            (sortsSupplyPorts(source) || portId === undefined),
+          ...(portId === undefined ? {} : { portId }),
+        };
+      });
+    }
   }
   return null;
 }

@@ -8,11 +8,7 @@ import {
   drawnSwitchControl,
   type DeviceDescriptor,
 } from "@icm/devices";
-import type {
-  DesignNetlistCell,
-  DesignNetlistInstance,
-  NetlistDiagnostic,
-} from "./ir.js";
+import type { DesignNetlistInstance, NetlistDiagnostic } from "./ir.js";
 import {
   IDEAL_CHOPPER_TARGET,
   IDEAL_SWITCH_MODEL,
@@ -30,58 +26,8 @@ import {
 /** Phase nodes no drawn Net supplies, per Cell: its pins as a subcircuit. */
 export const undrivenPhaseNodes = new WeakMap<CellNetContext, Set<string>>();
 
-/**
- * A clock phase a Cell took as a pin because nothing in it drives the phase
- * (extractDrawnSwitch) reaches its callers by name, as a clock tree does: each
- * call passes the caller's Net of that name, or, where it has none, the caller
- * takes the phase as a pin of its own. A deck's top is the testbench: there
- * the phase is a node of its name, for the testbench's own text to drive
- * (#1475, #1489).
- */
-export function bubblePhasePins(
-  cells: DesignNetlistCell[],
-  documentsById: ReadonlyMap<string, SchematicDocument>,
-  options: ResolvedDesignNetlistAnalysisOptions,
-): void {
-  const cellsById = new Map(cells.map((cell) => [cell.id, cell]));
-  const phaseNetId = (cellId: string, name: string) =>
-    deriveStableId("netlist", "switch-phase", cellId, name);
-  const visited = new Set<string>();
-  const visit = (cell: DesignNetlistCell) => {
-    if (visited.has(cell.id)) return;
-    visited.add(cell.id);
-    const document = documentsById.get(cell.id);
-    const atTop = options.rootAsTopLevel && cell.id === options.rootDocumentId;
-    for (const instance of cell.instances) {
-      const binding = document?.instances.find(
-        (candidate) => candidate.id === instance.id,
-      )?.netlist?.binding;
-      if (binding?.kind !== "subcircuit") continue;
-      const child = cellsById.get(binding.childDocumentId);
-      if (!child) continue;
-      visit(child);
-      for (const port of child.ports) {
-        if (port.id !== phaseNetId(child.id, port.name)) continue;
-        let net = cell.nets.find(
-          (candidate) =>
-            candidate.name.toLowerCase() === port.name.toLowerCase(),
-        );
-        if (!net) {
-          net = {
-            id: phaseNetId(cell.id, port.name),
-            name: port.name,
-            scope: "local",
-          };
-          cell.nets.push(net);
-          if (!atTop)
-            cell.ports.push({ id: net.id, name: port.name, netName: net.name });
-        }
-        instance.nodes.push({ pinName: port.name, netName: net.name });
-      }
-    }
-  };
-  for (const cell of cells) visit(cell);
-}
+export const phaseNetId = (cellId: string, name: string) =>
+  deriveStableId("netlist", "switch-phase", cellId, name);
 
 /** Whether a Symbol is a drawn switch, whose control is read against ground. */
 export function isDrawnSwitch(
@@ -98,7 +44,7 @@ export function isDrawnSwitch(
  * A phase names its node the way a Net Label would, so the switch meets the
  * clock drawn on a Net of that name, or a Cell Pin of that name. A phase
  * nothing in the Cell drives becomes a pin of a Cell printed as a subcircuit
- * (see bubblePhasePins); at a deck's top, the testbench, it is a node its text
+ * (see finalizeCellInterfaces); at a deck's top, it is a node its text
  * drives.
  */
 export function switchPhaseNode(
@@ -150,7 +96,7 @@ export function switchPhaseNode(
   if (node) return node;
   added.add(token);
   context.nets.push({
-    id: deriveStableId("netlist", "switch-phase", document.id, token),
+    id: phaseNetId(document.id, token),
     name: token,
     scope: "local",
   });

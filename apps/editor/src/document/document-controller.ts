@@ -8,6 +8,7 @@ import {
   shareProjectSnapshot,
   shareEqualDocumentStructure,
   executeProjectTransaction,
+  introducedExternalCallerFailure,
   rejectTransaction,
   diffDocumentObjectIds,
   EditTransactionSchema,
@@ -453,7 +454,14 @@ export class EditorDocumentController {
         return result;
       return this.restoreHistory(request, request.edits[0].kind);
     }
-    if (!result.ok || !result.applied) return result;
+    if (!result.ok) return result;
+    const withExternalCallers =
+      this.projectValue.externalSubcircuitDefinitions.length > 0 &&
+      result.document.instances.some(
+        ({ netlist }) => netlist?.binding?.kind === "external-subcircuit",
+      );
+    if (!result.applied && (!request.dryRun || !withExternalCallers))
+      return result;
     if (sameDocumentJson(result.document, document, true))
       return {
         ...result,
@@ -491,6 +499,33 @@ export class EditorDocumentController {
           ),
         ),
       );
+      const candidate = next.documents.find(
+        ({ id }) => id === request.documentId,
+      )!;
+      if (withExternalCallers) {
+        const failure = introducedExternalCallerFailure(
+          { ...before, documents: [document] },
+          { ...next, documents: [candidate] },
+          [
+            {
+              kind: "transact_document",
+              documentId: document.id,
+              expectedRevision: document.revision,
+              edits: [...request.edits],
+            },
+          ],
+        );
+        if (failure)
+          return rejectTransaction(
+            document,
+            "INVALID_RESULT",
+            failure.message,
+            [],
+            undefined,
+            failure.objectIds,
+          );
+      }
+      if (!result.applied) return result;
       const resolver = this.needsResolver(before, next)
         ? this.projectResolver(next)
         : this.resolverValue;
@@ -499,9 +534,7 @@ export class EditorDocumentController {
       this.record(before, request.documentId, false);
       return {
         ...result,
-        document: next.documents.find(
-          (item) => item.id === request.documentId,
-        )!,
+        document: candidate,
       };
     } catch (error) {
       return rejectTransaction(

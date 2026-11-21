@@ -66,6 +66,7 @@ export * from "./cell-symbol-artwork.js";
 export * from "./cell-pin-planner.js";
 export * from "./signal-wire-planner.js";
 export * from "./signal-endpoint.js";
+export { validateConnectableEndpoint } from "./transaction-routing.js";
 export * from "./no-connect-planner.js";
 export * from "./cell-interface-change-planner.js";
 export * from "./device-model-target-planner.js";

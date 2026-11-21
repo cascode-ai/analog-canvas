@@ -409,6 +409,7 @@ it("calls a Cell whose bus Pin sits between scalar Pins in its .subckt order (#2
   ]);
   const exported = createDesignNetlistExport(
     parseProject(serializeProject(project)),
+    { includeNodeLocations: true },
   );
   expect(exported.status, JSON.stringify(exported.diagnostics)).toBe("ready");
   if (exported.status !== "ready") throw new Error("Export refused");
@@ -426,6 +427,20 @@ it("calls a Cell whose bus Pin sits between scalar Pins in its .subckt order (#2
   // SPICE pairs a call's nodes with the .subckt's ports by position.
   expect(header).toEqual(["A", "B_1_", "B_0_", "C"]);
   expect(call).toEqual(["TA", "TB_1_", "TB_0_", "TC"]);
+  expect(
+    exported.locations.nodes
+      ?.filter((node) => node.instanceId === "x")
+      .map((node) => ({
+        token: exported.file.text.slice(node.startOffset, node.endOffset),
+        memberId: node.endpoint?.memberId,
+        pin: node.pinLabel,
+      })),
+  ).toEqual([
+    { token: "TA", memberId: undefined, pin: "A" },
+    { token: "TB_1_", memberId: childBus[0]!.id, pin: "B<1>" },
+    { token: "TB_0_", memberId: childBus[1]!.id, pin: "B<0>" },
+    { token: "TC", memberId: undefined, pin: "C" },
+  ]);
 });
 
 it("preserves physical hierarchy channels after connected reorder, rename and resize", () => {

@@ -1,5 +1,6 @@
 import type { CircuitProject } from "@icm/model";
 
+import { designNodeLocations } from "./node-location.js";
 import {
   analyzeDesignNetlistForAuthoring,
   type DesignNetlistAnalysisOptions,
@@ -47,6 +48,17 @@ const UNPRINTED = new Set([
 const key = (documentId: string, instanceId: string) =>
   `${documentId}\u0000${instanceId}`;
 
+function ambiguousNetIds(findings: readonly NetlistDiagnostic[]) {
+  const ambiguous = new Map<string, Set<string>>();
+  for (const finding of findings) {
+    if (finding.code !== "DIALECT_NAME_COLLISION") continue;
+    const ids = ambiguous.get(finding.documentId) ?? new Set<string>();
+    for (const id of finding.objectIds) ids.add(id);
+    ambiguous.set(finding.documentId, ids);
+  }
+  return ambiguous;
+}
+
 /**
  * The netlist a drawing that does not extract yet would have, for reading
  * only. Every part prints as soon as it is placed. An unconnected pin, a
@@ -58,7 +70,9 @@ const key = (documentId: string, instanceId: string) =>
  */
 export function createDraftNetlistPreview(
   project: CircuitProject,
-  options: DesignNetlistAnalysisOptions = {},
+  options: DesignNetlistAnalysisOptions & {
+    includeNodeLocations?: boolean;
+  } = {},
 ): DraftNetlistPreview | null {
   const format = options.format ?? "spice";
   const analysis = analyzeDesignNetlistForAuthoring(project, {
@@ -105,7 +119,15 @@ export function createDraftNetlistPreview(
   let text: string;
   let locations: DesignNetlistLocations;
   try {
-    const projection = printDesignNetlistWithLocations(format, ir);
+    const locateNode = options.includeNodeLocations
+      ? designNodeLocations(project, ambiguousNetIds(analysis.diagnostics))
+      : undefined;
+    const projection = printDesignNetlistWithLocations(
+      format,
+      ir,
+      false,
+      locateNode,
+    );
     const printed = projection.file.text;
     const body = printed.slice(printed.indexOf("\n") + 1).trimStart();
     text = `${comment} Draft: each ${DRAFT_NETLIST_PLACEHOLDER} is something the drawing does not say yet\n${body}`;

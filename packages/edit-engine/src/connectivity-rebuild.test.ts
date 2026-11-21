@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyDocument,
   createRoutePath,
+  routeEndpoints,
   type SchematicDocument,
 } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -176,6 +177,43 @@ describe("connectivity reconstructed from final wire topology", () => {
       groups(commit(before, [{ kind: "cut_connection", routeId: "bc" }])),
     ).toEqual(["a,b", "c,d"]);
   });
+  it("cuts or only unroutes the same span without touching an independent conductor", () => {
+    const document = fixture();
+    document.instances[3]!.placement!.position = { x: 0, y: 100 };
+    for (const [id, x] of [
+      ["e", 0],
+      ["f", 100],
+    ] as const) {
+      document.instances.push({
+        id,
+        symbolId: "resistor",
+        placement: { position: { x, y: 300 }, rotation: 0, mirror: "none" },
+      });
+    }
+    const initial = commit(document, [
+      wire("ab", "a", "b"),
+      wire("bc", "b", "c"),
+      wire("ef", "e", "f", "independent"),
+    ]);
+    const cut = { kind: "cut_connection", routeId: "bc" } as const;
+    const split = commit(initial, [cut]);
+    const unrouted = commit(initial, [
+      { kind: "remove_route_geometry", routeId: "bc" },
+    ]);
+    expect(split.routes.map(({ id }) => id)).toEqual(
+      unrouted.routes.map(({ id }) => id),
+    );
+    expect(groups(split)).toEqual(["a,b", "c", "e,f"]);
+    expect(groups(unrouted)).toEqual(["a,b,c", "e,f"]);
+    expect(split.routes.find(({ id }) => id === "ef")).toEqual(
+      initial.routes.find(({ id }) => id === "ef"),
+    );
+    expect(split.nets.find(({ id }) => id === "independent")).toEqual(
+      initial.nets.find(({ id }) => id === "independent"),
+    );
+    const ring = commit(initial, [wire("cd", "c", "d"), wire("da", "d", "a")]);
+    expect(groups(commit(ring, [cut]))).toEqual(["a,b,c,d", "e,f"]);
+  });
   it("names a split-off network from the revision, not the transaction ID", () => {
     // Planners preview a step under one transaction ID and commit it under
     // another; later steps must still find the Net this one creates.
@@ -203,11 +241,376 @@ describe("connectivity reconstructed from final wire topology", () => {
     expect(preview).toHaveLength(2);
     expect(cutUnder("commit-cut")).toEqual(preview);
   });
+  it("keeps the same Net identities when a batch cuts two bridges in either order", () => {
+    const before = commit(fixture(), [
+      wire("ab", "a", "b"),
+      wire("bc", "b", "c"),
+      wire("cd", "c", "d"),
+    ]);
+    const ab = { kind: "cut_connection", routeId: "ab" } as const;
+    const cd = { kind: "cut_connection", routeId: "cd" } as const;
+    const leftFirst = commit(before, [ab, cd]);
+    const rightFirst = commit(before, [cd, ab]);
+    expect(groups(leftFirst)).toEqual(["a", "b,c", "d"]);
+    expect(leftFirst.nets).toEqual(rightFirst.nets);
+    expect(leftFirst.routes).toEqual(rightFirst.routes);
+  });
   it("does not treat a stale netId hint as an invisible wire", () => {
     expect(
       groups(commit(fixture(), [wire("ab", "a", "b"), wire("cd", "c", "d")])),
     ).toEqual(["a,b", "c,d"]);
   });
+
+  it.each([false, true])(
+    "cutting an uncommitted path never cuts its unrelated hint (existing Route %s)",
+    (existing) => {
+      const document = fixture();
+      const before = commit(document, [
+        {
+          kind: "connect_endpoints",
+          from: pin("c"),
+          to: pin("d"),
+          newNetId: "occupied",
+        },
+        ...(existing ? [wire("ab", "a", "b", "actual")] : []),
+      ]);
+      const final = commit(before, [
+        {
+          kind: "route_orthogonal",
+          routeId: "ab",
+          netId: "occupied",
+          from: pin("a"),
+          to: pin("b"),
+        },
+        { kind: "cut_connection", routeId: "ab" },
+      ]);
+      expect(final.nets.find(({ id }) => id === "occupied")).toEqual(
+        before.nets.find(({ id }) => id === "occupied"),
+      );
+      expect(groups(final)).toEqual(existing ? ["a", "b", "c,d"] : ["c,d"]);
+    },
+  );
+
+  it.each([false, true])(
+    "keeps a newly authored connection after removing its geometry in the batch (existing Net %s)",
+    (existing) => {
+      const document = fixture();
+      const before = existing
+        ? commit(document, [
+            {
+              kind: "connect_endpoints",
+              from: pin("a"),
+              to: pin("c"),
+              newNetId: "hint",
+            },
+          ])
+        : document;
+      const add = wire("ab", "a", "b");
+      const remove: SchematicEdit = {
+        kind: "remove_route_geometry",
+        routeId: "ab",
+      };
+      const final = commit(before, [add, remove]);
+      expect(final.routes).toEqual([]);
+      expect(groups(final)).toEqual(existing ? ["a,b,c"] : ["a,b"]);
+      expect(final.nets).toEqual(commit(commit(before, [add]), [remove]).nets);
+    },
+  );
+
+  it("checks the final Route ends after successive repoints in a batch", () => {
+    const document = fixture();
+    document.instances[1]!.placement!.position = { x: -100, y: -200 };
+    document.instances[2]!.placement!.position = { x: 100, y: -200 };
+    const repoint = (to: string, x: number, y: number): SchematicEdit => ({
+      kind: "set_route_path",
+      route: createRoutePath({
+        id: "ab",
+        netId: "hint",
+        start: pin("a"),
+        end: pin(to),
+        bends: [
+          { x: 0, y },
+          { x, y },
+        ],
+        modes: ["manual", "manual", "manual"],
+      }),
+    });
+    const before = commit(document, [repoint("b", -100, -250)]);
+    const final = commit(before, [
+      repoint("c", 100, -320),
+      repoint("d", 200, -80),
+    ]);
+    expect(groups(final)).toEqual(["a,d", "b"]);
+    expect(routeEndpoints(final.routes[0]!)).toEqual([pin("a"), pin("d")]);
+  });
+
+  it.each(["ab", "replacement"])(
+    "uses the final cut or unroute intent after restoring the conductor as %s",
+    (routeId) => {
+      const path = wire("ab", "a", "b");
+      const before = commit(fixture(), [path]);
+      const restored = wire(routeId, "a", "b");
+      const disconnected = commit(before, [
+        { kind: "remove_route_geometry", routeId: "ab" },
+        restored,
+        { kind: "cut_connection", routeId },
+      ]);
+      const connected = commit(before, [
+        { kind: "cut_connection", routeId: "ab" },
+        restored,
+        { kind: "remove_route_geometry", routeId },
+      ]);
+      expect(disconnected.routes).toEqual(connected.routes);
+      expect(groups(disconnected)).toEqual(["a", "b"]);
+      expect(groups(connected)).toEqual(["a,b"]);
+    },
+  );
+
+  it("cleans up newly created orphan ends of a cut even before the draft Nets merge", () => {
+    const endpoint = (id: string) => ({
+      kind: "junction" as const,
+      junctionId: id,
+    });
+    const document = createEmptyDocument("rebuild", "Connectivity rebuild");
+    const final = commit(document, [
+      ...["left", "right"].map((id, index) => ({
+        kind: "add_junction" as const,
+        junctionId: id,
+        netId: `${id}-net`,
+        role: "route-anchor" as const,
+        position: { x: index * 100, y: 0 },
+        createNet: true,
+      })),
+      {
+        kind: "set_route_path",
+        route: createRoutePath({
+          id: "span",
+          netId: "left-net",
+          start: endpoint("left"),
+          end: endpoint("right"),
+          bends: [],
+          modes: ["manual"],
+        }),
+      },
+      { kind: "cut_connection", routeId: "span" },
+    ]);
+    expect(final.routes).toEqual([]);
+    expect(final.junctions).toEqual([]);
+    expect(final.nets).toEqual([]);
+  });
+
+  it.each(["remove_route_geometry", "cut_connection"] as const)(
+    "%s captures a Route split earlier in the same batch",
+    (kind) => {
+      const before = commit(fixture(), [wire("ab", "a", "b")]);
+      const original = before.routes.find(({ id }) => id === "ab")!;
+      const split: SchematicEdit = {
+        kind: "add_junction",
+        junctionId: "middle",
+        netId: original.netId,
+        position: { x: 50, y: -20 },
+        split: {
+          routeId: original.id,
+          legId: original.legs[0]!.id,
+          firstRouteId: "left",
+          secondRouteId: "right",
+        },
+      };
+      const remove: SchematicEdit = { kind, routeId: "left" };
+      const inBatch = commit(before, [split, remove]);
+      const separate = commit(commit(before, [split]), [remove]);
+      expect(groups(inBatch)).toEqual(
+        kind === "remove_route_geometry" ? ["a,b"] : ["a", "b"],
+      );
+      expect(groups(inBatch)).toEqual(groups(separate));
+    },
+  );
+
+  it.each(["independent conductor", "empty Net"])(
+    "keeps names with the new route when its hint belongs to an %s",
+    (hintOwner) => {
+      const empty = hintOwner === "empty Net";
+      const initial = structuredClone(
+        commit(fixture(), [
+          wire("ab", "a", "b", empty ? "independent" : "occupied"),
+        ]),
+      );
+      if (empty) initial.nets.push({ id: "occupied", terminals: [] });
+      const path = wire("cd", "c", "d", "occupied");
+      if (path.kind !== "set_route_path") throw new Error("Expected a path");
+      const final = commit(initial, [
+        path,
+        {
+          kind: "upsert_schematic_annotation",
+          annotation: {
+            id: "label",
+            kind: "net-label",
+            netId: "occupied",
+            binding: { kind: "net-name", netId: "occupied" },
+            anchor: {
+              kind: "route",
+              routeId: "cd",
+              legId: path.route.legs[0]!.id,
+              t: 0.5,
+              normalOffset: 4,
+              direction: "forward",
+              orientation: "horizontal",
+              fallbackPosition: { x: 150, y: 80 },
+            },
+            alignment: "middle",
+            rotation: 0,
+            locked: false,
+          },
+        },
+        {
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "signal-claim",
+            kind: "name-claim",
+            netId: "occupied",
+            name: "SIGNAL",
+            scope: "local",
+            owner: { kind: "net-label", annotationId: "label" },
+          },
+        },
+      ]);
+      const route = final.routes.find(({ id }) => id === "cd")!;
+      expect(groups(final)).toEqual(["a,b", "c,d"]);
+      expect(route.netId).not.toBe("occupied");
+      expect(final.annotations[0]).toMatchObject({
+        netId: route.netId,
+        binding: { kind: "net-name", netId: route.netId },
+      });
+      expect(final.connectivityEvidence[0]).toMatchObject({
+        netId: route.netId,
+      });
+    },
+  );
+
+  it.each(["same Net", "independent Net", "explicit new Route"])(
+    "keeps a property-only supply and label on the largest side after joining a %s",
+    (contact) => {
+      const alreadyConnected = contact === "same Net";
+      const document = createEmptyDocument("rebuild", "Connectivity rebuild");
+      for (const [id, x, y, rotation] of [
+        ["a", 0, 0, 0],
+        ["b", 100, 0, 0],
+        ["c", 200, 0, 0],
+        ["d", 320, 100, 270],
+        ["e", 380, 100, 90],
+        ["f", 350, 200, 0],
+        ["g", 350, 300, 0],
+      ] as const) {
+        document.instances.push({
+          id,
+          symbolId: "resistor",
+          placement: { position: { x, y }, rotation, mirror: "none" },
+        });
+      }
+      document.instances.push({
+        id: "amp",
+        symbolId: "opamp",
+        placement: {
+          position: { x: 800, y: 800 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      document.nets.push({
+        id: "a-signal",
+        terminals: [{ instanceId: "amp", pinName: "IN+" }],
+      });
+      const path = (
+        from: string,
+        to: string,
+        bends: Array<{ x: number; y: number }> = [],
+        netId = "hint",
+      ): SchematicEdit => ({
+        kind: "set_route_path",
+        route: createRoutePath({
+          id: from + to,
+          netId,
+          start: pin(from),
+          end: pin(to),
+          bends,
+          modes: [...bends.map(() => "manual" as const), "manual"],
+        }),
+      });
+      const chain = commit(document, [
+        path("a", "b"),
+        path("b", "c"),
+        path("c", "d", [{ x: 300, y: -20 }]),
+        path("d", "e"),
+        ...(alreadyConnected ? [path("e", "f", [{ x: 400, y: 180 }])] : []),
+        path("f", "g", [], alreadyConnected ? "hint" : "independent"),
+      ]);
+      const before = commit(chain, [
+        {
+          kind: "set_property_terminal_net",
+          instanceId: "amp",
+          pinName: "VDD",
+          netId: "hint",
+        },
+        {
+          kind: "upsert_schematic_annotation",
+          annotation: {
+            id: "supply-label",
+            kind: "net-label",
+            netId: "hint",
+            binding: { kind: "net-name", netId: "hint" },
+            anchor: {
+              kind: "object",
+              objectId: "amp",
+              localOffset: { x: 0, y: 0 },
+              fallbackPosition: { x: 800, y: 800 },
+            },
+            alignment: "start",
+            rotation: 0,
+            locked: false,
+            visible: false,
+          },
+        },
+        {
+          kind: "upsert_connectivity_evidence",
+          evidence: {
+            id: "supply-name",
+            kind: "name-claim",
+            netId: "hint",
+            name: "AVDD",
+            scope: "local",
+            owner: { kind: "net-label", annotationId: "supply-label" },
+          },
+        },
+      ]);
+      const final = commit(before, [
+        { kind: "cut_connection", routeId: "cd" },
+        ...(alreadyConnected
+          ? [{ kind: "cut_connection" as const, routeId: "ef" }]
+          : []),
+        contact === "explicit new Route"
+          ? path("e", "f", [{ x: 400, y: 180 }])
+          : path("d", "e", [
+              { x: 300, y: 180 },
+              { x: 400, y: 180 },
+            ]),
+      ]);
+      expect(groups(final)).toEqual(["a,b,c", "amp", "amp,d,e,f,g"]);
+      const supply = final.nets.find((net) =>
+        net.terminals.some(
+          ({ instanceId, pinName }) =>
+            instanceId === "amp" && pinName === "VDD",
+        ),
+      );
+      expect(final.annotations[0]).toMatchObject({
+        netId: supply?.id,
+        binding: { kind: "net-name", netId: supply?.id },
+      });
+      expect(final.connectivityEvidence[0]).toMatchObject({
+        netId: supply?.id,
+      });
+    },
+  );
+
   it("keeps an interior crossing disconnected", () => {
     const before = fixture();
     before.instances[1]!.placement!.position = { x: 100, y: 100 };
@@ -257,5 +660,46 @@ describe("connectivity reconstructed from final wire topology", () => {
       { kind: "disconnect_endpoint", endpoint: pin("a") },
     ]);
     expect(groups(after)).toEqual(["b"]);
+  });
+  it("replaces an earlier connection when the same edit disconnects and reconnects that terminal", () => {
+    const after = commit(fixture(), [
+      {
+        kind: "connect_endpoints",
+        from: pin("a"),
+        to: pin("b"),
+        newNetId: "first",
+      },
+      { kind: "disconnect_endpoint", endpoint: pin("a") },
+      {
+        kind: "connect_endpoints",
+        from: pin("a"),
+        to: pin("c"),
+        newNetId: "replacement",
+      },
+    ]);
+    expect(groups(after)).toEqual(["a,c", "b"]);
+  });
+  it("reassigns two unrouted terminals in one transaction without joining their old Nets", () => {
+    const before = commit(fixture(), [
+      {
+        kind: "connect_endpoints",
+        from: pin("a"),
+        to: pin("b"),
+        newNetId: "first",
+      },
+      {
+        kind: "connect_endpoints",
+        from: pin("c"),
+        to: pin("d"),
+        newNetId: "second",
+      },
+    ]);
+    const after = commit(before, [
+      { kind: "disconnect_endpoint", endpoint: pin("a") },
+      { kind: "disconnect_endpoint", endpoint: pin("c") },
+      { kind: "connect_endpoints", from: pin("a"), to: pin("d") },
+      { kind: "connect_endpoints", from: pin("c"), to: pin("b") },
+    ]);
+    expect(groups(after)).toEqual(["a,d", "b,c"]);
   });
 });

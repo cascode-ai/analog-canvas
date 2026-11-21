@@ -35,11 +35,10 @@ belong to a simulation deck ([simulation](simulation.md)).
   Symbol pin maps once with unique formal names. A descriptor calling a built-in
   model with an incompatible mapping is `COMPONENT_MODEL_INTERFACE_MISMATCH`.
 
-Explicit [signals](connectivity-and-routing.md#ordered-signals-and-buses)
-expand to scalar formal ports and caller nodes in declaration order. Each
-caller occurrence retains its own member mapping; parent Net names never
-rename child ports. Existing dialect escaping and collision refusal apply to
-every expanded member.
+The final ordered Cell interface for the export mode drives both the declaration
+and every positional call. Formal Pin and [signal member identities](connectivity-and-routing.md#ordered-signals-and-buses)
+select each caller's nodes. The mode projects names, escaping, generated ports
+and collision diagnostics. Cell Properties reads this interface in `pin` mode.
 
 ## Persisted data model
 
@@ -93,6 +92,10 @@ derive from `parameters`.
   serve Properties, Agent, ERC and Circuit source;
   [built-in model contracts](../../packages/devices/src/built-in-model-contracts.ts)
   own selectors, families, backend availability and defaults.
+- External caller validation, Properties, export and simulation preparation
+  use the same ordered terminal binding. The definition owns the target interface
+  and its implementation. The instance's bound symbol maps local endpoints to
+  that interface. Presentation edits retain existing callers' electrical bindings.
 - Any Library part with a generated body, the chopper and magnetic parts
   included, can be bound (`set-model`) to a Project Cell or external
   subcircuit without changing artwork or References. Its Pins or ports are the
@@ -560,6 +563,10 @@ never invents an identifier.
 - While strict export is blocked the panel shows a read-only draft
   (`createDraftNetlistPreview`) with `?` for missing facts and a draft first
   line; Copy, export and `designExtractsNetlist` never use it.
+- An identifiable instance node token locates its logical Net in the owning
+  Cell. Selecting a Net in the drawing marks its node tokens in that Cell.
+  The printer supplies read-only ranges for the exact text on display.
+  Ranges expire with the text and occupy no bytes in saved Projects or netlists.
 - The copy/export projection drops the generated title and adds no comments;
   names print exactly as authored (`portCase` only on explicit Agent request);
   SPICE keeps an empty first title line; SCS starts with its language line.
