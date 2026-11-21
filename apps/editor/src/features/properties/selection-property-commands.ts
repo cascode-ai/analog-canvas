@@ -74,10 +74,14 @@ export function createSelectionPropertyCommands({
     });
   };
 
-  const updateSelectedModelTarget = (value: string): void => {
+  const updateSelectedModelTarget = (
+    value: string,
+    { selectGeneric = false }: { selectGeneric?: boolean } = {},
+  ): void => {
     if (!selectedInstance?.netlist) return;
     if (
       selectedInstanceIsMos ||
+      selectGeneric ||
       reviewedExternalModelSuggestions(selectedInstance.symbolId).length > 0 ||
       bindsProjectCell(selectedInstance.symbolId) ||
       selectedInstance.netlist.binding?.kind === "external-subcircuit"
@@ -88,6 +92,7 @@ export function createSelectionPropertyCommands({
           document.id,
           selectedInstance.id,
           value,
+          { selectGeneric },
         );
         if (edits.length === 0) return;
         if (commitStructure("set-mos-model-target", edits)) {

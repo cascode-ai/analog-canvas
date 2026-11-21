@@ -74,6 +74,18 @@ describe("instance evidence", () => {
     ).toBe("canvas");
   });
 
+  it("keeps a custom model external even when its binding carries a Canvas origin", () => {
+    const instance = mos({ status: "missing", modelType: "nmos" });
+    const claimed = {
+      ...instance,
+      netlist: {
+        ...instance.netlist,
+        binding: { ...instance.netlist.binding, origin: "canvas" },
+      },
+    };
+    expect(instanceEvidence(project(), claimed)).toBe("typed-only");
+  });
+
   it("decides a Project imported before the status by the sources it keeps", () => {
     const old = mos({ status: "resolved", modelType: "nmos" });
     expect(instanceEvidence(project(".model nch_mac nmos level=54"), old)).toBe(

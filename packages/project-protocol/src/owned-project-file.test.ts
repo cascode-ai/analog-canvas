@@ -26,6 +26,63 @@ const fixture = () =>
   );
 
 describe("instance-owned portable source", () => {
+  it("round-trips an explicit model selection and rejects it in an older envelope", () => {
+    const project = createEmptyProject("model-selection", "Model selection");
+    const document = project.documents[0]!;
+    for (const reference of ["M1", "M2"]) {
+      document.instances.push({
+        id: reference,
+        reference,
+        symbolId: "nmos",
+        placement: null,
+        netlist: {
+          binding: { kind: "model", deviceClass: "mos", name: "NMOS" },
+          parameters: { w: "1u", l: "30n" },
+        },
+        importProvenance: {
+          kind: "model",
+          sourceMasterName: "NMOS",
+          sourceTarget: "model:NMOS",
+          status: "missing",
+          modelType: "nmos",
+        },
+      });
+    }
+    const oldFile = JSON.parse(serializeProject(project));
+    oldFile.schemaVersion = 84;
+    const oldInstances = parseProject(JSON.stringify(oldFile)).documents[0]!
+      .instances;
+    expect(oldInstances.map(({ netlist }) => netlist?.binding)).toEqual([
+      { kind: "model", deviceClass: "mos", name: "NMOS" },
+      { kind: "model", deviceClass: "mos", name: "NMOS" },
+    ]);
+
+    for (const instance of document.instances) {
+      const binding = instance.netlist?.binding;
+      if (binding?.kind === "model") binding.origin = "canvas";
+    }
+    const saved = serializeProject(project);
+    expect(JSON.parse(saved).schemaVersion).toBe(85);
+    expect(serializeProject(parseProject(saved))).toBe(saved);
+    const downgraded = JSON.parse(saved);
+    // The writer shares the target between both Instances in the portable defaults.
+    expect(downgraded.defaults.instancesByType.nmos.target.origin).toBe(
+      "canvas",
+    );
+    downgraded.schemaVersion = 84;
+    expect(
+      tryParseProjectWithMetadata(JSON.stringify(downgraded)),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: [
+        expect.objectContaining({
+          code: "INVALID_PROJECT",
+          message: expect.stringContaining("schema 85"),
+        }),
+      ],
+    });
+  });
+
   it("reopens schema 81 with a previously allowed collinear body polygon", () => {
     const before = createEmptyProject("flat-polygon", "Flat polygon");
     const polygon = {

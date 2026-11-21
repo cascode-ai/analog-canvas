@@ -1,20 +1,11 @@
 import {
   deviceDescriptor,
+  GENERIC_MODEL_TARGETS,
   ICS55_MOS_MODELS,
   LIBRARY_PROCESS,
   reviewedExternalDeviceBindings,
   reviewedExternalBindingForMaster,
 } from "@icm/devices";
-import {
-  GENERIC_DIODE_MODEL,
-  GENERIC_NJF_MODEL,
-  GENERIC_NMOS_DEPLETION_MODEL,
-  GENERIC_NPN_MODEL,
-  GENERIC_PJF_MODEL,
-  GENERIC_PMOS_DEPLETION_MODEL,
-  GENERIC_PNP_MODEL,
-  GENERIC_SCHOTTKY_MODEL,
-} from "@icm/netlist";
 export const NETLIST_PROFILE_IDS = [
   "abstract",
   "sky130",
@@ -102,8 +93,8 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
   >
 > = {
   abstract: {
-    npn: [GENERIC_NPN_MODEL.name],
-    pnp: [GENERIC_PNP_MODEL.name],
+    npn: [GENERIC_MODEL_TARGETS.npn],
+    pnp: [GENERIC_MODEL_TARGETS.pnp],
     nmos: ["NMOS"],
     pmos: ["PMOS"],
     resistor: [""],
@@ -114,20 +105,20 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
   ...SG13G2_QUICK_TARGETS,
   ics55: {
     ...ICS55_MOS_MODELS,
-    npn: [GENERIC_NPN_MODEL.name],
-    pnp: [GENERIC_PNP_MODEL.name],
+    npn: [GENERIC_MODEL_TARGETS.npn],
+    pnp: [GENERIC_MODEL_TARGETS.pnp],
     resistor: [""],
     capacitor: [""],
     inductor: [""],
   },
   custom: {
     npn: [
-      GENERIC_NPN_MODEL.name,
+      GENERIC_MODEL_TARGETS.npn,
       ...SKY130_QUICK_TARGETS.sky130.npn,
       ...SG13G2_QUICK_TARGETS.sg13g2.npn,
     ],
     pnp: [
-      GENERIC_PNP_MODEL.name,
+      GENERIC_MODEL_TARGETS.pnp,
       ...SKY130_QUICK_TARGETS.sky130.pnp,
       ...SG13G2_QUICK_TARGETS.sg13g2.pnp,
     ],
@@ -199,19 +190,7 @@ export interface NetlistExportProfile {
 }
 
 const GENERIC_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
-  nmos: "NMOS",
-  pmos: "PMOS",
-  // The netlist defines these itself while nothing else does. No Process
-  // ships a JFET, a Schottky diode or a depletion MOS, so every one takes
-  // NJF, PJF, DSCH, NMOS_DEP and PMOS_DEP.
-  npn: GENERIC_NPN_MODEL.name,
-  pnp: GENERIC_PNP_MODEL.name,
-  njfet: GENERIC_NJF_MODEL.name,
-  pjfet: GENERIC_PJF_MODEL.name,
-  "depletion-nmos": GENERIC_NMOS_DEPLETION_MODEL.name,
-  "depletion-pmos": GENERIC_PMOS_DEPLETION_MODEL.name,
-  diode: GENERIC_DIODE_MODEL.name,
-  "schottky-diode": GENERIC_SCHOTTKY_MODEL.name,
+  ...GENERIC_MODEL_TARGETS,
   switch: "SW",
 };
 const SKY130_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {

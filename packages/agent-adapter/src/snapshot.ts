@@ -578,6 +578,16 @@ export function selectAgentInstances(
       const model = target?.toLowerCase().startsWith("model:")
         ? target.slice("model:".length)
         : null;
+      // Snapshot clients read the binding's target through the existing wire shape.
+      const binding = instance.netlist?.binding;
+      const snapshotBinding =
+        binding?.kind === "model"
+          ? {
+              kind: binding.kind,
+              deviceClass: binding.deviceClass,
+              name: binding.name,
+            }
+          : binding;
       const mosBulk = resolveMosBulkConnection(document, instance);
       // A Cell Pin marker carries no Reference: its name is its terminal's.
       const cellTerminal = document.netlist?.terminals.find((terminal) =>
@@ -625,9 +635,7 @@ export function selectAgentInstances(
                 ...(instance.netlist.control
                   ? { control: structuredClone(instance.netlist.control) }
                   : {}),
-                ...(instance.netlist.binding
-                  ? { binding: instance.netlist.binding }
-                  : {}),
+                ...(snapshotBinding ? { binding: snapshotBinding } : {}),
                 parameters: Object.fromEntries(
                   Object.entries(instance.netlist.parameters).sort(
                     ([left], [right]) => left.localeCompare(right, "en"),

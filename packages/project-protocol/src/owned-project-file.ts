@@ -18,8 +18,37 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 84;
+export const CURRENT_PROJECT_FILE_VERSION = 85;
 type Value = Record<string, any>;
+
+/** Check shared targets before the codec expands per-type defaults. */
+export function rejectModelSelection(raw: Value): void {
+  const check = (target: unknown, path: (string | number)[]) => {
+    if (target && typeof target === "object" && Object.hasOwn(target, "origin"))
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          path: [...path, "origin"],
+          message: "Explicit model selection requires Project schema 85",
+        },
+      ]);
+  };
+  const defaults = raw.defaults?.instancesByType;
+  if (defaults && typeof defaults === "object")
+    for (const [type, entry] of Object.entries(defaults as Value))
+      check(entry?.target, ["defaults", "instancesByType", type, "target"]);
+  if (!Array.isArray(raw.documents)) return;
+  raw.documents.forEach((document, index) => {
+    if (!Array.isArray(document?.instances)) return;
+    document.instances.forEach(
+      (instance: Value | null, instanceIndex: number) => {
+        const path = ["documents", index, "instances", instanceIndex];
+        check(instance?.target, [...path, "target"]);
+        check(instance?.netlist?.binding, [...path, "netlist", "binding"]);
+      },
+    );
+  });
+}
 
 /** Member-specific No Connect declarations are explicit from schema 77. */
 export function rejectMemberNoConnect(raw: Value): void {

@@ -3,6 +3,7 @@
 import type {
   CircuitProject,
   ExternalSubcircuitDefinition,
+  Instance,
   SchematicDocument,
 } from "@icm/model";
 import { deriveStableId, projectCellInterface } from "@icm/model";
@@ -12,9 +13,13 @@ import {
   deviceDescriptor,
   bindsProjectCell,
   boundPartParameters,
+  hasCanvasGenericModel,
   ics55MosType,
+  instanceEvidence,
   matchGateCellPins,
   matchGateExternalPins,
+  matchingGenericModelName,
+  namesModelOutsideSources,
   placedSubcircuitTarget,
   reviewedExternalDefinitionBinding,
   reviewedExternalBindingForMaster,
@@ -440,6 +445,17 @@ function planClearDeviceBinding(
   ];
 }
 
+/** A compatible stand-in the author can choose for this external reference. */
+export function selectableGenericModel(
+  project: CircuitProject,
+  instance: Instance,
+): string | undefined {
+  const model = matchingGenericModelName(instance);
+  return model && namesModelOutsideSources(instanceEvidence(project, instance))
+    ? model
+    : undefined;
+}
+
 /**
  * Switches a native device between its ordinary binding and one exact reviewed
  * external target without renaming the schematic Instance. Invocation prefixes
@@ -451,7 +467,10 @@ export function planSetDeviceModelTarget(
   instanceId: string,
   modelName: string,
   // The Process binds substrates by its own rule, which may name another Net.
-  { substrateDefault = true }: { substrateDefault?: boolean } = {},
+  {
+    substrateDefault = true,
+    selectGeneric = false,
+  }: { substrateDefault?: boolean; selectGeneric?: boolean } = {},
 ): ProjectStructureEdit[] {
   const document = requireDocument(project, documentId);
   const instance = document.instances.find(
@@ -461,6 +480,24 @@ export function planSetDeviceModelTarget(
     throw new Error(`Netlisted Instance does not exist: ${instanceId}`);
   }
   const normalizedName = modelName.trim();
+  const currentBinding = instance.netlist.binding;
+  if (
+    currentBinding?.kind === "model" &&
+    currentBinding.name.toLowerCase() === normalizedName.toLowerCase()
+  ) {
+    if (hasCanvasGenericModel(instance)) return [];
+    if (selectGeneric && selectableGenericModel(project, instance))
+      return [
+        transactDocument(project, documentId, [
+          {
+            kind: "bulk_patch_instance_netlist",
+            assignments: [
+              { instanceId, binding: { ...currentBinding, origin: "canvas" } },
+            ],
+          },
+        ]),
+      ];
+  }
   const currentExternal =
     instance.netlist.binding?.kind === "external-subcircuit"
       ? matchingReviewedExternalDefinition(

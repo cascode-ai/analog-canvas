@@ -10,6 +10,7 @@ import {
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import {
   createReferenceIndex,
+  hasCanvasGenericModel,
   instanceBuiltInSubcircuit,
   hasBuiltInSubcircuitInterface,
   instanceEvidence,
@@ -81,6 +82,7 @@ import {
   reportGenericDepletionMos,
   reportGenericJfets,
   reportGenericMos,
+  standInExportName,
 } from "./extract-generic-models.js";
 
 const MAX_INSTANCES_PER_CELL = 100_000;
@@ -93,6 +95,7 @@ export function extractCell(
   cellNameByDocumentId: ReadonlyMap<string, string>,
   projectedNames: ReadonlyMap<string, ProjectedNetName>,
   placedBodies: PlacedMosBodies | undefined,
+  ownedDeviceModels: ReadonlySet<string>,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
 ): DesignNetlistCell | null {
@@ -491,6 +494,9 @@ export function extractCell(
       )
       .map((instance) => instance.id),
   );
+  const explicitSelections = new Set(
+    document.instances.filter(hasCanvasGenericModel).map(({ id }) => id),
+  );
   const carryGenericCard = (
     model: DesignNetlistModel,
     deviceClass: DesignNetlistDeviceClass,
@@ -502,18 +508,38 @@ export function extractCell(
             (instance) =>
               instance.deviceClass === deviceClass &&
               !outsideSources.has(instance.id) &&
-              (everyFormat
+              (everyFormat || explicitSelections.has(instance.id)
                 ? instance.target?.toUpperCase() === model.name
                 : instance.target === model.name),
           )
         : [];
-    if (
-      !parts.length ||
-      definesGenericModel(project, options.deckSources, model)
-    )
-      return [];
-    models.push(structuredClone(model));
-    return parts;
+    if (!parts.length) return [];
+    const selected = parts.filter((part) => explicitSelections.has(part.id));
+    const authorDefinesModel = definesGenericModel(
+      project,
+      options.deckSources,
+      model,
+    );
+    if (options.run && authorDefinesModel) return [];
+    const carried = authorDefinesModel ? selected : parts;
+    if (!carried.length) return [];
+    const card = structuredClone(model);
+    if (selected.length) {
+      card.name = standInExportName(
+        project,
+        model.name,
+        options.deckSources,
+        ownedDeviceModels,
+        authorDefinesModel || ownedDeviceModels.has(model.name.toLowerCase()),
+      );
+      if (card.name !== model.name) {
+        delete card.authoredName;
+        if (!options.run) card.scope = "global";
+      }
+      for (const part of carried) part.target = card.name;
+    }
+    models.push(card);
+    return carried;
   };
   reportSubstratesAboveNegativeSupply(
     document,
