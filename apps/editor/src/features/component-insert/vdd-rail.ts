@@ -123,6 +123,8 @@ function railEndpointMergeEffect(
     : undefined;
 }
 
+const GROUND_RAIL_NAMES = new Set(["0", "GND", "GROUND"].map(foldNetName));
+
 /**
  * Constrain a snapped pointer to one straight Power Rail axis. The dominant
  * delta selects the axis and ties retain the established horizontal gesture.
@@ -181,6 +183,13 @@ export function planVddRailEdits(
   resolver?: SymbolResolver,
 ): VddRailPlan {
   const netName = construction.netName?.trim() || "VDD";
+  // A rail is a supply. Named as ground it would be a second Net beside the
+  // ground symbols' 0, and the netlist would read as two grounds (#2429).
+  if (GROUND_RAIL_NAMES.has(foldNetName(netName)))
+    return {
+      ok: false,
+      message: `A Power Rail is a supply; ${netName} is ground, drawn with ground symbols (a named rail would be a Net apart from them)`,
+    };
   const requested = construction.netId
     ? document.nets.find((net) => net.id === construction.netId)
     : undefined;
