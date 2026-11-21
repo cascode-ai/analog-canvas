@@ -1227,6 +1227,7 @@ function WorkspaceEditor({
                 ),
             }),
             workspace: (request) => agentWorkspaceRef.current(request),
+            readRnl: agentRuntime.readRnlBrowser,
             getProjectSessionId: () =>
               editorDocumentController.projectSessionId,
             getProject: () => editorDocumentController.project,

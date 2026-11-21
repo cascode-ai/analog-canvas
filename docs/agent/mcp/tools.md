@@ -230,8 +230,10 @@ Tool descriptions cover each action; these are the extra rules.
   a rejected one stays rejected until the Owner restores it. A person's circuit
   is never listed there or taken over; a person's session listing them gets
   `AI_ACCOUNT_REQUIRED`.
-- `project_code` and `netlist_code` reads return the requested export plus
-  each Cell in `cells`, so one broken Cell cannot hide another.
+- `project_code` and plain `netlist_code` reads return the requested export
+  plus independent results in `cells`. With `action:"read", rnl:true`,
+  `netlist_code` returns an RNL file with the drawing in `netlist.text` and
+  an empty `cells` array. `format` chooses SPICE+RNL or Spectre+RNL.
 
 `export_file` downloads a local artifact; its `warnings`, when present, say
 what the artifact leaves out (a PDF names characters no PDF font holds, which

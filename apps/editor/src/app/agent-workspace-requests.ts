@@ -500,6 +500,7 @@ export function createAgentWorkspaceTargets({
     const projectHost = new runtime.BrowserAgentProjectHost({
       projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
       workspace: (request) => agentWorkspaceRef.current(request, workspaceId),
+      readRnl: runtime.readRnlBrowser,
       // A tab in the background has nothing on show to publish.
       publishToGallery: runtime.createAgentGalleryPublisher({
         current: () => null,

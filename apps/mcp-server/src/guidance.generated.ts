@@ -45,7 +45,7 @@ export const agentToolHelp = {
   project_code:
     "Read or atomically replace the open Project's complete canonical Project Code. Replacement uses the live Project structure revision and the same validated, undoable commit path as the Editor's Project Code panel.",
   netlist_code:
-    "Read the open Project's generated SPICE/Spectre netlist or replace its editable device names, models and values through the same planner as the Netlist panel. Pass documentId to scope a Cell; a read with process (abstract, sky130, sg13g2, ics55) exports as if Apply process had set it, leaving the Project unchanged; reads include the requested netlist and independent per-Cell results, while rootDocumentId remains a compatibility alias. Use Project Code or structured circuit edits for topology and connectivity changes.",
+    "Read generated SPICE/Spectre or replace editable device names, models and values through the Netlist panel's planner. Pass documentId to scope the export to a Cell and its dependencies. rootDocumentId is an alias. A read with process (abstract, sky130, sg13g2, ics55) exports as if Apply process had set it, leaving the Project unchanged. Plain reads include independent Cell results. Set rnl:true to include the drawing as RNL comments in netlist.text with an empty cells array. Use Project Code or structured circuit edits for topology and connectivity changes.",
   simulation:
     "Submit with run; prepare/start are optional. run/start/read accept waitMs 0–20000. Retry uncertain submissions with the same requestId; resume by runId. run.details has Specs/collection; catalog indexes full files. export retries saving, not execution. One slot.",
   simulation_files:

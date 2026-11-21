@@ -36,8 +36,11 @@ jq -n --rawfile text ws/reference.sp '{expectedNetlist:{text:$text}}' \
 ```
 
 `render` returns the formal SVG, `netlist_code` `{"action":"read"}` the
-netlist (`"process":"sg13g2"` reads it in another Process). `export_file` writes `svg` and `png` files as the editor exports them:
-the bundle's resvg (WebAssembly) draws the PNG at 3× in the editor's fonts and
+netlist (`"process":"sg13g2"` reads it in another Process), and
+`{"action":"read","rnl":true}` that netlist with its drawing written as RNL
+comments. Use a connector and headless bundle that support the RNL read.
+`export_file` writes `svg` and `png` files as the editor exports them.
+The bundle's resvg (WebAssembly) draws the PNG at 3× in the editor's fonts and
 crops both to what is drawn. `{"artifact":"project"}` writes a Project copy.
 Refused: simulation (`SIMULATION_UNAVAILABLE`), Gallery, Cloud and tabs
 (`gallery_circuits`, `project_cells`) and PDF files, which need a page

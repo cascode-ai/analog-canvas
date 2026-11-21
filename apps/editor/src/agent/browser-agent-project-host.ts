@@ -34,6 +34,7 @@ import { loadGalleryFeed, type GalleryFeedEntry } from "../gallery-client";
 import { isRequestFailure, requestFailureOf } from "../request-failure";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { projectInNetlistProcess } from "../features/netlist-export/netlist-process";
+import type { RnlReader } from "../features/netlist-export/rnl-read";
 import { importChunk } from "../components/chunk-import";
 import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
@@ -78,6 +79,12 @@ export interface BrowserAgentProjectHostOptions {
   publishToGallery?: (
     request: AgentGalleryPublishRequest,
   ) => Promise<AgentProjectResourceResponse>;
+  /**
+   * The same netlist with its drawing written as RNL. The page supplies the
+   * runtime Worker; a headless workspace supplies the runtime core. Left out,
+   * an `rnl` read reports RNL_UNAVAILABLE.
+   */
+  readRnl?: RnlReader;
 }
 
 /** Browser authority for the signed-in Cloud Project shelf and live Project. */
@@ -263,6 +270,31 @@ export class BrowserAgentProjectHost {
         }
       }
       const rootDocumentId = request.documentId ?? request.rootDocumentId;
+      if (request.rnl) {
+        if (!this.options.readRnl)
+          return this.error(
+            request,
+            "RNL_UNAVAILABLE",
+            "This host cannot write RNL; use the Editor or a local workspace.",
+            "refresh",
+          );
+        return {
+          apiVersion: AGENT_API_VERSION,
+          requestId: request.requestId,
+          operation: request.operation,
+          ok: true,
+          structureRevision: project.structureRevision,
+          netlist: await this.options.readRnl(project, {
+            format: request.format,
+            namingProfile: request.namingProfile,
+            portCase: request.portCase,
+            rootDocumentId,
+          }),
+          // RNL is a whole-file export; a Cell's plain netlist is not the
+          // same document and would not carry the hierarchy's records.
+          cells: [],
+        };
+      }
       return {
         apiVersion: AGENT_API_VERSION,
         requestId: request.requestId,

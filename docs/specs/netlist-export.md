@@ -53,7 +53,8 @@ Instance bindings; export defines no parallel shape.
   declaration via `terminals[].interfaceInstanceIds` and emit no line; the Port
   Name is `CellTerminal.name`. Same names (case-insensitive) fold into one
   formal node, first occurrence fixing order and spelling, without merging Base
-  Nets. Only an explicit Agent `portCase` changes formal-name case.
+  Nets. An explicit Agent `portCase` changes printed formal-name case.
+  Bound terminal identities retain their authored names.
 - Every manual device has an explicit Reference, unique per Cell with its
   descriptor prefix; model-backed devices carry a target; raw parameters are
   never evaluated. Formal defaults emit in stored order; a required-only formal

@@ -2,7 +2,7 @@
 // apps/editor/src/headless with every @icm package it reaches, from source.
 // scripts/package-headless.mjs writes it for the workspace build and
 // scripts/package-mcp.mjs as an optional release asset.
-import { readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -24,6 +24,9 @@ const RASTER_ASSETS_MODULE = resolve(
   EXPORTERS,
   "src/headless-raster-assets.ts",
 );
+const EDITOR = resolve(root, "apps/editor");
+const RNL_ASSETS_MODULE = resolve(EDITOR, "src/headless/rnl-assets.ts");
+const RNL_PACKAGES = resolve(EDITOR, "src/features/netlist-export");
 /** The DejaVu faces packages/exporters/src/headless-text.ts falls back to. */
 const DEJAVU_FONTS = [
   "DejaVuSans.ttf",
@@ -101,6 +104,51 @@ export async function loadHeadlessFont(font) {
 }
 
 /**
+ * The RNL core's WebAssembly and the Canvas package the editor ships. A local
+ * workspace writes SPICE+RNL and Spectre+RNL without a page, so the bundle
+ * carries both itself, as it carries the rasterizer's assets.
+ */
+function inlineRnlAssets(runtimeDirectory) {
+  const packed = (path) =>
+    JSON.stringify(
+      gzipSync(readFileSync(path), { level: 9 }).toString("base64"),
+    );
+  const wasm = resolve(runtimeDirectory, "rnl_runtime_wasm.wasm");
+  const packages = Object.fromEntries(
+    readdirSync(RNL_PACKAGES)
+      .filter((file) => /^analog-canvas-extensions-.+\.rnl$/u.test(file))
+      .map((file) => [
+        file.slice("analog-canvas-extensions-".length, -".rnl".length),
+        resolve(RNL_PACKAGES, file),
+      ]),
+  );
+  return {
+    name: "inline-headless-rnl-assets",
+    enforce: "pre",
+    load(id) {
+      if (resolve(id.split("?")[0]) !== RNL_ASSETS_MODULE) return null;
+      return `import { gunzipSync } from "node:zlib";
+const WASM = ${packed(wasm)};
+const PACKAGES = {
+${Object.entries(packages)
+  .map(([version, path]) => `  ${JSON.stringify(version)}: ${packed(path)},`)
+  .join("\n")}
+};
+const unpack = (text) => new Uint8Array(gunzipSync(Buffer.from(text, "base64")));
+export async function loadHeadlessRnlCoreWasm() {
+  return unpack(WASM);
+}
+export async function loadHeadlessRnlPackage(version) {
+  const text = PACKAGES[version];
+  if (!text) throw new Error(\`No Canvas RNL package \${version} is bundled\`);
+  return unpack(text);
+}
+`;
+    },
+  };
+}
+
+/**
  * One file, with no chunks beside it, so it can be copied on its own. What
  * the editor loads only on demand (formula typesetting, browser-only export)
  * is inlined and still evaluated only when called.
@@ -109,11 +157,24 @@ export async function bundleHeadless(
   outDir,
   { emptyOutDir = true, fileName = HEADLESS_BUNDLE_NAME } = {},
 ) {
+  const editorRequire = createRequire(resolve(EDITOR, "package.json"));
+  const runtimeDirectory = dirname(
+    editorRequire.resolve("@rich-netlist/runtime/package.json"),
+  );
+  const licenseDirectory = resolve(runtimeDirectory, "LICENSES");
+  const notices = [
+    resolve(runtimeDirectory, "LICENSE"),
+    ...readdirSync(licenseDirectory)
+      .sort()
+      .map((file) => resolve(licenseDirectory, file)),
+  ]
+    .map((file) => readFileSync(file, "utf8").trim())
+    .join("\n\n");
   await build({
     root,
     configFile: false,
     logLevel: "warn",
-    plugins: [inlineRasterAssets()],
+    plugins: [inlineRasterAssets(), inlineRnlAssets(runtimeDirectory)],
     define: { __ANALOG_CANVAS_MCP_VERSION__: JSON.stringify(version) },
     resolve: { conditions: ["development"] },
     ssr: {
@@ -134,5 +195,12 @@ export async function bundleHeadless(
       },
     },
   });
-  return resolve(outDir, fileName);
+  const bundle = resolve(outDir, fileName);
+  appendFileSync(
+    bundle,
+    "\n/*! @rich-netlist/runtime license notices\n" +
+      notices.replaceAll("*/", "* /") +
+      "\n*/\n",
+  );
+  return bundle;
 }

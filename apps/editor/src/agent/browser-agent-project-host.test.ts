@@ -40,6 +40,28 @@ vi.mock("@icm/exporters", async (importOriginal) => {
 });
 
 describe("BrowserAgentProjectHost", () => {
+  it("reports RNL_UNAVAILABLE when the host has no runtime", async () => {
+    const project = createEmptyProject("destination", "Before");
+    const host = new BrowserAgentProjectHost({
+      getProjectSessionId: () => "session",
+      getProject: () => project,
+      getActiveDocumentId: () => project.topDocumentId,
+      commitProjectStructure: vi.fn(),
+      dispatchProjectTransaction: vi.fn(),
+    });
+    expect(
+      await host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: "rnl-missing",
+        operation: "read-netlist",
+        rnl: true,
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "RNL_UNAVAILABLE", recovery: "refresh" },
+    });
+  });
+
   it("reports deferred feature failures without blaming deployments, committing or disabling other resources", async () => {
     const project = createEmptyProject("destination", "Before");
     const cause = new TypeError("injected import failure");

@@ -5,6 +5,7 @@ import {
   type NetlistDiagnostic,
   type NetlistFileDescriptor,
   type NetlistFormat,
+  type NetlistPortCase,
 } from "@icm/netlist";
 import type { WriteRequest } from "@rich-netlist/runtime";
 
@@ -66,8 +67,8 @@ export function createRnlExport(
   project: CircuitProject,
   options: Pick<
     DesignNetlistAnalysisOptions,
-    "namingProfile" | "rootDocumentId"
-  > & { format: NetlistFormat },
+    "namingProfile" | "rootDocumentId" | "uncalledCells"
+  > & { format: NetlistFormat; portCase?: NetlistPortCase },
 ): RnlExport {
   const root = project.documents.find(
     (document) =>
@@ -94,9 +95,10 @@ export function createRnlExport(
   // An uncalled Cell the netlist cannot print, such as one not finished,
   // stays out with what only it calls; the others are printed.
   const reached = reachedCells(project, options.rootDocumentId);
+  const includeUncalledCells = options.uncalledCells ?? true;
   const leaveOut: StableId[] = [];
-  let result = print(true);
-  while (result.status !== "ready") {
+  let result = print(includeUncalledCells);
+  while (includeUncalledCells && result.status !== "ready") {
     const blocking = [
       ...new Set(
         result.diagnostics.flatMap((item) =>
@@ -147,7 +149,9 @@ export function createRnlExport(
   );
   const printed = new Set(result.ir!.cells.map((cell) => cell.id));
   const left = project.documents.filter(
-    (document) => !printed.has(document.id),
+    (document) =>
+      (includeUncalledCells || reached.has(document.id)) &&
+      !printed.has(document.id),
   );
   if (left.length) {
     const names = left.map(
