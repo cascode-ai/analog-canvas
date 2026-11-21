@@ -1018,6 +1018,13 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
   const typed = await deliver({ nch_mac: "nmos", pch_mac: "pmos" });
   expect(typed, JSON.stringify(typed.error)).toMatchObject({
     ok: true,
+    importCoverage: {
+      total: 12,
+      complete: true,
+      counts: { instance: 3, definition: 2, declaration: 4, preserved: 3 },
+      unresolved: [],
+      refused: [],
+    },
     delivery: {
       disposition: "opened",
       source: {
@@ -1050,11 +1057,31 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
     comparison: {
       status: "equal",
       notes: expect.arrayContaining([
+        "Reference coverage: 12 statements: 3 instance, 2 definition, 4 declaration, 3 preserved",
         expect.stringMatching(/^Includes not read: .*toplevel\.scs/u),
         expect.stringMatching(/^Parameters not compared: wn/u),
         expect.stringMatching(/^Statements not compared: .*tran/u),
         expect.stringContaining("bsim3v3 model nlocal"),
       ]),
+    },
+  });
+  await writeFile(
+    join(rootPath, "refused.scs"),
+    "simulator lang=spectre\nR1 (a A) resistor r=1k\n",
+  );
+  expect(
+    await tool("import_file", {
+      action: "open-local",
+      rootPath,
+      entryPath: "refused.scs",
+    }),
+  ).toMatchObject({
+    ok: false,
+    error: { code: "FILE_IMPORT_FAILED" },
+    importCoverage: {
+      complete: false,
+      counts: { refused: 1 },
+      refused: [{ path: "refused.scs", line: 2 }],
     },
   });
   await tool("disconnect", {});

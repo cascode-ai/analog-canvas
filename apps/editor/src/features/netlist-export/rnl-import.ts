@@ -29,6 +29,7 @@ import {
   type SpiceCompileOptions,
   type SpiceDiagnostic,
   type SpiceSourceInput,
+  type StatementLedger,
 } from "@icm/spice";
 
 import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
@@ -43,11 +44,17 @@ export type RnlImportPlan =
       project: CircuitProject;
       /** The netlist import's findings, then what the drawing could not say. */
       diagnostics: SpiceDiagnostic[];
+      ledger: StatementLedger;
       drawing: "preserved" | "partial" | "discarded";
       /** Of the device types the caller gave, those that typed a part. */
       modelTypesUsed: [string, string][];
     }
-  | { status: "failed"; message: string; diagnostics: SpiceDiagnostic[] };
+  | {
+      status: "failed";
+      message: string;
+      diagnostics: SpiceDiagnostic[];
+      ledger?: StatementLedger;
+    };
 
 /** An RNL finding as the import report lists findings. */
 const reported = (item: RnlImportDiagnostic): SpiceDiagnostic => ({
@@ -488,6 +495,7 @@ async function buildImportPlan({
         imported.diagnostics.find((item) => item.severity === "error")
           ?.message ?? "SPICE import failed",
       diagnostics: imported.diagnostics,
+      ledger: imported.ledger,
     };
   const modelTypesUsed = givenModelTypesUsed(modelTypes, imported.project, [
     ...imported.declaredModelNames,
@@ -570,6 +578,7 @@ async function buildImportPlan({
         ...diagnostics,
         ...(await layoutHints(runtime, inputs, entryPath, dialect, snapshot)),
       ],
+      ledger: imported.ledger,
       drawing:
         appearanceFinding || read?.diagnostics.length ? "partial" : "preserved",
       modelTypesUsed,
@@ -583,6 +592,7 @@ async function buildImportPlan({
     status: "ready",
     project: undrawn,
     diagnostics,
+    ledger: imported.ledger,
     drawing: "discarded",
     modelTypesUsed,
   };

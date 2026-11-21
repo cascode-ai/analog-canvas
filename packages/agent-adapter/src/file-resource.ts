@@ -54,6 +54,35 @@ const AgentFileDiagnosticSchema = z.strictObject({
   code: z.string().min(1).optional(),
 });
 
+const StatementCountSchema = z.number().int().nonnegative();
+const ImportLocationsSchema = z
+  .array(
+    z.strictObject({
+      path: z.string().min(1).max(512),
+      line: z.number().int().positive(),
+    }),
+  )
+  .max(20);
+const AgentImportCoverageSchema = z.strictObject({
+  total: StatementCountSchema.describe("Number of entries in the ledger"),
+  complete: z
+    .boolean()
+    .describe("Whether the ledger assigns a fate to every reachable statement"),
+  counts: z.strictObject({
+    instance: StatementCountSchema,
+    definition: StatementCountSchema,
+    declaration: StatementCountSchema,
+    preserved: StatementCountSchema,
+    unresolved: StatementCountSchema,
+    refused: StatementCountSchema,
+    unknown: StatementCountSchema,
+  }),
+  unresolved: ImportLocationsSchema,
+  refused: ImportLocationsSchema,
+});
+
+export type AgentImportCoverage = z.infer<typeof AgentImportCoverageSchema>;
+
 const AgentLocalSourceSchema = z.strictObject({
   version: Sha256Schema,
   entryPath: z.string().min(1).max(512),
@@ -327,6 +356,12 @@ export const AgentFileResourceRequestSchema = z.discriminatedUnion(
       namingProfile: z.enum(["native", "cadence-bang"]).optional(),
       rnlAppearance: AgentRnlAppearanceSchema.optional(),
       modelTypes: AgentLocalModelTypesSchema.optional(),
+      includeImportCoverage: z
+        .literal(true)
+        .optional()
+        .describe(
+          "Return the statement ledger summary when staging a local netlist",
+        ),
     }),
     FileRequestBaseSchema.extend({
       operation: z.literal("locate-local"),
@@ -421,7 +456,13 @@ export const AgentFileResourceResponseSchema = z.union([
       ),
   }),
   FileResponseBaseSchema.extend({
-    operation: z.enum(["stage", "inspect"]),
+    operation: z.literal("stage"),
+    ok: z.literal(true),
+    candidate: AgentFileCandidateSummarySchema,
+    importCoverage: AgentImportCoverageSchema.optional(),
+  }),
+  FileResponseBaseSchema.extend({
+    operation: z.literal("inspect"),
     ok: z.literal(true),
     candidate: AgentFileCandidateSummarySchema,
     documentCode: z
@@ -485,6 +526,7 @@ export const AgentFileResourceResponseSchema = z.union([
       code: z.string().min(1),
       message: z.string().min(1),
     }),
+    importCoverage: AgentImportCoverageSchema.optional(),
   }),
 ]);
 

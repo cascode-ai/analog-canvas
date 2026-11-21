@@ -6,6 +6,7 @@ import {
   base64EncodeBytes,
   localSourceIdentity,
   matchesAgentReviewTarget,
+  type AgentImportCoverage,
   type AgentFileCandidateSummary,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
@@ -32,7 +33,10 @@ import {
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { RnlAppearance } from "@icm/rnl";
-import { importNetlistSources } from "../features/netlist-export/netlist-source-import";
+import {
+  importNetlistSources,
+  ledgerCoverage,
+} from "../features/netlist-export/netlist-source-import";
 import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
 import type { SymbolResolver } from "@icm/symbols";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
@@ -668,6 +672,7 @@ export class BrowserAgentFileHost {
       let project: CircuitProject | null = null;
       let diagnostics: AgentFileCandidateSummary["diagnostics"] = [];
       let local: { source: AgentLocalSource; importMs: number } | undefined;
+      let importCoverage: AgentImportCoverage | undefined;
       if (request.kind === "local-circuit") {
         const entryPath = request.entryPath;
         if (!entryPath)
@@ -682,13 +687,26 @@ export class BrowserAgentFileHost {
           sha256: request.files[index]!.sha256,
         }));
         const start = performance.now();
-        const { importLocalCircuit } = await import("./import-local-circuit");
+        const { importLocalCircuit, LocalCircuitImportError } =
+          await import("./import-local-circuit");
         const imported = await importLocalCircuit(inputs, entryPath, {
           ...(request.rnlAppearance
             ? { appearance: request.rnlAppearance }
             : {}),
           ...(request.modelTypes ? { modelTypes: request.modelTypes } : {}),
+        }).catch((error: unknown) => {
+          if (error instanceof LocalCircuitImportError) return error;
+          throw error;
         });
+        if (request.includeImportCoverage && imported.ledger)
+          importCoverage = ledgerCoverage(imported.ledger);
+        if (imported instanceof LocalCircuitImportError)
+          return this.error(
+            request,
+            "FILE_IMPORT_FAILED",
+            imported.message,
+            importCoverage,
+          );
         project = imported.project;
         diagnostics = imported.diagnostics;
         const identityFiles =
@@ -801,6 +819,7 @@ export class BrowserAgentFileHost {
         operation: "stage",
         ok: true,
         candidate: summary,
+        ...(importCoverage ? { importCoverage } : {}),
       };
     } catch (error) {
       return this.error(
@@ -895,6 +914,7 @@ export class BrowserAgentFileHost {
     request: AgentFileResourceRequest,
     code: string,
     message: string,
+    importCoverage?: AgentImportCoverage,
   ): AgentFileResourceResponse {
     return {
       apiVersion: AGENT_API_VERSION,
@@ -902,6 +922,7 @@ export class BrowserAgentFileHost {
       operation: request.operation,
       ok: false,
       error: { code, message },
+      ...(importCoverage ? { importCoverage } : {}),
     };
   }
 

@@ -20,7 +20,7 @@ import {
 } from "@icm/spice";
 import type { SymbolResolver } from "@icm/symbols";
 import {
-  compileNetlistSources,
+  importNetlistSources,
   ledgerByCell,
   ledgerSummary,
 } from "../features/netlist-export/netlist-source-import";
@@ -133,7 +133,7 @@ function importedModelTypes(project: CircuitProject): Record<string, string> {
 
 /** The reference, read as its import read it: the same entry and the same
  * type evidence, or a typed part looks like a call of an unknown master. */
-async function compileReference(
+async function readReference(
   source: ReviewSource,
   modelTypes: Readonly<Record<string, string>>,
 ) {
@@ -141,7 +141,7 @@ async function compileReference(
     source.files,
     source.entryPath,
   );
-  return compileNetlistSources(source.files, source.entryPath, {
+  return importNetlistSources(source.files, source.entryPath, {
     compileOptions: { includeRoot: "workspace" },
     modelTypes,
     ...(externalSubcircuitNames ? { externalSubcircuitNames } : {}),
@@ -158,14 +158,17 @@ export async function compareReviewSource(
   project: CircuitProject,
   source: ReviewSource,
 ): Promise<ReviewComparison> {
-  const unavailable = (reasons: string[]): ReviewComparison => ({
+  const unavailable = (
+    reasons: string[],
+    notes: string[] = [],
+  ): ReviewComparison => ({
     sourceVersion: source.version,
     status: "inconclusive",
     topology: "inconclusive",
     summary: "Structural comparison is incomplete",
     comparedCells: 0,
     reasons,
-    notes: [],
+    notes,
     differences: [],
     detailsTruncated: false,
   });
@@ -197,7 +200,7 @@ export async function compareReviewSource(
         ],
         actualPath,
       ),
-      compileReference(source, importedModelTypes(project)),
+      readReference(source, importedModelTypes(project)),
     ]);
   } catch (error) {
     return unavailable([
@@ -205,6 +208,10 @@ export async function compareReviewSource(
     ]);
   }
   const compiled = reference.compiled;
+  const coverage = [
+    `Reference coverage: ${ledgerSummary(reference.ledger)}`,
+    `Reference coverage by Cell: ${ledgerByCell(reference.ledger)}`,
+  ];
   if (
     !actual.successful ||
     !actual.ir ||
@@ -212,13 +219,16 @@ export async function compareReviewSource(
     !compiled.ir ||
     !reference.prepared
   )
-    return unavailable([
-      "The drawing or its netlist could not be compiled",
-      ...[...actual.diagnostics, ...reference.diagnostics]
-        .filter(({ severity }) => severity === "error")
-        .slice(0, 12)
-        .map(({ message }) => message),
-    ]);
+    return unavailable(
+      [
+        "The drawing or its netlist could not be compiled",
+        ...[...actual.diagnostics, ...reference.diagnostics]
+          .filter(({ severity }) => severity === "error")
+          .slice(0, 12)
+          .map(({ message }) => message),
+      ],
+      coverage,
+    );
   const prepared = reference.prepared;
   const top = project.documents.find(({ id }) => id === documentId);
   const name = top?.sourceBinding?.cellName.toLowerCase();
@@ -231,9 +241,10 @@ export async function compareReviewSource(
     ({ id }) => id === documentId,
   )?.name;
   if (!actualRoot || !expectedRoot)
-    return unavailable([
-      "The netlist has no single top Cell matching the Project's top Cell",
-    ]);
+    return unavailable(
+      ["The netlist has no single top Cell matching the Project's top Cell"],
+      coverage,
+    );
 
   // Resolved local includes have already contributed their Cells to this IR.
   const resolvedIncludes = new Set(
@@ -279,13 +290,14 @@ export async function compareReviewSource(
     notes: [
       ...new Set([
         ...result.notes,
-        // Conversion findings, then the compiler's (a condition it could
-        // not evaluate, a library it did not read).
+        // The coverage notes below give the ledger's findings in one place.
         ...reference.diagnostics
-          .filter(({ severity }) => severity !== "error")
+          .filter(
+            ({ code, severity }) =>
+              severity !== "error" && code !== "SPICE_IMPORT_COVERAGE",
+          )
           .map(({ message }) => message),
-        `Reference coverage: ${ledgerSummary(reference.ledger)}`,
-        `Reference coverage by Cell: ${ledgerByCell(reference.ledger)}`,
+        ...coverage,
         "The drawing's netlist and the reference are read by the same conversion and parser: what those drop, both sides drop, so this comparison cannot see it",
       ]),
     ],

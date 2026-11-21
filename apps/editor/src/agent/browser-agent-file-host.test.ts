@@ -387,6 +387,27 @@ async function sha256(bytes: Uint8Array): Promise<string> {
     .join("");
 }
 
+async function localStageRequest(entryPath: string, text: string) {
+  const bytes = new TextEncoder().encode(text);
+  return {
+    apiVersion: AGENT_API_VERSION,
+    requestId: `stage-${entryPath}`,
+    operation: "stage" as const,
+    kind: "local-circuit" as const,
+    entryPath,
+    files: [
+      {
+        name: entryPath,
+        mediaType: "text/plain",
+        encoding: "base64" as const,
+        data: base64EncodeBytes(bytes),
+        byteLength: bytes.byteLength,
+        sha256: await sha256(bytes),
+      },
+    ],
+  };
+}
+
 function setup() {
   const live = createEmptyProject("live", "Live Project");
   const approvals: string[] = [];
@@ -730,6 +751,100 @@ describe("BrowserAgentFileHost", () => {
       { modelTypes, candidate: false },
       { modelTypes, candidate: true },
     ]);
+  });
+
+  it("reports complete SPICE import coverage only when local staging requests it", async () => {
+    const { host } = setup();
+    const request = await localStageRequest(
+      "top.sp",
+      "* coverage\nR1 out 0 1k\n.end\n",
+    );
+    const legacy = await host.handle(request);
+    expect(legacy).toMatchObject({ ok: true, operation: "stage" });
+    expect(legacy).not.toHaveProperty("importCoverage");
+
+    const stage = await host.handle({
+      ...request,
+      requestId: "stage-with-coverage",
+      includeImportCoverage: true,
+    });
+    expect(AgentFileResourceResponseSchema.parse(stage)).toMatchObject({
+      ok: true,
+      operation: "stage",
+      importCoverage: {
+        total: 2,
+        complete: true,
+        counts: {
+          instance: 1,
+          definition: 0,
+          declaration: 0,
+          preserved: 1,
+          unresolved: 0,
+          refused: 0,
+          unknown: 0,
+        },
+        unresolved: [],
+        refused: [],
+      },
+    });
+  });
+
+  it("reports refused statements at their original locations without staging a Project", async () => {
+    const { host } = setup();
+    const request = await localStageRequest(
+      "cells/top.scs",
+      "simulator lang=spectre\nR1 (a A) resistor r=1k\n",
+    );
+    const stage = await host.handle({
+      ...request,
+      includeImportCoverage: true,
+    });
+    expect(AgentFileResourceResponseSchema.parse(stage)).toMatchObject({
+      ok: false,
+      operation: "stage",
+      error: { code: "FILE_IMPORT_FAILED" },
+      importCoverage: {
+        total: 1,
+        complete: false,
+        counts: { refused: 1 },
+        unresolved: [],
+        refused: [{ path: "cells/top.scs", line: 2 }],
+      },
+    });
+    expect(stage).not.toHaveProperty("candidate");
+    expect(await host.handle(request)).not.toHaveProperty("importCoverage");
+  });
+
+  it("counts every unresolved statement and bounds the location list", async () => {
+    const { host } = setup();
+    const request = await localStageRequest(
+      "top.sp",
+      [
+        "* coverage",
+        "R0 out 0 1k",
+        ".if missing_flag",
+        ...Array.from({ length: 25 }, (_, index) => `R${index + 1} out 0 1k`),
+        ".endif",
+        ".end",
+      ].join("\n"),
+    );
+    const stage = await host.handle({
+      ...request,
+      includeImportCoverage: true,
+    });
+    expect(AgentFileResourceResponseSchema.parse(stage)).toMatchObject({
+      ok: true,
+      operation: "stage",
+      importCoverage: {
+        total: 29,
+        complete: true,
+        counts: { instance: 1, preserved: 1, unresolved: 27 },
+        unresolved: Array.from({ length: 20 }, (_, index) => ({
+          path: "top.sp",
+          line: index + 3,
+        })),
+      },
+    });
   });
 
   it("names what blocks opening a staged import, and keeps the candidate (#1462)", async () => {
