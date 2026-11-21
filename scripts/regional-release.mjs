@@ -86,7 +86,8 @@ function run(command, args, cwd = root) {
   );
 }
 
-async function bundle(config, outdir, entry, target) {
+/** The modules wrangler bundles `config` into, in `outdir`. */
+async function wranglerBundle(config, outdir) {
   await rm(outdir, { recursive: true, force: true });
   run("pnpm", [
     "dlx",
@@ -98,15 +99,70 @@ async function bundle(config, outdir, entry, target) {
     "--outdir",
     outdir,
   ]);
-  const produced = (await files(outdir)).filter(
+  return (await files(outdir)).filter(
     (f) => !f.endsWith(".map") && f !== "README.md",
   );
+}
+
+async function bundle(config, outdir, entry, target) {
+  const produced = await wranglerBundle(config, outdir);
   if (produced.length !== 1 || produced[0] !== entry)
     throw new Error(
       `${config} must bundle to one module ${entry}; got ${produced.join(", ")}`,
     );
   await mkdir(dirname(target), { recursive: true });
   await rename(join(outdir, entry), target);
+}
+
+/**
+ * The workerd module list for a Worker bundle's modules (#2427): the entry as
+ * index.js and every module wrangler emitted beside it, under the name the
+ * entry imports it by. config.capnp imports this list, so the runtime always
+ * loads exactly what was bundled.
+ */
+export function renderModules(names) {
+  const kind = (name) =>
+    /\.(?:m?js)$/u.test(name)
+      ? "esModule"
+      : name.endsWith(".wasm")
+        ? "wasm"
+        : "data";
+  const rows = names.map(
+    (name) =>
+      `  (name = ${JSON.stringify(name)}, ${kind(name)} = embed ${JSON.stringify(name)})`,
+  );
+  return `# Written by scripts/regional-release.mjs from the Worker bundle.
+using Workerd = import "/workerd/workerd.capnp";
+
+const list :List(Workerd.Worker.Module) = [
+${rows.join(",\n")}
+];
+`;
+}
+
+/**
+ * Bundle a Worker whose modules may include data and WebAssembly: the entry
+ * becomes index.js in `directory`, the others keep the names it imports, and
+ * modules.capnp lists them all.
+ */
+async function bundleWorker(config, outdir, entry, directory) {
+  const produced = await wranglerBundle(config, outdir);
+  if (!produced.includes(entry))
+    throw new Error(
+      `${config} did not bundle ${entry}; got ${produced.join(", ")}`,
+    );
+  if (produced.includes("index.js") || produced.some((f) => f.includes("/")))
+    throw new Error(
+      `${config} bundled modules index.js cannot hold: ${produced.join(", ")}`,
+    );
+  await mkdir(directory, { recursive: true });
+  const names = [];
+  for (const file of [entry, ...produced.filter((f) => f !== entry).sort()]) {
+    const name = file === entry ? "index.js" : file;
+    await rename(join(outdir, file), join(directory, name));
+    names.push(name);
+  }
+  await writeFile(join(directory, "modules.capnp"), renderModules(names));
 }
 
 /** Stage the same verified bundle for the regional and Production origins. */
@@ -163,11 +219,11 @@ export async function createRegionalRelease(dist, sha, work, options = {}) {
   await rm(join(dist, RELEASE_DIRECTORY), { recursive: true, force: true });
   await mkdir(target, { recursive: true });
   const build = options.bundle ?? bundle;
-  await build(
+  await (options.bundleWorker ?? bundleWorker)(
     join(FORMAL, "bundle.jsonc"),
     join(work, "worker"),
     "regional-entry.js",
-    join(target, "worker/index.js"),
+    join(target, "worker"),
   );
   await build(
     join(FORMAL, "egress-bundle.jsonc"),

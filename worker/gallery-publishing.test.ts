@@ -335,6 +335,46 @@ describe("gallery submissions", () => {
     ).toBe(404);
   });
 
+  it("serves a preview with its faces embedded and refreshes one cached without", async () => {
+    const env = environment();
+    const id = await submitOne(env, "Embedded faces");
+    const { preview_revision: revision, svg_text: stored } = env.gallerySql
+      .exec<{ preview_revision: string; svg_text: string }>(
+        "SELECT preview_revision, svg_text FROM gallery_entries WHERE id=?",
+        id,
+      )
+      .one();
+    const request = new Request(
+      `${ORIGIN}/api/gallery/${id}/preview.svg?v=${revision}`,
+    );
+    const embed = async (svg: string) =>
+      svg.includes("<!--faces-->") ? svg : `${svg}<!--faces-->`;
+    // A cache entry from before previews embedded their faces.
+    const cache = memoryPreviewCache();
+    await cache.put(request, new Response(stored));
+    const served = await routeGalleryRequest(asReader(request), env, {
+      previewCache: cache,
+      previewFonts: embed,
+    });
+    expect(await served!.text()).toBe(`${stored}<!--faces-->`);
+    expect(served!.headers.get("content-security-policy")).toContain(
+      "font-src data:",
+    );
+    expect(await (await cache.match(request))!.text()).toBe(
+      `${stored}<!--faces-->`,
+    );
+    // A preview that cannot embed still serves, and is not kept.
+    const failing = memoryPreviewCache();
+    const plain = await routeGalleryRequest(asReader(request), env, {
+      previewCache: failing,
+      previewFonts: async () => {
+        throw new Error("no faces");
+      },
+    });
+    expect(await plain!.text()).toBe(stored);
+    expect(await failing.match(request)).toBeUndefined();
+  });
+
   it("publishes immediately with canonical text and a server preview", async () => {
     const env = environment();
     const id = await submitOne(env, "Ring Oscillator");

@@ -33,11 +33,15 @@ and diagnostics never enter a formal artifact.
   slant across mixed runs). Browser PNG inlines the faces (an SVG image loads
   no external font), falling back to system faces if unreadable. A
   downloaded SVG (editor export, Agent and local `export_file`, the local
-  workspace, `pnpm gallery:dataset`) embeds, once per weight and style its
-  text uses, a HarfBuzz subset of the Node composite face (**ICM Schematic**)
-  holding only the characters it writes, in place of the period faces, so it
-  draws as the PNG does on any computer; a Document face other than Metropolis
-  still names its stack only. Gallery `preview.svg` names the stack.
+  workspace, `pnpm gallery:dataset`, Gallery `preview.svg`) embeds, once per
+  weight and style its text uses, a HarfBuzz subset of the Node composite face
+  (**ICM Schematic**) holding only the characters it writes, in place of the
+  period faces, so it draws as the PNG does on any computer; a Document face
+  other than Metropolis still names its stack only. The subset takes
+  Metropolis's line metrics (hhea from OS/2 typographic values), so browsers
+  size text boxes as the editor measures them. The Worker embeds once per
+  preview revision (its CSP allows `font-src data:`), and serves the stored
+  SVG, uncached, when it cannot.
 - A Document's `presentation.textFace` sets every text in another face
   instead, everywhere above. Each is served as renamed subsets (an OFL Reserved
   Font Name or the GUST Font License's renaming request), measured from its

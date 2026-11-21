@@ -28,6 +28,9 @@ it("initializes every publication stream in the Workers SQL runtime", async () =
     platform: "browser",
     // Keep the same built-ins that the deployed workerd resolves at runtime.
     external: ["cloudflare:*", "node:buffer", "node:zlib"],
+    // Gallery previews' faces and subsetter (worker/gallery-preview-fonts.ts),
+    // which seeding never loads.
+    loader: { ".ttf": "binary", ".wasm": "binary" },
     write: false,
   });
   const mf = new Miniflare(

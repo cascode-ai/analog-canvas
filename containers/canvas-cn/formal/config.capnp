@@ -2,6 +2,7 @@
 # region.jsonc. Do not edit; run `node scripts/regional-runtime.mjs`.
 using Workerd = import "/workerd/workerd.capnp";
 using Artifacts = import "artifact-storage.capnp";
+using Modules = import "worker/modules.capnp";
 
 const config :Workerd.Config = (
   v8Flags = ["--expose-gc"],
@@ -9,7 +10,7 @@ const config :Workerd.Config = (
   services = [
     (name = "canvas", worker = (
       compatibilityDate = "2026-08-11",
-      modules = [(name = "index.js", esModule = embed "worker/index.js")],
+      modules = Modules.list,
       bindings = [
         (name = "TOPOLOGY_TASK", durableObjectNamespace = "TopologyTaskDO"),
         (name = "COMPONENT_LIBRARY", durableObjectNamespace = "ComponentLibraryDO"),

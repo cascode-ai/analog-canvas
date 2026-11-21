@@ -220,7 +220,11 @@ Production's release, never a separate build.
   timer and the runtime's credential list; `pnpm regional:check` (CI static)
   fails on a stale file, an unclassified Production binding or a failing host
   runner test. A change adding Production configuration adds its regional
-  mapping or exclusion in the same commit.
+  mapping or exclusion in the same commit. `bundle.jsonc` carries
+  `wrangler.jsonc`'s bundling `rules`; the release writes every module the
+  Worker bundles (entry as `index.js`, WebAssembly, data) into `worker/` with
+  `worker/modules.capnp`, which `config.capnp` loads, and the host monitor
+  checks all of `worker/`.
 - Every candidate carries `/regional-release/<sha>/` from
   `scripts/regional-release.mjs`. After live Production verification succeeds,
   CI writes a receipt to the private `analog-canvas-regional-releases` bucket,
