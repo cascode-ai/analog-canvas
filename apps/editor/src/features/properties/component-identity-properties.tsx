@@ -224,13 +224,13 @@ export function ComponentIdentityProperties({
   );
   return (
     <>
-      {hasEditableIdentityControls ? (
+      {hasEditableIdentityControls && !fieldsMovedToCode ? (
         <div
           className="property-card component-identity-controls"
           aria-label="Component controls"
         >
           <dl className="component-readonly-fields">
-            {instance.reference && !fieldsMovedToCode ? (
+            {instance.reference ? (
               <div>
                 <dt>Netlist Reference</dt>
                 <dd>
@@ -250,7 +250,7 @@ export function ComponentIdentityProperties({
                 </dd>
               </div>
             ) : null}
-            {onEditAnnotation && !fieldsMovedToCode ? (
+            {onEditAnnotation ? (
               <div>
                 <dt>Visual annotation</dt>
                 <dd>
@@ -260,7 +260,7 @@ export function ComponentIdentityProperties({
                 </dd>
               </div>
             ) : null}
-            {targetDescription && !fieldsMovedToCode ? (
+            {targetDescription ? (
               <div className="property-identity-target">
                 <dt>Target</dt>
                 <dd>{targetDescription}</dd>
@@ -275,7 +275,7 @@ export function ComponentIdentityProperties({
           role="group"
           aria-label="Capacitor plate terminals"
         >
-          <div className="property-section-heading">Electrical terminals</div>
+          <div className="property-section-heading">Capacitor plates</div>
           <dl className="component-readonly-fields">
             {capacitorPlateRows.map((row) => (
               <div key={row.role}>
@@ -295,9 +295,9 @@ export function ComponentIdentityProperties({
           role="group"
           aria-label="Property-only electrical terminals"
         >
-          <div className="property-section-heading">Electrical terminals</div>
+          <div className="property-section-heading">Undrawn terminals</div>
           {propertyTerminals.map((terminal) => (
-            <label key={terminal.pinName}>
+            <label className="instance-property-row" key={terminal.pinName}>
               {terminal.label}
               <select
                 aria-label={terminal.label}
@@ -313,7 +313,6 @@ export function ComponentIdentityProperties({
                   </option>
                 ))}
               </select>
-              <small>Property-only terminal · no canvas pin or wire</small>
             </label>
           ))}
         </div>

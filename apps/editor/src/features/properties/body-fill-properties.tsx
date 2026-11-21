@@ -13,11 +13,11 @@ export function BodyFillProperties({
   background,
   onChange,
 }: BodyFillPropertiesProps) {
-  if (instances.length === 0) return null;
   const eligible = instances.filter(supportsBodyFill);
   const legacy = instances.filter(
     (instance) => instance.styleOverride?.background,
   );
+  if (eligible.length === 0 && legacy.length === 0) return null;
   const modeOf = (instance: Instance) =>
     instance.bodyFill?.kind ??
     (instance.styleOverride?.background ? "legacy" : "transparent");
@@ -38,13 +38,10 @@ export function BodyFillProperties({
   const customColor = /^#[0-9a-f]{6}$/iu.test(color) ? color : "#ffffff";
   const ids = eligible.map((instance) => instance.id);
   return (
-    <section className="property-section" aria-label="Symbol body">
-      <div className="property-section-heading">Symbol body</div>
-      {eligible.length === 0 ? (
-        <p className="inspect-empty">This symbol has no fillable body.</p>
-      ) : (
-        <>
-          <label>
+    <section className="instance-body-fill" aria-label="Symbol body">
+      {eligible.length > 0 ? (
+        <div className="instance-fill-controls">
+          <label className="instance-property-row">
             Body fill
             <select
               aria-label="Body fill"
@@ -74,29 +71,27 @@ export function BodyFillProperties({
             </select>
           </label>
           {mode === "color" ? (
-            <label>
-              Fill color
-              <input
-                type="color"
-                value={customColor}
-                aria-label="Body fill color"
-                onChange={(event) =>
-                  onChange(ids, {
-                    kind: "color",
-                    color: event.currentTarget.value,
-                  })
-                }
-              />
-            </label>
+            <input
+              type="color"
+              value={customColor}
+              aria-label="Body fill color"
+              title="Body fill color"
+              onChange={(event) =>
+                onChange(ids, {
+                  kind: "color",
+                  color: event.currentTarget.value,
+                })
+              }
+            />
           ) : null}
-          {eligible.length !== instances.length ? (
-            <p className="inspect-empty">
-              {eligible.length} of {instances.length} selected symbols have a
-              fillable body.
-            </p>
-          ) : null}
-        </>
-      )}
+        </div>
+      ) : null}
+      {eligible.length > 0 && eligible.length !== instances.length ? (
+        <p className="inspect-empty">
+          {eligible.length} of {instances.length} selected symbols have a
+          fillable body.
+        </p>
+      ) : null}
       {legacy.length > 0 ? (
         <button
           type="button"

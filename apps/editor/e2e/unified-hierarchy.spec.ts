@@ -59,6 +59,8 @@ test("unified tree follows four levels, shared uses and detached definitions, an
     exact: true,
   });
   const reset = parameters.getByLabel("Reset gain to default");
+  await expect(gain).toBeHidden();
+  await parameters.getByText("1 override of 1", { exact: true }).click();
   // The field shows gain's default of 10, and the row is marked while an
   // override replaces it.
   await expect(gain).toHaveAttribute("placeholder", "10");
@@ -78,6 +80,7 @@ test("unified tree follows four levels, shared uses and detached definitions, an
   await gain.fill("30");
   await reset.click();
   await inherited();
+  await expect(parameters).toContainText("0 overrides of 1");
   await expect(gain).toHaveValue("");
   // A literal "inherit" is an override like any other value.
   await gain.fill("inherit");

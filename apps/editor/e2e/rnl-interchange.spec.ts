@@ -49,8 +49,14 @@ test("inspects and expands an imported RNL bundle without replacing its members"
     name: "Instance group",
     exact: true,
   });
+  await expect(
+    page.getByLabel("Editable Canvas property code"),
+  ).toBeInViewport();
+  await expect(group.getByRole("button", { name: "Locate X2" })).toBeHidden();
+  await group.getByText("3 members · X1 selected", { exact: true }).click();
   await expect(group.getByRole("listitem")).toHaveCount(3);
   await group.getByRole("button", { name: "Locate X2" }).click();
+  await expect(group).toContainText("3 members · X2 selected");
   await expect(
     group.getByRole("button", { name: "Locate X2" }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -116,7 +122,13 @@ test("creates an ordered native array and applies the reversed bit preview as on
     name: "Instance group",
     exact: true,
   });
+  await group.getByText("4 members · R3 selected", { exact: true }).click();
   await expect(group.getByRole("listitem")).toHaveCount(4);
+  // Opening the inspector leaves array creation as the last circuit edit.
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(group).toHaveCount(0);
+  await page.getByTestId("draw-tool-redo").click();
+  await group.getByText("4 members · R3 selected", { exact: true }).click();
   await group.getByText("Connect array terminals", { exact: true }).click();
   const apply = group.getByRole("button", { name: "Apply array connections" });
   await group.getByLabel("Array terminal", { exact: true }).selectOption("2");

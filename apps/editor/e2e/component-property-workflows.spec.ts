@@ -665,6 +665,10 @@ test("Properties resizes from 300px with plain selectable code and its inline co
   await openPlacedProperties(page, "pmos", { x: 360, y: 220 });
   const editor = page.getByTestId("component-property-code-editor");
   const code = page.getByLabel("Editable Canvas property code");
+  const dock = page.getByRole("complementary", { name: "Properties" });
+  await expect(
+    dock.getByText("Properties", { exact: true }).filter({ visible: true }),
+  ).toHaveCount(1);
   const target = editor.getByLabel("Target netlist options");
   const pfet = "sky130_fd_pr__pfet_01v8";
   await target.selectOption(pfet);

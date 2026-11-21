@@ -195,6 +195,8 @@ async function editCellLayout(page: Page) {
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "false")
     await shelf.click();
+  const symbol = page.getByRole("region", { name: "Cell symbol", exact: true });
+  await symbol.getByText("Cell symbol", { exact: true }).click();
   await page
     .getByRole("button", { name: "Edit symbol layout on canvas" })
     .click();
@@ -1544,6 +1546,17 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
   if ((await layoutShelf.getAttribute("aria-expanded")) === "false") {
     await layoutShelf.click();
   }
+  await expect(
+    page.getByRole("button", { name: "Edit ReusableStage…" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Instance parameters" }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Cell symbol width")).toBeHidden();
+  await page
+    .getByRole("region", { name: "Cell symbol", exact: true })
+    .getByText("Cell symbol", { exact: true })
+    .click();
   const layout = page.getByLabel("Cell symbol layout");
   await expect(layout).toBeVisible();
   await layout.getByLabel("Cell symbol width").fill("120");
