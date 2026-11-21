@@ -72,7 +72,10 @@ def runtime_checks(release=Path('/opt/analog-canvas/current-formal'),
                 https.add(ip.version if ip else 0)
         manifest = load(release / 'release.json')['files']
         changed = []
-        for name in ('config.capnp', 'artifact-storage.capnp', 'worker/index.js', 'egress.mjs'):
+        # Every module the runtime loads: the Worker's are all of worker/.
+        runtime = ['config.capnp', 'artifact-storage.capnp', 'egress.mjs',
+                   *sorted(n for n in manifest if n.startswith('worker/'))]
+        for name in runtime:
             if name in manifest:
                 path = release / name
                 if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != manifest[name]:

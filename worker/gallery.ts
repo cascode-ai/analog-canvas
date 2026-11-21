@@ -89,6 +89,30 @@ export interface GalleryRouteRuntime {
   previewCache?: GalleryPreviewCache | null;
   /** Injectable in tests; production reads config/gallery-sim.json. */
   simulationMarkPublicFrom?: string | null;
+  /**
+   * Embeds a preview's text faces (#2427): the Worker entry passes the faces
+   * it carries; without one a preview is served as stored, and one that
+   * cannot embed is served as stored and not cached.
+   */
+  previewFonts?: ((svg: string) => Promise<string>) | null;
+}
+
+const PREVIEW_POLICY =
+  "default-src 'none'; style-src 'unsafe-inline'; font-src data:";
+
+/** The preview as served: its faces embedded when they can be. */
+async function servedPreview(
+  svg: string,
+  runtime: GalleryRouteRuntime,
+): Promise<{ svg: string; embedded: boolean }> {
+  const embed = runtime.previewFonts;
+  if (!embed) return { svg, embedded: true };
+  try {
+    return { svg: await embed(svg), embedded: true };
+  } catch {
+    // Fonts are presentation: the stored drawing still serves.
+    return { svg, embedded: false };
+  }
 }
 
 function defaultPreviewCache(): GalleryPreviewCache | null {
@@ -725,7 +749,13 @@ export async function routeGalleryRequest(
           : runtime.previewCache
         : null;
     const cached = await matchPreviewCache(previewCache, request);
-    if (cached && !formulaPreviewNeedsRefresh(await cached.clone().text())) {
+    const cachedText = cached ? await cached.clone().text() : null;
+    // An entry stored before previews embedded their faces reads as stale.
+    const cachedCurrent =
+      cachedText !== null &&
+      !formulaPreviewNeedsRefresh(cachedText) &&
+      (await servedPreview(cachedText, runtime)).svg === cachedText;
+    if (cached && cachedCurrent) {
       // A content URL stays immutable, but publication status does not. Check
       // the tiny access row before serving an edge hit so recycle/reject/delete
       // and a newer current revision retain exactly their existing behavior.
@@ -763,20 +793,21 @@ export async function routeGalleryRequest(
       const immutable =
         typeof currentRevision === "string" &&
         requestedRevision === String(currentRevision);
-      const response = new Response(
+      const served = await servedPreview(
         await recoverFormulaPreview(payload.svgText, payload.projectText),
-        {
-          headers: {
-            "content-type": "image/svg+xml",
-            "cache-control": immutable
-              ? "public, max-age=31536000, immutable"
-              : "no-store",
-            "content-security-policy":
-              "default-src 'none'; style-src 'unsafe-inline'",
-          },
-        },
+        runtime,
       );
-      if (immutable) {
+      const response = new Response(served.svg, {
+        headers: {
+          "content-type": "image/svg+xml",
+          "cache-control": immutable
+            ? "public, max-age=31536000, immutable"
+            : "no-store",
+          "content-security-policy": PREVIEW_POLICY,
+        },
+      });
+      // A preview that could not embed is not kept under its immutable URL.
+      if (immutable && served.embedded) {
         await storePreviewCache(previewCache, request, response.clone());
       }
       return readerCopy(response);
@@ -791,13 +822,17 @@ export async function routeGalleryRequest(
       );
     }
     return new Response(
-      await recoverFormulaPreview(payload.svgText, payload.projectText),
+      (
+        await servedPreview(
+          await recoverFormulaPreview(payload.svgText, payload.projectText),
+          runtime,
+        )
+      ).svg,
       {
         headers: {
           "content-type": "image/svg+xml",
           "cache-control": "no-store",
-          "content-security-policy":
-            "default-src 'none'; style-src 'unsafe-inline'",
+          "content-security-policy": PREVIEW_POLICY,
         },
       },
     );

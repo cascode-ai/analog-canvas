@@ -61,6 +61,8 @@ export function classify(wrangler, region) {
     "name",
     "main",
     "compatibility_date",
+    // How modules are bundled; bundle.jsonc must carry the same (generate).
+    "rules",
     "vars",
     "assets",
     "services",
@@ -188,6 +190,7 @@ export function renderConfig(wrangler, region) {
 # region.jsonc. Do not edit; run \`node scripts/regional-runtime.mjs\`.
 using Workerd = import "/workerd/workerd.capnp";
 using Artifacts = import "artifact-storage.capnp";
+using Modules = import "worker/modules.capnp";
 
 const config :Workerd.Config = (
   v8Flags = ["--expose-gc"],
@@ -195,7 +198,7 @@ const config :Workerd.Config = (
   services = [
     (name = "canvas", worker = (
       compatibilityDate = ${quote(wrangler.compatibility_date)},
-      modules = [(name = "index.js", esModule = embed "worker/index.js")],
+      modules = Modules.list,
       bindings = [
 ${bindings.join("\n")}
       ],
@@ -274,6 +277,12 @@ export async function generate(base = root) {
   const wrangler = parseJsonc(await read("wrangler.jsonc"));
   const region = parseJsonc(await read(`${FORMAL}/region.jsonc`));
   const problems = classify(wrangler, region);
+  // The regional bundle reads the same imports, so it needs the same rules.
+  const bundle = parseJsonc(await read(`${FORMAL}/bundle.jsonc`));
+  if (
+    JSON.stringify(bundle.rules ?? []) !== JSON.stringify(wrangler.rules ?? [])
+  )
+    problems.push("bundle.jsonc rules differ from wrangler.jsonc rules");
   if (problems.length)
     throw new Error(`Regional runtime parity:\n- ${problems.join("\n- ")}`);
   return {

@@ -251,7 +251,8 @@ class ReadinessTest(unittest.TestCase):
 class ReleaseTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        root = pathlib.Path(self.temp.name)
+        # Resolved, as the release resolves it (macOS links /var to /private/var).
+        root = pathlib.Path(self.temp.name).resolve()
         self.releases = root / 'releases'
         self.units = root / 'units'
         self.credentials = root / 'credentials'

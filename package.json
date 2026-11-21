@@ -18,7 +18,8 @@
     "@icm/render-svg": "workspace:*",
     "@icm/simulation-service": "workspace:*",
     "@icm/spice-run": "workspace:*",
-    "@icm/symbols": "workspace:*"
+    "@icm/symbols": "workspace:*",
+    "harfbuzzjs": "1.6.4"
   },
   "scripts": {
     "rnl:package:check": "node scripts/rnl-canvas-package.mjs --check",

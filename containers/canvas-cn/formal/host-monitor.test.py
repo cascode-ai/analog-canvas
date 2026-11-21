@@ -219,8 +219,14 @@ class MonitorTests(unittest.TestCase):
             release.mkdir(); units.mkdir()
             original = b'private binding configuration'
             (release / 'config.capnp').write_bytes(b'changed private configuration')
+            # A Worker module beside index.js counts as runtime too.
+            (release / 'worker').mkdir()
+            (release / 'worker' / 'ab-face.ttf').write_bytes(b'swapped face')
+            (release / 'worker' / 'index.js').write_bytes(b'entry')
             (release / 'release.json').write_text(json.dumps({'files': {
-                'config.capnp': hashlib.sha256(original).hexdigest()}}))
+                'config.capnp': hashlib.sha256(original).hexdigest(),
+                'worker/index.js': hashlib.sha256(b'entry').hexdigest(),
+                'worker/ab-face.ttf': hashlib.sha256(b'face').hexdigest()}}))
             (release / 'canvas-cn-formal.service').write_text('expected unit')
             (units / 'canvas-cn-formal.service').write_text('changed unit')
             def run(args, **kwargs):
@@ -231,7 +237,7 @@ class MonitorTests(unittest.TestCase):
                 return SimpleNamespace(stdout='')
             result = monitor.runtime_checks(release, units, run)
             self.assertEqual(result['unexpectedPublicTcp'], [8792])
-            self.assertEqual(result['changed'], ['canvas-cn-formal.service', 'config.capnp'])
+            self.assertEqual(result['changed'], ['canvas-cn-formal.service', 'config.capnp', 'worker/ab-face.ttf'])
             self.assertNotIn('private', json.dumps(result))
             m = sample(); m['runtime'] = result
             _, since = evaluate(m, {}, {}, 1000)

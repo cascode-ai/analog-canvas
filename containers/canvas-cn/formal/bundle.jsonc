@@ -2,5 +2,7 @@
   "name": "canvas-cn-formal-candidate",
   "main": "../../../worker/regional-entry.ts",
   "compatibility_date": "2026-08-11",
+  // As wrangler.jsonc: Gallery previews embed these faces (scripts/regional-runtime.mjs checks).
+  "rules": [{ "type": "Data", "globs": ["**/*.ttf"], "fallthrough": true }],
   "workers_dev": false,
 }

@@ -82,6 +82,12 @@ import {
   type RegionalReleaseEnv,
 } from "./regional-release";
 
+/** A Gallery preview's faces, loaded only when a preview is served (#2427). */
+const embedPreviewFonts = (svg: string) =>
+  import("./gallery-preview-fonts").then((module) =>
+    module.embedPreviewFonts(svg),
+  );
+
 // The stores that keep durable data also answer point-in-time recovery. The
 // export names are the deployed class names, so they must not change.
 export const ComponentLibraryDO = withPointInTimeRecovery(
@@ -224,7 +230,9 @@ async function route(request: Request, env: Env): Promise<Response> {
   const boardsResponse = await routeBoardsRequest(request, env);
   if (boardsResponse) return boardsResponse;
 
-  const galleryResponse = await routeGalleryRequest(request, env);
+  const galleryResponse = await routeGalleryRequest(request, env, {
+    previewFonts: embedPreviewFonts,
+  });
   if (galleryResponse) return galleryResponse;
 
   const componentsResponse = await routeComponentLibraryRequest(request, env);

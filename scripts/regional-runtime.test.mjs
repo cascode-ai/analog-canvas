@@ -9,6 +9,7 @@ import {
   parseJsonc,
   renderConfig,
 } from "./regional-runtime.mjs";
+import { renderModules } from "./regional-release.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const read = async (path) =>
@@ -85,5 +86,26 @@ describe("regional runtime declaration", () => {
   it("turns minute crons into systemd calendars", () => {
     expect(calendarOf("*/5 * * * *")).toBe("*-*-* *:00/5:00");
     expect(() => calendarOf("*/7 * * * *")).toThrow();
+  });
+});
+
+describe("the regional Worker's modules", () => {
+  it("lists the bundle's entry, WebAssembly and data under their import names", () => {
+    expect(renderModules(["index.js", "ab-x.wasm", "cd-face.ttf"])).toContain(
+      [
+        '  (name = "index.js", esModule = embed "index.js"),',
+        '  (name = "ab-x.wasm", wasm = embed "ab-x.wasm"),',
+        '  (name = "cd-face.ttf", data = embed "cd-face.ttf")',
+      ].join("\n"),
+    );
+  });
+
+  it("are what config.capnp loads", async () => {
+    const config = await readFile(
+      join(root, "containers/canvas-cn/formal/config.capnp"),
+      "utf8",
+    );
+    expect(config).toContain('using Modules = import "worker/modules.capnp";');
+    expect(config).toContain("modules = Modules.list,");
   });
 });
