@@ -2,6 +2,7 @@
   "language": "0.4",
   "standardSeries": "0.4",
   "toolsRelease": "0.6.0",
+  "specRelease": "spec-0.4-r1",
   "upgradeRelease": "0.5.7",
   "runtime": {
     "package": "@rich-netlist/runtime",

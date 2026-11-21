@@ -1,8 +1,8 @@
 // Where Analog Canvas stands against RNL upstream (#2102): a report, never a
 // gate. It names what is behind or out of step; each finding is for a person
 // to act on in an upgrade pull request. First, the version line: Analog
-// Canvas reads and writes one RNL language, which the released rnl tools and
-// RNL Skill must read and teach.
+// Canvas reads and writes one RNL language with released tools, a Skill,
+// and a normative specification.
 //
 //   pnpm rnl:reconcile [-- --markdown]
 import { execFileSync } from "node:child_process";
@@ -35,24 +35,25 @@ export function reconcile(facts) {
   const findings = [];
   const { line } = facts;
   const short = (sha) => sha.slice(0, 8);
-  // The version line: what Canvas reads and writes must be what the released
-  // tools read and the released guide teaches.
   const released = facts.releasedCore;
-  const behind = [
-    ...(byVersion(released, line.toolsRelease) < 0
-      ? [
-          `the latest rnl release, core ${released}, comes before ${line.toolsRelease}, the first to read it,`,
-        ]
-      : []),
-    ...(facts.releasedSkillLanguage !== line.language
-      ? [
-          `its RNL Skill teaches ${facts.releasedSkillLanguage ?? "no language"}`,
-        ]
-      : []),
-  ];
-  if (behind.length)
+  const versionIssues = [];
+  if (byVersion(released, line.toolsRelease) < 0)
+    versionIssues.push(
+      `The latest core is ${released}. Core ${line.toolsRelease} is the first to read it.`,
+    );
+  if (facts.releasedSkillLanguage !== line.language)
+    versionIssues.push(
+      `The released RNL Skill teaches ${facts.releasedSkillLanguage ?? "no identified language"}.`,
+    );
+  if (facts.releasedSpecLanguage !== line.language)
+    versionIssues.push(
+      facts.releasedSpecLanguage
+        ? `The published spec ${line.specRelease} describes RNL ${facts.releasedSpecLanguage}.`
+        : `The release ${line.specRelease} has no readable normative RNL text.`,
+    );
+  if (versionIssues.length)
     findings.push(
-      `version line: Analog Canvas reads and writes RNL ${line.language}, but ${behind.join(" and ")}: no released tool or guide writes what Analog Canvas reads`,
+      `version line: Analog Canvas reads and writes RNL ${line.language}. ${versionIssues.join(" ")}`,
     );
   if (facts.mainSkillLanguage !== line.language)
     findings.push(
@@ -103,14 +104,14 @@ export function markdown(findings, facts, date) {
       ? findings.map((item) => `- ${item}`).join("\n")
       : "RNL upstream and Analog Canvas are in step.",
     "",
-    `Analog Canvas: RNL ${line.language}, standard series ${line.standardSeries}, ${lock.name} ${newest(facts.canvasLocked)}, runtime ${line.runtime.version} (${line.runtime.built}). Upstream: core ${facts.releasedCore} released, main ${facts.mainHead.slice(0, 8)}.`,
+    `Analog Canvas: RNL ${line.language}, standard series ${line.standardSeries}, ${lock.name} ${newest(facts.canvasLocked)}, runtime ${line.runtime.version} (${line.runtime.built}). Upstream: core ${facts.releasedCore} released, main ${facts.mainHead.slice(0, 8)}, spec ${line.specRelease} (${facts.releasedSpecLanguage ?? "unavailable"}).`,
     "",
     "Reported by `pnpm rnl:reconcile` (`.github/workflows/rnl-reconcile.yml`); it never blocks.",
   ].join("\n");
 }
 
 /** A URL's answer; a reset connection is tried twice more. */
-async function fetched(url, as, tries = 3) {
+async function fetched(url, options = {}, tries = 3) {
   const headers =
     process.env.GH_TOKEN && url.startsWith(API)
       ? { authorization: `Bearer ${process.env.GH_TOKEN}` }
@@ -121,10 +122,31 @@ async function fetched(url, as, tries = 3) {
   } catch (error) {
     if (tries <= 1) throw error;
     await new Promise((done) => setTimeout(done, 1000));
-    return fetched(url, as, tries - 1);
+    return fetched(url, options, tries - 1);
   }
+  if (options.allowMissing && response.status === 404) return null;
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-  return as === "text" ? response.text() : response.json();
+  return options.as === "text" ? response.text() : response.json();
+}
+
+async function publishedSpecLanguage(tag) {
+  const release = await fetched(`${API}/releases/tags/${tag}`, {
+    allowMissing: true,
+  });
+  if (!release || release.draft || release.prerelease) return null;
+  const normative = release.assets.find(({ name }) =>
+    /^rnl-\d+\.\d+\.md$/u.test(name),
+  );
+  if (!normative) return null;
+  const text = await fetched(normative.browser_download_url, {
+    as: "text",
+    allowMissing: true,
+  });
+  return (
+    /^# RNL language standard, version (\d+\.\d+)\s*$/mu.exec(
+      text ?? "",
+    )?.[1] ?? null
+  );
 }
 
 async function facts() {
@@ -133,16 +155,18 @@ async function facts() {
       new URL("../packages/rnl/src/rnl-version-line.json", import.meta.url),
     ),
   );
-  const [latest, catalog, upstream, release, main] = await Promise.all([
-    fetched(`https://registry.npmjs.org/${RUNTIME}/latest`),
-    fetched(lock.catalogUrl),
-    fetched(`${RAW}/main/packages.lock.json`),
-    fetched(`${API}/releases/latest`),
-    fetched(`${API}/commits/main`),
-  ]);
+  const [latest, catalog, upstream, release, main, releasedSpecLanguage] =
+    await Promise.all([
+      fetched(`https://registry.npmjs.org/${RUNTIME}/latest`),
+      fetched(lock.catalogUrl),
+      fetched(`${RAW}/main/packages.lock.json`),
+      fetched(`${API}/releases/latest`),
+      fetched(`${API}/commits/main`),
+      publishedSpecLanguage(line.specRelease),
+    ]);
   const [releasedSkill, mainSkill, comparison] = await Promise.all([
-    fetched(`${RAW}/${release.tag_name}/skills/rnl/SKILL.md`, "text"),
-    fetched(`${RAW}/main/skills/rnl/SKILL.md`, "text"),
+    fetched(`${RAW}/${release.tag_name}/skills/rnl/SKILL.md`, { as: "text" }),
+    fetched(`${RAW}/main/skills/rnl/SKILL.md`, { as: "text" }),
     line.runtime.source === "commit"
       ? fetched(`${API}/compare/${line.runtime.commit}...main`)
       : Promise.resolve({ ahead_by: 0 }),
@@ -166,6 +190,7 @@ async function facts() {
     line,
     releasedCore: release.tag_name.replace(/^core-v/u, ""),
     releasedSkillLanguage: skillLanguage(releasedSkill),
+    releasedSpecLanguage,
     mainSkillLanguage: skillLanguage(mainSkill),
     mainHead: main.sha,
     commitsBehindMain: comparison.ahead_by,

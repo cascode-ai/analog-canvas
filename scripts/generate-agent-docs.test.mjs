@@ -1,8 +1,17 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { readFile, mkdtemp, writeFile, readdir, rm } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  readFile,
+  mkdtemp,
+  writeFile,
+  readdir,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, posix } from "node:path";
+import { dirname, join, posix } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   compile,
   validateRegistry,
@@ -90,6 +99,66 @@ test("missing sources fail before emitting any files", async () => {
   copy.documents[0].source = "docs/agent/missing.md";
   await assert.rejects(compile(copy), /ENOENT/);
 });
+
+test(
+  "the published MCP drawing guide uses the versions from the RNL version line",
+  { timeout: 15_000 },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "agent-docs-rnl-"));
+    try {
+      await Promise.all(
+        [
+          "docs",
+          "fixtures/agent-api/agent-circuit-request.schema.json",
+          "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
+        ].map((source) =>
+          cp(
+            new URL(`../${source}`, import.meta.url),
+            join(directory, source),
+            {
+              recursive: true,
+            },
+          ),
+        ),
+      );
+      const versionLine = join(
+        directory,
+        "packages/rnl/src/rnl-version-line.json",
+      );
+      await mkdir(dirname(versionLine), { recursive: true });
+      await writeFile(
+        versionLine,
+        JSON.stringify({
+          language: "0.5",
+          standardSeries: "0.7",
+          toolsRelease: "0.8.1",
+        }),
+      );
+
+      const output = await compile(registry, directory);
+      const resourcesFile = join(directory, "resources.generated.ts");
+      await writeFile(
+        resourcesFile,
+        output.get("apps/mcp-server/src/resources.generated.ts"),
+      );
+      const { mcpResources } = await import(pathToFileURL(resourcesFile).href);
+      const guide = mcpResources.find(
+        (resource) => resource.uri === "analog-canvas://reference/mcp-tools",
+      ).text;
+      for (const text of [guide, output.get("docs/agent/mcp/tools.md")]) {
+        assert.ok(text?.includes("Write the drawing as RNL 0.5"));
+        assert.ok(text.includes("core 0.8.1"));
+        assert.ok(
+          text.includes(
+            '@USE-PACKAGE(name="rnl-std-all", version="0.7"); @VERSION("0.5")',
+          ),
+        );
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
 test("runtime links cannot escape to an undistributed repository document", async () => {
   for (const surface of ["mcp", "kit"]) {
     const copy = structuredClone(registry);
