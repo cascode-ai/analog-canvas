@@ -175,22 +175,32 @@ export function TestbenchPanel({
     [folder, path, shown],
   );
 
-  // Import: what the picked files would do, reviewed before one Project edit.
-  // The rows are re-planned against the current folder on every render, so
-  // an Agent or Undo meanwhile shows in the review, not as a silent overwrite.
+  // A review belongs to the Cell, Testbench and structure revision it started with.
+  // Keep the picked files when a Project edit requires a fresh review.
   const filePicker = useRef<HTMLInputElement>(null);
   const folderPicker = useRef<HTMLInputElement>(null);
   const [picked, setPicked] = useState<{
     files: PickedFile[];
+    cellId: string;
     folderId: string | null;
+    structureRevision: number;
     excluded: ReadonlySet<string>;
     entry: string | null;
   } | null>(null);
+  const targetControlsDisabled = dirty || picked !== null;
   const importFolder = picked
     ? (project.simulationFolders.find((item) => item.id === picked.folderId) ??
       null)
     : null;
-  const importLost = !!picked?.folderId && !importFolder;
+  const importTargetChanged =
+    picked !== null &&
+    (cell?.id !== picked.cellId ||
+      (picked.folderId !== null &&
+        (!importFolder || testbenchCell(importFolder) !== picked.cellId)));
+  const reviewIsStale =
+    picked !== null &&
+    !importTargetChanged &&
+    picked.structureRevision !== project.structureRevision;
   const importRows = picked
     ? planTestbenchImport(importFolder, picked.files)
     : [];
@@ -209,14 +219,16 @@ export function TestbenchPanel({
     );
     setPicked({
       files,
+      cellId,
       folderId: folder?.id ?? null,
+      structureRevision: project.structureRevision,
       excluded: new Set(),
       entry: null,
     });
     setError(null);
   };
   const confirmImport = () => {
-    if (!picked || !cell || importLost) return;
+    if (!picked || !cell || importTargetChanged || reviewIsStale) return;
     const chosen = new Set(
       importRows
         .filter((row) => !picked.excluded.has(row.path))
@@ -266,7 +278,7 @@ export function TestbenchPanel({
         label="Cell"
         ariaLabel="Testbench Cell"
         value={cellId}
-        disabled={dirty}
+        disabled={targetControlsDisabled}
         options={project.documents.map((document) => ({
           value: document.id,
           label: document.name,
@@ -328,7 +340,7 @@ export function TestbenchPanel({
               label="Testbench"
               ariaLabel="Testbench"
               value={folder?.id ?? ""}
-              disabled={dirty}
+              disabled={targetControlsDisabled}
               options={forCell.map((item) => ({
                 value: item.id,
                 label: item.name,
@@ -347,7 +359,7 @@ export function TestbenchPanel({
                 type="button"
                 aria-label="Import files into this Testbench…"
                 title="Import files into this Testbench…"
-                disabled={dirty || !!picked}
+                disabled={targetControlsDisabled}
                 onClick={() => filePicker.current?.click()}
               >
                 <ImportIcon />
@@ -356,7 +368,7 @@ export function TestbenchPanel({
                 type="button"
                 aria-label="New Testbench for this Cell"
                 title="New Testbench for this Cell"
-                disabled={dirty}
+                disabled={targetControlsDisabled}
                 onClick={createTestbench}
               >
                 <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -380,13 +392,15 @@ export function TestbenchPanel({
           role="group"
           aria-label="Review import"
         >
-          <p>
-            {importFolder ? (
+          <p role={importTargetChanged ? "alert" : undefined}>
+            {importTargetChanged ? (
+              <>
+                The import target changed. Cancel to choose a Cell or Testbench.
+              </>
+            ) : importFolder ? (
               <>
                 Into <strong>{importFolder.name}</strong> for {cell?.name}
               </>
-            ) : importLost ? (
-              <>The Testbench this import was for no longer exists.</>
             ) : (
               <>
                 A new Testbench for <strong>{cell?.name}</strong>
@@ -420,7 +434,7 @@ export function TestbenchPanel({
               );
             })}
           </ul>
-          {!importFolder && !importLost && importEntry ? (
+          {!importFolder && !importTargetChanged && importEntry ? (
             <NetlistCodeSelect
               label="Entry"
               ariaLabel="Testbench entry file"
@@ -433,15 +447,32 @@ export function TestbenchPanel({
               onChange={(entry) => setPicked({ ...picked, entry })}
             />
           ) : null}
+          {reviewIsStale ? (
+            <p role="alert">The Project changed during import review.</p>
+          ) : null}
           <div className="testbench-actions">
             <button
               type="button"
               className="primary"
-              disabled={importLost}
+              disabled={importTargetChanged || reviewIsStale}
               onClick={confirmImport}
             >
               Import
             </button>
+            {reviewIsStale ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPicked({
+                    ...picked,
+                    structureRevision: project.structureRevision,
+                  });
+                  setError(null);
+                }}
+              >
+                Review again
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={() => {
