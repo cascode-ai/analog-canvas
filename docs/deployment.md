@@ -8,10 +8,11 @@ Local commits and pushed branches publish nothing. Every merged
 non-documentation change is built, deployed, verified and, if live
 verification fails, rolled back. Documentation-only merges deploy nothing.
 
-A PR may carry one target or a related batch; review their combined risk. Each
-PR enters the merge queue as soon as it opens. The queue runs the required
-checks once on the candidate merged with current `main` (up to four at a time)
-and squash-merges each pass. Update a branch by hand only for a real conflict.
+A PR may carry one target or a related batch. Review their combined risk.
+Opening the PR starts its scope checks. Queue it explicitly for the required
+checks on the candidate combined with current `main` (up to four at a time).
+The queue squash-merges each passing candidate. Update a branch by hand only
+for a real conflict.
 
 Normal delivery:
 

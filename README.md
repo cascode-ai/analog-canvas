@@ -8,7 +8,7 @@ edit model.
 
 [Browse the Gallery](https://analog-canvas.tokenzhang.com/) ·
 [Open the editor](https://analog-canvas.tokenzhang.com/editor) ·
-[Windows preview (ZIP)](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-9174bd37ff7f-8/analog-canvas-desktop-windows-x64-9174bd37ff7f.zip) ·
+[Windows preview](#windows-desktop-preview) ·
 [Documentation](docs/README.md) ·
 [GitHub repository](https://github.com/cascode-ai/analog-canvas)
 
@@ -97,10 +97,9 @@ Windows desktop PowerPoint users can optionally install the
 drawings and reopen their embedded Projects from slides. It is built and
 installed separately; hosted and standalone desktop use remain unchanged.
 
-[**Download Windows x64 ZIP**](https://github.com/cascode-ai/analog-canvas/releases/download/desktop-preview-9174bd37ff7f-8/analog-canvas-desktop-windows-x64-9174bd37ff7f.zip)
-· [Release details](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-9174bd37ff7f-8)
-
-1. Download and extract the **whole ZIP**.
+1. Download the Windows x64 asset from the
+   [desktop preview release](https://github.com/cascode-ai/analog-canvas/releases/tag/desktop-preview-fac7d7612a2b-15)
+   and extract the **whole ZIP**.
 2. Open the extracted `Analog-Canvas-Windows-x64` directory and run
    `Analog Canvas Preview.exe`. Keep its sibling resources
    together; the `.exe` alone will not work. No Node.js, pnpm or developer tools
@@ -139,12 +138,6 @@ The linked package passed real Windows EXE acceptance, offline request checks
 and credential/private-file scanning. It includes corresponding source,
 attribution, `ACCEPTANCE.json` and `SECURITY.json` tied to the same source commit.
 See the [security audit and its limitations](docs/desktop-distribution-security.md).
-
-This ZIP is **155.2 MiB** (about **343.5 MiB** extracted). Most is Electron's
-Chromium/runtime, retaining English and Simplified/Traditional Chinese resources.
-The rest is the editor, desktop host, corresponding source, licenses and
-acceptance records. It contains no developer
-`node_modules` or user projects. Keep the bundled runtime and resources together.
 
 ## Run locally
 
