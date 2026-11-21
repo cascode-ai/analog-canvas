@@ -37,15 +37,10 @@ reads. Revocation cannot erase a completed handoff or cancel a human run;
 revocation before handoff is reported unavailable. Session-workspace runs stay
 private.
 
-Archives are browser-local. The newest 30 automatic (cache) runs per Project
-are kept within byte/file capacity and the latest durably published run is
-protected; manual Saves keep a separate 30 (the 31st evicts the oldest);
-unmarked older records stay until deleted. Limits: 512 MiB per archive, 1 GiB
-Project evidence, 256 MiB per file. A storage failure leaves the result in
-memory with a session-only warning. Old results are input snapshots, not a
-check of current source. Cleanup follows
-[evidence storage](simulation-evidence-storage.md) and never deletes
-downloaded files.
+Archives stay in the browser and describe the captured input. See the
+[archive rules](https://github.com/cascode-ai/analog-canvas/blob/main/docs/specs/simulation-evidence-storage.md#browser-admission)
+for capacity and retention, or [evidence storage](simulation-evidence-storage.md)
+for usage and recovery.
 
 `.icproj.json` exports are source-only. A restored run with a captured Project
 offers **Download project + results…**, a ZIP evidence bundle of the

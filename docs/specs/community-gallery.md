@@ -758,8 +758,10 @@ ruleVersion, remaining}`) re-answers marks behind `NETLIST_MARK_RULE_VERSION`
   2026-09-24. Non-public rows are `not-public`.
 - `POST …/testbench-privacy`: see [Testbench privacy](#testbench-privacy).
 - `POST …/schema-restore` (same-origin, emergency): atomically restores the
-  Project-bearing tables from `{backup}` with 3-version retention, within one
-  100 MB request; whole-store rollback is point-in-time recovery.
+  Project-bearing tables from `{backup}` and applies
+  [Gallery version retention](#version-history) and
+  [private save retention](persistence-and-recovery.md#private-save-history).
+  The request limit is 100 MB. Use point-in-time recovery for whole-store rollback.
 - `GET /api/gallery/owner-data` (Owner accounts; 401 signed out or credential,
   403 otherwise): public per-author counts, opens, total `components` and
   `transistors` (`transistorsPending`: circuits the scheduled pass has yet to

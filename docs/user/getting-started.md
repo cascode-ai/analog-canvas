@@ -288,29 +288,22 @@ one definition per used component type; deleting the last use removes it.
 transparent background (needs HTTPS or localhost and clipboard permission).
 
 The **Netlist** button copies the netlist and opens its code in the right
-sidebar. **Format** (SPICE or SCS) and **Process** (Abstract, SKY130 by
-default, IHP SG13G2, ICsprout55, Custom) are independent; a transistor
-you draw takes the selected Process's model. Process changes are undoable and
-keep your values. **Fill N devices** gives older unbound devices the Process's
-model and dimensions in one undoable step. Choices are remembered in this
-browser. Missing fields block output, and the sidebar and **Check Report**
-name the device and field. Export never adds model cards, analyses or a
-testbench.
+sidebar. Choose **SPICE** or **SCS** for a structural netlist. Choose
+**SPICE+RNL** or **Spectre+RNL** to include the drawing. Choose **Process**
+independently to set targets for new devices.
+Process changes and **Fill N devices** are undoable. The browser remembers
+your choices. The sidebar and **Check Report** identify missing fields that
+block export. See [netlist export rules](../specs/netlist-export.md#printer-contracts)
+for the declarations included in the output.
 
-**Netlist → Configuration…** edits the Process presets as JSON: `selected`
-(`abstract`, `sky130`, `sg13g2`, `ics55`, `custom`) and its entry
-under `profiles`.
+For the active Cell of an open RNL import, **File → Export → RNL Source
+Update…** downloads a JSON drawing update for the original source. See
+[source drawing updates](../specs/rnl-interchange.md#source-drawing-updates).
 
-- `abstract`: ideal R/C/L and generic NMOS/PMOS names.
-- `sky130`: SKY130 transistor wrappers, ideal R/C unless you target
-  `sky130_fd_pr__res_high_po` or `sky130_fd_pr__cap_mim_m3_1` with `w`/`l` in
-  metres; set `library.path` and `library.section` for your PDK.
-- `sg13g2`: IHP SG13G2 devices as its xschem symbols name them
-  (`sg13_lv_nmos`/`sg13_lv_pmos`, `sg13_hv_*`, HBTs `npn13G2…`, `pnpMPA`;
-  `rsil`, `rppd`, `rhigh`, `cap_cmim`, `cap_rfcmim` for physical R/C). Include
-  the PDK's ngspice libraries and OSDI modules yourself.
-- `ics55`: export a structural netlist with the 1.2 V SVT, LVT or HVT MOS names from the ICsprout55 v2 standard-cell CDL. Analog simulation requires separate transistor models.
-- `custom`: keeps your targets and fills missing fields from your defaults.
+**Netlist → Configuration…** edits the Process presets as JSON. `selected`
+chooses the entry under `profiles`. See the
+[process rules](../specs/netlist-export.md#process-configuration) for target
+bindings and how changing or filling the Process affects existing parts.
 
 **Netlist → Instances…** edits every instance's `reference`, model `target`
 and `parameters` as one JSON document, applied together with one undo.
@@ -323,9 +316,6 @@ Switches (**Open**, **Closed**, **Simple**) are clocked by the phase their
 label names: write `Φ₁` on several switches to share a clock, and drive it
 with a Net or Cell Pin named `Φ1`; an undriven phase becomes a Cell input. An
 overbar (`E̅N̅`) names a separate signal `EN_bar`. **Ctrl SW** uses its CTRL pin.
-Diodes without a model use a generic `DIODE` card, and NPN/PNP in Abstract or
-Custom generic `NPN`/`PNP` cards, until you choose a model or define one in
-your simulation files.
 
 ## Import Spectre / SCS
 
@@ -338,8 +328,8 @@ partial circuit. See [SPICE compatibility](spice-compatibility.md).
 ## Gallery
 
 Open your Gallery entry, choose Publish, then **Version history** (also on
-**My submissions**): the current publication and up to three earlier
-snapshots. **Compare** highlights added (green), removed (red) and changed
+**My submissions**) to open the [previous publication](../specs/community-gallery.md#version-history).
+**Compare** highlights added (green), removed (red) and changed
 (amber) components per Cell; **Branch** opens a version as an independent
 draft; **Restore** republishes it, keeping link and likes. Private Shelf
 projects have their own **Version history** (see

@@ -307,10 +307,9 @@ Shared minimums for the hosted runner and the local host:
 - New runs produce `out.raw` plus `<analysis>-<record-index>.csv` per analysis;
   `result.json` owns the numbers; legacy output arrays stay empty and legacy
   artifacts are not generated (archived ones stay readable).
-- Browser archives ([evidence storage](simulation-evidence-storage.md)): 512 MiB
-  per run, 1 GiB per Project, 256 MiB per file; eviction protects explicit
-  Saves, legacy records, the latest durable result and evidence in use; opening
-  never reruns.
+- Follow [evidence storage](simulation-evidence-storage.md#browser-admission)
+  for browser archive capacity and retention. Opening an archive reads the
+  saved result without rerunning it.
 - Problems use `{code,message,stage,recovery,diagnostics?}` and never end the
   Agent session.
 

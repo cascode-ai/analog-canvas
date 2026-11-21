@@ -1,8 +1,8 @@
 # Testbench, Specs and simulation
 
-Analog Canvas does not run simulations for you: export the netlist and run it
-with your own simulator and PDK. What Canvas keeps is the circuit, its
-Testbench and the Specs it must meet, saved together in the Project.
+Canvas saves the circuit, Testbench and Specs together in the Project. Run an
+exported netlist with your own simulator and PDK, or use
+[hosted simulation](#hosted-simulation-team-accounts) with a team account.
 
 ## Testbench and Specs
 
@@ -35,7 +35,9 @@ see testbenches.
 1. **File → Export** the netlist (SPICE or Spectre) and save it as
    `circuit.spice` beside your Testbench files (download them from **Export
    Project File**, or keep your own copies).
-2. Run the Testbench's entry file with your simulator and your PDK models.
+2. Run the Testbench's entry file with your simulator and the PDK libraries for
+   your selected corner. For SG13G2 in ngspice, also load the OSDI modules those
+   models require.
 
 ## Hosted simulation (team accounts)
 
@@ -122,8 +124,10 @@ alone does not translate source.
 
 **Run** captures the source and starts a run.
 **Preview input netlist…** (experiment menu) compiles without running.
-**Cancel run** stops it; closing or minimizing a panel or tab does not. Input
-errors affect only that run. Older version-1 configurations keep their saved
+**Cancel run** stops it. The run continues when you close or minimize Code.
+[Managed runs](../specs/simulation-execution.md#agent-resource-implementation)
+survive tab closure and keep temporary evidence. Input errors affect only
+that run. Older version-1 configurations keep their saved
 sweep plans; new experiments write loops in native source, and Agents can run
 corner, temperature or parameter batches without changing it.
 
@@ -150,10 +154,11 @@ re-evaluated against live edits.
 Explorer lists source files and runs; select files or a folder and choose
 Download. Raw files, per-analysis CSV and `specs.csv` are there for external
 plotting. **View executed netlist…** shows the deck a run actually used, and
-**Export diagnostic bundle…** its complete evidence. Completed runs are kept in
-this browser (not in the Project or Cloud): open a saved result without
-rerunning, **Archive current run**, **Download complete run**, or for an opened
-archive **Download project + results**.
+**Export diagnostic bundle…** its complete evidence.
+**Archive current run** saves the result in this browser. In **Run history**,
+choose **Open result** to revisit it without rerunning. **Download complete
+run** saves the evidence separately. From an archive with a captured Project,
+**Download project + results** exports the Project and its evidence.
 
 The Code workspace can be resized, minimized or maximized without closing
 Properties; completion updates the status without moving focus.
