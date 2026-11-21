@@ -15,7 +15,12 @@ import {
   validateLogicalNetContract,
 } from "@icm/derived";
 import { EditTransactionSchema, type EditTransaction } from "./edit-schema.js";
-import { rebuildEditedConnectivity } from "./transaction-connectivity-rebuild.js";
+import {
+  rebuildEditedConnectivity,
+  reconcileCutPropertyTerminals,
+  type CutPropertyGroup,
+} from "./transaction-connectivity-rebuild.js";
+import { readRouteEdits } from "./transaction-route-edits.js";
 import {
   affectedConductorNetIds,
   normalizeSameNetConductorTopology,
@@ -85,7 +90,6 @@ import { fitReviewedSizes } from "./transaction-reviewed-size.js";
 import {
   mergeBaseNets,
   physicalContactPointKey,
-  physicalContactLicenseForTransaction,
   preferredPhysicalMergeTarget,
   pruneUnreachableLocalNet,
   reconcileMosBulkAfterConnectivity,
@@ -192,16 +196,9 @@ export function executeTransaction(
   const references = createReferenceValidationCache(draft);
   // Removing a Route's geometry states its geometry too: a Junction dragged
   // onto the pin at the far end of a stub collapses that stub.
-  const explicitlyAuthoredRouteIds = new Set(
-    transaction.edits.flatMap((edit) =>
-      edit.kind === "set_route_path"
-        ? [edit.route.id]
-        : edit.kind === "route_orthogonal" ||
-            edit.kind === "remove_route_geometry"
-          ? [edit.routeId]
-          : [],
-    ),
-  );
+  const routeEdits = readRouteEdits(transaction);
+  const { authoredRouteIds: explicitlyAuthoredRouteIds, movedJunctionIds } =
+    routeEdits;
   const changedObjectIds = new Set<string>();
   const deferredNetPruneIds = new Set<string>();
   const protectedEvidenceIds = new Set(
@@ -232,11 +229,6 @@ export function executeTransaction(
               edit.kind === "set_instance_symbol"
             ? [edit.instanceId]
             : [],
-    ),
-  );
-  const movedJunctionIds = new Set(
-    transaction.edits.flatMap((edit) =>
-      edit.kind === "move_junction" ? [edit.junctionId] : [],
     ),
   );
   const routeValidationIds = transaction.edits.every((edit) =>
@@ -577,11 +569,17 @@ export function executeTransaction(
           reject: rejectAt,
         });
         if (!outcome.ok) return outcome.rejection;
+        if (outcome.removedRoute)
+          routeEdits.recordUnroute(outcome.removedRoute);
         connectivityChanged ||= outcome.connectivityChanged ?? false;
         break;
       }
       case "cut_connection":
       case "connect_endpoints": {
+        const originalCutRoute =
+          edit.kind === "cut_connection"
+            ? document.routes.find(({ id }) => id === edit.routeId)
+            : undefined;
         const outcome = applyRouteTopologyEdit(edit, {
           draft,
           resolver,
@@ -589,8 +587,11 @@ export function executeTransaction(
           changedObjectIds,
           deferNetPrune,
           reject: rejectAt,
+          ...(originalCutRoute ? { originalCutRoute } : {}),
         });
         if (!outcome.ok) return outcome.rejection;
+        if (edit.kind === "cut_connection" && outcome.cut)
+          routeEdits.recordCut(outcome.cut.route, outcome.cut.conductors);
         connectivityChanged ||= outcome.connectivityChanged ?? false;
         break;
       }
@@ -823,24 +824,13 @@ export function executeTransaction(
     }
   }
 
-  if (
-    transaction.edits.some((edit) =>
-      [
-        "set_route_path",
-        "route_orthogonal",
-        "cut_connection",
-        "remove_route_geometry",
-        "move_junction",
-        "connect_endpoints",
-        "disconnect_endpoint",
-      ].includes(edit.kind),
-    )
-  ) {
+  let cutPropertyGroups: CutPropertyGroup[] = [];
+  if (routeEdits.rebuild) {
     const membershipBeforeRebuild = JSON.stringify(draft.nets);
     const rebuilt = rebuildEditedConnectivity(
       document,
       draft,
-      transaction,
+      routeEdits,
       resolver,
       changedObjectIds,
     );
@@ -852,6 +842,7 @@ export function executeTransaction(
         [],
         rebuilt.netIds,
       );
+    cutPropertyGroups = rebuilt.cutPropertyGroups;
     connectivityChanged ||=
       membershipBeforeRebuild !== JSON.stringify(draft.nets);
   }
@@ -860,7 +851,7 @@ export function executeTransaction(
   const keptRouteEnds = captureKeptRouteEnds(
     document,
     draft,
-    transaction,
+    routeEdits.paths,
     new Set([
       ...transformedInstanceIds,
       ...(context.pinsMovedInstanceIds ?? []),
@@ -872,8 +863,7 @@ export function executeTransaction(
     // Keep geometry incidence separate from the broader transaction diff.
     // Net merges retarget many Routes for bookkeeping, but that must not turn
     // an otherwise local edit into a whole-document geometry repair.
-    const physicalContactLicense =
-      physicalContactLicenseForTransaction(transaction);
+    const physicalContactLicense = routeEdits.contactLicense;
     // Move planners own contacts of the endpoints they move. Exclude those
     // owners before the detector queries their coordinates, not afterwards.
     for (const contact of newlyTouchedRouteEndpoints(
@@ -898,9 +888,7 @@ export function executeTransaction(
       physicalContactLicense.routeGeometryPoints.set(contact.routeId, points);
     }
     const suppressedPhysicalEndpointKeys = new Set(
-      transaction.edits.flatMap((edit) =>
-        edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
-      ),
+      routeEdits.disconnected.keys(),
     );
     const operationLimit = Math.max(
       32,
@@ -1154,6 +1142,12 @@ export function executeTransaction(
         );
       }
     }
+    reconcileCutPropertyTerminals(
+      draft,
+      cutPropertyGroups,
+      resolver,
+      changedObjectIds,
+    );
   }
 
   let coalescedEndpoints: ReadonlyMap<string, string> | undefined;

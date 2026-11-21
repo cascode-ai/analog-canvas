@@ -270,6 +270,35 @@ function contactIncidents(
   );
 }
 
+/** Coincidence among one Net's explicit visible endpoints. The edit graph
+ * uses the same contacts as scene derivation without resolving route arms. */
+export function groupCoincidentEndpoints(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  endpoints: readonly RouteEndpoint[],
+  endpointLookup: EndpointObjectLookup | undefined,
+  endpointConnections?: ReadonlyMap<string, EndpointConnection>,
+) {
+  const byPoint = new Map<
+    string,
+    { point: Point; endpoints: RouteEndpoint[] }
+  >();
+  for (const endpoint of endpoints) {
+    if (!isVisibleEndpoint(document, resolver, endpoint, endpointLookup)) {
+      continue;
+    }
+    const point =
+      endpointConnections?.get(endpointKey(endpoint))?.contactPoint ??
+      resolveEndpointPoint(document, resolver, endpoint, endpointLookup);
+    if (!point) continue;
+    const key = pointKey(point);
+    const group = byPoint.get(key) ?? { point, endpoints: [] };
+    group.endpoints.push(endpoint);
+    byPoint.set(key, group);
+  }
+  return byPoint.values();
+}
+
 function netContacts(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -283,29 +312,16 @@ function netContacts(
     routesById: ReadonlyMap<string, SchematicDocument["routes"][number]>;
   },
 ): CoincidentContact[] {
-  const grouped = new Map<
-    string,
-    Array<{ endpoint: RouteEndpoint; point: Point }>
-  >();
-  for (const endpoint of netEndpoints(document, net)) {
-    if (!isVisibleEndpoint(document, resolver, endpoint, endpointLookup)) {
-      continue;
-    }
-    const point =
-      endpointConnections?.get(endpointKey(endpoint))?.contactPoint ??
-      resolveEndpointPoint(document, resolver, endpoint, endpointLookup);
-    if (!point) continue;
-    const key = pointKey(point);
-    grouped.set(key, [...(grouped.get(key) ?? []), { endpoint, point }]);
-  }
-  return [...grouped.values()]
-    .map((entries) => {
-      const endpoints = entries
-        .map((entry) => entry.endpoint)
-        .sort((left, right) =>
-          endpointKey(left).localeCompare(endpointKey(right), "en"),
-        );
-      const point = entries[0]!.point;
+  return [
+    ...groupCoincidentEndpoints(
+      document,
+      resolver,
+      netEndpoints(document, net),
+      endpointLookup,
+      endpointConnections,
+    ),
+  ]
+    .map(({ endpoints, point }) => {
       // Scanning a small Net is cheaper than querying all spatial buckets.
       // Larger Nets reuse the context's already-built broad-phase index.
       const nearbyRoutes =

@@ -4,7 +4,7 @@ import {
   pdkSubstrateDefaultNet,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
-import { resolveReviewedExternalBinding } from "@icm/devices";
+import { reviewedExternalDefinitionBinding } from "@icm/devices";
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 
 /** The Project's external definitions, where a part's PDK wrapper is read. */
@@ -99,14 +99,10 @@ function hiddenSubstratePins(
   const definition = project.externalSubcircuitDefinitions.find(
     (item) => item.id === binding.definitionId,
   );
-  const reviewed =
-    definition && !definition.presentation
-      ? resolveReviewedExternalBinding(
-          definition.name,
-          definition.terminals.map((terminal) => terminal.name),
-          instance.symbolId,
-        )
-      : undefined;
+  const reviewed = reviewedExternalDefinitionBinding(
+    definition,
+    instance.symbolId,
+  );
   return (reviewed?.terminals ?? []).flatMap((terminal) =>
     terminal.interaction === "property" && terminal.role === "substrate"
       ? [terminal.pinName]

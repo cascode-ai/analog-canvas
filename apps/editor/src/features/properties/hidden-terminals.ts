@@ -4,7 +4,7 @@
 // terminals, such as a substrate or an inductor's centre tap. A pin its
 // variant hides counts, as an op-amp's VDD while its supply pins are hidden.
 import type { CircuitProject, Instance } from "@icm/model";
-import { resolveReviewedExternalBinding } from "@icm/devices";
+import { resolveExternalTerminalBindings } from "@icm/devices";
 import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 import { blockSupplyTerminals } from "./gate-cell-target";
 
@@ -37,45 +37,29 @@ export function hiddenTerminals(
           (candidate) => candidate.id === binding.definitionId,
         )
       : undefined;
-  // A Circuit Component's artwork has no pin for a supply it maps.
-  const mapping = definition
-    ? project.componentDefinitions?.find(
-        (component) =>
-          component.symbol.id === instance.symbolId &&
-          component.circuitBinding?.definitionId === definition.id,
-      )?.circuitBinding
+  const external = definition
+    ? resolveExternalTerminalBindings(
+        definition,
+        instance.symbolId,
+        project.componentDefinitions?.find(
+          (component) => component.symbol.id === instance.symbolId,
+        ),
+      )
     : undefined;
-  if (definition && mapping)
-    return mapping.terminals.flatMap((item) => {
-      const terminal = definition.terminals.find(
-        (candidate) => candidate.id === item.terminalId,
-      );
-      return terminal && !drawn.has(terminal.name)
-        ? [
-            {
-              pinName: terminal.name,
-              label: terminal.name,
-              ...("supply" in item ? { rail: item.supply } : {}),
-            },
-          ]
-        : [];
-    });
+  if (external?.source === "component")
+    return external.terminals.flatMap(({ pinName, supply }) =>
+      drawn.has(pinName)
+        ? []
+        : [{ pinName, label: pinName, ...(supply ? { rail: supply } : {}) }],
+    );
   const supplies = (blockSupplyTerminals(project, instance) ?? []).flatMap(
     (supply) =>
       drawn.has(supply)
         ? []
         : [{ pinName: supply, label: supply, rail: supply }],
   );
-  const reviewed =
-    definition && !definition.presentation
-      ? resolveReviewedExternalBinding(
-          definition.name,
-          definition.terminals.map((terminal) => terminal.name),
-          instance.symbolId,
-        )
-      : undefined;
   // A standard cell's rails are the gate's VDD and VSS above (#1450).
-  const own = (reviewed?.terminals ?? []).flatMap((terminal) =>
+  const own = (external?.terminals ?? []).flatMap((terminal) =>
     terminal.interaction === "property" &&
     !terminal.supply &&
     !drawn.has(terminal.pinName)

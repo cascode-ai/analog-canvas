@@ -87,6 +87,12 @@ export const environmentTestLanes = {
     commands: [["ngspice", "--version"]],
     checks: [
       {
+        file: "containers/ngspice/pin-order-op.test.mjs",
+        targets: [
+          "executes the prepared hierarchy and distinguishes correct from exchanged amplifier inputs in real ngspice",
+        ],
+      },
+      {
         file: "packages/netlist/src/block-supplies.test.ts",
         targets: [
           "an unpowered ideal op-amp under ngspice",

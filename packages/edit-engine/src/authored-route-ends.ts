@@ -3,7 +3,7 @@ import type { Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import { endpointKey, resolveDocumentRoutingGeometry } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
-import type { EditTransaction } from "./edit-schema.js";
+import type { AuthoredRoutePath } from "./transaction-route-edits.js";
 
 /** An end a Route geometry edit states and the transaction must keep. */
 export interface KeptRouteEnd {
@@ -29,10 +29,11 @@ export interface KeptRouteEnd {
 export function captureKeptRouteEnds(
   before: SchematicDocument,
   draft: SchematicDocument,
-  transaction: EditTransaction,
+  paths: readonly AuthoredRoutePath[],
   movedInstanceIds: ReadonlySet<string>,
   movedJunctionIds: ReadonlySet<string>,
 ): KeptRouteEnd[] {
+  if (paths.length === 0) return [];
   const existingRouteIds = new Set(before.routes.map(({ id }) => id));
   const existingJunctionIds = new Set(before.junctions.map(({ id }) => id));
   const arms = new Map<string, number>();
@@ -43,14 +44,8 @@ export function captureKeptRouteEnds(
     }
   }
   const kept: KeptRouteEnd[] = [];
-  for (const edit of transaction.edits) {
-    const stated =
-      edit.kind === "set_route_path"
-        ? { routeId: edit.route.id, ends: routeEndpoints(edit.route) }
-        : edit.kind === "route_orthogonal"
-          ? { routeId: edit.routeId, ends: [edit.from, edit.to] }
-          : null;
-    if (!stated || !existingRouteIds.has(stated.routeId)) continue;
+  for (const stated of paths) {
+    if (!existingRouteIds.has(stated.routeId)) continue;
     // Only ordinary Wires enter conductor normalization; rails, bulk ties,
     // buses and locked geometry keep their ends by other rules.
     const route = draft.routes.find(({ id }) => id === stated.routeId);

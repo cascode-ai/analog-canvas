@@ -61,28 +61,39 @@ function open(project: CircuitProject): CircuitProject {
 }
 
 describe("a 16 V part at a size SKY130 does not model, on file open (#1485)", () => {
-  it("opens at a size SKY130 models, changing as little as it can and leaving modelled and open ones alone", () => {
-    const project = open(projectWithSixteenVoltParts());
-    const size = (id: string) => {
-      const { w, l, m } = project.documents[0]!.instances.find(
-        (item) => item.id === id,
-      )!.netlist!.parameters;
-      return `${w} ${l} ${m}`;
-    };
-    expect(size("M1")).toBe("5u 700n 1");
-    expect(size("M2")).toBe("5u 660n 2");
-    // W 20 µm is a 16 V width at L 0.7 µm, so only L changes.
-    expect(size("M3")).toBe("20u 700n 1");
-    expect(size("M4")).toBe("20u 2.2u 1");
-    expect(size("M5")).toBe("{wd} 700n 1");
-    // The repaired lines carry no size SKY130 lacks.
-    const exported = createDesignNetlistExport(project);
-    expect(
-      exported.diagnostics.filter(
-        (diagnostic) => diagnostic.code === "REVIEWED_SIZE_UNMODELLED",
-      ),
-    ).toEqual([]);
-    // A repaired file opens unchanged.
-    expect(serializeProject(open(project))).toBe(serializeProject(project));
-  });
+  it.each([false, true])(
+    "opens at a supported size with a custom presentation of %s",
+    (customPresentation) => {
+      const source = projectWithSixteenVoltParts();
+      if (customPresentation) {
+        for (const definition of source.externalSubcircuitDefinitions) {
+          definition.presentation = {
+            minimumBodySize: { width: 80, height: 60 },
+          };
+        }
+      }
+      const project = open(source);
+      const size = (id: string) => {
+        const { w, l, m } = project.documents[0]!.instances.find(
+          (item) => item.id === id,
+        )!.netlist!.parameters;
+        return `${w} ${l} ${m}`;
+      };
+      expect(size("M1")).toBe("5u 700n 1");
+      expect(size("M2")).toBe("5u 660n 2");
+      // W 20 µm is a 16 V width at L 0.7 µm, so only L changes.
+      expect(size("M3")).toBe("20u 700n 1");
+      expect(size("M4")).toBe("20u 2.2u 1");
+      expect(size("M5")).toBe("{wd} 700n 1");
+      // The repaired lines carry no size SKY130 lacks.
+      const exported = createDesignNetlistExport(project);
+      expect(
+        exported.diagnostics.filter(
+          (diagnostic) => diagnostic.code === "REVIEWED_SIZE_UNMODELLED",
+        ),
+      ).toEqual([]);
+      // A repaired file opens unchanged.
+      expect(serializeProject(open(project))).toBe(serializeProject(project));
+    },
+  );
 });
