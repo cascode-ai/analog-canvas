@@ -13,6 +13,7 @@ import {
   type NetlistMode,
 } from "../netlist-export/netlist-mode";
 import { loadRnlRuntime } from "../netlist-export/rnl-runtime";
+import type { RnlImportSource } from "../netlist-export/rnl-source-update";
 import {
   ChunkLoadError,
   chunkLoadStatus,
@@ -46,6 +47,8 @@ export interface EditorFileCommandDependencies {
   electricalWarningsPresent: () => boolean;
   netlistRootDocumentId?: string | undefined;
   netlistConfigurationError?: string | null;
+  rnlImportSource?: RnlImportSource | undefined;
+  onRnlSourceImported?: (source: RnlImportSource) => void;
   guardDirtyReplacement: (
     label: string,
     replace: () => void | Promise<void>,
@@ -74,6 +77,8 @@ export function createEditorFileCommands({
   electricalWarningsPresent,
   netlistRootDocumentId,
   netlistConfigurationError,
+  rnlImportSource,
+  onRnlSourceImported,
   guardDirtyReplacement,
   replaceActiveProject,
   showNetlist,
@@ -239,6 +244,38 @@ export function createEditorFileCommands({
     }
   };
 
+  const exportRnlSourceUpdate = async (): Promise<void> => {
+    if (!rnlImportSource) return;
+    setStatus("Preparing RNL source update");
+    try {
+      const [{ prepareRnlSourceUpdate }, runtime] = await Promise.all([
+        importChunk(
+          "RNL source update",
+          () => import("../netlist-export/rnl-source-update"),
+        ),
+        loadRnlRuntime(),
+      ]);
+      const update = await prepareRnlSourceUpdate(
+        project,
+        document.id,
+        rnlImportSource,
+        runtime,
+      );
+      const result = await exportDelivery.deliverFile({
+        bytes: JSON.stringify(update, null, 2) + "\n",
+        mediaType: "application/json",
+        suggestedName: `${safeExportBaseName(document.name)}.rnl-source-update.json`,
+      });
+      setStatus(
+        result.status === "cancelled"
+          ? "Export cancelled"
+          : `RNL source update exported for ${update.path}`,
+      );
+    } catch (error) {
+      setStatus(rnlFailure(error));
+    }
+  };
+
   /** The chosen files and the one entry among them, or null after saying why. */
   const readSources = async (files: readonly File[]) => {
     if (files.length === 0) return null;
@@ -272,6 +309,7 @@ export function createEditorFileCommands({
     label: string,
     importedProject: CircuitProject,
     report: SpiceImportReport,
+    rnlSource?: Omit<RnlImportSource, "project">,
   ) => {
     const instanceCount = importedProject.documents.reduce(
       (count, candidate) => count + candidate.instances.length,
@@ -281,6 +319,8 @@ export function createEditorFileCommands({
       replaceActiveProject(importedProject, defaultViewBox, {
         source: "spice-import",
       });
+      if (rnlSource)
+        onRnlSourceImported?.({ ...rnlSource, project: importedProject });
       setImportReport(report);
       setImportReviewOpen(true);
       setSelectionOpen(true);
@@ -326,7 +366,10 @@ export function createEditorFileCommands({
         reportFailedImport(report, plan.message);
         return;
       }
-      await installImport("Import RNL sources", plan.project, report);
+      await installImport("Import RNL sources", plan.project, report, {
+        entryPath,
+        inputs: sources.sourceInputs,
+      });
     } catch (error) {
       if (error instanceof ChunkLoadError) {
         setStatus(chunkLoadStatus(error.feature));
@@ -378,6 +421,7 @@ export function createEditorFileCommands({
   return {
     exportSvg,
     exportDesignNetlist,
+    exportRnlSourceUpdate,
     exportRaster,
     importSpiceFiles,
     importRnlFiles,

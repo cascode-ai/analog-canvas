@@ -705,6 +705,22 @@ the RNL language and its runtime belong to rnl.
 - The imported Project replaces the active one with recovery source
   `spice-import`; findings list in the import report.
 
+### Source drawing updates
+
+- **File → Export → RNL Source Update** uses the active Cell and the source files
+  retained by its open RNL import tab. The JSON update contains the original
+  entry path, target path and level, source SHA-256, and updated text.
+- The RNL runtime replaces that level's records in the source file that holds
+  it. The target is UTF-8. The Agent applies the update to that file only
+  after checking its SHA-256.
+- A changed electrical circuit or an RNL replacement refusal blocks the update
+  and reports the reason. The selected Cell and its dependencies must print the
+  same netlist, including the device references and values. The new records
+  must read with the source's existing package declarations. For a part drawn
+  with a Canvas-only symbol, a source without the Canvas package keeps the
+  part's original package symbol if its symbol is unchanged in Canvas. Reopen
+  the updated source through ordinary RNL import to check the drawing.
+
 ## Contract
 
 - Mapping table: `packages/rnl/src/symbol-list.json` — per Analog Canvas
@@ -712,8 +728,9 @@ the RNL language and its runtime belong to rnl.
   drawing-only part draws, terminal order, registration offset, the flip
   (`MX`) when the variant draws the symbol upside down, and pins; a row with
   `import_only` (RNL's standard 4-input gates, 4-terminal MOSFETs and
-  two-terminal Delay Cell) only reads files back, its pins where the RNL
-  symbol has them. A row's terminal names are the symbol's (9.2.4); their
+  two-terminal Delay Cell) serves import and is skipped when ordinary export
+  chooses a symbol. Its pins are where the RNL symbol has them.
+  A row's terminal names are the symbol's (9.2.4); their
   order is the one a body prints and a terminal map binds.
   Maintained here by hand; checked against the rnl runtime's published symbol
   catalog.
