@@ -46,6 +46,7 @@ export interface ComponentPropertyCodeEditorProps {
   netName?: string | null;
   defaultForeground?: string;
   details?: ComponentPropertyCodeContext["details"];
+  genericModelChoice?: { name: string; select: () => void };
   supplyTerminals?: ComponentPropertyCodeContext["supplyTerminals"];
   controlPick?: {
     step: "positive" | "negative" | "current-positive" | "current-negative";
@@ -78,6 +79,7 @@ export function ComponentPropertyCodeEditor({
   netName,
   defaultForeground = "#000000",
   details,
+  genericModelChoice,
   supplyTerminals,
   controlPick,
   controlSummary,
@@ -218,6 +220,15 @@ export function ComponentPropertyCodeEditor({
       <header>
         <strong>Properties</strong>
         <div className="component-property-header-actions">
+          {genericModelChoice ? (
+            <button
+              type="button"
+              className="component-property-help"
+              onClick={genericModelChoice.select}
+            >
+              Use generic {genericModelChoice.name}
+            </button>
+          ) : null}
           {context.details?.modelTarget?.defaultValue &&
           context.details.parameters.length > 0 ? (
             <button

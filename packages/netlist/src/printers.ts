@@ -99,7 +99,22 @@ export function spectreModelCard(
 }
 
 function spiceModels(cell: DesignNetlistCell): string[] {
-  return (cell.models ?? []).map(spiceModelCard);
+  return (cell.models ?? [])
+    .filter((model) => model.scope !== "global")
+    .map(spiceModelCard);
+}
+
+function globalModels(
+  ir: DesignNetlistIR,
+): NonNullable<DesignNetlistCell["models"]> {
+  const models = new Map<
+    string,
+    NonNullable<DesignNetlistCell["models"]>[number]
+  >();
+  for (const cell of ir.cells)
+    for (const model of cell.models ?? [])
+      if (model.scope === "global") models.set(model.name, model);
+  return [...models.values()];
 }
 
 /**
@@ -250,6 +265,7 @@ function renderSpice(
   const locate = cardRecorder(ir, spans, parameters, resolveNode);
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) append(...wrapSpice([".global", ...globals]));
+  append(...globalModels(ir).map(spiceModelCard));
   for (const definition of ir.generatedDefinitions ?? []) {
     append("");
     append(
@@ -371,6 +387,7 @@ function spectreCell(
     );
   }
   for (const model of cell.models ?? []) {
+    if (model.scope === "global") continue;
     if (model.type === "SW")
       lines.push(
         ...printSpectreBehavioralModel(switchBehavioralDefinition(model)),
@@ -437,6 +454,10 @@ function renderSpectre(
   const locate = cardRecorder(ir, spans, undefined, resolveNode);
   const globals = ir.globals.filter((name) => name !== "0");
   if (globals.length) lines.push(`global ${globals.join(" ")}`);
+  for (const model of globalModels(ir)) {
+    const card = spectreModelCard(model);
+    if (card) lines.push(card);
+  }
   for (const definition of ir.generatedDefinitions ?? [])
     lines.push(
       "",

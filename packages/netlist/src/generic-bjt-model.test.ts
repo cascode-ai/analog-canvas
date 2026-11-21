@@ -5,6 +5,7 @@ import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { createDesignNetlistExport, designExtractsNetlist } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
+import { externalModelFixture } from "./external-model-fixture.test-support.js";
 import { printVacaskWithLocations } from "./vacask-printer.js";
 
 const NPN_CARD = ".model NPN NPN(IS=1e-16 BF=100 VAF=100)";
@@ -69,6 +70,51 @@ const genericFindings = (result: ReturnType<typeof spice>) =>
   result.diagnostics.filter((item) => item.code === "GENERIC_BJT_MODEL");
 
 describe("the generic bipolar models (#1420)", () => {
+  it("preserves an ordinary stand-in when an explicit selection needs an alias beside an owned model", () => {
+    const project = bjtProject([
+      { id: "q0", reference: "Q0" },
+      { id: "q1", reference: "Q1" },
+      { id: "q2", reference: "Q2" },
+    ]);
+    const owned = externalModelFixture();
+    project.modelSources = owned.modelSources!;
+    project.modelSources[0]!.files[0]!.text +=
+      ".model NPN npn bf=20\n.model CANVAS_NPN npn bf=30\n";
+    project.externalSubcircuitDefinitions = owned.externalSubcircuitDefinitions;
+    const document = project.documents[0]!;
+    document.instances.push(...owned.documents[0]!.instances);
+    document.noConnects.push(...owned.documents[0]!.noConnects);
+    for (const instance of document.instances.slice(1, 3)) {
+      instance.importProvenance = {
+        kind: "model",
+        sourceMasterName: "NPN",
+        sourceTarget: "model:NPN",
+        status: "missing",
+        modelType: "npn",
+      };
+    }
+    expect(spice(project).file.text).toContain(NPN_CARD);
+    const selected = document.instances[1]!.netlist!.binding;
+    if (selected?.kind !== "model") throw new Error("Expected an NPN binding");
+    selected.origin = "canvas";
+    const result = spice(project);
+    expect(result.file.text).toContain(".model NPN npn bf=20");
+    expect(result.file.text).toContain(
+      NPN_CARD.replace(".model NPN", ".model CANVAS_NPN_2"),
+    );
+    expect(result.file.text).toContain(
+      "Q0 collector base emitter CANVAS_NPN_2 m=1",
+    );
+    expect(result.file.text).toContain(
+      "Q1 collector base emitter CANVAS_NPN_2 m=1",
+    );
+    expect(result.file.text).toContain("Q2 collector base emitter NPN m=1");
+    const run = analyzeDesignNetlist(project, { deckSources: [] });
+    expect(run.ir?.cells[0]?.models?.map(({ name }) => name)).toEqual([
+      "CANVAS_NPN",
+    ]);
+  });
+
   it("defines NPN and PNP once in the Cell of placed transistors, and says so", () => {
     const project = bjtProject([
       { id: "q3", reference: "Q3", symbolId: "pnp" },

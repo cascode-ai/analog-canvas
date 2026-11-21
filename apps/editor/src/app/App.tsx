@@ -73,6 +73,7 @@ import {
   planSetVddConnectionMode,
   planRenameCellTerminal,
   planAngledWireRepairs,
+  selectableGenericModel,
   type ProjectStructureEdit,
   type SchematicEdit,
   type WireSource,
@@ -4694,6 +4695,9 @@ function WorkspaceEditor({
         : (gateCellTargetName(project, selectedInstance) ?? "");
 
   const selectedCircuitBinding = selectedInstance?.netlist?.binding;
+  const selectedGenericModel = selectedInstance
+    ? selectableGenericModel(project, selectedInstance)
+    : undefined;
   const selectedAuthoredCircuit =
     selectedCircuitBinding?.kind === "external-subcircuit"
       ? project.externalSubcircuitDefinitions.find(
@@ -7342,6 +7346,18 @@ function WorkspaceEditor({
                       code: {
                         resolver,
                         instance: selectedInstance,
+                        ...(selectedGenericModel
+                          ? {
+                              genericModelChoice: {
+                                name: selectedGenericModel,
+                                select: () =>
+                                  updateSelectedModelTarget(
+                                    selectedGenericModel,
+                                    { selectGeneric: true },
+                                  ),
+                              },
+                            }
+                          : {}),
                         // A Cell Pin's authored interface name is independent
                         // of its optional canvas annotation and opaque ID.
                         displayName:

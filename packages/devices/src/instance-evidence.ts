@@ -2,6 +2,7 @@ import type { CircuitProject, Instance } from "@icm/model";
 
 /** The part of an Instance this reads; structural, as a Snapshot's is. */
 export interface EvidenceOwner {
+  readonly symbolId?: string | undefined;
   readonly importProvenance?:
     | Pick<
         NonNullable<Instance["importProvenance"]>,
@@ -11,10 +12,53 @@ export interface EvidenceOwner {
   readonly netlist?:
     | {
         readonly binding?:
-          { readonly kind?: unknown; readonly name?: unknown } | undefined;
+          | {
+              readonly kind?: unknown;
+              readonly name?: unknown;
+              readonly origin?: unknown;
+            }
+          | undefined;
       }
     | null
     | undefined;
+}
+
+/** The stand-ins each Library symbol can use without changing device type. */
+export const GENERIC_MODEL_TARGETS = {
+  nmos: "NMOS",
+  pmos: "PMOS",
+  "depletion-nmos": "NMOS_DEP",
+  "depletion-pmos": "PMOS_DEP",
+  npn: "NPN",
+  pnp: "PNP",
+  njfet: "NJF",
+  pjfet: "PJF",
+  diode: "DIODE",
+  "schottky-diode": "DSCH",
+} as const;
+
+export function matchingGenericModelName(
+  instance: EvidenceOwner,
+): string | undefined {
+  const binding = instance.netlist?.binding;
+  const symbol = instance.symbolId;
+  if (
+    binding?.kind !== "model" ||
+    typeof binding.name !== "string" ||
+    !symbol ||
+    !Object.hasOwn(GENERIC_MODEL_TARGETS, symbol)
+  )
+    return undefined;
+  const name =
+    GENERIC_MODEL_TARGETS[symbol as keyof typeof GENERIC_MODEL_TARGETS];
+  return binding.name.toUpperCase() === name ? name : undefined;
+}
+
+export function hasCanvasGenericModel(instance: EvidenceOwner): boolean {
+  return (
+    instance.netlist?.binding?.origin === "canvas" &&
+    matchingGenericModelName(instance) !== undefined
+  );
 }
 
 /**
@@ -22,8 +66,8 @@ export interface EvidenceOwner {
  * parameter checks, ERC and simulation ask this one question and never
  * decide by a model's name.
  *
- * - `canvas`: placed from the library, or its model target changed in Canvas
- *   to another name since it was imported.
+ * - `canvas`: placed from the library, explicitly selected in Canvas, or its
+ *   target name changed since import.
  * - `resolved`: imported, and the sources define its model or subcircuit.
  * - `typed-only`: imported; its device type comes from the caller's
  *   evidence or the card's own letter, and no card in the sources defines
@@ -53,7 +97,10 @@ export function instanceEvidence(
   if (binding?.kind !== "model" || typeof binding.name !== "string")
     return "resolved";
   const target = binding.name;
-  if (target.toLowerCase() !== provenance.sourceMasterName.toLowerCase())
+  if (
+    hasCanvasGenericModel(instance) ||
+    target.toLowerCase() !== provenance.sourceMasterName.toLowerCase()
+  )
     return "canvas";
   const outside = provenance.modelType === undefined ? "untyped" : "typed-only";
   if (provenance.status === "missing") return outside;

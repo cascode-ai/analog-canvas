@@ -1478,6 +1478,7 @@ export function planBrowserAgentCommand(
           documentId,
           command.instanceId,
           model,
+          { selectGeneric: true },
         ),
       };
     }

@@ -45,9 +45,11 @@ export interface DesignNetlistInstance {
   terminalCurrentSense?: { instanceId: StableId; pinName: string };
 }
 
-/** A model card a Cell carries itself, printed inside its own body. */
+/** A model card used by a Cell. */
 export interface DesignNetlistModel {
   name: string;
+  /** An isolated stand-in exported once for the whole netlist. By default the card is Cell-local. */
+  scope?: "global";
   /** The SPICE model type, such as `SW`. */
   type: string;
   parameters: DesignNetlistParameter[];

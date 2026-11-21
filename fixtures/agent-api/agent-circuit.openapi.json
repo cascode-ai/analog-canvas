@@ -1880,6 +1880,10 @@
                   },
                   "name": {
                     "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema31"
+                  },
+                  "origin": {
+                    "type": "string",
+                    "const": "canvas"
                   }
                 },
                 "required": [

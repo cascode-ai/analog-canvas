@@ -955,6 +955,119 @@ test("reads a saved Project against the netlist it was imported from", async ({
   await tool("disconnect", {});
 });
 
+test("chooses a same-name generic model in Properties and reopens the saved choice", async ({
+  context,
+  baseURL,
+  accountName: _accountName,
+}, testInfo) => {
+  const rootPath = testInfo.outputPath("source");
+  const entryPath = "top.sp";
+  await mkdir(rootPath, { recursive: true });
+  await writeFile(
+    join(rootPath, entryPath),
+    [
+      "* external model",
+      ".subckt top d g s b",
+      "M1 d g s b NMOS w=1u l=30n",
+      "M2 d g s b NMOS w=2u l=30n",
+      ".ends top",
+    ].join("\n"),
+  );
+  const { page, tool } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("connector.json"),
+  );
+  const openLocal = (path: string, modelTypes?: Record<string, string>) =>
+    tool("import_file", {
+      action: "open-local",
+      rootPath,
+      entryPath: path,
+      ...(modelTypes ? { modelTypes } : {}),
+    });
+  const save = async (path: string) => {
+    const outputPath = join(rootPath, path);
+    expect(
+      await tool("export_file", { artifact: "project", outputPath }),
+    ).toMatchObject({ ok: true });
+    return parseProject(await readFile(outputPath, "utf8"));
+  };
+  const loaded = await openLocal(entryPath, { NMOS: "nmos" });
+  expect(loaded, JSON.stringify(loaded.error)).toMatchObject({ ok: true });
+  const original = (await save("before.icproj.json")).documents.find(
+    ({ netlist }) => netlist?.name === "top",
+  )!;
+  const m1 = original.instances.find(({ reference }) => reference === "M1")!;
+  if (!m1.placement) {
+    const placed = await tool("advanced_transact", {
+      documentId: original.id,
+      edits: [
+        {
+          kind: "place_instance",
+          instanceId: m1.id,
+          placement: {
+            position: { x: 360, y: 220 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+      ],
+    });
+    expect(placed, JSON.stringify(placed)).toMatchObject({ ok: true });
+  }
+
+  await page.getByTestId(`hit-${m1.id}`).click({ force: true });
+  const properties = page.getByRole("region", { name: "Component properties" });
+  if (!(await properties.isVisible())) await page.keyboard.press("q");
+  const choose = properties.getByRole("button", { name: "Use generic NMOS" });
+  await expect(choose).toBeVisible();
+  await choose.click();
+  await expect(choose).toBeHidden();
+
+  const readNetlist = () =>
+    tool("netlist_code", {
+      action: "read",
+      format: "spice",
+      documentId: original.id,
+    });
+  const exported = await readNetlist();
+  expect(exported, JSON.stringify(exported.error)).toMatchObject({
+    ok: true,
+    netlist: {
+      text: expect.stringMatching(/^M1 d g s b CANVAS_NMOS /mu),
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          code: "GENERIC_MOS_MODEL",
+          severity: "info",
+          objectIds: [m1.id],
+        }),
+      ]),
+    },
+  });
+  expect(exported.netlist.text).toMatch(/^M2 d g s b NMOS /mu);
+  const savedPath = "selected.icproj.json";
+  const saved = (await save(savedPath)).documents.find(
+    ({ id }) => id === original.id,
+  )!;
+  expect(saved.importReference).toEqual(original.importReference);
+  expect(
+    saved.instances.find(({ id }) => id === m1.id)?.importProvenance,
+  ).toEqual(m1.importProvenance);
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect((await readNetlist()).netlist.text).not.toContain(".model");
+  const agent = await tool("apply_actions", {
+    documentId: original.id,
+    actions: [{ kind: "set-model", instanceId: m1.id, model: "NMOS" }],
+  });
+  expect(agent, JSON.stringify(agent)).toMatchObject({ ok: true });
+  expect((await readNetlist()).netlist.text).toBe(exported.netlist.text);
+
+  expect(await openLocal(savedPath)).toMatchObject({ ok: true });
+  expect((await readNetlist()).netlist.text).toBe(exported.netlist.text);
+  await tool("disconnect", {});
+});
+
 test("delivers a Virtuoso netlist whose foundry library stays external, typed by the Agent", async ({
   context,
   baseURL,

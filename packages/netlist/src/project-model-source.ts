@@ -336,7 +336,11 @@ export function collectProjectModelSources(
     }
     sources.push(source);
   }
-  return { sources, diagnostics };
+  return {
+    sources,
+    diagnostics,
+    globalModelNames: deviceModelNames.map(({ name }) => name),
+  };
 }
 
 export interface ProjectModelSourceLocation {

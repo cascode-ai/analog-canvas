@@ -22,6 +22,7 @@ import {
   adderBodySigns,
   builtInModelContract,
   deviceDescriptor,
+  hasCanvasGenericModel,
   drawnMagneticNetwork,
   callsIdealComparatorBody,
   callsIdealOpampBody,
@@ -69,6 +70,7 @@ import {
 } from "./library-part-calls.js";
 import { extractCell } from "./extract-cell.js";
 import { projectCouplingReferences } from "./extract-coupling.js";
+import { collectProjectModelSources } from "./project-model-source.js";
 /** A target with a shared generated recipe: logic, multiplier, converters, crystal. */
 function isBehaviouralTarget(target: string): boolean {
   const family = builtInModelContract(target)?.family;
@@ -457,6 +459,23 @@ function analyzeDesign(
       [collision.instanceId],
     );
   }
+  const ownedDeviceModels = new Set<string>();
+  if (
+    !resolvedOptions.run &&
+    project.modelSources?.length &&
+    documents.some((document) => document.instances.some(hasCanvasGenericModel))
+  ) {
+    const definitionIds = new Set<string>();
+    for (const document of documents)
+      for (const { netlist } of document.instances)
+        if (netlist?.binding?.kind === "external-subcircuit")
+          definitionIds.add(netlist.binding.definitionId);
+    const { globalModelNames } = collectProjectModelSources(project, [
+      ...definitionIds,
+    ]);
+    for (const name of globalModelNames)
+      ownedDeviceModels.add(name.toLowerCase().replace(/\.\d+$/u, ""));
+  }
   for (const document of documents) {
     let cell = extractCell(
       project,
@@ -466,6 +485,7 @@ function analyzeDesign(
       cellNameByDocumentId,
       nameProjection.byDocumentId.get(document.id) ?? new Map(),
       projection.placedBodies.get(document.id),
+      ownedDeviceModels,
       resolvedOptions,
       diagnostics,
     );

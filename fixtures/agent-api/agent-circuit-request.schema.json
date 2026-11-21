@@ -739,6 +739,10 @@
             },
             "name": {
               "$ref": "#/$defs/__schema31"
+            },
+            "origin": {
+              "type": "string",
+              "const": "canvas"
             }
           },
           "required": [

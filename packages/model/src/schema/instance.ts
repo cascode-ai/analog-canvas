@@ -92,6 +92,8 @@ export const InstanceNetlistBindingSchema = z.discriminatedUnion("kind", [
     kind: z.literal("model"),
     deviceClass: NetlistDeviceClassSchema,
     name: NetlistIdentifierSchema,
+    /** An explicit Canvas selection, even when the source used the same name. */
+    origin: z.literal("canvas").optional(),
   }),
   z.strictObject({
     kind: z.literal("subcircuit"),

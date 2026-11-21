@@ -8,8 +8,10 @@ import { createRoutePath, type CircuitProject } from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { analyzeDesignNetlist, createDesignNetlistExport } from "@icm/netlist";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
+import { liveAgentEditor } from "../../agent/live-agent-editor.test-support";
 import { normalizeImportedProject } from "../../document/project-import-normalization";
 import { importNetlistSources } from "./netlist-source-import.js";
+import { projectInNetlistProcess } from "./netlist-process.js";
 
 function erc(project: CircuitProject) {
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
@@ -56,6 +58,141 @@ describe("netlist source import: model evidence", () => {
       ),
     );
     expect(carriedModels(project)).toEqual([]);
+    expect(carriedModels(projectInNetlistProcess(project, "abstract"))).toEqual(
+      [],
+    );
+  });
+
+  it("selects the same generic model in an Agent transaction and restores the imported contract on Undo", async () => {
+    const project = importedProject(
+      await importNetlistSources(
+        [
+          file(
+            "top.sp",
+            "* absent model\n.subckt top d g s b\nM1 d g s b NMOS w=1u l=30n ad=1p\n.ends top\n",
+          ),
+        ],
+        "top.sp",
+        { modelTypes: { NMOS: "nmos" } },
+      ),
+    );
+    const { client, controller } = liveAgentEditor({ project });
+    await client.connect("session-1.code");
+    const original = controller.document.instances.find(
+      ({ reference }) => reference === "M1",
+    )!;
+    const select = () =>
+      client.applyActions([
+        { kind: "set-model", instanceId: original.id, model: "NMOS" },
+      ]);
+    expect(await select()).toMatchObject({ ok: true });
+    const selected = controller.document.instances.find(
+      ({ id }) => id === original.id,
+    )!;
+    expect(selected.importProvenance).toEqual(original.importProvenance);
+    expect(selected.netlist?.parameters).toEqual(original.netlist?.parameters);
+    const { snapshot } = await client.snapshot(undefined, { refresh: true });
+    expect(
+      snapshot.document.instances.find(({ id }) => id === original.id)?.netlist
+        ?.binding,
+    ).toEqual({
+      kind: "model",
+      deviceClass: "mos",
+      name: "NMOS",
+    });
+    expect(carriedModels(controller.project)).toEqual(["NMOS"]);
+    expect(erc(controller.project)).toContainEqual(
+      expect.objectContaining({
+        code: "ERC_UNKNOWN_DEVICE_PARAMETER",
+        message: expect.stringContaining("unknown parameter ad"),
+      }),
+    );
+
+    expect(await client.applyActions([{ kind: "undo" }])).toMatchObject({
+      ok: true,
+    });
+    expect(carriedModels(controller.project)).toEqual([]);
+    expect(erc(controller.project)).toContainEqual(
+      expect.objectContaining({ code: "ERC_UNVERIFIED_DEVICE_PARAMETERS" }),
+    );
+  });
+
+  it("exports a selected stand-in without binding the other imported references to it", async () => {
+    const project = importedProject(
+      await importNetlistSources(
+        [
+          file(
+            "top.sp",
+            [
+              "* absent models",
+              ".subckt top d g s b",
+              "M1 d g s b NMOS w=1u l=30n",
+              "M2 d g s b nmos w=2u l=30n",
+              "M3 d g s b canvas_NMOS w=3u l=30n",
+              ".ends top",
+            ].join("\n"),
+          ),
+        ],
+        "top.sp",
+        { modelTypes: { NMOS: "nmos", canvas_NMOS: "nmos" } },
+      ),
+    );
+    const { client, controller } = liveAgentEditor({ project });
+    await client.connect("session-1.code");
+    const selected = instanceNamed(project, "M1");
+    const other = instanceNamed(project, "M2");
+    expect(
+      await client.applyActions([
+        { kind: "set-model", instanceId: selected.id, model: "NMOS" },
+      ]),
+    ).toMatchObject({ ok: true });
+
+    for (const format of ["spice", "spectre"] as const) {
+      const exported = createDesignNetlistExport(controller.project, {
+        format,
+        includeIr: true,
+      });
+      if (exported.status !== "ready")
+        throw new Error(JSON.stringify(exported.diagnostics));
+      const card =
+        format === "spice"
+          ? /^\.model (\w+) nmos level=54$/mu
+          : /^model (\w+) bsim4 type=n$/mu;
+      const [, standIn] = exported.file.text.match(card) ?? [];
+      expect(standIn).toBeDefined();
+      expect(standIn?.toLowerCase()).not.toMatch(/^(?:nmos|canvas_nmos)$/u);
+      const mos = exported.ir?.cells
+        .flatMap(({ instances }) => instances)
+        .filter(({ deviceClass }) => deviceClass === "mos");
+      expect(mos?.map(({ reference, target }) => [reference, target])).toEqual([
+        ["M1", standIn],
+        ["M2", "nmos"],
+        ["M3", "canvas_NMOS"],
+      ]);
+      expect(exported.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "GENERIC_MOS_MODEL",
+          severity: "info",
+          objectIds: [selected.id],
+        }),
+      );
+      expect(exported.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "IMPORTED_MODEL_EXTERNAL",
+          objectIds: expect.arrayContaining([other.id]),
+        }),
+      );
+      const path = format === "spice" ? "selected.sp" : "selected.scs";
+      const reopened = importedProject(
+        await importNetlistSources([file(path, exported.file.text)], path, {
+          modelTypes: { NMOS: "nmos", canvas_NMOS: "nmos" },
+        }),
+      );
+      const handedBack = createDesignNetlistExport(reopened, { format });
+      expect(handedBack.status === "ready" ? handedBack.file.text : "").toMatch(
+        card,
+      );
+    }
   });
 
   it("keeps the stand-in of a netlist Canvas wrote, imported again (#1789)", async () => {

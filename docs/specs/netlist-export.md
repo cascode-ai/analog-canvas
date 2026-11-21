@@ -280,7 +280,7 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `.model PMOS_DEP pmos level=54 vth0=1` (information
   `GENERIC_DEPLETION_MOS_MODEL`), carried in a run's SPICE deck too; Spectre
   `model NMOS_DEP bsim4 type=n vth0=-1` (`PMOS_DEP` `type=p vth0=1`).
-- A same-name model in the imported SPICE suppresses the card everywhere; one in
+- A same-name model in the imported SPICE suppresses the ordinary stand-in; one in
   a folder's files only for that folder's runs. A netlist handed out prints the
   imported files' top-level cards its parts call, as written, after the Cells
   (`* Models of the imported files`; Spectre keeps a Spectre file's own
@@ -309,9 +309,18 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   everywhere, SPICE reports information `GENERIC_MODEL_UNDEFINED`, silenced
   likewise.
 - An imported part naming a model no card in its sources declares
-  (`instanceEvidence` `typed-only`, or `untyped` for its family's box) takes
-  no stand-in, whatever the name, until its model target is changed in Canvas
-  to another name. A netlist handed out keeps the reference without a card
+  (`instanceEvidence` `typed-only`, or `untyped` for its family's box) keeps
+  its external reference until an author selects a Canvas target. For a
+  compatible generic model with the same name, **Use generic** in Properties
+  and the Agent `set-model` action record an explicit Canvas selection. The
+  selection preserves raw parameters, terminal order and import connectivity
+  evidence. The built-in descriptor checks the selected model's parameters.
+  Undo restores the imported evidence. Where a name is shared with an external
+  reference or author-defined card, a handed-out netlist gives the stand-in its
+  own name and keeps the external target's original spelling. The alias card
+  prints once at file scope so subsequent imports retain its declaration.
+  Simulation-folder model cards retain their precedence in the run's deck.
+- A netlist handed out keeps an external reference without a card
   (information `IMPORTED_MODEL_EXTERNAL`, each part with its source location).
   A run whose files, Project model sources and reviewed tables define none of
   them refuses (`IMPORTED_MODEL_MISSING`); it warns instead when a file of the
@@ -370,7 +379,7 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 
 Printers are pure functions of a validated IR.
 
-- SPICE: version comment, sorted `.global`, magnetic subcircuits,
+- SPICE: version comment, sorted `.global`, file-scope stand-in aliases, magnetic subcircuits,
   dependency-first `.subckt`/`.ends`, ordered formals, Cell-local `.model`,
   device lines, deterministic continuations; never `.include`, `.lib`, analyses,
   stimuli or `.end`.

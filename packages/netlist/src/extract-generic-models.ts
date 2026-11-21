@@ -3,6 +3,7 @@
 // model.
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import {
+  GENERIC_MODEL_TARGETS,
   instanceEvidence,
   namesModelOutsideSources,
   reviewedExternalBindingForMaster,
@@ -28,7 +29,7 @@ import { partList } from "./extract-findings.js";
  * of the same name that the Project defines itself replaces it.
  */
 export const GENERIC_DIODE_MODEL: DesignNetlistModel = {
-  name: "DIODE",
+  name: GENERIC_MODEL_TARGETS.diode,
   type: "D",
   parameters: [
     { name: "IS", rawValue: "1e-14" },
@@ -45,7 +46,7 @@ export const GENERIC_DIODE_MODEL: DesignNetlistModel = {
  * any real device: about 0.3 V forward at 1 mA, where `DIODE` drops 0.7 V.
  */
 export const GENERIC_SCHOTTKY_MODEL: DesignNetlistModel = {
-  name: "DSCH",
+  name: GENERIC_MODEL_TARGETS["schottky-diode"],
   type: "D",
   parameters: [
     { name: "IS", rawValue: "1e-8" },
@@ -65,7 +66,7 @@ export const GENERIC_SCHOTTKY_MODEL: DesignNetlistModel = {
  * device.
  */
 export const GENERIC_NPN_MODEL: DesignNetlistModel = {
-  name: "NPN",
+  name: GENERIC_MODEL_TARGETS.npn,
   type: "NPN",
   parameters: [
     { name: "IS", rawValue: "1e-16" },
@@ -75,7 +76,7 @@ export const GENERIC_NPN_MODEL: DesignNetlistModel = {
   authoredName: true,
 };
 export const GENERIC_PNP_MODEL: DesignNetlistModel = {
-  name: "PNP",
+  name: GENERIC_MODEL_TARGETS.pnp,
   type: "PNP",
   parameters: [
     { name: "IS", rawValue: "1e-16" },
@@ -94,7 +95,7 @@ export const GENERIC_PNP_MODEL: DesignNetlistModel = {
  * SPICE's PJF takes VTO negative as NJF does, so both state -2.
  */
 export const GENERIC_NJF_MODEL: DesignNetlistModel = {
-  name: "NJF",
+  name: GENERIC_MODEL_TARGETS.njfet,
   type: "NJF",
   parameters: [
     { name: "VTO", rawValue: "-2" },
@@ -104,7 +105,7 @@ export const GENERIC_NJF_MODEL: DesignNetlistModel = {
   authoredName: true,
 };
 export const GENERIC_PJF_MODEL: DesignNetlistModel = {
-  name: "PJF",
+  name: GENERIC_MODEL_TARGETS.pjfet,
   type: "PJF",
   parameters: [
     { name: "VTO", rawValue: "-2" },
@@ -113,6 +114,14 @@ export const GENERIC_PJF_MODEL: DesignNetlistModel = {
   ],
   authoredName: true,
 };
+
+function importedModelTexts(project: CircuitProject): string[] {
+  return (project.source?.files ?? []).flatMap((file) =>
+    [file.content?.text, file.originalContent?.text].filter(
+      (text): text is string => text !== undefined,
+    ),
+  );
+}
 
 /**
  * Whether the author's own text defines a generic model's name, `.model
@@ -154,21 +163,13 @@ export function definesGenericModel(
         )
       : [],
   );
-  const texts = [
-    ...deckSources,
-    ...(project.source?.files ?? []).flatMap((file) => [
-      file.content?.text,
-      file.originalContent?.text,
-    ]),
-  ];
-  return texts.some(
-    (text) =>
-      text !== undefined &&
-      text
-        // A card goes on in `+` lines.
-        .replace(/\r?\n[ \t]*\+/gu, " ")
-        .split(/\r?\n/u)
-        .some((line) => definition.test(line) && !standIn.has(spelled(line))),
+  const texts = [...deckSources, ...importedModelTexts(project)];
+  return texts.some((text) =>
+    text
+      // A card goes on in `+` lines.
+      .replace(/\r?\n[ \t]*\+/gu, " ")
+      .split(/\r?\n/u)
+      .some((line) => definition.test(line) && !standIn.has(spelled(line))),
   );
 }
 
@@ -202,6 +203,13 @@ function namedParts(
     );
 }
 
+function carriedModelName(
+  parts: readonly DesignNetlistInstance[],
+  model: DesignNetlistModel,
+): string {
+  return parts[0]?.target?.toUpperCase() ?? model.name;
+}
+
 /**
  * Which diodes run on the generic card (#1310). Information, as a default
  * body supply is: the netlist now runs, but on a stand-in junction, not on a
@@ -225,7 +233,7 @@ export function reportGenericDiodes(
     diagnostics,
     document.id,
     "GENERIC_DIODE_MODEL",
-    `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic diode model ${GENERIC_DIODE_MODEL.name} (${values}); set a model for a real device${
+    `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic diode model ${carriedModelName(diodes, GENERIC_DIODE_MODEL)} (${values}); set a model for a real device${
       zeners.length
         ? `. It has no breakdown, so ${partList(zeners)} ${zeners.length === 1 ? "does" : "do"} not act as a Zener until given a Zener model`
         : ""
@@ -253,7 +261,7 @@ export function reportGenericSchottkys(
     diagnostics,
     document.id,
     "GENERIC_SCHOTTKY_MODEL",
-    `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic Schottky model ${GENERIC_SCHOTTKY_MODEL.name} (${values}); set a model for a real device`,
+    `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic Schottky model ${carriedModelName(diodes, GENERIC_SCHOTTKY_MODEL)} (${values}); set a model for a real device`,
     parts.map((part) => part.id),
     "info",
   );
@@ -274,13 +282,13 @@ export function reportGenericSchottkys(
  * Cell's own MOS card, and the run says it needs one.
  */
 export const GENERIC_NMOS_MODEL: DesignNetlistModel = {
-  name: "NMOS",
+  name: GENERIC_MODEL_TARGETS.nmos,
   type: "nmos",
   parameters: [{ name: "level", rawValue: "54" }],
   authoredName: true,
 };
 export const GENERIC_PMOS_MODEL: DesignNetlistModel = {
-  name: "PMOS",
+  name: GENERIC_MODEL_TARGETS.pmos,
   type: "pmos",
   parameters: [{ name: "level", rawValue: "54" }],
   authoredName: true,
@@ -296,7 +304,7 @@ export const GENERIC_PMOS_MODEL: DesignNetlistModel = {
  * real device.
  */
 export const GENERIC_NMOS_DEPLETION_MODEL: DesignNetlistModel = {
-  name: "NMOS_DEP",
+  name: GENERIC_MODEL_TARGETS["depletion-nmos"],
   type: "nmos",
   parameters: [
     { name: "level", rawValue: "54" },
@@ -305,7 +313,7 @@ export const GENERIC_NMOS_DEPLETION_MODEL: DesignNetlistModel = {
   authoredName: true,
 };
 export const GENERIC_PMOS_DEPLETION_MODEL: DesignNetlistModel = {
-  name: "PMOS_DEP",
+  name: GENERIC_MODEL_TARGETS["depletion-pmos"],
   type: "pmos",
   parameters: [
     { name: "level", rawValue: "54" },
@@ -313,6 +321,45 @@ export const GENERIC_PMOS_DEPLETION_MODEL: DesignNetlistModel = {
   ],
   authoredName: true,
 };
+
+/** Keep a selected stand-in from satisfying a model reference left to the reader. */
+export function standInExportName(
+  project: CircuitProject,
+  name: string,
+  currentSources: readonly string[],
+  ownedDeviceModels: ReadonlySet<string>,
+  authorDefinesModel: boolean,
+): string {
+  const occupied = new Set(ownedDeviceModels);
+  let needsAlias = authorDefinesModel;
+  for (const document of project.documents) {
+    if (document.netlist) occupied.add(document.netlist.name.toLowerCase());
+    for (const instance of document.instances) {
+      const binding = instance.netlist?.binding;
+      if (binding?.kind !== "model") continue;
+      occupied.add(binding.name.toLowerCase());
+      if (
+        binding.name.toUpperCase() === name &&
+        namesModelOutsideSources(instanceEvidence(project, instance))
+      ) {
+        needsAlias = true;
+      }
+    }
+  }
+  if (!needsAlias) return name;
+  for (const definition of project.externalSubcircuitDefinitions)
+    occupied.add(definition.name.toLowerCase());
+  const sources = [...currentSources, ...importedModelTexts(project)];
+  const prefix = `CANVAS_${name}`;
+  let candidate = prefix;
+  let suffix = 2;
+  while (
+    occupied.has(candidate.toLowerCase()) ||
+    sourcesDefineModel(sources, candidate)
+  )
+    candidate = `${prefix}_${suffix++}`;
+  return candidate;
+}
 
 /**
  * The generic targets the editor binds that a SPICE netlist names but does
@@ -469,12 +516,12 @@ export function reportGenericMos(
   diagnostics: NetlistDiagnostic[],
 ): void {
   const named = used.map(({ model, parts }) => ({
-    model,
+    name: carriedModelName(parts, model),
     parts: namedParts(document, parts),
   }));
   const uses = named.map(
-    ({ model, parts }) =>
-      `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "names" : "name"} ${model.name}`,
+    ({ name, parts }) =>
+      `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "names" : "name"} ${name}`,
   );
   diagnostic(
     diagnostics,
@@ -504,7 +551,7 @@ export function reportGenericDepletionMos(
     const values = model.parameters
       .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
       .join(", ");
-    return `${partList(names)} ${names.length === 1 ? "uses" : "use"} the generic depletion MOS model ${model.name} (BSIM4, ${values})`;
+    return `${partList(names)} ${names.length === 1 ? "uses" : "use"} the generic depletion MOS model ${carriedModelName(parts, model)} (BSIM4, ${values})`;
   });
   diagnostic(
     diagnostics,
@@ -532,14 +579,15 @@ export function reportGenericBjts(
   diagnostics: NetlistDiagnostic[],
 ): void {
   const named = used.map(({ model, parts }) => ({
-    model,
+    values: model.parameters,
+    name: carriedModelName(parts, model),
     parts: namedParts(document, parts),
   }));
-  const uses = named.map(({ model, parts }) => {
-    const values = model.parameters
+  const uses = named.map(({ name, values, parts }) => {
+    const parameters = values
       .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
       .join(", ");
-    return `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic bipolar model ${model.name} (${values})`;
+    return `${partList(parts.map((part) => part.name))} ${parts.length === 1 ? "uses" : "use"} the generic bipolar model ${name} (${parameters})`;
   });
   diagnostic(
     diagnostics,
@@ -569,7 +617,7 @@ export function reportGenericJfets(
     const values = model.parameters
       .map((parameter) => `${parameter.name}=${parameter.rawValue}`)
       .join(", ");
-    return `${partList(names)} ${names.length === 1 ? "uses" : "use"} the generic JFET model ${model.name} (${values})`;
+    return `${partList(names)} ${names.length === 1 ? "uses" : "use"} the generic JFET model ${carriedModelName(parts, model)} (${values})`;
   });
   diagnostic(
     diagnostics,

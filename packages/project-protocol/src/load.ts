@@ -60,6 +60,7 @@ import { upgradeSchema56To57 } from "./transforms/power-rail-terminals.js";
 import {
   CURRENT_PROJECT_FILE_VERSION,
   decodeProjectFile,
+  rejectModelSelection,
   rejectKeptDocumentStyle,
   rejectSignalMembers,
   rejectOrderedSignals,
@@ -510,6 +511,7 @@ export function tryParseProjectWithMetadata(
           path: ["documents"],
         },
       ]);
+    if (sourceSchemaVersion < 85) rejectModelSelection(parsed);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (
       let version = current.schemaVersion as number;
