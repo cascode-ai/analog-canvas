@@ -8,6 +8,7 @@ import type {
   DocumentDerivedContext,
   SchematicStyleProfile,
 } from "@icm/derived";
+import { polylineIntersectsRect } from "@icm/model";
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { VisualSelection } from "./visual-selection";
@@ -19,7 +20,6 @@ import {
   rectContainsRect,
   rectangleBoundaryIntersectsRect,
   rectsIntersect,
-  segmentIntersectsRect,
 } from "../../canvas/canvas-geometry";
 import {
   annotationHitBox,
@@ -102,15 +102,7 @@ export function marqueeSelection(
           policy.allowsCanvasHit({ kind: "route", id: route.id }, "select") &&
           (window
             ? polylineInRect(geometry.centerline, rect)
-            : geometry.centerline
-                .slice(0, -1)
-                .some((from, index) =>
-                  segmentIntersectsRect(
-                    from,
-                    geometry.centerline[index + 1]!,
-                    rect,
-                  ),
-                )),
+            : polylineIntersectsRect(geometry.centerline, rect)),
       )
       .map(({ route }) => route.id),
     junctionIds: (policy.allowsClass("junction", "select")

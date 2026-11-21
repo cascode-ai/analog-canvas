@@ -1,4 +1,8 @@
 import type { Point, Rect } from "@icm/model";
+import { pointInRect, segmentIntersectsRect } from "@icm/model";
+
+// Shared with the Agent, whose wire queries test what a crossing marquee does.
+export { pointInRect, segmentIntersectsRect };
 
 export function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -72,15 +76,6 @@ export function rectsIntersect(left: Rect, right: Rect): boolean {
   );
 }
 
-export function pointInRect(point: Point, rect: Rect): boolean {
-  return (
-    point.x >= rect.x &&
-    point.x <= rect.x + rect.width &&
-    point.y >= rect.y &&
-    point.y <= rect.y + rect.height
-  );
-}
-
 /** True when `inner` lies entirely inside `outer` (boundary inclusive). */
 export function rectContainsRect(outer: Rect, inner: Rect): boolean {
   return (
@@ -95,36 +90,6 @@ export function rectContainsRect(outer: Rect, inner: Rect): boolean {
  * every segment of the polyline — lies inside the rectangle. */
 export function polylineInRect(points: readonly Point[], rect: Rect): boolean {
   return points.length > 0 && points.every((point) => pointInRect(point, rect));
-}
-
-export function segmentIntersectsRect(
-  from: Point,
-  to: Point,
-  rect: Rect,
-): boolean {
-  if (pointInRect(from, rect) || pointInRect(to, rect)) return true;
-
-  const delta = { x: to.x - from.x, y: to.y - from.y };
-  let entry = 0;
-  let exit = 1;
-  const boundaries: ReadonlyArray<readonly [number, number]> = [
-    [-delta.x, from.x - rect.x],
-    [delta.x, rect.x + rect.width - from.x],
-    [-delta.y, from.y - rect.y],
-    [delta.y, rect.y + rect.height - from.y],
-  ];
-
-  for (const [direction, distance] of boundaries) {
-    if (direction === 0) {
-      if (distance < 0) return false;
-      continue;
-    }
-    const ratio = distance / direction;
-    if (direction < 0) entry = Math.max(entry, ratio);
-    else exit = Math.min(exit, ratio);
-    if (entry > exit) return false;
-  }
-  return true;
 }
 
 export function rectangleBoundaryIntersectsRect(

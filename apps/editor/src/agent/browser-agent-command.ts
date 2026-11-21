@@ -34,13 +34,11 @@ import {
   planRemoveCellParameter,
   planRenameCellTerminal,
   planRemoveCellTerminal,
-  planRemoveCellTerminals,
   planSetCellSymbolPins,
   planSetCellPinOrder,
   planSetCellSymbolSize,
   planSetCellSymbolArtwork,
   planMoveRouteClearance,
-  planCellSelectionDeletion,
   gateRoutingOperationPlan,
   createRoutingOperationPlan,
   planEnsureNamedNet,
@@ -174,6 +172,10 @@ import {
   logicalNetChoices,
 } from "../features/logical-net-choices";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
+import {
+  planDeleteWires,
+  planSelectionDeletion,
+} from "./selection-deletion-command";
 
 /** What the live editor knows beyond the Project. */
 export interface BrowserAgentPlanningContext {
@@ -513,37 +515,24 @@ export function planBrowserAgentCommand(
               `selection.${field}: ${id} ${actual ? `belongs in ${actual}` : "does not exist"}; no objects were deleted`,
             );
         }
-      const selected = planCellSelectionDeletion(
+      return planSelectionDeletion(
+        project,
+        documentId,
         document,
         resolver,
         command.selection,
         sequence,
-      );
-      // The GUI keeps the locked ones and deletes the rest; an Agent is told
-      // instead, so it never believes them gone.
-      const locked = [
-        ...selected.locked.draftingIds,
-        ...selected.locked.annotationIds,
-      ];
-      if (locked.length)
-        throw new Error(
-          `selection: ${locked.join(", ")} ${locked.length === 1 ? "is" : "are"} locked; unlock before deleting; no objects were deleted`,
-        );
-      if (selected.terminalIds.length)
-        return {
-          structureEdits: planRemoveCellTerminals(
-            project,
-            documentId,
-            selected.terminalIds,
-            [...selected.routing.edits],
-          ),
-        };
-      const gate = gateRoutingOperationPlan(document, selected.routing, {
-        symbolResolver: resolver,
-      });
-      if (!gate.ok) throw new Error(gate.message);
-      return { edits: [...gate.edits] };
+      ).plan;
     }
+    case "delete-wires":
+      return planDeleteWires(
+        project,
+        documentId,
+        document,
+        resolver,
+        command,
+        sequence,
+      );
     case "set-port-direction": {
       if (command.target.kind === "terminal")
         return {

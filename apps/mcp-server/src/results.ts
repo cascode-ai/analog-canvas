@@ -1,6 +1,11 @@
 import type { AgentDiagnostic, AgentSessionSnapshot } from "@icm/agent-adapter";
 import type { CachedSnapshot, ApplyActionsReport } from "@icm/agent-client";
-import { RichTextDocumentSchema, flattenRichText } from "@icm/model";
+import {
+  RichTextDocumentSchema,
+  flattenRichText,
+  pointInRect,
+  polylineIntersectsRect,
+} from "@icm/model";
 
 /**
  * Compact result projections (Agent rationale): every tool answer is bounded to what
@@ -513,6 +518,50 @@ export function inspectNet(
   return net
     ? netAnswer(reference, net, inspectNetValue)
     : notFound(document, reference, "net");
+}
+
+/** At most this many wires, and as many Junctions, answer a region. */
+const REGION_LIMIT = 200;
+
+/**
+ * The wires with a segment in or across a box, as a crossing marquee takes
+ * them and delete-wires bbox deletes them, and the Junctions in it: found
+ * without reading the whole Snapshot.
+ */
+export function inspectRegion(
+  entry: CachedSnapshot,
+  bbox: { x: number; y: number; width: number; height: number },
+): Record<string, unknown> {
+  const document = entry.snapshot.document;
+  const netName = new Map(document.nets.map((net) => [net.id, net.name]));
+  const routes = document.routes.filter(
+    (route) => route.polyline && polylineIntersectsRect(route.polyline, bbox),
+  );
+  const junctions = document.junctions.filter((junction) =>
+    pointInRect(junction.position, bbox),
+  );
+  return {
+    revision: entry.revision,
+    bbox,
+    routeCount: routes.length,
+    routes: routes.slice(0, REGION_LIMIT).map((route) => ({
+      id: route.id,
+      netId: route.netId,
+      netName: netName.get(route.netId) ?? null,
+      polyline: route.polyline,
+    })),
+    junctionCount: junctions.length,
+    junctions: junctions.slice(0, REGION_LIMIT).map((junction) => ({
+      id: junction.id,
+      netId: junction.netId,
+      position: junction.position,
+    })),
+    ...(routes.length > REGION_LIMIT || junctions.length > REGION_LIMIT
+      ? {
+          truncated: `listing the first ${REGION_LIMIT}; inspect a smaller box`,
+        }
+      : {}),
+  };
 }
 
 export function inspectConnectivity(

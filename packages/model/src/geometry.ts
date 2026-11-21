@@ -75,3 +75,67 @@ export function inverseTransformPoint(
   const mirrored = mirrorLocal(translated, orientation.mirror);
   return inverseRotateLocal(mirrored, orientation.rotation);
 }
+
+/** The extent of any rectangle, grid or derived. */
+interface RectExtent {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Boundary inclusive. */
+export function pointInRect(point: DerivedPoint, rect: RectExtent): boolean {
+  return (
+    point.x >= rect.x &&
+    point.x <= rect.x + rect.width &&
+    point.y >= rect.y &&
+    point.y <= rect.y + rect.height
+  );
+}
+
+/**
+ * Whether a segment lies in or crosses a rectangle, as a crossing marquee
+ * takes a wire.
+ */
+export function segmentIntersectsRect(
+  from: DerivedPoint,
+  to: DerivedPoint,
+  rect: RectExtent,
+): boolean {
+  if (pointInRect(from, rect) || pointInRect(to, rect)) return true;
+
+  const delta = { x: to.x - from.x, y: to.y - from.y };
+  let entry = 0;
+  let exit = 1;
+  const boundaries: ReadonlyArray<readonly [number, number]> = [
+    [-delta.x, from.x - rect.x],
+    [delta.x, rect.x + rect.width - from.x],
+    [-delta.y, from.y - rect.y],
+    [delta.y, rect.y + rect.height - from.y],
+  ];
+
+  for (const [direction, distance] of boundaries) {
+    if (direction === 0) {
+      if (distance < 0) return false;
+      continue;
+    }
+    const ratio = distance / direction;
+    if (direction < 0) entry = Math.max(entry, ratio);
+    else exit = Math.min(exit, ratio);
+    if (entry > exit) return false;
+  }
+  return true;
+}
+
+/** Whether any segment of a polyline lies in or crosses a rectangle. */
+export function polylineIntersectsRect(
+  points: readonly DerivedPoint[],
+  rect: RectExtent,
+): boolean {
+  return points
+    .slice(0, -1)
+    .some((from, index) =>
+      segmentIntersectsRect(from, points[index + 1]!, rect),
+    );
+}

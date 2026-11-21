@@ -58,6 +58,7 @@ import {
   diagnosticsCompact,
   compactActionReport,
   inspectConnectivity,
+  inspectRegion,
   inspectDocument,
   inspectNet,
   inspectObject,
@@ -583,6 +584,19 @@ const InspectArgs = z.strictObject({
         .optional()
         .describe(
           "Also measure each annotation's drawn text: text.position (where its alignment end stands) and text.bounds",
+        ),
+    }),
+    z.strictObject({
+      kind: z.literal("region"),
+      bbox: z
+        .strictObject({
+          x: z.number().int(),
+          y: z.number().int(),
+          width: z.number().int().positive(),
+          height: z.number().int().positive(),
+        })
+        .describe(
+          "Wires with a segment in or across it (id, Net, polyline) and Junctions in it, as delete-wires bbox takes them",
         ),
     }),
     z.strictObject({ kind: z.literal("activity") }),
@@ -1725,6 +1739,8 @@ const ORIGINAL_TOOLS: readonly ToolEntry[] = [
           return inspectNet(entry, parsed.target);
         case "connectivity":
           return inspectConnectivity(entry, parsed.target);
+        case "region":
+          return inspectRegion(entry, parsed.target.bbox);
       }
     },
   },

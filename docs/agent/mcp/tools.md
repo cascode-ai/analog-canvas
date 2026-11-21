@@ -147,6 +147,10 @@ in `total`; diagnostics `inspect` lists everything.
 - `{kind:"geometry",objectIds}` reads up to 64 authored objects with revision
   and missing IDs, not pins or connectivity; `textBounds:true` adds each
   label's `text.position` (what `move-annotation` sets) and glyph `bounds`.
+- `{kind:"region",bbox:{x,y,width,height}}` lists the wires with a segment in
+  or across the box (`id`, `netId`, `netName`, `polyline`) and the Junctions
+  in it (`id`, `netId`, `position`), up to 200 each (`routeCount`,
+  `junctionCount`, `truncated`): what `delete-wires` `bbox` takes.
 - `{kind:"activity"}`: recent local receipts and live relay records
   (failures, cache hits; lost on relay replacement). Not durable history or
   other people's edits.

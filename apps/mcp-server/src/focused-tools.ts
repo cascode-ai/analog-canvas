@@ -98,7 +98,7 @@ export const FOCUSED_TOOLS = [
   {
     name: "circuit_wire",
     source: "apply_actions",
-    operations: ["connect", "disconnect"],
+    operations: ["connect", "disconnect", "delete-wires"],
   },
   {
     name: "circuit_transform",

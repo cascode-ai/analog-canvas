@@ -522,6 +522,15 @@ IDs reject it all; unlock a locked drawing or text first. Deleting a part delete
 running on to another pin, or carrying a label, stays open there so a
 replacement reconnects (`ERC_DANGLING_WIRE` names open ends).
 
+`delete-wires` takes exactly one of `net` (ID or name), `bbox`
+(`{x,y,width,height}`: wires with a segment in or across it) or `instance`
+(Reference or ID: wires ending on its pins), e.g.
+`{"kind":"delete-wires","net":"VOUT"}`. It deletes those wires as a selection
+of them, with the Junctions and Net labels they leave alone, in one undo;
+every part stays, and a bus wire goes only when all its lanes are the Net's.
+Matching no wire is refused. `WIRES_DELETED` (information) counts the wires,
+Junctions and labels that went. `delete` refuses a Net.
+
 `reset-placement` (intentional redraw) and `clear-drawing` remove every wire:
 labels on wires stay free with their names, markers on wires go, a rail's
 label stays; the receipt lists moved labels. `reset-cell` `reset-body` removes

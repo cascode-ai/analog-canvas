@@ -15,6 +15,7 @@ import {
   SignalFlowParametersSchema,
   ComponentDefinitionSchema,
   NoConnectSchema,
+  GridRectSchema,
 } from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
@@ -230,6 +231,29 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     })
     .describe(
       "Explicit selection. Includes owned displays and formal interface declarations, and, as in the GUI, a wire that only tapped a deleted part into other wiring. Select all object IDs for complete Cell deletion.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("delete-wires"),
+      net: z.string().min(1).optional().describe("Net ID or name."),
+      bbox: GridRectSchema.optional().describe(
+        "Wires with a segment in or across it, as a crossing marquee takes them.",
+      ),
+      instance: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Reference or ID: the wires ending on its pins."),
+    })
+    .refine(
+      (command) =>
+        [command.net, command.bbox, command.instance].filter(
+          (given) => given !== undefined,
+        ).length === 1,
+      { message: "Give exactly one of net, bbox or instance" },
+    )
+    .describe(
+      "Delete wires chosen by exactly one of net, bbox or instance, with the Junctions and Net labels they leave alone, in one undo; parts stay. Matching no wire is refused.",
     ),
   // Several Cell instances place in one call and one undo, as place-components
   // places several built-in parts (#1231).

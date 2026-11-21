@@ -3,6 +3,7 @@ import {
   createEmptyProject,
   createRoutePath,
   flattenRichText,
+  routeEnd,
 } from "@icm/model";
 import {
   resolveDocumentLogicalNets,
@@ -3427,5 +3428,194 @@ describe("Cell instances in one call (#1231)", () => {
         .instances.map((instance) => instance.reference)
         .sort(),
     ).toEqual(["X1", "X2", "X3"]);
+  });
+});
+
+describe("delete-wires and inspect region", () => {
+  /** A trunk RL–RR with two taps (RT1, RT2), labelled MID; RA–RB apart. */
+  async function drawn() {
+    const parts = await folder();
+    const { client } = parts;
+    const placed = await client.applyActions(
+      (
+        [
+          ["RL", 0, 0, 270],
+          ["RR", 400, 0, 270],
+          ["RT1", 100, 100, 0],
+          ["RT2", 200, 100, 0],
+          ["RA", 0, 400, 270],
+          ["RB", 400, 400, 270],
+        ] as const
+      ).map(([reference, x, y, rotation]) => ({
+        kind: "place-component",
+        symbol: "resistor",
+        reference,
+        position: { x, y },
+        rotation,
+      })),
+    );
+    expect(placed.ok, placed.message).toBe(true);
+    const pin = (instance: string, name: string) => ({
+      kind: "pin",
+      instance,
+      pin: name,
+    });
+    const wired = await client.applyActions([
+      { kind: "connect", from: pin("RL", "2"), to: pin("RR", "1") },
+      {
+        kind: "connect",
+        from: pin("RT1", "1"),
+        to: { kind: "wire-at", point: { x: 100, y: 0 } },
+      },
+      {
+        kind: "connect",
+        from: pin("RT2", "1"),
+        to: { kind: "wire-at", point: { x: 200, y: 0 } },
+      },
+      { kind: "connect", from: pin("RA", "2"), to: pin("RB", "1") },
+    ]);
+    expect(wired.ok, wired.message).toBe(true);
+    const labelled = await client.applyActions([
+      {
+        kind: "add-label",
+        target: pin("RL", "2"),
+        text: "MID",
+        position: { x: 300, y: 0 },
+      },
+    ]);
+    expect(labelled.ok, labelled.message).toBe(true);
+    return parts;
+  }
+  const note = (receipt: {
+    diagnostics?: readonly { code: string; message: string }[];
+  }) =>
+    receipt.diagnostics?.find((item) => item.code === "WIRES_DELETED")?.message;
+
+  it("finds wires and Junctions in a box without the whole Snapshot", async () => {
+    const { tool, controller } = await drawn();
+    const region = await tool("inspect", {
+      target: {
+        kind: "region",
+        bbox: { x: 90, y: -10, width: 20, height: 20 },
+      },
+    });
+    const junction = controller.document.junctions.find(
+      (item) => item.position.x === 100 && item.position.y === 0,
+    )!;
+    expect(region.junctions).toEqual([
+      expect.objectContaining({ id: junction.id, position: { x: 100, y: 0 } }),
+    ]);
+    expect(region.routeCount).toBeGreaterThan(0);
+    for (const route of region.routes) {
+      expect(route.netName).toBe("MID");
+      expect(route.polyline.length).toBeGreaterThanOrEqual(2);
+    }
+    const empty = await tool("inspect", {
+      target: {
+        kind: "region",
+        bbox: { x: 1000, y: 1000, width: 10, height: 10 },
+      },
+    });
+    expect(empty).toMatchObject({ routeCount: 0, routes: [], junctions: [] });
+  });
+
+  it("deletes a Net's wires, Junctions and label in one undo, and keeps every part", async () => {
+    const { client, controller } = await drawn();
+    const before = structuredClone(controller.document);
+    const ra = before.instances.find((item) => item.reference === "RA")!.id;
+    const other = before.routes.filter((route) =>
+      [route.start, routeEnd(route)].some(
+        (end) => end.kind === "terminal" && end.instanceId === ra,
+      ),
+    );
+    expect(other).toHaveLength(1);
+    const labels = before.annotations.filter(
+      (item) => item.kind === "net-label",
+    );
+    expect(labels).toHaveLength(1);
+    const label = labels[0];
+    const deleted = await client.applyActions([
+      { kind: "delete-wires", net: "MID" },
+    ]);
+    expect(deleted.ok, deleted.message).toBe(true);
+    expect(controller.document.revision).toBe(before.revision + 1);
+    expect(controller.document.instances.map((item) => item.id)).toEqual(
+      before.instances.map((item) => item.id),
+    );
+    expect(controller.document.routes.map((route) => route.id)).toEqual(
+      other.map((route) => route.id),
+    );
+    expect(controller.document.junctions).toEqual([]);
+    expect(
+      controller.document.annotations.some((item) => item.id === label!.id),
+    ).toBe(false);
+    expect(note(deleted)).toBe(
+      `Deleted ${before.routes.length - 1} wires, ${before.junctions.length} Junctions and 1 label on Net MID; every part stays.`,
+    );
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    expect(controller.document.routes).toEqual(before.routes);
+    expect(controller.document.junctions).toEqual(before.junctions);
+    expect(controller.document.annotations).toEqual(before.annotations);
+  });
+
+  it("deletes the wires on one part's pins or across a box, and refuses a selector that matches nothing", async () => {
+    const { client, tool, controller } = await drawn();
+    const id = (reference: string) =>
+      controller.document.instances.find(
+        (item) => item.reference === reference,
+      )!.id;
+    const wiredTo = (reference: string) =>
+      controller.document.routes.filter((route) =>
+        [route.start, routeEnd(route)].some(
+          (end) => end.kind === "terminal" && end.instanceId === id(reference),
+        ),
+      );
+    expect(wiredTo("RT1")).toHaveLength(1);
+    const tap = await tool("apply_actions", {
+      actions: [{ kind: "delete-wires", instance: "RT1" }],
+    });
+    expect(tap.ok, JSON.stringify(tap)).toBe(true);
+    // The tap's Junction goes; the trunk it split is one wire again.
+    expect(JSON.stringify(tap)).toContain(
+      "Deleted 1 wire, 1 Junction and 0 labels on RT1's pins; every part stays.",
+    );
+    expect(wiredTo("RT1")).toEqual([]);
+    expect(wiredTo("RT2")).toHaveLength(1);
+    expect(controller.document.instances).toHaveLength(6);
+    const revision = controller.document.revision;
+    for (const [selector, message] of [
+      [{ net: "NOPE" }, 'no Net matches "NOPE"'],
+      [{ instance: "RT1" }, "no wire is on RT1's pins"],
+      [
+        { bbox: { x: 1000, y: 1000, width: 10, height: 10 } },
+        "no wire is in the box at (1000, 1000), 10 by 10",
+      ],
+    ] as const) {
+      const refused = await client.applyActions([
+        { kind: "delete-wires", ...selector },
+      ]);
+      expect(refused.ok).toBe(false);
+      expect(refused.message).toContain(message);
+      expect(refused.message).toContain("nothing was deleted");
+    }
+    const both = await client.applyActions([
+      { kind: "delete-wires", net: "MID", instance: "RA" },
+    ]);
+    expect(both.ok).toBe(false);
+    expect(both.message).toContain("exactly one of net, bbox or instance");
+    expect(controller.document.revision).toBe(revision);
+    // The box crosses RA–RB's wire only.
+    const box = await client.applyActions([
+      {
+        kind: "delete-wires",
+        bbox: { x: 190, y: 390, width: 20, height: 20 },
+      },
+    ]);
+    expect(box.ok, box.message).toBe(true);
+    expect(wiredTo("RA")).toEqual([]);
+    expect(wiredTo("RL")).toHaveLength(1);
+    expect(note(box)).toMatch(
+      /^Deleted 1 wire, 0 Junctions and 0 labels in the box/,
+    );
   });
 });
