@@ -193,8 +193,9 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
   are dropped rather than refusing. Drag preview and release use the same plan
   against its source revision, one undo.
 - Copy (`C` or copy/paste, any tab, Agent and workspace) takes the selected
-  internal subgraph; boundary Routes and external membership stay (copied
-  boundary pins open). Selected Pins, markers and labels rejoin only by
+  internal subgraph. Boundary Routes and external membership stay in the
+  source. The [copy planner](editor-interaction.md#project-aware-copy) resolves
+  destination defaults. Selected Pins, markers and labels rejoin only by
   `name + scope`; names owned by unselected objects, Bulk overrides and scalar
   No Connects stay. Member No Connects travel with their selected caller and
   use the same owner-scoped member mapping; a whole Cell takes its names,

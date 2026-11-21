@@ -18,6 +18,7 @@ import {
   type GateCellPin,
   type PartTerminal,
   type ReviewedExternalDeviceBinding,
+  type ReviewedExternalTerminalBinding,
   type ReviewedSize,
 } from "@icm/devices";
 import type { DesignNetlistInstance, NetlistDiagnostic } from "./ir.js";
@@ -73,7 +74,8 @@ function autoRailNetName(
 function callTerminalNetName(
   document: SchematicDocument,
   instance: Instance,
-  terminal: PartTerminal,
+  terminal: PartTerminal &
+    Partial<Pick<ReviewedExternalTerminalBinding, "interaction" | "role">>,
   context: CellNetContext,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
@@ -101,6 +103,9 @@ function callTerminalNetName(
     context,
     diagnostics,
     memberId,
+    terminal.interaction === "property" && terminal.role === "substrate"
+      ? "Substrate"
+      : undefined,
   );
 }
 

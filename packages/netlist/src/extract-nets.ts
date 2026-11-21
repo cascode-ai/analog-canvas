@@ -533,6 +533,7 @@ export function terminalNetName(
   context: CellNetContext,
   diagnostics: NetlistDiagnostic[],
   memberId?: string,
+  propertyLabel?: string,
 ): string | null {
   // A MOS body has one authority, and membership is not always it: a body
   // left alone on the Net its own policy binding named is residue from a
@@ -572,15 +573,16 @@ export function terminalNetName(
   // Missing connectivity is an error, not permission to infer a supply from
   // device polarity or a matching Net name elsewhere in the Cell.
   const body = pinName === "B" && mosBulkKind(instance);
+  const pin = `${instance.reference ?? instance.id}.${pinName}`;
   diagnostic(
     diagnostics,
     document.id,
     "MISSING_PIN_NET",
-    body
-      ? // The fourth node has two authored answers; name both so the
-        // report is actionable instead of only true.
-        `Required pin ${instance.reference ?? instance.id}.B has no body Net: connect B, or set this Cell's MOS body default`
-      : `Required pin ${instance.reference ?? instance.id}.${pinName} is not connected to an exportable Net: connect it, or mark it No Connect if it is unused`,
+    propertyLabel
+      ? `Required pin ${pin} has no exportable Net. Select its ${propertyLabel} Net in Properties`
+      : body
+        ? `Required pin ${pin} has no body Net: connect B, or set this Cell's MOS body default`
+        : `Required pin ${pin} is not connected to an exportable Net: connect it, or mark it No Connect if it is unused`,
     [instance.id],
   );
   return null;

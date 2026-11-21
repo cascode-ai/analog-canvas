@@ -387,10 +387,15 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   placement. Child imports share one immutable source snapshot.
 - A group's internal wires travel; a single part leaves its dangling wires;
   selected wires travel alone with free ends.
-- A copied MOS body stays on its source Net when that Net travels, else takes the
-  target default; undrawn pins travel with their Net; whole-Cell composition
-  keeps bodies as instance-owned connections. Necessary names owned outside the
-  selection get copy-owned labels.
+- A copied MOS body uses its copied Net or the destination Cell's body default.
+  Whole-Cell composition keeps bodies as instance-owned connections.
+- Undrawn pins travel with their Net. A Properties-only PDK substrate whose Net
+  stays behind takes the destination Cell's
+  [substrate default](netlist-export.md#substrate-and-negative-supplies) when the
+  source Net matched the source Cell's default. Resolve the default after paste
+  contacts settle. An omitted off-default tie stays open for an explicit choice
+  in Properties. Necessary names owned outside the selection get copy-owned
+  labels.
 - Grids must match. Differing style defaults make each copied object keep the
   source factors as `documentStyle` ([file format](project-file-format.md));
   a different style profile refuses.
