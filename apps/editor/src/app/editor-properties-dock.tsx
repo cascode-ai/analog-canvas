@@ -1,4 +1,4 @@
-import { CellInstanceParameters } from "../features/hierarchy/cell-instance-parameters";
+import { CellInstanceDefinition } from "../features/hierarchy/cell-instance-definition";
 import { Suspense, useMemo, type ComponentProps, type RefObject } from "react";
 
 import { CanvasCrossingsSection } from "../features/editor-shell/canvas-crossings-section";
@@ -6,10 +6,8 @@ import { CanvasFontSection } from "../features/editor-shell/canvas-font-section"
 import { KeptDocumentStyleSection } from "../features/editor-shell/kept-document-style-section";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { PlacementTrayPanel } from "../features/component-insert/placement-tray-panel";
-import {
-  InstanceSymbolLayoutProperties,
-  type CellSymbolLayoutProps,
-} from "../features/properties/component-structure-properties";
+import { InstanceSymbolLayoutRow } from "../features/properties/component-structure-properties";
+import { PropertyActionRow } from "../features/properties/property-action-row";
 import { ComponentIdentityProperties } from "../features/properties/component-identity-properties";
 import { NetNameProperties } from "../features/properties/net-name-properties";
 import { BodyFillProperties } from "../features/properties/body-fill-properties";
@@ -38,9 +36,12 @@ import {
 } from "./lazy-editor-dialogs";
 
 interface ComponentPropertiesModel {
-  hierarchyParameters?: ComponentProps<typeof CellInstanceParameters> | null;
+  cellDefinition?: ComponentProps<typeof CellInstanceDefinition> | null;
   code: ComponentProps<typeof ComponentPropertyCodeEditor>;
-  cellSymbolLayout: CellSymbolLayoutProps | null;
+  cellSymbolLayout: Omit<
+    ComponentProps<typeof InstanceSymbolLayoutRow>,
+    "instanceSymbolId"
+  > | null;
   identity: ComponentProps<typeof ComponentIdentityProperties>;
   signalFlow: boolean;
   onOpenModel?: (() => void) | undefined;
@@ -172,6 +173,8 @@ export function EditorPropertiesDock({
                 <DocumentSettingsSection {...documentSettings} />
               </Suspense>
             ) : null}
+            {/* A MOS's body connection leads, above its JSON. */}
+            <MosBulkConnectionSection {...mosBulk} />
             {!hasInspectableSelection ? (
               <p className="inspect-empty">Select an object to inspect.</p>
             ) : null}
@@ -190,7 +193,32 @@ export function EditorPropertiesDock({
                 </Suspense>
               </section>
             ) : null}
+            {/* One row per setting, definitions before the instance's own;
+                multi-row folds close the section. */}
             <div className="property-section instance-property-tools">
+              {component?.cellDefinition ? (
+                <CellInstanceDefinition {...component.cellDefinition} />
+              ) : null}
+              {component?.onOpenModel ? (
+                <PropertyActionRow label="Model">
+                  <button type="button" onClick={component.onOpenModel}>
+                    Open shared model source…
+                  </button>
+                </PropertyActionRow>
+              ) : null}
+              {component?.cellSymbolLayout ? (
+                <InstanceSymbolLayoutRow
+                  {...component.cellSymbolLayout}
+                  instanceSymbolId={component.code.instance.symbolId}
+                />
+              ) : null}
+              {component?.identity.propertyTerminals?.length ? (
+                <ComponentIdentityProperties
+                  {...component.identity}
+                  fieldsMovedToCode
+                />
+              ) : null}
+              {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
               {instanceGroup || instanceArray ? (
                 <Suspense fallback={null}>
                   {instanceGroup ? (
@@ -206,32 +234,6 @@ export function EditorPropertiesDock({
                     />
                   ) : null}
                 </Suspense>
-              ) : null}
-              {component?.hierarchyParameters ? (
-                <CellInstanceParameters
-                  key={component.code.instance.id}
-                  {...component.hierarchyParameters}
-                />
-              ) : null}
-              <MosBulkConnectionSection {...mosBulk} />
-              {component?.identity.propertyTerminals?.length ? (
-                <ComponentIdentityProperties
-                  {...component.identity}
-                  fieldsMovedToCode
-                />
-              ) : null}
-              {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
-              {component?.cellSymbolLayout ? (
-                <InstanceSymbolLayoutProperties
-                  key={component.cellSymbolLayout.target.ownerId}
-                  {...component.cellSymbolLayout}
-                  instanceSymbolId={component.code.instance.symbolId}
-                />
-              ) : null}
-              {component?.onOpenModel ? (
-                <button type="button" onClick={component.onOpenModel}>
-                  Open shared model source…
-                </button>
               ) : null}
             </div>
             {onConvertSignal ? (

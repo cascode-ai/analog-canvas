@@ -3498,8 +3498,9 @@ test("applies custom body fill and keeps the component behind a hole selectable"
   await expect(
     page.getByRole("button", { name: "Open shared model source…" }),
   ).toBeVisible();
+  // Captured artwork keeps its own geometry: no on-canvas grips.
   await expect(
-    page.getByRole("region", { name: "Cell symbol", exact: true }),
+    page.getByRole("group", { name: "Symbol layout", exact: true }),
   ).toHaveCount(0);
   await page
     .getByLabel("Body fill", { exact: true })

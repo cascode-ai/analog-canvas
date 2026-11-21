@@ -1,15 +1,12 @@
 import type { BlockSymbolLayoutTarget } from "../hierarchy/block-symbol-layout-target";
 import { hierarchicalBlockBodySize } from "@icm/symbols";
-import { InlineConfirm } from "../../components/inline-confirm";
-import { PropertyDisclosure } from "./property-disclosure";
+import { PropertyActionRow } from "./property-action-row";
 
 type PinSide = "north" | "east" | "south" | "west" | "auto";
 
 export interface CellSymbolLayoutProps {
   target: BlockSymbolLayoutTarget;
-  enabled: boolean;
   readOnly?: boolean;
-  onToggle?: () => void;
   onReset?: () => void;
   onBodySizeChange: (width: number, height: number) => void;
   onPortPlacementChange: (
@@ -17,43 +14,52 @@ export interface CellSymbolLayoutProps {
     side: PinSide,
     offset: number,
   ) => void;
-  /** A Cell's own artwork: opens its Symbol view. */
-  onCustomizeSymbol?: () => void;
-  onResetSymbol?: () => void;
 }
 
-export function InstanceSymbolLayoutProperties({
+/**
+ * The one symbol control a selected block keeps in Properties: its on-canvas
+ * grips. Size, sides and offsets belong to the definition's own sheet.
+ */
+export function InstanceSymbolLayoutRow({
+  target,
   instanceSymbolId,
-  ...props
-}: CellSymbolLayoutProps & { instanceSymbolId: string }) {
-  const { target, enabled } = props;
+  enabled,
+  onToggle,
+}: {
+  target: BlockSymbolLayoutTarget;
+  instanceSymbolId: string;
+  enabled: boolean;
+  onToggle: () => void;
+}) {
   // An external occurrence can retain its own captured artwork after the
-  // definition switches back to its automatic block.
+  // definition switches back to its automatic block; custom artwork owns its
+  // geometry.
   if (target.kind === "external" && instanceSymbolId !== target.id) return null;
+  if (target.presentation?.artwork) return null;
   return (
-    <PropertyDisclosure
-      title="Cell symbol"
-      role="region"
-      summary={target.presentation?.artwork ? "Custom artwork" : "Automatic"}
-      defaultOpen={enabled}
+    <PropertyActionRow
+      label="Symbol layout"
+      note={
+        enabled
+          ? "Drag an edge or corner to resize. Select pin dots or frame them to arrange a group."
+          : undefined
+      }
     >
-      <CellSymbolLayoutProperties {...props} showHeading={false} />
-    </PropertyDisclosure>
+      <button type="button" aria-pressed={enabled} onClick={onToggle}>
+        Edit on canvas
+      </button>
+    </PropertyActionRow>
   );
 }
 
+/** A definition's full block layout, edited where the definition is. */
 export function CellSymbolLayoutProperties({
   target,
-  enabled,
   readOnly = false,
-  showHeading = true,
-  onToggle,
   onBodySizeChange,
   onPortPlacementChange,
   onReset,
-  onCustomizeSymbol,
-  onResetSymbol,
-}: CellSymbolLayoutProps & { showHeading?: boolean }) {
+}: CellSymbolLayoutProps) {
   // Custom artwork owns its geometry; the automatic layout waits beside it.
   if (target.presentation?.artwork)
     return (
@@ -61,27 +67,10 @@ export function CellSymbolLayoutProperties({
         className="cell-symbol-layout-properties"
         aria-label="Cell symbol layout"
       >
-        {showHeading ? (
-          <div className="property-section-heading">Cell symbol</div>
-        ) : null}
+        <div className="property-section-heading">Cell symbol</div>
         <small>
           Blocks using the {target.name} Cell symbol share this artwork.
         </small>
-        {onCustomizeSymbol ? (
-          <button type="button" disabled={readOnly} onClick={onCustomizeSymbol}>
-            Edit custom symbol…
-          </button>
-        ) : null}
-        {onResetSymbol ? (
-          <InlineConfirm
-            disabled={readOnly}
-            confirmLabel="Reset to automatic"
-            cancelLabel="Keep custom symbol"
-            onConfirm={onResetSymbol}
-          >
-            Reset to automatic…
-          </InlineConfirm>
-        ) : null}
       </div>
     );
   const automaticSize = hierarchicalBlockBodySize(target.terminals);
@@ -97,29 +86,7 @@ export function CellSymbolLayoutProperties({
       className="cell-symbol-layout-properties"
       aria-label="Cell symbol layout"
     >
-      {showHeading ? (
-        <div className="property-section-heading">Cell symbol layout</div>
-      ) : (
-        <small>Edits the shared symbol for {target.name}.</small>
-      )}
-      {onToggle ? (
-        <button
-          type="button"
-          className="cell-symbol-layout-toggle"
-          aria-pressed={enabled}
-          onClick={onToggle}
-        >
-          {enabled
-            ? "Done editing canvas layout"
-            : "Edit symbol layout on canvas"}
-        </button>
-      ) : null}
-      {enabled ? (
-        <small>
-          Drag an edge or corner to resize. Select pin dots or frame them to
-          arrange a group.
-        </small>
-      ) : null}
+      <div className="property-section-heading">Cell symbol layout</div>
       <div className="component-geometry-row">
         <label>
           Minimum width
@@ -172,11 +139,6 @@ export function CellSymbolLayoutProperties({
           onClick={onReset}
         >
           Reset layout
-        </button>
-      ) : null}
-      {onCustomizeSymbol ? (
-        <button type="button" disabled={readOnly} onClick={onCustomizeSymbol}>
-          Customize symbol…
         </button>
       ) : null}
       <table className="cell-symbol-pin-layout-table">

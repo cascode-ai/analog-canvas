@@ -7611,24 +7611,15 @@ function WorkspaceEditor({
                             setCellManagerOpen(true);
                           }
                         : undefined,
-                      hierarchyParameters: selectedHierarchyCell
+                      // Overrides are the JSON's `parameters`; the Cell's own
+                      // settings are on its sheet.
+                      cellDefinition: selectedHierarchyCell
                         ? {
                             project,
                             parent: document,
                             cell: selectedHierarchyCell,
-                            instance: selectedInstance,
                             onDefinition: () =>
                               openCellProperties(selectedHierarchyCell.id),
-                            onChange: (name, value) =>
-                              transact([
-                                {
-                                  kind: "patch_instance_netlist_parameters",
-                                  instanceId: selectedInstance.id,
-                                  ...(value === null
-                                    ? { unset: [name] }
-                                    : { set: { [name]: value } }),
-                                },
-                              ]).ok,
                           }
                         : null,
                       cellSymbolLayout: selectedBlockLayout
@@ -7636,34 +7627,6 @@ function WorkspaceEditor({
                             target: selectedBlockLayout,
                             enabled: cellSymbolLayoutEnabled,
                             onToggle: toggleCellSymbolLayout,
-                            onBodySizeChange: (width, height) =>
-                              setCellSymbolBodySize(
-                                selectedBlockLayout,
-                                width,
-                                height,
-                              ),
-                            onPortPlacementChange: (terminalId, side, offset) =>
-                              setCellSymbolPortPlacement(
-                                selectedBlockLayout,
-                                terminalId,
-                                side,
-                                offset,
-                              ),
-                            ...(selectedBlockLayout.kind === "cell"
-                              ? {
-                                  onCustomizeSymbol: () =>
-                                    setCellSymbolAuthoringId(
-                                      selectedBlockLayout.ownerId,
-                                    ),
-                                  onResetSymbol: () => {
-                                    const refusal = setCellSymbolArtwork(
-                                      selectedBlockLayout.ownerId,
-                                      { symbolMode: "automatic" },
-                                    );
-                                    if (refusal) setStatus(refusal);
-                                  },
-                                }
-                              : {}),
                           }
                         : null,
                       identity: {

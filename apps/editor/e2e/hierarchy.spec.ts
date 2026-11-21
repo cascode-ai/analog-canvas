@@ -195,10 +195,9 @@ async function editCellLayout(page: Page) {
   const shelf = page.getByTestId("selection-shelf");
   if ((await shelf.getAttribute("aria-expanded")) === "false")
     await shelf.click();
-  const symbol = page.getByRole("region", { name: "Cell symbol", exact: true });
-  await symbol.getByText("Cell symbol", { exact: true }).click();
   await page
-    .getByRole("button", { name: "Edit symbol layout on canvas" })
+    .getByRole("group", { name: "Symbol layout", exact: true })
+    .getByRole("button", { name: "Edit on canvas", exact: true })
     .click();
   await expect(page.getByTestId("cell-symbol-layout-overlay")).toBeVisible();
 }
@@ -1518,26 +1517,34 @@ test("declares and places a Cell Pin on a new local Net", async ({ page }) => {
   if ((await layoutShelf.getAttribute("aria-expanded")) === "false") {
     await layoutShelf.click();
   }
-  await expect(
-    page.getByRole("button", { name: "Edit ReusableStage…" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "Instance parameters" }),
-  ).toHaveCount(0);
-  await expect(page.getByLabel("Cell symbol width")).toBeHidden();
-  await page
-    .getByRole("region", { name: "Cell symbol", exact: true })
-    .getByText("Cell symbol", { exact: true })
-    .click();
-  const layout = page.getByLabel("Cell symbol layout");
-  await expect(layout).toBeVisible();
-  await layout.getByLabel("Cell symbol width").fill("120");
-  await layout.getByLabel("Cell symbol width").press("Tab");
+  // Properties keeps one row per Cell setting; the sheet owns the symbol.
+  await expect(page.getByLabel("Cell symbol width")).toHaveCount(0);
+  await page.getByRole("button", { name: "Edit ReusableStage…" }).click();
+  const sheet = page.getByRole("dialog", {
+    name: "ReusableStage Cell properties",
+  });
+  await sheet.getByLabel("Cell symbol width").fill("120");
+  await sheet.getByLabel("Cell symbol width").press("Enter");
   await expectStatus(page, "Resized ReusableStage");
-  await layout.getByLabel("Cell symbol OUT pin side").selectOption("north");
+  // A chosen side takes an offset along it, beside the side in the sheet.
+  const offset = sheet.getByLabel("Cell symbol OUT pin offset");
+  await sheet.getByLabel("Cell symbol OUT pin side").selectOption("north");
   await expectStatus(page, "Moved Cell symbol pin");
-  await layout
-    .getByRole("button", { name: "Edit symbol layout on canvas" })
+  await expect(offset).toHaveValue("0");
+  await offset.fill("20");
+  await offset.press("Enter");
+  // A refused offset would show the stored 0 again.
+  await expect(offset).toHaveValue("20");
+  // Back where the canvas drags below start from.
+  await offset.fill("0");
+  await offset.press("Enter");
+  await expect(offset).toHaveValue("0");
+  await sheet
+    .getByRole("button", { name: "Close Cell properties", exact: true })
+    .click();
+  await page
+    .getByRole("group", { name: "Symbol layout", exact: true })
+    .getByRole("button", { name: "Edit on canvas", exact: true })
     .click();
   const layoutOverlay = page.getByTestId("cell-symbol-layout-overlay");
   await expect(layoutOverlay).toBeVisible();

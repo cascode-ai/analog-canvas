@@ -457,6 +457,12 @@ test("keeps Bulk status and its prominent draw action on one compact row", async
   });
   expect(layout.height).toBeLessThan(58);
   expect(Math.abs(layout.headingY - layout.actionY)).toBeLessThan(2);
+  // Bulk leads Properties, above the component JSON.
+  const bulkBox = await bulk.boundingBox();
+  const codeBox = await page
+    .getByTestId("component-property-code-editor")
+    .boundingBox();
+  expect(bulkBox!.y + bulkBox!.height).toBeLessThanOrEqual(codeBox!.y);
 
   await draw.click();
   await expectStatus(page, "Drawing M1.B bulk connection");

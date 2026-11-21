@@ -3,7 +3,6 @@ import { useState, type ReactNode } from "react";
 export function PropertyDisclosure({
   title,
   summary,
-  defaultOpen = false,
   ariaLabel,
   role = "group",
   className,
@@ -11,13 +10,12 @@ export function PropertyDisclosure({
 }: {
   title: string;
   summary?: ReactNode;
-  defaultOpen?: boolean;
   ariaLabel?: string;
   role?: "group" | "region";
   className?: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useState(false);
   return (
     <details
       className={["property-details", "property-disclosure", className]

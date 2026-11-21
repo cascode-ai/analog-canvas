@@ -113,7 +113,7 @@ owns visual authority.
   supply-mapped Pin is a property supply: a caller wire or No Connect on it
   refuses; unwired, it takes the Net chosen in Properties, else its rail.
   Mode switches and artwork edits use route-follow; no connection is lost.
-  GUI (Cell instance Properties, Cell properties: Customize symbol, Reset to
+  GUI (Cell properties: Customize symbol; its Symbol view: Reset to
   automatic) and Agent (`set-cell-symbol-artwork`: `symbolMode`,
   `artworkText`, Cell-Pin-name-keyed `pinMap`) share `planSetCellSymbolArtwork`;
   Customize captures the generated block mapped one to one.

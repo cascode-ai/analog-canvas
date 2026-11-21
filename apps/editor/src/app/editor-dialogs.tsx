@@ -659,7 +659,7 @@ export function EditorDialogs({
                 onEditParameter: (cellId, name, change) =>
                   editCellParameter(name, change, cellId),
                 onSymbolSizeChange: setCellSymbolBodySize,
-                onPinSideChange: setCellSymbolPortPlacement,
+                onPinPlacementChange: setCellSymbolPortPlacement,
                 onSetTop: (cellId) => void setTopCell(cellId),
                 onCustomizeSymbol: (cellId) => {
                   setCellPropertiesId(null);
