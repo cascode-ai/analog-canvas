@@ -68,7 +68,7 @@ describe("validation gate planning", () => {
 
   it("runs overlapping browser gates once while keeping their reasons and other checks", () => {
     const plan = planValidation(
-      ["apps/editor/e2e/canvas-fixtures.ts"],
+      ["apps/editor/e2e/canvas-fixtures.ts", "worker/gallery.ts"],
       catalog,
     );
     const runs = executionGates(plan, "affected");
@@ -77,13 +77,15 @@ describe("validation gate planning", () => {
     const specs = browser[0].command.slice(2);
     expect(specs).toContain("apps/editor/e2e/component-insert.spec.ts");
     expect(specs).toContain("apps/editor/e2e/group-mirror.spec.ts");
+    expect(specs).toContain("apps/editor/e2e/gallery-wall.spec.ts");
+    expect(browser[0].reasons).toContain("gallery: worker/gallery.ts");
     expect(specs.length).toBe(new Set(specs).size);
     expect(formatGatePlan(plan).match(/pnpm test:e2e:local/gu)).toHaveLength(1);
     expect(
       formatGatePlanMarkdown(plan).match(/pnpm test:e2e:local/gu),
     ).toHaveLength(1);
     expect(browser[0].reasons).toContain(
-      "componentInsert: apps/editor/e2e/canvas-fixtures.ts",
+      "browser fixture: apps/editor/e2e/canvas-fixtures.ts",
     );
     expect(runs.some((gate) => gate.id === "workspace-unit")).toBe(true);
     expect(executionGates(plan, "preflight")).toEqual(
@@ -138,6 +140,15 @@ describe("validation gate planning", () => {
       .sort();
 
     expect([...full.supersedes].sort()).toEqual(covered);
+
+    const plan = planValidation(
+      ["config/validation-gates.json", "apps/editor/e2e/canvas-fixtures.ts"],
+      catalog,
+    );
+    expect(plan.selectedGates.map(({ id }) => id)).toContain(
+      "browser-fixtures",
+    );
+    expect(executionGates(plan, "affected")).toEqual([]);
   });
 
   it("matches repository globs without treating a single star as a slash", () => {

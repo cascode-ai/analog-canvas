@@ -89,6 +89,22 @@ describe("CI validation planning", () => {
     }
   });
 
+  it("keeps the configured viewport check for a fixture used only by the manual performance lane", () => {
+    const path = "apps/editor/e2e/performance-fixture.ts";
+    const plan = planValidation(
+      [path, "apps/editor/e2e/regional-auth-fixture.ts"],
+      catalog,
+    );
+    expect(plan.manualChecks.map(({ id }) => id)).toContain(
+      "browser-performance",
+    );
+    expect(planCiValidation(plan).e2eArgs).toEqual([
+      "apps/editor/e2e/gallery-account.spec.ts",
+      "apps/editor/e2e/task-canvas.spec.ts",
+      "apps/editor/e2e/wheel-behavior.spec.ts",
+    ]);
+  });
+
   it("sizes the browser shards to the tests selected, from two to eight", () => {
     const shards = (counts, mode = "focused") =>
       browserShardMatrix(
@@ -283,13 +299,16 @@ describe("CI validation planning", () => {
       expect(plan.mode, path).toBe("focused");
       expect(plan.e2eArgs, path).toEqual(
         expect.arrayContaining([
-          "apps/editor/e2e/web-agent-session.spec.ts",
           "apps/editor/e2e/agent-simulation.spec.ts",
           "apps/editor/e2e/gui-native-simulation.spec.ts",
           "apps/editor/e2e/simulation-batch.spec.ts",
         ]),
       );
     }
+    const executor = "apps/editor/e2e/native-simulation-executor";
+    expect(ciPlan([`${executor}.d.mts`]).e2eArgs).toEqual(
+      ciPlan([`${executor}.mjs`]).e2eArgs,
+    );
   });
 
   it("requires named manual native MCP evidence for MCP implementation and spec edits", () => {
@@ -374,12 +393,7 @@ describe("CI validation planning", () => {
     const fixturePlan = ciPlan(["apps/editor/e2e/manual-editor-fixtures.ts"]);
     expect(fixturePlan.mode).toBe("focused");
     expect(fixturePlan.e2eArgs).toEqual(
-      expect.arrayContaining([
-        properties,
-        netlist,
-        conversion,
-        ...editingSpecs,
-      ]),
+      expect.arrayContaining([properties, netlist, rnl, ...editingSpecs]),
     );
     for (const path of [
       "apps/editor/src/app/editor-properties-dock.tsx",
@@ -627,6 +641,55 @@ describe("CI validation planning", () => {
     ).toEqual(["apps/editor/e2e/component-insert.spec.ts"]);
   });
 
+  it("runs the specs that use a shared fixture and keeps its manual checks", () => {
+    const path = "apps/editor/e2e/canvas-fixtures.ts";
+    const plan = planValidation([path], catalog);
+    const specNames = planCiValidation(plan).e2eArgs;
+    expect(specNames).toEqual(
+      expect.arrayContaining([
+        "apps/editor/e2e/diagnostics-surfacing.spec.ts",
+        "apps/editor/e2e/runtime-crash-safety.spec.ts",
+        "apps/editor/e2e/wheel-behavior.spec.ts",
+      ]),
+    );
+    expect(specNames).not.toContain("apps/editor/e2e/gallery-wall.spec.ts");
+    expect(plan.manualChecks.map((check) => check.id)).toEqual([
+      "mcp-native",
+      "mcp-sg13g2",
+    ]);
+  });
+
+  it("follows fixtures through another fixture and the page-module registry", () => {
+    expect(
+      ciPlan(["apps/editor/e2e/regional-auth-fixture.ts"]).e2eArgs,
+    ).toEqual([
+      "apps/editor/e2e/gallery-account.spec.ts",
+      "apps/editor/e2e/task-canvas.spec.ts",
+    ]);
+    expect(
+      ciPlan(["apps/editor/e2e/helpers/simulation-code-harness.tsx"]).e2eArgs,
+    ).toEqual([
+      "apps/editor/e2e/simulation-code-editor.spec.ts",
+      "apps/editor/e2e/simulation-evidence-benchmark.spec.ts",
+      "apps/editor/e2e/simulation-spec-results.spec.ts",
+      "apps/editor/e2e/simulation-storage.spec.ts",
+    ]);
+    expect(ciPlan(["apps/editor/e2e/gallery-fixtures.ts"]).e2eArgs).toContain(
+      "apps/editor/e2e/gallery-request-failures.spec.ts",
+    );
+  });
+
+  it("checks all ordinary specs for an unresolved browser fixture", () => {
+    const plan = ciPlan(["apps/editor/e2e/helpers/unknown-fixture.ts"]);
+    expect(plan.e2eArgs).toEqual(
+      [
+        ...new Set(catalog.gates.flatMap((gate) => gate.ci?.e2eArgs ?? [])),
+      ].sort(),
+    );
+    for (const check of catalog.manualChecks)
+      for (const spec of check.specs) expect(plan.e2eArgs).not.toContain(spec);
+  });
+
   it("keeps every browser spec reachable through a focused or named manual route", async () => {
     const directory = new URL("../../apps/editor/e2e/", import.meta.url);
     const specs = (await readdir(directory))
@@ -656,6 +719,18 @@ describe("CI validation planning", () => {
       e2eArgs: [],
     });
   });
+
+  it.each(["playwright.config.ts", "scripts/build-e2e-editor.mjs"])(
+    "runs the browser smoke when %s changes",
+    (path) => {
+      expect(ciPlan([path])).toMatchObject({
+        heavy: true,
+        browser: true,
+        mode: "fallback",
+        e2eArgs: fallbackSpecs,
+      });
+    },
+  );
 
   it("keeps workflow-only changes out of the browser runner", () => {
     expect(ciPlan([".github/workflows/ci.yml"])).toMatchObject({

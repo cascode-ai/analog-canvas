@@ -368,38 +368,27 @@ for (const mode of ["spice+rnl", "spectre+rnl"] as const)
     expect(heights.scroller).toBeGreaterThan(200);
   });
 
+// rnl-round-trip.test.ts owns drawing, electrical graph and label parity.
 for (const mode of ["spice+rnl", "spectre+rnl"] as const)
-  test(`imports bipolar devices, a diode and mirrored labels from ${mode}`, async ({
+  test(`copies ${mode} and installs its Project in an empty tab`, async ({
     page,
   }) => {
-    const project = bipolarProject();
-    await openProject(page, project);
-    const drawn = await exportedProject(page);
+    await openProject(page, bipolarProject());
     const text = await copiedNetlist(page, mode);
+    const spice = mode === "spice+rnl";
+    expect(text).toContain(`${spice ? "*" : "//"} @RNL(type="header")`);
+
+    await page
+      .getByRole("button", { name: "New project tab", exact: true })
+      .click();
+    await expect(page.getByTestId("active-instance-count")).toHaveText("0");
     await page.getByTestId("rnl-files").setInputFiles({
-      name: `bipolar.${mode === "spice+rnl" ? "sp" : "scs"}`,
+      name: `bipolar.${spice ? "sp" : "scs"}`,
       mimeType: "text/plain",
       buffer: Buffer.from(text),
     });
-    const unsaved = page.getByRole("dialog", { name: "Unsaved changes" });
-    const imported = page
-      .getByTestId("status")
-      .filter({ hasText: /^Imported \d+ Documents?/u });
-    await expect(unsaved.or(imported)).toBeVisible();
-    if (await unsaved.isVisible())
-      await unsaved
-        .getByRole("button", { name: "Continue without saving" })
-        .click();
-    await expectStatus(page, /^Imported \d+ Documents?/u);
-    const read = await exportedProject(page);
-    expect(drawingCensus(read)).toEqual(drawingCensus(drawn));
-    const before = projectElectricalGraph(drawn);
-    const after = projectElectricalGraph(read);
-    expect(before.status).toBe("ready");
-    expect(after.status).toBe("ready");
-    if (before.status === "ready" && after.status === "ready")
-      expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
-    expect(labelDifferences(labelCensus(drawn), labelCensus(read))).toEqual([]);
+    await expectStatus(page, /^Imported 1 Document/u);
+    await expect(page.getByTestId("hit-Q1")).toBeVisible();
   });
 
 /**

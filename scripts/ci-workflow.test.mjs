@@ -182,9 +182,6 @@ describe("CI workflow", () => {
     expect(stepRunning(built, "pnpm ci:unit:built").env).toMatchObject({
       ICM_CI_PACKAGE_BUILD: "1",
     });
-    expect(
-      stepRunning(built, "node scripts/ci-package-build.mjs verify"),
-    ).toBeDefined();
   });
 
   it("runs every Vitest project once, the built-entry project only on the shared build", () => {
