@@ -117,7 +117,7 @@ function deadEndNodeDiagnostics(
   return diagnostics;
 }
 
-/** Change only formal interface spelling and the internal nodes they own. */
+/** Change printed formal nodes while preserving the bound terminal identities. */
 function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
   const spell = (name: string) => {
     // `_bar` is a semantic display marker, not part of the cased signal name.
@@ -144,15 +144,8 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
       for (const node of instance.nodes) {
         const nextNetName = netRenames.get(node.netName);
         if (nextNetName) node.netName = nextNetName;
-        if (instance.deviceClass === "hierarchical") {
-          node.pinName = spell(node.pinName);
-        }
       }
     }
-  }
-  for (const master of ir.externalMasters ?? []) {
-    for (const terminal of master.terminals)
-      terminal.name = spell(terminal.name);
   }
 }
 

@@ -166,6 +166,8 @@ edits; it chooses no topology and yields no edits on conflict
     gets `AI_ACCOUNT_REQUIRED`; `status` alone is `GALLERY_STATUS_NEEDS_SCOPE`.
   - `read-project-code`/`replace-project-code`, `read-netlist`/
     `replace-netlist` use the Editor's planners with structure-revision guards.
+    `read-netlist` with `rnl: true` returns the [RNL interchange file](rnl-interchange.md)
+    in `netlist.text` with an empty `cells` array.
     Netlist replacement is limited to device names, model targets and
     parameter values; topology goes through Project Code or transactions.
   - `list-projects`, `list-cells`, `import-cell`

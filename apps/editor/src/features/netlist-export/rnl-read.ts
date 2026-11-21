@@ -1,142 +1,105 @@
-import type { AgentNetlistRead } from "@icm/agent-adapter";
+import type {
+  AgentNetlistRead,
+  AgentProjectResourceRequest,
+} from "@icm/agent-adapter";
 import type { CircuitProject } from "@icm/model";
 import { createRnlExport, type RnlExport } from "@icm/rnl";
+import type { RnlRuntime, RnlWritten } from "./rnl-runtime";
 
-import { loadRnlRuntime, type RnlWritten } from "./rnl-runtime";
+type ReadNetlistRequest = Extract<
+  AgentProjectResourceRequest,
+  { operation: "read-netlist" }
+>;
+type ReadRnlOptions = Pick<
+  ReadNetlistRequest,
+  "format" | "namingProfile" | "portCase" | "rootDocumentId"
+>;
+type RnlWriter = Pick<RnlRuntime, "write">;
 
-export interface ReadRnlOptions {
-  format?: "spice" | "spectre" | undefined;
-  namingProfile?: "native" | "cadence-bang" | undefined;
-  rootDocumentId?: string | undefined;
-}
+export type RnlReader = (
+  project: CircuitProject,
+  options: ReadRnlOptions,
+) => Promise<AgentNetlistRead>;
 
-type Diagnostic = AgentNetlistRead["diagnostics"][number];
-
-function diagnostic(
-  severity: "error" | "warning" | "info",
-  code: string,
-  message: string,
-): Diagnostic {
-  return { severity, code, message, objectIds: [] };
-}
-
-function exportDiagnostics(
+export function writeRnlNetlist(
   exported: Extract<RnlExport, { status: "ready" }>,
-  written: RnlWritten | null,
-): Diagnostic[] {
-  return [
-    ...exported.diagnostics.map((item) =>
-      diagnostic(item.severity, item.code, item.message),
-    ),
-    ...(written?.document.diagnostics ?? []).map((item) =>
-      diagnostic(
-        item.severity === "error" || item.severity === "warning"
-          ? item.severity
-          : "info",
-        "RNL_RUNTIME",
-        item.message,
-      ),
-    ),
-  ];
+  runtime: RnlWriter,
+): Promise<RnlWritten> {
+  return runtime.write({
+    write: exported.request,
+    svg: false,
+    primitives: false,
+  });
 }
 
-/** The answer a blocked RNL export gives, with the netlist's own findings. */
-export function blockedRnl(
-  format: "spice" | "spectre",
-  exported: Extract<RnlExport, { status: "blocked" }>,
-): AgentNetlistRead {
-  return {
+/** Read the same interchange file the Netlist panel writes. */
+export async function readRnl(
+  project: CircuitProject,
+  { format = "spice", namingProfile, portCase, rootDocumentId }: ReadRnlOptions,
+  loadRuntime: () => Promise<RnlWriter | null>,
+): Promise<AgentNetlistRead> {
+  const exported = createRnlExport(project, {
+    format,
+    ...(namingProfile ? { namingProfile } : {}),
+    ...(portCase ? { portCase } : {}),
+    ...(rootDocumentId ? { rootDocumentId, uncalledCells: false } : {}),
+  });
+  const diagnostics = [
+    ...exported.netlistDiagnostics,
+    ...exported.diagnostics,
+  ].map(({ severity, code, message, objectIds }) => ({
+    severity,
+    code,
+    message,
+    objectIds: [...objectIds],
+  }));
+  const response = {
+    documentId: rootDocumentId ?? project.topDocumentId,
     format,
     rnl: true,
+    diagnostics,
+  };
+  if (exported.status === "blocked")
+    return { ...response, status: "blocked", text: null };
+
+  const failed = (code: string, message: string): AgentNetlistRead => ({
+    ...response,
     status: "blocked",
     text: null,
     diagnostics: [
-      ...exported.diagnostics.map((item) =>
-        diagnostic(item.severity, item.code, item.message),
-      ),
-      ...exported.netlistDiagnostics
-        .filter((item) => item.severity === "error")
-        .map((item) => diagnostic("error", item.code, item.message)),
+      ...diagnostics,
+      { severity: "error", code, message, objectIds: [] },
     ],
-  };
-}
-
-/** The answer a written RNL export gives, with the runtime's findings. */
-export function writtenRnl(
-  format: "spice" | "spectre",
-  exported: Extract<RnlExport, { status: "ready" }>,
-  written: RnlWritten,
-): AgentNetlistRead {
-  return {
-    format,
-    rnl: true,
-    status: "ready",
-    text: written.text,
-    diagnostics: exportDiagnostics(exported, written),
-  };
-}
-
-/** A failure of the runtime itself, not of the circuit. */
-export function failedRnl(
-  format: "spice" | "spectre",
-  code: string,
-  message: string,
-): AgentNetlistRead {
-  return {
-    format,
-    rnl: true,
-    status: "blocked",
-    text: null,
-    diagnostics: [diagnostic("error", code, message)],
-  };
-}
-
-/**
- * The Project's netlist with its drawing written as RNL, exactly as the
- * Netlist panel's SPICE+RNL and Spectre+RNL views write it. A page supplies
- * the runtime Worker here; a headless workspace supplies the same core.
- */
-export async function readRnlBrowser(
-  project: CircuitProject,
-  options: ReadRnlOptions,
-): Promise<AgentNetlistRead> {
-  const format = options.format ?? "spice";
-  const documentId = options.rootDocumentId ?? project.topDocumentId;
-  const exported = createRnlExport(project, {
-    format,
-    ...(options.namingProfile ? { namingProfile: options.namingProfile } : {}),
-    ...(options.rootDocumentId
-      ? { rootDocumentId: options.rootDocumentId }
-      : {}),
   });
-  if (exported.status !== "ready")
-    return { ...blockedRnl(format, exported), documentId };
-
   try {
-    const runtime = await loadRnlRuntime();
+    const runtime = await loadRuntime();
     if (!runtime)
-      return {
-        ...failedRnl(
-          format,
-          "RNL_RUNTIME_UNAVAILABLE",
-          "The RNL runtime is not available; nothing was written.",
-        ),
-        documentId,
-      };
-    const written = await runtime.write({
-      write: exported.request,
-      svg: false,
-      primitives: false,
-    });
-    return { ...writtenRnl(format, exported, written), documentId };
-  } catch (error) {
+      return failed(
+        "RNL_RUNTIME_UNAVAILABLE",
+        "The RNL runtime is not available.",
+      );
+    const written = await writeRnlNetlist(exported, runtime);
     return {
-      ...failedRnl(
-        format,
-        "RNL_WRITE_FAILED",
-        error instanceof Error ? error.message : String(error),
-      ),
-      documentId,
+      ...response,
+      status: "ready",
+      text: written.text,
+      diagnostics: [
+        ...diagnostics,
+        ...written.document.diagnostics.map<
+          AgentNetlistRead["diagnostics"][number]
+        >(({ severity, message }) => ({
+          severity:
+            severity === "error" || severity === "warning" ? severity : "info",
+          code: "RNL_RUNTIME",
+          message,
+          objectIds: [],
+        })),
+      ],
     };
+  } catch (error) {
+    return failed(
+      "RNL_WRITE_FAILED",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }

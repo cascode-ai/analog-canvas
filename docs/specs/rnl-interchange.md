@@ -33,10 +33,10 @@ the RNL language and its runtime belong to rnl.
 
 ### Dependency
 
-- The rnl runtime (`@rich-netlist/runtime`, WebAssembly in a Worker, loaded on
-  demand) writes and reads every RNL statement. The editor never spells RNL
-  syntax: it hands the runtime edit-transaction operations and reads its
-  snapshot, so an rnl upgrade changes the written RNL without editor changes.
+- The rnl runtime (`@rich-netlist/runtime`) writes and reads every RNL
+  statement. The editor sends edit-transaction operations and reads runtime
+  snapshots. The editor loads the WebAssembly in a Worker on demand. The
+  optional headless workspace loads the same core in-process on demand.
 - The runtime is an rnl release from npm, named by its exact version and
   pinned by the lockfile's integrity; its SHA-256 must be the one the GitHub
   release `core-v<version>` lists in SHA256SUMS.txt:
@@ -47,8 +47,10 @@ the RNL language and its runtime belong to rnl.
   built and tested from it (`core-npm` of the nightly or a pull request's
   core checks), never a local build;
   `pnpm rnl:runtime:vendor -- --commit <sha>` records the run.
-- WebAssembly stays out of packages the Worker and MCP bundles import
-  (`@icm/netlist`, `@icm/symbols`, `@icm/derived`); only the editor loads it.
+- WebAssembly stays in the editor and optional headless workspace. The
+  headless asset carries the pinned runtime, its license notices and the
+  Canvas package. The Worker API and base MCP connector consume the pure
+  packages (`@icm/netlist`, `@icm/symbols`, `@icm/derived`).
 - Upstream decisions this contract follows: Analog Canvas stays compatible
   with RNL and is no RNL editor — it reads RNL into its own format and writes
   it anew on export
@@ -90,8 +92,9 @@ the RNL language and its runtime belong to rnl.
 - The Netlist panel offers `SPICE+RNL` and `Spectre+RNL` beside `SPICE` and
   `SCS`. They print the same circuit with RNL records added; `SPICE` and `SCS`
   are unchanged. Another netlist dialect gets its own `<dialect>+RNL` format.
-- An RNL format also prints the Cells the top does not call, after the top,
-  so the file carries every Cell's drawing. Where one of them calls the top,
+- A Project-wide RNL export also prints Cells the top does not call, after the
+  top. An Agent export scoped to a Cell prints that Cell and its dependencies.
+  Where an uncalled Cell calls the top,
   and so is the netlist's top in its place, the top's record names it as
   the editor's (`$CANVAS_TOP` on `#`). An uncalled Cell the
   netlist cannot print, such as one not finished, stays out, and the others

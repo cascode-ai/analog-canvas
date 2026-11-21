@@ -5,7 +5,7 @@
 //
 // It talks to no editor: what the tools do is tested on source, and a
 // release candidate is paired with Production before it is published. One
-// placement in --local mode checks the separately acquired drawing engine.
+// placement and RNL export in --local mode check the drawing engine.
 //
 //   node scripts/mcp-release-smoke.mjs [packaged-executable] [headless-asset]
 //
@@ -14,7 +14,16 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { copyFile, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+} from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -175,7 +184,9 @@ try {
     "The packaged command line must report the declared version",
   );
   // Local mode (#1498): drawn into a Project file, with no editor at all.
-  env.ANALOG_CANVAS_HEADLESS = headless;
+  const offlineEngine = join(temporary, "analog-canvas-headless.mjs");
+  await copyFile(headless, offlineEngine);
+  env.ANALOG_CANVAS_HEADLESS = offlineEngine;
   const connectorBytes = (await stat(executable)).size;
   const headlessBytes = (await stat(headless)).size;
   const drawing = join(temporary, "drawing");
@@ -201,6 +212,47 @@ try {
     ["R1"],
     "Local mode must save the drawing to the workspace's Project file",
   );
+  const rnlWorkspace = join(temporary, "rnl");
+  await mkdir(rnlWorkspace);
+  await copyFile(
+    resolve("apps/editor/src/examples/simulation-rc.icproj.json"),
+    join(rnlWorkspace, "project.icproj.json"),
+  );
+  for (const format of ["spice", "spectre"]) {
+    const result = await command(
+      ["--local", rnlWorkspace, "--http", "netlist_code"],
+      { action: "read", format, rnl: true },
+    );
+    const { netlist } = result;
+    assert.equal(result.ok, true);
+    assert.equal(netlist.status, "ready", JSON.stringify(netlist.diagnostics));
+    assert.equal(netlist.format, format);
+    assert.equal(netlist.rnl, true);
+    assert.deepEqual(result.cells, []);
+    assert.match(netlist.text, /@VERSION\("0\.4"\)/u);
+    assert.match(netlist.text, /@WIRE\b/u);
+    assert.ok(
+      netlist.diagnostics.every(({ severity }) => severity !== "error"),
+    );
+  }
+  const editorRequire = createRequire(resolve("apps/editor/package.json"));
+  const runtimePath = dirname(
+    editorRequire.resolve("@rich-netlist/runtime/package.json"),
+  );
+  const licenseFiles = [
+    "LICENSE",
+    ...(await readdir(join(runtimePath, "LICENSES"))).map((name) =>
+      join("LICENSES", name),
+    ),
+  ];
+  const engineSource = await readFile(offlineEngine, "utf8");
+  for (const file of licenseFiles) {
+    const license = (await readFile(join(runtimePath, file), "utf8")).trim();
+    assert.ok(
+      engineSource.includes(license),
+      "Missing RNL runtime notice " + file,
+    );
+  }
   process.stdout.write(
     `Packaged MCP ${mcpVersion} (${connectorBytes} bytes) starts on its own with ${packaged.tools.length} tools and ${packaged.resources.length} resources. The optional engine (${headlessBytes} bytes) draws in a local workspace.\n`,
   );

@@ -31484,6 +31484,9 @@
                   "ics55"
                 ]
               },
+              "rnl": {
+                "type": "boolean"
+              },
               "documentId": {
                 "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"
               },
@@ -38333,6 +38336,9 @@
               },
               "format": {
                 "$ref": "#/components/schemas/agentProjectResourceResponse/$defs/__schema132"
+              },
+              "rnl": {
+                "type": "boolean"
               },
               "status": {
                 "type": "string",

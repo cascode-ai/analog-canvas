@@ -40,48 +40,6 @@ vi.mock("@icm/exporters", async (importOriginal) => {
 });
 
 describe("BrowserAgentProjectHost", () => {
-  it("writes RNL through the host's runtime and leaves Cell exports out", async () => {
-    const project = createEmptyProject("destination", "Before");
-    const readRnl = vi.fn(async () => ({
-      format: "spectre" as const,
-      rnl: true,
-      status: "ready" as const,
-      text: '* @RNL(type="header") {}\n.subckt Before\n.ends Before\n',
-      diagnostics: [],
-    }));
-    const host = new BrowserAgentProjectHost({
-      getProjectSessionId: () => "session",
-      getProject: () => project,
-      getActiveDocumentId: () => project.topDocumentId,
-      commitProjectStructure: vi.fn(),
-      dispatchProjectTransaction: vi.fn(),
-      readRnl,
-    });
-    expect(
-      await host.handle({
-        apiVersion: AGENT_API_VERSION,
-        requestId: "rnl-read",
-        operation: "read-netlist",
-        format: "spectre",
-        rnl: true,
-      }),
-    ).toMatchObject({
-      ok: true,
-      operation: "read-netlist",
-      netlist: {
-        format: "spectre",
-        rnl: true,
-        status: "ready",
-        text: expect.stringContaining("@RNL"),
-      },
-      cells: [],
-    });
-    expect(readRnl).toHaveBeenCalledWith(
-      project,
-      expect.objectContaining({ format: "spectre" }),
-    );
-  });
-
   it("reports RNL_UNAVAILABLE when the host has no runtime", async () => {
     const project = createEmptyProject("destination", "Before");
     const host = new BrowserAgentProjectHost({

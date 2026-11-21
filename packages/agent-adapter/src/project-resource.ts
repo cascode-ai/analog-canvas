@@ -208,7 +208,7 @@ export const AgentProjectResourceRequestSchema = z.discriminatedUnion(
       /**
        * Write the drawing into the same netlist as RNL comments. The editor's
        * own export mode, available here so a headless workspace can produce
-       * an RNL file without a page. The root Cell only.
+       * an RNL file without a page. The explicit Cell scope includes its dependencies.
        */
       rnl: z.boolean().optional(),
       /** Public Cell-scoped spelling; rootDocumentId remains wire-compatible. */

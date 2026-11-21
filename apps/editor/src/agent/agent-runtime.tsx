@@ -4,6 +4,8 @@
 import { memo, useEffect, useLayoutEffect, useState } from "react";
 import { createEmptyProject } from "@icm/model";
 import { EditorDocumentController } from "../document/document-controller";
+import { readRnl, type RnlReader } from "../features/netlist-export/rnl-read";
+import { loadRnlRuntime } from "../features/netlist-export/rnl-runtime";
 import { BrowserAgentHost } from "./browser-agent-host";
 import {
   useAgentSession,
@@ -17,6 +19,9 @@ export { BrowserAgentSimulationHost } from "./browser-agent-simulation-host";
 export { BrowserAgentProjectHost } from "./browser-agent-project-host";
 export { createAgentGalleryPublisher } from "./agent-gallery-publish";
 export { createAgentSemanticIntentHandler } from "./agent-semantic-intent-handler";
+
+export const readRnlBrowser: RnlReader = (project, options) =>
+  readRnl(project, options, loadRnlRuntime);
 
 /**
  * The workspace's Agent session. It runs beside the page the workspace

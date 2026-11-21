@@ -2,7 +2,9 @@ import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { parseProject } from "@icm/project-protocol";
+import { parseProject, serializeProject } from "@icm/project-protocol";
+import { delayCellFixture } from "../../../packages/netlist/src/delay-cell-fixture.test-support.js";
+import { externalModelFixture } from "../../../packages/netlist/src/external-model-fixture.test-support.js";
 // The editor's own headless workspace, from source: what the bundle holds.
 import * as headless from "../../editor/src/headless/index";
 import { runHttpCommand } from "./http-cli.js";
@@ -39,6 +41,13 @@ async function open(options: LocalArguments) {
       Record<string, unknown>
     >;
   return { mode, tool };
+}
+
+async function openExample(name: string) {
+  const dir = await temporary();
+  const file = resolve("apps/editor/src/examples", name + ".icproj.json");
+  await writeFile(join(dir, "project.icproj.json"), await readFile(file));
+  return open({ dir });
 }
 
 const stored = async (dir: string) =>
@@ -98,6 +107,127 @@ const REFERENCE = [
 ].join("\n");
 
 describe("MCP local mode (#1498)", () => {
+  it("scopes an RNL read to the requested Cell and its dependencies", async () => {
+    const { tool } = await openExample("simulation-rc");
+    const wholeProject = await tool("netlist_code", {
+      action: "read",
+      rnl: true,
+    });
+    expect(wholeProject.netlist).toMatchObject({
+      status: "ready",
+      text: expect.stringMatching(
+        /\.subckt rc_lowpass\b[\s\S]*\.subckt rc_highpass\b/u,
+      ),
+    });
+    const highPass = await tool("netlist_code", {
+      action: "read",
+      rnl: true,
+      documentId: "cell-rc-highpass",
+    });
+    expect(highPass).toMatchObject({
+      ok: true,
+      netlist: {
+        documentId: "cell-rc-highpass",
+        status: "ready",
+        text: expect.stringContaining(".subckt rc_highpass VSS"),
+      },
+      cells: [],
+    });
+    expect(highPass.netlist).toMatchObject({
+      text: expect.not.stringContaining(".subckt rc_lowpass"),
+    });
+  });
+
+  it("applies the requested port case to RNL netlists in both dialects", async () => {
+    const { tool } = await openExample("two-stage-op-amp");
+    for (const [format, declaration] of [
+      ["spice", ".subckt Main VSS VOUT VIN"],
+      ["spectre", "subckt Main (VSS VOUT VIN)"],
+    ] as const) {
+      const result = await tool("netlist_code", {
+        action: "read",
+        rnl: true,
+        format,
+        portCase: "upper",
+      });
+      expect(result.netlist).toMatchObject({
+        status: "ready",
+        text: expect.stringContaining(declaration),
+        diagnostics: expect.not.arrayContaining([
+          expect.objectContaining({ severity: "error" }),
+        ]),
+      });
+    }
+  });
+
+  it("reports an external model body the RNL file depends on", async () => {
+    const dir = await temporary();
+    const project = externalModelFixture();
+    delete project.externalSubcircuitDefinitions[0]!.implementation;
+    delete project.modelSources;
+    await writeFile(join(dir, "project.icproj.json"), JSON.stringify(project));
+    const { tool } = await open({ dir });
+    const result = await tool("netlist_code", { action: "read", rnl: true });
+    expect(result.netlist).toMatchObject({
+      status: "ready",
+      text: expect.stringContaining(" gain_block"),
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          severity: "warning",
+          code: "MODEL_LEGACY_IMPLEMENTATION_UNVERIFIED",
+        }),
+      ]),
+    });
+  });
+
+  it("keeps inline Library terminals bound when RNL port case changes", async () => {
+    const dir = await temporary();
+    await writeFile(
+      join(dir, "project.icproj.json"),
+      JSON.stringify(delayCellFixture(false)),
+    );
+    const { tool } = await open({ dir });
+    for (const format of ["spice", "spectre"]) {
+      const result = await tool("netlist_code", {
+        action: "read",
+        rnl: true,
+        format,
+        portCase: "lower",
+      });
+      expect(result.netlist).toMatchObject({
+        status: "ready",
+        text: expect.stringContaining("@PLACE"),
+      });
+    }
+  });
+
+  it("preserves external block pins and No Connects when RNL port case changes", async () => {
+    const dir = await temporary();
+    await writeFile(
+      join(dir, "project.icproj.json"),
+      serializeProject(externalModelFixture()),
+    );
+    const { tool } = await open({ dir });
+    for (const format of ["spice", "spectre"]) {
+      const result = await tool("netlist_code", {
+        action: "read",
+        rnl: true,
+        format,
+        portCase: "lower",
+      });
+      expect(result.netlist).toMatchObject({
+        status: "ready",
+        text: expect.stringContaining("@PIN"),
+        diagnostics: expect.not.arrayContaining([
+          expect.objectContaining({ code: "RNL_NO_CONNECT_UNNAMED" }),
+        ]),
+      });
+      expect(result.netlist).toMatchObject({
+        text: expect.stringContaining("$NO_CONNECT"),
+      });
+    }
+  });
+
   it("draws, renders and verifies with no browser, the Project file saved after each call", async () => {
     const root = await temporary();
     const dir = join(root, "divider");

@@ -34,6 +34,7 @@ import { loadGalleryFeed, type GalleryFeedEntry } from "../gallery-client";
 import { isRequestFailure, requestFailureOf } from "../request-failure";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import { projectInNetlistProcess } from "../features/netlist-export/netlist-process";
+import type { RnlReader } from "../features/netlist-export/rnl-read";
 import { importChunk } from "../components/chunk-import";
 import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
 import { prepareDocumentFormulaArtifacts } from "../features/text-editing/formula-artifacts";
@@ -83,15 +84,7 @@ export interface BrowserAgentProjectHostOptions {
    * runtime Worker; a headless workspace supplies the runtime core. Left out,
    * an `rnl` read reports RNL_UNAVAILABLE.
    */
-  readRnl?: (
-    project: CircuitProject,
-    options: {
-      format?: "spice" | "spectre" | undefined;
-      namingProfile?: "native" | "cadence-bang" | undefined;
-      portCase?: "lower" | "upper" | undefined;
-      rootDocumentId?: string | undefined;
-    },
-  ) => Promise<AgentNetlistRead>;
+  readRnl?: RnlReader;
 }
 
 /** Browser authority for the signed-in Cloud Project shelf and live Project. */
@@ -292,8 +285,10 @@ export class BrowserAgentProjectHost {
           ok: true,
           structureRevision: project.structureRevision,
           netlist: await this.options.readRnl(project, {
-            ...request,
-            ...(rootDocumentId ? { rootDocumentId } : {}),
+            format: request.format,
+            namingProfile: request.namingProfile,
+            portCase: request.portCase,
+            rootDocumentId,
           }),
           // RNL is a whole-file export; a Cell's plain netlist is not the
           // same document and would not carry the hierarchy's records.

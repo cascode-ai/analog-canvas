@@ -1,6 +1,3 @@
-import type { AgentNetlistRead } from "@icm/agent-adapter";
-import type { CircuitProject } from "@icm/model";
-import { createRnlExport } from "@icm/rnl";
 import { loadCore, type Core } from "@rich-netlist/runtime/core";
 import type { CoreWorker } from "@rich-netlist/runtime";
 
@@ -9,12 +6,7 @@ import {
   decodeCanvasPackage,
 } from "../features/netlist-export/rnl-canvas-package";
 import { withCanvasPackage } from "../features/netlist-export/rnl-core";
-import {
-  blockedRnl,
-  failedRnl,
-  writtenRnl,
-  type ReadRnlOptions,
-} from "../features/netlist-export/rnl-read";
+import { readRnl, type RnlReader } from "../features/netlist-export/rnl-read";
 import { loadHeadlessRnlCoreWasm, loadHeadlessRnlPackage } from "./rnl-assets";
 
 /** The in-thread core behind the Worker-shaped interface the package wrapper takes. */
@@ -61,43 +53,5 @@ function rnlCore(): Promise<CoreWorker> {
 }
 
 /** The Project's netlist with its drawing written as RNL, in this process. */
-export async function readRnlHeadless(
-  project: CircuitProject,
-  options: ReadRnlOptions,
-): Promise<AgentNetlistRead> {
-  const format = options.format ?? "spice";
-  const documentId = options.rootDocumentId ?? project.topDocumentId;
-  const exported = createRnlExport(project, {
-    format,
-    ...(options.namingProfile ? { namingProfile: options.namingProfile } : {}),
-    ...(options.rootDocumentId
-      ? { rootDocumentId: options.rootDocumentId }
-      : {}),
-  });
-  if (exported.status !== "ready")
-    return { ...blockedRnl(format, exported), documentId };
-  try {
-    const written = await (
-      await rnlCore()
-    ).write({
-      write: exported.request,
-      svg: false,
-      primitives: false,
-    });
-    return { ...writtenRnl(format, exported, written), documentId };
-  } catch (error) {
-    return {
-      ...failedRnl(
-        format,
-        "RNL_WRITE_FAILED",
-        error instanceof Error ? error.message : String(error),
-      ),
-      documentId,
-    };
-  }
-}
-
-/** The callback a local editor registers as its `readRnl`. */
-export function createHeadlessRnlRead() {
-  return readRnlHeadless;
-}
+export const readRnlHeadless: RnlReader = (project, options) =>
+  readRnl(project, options, rnlCore);

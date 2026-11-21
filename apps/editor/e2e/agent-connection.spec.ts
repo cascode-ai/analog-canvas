@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startMcp } from "./mcp-stdio-fixture.js";
 import { placedInstance } from "./canvas-fixtures.js";
-import { openEditor } from "./editor-fixtures.js";
+import {
+  exampleProject,
+  openEditor,
+  openProject,
+  showNetlistPanel,
+} from "./editor-fixtures.js";
 
 // Playwright's separate failure ARIA snapshot also contains the live Claim.
 process.env.PLAYWRIGHT_NO_COPY_PROMPT = "1";
@@ -156,5 +161,71 @@ test.describe("first connection handoff", () => {
         await rm(directory, { recursive: true, force: true });
       }
     });
+  }
+});
+
+test("paired MCP reads the Netlist panel's RNL export in both dialects", async ({
+  page,
+  baseURL,
+}) => {
+  const project = exampleProject("simulation-rc.icproj.json");
+  await openProject(page, project);
+  await expect(page.getByRole("tab", { selected: true })).toContainText(
+    project.name,
+  );
+  await page.getByTestId("open-agent").click();
+  const handoff = page
+    .getByTestId("connect-agent-panel")
+    .getByTestId("agent-copy-text");
+  await expect
+    .poll(async () => /^Claim: .+$/mu.test(await handoff.inputValue()), {
+      timeout: 30_000,
+    })
+    .toBe(true);
+  const claim = JSON.parse(
+    /^Claim: (.+)$/mu.exec(await handoff.inputValue())![1]!,
+  );
+  const directory = await mkdtemp(join(tmpdir(), "icm-agent-rnl-"));
+  const mcp = startMcp(baseURL!, join(directory, "connector.json"));
+  try {
+    await mcp.request("initialize", {
+      protocolVersion: "2025-06-18",
+      capabilities: {},
+      clientInfo: { name: "rnl-export-acceptance", version: "1" },
+    });
+    mcp.notify("notifications/initialized");
+    expect((await mcp.tool("connect", claim)).ok).toBe(true);
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
+    const panel = await showNetlistPanel(page);
+    for (const format of ["spice", "spectre"]) {
+      const reply = await mcp.tool("netlist_code", {
+        action: "read",
+        format,
+        rnl: true,
+      });
+      expect(reply).toMatchObject({
+        ok: true,
+        netlist: { format, status: "ready", rnl: true },
+        cells: [],
+      });
+      expect(reply.netlist.text).toContain("@WIRE");
+      await panel.getByLabel("Netlist format").selectOption(format + "+rnl");
+      await expect(
+        panel.getByRole("textbox", { name: "RNL netlist code", exact: true }),
+      ).toBeVisible();
+      await panel.getByTestId("copy-netlist-panel").click();
+      await expect
+        .poll(() =>
+          page.evaluate(async () =>
+            (await navigator.clipboard.readText()).replace(/\r\n?/gu, "\n"),
+          ),
+        )
+        .toBe(reply.netlist.text.replace(/\r\n?/gu, "\n"));
+    }
+  } finally {
+    await mcp.close();
+    await rm(directory, { recursive: true, force: true });
   }
 });

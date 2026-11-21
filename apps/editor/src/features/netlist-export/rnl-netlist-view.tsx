@@ -10,6 +10,7 @@ import {
   StaticCodeView,
 } from "../project-code/static-code-view";
 import { OpenRnlViewerLink } from "./open-rnl-viewer-link";
+import { writeRnlNetlist } from "./rnl-read";
 import {
   loadRnlRuntime,
   type RnlRuntime,
@@ -33,11 +34,7 @@ export async function writeRnlExport(
 ): Promise<RnlWriteState> {
   if (!runtime) return { status: "no-runtime" };
   try {
-    const written = await runtime.write({
-      write: exported.request,
-      svg: false,
-      primitives: false,
-    });
+    const written = await writeRnlNetlist(exported, runtime);
     return { status: "written", written };
   } catch (error) {
     return {
