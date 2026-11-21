@@ -24,6 +24,11 @@
       "types": "./dist/browser-pdf.d.ts",
       "default": "./dist/browser-pdf.js"
     },
+    "./browser-svg-fonts": {
+      "development": "./src/browser-svg-fonts.ts",
+      "types": "./dist/browser-svg-fonts.d.ts",
+      "default": "./dist/browser-svg-fonts.js"
+    },
     "./headless-raster": {
       "development": "./src/headless-raster.ts",
       "types": "./dist/headless-raster.d.ts",
@@ -47,6 +52,7 @@
     "@resvg/resvg-wasm": "2.6.2",
     "@xmldom/xmldom": "0.9.12",
     "dejavu-fonts-ttf": "2.37.3",
+    "harfbuzzjs": "1.6.4",
     "jspdf": "4.2.1",
     "pdf-lib": "1.17.1",
     "svg2pdf.js": "2.8.0"

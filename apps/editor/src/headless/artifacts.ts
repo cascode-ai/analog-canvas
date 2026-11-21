@@ -1,6 +1,7 @@
 import { prepareDocumentFormulaArtifacts } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
 import { createDesignNetlistExport, type NetlistFormat } from "@icm/netlist";
+import { embedFormalSvgFontsHeadless } from "@icm/exporters/headless-raster";
 import { renderDocumentSvg } from "@icm/render-svg";
 import {
   compareCircuitIR,
@@ -51,16 +52,21 @@ export function workspaceNetlist(
     : { status: "blocked", text: null, messages, warnings };
 }
 
-/** The top Cell as the formal SVG the editor exports and the Gallery shows. */
+/**
+ * The top Cell as the formal SVG the editor exports, its text faces embedded
+ * so it draws the same on every computer (#2427).
+ */
 export async function workspaceSvg(project: CircuitProject): Promise<string> {
   const document = project.documents.find(
     (candidate) => candidate.id === project.topDocumentId,
   )!;
   const prepared = await prepareDocumentFormulaArtifacts(document);
   try {
-    return renderDocumentSvg(
-      document,
-      createProjectSymbolResolver(project, builtInSymbols),
+    return await embedFormalSvgFontsHeadless(
+      renderDocumentSvg(
+        document,
+        createProjectSymbolResolver(project, builtInSymbols),
+      ),
     );
   } finally {
     prepared.release();

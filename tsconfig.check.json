@@ -35,6 +35,9 @@
         "./packages/exporters/src/browser-fonts.ts"
       ],
       "@icm/exporters/browser-pdf": ["./packages/exporters/src/browser-pdf.ts"],
+      "@icm/exporters/browser-svg-fonts": [
+        "./packages/exporters/src/browser-svg-fonts.ts"
+      ],
       "@icm/exporters/browser-raster": [
         "./packages/exporters/src/browser-raster.ts"
       ],

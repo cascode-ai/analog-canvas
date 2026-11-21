@@ -13,6 +13,7 @@ import type { CircuitProject } from "@icm/model";
 import {
   createHeadlessFormalExportSource,
   rasterizeFormalSvgHeadless,
+  embedFormalSvgFontsHeadless,
 } from "@icm/exporters/headless-raster";
 import { EditorDocumentController } from "../document/document-controller";
 import { agentCircuitServiceOptions } from "../agent/agent-service-options";
@@ -81,6 +82,7 @@ export function createLocalEditor(options: LocalEditorOptions) {
     headlessFigures: {
       source: createHeadlessFormalExportSource,
       png: (source) => rasterizeFormalSvgHeadless(source),
+      svg: embedFormalSvgFontsHeadless,
     },
     getProjectSessionId: () => controller.projectSessionId,
     getProject: () => controller.project,

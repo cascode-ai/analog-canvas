@@ -884,6 +884,9 @@ test("T writes Text first, places it at its preview on the stored annotation pit
   expect(textObject.rotation).toBe(270);
   const svg = await exportedSvg(page);
   expect(svg).toContain("Custom text");
+  // Its text faces travel with it, so it draws the same everywhere (#2427).
+  expect(svg).toContain('<style data-embedded-font="icm-schematic">@font-face');
+  expect(svg).not.toContain('font-family:"ICM Round Period"');
   expect(svg).toContain(`rotate(270 ${expected.x} ${expected.y})`);
   expect(svg).not.toContain("text-placement-preview");
   await page.getByTestId("draw-tool-undo").click();

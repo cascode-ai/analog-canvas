@@ -378,6 +378,9 @@ importers:
       dejavu-fonts-ttf:
         specifier: 2.37.3
         version: 2.37.3
+      harfbuzzjs:
+        specifier: 1.6.4
+        version: 1.6.4
       jspdf:
         specifier: 4.2.1
         version: 4.2.1
@@ -2867,6 +2870,12 @@ packages:
         integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==,
       }
 
+  harfbuzzjs@1.6.4:
+    resolution:
+      {
+        integrity: sha512-T/PyfhVt1gGR2Tkf5KJUj1DQFkVBXHw552lS1iLEEDhV1Lukb3eq1pk2ov85kgbT2YUiZtJBTak9w+M7YgzUEQ==,
+      }
+
   html-encoding-sniffer@4.0.0:
     resolution:
       {
@@ -4968,6 +4977,8 @@ snapshots:
       path-scurry: 2.0.2
 
   graceful-fs@4.2.11: {}
+
+  harfbuzzjs@1.6.4: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:

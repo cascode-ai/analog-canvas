@@ -31,8 +31,13 @@ and diagnostics never enter a formal artifact.
   round-period face stays first for full stops. Canvas, browser PNG and Node
   raster use these glyphs (Node via composite faces that keep weight and
   slant across mixed runs). Browser PNG inlines the faces (an SVG image loads
-  no external font), falling back to system faces if unreadable. Downloaded
-  SVG names the stack and carries only the period face.
+  no external font), falling back to system faces if unreadable. A
+  downloaded SVG (editor export, Agent and local `export_file`, the local
+  workspace, `pnpm gallery:dataset`) embeds, once per weight and style its
+  text uses, a HarfBuzz subset of the Node composite face (**ICM Schematic**)
+  holding only the characters it writes, in place of the period faces, so it
+  draws as the PNG does on any computer; a Document face other than Metropolis
+  still names its stack only. Gallery `preview.svg` names the stack.
 - A Document's `presentation.textFace` sets every text in another face
   instead, everywhere above. Each is served as renamed subsets (an OFL Reserved
   Font Name or the GUST Font License's renaming request), measured from its
