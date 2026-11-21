@@ -9,7 +9,15 @@ import {
   DEFAULT_FORMAL_EXPORT_MARGIN,
   createFormalExportSource,
 } from "./index.js";
-import { loadHeadlessFont, loadResvgWasm } from "./headless-raster-assets.js";
+import {
+  loadHarfBuzzSubsetWasm,
+  loadHeadlessFont,
+  loadResvgWasm,
+} from "./headless-raster-assets.js";
+import {
+  embedSvgFontSubsets,
+  type SvgFontEmbedSources,
+} from "./svg-font-embed.js";
 import {
   headlessFontPlan,
   withHeadlessSerif,
@@ -148,4 +156,17 @@ export async function rasterizeFormalSvgHeadless(
   };
   image.free();
   return png;
+}
+
+const headlessFontSources: SvgFontEmbedSources = {
+  wasm: loadHarfBuzzSubsetWasm,
+  readFont: (file) => loadHeadlessFont({ source: "exporters", file }),
+};
+
+/**
+ * A formal SVG that draws the same on every computer: its text in embedded
+ * subsets of the faces the headless PNG uses (#2427).
+ */
+export function embedFormalSvgFontsHeadless(svg: string): Promise<string> {
+  return embedSvgFontSubsets(svg, headlessFontSources);
 }

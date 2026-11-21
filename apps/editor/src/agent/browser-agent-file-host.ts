@@ -77,6 +77,8 @@ export type AgentReviewWorkspace = Pick<
 export interface HeadlessFigureExports {
   source: typeof createBrowserFormalExportSource;
   png(source: FormalExportSource): Promise<RasterExport>;
+  /** The SVG with its text faces embedded (#2427). */
+  svg(svg: string): Promise<string>;
 }
 
 export interface BrowserAgentFileHostOptions {
@@ -585,10 +587,18 @@ export class BrowserAgentFileHost {
         notice?: string;
       };
       if (request.artifact === "svg") {
+        const svg = headless
+          ? await headless.svg(source.svg)
+          : await (
+              await importChunk(
+                "SVG export",
+                () => import("@icm/exporters/browser-svg-fonts"),
+              )
+            ).embedFormalSvgFontsInBrowser(source.svg);
         artifact = {
           name: "schematic.svg",
           mediaType: "image/svg+xml",
-          bytes: new TextEncoder().encode(source.svg),
+          bytes: new TextEncoder().encode(svg),
         };
       } else if (request.artifact === "png") {
         const png = headless

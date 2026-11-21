@@ -157,6 +157,7 @@ describe("a dataset run", () => {
       bundle,
       `export const NETLIST_PROFILE_IDS = ["abstract", "custom"];
 export const parseProject = (text) => JSON.parse(text);
+export const embedFormalSvgFontsHeadless = async (svg) => svg.replace("<svg/>", "<svg><style>embedded</style></svg>");
 export const workspaceNetlist = (p, format, process) => ({ status: "ready", text: p.name + " " + (process ?? "saved") + " " + format + "\\n", messages: [], warnings: [] });`,
     );
     const dir = temp();
@@ -183,7 +184,9 @@ export const workspaceNetlist = (p, format, process) => ({ status: "ready", text
     expect(
       JSON.parse(readFileSync(join(d1, "meta.json"), "utf8")).dataset.verdict,
     ).toBe("match");
-    expect(existsSync(join(dir, "circuits/c1/schematic.svg"))).toBe(true);
+    expect(
+      readFileSync(join(dir, "circuits/c1/schematic.svg"), "utf8"),
+    ).toContain("embedded");
     expect(
       JSON.parse(readFileSync(join(dir, "snapshot.json"), "utf8")),
     ).toMatchObject({

@@ -57,6 +57,7 @@ export function headlessRasterAssetFiles() {
       .map((file) => (directory ? `${directory}/${file}` : file));
   return {
     wasm: exporters.resolve("@resvg/resvg-wasm/index_bg.wasm"),
+    subset: exporters.resolve("harfbuzzjs/dist/harfbuzz-subset.wasm"),
     fonts: {
       ...Object.fromEntries(
         [...ttf(""), ...ttf("liberation-serif"), ...ttf("liberation-sans")].map(
@@ -81,9 +82,10 @@ function inlineRasterAssets() {
     enforce: "pre",
     load(id) {
       if (resolve(id.split("?")[0]) !== RASTER_ASSETS_MODULE) return null;
-      const { wasm, fonts } = headlessRasterAssetFiles();
+      const { wasm, subset, fonts } = headlessRasterAssetFiles();
       return `import { gunzipSync } from "node:zlib";
 const WASM = ${packed(wasm)};
+const SUBSET_WASM = ${packed(subset)};
 const FONTS = {
 ${Object.entries(fonts)
   .map(([key, path]) => `  ${JSON.stringify(key)}: ${packed(path)},`)
@@ -92,6 +94,9 @@ ${Object.entries(fonts)
 const unpack = (text) => new Uint8Array(gunzipSync(Buffer.from(text, "base64")));
 export async function loadResvgWasm() {
   return unpack(WASM);
+}
+export async function loadHarfBuzzSubsetWasm() {
+  return unpack(SUBSET_WASM);
 }
 export async function loadHeadlessFont(font) {
   const text = FONTS[\`\${font.source}/\${font.file}\`];

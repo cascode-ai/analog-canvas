@@ -26,6 +26,8 @@ export {
 } from "./local-editor";
 /** A Project file's text as the editor reads it. */
 export { parseProject } from "@icm/project-protocol";
+/** An SVG's text faces embedded, so it draws the same everywhere (#2427). */
+export { embedFormalSvgFontsHeadless } from "@icm/exporters/headless-raster";
 export {
   compareNetlists,
   workspaceNetlist,

@@ -13,7 +13,7 @@
 //   snapshot.json  when it was read, from where, with which export engine
 //   circuits/<id>/
 //     meta.json        the wall entry, its link, and a dataset's comparison
-//     schematic.svg    our drawing, as the Gallery shows it
+//     schematic.svg    our drawing, as the Gallery shows it, its text faces embedded
 //     reference.<ext>  the author's reference image, when there is one
 //     figure.<ext>     a reference dataset's original figure
 //     source.sp        that dataset's own netlist, verbatim (absent when it has none)
@@ -415,6 +415,7 @@ export async function run(options, log = console.log) {
     const svg = join(d, "schematic.svg");
     const preview = entry.previewRevision ?? "";
     if (
+      reexport ||
       !existsSync(svg) ||
       readText(join(d, ".preview-revision")) !== preview
     ) {
@@ -424,7 +425,12 @@ export async function run(options, log = console.log) {
         true,
       );
       if (got) {
-        write(svg, got.body);
+        // The site's preview names its faces; embedded, it draws the same
+        // everywhere (#2427).
+        write(
+          svg,
+          await headless.embedFormalSvgFontsHeadless(got.body.toString("utf8")),
+        );
         write(join(d, ".preview-revision"), preview);
         stats.previews += 1;
       }

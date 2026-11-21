@@ -55,8 +55,12 @@ export async function createSvgExportArtifact(
     resolver,
     projectName,
   );
+  const { embedFormalSvgFontsInBrowser } = await importChunk(
+    "SVG export",
+    () => import("@icm/exporters/browser-svg-fonts"),
+  );
   return {
-    bytes: source.svg,
+    bytes: await embedFormalSvgFontsInBrowser(source.svg),
     mediaType: "image/svg+xml",
     extension: "svg",
     report: `Exported revision ${document.revision}`,

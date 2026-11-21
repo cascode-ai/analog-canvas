@@ -17,6 +17,13 @@ export async function loadResvgWasm(): Promise<Uint8Array> {
   );
 }
 
+/** HarfBuzz's subsetter, which cuts the faces an SVG embeds (#2427). */
+export async function loadHarfBuzzSubsetWasm(): Promise<Uint8Array> {
+  return readFile(
+    fileURLToPath(import.meta.resolve("harfbuzzjs/dist/harfbuzz-subset.wasm")),
+  );
+}
+
 export async function loadHeadlessFont(
   font: HeadlessFontFile,
 ): Promise<Uint8Array> {
