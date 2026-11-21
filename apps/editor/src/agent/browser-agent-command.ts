@@ -980,6 +980,29 @@ export function planBrowserAgentCommand(
           const { reference: _reference, ...unnamed } = instance;
           instance = unnamed;
         }
+        // A part asked for under another prefix, an NMOS as NB, is drawn NB
+        // and named MNB, as a Cell instance A1 exports as XA1 (#2429).
+        let aliasName: string | undefined;
+        if (!drawnName && instance.reference) {
+          const policy = referencePolicyForInstance(instance, project);
+          const asked = instance;
+          const wrongPrefix =
+            policy.kind === "required" &&
+            referenceIssuesForInstance(
+              createReferenceIndex(
+                {
+                  ...document,
+                  instances: [...document.instances, ...placed, asked],
+                },
+                project,
+              ),
+              asked.id,
+            ).some((issue) => issue.code === "WRONG_REFERENCE_PREFIX");
+          if (wrongPrefix && policy.kind === "required") {
+            aliasName = asked.reference!.trim();
+            instance = { ...asked, reference: `${policy.prefix}${aliasName}` };
+          }
+        }
         instance = namedPlacement(project, document, placed, instance, index);
         placed.push(instance);
         const power = proposedStandalonePowerConnection(document, instance);
@@ -1045,6 +1068,31 @@ export function planBrowserAgentCommand(
             annotation,
           })),
         );
+        if (aliasName !== undefined) {
+          const labelled: SchematicDocument = {
+            ...drawn,
+            instances: [...drawn.instances, instance],
+            annotations: [
+              ...drawn.annotations,
+              ...edits.flatMap((edit) =>
+                edit.kind === "upsert_schematic_annotation" &&
+                own(edit.annotation)
+                  ? [edit.annotation]
+                  : [],
+              ),
+            ],
+          };
+          const alias = planDisplayAlias({
+            document: labelled,
+            instanceId: instance.id,
+            alias: aliasName,
+            labelFor: instanceLabelAnnotationFor,
+            newLabelFor: () => undefined,
+          });
+          if (!alias.ok)
+            throw new AgentCommandPlanningError(index, alias.message);
+          edits.push(...alias.edits);
+        }
       }
       // Labels of parts already drawn that the new ones cover move clear.
       const settled = withLabelsClearOfPlacedParts(document, resolver, edits);

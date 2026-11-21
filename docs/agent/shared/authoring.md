@@ -54,8 +54,10 @@ their IDs, never resolved to the first.
   per part in order, so wiring needs no read.
 - References follow the GUI: a device's starts with its prefix (R, C, M, …), a
   `place-cell` instance's with X; omitted, the next free name is taken (`R1`,
-  `X2`; a block that emits nothing gets none). A wrong prefix or a used name is
-  rejected with a free name and nothing is placed. A UJT or PUT is drawn Q1
+  `X2`; a block that emits nothing gets none). A device placed under another
+  prefix takes its own in front and is drawn as asked (NMOS `NB` is `MNB`
+  drawn N_B); a `place-cell` under another prefix or a used name is rejected
+  with a free name and nothing is placed. A UJT or PUT is drawn Q1
   and a Shockley diode D1 by a display alias while its Reference is `X1`; a Q
   or D `reference` or `set-reference` sets that alias. To draw another name (op-amp
   `X1` as A1) use `set-display-alias {target, text}` (`text:null` restores);

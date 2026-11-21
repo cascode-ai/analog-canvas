@@ -2784,7 +2784,7 @@ describe("MCP → API → shared editor parity", () => {
     ).toBe(true);
     expect(labels().every((a) => a.anchor.kind === "object")).toBe(true);
   });
-  it("names placed parts as the GUI does and refuses a name that would block the netlist", async () => {
+  it("names placed parts as the GUI does, refusing a Cell name that would block the netlist and prefixing a device's", async () => {
     const { client, controller } = await folder();
     expect(
       (
@@ -2839,10 +2839,34 @@ describe("MCP → API → shared editor parity", () => {
         position: { x: 0, y: 0 },
       },
     ]);
-    expect(device.ok).toBe(false);
-    expect(device.message).toContain(
-      "resistor parts use the R prefix, so C1 would block the netlist; R1 is free, and set-display-alias draws it as C1.",
-    );
+    // A device asked for under another prefix is named with its own and
+    // drawn as asked, as a Cell instance exports with X (#2429).
+    expect(device.ok, device.message).toBe(true);
+    const resistor = controller.document.instances.find(
+      (instance) => instance.symbolId === "resistor",
+    )!;
+    expect(resistor.reference).toBe("RC1");
+    const label = controller.document.annotations.find(
+      (annotation) =>
+        annotation.anchor.kind === "object" &&
+        annotation.anchor.objectId === resistor.id,
+    )!;
+    expect(JSON.stringify(label.content)).toContain('"value":"C"');
+    expect(JSON.stringify(label)).not.toContain('"value":"R"');
+    const nmos = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "nmos",
+        reference: "NB",
+        position: { x: 200, y: 0 },
+      },
+    ]);
+    expect(nmos.ok, nmos.message).toBe(true);
+    expect(
+      controller.document.instances.find(
+        (instance) => instance.symbolId === "nmos",
+      )!.reference,
+    ).toBe("MNB");
   });
 
   it("places the original top in a new TB through public actions and retains normal history", async () => {
