@@ -30,6 +30,7 @@ import {
   netLabelAliasClaim,
   resolveAnnotationText,
   resolveAnnotationName,
+  spiceValueFromDrawnText,
 } from "@icm/derived";
 import {
   createReferenceIndex,
@@ -667,6 +668,8 @@ function proposeInstanceValueCommit(
         message: "Enter a parameter value. Escape cancels these text changes.",
       };
     if (!labelOnly) {
+      // A value drawn with its unit (10µA) is written back as SPICE text.
+      value = spiceValueFromDrawnText(value, definition?.unitHint);
       const key =
         Object.keys(instance.netlist.parameters).find(
           (key) => key.toLowerCase() === parameter.toLowerCase(),

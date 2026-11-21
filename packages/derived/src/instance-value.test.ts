@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   displayableInstanceParameter,
   displayableInstanceValue,
+  drawnValueText,
   instanceCarriesReference,
   instanceSupportsValueAnnotation,
+  spiceValueFromDrawnText,
 } from "./instance-value.js";
 
 function instance(
@@ -128,24 +130,24 @@ describe("displayableInstanceValue", () => {
     );
   });
 
-  it("shows passive values exactly as authored, in bold", () => {
+  it("draws a bare passive value with its unit, in bold", () => {
     expect(
       displayableInstanceValue(instance("resistor", { value: "10k" })),
     ).toEqual({
       kind: "displayable",
-      content: { runs: [bold("10k")] },
+      content: { runs: [bold("10kΩ")] },
     });
     expect(
       displayableInstanceValue(instance("capacitor", { value: "2p" })),
     ).toEqual({
       kind: "displayable",
-      content: { runs: [bold("2p")] },
+      content: { runs: [bold("2pF")] },
     });
     expect(
       displayableInstanceValue(instance("inductor", { value: "3n" })),
     ).toEqual({
       kind: "displayable",
-      content: { runs: [bold("3n")] },
+      content: { runs: [bold("3nH")] },
     });
   });
 
@@ -158,12 +160,12 @@ describe("displayableInstanceValue", () => {
       displayableInstanceValue(
         block("potentiometer", { r: "10k", pos: "0.3" }),
       ),
-    ).toEqual({ kind: "displayable", content: { runs: [bold("10k")] } });
+    ).toEqual({ kind: "displayable", content: { runs: [bold("10kΩ")] } });
     expect(instanceSupportsValueAnnotation({ symbolId: "potentiometer" })).toBe(
       true,
     );
     // A value the bare number would not name prints its textbook name first,
-    // as a winding's does: V_BO = 10, R_BB = 7k.
+    // as a winding's does: V_BO = 10V, R_BB = 7kΩ.
     const named = (letter: string, subscript: string, rest: string) => ({
       kind: "displayable",
       content: {
@@ -186,10 +188,10 @@ describe("displayableInstanceValue", () => {
     });
     expect(
       displayableInstanceValue(block("shockley-diode", { vbo: "10" })),
-    ).toEqual(named("V", "BO", " = 10"));
+    ).toEqual(named("V", "BO", " = 10V"));
     expect(
       displayableInstanceValue(block("ujt", { rbb: "7k", eta: "0.65" })),
-    ).toEqual(named("R", "BB", " = 7k"));
+    ).toEqual(named("R", "BB", " = 7kΩ"));
     // A block with no value-role parameter still has none to show: a PUT's
     // peak point is its gate's.
     expect(displayableInstanceValue(block("put", {})).kind).toBe(
@@ -201,18 +203,18 @@ describe("displayableInstanceValue", () => {
     ).toBe("undisplayable");
   });
 
-  it("does not invent units for independent source values", () => {
+  it("draws a bare independent source value with its unit", () => {
     expect(
       displayableInstanceValue(instance("voltage-source", { dc: "1.8" })),
     ).toEqual({
       kind: "displayable",
-      content: { runs: [bold("1.8")] },
+      content: { runs: [bold("1.8V")] },
     });
     expect(
       displayableInstanceValue(instance("current-source", { dc: "100u" })),
     ).toEqual({
       kind: "displayable",
-      content: { runs: [bold("100u")] },
+      content: { runs: [bold("100µA")] },
     });
   });
 
@@ -292,6 +294,86 @@ describe("displayableInstanceValue", () => {
     expect(displayableInstanceValue(instance("unknown-symbol")).kind).toBe(
       "undisplayable",
     );
+  });
+});
+
+describe("drawnValueText", () => {
+  it.each([
+    ["10u", "A", "10µA"],
+    ["10U", "A", "10µA"],
+    ["1k", "Ohm", "1kΩ"],
+    ["4.7K", "Ohm", "4.7kΩ"],
+    ["1Meg", "Ohm", "1MΩ"],
+    ["2.2MEG", "Ohm", "2.2MΩ"],
+    ["5m", "A", "5mA"],
+    ["1.5f", "F", "1.5fF"],
+    ["160p", "F", "160pF"],
+    ["4.4n", "H", "4.4nH"],
+    ["3G", "Ohm", "3GΩ"],
+    ["1T", "Ohm", "1TΩ"],
+    ["1.8", "V", "1.8V"],
+    ["-0.9", "V", "-0.9V"],
+    ["1e-6", "A", "1e-6A"],
+    [".5", "V", ".5V"],
+  ])("draws %s (%s) as %s", (value, unit, drawn) => {
+    expect(drawnValueText(value, unit)).toBe(drawn);
+  });
+
+  it.each([
+    ["10kΩ", "Ohm"],
+    ["1nF", "F"],
+    ["100uA", "A"],
+    ["{W}", "Ohm"],
+    ["R_LOAD", "Ohm"],
+    ["pulse(0 1.8 0 1n 1n 5n 10n)", "V"],
+    ["10k*2", "Ohm"],
+    // SPICE reads a lone M as milli; the author may have meant mega.
+    ["1M", "Ohm"],
+  ])("leaves %s (%s) as authored", (value, unit) => {
+    expect(drawnValueText(value, unit)).toBe(value);
+  });
+
+  it("adds no unit a parameter does not declare or the drawing does not use", () => {
+    expect(drawnValueText("10u", undefined)).toBe("10u");
+    expect(drawnValueText("150n", "m")).toBe("150n");
+    expect(drawnValueText("10n", "s")).toBe("10n");
+  });
+});
+
+describe("spiceValueFromDrawnText", () => {
+  it.each([
+    ["10µA", "A", "10u"],
+    ["10μA", "A", "10u"],
+    ["20µ", "A", "20u"],
+    ["1MΩ", "Ohm", "1Meg"],
+    ["1mΩ", "Ohm", "1m"],
+    ["4.7kΩ", "Ohm", "4.7k"],
+    ["1.8V", "V", "1.8"],
+    ["160pF", "F", "160p"],
+  ])("writes drawn %s (%s) as %s", (text, unit, spice) => {
+    expect(spiceValueFromDrawnText(text, unit)).toBe(spice);
+  });
+
+  it.each([
+    ["10k", "Ohm"],
+    ["1M", "Ohm"],
+    ["{W}", "Ohm"],
+    ["1kΩ", "F"],
+    ["10µA", undefined],
+  ])("leaves %s (%s) as typed", (text, unit) => {
+    expect(spiceValueFromDrawnText(text, unit)).toBe(text);
+  });
+
+  it("round-trips every drawn value to the same SPICE value", () => {
+    for (const [value, unit] of [
+      ["10u", "A"],
+      ["1Meg", "Ohm"],
+      ["2.2k", "Ohm"],
+      ["1.8", "V"],
+    ] as const)
+      expect(spiceValueFromDrawnText(drawnValueText(value, unit), unit)).toBe(
+        value,
+      );
   });
 });
 

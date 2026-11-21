@@ -2576,7 +2576,8 @@ describe("MCP → API → shared editor parity", () => {
     )!;
     for (const [id, head, tail] of [
       [pin.id, "V", "IN"],
-      [value.id, "1", "k"],
+      // The value is drawn 1kΩ, so a look restyling it spells that.
+      [value.id, "1", "kΩ"],
     ]) {
       const look = {
         runs: [

@@ -78,10 +78,13 @@ their IDs, never resolved to the first.
   model contract: a built-in part's are its catalog `parameters`; bound
   geometry offers its `w/l/mult/mf/vm`, and custom definitions their declared
   parameters. Omitted keys stay; an unsupported key rejects the whole action.
-  Show Value uses authored values: scalar parts keep their value, MOS keeps
+  Show Value draws a bare SPICE number of an R, C, L or independent source
+  with its unit (`10u` on a current source reads `10µA`, `1Meg` on a resistor
+  `1MΩ`) while the netlist keeps `10u`; a value with a unit, a lone `M` or an
+  expression shows as authored. MOS keeps
   its W/L fraction, and geometry R/C shows `W=… L=…` with its non-unit multiplier.
   A block's value goes by its textbook name where the number alone says
-  nothing: a Shockley diode shows `V_BO = 10`, a UJT `R_BB = 7k`.
+  nothing: a Shockley diode shows `V_BO = 10V`, a UJT `R_BB = 7kΩ`.
   A separate multiplier label shows only while that summary is hidden.
 - A placed Cell shows its Cell name and hides `X1`; `set-instance-display`
   `showReference:true` shows `X1` above it (to tell which block is `x1` in

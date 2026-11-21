@@ -35,6 +35,79 @@ function effectiveParameterValue(
   return "";
 }
 
+// The units a part's value is drawn with, by its value parameter's unit hint.
+const DRAWN_UNITS: Readonly<Record<string, string>> = {
+  Ohm: "Ω",
+  Ω: "Ω",
+  F: "F",
+  H: "H",
+  A: "A",
+  V: "V",
+};
+
+const SPICE_TO_DRAWN_PREFIX: Readonly<Record<string, string>> = {
+  f: "f",
+  p: "p",
+  n: "n",
+  u: "µ",
+  µ: "µ",
+  μ: "µ",
+  m: "m",
+  k: "k",
+  meg: "M",
+  g: "G",
+  t: "T",
+};
+
+const NUMBER = String.raw`[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?`;
+const BARE_SPICE_VALUE = new RegExp(`^(${NUMBER})(meg|[fpnuµμmkgt])?$`, "iu");
+const DRAWN_VALUE = new RegExp(`^(${NUMBER})([fpnuµμmkMGT])?$`, "u");
+
+/** The unit a value parameter is drawn with, or undefined. */
+export function drawnValueUnit(
+  unitHint: string | undefined,
+): string | undefined {
+  return unitHint === undefined ? undefined : DRAWN_UNITS[unitHint];
+}
+
+/**
+ * A bare SPICE number as drawn: its unit added and its SI letter as written
+ * on paper (10u reads 10µA, 1Meg reads 1MΩ). A value that carries a unit or
+ * is an expression stays as authored, and so does a lone M, which SPICE
+ * reads as milli while authors often mean mega.
+ */
+export function drawnValueText(
+  value: string,
+  unitHint: string | undefined,
+): string {
+  const unit = drawnValueUnit(unitHint);
+  const match = unit ? BARE_SPICE_VALUE.exec(value) : null;
+  if (!unit || !match || match[2] === "M") return value;
+  const prefix = match[2] ? SPICE_TO_DRAWN_PREFIX[match[2].toLowerCase()] : "";
+  return `${match[1]}${prefix}${unit}`;
+}
+
+/**
+ * The SPICE text for a value typed in its drawn spelling, so editing a drawn
+ * 10µA label writes 10u and 1MΩ writes 1Meg. Any other text is returned as
+ * typed.
+ */
+export function spiceValueFromDrawnText(
+  text: string,
+  unitHint: string | undefined,
+): string {
+  const unit = drawnValueUnit(unitHint);
+  const withUnit = unit !== undefined && text.endsWith(unit);
+  const match = DRAWN_VALUE.exec(
+    withUnit ? text.slice(0, -unit.length).trimEnd() : text,
+  );
+  if (!match) return text;
+  const prefix = match[2] ?? "";
+  if (/^[µμu]$/u.test(prefix)) return `${match[1]}u`;
+  if (!withUnit) return text;
+  return `${match[1]}${prefix === "M" ? "Meg" : prefix}`;
+}
+
 function boldText(value: string): RichTextDocument["runs"][number] {
   return {
     kind: "span",
@@ -278,11 +351,12 @@ export function displayableInstanceValue(
     };
   }
   // A block's value whose bare number would not say what it is prints its
-  // textbook name first, as a winding's does: V_BO = 10.
+  // textbook name first, as a winding's does: V_BO = 10V.
+  const drawn = drawnValueText(valueText, value.unitHint);
   return {
     kind: "displayable",
     content: value.valueName
-      ? textbookNameDocument(value.valueName, ` = ${valueText}`)
-      : boldDocument(valueText),
+      ? textbookNameDocument(value.valueName, ` = ${drawn}`)
+      : boldDocument(drawn),
   };
 }
