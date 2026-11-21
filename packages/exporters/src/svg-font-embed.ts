@@ -129,7 +129,51 @@ function subsetFontBytes(
   const bytes = new Uint8Array(hb.memory.buffer, data, length).slice();
   hb.hb_blob_destroy(result);
   hb.hb_face_destroy(subset);
-  return bytes;
+  return withMetropolisLineMetrics(bytes);
+}
+
+/**
+ * ICM Schematic took its hhea ascent and descent from the DejaVu fallback it
+ * was merged with (928/-236), while the editor's Metropolis has 795/-205, its
+ * OS/2 typographic values. A browser sizes a text box from hhea, so the
+ * embedded face would make labels taller than the editor measured them and
+ * push edge labels out of the figure. Copy the typographic values back.
+ */
+export function withMetropolisLineMetrics(font: Uint8Array): Uint8Array {
+  const view = new DataView(font.buffer, font.byteOffset, font.byteLength);
+  const tables = new Map<
+    string,
+    { record: number; offset: number; length: number }
+  >();
+  for (let index = 0; index < view.getUint16(4); index += 1) {
+    const record = 12 + index * 16;
+    const tag = String.fromCharCode(...font.subarray(record, record + 4));
+    tables.set(tag, {
+      record,
+      offset: view.getUint32(record + 8),
+      length: view.getUint32(record + 12),
+    });
+  }
+  const os2 = tables.get("OS/2");
+  const hhea = tables.get("hhea");
+  if (!os2 || !hhea) return font;
+  for (const [from, to] of [
+    [68, 4],
+    [70, 6],
+    [72, 8],
+  ] as const)
+    view.setInt16(hhea.offset + to, view.getInt16(os2.offset + from));
+  let sum = 0;
+  for (let at = 0; at < hhea.length; at += 4) {
+    let word = 0;
+    for (let byte = 0; byte < 4; byte += 1)
+      word =
+        word * 256 +
+        (at + byte < hhea.length ? (font[hhea.offset + at + byte] ?? 0) : 0);
+    sum = (sum + word) % 0x1_0000_0000;
+  }
+  view.setUint32(hhea.record + 4, sum);
+  return font;
 }
 
 const ENTITIES: Readonly<Record<string, string>> = {

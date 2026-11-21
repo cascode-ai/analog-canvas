@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  withMetropolisLineMetrics,
   embedSvgFontSubsets,
   svgTextCharacters,
   type SvgFontEmbedSources,
@@ -61,5 +62,27 @@ describe("embedding ICM Schematic subsets", () => {
     expect(await embedSvgFontSubsets(empty, sources)).toBe(empty);
     const serif = svg(label("R1"), ' data-text-face="serif"');
     expect(await embedSvgFontSubsets(serif, sources)).toBe(serif);
+  });
+
+  it("sizes text boxes as the editor's Metropolis does", async () => {
+    const embedded = await embedSvgFontSubsets(svg(label("M1")), sources);
+    const font = Buffer.from(
+      /base64,([A-Za-z0-9+/=]+)/u.exec(embedded)![1]!,
+      "base64",
+    );
+    const view = new DataView(font.buffer, font.byteOffset, font.byteLength);
+    const table = (tag: string) => {
+      for (let index = 0; index < view.getUint16(4); index += 1) {
+        const record = 12 + index * 16;
+        if (font.subarray(record, record + 4).toString("latin1") === tag)
+          return view.getUint32(record + 8);
+      }
+      throw new Error(tag);
+    };
+    expect([
+      view.getInt16(table("hhea") + 4),
+      view.getInt16(table("hhea") + 6),
+    ]).toEqual([795, -205]);
+    expect(withMetropolisLineMetrics(new Uint8Array(12))).toHaveLength(12);
   });
 });
