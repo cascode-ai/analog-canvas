@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import { once } from "node:events";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test, vi } from "vitest";
 import { createHash } from "node:crypto";
-import { createIngress } from "./ingress.mjs";
+import { createIngress, serveIngress } from "./ingress.mjs";
 
 async function listen(server) {
   server.listen(0, "127.0.0.1");
@@ -44,7 +47,7 @@ test("a snapshot-length hold queues a save once and still bounds abandoned maint
   assert.equal(writes, 1);
 });
 
-function request(port, path = "/", body) {
+function request(port, path = "/", body, headers) {
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
@@ -53,6 +56,7 @@ function request(port, path = "/", body) {
         path,
         method: body === undefined ? "GET" : "POST",
         agent: false,
+        headers,
       },
       (res) => {
         let data = "";
@@ -345,6 +349,55 @@ test("handover ends an idle event stream without waiting for its lifetime", asyn
   ingress.resume();
 });
 
+test("a lost Snapshot reply leaves maintenance available", async (t) => {
+  const backend = http.createServer(async (req) => {
+    for await (const chunk of req) void chunk;
+    req.socket.destroy();
+  });
+  const ingress = createIngress({ upstreamPort: await listen(backend) });
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  const reply = await request(
+    await listen(ingress.server),
+    "/api/agent/sessions/demo/circuit",
+    JSON.stringify({
+      apiVersion: "3.0",
+      operation: "snapshot",
+      requestId: "read-1",
+      documentId: "doc",
+    }),
+  );
+  assert.equal(reply.status, 502);
+  assert.equal(ingress.status().uncertain, false);
+  assert.equal(await ingress.hold(), true);
+});
+
+test("an interrupted malformed Snapshot stays fenced", async (t) => {
+  const backend = http.createServer(async (req) => {
+    for await (const chunk of req) void chunk;
+    req.socket.destroy();
+  });
+  const ingress = createIngress({ upstreamPort: await listen(backend) });
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.close();
+  });
+  const reply = await request(
+    await listen(ingress.server),
+    "/api/agent/sessions/demo/circuit",
+    JSON.stringify({
+      apiVersion: "3.0",
+      operation: "snapshot",
+      requestId: "bad",
+    }),
+  );
+  assert.equal(reply.status, 502);
+  assert.equal(await ingress.hold(), false);
+});
+
 test("a lost reply never replays a write against another backend", async (t) => {
   let writes = 0;
   const backend = http.createServer(async (req) => {
@@ -363,6 +416,138 @@ test("a lost reply never replays a write against another backend", async (t) => 
   assert.equal(writes, 1);
   assert.equal(await ingress.hold(), false);
 });
+
+test("only confirmed receipts for each exact interrupted Agent write release maintenance", async (t) => {
+  let outcome = 502;
+  let saved = [];
+  const backend = http.createServer(async (req, res) => {
+    for await (const chunk of req) void chunk;
+    if (outcome === 502) req.socket.destroy();
+    else if (
+      [403, 409].includes(outcome) &&
+      req.headers["x-icm-agent-write-receipt"] === "request"
+    )
+      res.writeHead(outcome, { "x-icm-agent-write-receipt": "complete" }).end();
+    else res.writeHead(outcome).end();
+  });
+  const upstreamPort = await listen(backend);
+  let ingress = createIngress({
+    upstreamPort,
+    onUncertaintyChange: (records) => (saved = records),
+  });
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  let port = await listen(ingress.server);
+  const sessionId = "caca0001-1111-8111-8111-111111111111";
+  const path = "/api/agent/sessions/" + sessionId + "/circuit";
+  const edit = (requestId) =>
+    JSON.stringify({
+      apiVersion: "3.0",
+      operation: "transact",
+      requestId,
+      documentId: "doc",
+      transactionId: requestId,
+      expectedRevision: 0,
+      edits: [{ kind: "noop" }],
+    });
+  const first = edit("first");
+  const second = edit("second");
+  const auth = { authorization: "Bearer original-fixture" };
+  const workspace = {
+    ...auth,
+    "x-agent-workspace": "target",
+    "x-agent-context": "old",
+  };
+  assert.equal(
+    (
+      await request(
+        port,
+        "/api/agent/region/" + sessionId + "/circuit",
+        first,
+        auth,
+      )
+    ).status,
+    502,
+  );
+  assert.equal((await request(port, path, second, workspace)).status, 502);
+  assert.equal(await ingress.hold(), false);
+
+  await ingress.close();
+  ingress = createIngress({ upstreamPort, uncertaintyRecords: saved });
+  port = await listen(ingress.server);
+  assert.equal(await ingress.hold(), false);
+  outcome = 200;
+  await request(port, path, first, {
+    ...auth,
+    "x-icm-agent-write-receipt": "complete",
+  });
+  assert.equal(await ingress.hold(), false);
+  outcome = 409;
+  await request(port, path, first, { ...auth, "x-agent-workspace": "other" });
+  await request(port, path, first, { ...auth, "x-agent-context": "other" });
+  assert.equal(await ingress.hold(), false);
+  await request(port, path, first, { authorization: "Bearer resumed-fixture" });
+  assert.equal(await ingress.hold(), false);
+  outcome = 403;
+  await request(port, path, second, { ...workspace, "x-agent-context": "new" });
+  assert.equal(await ingress.hold(), true);
+});
+
+test.skipIf(process.platform === "win32")(
+  "the control socket preserves a failed journal write across an ingress restart",
+  async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "canvas-ingress-"));
+    const uncertaintyPath = join(root, "uncertain-write");
+    const controlPath = join(root, "control.sock");
+    const backend = http.createServer(async (req) => {
+      for await (const chunk of req) void chunk;
+      req.socket.destroy();
+    });
+    const options = {
+      upstreamPort: await listen(backend),
+      port: 0,
+      controlPath,
+      uncertaintyPath,
+    };
+    let runtime;
+    t.onTestFinished(async () => {
+      await runtime?.stop();
+      backend.close();
+      await rm(root, { recursive: true, force: true });
+    });
+    const hold = () =>
+      new Promise((resolve, reject) => {
+        const check = http.request(
+          { socketPath: controlPath, path: "/hold", method: "POST" },
+          (response) => {
+            response.resume();
+            resolve(response.statusCode);
+          },
+        );
+        check.on("error", reject);
+        check.end();
+      });
+    runtime = await serveIngress(options);
+    assert.equal(await hold(), 200);
+    await runtime.stop();
+
+    runtime = await serveIngress(options);
+    const port = runtime.ingress.server.address().port;
+    // Fail before an uncertainty record can be written. Remove the failure
+    // before restart so only the running guard can preserve the fence.
+    await mkdir(uncertaintyPath + ".next");
+    assert.equal((await request(port, "/save", "once")).status, 502);
+    await rm(uncertaintyPath + ".next", { recursive: true });
+    assert.equal(await hold(), 409);
+    await runtime.stop();
+
+    runtime = await serveIngress(options);
+    assert.equal(await hold(), 409);
+  },
+);
 
 test("disconnecting a client does not cancel an accepted save or permit a handover", async (t) => {
   let accepted, finish;

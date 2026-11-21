@@ -3812,13 +3812,20 @@ describe("Agent request ledger", () => {
       );
     };
     open();
-    const edit = (requestId: string, transactionId = requestId) =>
+    const edit = (
+      requestId: string,
+      transactionId = requestId,
+      headers?: Record<string, string>,
+      expectedRevision = 0,
+    ) =>
       object.fetch(
         new Request("https://internal/circuit", {
           method: "POST",
           headers: {
             "content-type": "application/json",
             authorization: `Bearer ${claimed.claim.agentToken}`,
+            "x-icm-agent-write-receipt": "request",
+            ...headers,
           },
           body: JSON.stringify({
             apiVersion: "3.0",
@@ -3826,12 +3833,31 @@ describe("Agent request ledger", () => {
             operation: "transact",
             documentId: "doc",
             transactionId,
-            expectedRevision: 0,
+            expectedRevision,
             edits: [{ kind: "noop" }],
           }),
         }),
       );
-    return { storage, open, edit, forwarded: () => browser.families.length };
+    const setContext = (contextRevision: string, documentIds: string[]) =>
+      object.webSocketMessage(
+        socket,
+        JSON.stringify({
+          protocolVersion: "1.0",
+          sessionId: "ledger-session",
+          kind: "heartbeat",
+          nonce: contextRevision,
+          contextRevision,
+          projectId: "project",
+          documentIds,
+        }),
+      );
+    return {
+      storage,
+      open,
+      edit,
+      setContext,
+      forwarded: () => browser.families.length,
+    };
   }
 
   it.each([-60_000, 60_000])(
@@ -3866,7 +3892,9 @@ describe("Agent request ledger", () => {
     const stateBytes = () =>
       JSON.stringify(s.storage.values.get(SESSION_STATE_KEY)).length;
     const put = vi.spyOn(s.storage, "put");
-    expect((await s.edit("write-0")).status).toBe(200);
+    const first = await s.edit("write-0");
+    expect(first.status).toBe(200);
+    expect(first.headers.get("x-icm-agent-write-receipt")).toBe("complete");
     const afterFirst = stateBytes();
     for (let index = 1; index < 200; index += 1)
       expect((await s.edit(`write-${index}`)).status).toBe(200);
@@ -3886,6 +3914,7 @@ describe("Agent request ledger", () => {
       payloadHash: expect.stringMatching(/^[0-9a-f]{64}$/u),
       startedAt: expect.any(Number),
       completedAt: expect.any(Number),
+      circuitWriteSucceeded: true,
     });
     // Before, each completed write added its record to this one value.
     expect(s.storage.values.get(SESSION_STATE_KEY)).toMatchObject({
@@ -3896,20 +3925,91 @@ describe("Agent request ledger", () => {
     s.open();
     const retry = await s.edit("write-7");
     expect(retry.status).toBe(409);
+    expect(retry.headers.get("x-icm-agent-write-receipt")).toBe("complete");
     expect(await retry.json()).toMatchObject({
       error: { code: "REQUEST_RESULT_UNAVAILABLE" },
     });
-    expect(
-      await (await s.edit("write-7", "another-transaction")).json(),
-    ).toMatchObject({ error: { code: "REQUEST_ID_REUSED" } });
+    const reused = await s.edit("write-7", "another-transaction");
+    expect(reused.headers.has("x-icm-agent-write-receipt")).toBe(false);
+    expect(await reused.json()).toMatchObject({
+      error: { code: "REQUEST_ID_REUSED" },
+    });
     expect(s.forwarded()).toBe(200);
+  });
+
+  it("proves a completed write on exact retry while preserving current Project refusals", async () => {
+    const s = await session();
+    const headers = { "x-agent-context": "original" };
+    await s.setContext("original", ["doc"]);
+    expect((await s.edit("before-switch", "tx", headers)).status).toBe(200);
+    await s.setContext("switched", ["next-doc"]);
+    s.open();
+    const stale = await s.edit("before-switch", "tx", headers);
+    expect(stale.status).toBe(409);
+    expect(stale.headers.get("x-icm-agent-write-receipt")).toBe("complete");
+    expect(await stale.json()).toMatchObject({
+      error: { code: "PROJECT_CONTEXT_STALE" },
+    });
+    const changed = await s.edit("before-switch", "other-tx", headers);
+    expect(changed.headers.has("x-icm-agent-write-receipt")).toBe(false);
+    const unauthorized = await s.edit("before-switch", "tx", {
+      ...headers,
+      authorization: "Bearer invalid",
+    });
+    expect(unauthorized.headers.has("x-icm-agent-write-receipt")).toBe(false);
+    await s.setContext("gallery", []);
+    const gallery = await s.edit("before-switch", "tx", headers);
+    expect(gallery.status).toBe(409);
+    expect(gallery.headers.get("x-icm-agent-write-receipt")).toBe("complete");
+    expect(await gallery.json()).toMatchObject({
+      error: { code: "NO_ACTIVE_PROJECT" },
+    });
+    expect(s.forwarded()).toBe(1);
+  });
+
+  it("preserves idempotency for a failed Circuit operation without proving a successful write", async () => {
+    const s = await session();
+    const result = await s.edit("stale", "tx", undefined, 9);
+    expect(await result.json()).toMatchObject({
+      error: { code: "STALE_REVISION" },
+    });
+    expect(result.headers.has("x-icm-agent-write-receipt")).toBe(false);
+    s.open();
+    const retry = await s.edit("stale", "tx", undefined, 9);
+    expect(await retry.json()).toMatchObject({
+      error: { code: "REQUEST_RESULT_UNAVAILABLE" },
+    });
+    expect(retry.headers.has("x-icm-agent-write-receipt")).toBe(false);
+    expect(s.forwarded()).toBe(1);
+  });
+
+  it("proves the old write after its Cell leaves the active Project roster", async () => {
+    const s = await session();
+    const headers = { "x-agent-context": "project-tab" };
+    await s.setContext("project-tab", ["doc", "another-doc"]);
+    expect((await s.edit("before-delete", "tx", headers)).status).toBe(200);
+    await s.setContext("project-tab", ["another-doc"]);
+    const retry = await s.edit("before-delete", "tx", headers);
+    expect(retry.status).toBe(403);
+    expect(await retry.json()).toMatchObject({
+      error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
+    });
+    expect(retry.headers.get("x-icm-agent-write-receipt")).toBe("complete");
+    expect(s.forwarded()).toBe(1);
   });
 
   it("moves completed writes out of a session state saved before, on restore", async () => {
     const s = await session();
     expect((await s.edit("before-deploy")).status).toBe(200);
     const key = requestLedgerKey("before-deploy");
-    const record = s.storage.values.get(key) as object;
+    const { payloadHash, startedAt, completedAt } = s.storage.values.get(
+      key,
+    ) as {
+      payloadHash: string;
+      startedAt: number;
+      completedAt: number;
+    };
+    const record = { payloadHash, startedAt, completedAt };
     const state = s.storage.values.get(
       SESSION_STATE_KEY,
     ) as PersistedAgentSessionState;
@@ -3922,6 +4022,7 @@ describe("Agent request ledger", () => {
 
     s.open();
     const retry = await s.edit("before-deploy");
+    expect(retry.headers.has("x-icm-agent-write-receipt")).toBe(false);
     expect(await retry.json()).toMatchObject({
       error: { code: "REQUEST_RESULT_UNAVAILABLE" },
     });

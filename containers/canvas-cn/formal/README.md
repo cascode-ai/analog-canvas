@@ -69,8 +69,9 @@ host.
 3. `/etc/analog-canvas-operator/` holds `operator-key`, `known_hosts` and
    `ssh-config` (`Host canvas-operator` with its `HostName` and `User`). The key
    may only forward to the regional gateways; the address never enters Git.
-4. Install `canvas-cn-release.py`, `canvas-cn-release.service` and its timer
-   from a release once and enable the timer. From then on releases install
+4. Install `canvas-cn-release.py` with sibling `maintenance.py` and
+   `observations.py`, plus `canvas-cn-release.service` and its timer, from a
+   release once and enable the timer. From then on releases install
    themselves; their first install also enables the scheduled, release
    alert and formal backup timers. When upgrading from a runner that predates
    the formal backup timer, enable it once after its first install.
@@ -106,18 +107,30 @@ failures remain failures. Record additional request waiting on the host as an ob
 not a 5-second release gate or an inference from a successful version update.
 The Agent recovery target remains 10 seconds. Keep the bounded entrance hold and
 readiness checks; do not repeat live restarts solely to meet a timing target.
-An abandoned browser write still drains its accepted upstream operation.
-An uncertain write response fences maintenance in
-`/var/lib/canvas-cn-ingress/uncertain-write`, surviving entrance restarts;
-reconcile the affected operation before deliberately clearing that marker and
-restarting the entrance. Never clear it simply to allow a release.
-The marker records only a timestamp and route category. Even an incomplete
-upstream write may fence maintenance when acceptance cannot be ruled out;
-nginx buffers incoming request bodies before forwarding. A fence reports an
-`uncertain-write` release failure before fetching or staging a release, even
-when the overseas version has not changed. Waiting for verification or stability
-does not close an existing release incident. Recovery follows the notification
-rules below; a failed observation resets confirmation.
+An abandoned browser write still drains its accepted upstream operation. A
+complete Circuit v3 envelope with a discovery operation and its required IDs
+is a read for maintenance, including when its reply is lost. The owning relay
+validates the original body. Inspection is bounded. Incomplete or unclassified
+writes can fence maintenance when acceptance remains uncertain.
+
+`/var/lib/canvas-cn-ingress/uncertain-write` preserves unresolved writes across
+entrance restarts. The owning relay proves successful Circuit writes from its
+durable ledger after authorization. A proof on the original reply settles the
+write even if the reply body is lost. An exact authenticated retry resolves
+only the matching request fingerprint, including after a Project context or
+Cell roster change, or a request result eviction. The entrance never initiates
+a retry.
+An incomplete marker update or an unclean entrance stop leaves maintenance
+fenced, including when the latest marker could not be written. Keep one
+entrance per state directory. Resolve legacy and unclassified records before
+deliberately clearing the marker and any `.next` or `.running` guard with the
+entrance stopped.
+
+Release and backup refuse an unresolved write before staging or stopping the
+runtime. The host monitor checks the verified Production target and the
+installed release independently of the updater and carries the lag clock across
+target changes and missed observations. A fresh mismatch can alert and a fresh
+match resolves version lag. Recovery confirmation requires a fresh match.
 An unfinished archive remains a failure at the same version; a later successful
 installation with a completed archive can close it. Other same-version recovery
 requires live backend readiness, not only a matching commit or `.verified` file.
@@ -201,7 +214,9 @@ names and port numbers enter the monitor state, never configuration bodies.
   catch-up. Old or invalid reports cannot prove progress. Progress never clears
   a health failure, skips a record, or confirms recovery.
 - Release mail reports failure at the next check. Retry must persist for two
-  minutes before mail.
+  minutes before mail. An uncertain write escalates an open release incident.
+  Thirty minutes of verified version lag escalates an open host incident.
+  The host retains a critical escalation while an earlier email is unresolved.
 - Host Agent errors, operator availability, CPU/memory/throughput warnings,
   slow API warnings and thirty-day certificate warnings are record-only.
   Core service/HTTP failures, critical capacity, backup and security conditions

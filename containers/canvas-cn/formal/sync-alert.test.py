@@ -296,6 +296,19 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.assertEqual(len(self.calls), 2)
         self.assertEqual(self.calls[1][1]['subject'], '[Canvas CN] Release sync RECOVERED')
 
+    def test_release_write_fence_escalates_an_open_transport_incident_once(self):
+        self.health('failed', reason='transport-or-invalid-status')
+        self.assertEqual(self.tick(scope='Release').returncode, 0)
+        self.now += 60
+        (self.root / 'monitor.json').write_text(json.dumps({
+            'health': 'failed', 'reason': 'release-failed', 'status': 'uncertain-write',
+            'lastAttemptAt': self.now,
+        }))
+        self.assertEqual(self.tick(scope='Release').returncode, 0)
+        self.assertEqual(self.tick(scope='Release').returncode, 0)
+        self.assertEqual(len(self.calls), 2)
+        self.assertIn('Status: uncertain-write', self.calls[1][1]['text'])
+
     def test_release_retry_grace_resets_after_health(self):
         self.health('failed', reason='retry')
         self.assertEqual(self.tick(scope='Release').returncode, 0)

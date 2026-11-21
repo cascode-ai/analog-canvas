@@ -26,6 +26,7 @@ import {
   parseAgentSimulationResourceRequest,
   parseAgentProjectResourceRequest,
   type AgentCircuitRequest,
+  type AgentCircuitResponse,
   type AgentFileResourceRequest,
   type AgentFileResourceResponse,
   type AgentSimulationResourceRequest,
@@ -73,6 +74,8 @@ import {
   type DeviceTrustLink,
 } from "./agent-device-trust";
 import { sha256Text } from "./sha256-text";
+
+const CIRCUIT_WRITE_RECEIPT = "x-icm-agent-write-receipt";
 
 // requestId is session-wide; identical payloads in different Project bindings
 // must never replay an earlier Project's cached result.
@@ -464,16 +467,47 @@ export class AgentSessionDO {
           409,
           allowedOrigin,
         );
+      const suppliedContext = request.headers.get("x-agent-context");
+      const receiptForRefusedProject = async () => {
+        if (
+          url.pathname !== "/circuit" ||
+          request.headers.get(CIRCUIT_WRITE_RECEIPT) !== "request"
+        )
+          return {};
+        const parsed = parseAgentCircuitRequest(input);
+        if (
+          !parsed.success ||
+          isReadOnlyCircuitRequest(parsed.data) ||
+          !machine.assertScopes(
+            auth.session.scopes,
+            operationScopes(parsed.data),
+          ).ok
+        )
+          return {};
+        const raw = await request.text().catch(() => null);
+        if (
+          raw === null ||
+          !machine.checkSize(new TextEncoder().encode(raw).byteLength).ok
+        )
+          return {};
+        // Prove the old write without dispatching it or returning its result.
+        return this.circuitWriteReceiptHeaders(
+          request,
+          parsed.data,
+          await scopedRequestHash(raw, suppliedContext, workspaceId),
+        );
+      };
       if (machine.documentIds.length === 0 && !workspaceId)
         return jsonResponse(
           errorBody("NO_ACTIVE_PROJECT", errorMessage("NO_ACTIVE_PROJECT")),
           409,
           allowedOrigin,
+          await receiptForRefusedProject(),
         );
       if (
         !discovery &&
         !workspaceId &&
-        request.headers.get("x-agent-context") !== machine.contextRevision
+        suppliedContext !== machine.contextRevision
       )
         return jsonResponse(
           {
@@ -486,6 +520,7 @@ export class AgentSessionDO {
           },
           409,
           allowedOrigin,
+          await receiptForRefusedProject(),
         );
     }
     if (request.method === "POST" && url.pathname === "/circuit") {
@@ -1061,6 +1096,27 @@ export class AgentSessionDO {
     } as ResponseInit & { webSocket: WebSocket });
   }
 
+  private async circuitWriteReceiptHeaders(
+    request: Request,
+    circuit: AgentCircuitRequest,
+    payloadHash: string,
+  ): Promise<Record<string, string>> {
+    if (
+      isReadOnlyCircuitRequest(circuit) ||
+      request.headers.get(CIRCUIT_WRITE_RECEIPT) !== "request"
+    )
+      return {};
+    const record = await this.state.storage
+      .get<CompletedAgentRequest>(requestLedgerKey(circuit.requestId))
+      .catch(() => undefined);
+    // A terminal idempotency record can also describe an uncertain failure.
+    return record?.circuitWriteSucceeded === true &&
+      record.payloadHash === payloadHash &&
+      Number.isFinite(record.completedAt)
+      ? { [CIRCUIT_WRITE_RECEIPT]: "complete" }
+      : {};
+  }
+
   private async circuit(
     request: Request,
     machine: AgentSessionMachine,
@@ -1106,6 +1162,14 @@ export class AgentSessionDO {
       ).ok
     )
       return this.refuseScope(allowedOrigin);
+    const payloadHash = await scopedRequestHash(
+      raw,
+      observedContext,
+      request.headers.get("x-agent-workspace"),
+    );
+    const readOnly = isReadOnlyCircuitRequest(circuitRequest);
+    const writeReceiptHeaders = () =>
+      this.circuitWriteReceiptHeaders(request, circuitRequest, payloadHash);
     if (
       !request.headers.has("x-agent-workspace") &&
       "documentId" in circuitRequest
@@ -1122,15 +1186,10 @@ export class AgentSessionDO {
             machine,
             requestDocumentId,
             allowedOrigin,
+            await writeReceiptHeaders(),
           );
       }
     }
-    const payloadHash = await scopedRequestHash(
-      raw,
-      observedContext,
-      request.headers.get("x-agent-workspace"),
-    );
-    const readOnly = isReadOnlyCircuitRequest(circuitRequest);
     if (trace)
       trace.identity = {
         requestId: circuitRequest.requestId,
@@ -1147,13 +1206,21 @@ export class AgentSessionDO {
         trace.cache = "hit";
         trace.result = begin.result as RequestTrace["result"];
       }
-      return jsonResponse(begin.result, 200, allowedOrigin);
+      return jsonResponse(
+        begin.result,
+        200,
+        allowedOrigin,
+        await writeReceiptHeaders(),
+      );
     }
     if (begin.kind === "rejected") {
       return jsonResponse(
         errorBody(begin.code, errorMessage(begin.code)),
         transportStatus(begin.code),
         allowedOrigin,
+        begin.code === "REQUEST_RESULT_UNAVAILABLE"
+          ? await writeReceiptHeaders()
+          : {},
       );
     }
     if (circuitRequest.operation !== "capabilities")
@@ -1180,7 +1247,15 @@ export class AgentSessionDO {
         trace,
       );
       if (trace) trace.result = result as RequestTrace["result"];
-      machine.completeRequest(circuitRequest.requestId, result, Date.now());
+      const response = result as AgentCircuitResponse;
+      machine.completeRequest(
+        circuitRequest.requestId,
+        result,
+        Date.now(),
+        response.ok === true &&
+          response.requestId === circuitRequest.requestId &&
+          response.operation === circuitRequest.operation,
+      );
       if (circuitRequest.operation !== "capabilities")
         machine.recordActivity(Date.now());
       await this.persist();
@@ -1189,12 +1264,10 @@ export class AgentSessionDO {
         sessionId: machine.sessionId,
         requestId: circuitRequest.requestId,
       });
-      return jsonResponse(
-        result,
-        200,
-        allowedOrigin,
-        this.relayTiming(circuitRequest, "circuit", result, forwardStarted),
-      );
+      return jsonResponse(result, 200, allowedOrigin, {
+        ...this.relayTiming(circuitRequest, "circuit", result, forwardStarted),
+        ...(await writeReceiptHeaders()),
+      });
     } catch (error) {
       if (this.deviceRevokedUntil)
         return this.deviceRevokedResponse(allowedOrigin);
@@ -2258,6 +2331,7 @@ export class AgentSessionDO {
     machine: AgentSessionMachine,
     documentId: string,
     allowedOrigin: string | null,
+    headers?: Record<string, string>,
   ): Response {
     const current = machine.contextRevision;
     if (current && request.headers.get("x-agent-context") !== current)
@@ -2268,6 +2342,7 @@ export class AgentSessionDO {
         ),
         transportStatus("PROJECT_CONTEXT_STALE"),
         allowedOrigin,
+        headers,
       );
     return jsonResponse(
       errorBody(
@@ -2276,6 +2351,7 @@ export class AgentSessionDO {
       ),
       403,
       allowedOrigin,
+      headers,
     );
   }
 
