@@ -2,6 +2,7 @@ import {
   AGENT_API_VERSION,
   AGENT_FILE_CANDIDATE_TTL_MS,
   AGENT_FILE_RESOURCE_MAX_BYTES,
+  AGENT_IMPORT_COVERAGE_LOCATION_LIMIT,
   base64DecodeBytes,
   base64EncodeBytes,
   localSourceIdentity,
@@ -699,7 +700,10 @@ export class BrowserAgentFileHost {
           throw error;
         });
         if (request.includeImportCoverage && imported.ledger)
-          importCoverage = ledgerCoverage(imported.ledger);
+          importCoverage = ledgerCoverage(
+            imported.ledger,
+            AGENT_IMPORT_COVERAGE_LOCATION_LIMIT,
+          );
         if (imported instanceof LocalCircuitImportError)
           return this.error(
             request,

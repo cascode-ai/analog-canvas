@@ -23,6 +23,7 @@ const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 export const AGENT_FILE_RESOURCE_MAX_BYTES = 10_000_000;
 export const AGENT_FILE_RESOURCE_MAX_FILES = 24;
 export const AGENT_FILE_CANDIDATE_TTL_MS = 5 * 60_000;
+export const AGENT_IMPORT_COVERAGE_LOCATION_LIMIT = 20;
 
 const AgentFileBlobSchema = z.strictObject({
   name: z.string().min(1).max(512),
@@ -62,7 +63,7 @@ const ImportLocationsSchema = z
       line: z.number().int().positive(),
     }),
   )
-  .max(20);
+  .max(AGENT_IMPORT_COVERAGE_LOCATION_LIMIT);
 const AgentImportCoverageSchema = z.strictObject({
   total: StatementCountSchema.describe("Number of entries in the ledger"),
   complete: z

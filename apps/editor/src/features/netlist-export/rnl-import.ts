@@ -35,7 +35,10 @@ import {
 import { withImportedInstanceDisplays } from "../instance-display/imported-instance-displays";
 
 import { givenModelTypesUsed, isSpectreSource } from "./convert-import-sources";
-import { importNetlistSources } from "./netlist-source-import";
+import {
+  importNetlistSources,
+  type NetlistImportPolicy,
+} from "./netlist-source-import";
 import type { RnlRuntime } from "./rnl-runtime";
 
 export type RnlImportPlan =
@@ -359,7 +362,7 @@ async function layoutHints(
   }
 }
 
-export function readRnlHost(
+function readRnlHost(
   runtime: RnlRuntime,
   inputs: readonly SpiceSourceInput[],
   entryPath: string,
@@ -413,7 +416,7 @@ function ownArtworkCalls(
 }
 
 /** Native subcircuit bindings from the host circuit, independent of drawing. */
-export function rnlSubcircuitNames(snapshot: RnlSnapshot): string[] {
+function rnlSubcircuitNames(snapshot: RnlSnapshot): string[] {
   return [
     ...new Set(
       snapshot.levels.flatMap(
@@ -426,22 +429,25 @@ export function rnlSubcircuitNames(snapshot: RnlSnapshot): string[] {
   ];
 }
 
-async function buildImportPlan({
+/** Read the electrical source with the drawing's import evidence, without
+ * verifying or applying placements. Staging and review use this policy. */
+export async function importRnlNetlist({
   inputs,
   entryPath,
   runtime,
+  dialect,
   compileOptions = {},
-  appearance = "canvas",
   modelTypes = {},
-  undeclaredModels,
-}: Parameters<typeof planRnlImport>[0]): Promise<RnlImportPlan> {
-  if (!runtime)
-    return failedPlan(
-      "RNL import needs the rnl runtime, which this build lacks",
-    );
-  const entry = inputs.find((input) => input.path === entryPath);
-  if (!entry) return failedPlan(`RNL import has no file ${entryPath}`);
-  const dialect = isSpectreSource(entry) ? "spectre" : "spice";
+  givesModelTypes = false,
+}: {
+  inputs: readonly SpiceSourceInput[];
+  entryPath: string;
+  runtime: RnlRuntime;
+  dialect: "spice" | "spectre";
+  compileOptions?: SpiceCompileOptions;
+  modelTypes?: Readonly<Record<string, string>>;
+  givesModelTypes?: boolean;
+}) {
   const answered = await readRnlHost(runtime, inputs, entryPath, dialect);
   // A file of another language version comes in as its circuit: its drawing,
   // and all the import would take from it, is left out.
@@ -467,7 +473,7 @@ async function buildImportPlan({
     snapshot,
     inputs.map((input) => input.path),
   );
-  const imported = await importNetlistSources(inputs, entryPath, {
+  const policy = {
     namingProfile: "native",
     compileOptions,
     externalSubcircuitNames,
@@ -480,14 +486,44 @@ async function buildImportPlan({
       ...drawnTypes,
       ...declaredModelTypes(snapshot),
     ]),
-    givesModelTypes: undeclaredModels === "give-type",
+    givesModelTypes,
     externalSymbolMappings: symbolMappings,
     // A library block the file calls without its body is the block its
     // parts are drawn as.
     calledBlocks: drawnCalledBlocks(snapshot, dialect),
     // A library body the drawing's parts call stays the text it is.
     libraryBodies,
-  });
+  } satisfies NetlistImportPolicy;
+  const imported = await importNetlistSources(inputs, entryPath, policy);
+  return { imported, snapshot, refused, drawnTypes, policy };
+}
+
+async function buildImportPlan({
+  inputs,
+  entryPath,
+  runtime,
+  compileOptions = {},
+  appearance = "canvas",
+  modelTypes = {},
+  undeclaredModels,
+}: Parameters<typeof planRnlImport>[0]): Promise<RnlImportPlan> {
+  if (!runtime)
+    return failedPlan(
+      "RNL import needs the rnl runtime, which this build lacks",
+    );
+  const entry = inputs.find((input) => input.path === entryPath);
+  if (!entry) return failedPlan(`RNL import has no file ${entryPath}`);
+  const dialect = isSpectreSource(entry) ? "spectre" : "spice";
+  const { imported, snapshot, refused, drawnTypes, policy } =
+    await importRnlNetlist({
+      inputs,
+      entryPath,
+      runtime,
+      dialect,
+      compileOptions,
+      modelTypes,
+      givesModelTypes: undeclaredModels === "give-type",
+    });
   if (imported.status !== "imported")
     return {
       status: "failed",
@@ -523,11 +559,11 @@ async function buildImportPlan({
             fileImported,
             inputs,
             entryPath,
-            libraryBodies,
+            policy.libraryBodies,
             compileOptions,
-            symbolMappings,
-            externalSubcircuitNames,
-            externalSubcircuitCalls,
+            policy.externalSymbolMappings,
+            policy.externalSubcircuitNames,
+            policy.externalSubcircuitCalls,
           ),
         );
   let kept = await verifyDrawing(drawn);

@@ -1,5 +1,5 @@
 import {
-  hasRnlCommentRecords,
+  AGENT_IMPORT_COVERAGE_LOCATION_LIMIT,
   type LocalReviewDelivery,
   type ReviewComparison,
 } from "@icm/agent-adapter";
@@ -14,7 +14,6 @@ import { symbolModelType } from "@icm/rnl";
 import {
   compareCircuitIR,
   compileSpiceSources,
-  decodeSourceContent,
   isSpectreSource,
   type SpiceSourceInput,
 } from "@icm/spice";
@@ -24,6 +23,7 @@ import {
   ledgerByCell,
   ledgerSummary,
 } from "../features/netlist-export/netlist-source-import";
+import { hasRnlNetlist } from "./import-local-circuit";
 
 const MAX_DIFFERENCES = 200;
 
@@ -93,29 +93,6 @@ function drawingModelTypes(project: CircuitProject, design: DesignNetlistIR) {
   return types;
 }
 
-/** The levels an RNL drawing leaves undrawn, which are a library's. */
-async function rnlLibraryNames(
-  inputs: readonly SpiceSourceInput[],
-  entryPath: string,
-): Promise<string[] | undefined> {
-  const entry = inputs.find(({ path }) => path === entryPath);
-  if (
-    !entry ||
-    !isSpectreSource(entry) ||
-    !hasRnlCommentRecords(decodeSourceContent(entry.bytes).text)
-  )
-    return undefined;
-  const [{ loadRnlRuntime }, { readRnlHost, rnlSubcircuitNames }] =
-    await Promise.all([
-      import("../features/netlist-export/rnl-runtime"),
-      import("../features/netlist-export/rnl-import"),
-    ]);
-  const runtime = await loadRnlRuntime();
-  if (!runtime) throw new Error("The native RNL host reader is unavailable");
-  const snapshot = await readRnlHost(runtime, inputs, entryPath, "spectre");
-  return rnlSubcircuitNames(snapshot);
-}
-
 /**
  * The device types the Project's parts were imported with, by model name:
  * a delivery's `modelTypes` (or a native card's `type=`), as each imported
@@ -134,18 +111,31 @@ function importedModelTypes(project: CircuitProject): Record<string, string> {
 /** The reference, read as its import read it: the same entry and the same
  * type evidence, or a typed part looks like a call of an unknown master. */
 async function readReference(
-  source: ReviewSource,
+  { files, entryPath }: ReviewSource,
   modelTypes: Readonly<Record<string, string>>,
 ) {
-  const externalSubcircuitNames = await rnlLibraryNames(
-    source.files,
-    source.entryPath,
-  );
-  return importNetlistSources(source.files, source.entryPath, {
-    compileOptions: { includeRoot: "workspace" },
+  const options = {
+    compileOptions: { includeRoot: "workspace" as const },
     modelTypes,
-    ...(externalSubcircuitNames ? { externalSubcircuitNames } : {}),
+    givesModelTypes: true,
+  };
+  const entry = files.find(({ path }) => path === entryPath);
+  if (!entry || !hasRnlNetlist(files))
+    return importNetlistSources(files, entryPath, options);
+  const [{ loadRnlRuntime }, { importRnlNetlist }] = await Promise.all([
+    import("../features/netlist-export/rnl-runtime"),
+    import("../features/netlist-export/rnl-import"),
+  ]);
+  const runtime = await loadRnlRuntime();
+  if (!runtime) throw new Error("The native RNL host reader is unavailable");
+  const { imported } = await importRnlNetlist({
+    ...options,
+    inputs: files,
+    entryPath,
+    runtime,
+    dialect: isSpectreSource(entry) ? "spectre" : "spice",
   });
+  return imported;
 }
 
 /**
@@ -209,7 +199,7 @@ export async function compareReviewSource(
   }
   const compiled = reference.compiled;
   const coverage = [
-    `Reference coverage: ${ledgerSummary(reference.ledger)}`,
+    `Reference coverage: ${ledgerSummary(reference.ledger, AGENT_IMPORT_COVERAGE_LOCATION_LIMIT)}`,
     `Reference coverage by Cell: ${ledgerByCell(reference.ledger)}`,
   ];
   if (

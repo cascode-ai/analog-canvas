@@ -793,7 +793,7 @@ describe("BrowserAgentFileHost", () => {
     const { host } = setup();
     const request = await localStageRequest(
       "cells/top.scs",
-      "simulator lang=spectre\nR1 (a A) resistor r=1k\n",
+      "simulator lang=spectre\nR0 (out 0) resistor r=1k\nR1 (a A) resistor r=1k\nC1 (out 0) capacitor c=1p\n",
     );
     const stage = await host.handle({
       ...request,
@@ -808,7 +808,7 @@ describe("BrowserAgentFileHost", () => {
         complete: false,
         counts: { refused: 1 },
         unresolved: [],
-        refused: [{ path: "cells/top.scs", line: 2 }],
+        refused: [{ path: "cells/top.scs", line: 3 }],
       },
     });
     expect(stage).not.toHaveProperty("candidate");

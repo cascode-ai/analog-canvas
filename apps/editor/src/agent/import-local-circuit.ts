@@ -20,6 +20,14 @@ import { importNetlistSources } from "../features/netlist-export/netlist-source-
 
 type LocalCircuitInput = SpiceSourceInput & { sha256: string };
 
+export function hasRnlNetlist(inputs: readonly SpiceSourceInput[]): boolean {
+  return inputs.some(
+    ({ path, bytes }) =>
+      !/\.rnl$/iu.test(path) &&
+      hasRnlCommentRecords(decodeSourceContent(bytes).text),
+  );
+}
+
 export class LocalCircuitImportError extends Error {
   constructor(
     message: string,
@@ -86,12 +94,7 @@ export async function importLocalCircuit(
     } as const;
   }
   const compileOptions: SpiceCompileOptions = { includeRoot: "workspace" };
-  const rich = inputs.some(
-    ({ path, bytes }) =>
-      !/\.rnl$/iu.test(path) &&
-      hasRnlCommentRecords(decodeSourceContent(bytes).text),
-  );
-  if (rich) {
+  if (hasRnlNetlist(inputs)) {
     const [{ planRnlImport }, { loadRnlRuntime }] = await Promise.all([
       import("../features/netlist-export/rnl-import"),
       import("../features/netlist-export/rnl-runtime"),

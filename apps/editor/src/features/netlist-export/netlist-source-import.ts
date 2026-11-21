@@ -174,7 +174,7 @@ function sourceLedger(
 const LEDGER_LOCATION_LIMIT = 20;
 
 /** Statement counts and a bounded preview of unresolved and refused locations. */
-export function ledgerCoverage(ledger: StatementLedger) {
+export function ledgerCoverage(ledger: StatementLedger, locationLimit: number) {
   const counts = {
     instance: 0,
     definition: 0,
@@ -189,9 +189,9 @@ export function ledgerCoverage(ledger: StatementLedger) {
   const refused: Location[] = [];
   for (const { path, line, fate } of ledger.entries) {
     counts[fate] += 1;
-    if (fate === "unresolved" && unresolved.length < LEDGER_LOCATION_LIMIT)
+    if (fate === "unresolved" && unresolved.length < locationLimit)
       unresolved.push({ path, line });
-    if (fate === "refused" && refused.length < LEDGER_LOCATION_LIMIT)
+    if (fate === "refused" && refused.length < locationLimit)
       refused.push({ path, line });
   }
   return {
@@ -205,8 +205,14 @@ export function ledgerCoverage(ledger: StatementLedger) {
 
 /** What the ledger counts: each fate, and where a statement went
  * unresolved or was refused. */
-export function ledgerSummary(ledger: StatementLedger): string {
-  const { total, counts, unresolved, refused } = ledgerCoverage(ledger);
+export function ledgerSummary(
+  ledger: StatementLedger,
+  locationLimit = LEDGER_LOCATION_LIMIT,
+): string {
+  const { total, counts, unresolved, refused } = ledgerCoverage(
+    ledger,
+    locationLimit,
+  );
   const locations = { unresolved, refused };
   const order: StatementFateKind[] = [
     "instance",
@@ -225,7 +231,7 @@ export function ledgerSummary(ledger: StatementLedger): string {
             .map(({ path, line }) => `${path}:${line}`)
             .join(
               ", ",
-            )}${count > LEDGER_LOCATION_LIMIT ? `, and ${count - LEDGER_LOCATION_LIMIT} more` : ""})`
+            )}${count > locationLimit ? `, and ${count - locationLimit} more` : ""})`
         : "";
     return [`${count} ${fate}${where}`];
   });
@@ -233,7 +239,7 @@ export function ledgerSummary(ledger: StatementLedger): string {
     counts.unknown
       ? `; coverage unknown for ${counts.unknown} (${ledger.entries
           .filter(({ fate }) => fate === "unknown")
-          .slice(0, LEDGER_LOCATION_LIMIT)
+          .slice(0, locationLimit)
           .map(({ path, line }) => `${path}:${line}`)
           .join(", ")})`
       : ""
