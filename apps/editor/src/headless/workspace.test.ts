@@ -149,6 +149,13 @@ describe("headless workspace (#1498)", () => {
     expect(wired, JSON.stringify(wired)).toMatchObject({ ok: true });
     const netlist = workspaceNetlist(local.editor.project);
     expect(netlist.status, netlist.messages.join("; ")).toBe("ready");
+    // Another Process exports its own devices and leaves the Project alone.
+    const before = local.editor.project;
+    const sg13 = workspaceNetlist(before, "spectre", "sg13g2");
+    expect(sg13.status, sg13.messages.join("; ")).toBe("ready");
+    expect(sg13.text).toContain("rppd");
+    expect(netlist.text).not.toContain("rppd");
+    expect(local.editor.project).toBe(before);
     expect(await workspaceSvg(local.editor.project)).toContain("<svg");
     // By name, as MCP verify compares a drawing with an expected netlist.
     const reference = [

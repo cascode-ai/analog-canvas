@@ -11,24 +11,44 @@ import {
 } from "@icm/spice";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
+import type { NetlistProfileId } from "../features/netlist-export/netlist-process-presets";
+import { projectInNetlistProcess } from "../features/netlist-export/netlist-process";
+
 /**
  * What a drawn workspace hands out (#1498): its netlist, its figure, and how
  * its netlist compares with a reference. The same export, render and
  * structural comparison the editor, the Gallery and the MCP's verify use.
  */
 
-/** The structural netlist of the top Cell, or why it is blocked. */
+/**
+ * The structural netlist of the top Cell, or why it is blocked. With a
+ * `process` it exports as if Apply process had set it, as the editor's
+ * read-netlist does; the Project is left as it was.
+ */
 export function workspaceNetlist(
   project: CircuitProject,
   format: NetlistFormat = "spice",
-): { status: "ready" | "blocked"; text: string | null; messages: string[] } {
-  const result = createDesignNetlistExport(project, { format });
-  const messages = result.diagnostics
-    .filter((diagnostic) => diagnostic.severity === "error")
-    .map((diagnostic) => diagnostic.message);
+  process?: Exclude<NetlistProfileId, "custom">,
+): {
+  status: "ready" | "blocked";
+  text: string | null;
+  messages: string[];
+  /** What the export warned about, as `CODE: message`. */
+  warnings: string[];
+} {
+  const result = createDesignNetlistExport(
+    process ? projectInNetlistProcess(project, process) : project,
+    { format },
+  );
+  const of = (severity: string) =>
+    result.diagnostics.filter((diagnostic) => diagnostic.severity === severity);
+  const messages = of("error").map((diagnostic) => diagnostic.message);
+  const warnings = of("warning").map(
+    (diagnostic) => `${diagnostic.code}: ${diagnostic.message}`,
+  );
   return result.status === "ready"
-    ? { status: "ready", text: result.file.text, messages }
-    : { status: "blocked", text: null, messages };
+    ? { status: "ready", text: result.file.text, messages, warnings }
+    : { status: "blocked", text: null, messages, warnings };
 }
 
 /** The top Cell as the formal SVG the editor exports and the Gallery shows. */
