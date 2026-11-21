@@ -55,7 +55,7 @@ export const agentToolHelp = {
   review_delivery:
     "Read the live review's imported source entry and version, incomplete Cells and netlist comparison. Pass taskRef for a dedicated task. Report differences and notes from the receipt.",
   import_file:
-    "open-local delivers a local Project, RNL, SPICE or Spectre entry and its relative dependencies to Canvas Web. Pass taskRef, rootPath and entryPath, and modelTypes for models whose cards an external library holds. RNL reuses the layout with Canvas Pin, Ground and bulk styling. For authored styling pass rnlAppearance:source. Returns the live Project, Cell, revision, source version and drawing/electrical status. Other actions stage, inspect, open or discard a candidate, import-cell into the selected Cell, or request human approval for whole-Project replacement.",
+    "open-local delivers a local Project, RNL, SPICE or Spectre entry and its relative dependencies to Canvas Web. Pass taskRef, rootPath and entryPath, and modelTypes for models whose cards an external library holds. RNL reuses the layout with Canvas Pin, Ground and bulk styling. For authored styling pass rnlAppearance:source. Returns the live Project, Cell, revision, source version and drawing/electrical status. When staging a netlist, importCoverage reports statement counts and unresolved or refused source locations. Other actions stage, inspect, open or discard a candidate, import-cell into the selected Cell, or request human approval for whole-Project replacement.",
   get_context:
     "Read document identity/revision/counts with a lightweight request or clean cache. refresh:true reconciles external changes. Connect already returns context.",
   inspect:

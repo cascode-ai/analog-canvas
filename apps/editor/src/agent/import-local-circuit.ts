@@ -12,12 +12,30 @@ import {
   type SpiceCompileOptions,
   type SpiceDiagnostic,
   type SpiceSourceInput,
+  type StatementLedger,
 } from "@icm/spice";
 import { withImportedInstanceDisplays } from "../features/instance-display/imported-instance-displays";
 import { givenModelTypesUsed } from "../features/netlist-export/convert-import-sources";
 import { importNetlistSources } from "../features/netlist-export/netlist-source-import";
 
 type LocalCircuitInput = SpiceSourceInput & { sha256: string };
+
+export function hasRnlNetlist(inputs: readonly SpiceSourceInput[]): boolean {
+  return inputs.some(
+    ({ path, bytes }) =>
+      !/\.rnl$/iu.test(path) &&
+      hasRnlCommentRecords(decodeSourceContent(bytes).text),
+  );
+}
+
+export class LocalCircuitImportError extends Error {
+  constructor(
+    message: string,
+    readonly ledger: StatementLedger | undefined,
+  ) {
+    super(message);
+  }
+}
 
 /** Keep exact delivered hashes and files alongside the compiler's parsed spans. */
 function retainSourceFiles(
@@ -72,15 +90,11 @@ export async function importLocalCircuit(
       drawing: "native",
       electrical: "not-verified",
       diagnostics: [] as AgentLocalSource["diagnostics"],
+      ledger: undefined,
     } as const;
   }
   const compileOptions: SpiceCompileOptions = { includeRoot: "workspace" };
-  const rich = inputs.some(
-    ({ path, bytes }) =>
-      !/\.rnl$/iu.test(path) &&
-      hasRnlCommentRecords(decodeSourceContent(bytes).text),
-  );
-  if (rich) {
+  if (hasRnlNetlist(inputs)) {
     const [{ planRnlImport }, { loadRnlRuntime }] = await Promise.all([
       import("../features/netlist-export/rnl-import"),
       import("../features/netlist-export/rnl-runtime"),
@@ -95,7 +109,7 @@ export async function importLocalCircuit(
       undeclaredModels: "give-type",
     });
     if (result.status === "failed")
-      throw importError(result.diagnostics, result.message);
+      throw importError(result.diagnostics, result.message, result.ledger);
     const diagnostics: AgentLocalSource["diagnostics"] = [
       ...diagnosticsOf(result.diagnostics),
       ...givenTypesReport(result.modelTypesUsed),
@@ -106,6 +120,7 @@ export async function importLocalCircuit(
       drawing: result.drawing,
       electrical: result.drawing === "discarded" ? "not-verified" : "verified",
       diagnostics,
+      ledger: result.ledger,
     } as const;
   }
   // A card the sources give decides, then a native card's own type, then
@@ -117,7 +132,11 @@ export async function importLocalCircuit(
     givesModelTypes: true,
   });
   if (result.status !== "imported")
-    throw importError(result.diagnostics, "Structural netlist import failed");
+    throw importError(
+      result.diagnostics,
+      "Structural netlist import failed",
+      result.ledger,
+    );
   const used = givenModelTypesUsed(
     given,
     result.project,
@@ -136,6 +155,7 @@ export async function importLocalCircuit(
     drawing: "not-provided",
     electrical: "not-verified",
     diagnostics,
+    ledger: result.ledger,
   } as const;
 }
 
@@ -162,7 +182,14 @@ function diagnosticsOf(
   );
 }
 
-function importError(diagnostics: SpiceDiagnostic[], fallback: string): Error {
+function importError(
+  diagnostics: SpiceDiagnostic[],
+  fallback: string,
+  ledger: StatementLedger | undefined,
+): LocalCircuitImportError {
   const first = diagnostics.find((item) => item.severity === "error");
-  return new Error(first ? `${first.code}: ${first.message}` : fallback);
+  return new LocalCircuitImportError(
+    first ? `${first.code}: ${first.message}` : fallback,
+    ledger,
+  );
 }

@@ -5,6 +5,7 @@ import {
   AGENT_API_VERSION,
   matchesAgentReviewTarget,
   type AgentFileResourceRequest,
+  type AgentImportCoverage,
   type AgentLocalModelTypes,
   type AgentRnlAppearance,
 } from "@icm/agent-adapter";
@@ -239,6 +240,27 @@ async function timed<T>(
   }
 }
 
+async function stageLocalFile(
+  client: AgentSessionClient,
+  request: Extract<AgentFileResourceRequest, { operation: "stage" }>,
+) {
+  const staged = await client
+    .fileResource({ ...request, includeImportCoverage: true }, "session")
+    .catch((error: unknown) => {
+      if (
+        error instanceof AgentSessionError &&
+        error.httpStatus === 400 &&
+        error.code === "FILE_CONTENT_INVALID"
+      )
+        return null;
+      throw error;
+    });
+  if (staged && (staged.ok || staged.error.code !== "FILE_REQUEST_INVALID"))
+    return staged;
+  // A strict older relay or editor can reject the option before staging.
+  return client.fileResource({ ...request, requestId: requestId() }, "session");
+}
+
 /** The caller keeps `timingMs`, so a refusal can report the stages it ran. */
 export async function openLocalFile(
   client: AgentSessionClient,
@@ -293,27 +315,33 @@ export async function openLocalFile(
       located.ok ? "Unexpected locate-local response" : located.error.message,
     );
   let delivery = located.delivery;
+  let importCoverage: AgentImportCoverage | undefined;
   if (!delivery) {
     // A refused import has no separate import time: it is all transfer.
     const staged = await timed(timingMs, "transfer", () =>
-      client.fileResource(
-        {
-          apiVersion: AGENT_API_VERSION,
-          requestId: requestId(),
-          operation: "stage",
-          kind: "local-circuit",
-          entryPath,
-          files,
-          ...appearance,
-          ...(options.modelTypes ? { modelTypes: options.modelTypes } : {}),
-        },
-        "session",
-      ),
+      stageLocalFile(client, {
+        apiVersion: AGENT_API_VERSION,
+        requestId: requestId(),
+        operation: "stage",
+        kind: "local-circuit",
+        entryPath,
+        files,
+        ...appearance,
+        ...(options.modelTypes ? { modelTypes: options.modelTypes } : {}),
+      }),
     );
     if (staged.ok && staged.operation === "stage") {
       timingMs.import = staged.candidate.importMs ?? 0;
       timingMs.transfer = Math.max(0, timingMs.transfer - timingMs.import);
+      importCoverage = staged.importCoverage;
     }
+    if (!staged.ok && staged.importCoverage)
+      return {
+        ok: false as const,
+        error: { ...staged.error, category: "request-rejected" as const },
+        importCoverage: staged.importCoverage,
+        timingMs,
+      };
     if (
       !staged.ok ||
       staged.operation !== "stage" ||
@@ -370,10 +398,11 @@ export async function openLocalFile(
   }
   const { sessionId } = await client.status();
   return {
-    ok: true,
+    ok: true as const,
     taskRef: options.taskRef ?? null,
     sessionId,
     delivery,
+    ...(importCoverage ? { importCoverage } : {}),
     timingMs,
   };
 }

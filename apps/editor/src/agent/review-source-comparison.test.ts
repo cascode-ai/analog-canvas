@@ -129,6 +129,19 @@ describe("Canvas review of an imported netlist", () => {
     );
   });
 
+  it("reports an inductor coupling that source compilation kept but import could not place", async () => {
+    const netlist = input(
+      "top.sp",
+      "* coupling\n.subckt top a b\nL1 a 0 1u\nL2 b 0 1u\nK1 L1 L9 0.5\n.ends top\n",
+    );
+    const { project } = await importLocalCircuit([netlist], "top.sp");
+    const source = await embeddedReviewBundle(project.source);
+    const result = await compareReviewSource(project, source!);
+    expect(result.notes).toContain(
+      "Reference coverage: 5 statements: 2 instance, 2 definition, 1 unresolved (top.sp:5)",
+    );
+  });
+
   it("reads the reference with the device types the delivery was imported with (#2377)", async () => {
     // A foundry library kept external: only the Agent's types say what the
     // MOS are. The reference must read them so, or every typed part looks
