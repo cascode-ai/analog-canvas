@@ -1881,7 +1881,12 @@ it("uses local supply rails by default, preserves explicit global and rejects di
   expect(controller.project).toEqual(before);
   // Ground is drawn with ground symbols, not as a second Net named GND.
   const ground = await client.applyActions([
-    { kind: "add-power-rail", name: "GND", start: { x: 100, y: 400 }, end: { x: 300, y: 400 } },
+    {
+      kind: "add-power-rail",
+      name: "GND",
+      start: { x: 100, y: 400 },
+      end: { x: 300, y: 400 },
+    },
   ]);
   expect(ground.ok).toBe(false);
   expect(ground.message).toContain("ground symbols");
