@@ -25,9 +25,43 @@ import {
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { createRouteClearance } from "./route-clearance.js";
 import {
+  NO_WIRE_AT,
+  onTapGrid,
   resolveWireIntentTarget,
   wireTargetReference,
 } from "./wire-intent-target.js";
+
+/** What a wire batch's plan says beside its edits, for the receipt. */
+export interface WirePlanNote {
+  readonly code: string;
+  readonly message: string;
+  readonly objectIds: readonly string[];
+}
+
+/** The receipt's word that a wire-at point off the tap grid was moved. */
+function snappedTapNote(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  index: number,
+  requested: WireIntent["from"],
+  resolved: Exclude<WireIntent["from"], { kind: "net" | "wire-at" }>,
+): WirePlanNote[] {
+  if (requested.kind !== "wire-at" || onTapGrid(document, requested.point))
+    return [];
+  const landing =
+    resolved.kind === "endpoint"
+      ? resolveEndpointConnection(document, resolver, resolved.endpoint)
+          ?.gridLanding
+      : resolved.point;
+  const at = (point: Point) => `(${point.x}, ${point.y})`;
+  return [
+    {
+      code: "TAP_SNAPPED",
+      message: `Wire ${index + 1}: wire-at ${at(requested.point)} is off the tap grid; it tapped the wire at ${landing ? at(landing) : "the nearest grid point"}`,
+      objectIds: resolved.kind === "route-segment" ? [resolved.routeId] : [],
+    },
+  ];
+}
 
 /**
  * A drawn path from landing to landing, as the clearance check reads one: the
@@ -465,7 +499,9 @@ function endOf(
 
 /** Plan on private evolving state, then dispatch the combined edits once.
  * `keepClear` (the Agent's connect) routes each wire between two endpoints
- * clear of foreign pins, bodies and wires; route-net clears its own. */
+ * clear of foreign pins, bodies and wires; route-net clears its own. A wire
+ * whose wire-at finds no wire yet waits until the rest are drawn, so a tap
+ * may name a wire a later intent draws. */
 export function planWireBatch(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -473,13 +509,32 @@ export function planWireBatch(
     | Parameters<typeof proposeWireIntent>[2]
     | Parameters<typeof proposeWireIntent>[2][],
   options: { keepClear?: boolean } = {},
-): { edits: SchematicEdit[] } | string {
+): { edits: SchematicEdit[]; notes?: WirePlanNote[] } | string {
   if (!Array.isArray(input)) {
     const intent = options.keepClear
       ? keepClear(document, resolver, input)
       : input;
     if (typeof intent === "string") return intent;
-    return proposeWireIntent(document, resolver, intent);
+    const planned = proposeWireIntent(document, resolver, intent);
+    if (typeof planned === "string") return planned;
+    const notes = (["from", "to"] as const).flatMap((side) => {
+      const requested = input[side];
+      if (requested.kind !== "wire-at") return [];
+      const resolved = resolveWireIntentTarget(
+        document,
+        resolver,
+        requested,
+        wireTargetReference(
+          input.waypoints,
+          side,
+          side === "from" ? input.to : input.from,
+        ),
+      );
+      return typeof resolved === "string"
+        ? []
+        : snappedTapNote(document, resolver, 0, requested, resolved);
+    });
+    return notes.length ? { edits: planned.edits, notes } : planned;
   }
   const draft = createContactPlanningDraft(document, resolver);
   const working = draft.document;
@@ -652,30 +707,46 @@ export function planWireBatch(
       legId: match.segment.address.legId,
     };
   };
-  for (const [index, intent] of input.entries()) {
+  const notes: WirePlanNote[] = [];
+  /** Plan one intent onto the draft, or say why not; `waits` when only a
+   * wire-at found no wire, which a later intent may still draw. */
+  const plan = (
+    index: number,
+    intent: WireIntent,
+  ): { message: string; waits: boolean } | undefined => {
+    const refused = (message: string, waits = false) => ({
+      message: `Wire ${index + 1}: ${message}`,
+      waits,
+    });
     const from = rebaseAnchor(intent.from);
-    if (typeof from === "string") return `Wire ${index + 1}: ${from}`;
+    if (typeof from === "string") return refused(from);
     const to = rebaseAnchor(intent.to);
-    if (typeof to === "string") return `Wire ${index + 1}: ${to}`;
+    if (typeof to === "string") return refused(to);
+    const waits = (anchor: WireIntent["from"], message: string) =>
+      anchor.kind === "wire-at" && message.startsWith(NO_WIRE_AT);
     const selectedFrom = resolveAnchor(
       from,
       wireTargetReference(intent.waypoints, "from", to),
     );
     if (typeof selectedFrom === "string")
-      return `Wire ${index + 1}: ${selectedFrom}`;
+      return refused(selectedFrom, waits(from, selectedFrom));
     const selectedTo = resolveAnchor(
       to,
       wireTargetReference(intent.waypoints, "to", selectedFrom),
     );
     if (typeof selectedTo === "string")
-      return `Wire ${index + 1}: ${selectedTo}`;
+      return refused(selectedTo, waits(to, selectedTo));
     const selected = { ...intent, from: selectedFrom, to: selectedTo };
     const cleared = options.keepClear
       ? keepClear(working, resolver, selected)
       : selected;
-    if (typeof cleared === "string") return `Wire ${index + 1}: ${cleared}`;
+    if (typeof cleared === "string") return refused(cleared);
     const planned = proposeWireIntent(working, resolver, cleared);
-    if (typeof planned === "string") return `Wire ${index + 1}: ${planned}`;
+    if (typeof planned === "string") return refused(planned);
+    notes.push(
+      ...snappedTapNote(working, resolver, index, from, selectedFrom),
+      ...snappedTapNote(working, resolver, index, to, selectedTo),
+    );
     // Match the final transaction's pre-finalization state. Normalizing each
     // private step would invent Net/Route identities absent during replay.
     // A new route's Net remains a hint until finalization; a tap can materialize
@@ -689,7 +760,7 @@ export function planWireBatch(
     try {
       for (const edit of materialized) draft.apply(edit);
     } catch (error) {
-      return `Wire ${index + 1}: ${error instanceof Error ? error.message : String(error)}`;
+      return refused(error instanceof Error ? error.message : String(error));
     }
     for (const edit of planned.edits) {
       if (edit.kind !== "add_junction" || !edit.split) continue;
@@ -699,6 +770,23 @@ export function planWireBatch(
         lineage.add(edit.split.secondRouteId);
       }
     }
+    return undefined;
+  };
+  // In order; a wire whose tap finds no wire yet waits for the rest, and the
+  // batch is refused only once a round draws nothing new.
+  let queue = [...input.entries()];
+  while (queue.length) {
+    const waiting: typeof queue = [];
+    let firstRefusal: string | undefined;
+    for (const [index, intent] of queue) {
+      const refusal = plan(index, intent);
+      if (!refusal) continue;
+      if (!refusal.waits) return refusal.message;
+      waiting.push([index, intent]);
+      firstRefusal ??= refusal.message;
+    }
+    if (waiting.length === queue.length) return firstRefusal!;
+    queue = waiting;
   }
-  return { edits };
+  return notes.length ? { edits, notes } : { edits };
 }

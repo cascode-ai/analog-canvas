@@ -44,8 +44,9 @@ route-segment attachment uses `{routeId, legId}` and the actual point; a
 segment index is not stable across revisions. Manual, locked or trunk segments
 do not autoroute. `wire-at` taps a `point` on the evolving wire batch,
 optionally restricted by `net` or a member `{instanceId,pinName}`, including a
-trunk created earlier in the batch; the point is tapped exactly and, like a via
-point, must be on the pin grid (refused, never moved). A `net` target taps that
+wire another connect of the same batch draws, before or after it. A point off
+the 2-unit tap grid taps at its nearest grid point on a wire, noted
+`TAP_SNAPPED`; with no wire there it is refused. A `net` target taps that
 Net's nearest conductor where a pointer would land. A `free` anchor is not a
 tap. Different Nets may cross, but a tap joining them is rejected.
 

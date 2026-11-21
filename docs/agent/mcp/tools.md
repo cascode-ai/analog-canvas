@@ -73,8 +73,8 @@ Simulation tools take arguments flat (`{action, …}`) or in `request`. `detail`
   (or why leaving the route to the editor fails too). With no clear path it is
   refused like `route-net`. A wire between free points is drawn as asked and
   may end on a wire to join it.
-- `{kind:"wire-at",point,member:{instanceId,pinName}}` (or `net`) taps a trunk
-  drawn earlier in the batch; `{kind:"net",net}` taps the conductor nearest the
+- `{kind:"wire-at",point,member:{instanceId,pinName}}` (or `net`) taps a wire
+  any connect of the batch draws, snapping an off-grid point (`TAP_SNAPPED`); `{kind:"net",net}` taps the conductor nearest the
   adjacent `via`, else the other end; `point` is a free end; `route-segment`
   takes a `legId` and `point`. Existing Junctions are reused.
 - Pin targets take a Reference string or `instance:{kind:"instance",id}`.

@@ -59,8 +59,64 @@ export function wireTargetReference(
   return via ? { kind: "free", point: via } : other;
 }
 
-/** Resolve geometry selectors on the current planning draft, never a client Snapshot. */
+/** How a wire-at refusal begins when no wire is at the point (yet). */
+export const NO_WIRE_AT = "No wire at";
+
+/**
+ * The tap-grid points nearest `point`: itself when on the grid, else the
+ * two or four as near as each other in each coordinate.
+ */
+export function nearestTapPoints(point: Point, pitch: number): Point[] {
+  const near = (value: number): number[] => {
+    const low = Math.floor(value / pitch) * pitch;
+    const high = low + pitch;
+    if (value === low) return [low];
+    if (value - low < high - value) return [low];
+    if (value - low > high - value) return [high];
+    return [low, high];
+  };
+  return near(point.x).flatMap((x) => near(point.y).map((y) => ({ x, y })));
+}
+
+/** Whether `point` sits on the Document's tap grid. */
+export function onTapGrid(document: SchematicDocument, point: Point): boolean {
+  const pitch = electricalConnectionGrid(document.presentation.grid);
+  return point.x % pitch === 0 && point.y % pitch === 0;
+}
+
+/**
+ * Resolve geometry selectors on the current planning draft, never a client
+ * Snapshot. A wire-at point off the tap grid taps at the nearest grid point
+ * that resolves, so (101, 100) on a wire along y = 100 taps it at (100, 100)
+ * or (102, 100), never off the wire at (100, 102).
+ */
 export function resolveWireIntentTarget(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  anchor: WireIntentAnchor,
+  other: WireIntentAnchor,
+): Exclude<WireIntentAnchor, { kind: "net" | "wire-at" }> | string {
+  if (anchor.kind !== "wire-at" || onTapGrid(document, anchor.point))
+    return resolveOnGrid(document, resolver, anchor, other);
+  const pitch = electricalConnectionGrid(document.presentation.grid);
+  const refusals: string[] = [];
+  for (const point of nearestTapPoints(anchor.point, pitch)) {
+    const resolved = resolveOnGrid(
+      document,
+      resolver,
+      { ...anchor, point },
+      other,
+    );
+    if (typeof resolved !== "string") return resolved;
+    refusals.push(resolved);
+  }
+  return (
+    refusals.find((refusal) => !refusal.startsWith(NO_WIRE_AT)) ??
+    `${NO_WIRE_AT} (${anchor.point.x}, ${anchor.point.y}) or the nearest point of the ${pitch}-unit tap grid for this target`
+  );
+}
+
+function resolveOnGrid(
   document: SchematicDocument,
   resolver: SymbolResolver,
   anchor: WireIntentAnchor,
@@ -165,7 +221,7 @@ export function resolveWireIntentTarget(
       .map((segment) => ({ route, geometry, segment })),
   );
   if (!matches.length)
-    return `No wire at (${point.x}, ${point.y}) for this target`;
+    return `${NO_WIRE_AT} (${point.x}, ${point.y}) for this target`;
   const selectedMembers = new Map(
     matches.flatMap(({ route }) => {
       if (!allowed || !route.members) return [];

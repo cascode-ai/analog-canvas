@@ -101,20 +101,57 @@ describe("wire batch replay", () => {
     expect(plan).toMatch(/Ambiguous wire crossing/);
     expect(h.document).toEqual(before);
   });
-  it("taps a wire exactly at a wire-at point on the pin grid and refuses one off it (#1438)", () => {
+  it("taps a wire exactly at a wire-at point on the pin grid and snaps one off it onto the wire", () => {
     const h = history();
     commit(h, [wire("rail", free(80, 40), free(80, 80))]);
-    const before = structuredClone(h.document);
-    expect(
-      planWireBatch(h.document, resolver, [
-        wire("tap", free(0, 50), at(80, 55)),
-      ]),
-    ).toMatch(/Tap \(80, 55\) is off grid 2/);
-    expect(h.document).toEqual(before);
     commit(h, [wire("tap", free(0, 56), at(80, 56))]);
     expect(
       h.document.junctions.map((junction) => junction.position),
     ).toContainEqual({ x: 80, y: 56 });
+    // (81, 65) is a unit off the 2-unit grid each way: of (80, 64), (80, 66),
+    // (82, 64) and (82, 66) the first on the rail is tapped, and said.
+    const plan = planWireBatch(h.document, resolver, [
+      wire("snap", free(0, 64), at(81, 65)),
+    ]);
+    expect(plan).toMatchObject({
+      notes: [
+        {
+          code: "TAP_SNAPPED",
+          message:
+            "Wire 1: wire-at (81, 65) is off the tap grid; it tapped the wire at (80, 64)",
+        },
+      ],
+    });
+    commit(h, [wire("snap", free(0, 64), at(81, 65))]);
+    expect(
+      h.document.junctions.map((junction) => junction.position),
+    ).toContainEqual({ x: 80, y: 64 });
+    // A point whose nearest grid points miss every wire is still refused.
+    expect(
+      planWireBatch(h.document, resolver, [
+        wire("miss", free(0, 0), at(85, 65)),
+      ]),
+    ).toMatch(
+      /No wire at \(85, 65\) or the nearest point of the 2-unit tap grid/,
+    );
+  });
+  it("taps a wire a later intent of the batch draws, and refuses a tap none draws", () => {
+    const h = history();
+    const before = commit(h, [
+      wire("tap", free(250, 100), at(250, 0)),
+      wire("a", free(0, 0), free(400, 0)),
+    ]);
+    expect(h.document.revision).toBe(before.revision + 1);
+    expect(h.document.nets).toHaveLength(1);
+    expect(
+      h.document.junctions.map((junction) => junction.position),
+    ).toContainEqual({ x: 250, y: 0 });
+    expect(
+      planWireBatch(h.document, resolver, [
+        wire("lost", free(250, 300), at(250, 200)),
+        wire("b", free(0, 400), free(400, 400)),
+      ]),
+    ).toBe("Wire 1: No wire at (250, 200) for this target");
   });
   it("refuses a 45° via step unless a routing mode is named (#1437)", () => {
     const h = history();

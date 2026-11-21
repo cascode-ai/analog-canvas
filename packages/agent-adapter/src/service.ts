@@ -1483,6 +1483,14 @@ export function createAgentCircuitService(
             document.revision,
           );
         }
+        // A tap moved onto the tap grid is said in the receipt.
+        if (plannedWire?.notes)
+          commandNotes = plannedWire.notes.map((note) => ({
+            code: note.code,
+            severity: "info" as const,
+            message: note.message,
+            objectIds: [...note.objectIds],
+          }));
         const edits = request.edits ?? plannedWire?.edits ?? [];
         for (const edit of edits) {
           const refusal = checkEditPermissions(edit, options.permissions.edit);

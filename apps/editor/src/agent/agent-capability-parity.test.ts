@@ -3620,3 +3620,84 @@ describe("delete-wires and inspect region", () => {
     );
   });
 });
+
+describe("connect to wire-at", () => {
+  async function withResistor() {
+    const context = await folder();
+    const placed = await context.client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 100, y: 100 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const r1 = context.controller.document.instances[0]!.id;
+    const wire = {
+      kind: "connect",
+      from: { kind: "point", x: 0, y: 300 },
+      to: { kind: "point", x: 400, y: 300 },
+    };
+    const tap = (point: { x: number; y: number }) => ({
+      kind: "connect",
+      from: { kind: "pin", instance: "R1", pin: "2" },
+      to: { kind: "wire-at", point },
+    });
+    // R1's pin 2 shares a Net with a Junction at (200, 300) on the wire.
+    const joined = () => {
+      const document = context.controller.document;
+      const pinNet = document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) => terminal.instanceId === r1 && terminal.pinName === "2",
+        ),
+      )?.id;
+      return (
+        pinNet !== undefined &&
+        document.junctions.some(
+          (junction) =>
+            junction.netId === pinNet &&
+            junction.position.x === 200 &&
+            junction.position.y === 300,
+        )
+      );
+    };
+    return { ...context, wire, tap, joined };
+  }
+
+  it("taps a wire a later connect of the same call draws", async () => {
+    const { client, controller, wire, tap, joined } = await withResistor();
+    const before = controller.document.revision;
+    const result = await client.applyActions([tap({ x: 200, y: 300 }), wire]);
+    expect(result.ok, result.message).toBe(true);
+    expect(controller.document.revision).toBe(before + 1);
+    expect(joined()).toBe(true);
+  });
+
+  it("still refuses a tap no wire of the call reaches, naming its connect", async () => {
+    const { client, controller, wire, tap } = await withResistor();
+    const before = structuredClone(controller.document);
+    const result = await client.applyActions([tap({ x: 200, y: 500 }), wire]);
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("Wire 1: No wire at (200, 500)");
+    expect(controller.document).toEqual(before);
+  });
+
+  it("snaps a point off the tap grid onto the wire and says so", async () => {
+    const { client, wire, tap, joined } = await withResistor();
+    expect((await client.applyActions([wire])).ok).toBe(true);
+    // (201, 301) is a unit off the 2-unit grid each way; of its nearest grid
+    // points only (200, 300) is on the wire.
+    const result = await client.applyActions([tap({ x: 201, y: 301 })]);
+    expect(result.ok, result.message).toBe(true);
+    expect(joined()).toBe(true);
+    expect(result.diagnosticDelta?.added).toContainEqual(
+      expect.objectContaining({
+        code: "TAP_SNAPPED",
+        message: expect.stringContaining(
+          "wire-at (201, 301) is off the tap grid; it tapped the wire at (200, 300)",
+        ),
+      }),
+    );
+  });
+});
