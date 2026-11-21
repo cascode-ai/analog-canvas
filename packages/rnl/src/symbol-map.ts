@@ -46,6 +46,8 @@ export interface RnlPin {
 export interface RnlSymbol {
   /** Defined inside the exported file instead of loaded from a package. */
   inline?: boolean;
+  /** The clockwise turn already drawn into a standard diagonal symbol. */
+  baseRotation?: 45;
   /** The RNL symbol, such as `$NMOS`. */
   symbol: string;
   /**
@@ -78,6 +80,7 @@ export interface RnlSymbol {
   /**
    * The symbol's registration point in the Analog Canvas symbol's own frame,
    * in RNL units: RNL places the part there, Analog Canvas at its origin.
+   * For a diagonal symbol the offset already includes its base rotation.
    */
   offset: RnlPoint;
   pins: readonly RnlPin[];
@@ -138,8 +141,75 @@ const LISTED: readonly RnlSymbol[] = (list as ListEntry[]).map((entry) => ({
   acNetlistOrder: entry.ac_netlist_order,
 }));
 
+const DIAGONAL_PACKAGE = "rnl-std-45deg";
+type DiagonalPin = readonly [x: number, y: number, direction: number];
+const DIAGONAL_UP = [2, 2, 90] as const;
+const DIAGONAL_DOWN = [-2, -2, 270] as const;
+const DIAGONAL_CONTROL = [-2, 2, 180] as const;
+const DIAGONAL_BULK = [0, 0, 270] as const;
+const DIAGONAL_PAIR = [DIAGONAL_UP, DIAGONAL_DOWN] as const;
+const DIAGONAL_N = [DIAGONAL_UP, DIAGONAL_CONTROL, DIAGONAL_DOWN] as const;
+const DIAGONAL_P = [DIAGONAL_DOWN, DIAGONAL_CONTROL, DIAGONAL_UP] as const;
+
+/** The standard's pin geometry by terminal number, in the slanted artwork. */
+const DIAGONAL_ARTWORK: Readonly<
+  Record<
+    string,
+    readonly [symbol: string, pins: readonly DiagonalPin[], orient?: RnlOrient]
+  >
+> = {
+  $RESISTOR: ["$RESISTOR_45", DIAGONAL_PAIR],
+  $CAPACITOR: ["$CAPACITOR_45", DIAGONAL_PAIR],
+  $INDUCTOR: ["$INDUCTOR_45", DIAGONAL_PAIR],
+  $CANVAS_INDUCTOR_LARGE: ["$INDUCTOR_45", DIAGONAL_PAIR],
+  $SWITCH: ["$SWITCH_45", DIAGONAL_PAIR, "R90"],
+  $CANVAS_SIMPLE_SWITCH: ["$SWITCH_45", DIAGONAL_PAIR, "R90"],
+  $VOLTAGE_SOURCE: ["$VOLTAGE_SOURCE_45", DIAGONAL_PAIR],
+  $CURRENT_SOURCE: ["$CURRENT_SOURCE_45", DIAGONAL_PAIR],
+  $DIODE: ["$DIODE_45", DIAGONAL_PAIR],
+  $ZENER_DIODE: ["$ZENER_DIODE_45", DIAGONAL_PAIR],
+  $SCHOTTKY_DIODE: ["$SCHOTTKY_DIODE_45", DIAGONAL_PAIR],
+  $LED: ["$LED_45", DIAGONAL_PAIR],
+  $NMOS: ["$NMOS_45", DIAGONAL_N],
+  $PMOS: ["$PMOS_45", DIAGONAL_P],
+  $CANVAS_NMOS_4TERM: ["$NMOS_4TERM_45", [...DIAGONAL_N, DIAGONAL_BULK]],
+  $CANVAS_PMOS_4TERM: ["$PMOS_4TERM_45", [...DIAGONAL_P, DIAGONAL_BULK]],
+  $NPN: ["$NPN_45", DIAGONAL_N],
+  $PNP: ["$PNP_45", DIAGONAL_P],
+};
+
+const diagonalSymbols = new Map(
+  LISTED.flatMap((row) => {
+    const artwork = DIAGONAL_ARTWORK[row.symbol];
+    if (!artwork || row.importOnly) return [];
+    const [symbol, pins, orient = row.orient] = artwork;
+    const [x, y] = row.offset;
+    const diagonal: RnlSymbol = {
+      ...row,
+      symbol,
+      orient,
+      package: DIAGONAL_PACKAGE,
+      baseRotation: 45,
+      offset: [Math.SQRT1_2 * (x + y), Math.SQRT1_2 * (y - x)],
+      pins: row.pins.map((pin) => {
+        const geometry = pins[pin.terminal - 1];
+        if (!geometry) throw new Error(`${symbol} has no pin ${pin.terminal}`);
+        const [x, y, dir] = geometry;
+        return { ...pin, at: [x, y], dir };
+      }),
+    };
+    return [[row.symbol, diagonal] as const];
+  }),
+);
+
+/** The diagonal artwork with the same terminal binding as the regular symbol. */
+export function rnlDiagonalSymbolFor(symbol: RnlSymbol): RnlSymbol | undefined {
+  return diagonalSymbols.get(symbol.symbol);
+}
+
 export const RNL_SYMBOLS: readonly RnlSymbol[] = [
   ...LISTED,
+  ...diagonalSymbols.values(),
   ...inlineRnlSymbols,
   ...inlineRnlDeviceSymbols,
   ...inlineRnlVariantSymbols(LISTED),
@@ -166,7 +236,8 @@ export function rnlSymbolFor(
   variantId?: string | null,
 ): RnlSymbol | undefined {
   const drawn = RNL_SYMBOLS.filter(
-    (entry) => entry.ac === symbolId && !entry.importOnly,
+    (entry) =>
+      entry.ac === symbolId && !entry.importOnly && !entry.baseRotation,
   );
   return (
     drawn.find((entry) => entry.variant === (variantId ?? null)) ??

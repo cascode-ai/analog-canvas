@@ -58,17 +58,38 @@ describe("the SPICE+RNL and Spectre+RNL exports", () => {
     },
   );
 
-  it("blocks a part RNL cannot turn, and says why", () => {
-    const project = example("simulation-rc");
-    project.documents[0]!.instances.find(
-      (instance) => instance.placement,
-    )!.placement!.rotation = 45;
-    const result = createRnlExport(project, { format: "spice" });
-    expect(result.status).toBe("blocked");
-    expect(result.diagnostics.map((item) => item.code)).toContain(
-      "RNL_ROTATION_NOT_QUARTER",
-    );
-  });
+  it.each(FORMATS)(
+    "exports a 45° resistor with the standard package in %s",
+    (format) => {
+      const project = example("simulation-rc");
+      const before = createRnlExport(project, { format });
+      const resistor = project.documents[0]!.instances.find(
+        (instance) => instance.symbolId === "resistor" && instance.placement,
+      )!;
+      resistor.placement!.rotation = 45;
+
+      const result = createRnlExport(project, { format });
+      expect(before.status).toBe("ready");
+      expect(result.status).toBe("ready");
+      if (before.status !== "ready" || result.status !== "ready") return;
+      expect(result.request.netlist).toBe(before.request.netlist);
+      expect(result.request.ops).toContainEqual(
+        expect.objectContaining({
+          op: "use-package",
+          name: "rnl-std-45deg",
+          version: "0.4",
+        }),
+      );
+      expect(result.request.ops).toContainEqual(
+        expect.objectContaining({
+          op: "set",
+          object: "#" + resistor.reference,
+          symbol: "$RESISTOR_45",
+          orient: "R0",
+        }),
+      );
+    },
+  );
 
   it("blocks with the netlist's own findings when the netlist does not print", () => {
     const result = createRnlExport(example("common-source-amplifier"), {

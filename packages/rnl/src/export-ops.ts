@@ -78,6 +78,7 @@ import {
 } from "./rnl-packages.js";
 import {
   RNL_SYMBOLS,
+  rnlDiagonalSymbolFor,
   rnlSymbolFor,
   rnlSymbolForPart,
   symbolModelType,
@@ -706,6 +707,9 @@ function exportCell(
         symbol = whole;
       }
     }
+    const placement = instance.placement;
+    if (symbol && placement && placement.rotation % 90 === 45)
+      symbol = rnlDiagonalSymbolFor(symbol) ?? symbol;
     const call = cell.instances.find(
       (candidate) => candidate.id === instance.id,
     );
@@ -749,8 +753,10 @@ function exportCell(
             : undefined,
       );
       if (ordered !== symbol) {
-        context.callSymbols.set(ordered.symbol, ordered);
-        context.calledParts.add(partKey(document, instance));
+        if (ordered.inline) {
+          context.callSymbols.set(ordered.symbol, ordered);
+          context.calledParts.add(partKey(document, instance));
+        }
         symbol = ordered;
       }
     }
@@ -801,15 +807,14 @@ function exportCell(
         [instance.id],
       );
     }
-    const placement = instance.placement;
     let orient: RnlOrient | undefined;
     if (placement) {
-      const result = rnlOrient(placement);
+      const result = rnlOrient(placement, symbol?.baseRotation);
       if (!result.ok) {
         report(
           "error",
           "RNL_ROTATION_NOT_QUARTER",
-          `${describe(instance)} is turned ${placement.rotation}°; RNL only turns parts in quarter turns`,
+          `${describe(instance)} is turned ${placement.rotation}° and has no matching diagonal RNL symbol`,
           [instance.id],
         );
         continue;
@@ -972,21 +977,25 @@ function exportCell(
     // nothing to set, which RNL refuses.
     if (Object.keys(settings).length)
       ops.push({ level, op: "set", object, ...settings });
-    // The symbol the part is drawn as, where RNL draws it as another one
-    // the import would take instead: an op-amp flipped top to bottom is the
-    // op-amp with its inputs swapped, unflipped.
+    // Record the Canvas symbol where two parts share diagonal artwork or a
+    // mirrored part could reopen as a different symbol without a mirror.
+    const drawnOrient = where.orient;
+    const variantSymbolId = symbol?.baseRotation
+      ? (symbol.ac ?? instance.symbolId)
+      : instance.symbolId;
     if (
       symbol &&
-      orient?.startsWith("M") &&
-      where.orient &&
+      (symbol.baseRotation || orient?.startsWith("M")) &&
+      drawnOrient &&
       RNL_SYMBOLS.some(
         (other) =>
           other.symbol === symbol.symbol &&
           other.ac !== null &&
-          other.ac !== instance.symbolId &&
-          !composeOrient(where.orient!, inverseOrient(other.orient)).startsWith(
-            "M",
-          ),
+          other.ac !== variantSymbolId &&
+          (symbol.baseRotation ||
+            !composeOrient(drawnOrient, inverseOrient(other.orient)).startsWith(
+              "M",
+            )),
       )
     ) {
       packages.add(CANVAS_PACKAGE);
@@ -995,7 +1004,7 @@ function exportCell(
         op: "add-usage",
         definition: "$CANVAS_VARIANT",
         attach: { part: object },
-        params: { symbol: instance.symbolId },
+        params: { symbol: variantSymbolId },
       });
     }
     // The part's own name, where the netlist spells it otherwise: SPICE

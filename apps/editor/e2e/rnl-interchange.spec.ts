@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import type { CircuitProject } from "@icm/model";
 import {
@@ -550,6 +551,45 @@ async function copiedNetlist(
   await expect.poll(read).not.toBe("");
   return (await read()).replace(/\r\n?/gu, "\n");
 }
+
+test("exports a wired diagonal device in both RNL formats", async ({
+  page,
+}, testInfo) => {
+  const project = exampleProject("simulation-rc.icproj.json");
+  const cell = project.documents.find(
+    ({ id }) => id === project.topDocumentId,
+  )!;
+  const resistor = cell.instances.find(({ reference }) => reference === "R1")!;
+  resistor.placement!.rotation = 315;
+  await openProject(page, project);
+
+  const files: { filename: string; text: string }[] = [];
+  for (const [mode, filename] of [
+    ["spice+rnl", "diagonal.spi"],
+    ["spectre+rnl", "diagonal.scs"],
+  ] as const) {
+    const text = await copiedNetlist(page, mode);
+    expect(text).toContain('@USE-PACKAGE(name="rnl-std-45deg", version="0.4")');
+    expect(text).toContain("$RESISTOR_45");
+    await writeFile(testInfo.outputPath(filename), text);
+    files.push({ filename, text });
+  }
+
+  for (const { filename, text } of files) {
+    await importRnlInNewTab(page, filename, text, /^Imported \d+ Documents?/u);
+    const imported: CircuitProject = await exportedProject(page);
+    const reopened = imported.documents
+      .find(({ id }) => id === imported.topDocumentId)
+      ?.instances.find(({ reference }) => reference === "R1");
+    expect(reopened?.placement).toEqual(resistor.placement);
+    expect(
+      sameElectricalCircuit(
+        projectElectricalGraph(project),
+        projectElectricalGraph(imported),
+      ),
+    ).toBe(true);
+  }
+});
 
 // docs/specs/rnl-interchange.md: the RNL formats the rnl runtime writes in
 // its Worker, and File > Import > RNL… reading what they wrote.

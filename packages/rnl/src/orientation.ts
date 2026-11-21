@@ -1,4 +1,9 @@
-import { transformPoint, type Mirror, type Orientation } from "@icm/model";
+import {
+  transformPoint,
+  type Mirror,
+  type Orientation,
+  type Rotation,
+} from "@icm/model";
 
 /**
  * RNL's eight orientations (language standard 11.2): mirror first, then turn
@@ -25,7 +30,7 @@ const CODES = Object.keys(MATRICES) as RnlOrient[];
 
 export type RnlOrientResult =
   | { ok: true; orient: RnlOrient }
-  /** RNL has no 45° turns; the export refuses such a part. */
+  /** The symbol needs a turn outside RNL's eight orientations. */
   | { ok: false; reason: "not-quarter-turn" };
 
 /**
@@ -33,10 +38,17 @@ export type RnlOrientResult =
  * does. Analog Canvas turns, then mirrors in world axes, with y down; its
  * matrix seen with y up is F·M·F, F = diag(1, −1).
  */
-export function rnlOrient(orientation: Orientation): RnlOrientResult {
+export function rnlOrient(
+  orientation: Orientation,
+  baseRotation: 0 | 45 = 0,
+): RnlOrientResult {
+  const turn = {
+    ...orientation,
+    rotation: ((orientation.rotation - baseRotation + 360) % 360) as Rotation,
+  };
   const origin = { x: 0, y: 0 };
-  const ex = transformPoint({ x: 1, y: 0 }, origin, orientation);
-  const ey = transformPoint({ x: 0, y: 1 }, origin, orientation);
+  const ex = transformPoint({ x: 1, y: 0 }, origin, turn);
+  const ey = transformPoint({ x: 0, y: 1 }, origin, turn);
   const matrix = [ex.x, -ey.x, -ex.y, ey.y].map((value) => value + 0);
   const orient = CODES.find((code) =>
     MATRICES[code].every((value, index) => value === matrix[index]),
@@ -58,12 +70,19 @@ const CANONICAL: readonly Orientation[] = ([0, 90, 180, 270] as const).flatMap(
  * as a quarter turn with no mirror or a left-right mirror; Analog Canvas
  * spells some of these with a vertical mirror too, which draws the same.
  */
-export function acOrientation(orient: RnlOrient): Orientation {
+export function acOrientation(
+  orient: RnlOrient,
+  baseRotation: 0 | 45 = 0,
+): Orientation {
   const found = CANONICAL.find((orientation) => {
     const result = rnlOrient(orientation);
     return result.ok && result.orient === orient;
   });
-  return found!;
+  if (!found) throw new Error(`Unknown RNL orientation ${orient}`);
+  return {
+    ...found,
+    rotation: ((found.rotation + baseRotation) % 360) as Rotation,
+  };
 }
 
 /** The orientation that turns a point by `inner`, then by `outer`. */

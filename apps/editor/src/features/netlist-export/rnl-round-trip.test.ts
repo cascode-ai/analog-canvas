@@ -42,6 +42,7 @@ import {
   compareElectricalGraphs,
   createDesignNetlistExport,
   projectElectricalGraph,
+  sameElectricalCircuit,
 } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import { buildSvgScene } from "@icm/render-svg";
@@ -4762,6 +4763,99 @@ function cardNames(project: CircuitProject) {
 }
 
 describe("RNL round trip", () => {
+  it.each(["spice", "spectre"] as const)(
+    "reopens a mirrored diagonal resistor on the same nets through %s+RNL",
+    async (format) => {
+      const project = example("simulation-rc");
+      const cell = project.documents.find(
+        ({ id }) => id === project.topDocumentId,
+      )!;
+      const resistor = cell.instances.find(
+        ({ reference }) => reference === "R1",
+      )!;
+      resistor.placement = {
+        ...resistor.placement!,
+        rotation: 45,
+        mirror: "horizontal",
+      };
+
+      const reopened = await roundTrip(project, format);
+      expect(failures(reopened)).toEqual([]);
+      const after = reopened.project.documents.find(
+        ({ id }) => id === reopened.project.topDocumentId,
+      )!;
+      expect(
+        after.instances.find(({ reference }) => reference === "R1")?.placement,
+      ).toEqual(resistor.placement);
+      const pairs = after.routes.map(({ start, legs }) => {
+        const end = legs.at(-1)?.to;
+        return [start, end?.kind === "endpoint" ? end.endpoint : undefined]
+          .flatMap((endpoint) => {
+            if (endpoint?.kind !== "terminal") return [];
+            const part = after.instances.find(
+              ({ id }) => id === endpoint.instanceId,
+            );
+            return [part?.reference + ":" + endpoint.pinName];
+          })
+          .sort();
+      });
+      expect(pairs).toContainEqual(["R1:1", "V1:+"]);
+      expect(pairs).toContainEqual(["C1:1", "R1:2"]);
+      expect(
+        sameElectricalCircuit(
+          projectElectricalGraph(project),
+          projectElectricalGraph(reopened.project),
+        ),
+      ).toBe(true);
+    },
+  );
+
+  it.each([
+    { symbolId: "inductor-compact", localCopy: false },
+    { symbolId: "inductor", localCopy: false },
+    { symbolId: "inductor", localCopy: true },
+  ])(
+    "reopens $symbolId from shared diagonal artwork (local copy $localCopy)",
+    async ({ symbolId, localCopy }) => {
+      const project = example("simulation-rlc");
+      const inductor = project.documents
+        .flatMap((document) => document.instances)
+        .find(({ symbolId }) => symbolId === "inductor-compact")!;
+      inductor.symbolId = symbolId;
+      inductor.placement!.rotation = 45;
+      if (localCopy) {
+        const copyId = "own-inductor";
+        const library = builtInSymbols.find(({ id }) => id === symbolId)!;
+        project.componentDefinitions = [
+          {
+            symbol: { ...library, id: copyId },
+            electrical: {
+              ...deviceDescriptor(symbolId)!,
+              id: copyId,
+              symbolId: copyId,
+            },
+          },
+        ] as CircuitProject["componentDefinitions"];
+        inductor.symbolId = copyId;
+        delete inductor.netlist?.binding;
+      }
+
+      const reopened = await roundTrip(project);
+      expect(failures(reopened)).toEqual([]);
+      const part = reopened.project.documents
+        .flatMap((document) => document.instances)
+        .find(({ reference }) => reference === inductor.reference);
+      expect(part?.symbolId).toBe(symbolId);
+      expect(part?.placement).toEqual(inductor.placement);
+      expect(
+        sameElectricalCircuit(
+          projectElectricalGraph(project),
+          projectElectricalGraph(reopened.project),
+        ),
+      ).toBe(true);
+    },
+  );
+
   it.each(
     [
       "simulation-common-source",
@@ -6991,6 +7085,55 @@ function switches(): CircuitProject {
 }
 
 describe("RNL round trip of switches", () => {
+  it.each(["spice", "spectre"] as const)(
+    "draws diagonal switches with their terminals and clock type intact (%s)",
+    async (format) => {
+      const project = switches();
+      const parts = project.documents[0]!.instances;
+      const simple = parts.find(({ id }) => id === "S1")!;
+      const ideal = parts.find(({ id }) => id === "S2")!;
+      simple.placement!.rotation = 45;
+      ideal.placement!.rotation = 315;
+
+      const exported = createRnlExport(project, { format });
+      expect(exported.status).toBe("ready");
+      if (exported.status !== "ready") return;
+      for (const [object, orient] of [
+        ["#S1", "R90"],
+        ["#S2", "R180"],
+      ]) {
+        expect(exported.request.ops).toContainEqual(
+          expect.objectContaining({
+            op: "set",
+            object,
+            symbol: "$SWITCH_45",
+            orient,
+          }),
+        );
+      }
+
+      const written = await runtime.write({
+        write: exported.request,
+        svg: false,
+      });
+      const reopened = await importRnl(written.text, format);
+      expect(failures(reopened)).toEqual([]);
+      for (const original of [simple, ideal]) {
+        const part = reopened.project.documents
+          .flatMap((document) => document.instances)
+          .find(({ reference }) => reference === original.reference);
+        expect(part?.symbolId).toBe(original.symbolId);
+        expect(part?.placement).toEqual(original.placement);
+      }
+      expect(
+        sameElectricalCircuit(
+          projectElectricalGraph(project),
+          projectElectricalGraph(reopened.project),
+        ),
+      ).toBe(true);
+    },
+  );
+
   it.each(["spice", "spectre"] as const)(
     "brings each switch back clocked as it was drawn (%s)",
     async (format) => {

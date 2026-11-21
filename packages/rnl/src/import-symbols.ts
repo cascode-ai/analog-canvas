@@ -176,9 +176,10 @@ export function phaseSwitchSymbol(
   symbol: RnlSymbolRef,
   orient: RnlOrient,
   instance: Pick<Instance, "symbolId">,
+  variant?: string,
 ): ReturnType<typeof acSymbolFor> {
   if (switchControl(instance.symbolId) !== "pin") return null;
-  const found = acSymbolFor(symbol, orient, instance, ["1", "2"]);
+  const found = acSymbolFor(symbol, orient, instance, ["1", "2"], variant);
   return found?.row.ac && switchControl(found.row.ac) === "phase"
     ? found
     : null;

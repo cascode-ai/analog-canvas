@@ -142,8 +142,8 @@ the RNL language and its runtime belong to rnl.
   shapes and device class and no block binding, is drawn as that Library symbol
   and reads back as it.
 - Each part is drawn with the RNL symbol the mapping table names, from a
-  standard package or, for an appearance variant, a 4-input gate or a
-  4-terminal MOSFET, the `analog-canvas-extensions` package; it is placed at
+  standard package or, for some appearance variants, 4-input gates or
+  straight 4-terminal MOSFETs, the `analog-canvas-extensions` package. It is placed at
   that symbol's registration point and turned by one of RNL's eight
   orientations. RNL's standard 4-input gates put their inputs on whole grid
   points, Analog Canvas's 0.8 apart, and its standard 4-terminal MOSFETs the
@@ -158,10 +158,9 @@ the RNL language and its runtime belong to rnl.
   subcircuit, bind each drawn pin to the position the row's terminal order
   gives it (`@SET-SYMBOL(terminals=[[1, "inp"], [2, "inn"], [5, "out"]])`,
   11.3). A symbol the file defines binds by position. A subcircuit call that
-  prints a library symbol's pins elsewhere, such as a gate Cell whose ports
-  start with its supplies, is drawn with the same artwork defined in the file
-  (`$CANVAS_CALL_…`), each pin on the position the call prints it at, so
-  every wire reaches the terminal it was drawn to.
+  reorders a library symbol's pins binds each pin to the position the call prints
+  it at. Straight artwork is defined in the file (`$CANVAS_CALL_…`). Diagonal
+  artwork keeps its package symbol and binds the printed positions by name.
   A card that prints its two pins the other way round (a coupled inductor
   starts at its dotted end) draws its symbol turned over onto itself, each
   pin where the card prints it. Import reads a call of a project Cell drawn so (a Library gate, flip-flop,
@@ -220,6 +219,12 @@ the RNL language and its runtime belong to rnl.
   transformer upright, where Analog Canvas lays them across: a part is
   written turned by its row's quarter turn first (`R90`, the transformer
   `R270`) and read back turned the other way.
+- For a diagonal device with matching artwork, export uses its symbol from
+  `rnl-std-45deg` 0.4 and declares that package. The symbol carries the first
+  45° of rotation. The record carries the remaining quarter turn and mirror.
+  Wires bind the same electrical terminals at the diagonal symbol's pins.
+  When two Canvas parts share diagonal artwork, `$CANVAS_VARIANT` preserves
+  which part was drawn.
 - A block's VDD and VSS are the terminals `vp` and `vn` of its row. A block
   shown with its supply pins is written as the standard `*_SUPPLY` symbol
   that draws them where Analog Canvas does (the differential op-amps,
@@ -378,7 +383,7 @@ the RNL language and its runtime belong to rnl.
 ### Failures
 
 - Errors leave the RNL format without output and list in the panel's issues:
-  a part turned by 45°, 135°, 225° or 315°; a part with no RNL symbol.
+  a diagonal part with no matching RNL symbol; a part with no RNL symbol.
 - Warnings keep the output and list there too, one per kind and drawing: a
   symbol from the `analog-canvas-extensions` package, labels written as fixed
   text, a hidden current or voltage marker left out, whose arrow or signs RNL
@@ -726,11 +731,12 @@ the RNL language and its runtime belong to rnl.
 
 ## Contract
 
-- Mapping table: `packages/rnl/src/symbol-list.json` — per Analog Canvas
+- Mapping table: `packages/rnl/src/symbol-list.json` and the diagonal artwork
+  in `packages/rnl/src/symbol-map.ts` — per Analog Canvas
   symbol and variant, its RNL symbol and package, the definition a glyph or
   drawing-only part draws, terminal order, registration offset, the flip
   (`MX`) when the variant draws the symbol upside down, and pins; a row with
-  `import_only` (RNL's standard 4-input gates, 4-terminal MOSFETs and
+  `import_only` (RNL's standard 4-input gates, straight 4-terminal MOSFETs and
   two-terminal Delay Cell) serves import and is skipped when ordinary export
   chooses a symbol. Its pins are where the RNL symbol has them.
   A row's terminal names are the symbol's (9.2.4); their
@@ -758,8 +764,10 @@ the RNL language and its runtime belong to rnl.
   the Canvas version the rnl runtime's catalog says defines it, with each pin where the runtime puts it and
   leaving the way it says, so an rnl upgrade that moves a pin fails there
   (`apps/editor/src/features/netlist-export/rnl-symbol-catalog.test.ts`).
-- Orientations and registration put every pin where the editor draws it in all
-  sixteen orientations (`packages/rnl/src/orientation.test.ts`).
+- Quarter-turn symbols put each pin where the editor draws it in all sixteen
+  orientations (`packages/rnl/src/orientation.test.ts`). Diagonal symbols use
+  the package's pin positions and keep the wire-to-terminal bindings
+  ([round-trip tests](../../apps/editor/src/features/netlist-export/rnl-round-trip.test.ts)).
 - Reordered bodies keep every port-to-node connection and leave `SPICE` and
   `SCS` byte for byte (`packages/netlist/src/body-port-order.test.ts`).
 - The simulation examples export with no error, every part, glyph, wire, dot
