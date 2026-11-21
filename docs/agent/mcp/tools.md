@@ -85,7 +85,8 @@ Simulation tools take arguments flat (`{action, …}`) or in `request`. `detail`
   consistent caller geometry. Locked/trunk geometry is protected.
 - A moved part changes no connection; with `join: true` it joins a pin or
   wire it lands on, as a drag does, and without it landing on another Net is
-  warned (`LANDED_ON_OTHER_NET`). Wires it stretches
+  warned (`LANDED_ON_OTHER_NET`). Unwired markers on its pins follow them
+  through moves and turns unless `keepMarkersAttached: false`. Wires it stretches
   across a part or another Net are redrawn clear, and labels newly covered move
   clear (also for rotate, mirror, arrange). `arrange` puts origins on one
   coordinate; the GUI's Align is `circuit_selection` `align`.

@@ -160,6 +160,12 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
             .describe(
               "true: a moved part joins a pin or wire it lands on, as a drag does. Default: it only moves; landing on another Net is warned (LANDED_ON_OTHER_NET).",
             ),
+          keepMarkersAttached: z
+            .boolean()
+            .optional()
+            .describe(
+              "Default true: grounds, supply markers and Cell Pins standing unwired on the part's pins move with it, and after a turn or mirror stand on the same pins again. false leaves them where they are.",
+            ),
         })
         .optional(),
     })

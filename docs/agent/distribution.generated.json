@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "55fe40d985a93f7459a7989b34430b957fbbb253b0a3e78e134c6ecd1f74644e"
+      "sha256": "999ce276861fe77e28cf2781cc3ea600e2974d298aa1c4396c928beb056be8cd"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -53,7 +53,7 @@
     },
     {
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "sha256": "4d8e8fe7b2fa2dbd9f172fa63473734b7209de822dfe49f3ebdb44e588613212"
+      "sha256": "b3787d66e0bef8340ec2461aa0deda8242dc63191d7a069ef094cc0a7ebd22e4"
     },
     {
       "source": "docs/agent/http-kit/README.md",
@@ -105,7 +105,7 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "f2c27abd57f0a4a8db2764f572eba064b5096946a39b623d9e13db629a433c74"
+      "sha256": "f096ef3de6c563ae1bbba87276a1bfe1c5c81a6c06cdb69963451cb658e3ba8c"
     },
     {
       "source": "packages/rnl/src/rnl-version-line.json",
@@ -660,7 +660,7 @@
         "docs/agent/mcp/rnl-review-versions.md.tmpl",
         "packages/rnl/src/rnl-version-line.json"
       ],
-      "sha256": "f2c27abd57f0a4a8db2764f572eba064b5096946a39b623d9e13db629a433c74"
+      "sha256": "f096ef3de6c563ae1bbba87276a1bfe1c5c81a6c06cdb69963451cb658e3ba8c"
     },
     {
       "file": "apps/mcp-server/src/resources.generated.ts",
@@ -695,7 +695,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "c3bdde26beb41867507de833ab744a856ceeeb5881b89b59a8dec377edcc92df"
+      "sha256": "ae4293bef34d80981c68440748f98659d692b2af806c0e80d161043ab5a5bf9b"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -727,7 +727,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "a759a75d8e4e4751ece7ec35424d17e9528a2606b7aca0e509bfd7c6fa717282"
+      "sha256": "91de235e80f24290cfd20ed08e155660d7eca495cee50c9d0a855d036640e8a4"
     },
     {
       "file": "packages/agent-adapter/src/agent-skills.generated.ts",

@@ -781,6 +781,56 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     ).toContain("nearest reachable landing is");
   });
 
+  it("keeps a ground on its pin when the part turns or mirrors (#2429)", async () => {
+    const { controller, apply, instance } = await session();
+    await apply([
+      { ...place("resistor", "R1", 200, 200), parameters: { value: "1k" } },
+    ]);
+    const r1 = instance("R1").id;
+    const pinAt = (instanceId: string, pinName: string) =>
+      resolveEndpointPoint(controller.document, controller.resolver, {
+        kind: "terminal",
+        instanceId,
+        pinName,
+      })!;
+    await apply([
+      {
+        kind: "place-component",
+        symbol: "ground",
+        id: "gnd-r1",
+        pinAnchor: { pinName: "0", position: pinAt(r1, "2") },
+      },
+    ]);
+    const routes = controller.document.routes.length;
+    const turned = await apply([
+      {
+        kind: "rotate",
+        target: { kind: "instance", reference: "R1" },
+        rotation: 90,
+      },
+    ]);
+    expect(turned.ok, turned.message).toBe(true);
+    expect(pinAt("gnd-r1", "0")).toEqual(pinAt(r1, "2"));
+    await apply([
+      {
+        kind: "mirror",
+        target: { kind: "instance", reference: "R1" },
+        axis: "y",
+      },
+    ]);
+    expect(pinAt("gnd-r1", "0")).toEqual(pinAt(r1, "2"));
+    // It followed: still on R1's pin's Net, with no wire drawn to it.
+    expect(controller.document.routes.length).toBe(routes);
+    const netOf = (instanceId: string, pinName: string) =>
+      controller.document.nets.find((net) =>
+        net.terminals.some(
+          (terminal) =>
+            terminal.instanceId === instanceId && terminal.pinName === pinName,
+        ),
+      )?.id;
+    expect(netOf("gnd-r1", "0")).toBe(netOf(r1, "2"));
+  });
+
   it("moves a part without joining what it lands on unless asked (#2429)", async () => {
     const { controller, apply, instance } = await session();
     await apply([

@@ -481,9 +481,11 @@ call, in order (placements apart from their wires; a `focus` with the last).
 Clean up with move/mirror/group transforms and route edits. Geometry moves do
 not perform GUI drag-to-connect snapping; a moved part joins nothing unless
 the `move` says `join: true`, and then only a pin or wire it lands on;
-landing on another Net without it is warned (`LANDED_ON_OTHER_NET`). An unturned, unmirrored `move` carries grounds, supply markers
-and Cell Pins standing unwired on the part's pins (`MARKERS_MOVED_ALONG`);
-wired, shared or locked ones stay, joined by a wire. A selection `transform`
+landing on another Net without it is warned (`LANDED_ON_OTHER_NET`). A `move`,
+`rotate`, `mirror` or `set-orientation` carries grounds, supply markers and
+Cell Pins standing unwired on the part's pins, each to where its pin went
+(`MARKERS_MOVED_ALONG`; `keepMarkersAttached: false` leaves them); wired,
+shared or locked ones stay, joined by a wire. A selection `transform`
 mirror without a center reflects the whole selection about its own axis as the
 editor's Mirror does, connections unchanged (a wire held by an unselected part
 stays); with an explicit center, labels and drafting are rejected. Translation

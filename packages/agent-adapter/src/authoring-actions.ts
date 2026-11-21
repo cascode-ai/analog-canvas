@@ -374,6 +374,12 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       pinAnchor: AgentPinAnchorSchema.optional().describe(
         "Placed Instance only; instead of position. Keeps orientation.",
       ),
+      keepMarkersAttached: z
+        .boolean()
+        .optional()
+        .describe(
+          "Default true: grounds, supply markers and Cell Pins standing unwired on its pins go with it and stay on those pins. false leaves them.",
+        ),
       join: z
         .boolean()
         .optional()
@@ -405,6 +411,12 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("rotate"),
     target: InstanceRefSchema,
     rotation: RotationInputSchema,
+    keepMarkersAttached: z
+      .boolean()
+      .optional()
+      .describe(
+        "Default true: grounds, supply markers and Cell Pins standing unwired on its pins go with it and stay on those pins. false leaves them.",
+      ),
   }),
   z
     .strictObject({
@@ -419,6 +431,12 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       mirror: MirrorInputSchema.optional().describe(
         "An absolute mirror state, kept for older calls; prefer axis, or set-orientation for a state.",
       ),
+      keepMarkersAttached: z
+        .boolean()
+        .optional()
+        .describe(
+          "Default true: grounds, supply markers and Cell Pins standing unwired on its pins stay on those pins. false leaves them.",
+        ),
     })
     .refine(
       (action) => (action.axis === undefined) !== (action.mirror === undefined),
@@ -432,6 +450,12 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       target: InstanceRefSchema,
       rotation: RotationInputSchema.optional(),
       mirror: MirrorInputSchema.optional(),
+      keepMarkersAttached: z
+        .boolean()
+        .optional()
+        .describe(
+          "Default true: grounds, supply markers and Cell Pins standing unwired on its pins stay on those pins. false leaves them.",
+        ),
     })
     .refine(
       (action) => action.rotation !== undefined || action.mirror !== undefined,
