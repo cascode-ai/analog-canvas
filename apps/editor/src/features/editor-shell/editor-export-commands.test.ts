@@ -105,13 +105,10 @@ describe("editor export commands", () => {
 });
 
 describe("RNL netlist export", () => {
-  const rc = () =>
+  const example = (name: string) =>
     parseProject(
       readFileSync(
-        resolve(
-          import.meta.dirname,
-          "../../examples/simulation-rc.icproj.json",
-        ),
+        resolve(import.meta.dirname, `../../examples/${name}.icproj.json`),
         "utf8",
       ),
     );
@@ -126,7 +123,7 @@ describe("RNL netlist export", () => {
     const written = runtime("// written");
     const plan = await planRnlNetlistExport({
       format: "spectre",
-      project: rc(),
+      project: example("simulation-rc"),
       runtime: written,
     });
     expect(plan.status).toBe("ready");
@@ -140,7 +137,7 @@ describe("RNL netlist export", () => {
   it("blocks without the rnl runtime", async () => {
     const plan = await planRnlNetlistExport({
       format: "spice",
-      project: rc(),
+      project: example("simulation-rc"),
       runtime: null,
     });
     expect(plan).toEqual({
@@ -149,10 +146,10 @@ describe("RNL netlist export", () => {
     });
   });
 
-  it("blocks on an RNL error before asking the runtime", async () => {
-    const project = rc();
+  it("blocks unsupported diagonal artwork before asking the runtime", async () => {
+    const project = example("two-stage-op-amp");
     project.documents[0]!.instances.find(
-      (instance) => instance.placement,
+      (instance) => instance.reference === "X1",
     )!.placement!.rotation = 45;
     const written = runtime("unused");
     const plan = await planRnlNetlistExport({
@@ -162,14 +159,14 @@ describe("RNL netlist export", () => {
     });
     expect(plan.status).toBe("blocked");
     if (plan.status === "blocked")
-      expect(plan.message).toContain("quarter turns");
+      expect(plan.message).toMatch(/X1.*45°.*no matching diagonal RNL symbol/u);
     expect(written.write).not.toHaveBeenCalled();
   });
 
   it("blocks when the written file has an error", async () => {
     const plan = await planRnlNetlistExport({
       format: "spice",
-      project: rc(),
+      project: example("simulation-rc"),
       runtime: runtime("bad", [{ severity: "error", message: "no symbol" }]),
     });
     expect(plan).toEqual({ status: "blocked", message: "RNL: no symbol" });

@@ -18,14 +18,13 @@ const callSymbolHead = (row: RnlSymbol) =>
 /**
  * `row`'s artwork with each drawn terminal on the position `order` gives it:
  * for each position of the call, the library terminal drawn there, 0 for
- * none. `names` are the call's terminals as the netlist prints them, and
- * `undrawnAt` the position of a terminal the artwork does not draw.
+ * none. `names` and `undrawnPins` use the call's printed positions.
  */
 function callSymbol(
   row: RnlSymbol,
   order: readonly number[],
   names: readonly string[],
-  undrawnAt: (acPin: string) => number,
+  undrawnPins: RnlSymbol["undrawnPins"],
 ): RnlSymbol | null {
   const artwork = builtInSymbols.find((symbol) => symbol.id === row.ac);
   if (!artwork) return null;
@@ -61,10 +60,7 @@ function callSymbol(
       drawn: terminal !== 0,
     })),
     pins: pins as RnlSymbol["pins"],
-    undrawnPins: row.undrawnPins.flatMap((pin) => {
-      const position = undrawnAt(pin.acPin);
-      return position ? [{ ...pin, terminal: position }] : [];
-    }),
+    undrawnPins,
     acNetlistOrder: null,
   };
 }
@@ -76,10 +72,9 @@ function callSymbol(
  * symbol fits a call only when each pin's Analog Canvas pin is printed at the
  * pin's terminal number. A call that prints them elsewhere,
  * such as a gate's or a Delay Cell's Cell whose ports start with its
- * supplies, gets the same artwork defined in the file with each pin on the
- * position it is printed at. The name records, for each position of the
- * call, the library terminal there (0 for none), so the same order gives the
- * same symbol.
+ * supplies, binds each pin to the position it is printed at. Straight art
+ * gets a symbol defined in the file, whose name records the call's terminal
+ * order. Diagonal art keeps the package symbol and binds its pins by name.
  */
 export function symbolForCall(
   row: RnlSymbol,
@@ -98,12 +93,33 @@ export function symbolForCall(
   const order = call.nodes.map(
     (_, index) => placed.find(({ at }) => at === index + 1)?.pin.terminal ?? 0,
   );
+  const undrawnPins = row.undrawnPins.flatMap((pin) => {
+    const terminal = position(pin.acPin);
+    return terminal ? [{ ...pin, terminal }] : [];
+  });
+  if (row.baseRotation) {
+    // Keep the package's diagonal artwork. The exporter can bind these pins
+    // by name to the positions the call actually prints.
+    return {
+      ...row,
+      terminals: call.nodes.map((node, index) => {
+        const terminal = order[index] ?? 0;
+        return {
+          n: index + 1,
+          name: row.terminals[terminal - 1]?.name ?? node.pinName,
+          drawn: terminal !== 0,
+        };
+      }),
+      pins: placed.map(({ pin, at }) => ({ ...pin, terminal: at })),
+      undrawnPins,
+    };
+  }
   return (
     callSymbol(
       row,
       order,
       call.nodes.map((node) => node.pinName),
-      position,
+      undrawnPins,
     ) ?? row
   );
 }
@@ -125,12 +141,13 @@ export function callSymbolFromDefinition(
   )
     return null;
   for (const row of RNL_SYMBOLS) {
-    if (row.definition || !row.ac || row.importOnly) continue;
+    if (row.definition || !row.ac || row.importOnly || row.baseRotation)
+      continue;
     const head = callSymbolHead(row);
     if (!symbol.name.startsWith(head)) continue;
     const order = symbol.name.slice(head.length).split("_").map(Number);
     if (order.some((terminal) => !Number.isInteger(terminal))) continue;
-    const candidate = callSymbol(row, order, [], () => 0);
+    const candidate = callSymbol(row, order, [], []);
     if (candidate && matchesInlineRnlSymbol(candidate, symbol.definition))
       return candidate;
   }

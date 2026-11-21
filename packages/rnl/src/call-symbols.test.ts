@@ -7,7 +7,7 @@ import { builtInSymbols } from "@icm/symbols";
 import { inlineRnlDefinition } from "./inline-symbols.js";
 import { toRnlPoint } from "./place.js";
 import type { RnlSymbolRef } from "./rnl-snapshot.js";
-import { rnlSymbolFor } from "./symbol-map.js";
+import { rnlDiagonalSymbolFor, rnlSymbolFor } from "./symbol-map.js";
 
 const call = (
   nodes: { pinName: string; canvasPinName?: string }[],
@@ -58,6 +58,33 @@ describe("library artwork on a call", () => {
     const definition = inlineRnlDefinition(ordered);
     expect(definition.pins.map((pin) => pin.terminals)).toEqual([[3], [4]]);
     expect(definition.prims.length).toBeGreaterThan(0);
+  });
+
+  it("binds the diagonal MOS symbol to a call's reordered terminals", () => {
+    const nmos = rnlDiagonalSymbolFor(rnlSymbolFor("nmos")!)!;
+    const ordered = symbolForCall(
+      nmos,
+      call([
+        { pinName: "bulk", canvasPinName: "B" },
+        { pinName: "source", canvasPinName: "S" },
+        { pinName: "gate", canvasPinName: "G" },
+        { pinName: "drain", canvasPinName: "D" },
+      ]),
+    );
+    expect(ordered.symbol).toBe("$NMOS_4TERM_45");
+    expect(ordered.inline).toBeUndefined();
+    expect(ordered.terminals.map(({ n, name }) => [n, name])).toEqual([
+      [1, "b"],
+      [2, "s"],
+      [3, "g"],
+      [4, "d"],
+    ]);
+    expect(ordered.pins.map(({ terminal, at }) => [terminal, at])).toEqual([
+      [4, [2, 2]],
+      [3, [-2, 2]],
+      [2, [-2, -2]],
+      [1, [0, 0]],
+    ]);
   });
 
   it("places the pins of a gate whose Cell names its Pins otherwise", () => {

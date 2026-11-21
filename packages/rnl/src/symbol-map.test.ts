@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { deviceDescriptor, subcircuitDescriptor } from "@icm/devices";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyProject,
+  transformPoint,
+  type CircuitProject,
+} from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import {
   builtInSymbols,
@@ -11,7 +15,7 @@ import {
 
 import { inlineRnlDefinition } from "./inline-symbols.js";
 import { inverseOrient, orientPoint } from "./orientation.js";
-import { toRnlPoint } from "./place.js";
+import { AC_UNITS_PER_RNL_UNIT, toRnlPoint } from "./place.js";
 import {
   RNL_SYMBOLS,
   rnlBodyPortOrder,
@@ -311,8 +315,22 @@ describe("the RNL symbol list", () => {
   });
 
   it("registers each symbol by the agreed rules", () => {
-    for (const entry of drawnFromCanvas)
-      expect(entry.offset, entry.symbol).toEqual(registration(entry));
+    for (const entry of drawnFromCanvas) {
+      const [x, y] = registration(entry);
+      if (!entry.baseRotation) {
+        expect(entry.offset, entry.symbol).toEqual([x, y]);
+        continue;
+      }
+      const turned = toRnlPoint(
+        transformPoint(
+          { x: x * AC_UNITS_PER_RNL_UNIT, y: -y * AC_UNITS_PER_RNL_UNIT },
+          { x: 0, y: 0 },
+          { rotation: 45, mirror: "none" },
+        ),
+      );
+      expect(entry.offset[0], entry.symbol).toBeCloseTo(turned[0]!, 6);
+      expect(entry.offset[1], entry.symbol).toBeCloseTo(turned[1]!, 6);
+    }
   });
 
   it("draws a pin wherever Analog Canvas shows one, and only there", () => {
@@ -341,8 +359,8 @@ describe("the RNL symbol list", () => {
       );
       for (const pin of entry.pins) {
         expect(entry.terminals[pin.terminal - 1]!.drawn).toBe(true);
-        // A row that only reads files back has its pins where RNL's symbol does.
-        if (entry.importOnly) continue;
+        // A read-only row or a diagonal symbol uses the package's pin geometry.
+        if (entry.importOnly || entry.baseRotation) continue;
         const [x, y] = toRnlPoint(
           shown.find((item) => item.name === pin.acPin)!.at,
         );

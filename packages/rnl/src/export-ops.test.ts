@@ -399,10 +399,10 @@ describe("RNL export of the simulation examples", () => {
 });
 
 describe("what RNL cannot write", () => {
-  it("refuses a part turned by 45°", () => {
-    const project = example("simulation-rc");
+  it("names a diagonal part without matching artwork", () => {
+    const project = example("two-stage-op-amp");
     const part = project.documents[0]!.instances.find(
-      (instance) => instance.placement && instance.symbolId === "resistor",
+      (instance) => instance.placement && instance.reference === "X1",
     )!;
     part.placement!.rotation = 45;
     const { ops, diagnostics } = exported(project);
@@ -410,6 +410,9 @@ describe("what RNL cannot write", () => {
       expect.objectContaining({
         severity: "error",
         code: "RNL_ROTATION_NOT_QUARTER",
+        message: expect.stringMatching(
+          /X1.*45°.*no matching diagonal RNL symbol/u,
+        ),
         objectIds: [part.id],
       }),
     );

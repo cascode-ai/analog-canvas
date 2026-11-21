@@ -251,7 +251,7 @@ export function placeParts(scope: LevelScope): PlacedParts {
         : null) ??
       (symbol && !symbol.default
         ? (acSymbolFor(symbol, orient, instance, pinNames, variant) ??
-          phaseSwitchSymbol(symbol, orient, instance))
+          phaseSwitchSymbol(symbol, orient, instance, variant))
         : null);
     if (
       symbol &&
@@ -295,7 +295,7 @@ export function placeParts(scope: LevelScope): PlacedParts {
         acPosition(at, turn, mapped?.row.offset ?? [0, 0]),
         PART_GRID,
       ),
-      ...acOrientation(turn),
+      ...acOrientation(turn, mapped?.row.baseRotation),
     };
     Object.assign(instance, paintOf(object));
     placed.push(instance);
