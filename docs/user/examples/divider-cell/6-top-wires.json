@@ -1,0 +1,14 @@
+{
+  "actions": [
+    {
+      "kind": "connect",
+      "from": { "kind": "pin", "instance": "VIN", "pin": "P" },
+      "to": { "kind": "pin", "instance": "X1", "pin": "IN" }
+    },
+    {
+      "kind": "connect",
+      "from": { "kind": "pin", "instance": "X1", "pin": "OUT" },
+      "to": { "kind": "pin", "instance": "VOUT", "pin": "P" }
+    }
+  ]
+}

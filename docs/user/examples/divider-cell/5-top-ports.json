@@ -1,0 +1,17 @@
+{
+  "actions": [
+    {
+      "kind": "place-component",
+      "symbol": "port",
+      "reference": "VIN",
+      "position": { "x": 80, "y": 100 }
+    },
+    {
+      "kind": "place-component",
+      "symbol": "port",
+      "reference": "VOUT",
+      "position": { "x": 340, "y": 100 },
+      "rotation": 180
+    }
+  ]
+}

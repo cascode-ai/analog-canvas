@@ -3,16 +3,46 @@
 // One file, Node 24 or newer, no dependencies: it downloads the released MCP
 // adapter and its headless drawing engine once, checks both against the
 // release's SHA256SUMS.txt, and runs them in local mode on a workspace
-// directory (one Project file). See docs/user/command-line.md.
+// directory (one Project file). Full guide: docs/user/command-line.md.
 //
-//   node canvas-local.mjs new <dir> [--name <name>] [--process <id>]
-//   node canvas-local.mjs call <dir> <tool> [<json> | @<file.json>]
-//   node canvas-local.mjs call <dir> resource <uri>
-//   node canvas-local.mjs png <dir> [<out.png>]
-//   node canvas-local.mjs svg <dir> [<out.svg>]
-//   node canvas-local.mjs netlist <dir> [<out.sp>] [--format spice|spectre] [--process <id>]
-//   node canvas-local.mjs setup [--version <x.y.z>]
+// Quick start: the files are in docs/user/examples/common-source/.
 //
+//   node canvas-local.mjs new cs                                # workspace cs/
+//   node canvas-local.mjs apply cs place.json wire.json labels.json
+//   node canvas-local.mjs png cs                                # cs/schematic.png
+//   node canvas-local.mjs netlist cs                            # cs/netlist.sp
+//
+// An action file is {"actions":[{"kind":"place-component", ...}, ...]}.
+// Place parts in one file and wire them in the next: `apply` says when a
+// file mixes steps that need separate calls.
+// Part names and pins: `node canvas-local.mjs catalog cs nmos,resistor`.
+// Exact fields of an action: `node canvas-local.mjs help-action cs connect`.
+//
+// A sub-circuit is a Cell (docs/user/examples/divider-cell/): create it,
+// draw inside it with --cell, place it in the top Cell, export each:
+//
+//   node canvas-local.mjs apply dv 1-cell.json                  # create-cell "half"
+//   node canvas-local.mjs apply dv 2-half-parts.json 3-half-wires.json --cell half
+//   node canvas-local.mjs apply dv 4-top-cell.json 5-top-ports.json 6-top-wires.json
+//   node canvas-local.mjs cells dv                              # id, name, top
+//   node canvas-local.mjs png dv --all                          # one PNG per Cell
+//   node canvas-local.mjs netlist dv                            # both subcircuits
+//
+// Every command:
+//
+//   new <dir> [--name <name>] [--process <id>]
+//   apply <dir> <file.json>... [--cell <id|name>]
+//   cells <dir>
+//   png|svg <dir> [<out>] [--cell <id|name> | --all]
+//   netlist <dir> [<out.sp>] [--cell <id|name>] [--format spice|spectre] [--process <id>]
+//   catalog <dir> <symbol,symbol>
+//   help-action <dir> <kind,kind>
+//   call <dir> <tool> [<json> | @<file.json>] [--cell <id|name>]
+//   call <dir> resource <uri>
+//   setup [--version <x.y.z>]
+//
+// `apply` prints one line per file and stops at the first refusal; a refused
+// file changes nothing. `call` runs any MCP tool and prints its whole reply.
 // The interface follows each release and changes often; pin one with
 // --version or ANALOG_CANVAS_VERSION for repeatable scripts.
 import { execFileSync, spawnSync } from "node:child_process";
@@ -41,16 +71,31 @@ const HEADLESS = "analog-canvas-headless.mjs";
 const USAGE = `Analog Canvas from the command line (docs/user/command-line.md)
 
   new <dir> [--name <name>] [--process <id>]   create a workspace (one Project file)
-  call <dir> <tool> [<json> | @<file.json>]    run one MCP tool on it, e.g. apply_actions
-  call <dir> resource <uri>                    read a reference, e.g. the part catalog
-  png <dir> [<out.png>]                        export the top Cell as PNG
-  svg <dir> [<out.svg>]                        export the top Cell as SVG
-  netlist <dir> [<out.sp>] [--format spice|spectre] [--process <id>]
-                                               export the top Cell's netlist
+  apply <dir> <file.json>... [--cell <c>]      run each file's {"actions":[...]} in order
+  cells <dir>                                  list the Cells: id, name, which is top
+  png <dir> [<out.png>] [--cell <c> | --all]   export a Cell (default: the top) as PNG
+  svg <dir> [<out.svg>] [--cell <c> | --all]   export a Cell as SVG
+  netlist <dir> [<out.sp>] [--cell <c>] [--format spice|spectre] [--process <id>]
+                                               export a Cell's netlist
+  catalog <dir> <symbol,symbol>                part names, pins and their positions
+  help-action <dir> <kind,kind>                exact fields of apply_actions actions
+  call <dir> <tool> [<json> | @<file.json>] [--cell <c>]
+                                               run one MCP tool, print its whole reply
+  call <dir> resource <uri>                    read a reference
   setup [--version <x.y.z>]                    download and check a release now
 
-Options: --version <x.y.z> (or ANALOG_CANVAS_VERSION) pins the release.
-Default outputs go into <dir>: schematic.png, schematic.svg, netlist.sp.`;
+<c> is a Cell's id or name (see cells). Options: --version <x.y.z> (or
+ANALOG_CANVAS_VERSION) pins the release. Default outputs go into <dir>:
+schematic.png, schematic-<cell>.png, schematic.svg, netlist.sp.`;
+
+/** A file's text, or a plain message when it cannot be read. */
+function readInput(file) {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return fail(`Cannot read ${file}`);
+  }
+}
 
 function fail(message) {
   console.error(message);
@@ -63,7 +108,8 @@ function parse(argv) {
   const flags = {};
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument.startsWith("--")) {
+    if (argument === "--all") flags.all = true;
+    else if (argument.startsWith("--")) {
       const value = argv[index + 1];
       if (value === undefined || value.startsWith("--"))
         fail(`${argument} needs a value`);
@@ -167,11 +213,63 @@ function call(adapter, dir, tool, input = "{}", extra = []) {
   }
 }
 
-function topDocument(dir) {
+function project(dir) {
   const path = join(resolve(dir), "project.icproj.json");
   if (!existsSync(path))
     fail(`${dir} is not a workspace; create one with: canvas-local new ${dir}`);
-  return JSON.parse(readFileSync(path, "utf8")).topDocumentId;
+  return JSON.parse(readFileSync(path, "utf8"));
+}
+
+/** Every Cell of the workspace, the top one first. */
+function cells(dir) {
+  const { topDocumentId, documents = [] } = project(dir);
+  return documents
+    .map((document) => ({
+      id: document.id,
+      name: document.name ?? document.id,
+      top: document.id === topDocumentId,
+    }))
+    .sort((left, right) => Number(right.top) - Number(left.top));
+}
+
+/** The Cell `--cell` names, by id or name; the top Cell without it. */
+function cell(dir, wanted) {
+  const all = cells(dir);
+  if (wanted === undefined) return all[0];
+  const found =
+    all.find((candidate) => candidate.id === wanted) ??
+    all.filter((candidate) => candidate.name === wanted);
+  if (!Array.isArray(found)) return found;
+  if (found.length === 1) return found[0];
+  fail(
+    `${found.length ? "Several Cells are" : "No Cell is"} named ${wanted}; the Cells are:\n${all
+      .map((candidate) => `  ${candidate.id}  ${candidate.name}`)
+      .join("\n")}`,
+  );
+}
+
+/** A tool's arguments with the Cell `--cell` names, unless they name one. */
+function inCell(dir, input, wanted) {
+  if (wanted === undefined) return input;
+  let argument;
+  try {
+    argument = JSON.parse(input);
+  } catch {
+    fail("The arguments are not JSON");
+  }
+  return JSON.stringify({ documentId: cell(dir, wanted).id, ...argument });
+}
+
+/** One line for an apply_actions reply: what changed, or why it was refused. */
+function summary(file, result) {
+  if (result?.ok === false)
+    return `${file}: refused, nothing changed: ${result.message ?? result.text ?? JSON.stringify(result)}`;
+  const added = result?.diagnosticDelta?.added ?? [];
+  const notes = added
+    .filter((item) => item.code)
+    .map((item) => `\n  ${item.code}: ${item.message}`)
+    .join("");
+  return `${file}: ok, revision ${result?.revision ?? "?"}${notes}`;
 }
 
 function report(result) {
@@ -200,30 +298,77 @@ if (command === "new") {
       ...(flags.process ? ["--process", flags.process] : []),
     ]),
   );
-} else if (command === "call") {
-  const [tool, argument = "{}"] = rest;
-  if (!tool) fail("call needs a tool name, e.g. apply_actions");
-  const input = argument.startsWith("@")
-    ? readFileSync(argument.slice(1), "utf8")
-    : argument;
-  report(call(adapter, dir, tool, input));
-} else if (command === "png" || command === "svg") {
-  const outputPath = resolve(rest[0] ?? join(dir, `schematic.${command}`));
-  mkdirSync(dirname(outputPath), { recursive: true });
+} else if (command === "apply") {
+  if (!rest.length) fail("apply needs one or more action files");
+  for (const file of rest) {
+    const input = inCell(dir, readInput(file), flags.cell);
+    const result = call(adapter, dir, "apply_actions", input);
+    console.log(summary(file, result));
+    if (result?.ok === false) process.exit(1);
+  }
+} else if (command === "cells") {
+  for (const { id, name, top } of cells(dir))
+    console.log(`${id}\t${name}${top ? "\t(top)" : ""}`);
+} else if (command === "catalog") {
+  if (!rest[0]) fail("catalog needs symbol names, e.g. nmos,resistor");
   report(
     call(
       adapter,
       dir,
-      "export_file",
-      JSON.stringify({
-        artifact: command,
-        documentId: topDocument(dir),
-        outputPath,
-      }),
+      "resource",
+      `analog-canvas://catalog/builtins?symbols=${encodeURIComponent(rest[0])}`,
     ),
   );
+} else if (command === "help-action") {
+  if (!rest[0]) fail("help-action needs action kinds, e.g. connect");
+  report(
+    call(
+      adapter,
+      dir,
+      "describe_tool",
+      JSON.stringify({ tool: "apply_actions", operations: rest[0].split(",") }),
+    ),
+  );
+} else if (command === "call") {
+  const [tool, argument = "{}"] = rest;
+  if (!tool) fail("call needs a tool name, e.g. apply_actions");
+  const input = argument.startsWith("@")
+    ? readInput(argument.slice(1))
+    : argument;
+  report(
+    call(
+      adapter,
+      dir,
+      tool,
+      tool === "resource" ? input : inCell(dir, input, flags.cell),
+    ),
+  );
+} else if (command === "png" || command === "svg") {
+  const targets = flags.all ? cells(dir) : [cell(dir, flags.cell)];
+  for (const target of targets) {
+    const named = flags.all || flags.cell !== undefined;
+    const outputPath = resolve(
+      (!flags.all && rest[0]) ||
+        join(
+          dir,
+          named && !target.top
+            ? `schematic-${target.name.replace(/[^\w.-]+/gu, "_")}.${command}`
+            : `schematic.${command}`,
+        ),
+    );
+    mkdirSync(dirname(outputPath), { recursive: true });
+    const result = call(
+      adapter,
+      dir,
+      "export_file",
+      JSON.stringify({ artifact: command, documentId: target.id, outputPath }),
+    );
+    if (result?.ok === false) report(result);
+    console.log(`${target.name}: ${outputPath}`);
+  }
 } else if (command === "netlist") {
   const format = flags.format ?? "spice";
+  const target = flags.cell === undefined ? undefined : cell(dir, flags.cell);
   const result = call(
     adapter,
     dir,
@@ -231,6 +376,7 @@ if (command === "new") {
     JSON.stringify({
       action: "read",
       format,
+      ...(target ? { documentId: target.id } : {}),
       ...(flags.process ? { process: flags.process } : {}),
     }),
   );
@@ -240,11 +386,25 @@ if (command === "new") {
     netlist.status !== "ready" ||
     typeof netlist.text !== "string"
   )
-    report({ ...result, ok: false });
+    fail(
+      `Netlist blocked, nothing written:\n${
+        (netlist?.diagnostics ?? [])
+          .filter((item) => item.severity === "error")
+          .map((item) => `  ${item.code}: ${item.message}`)
+          .join("\n") || `  ${result?.message ?? JSON.stringify(result)}`
+      }`,
+    );
+  const ext = format === "spectre" ? "scs" : "sp";
   const outputPath = resolve(
-    rest[0] ?? join(dir, format === "spectre" ? "netlist.scs" : "netlist.sp"),
+    rest[0] ??
+      join(
+        dir,
+        target && !target.top
+          ? `netlist-${target.name.replace(/[^\w.-]+/gu, "_")}.${ext}`
+          : `netlist.${ext}`,
+      ),
   );
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, netlist.text);
-  report({ ok: true, format, outputPath });
+  console.log(`${(target ?? cell(dir)).name}: ${outputPath}`);
 } else fail(`Unknown command ${command}\n\n${USAGE}`);

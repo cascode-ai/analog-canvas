@@ -1,0 +1,10 @@
+{
+  "actions": [
+    {
+      "kind": "place-cell",
+      "childDocumentId": "half",
+      "reference": "X1",
+      "placement": { "position": { "x": 200, "y": 100 } }
+    }
+  ]
+}

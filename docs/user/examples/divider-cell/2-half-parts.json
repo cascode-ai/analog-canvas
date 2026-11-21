@@ -1,0 +1,40 @@
+{
+  "actions": [
+    {
+      "kind": "place-component",
+      "symbol": "resistor",
+      "reference": "R1",
+      "position": { "x": 100, "y": 60 },
+      "parameters": { "value": "1kΩ" },
+      "showValue": true
+    },
+    {
+      "kind": "place-component",
+      "symbol": "resistor",
+      "reference": "R2",
+      "position": { "x": 100, "y": 140 },
+      "parameters": { "value": "1kΩ" },
+      "showValue": true
+    },
+    {
+      "kind": "place-component",
+      "symbol": "port",
+      "reference": "IN",
+      "position": { "x": 100, "y": 0 },
+      "rotation": 90
+    },
+    {
+      "kind": "place-component",
+      "symbol": "port",
+      "reference": "OUT",
+      "position": { "x": 160, "y": 100 },
+      "rotation": 180
+    },
+    {
+      "kind": "place-component",
+      "symbol": "ground",
+      "id": "g",
+      "position": { "x": 100, "y": 190 }
+    }
+  ]
+}
