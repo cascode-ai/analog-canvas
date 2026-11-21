@@ -110,6 +110,21 @@ describe("an Agent publishes to the Gallery (#1415)", () => {
     ]);
   });
 
+  it("sends the Project under the entry's name, not its working name (#2429)", async () => {
+    const server = galleryServer();
+    const { client } = editorWith(server);
+    await client.connect("session-1.code");
+    const result = await client.projectResource({
+      ...envelope,
+      operation: "publish-gallery-entry",
+      name: "Two-stage OTA",
+    });
+    expect(result).toMatchObject({ ok: true });
+    const sent = server.sent[0]!.body;
+    expect(sent.name).toBe("Two-stage OTA");
+    expect(JSON.parse(String(sent.projectText)).name).toBe("Two-stage OTA");
+  });
+
   it("updates an entry keeping the fields it does not name, marked AI", async () => {
     const server = galleryServer();
     const { client, recorded } = editorWith(server);
