@@ -323,6 +323,12 @@ information). Hidden bulk needs no decorative wire.
   centres it (house style); a `named-ground`'s stands centred below its bars.
   `arrange-labels` sets an upside-down supply name upright beside its marker,
   and puts a VDD name drawn over another part over its bar when that is clear.
+- A Cell drawn as an op-amp, comparator or other Library block, with no
+  hand-made artwork: place the Library part (`opamp`, `comparator`, …) in the
+  parent, then `set-model {target, model: "<Cell name>"}`. It keeps its look
+  and calls the Cell; the Cell's Pins must match the part's (`IN+`/`IN-`/`OUT`,
+  or `INP`/`INN`), and `model: ""` unbinds it. `set-cell-symbol-artwork` is
+  only for shapes no Library part has.
 - `set-port-direction` sets one terminal or a whole Port; `set-vdd-mode`
   switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.
