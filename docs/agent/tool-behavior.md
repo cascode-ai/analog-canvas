@@ -30,6 +30,11 @@ grant. Placement with an explicit body fill takes both geometry and presentation
   replaces removed bodies with `removedIds`; an empty compact `removed` does
   not mean nothing was removed. Raw HTTP defaults to full; MCP edits default to
   compact and accept `detail:"full"`.
+- A compact MCP edit receipt carries only what the call changed:
+  `diagnostics` holds the findings it added, `diagnosticsRemoved` the ones it
+  cleared (code and objects), `diagnosticSummary` counts the `standing` rest,
+  and `changedObjectIds` holds the first 50 (`changedObjectCount` counts all).
+  `detail:"full"` returns every finding and ID.
 
 ## Geometry and electrical identity
 

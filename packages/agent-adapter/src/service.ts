@@ -21,7 +21,6 @@ import {
 import { base64EncodeUtf8, utf8ByteLength } from "./platform.js";
 import {
   addedAmbiguousJunctions,
-  agentDiagnosticIdentity,
   agentProjectDiagnostics,
   agentVisualDiagnostics,
 } from "./diagnostics.js";
@@ -60,6 +59,7 @@ import {
   selectAgentInstances,
 } from "./snapshot.js";
 import { terminalConnectivity } from "./terminal-connectivity.js";
+import { diagnosticDeltaOf, runActionCalls } from "./action-calls.js";
 
 const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
 
@@ -383,6 +383,8 @@ export function createAgentCircuitService(
     useHost ? null : options
   ) as AgentCircuitServiceOptions | null;
 
+  /** Whether a list's calls are running, which never split again. */
+  let runningCalls = false;
   const allocateId =
     options.allocateId ??
     ((prefix: string) => `${prefix}-${crypto.randomUUID()}`);
@@ -912,6 +914,45 @@ export function createAgentCircuitService(
             },
             diagnostics: [],
           });
+        // A list needing several transactions commits them as one Undo
+        // step, all or nothing, where the host can group its history. Undo
+        // and redo go alone; a call never splits again.
+        const atomically = host.atomically?.bind(host);
+        if (
+          plan.kind === "split" &&
+          atomically &&
+          !runningCalls &&
+          !plan.calls.some((call) =>
+            call.actionKinds.some((kind) => kind === "undo" || kind === "redo"),
+          )
+        ) {
+          if (
+            plan.calls.some((call) => call.actionKinds.includes("focus")) &&
+            !options.permissions.semanticControl
+          )
+            return fail(
+              "transact",
+              "PERMISSION_DENIED",
+              "Semantic editor-control permission is not granted",
+              document.revision,
+            );
+          runningCalls = true;
+          try {
+            return response(
+              runActionCalls({
+                request: { ...request, actions: request.actions },
+                calls: plan.calls,
+                host,
+                atomically,
+                handle: (input) => service.handle(input),
+                diagnosticsFor,
+                before: { project, document, resolver },
+              }),
+            );
+          } finally {
+            runningCalls = false;
+          }
+        }
         if (plan.kind === "split")
           return response({
             apiVersion: request.apiVersion,
@@ -1446,6 +1487,18 @@ export function createAgentCircuitService(
             // A planned command's notes, such as the markers a move carried
             // (#1531), reach a Project transaction's receipt too.
             diagnostics: [...commandNotes, ...diagnostics],
+            // Both sides read with the same symbols, so only the change
+            // shows.
+            diagnosticDelta: diagnosticDeltaOf(
+              diagnosticsFor(
+                project,
+                document,
+                createProjectSymbolResolver(project, builtInSymbols),
+              ),
+              diagnostics,
+              commandNotes,
+              request.diagnosticDeltaDetail,
+            ),
             projectStructure: {
               fromRevision: project.structureRevision,
               toRevision: result.proposedStructureRevision,
@@ -1692,10 +1745,6 @@ export function createAgentCircuitService(
           result.document,
           committedResolver,
         );
-        const beforeIds = new Set(
-          beforeDiagnostics.map(agentDiagnosticIdentity),
-        );
-        const afterIds = new Set(diagnostics.map(agentDiagnosticIdentity));
         return response({
           apiVersion: request.apiVersion,
           requestId: request.requestId,
@@ -1730,32 +1779,12 @@ export function createAgentCircuitService(
               }
             : {}),
           diagnostics: [...commandNotes, ...diagnostics],
-          diagnosticDelta: {
-            added: [
-              ...commandNotes,
-              ...diagnostics.filter(
-                (diagnostic) =>
-                  !beforeIds.has(agentDiagnosticIdentity(diagnostic)),
-              ),
-            ],
-            removed:
-              request.diagnosticDeltaDetail === "compact"
-                ? []
-                : beforeDiagnostics.filter(
-                    (diagnostic) =>
-                      !afterIds.has(agentDiagnosticIdentity(diagnostic)),
-                  ),
-            ...(request.diagnosticDeltaDetail === "compact"
-              ? {
-                  removedIds: beforeDiagnostics
-                    .filter(
-                      (diagnostic) =>
-                        !afterIds.has(agentDiagnosticIdentity(diagnostic)),
-                    )
-                    .map(agentDiagnosticIdentity),
-                }
-              : {}),
-          },
+          diagnosticDelta: diagnosticDeltaOf(
+            beforeDiagnostics,
+            diagnostics,
+            commandNotes,
+            request.diagnosticDeltaDetail,
+          ),
           ...(resolvedRoutes.length === 0 ? {} : { resolvedRoutes }),
         });
       }

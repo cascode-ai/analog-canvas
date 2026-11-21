@@ -1530,6 +1530,132 @@ it("leaves nothing of a placement batch when one of its parts is refused (#1516)
   expect(controller.canUndo).toBe(false);
 });
 
+describe("a list needing several transactions commits as one", () => {
+  const place = (reference: string, x: number) => ({
+    kind: "place-component",
+    symbol: "resistor",
+    reference,
+    position: { x, y: 100 },
+  });
+  const pinOf = (instance: string, pin: string) => ({
+    kind: "pin",
+    instance,
+    pin,
+  });
+
+  it("changes nothing when its last transaction fails", async () => {
+    const { tool, controller } = await folder();
+    expect((await tool("apply_actions", { actions: [place("R1", 100)] })).ok);
+    const project = controller.project;
+    const result = await tool("apply_actions", {
+      actions: [
+        place("R2", 300),
+        place("R3", 500),
+        // No Net is called Vout: the wire transaction fails, after R2's.
+        {
+          kind: "connect",
+          from: pinOf("R2", "2"),
+          to: { kind: "net", net: "Vout" },
+        },
+      ],
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      stage: "commit",
+      actionIndex: 2,
+    });
+    expect(result.message).toMatch(/^actions\[2\] \(connect\): /u);
+    expect(result.message).toContain("nothing changed");
+    // The very Project as before, and its history: one Undo takes R1 back.
+    expect(controller.project).toBe(project);
+    expect(controller.canRedo).toBe(false);
+    expect(
+      (await tool("apply_actions", { actions: [{ kind: "undo" }] })).ok,
+    ).toBe(true);
+    expect(controller.document.instances).toEqual([]);
+    expect(controller.canUndo).toBe(false);
+  });
+
+  it("is one Undo step, and a dry run of it changes nothing", async () => {
+    const { tool, client, controller } = await folder();
+    expect((await tool("apply_actions", { actions: [place("R1", 100)] })).ok);
+    const before = structuredClone(controller.document);
+    const actions = [
+      place("R2", 300),
+      { kind: "connect", from: pinOf("R1", "2"), to: pinOf("R2", "1") },
+    ];
+    const project = controller.project;
+    const tried = await client.applyActions(actions, { dryRunOnly: true });
+    expect(tried).toMatchObject({ ok: true, applied: false });
+    expect(controller.project).toBe(project);
+    const done = await tool("apply_actions", { actions });
+    expect(done.ok, done.message).toBe(true);
+    expect(done.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "ACTIONS_COMMITTED_TOGETHER" }),
+    );
+    expect(controller.document.instances).toHaveLength(2);
+    expect(controller.document.routes.length).toBeGreaterThan(0);
+    const after = structuredClone(controller.document);
+    expect(
+      (await tool("apply_actions", { actions: [{ kind: "undo" }] })).ok,
+    ).toBe(true);
+    const { revision: _undone, ...undone } = controller.document;
+    const { revision: _before, ...unchanged } = before;
+    expect(undone).toEqual(unchanged);
+    expect(
+      (await tool("apply_actions", { actions: [{ kind: "redo" }] })).ok,
+    ).toBe(true);
+    expect(controller.document.instances).toEqual(after.instances);
+    expect(controller.document.routes).toEqual(after.routes);
+  });
+});
+
+it("answers a compact receipt with the findings the call changed, not the standing ones", async () => {
+  const { tool, controller } = await folder();
+  const placed = await tool("apply_actions", {
+    actions: [
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R1",
+        position: { x: 100, y: 100 },
+      },
+    ],
+  });
+  const standing = (placed.diagnostics as { objectIds?: string[] }[]).filter(
+    (diagnostic) => diagnostic.objectIds?.length,
+  );
+  // R1's unwired pins: findings the next call does not change.
+  expect(standing.length).toBeGreaterThan(0);
+  const r1 = controller.document.instances[0]!.id;
+  const actions = [
+    {
+      kind: "place-component",
+      symbol: "capacitor",
+      reference: "C1",
+      position: { x: 400, y: 100 },
+    },
+  ];
+  const compact = await tool("apply_actions", { actions });
+  expect(compact.ok, compact.message).toBe(true);
+  const names = (list: { objectIds?: string[] }[]) =>
+    list.flatMap((diagnostic) => diagnostic.objectIds ?? []);
+  expect(names(compact.diagnostics)).not.toContain(r1);
+  expect(names(compact.diagnostics)).toContain(
+    controller.document.instances[1]!.id,
+  );
+  expect(compact.diagnosticSummary.standing).toBeGreaterThanOrEqual(
+    standing.length,
+  );
+  expect(compact).not.toHaveProperty("diagnosticDelta");
+  // The full receipt still lists every finding.
+  expect(
+    (await tool("apply_actions", { actions: [{ kind: "undo" }] })).ok,
+  ).toBe(true);
+  const full = await tool("apply_actions", { actions, detail: "full" });
+  expect(names(full.diagnostics)).toContain(r1);
+});
+
 it("defaults a native VDD name and rejects unused or non-Port direction targets", async () => {
   const { controller } = await folder();
   const instance = {

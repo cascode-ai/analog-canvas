@@ -35,18 +35,16 @@ alone. An editor page loaded before it could plan lists answers
 `EDITOR_OUTDATED`: reload and retry. `circuit_view` `focus` never edits (scope
 `editor.semantic-control`).
 
-A focused tool sends actions that cannot share a transaction as consecutive
-calls in the compiler's order, reported under `split` (each call's actions,
-outcome, revision). Each call is atomic; the first failure stops the rest and
-earlier calls stay applied. `apply_actions` instead refuses such a mix with
-`ACTION_BATCH_NOT_ATOMIC` and keeps every action family (Cell structure,
-reset, history). A refusal names its action as `actions[i] (kind): …` with
+Actions that cannot share a transaction commit together, one Undo step or
+nothing ([batches](../shared/authoring.md#batches-and-limits)), in every
+tool; `apply_actions` keeps every action family (Cell structure, reset,
+history). A refusal names its action as `actions[i] (kind): …` with
 `actionIndex` and `actionKind`; `ACTION_COMPILE_FAILED` also lists every
 refused action in `issues`.
 
-`apply_actions` takes one atomic edit batch, wire batch, planned command or
-focus per call. Split create and wire phases so new pin geometry comes from
-a Snapshot (`pins` read). Several `connect` actions share one call,
+An `apply_actions` call is atomic. Wires may name pins of parts the same list
+places; a wire given a new pin's coordinates needs them from a Snapshot
+(`pins` read) first. Several `connect` actions share one call,
 planned in order and committed once (one Undo); a failure leaves no wiring.
 `wireIntent` takes one intent or an ordered array. Multiple taps on one original Route may use pre-batch Route/leg IDs;
 the planner follows split children.
@@ -483,7 +481,8 @@ recent attempts by requestId/resource/operation, with header wait, JSON
 validation, retry delays and relay phases (restoration, pre-forward,
 forwarding, completion; legacy `relayMs` is the last two) separate. Byte
 streams stop at headers. `SLOW_RELAY` asks to inspect phases, not refresh
-blindly. One-shot CLI adds `startupMs`. No payloads or credentials are logged.
+blindly; a timing warning (`SLOW_RELAY`, `EDITOR_BACKGROUND`) shows once per
+session until it changes. One-shot CLI adds `startupMs`. No payloads or credentials are logged.
 HTTP 429 retries are bounded and honour `Retry-After` with identical body and
 IDs; longer waits return to the caller. `analog-canvas-mcp --http batch` runs
 one call per JSON line (`{"tool": "...", "args": {...}}`) on one session,

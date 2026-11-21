@@ -52,6 +52,8 @@ export class BrowserAgentHost implements AgentOperationHost {
     );
   }
   private readonly boundProjectSessionId: string;
+  /** While {@link atomically} runs, commits wait for its end to be told. */
+  private grouping = false;
 
   constructor(
     private readonly controller: EditorDocumentController,
@@ -103,11 +105,35 @@ export class BrowserAgentHost implements AgentOperationHost {
       );
     }
     const result = this.controller.dispatchTransaction(request);
-    if (result.ok && result.applied) {
-      this.controller.noteAgentEdit();
-      this.onTransactionCommitted?.();
-    }
+    if (result.ok && result.applied) this.committed();
     return result;
+  }
+
+  /**
+   * One Agent call's several transactions as one Undo step, or none of
+   * them. The UI and recovery learn of the outcome once, at the end: a
+   * rolled-back step was never seen.
+   */
+  atomically<T>(run: () => T, keep: (result: T) => boolean): T {
+    this.assertBound();
+    if (this.grouping) throw new Error("Agent history groups do not nest");
+    const group = this.controller.beginHistoryGroup();
+    this.grouping = true;
+    let kept = false;
+    try {
+      const result = run();
+      kept = keep(result);
+      return result;
+    } finally {
+      this.grouping = false;
+      if (this.controller.endHistoryGroup(group, kept)) this.committed();
+    }
+  }
+
+  private committed(): void {
+    if (this.grouping) return;
+    this.controller.noteAgentEdit();
+    this.onTransactionCommitted?.();
   }
 
   dispatchProjectTransaction(
@@ -129,10 +155,7 @@ export class BrowserAgentHost implements AgentOperationHost {
       undefined,
       documentId,
     );
-    if (result.ok && result.applied) {
-      this.controller.noteAgentEdit();
-      this.onTransactionCommitted?.();
-    }
+    if (result.ok && result.applied) this.committed();
     return result;
   }
 
@@ -147,8 +170,7 @@ export class BrowserAgentHost implements AgentOperationHost {
   ): void {
     this.assertBound();
     this.controller.commitProjectStructure(project, activeDocumentId);
-    this.controller.noteAgentEdit();
-    this.onTransactionCommitted?.();
+    this.committed();
   }
 
   applySemanticIntent(

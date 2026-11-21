@@ -107,11 +107,83 @@ export function verifyInformation(entry: CachedSnapshot): {
   return { information, omitted: named.length - information.length };
 }
 
-/** Successful edit receipts: all errors, one example per warning/info code.
- * Complete diagnostic derivation and the explicit full response are unchanged.
+/** A compact receipt names this many changed objects or cleared findings,
+ * then counts the rest. */
+export const COMPACT_CHANGED_OBJECT_LIMIT = 50;
+
+/** A removed finding's identity (`agentDiagnosticIdentity`), read back. */
+function removedFinding(identity: string): Record<string, unknown> {
+  try {
+    const { code, objectIds } = JSON.parse(identity) as {
+      code?: unknown;
+      objectIds?: unknown;
+    };
+    return {
+      code,
+      ...(Array.isArray(objectIds) && objectIds.length ? { objectIds } : {}),
+    };
+  } catch {
+    return { identity };
+  }
+}
+
+/**
+ * Successful edit receipts carry what the call changed, not the drawing's
+ * standing findings: the findings it added, the ones it cleared, counts of
+ * the rest, and the first changed object IDs. An editor that sends no
+ * delta gets all errors and one example per warning/info code. The
+ * explicit full response is unchanged.
  */
 export function compactActionReport(report: ApplyActionsReport) {
-  if (!report.ok || !report.diagnostics) return report;
+  if (!report.ok) return report;
+  const changed = report.changedObjectIds;
+  const capped =
+    changed && changed.length > COMPACT_CHANGED_OBJECT_LIMIT
+      ? {
+          changedObjectIds: changed.slice(0, COMPACT_CHANGED_OBJECT_LIMIT),
+          changedObjectCount: changed.length,
+        }
+      : {};
+  if (!report.diagnostics) return { ...report, ...capped };
+  const { diagnosticDelta, ...rest } = report;
+  const details = {
+    tool: "inspect",
+    target: { kind: "diagnostics" },
+    detail: "full",
+    ...(report.documentId ? { documentId: report.documentId } : {}),
+  };
+  if (diagnosticDelta) {
+    const removed = [
+      ...diagnosticDelta.removed.map((diagnostic) => ({
+        code: diagnostic.code,
+        ...(diagnostic.objectIds?.length
+          ? { objectIds: diagnostic.objectIds }
+          : {}),
+      })),
+      ...(diagnosticDelta.removedIds ?? []).map(removedFinding),
+    ];
+    return {
+      ...rest,
+      ...capped,
+      diagnostics: diagnosticDelta.added,
+      // What the call cleared, by code and objects; past the limit, counted.
+      ...(removed.length
+        ? { diagnosticsRemoved: removed.slice(0, COMPACT_CHANGED_OBJECT_LIMIT) }
+        : {}),
+      ...(removed.length > COMPACT_CHANGED_OBJECT_LIMIT
+        ? { diagnosticsRemovedCount: removed.length }
+        : {}),
+      diagnosticSummary: {
+        total: report.diagnostics.length,
+        // Findings the drawing had before this call and still has.
+        standing: Math.max(
+          0,
+          report.diagnostics.length - diagnosticDelta.added.length,
+        ),
+        details,
+      },
+    };
+  }
   const byCode: Record<string, number> = {};
   const seen = new Set<string>();
   const diagnostics = report.diagnostics.filter((d) => {
@@ -122,32 +194,16 @@ export function compactActionReport(report: ApplyActionsReport) {
     seen.add(key);
     return true;
   });
-  const { diagnosticDelta, ...rest } = report;
   return {
     ...rest,
+    ...capped,
     diagnostics,
     diagnosticSummary: {
       total: report.diagnostics.length,
       omitted: report.diagnostics.length - diagnostics.length,
       byCode,
-      details: {
-        tool: "inspect",
-        target: { kind: "diagnostics" },
-        detail: "full",
-        ...(report.documentId ? { documentId: report.documentId } : {}),
-      },
+      details,
     },
-    ...(diagnosticDelta
-      ? {
-          diagnosticDelta: {
-            projection: "summary",
-            addedCount: diagnosticDelta.added.length,
-            removedCount:
-              diagnosticDelta.removed.length +
-              (diagnosticDelta.removedIds?.length ?? 0),
-          },
-        }
-      : {}),
   };
 }
 

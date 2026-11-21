@@ -25,13 +25,13 @@ limits.
 Send `Authorization: Bearer <agentToken>`, `Content-Type: application/json`,
 and `apiVersion` (currently `3.0`) and `requestId` where required.
 
-| Route under `/api/agent/sessions/{sessionId}` | Purpose |
-| --- | --- |
-| `POST /circuit` | capabilities, snapshot, transact, render |
-| `POST /files` | Project exports/import candidates, simulation source and artifacts |
-| `POST /simulation` | Capabilities, authoring help, run/prepare/start/read/cancel/export, batches |
-| `POST /projects` | Gallery, active Project Code/Netlist, Cloud Cells, workspaces |
-| `GET /status` | Session observations; attached is not execution readiness |
+| Route under `/api/agent/sessions/{sessionId}` | Purpose                                                                     |
+| --------------------------------------------- | --------------------------------------------------------------------------- |
+| `POST /circuit`                               | capabilities, snapshot, transact, render                                    |
+| `POST /files`                                 | Project exports/import candidates, simulation source and artifacts          |
+| `POST /simulation`                            | Capabilities, authoring help, run/prepare/start/read/cancel/export, batches |
+| `POST /projects`                              | Gallery, active Project Code/Netlist, Cloud Cells, workspaces               |
+| `GET /status`                                 | Session observations; attached is not execution readiness                   |
 
 The four-operation limit applies to Circuit only. No route grants host files
 or shell access.
@@ -61,8 +61,9 @@ Use exactly one form: `edits`, `structureEdits`, `wireIntent`,
 when required, `expectedStructureRevision`. `actions` takes MCP
 `apply_actions`' actions; a refusal names `error.actionIndex` and
 `error.actionKind`, `ACTION_COMPILE_FAILED` lists every refused action in
-`error.issues`, and `ACTION_BATCH_NOT_ATOMIC` lists the calls to send in
-`error.calls`.
+`error.issues`, and `ACTION_BATCH_NOT_ATOMIC` (`undo`/`redo` beside other
+actions) lists the calls to send in `error.calls`. A list needing several
+transactions otherwise commits them as one Undo step, or none.
 
 For a risky edit, dry-run and inspect diff/diagnostics, then commit with
 `dryRun:false`, a **new requestId and transactionId**, and the same expected

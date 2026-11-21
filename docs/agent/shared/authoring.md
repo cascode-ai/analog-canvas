@@ -496,8 +496,11 @@ batch with `LIMIT_EXCEEDED` or `INVALID_REQUEST`: reload it and retry.
 Display flags, Port directions, VDD mode, terminal removal and power rails
 share a command batch (a VDD and a VSS rail: one call). Pure presentation
 batches keep the structure revision. A list needing several transactions
-commits nothing: `ACTION_BATCH_NOT_ATOMIC`'s `calls` gives action indexes per
-call, in order (placements apart from their wires; a `focus` with the last).
+(placements apart from their wires) commits them in order, each planned on the
+one before, as one Undo step; if one fails, the earlier ones are taken back and
+nothing changes. A `focus` shows after all of them. `undo`/`redo` go alone: a
+list mixing them is refused with `ACTION_BATCH_NOT_ATOMIC`, whose `calls`
+gives action indexes per call, in order.
 
 ## Move, delete and reset
 

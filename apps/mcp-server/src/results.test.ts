@@ -20,24 +20,66 @@ it("summarizes repeated successful diagnostics without dropping errors or mutati
     ...diagnostics,
     { code: "BAD_BINDING", severity: "error" as const, message: "bad model" },
   ];
+  // An editor that sends no delta.
   const report = {
     ok: true,
     stage: "done" as const,
     documentId: "doc",
     diagnostics: all,
-    diagnosticDelta: { added: all, removed: [] },
   };
   const compact = compactActionReport(report);
   expect(compact.diagnostics).toHaveLength(2);
   expect(compact.diagnostics?.some((d) => d.code === "BAD_BINDING")).toBe(true);
   expect(compact).toMatchObject({
     diagnosticSummary: { total: 31, omitted: 29 },
-    diagnosticDelta: { addedCount: 31, removedCount: 0 },
   });
-  expect(report.diagnosticDelta.added).toHaveLength(31);
+  expect(report.diagnostics).toHaveLength(31);
   expect(
     compactActionReport({ ...report, ok: false }).diagnostics,
   ).toHaveLength(31);
+});
+
+it("carries only the findings a call added or cleared, and the first changed objects", () => {
+  const standing = ["GROUND_PIN_RENAMED", "IMPORT_REFERENCE_MISSING"].map(
+    (code) => ({ code, severity: "warning" as const, message: code }),
+  );
+  const added = {
+    code: "MISSING_PIN_NET",
+    severity: "error" as const,
+    message: "R1.2 is not wired",
+    objectIds: ["R1"],
+  };
+  const changedObjectIds = Array.from({ length: 120 }, (_, i) => `obj-${i}`);
+  const report = {
+    ok: true,
+    stage: "done" as const,
+    documentId: "doc",
+    changedObjectIds,
+    diagnostics: [...standing, added],
+    diagnosticDelta: {
+      added: [added],
+      removed: [],
+      removedIds: [
+        JSON.stringify({
+          domain: null,
+          code: "MISSING_PIN_NET",
+          objectIds: ["R2"],
+          parameters: {},
+        }),
+      ],
+    },
+  };
+  const compact = compactActionReport(report);
+  expect(compact.diagnostics).toEqual([added]);
+  expect(compact).toMatchObject({
+    diagnosticsRemoved: [{ code: "MISSING_PIN_NET", objectIds: ["R2"] }],
+    diagnosticSummary: { total: 3, standing: 2 },
+    changedObjectCount: 120,
+  });
+  expect(compact.changedObjectIds).toHaveLength(50);
+  expect(compact).not.toHaveProperty("diagnosticDelta");
+  // The full receipt stays whole.
+  expect(report.changedObjectIds).toHaveLength(120);
 });
 
 it("passes every refused action of a list through to the Agent", () => {

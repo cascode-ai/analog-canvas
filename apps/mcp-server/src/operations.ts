@@ -2083,17 +2083,32 @@ async function invokeOperation(
       session.taskRef,
     );
   }
+  const requests = mark === undefined ? [] : session.client.timingsSince(mark);
+  const previousWarning = session.timingWarning;
+  if (requests.length) session.timingWarning = timingWarningCode(requests);
   return withTiming(
     result,
     performance.now() - started,
-    mark === undefined ? [] : session.client.timingsSince(mark),
+    requests,
     options.reportStartup === true,
     name,
+    previousWarning,
   );
 }
 
 /** Legacy relay segment threshold; it includes completion, not only editor work. */
 const SLOW_EDITOR_MS = 5000;
+
+/** The timing warning these requests earn, if any. */
+export function timingWarningCode(
+  requests: readonly AgentRequestTiming[],
+): "SLOW_RELAY" | "EDITOR_BACKGROUND" | undefined {
+  if (requests.some((request) => (request.relayMs ?? 0) > SLOW_EDITOR_MS))
+    return "SLOW_RELAY";
+  return requests.some((request) => request.editorVisibility === "hidden")
+    ? "EDITOR_BACKGROUND"
+    : undefined;
+}
 
 /**
  * Where a call's time went (#1227): the whole call, each request hop by hop
@@ -2108,6 +2123,8 @@ export function withTiming(
   requests: readonly AgentRequestTiming[],
   reportStartup: boolean,
   operation?: string,
+  /** The warning the session's last timed call reported: shown only once. */
+  previousWarning?: string,
 ): unknown {
   if (
     !requests.length ||
@@ -2116,10 +2133,8 @@ export function withTiming(
     Array.isArray(result)
   )
     return result;
-  const hidden = requests.some(
-    (request) => request.editorVisibility === "hidden",
-  );
   const slowest = Math.max(...requests.map((request) => request.relayMs ?? 0));
+  const code = timingWarningCode(requests);
   return {
     ...result,
     timing: {
@@ -2137,13 +2152,13 @@ export function withTiming(
       requests: requests
         .slice(-8)
         .map(({ startedAtMs: _startedAtMs, ...request }) => request),
-      ...(hidden || slowest > SLOW_EDITOR_MS
+      // A standing warning shows once, then again only after it changed.
+      ...(code && code !== previousWarning
         ? {
             warning: {
-              code:
-                slowest > SLOW_EDITOR_MS ? "SLOW_RELAY" : "EDITOR_BACKGROUND",
+              code,
               message:
-                slowest > SLOW_EDITOR_MS
+                code === "SLOW_RELAY"
                   ? `Relay forwarding and completion took ${Math.round(slowest / 1000)} s; inspect the phase timings to locate the delay. Tab visibility alone does not establish its cause.`
                   : "The Analog Canvas tab reported hidden while answering. This is a visibility observation, not a latency diagnosis.",
             },
