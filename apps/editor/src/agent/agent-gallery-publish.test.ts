@@ -235,4 +235,24 @@ describe("an Agent publishes to the Gallery (#1415)", () => {
       error: { code: "WORKSPACE_NOT_SHOWN", recovery: "fix-input" },
     });
   });
+
+  it("renames an entry with no working copy open (#2429)", async () => {
+    const server = galleryServer();
+    const { client } = editorWith(server, false);
+    await client.connect("session-1.code");
+    const result = await client.projectResource({
+      ...envelope,
+      operation: "update-gallery-entry",
+      galleryEntryId: "entry-7",
+      name: "Sensor core",
+    });
+    expect(result).toMatchObject({ ok: true, galleryEntryId: "entry-7" });
+    expect(server.sent).toEqual([
+      {
+        method: "PATCH",
+        url: "/api/gallery/entry-7",
+        body: { name: "Sensor core", description: "Stored description" },
+      },
+    ]);
+  });
 });

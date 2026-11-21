@@ -222,7 +222,9 @@ Tool descriptions cover each action; these are the extra rules.
 - `publish`/`update` return `galleryEntryId`, `url` (`/g/<id>`) and
   `previewRevision` and bind the copy to the entry. The AI mark is changed only
   by its author in the Editor; AI accounts always keep it. A background tab is
-  `WORKSPACE_NOT_SHOWN`: activate it. Older pairings lack `gallery.publish`
+  `WORKSPACE_NOT_SHOWN`: activate it. An `update` with `galleryEntryId` and
+  only `name`/`description` needs no working copy. The published Project
+  takes the entry's name. Older pairings lack `gallery.publish`
   and need a new connection. `SIGN_IN_REQUIRED`: sign in to the Editor, not
   another Claim; `SESSION_NOT_FOUND`: pair again.
 - AI-account redraws: as an AI account, `list` with `scope:"ai-seats"`
