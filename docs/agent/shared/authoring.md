@@ -326,7 +326,9 @@ information). Hidden bulk needs no decorative wire.
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.
 - `add-power-rail` draws a `vdd-rail` (a primitive, not a symbol) with optional
   `name`/`scope` (existing scope kept, else local; `global` only explicitly).
-  It initializes the PMOS bulk default; geometry alone joins no pin. Markers
+  It initializes the PMOS bulk default. Pins whose contact lies on the rail
+  join it only with `joinPins: true`, as the GUI draws one; otherwise they
+  stay apart and are named (`RAIL_OVER_UNJOINED_PIN`). Markers
   are not named devices. A rail along a same-supply rail, overlapping or
   touching, extends it. `extend-power-rail {routeId,start,end}` moves a
   straight rail's ends along its line: taps and the other end stay, the label

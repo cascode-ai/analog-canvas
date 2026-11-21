@@ -363,6 +363,12 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
       .describe(
         "Defaults to the existing Net scope, otherwise local; global must be intentional.",
       ),
+    joinPins: z
+      .boolean()
+      .optional()
+      .describe(
+        "true: pins whose contact lies on the rail join it, as the GUI draws a rail; otherwise they stay apart and are warned (RAIL_OVER_UNJOINED_PIN).",
+      ),
   }),
   z
     .strictObject({
