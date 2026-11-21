@@ -118,8 +118,8 @@ Pins (VDD, VSS) lead and keep their place, the others move up and down, and
 a pin the netlist adds, such as ground's `VSS`, is marked **Added by the
 netlist**. A Cell imported from a netlist file keeps the file's order, its
 supply Pins among the others, each free to move. Select a parent instance and open
-**Properties** for pin offsets, or **Edit symbol layout on canvas** for drag
-grips. Changes apply to every instance. Highlight a Net (`H`) to see its
+**Properties → Cell symbol** for pin offsets, or **Edit symbol layout on canvas** for drag
+grips. The offsets apply to instances drawn with that Cell symbol. Highlight a Net (`H`) to see its
 **Hierarchy Net trace** in Properties, with **Enter** and **Return** across
 instance boundaries.
 
@@ -132,8 +132,8 @@ override keys in one undo step. A parameter cannot be deleted while the Cell
 uses it or an instance overrides it.
 Cells need defaults for every parameter to export.
 
-Select an instance of a Cell and enter overrides under **Cell parameters** in
-the Properties panel. **↺** removes an override and inherits the default.
+Select a Cell instance and open **Properties → Cell parameters**. Its summary
+counts the overrides. **↺** removes an override and inherits the default.
 The form shows stored expressions, without pretending to evaluate them.
 An override belongs to the instance in its parent definition: if that parent
 is reused, every occurrence of the parent shares the override. Editing the

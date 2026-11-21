@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 import { buildProjectHierarchy } from "@icm/derived";
+import { PropertyDisclosure } from "../properties/property-disclosure";
 
 function ParameterOverrideField({
   name,
@@ -83,42 +84,51 @@ export function CellInstanceParameters({
     [project, parent.id],
   );
   const parameters = cell.netlist?.formalParameters ?? [];
+  const overrides = Object.entries(instance.netlist?.parameters ?? {});
+  const rows = parameters.map(({ name, defaultValue }) => {
+    const stored = overrides.find(
+      ([key]) => key.toLowerCase() === name.toLowerCase(),
+    );
+    return {
+      name,
+      key: stored?.[0] ?? name,
+      defaultValue,
+      override: stored?.[1],
+    };
+  });
+  const overridden = rows.filter((row) => row.override !== undefined).length;
   return (
-    <section
-      className="cell-instance-parameters"
-      aria-label="Instance parameters"
-    >
-      <header>
-        <h3>Cell parameters</h3>
+    <>
+      {rows.length > 0 ? (
+        <PropertyDisclosure
+          title="Cell parameters"
+          summary={`${overridden} override${overridden === 1 ? "" : "s"} of ${rows.length}`}
+          ariaLabel="Instance parameters"
+          role="region"
+        >
+          {usage.total > 1 ? (
+            <p className="cell-instance-shared">
+              Shared by all {usage.total}
+              {usage.atLeast ? "+" : ""} uses of {parent.name}.
+            </p>
+          ) : null}
+          {rows.map(({ name, key, defaultValue, override }) => (
+            <ParameterOverrideField
+              key={JSON.stringify([parent.id, instance.id, name])}
+              name={name}
+              defaultValue={defaultValue}
+              override={override}
+              onChange={(value) => onChange(key, value)}
+            />
+          ))}
+        </PropertyDisclosure>
+      ) : null}
+      <div className="instance-property-row">
+        <span>Cell definition</span>
         <button type="button" onClick={onDefinition}>
           Edit {cell.name}…
         </button>
-      </header>
-      {usage.total > 1 ? (
-        <p className="cell-instance-shared">
-          Shared by all {usage.total}
-          {usage.atLeast ? "+" : ""} uses of {parent.name}.
-        </p>
-      ) : null}
-      {parameters.map((parameter) => {
-        const values = instance.netlist?.parameters ?? {};
-        const key = Object.keys(values).find(
-          (name) => name.toLowerCase() === parameter.name.toLowerCase(),
-        );
-        const override = key ? values[key] : undefined;
-        return (
-          <ParameterOverrideField
-            key={JSON.stringify([parent.id, instance.id, parameter.name])}
-            name={parameter.name}
-            defaultValue={parameter.defaultValue}
-            override={override}
-            onChange={(value) => onChange(key ?? parameter.name, value)}
-          />
-        );
-      })}
-      {!parameters.length ? (
-        <p className="cell-instance-shared">No parameters declared.</p>
-      ) : null}
-    </section>
+      </div>
+    </>
   );
 }

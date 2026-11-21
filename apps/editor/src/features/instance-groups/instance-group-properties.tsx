@@ -6,6 +6,7 @@ import {
 } from "@icm/derived";
 import type { Instance, InstanceGroup, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import { PropertyDisclosure } from "../properties/property-disclosure";
 import {
   commonArrayPins,
   instanceGroupNetNames,
@@ -83,11 +84,21 @@ export function InstanceGroupProperties({
   }, [document, group, resolver]);
 
   return (
-    <section className="property-section" aria-label="Instance group">
-      <h2>Instance group ({members.length})</h2>
+    <PropertyDisclosure
+      className="instance-group-properties"
+      role="region"
+      title="Instance group"
+      summary={`${members.length} members · ${members.find(({ id }) => id === selectedId)?.label ?? selectedId} selected`}
+    >
       <button type="button" onClick={onToggle}>
         {group.collapsed ? "Expand and place members" : "Collapse group"}
       </button>
+      <InstanceArrayConnection
+        document={document}
+        resolver={resolver}
+        group={group}
+        onEdit={onEdit}
+      />
       <ol>
         {members.map((member) => (
           <li key={member.id}>
@@ -109,13 +120,7 @@ export function InstanceGroupProperties({
           </li>
         ))}
       </ol>
-      <InstanceArrayConnection
-        document={document}
-        resolver={resolver}
-        group={group}
-        onEdit={onEdit}
-      />
-    </section>
+    </PropertyDisclosure>
   );
 }
 
@@ -156,8 +161,7 @@ export function InstanceArrayCreation({
     }
   };
   return (
-    <details className="property-section">
-      <summary>Create instance array</summary>
+    <PropertyDisclosure title="Create instance array">
       <label>
         Reference prefix{" "}
         <input
@@ -194,7 +198,7 @@ export function InstanceArrayCreation({
         Create array
       </button>
       {error ? <p role="alert">{error}</p> : null}
-    </details>
+    </PropertyDisclosure>
   );
 }
 
@@ -238,8 +242,7 @@ function InstanceArrayConnection({
   }, [document, resolver, group, pin, expression, reverse]);
   if (!pin) return null;
   return (
-    <details>
-      <summary>Connect array terminals</summary>
+    <PropertyDisclosure title="Connect array terminals">
       <label>
         Terminal{" "}
         <select
@@ -271,22 +274,29 @@ function InstanceArrayConnection({
       </label>
       {mapping?.ok ? (
         <>
-          <table aria-label="Array connection preview">
-            <thead>
-              <tr>
-                <th>Instance</th>
-                <th>Net</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mapping.rows.map(({ reference, net }) => (
-                <tr key={reference}>
-                  <td>{reference}</td>
-                  <td>{net}</td>
+          <div
+            className="instance-array-preview"
+            role="region"
+            aria-label="Terminal pairings"
+            tabIndex={0}
+          >
+            <table aria-label="Array connection preview">
+              <thead>
+                <tr>
+                  <th>Instance</th>
+                  <th>Net</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {mapping.rows.map(({ reference, net }) => (
+                  <tr key={reference}>
+                    <td>{reference}</td>
+                    <td>{net}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {mapping.removedRouteCount > 0 ? (
             <p>
               {mapping.removedRouteCount} wire{" "}
@@ -305,6 +315,6 @@ function InstanceArrayConnection({
       >
         Apply array connections
       </button>
-    </details>
+    </PropertyDisclosure>
   );
 }

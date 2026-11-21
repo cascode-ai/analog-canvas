@@ -264,6 +264,127 @@
   border-top: 0;
 }
 
+.instance-property-tools {
+  gap: var(--icm-space-1);
+  margin-top: var(--icm-space-2);
+  padding: 0;
+  border: 0;
+}
+
+.instance-property-tools:empty,
+.component-properties .component-property-code-editor > header > strong,
+.group-property-code-editor > header > strong {
+  display: none;
+}
+
+.component-properties .component-property-header-actions,
+.group-property-code-editor .component-property-header-actions {
+  margin-left: auto;
+}
+
+.instance-property-tools .property-disclosure {
+  border-width: 1px 0 0;
+  border-radius: 0;
+}
+
+.instance-property-tools .property-disclosure > summary {
+  gap: var(--icm-space-1);
+  min-height: var(--icm-control-h);
+  padding: var(--icm-space-1) 0;
+  border-bottom: 0;
+  color: var(--icm-text);
+  font-size: var(--icm-font-sm);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.instance-property-tools .property-disclosure > summary::before {
+  flex-shrink: 0;
+  margin-right: 0;
+}
+
+.instance-property-tools .property-disclosure > summary small {
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--icm-text-muted);
+  font-weight: 400;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.instance-property-tools .property-disclosure-body {
+  padding: 0 0 var(--icm-space-2) var(--icm-space-2);
+}
+
+.instance-property-tools .instance-property-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  align-items: center;
+  gap: var(--icm-space-2);
+  min-height: var(--icm-control-h);
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+  overflow-wrap: anywhere;
+}
+
+.instance-property-tools input,
+.instance-property-tools select {
+  min-height: var(--icm-control-h);
+  padding: 0.2rem 0.35rem;
+}
+
+.instance-fill-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--icm-space-1);
+}
+
+.instance-fill-controls label {
+  flex: 1;
+  min-width: 0;
+}
+
+.instance-fill-controls input[type="color"] {
+  width: var(--icm-control-h);
+  padding: 2px;
+}
+
+.instance-group-properties ol,
+.instance-array-preview {
+  max-height: min(18rem, 40vh);
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.instance-group-properties ol {
+  margin: 0;
+  padding-left: 1.75rem;
+}
+
+.instance-group-properties li {
+  padding: var(--icm-space-1) 0;
+  border-top: 1px solid var(--icm-border);
+  font-size: var(--icm-font-sm);
+}
+
+.instance-group-properties li small {
+  color: var(--icm-text-muted);
+}
+
+.instance-array-preview table {
+  width: 100%;
+  text-align: left;
+}
+
+.instance-property-tools .cell-symbol-layout-properties,
+.instance-property-tools .property-terminal-card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .property-section-heading {
   color: var(--icm-text-muted);
   font-size: var(--icm-font-xs);
@@ -1261,32 +1382,10 @@
   margin: 0;
 }
 
-.cell-instance-parameters {
-  display: grid;
-  gap: 4px;
-  border-top: 1px solid var(--icm-border);
-  padding: 8px 0;
-  font-size: 12px;
-}
-.cell-instance-parameters header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.cell-instance-parameters h3 {
-  margin: 0;
-  font-size: 12px;
-}
-.cell-instance-parameters header button {
-  border: 0;
-  background: transparent;
-  color: var(--icm-accent);
-  font-size: 12px;
-}
 .cell-instance-shared {
   margin: 0;
   color: var(--icm-text-muted);
+  font-size: var(--icm-font-xs);
 }
 .cell-instance-parameter {
   display: grid;

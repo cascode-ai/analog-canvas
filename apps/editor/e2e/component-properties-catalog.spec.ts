@@ -161,6 +161,7 @@ test("Properties resumes displayed PDK source on opening and changing the select
     {
       ...placedInstance("R2", "resistor", 500, 220),
       reference: "R2",
+      styleOverride: { background: "#acdcee" },
       netlist: { parameters: { value: "1k" } },
     },
   );
@@ -171,6 +172,11 @@ test("Properties resumes displayed PDK source on opening and changing the select
   await expect(source).toHaveCount(0);
   await page.keyboard.press("q");
   await expect(page.getByLabel("Substrate Net", { exact: true })).toBeVisible();
+  const body = page.getByRole("region", { name: "Symbol body", exact: true });
+  await expect(body).toHaveCount(0);
+  await expect(
+    page.getByLabel("Component controls", { exact: true }),
+  ).toHaveCount(0);
   // This intentionally unwired part uses the existing placeholder preview.
   await expect(source.locator("code")).toHaveText(
     "XR1 <unconnected:1> <unconnected:2> <value> l=5.5u mult=1 w=1u",
@@ -179,6 +185,8 @@ test("Properties resumes displayed PDK source on opening and changing the select
   const text = await source.innerText();
   await page.getByTestId("hit-R2").click({ force: true });
   await expect(source).toHaveCount(0);
+  await body.getByRole("button", { name: "Clear legacy background" }).click();
+  await expect(body).toHaveCount(0);
   await page.getByTestId("hit-XR1").click({ force: true });
   await expect(source).toHaveText(text, { useInnerText: true });
   await closeSelectionShelf(page);

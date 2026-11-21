@@ -3495,6 +3495,12 @@ test("applies custom body fill and keeps the component behind a hole selectable"
   await page.mouse.click(solid.x, solid.y);
   await expect(customHit).toHaveClass(/selected/u);
   await openSelectionShelf(page);
+  await expect(
+    page.getByRole("button", { name: "Open shared model source…" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Cell symbol", exact: true }),
+  ).toHaveCount(0);
   await page
     .getByLabel("Body fill", { exact: true })
     .selectOption("background");

@@ -58,7 +58,11 @@ rendering and recovery.
 **Properties** shows a component as strict JSON: `placement` (`coordinate`
 `[x, y]`, `rotation` in 45° steps, `mirror` `none|horizontal|vertical|both`),
 `appearance.color`, `display`, `displayName`, `parameters`, `netlistName`,
-`netlistTarget`, optional `symbol` and `signalFlow`.
+`netlistTarget`, optional `symbol` and `signalFlow`. The selected Instance's
+JSON opens above its other controls. **Instance group** shows the member
+count and identifies the selected member by reference or, if absent, by ID.
+Open it to inspect, locate, place or connect members. Opening the section
+adds no circuit history entry.
 
 - A two-terminal switch or chopper shows `control` instead of `displayName`:
   the clock phase its name label names, written as a name (`Φ_1`; `Φ_A_bar`

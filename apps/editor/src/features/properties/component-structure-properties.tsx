@@ -1,20 +1,11 @@
 import type { BlockSymbolLayoutTarget } from "../hierarchy/block-symbol-layout-target";
 import { hierarchicalBlockBodySize } from "@icm/symbols";
 import { InlineConfirm } from "../../components/inline-confirm";
+import { PropertyDisclosure } from "./property-disclosure";
 
 type PinSide = "north" | "east" | "south" | "west" | "auto";
 
-export function CellSymbolLayoutProperties({
-  target,
-  enabled,
-  readOnly = false,
-  onToggle,
-  onBodySizeChange,
-  onPortPlacementChange,
-  onReset,
-  onCustomizeSymbol,
-  onResetSymbol,
-}: {
+export interface CellSymbolLayoutProps {
   target: BlockSymbolLayoutTarget;
   enabled: boolean;
   readOnly?: boolean;
@@ -29,7 +20,40 @@ export function CellSymbolLayoutProperties({
   /** A Cell's own artwork: opens its Symbol view. */
   onCustomizeSymbol?: () => void;
   onResetSymbol?: () => void;
-}) {
+}
+
+export function InstanceSymbolLayoutProperties({
+  instanceSymbolId,
+  ...props
+}: CellSymbolLayoutProps & { instanceSymbolId: string }) {
+  const { target, enabled } = props;
+  // An external occurrence can retain its own captured artwork after the
+  // definition switches back to its automatic block.
+  if (target.kind === "external" && instanceSymbolId !== target.id) return null;
+  return (
+    <PropertyDisclosure
+      title="Cell symbol"
+      role="region"
+      summary={target.presentation?.artwork ? "Custom artwork" : "Automatic"}
+      defaultOpen={enabled}
+    >
+      <CellSymbolLayoutProperties {...props} showHeading={false} />
+    </PropertyDisclosure>
+  );
+}
+
+export function CellSymbolLayoutProperties({
+  target,
+  enabled,
+  readOnly = false,
+  showHeading = true,
+  onToggle,
+  onBodySizeChange,
+  onPortPlacementChange,
+  onReset,
+  onCustomizeSymbol,
+  onResetSymbol,
+}: CellSymbolLayoutProps & { showHeading?: boolean }) {
   // Custom artwork owns its geometry; the automatic layout waits beside it.
   if (target.presentation?.artwork)
     return (
@@ -37,9 +61,11 @@ export function CellSymbolLayoutProperties({
         className="cell-symbol-layout-properties"
         aria-label="Cell symbol layout"
       >
-        <div className="property-section-heading">Cell symbol</div>
+        {showHeading ? (
+          <div className="property-section-heading">Cell symbol</div>
+        ) : null}
         <small>
-          Drawn with custom artwork. Every instance of {target.name} draws it.
+          Blocks using the {target.name} Cell symbol share this artwork.
         </small>
         {onCustomizeSymbol ? (
           <button type="button" disabled={readOnly} onClick={onCustomizeSymbol}>
@@ -71,7 +97,11 @@ export function CellSymbolLayoutProperties({
       className="cell-symbol-layout-properties"
       aria-label="Cell symbol layout"
     >
-      <div className="property-section-heading">Cell symbol layout</div>
+      {showHeading ? (
+        <div className="property-section-heading">Cell symbol layout</div>
+      ) : (
+        <small>Edits the shared symbol for {target.name}.</small>
+      )}
       {onToggle ? (
         <button
           type="button"

@@ -6,7 +6,10 @@ import { CanvasFontSection } from "../features/editor-shell/canvas-font-section"
 import { KeptDocumentStyleSection } from "../features/editor-shell/kept-document-style-section";
 import { ToolIcon } from "../features/editor-shell/tool-icon";
 import { PlacementTrayPanel } from "../features/component-insert/placement-tray-panel";
-import { CellSymbolLayoutProperties } from "../features/properties/component-structure-properties";
+import {
+  InstanceSymbolLayoutProperties,
+  type CellSymbolLayoutProps,
+} from "../features/properties/component-structure-properties";
 import { ComponentIdentityProperties } from "../features/properties/component-identity-properties";
 import { NetNameProperties } from "../features/properties/net-name-properties";
 import { BodyFillProperties } from "../features/properties/body-fill-properties";
@@ -37,7 +40,7 @@ import {
 interface ComponentPropertiesModel {
   hierarchyParameters?: ComponentProps<typeof CellInstanceParameters> | null;
   code: ComponentProps<typeof ComponentPropertyCodeEditor>;
-  cellSymbolLayout: ComponentProps<typeof CellSymbolLayoutProperties> | null;
+  cellSymbolLayout: CellSymbolLayoutProps | null;
   identity: ComponentProps<typeof ComponentIdentityProperties>;
   signalFlow: boolean;
   onOpenModel?: (() => void) | undefined;
@@ -169,43 +172,15 @@ export function EditorPropertiesDock({
                 <DocumentSettingsSection {...documentSettings} />
               </Suspense>
             ) : null}
-            <MosBulkConnectionSection {...mosBulk} />
-            <RoutingGuidanceSection {...routingGuidance} />
             {!hasInspectableSelection ? (
               <p className="inspect-empty">Select an object to inspect.</p>
             ) : null}
             <GroupPropertiesSection {...groupProperties} />
-            {instanceGroup || instanceArray ? (
-              <Suspense fallback={null}>
-                {instanceGroup ? (
-                  <InstanceGroupProperties
-                    key={instanceGroup.group.id}
-                    {...instanceGroup}
-                  />
-                ) : null}
-                {instanceArray ? (
-                  <InstanceArrayCreation
-                    key={instanceArray.seed.id}
-                    {...instanceArray}
-                  />
-                ) : null}
-              </Suspense>
-            ) : null}
-            <KeptDocumentStyleSection {...keptStyle} />
-            {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
-            {onConvertSignal ? (
-              <button type="button" onClick={onConvertSignal}>
-                Convert to bus…
-              </button>
-            ) : null}
             {component ? (
               <section
                 className="property-section component-properties"
                 aria-label="Component properties"
               >
-                {component.hierarchyParameters ? (
-                  <CellInstanceParameters {...component.hierarchyParameters} />
-                ) : null}
                 <Suspense fallback={<p role="status">Loading properties…</p>}>
                   <ComponentPropertyCodeEditor
                     key={component.code.instance.id}
@@ -213,22 +188,59 @@ export function EditorPropertiesDock({
                     {...(details ? { details } : {})}
                   />
                 </Suspense>
-                {component.cellSymbolLayout ? (
-                  <CellSymbolLayoutProperties {...component.cellSymbolLayout} />
-                ) : null}
-                {component.onOpenModel ? (
-                  <button type="button" onClick={component.onOpenModel}>
-                    Open shared model source…
-                  </button>
-                ) : null}
-                {component.identity.propertyTerminals?.length ? (
-                  <ComponentIdentityProperties
-                    {...component.identity}
-                    fieldsMovedToCode
-                  />
-                ) : null}
               </section>
             ) : null}
+            <div className="property-section instance-property-tools">
+              {instanceGroup || instanceArray ? (
+                <Suspense fallback={null}>
+                  {instanceGroup ? (
+                    <InstanceGroupProperties
+                      key={instanceGroup.group.id}
+                      {...instanceGroup}
+                    />
+                  ) : null}
+                  {instanceArray ? (
+                    <InstanceArrayCreation
+                      key={instanceArray.seed.id}
+                      {...instanceArray}
+                    />
+                  ) : null}
+                </Suspense>
+              ) : null}
+              {component?.hierarchyParameters ? (
+                <CellInstanceParameters
+                  key={component.code.instance.id}
+                  {...component.hierarchyParameters}
+                />
+              ) : null}
+              <MosBulkConnectionSection {...mosBulk} />
+              {component?.identity.propertyTerminals?.length ? (
+                <ComponentIdentityProperties
+                  {...component.identity}
+                  fieldsMovedToCode
+                />
+              ) : null}
+              {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
+              {component?.cellSymbolLayout ? (
+                <InstanceSymbolLayoutProperties
+                  key={component.cellSymbolLayout.target.ownerId}
+                  {...component.cellSymbolLayout}
+                  instanceSymbolId={component.code.instance.symbolId}
+                />
+              ) : null}
+              {component?.onOpenModel ? (
+                <button type="button" onClick={component.onOpenModel}>
+                  Open shared model source…
+                </button>
+              ) : null}
+            </div>
+            {onConvertSignal ? (
+              <button type="button" onClick={onConvertSignal}>
+                Convert to bus…
+              </button>
+            ) : null}
+            <KeptDocumentStyleSection {...keptStyle} />
+            <RoutingGuidanceSection {...routingGuidance} />
             {!groupProperties.active && annotationText ? (
               <Suspense fallback={<p role="status">Loading properties…</p>}>
                 <AnnotationColorProperties
