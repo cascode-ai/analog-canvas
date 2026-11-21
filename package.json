@@ -56,6 +56,7 @@
     "regional:check": "node scripts/regional-runtime.mjs --check && node scripts/python-tests.mjs",
     "lint": "node scripts/lint.mjs",
     "gallery:census": "node scripts/gallery-census.mjs",
+    "gallery:dataset": "node scripts/gallery-dataset.mjs",
     "draw:batch": "node scripts/draw-batch.mjs",
     "gallery:import-batches": "node scripts/gallery-import-batches.mjs",
     "gallery:author-parts": "node scripts/gallery-author-parts.mjs",

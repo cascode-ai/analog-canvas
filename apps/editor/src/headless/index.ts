@@ -24,6 +24,8 @@ export {
   LOCAL_FIGURE_ARTIFACTS,
   type LocalEditor,
 } from "./local-editor";
+/** A Project file's text as the editor reads it. */
+export { parseProject } from "@icm/project-protocol";
 export {
   compareNetlists,
   workspaceNetlist,

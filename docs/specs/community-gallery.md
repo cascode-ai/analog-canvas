@@ -61,6 +61,17 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   counts and exits 1 when the list or any circuit failed; a `--source` that
   `GET /api/gallery/sources` does not list is refused, and an `--author` that
   selects nothing is reported with the bylines containing it.
+- `pnpm gallery:dataset [DIR]` (`scripts/gallery-dataset.mjs`, in a
+  checkout) keeps a figure-and-netlist dataset of every public circuit in DIR,
+  default `$ANALOG_CANVAS_DATA/gallery`, else
+  `~/Documents/analog-canvas-data/gallery`, never inside the repository:
+  `circuits/<id>/` holds `meta.json`, `schematic.svg`, `reference.*`,
+  `figure.*` and `source.sp` (a dataset's own netlist, verbatim), and
+  `netlists/<variant>.sp` beside `.scs` for `saved` and each open Process,
+  exported by this checkout's headless engine (`saved` equals the site's
+  export); a blocked export writes no file and is named with every warning in
+  `netlists/diagnostics.json`. Reruns follow the change feed and export every
+  netlist again when the engine changed or with `--full`.
 - Bulk download is available through the public HTTP API and download script;
   the Gallery wall has no bulk-download button or menu.
 - No account is blocked for how it reads or writes; the account blocks and

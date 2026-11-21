@@ -258,6 +258,11 @@ to choose the parallelism for your connection. See `--help` and the
 [Gallery contract](docs/specs/community-gallery.md#crawlers-ai-and-floods) for
 the API it reads.
 
+In a checkout, `pnpm gallery:dataset` keeps a local dataset of every public
+circuit in `~/Documents/analog-canvas-data/gallery`: its figure, our drawing,
+and each netlist in SPICE and Spectre for the saved and every open Process
+([layout](docs/specs/community-gallery.md#crawlers-ai-and-floods)).
+
 ## License
 
 Copyright © 2026 Zengchun Chen and Zhishuai Zhang.
