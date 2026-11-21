@@ -48,13 +48,9 @@
       "apps/editor/e2e/wire-drawing.spec.ts",
       "apps/editor/e2e/wire-editing.spec.ts",
       "apps/editor/e2e/reference-label.spec.ts",
-      "apps/editor/e2e/manual-editor-fixtures.ts",
-      "apps/editor/e2e/bus-reuse-fixtures.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
       "apps/editor/src/features/editor-shell/document-settings*",
       "packages/derived/src/annotation-text*",
-      "packages/derived/src/annotation-presentation.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "packages/derived/src/annotation-presentation.ts"
     ],
     "editorCommands": [
       "apps/editor/src/app/editor-transaction-commands*",
@@ -63,17 +59,14 @@
       "apps/editor/src/features/selection/canvas-context-menu*",
       "apps/editor/src/features/selection/selection-context-actions*",
       "apps/editor/e2e/context-menu.spec.ts",
-      "apps/editor/e2e/verb-first.spec.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "apps/editor/e2e/verb-first.spec.ts"
     ],
     "editorDiagnostics": [
       "apps/editor/src/canvas/diagnostic-markers*",
       "apps/editor/src/canvas/editor-canvas-overlays*",
       "apps/editor/src/features/editor-shell/editor-statusbar*",
       "apps/editor/src/features/selection/selection-inspector-details*",
-      "apps/editor/e2e/diagnostics-surfacing.spec.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "apps/editor/e2e/diagnostics-surfacing.spec.ts"
     ],
     "editorRuntimeSafety": [
       "apps/editor/src/app/crash-test-hooks.ts",
@@ -83,9 +76,7 @@
       "apps/editor/src/components/editor-error-boundary.tsx",
       "apps/editor/src/styles/editor-chrome.css",
       "apps/editor/e2e/chrome-isolation.spec.ts",
-      "apps/editor/e2e/runtime-crash-safety.spec.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
-      "apps/editor/e2e/gallery-fixtures.ts"
+      "apps/editor/e2e/runtime-crash-safety.spec.ts"
     ],
     "editorSelection": [
       "apps/editor/src/canvas/editor-canvas-hit-layer*",
@@ -94,10 +85,7 @@
       "apps/editor/src/features/selection/**",
       "apps/editor/e2e/detach-move.spec.ts",
       "apps/editor/e2e/group-mirror.spec.ts",
-      "apps/editor/e2e/selection-visuals.spec.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
-      "apps/editor/e2e/manual-editor-fixtures.ts"
+      "apps/editor/e2e/selection-visuals.spec.ts"
     ],
     "editorViewport": [
       "apps/editor/src/canvas/canvas-gesture-controller*",
@@ -115,9 +103,7 @@
       "packages/derived/src/contact-target*",
       "apps/editor/e2e/wiring-semantics.spec.ts",
       "packages/derived/src/connectivity.ts",
-      "packages/derived/src/connectivity-index.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "packages/derived/src/connectivity-index.ts"
     ],
     "placementNearMiss": [
       "apps/editor/src/features/component-insert/placement-near-miss*"
@@ -126,33 +112,22 @@
       "apps/editor/src/canvas/canvas-hit-controller.ts",
       "apps/editor/src/canvas/canvas-hit-resolver*",
       "apps/editor/e2e/thin-target-hit.spec.ts",
-      "apps/editor/e2e/digital-gate-grid.spec.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "apps/editor/e2e/digital-gate-grid.spec.ts"
     ],
     "symbolBodyText": [
       "apps/editor/src/features/text-editing/**",
-      "apps/editor/e2e/symbol-body-text.spec.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
-      "apps/editor/e2e/manual-editor-fixtures.ts"
+      "apps/editor/e2e/symbol-body-text.spec.ts"
     ],
     "componentInsert": [
       "apps/editor/src/features/component-insert/**",
       "apps/editor/e2e/component-insert.spec.ts",
-      "apps/editor/e2e/component-properties-catalog.spec.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
-      "apps/editor/e2e/manual-editor-fixtures.ts"
+      "apps/editor/e2e/component-properties-catalog.spec.ts"
     ],
     "userComponents": [
       "apps/editor/src/features/user-components/**",
       "apps/editor/src/features/editor-shell/shapes-panel.tsx",
       "worker/component-library*",
-      "apps/editor/e2e/user-components.spec.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
-      "apps/editor/e2e/gallery-fixtures.ts",
-      "apps/editor/e2e/manual-editor-fixtures.ts"
+      "apps/editor/e2e/user-components.spec.ts"
     ],
     "hierarchy": [
       "apps/editor/src/features/hierarchy/**",
@@ -180,11 +155,7 @@
       "packages/edit-engine/src/transaction-cell-*",
       "packages/render-svg/src/symbol-render*",
       "packages/symbols/src/hierarchical-block*",
-      "packages/symbols/src/resolver*",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
-      "apps/editor/e2e/gallery-fixtures.ts",
-      "apps/editor/e2e/simulation-e2e-fixtures.ts"
+      "packages/symbols/src/resolver*"
     ],
     "projectPersistence": [
       "apps/editor/src/features/clipboard/**",
@@ -198,10 +169,7 @@
       "apps/editor/e2e/project-source-format.spec.ts",
       "apps/editor/src/features/editor-shell/project-tabs*",
       "apps/editor/src/features/project-code/**",
-      "apps/editor/src/components/recovery-banners.tsx",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
-      "apps/editor/e2e/gallery-fixtures.ts"
+      "apps/editor/src/components/recovery-banners.tsx"
     ],
     "galleryRequestFailures": [
       "apps/editor/e2e/gallery-request-failures.spec.ts",
@@ -269,8 +237,6 @@
       "apps/editor/e2e/gallery-publish.spec.ts",
       "apps/editor/e2e/regional-review.spec.ts",
       "apps/editor/e2e/gallery-wall.spec.ts",
-      "apps/editor/e2e/gallery-fixtures.ts",
-      "apps/editor/e2e/gallery-test.ts",
       "apps/editor/e2e/local-examples.spec.ts",
       "apps/editor/src/gallery-source.ts",
       "apps/editor/src/components/local-examples-page.tsx",
@@ -301,9 +267,7 @@
       "apps/editor/src/gallery.css",
       "packages/netlist/src/equivalence.ts",
       "packages/netlist/src/index.ts",
-      "packages/netlist/src/topology-correspondence*",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "packages/netlist/src/topology-correspondence*"
     ],
     "agent": [
       "apps/editor/src/agent/**",
@@ -410,6 +374,8 @@
       "scripts/test-standalone-setup.mjs",
       "scripts/lib/ci-package-build.mjs",
       "scripts/lib/test-impact*.mjs",
+      "scripts/build-e2e-editor.mjs",
+      "scripts/lib/browser-fixture-routes.mjs",
       "scripts/lib/ci-validation-plan*.mjs",
       "scripts/lib/validation-gates*.mjs",
       "scripts/test-affected.mjs",
@@ -430,10 +396,7 @@
       "apps/editor/src/features/editor-shell/differential-output-swap*",
       "apps/editor/src/features/editor-shell/switch-contact-style*",
       "apps/editor/src/features/logical-net-choices*",
-      "apps/editor/e2e/component-property-workflows.spec.ts",
-      "apps/editor/e2e/manual-editor-fixtures.ts",
-      "apps/editor/e2e/canvas-fixtures.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "apps/editor/e2e/component-property-workflows.spec.ts"
     ],
     "editorNetlist": [
       "apps/editor/src/app/editor-app-chrome.tsx",
@@ -460,10 +423,7 @@
       "packages/derived/src/mos-bulk.ts",
       "apps/editor/e2e/netlist-code-edit.spec.ts",
       "apps/editor/e2e/netlist-workflows.spec.ts",
-      "apps/editor/e2e/netlist-conversion.spec.ts",
-      "apps/editor/e2e/editor-fixtures.ts",
-      "apps/editor/e2e/manual-editor-fixtures.ts",
-      "apps/editor/e2e/canvas-fixtures.ts"
+      "apps/editor/e2e/netlist-conversion.spec.ts"
     ],
     "editorRnl": [
       "packages/rnl/**",
@@ -484,10 +444,7 @@
       "packages/netlist/src/printed-netlist.ts",
       "packages/netlist/src/printers.ts",
       "packages/derived/src/mos-bulk.ts",
-      "apps/editor/e2e/rnl-interchange.spec.ts",
-      "apps/editor/e2e/label-census.ts",
-      "apps/editor/e2e/bipolar-project.ts",
-      "apps/editor/e2e/editor-fixtures.ts"
+      "apps/editor/e2e/rnl-interchange.spec.ts"
     ],
     "editorBuild": [
       "apps/editor/src/**",

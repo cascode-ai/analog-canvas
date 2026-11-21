@@ -168,8 +168,7 @@ jobs:
         with:
           artifact-ids: ${{ needs.core_build.outputs.artifact_id }}
           merge-multiple: true
-      - run: node scripts/ci-package-build.mjs verify
-      - name: Tests of built entry points
+      - name: Verify shared output and test built entry points
         env:
           ICM_CI_PACKAGE_BUILD: "1"
         run: pnpm ci:unit:built

@@ -58,6 +58,11 @@ function fallbackBrowserArgs(focusedArgs) {
 }
 
 function canAffectBrowser(path) {
+  if (
+    /^playwright\.config\.[^/]+$/u.test(path) ||
+    path === "scripts/build-e2e-editor.mjs"
+  )
+    return true;
   // Unit/module tests and package metadata do not ship to the browser. Their
   // production owners still select browser coverage when those owners change,
   // while Core contracts validate these files directly.
@@ -74,39 +79,11 @@ function browserImplementationPaths(plan) {
   return implementationPaths(plan).filter(canAffectBrowser);
 }
 
-function browserSelectionGates(plan) {
-  const browserPaths = new Set(browserImplementationPaths(plan));
-  // The gate plan also classifies unit tests under their production owners.
-  // In a mixed batch, only browser-impacting paths may activate those owners'
-  // browser contracts; Core still validates every implementation/test path.
-  return (plan.selectedGates ?? plan.gates).filter((gate) =>
-    (gate.groups ?? []).some((group) =>
-      (plan.groupPaths[group] ?? []).some((path) => browserPaths.has(path)),
-    ),
-  );
-}
-
-function e2eArgs(plan) {
-  return unique(
-    browserSelectionGates(plan).flatMap((gate) => gate.ci?.e2eArgs ?? []),
-  ).sort();
-}
-
-function e2eCoveredPaths(plan) {
-  return new Set(
-    browserSelectionGates(plan)
-      .filter((gate) => (gate.ci?.e2eArgs?.length ?? 0) > 0)
-      .flatMap((gate) =>
-        (gate.groups ?? []).flatMap((group) => plan.groupPaths[group] ?? []),
-      ),
-  );
-}
-
 /**
  * Convert the repository gate plan into the intentionally smaller PR choice.
  * Core contracts still run for every implementation change. Pull requests and
  * their merge-queue groups run affected browser contracts, with a small product
- * fallback for unmapped browser paths. CI never forces the complete suite;
+ * fallback for unmapped product paths. Unresolved fixture use is conservative;
  * `--force-full` remains for local planning.
  */
 export function planCiValidation(plan, { forceFull = false } = {}) {
@@ -142,8 +119,16 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
     };
   }
 
-  const focusedArgs = e2eArgs(plan);
-  const coveredPaths = e2eCoveredPaths(plan);
+  const browserGates = (plan.selectedGates ?? plan.gates).filter(
+    (gate) =>
+      gate.ci?.e2eArgs?.length && gate.matchedPaths.some(canAffectBrowser),
+  );
+  const focusedArgs = unique(
+    browserGates.flatMap((gate) => gate.ci.e2eArgs),
+  ).sort();
+  const coveredPaths = new Set(
+    browserGates.flatMap((gate) => gate.matchedPaths),
+  );
   const uncoveredPaths = changedBrowserPaths.filter(
     (path) => !coveredPaths.has(path),
   );

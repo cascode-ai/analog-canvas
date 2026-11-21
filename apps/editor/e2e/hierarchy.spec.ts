@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { openCircuitAgent } from "./agent-circuit-fixture";
 import { compileNgspiceSourceSimulation } from "@icm/netlist";
 import { importSpiceSources } from "@icm/spice";
 import { createSharedSupplyInput } from "../../../scripts/lib/scaling-fixtures.mjs";
@@ -46,7 +47,6 @@ import {
   openProject,
   openProjectFile,
   copyNetlistText,
-  readAgentClaim,
   showNetlistPanel,
 } from "./editor-fixtures.js";
 import { placedInstance, clickRoute } from "./canvas-fixtures.js";
@@ -308,45 +308,17 @@ test("Cell layout reconciles a selected pin removed by an HTTP Agent", async ({
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await openProject(page, serializeProject(cellLayoutProject()));
-  await page.getByRole("button", { name: "Agent", exact: true }).click();
-  const panel = page.getByTestId("connect-agent-panel");
-  const claimed = await request.post(`${baseURL}/api/agent/claims`, {
-    data: await readAgentClaim(panel),
-  });
-  expect(claimed.ok()).toBe(true);
-  const session = await claimed.json();
-  // Pairing closes the dialog; the header's Agent button lights up.
-  await expect(panel).toHaveCount(0);
-  await expect(page.getByTestId("open-agent")).toHaveAttribute(
-    "data-connection",
-    "live",
+  const { post } = await openCircuitAgent(
+    { page, request, baseURL },
+    "layout-child",
   );
   await editCellLayout(page);
   await page.getByTestId("cell-symbol-pin-handle-A").click();
   const send = async (payload: Record<string, unknown>) => {
-    const response = await request.post(
-      `${baseURL}/api/agent/sessions/${session.sessionId}/circuit`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.agentToken}`,
-          "x-agent-context": session.contextRevision,
-        },
-        data: {
-          apiVersion: "3.0",
-          requestId: crypto.randomUUID(),
-          documentId: "layout-child",
-          ...payload,
-        },
-      },
-    );
-    const result = await response.json();
-    if (payload.operation === "snapshot" && result.ok)
-      session.contextRevision = response.headers()["x-agent-context"];
-    expect(response.ok(), JSON.stringify(result.error)).toBe(true);
-    expect(result.ok, JSON.stringify(result.error ?? result.diagnostics)).toBe(
-      true,
-    );
-    return result;
+    const { response, body } = await post(payload);
+    expect(response.ok(), JSON.stringify(body.error)).toBe(true);
+    expect(body.ok, JSON.stringify(body.error ?? body.diagnostics)).toBe(true);
+    return body;
   };
   const snapshot = await send({ operation: "snapshot" });
   await send({

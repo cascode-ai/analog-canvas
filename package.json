@@ -65,7 +65,7 @@
     "ci:unit": "vitest run --project modules --project isolated",
     "ci:unit:built": "vitest run --project standalone",
     "ci:e2e": "pnpm test:e2e:local",
-    "ci:check": "pnpm ci:static && pnpm test:local && pnpm build && pnpm test:desktop-build && pnpm release:verify:built && pnpm test:e2e:local",
+    "ci:check": "pnpm ci:static && pnpm test:local && pnpm build && pnpm test:desktop-build && pnpm release:verify:built && pnpm test:e2e",
     "verify:branch": "pnpm ci:static && pnpm test:local && pnpm build && node scripts/editor-production-smoke.mjs --check",
     "format": "node scripts/format.mjs --write",
     "format:check": "node scripts/format.mjs --check",

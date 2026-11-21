@@ -39,8 +39,11 @@ skip `gate:full` when they already cover it. Run `pnpm setup:e2e` once per
 machine or Playwright version. A new `apps/editor/e2e/*.spec.ts` needs a focused
 path group or a named `manualChecks` entry in the catalog. Environment-gated
 specs must not appear in ordinary gate commands or CI browser arguments.
-Adjacent compatible browser gates execute as one deduplicated batch; other
-commands retain their execution order.
+Support files under `apps/editor/e2e/` select specs through literal file
+references, including indirect imports and entries in the page-module registry.
+A fixture with unresolved consumers selects all ordinary specs. Playwright configuration and test-bundle
+builder changes run the browser smoke. Adjacent compatible browser gates execute
+as one deduplicated batch in the existing command order.
 Use the plan to identify remaining work after a PR check; rerunning an entire
 stage is unnecessary when its checks already have valid evidence.
 

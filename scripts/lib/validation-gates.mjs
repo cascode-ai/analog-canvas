@@ -2,9 +2,13 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import {
+  browserFixtureRoutes,
+  browserSpecPath,
+} from "./browser-fixture-routes.mjs";
+
 const root = resolve(import.meta.dirname, "../..");
 const defaultCatalogPath = resolve(root, "config/validation-gates.json");
-const safeCiE2eArg = /^apps\/editor\/e2e\/[A-Za-z0-9._/-]+\.spec\.ts$/u;
 
 function normalized(path) {
   return path.replaceAll("\\", "/").replace(/^\.\//u, "");
@@ -62,7 +66,7 @@ export async function loadGateCatalog(path = defaultCatalogPath) {
       }
     }
     for (const argument of gate.ci?.e2eArgs ?? []) {
-      if (typeof argument !== "string" || !safeCiE2eArg.test(argument)) {
+      if (typeof argument !== "string" || !browserSpecPath.test(argument)) {
         throw new Error(`${gate.id}: unsafe CI browser argument ${argument}`);
       }
     }
@@ -109,6 +113,36 @@ function matchedReasons(gate, context) {
   );
 }
 
+function browserFixtureGate({ byFixture, specs }, manualChecks) {
+  if (!byFixture.size) return null;
+  const manualSpecs = new Set(manualChecks.flatMap((check) => check.specs));
+  // Keep any catalog route for a fixture used only by a named environment lane.
+  const ordinaryRoutes = [...byFixture].filter(
+    ([, users]) =>
+      !users.length || users.some((spec) => !manualSpecs.has(spec)),
+  );
+  if (!ordinaryRoutes.length) return null;
+  const selected = ordinaryRoutes.some(([, users]) => !users.length)
+    ? specs
+    : ordinaryRoutes.flatMap(([, users]) => users);
+  const e2eArgs = [...new Set(selected)]
+    .filter((spec) => !manualSpecs.has(spec))
+    .sort();
+  if (!e2eArgs.length) return null;
+  return {
+    id: "browser-fixtures",
+    stage: "affected",
+    command: ["pnpm", "test:e2e:local", ...e2eArgs],
+    ci: { e2eArgs },
+    matchedPaths: ordinaryRoutes.map(([path]) => path),
+    reasons: ordinaryRoutes.map(([path, users]) =>
+      users.length
+        ? `browser fixture: ${path}`
+        : `unresolved browser fixture: ${path}`,
+    ),
+  };
+}
+
 export function planValidation(paths, catalog) {
   const uniquePaths = [
     ...new Set(
@@ -125,6 +159,19 @@ export function planValidation(paths, catalog) {
   );
   const docsOnly = uniquePaths.length > 0 && nonDocumentationPaths.length === 0;
   const context = { docsOnly, groupPaths };
+  const fixtures = browserFixtureRoutes(root, nonDocumentationPaths);
+  const manualChecks = catalog.manualChecks ?? [];
+  const fixtureGate = browserFixtureGate(fixtures, manualChecks);
+  const matchedFixtures = new Set(fixtureGate?.matchedPaths);
+  const browserContext = {
+    docsOnly,
+    groupPaths: Object.fromEntries(
+      Object.entries(groupPaths).map(([group, paths]) => [
+        group,
+        paths.filter((path) => !matchedFixtures.has(path)),
+      ]),
+    ),
+  };
   const knownPaths = new Set(
     Object.values(groupPaths)
       .flat()
@@ -143,9 +190,26 @@ export function planValidation(paths, catalog) {
     ),
   ];
 
-  const selected = catalog.gates
-    .filter((gate) => uniquePaths.length > 0 && applies(gate, context))
-    .map((gate) => ({ ...gate, reasons: matchedReasons(gate, context) }));
+  const selected = catalog.gates.flatMap((gate) => {
+    const browser = Boolean(gate.ci?.e2eArgs?.length);
+    const gateContext = browser ? browserContext : context;
+    if (!uniquePaths.length || !applies(gate, gateContext)) return [];
+    const matched = { ...gate, reasons: matchedReasons(gate, gateContext) };
+    if (browser)
+      matched.matchedPaths = (gate.groups ?? []).flatMap(
+        (group) => gateContext.groupPaths[group],
+      );
+    return [matched];
+  });
+
+  if (fixtureGate) {
+    const firstBrowser = selected.findIndex((gate) => gate.ci?.e2eArgs?.length);
+    selected.splice(
+      firstBrowser < 0 ? selected.length : firstBrowser,
+      0,
+      fixtureGate,
+    );
+  }
 
   if (fullReasons.length > 0) {
     for (const id of [
@@ -163,6 +227,11 @@ export function planValidation(paths, catalog) {
   }
 
   const superseded = new Set(selected.flatMap((gate) => gate.supersedes ?? []));
+  if (
+    fixtureGate &&
+    selected.some((gate) => gate.id === catalog.fullFallback.finalGate)
+  )
+    superseded.add(fixtureGate.id);
   const gates = selected.filter((gate) => !superseded.has(gate.id));
 
   return {
@@ -173,9 +242,17 @@ export function planValidation(paths, catalog) {
     requiresFull: fullReasons.length > 0,
     fullReasons,
     selectedGates: selected,
-    manualChecks: (catalog.manualChecks ?? [])
-      .filter((check) => uniquePaths.length > 0 && applies(check, context))
-      .map((check) => ({ ...check, reasons: matchedReasons(check, context) })),
+    manualChecks: manualChecks.flatMap((check) => {
+      const reasons = applies(check, context)
+        ? matchedReasons(check, context)
+        : [];
+      for (const [path, users] of fixtures.byFixture)
+        if (check.specs.some((spec) => users.includes(spec)))
+          reasons.push(`browser fixture: ${path}`);
+      return uniquePaths.length && reasons.length
+        ? [{ ...check, reasons }]
+        : [];
+    }),
     gates,
   };
 }
@@ -190,7 +267,7 @@ export function executionGates(plan, stage) {
       program !== "pnpm" ||
       script !== "test:e2e:local" ||
       !specs.length ||
-      !specs.every((spec) => safeCiE2eArg.test(spec))
+      !specs.every((spec) => browserSpecPath.test(spec))
     ) {
       runs.push(gate);
       browser = undefined;

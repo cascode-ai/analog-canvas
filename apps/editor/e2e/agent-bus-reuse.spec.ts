@@ -1,12 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { openCircuitAgent } from "./agent-circuit-fixture";
 import type { CircuitProject } from "@icm/model";
 import { serializeProject } from "@icm/project-protocol";
 import { busReuseProject } from "./bus-reuse-fixtures";
-import {
-  exportedProject,
-  openProject,
-  readAgentClaim,
-} from "./editor-fixtures";
+import { exportedProject, openProject } from "./editor-fixtures";
 
 const documentsWithoutRevision = (project: CircuitProject) =>
   project.documents.map((document) => ({ ...document, revision: 0 }));
@@ -20,40 +17,12 @@ test("copies a migrated group through the real editor with shared dependencies a
   await openProject(page, serializeProject(busReuseProject()));
   const before: CircuitProject = await exportedProject(page);
   const source = before.documents.find((cell) => cell.id === "top")!;
-  await page.getByRole("button", { name: "Agent", exact: true }).click();
-  const panel = page.getByTestId("connect-agent-panel");
-  const claimed = await request.post(`${baseURL}/api/agent/claims`, {
-    data: await readAgentClaim(panel),
-  });
-  expect(claimed.ok()).toBe(true);
-  const session = await claimed.json();
-  // Pairing closes the dialog; the header's Agent button lights up.
-  await expect(panel).toHaveCount(0);
-  await expect(page.getByTestId("open-agent")).toHaveAttribute(
-    "data-connection",
-    "live",
+  const { panel, post } = await openCircuitAgent(
+    { page, request, baseURL },
+    "top",
   );
-  const send = async (payload: Record<string, unknown>) => {
-    const response = await request.post(
-      `${baseURL}/api/agent/sessions/${session.sessionId}/circuit`,
-      {
-        headers: {
-          Authorization: `Bearer ${session.agentToken}`,
-          "x-agent-context": session.contextRevision,
-        },
-        data: {
-          apiVersion: "3.0",
-          requestId: crypto.randomUUID(),
-          documentId: "top",
-          ...payload,
-        },
-      },
-    );
-    const result = await response.json();
-    if (payload.operation === "snapshot" && result.ok)
-      session.contextRevision = response.headers()["x-agent-context"];
-    return result;
-  };
+  const send = async (payload: Record<string, unknown>) =>
+    (await post(payload)).body;
   try {
     const snapshot = await send({ operation: "snapshot" });
     expect(snapshot.ok).toBe(true);

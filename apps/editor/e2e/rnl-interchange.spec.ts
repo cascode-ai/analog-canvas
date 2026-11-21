@@ -18,8 +18,8 @@ import {
   openProject,
   showNetlistPanel,
 } from "./editor-fixtures.js";
-import { labelCensus, labelDifferences } from "./label-census.js";
 import { bipolarProject } from "./bipolar-project.js";
+import { labelCensus, labelDifferences } from "./label-census.js";
 import { openSelectionShelf } from "./manual-editor-fixtures.js";
 
 test("exports a source update for an edited RNL Cell and reopens its drawing", async ({
@@ -463,39 +463,49 @@ for (const mode of ["spice+rnl", "spectre+rnl"] as const)
     expect(heights.scroller).toBeGreaterThan(200);
   });
 
+// rnl-round-trip.test.ts owns drawing, electrical graph and label parity.
 for (const mode of ["spice+rnl", "spectre+rnl"] as const)
-  test(`imports bipolar devices, a diode and mirrored labels from ${mode}`, async ({
+  test(`copies ${mode} and installs its Project in an empty tab`, async ({
     page,
   }) => {
-    const project = bipolarProject();
-    await openProject(page, project);
-    const drawn = await exportedProject(page);
+    await openProject(page, bipolarProject());
     const text = await copiedNetlist(page, mode);
-    await page.getByTestId("rnl-files").setInputFiles({
-      name: `bipolar.${mode === "spice+rnl" ? "sp" : "scs"}`,
-      mimeType: "text/plain",
-      buffer: Buffer.from(text),
-    });
-    const unsaved = page.getByRole("dialog", { name: "Unsaved changes" });
-    const imported = page
-      .getByTestId("status")
-      .filter({ hasText: /^Imported \d+ Documents?/u });
-    await expect(unsaved.or(imported)).toBeVisible();
-    if (await unsaved.isVisible())
-      await unsaved
-        .getByRole("button", { name: "Continue without saving" })
-        .click();
-    await expectStatus(page, /^Imported \d+ Documents?/u);
-    const read = await exportedProject(page);
-    expect(drawingCensus(read)).toEqual(drawingCensus(drawn));
-    const before = projectElectricalGraph(drawn);
-    const after = projectElectricalGraph(read);
-    expect(before.status).toBe("ready");
-    expect(after.status).toBe("ready");
-    if (before.status === "ready" && after.status === "ready")
-      expect(compareElectricalGraphs(before.graph, after.graph)).toBe("equal");
-    expect(labelDifferences(labelCensus(drawn), labelCensus(read))).toEqual([]);
+    const spice = mode === "spice+rnl";
+    expect(text).toContain(`${spice ? "*" : "//"} @RNL(type="header")`);
+
+    await importRnlInNewTab(
+      page,
+      `bipolar.${spice ? "sp" : "scs"}`,
+      text,
+      /^Imported 1 Document/u,
+    );
+    await expect(page.getByTestId("hit-Q1")).toBeVisible();
   });
+
+async function importRnlInNewTab(
+  page: Page,
+  name: string,
+  text: string,
+  status: RegExp,
+): Promise<void> {
+  const tabs = page
+    .getByRole("tablist", { name: "Open projects" })
+    .getByRole("tab");
+  const tabCount = await tabs.count();
+  await page
+    .getByRole("button", { name: "New project tab", exact: true })
+    .click();
+  await expect(tabs).toHaveCount(tabCount + 1);
+  await expect(page.getByTestId("active-instance-count")).toHaveText("0");
+  await page.getByTestId("rnl-files").setInputFiles({
+    name,
+    mimeType: "text/plain",
+    buffer: Buffer.from(text),
+  });
+  await expectStatus(page, status);
+  await expect(tabs).toHaveCount(tabCount + 1);
+  await expect(tabs.nth(tabCount)).toHaveAttribute("aria-selected", "true");
+}
 
 /**
  * A netlist as the Netlist panel's Copy hands it out, in one of its formats,
@@ -779,138 +789,30 @@ test("opens both current RNL exports and the Canvas package in one reusable View
   await expect(page.getByTestId("schematic-canvas")).toBeVisible();
 });
 
-interface CensusProject {
-  documents: {
-    name: string;
-    netlist?: { name: string };
-    instances: { id: string; symbolId: string }[];
-    junctions: unknown[];
-    annotations: { kind: string }[];
-    routes: {
-      presentation?: string;
-      start: { kind: string; instanceId?: string; pinName?: string };
-      legs: {
-        to:
-          | {
-              kind: "endpoint";
-              endpoint: { kind: string; instanceId?: string; pinName?: string };
-            }
-          | { kind: string };
-      }[];
-    }[];
-  }[];
-}
-
-/**
- * What a drawing must keep through RNL, Cell by Cell: its parts by kind (the
- * two op-amp variants RNL draws alike count as one), its junctions, the pins
- * its wires reach by part kind and pin, its wires by how they are drawn, and
- * its net and power labels.
- */
-function drawingCensus(project: CensusProject) {
-  const kind = (symbolId: string) =>
-    symbolId === "opamp-inputs-swapped" ? "opamp" : symbolId;
-  const tally = (keys: readonly string[]) => {
-    const counts = new Map<string, number>();
-    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
-    return [...counts].sort().map(([key, count]) => `${key}:${count}`);
-  };
-  return Object.fromEntries(
-    project.documents.map((document) => {
-      const symbolOf = new Map(
-        document.instances.map((instance) => [
-          instance.id,
-          kind(instance.symbolId),
-        ]),
-      );
-      const reached = document.routes.flatMap((route) =>
-        [
-          route.start,
-          ...route.legs.flatMap((leg) =>
-            "endpoint" in leg.to ? [leg.to.endpoint] : [],
-          ),
-        ].flatMap((endpoint) =>
-          endpoint.kind === "terminal"
-            ? [`${symbolOf.get(endpoint.instanceId!)}.${endpoint.pinName}`]
-            : [],
-        ),
-      );
-      return [
-        (document.netlist?.name ?? document.name).toLowerCase(),
-        {
-          parts: tally(
-            document.instances.map((instance) => kind(instance.symbolId)),
-          ),
-          junctions: document.junctions.length,
-          wiredPins: tally(reached),
-          // Each wire as drawn, a power rail as a rail and a body tie dashed;
-          // a wire through a junction stays one wire.
-          wires: tally(
-            document.routes.map((route) => route.presentation ?? "wire"),
-          ),
-          // A power label stays a power label, not a net label.
-          labels: tally(
-            document.annotations
-              .filter(
-                (annotation) =>
-                  annotation.kind === "net-label" ||
-                  annotation.kind === "power-label",
-              )
-              .map((annotation) => annotation.kind),
-          ),
-        },
-      ];
-    }),
-  );
-}
-
-// The path a reader takes: an example opened from the library (its devices
-// bound to the default process), switched to another process in the Netlist
-// panel, its RNL copied from the panel, and that file imported again. One
-// multi-Cell example carries this GUI wiring; rnl-round-trip.test.ts brings
-// every library example back under each process and format, including this
-// switch, with the same census and label checks.
-test("brings five-transistor-ota-sky130 (abstract) back through spectre+rnl with every part, ground, wire and label", async ({
+// rnl-round-trip.test.ts checks part, pin, wire and junction parity after the
+// same process switch. This path checks the browser's label parity as well.
+test("copies and installs the OTA as spectre+rnl after switching to Abstract", async ({
   page,
 }) => {
   await openEditor(page, "/editor?example=five-transistor-ota-sky130");
   await expectStatus(page, /^Opened example:/u);
   const panel = await showNetlistPanel(page);
-  await panel.getByLabel("Netlist process").selectOption("abstract");
+  const process = panel.getByLabel("Netlist process");
+  await expect(process).toHaveValue("sky130");
+  await process.selectOption("abstract");
   const drawn = await exportedProject(page);
   const text = await copiedNetlist(page, "spectre+rnl");
-  await page.getByTestId("rnl-files").setInputFiles({
-    name: "five-transistor-ota-sky130.scs",
-    mimeType: "text/plain",
-    buffer: Buffer.from(text),
-  });
-  // An example the reader changed asks before the import replaces it.
-  const unsaved = page.getByRole("dialog", { name: "Unsaved changes" });
-  const imported = page
-    .getByTestId("status")
-    .filter({ hasText: /^Imported \d+ Documents?/u });
-  await expect(unsaved.or(imported)).toBeVisible();
-  if (await unsaved.isVisible())
-    await unsaved
-      .getByRole("button", { name: "Continue without saving" })
-      .click();
-  await expectStatus(page, /^Imported \d+ Documents?/u);
-  const read = await exportedProject(page);
-  // Each Cell the file carries is drawn as it was: parts, junctions,
-  // wired pins, wires and net and power labels counted ...
-  const was = drawingCensus(drawn);
-  const now = drawingCensus(read);
-  expect(Object.keys(now).length).toBeGreaterThan(0);
-  for (const [cell, census] of Object.entries(now))
-    for (const item of [
-      "parts",
-      "junctions",
-      "wiredPins",
-      "wires",
-      "labels",
-    ] as const)
-      expect(census[item], `${cell} ${item}`).toEqual(was[cell]?.[item]);
-  // ... and every label of them, where it was, as big, with its text
-  // and none twice, including source values and decoded net names.
-  expect(labelDifferences(labelCensus(drawn), labelCensus(read))).toEqual([]);
+  expect(text).toMatch(/^XM1 \([^)]+\) NMOS\b/mu);
+
+  await importRnlInNewTab(
+    page,
+    "five-transistor-ota-sky130.scs",
+    text,
+    /^Imported \d+ Documents?/u,
+  );
+  await expect(page.getByTestId("hit-XDUT")).toBeVisible();
+  const imported = await exportedProject(page);
+  expect(labelDifferences(labelCensus(drawn), labelCensus(imported))).toEqual(
+    [],
+  );
 });
