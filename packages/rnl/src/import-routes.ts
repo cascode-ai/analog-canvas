@@ -1,9 +1,15 @@
-import { isMosBulkTerminal } from "@icm/derived";
+import { isMosBulkTerminal, resolveEndpointPoint } from "@icm/derived";
 import {
   deriveStableId,
+  type DerivedPoint,
   type RouteBranch,
   type RouteEndpoint,
 } from "@icm/model";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  type SymbolResolver,
+} from "@icm/symbols";
 
 import {
   type LevelModel,
@@ -20,15 +26,20 @@ import { orientPoint } from "./orientation.js";
 import { type LevelScope } from "./import-scope.js";
 import { type Glyphs } from "./import-glyphs.js";
 
+interface DrawnWire {
+  route: RouteBranch;
+  /** Corners in Canvas coordinates, after any wire-end adjustment. */
+  corners: readonly DerivedPoint[];
+  /** The authored path used to locate RNL markers. */
+  sourceCorners: readonly DerivedPoint[];
+  /** Where each source corner appears in the adjusted path. */
+  sourceCornerIndices?: readonly number[];
+  wire: string;
+}
+
 /** The routes a level's wires make, and where a point lies on them. */
 export interface WireRoutes {
-  /** Each route made, with its corners in Analog Canvas coordinates. */
-  drawn: readonly {
-    route: RouteBranch;
-    corners: { x: number; y: number }[];
-    /** The RNL wire it was read from. */
-    wire: string;
-  }[];
+  drawn: readonly DrawnWire[];
   /** Each junction a glyph drawn as no glyph of its net ends its wires at, and which way its first wire leaves it. */
   openEnds: ReadonlyMap<
     string,
@@ -36,7 +47,7 @@ export interface WireRoutes {
   >;
   legAt: (point: { x: number; y: number }) => {
     route: RouteBranch;
-    corners: { x: number; y: number }[];
+    atSourceEnd: boolean;
     index: number;
     from: { x: number; y: number };
     to: { x: number; y: number };
@@ -61,7 +72,17 @@ export interface WireRoutes {
  * through their bends, and the junctions they meet at.
  */
 export function routeWires(
-  { document, level, model, warn, instanceOf, netOf, pinOf, snap }: LevelScope,
+  {
+    project,
+    document,
+    level,
+    model,
+    warn,
+    instanceOf,
+    netOf,
+    pinOf,
+    snap,
+  }: LevelScope,
   { glyphOf, openGlyphs }: Pick<Glyphs, "glyphOf" | "openGlyphs">,
   nativeAppearance: boolean,
 ): WireRoutes {
@@ -212,6 +233,7 @@ export function routeWires(
    * drawing.
    */
   const strays = new Set<string>();
+  const adjustedWires = new Set<string>();
   const netOfJunction = new Map(
     document.junctions.map((junction) => [junction.id, junction.netId]),
   );
@@ -232,13 +254,35 @@ export function routeWires(
     );
     return netOfPin.get(`${endpoint.instanceId}\u0000${endpoint.pinName}`);
   };
+  let resolver: SymbolResolver | undefined;
+  // The Cell's import grid is chosen after all its bends have been read.
+  // Resolve the actual contact without requiring a landing on the old grid.
+  const pinDocument = {
+    ...document,
+    presentation: { ...document.presentation, grid: 1 },
+  };
+  const endpoints = {
+    instancesById: new Map(document.instances.map((part) => [part.id, part])),
+    junctionsById: new Map(
+      document.junctions.map((junction) => [junction.id, junction]),
+    ),
+  };
+  const endpointPoint = (
+    endpoint: RouteEndpoint,
+    fallback: DerivedPoint,
+  ): DerivedPoint => {
+    if (endpoint.kind === "junction")
+      return (
+        endpoints.junctionsById.get(endpoint.junctionId)?.position ?? fallback
+      );
+    resolver ??= createProjectSymbolResolver(project, builtInSymbols);
+    return (
+      resolveEndpointPoint(pinDocument, resolver, endpoint, endpoints) ??
+      fallback
+    );
+  };
   /** Each route made, with its corners in Analog Canvas coordinates. */
-  const drawn: {
-    route: RouteBranch;
-    corners: { x: number; y: number }[];
-    /** The RNL wire it was read from. */
-    wire: string;
-  }[] = [];
+  const drawn: DrawnWire[] = [];
   /** The wires whose path their mode drew (`auto`, `manhattan` …). */
   const modeDrawn = new Set(
     model.wires.flatMap((wire) =>
@@ -335,16 +379,47 @@ export function routeWires(
         strays.add(wire.id);
         return;
       }
-      const cornerPlaces = runCorners(wire, indices, (index) =>
-        onPath(wire, index),
-      );
-      if (!cornerPlaces) {
+      const pathIndex = (index: number) => onPath(wire, index);
+      const cornerPlaces = runCorners(wire, indices, pathIndex);
+      const sourceStart = cornerPlaces?.[0];
+      const sourceEnd = cornerPlaces?.at(-1);
+      if (!cornerPlaces || !sourceStart || !sourceEnd) {
         skipped += 1;
         return;
       }
-      const bends = cornerPlaces
+      const from = endpointPoint(start, sourceStart);
+      const to = endpointPoint(end, sourceEnd);
+      const shiftedPins = [
+        start.kind === "terminal" &&
+          offOrthogonalLine(sourceStart, cornerPlaces[1] ?? sourceStart, from),
+        end.kind === "terminal" &&
+          offOrthogonalLine(sourceEnd, cornerPlaces.at(-2) ?? sourceEnd, to),
+      ] as const;
+      // Preserve every named point the original wire passes through when
+      // fitting a pin lead. A shortened leg must not pass it by.
+      const keepThrough =
+        shiftedPins.some(Boolean) &&
+        vertices.slice(1, -1).some((vertex) => !("at" in vertex));
+      const sourceCorners = keepThrough
+        ? (runCorners(wire, indices, pathIndex, true) ?? cornerPlaces)
+        : cornerPlaces;
+      const snappedBends = sourceCorners
         .slice(1, -1)
         .map((place) => snap(place, CORNER_GRID));
+      const {
+        path,
+        adjusted: fitted,
+        sourceCornerIndices,
+      } = fitOrthogonalPinLeads(
+        sourceCorners,
+        [from, ...snappedBends, to],
+        snap,
+        shiftedPins,
+        keepThrough,
+      );
+      const adjusted = fitted || sourceCorners.length > cornerPlaces.length;
+      const bends = path.slice(1, -1);
+      if (adjusted) adjustedWires.add(wire.id);
       // A dashed wire to a MOS body is Analog Canvas's body tie.
       const bodyTie =
         presentation !== "power-rail" &&
@@ -394,7 +469,9 @@ export function routeWires(
         // One corner per end of a leg: the start, each bend, the end. A
         // vertex the wire passes without a place of its own makes no leg, so
         // a text never reaches for a leg the route does not have (#1792).
-        corners: cornerPlaces,
+        corners: adjusted ? path : cornerPlaces,
+        sourceCorners: adjusted ? sourceCorners : cornerPlaces,
+        ...(adjusted ? { sourceCornerIndices } : {}),
       });
     });
   });
@@ -442,15 +519,21 @@ export function routeWires(
       "RNL_IMPORT_WIRE_PATH",
       `${unfollowed.size} wires take a path Analog Canvas could not follow through the vertices they write; they are drawn straight between those vertices: ${statements(unfollowed)}`,
     );
+  if (adjustedWires.size)
+    warn(
+      "RNL_IMPORT_WIRE_PIN_ADJUSTED",
+      `Adjusted orthogonal wire ends to meet Canvas pins on ${adjustedWires.size} statements: ${[...adjustedWires].join(", ")}`,
+    );
   const overlaps = overlappingWires(drawn, modeDrawn);
   if (overlaps.size)
     warn(
       "RNL_IMPORT_WIRES_OVERLAP",
       `${overlaps.size} wires a mode draws run over another wire of their net, which they join only at their ends, so where they part shows no junction; give the branch a point with $JUNCTION and run the wires through it: ${statements(overlaps)}`,
     );
-  /** The route leg a point lies on, and how far along it. */
+  /** Find the original leg for a mark, then locate it on the Canvas route. */
   const legAt = (point: { x: number; y: number }) => {
-    for (const { route, corners } of drawn)
+    for (const item of drawn) {
+      const { route, sourceCorners: corners } = item;
       for (let index = 0; index + 1 < corners.length; index++) {
         const from = corners[index]!;
         const to = corners[index + 1]!;
@@ -468,15 +551,25 @@ export function routeWires(
           Math.abs(across) < NEAR &&
           along > -NEAR &&
           along < length + NEAR
-        )
-          return { route, corners, index, from, to, length, t: along / length };
+        ) {
+          const position = projectedLeg(item, index, along / length);
+          if (position)
+            return {
+              route,
+              from,
+              to,
+              length,
+              atSourceEnd: nearPoint(corners.at(-1) ?? to, point),
+              ...position,
+            };
+        }
       }
+    }
     return null;
   };
   /**
-   * The leg of a net's wires nearest a point within reach, with the point
-   * where it stands from the leg: how far along, and how far to the left of
-   * its way (Analog Canvas's normal offset).
+   * The leg corresponding to the nearest source wire on this net. Keep
+   * the label's authored offset as it follows the projected wire.
    */
   const legNear = (
     point: { x: number; y: number },
@@ -491,7 +584,8 @@ export function routeWires(
       t: number;
       normalOffset: number;
     } | null = null;
-    for (const { route, corners, wire } of drawn) {
+    for (const item of drawn) {
+      const { route, sourceCorners: corners, wire } = item;
       if (route.netId !== netId || (only !== undefined && wire !== only))
         continue;
       for (let index = 0; index + 1 < corners.length; index++) {
@@ -514,12 +608,157 @@ export function routeWires(
           (best && Math.abs(across) >= Math.abs(best.normalOffset))
         )
           continue;
-        best = { route, index, t: along / length, normalOffset: across };
+        const position = projectedLeg(item, index, along / length);
+        if (position) best = { route, ...position, normalOffset: across };
       }
     }
     return best;
   };
   return { drawn, openEnds, legAt, legNear };
+}
+
+/**
+ * Keep each orthogonal end leg orthogonal when a Canvas pin moves off its
+ * source line. Slide the adjacent corner when both legs can keep their
+ * directions; otherwise bridge the end leg without moving the corner.
+ */
+function fitOrthogonalPinLeads(
+  source: readonly DerivedPoint[],
+  points: DerivedPoint[],
+  snap: LevelScope["snap"],
+  [startShifted, endShifted]: readonly [boolean, boolean],
+  keepThrough: boolean,
+): { path: DerivedPoint[]; adjusted: boolean; sourceCornerIndices: number[] } {
+  let slid = false;
+  for (const [end, step, shifted] of [
+    [0, 1, startShifted],
+    [points.length - 1, -1, endShifted],
+  ] as const) {
+    if (!shifted || keepThrough) continue;
+    const index = end + step;
+    const group = [end, index, index + step];
+    const [pin, oldCorner, neighbor] = group.map((i) => points[i]);
+    const [sourcePin, sourceCorner, sourceNeighbor] = group.map(
+      (i) => source[i],
+    );
+    if (
+      !pin ||
+      !oldCorner ||
+      !neighbor ||
+      !sourcePin ||
+      !sourceCorner ||
+      !sourceNeighbor ||
+      pin.x === oldCorner.x ||
+      pin.y === oldCorner.y
+    )
+      continue;
+    const endAxis = orthogonalAxis(sourcePin, sourceCorner);
+    const nextAxis = orthogonalAxis(sourceCorner, sourceNeighbor);
+    if (!endAxis || !nextAxis || endAxis === nextAxis) continue;
+    const corner = { ...pin, [endAxis]: neighbor[endAxis] };
+    if (!Number.isInteger(corner.x) || !Number.isInteger(corner.y)) continue;
+    // Keep the turn on the same side of its neighbors. Moving it past one
+    // would make the path double back along the next leg.
+    const endLeg =
+      (corner[endAxis] - pin[endAxis]) *
+      (sourceCorner[endAxis] - sourcePin[endAxis]);
+    const nextLeg =
+      (neighbor[nextAxis] - corner[nextAxis]) *
+      (sourceNeighbor[nextAxis] - sourceCorner[nextAxis]);
+    if (endLeg > 0 && nextLeg > 0) {
+      points[index] = snap(corner, CORNER_GRID);
+      slid = true;
+    }
+  }
+
+  const path: DerivedPoint[] = [];
+  const sourceCornerIndices: number[] = [];
+  for (const [index, from] of points.entries()) {
+    sourceCornerIndices.push(path.length);
+    path.push(from);
+    const to = points[index + 1];
+    const sourceFrom = source[index];
+    const sourceTo = source[index + 1];
+    // A diagonal symbol can put its contacts off the integer bend lattice.
+    if (
+      !to ||
+      !sourceFrom ||
+      !sourceTo ||
+      !(
+        (index === 0 && startShifted) ||
+        (index === points.length - 2 && endShifted)
+      ) ||
+      from.x === to.x ||
+      from.y === to.y ||
+      ![from.x, from.y, to.x, to.y].every(Number.isInteger)
+    )
+      continue;
+
+    const axis = orthogonalAxis(sourceFrom, sourceTo);
+    if (!axis) continue;
+    const turn = Math.round((from[axis] + to[axis]) / 2);
+    if (from[axis] !== turn)
+      path.push(snap({ ...from, [axis]: turn }, CORNER_GRID));
+    if (to[axis] !== turn)
+      path.push(snap({ ...to, [axis]: turn }, CORNER_GRID));
+  }
+  return {
+    path,
+    adjusted: slid || path.length > source.length,
+    sourceCornerIndices,
+  };
+}
+
+const nearPoint = (a: DerivedPoint, b: DerivedPoint) =>
+  Math.abs(a.x - b.x) < NEAR && Math.abs(a.y - b.y) < NEAR;
+
+function offOrthogonalLine(
+  pin: DerivedPoint,
+  neighbor: DerivedPoint,
+  mapped: DerivedPoint,
+): boolean {
+  const axis = orthogonalAxis(pin, neighbor);
+  if (!axis) return false;
+  const across = axis === "x" ? "y" : "x";
+  return Math.abs(pin[across] - mapped[across]) >= NEAR;
+}
+
+/** Keep a marker at the same fraction along its source leg's axis. */
+function projectedLeg(
+  { sourceCorners, corners, sourceCornerIndices }: DrawnWire,
+  sourceIndex: number,
+  t: number,
+): { index: number; t: number } | null {
+  const first = sourceCornerIndices?.[sourceIndex] ?? sourceIndex;
+  const last = sourceCornerIndices?.[sourceIndex + 1] ?? sourceIndex + 1;
+  if (last === first + 1) return { index: first, t };
+  const from = sourceCorners[sourceIndex];
+  const to = sourceCorners[sourceIndex + 1];
+  const start = corners[first];
+  const end = corners[last];
+  const axis = from && to && orthogonalAxis(from, to);
+  if (!axis || !start || !end) return null;
+  const along =
+    start[axis] + Math.min(1, Math.max(0, t)) * (end[axis] - start[axis]);
+  for (let index = first; index < last; index++) {
+    const a = corners[index]?.[axis];
+    const b = corners[index + 1]?.[axis];
+    if (a === undefined || b === undefined || a === b) continue;
+    const fraction = (along - a) / (b - a);
+    if (fraction >= 0 && fraction <= 1) return { index, t: fraction };
+  }
+  return null;
+}
+
+/** The axis of a nonzero orthogonal leg in RNL's coordinate tolerance. */
+function orthogonalAxis(
+  from: DerivedPoint,
+  to: DerivedPoint,
+): "x" | "y" | undefined {
+  const horizontal = Math.abs(from.y - to.y) < NEAR;
+  const vertical = Math.abs(from.x - to.x) < NEAR;
+  if (horizontal === vertical) return undefined;
+  return horizontal ? "x" : "y";
 }
 
 /**
@@ -559,6 +798,7 @@ function runCorners(
   wire: LevelModel["wires"][number],
   indices: readonly number[],
   onPath: (index: number) => number,
+  keepThrough = false,
 ): { x: number; y: number }[] | null {
   const [head] = indices;
   const tail = indices.at(-1);
@@ -581,7 +821,8 @@ function runCorners(
   for (let index = first; index <= last; index++) {
     const point = wire.points[index];
     if (!point) return null;
-    if (index !== first && index !== last && passed.has(index)) continue;
+    if (!keepThrough && index !== first && index !== last && passed.has(index))
+      continue;
     const place = acPoint(point);
     const previous = corners.at(-1);
     if (
@@ -640,16 +881,12 @@ function placeOfVertex(
  * length, where RNL joins wires only at the pins and points they share.
  */
 function overlappingWires(
-  drawn: readonly {
-    route: RouteBranch;
-    corners: { x: number; y: number }[];
-    wire: string;
-  }[],
+  drawn: readonly DrawnWire[],
   modeDrawn: ReadonlySet<string>,
 ): Set<string> {
   const found = new Set<string>();
   if (!modeDrawn.size) return found;
-  const segments = drawn.flatMap(({ route, corners, wire }) =>
+  const segments = drawn.flatMap(({ route, sourceCorners: corners, wire }) =>
     corners.flatMap((from, index) => {
       const to = corners[index + 1];
       return to ? [{ net: route.netId, wire, from, to }] : [];
