@@ -22,14 +22,14 @@ the RNL language and its runtime belong to rnl.
   still come in.
 - The version line, `packages/rnl/src/rnl-version-line.json`, holds the
   language, the standard series, the first rnl release whose tools and RNL
-  Skill read that language, and the runtime with where it came from and the
-  one before it. The adapter, the scripts and the import's messages read it
-  there.
+  Skill read that language, the published specification release, and the
+  runtime with its provenance and previous version. The adapter, import
+  diagnostics, scripts, and generated MCP guide read that record.
 - The language Analog Canvas reads and writes must be one the released rnl
-  tools read and the released RNL Skill teaches; Analog Canvas moves to a new
-  language together with an rnl release, and the circuit of a file of the
-  language before still comes in. `pnpm rnl:reconcile` names a broken
-  version line first.
+  tools read, the released RNL Skill teaches, and the normative specification
+  covers. Analog Canvas moves to a new language together with an rnl release,
+  and the circuit of a file of the language before still comes in.
+  `pnpm rnl:reconcile` names a broken version line first.
 
 ### Dependency
 

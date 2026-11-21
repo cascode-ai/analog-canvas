@@ -340,6 +340,8 @@ for a routing or label detail.
 
 #### Draw a review in RNL
 
+<!-- RNL version guidance generated from rnl-review-versions.md.tmpl -->
+
 Write the drawing as RNL 0.4 records in the source netlist, then import it
 with `open-local`. Analog Canvas reads RNL 0.4 only, as `rnl` core 0.6.0 and
 later and their RNL guide do; check the file with `rnl check` or by
@@ -349,6 +351,9 @@ records:
 - Header after the title line: `* @RNL(type="header") { @USE-PACKAGE(name="rnl-std-all", version="0.4"); @VERSION("0.4")}`
   (`//` comments in Spectre). A subcircuit's records go between its `.subckt`
   and `.ends`, in `* @RNL { … }`; the file level's after the header.
+
+<!-- End RNL version guidance -->
+
 - Declare each model the files do not ship in the header, with its terminals
   so that a subcircuit call (`XM1 d g s b nch_lvt`) binds the symbol's pins:
   `@DEVICE(name="*", model="nch*", terminals=["d", "g", "s", "b"], type="nmos")`.

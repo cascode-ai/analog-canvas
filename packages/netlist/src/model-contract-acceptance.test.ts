@@ -181,6 +181,107 @@ function fixture(symbolId: string, parameters: Record<string, string> = {}) {
   return { project, folder, ports: ports.map((p) => p.name), document };
 }
 
+function runNativeModel(
+  { project, folder }: ReturnType<typeof fixture>,
+  stimulus: string,
+  acSweep = 'from=1 to=1000 mode="dec" points=2',
+) {
+  folder.input.entry = "run.sim";
+  folder.input.circuitBindings[0]!.path = "circuit.sim";
+  folder.input.circuitBindings[0]!.emission = "top-level";
+  folder.input.files = [
+    {
+      path: folder.input.configPath,
+      text: '{"version":2,"environment":{"profileId":"local"}}',
+    },
+    {
+      path: "run.sim",
+      text: `Native acceptance
+include "circuit.sim"
+model vs vsource
+model rr resistor
+load "resistor.osdi"
+${stimulus}
+control
+abort always
+options rawfile="ascii"
+save default
+analysis proof op
+analysis freq ac ${acSweep}
+analysis time tran stop=2n step=0.1n
+endc
+`,
+    },
+  ];
+  const compiled = compileSourceSimulation(project, folder);
+  if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
+  return nativeRun(compiled.files);
+}
+
+function expectNativeModelOutputs(
+  read: ReturnType<typeof nativeRun>,
+  operatingPoint: Readonly<Record<string, number>>,
+) {
+  for (const [signal, expected] of Object.entries(operatingPoint)) {
+    expect(read("proof.raw", signal).real[0], signal).toBeCloseTo(expected, 7);
+    expect(read("freq.raw", signal).real.every(Number.isFinite)).toBe(true);
+    expect(read("time.raw", signal).real.every(Number.isFinite)).toBe(true);
+  }
+}
+
+const crystalResonance = 1 / (2 * Math.PI * Math.sqrt(12.7e-3 * 20e-15));
+const customStimulusCases: Partial<
+  Record<
+    string,
+    {
+      stimulus: string;
+      probe: string;
+      op: number;
+      parameters?: Record<string, string>;
+      ac?: { sweep: string; real: number; imaginary: number };
+    }
+  >
+> = {
+  crystal: {
+    stimulus: "drive (n1 0) vs dc=1 mag=1\nreturn (n2 0) vs dc=0",
+    probe: "drive:flow(br)",
+    op: 0,
+    // At series resonance the motional branch is 25 ohms, in parallel with 5 pF.
+    ac: {
+      sweep: `from=${crystalResonance} to=${1.01 * crystalResonance} mode="lin" points=2`,
+      real: -1 / 25,
+      imaginary: -2 * Math.PI * crystalResonance * 5e-12,
+    },
+  },
+  potentiometer: {
+    parameters: { pos: "0.25" },
+    stimulus: "drive (n1 0) vs dc=1 mag=1\nreturn (n2 0) vs dc=0",
+    probe: "nw",
+    op: 0.75,
+  },
+  ujt: {
+    // The reverse-biased emitter leaves the 7 kohm base bar across 1 V.
+    stimulus:
+      "drive (b2 0) vs dc=1 mag=1\nreturn (b1 0) vs dc=0\nemitter (e 0) vs dc=0",
+    probe: "drive:flow(br)",
+    op: -1 / 7000,
+  },
+  put: {
+    // The anode and gate are held at the same voltage, below the trigger.
+    stimulus:
+      "drive (a 0) vs dc=0.5 mag=1\ngate (g 0) vs dc=0.5\nreturn (k 0) vs dc=0",
+    probe: "drive:flow(br)",
+    op: 0,
+  },
+  "shockley-diode": {
+    // At 5 V, below the 10 V breakover, only leakage flows.
+    stimulus:
+      "drive (src 0) vs dc=5 mag=1\nlimit (src a) rr r=1000\nreturn (k 0) vs dc=0",
+    probe: "drive:flow(br)",
+    op: 0,
+  },
+};
+
 const registeredModels = [
   ...new Map(
     builtInSubcircuitDescriptors
@@ -649,6 +750,22 @@ describe("shared built-in model acceptance", () => {
     .each(registeredModels)(
     "executes the actual generated %s model in native VACASK",
     (symbol) => {
+      const custom = customStimulusCases[symbol];
+      if (custom) {
+        const read = runNativeModel(
+          fixture(symbol, custom.parameters),
+          custom.stimulus,
+          custom.ac?.sweep,
+        );
+        expectNativeModelOutputs(read, { [custom.probe]: custom.op });
+        if (custom.ac) {
+          const ac = read("freq.raw", custom.probe);
+          expect(ac.real[0]).toBeCloseTo(custom.ac.real, 7);
+          expect(ac.imag?.[0]).toBeCloseTo(custom.ac.imaginary, 7);
+        }
+        return;
+      }
+
       const descriptor = subcircuitDescriptor(symbol)!;
       const target =
         symbol === "comparator" ? "icm_ideal_comparator" : descriptor.target;
@@ -656,7 +773,7 @@ describe("shared built-in model acceptance", () => {
       const voltageGain =
         metadata.parameters.some((p) => p.name === "gain") &&
         (metadata.family === "linear" || metadata.family === "opamp");
-      const { project, folder, ports } = fixture(
+      const modelFixture = fixture(
         symbol,
         voltageGain
           ? { gain: "100" }
@@ -665,54 +782,60 @@ describe("shared built-in model acceptance", () => {
             ? { vhigh: "1" }
             : {},
       );
-      folder.input.entry = "run.sim";
-      folder.input.circuitBindings[0]!.path = "circuit.sim";
-      folder.input.circuitBindings[0]!.emission = "top-level";
       const output = descriptor.ports.find(
         (p) => p.direction === "output",
-      )!.name;
+      )?.name;
+      if (!output) throw Error(`Add a terminal fixture for ${symbol}`);
       const inputs = descriptor.ports
         .filter(
           (p) =>
             p.direction === "input" &&
             !p.supply &&
-            !(p.name === "VIN" && ports.includes("VIP")),
+            !(p.name === "VIN" && modelFixture.ports.includes("VIP")),
         )
         .map((p) => p.name);
-      const text = `Native acceptance\ninclude "circuit.sim"\nmodel vs vsource\nmodel rr resistor\nload "resistor.osdi"\nrail (VDD 0) vs dc=1.8\n${inputs.map((p) => `vin${p} (${p} 0) vs dc=0.01 mag=1`).join("\n")}\nRload (${output} 0) rr r=1000\ncontrol\nabort always\noptions rawfile=\"ascii\"\nsave default\nanalysis proof op\nanalysis freq ac from=1 to=1000 mode=\"dec\" points=2\nanalysis time tran stop=2n step=0.1n\nendc\n`;
-      folder.input.files = [
-        {
-          path: folder.input.configPath,
-          text: '{"version":2,"environment":{"profileId":"local"}}',
-        },
-        { path: "run.sim", text },
-      ];
-      const compiled = compileSourceSimulation(project, folder);
-      expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
-      if (!compiled.ok) return;
-      const read = nativeRun(compiled.files);
+      // A 10 mV input lies in code 1 at 1.8 V full scale and 8 bits.
+      // The differential ADC adds midscale (128 codes). The DAC splits
+      // the corresponding differential voltage about 0.9 V.
+      const lsb = 1.8 / 256;
+      const converterOutputs: Record<string, number> = {
+        adc: lsb,
+        dac: lsb,
+        adc_differential: 129 * lsb,
+        dac_differential: 0.9 + (lsb - 0.9) / 2,
+      };
       const expected =
-        metadata.family === "logic"
+        converterOutputs[target] ??
+        (metadata.family === "logic"
           ? /^(?:inverter|nand_|nor_|xnor_)/u.test(target)
             ? 1.8
             : 0
           : target === "multiplier"
             ? 0.0001
-            : target === "adc" || target === "dac"
-              ? 1.8 / 256
-              : target === "adder"
-                ? inputs.length * 0.01
-                : target.includes("transconductance")
-                  ? 0.01
-                  : target === "opamp_differential"
-                    ? 0.5
-                    : metadata.family === "comparator" &&
-                        symbol !== "comparator"
-                      ? 1.8
-                      : 1;
-      expect(read("proof.raw", output).real[0]).toBeCloseTo(expected, 7);
-      expect(read("time.raw", output).real.every(Number.isFinite)).toBe(true);
-      expect(read("freq.raw", output).real.every(Number.isFinite)).toBe(true);
+            : target === "adder"
+              ? inputs.length * 0.01
+              : target.includes("transconductance")
+                ? 0.01
+                : target === "opamp_differential"
+                  ? 0.5
+                  : metadata.family === "comparator" && symbol !== "comparator"
+                    ? 1.8
+                    : 1);
+      const secondaryOutputs: Record<string, number> =
+        target === "dac_differential" ? { VON: 0.9 - (lsb - 0.9) / 2 } : {};
+      const stimulus = [
+        "rail (VDD 0) vs dc=1.8",
+        ...inputs.map((p) => `vin${p} (${p} 0) vs dc=0.01 mag=1`),
+        `Rload (${output} 0) rr r=1000`,
+        ...Object.keys(secondaryOutputs).map(
+          (signal) => `Rload${signal} (${signal} 0) rr r=1000`,
+        ),
+      ].join("\n");
+      const read = runNativeModel(modelFixture, stimulus);
+      expectNativeModelOutputs(read, {
+        [output]: expected,
+        ...secondaryOutputs,
+      });
     },
     60000,
   );
@@ -871,6 +994,9 @@ describe("shared built-in model acceptance", () => {
     )(
     "executes hard $symbol edges with reactive=$reactive and preserves the RC state",
     ({ symbol, reactive }) => {
+      // Keep the adaptive LTE allowance close to the configured tolerances
+      // for the 50 µV switched-RC waveform check.
+      const rcAccuracy = reactive ? " tran_lteratio=1.01" : "";
       const { ir } = deviceFixture(
         symbol,
         "S1",
@@ -893,7 +1019,7 @@ describe("shared built-in model acceptance", () => {
         { path: "circuit.sim", text: printed.text },
         {
           path: "run.sim",
-          text: `Hard switch\ninclude "circuit.sim"\nload "resistor.osdi"\nload "capacitor.osdi"\nmodel vs vsource\nmodel rr resistor\nmodel cc capacitor\nvin (in 0) vs dc=1\nvclock (${control} 0) vs type="pulse" val0=0 val1=1 delay=1n rise=1n fall=1n width=5n period=10n\nrload (out 0) rr r=1000\n${reactive ? "cload (out 0) cc c=100p\n" : ""}control\nabort always\noptions rawfile="ascii" vntol=1e-10 abstol=1e-15 reltol=1e-6\nsave default\nanalysis time tran stop=35n step=0.1n\nendc\n`,
+          text: `Hard switch\ninclude "circuit.sim"\nload "resistor.osdi"\nload "capacitor.osdi"\nmodel vs vsource\nmodel rr resistor\nmodel cc capacitor\nvin (in 0) vs dc=1\nvclock (${control} 0) vs type="pulse" val0=0 val1=1 delay=1n rise=1n fall=1n width=5n period=10n\nrload (out 0) rr r=1000\n${reactive ? "cload (out 0) cc c=100p\n" : ""}control\nabort always\noptions rawfile="ascii" vntol=1e-10 abstol=1e-15 reltol=1e-6${rcAccuracy}\nsave default\nanalysis time tran stop=35n step=0.1n\nendc\n`,
         },
       ]);
       const times = read("time.raw", "time").real;
@@ -904,20 +1030,19 @@ describe("shared built-in model acceptance", () => {
       expect(output.every(Number.isFinite)).toBe(true);
       const off = 1000 / (1000 + 1e12);
       const on = 1000 / 1001;
+      const edges = [1.5, 7.5, 11.5, 17.5, 21.5, 27.5, 31.5].map(
+        (t) => t * 1e-9,
+      );
+      for (const edge of edges)
+        expect(Math.min(...times.map((t) => Math.abs(t - edge)))).toBeLessThan(
+          1e-16,
+        );
       if (!reactive) {
         for (const [i, value] of output.entries())
           expect(value).toBeCloseTo(controls[i]! > 0.5 ? on : off, 7);
-        // Both directions must have actual accepted event points, not a DC-only run.
-        for (const edge of [1.5, 7.5, 11.5, 17.5, 21.5, 27.5, 31.5])
-          expect(
-            Math.min(...times.map((t) => Math.abs(t - edge * 1e-9))),
-          ).toBeLessThan(1e-16);
       } else {
         // Independent analytic solution of the piecewise linear RC circuit.
         // Charge remains continuous; only conductance changes at the hard edge.
-        const edges = [1.5, 7.5, 11.5, 17.5, 21.5, 27.5, 31.5].map(
-          (t) => t * 1e-9,
-        );
         const expected = (time: number) => {
           let value = off;
           let previous = 0;
@@ -935,8 +1060,13 @@ describe("shared built-in model acceptance", () => {
           }
           return value;
         };
-        for (const [i, value] of output.entries())
-          expect(Math.abs(value - expected(times[i]!))).toBeLessThan(5e-5);
+        for (const [i, value] of output.entries()) {
+          const time = times[i]!;
+          expect(
+            Math.abs(value - expected(time)),
+            `RC waveform error at ${time} s`,
+          ).toBeLessThan(5e-5);
+        }
       }
     },
     60000,

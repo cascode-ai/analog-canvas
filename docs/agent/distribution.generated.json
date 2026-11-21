@@ -105,7 +105,15 @@
     },
     {
       "source": "docs/agent/mcp/tools.md",
-      "sha256": "e97bb6b443d1e09477cd1eeaaaebcdba759772b2959a9e854f0da6db3287d06c"
+      "sha256": "9ec03236f38c19fd9abe23634fada2d3d4d88fa89681ffd1fc484186f8e680b9"
+    },
+    {
+      "source": "packages/rnl/src/rnl-version-line.json",
+      "sha256": "84afc0ebe4bc832040b89e72cc0db7cf16893a4a4d48ea5a301d5d42ddff9728"
+    },
+    {
+      "source": "docs/agent/mcp/rnl-review-versions.md.tmpl",
+      "sha256": "fdb28b99862d2a800900017197fed14c5595b8b6250ce7498d68f64e0128e8fa"
     },
     {
       "source": "docs/agent/mcp/simulation.md",
@@ -646,6 +654,15 @@
   ],
   "outputs": [
     {
+      "file": "docs/agent/mcp/tools.md",
+      "sources": [
+        "docs/agent/distribution.json",
+        "docs/agent/mcp/rnl-review-versions.md.tmpl",
+        "packages/rnl/src/rnl-version-line.json"
+      ],
+      "sha256": "9ec03236f38c19fd9abe23634fada2d3d4d88fa89681ffd1fc484186f8e680b9"
+    },
+    {
       "file": "apps/mcp-server/src/resources.generated.ts",
       "sources": [
         "docs/agent/distribution.json",
@@ -671,6 +688,8 @@
         "docs/agent/simulation-evidence-storage.md",
         "docs/agent/simulation-result-handoff.md",
         "docs/agent/mcp/tools.md",
+        "docs/agent/mcp/rnl-review-versions.md.tmpl",
+        "packages/rnl/src/rnl-version-line.json",
         "docs/agent/mcp/simulation.md",
         "docs/agent/mcp/simulation-reference.md",
         "docs/agent/shared/simulation.md",
