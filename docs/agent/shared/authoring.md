@@ -285,6 +285,10 @@ when hidden. Uncouple with `apply_actions` `delete`
 `target:{kind:"inductor-coupling",name:"TF1"}`; deleting an inductor removes
 its couplings. SPICE `K` cards import as couplings.
 
+A capacitor placed, turned or mirrored is answered with where its top plate
+(pin 1, PLUS of a PDK MIM capacitor) stands (`CAPACITOR_TOP_PLATE`): the
+symbol looks the same either way round.
+
 ## MOS bodies
 
 Three-terminal MOS artwork still has an electrical B pin; read `mosBulk` and

@@ -103,6 +103,7 @@ import {
   planProjectCopyPlacement,
 } from "../features/clipboard/project-copy";
 import { planDetachedMove } from "../features/selection/detached-move";
+import { capacitorPlateNote } from "./capacitor-plate-note";
 import { planSetProperties } from "./property-command";
 import { planAddText, planSetText, withDefaultWeight } from "./text-command";
 import {
@@ -1098,8 +1099,10 @@ export function planBrowserAgentCommand(
       const settled = withLabelsClearOfPlacedParts(document, resolver, edits);
       // A BJT the Process maps to a reviewed subcircuit arrives bound to it,
       // with its definition, exactly as a GUI placement does.
+      const plate = capacitorPlateNote(document, resolver, placed);
+      const notes = plate ? { notes: [plate] } : {};
       const filled = context.processFill?.(project, documentId, settled);
-      if (filled) return { structureEdits: filled };
+      if (filled) return { structureEdits: filled, ...notes };
       // Keep mixed device/Port batches atomic, including the interface facts.
       return changesInterface
         ? {
@@ -1111,8 +1114,9 @@ export function planBrowserAgentCommand(
                 edits: settled,
               },
             ],
+            ...notes,
           }
-        : { edits: settled };
+        : { edits: settled, ...notes };
     }
     case "set-display-alias": {
       const { instanceId, annotationId } = command;

@@ -41,6 +41,7 @@ import {
   logicGateInputInfo,
   type LogicGateInputCount,
 } from "../features/properties/logic-gate-input-count";
+import { capacitorPlateNote } from "./capacitor-plate-note";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
 import { planPropertyContactMove } from "../features/properties/property-contact-move";
 import { switchControlOf } from "../features/properties/switch-control";
@@ -510,6 +511,17 @@ export function planSetProperties(
     instance.placement !== null &&
     (value.placement.rotation !== instance.placement.rotation ||
       value.placement.mirror !== instance.placement.mirror);
+  const turnedPlacement =
+    turned && value.placement
+      ? {
+          position: {
+            x: value.placement.coordinate[0],
+            y: value.placement.coordinate[1],
+          },
+          rotation: value.placement.rotation,
+          mirror: value.placement.mirror,
+        }
+      : undefined;
   const keepAttached = command.placement?.keepMarkersAttached !== false;
   const carried =
     value.placement && instance.placement && !turned && keepAttached
@@ -560,6 +572,13 @@ export function planSetProperties(
       ...(command.placement?.join === true
         ? []
         : landedOnOtherNetNotes(document, resolver, instance, edits, carried)),
+      ...(turnedPlacement
+        ? [
+            capacitorPlateNote(document, resolver, [
+              { ...instance, placement: turnedPlacement },
+            ]),
+          ].filter((note) => note !== undefined)
+        : []),
     ];
     return notes.length ? { edits, notes } : { edits };
   };
