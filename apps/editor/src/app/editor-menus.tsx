@@ -170,6 +170,7 @@ export function EditorMenuBar({
   exportSvg,
   exportRaster,
   exportDesignNetlist,
+  exportRnlSourceUpdate,
   nativeWorkspaceSaving,
   createTabSession,
   projectTabs,
@@ -271,6 +272,7 @@ export function EditorMenuBar({
   exportSvg: FileCommands["exportSvg"];
   exportRaster: FileCommands["exportRaster"];
   exportDesignNetlist: FileCommands["exportDesignNetlist"];
+  exportRnlSourceUpdate?: FileCommands["exportRnlSourceUpdate"] | undefined;
   nativeWorkspaceSaving: RefObject<boolean>;
   createTabSession: ProjectTabSessions["createTabSession"];
   projectTabs: ProjectTabSessions["projectTabs"];
@@ -514,6 +516,9 @@ export function EditorMenuBar({
         onExportProject: () => void exportProjectFile(),
         onExportSvg: () => void exportSvg(),
         onExportRaster: (format) => void exportRaster(format),
+        onExportRnlSourceUpdate: exportRnlSourceUpdate
+          ? () => void exportRnlSourceUpdate()
+          : undefined,
         // The file the Netlist panel's Save writes, whichever format it shows.
         onExportNetlist: () =>
           void exportDesignNetlist(

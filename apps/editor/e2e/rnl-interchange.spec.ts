@@ -1,9 +1,15 @@
+import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import type { CircuitProject } from "@icm/model";
-import { compareElectricalGraphs, projectElectricalGraph } from "@icm/netlist";
+import {
+  compareElectricalGraphs,
+  projectElectricalGraph,
+  sameElectricalCircuit,
+} from "@icm/netlist";
 import { importSpiceSources } from "@icm/spice";
 
 import {
+  downloaded,
   exampleProject,
   expectStatus,
   exportedProject,
@@ -15,6 +21,83 @@ import {
 import { labelCensus, labelDifferences } from "./label-census.js";
 import { bipolarProject } from "./bipolar-project.js";
 import { openSelectionShelf } from "./manual-editor-fixtures.js";
+
+test("exports a source update for an edited RNL Cell and reopens its drawing", async ({
+  page,
+  context,
+}) => {
+  const filename = "amplifier.spi";
+  const original = [
+    "* RNL source with a Cell drawing",
+    '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4"); @USE-PACKAGE(name="rnl-std-no-labels", version="0.4"); @USE-PACKAGE(name="analog-canvas-extensions", version="0.7"); }',
+    ".subckt amp IN OUT",
+    "R1 IN OUT 1k",
+    "* Keep this source comment",
+    "* @RNL { #R1 @PLACE(0, 0) }",
+    ".ends amp",
+    ".end",
+    "",
+  ].join("\r\n");
+  const importRnl = async (target: Page, text: string) => {
+    await openEditor(target);
+    await target.getByTestId("rnl-files").setInputFiles({
+      name: filename,
+      mimeType: "text/plain",
+      buffer: Buffer.from(text),
+    });
+    await expectStatus(target, /^Imported \d+ Documents?/u);
+  };
+  const resistorPosition = (project: CircuitProject) =>
+    project.documents
+      .find((cell) => cell.netlist?.name === "amp")
+      ?.instances.find((instance) => instance.reference === "R1")?.placement
+      ?.position;
+
+  await importRnl(page, original);
+  const before = await exportedProject(page);
+  const resistor = page.getByTestId("hit-R1");
+  const bounds = (await resistor.boundingBox())!;
+  await resistor.click();
+  await page.keyboard.press("m");
+  const target = {
+    x: bounds.x + bounds.width / 2 + 80,
+    y: bounds.y + bounds.height / 2,
+  };
+  await page.mouse.move(target.x, target.y);
+  await page.mouse.click(target.x, target.y);
+  const edited = await exportedProject(page);
+  expect(resistorPosition(edited)).toBeDefined();
+  expect(resistorPosition(edited)).not.toEqual(resistorPosition(before));
+
+  const file = await openMenu(page, "File");
+  const exports = file.getByRole("button", { name: "Export", exact: true });
+  if ((await exports.getAttribute("aria-expanded")) !== "true")
+    await exports.click();
+  const sourceUpdate = file.getByRole("button", {
+    name: "Export RNL Source Update…",
+    exact: true,
+  });
+  await expect(sourceUpdate).toBeVisible();
+  const update = JSON.parse(
+    (await downloaded(page, () => sourceUpdate.click())).toString(),
+  );
+  expect(update).toMatchObject({
+    entryPath: filename,
+    path: filename,
+    level: "amp",
+    sourceSha256: createHash("sha256").update(original).digest("hex"),
+  });
+  const reopened = await context.newPage();
+  await importRnl(reopened, update.text);
+  const saved = await exportedProject(reopened);
+  expect(resistorPosition(saved)).toEqual(resistorPosition(edited));
+  expect(
+    sameElectricalCircuit(
+      projectElectricalGraph(before),
+      projectElectricalGraph(saved),
+    ),
+  ).toBe(true);
+});
 
 test("inspects and expands an imported RNL bundle without replacing its members", async ({
   page,

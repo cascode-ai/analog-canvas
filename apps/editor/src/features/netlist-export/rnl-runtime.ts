@@ -1,5 +1,5 @@
 import type { RnlSnapshot, RnlWriteRequest } from "@icm/rnl";
-import type { Document, Written } from "@rich-netlist/runtime";
+import type { CoreWorker, Document, Written } from "@rich-netlist/runtime";
 
 import { importChunk } from "../../components/chunk-import";
 import { withCanvasPackage, type RnlWorkspace } from "./rnl-core";
@@ -19,6 +19,8 @@ export interface RnlWritten {
   text: Written["text"];
   document: {
     diagnostics: readonly Pick<RuntimeDiagnostic, "severity" | "message">[];
+    files?: Document["files"];
+    levels?: Document["levels"];
   };
 }
 
@@ -35,6 +37,8 @@ export interface RnlRuntime {
       primitives?: boolean;
     },
   ): Promise<RnlWritten>;
+  /** Replace one level in the source file that owns it. */
+  replaceRecords?: CoreWorker["replaceRecords"];
   /**
    * How the runtime reads a rich netlist: each level's host circuit and the
    * drawing its RNL makes of it
@@ -118,6 +122,7 @@ export function loadRnlRuntime(): Promise<RnlRuntime | null> {
     const core = withCanvasPackage(startCore(), packages);
     return {
       write: (request) => core.write(request),
+      replaceRecords: (request) => core.replaceRecords(request),
       snapshot: (request) => core.snapshot(request),
       build: (request) => core.build(request),
     } satisfies RnlRuntime;

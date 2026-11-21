@@ -200,6 +200,7 @@ import {
   createEditorFileCommands,
   type SpiceImportReport,
 } from "../features/editor-shell/editor-file-commands";
+import type { RnlImportSource } from "../features/netlist-export/rnl-source-update";
 import { EditorStatusbar } from "../features/editor-shell/editor-statusbar";
 import {
   EditorServicesProvider,
@@ -894,6 +895,17 @@ function WorkspaceEditor({
     canvasDragSessionRef.current?.cancel();
     stageRecovery(project, { cloudBinding });
   });
+  const rnlImports = useRef(
+    new WeakMap<
+      typeof editorDocumentController,
+      { sessionId: string; source: RnlImportSource }
+    >(),
+  );
+  const activeRnlImport = rnlImports.current.get(editorDocumentController);
+  const rnlImportSource =
+    activeRnlImport?.sessionId === projectSessionId
+      ? activeRnlImport.source
+      : undefined;
   // The tab names the open Project; the desktop names its window itself.
   usePageTitle(project.name, !import.meta.env?.ICM_DESKTOP);
   const galleryTopologyProject = useMemo(
@@ -1415,6 +1427,7 @@ function WorkspaceEditor({
       setImportReviewOpen(false);
       setGalleryEntryContext(null);
       const nextDocument = replaceProject(nextProject);
+      rnlImports.current.delete(editorDocumentController);
       if (options.agentEdited) editorDocumentController.noteAgentEdit();
       documentViewBoxes.current = new Map();
       setDocumentStack([]);
@@ -5190,6 +5203,7 @@ function WorkspaceEditor({
     exportSvg,
     exportDesignNetlist,
     exportRaster,
+    exportRnlSourceUpdate,
     importSpiceFiles,
     importRnlFiles,
   } = createEditorFileCommands({
@@ -5203,6 +5217,14 @@ function WorkspaceEditor({
     electricalWarningsPresent: () => requestElectricalDiagnostics().length > 0,
     netlistRootDocumentId,
     netlistConfigurationError: netlistPreferences.error,
+    rnlImportSource,
+    onRnlSourceImported: (source) => {
+      if (editorDocumentController.project.id !== source.project.id) return;
+      rnlImports.current.set(editorDocumentController, {
+        sessionId: editorDocumentController.projectSessionId,
+        source,
+      });
+    },
     guardDirtyReplacement,
     replaceActiveProject,
     showNetlist: (mode, namingProfile) => {
@@ -6063,6 +6085,9 @@ function WorkspaceEditor({
         exportSvg={exportSvg}
         exportRaster={exportRaster}
         exportDesignNetlist={exportDesignNetlist}
+        exportRnlSourceUpdate={
+          rnlImportSource ? exportRnlSourceUpdate : undefined
+        }
         nativeWorkspaceSaving={nativeWorkspaceSaving}
         createTabSession={createTabSession}
         projectTabs={projectTabs}

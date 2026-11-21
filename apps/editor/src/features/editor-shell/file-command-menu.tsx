@@ -57,6 +57,7 @@ export interface FileCommandMenuProps {
    * as a file.
    */
   onExportNetlist: () => void;
+  onExportRnlSourceUpdate?: (() => void) | undefined;
   onRevert: () => void;
   onOpenRecovery: () => void;
   /** Opens Project Info, where the circuit and its Cell are named. */
@@ -163,6 +164,7 @@ export function FileCommandMenu({
   onExportSvg,
   onExportRaster,
   onExportNetlist,
+  onExportRnlSourceUpdate,
   onRevert,
   onOpenRecovery,
   onOpenInfo,
@@ -345,6 +347,15 @@ export function FileCommandMenu({
           >
             Netlist…
           </button>
+          {onExportRnlSourceUpdate ? (
+            <button
+              type="button"
+              aria-label="Export RNL Source Update…"
+              onClick={onExportRnlSourceUpdate}
+            >
+              RNL Source Update…
+            </button>
+          ) : null}
         </CommandSubmenu>
       </div>
       {canRevert ? (
