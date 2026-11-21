@@ -1,0 +1,9 @@
+Write the drawing as RNL {{rnl.language}} records in the source netlist, then import it
+with `open-local`. Analog Canvas reads RNL {{rnl.language}} only, as `rnl` core {{rnl.toolsRelease}} and
+later and their RNL guide do; check the file with `rnl check` or by
+importing it. Lay it out as [Draw a review](#draw-a-review) plans; in the
+records:
+
+- Header after the title line: `* @RNL(type="header") { @USE-PACKAGE(name="rnl-std-all", version="{{rnl.standardSeries}}"); @VERSION("{{rnl.language}}")}`
+  (`//` comments in Spectre). A subcircuit's records go between its `.subckt`
+  and `.ends`, in `* @RNL { … }`; the file level's after the header.
