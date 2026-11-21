@@ -300,6 +300,11 @@ information). Hidden bulk needs no decorative wire.
   Junction. Body to own source:
   `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"},via:[{x:X+20,y:Y},{x:X+20,y:SY}]}`
   (SY the source landing's y).
+- One device, no wire: on a 3-terminal MOS (default artwork),
+  `{kind:"set-terminal-net",target,pin:"B",net:{kind:"net",name:"TAIL"}}`
+  ties the body to that Net in the netlist with nothing drawn; `net:null`
+  returns it to the Cell default. A body with a dashed wire is disconnected
+  first.
 - Cell default: `{kind:"set-mos-bulk-default",mos:"pmos"|"nmos",net:"VB"}`
   (`circuit_place`; Net name or ID; `null` clears), as Cell Properties: bodies
   on the old default move, wired bodies stay (raw `set_mos_bulk_defaults` /

@@ -6,6 +6,7 @@ import type {
 import {
   deriveDocumentContactEvidence,
   endpointKey,
+  mosBulkKind,
   resolveEndpointPoint,
 } from "@icm/derived";
 import {
@@ -363,6 +364,7 @@ export function planSetProperties(
   if (command.signalFlow) {
     value.signalFlow = nextSignalFlow(instance, command.signalFlow, resolver);
   }
+  const bodyEdits: SchematicEdit[] = [];
   if (command.supplies || command.terminals) {
     // Those Properties lists (#1833): a gate bound to a Cell has the Cell's
     // supplies (#1450), a Circuit Component those it maps to no pin.
@@ -384,6 +386,36 @@ export function planSetProperties(
       choose(terminal, netId);
     }
     for (const [pinName, netId] of Object.entries(command.terminals ?? {})) {
+      // A MOS body its artwork does not draw joins a Net by name alone, no
+      // dashed wire: the drawing stays clean while the netlist keeps it
+      // (#2429). null returns it to the Cell's body default.
+      if (pinName === "B" && mosBulkKind(instance) && netId !== undefined) {
+        const symbol = resolver.resolve(
+          instance.symbolId,
+          instance.symbolVariantId,
+        );
+        if (symbol?.variant?.hiddenPinNames.includes("B")) {
+          if (netId !== null && !document.nets.some((net) => net.id === netId))
+            throw new Error(`Net not found: ${netId}`);
+          bodyEdits.push(
+            {
+              kind: "set_property_terminal_net",
+              instanceId: instance.id,
+              pinName: "B",
+              netId,
+            },
+            ...(netId === null
+              ? [
+                  {
+                    kind: "reconcile_mos_bulk" as const,
+                    instanceIds: [instance.id],
+                  },
+                ]
+              : []),
+          );
+          continue;
+        }
+      }
       const terminal = hidden.find((item) => item.pinName === pinName);
       if (terminal) {
         choose(terminal, netId);
@@ -531,31 +563,34 @@ export function planSetProperties(
     ];
     return notes.length ? { edits, notes } : { edits };
   };
-  const controlEdits = clearControl
-    ? [
-        {
-          kind: "set_instance_netlist" as const,
-          instanceId: instance.id,
-          netlist: {
-            ...(instance.netlist?.binding
-              ? { binding: instance.netlist.binding }
-              : {}),
-            // The parameters this same call leaves, not the ones it replaced.
-            parameters: value.parameters
-              ? Object.fromEntries(
-                  Object.entries(value.parameters).filter(
-                    ([, raw]) => raw.trim() !== "",
-                  ),
-                )
-              : { ...(instance.netlist?.parameters ?? {}) },
-            ...(typeof command.control === "object" &&
-            command.control?.kind === "current"
-              ? { control: command.control }
-              : {}),
+  const controlEdits = [
+    ...bodyEdits,
+    ...(clearControl
+      ? [
+          {
+            kind: "set_instance_netlist" as const,
+            instanceId: instance.id,
+            netlist: {
+              ...(instance.netlist?.binding
+                ? { binding: instance.netlist.binding }
+                : {}),
+              // The parameters this same call leaves, not the ones it replaced.
+              parameters: value.parameters
+                ? Object.fromEntries(
+                    Object.entries(value.parameters).filter(
+                      ([, raw]) => raw.trim() !== "",
+                    ),
+                  )
+                : { ...(instance.netlist?.parameters ?? {}) },
+              ...(typeof command.control === "object" &&
+              command.control?.kind === "current"
+                ? { control: command.control }
+                : {}),
+            },
           },
-        },
-      ]
-    : [];
+        ]
+      : []),
+  ];
   switch (plan.kind) {
     case "rejected":
       throw new Error(plan.message);
