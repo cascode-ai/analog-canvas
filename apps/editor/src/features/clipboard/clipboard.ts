@@ -44,6 +44,11 @@ export interface SchematicClipboard {
    * copy is committed.
    */
   nets: Net[];
+  /** Substrate terminals whose source default stayed outside the copy. */
+  defaultSubstrateTerminals?: Pick<
+    Net["terminals"][number],
+    "instanceId" | "pinName"
+  >[];
   routes: RouteBranch[];
   junctions: SchematicDocument["junctions"];
   annotations: Annotation[];
@@ -284,9 +289,8 @@ export function copySelection(
     if (body?.net && netIds.has(body.net.id))
       bodyNets.set(instance.id, body.net.id);
   }
-  // A pin its symbol does not draw, such as the substrate of a bipolar
-  // model, has no place for a wire either: it travels with its Net, as a
-  // body does, and is left for the target to bind when its Net stays behind.
+  // A pin its symbol does not draw travels with its Net. Project-aware copy
+  // also records defaulted substrate pins whose Net stays behind.
   const undrawnPin = (instanceId: string, pinName: string): boolean => {
     const instance = instances.find((item) => item.id === instanceId);
     const symbol =

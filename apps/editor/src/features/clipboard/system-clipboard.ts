@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   CircuitProjectSchema,
+  TerminalRefSchema,
   createEmptyProject,
   type CircuitProject,
   type SchematicDocument,
@@ -14,11 +15,19 @@ import type {
 const FORMAT = "analog-canvas/clipboard";
 export const CIRCUIT_CLIPBOARD_MIME = "application/x-analog-canvas+json";
 const MAX_CHARACTERS = 16 * 1024 * 1024;
-const Envelope = z.strictObject({
+const ClipboardProject = z.strictObject({
   format: z.literal(FORMAT),
-  version: z.literal(1),
   project: CircuitProjectSchema,
 });
+const Envelope = z.discriminatedUnion("version", [
+  ClipboardProject.extend({ version: z.literal(1) }),
+  ClipboardProject.extend({
+    version: z.literal(2),
+    defaultSubstrateTerminals: z.array(
+      TerminalRefSchema.omit({ memberId: true }),
+    ),
+  }),
+]);
 type Selection = ExplicitCopyRoutingSelection & {
   instanceIds: readonly string[];
   draftingIds: readonly string[];
@@ -87,8 +96,14 @@ export function encodeCircuitClipboard(
     },
     ...context.documents,
   ];
+  const payload = { format: FORMAT, project: fragment };
+  const defaultSubstrateTerminals = copied.defaultSubstrateTerminals;
   const text = JSON.stringify(
-    Envelope.parse({ format: FORMAT, version: 1, project: fragment }),
+    Envelope.parse(
+      defaultSubstrateTerminals?.length
+        ? { ...payload, version: 2, defaultSubstrateTerminals }
+        : { ...payload, version: 1 },
+    ),
   );
   if (text.length > MAX_CHARACTERS)
     throw new Error(
@@ -128,5 +143,7 @@ export function decodeCircuitClipboard(
     annotationIds: document.annotations.map((item) => item.id),
     draftingIds: (document.drafting?.objects ?? []).map((item) => item.id),
   });
+  if (clipboard && parsed.data.version === 2)
+    clipboard.defaultSubstrateTerminals = parsed.data.defaultSubstrateTerminals;
   return clipboard;
 }

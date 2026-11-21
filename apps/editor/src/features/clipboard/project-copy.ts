@@ -45,6 +45,7 @@ import {
   type ProjectStructureEdit,
   type ProjectTransactionOptions,
   type PreparedTransaction,
+  type SchematicEdit,
 } from "@icm/edit-engine";
 import {
   captureDocumentComposition,
@@ -53,6 +54,11 @@ import {
   type ExplicitCopyRoutingSelection,
   type SchematicClipboard,
 } from "./clipboard";
+import {
+  captureDefaultSubstrateTerminals,
+  planCopiedSubstrateDefaults,
+  validatedDefaultSubstrateTerminals,
+} from "./copy-substrate";
 import { proposePaste } from "./paste-proposal";
 
 import {
@@ -662,6 +668,14 @@ export function captureProjectCopy(
       ? cellSimulationFolders(project, copiedDocumentIds)
       : [],
   });
+  if (!whole) {
+    const defaults = captureDefaultSubstrateTerminals(
+      document,
+      clipboard,
+      clipboard.context.externalSubcircuitDefinitions,
+    );
+    if (defaults.length) clipboard.defaultSubstrateTerminals = defaults;
+  }
   return clipboard;
 }
 
@@ -1043,6 +1057,11 @@ export function prepareProjectCopy(
     if (!resolver.resolve(instance.symbolId))
       throw new Error(`Copied Symbol is unavailable: ${instance.symbolId}`);
   }
+  if (clipboard.defaultSubstrateTerminals?.length)
+    clipboard.defaultSubstrateTerminals = validatedDefaultSubstrateTerminals(
+      clipboard,
+      prepared.externalSubcircuitDefinitions,
+    );
   const preflight = proposePaste(
     document,
     clipboard,
@@ -1123,6 +1142,36 @@ export function planProjectCopyPlacement(
   let objectMapping = proposal.idRemap;
   if (clipboard.intent === "clone-selection") {
     let projected = gate.evaluated.finalDocument;
+    const appendPlacementStep = (
+      transactionId: string,
+      stepEdits: SchematicEdit[],
+    ) => {
+      const step: ProjectStructureEdit = {
+        kind: "transact_document",
+        documentId: document.id,
+        expectedRevision: projected.revision,
+        edits: stepEdits,
+      };
+      const { result, prepared: transaction } = prepareTransaction(
+        projected,
+        {
+          transactionId,
+          documentId: projected.id,
+          expectedRevision: projected.revision,
+          actor: { kind: "human", id: "copy-insert" },
+          edits: stepEdits,
+        },
+        {
+          symbolResolver: prepared.resolver,
+          externalSubcircuitDefinitions:
+            prepared.baseProject.externalSubcircuitDefinitions,
+        },
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      if (transaction) preparedTransactions.push(transaction);
+      projected = result.document;
+      edits.push(step);
+    };
     const copiedLabel = standaloneCopiedNetLabel(prepared.clipboard);
     if (copiedLabel && netLabelTarget) {
       // Like an inserted part's contact, attachment follows the isolated copy
@@ -1173,36 +1222,19 @@ export function planProjectCopyPlacement(
       if (!connections.edits.length) continue;
       // Contact planning reads canonical endpoint bonds after insertion. Keep
       // that stage boundary inside one atomic, undoable Project transaction.
-      const step: ProjectStructureEdit = {
-        kind: "transact_document",
-        documentId: document.id,
-        expectedRevision: projected.revision,
-        edits: connections.edits,
-      };
-      const preparation = prepareTransaction(
-        projected,
-        {
-          transactionId: "copy-insert-contact",
-          documentId: projected.id,
-          expectedRevision: projected.revision,
-          actor: { kind: "human", id: "copy-insert" },
-          edits: connections.edits,
-        },
-        {
-          symbolResolver: prepared.resolver,
-          externalSubcircuitDefinitions:
-            prepared.baseProject.externalSubcircuitDefinitions,
-        },
-      );
-      const result = preparation.result;
-      if (!result.ok) throw new Error(result.error.message);
-      preparedTransactions.push(preparation.prepared!);
-      projected = result.document;
+      appendPlacementStep("copy-insert-contact", connections.edits);
       // Every accepted contact can change pin visibility, owners and Route
       // segment identities. No read context crosses this transaction boundary.
       connectionContext = undefined;
-      edits.push(step);
     }
+    // The pasted markers and contacts can establish a substrate default.
+    const substrateEdits = planCopiedSubstrateDefaults(
+      projected,
+      prepared.clipboard.defaultSubstrateTerminals,
+      proposal.idRemap.instances,
+    );
+    if (substrateEdits.length)
+      appendPlacementStep("copy-substrate-defaults", substrateEdits);
   }
   if (edits.length > 256)
     throw new Error("Copy exceeds the atomic Project transaction limit");
