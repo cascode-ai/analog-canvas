@@ -3,7 +3,11 @@ import type {
   AgentCommandPlan,
   AgentCommandPlanNote,
 } from "@icm/agent-adapter";
-import { deriveDocumentContactEvidence, endpointKey } from "@icm/derived";
+import {
+  deriveDocumentContactEvidence,
+  endpointKey,
+  resolveEndpointPoint,
+} from "@icm/derived";
 import {
   instanceParameterContract,
   milliScaleReading,
@@ -37,6 +41,7 @@ import {
   type LogicGateInputCount,
 } from "../features/properties/logic-gate-input-count";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
+import { planPropertyContactMove } from "../features/properties/property-contact-move";
 import { switchControlOf } from "../features/properties/switch-control";
 
 type SetProperties = Extract<AgentAuthoringCommand, { kind: "set-properties" }>;
@@ -213,6 +218,50 @@ function markersMovedAlongNote(
     message: `${instance.reference ?? instance.id} moved with ${list}, which touched it with no wire`,
     objectIds: carried.map(({ marker }) => marker.id),
   };
+}
+
+/**
+ * A move that does not join still says when its pins now lie on another
+ * Net's pin, wire end or Junction: the join it would have made, unmade.
+ */
+function landedOnOtherNetNotes(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instance: Instance,
+  edits: readonly SchematicEdit[],
+  carried: readonly { marker: Instance }[],
+): AgentCommandPlanNote[] {
+  const move = edits.find(
+    (edit) => edit.kind === "move_instance" && edit.instanceId === instance.id,
+  );
+  if (!move) return [];
+  const joined = planPropertyContactMove(
+    document,
+    resolver,
+    instance,
+    [move],
+    carried.map(({ marker }) => marker.id),
+    true,
+  );
+  if (!joined?.ok || joined.expectedElectricalEffect.kind !== "merge")
+    return [];
+  const pins = [
+    ...new Set(
+      joined.expectedElectricalEffect.endpointGroups
+        .flat()
+        .filter((key) => key.startsWith(`terminal:${instance.id}:`))
+        .map(
+          (key) => key.slice(`terminal:${instance.id}:`.length).split(":")[0]!,
+        ),
+    ),
+  ];
+  return [
+    {
+      code: "LANDED_ON_OTHER_NET",
+      message: `${instance.reference ?? instance.id} now touches another Net${pins.length ? ` at pin ${pins.join(", ")}` : ""} and was not joined to it; move it with join: true to connect, or move it clear`,
+      objectIds: [instance.id],
+    },
+  ];
 }
 
 /**
@@ -424,12 +473,33 @@ export function planSetProperties(
     };
   }
   // A move by a step, turning and mirroring nothing, carries the markers.
+  const turned =
+    value.placement != null &&
+    instance.placement !== null &&
+    (value.placement.rotation !== instance.placement.rotation ||
+      value.placement.mirror !== instance.placement.mirror);
+  const keepAttached = command.placement?.keepMarkersAttached !== false;
   const carried =
-    value.placement &&
-    instance.placement &&
-    value.placement.rotation === instance.placement.rotation &&
-    value.placement.mirror === instance.placement.mirror
+    value.placement && instance.placement && !turned && keepAttached
       ? markersOnPinsOnly(document, resolver, instance)
+      : [];
+  // Turned or mirrored, the markers follow the pin they stand on (#2429).
+  const following =
+    turned && keepAttached && value.placement != null
+      ? markersFollowingPins(
+          document,
+          resolver,
+          instance,
+          {
+            position: {
+              x: value.placement.coordinate[0],
+              y: value.placement.coordinate[1],
+            },
+            rotation: value.placement.rotation,
+            mirror: value.placement.mirror,
+          },
+          markersOnPinsOnly(document, resolver, instance),
+        )
       : [];
   const plan = planPropertyApply(
     {
@@ -440,6 +510,8 @@ export function planSetProperties(
       ...(carried.length
         ? { carriedInstanceIds: carried.map(({ marker }) => marker.id) }
         : {}),
+      // A move changes no connection unless the call asks it to (#2429).
+      connectAtDrop: command.placement?.join === true,
     },
     value,
   );
@@ -451,9 +523,13 @@ export function planSetProperties(
           edit.kind === "move_instance" && edit.instanceId === marker.id,
       ),
     );
-    return moved.length
-      ? { edits, notes: [markersMovedAlongNote(instance, moved)] }
-      : { edits };
+    const notes = [
+      ...(moved.length ? [markersMovedAlongNote(instance, moved)] : []),
+      ...(command.placement?.join === true
+        ? []
+        : landedOnOtherNetNotes(document, resolver, instance, edits, carried)),
+    ];
+    return notes.length ? { edits, notes } : { edits };
   };
   const controlEdits = clearControl
     ? [
@@ -504,6 +580,45 @@ export function planSetProperties(
       return withNotes([...gate.edits, ...controlEdits]);
     }
     case "edits":
-      return withNotes([...plan.edits, ...controlEdits]);
+      return withNotes([...plan.edits, ...following, ...controlEdits]);
   }
+}
+
+/**
+ * Where each marker standing on a pin goes when the part turns or mirrors:
+ * by the step its pin moves, so it stands on that pin again.
+ */
+function markersFollowingPins(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instance: Instance,
+  placement: NonNullable<Instance["placement"]>,
+  markers: readonly { marker: Instance; pinName: string }[],
+): SchematicEdit[] {
+  if (!markers.length) return [];
+  const turned: SchematicDocument = {
+    ...document,
+    instances: document.instances.map((item) =>
+      item.id === instance.id ? { ...item, placement } : item,
+    ),
+  };
+  return markers.flatMap(({ marker, pinName }) => {
+    const pin = { kind: "terminal" as const, instanceId: instance.id, pinName };
+    const before = resolveEndpointPoint(document, resolver, pin);
+    const after = resolveEndpointPoint(turned, resolver, pin);
+    if (!before || !after || !marker.placement) return [];
+    const dx = after.x - before.x;
+    const dy = after.y - before.y;
+    if (!dx && !dy) return [];
+    return [
+      {
+        kind: "move_instance" as const,
+        instanceId: marker.id,
+        position: {
+          x: Math.round(marker.placement.position.x + dx),
+          y: Math.round(marker.placement.position.y + dy),
+        },
+      },
+    ];
+  });
 }

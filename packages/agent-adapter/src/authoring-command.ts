@@ -154,11 +154,23 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
             .enum(["x", "y"])
             .optional()
             .describe("Reflect in place: y flips left-right, x top-bottom."),
+          join: z
+            .boolean()
+            .optional()
+            .describe(
+              "true: a moved part joins a pin or wire it lands on, as a drag does. Default: it only moves; landing on another Net is warned (LANDED_ON_OTHER_NET).",
+            ),
+          keepMarkersAttached: z
+            .boolean()
+            .optional()
+            .describe(
+              "Default true: grounds, supply markers and Cell Pins standing unwired on the part's pins move with it, and after a turn or mirror stand on the same pins again. false leaves them where they are.",
+            ),
         })
         .optional(),
     })
     .describe(
-      "Change one part as Apply in Properties does, through the same planner: a moved part joins a pin it lands on, as a drag does.",
+      "Change one part as Apply in Properties does, through the same planner. A move changes no connection unless placement.join is true.",
     ),
   z
     .strictObject({
@@ -350,6 +362,12 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
       .optional()
       .describe(
         "Defaults to the existing Net scope, otherwise local; global must be intentional.",
+      ),
+    joinPins: z
+      .boolean()
+      .optional()
+      .describe(
+        "true: pins whose contact lies on the rail join it, as the GUI draws a rail; otherwise they stay apart and are warned (RAIL_OVER_UNJOINED_PIN).",
       ),
   }),
   z

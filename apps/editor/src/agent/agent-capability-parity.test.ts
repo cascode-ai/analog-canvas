@@ -1879,6 +1879,63 @@ it("uses local supply rails by default, preserves explicit global and rejects di
   expect(report.ok).toBe(false);
   expect(report.message).toContain("horizontal or vertical");
   expect(controller.project).toEqual(before);
+  // Ground is drawn with ground symbols, not as a second Net named GND.
+  const ground = await client.applyActions([
+    {
+      kind: "add-power-rail",
+      name: "GND",
+      start: { x: 100, y: 400 },
+      end: { x: 300, y: 400 },
+    },
+  ]);
+  expect(ground.ok).toBe(false);
+  expect(ground.message).toContain("ground symbols");
+  expect(controller.project).toEqual(before);
+});
+
+it("joins pins a rail runs over only when asked, and names them otherwise (#2429)", async () => {
+  const { client, controller } = await folder();
+  expect(
+    (
+      await client.applyActions([
+        {
+          kind: "place-component",
+          symbol: "resistor",
+          reference: "R1",
+          position: { x: 380, y: 320 },
+        },
+      ])
+    ).ok,
+  ).toBe(true);
+  const r1 = controller.document.instances[0]!.id;
+  const railNet = () =>
+    controller.document.routes.find(
+      (route) => route.presentation === "power-rail",
+    )?.netId;
+  const pinNet = () =>
+    controller.document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) => terminal.instanceId === r1 && terminal.pinName === "1",
+      ),
+    )?.id;
+  const rail = { start: { x: 300, y: 300 }, end: { x: 460, y: 300 } };
+  const apart = await client.applyActions([
+    { kind: "add-power-rail", ...rail },
+  ]);
+  expect(apart.ok, apart.message).toBe(true);
+  expect(pinNet()).not.toBe(railNet());
+  expect(apart.diagnosticDelta?.added).toContainEqual(
+    expect.objectContaining({
+      code: "RAIL_OVER_UNJOINED_PIN",
+      objectIds: [r1],
+    }),
+  );
+  expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+  const joined = await client.applyActions([
+    { kind: "add-power-rail", ...rail, joinPins: true },
+  ]);
+  expect(joined.ok, joined.message).toBe(true);
+  expect(pinNet()).toBe(railNet());
 });
 
 it("extends a Power Rail instead of doubling it, keeping its taps and its one label", async () => {

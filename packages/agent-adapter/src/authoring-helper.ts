@@ -41,6 +41,10 @@ import {
   type ObjectRef,
 } from "./authoring-actions.js";
 
+/** A transform's `keepMarkersAttached: false`, carried to set-properties. */
+const keepMarkers = (action: { keepMarkersAttached?: boolean | undefined }) =>
+  action.keepMarkersAttached === false ? { keepMarkersAttached: false } : {};
+
 export type SchematicEdit = z.infer<typeof AgentSchematicEditSchema>;
 export type WireIntent = z.infer<typeof AgentWireIntentSchema>;
 
@@ -1078,25 +1082,37 @@ export function compileActions(
             });
           else
             pushProperties(instance, {
-              placement: action.pinAnchor
-                ? { pinAnchor: action.pinAnchor }
-                : { position: action.position! },
+              placement: {
+                ...(action.pinAnchor
+                  ? { pinAnchor: action.pinAnchor }
+                  : { position: action.position! }),
+                ...(action.join ? { join: true } : {}),
+                ...keepMarkers(action),
+              },
             });
         }
         break;
       case "rotate":
         pushProperties(
           resolveInstance(document, index, action.kind, action.target),
-          { placement: { rotation: action.rotation } },
+          {
+            placement: {
+              rotation: action.rotation,
+              ...keepMarkers(action),
+            },
+          },
         );
         break;
       case "mirror":
         pushProperties(
           resolveInstance(document, index, action.kind, action.target),
           {
-            placement: action.axis
-              ? { reflect: action.axis }
-              : { mirror: action.mirror! },
+            placement: {
+              ...(action.axis
+                ? { reflect: action.axis }
+                : { mirror: action.mirror! }),
+              ...keepMarkers(action),
+            },
           },
         );
         break;
@@ -1109,6 +1125,7 @@ export function compileActions(
                 ? { rotation: action.rotation }
                 : {}),
               ...(action.mirror !== undefined ? { mirror: action.mirror } : {}),
+              ...keepMarkers(action),
             },
           },
         );

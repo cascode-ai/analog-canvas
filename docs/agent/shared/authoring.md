@@ -325,8 +325,11 @@ information). Hidden bulk needs no decorative wire.
   switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.
 - `add-power-rail` draws a `vdd-rail` (a primitive, not a symbol) with optional
-  `name`/`scope` (existing scope kept, else local; `global` only explicitly).
-  It initializes the PMOS bulk default; geometry alone joins no pin. Markers
+  `name`/`scope` (existing scope kept, else local; `global` only explicitly);
+  a ground name (`0`, `GND`, `GROUND`) is refused: ground is ground symbols.
+  It initializes the PMOS bulk default. Pins whose contact lies on the rail
+  join it only with `joinPins: true`, as the GUI draws one; otherwise they
+  stay apart and are named (`RAIL_OVER_UNJOINED_PIN`). Markers
   are not named devices. A rail along a same-supply rail, overlapping or
   touching, extends it. `extend-power-rail {routeId,start,end}` moves a
   straight rail's ends along its line: taps and the other end stay, the label
@@ -479,10 +482,13 @@ call, in order (placements apart from their wires; a `focus` with the last).
 ## Move, delete and reset
 
 Clean up with move/mirror/group transforms and route edits. Geometry moves do
-not perform GUI drag-to-connect snapping; a moved part joins only a pin it
-lands on. An unturned, unmirrored `move` carries grounds, supply markers
-and Cell Pins standing unwired on the part's pins (`MARKERS_MOVED_ALONG`);
-wired, shared or locked ones stay, joined by a wire. A selection `transform`
+not perform GUI drag-to-connect snapping; a moved part joins nothing unless
+the `move` says `join: true`, and then only a pin or wire it lands on;
+landing on another Net without it is warned (`LANDED_ON_OTHER_NET`). A `move`,
+`rotate`, `mirror` or `set-orientation` carries grounds, supply markers and
+Cell Pins standing unwired on the part's pins, each to where its pin went
+(`MARKERS_MOVED_ALONG`; `keepMarkersAttached: false` leaves them); wired,
+shared or locked ones stay, joined by a wire. A selection `transform`
 mirror without a center reflects the whole selection about its own axis as the
 editor's Mirror does, connections unchanged (a wire held by an unselected part
 stays); with an explicit center, labels and drafting are rejected. Translation

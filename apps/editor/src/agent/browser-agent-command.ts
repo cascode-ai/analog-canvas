@@ -52,6 +52,7 @@ import {
   type SchematicEdit,
   type TransformOperation,
   type RoutingOperationPlan,
+  planPowerRailPinContacts,
 } from "@icm/edit-engine";
 import {
   createCellDocument,
@@ -195,6 +196,39 @@ export interface BrowserAgentPlanningContext {
     documentId: string,
     edits: readonly SchematicEdit[],
   ): ProjectStructureEdit[] | undefined;
+}
+
+/**
+ * The pins whose contact lies on a new Agent rail it did not join: the rail
+ * draws through them, yet they stay on their own Nets.
+ */
+function railUnjoinedPinsNote(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  netId: string,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+): AgentCommandPlanNote | undefined {
+  const { endpointGroups } = planPowerRailPinContacts(document, resolver, [
+    { routeId: "agent-rail-probe", netId, start, end, endpoints: [] },
+  ]);
+  const pins = [
+    ...new Set(
+      endpointGroups.flat().filter((key) => key.startsWith("terminal:")),
+    ),
+  ].map((key) => {
+    const [, instanceId = "", pinName = ""] = key.split(":");
+    const reference =
+      document.instances.find((instance) => instance.id === instanceId)
+        ?.reference ?? instanceId;
+    return { instanceId, label: `${reference}.${pinName}` };
+  });
+  if (!pins.length) return undefined;
+  return {
+    code: "RAIL_OVER_UNJOINED_PIN",
+    message: `The rail runs over ${pins.map((pin) => pin.label).join(", ")} without joining ${pins.length === 1 ? "it" : "them"}; wire ${pins.length === 1 ? "it" : "them"}, add joinPins: true, or move the rail off ${pins.length === 1 ? "it" : "them"}.`,
+    objectIds: [...new Set(pins.map((pin) => pin.instanceId))],
+  };
 }
 
 /** Check the committed geometry, not just the presence of move edits. */
@@ -643,8 +677,9 @@ export function planBrowserAgentCommand(
         };
       }
       // GUI contact capture is intentional for its gesture. Agent geometry alone
-      // is not permission to join other pins: explicit wiring remains explicit.
-      const plan = planVddRailEdits(document, {
+      // is not permission to join other pins: only joinPins asks for it, and
+      // pins left lying on the rail are named in a note (#2429).
+      const construction = {
         instanceId: batchItem
           ? deriveStableId(
               "agent-rail",
@@ -659,10 +694,40 @@ export function planBrowserAgentCommand(
           : {}),
         netName: command.name ?? "VDD",
         ...(command.scope ? { scope: command.scope } : {}),
-      });
+      };
+      if (command.joinPins) {
+        const plan = planVddRailEdits(document, construction, resolver);
+        if (!plan.ok) throw new Error(plan.message);
+        const edits = [
+          ...plan.edits,
+          ...railSupplyPinEdits(project, document, plan),
+        ];
+        if (!plan.expectedElectricalEffect) return { edits };
+        const gate = gateRoutingOperationPlan(
+          document,
+          createRoutingOperationPlan(document, {
+            intent: "connect",
+            edits,
+            diagnostics: [],
+            expectedElectricalEffect: plan.expectedElectricalEffect,
+          }),
+          { symbolResolver: resolver },
+        );
+        if (!gate.ok) throw new Error(gate.message);
+        return { edits: [...gate.edits] };
+      }
+      const plan = planVddRailEdits(document, construction);
       if (!plan.ok) throw new Error(plan.message);
+      const unjoined = railUnjoinedPinsNote(
+        document,
+        resolver,
+        plan.netId,
+        command.start,
+        command.end,
+      );
       return {
         edits: [...plan.edits, ...railSupplyPinEdits(project, document, plan)],
+        ...(unjoined ? { notes: [unjoined] } : {}),
       };
     }
     case "extend-power-rail":

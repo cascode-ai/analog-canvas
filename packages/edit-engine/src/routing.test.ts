@@ -2773,7 +2773,8 @@ describe("routing Edit Engine", () => {
       ok: false,
       error: {
         code: "INVALID_RESULT",
-        message: "Transaction introduces conflicting Logical Net names",
+        message:
+          "Transaction introduces conflicting Logical Net names: one Net would be HORIZONTAL (label) and VERTICAL (label)",
       },
     });
   });
