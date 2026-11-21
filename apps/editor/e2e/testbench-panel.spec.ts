@@ -127,4 +127,80 @@ test.describe("Testbench view (#2110)", () => {
     await page.getByTestId("draw-tool-undo").click();
     await expect(panel).toContainText("No Testbench for");
   });
+
+  test("keeps picked files and requires a fresh review after Undo changes the source", async ({
+    page,
+  }) => {
+    await openProject(page, fixture());
+    const panel = await openTestbench(page);
+    await panel.getByRole("button", { name: "New Testbench" }).click();
+    await typeAtStart(page, "* Project edit\n");
+
+    await panel.getByTestId("testbench-import-files").setInputFiles([
+      {
+        name: "testbench.spice",
+        mimeType: "text/plain",
+        buffer: Buffer.from("* Imported replacement\n.end\n"),
+      },
+      {
+        name: "report.py",
+        mimeType: "text/plain",
+        buffer: Buffer.from("print('gain')\n"),
+      },
+    ]);
+    const review = panel.getByRole("group", { name: "Review import" });
+    const report = review.getByRole("checkbox", { name: "report.py" });
+    const importButton = review.getByRole("button", { name: "Import" });
+    await report.uncheck();
+    await expect(importButton).toBeEnabled();
+
+    await page.getByTestId("draw-tool-undo").click();
+    await expect(review.getByRole("alert")).toContainText(
+      "The Project changed",
+    );
+    await expect(importButton).toBeDisabled();
+
+    await review.getByRole("button", { name: "Review again" }).click();
+    await expect(report).not.toBeChecked();
+    await expect(review.getByRole("listitem")).toHaveText([
+      /testbench\.spice\s*Replaces/u,
+      /report\.py\s*New/u,
+    ]);
+    await importButton.click();
+
+    const source = panel.getByRole("textbox", { name: /^Testbench source/u });
+    await expect(source).toContainText("* Imported replacement");
+    await expect(panel.getByRole("tablist", { name: "Files" })).toHaveCount(0);
+    await page.getByTestId("draw-tool-undo").click();
+    await expect(source).toContainText("circuit.spice");
+    await expect(source).not.toContainText("* Project edit");
+  });
+
+  test("keeps a replacement tied to its Testbench when Undo removes it", async ({
+    page,
+  }) => {
+    await openProject(page, fixture());
+    const panel = await openTestbench(page);
+    await panel.getByRole("button", { name: "New Testbench" }).click();
+    await panel.getByTestId("testbench-import-files").setInputFiles({
+      name: "testbench.spice",
+      mimeType: "text/plain",
+      buffer: Buffer.from("* Imported replacement\n.end\n"),
+    });
+    const review = panel.getByRole("group", { name: "Review import" });
+    const importButton = review.getByRole("button", { name: "Import" });
+    const reviewAgain = review.getByRole("button", { name: "Review again" });
+    await expect(importButton).toBeEnabled();
+
+    await page.getByTestId("draw-tool-undo").click();
+    await expect(importButton).toBeDisabled();
+    await expect(reviewAgain).toHaveCount(0);
+
+    await page.getByTestId("draw-tool-redo").click();
+    await expect(reviewAgain).toBeVisible();
+    await expect(importButton).toBeDisabled();
+    await expect(
+      review.getByRole("checkbox", { name: "testbench.spice" }),
+    ).toBeChecked();
+  });
 });
