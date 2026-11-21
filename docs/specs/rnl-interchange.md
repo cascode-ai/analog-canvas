@@ -544,7 +544,11 @@ the RNL language and its runtime belong to rnl.
     point another wire (not a dashed body tie) also reaches a route each
     side, which reach it there; a wire whose path the import cannot follow
     through its vertices is drawn straight between them
-    (`RNL_IMPORT_WIRE_PATH`); wires a mode draws that run over another wire
+    (`RNL_IMPORT_WIRE_PATH`); a remapped whole-unit pin that would turn an
+    orthogonal wire end diagonal instead gets an orthogonal connection.
+    The adjustment keeps the source wire's through-points, marks and labels
+    (`RNL_IMPORT_WIRE_PIN_ADJUSTED` names the affected statements); wires a
+    mode draws that run over another wire
     of their net, which RNL joins only at the ends they share, are reported
     by the statements that write them (`RNL_IMPORT_WIRES_OVERLAP`); a run
     that reaches a pin or junction of another net, which RNL reports

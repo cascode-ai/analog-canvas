@@ -10,7 +10,6 @@ import {
   type RnlTextView,
   acPoint,
   isOrient,
-  NEAR,
 } from "./rnl-snapshot.js";
 import { acSymbolFor } from "./import-symbols.js";
 import { sizeScale } from "./import-texts.js";
@@ -65,12 +64,9 @@ export function readMarks(
         marks.set("$ARROW", (marks.get("$ARROW") ?? 0) + 1);
         return;
       }
-      const last = leg.corners.at(-1)!;
-      const atEnd =
-        Math.abs(last.x - tip.x) < NEAR && Math.abs(last.y - tip.y) < NEAR;
       leg.route.styleOverride = {
         ...leg.route.styleOverride,
-        arrow: atEnd ? "end" : "middle",
+        arrow: leg.atSourceEnd ? "end" : "middle",
       };
       return;
     }

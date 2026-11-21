@@ -15,16 +15,21 @@ const core = await createRnlTestCore();
 afterAll(() => core.terminate());
 const runtime: RnlRuntime = core;
 
-async function imported(name: string) {
+async function imported(
+  name: string,
+  appearance?: "canvas" | "source",
+  bytes = readFileSync(`netlists/rnl-agent-drawing/${name}`),
+) {
   const plan = await planRnlImport({
     inputs: [
       {
         path: name,
-        bytes: readFileSync(`netlists/rnl-agent-drawing/${name}`),
+        bytes,
       },
     ],
     entryPath: name,
     runtime,
+    appearance,
   });
   if (plan.status !== "ready") throw new Error(plan.message);
   expect(() => serializeProject(plan.project)).not.toThrow();
@@ -67,6 +72,54 @@ it("reports the wires a mode runs over another wire of their net, by the lines t
   expect(overlap?.message).toMatch(/^4 wires /u);
   for (const line of [25, 26, 27, 28])
     expect(overlap?.message).toContain(`@ota5t-auto-wires.sp:${line}:5`);
+});
+
+it.each(["canvas", "source"] as const)(
+  "keeps orthogonal wire ends at shifted MOS bulk pins in %s appearance",
+  async (appearance) => {
+    const { plan, document, paths } = await imported(
+      "mos-bulk-pin-offset.sp",
+      appearance,
+    );
+    expect(paths).toEqual([
+      [
+        { x: 496, y: 150 },
+        { x: 600, y: 150 },
+        { x: 600, y: 140 },
+        { x: 676, y: 140 },
+        { x: 676, y: 150 },
+      ],
+    ]);
+    expect(document.routes[0]?.styleOverride?.arrow).toBe("middle");
+    expect(document.annotations).toContainEqual(
+      expect.objectContaining({
+        kind: "net-label",
+        anchor: expect.objectContaining({ kind: "route" }),
+      }),
+    );
+    expect(plan.drawing).toBe("partial");
+    expect(plan.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "RNL_IMPORT_WIRE_PIN_ADJUSTED",
+        message: expect.stringContaining("@mos-bulk-pin-offset.sp:8:5"),
+      }),
+    );
+  },
+);
+
+it("keeps a named point on the wire when the neighboring bulk pin shifts", async () => {
+  const name = "mos-bulk-pin-offset.sp";
+  const source = readFileSync(
+    `netlists/rnl-agent-drawing/${name}`,
+    "utf8",
+  ).replace(
+    "&VDD @WIRE {#XM3:4 #XM2:4}",
+    '%j = (68.4, -14); $JUNCTION @ATTACH %j => @PLACE(68.4, -14); &VDD @WIRE(mode="straight") {#XM3:4 (60, -15) (60, -14) %j (69, -14) #XM2:4}',
+  );
+  const { paths } = await imported(name, "canvas", Buffer.from(source));
+  expect(paths).toHaveLength(1);
+  expect(paths[0]).toContainEqual({ x: 684, y: 140 });
+  expect(paths[0]?.at(-1)).toEqual({ x: 676, y: 150 });
 });
 
 it("reads a net label the file places as a net label, with its wires", async () => {
