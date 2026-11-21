@@ -275,6 +275,11 @@ family (`SPICE_IMPORT_UNTYPED_DEVICE`). Delivering the same files again with
 other `modelTypes` opens another copy in its own tab; the same types, in any
 case or order, locate the existing copy.
 A refusal reports its error, recovery hint and `timingMs` for completed stages.
+When `open-local` stages a netlist, it requests `importCoverage` with statement
+counts and original locations of unresolved and refused statements. Read the
+counts even for a clean import. When the editor refuses a netlist after making
+a ledger, the error receipt carries the same field. A reused copy skips
+staging. Use `review_delivery` for its reference coverage.
 
 The load receipt includes task, session, workspace, Project, Cell and revisions, plus
 original-byte SHA-256 hashes and a source version derived from the entry and

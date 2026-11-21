@@ -21251,6 +21251,10 @@
               },
               "modelTypes": {
                 "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema20"
+              },
+              "includeImportCoverage": {
+                "description": "Return the statement ledger summary when staging a local netlist",
+                "$ref": "#/components/schemas/agentFileResourceRequest/$defs/__schema23"
               }
             },
             "required": [
@@ -21855,6 +21859,10 @@
               "pnp",
               "d"
             ]
+          },
+          "__schema23": {
+            "type": "boolean",
+            "const": true
           }
         }
       },
@@ -22642,10 +22650,40 @@
               },
               "operation": {
                 "type": "string",
-                "enum": [
-                  "stage",
-                  "inspect"
-                ]
+                "const": "stage"
+              },
+              "ok": {
+                "type": "boolean",
+                "const": true
+              },
+              "candidate": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema27"
+              },
+              "importCoverage": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema31"
+              }
+            },
+            "required": [
+              "apiVersion",
+              "requestId",
+              "operation",
+              "ok",
+              "candidate"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "apiVersion": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema0"
+              },
+              "requestId": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema1"
+              },
+              "operation": {
+                "type": "string",
+                "const": "inspect"
               },
               "ok": {
                 "type": "boolean",
@@ -22656,7 +22694,7 @@
               },
               "documentCode": {
                 "description": "Canonical staged SchematicDocument JSON, only for an explicit inspect.documentId; not a live document.",
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema31"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema35"
               }
             },
             "required": [
@@ -22801,7 +22839,7 @@
                 "const": true
               },
               "delivery": {
-                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema36"
               }
             },
             "required": [
@@ -22832,7 +22870,7 @@
               "delivery": {
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema36"
                   },
                   {
                     "type": "null"
@@ -22942,10 +22980,10 @@
                     "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema23"
                   },
                   "status": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema33"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema37"
                   },
                   "topology": {
-                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema33"
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema37"
                   },
                   "summary": {
                     "type": "string"
@@ -22971,7 +23009,7 @@
                     "maxItems": 200,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema34"
+                      "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema38"
                     }
                   },
                   "detailsTruncated": {
@@ -23048,6 +23086,9 @@
                   "message"
                 ],
                 "additionalProperties": false
+              },
+              "importCoverage": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema31"
               }
             },
             "required": [
@@ -23936,9 +23977,104 @@
             "additionalProperties": false
           },
           "__schema31": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "total": {
+                "description": "Number of entries in the ledger",
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+              },
+              "complete": {
+                "type": "boolean",
+                "description": "Whether the ledger assigns a fate to every reachable statement"
+              },
+              "counts": {
+                "type": "object",
+                "properties": {
+                  "instance": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                  },
+                  "definition": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                  },
+                  "declaration": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                  },
+                  "preserved": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                  },
+                  "unresolved": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                  },
+                  "refused": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                  },
+                  "unknown": {
+                    "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema32"
+                  }
+                },
+                "required": [
+                  "instance",
+                  "definition",
+                  "declaration",
+                  "preserved",
+                  "unresolved",
+                  "refused",
+                  "unknown"
+                ],
+                "additionalProperties": false
+              },
+              "unresolved": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema33"
+              },
+              "refused": {
+                "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema33"
+              }
+            },
+            "required": [
+              "total",
+              "complete",
+              "counts",
+              "unresolved",
+              "refused"
+            ],
+            "additionalProperties": false
           },
           "__schema32": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "__schema33": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/agentFileResourceResponse/$defs/__schema34"
+            }
+          },
+          "__schema34": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "line": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "path",
+              "line"
+            ],
+            "additionalProperties": false
+          },
+          "__schema35": {
+            "type": "string"
+          },
+          "__schema36": {
             "type": "object",
             "properties": {
               "source": {
@@ -24043,7 +24179,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema33": {
+          "__schema37": {
             "type": "string",
             "enum": [
               "equal",
@@ -24051,7 +24187,7 @@
               "inconclusive"
             ]
           },
-          "__schema34": {
+          "__schema38": {
             "type": "object",
             "properties": {
               "kind": {

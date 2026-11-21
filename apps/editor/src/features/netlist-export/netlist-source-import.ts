@@ -36,18 +36,17 @@ export interface NetlistImportPolicy extends ImportEvidence {
 
 export type NetlistSourceImport = (
   { status: "imported"; project: CircuitProject } | { status: "refused" }
-) & {
-  diagnostics: SpiceDiagnostic[];
-  /** Every statement of the files the entry reaches, with its fate. */
-  ledger: StatementLedger;
-  /** Models the sources declare, as cards or native cards. */
-  declaredModelNames: string[];
-};
+) &
+  CompiledNetlistSources & {
+    /** Models the sources declare, as cards or native cards. */
+    declaredModelNames: string[];
+  };
 
 export interface CompiledNetlistSources {
   compiled: SpiceCompileResult | null;
   prepared: ReturnType<typeof prepareImportSources> | null;
   diagnostics: SpiceDiagnostic[];
+  /** Every statement of the files the entry reaches, with its fate. */
   ledger: StatementLedger;
 }
 
@@ -172,9 +171,49 @@ function sourceLedger(
   };
 }
 
+const LEDGER_LOCATION_LIMIT = 20;
+
+/** Statement counts and a bounded preview of unresolved and refused locations. */
+export function ledgerCoverage(ledger: StatementLedger, locationLimit: number) {
+  const counts = {
+    instance: 0,
+    definition: 0,
+    declaration: 0,
+    preserved: 0,
+    unresolved: 0,
+    refused: 0,
+    unknown: 0,
+  };
+  type Location = Pick<StatementLedgerEntry, "path" | "line">;
+  const unresolved: Location[] = [];
+  const refused: Location[] = [];
+  for (const { path, line, fate } of ledger.entries) {
+    counts[fate] += 1;
+    if (fate === "unresolved" && unresolved.length < locationLimit)
+      unresolved.push({ path, line });
+    if (fate === "refused" && refused.length < locationLimit)
+      refused.push({ path, line });
+  }
+  return {
+    total: ledger.entries.length,
+    complete: ledger.complete,
+    counts,
+    unresolved,
+    refused,
+  };
+}
+
 /** What the ledger counts: each fate, and where a statement went
  * unresolved or was refused. */
-export function ledgerSummary(ledger: StatementLedger): string {
+export function ledgerSummary(
+  ledger: StatementLedger,
+  locationLimit = LEDGER_LOCATION_LIMIT,
+): string {
+  const { total, counts, unresolved, refused } = ledgerCoverage(
+    ledger,
+    locationLimit,
+  );
+  const locations = { unresolved, refused };
   const order: StatementFateKind[] = [
     "instance",
     "definition",
@@ -184,24 +223,23 @@ export function ledgerSummary(ledger: StatementLedger): string {
     "refused",
   ];
   const parts = order.flatMap((fate) => {
-    const entries = ledger.entries.filter((entry) => entry.fate === fate);
-    if (!entries.length) return [];
+    const count = counts[fate];
+    if (!count) return [];
     const where =
       fate === "unresolved" || fate === "refused"
-        ? ` (${entries
-            .slice(0, 20)
+        ? ` (${locations[fate]
             .map(({ path, line }) => `${path}:${line}`)
             .join(
               ", ",
-            )}${entries.length > 20 ? `, and ${entries.length - 20} more` : ""})`
+            )}${count > locationLimit ? `, and ${count - locationLimit} more` : ""})`
         : "";
-    return [`${entries.length} ${fate}${where}`];
+    return [`${count} ${fate}${where}`];
   });
-  const unknown = ledger.entries.filter(({ fate }) => fate === "unknown");
-  return `${ledger.entries.length} statements: ${parts.join(", ")}${
-    unknown.length
-      ? `; coverage unknown for ${unknown.length} (${unknown
-          .slice(0, 20)
+  return `${total} statements: ${parts.join(", ")}${
+    counts.unknown
+      ? `; coverage unknown for ${counts.unknown} (${ledger.entries
+          .filter(({ fate }) => fate === "unknown")
+          .slice(0, locationLimit)
           .map(({ path, line }) => `${path}:${line}`)
           .join(", ")})`
       : ""
@@ -247,8 +285,8 @@ function coverageDiagnostic(ledger: StatementLedger): SpiceDiagnostic {
 }
 
 /**
- * Prepare (convert native Spectre) and compile, as every entry does: the
- * review's reference stops here.
+ * Prepare (convert native Spectre) and compile. The review compares this
+ * circuit IR and reports the ledger after import has accounted for it.
  */
 export async function compileNetlistSources(
   inputs: readonly SpiceSourceInput[],
@@ -286,17 +324,12 @@ export async function importNetlistSources(
   entryPath: string,
   policy: NetlistImportPolicy = {},
 ): Promise<NetlistSourceImport> {
-  const {
-    compiled,
-    prepared,
-    diagnostics: refusals,
-    ledger: refused,
-  } = await compileNetlistSources(inputs, entryPath, policy);
+  const source = await compileNetlistSources(inputs, entryPath, policy);
+  const { compiled, prepared } = source;
   if (!compiled || !prepared)
     return {
+      ...source,
       status: "refused",
-      diagnostics: refusals,
-      ledger: refused,
       declaredModelNames: [],
     };
   const result = importCompileResult(compiled, {
@@ -331,13 +364,8 @@ export async function importNetlistSources(
     ...(compiled.ir?.models.map(({ name }) => name) ?? []),
     ...prepared.modelTypes.keys(),
   ];
+  const read = { compiled, prepared, diagnostics, ledger, declaredModelNames };
   return result.successful && result.project
-    ? {
-        status: "imported",
-        project: result.project,
-        diagnostics,
-        ledger,
-        declaredModelNames,
-      }
-    : { status: "refused", diagnostics, ledger, declaredModelNames };
+    ? { ...read, status: "imported", project: result.project }
+    : { ...read, status: "refused" };
 }

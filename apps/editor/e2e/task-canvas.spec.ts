@@ -6,9 +6,11 @@ import {
   type BrowserContext,
   type Page,
 } from "@playwright/test";
+import type { AgentFileResourceRequest } from "@icm/agent-adapter";
+import { AgentHttpClient, AgentSessionClient } from "@icm/agent-client";
 import { parseProject } from "@icm/project-protocol";
 import { assembleServer } from "../../mcp-server/src/server.js";
-import { openEditor } from "./editor-fixtures.js";
+import { openEditor, readAgentClaim } from "./editor-fixtures.js";
 import { clickRoute } from "./canvas-fixtures.js";
 import { regionalAccounts } from "./regional-auth-fixture.js";
 
@@ -1018,6 +1020,13 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
   const typed = await deliver({ nch_mac: "nmos", pch_mac: "pmos" });
   expect(typed, JSON.stringify(typed.error)).toMatchObject({
     ok: true,
+    importCoverage: {
+      total: 12,
+      complete: true,
+      counts: { instance: 3, definition: 2, declaration: 4, preserved: 3 },
+      unresolved: [],
+      refused: [],
+    },
     delivery: {
       disposition: "opened",
       source: {
@@ -1050,6 +1059,7 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
     comparison: {
       status: "equal",
       notes: expect.arrayContaining([
+        "Reference coverage: 12 statements: 3 instance, 2 definition, 4 declaration, 3 preserved",
         expect.stringMatching(/^Includes not read: .*toplevel\.scs/u),
         expect.stringMatching(/^Parameters not compared: wn/u),
         expect.stringMatching(/^Statements not compared: .*tran/u),
@@ -1057,6 +1067,170 @@ test("delivers a Virtuoso netlist whose foundry library stays external, typed by
       ]),
     },
   });
+  await writeFile(
+    join(rootPath, "refused.scs"),
+    "simulator lang=spectre\nR1 (a A) resistor r=1k\n",
+  );
+  expect(
+    await tool("import_file", {
+      action: "open-local",
+      rootPath,
+      entryPath: "refused.scs",
+    }),
+  ).toMatchObject({
+    ok: false,
+    error: { code: "FILE_IMPORT_FAILED" },
+    importCoverage: {
+      complete: false,
+      counts: { refused: 1 },
+      refused: [{ path: "refused.scs", line: 2 }],
+    },
+  });
+  await tool("disconnect", {});
+});
+
+test("stages and reviews undrawn RNL library bodies with the same statement coverage", async ({
+  context,
+  baseURL,
+}, testInfo) => {
+  const rootPath = testInfo.outputPath("rnl-library");
+  await mkdir(rootPath, { recursive: true });
+  await writeFile(
+    join(rootPath, "top.sp"),
+    [
+      "* Library coverage",
+      '* @RNL(type="header") { @VERSION("0.4"); @USE-PACKAGE(name="rnl-std-all", version="0.4") }',
+      ".subckt hidden A B",
+      "L1 A B 1u",
+      "K1 L1 L9 0.5",
+      ".ends hidden",
+      ".subckt dut IN OUT",
+      "X1 IN OUT hidden",
+      "* @RNL {",
+      '* #X1 @PLACE(0, 0) => @ORIENT("R0")',
+      "* }",
+      ".ends dut",
+      ".end",
+      "",
+    ].join("\n"),
+  );
+  const { tool } = await openFileTask(
+    context,
+    baseURL!,
+    testInfo.outputPath("connector.json"),
+  );
+  const receipt = await tool("import_file", {
+    action: "open-local",
+    rootPath,
+    entryPath: "top.sp",
+  });
+  expect(receipt).toMatchObject({
+    ok: true,
+    delivery: { source: { format: "rnl" } },
+    importCoverage: {
+      total: 8,
+      counts: { instance: 2, definition: 5, preserved: 1, unresolved: 0 },
+      unresolved: [],
+    },
+  });
+  expect(await tool("review_delivery", {})).toMatchObject({
+    ok: true,
+    comparison: {
+      notes: expect.arrayContaining([
+        "Reference coverage: 8 statements: 2 instance, 5 definition, 1 preserved",
+      ]),
+    },
+  });
+  await tool("disconnect", {});
+});
+
+test("stages once when an older relay or editor rejects coverage negotiation", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  const rootPath = testInfo.outputPath("older-file-contract");
+  await mkdir(rootPath, { recursive: true });
+  const staged: Extract<AgentFileResourceRequest, { operation: "stage" }>[] =
+    [];
+  const client = new AgentSessionClient({
+    http: new AgentHttpClient({
+      baseUrl: baseURL!,
+      fetch: async (input, init) => {
+        if (
+          String(input).endsWith("/files") &&
+          typeof init?.body === "string"
+        ) {
+          const request = JSON.parse(init.body) as AgentFileResourceRequest;
+          if (request.operation === "stage") {
+            staged.push(request);
+            // Only the older peer's contract rejection is scripted. The
+            // fallback runs through the live editor's real File Resource.
+            if (request.includeImportCoverage) {
+              if (request.entryPath === "older-relay.sp")
+                return Response.json(
+                  {
+                    ok: false,
+                    error: {
+                      code: "FILE_CONTENT_INVALID",
+                      message:
+                        "File Resource request does not match its strict schema",
+                    },
+                  },
+                  { status: 400 },
+                );
+              return Response.json({
+                apiVersion: request.apiVersion,
+                requestId: request.requestId,
+                operation: "error",
+                ok: false,
+                error: {
+                  code: "FILE_REQUEST_INVALID",
+                  message:
+                    "The File request does not match the current contract",
+                },
+              });
+            }
+          }
+        }
+        return fetch(input, init);
+      },
+    }),
+  });
+  const { handler } = assembleServer(
+    {
+      apiBaseUrl: baseURL!,
+      connectorPath: testInfo.outputPath("connector.json"),
+    },
+    { client },
+  );
+  const tool = async (name: string, args: object) => {
+    const result = await handler.callTool(name, args);
+    return JSON.parse(result.content[0]!.text!);
+  };
+  await openEditor(page);
+  await page.getByTestId("open-agent").click();
+  const claim = await readAgentClaim(page.getByTestId("connect-agent-panel"));
+  expect(await tool("connect", claim)).toMatchObject({ ok: true });
+  for (const entryPath of ["older-relay.sp", "older-editor.sp"]) {
+    await writeFile(join(rootPath, entryPath), "* fallback\nR1 a 0 1k\n.end\n");
+    const receipt = await tool("import_file", {
+      action: "open-local",
+      rootPath,
+      entryPath,
+    });
+    expect(receipt).toMatchObject({
+      ok: true,
+      delivery: { disposition: "opened" },
+    });
+    expect(receipt).not.toHaveProperty("importCoverage");
+    const requests = staged.filter(
+      (request) => request.entryPath === entryPath,
+    );
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({ includeImportCoverage: true });
+    expect(requests[1]).not.toHaveProperty("includeImportCoverage");
+    expect(requests[1]?.requestId).not.toBe(requests[0]?.requestId);
+  }
   await tool("disconnect", {});
 });
 
