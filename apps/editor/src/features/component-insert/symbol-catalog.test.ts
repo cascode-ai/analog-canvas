@@ -137,6 +137,7 @@ describe("component insertion catalog", () => {
       "annotation-polyline",
       "annotation-rectangle",
       "annotation-circle",
+      "annotation-arc",
       "annotation-polarity-both",
       "annotation-text-plus",
       "annotation-text-minus",

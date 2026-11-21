@@ -177,7 +177,9 @@ annotations and unlocked layout references.
 - `drawingOrder` holds each Instance, Annotation and Drafting Object reference
   once, back to front, with one electrical and one circuit-mark slot. When
   omitted the Document uses its [default drawing order](visual-language.md#formal-scene).
-  Rectangle/circle drafting may override border and fill. Drafting `layer`
+  Rectangle/circle drafting may override border and fill. An `arc` drafting
+  object is the circular arc from `start` through `through` to `end`, three
+  grid points not on one line; it has a stroke and no fill. Drafting `layer`
   and `zIndex` supply the default order only.
 - `presentation.cellSymbol` (optional): legacy minimum size, optional explicit
   `bodyBounds`, and unique `terminalId`-keyed side/offset placements (existing

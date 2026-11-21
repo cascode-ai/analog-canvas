@@ -100,6 +100,7 @@ export function selectionClassForDrafting(
     case "arrow":
     case "leader":
     case "construction-line":
+    case "arc":
       return "drafting-line";
     case "rectangle":
     case "circle":

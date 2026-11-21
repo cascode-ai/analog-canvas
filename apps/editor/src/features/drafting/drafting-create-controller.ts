@@ -42,7 +42,7 @@ import {
 type TransactionResult = { ok: boolean };
 type DraftingTool = Extract<
   EditorTool,
-  "arrow" | "polyline" | "construction-line" | "rectangle" | "circle"
+  "arrow" | "polyline" | "construction-line" | "rectangle" | "circle" | "arc"
 >;
 
 export type DrawAngleMode = "free" | "45" | "orthogonal";
@@ -146,7 +146,8 @@ export function createDraftingCreateController({
     tool === "polyline" ||
     tool === "construction-line" ||
     tool === "rectangle" ||
-    tool === "circle"
+    tool === "circle" ||
+    tool === "arc"
       ? tool
       : null;
 
@@ -323,8 +324,42 @@ export function createDraftingCreateController({
     }
   };
 
+  /** An arc from `start` to `end` bowing through `through`. */
+  const commitArc = (start: Point, end: Point, through: Point): boolean => {
+    const turn =
+      (through.x - start.x) * (end.y - start.y) -
+      (through.y - start.y) * (end.x - start.x);
+    if (turn === 0) {
+      setStatus("Arc: move off the line between its ends to bow it");
+      return false;
+    }
+    const id = nextId("arc");
+    if (
+      !transact([
+        {
+          kind: "upsert_drafting_object",
+          object: {
+            id,
+            kind: "arc",
+            locked: false,
+            zIndex: 0,
+            anchor: { kind: "free", position: { ...start } },
+            start: { ...start },
+            through: { ...through },
+            end: { ...end },
+            lineStyle: "solid",
+          },
+        },
+      ]).ok
+    )
+      return false;
+    setStatus(`Added arc ${id}`);
+    setTool("pointer");
+    return true;
+  };
+
   const commit = (
-    active: Exclude<DraftingTool, "arrow" | "polyline">,
+    active: Exclude<DraftingTool, "arrow" | "polyline" | "arc">,
     start: Point,
     end: Point,
   ): void => {
@@ -448,11 +483,27 @@ export function createDraftingCreateController({
             ? "Rectangle: click the opposite corner (Esc to cancel)"
             : active === "circle"
               ? "Circle: click the radius point (Esc to cancel)"
-              : "Construction line: click next vertex (Enter to finish, Esc to cancel)",
+              : active === "arc"
+                ? "Arc: click the other end (Esc to cancel)"
+                : "Construction line: click next vertex (Enter to finish, Esc to cancel)",
       );
     } else if (active === "rectangle" || active === "circle") {
       commit(active, source, resolved.point);
       clear();
+    } else if (active === "arc") {
+      const end = waypoints[0];
+      if (!end) {
+        if (resolved.point.x === source.x && resolved.point.y === source.y)
+          return;
+        setWaypoints([resolved.point]);
+        setHover(resolved.point);
+        setSnapPoint(resolved.snap);
+        setStatus(
+          "Arc: move to bow it, then click (Enter finishes, Esc cancels)",
+        );
+        return;
+      }
+      if (commitArc(source, end, resolved.point)) clear();
     } else {
       if (
         active === "polyline" &&
@@ -492,6 +543,9 @@ export function createDraftingCreateController({
       commitArrow(points);
     } else if (active === "rectangle" || active === "circle") {
       if (source.x !== end.x || source.y !== end.y) commit(active, source, end);
+    } else if (active === "arc") {
+      const arcEnd = waypoints[0];
+      if (arcEnd && !commitArc(source, arcEnd, end)) return;
     } else {
       const points = [source, ...waypoints];
       if (

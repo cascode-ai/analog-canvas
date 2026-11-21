@@ -18,6 +18,7 @@ import {
   type SymbolResolver,
 } from "@icm/symbols";
 
+import { arcPointAt } from "./arc-geometry.js";
 import { arrowArtwork } from "./arrow-artwork.js";
 import { resolveDraftingObjectGeometry } from "./drafting-geometry.js";
 import {
@@ -235,6 +236,14 @@ function draftingInkEvidence(
       return evidence;
     case "circle":
       return { points: circleSamples(geometry.center, geometry.radius) };
+    case "arc": {
+      const steps = Math.max(2, Math.ceil(Math.abs(geometry.sweepAngle) / 15));
+      return {
+        points: Array.from({ length: steps + 1 }, (_, index) =>
+          arcPointAt(geometry, index / steps),
+        ),
+      };
+    }
     case "leader":
       return { segments: [{ from: geometry.anchor, to: geometry.target }] };
     case "callout":

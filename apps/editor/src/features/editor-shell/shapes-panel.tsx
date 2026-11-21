@@ -89,6 +89,7 @@ const COMPACT_LIBRARY_LABELS: Readonly<Record<string, string>> = {
   "annotation-line": "Line",
   "annotation-rectangle": "Rect",
   "annotation-circle": "Circle",
+  "annotation-arc": "Arc",
   "annotation-polarity-both": "+ V −",
   "annotation-text-plus": "+",
   "annotation-text-minus": "−",

@@ -49,7 +49,7 @@ describe("instance-owned portable source", () => {
       },
     ];
     const file = JSON.parse(serializeProject(project));
-    expect(file.schemaVersion).toBe(86);
+    expect(file.schemaVersion).toBe(87);
     expect(
       parseProject(JSON.stringify(file)).documents[0]!.instanceGroups,
     ).toEqual(cell.instanceGroups);
@@ -63,6 +63,43 @@ describe("instance-owned portable source", () => {
       ).toEqual(["R27", "R26"]);
     }
   });
+
+  it("round-trips a drafting arc and rejects it in an older envelope", () => {
+    const project = createEmptyProject("arc", "Arc");
+    project.documents[0]!.drafting = {
+      objects: [
+        {
+          id: "arc-1",
+          kind: "arc",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 0, y: 0 } },
+          start: { x: 0, y: 0 },
+          through: { x: 20, y: -20 },
+          end: { x: 40, y: 0 },
+          lineStyle: "solid",
+        },
+      ],
+    };
+    const saved = serializeProject(project);
+    expect(JSON.parse(saved).schemaVersion).toBe(87);
+    expect(serializeProject(parseProject(saved))).toBe(saved);
+    expect(
+      parseProject(saved).documents[0]!.drafting!.objects[0],
+    ).toMatchObject({ kind: "arc", through: { x: 20, y: -20 } });
+    const older = JSON.parse(saved);
+    older.schemaVersion = 85;
+    expect(tryParseProjectWithMetadata(JSON.stringify(older))).toMatchObject({
+      ok: false,
+      diagnostics: [
+        expect.objectContaining({
+          code: "INVALID_PROJECT",
+          message: expect.stringContaining("schema 87"),
+        }),
+      ],
+    });
+  });
+
   it("round-trips an explicit model selection and rejects it in an older envelope", () => {
     const project = createEmptyProject("model-selection", "Model selection");
     const document = project.documents[0]!;

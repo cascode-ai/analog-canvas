@@ -655,7 +655,8 @@ export function createCanvasGestureController({
       tool === "polyline" ||
       tool === "construction-line" ||
       tool === "rectangle" ||
-      tool === "circle"
+      tool === "circle" ||
+      tool === "arc"
     ) {
       // Raw pointer: the drafting snapper rounds by the annotation grid,
       // which can be finer than the Document grid this handler's point uses.

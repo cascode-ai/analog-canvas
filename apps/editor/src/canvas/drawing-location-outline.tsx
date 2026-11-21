@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import {
+  arcPathData,
   resolveDraftingObjectGeometry,
   type ResolvedDrawingScene,
   type SchematicStyleProfile,
@@ -58,7 +59,9 @@ export function DrawingLocationOutline({
     return (document.drafting?.objects ?? []).flatMap((object) => {
       if (
         !selected.has(object.id) ||
-        (object.kind !== "rectangle" && object.kind !== "circle")
+        (object.kind !== "rectangle" &&
+          object.kind !== "circle" &&
+          object.kind !== "arc")
       )
         return [];
       const geometry = resolveDraftingObjectGeometry(
@@ -72,6 +75,14 @@ export function DrawingLocationOutline({
             key={object.id}
             data-drafting-id={object.id}
             points={serializePolylinePoints(geometry.corners)}
+          />,
+        ];
+      if (geometry.kind === "arc")
+        return [
+          <path
+            key={object.id}
+            data-drafting-id={object.id}
+            d={arcPathData(geometry.start, geometry.end, geometry)}
           />,
         ];
       if (geometry.kind === "circle")

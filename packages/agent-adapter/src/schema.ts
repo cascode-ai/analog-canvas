@@ -296,10 +296,13 @@ const [firstAgentEdit, ...remainingAgentEdits] =
     (option) => option.shape.kind.value !== "set_instance_group",
   );
 if (!firstAgentEdit) throw new Error("The Agent needs a schematic edit schema");
-const AgentDocumentEditSchema = z.discriminatedUnion("kind", [
-  firstAgentEdit,
-  ...remainingAgentEdits,
-]);
+// Typed by the edit schema's own name, so declarations that embed it stay
+// within what the compiler will write out.
+type AgentDocumentEditOption = (typeof SchematicEditSchema.options)[number];
+const AgentDocumentEditSchema: z.ZodDiscriminatedUnion<
+  [AgentDocumentEditOption, ...AgentDocumentEditOption[]],
+  "kind"
+> = z.discriminatedUnion("kind", [firstAgentEdit, ...remainingAgentEdits]);
 export const AgentSchematicEditSchema = AgentDocumentEditSchema.superRefine(
   (edit, context) => {
     if (CELL_STRUCTURE_EDIT_KINDS.some((kind) => edit.kind === kind)) {
@@ -344,7 +347,25 @@ export const AgentProjectStructureEditSchema = createProjectStructureEditSchema(
   AgentDocumentEditSchema,
 );
 
-const TransactionPayloadShape = {
+// Typed by its members' names, so the request schemas that spread it stay
+// within what the compiler will write out.
+const TransactionPayloadShape: {
+  edits: z.ZodOptional<z.ZodArray<typeof AgentSchematicEditSchema>>;
+  wireIntent: z.ZodOptional<
+    z.ZodUnion<
+      readonly [
+        typeof AgentWireIntentSchema,
+        z.ZodArray<typeof AgentWireIntentSchema>,
+      ]
+    >
+  >;
+  semanticIntent: z.ZodOptional<typeof AgentSemanticIntentSchema>;
+  command: z.ZodOptional<typeof AgentAuthoringCommandSchema>;
+  structureEdits: z.ZodOptional<
+    z.ZodArray<typeof AgentProjectStructureEditSchema>
+  >;
+  actions: z.ZodOptional<z.ZodArray<z.ZodUnknown>>;
+} = {
   edits: z.array(AgentSchematicEditSchema).min(1).optional(),
   wireIntent: z
     .union([AgentWireIntentSchema, z.array(AgentWireIntentSchema).min(1)])
@@ -416,16 +437,25 @@ export const AgentRenderRequestSchema = RequestBaseSchema.extend({
   bounds: GridRectSchema.optional(),
 });
 
-/** Production and local clients use exactly the same four-operation contract. */
-export const AgentProductionCircuitRequestSchema = z.discriminatedUnion(
-  "operation",
+/**
+ * Production and local clients use exactly the same four-operation contract.
+ * Typed by its members' names, so its declaration stays within what the
+ * compiler will write out.
+ */
+export const AgentProductionCircuitRequestSchema: z.ZodDiscriminatedUnion<
   [
-    AgentCapabilitiesRequestSchema,
-    AgentSnapshotRequestSchema,
-    AgentTransactRequestSchema,
-    AgentRenderRequestSchema,
+    typeof AgentCapabilitiesRequestSchema,
+    typeof AgentSnapshotRequestSchema,
+    typeof AgentTransactRequestSchema,
+    typeof AgentRenderRequestSchema,
   ],
-);
+  "operation"
+> = z.discriminatedUnion("operation", [
+  AgentCapabilitiesRequestSchema,
+  AgentSnapshotRequestSchema,
+  AgentTransactRequestSchema,
+  AgentRenderRequestSchema,
+]);
 // Visual diagnostics are derived from rendered geometry. Text measurement and
 // rotated drafting AABBs legitimately produce fractional coordinates even
 // though persisted schematic coordinates remain integer-grid values.

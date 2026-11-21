@@ -1158,6 +1158,49 @@ test("a drawn rectangle selects by its outline, passes interior clicks through a
   );
 });
 
+test("an arc is drawn from its ends and bow, reshaped by its middle handle and undone", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await clickDrawTool(page, "arc");
+  const canvas = page.getByTestId("schematic-canvas");
+  const box = (await canvas.boundingBox())!;
+  const at = (x: number, y: number) => ({ x: box.x + x, y: box.y + y });
+  const start = at(220, 260);
+  const end = at(380, 260);
+  const bow = at(300, 200);
+  await page.mouse.click(start.x, start.y);
+  await page.mouse.move(end.x, end.y);
+  await page.mouse.click(end.x, end.y);
+  await page.mouse.move(bow.x, bow.y);
+  await expect(
+    page.getByTestId("drafting-create-preview").locator("path"),
+  ).toHaveCount(1);
+  await page.mouse.click(bow.x, bow.y);
+  await expect(page.getByTestId("revision")).toHaveText("1");
+
+  const arc = page.locator('[data-kind="draft-arc"]');
+  await expect(arc).toHaveCount(1);
+  await expect(arc).toHaveAttribute("fill", "none");
+  const drawn = await arc.getAttribute("d");
+  expect(drawn).toMatch(/^M [-\d.]+ [-\d.]+ A /u);
+
+  // The arc passes its bow point: clicking there selects it.
+  await page.mouse.click(bow.x, bow.y);
+  await expect(page.locator('[data-testid^="draft-handle-arc-"]')).toHaveCount(
+    3,
+  );
+  await dragLocator(page.getByTestId(/^draft-handle-arc-through-/), {
+    x: 0,
+    y: -30,
+  });
+  await expect(page.getByTestId("revision")).toHaveText("2");
+  expect(await arc.getAttribute("d")).not.toBe(drawn);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(arc).toHaveAttribute("d", drawn!);
+});
+
 test("double-click inside a rectangle writes a centered, anchored label", async ({
   page,
 }) => {

@@ -382,7 +382,8 @@ export function createEditorCanvasEventHandlers({
         (selectedDrafting.kind === "arrow" ||
           selectedDrafting.kind === "construction-line" ||
           selectedDrafting.kind === "rectangle" ||
-          selectedDrafting.kind === "circle") &&
+          selectedDrafting.kind === "circle" ||
+          selectedDrafting.kind === "arc") &&
         !event.shiftKey &&
         !event.ctrlKey &&
         !event.metaKey &&
@@ -435,7 +436,8 @@ export function createEditorCanvasEventHandlers({
           tool === "polyline" ||
           tool === "construction-line" ||
           tool === "rectangle" ||
-          tool === "circle") &&
+          tool === "circle" ||
+          tool === "arc") &&
         event.detail === 1 &&
         acceptsDraftingPoint
       ) {
@@ -577,7 +579,8 @@ export function createEditorCanvasEventHandlers({
         tool === "polyline" ||
         tool === "construction-line" ||
         tool === "rectangle" ||
-        tool === "circle"
+        tool === "circle" ||
+        tool === "arc"
       ) {
         if (target.closest('[data-testid="canvas-text-editor"]')) return;
         finishDraftingCreate();
@@ -638,7 +641,8 @@ export function createEditorCanvasEventHandlers({
         tool === "polyline" ||
         tool === "construction-line" ||
         tool === "rectangle" ||
-        tool === "circle"
+        tool === "circle" ||
+        tool === "arc"
       ) {
         if (draftingSourceActive) {
           cancelDraftingCreate();

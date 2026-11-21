@@ -61,6 +61,7 @@ import {
   CURRENT_PROJECT_FILE_VERSION,
   decodeProjectFile,
   rejectModelSelection,
+  rejectDraftingArcs,
   rejectKeptDocumentStyle,
   rejectSignalMembers,
   rejectOrderedSignals,
@@ -531,6 +532,7 @@ export function tryParseProjectWithMetadata(
           message: "An array reference prefix requires Project schema 86",
         },
       ]);
+    if (sourceSchemaVersion < 87) rejectDraftingArcs(parsed);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (
       let version = current.schemaVersion as number;

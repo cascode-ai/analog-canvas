@@ -295,6 +295,12 @@ export function orientClipboard(
           clone.center = mapPoint(clone.center);
           break;
         }
+        case "arc": {
+          clone.start = mapPoint(clone.start);
+          clone.through = mapPoint(clone.through);
+          clone.end = mapPoint(clone.end);
+          break;
+        }
         case "floating-symbol": {
           clone.transform = applyOrientationOperations(
             clone.transform,

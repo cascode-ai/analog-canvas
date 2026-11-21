@@ -4805,15 +4805,17 @@ function WorkspaceEditor({
             ? "Rectangle: click the first corner"
             : nextTool === "circle"
               ? "Circle: click the center"
-              : nextTool === "arrow"
-                ? arrowPreset.family === "outline"
-                  ? "Outline arrow: click to place, or drag to size (Esc cancels)"
-                  : "Arrow: click the start point"
-                : nextTool === "polyline"
-                  ? "Polyline: click vertices; double-click or Enter to finish"
-                  : nextTool === "construction-line"
-                    ? "Construction line: click the start point"
-                    : "Pointer ready",
+              : nextTool === "arc"
+                ? "Arc: click one end"
+                : nextTool === "arrow"
+                  ? arrowPreset.family === "outline"
+                    ? "Outline arrow: click to place, or drag to size (Esc cancels)"
+                    : "Arrow: click the start point"
+                  : nextTool === "polyline"
+                    ? "Polyline: click vertices; double-click or Enter to finish"
+                    : nextTool === "construction-line"
+                      ? "Construction line: click the start point"
+                      : "Pointer ready",
     );
   }
 
@@ -8197,7 +8199,8 @@ function WorkspaceEditor({
             tool === "polyline" ||
             tool === "construction-line" ||
             tool === "rectangle" ||
-            tool === "circle"
+            tool === "circle" ||
+            tool === "arc"
               ? "drawing-mode"
               : "",
             projectedMovePreviewDocument ? "semantic-move-preview" : "",

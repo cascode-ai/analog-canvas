@@ -189,8 +189,12 @@ function drawingIndex(
   }
   for (const object of document.drafting?.objects ?? []) {
     // Some drafting marks include independently scaled callouts, symbols or heads.
-    // Only closed geometric shapes have all their paint in the resolved body box.
-    if (object.kind !== "rectangle" && object.kind !== "circle") {
+    // Only plain geometric shapes have all their paint in the resolved body box.
+    if (
+      object.kind !== "rectangle" &&
+      object.kind !== "circle" &&
+      object.kind !== "arc"
+    ) {
       always.add(object.id);
       continue;
     }

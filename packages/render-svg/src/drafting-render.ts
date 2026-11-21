@@ -3,6 +3,7 @@
  * callouts and floating symbols drawn under or over the circuit.
  */
 import {
+  arcPathData,
   arrowArtwork,
   arrowPathData,
   centeredFirstBaselineY,
@@ -69,6 +70,12 @@ export function renderDraftingObject(
       return renderDraftCircle(
         object,
         geometry as Extract<ResolvedDraftingGeometry, { kind: "circle" }>,
+        objectProfile,
+      );
+    case "arc":
+      return renderDraftArc(
+        object,
+        geometry as Extract<ResolvedDraftingGeometry, { kind: "arc" }>,
         objectProfile,
       );
     case "arrow":
@@ -262,6 +269,24 @@ function renderDraftRectangle(
     .map((point) => `${point.x},${point.y}`)
     .join(" ");
   return `<polygon data-object-id="${object.id}" data-kind="draft-rectangle" points="${points}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
+}
+
+function renderDraftArc(
+  object: Extract<DraftingObject, { kind: "arc" }>,
+  geometry: Extract<ResolvedDraftingGeometry, { kind: "arc" }>,
+  profile: SchematicStyleProfile,
+): string {
+  const lineStyle = object.styleOverride?.lineStyle ?? object.lineStyle;
+  const dash =
+    lineStyle === "dashed"
+      ? ' stroke-dasharray="6 4"'
+      : lineStyle === "dotted"
+        ? ' stroke-dasharray="2 3"'
+        : "";
+  const strokeWidth =
+    profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
+  const stroke = object.styleOverride?.color ?? profile.foreground;
+  return `<path data-object-id="${object.id}" data-kind="draft-arc" d="${arcPathData(geometry.start, geometry.end, geometry)}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="${profile.lineCap}" stroke-linejoin="${profile.lineJoin}"${dash}/>`;
 }
 
 function renderDraftCircle(

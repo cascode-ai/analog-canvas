@@ -1,4 +1,5 @@
 import {
+  arcPointAt,
   isSchematicAnnotationVisible,
   resolveDocumentLogicalNets,
   resolveDocumentRoutingGeometry,
@@ -179,6 +180,20 @@ export function marqueeSelection(
             );
           }
           return circleBoundaryIntersectsRect(geometry.center, radius, rect);
+        }
+        if (geometry.kind === "arc") {
+          // An arc is its stroke: a window swallows all of it; a crossing
+          // touches some of it.
+          const steps = Math.max(
+            4,
+            Math.ceil(Math.abs(geometry.sweepAngle) / 5),
+          );
+          const samples = Array.from({ length: steps + 1 }, (_, index) =>
+            arcPointAt(geometry, index / steps),
+          );
+          return window
+            ? samples.every((point) => pointInRect(point, rect))
+            : samples.some((point) => pointInRect(point, rect));
         }
         return boxSelected(geometry.bounds);
       })

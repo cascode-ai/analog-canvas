@@ -64,11 +64,12 @@ export type EditorTool =
   | "arrow"
   | "polyline"
   | "rectangle"
-  | "circle";
+  | "circle"
+  | "arc";
 
 export type DrawingTool = Extract<
   EditorTool,
-  "construction-line" | "arrow" | "polyline" | "rectangle" | "circle"
+  "construction-line" | "arrow" | "polyline" | "rectangle" | "circle" | "arc"
 >;
 
 export function isDrawingTool(tool: EditorTool): tool is DrawingTool {
@@ -77,7 +78,8 @@ export function isDrawingTool(tool: EditorTool): tool is DrawingTool {
     tool === "polyline" ||
     tool === "construction-line" ||
     tool === "rectangle" ||
-    tool === "circle"
+    tool === "circle" ||
+    tool === "arc"
   );
 }
 
@@ -329,6 +331,7 @@ export function activateInteractionTool<TClipboard>(
     case "construction-line":
     case "rectangle":
     case "circle":
+    case "arc":
       return drawingState(tool);
   }
 }

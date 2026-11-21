@@ -324,6 +324,7 @@ export type DrawTool =
   | "line"
   | "rectangle"
   | "circle"
+  | "arc"
   | "document-style";
 
 /** Activate a toolbar command or an annotation tool from the Library. */
@@ -333,6 +334,7 @@ export async function clickDrawTool(page: Page, tool: DrawTool): Promise<void> {
     line: "annotation-line",
     rectangle: "annotation-rectangle",
     circle: "annotation-circle",
+    arc: "annotation-arc",
   };
   const symbolId = annotationTools[tool];
   if (!symbolId) {
