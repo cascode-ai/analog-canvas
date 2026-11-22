@@ -18,7 +18,7 @@ import type {
 import { planProjectCellImport } from "@icm/edit-engine";
 import { createBrowserFormalExportSource } from "@icm/exporters";
 import type { CircuitProject } from "@icm/model";
-import { createDesignNetlistExport } from "@icm/netlist";
+import { createDesignNetlistExport, type NetlistFormat } from "@icm/netlist";
 import { formatProjectFile, parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
@@ -33,7 +33,11 @@ import {
 import { loadGalleryFeed, type GalleryFeedEntry } from "../gallery-client";
 import { isRequestFailure, requestFailureOf } from "../request-failure";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
-import { projectInNetlistProcess } from "../features/netlist-export/netlist-process";
+import {
+  netlistModelInclude,
+  projectInNetlistProcess,
+} from "../features/netlist-export/netlist-process";
+import type { NetlistModelLibrary } from "../features/netlist-export/netlist-process-presets";
 import type { RnlReader } from "../features/netlist-export/rnl-read";
 import { importChunk } from "../components/chunk-import";
 import type { AgentGalleryPublishRequest } from "./agent-gallery-publish";
@@ -85,6 +89,11 @@ export interface BrowserAgentProjectHostOptions {
    * an `rnl` read reports RNL_UNAVAILABLE.
    */
   readRnl?: RnlReader;
+  /**
+   * The reader's GPDK045 model library, as the Netlist configuration names
+   * it; left out, its defaults. A Spectre read of a GPDK045 Project includes it.
+   */
+  netlistModels?: () => NetlistModelLibrary | undefined;
 }
 
 /** Browser authority for the signed-in Cloud Project shelf and live Project. */
@@ -878,12 +887,14 @@ export class BrowserAgentProjectHost {
       return this.stale(request, project.structureRevision);
     }
     const rootDocumentId = request.documentId ?? request.rootDocumentId;
+    const format = request.format ?? "spice";
     const baseline = createDesignNetlistExport(project, {
-      format: request.format ?? "spice",
+      format,
       namingProfile: request.namingProfile ?? "native",
       ...(request.portCase ? { portCase: request.portCase } : {}),
       includeLocations: true,
       ...(rootDocumentId ? { rootDocumentId } : {}),
+      modelInclude: this.modelInclude(project, format),
     });
     if (baseline.status !== "ready") {
       return this.error(
@@ -938,6 +949,10 @@ export class BrowserAgentProjectHost {
     };
   }
 
+  private modelInclude(project: CircuitProject, format: NetlistFormat) {
+    return netlistModelInclude(project, format, this.options.netlistModels?.());
+  }
+
   private readNetlist(
     project: CircuitProject,
     options: {
@@ -955,6 +970,7 @@ export class BrowserAgentProjectHost {
       ...(options.rootDocumentId
         ? { rootDocumentId: options.rootDocumentId }
         : {}),
+      modelInclude: this.modelInclude(project, format),
     });
     return {
       documentId: options.rootDocumentId ?? project.topDocumentId,

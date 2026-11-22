@@ -27,6 +27,7 @@ describe("live netlist controls", () => {
 
     expect(markup).toContain('aria-label="Netlist format"');
     expect(markup).toContain('aria-label="Netlist process"');
+    expect(markup).toContain('<option value="gpdk045">GPDK045</option>');
     expect(markup).toContain('value="spectre" selected=""');
     // The copy button sits beside the code it copies, as an icon.
     expect(markup).toContain('data-testid="copy-netlist-panel"');

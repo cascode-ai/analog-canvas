@@ -13,7 +13,10 @@ import {
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import type { NetlistProfileId } from "../features/netlist-export/netlist-process-presets";
-import { projectInNetlistProcess } from "../features/netlist-export/netlist-process";
+import {
+  netlistModelInclude,
+  projectInNetlistProcess,
+} from "../features/netlist-export/netlist-process";
 
 /**
  * What a drawn workspace hands out (#1498): its netlist, its figure, and how
@@ -37,10 +40,14 @@ export function workspaceNetlist(
   /** What the export warned about, as `CODE: message`. */
   warnings: string[];
 } {
-  const result = createDesignNetlistExport(
-    process ? projectInNetlistProcess(project, process) : project,
-    { format },
-  );
+  const exported = process
+    ? projectInNetlistProcess(project, process)
+    : project;
+  // A GPDK045 Spectre file names the kit's library where its reader keeps it.
+  const result = createDesignNetlistExport(exported, {
+    format,
+    modelInclude: netlistModelInclude(exported, format),
+  });
   const of = (severity: string) =>
     result.diagnostics.filter((diagnostic) => diagnostic.severity === severity);
   const messages = of("error").map((diagnostic) => diagnostic.message);

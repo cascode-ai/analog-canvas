@@ -33,6 +33,7 @@ import type { NativeExternalTarget } from "../../hosts/native-external-links";
 import { lazyChunk } from "../../components/chunk-load-fallback";
 import {
   inferNetlistProcess,
+  netlistModelInclude,
   preparedNetlistDefaults,
   netlistFamilyTarget,
   planNetlistProcess,
@@ -214,6 +215,7 @@ export function NetlistCodePanel({
     }
   }, [project, profile, configurationError]);
   const pendingDefaults = preparedDefaults?.instanceCount ?? 0;
+  const models = profiles.gpdk045?.models;
   const result = useMemo(
     () =>
       configurationError
@@ -224,6 +226,12 @@ export function NetlistCodePanel({
             includeLocations: true,
             includeNodeLocations: !rnl,
             ...(rootDocumentId ? { rootDocumentId } : {}),
+            // The RNL view shows the interchange file, which includes nothing.
+            ...(rnl
+              ? {}
+              : {
+                  modelInclude: netlistModelInclude(project, format, models),
+                }),
           }),
     [
       project,
@@ -233,6 +241,7 @@ export function NetlistCodePanel({
       rootDocumentId,
       compileRevision,
       rnl,
+      models,
     ],
   );
   // A drawing that does not extract yet still shows what it says: a draft,

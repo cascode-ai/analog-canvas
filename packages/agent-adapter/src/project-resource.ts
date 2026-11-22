@@ -25,6 +25,7 @@ export const NetlistProcessSchema = z.enum([
   "sky130",
   "sg13g2",
   "ics55",
+  "gpdk045",
 ]);
 const ProjectNameSchema = z.string().min(1).max(256);
 const GalleryEntryStatusSchema = z.enum(["public", "rejected", "recycled"]);

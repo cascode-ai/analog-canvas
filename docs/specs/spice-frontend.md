@@ -46,7 +46,7 @@ adapter.
   the sources, so its device type comes from the caller.
 - A device naming a model no card declares records `importProvenance.status`
   `missing`; a type from the caller or an exact
-  [ICS55 MOS binding](netlist-export.md#process-configuration) supplies its
+  [ICS55 or GPDK045 MOS binding](netlist-export.md#process-configuration) supplies its
   symbol. A source declaration takes precedence, followed by a caller-supplied type. With no
   type, a D card is the diode its letter says, and an M, Q or J card comes in
   as a Project component box of its family (pins in SPICE's order, the card's

@@ -12,6 +12,8 @@ import {
   netlistModeParts,
   type NetlistMode,
 } from "../netlist-export/netlist-mode";
+import { netlistModelInclude } from "../netlist-export/netlist-process";
+import type { NetlistModelLibrary } from "../netlist-export/netlist-process-presets";
 import { loadRnlRuntime } from "../netlist-export/rnl-runtime";
 import type { RnlImportSource } from "../netlist-export/rnl-source-update";
 import {
@@ -47,6 +49,8 @@ export interface EditorFileCommandDependencies {
   electricalWarningsPresent: () => boolean;
   netlistRootDocumentId?: string | undefined;
   netlistConfigurationError?: string | null;
+  /** The reader's GPDK045 model library, from the Netlist configuration. */
+  netlistModels?: NetlistModelLibrary | undefined;
   rnlImportSource?: RnlImportSource | undefined;
   onRnlSourceImported?: (source: RnlImportSource) => void;
   guardDirtyReplacement: (
@@ -77,6 +81,7 @@ export function createEditorFileCommands({
   electricalWarningsPresent,
   netlistRootDocumentId,
   netlistConfigurationError,
+  netlistModels,
   rnlImportSource,
   onRnlSourceImported,
   guardDirtyReplacement,
@@ -188,7 +193,10 @@ export function createEditorFileCommands({
             ...options,
             runtime: await loadRnlRuntime(),
           })
-        : planDesignNetlistExport(options);
+        : planDesignNetlistExport({
+            ...options,
+            modelInclude: netlistModelInclude(project, format, netlistModels),
+          });
     } catch (error) {
       setStatus(rnlFailure(error));
       return;

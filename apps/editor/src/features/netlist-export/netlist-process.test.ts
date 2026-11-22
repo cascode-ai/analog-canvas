@@ -32,6 +32,7 @@ import {
   createNetlistDefaultsCache,
   inferNetlistProcess,
   instanceModelTarget,
+  netlistModelInclude,
   placementModelTarget,
   placementProcessFill,
   projectInNetlistProcess,
@@ -39,6 +40,8 @@ import {
   processReviewedLibrary,
 } from "./netlist-process";
 import { initialInstanceNetlist } from "./netlist-authoring";
+import { importNetlistSources } from "./netlist-source-import";
+import { planNetlistCodeEdit } from "./netlist-code-edit";
 
 /** The devices still waiting for a model, as the Process count reads them. */
 const netlistProcessPendingInstances = (
@@ -100,6 +103,89 @@ it("reads an ICS55 inverter and retains its threshold variants, bulk nets and si
     family: "pmos",
   });
   expect(exported(switched)).toMatch(/^MP Y A VDD NW pm1p2_svt_lp .*mr=2/imu);
+});
+
+describe("GPDK045", () => {
+  // Shaped like the Gallery's GPDK045 SerDes cells, read from Virtuoso.
+  const source = [
+    "simulator lang=spectre",
+    "subckt cml_buf (vdd vss inp inn outp outn bias)",
+    "NM0 (outp inn tail vss) nmos1v_lvt l=50n m=4 nf=1 w=2u",
+    "NM1 (outn inp tail vss) nmos1v_lvt l=50n m=4 nf=1 w=2u",
+    "NM2 (tail bias vss vss) nmos2v l=200n m=2 nf=2 w=1u",
+    "PM0 (outp outn vdd vdd) pmos1v l=45n m=1 nf=1 w=500n",
+    "PM1 (outn outp vdd vdd) pmos1v_hvt l=45n m=1 nf=1 w=500n",
+    "ends cml_buf",
+  ].join("\n");
+  const read = async () => {
+    const imported = await importNetlistSources(
+      [{ path: "cml.scs", bytes: new TextEncoder().encode(source) }],
+      "cml.scs",
+    );
+    if (imported.status !== "imported")
+      throw new Error(JSON.stringify(imported.diagnostics));
+    return imported.project;
+  };
+
+  it("opens a Project of GPDK045 names in GPDK045 and writes its kit's include in Spectre only", async () => {
+    const project = await read();
+    expect(inferNetlistProcess(project, "sky130")).toBe("gpdk045");
+    const kept = projectInNetlistProcess(project, "gpdk045");
+    const spectre = createDesignNetlistExport(kept, {
+      format: "spectre",
+      includeLocations: true,
+      modelInclude: netlistModelInclude(kept, "spectre"),
+    });
+    if (spectre.status !== "ready") throw new Error("Export blocked");
+    expect(spectre.file.text).toMatch(
+      /^simulator lang=spectre\ninclude "<models>\/gpdk045\.scs" section=tt\n\nsubckt /u,
+    );
+    // The whole Process keeps each device's threshold and oxide.
+    expect(spectre.file.text).toMatch(
+      /^MNM0 \(outp inn tail vss\) nmos1v_lvt l=50n m=4 nf=1 w=2u$/mu,
+    );
+    expect(spectre.file.text).toMatch(
+      /^MNM2 .* nmos2v l=200n m=2 nf=2 w=1u$/mu,
+    );
+    expect(spectre.file.text).toMatch(/^MPM1 .* pmos1v_hvt /mu);
+    // A value edited in the code still finds its field below the include.
+    const edited = planNetlistCodeEdit(
+      kept,
+      spectre,
+      spectre.file.text.replace("nmos2v l=200n", "nmos2v l=300n"),
+    );
+    expect(edited.ok, JSON.stringify(edited)).toBe(true);
+    expect(
+      netlistModelInclude(kept, "spectre", {
+        directory: "/pdk/models/spectre/",
+        corner: "ss",
+      }),
+    ).toEqual({ path: "/pdk/models/spectre/gpdk045.scs", section: "ss" });
+    expect(netlistModelInclude(kept, "spice")).toBeUndefined();
+    expect(exported(kept)).not.toMatch(/include|\.lib/iu);
+    // Another Process's Project includes nothing.
+    const sky130 = projectInNetlistProcess(project, "sky130");
+    expect(inferNetlistProcess(sky130, "gpdk045")).toBe("sky130");
+    expect(netlistModelInclude(sky130, "spectre")).toBeUndefined();
+  });
+
+  it("chooses a family's device with the kit CDF's geometry", async () => {
+    const profile = createNetlistExportProfile("gpdk045");
+    expect(profile.devices.nmos).toMatchObject({
+      target: "nmos1v",
+      parameters: { l: "45n", w: "120n", m: "1", nf: "1" },
+    });
+    expect(profile.devices.pmos.target).toBe("pmos1v");
+    expect(profile.models).toEqual({ directory: "<models>", corner: "tt" });
+    const thick = setNetlistDefaultTarget(profile, "pmos", "pmos2v");
+    expect(thick.devices.pmos.parameters).toMatchObject({
+      l: "150n",
+      w: "400n",
+    });
+    const switched = apply(await read(), thick, { family: "pmos" });
+    expect(exported(switched)).toMatch(/^MPM1 .* pmos2v /mu);
+    expect(exported(switched)).toMatch(/^MNM2 .* nmos2v /mu);
+  });
 });
 
 describe("what the process still owes a circuit", () => {

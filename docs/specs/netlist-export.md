@@ -261,14 +261,14 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 
 ### Generic models
 
-- Diodes in a Process without its own (Abstract, SKY130, IHP SG13G2, ICS55, Custom)
+- Diodes in a Process without its own (Abstract, SKY130, IHP SG13G2, ICS55, GPDK045, Custom)
   bind to `DIODE`; Zeners never do: one is placed with `bv` 5.1, which builds
   its own SPICE model, and one with neither `bv` nor a model reports
   `MISSING_MODEL_TARGET`. Each Cell
   naming `DIODE` carries `.model DIODE D(IS=1e-14 N=1)` (information
   `GENERIC_DIODE_MODEL`). Schottky diodes in every Process bind to `DSCH`,
   `.model DSCH D(IS=1e-8 N=1.05 RS=1)` (information `GENERIC_SCHOTTKY_MODEL`).
-- BJTs in Abstract, ICS55 or Custom bind to `NPN`/`PNP` with cards
+- BJTs in Abstract, ICS55, GPDK045 or Custom bind to `NPN`/`PNP` with cards
   `.model NPN NPN(IS=1e-16 BF=100 VAF=100)` and
   `.model PNP PNP(IS=1e-16 BF=50 VAF=50)` (information `GENERIC_BJT_MODEL`).
 - JFETs (`J<ref> d g s`) in every Process bind to `NJF`/`PJF` with cards
@@ -385,7 +385,8 @@ Printers are pure functions of a validated IR.
   stimuli or `.end`.
 - Spectre: version comment, `simulator lang=spectre`, sorted `global`,
   dependency-first `subckt`/`ends`, parenthesized nodes, Cell-local `parameters`;
-  never includes, sections, options, analyses, stimuli or saves. An independent
+  never includes, sections, options, analyses, stimuli or saves, except the
+  one [GPDK045 library include](#process-configuration). An independent
   source the SPICE import kept as written, its AC and PULSE, SIN or PWL in its
   dc text (`0.9 AC 1 0 PULSE(…)`), prints in Spectre's terms
   (`type=pulse val0=… dc=0.9 mag=1 phase=0`), read as the VACASK projection
@@ -423,7 +424,8 @@ parameters or renumbers first.
 #### Process configuration
 
 - Netlist configuration stores `format`, the process and device templates for
-  Abstract, SKY130 (starting process), IHP SG13G2, ICsprout55 (ICS55) and Custom.
+  Abstract, SKY130 (starting process), IHP SG13G2, ICsprout55 (ICS55), GPDK045
+  and Custom.
   Process selection is one undoable transaction writing ordinary bindings;
   Simulation Profiles never rewrite them. Opening the panel never edits the
   Project or refills deliberately missing parameters.
@@ -438,6 +440,17 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   only, which has no netlist form without it and which placement or a
   Process fill under SG13G2 binds; metres throughout.
 - ICS55 uses the four-terminal MOS names in the [v2 9T standard-cell CDL](https://github.com/openecos-projects/icsprout55-pdk/tree/10054695f86cf26a96ea8aba69f7ec414afde593/IP/STD_cell). New targets default to SVT. Existing ICS55 threshold variants retain their names when the whole process is applied. These structural bindings supply device identity and terminal order only.
+- GPDK045 (Cadence's licensed 45 nm kit) binds four-terminal MOS models
+  `nmos1v`, `nmos1v_lvt`, `nmos1v_hvt`, `nmos2v` and the matching `pmos*`
+  (`d g s b`; `w l nf m`); R/C/L stay ideal. New targets default to `nmos1v`/`pmos1v`
+  with the kit CDF's `l=45n w=120n`; a 2 V target starts at `l=150n w=400n`.
+  A Project whose MOS all bind these names opens in GPDK045; applying the whole
+  Process keeps each device's variant. Its Spectre file, never SPICE or RNL,
+  carries `include "<directory>/gpdk045.scs" section=<corner>` after
+  `simulator lang=spectre`; `profiles.gpdk045.models` stores `directory`
+  (default `<models>`) and `corner` (`tt`, `ff`, `ss`, `fs`, `sf`; default `tt`).
+  The Agent and command line use those defaults; the browser's Agent reads use
+  the reader's. Canvas ships no GPDK045 model file and runs no GPDK045 simulation.
 - SG13G2 R/C presets use `rppd`/`cap_cmim`. The Netlist shortcuts include NPN
   and PNP; R/C retain an explicit Ideal choice. Old blank SG13 R/C browser
   presets move to these defaults once; subsequent explicit Ideal choices stay.

@@ -31826,7 +31826,8 @@
                   "abstract",
                   "sky130",
                   "sg13g2",
-                  "ics55"
+                  "ics55",
+                  "gpdk045"
                 ]
               },
               "rnl": {

@@ -1219,6 +1219,8 @@ function WorkspaceEditor({
       !import.meta.env?.ICM_DESKTOP && agentRuntime && browserAgentHost
         ? new agentRuntime.BrowserAgentProjectHost({
             projectTransactionOptions: EDITOR_PROJECT_TRANSACTION_OPTIONS,
+            netlistModels: () =>
+              netlistPreferencesRef.current?.profiles.gpdk045.models,
             isProjectAvailable: () =>
               agentProjectTabsRef
                 .current()
@@ -5231,6 +5233,7 @@ function WorkspaceEditor({
     electricalWarningsPresent: () => requestElectricalDiagnostics().length > 0,
     netlistRootDocumentId,
     netlistConfigurationError: netlistPreferences.error,
+    netlistModels: netlistPreferences.preferences.profiles.gpdk045.models,
     rnlImportSource,
     onRnlSourceImported: (source) => {
       if (editorDocumentController.project.id !== source.project.id) return;

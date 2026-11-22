@@ -639,13 +639,15 @@ describe("BrowserAgentProjectHost", () => {
       },
     });
     const read = async (
-      process?: "abstract" | "sky130" | "sg13g2" | "ics55",
+      process?: "abstract" | "sky130" | "sg13g2" | "ics55" | "gpdk045",
+      format?: "spectre",
     ) => {
       const reply = await host.handle({
         apiVersion: AGENT_API_VERSION,
-        requestId: `netlist-${process ?? "own"}`,
+        requestId: `netlist-${process ?? "own"}-${format ?? "spice"}`,
         operation: "read-netlist",
         ...(process ? { process } : {}),
+        ...(format ? { format } : {}),
       });
       if (!reply.ok || reply.operation !== "read-netlist")
         throw new Error(JSON.stringify(reply));
@@ -654,6 +656,12 @@ describe("BrowserAgentProjectHost", () => {
     expect(await read()).toMatch(/^XM1 .*sky130_fd_pr__nfet_01v8 l=0.15 w=1/mu);
     expect(await read("sg13g2")).toMatch(/^XM1 .*sg13_lv_nmos w=1u l=150n/mu);
     expect(await read("ics55")).toMatch(/^M1 .* nm1p2_svt_lp l=150n .*w=1u/mu);
+    expect(await read("gpdk045")).toMatch(/^M1 .* nmos1v l=150n .*w=1u/mu);
+    expect(await read("gpdk045")).not.toMatch(/include/u);
+    expect(await read("gpdk045", "spectre")).toMatch(
+      /^simulator lang=spectre\ninclude "<models>\/gpdk045\.scs" section=tt$/mu,
+    );
+    expect(await read("sg13g2", "spectre")).not.toMatch(/include/u);
     expect(await read("abstract")).toMatch(/^M1 .* NMOS l=150n .*w=1u/mu);
     expect(await read()).toBe(await read("sky130"));
   });

@@ -6,6 +6,7 @@ import {
 } from "@icm/model";
 import {
   deviceDescriptor,
+  GPDK045_MOS_MODELS,
   ICS55_MOS_MODELS,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingForTerminalCount,
@@ -1778,8 +1779,11 @@ function importCircuitIR(
 ): { project: CircuitProject; diagnostics: SpiceDiagnostic[] } {
   const diagnostics = [...inputDiagnostics];
   const modelTypeByName = new Map([
-    ...Object.entries(ICS55_MOS_MODELS).flatMap(([type, names]) =>
-      names.map((name) => [name, type] as const),
+    ...[ICS55_MOS_MODELS, GPDK045_MOS_MODELS].flatMap((models) =>
+      Object.entries(models).flatMap(
+        ([type, names]: [string, readonly string[]]) =>
+          names.map((name) => [name, type] as const),
+      ),
     ),
     ...[...(options.modelTypes ?? [])].map(
       ([name, type]) => [name.toLowerCase(), type.toLowerCase()] as const,
