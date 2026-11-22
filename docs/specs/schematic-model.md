@@ -132,7 +132,10 @@ annotations and unlocked layout references.
 - Each member keeps its own reference, parameters and terminal connectivity.
   The SPICE and Spectre writers emit each member through the normal Instance path.
 - A native array starts with a selected circuit Instance and adds the other
-  ordered members as independent Instances. Its range accepts 2–256 members.
+  ordered members as independent Instances. An authored Reference such as
+  `RLOAD<6:0>` and the Properties range fields create the same ordered group
+  (`RLOAD6` through `RLOAD0`). Ascending and descending ranges accept 2–256
+  members. Display aliases and loaded reference strings remain literal.
   A common scalar terminal can share one existing Net or pair with an ordered
   signal of equal width. Reverse changes the pairing order. Creation, layout
   and connection each use one undoable transaction.

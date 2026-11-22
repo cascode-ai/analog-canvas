@@ -68,9 +68,7 @@ const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
  * high-level `wireIntent` transaction form, not a SchematicEdit member.
  */
 export const AGENT_EDIT_KINDS = Object.freeze([
-  ...AgentSchematicEditSchema.options
-    .map((option) => option.shape.kind.value)
-    .filter((kind) => agentEditCategory(kind) !== "unsupported"),
+  ...AgentSchematicEditSchema.options.map((option) => option.shape.kind.value),
   "wire",
 ]);
 
@@ -164,12 +162,10 @@ function collectResolvedRoutes(
   return result;
 }
 
-export function agentEditCategory(
+function agentEditCategory(
   kind: SchematicEdit["kind"],
-): "geometry" | "connectivity" | "presentation" | "unsupported" {
+): "geometry" | "connectivity" | "presentation" {
   switch (kind) {
-    case "set_instance_group":
-      return "unsupported";
     case "noop":
     case "add_instance":
     case "remove_instance":
@@ -239,6 +235,8 @@ export function agentEditCategory(
     case "set_presentation_style":
     case "set_document_grid":
     case "set_cell_symbol_presentation":
+    // Native array authoring plans this edit. The request schema owns direct edit exposure.
+    case "set_instance_group":
     case "set_layout_group":
     case "remove_layout_group":
     case "set_layout_constraint":
@@ -249,9 +247,8 @@ export function agentEditCategory(
 
 export function agentEditPermissions(
   edit: SchematicEdit,
-): readonly (keyof AgentPermissions["edit"])[] | null {
+): readonly (keyof AgentPermissions["edit"])[] {
   const category = agentEditCategory(edit.kind);
-  if (category === "unsupported") return null;
   return edit.kind === "add_instance" && edit.instance.bodyFill
     ? [category, "presentation"]
     : [category];
@@ -262,11 +259,6 @@ function checkEditPermissions(
   permissions: AgentPermissions["edit"],
 ) {
   const required = agentEditPermissions(edit);
-  if (!required)
-    return {
-      code: "UNSUPPORTED_EDIT",
-      message: `Edit ${edit.kind} is not exposed by Agent Circuit API ${AGENT_API_VERSION}`,
-    };
   const denied = required.find((permission) => !permissions[permission]);
   return denied
     ? {

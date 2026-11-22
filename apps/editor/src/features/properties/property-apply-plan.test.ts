@@ -12,6 +12,49 @@ import { planPropertyApply } from "./property-apply-plan";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("planPropertyApply", () => {
+  it("copies the parameter edited in the same Properties Apply into every new member", () => {
+    const project = createEmptyProject("arrays", "Arrays");
+    const document = project.documents[0]!;
+    const instance: Instance = {
+      id: "seed",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: {
+        binding: { kind: "primitive", deviceClass: "resistor" },
+        parameters: { value: "1k" },
+      },
+    };
+    document.instances.push(instance);
+    const plan = planPropertyApply(
+      { project, document, instance, resolver },
+      {
+        netlistName: "RLOAD<6:0>",
+        parameters: { value: "2k" },
+        placement: null,
+        appearance: { color: "auto" },
+      },
+    );
+    if (plan.kind !== "edits") throw new Error(JSON.stringify(plan));
+    const result = executeTransaction(
+      document,
+      {
+        documentId: document.id,
+        transactionId: "array",
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: plan.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    if (!result.ok) throw new Error(JSON.stringify(result.diagnostics));
+    expect(result.document.instances).toHaveLength(7);
+    expect(
+      result.document.instances.every(
+        (part) => part.netlist?.parameters.value === "2k",
+      ),
+    ).toBe(true);
+  });
   it("refuses to show a component value until the value is valid, then shows it", () => {
     const project = createEmptyProject("value-display", "Value display");
     const document = project.documents[0]!;

@@ -12,7 +12,12 @@ import {
   type LabelRole,
   type RoleLabelFormatOptions,
 } from "@icm/model";
-import type { SchematicEdit } from "@icm/edit-engine";
+import {
+  instanceArrayRange,
+  instanceArrayReferences,
+  planCreateInstanceArray,
+  type SchematicEdit,
+} from "@icm/edit-engine";
 import {
   flattenRichText,
   normalizeRichText,
@@ -710,6 +715,36 @@ function proposeInstanceValueCommit(
   };
 }
 
+/** One live declaration for both the inline preview and its commit. */
+export function planTextReferenceArray(
+  document: SchematicDocument,
+  session: TextEditingSession,
+) {
+  if (
+    !session.visualInstanceId ||
+    session.displayAlias ||
+    !session.contentEdited ||
+    !isNamePresentation(session.content.runs)
+  )
+    return undefined;
+  const reference = document.instances.find(
+    (part) => part.id === session.visualInstanceId,
+  )?.reference;
+  const label = document.annotations.find((item) => item.id === session.id);
+  if (!label || !reference) return undefined;
+  const name = editedBoundAnnotationName(document, label, session, reference);
+  try {
+    const range = name !== reference ? instanceArrayRange(name) : undefined;
+    if (!range) return undefined;
+    return {
+      edits: planCreateInstanceArray(document, session.visualInstanceId, range),
+      members: instanceArrayReferences(range),
+    };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 // Persist the exact rich-text AST and suppress revisions when both that AST
 // and its presentation scale are unchanged.
 export function proposeTextEditingCommit(
@@ -843,6 +878,33 @@ export function proposeTextEditingCommit(
         session,
         reference,
       );
+      const array = planTextReferenceArray(document, session);
+      if (array) {
+        if ("error" in array) return { kind: "blocked", message: array.error };
+        const edits = array.edits;
+        // A bound seed label follows the scalar rename, including its existing typography.
+        if (annotation.binding?.kind === "instance-reference")
+          return {
+            kind: "update",
+            id: annotation.id,
+            beforeEdits: edits.slice(0, -1),
+            edit: edits.at(-1)!,
+          };
+        return {
+          kind: "update",
+          id: annotation.id,
+          beforeEdits: edits,
+          edit: {
+            kind: "upsert_schematic_annotation",
+            annotation: {
+              ...rest,
+              sizeScale: session.sizeScale,
+              alignment: session.alignment,
+              binding: { kind: "instance-reference", instanceId },
+            },
+          },
+        };
+      }
       // Text that cannot be this part's netlist name — a Greek letter, a
       // space, another part's name, the wrong device letter — is shown as a
       // display alias: the label keeps what was typed and the netlist keeps

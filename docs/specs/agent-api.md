@@ -82,6 +82,7 @@ appear only when present. Local and production codecs share one schema.
 - `set_body_fill` and `reorder_drawing_objects` require
   `circuit.edit.presentation`. `add_instance` with `bodyFill` also requires
   that grant alongside `circuit.edit.geometry`.
+- `set-reference` on a device accepts the [Instance array range](schematic-model.md#instance-groups). Its planned edits require geometry and presentation grants. Direct group membership edits remain private to the editor.
 - `transact.command` (exclusive form): Model switching, Cell lifecycle, copy,
   alignment, selection transforms via the GUI planners; structural commands
   require `expectedStructureRevision`.

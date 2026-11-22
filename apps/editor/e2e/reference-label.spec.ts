@@ -105,3 +105,22 @@ test("canvas edits one visual annotation without changing the Netlist Reference,
 // visual-instance-annotation's, component-property-code's, transaction's
 // ("refuses a netlist reference that does not match the device's prefix")
 // and property-apply-plan's ("hides and shows a component's name label…").
+
+test("previews and creates a resistor array from the on-canvas reference in one undo", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await placeResistors(page, [360], 240);
+  await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
+  await editor.fill("RLOAD<6:0>");
+  await expect(page.getByTestId("canvas-text-editor")).toContainText(
+    "7 members",
+  );
+  await editor.press("Enter");
+  await expect(visual(page)).toHaveText("RLOAD6");
+  const cell = (await exportedProject(page)).documents[0];
+  expect(cell.instanceGroups[0].memberIds).toHaveLength(7);
+  await page.getByTestId("draw-tool-undo").click();
+  await expect(visual(page)).toHaveText("R1");
+});

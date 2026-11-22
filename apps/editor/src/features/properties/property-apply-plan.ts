@@ -1,5 +1,8 @@
 import {
   gateRoutingOperationPlan,
+  executeProjectTransaction,
+  instanceArrayRange,
+  planCreateInstanceArray,
   instanceValueAnnotation,
   planPinChangeRouteClearance,
   planRenameCellTerminal,
@@ -84,6 +87,83 @@ export type PropertyApplyPlan =
  * same. Throws when the value contradicts itself (the planner's own errors).
  */
 export function planPropertyApply(
+  context: PropertyApplyContext,
+  input: ComponentPropertyCodeValue,
+): PropertyApplyPlan {
+  const { document, instance } = context;
+  const boundName =
+    input.displayName !== undefined &&
+    instanceLabelAnnotationFor(document, instance.id)?.binding?.kind ===
+      "instance-reference"
+      ? input.displayName
+      : undefined;
+  const name = [input.netlistName, boundName].find(
+    (value) =>
+      value !== undefined &&
+      value !== instance.reference &&
+      instanceArrayRange(value),
+  );
+  const range = name && instanceArrayRange(name);
+  if (!range || !instance.reference)
+    return planScalarProperties(context, input);
+  if (
+    [boundName, input.netlistName].some(
+      (value) =>
+        value !== undefined && value !== instance.reference && value !== name,
+    )
+  )
+    return {
+      kind: "rejected",
+      message:
+        "name and netlistName must agree while the label follows its netlist name",
+    };
+
+  const seedPlan = planScalarProperties(context, {
+    ...input,
+    ...(input.netlistName === name ? { netlistName: instance.reference } : {}),
+    ...(boundName === name ? { displayName: instance.reference } : {}),
+  });
+  if (seedPlan.kind === "rejected") return seedPlan;
+  if (seedPlan.kind === "unchanged")
+    return {
+      kind: "edits",
+      edits: planCreateInstanceArray(document, instance.id, range),
+    };
+
+  // Clone the seed as it will be after this same Apply (including model and parameter edits).
+  const documentEdit = {
+    kind: "transact_document" as const,
+    documentId: document.id,
+    expectedRevision: document.revision,
+    edits: seedPlan.kind === "structure" ? [] : seedPlan.edits,
+  };
+  const structureEdits =
+    seedPlan.kind === "structure" ? seedPlan.structureEdits : [documentEdit];
+  const result = executeProjectTransaction(context.project, {
+    projectId: context.project.id,
+    expectedStructureRevision: context.project.structureRevision,
+    transactionId: "preview-array-seed",
+    actor: { kind: "human", id: "planner" },
+    edits: structureEdits,
+  });
+  if (!result.ok) return { kind: "rejected", message: result.error.message };
+  const candidate = result.project.documents.find(
+    (cell) => cell.id === document.id,
+  )!;
+  const members = planCreateInstanceArray(candidate, instance.id, range);
+  if (seedPlan.kind === "structure") {
+    const owner = structureEdits.findLast(
+      (edit) =>
+        edit.kind === "transact_document" && edit.documentId === document.id,
+    );
+    if (owner?.kind === "transact_document") owner.edits.push(...members);
+    else structureEdits.push({ ...documentEdit, edits: members });
+    return seedPlan;
+  }
+  return { ...seedPlan, edits: [...seedPlan.edits, ...members] };
+}
+
+function planScalarProperties(
   context: PropertyApplyContext,
   input: ComponentPropertyCodeValue,
 ): PropertyApplyPlan {

@@ -10,9 +10,10 @@ import { PropertyDisclosure } from "../properties/property-disclosure";
 import {
   commonArrayPins,
   instanceGroupNetNames,
+  instanceArrayReferences,
   planCreateInstanceArray,
   planInstanceArrayConnection,
-} from "./instance-group-edits";
+} from "@icm/edit-engine";
 
 export interface InstanceGroupPropertiesProps {
   document: SchematicDocument;
@@ -138,19 +139,19 @@ export function InstanceArrayCreation({
   const [first, setFirst] = useState(match?.[2] ?? "0");
   const [last, setLast] = useState(match?.[2] === "0" || !match ? "3" : "0");
   const [error, setError] = useState<string | null>(null);
+  const range = { prefix, first: Number(first), last: Number(last) };
+  const preview = (() => {
+    if (!first.trim() || !last.trim()) return undefined;
+    try {
+      return instanceArrayReferences(range);
+    } catch {
+      return undefined;
+    }
+  })();
   const create = () => {
     try {
       if (!first.trim() || !last.trim()) throw new Error("Enter both indices");
-      const edits = planCreateInstanceArray(
-        document,
-        seed.id,
-        {
-          prefix,
-          first: Number(first),
-          last: Number(last),
-        },
-        `instance-group-${crypto.randomUUID()}`,
-      );
+      const edits = planCreateInstanceArray(document, seed.id, range);
       if (onEdit(edits)) setError(null);
       else
         setError(
@@ -191,8 +192,9 @@ export function InstanceArrayCreation({
         />
       </label>
       <p>
-        {seed.reference ?? seed.id} will be the first member, {prefix.trim()}
-        {first}.
+        {preview
+          ? `${preview.length} members · ${preview[0]} → ${preview.at(-1)}`
+          : "Enter a reference prefix and both indices."}
       </p>
       <button type="button" onClick={create}>
         Create array

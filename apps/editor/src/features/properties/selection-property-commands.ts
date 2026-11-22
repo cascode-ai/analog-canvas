@@ -1,5 +1,7 @@
 import {
   planSetDeviceModelTarget,
+  instanceArrayRange,
+  planCreateInstanceArray,
   type ProjectStructureEdit,
   type SchematicEdit,
 } from "@icm/edit-engine";
@@ -164,17 +166,27 @@ export function createSelectionPropertyCommands({
       return false;
     }
     if (reference === selectedInstance.reference) return true;
-    if (
-      transact([
-        {
-          kind: "set_instance_reference",
-          instanceId: selectedInstance.id,
-          reference,
-        },
-      ]).ok
-    ) {
-      setStatus(`Set Reference to ${reference}`);
-      return true;
+    try {
+      const range = instanceArrayRange(reference);
+      const edits: SchematicEdit[] = range
+        ? planCreateInstanceArray(document, selectedInstance.id, range)
+        : [
+            {
+              kind: "set_instance_reference",
+              instanceId: selectedInstance.id,
+              reference,
+            },
+          ];
+      if (transact(edits).ok) {
+        setStatus(
+          range
+            ? `Created instance array ${reference}`
+            : `Set Reference to ${reference}`,
+        );
+        return true;
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
     }
     return false;
   };
