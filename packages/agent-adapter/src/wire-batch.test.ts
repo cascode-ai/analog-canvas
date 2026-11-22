@@ -344,9 +344,18 @@ it("does not leave a new trunk behind when its tap misses", () => {
       to: { kind: "free", point: { x: 40, y: 0 } },
     },
   ]);
+  // The refusal names the wire, by number and ends, and says its index.
   expect(result).toMatchObject({
     ok: false,
-    error: { message: expect.stringContaining("Wire 2: No wire") },
+    error: {
+      message: expect.stringContaining("Wire 2 ((40, 60) → (40, 0)): No wire"),
+    },
+    diagnostics: [
+      expect.objectContaining({
+        path: ["wireIntent", 1],
+        parameters: { wireIndex: 1 },
+      }),
+    ],
   });
   expect(f.document).toEqual(before);
   expect(f.commits).toBe(0);

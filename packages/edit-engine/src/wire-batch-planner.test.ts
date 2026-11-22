@@ -151,7 +151,9 @@ describe("wire batch replay", () => {
         wire("lost", free(250, 300), at(250, 200)),
         wire("b", free(0, 400), free(400, 400)),
       ]),
-    ).toBe("Wire 1: No wire at (250, 200) for this target");
+    ).toBe(
+      "Wire 1 ((250, 300) → (250, 200)): No wire at (250, 200) for this target",
+    );
   });
   it("refuses a 45° via step unless a routing mode is named (#1437)", () => {
     const h = history();
@@ -245,7 +247,9 @@ describe("wire batch replay", () => {
       wire("a", free(0, 0), free(100, 0)),
       wire("bad", at(300, 0), free(300, 100)),
     ];
-    expect(planWireBatch(d, resolver, intents)).toMatch(/Wire 2:/);
+    expect(planWireBatch(d, resolver, intents)).toMatch(
+      /^Wire 2 \(\(300, 0\) → \(300, 100\)\): /u,
+    );
     expect(d).toEqual(before);
   });
 });
@@ -1129,7 +1133,7 @@ describe("an Agent connect to an open point on another part's pin", () => {
       { keepClear: true },
     );
     expect(plan).toBe(
-      'Wire 1: (0, 90) is pin 0 of the ground G1, on Net 0: to join it, connect to the pin itself, {kind:"pin",instance:{kind:"instance",id:"G1"},pin:"0"}',
+      'Wire 1 (R1.2 → (0, 90)): (0, 90) is pin 0 of the ground G1, on Net 0: to join it, connect to the pin itself, {kind:"pin",instance:{kind:"instance",id:"G1"},pin:"0"}',
     );
   });
 });

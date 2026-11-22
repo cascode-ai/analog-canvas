@@ -7,6 +7,7 @@ import {
   routeEnd,
 } from "@icm/model";
 import {
+  createLabelClearanceContext,
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
   resolveRouteGeometry,
@@ -18,6 +19,7 @@ import { FakeAgentHttp } from "../../../../packages/agent-client/src/test-suppor
 import { callTool, type ToolSessionState } from "../../../mcp-server/src/tools";
 import { EditorDocumentController } from "../document/document-controller";
 import { BrowserAgentHost } from "./browser-agent-host";
+import { netlistChange } from "./draft-steps";
 import {
   planBrowserAgentCommand,
   type BrowserAgentPlanningContext,
@@ -3805,9 +3807,11 @@ describe("connect to wire-at", () => {
   it("still refuses a tap no wire of the call reaches, naming its connect", async () => {
     const { client, controller, wire, tap } = await withResistor();
     const before = structuredClone(controller.document);
-    const result = await client.applyActions([tap({ x: 200, y: 500 }), wire]);
+    const result = await client.applyActions([wire, tap({ x: 200, y: 500 })]);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain("Wire 1: No wire at (200, 500)");
+    expect(result.message).toMatch(
+      /^actions\[1\] \(connect\): Wire 2 \(R1\.2 → \(200, 500\)\): No wire at \(200, 500\)/u,
+    );
     expect(controller.document).toEqual(before);
   });
 
@@ -4099,6 +4103,42 @@ describe("route-net avoid", () => {
     expect(Math.max(...path!.map(([, y]) => y!))).toBe(0);
     expect(nets()).toContain("R1.2 R2.1");
     expect(nets().filter((net) => net.includes("C"))).toEqual([]);
+  });
+
+  it("taps a trunk once, square, past a part between a pin and it", async () => {
+    // C1 stands between R1.2 (20, 0) and the trunk at y = 100.
+    const { route, nets, controller } = await inLine([
+      {
+        kind: "place-component",
+        symbol: "capacitor",
+        reference: "C1",
+        position: { x: 20, y: 50 },
+      },
+    ]);
+    const result = await route({
+      avoid: true,
+      trunk: { start: { x: 0, y: 100 }, end: { x: 400, y: 100 } },
+    });
+    expect(result.ok, result.message).toBe(true);
+    expect(nets()).toEqual(["R1.2 R2.1"]);
+    const paths = drawnPaths(controller.document);
+    const onTrunk = ([x, y]: number[]) => y === 100 && x! >= 0 && x! <= 400;
+    const branches = paths.filter((path) => !path.every(onTrunk));
+    expect(branches).toHaveLength(2);
+    for (const path of branches) {
+      // Only its last point is on the trunk, reached by a vertical stretch.
+      const toTrunk = onTrunk(path.at(-1)!) ? path : [...path].reverse();
+      expect(toTrunk.slice(0, -1).some(onTrunk), JSON.stringify(path)).toBe(
+        false,
+      );
+      expect(toTrunk.at(-2)![0], JSON.stringify(path)).toBe(toTrunk.at(-1)![0]);
+    }
+    // One dot per branch on the trunk, none where nothing branches.
+    expect(
+      controller.document.junctions.filter(
+        ({ position: { x, y } }) => y === 100 && x > 0 && x < 400,
+      ),
+    ).toHaveLength(2);
   });
 
   it("refuses naming the pins when nothing goes round", async () => {
@@ -4394,6 +4434,199 @@ describe("relocate", () => {
     expect(same.ok, same.message).toBe(true);
     expect(controller.document.revision).toBe(revision);
   });
+
+  it("mirrors a stub with its part", async () => {
+    const { client, controller } = await pair();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RX",
+        position: { x: 600, y: 0 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    // Up out of pin 1 and off to the right: a lateral part a mirror flips.
+    const stub = await client.applyActions([
+      {
+        kind: "connect",
+        from: pin("RX", "1"),
+        to: { kind: "point", x: 640, y: -60 },
+      },
+    ]);
+    expect(stub.ok, stub.message).toBe(true);
+    const before = structuredClone(controller.document);
+    const [junction] = before.junctions.filter((item) =>
+      before.routes.some(
+        (route) =>
+          [route.start, routeEnd(route)].some(
+            (end) => end.kind === "junction" && end.junctionId === item.id,
+          ) &&
+          [route.start, routeEnd(route)].some(
+            (end) =>
+              end.kind === "terminal" &&
+              before.instances.find((part) => part.id === end.instanceId)
+                ?.reference === "RX",
+          ),
+      ),
+    );
+    expect(junction?.position).toEqual({ x: 640, y: -60 });
+    const relocated = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [
+          { instance: "RX", position: { x: 800, y: 0 }, mirror: "horizontal" },
+        ],
+      },
+    ]);
+    expect(relocated.ok, relocated.message).toBe(true);
+    expect(
+      controller.document.junctions.find((item) => item.id === junction!.id)
+        ?.position,
+    ).toEqual({ x: 760, y: -60 });
+    expect(nets(controller.document)).toEqual(nets(before));
+  });
+
+  it("says when a moved pin lands on another Net's wire, and joins nothing", async () => {
+    const { client, controller } = await pair();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RN",
+        position: { x: 600, y: 0 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const before = structuredClone(controller.document);
+    const outb = before.routes.find(
+      (route) =>
+        resolveDocumentLogicalNets(before).byBaseNetId.get(route.netId)
+          ?.name === "OUTB",
+    )!;
+    // Turned across the OUTB wire at x = 200: pin 2 at (200, 100).
+    const relocated = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [{ instance: "RN", position: { x: 220, y: 100 }, rotation: 90 }],
+      },
+    ]);
+    expect(relocated.ok, relocated.message).toBe(true);
+    const rn = controller.document.instances.find(
+      (item) => item.reference === "RN",
+    )!.id;
+    expect(relocated.diagnosticDelta?.added).toContainEqual(
+      expect.objectContaining({
+        code: "LANDED_ON_OTHER_NET",
+        message: expect.stringContaining(
+          `RN now touches another Net at pin 2 (Route ${outb.id} of Net OUTB)`,
+        ),
+        objectIds: [rn, outb.id],
+      }),
+    );
+    expect(nets(controller.document)).toEqual(nets(before));
+  });
+
+  it("refuses a stub that would come to rest on another Net's wire", async () => {
+    const { client, controller } = await pair();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RX",
+        position: { x: 600, y: 0 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const stub = await client.applyActions([
+      {
+        kind: "connect",
+        from: pin("RX", "1"),
+        to: { kind: "point", x: 600, y: -60 },
+      },
+    ]);
+    expect(stub.ok, stub.message).toBe(true);
+    const revision = controller.document.revision;
+    // Turned right, pin 1 at (160, 100): the stub's end at (200, 100), on
+    // the OUTB wire.
+    const refused = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [{ instance: "RX", position: { x: 140, y: 100 }, rotation: 90 }],
+      },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toMatch(
+      /the wire hanging from RX\.1 .*Net OUTB.*nothing was moved/u,
+    );
+    expect(controller.document.revision).toBe(revision);
+  });
+
+  /** R1 wired to R2 below it; a wall of `count` capacitors at x = 200. */
+  async function walled(count: number) {
+    const parts = await folder();
+    const placed = await parts.client.applyActions([
+      ...(
+        [
+          ["R1", 0, 0],
+          ["R2", 100, 300],
+        ] as const
+      ).map(([reference, x, y]) => ({
+        kind: "place-component",
+        symbol: "resistor",
+        reference,
+        position: { x, y },
+        rotation: 270,
+      })),
+      ...Array.from({ length: count }, (_, index) => ({
+        kind: "place-component",
+        symbol: "capacitor",
+        reference: `C${index}`,
+        position: { x: 200, y: (index - Math.floor(count / 2)) * 50 },
+      })),
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const wired = await parts.client.applyActions([
+      { kind: "connect", from: pin("R1", "2"), to: pin("R2", "1") },
+    ]);
+    expect(wired.ok, wired.message).toBe(true);
+    return parts;
+  }
+
+  it("goes round the parts when no simple path is clear", async () => {
+    const { client, controller } = await walled(5);
+    const before = structuredClone(controller.document);
+    const relocated = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [{ instance: "R2", position: { x: 400, y: 0 } }],
+      },
+    ]);
+    expect(relocated.ok, relocated.message).toBe(true);
+    expect(nets(controller.document)).toEqual(nets(before));
+    const [path] = drawnPaths(controller.document);
+    expect(Math.max(...path!.map(([, y]) => Math.abs(y!)))).toBeGreaterThan(
+      100,
+    );
+  });
+
+  it("refuses naming both pins and what is in the way", async () => {
+    const { client, controller } = await walled(13);
+    const revision = controller.document.revision;
+    const refused = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [{ instance: "R2", position: { x: 400, y: 0 } }],
+      },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toMatch(
+      /the connection of (R1\.2, R2\.1|R2\.1, R1\.2) cannot be redrawn: no clear path from (R1\.2 to R2\.1|R2\.1 to R1\.2): the direct one passes through C6/u,
+    );
+    expect(refused.message).toContain("none goes round");
+    expect(refused.message).toContain("nothing was moved");
+    expect(controller.document.revision).toBe(revision);
+  });
 });
 
 describe("render-net-as", () => {
@@ -4509,7 +4742,13 @@ describe("render-net-as", () => {
     expect(JSON.stringify(rendered)).toContain(
       "Drew VSS as 2 named grounds on its pins and deleted its",
     );
+    // The named ground wired to VSS before stands alone now and goes; VSS
+    // keeps its Port through the new markers.
+    expect(JSON.stringify(rendered)).toContain(
+      "removed 1 old marker left touching nothing of it; it stays a Cell Pin",
+    );
     const after = controller.document;
+    expect(after.instances.some((item) => item.id === "vss")).toBe(false);
     const added = after.instances.filter(
       (item) => !before.instances.some((old) => old.id === item.id),
     );
@@ -4547,7 +4786,7 @@ describe("render-net-as", () => {
     expect(vddWires(before).length).toBeGreaterThan(0);
     expect(vddWires(after)).toEqual(vddWires(before));
     expect(nets(after, new Set(added.map((item) => item.id)))).toEqual(
-      nets(before),
+      nets(before, new Set(["vss"])),
     );
     expect(ports(after)).toEqual(ports(before));
     expect(spice(controller.project)).toBe(netlist);
@@ -4555,6 +4794,22 @@ describe("render-net-as", () => {
     expect(controller.document.instances).toEqual(before.instances);
     expect(controller.document.routes).toEqual(before.routes);
     expect(controller.document.netlist).toEqual(before.netlist);
+  });
+
+  it("keeps a Cell Pin first among the Cell's Pins when its old marker goes", async () => {
+    const { controller, client } = await supplies();
+    const before = structuredClone(controller.document);
+    const netlist = spice(controller.project);
+    const rendered = await client.applyActions([
+      { kind: "render-net-as", net: "VDD", as: "supply" },
+    ]);
+    expect(rendered.ok, rendered.message).toBe(true);
+    expect(JSON.stringify(rendered)).toContain("removed 1 old marker");
+    expect(
+      controller.document.instances.some((item) => item.id === "vdd"),
+    ).toBe(false);
+    expect(ports(controller.document)).toEqual(ports(before));
+    expect(spice(controller.project)).toBe(netlist);
   });
 
   it("draws a global supply as supply markers above its pins, and node 0 as plain grounds", async () => {
@@ -4609,14 +4864,20 @@ describe("render-net-as", () => {
     ]);
     for (const marker of added.filter((item) => item.symbolId === "vdd-port"))
       expect(marker.placement!.rotation).toBe(0);
+    // The supply marker and the ground wired to them before went.
+    expect(JSON.stringify(rendered)).toContain("removed 1 old marker");
+    expect(JSON.stringify(rendered)).toContain("it stays global");
+    expect(JSON.stringify(grounded)).toContain("it stays node 0");
+    for (const old of ["vdd", "g0"])
+      expect(after.instances.some((item) => item.id === old)).toBe(false);
     expect(nets(after, new Set(added.map((item) => item.id)))).toEqual(
-      nets(before),
+      nets(before, new Set(["vdd", "g0"])),
     );
     expect(ports(after)).toEqual(ports(before));
     expect(spice(controller.project)).toBe(netlist);
   });
 
-  it("refuses a Net it cannot find, one with no name, a local one, and supply for node 0, changing nothing", async () => {
+  it("refuses a Net it cannot find, one with no name, and supply for node 0, changing nothing", async () => {
     const { controller, client } = await supplies();
     const placed = await client.applyActions([
       {
@@ -4661,6 +4922,26 @@ describe("render-net-as", () => {
     await refuse("NOPE", "ground", 'no Net matches "NOPE"');
     await refuse(unnamed, "supply", "has no name for its markers to keep");
     await refuse("0", "supply", "Net 0 is ground");
+    expect(controller.document.revision).toBe(revision);
+  });
+
+  it("draws a local Net's markers naming it in this Cell only, so its scope and the netlist stay", async () => {
+    const { controller, client } = await supplies();
+    const drawn = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RC",
+        position: { x: 400, y: 0 },
+      },
+      {
+        kind: "connect",
+        from: pin("RC", "1"),
+        to: { kind: "point", x: 400, y: -60 },
+      },
+      { kind: "connect", from: pin("RC", "2"), to: pin("RB", "2") },
+    ]);
+    expect(drawn.ok, drawn.message).toBe(true);
     const labelled = await client.applyActions([
       {
         kind: "add-label",
@@ -4670,9 +4951,309 @@ describe("render-net-as", () => {
       },
     ]);
     expect(labelled.ok, labelled.message).toBe(true);
-    const labelledAt = controller.document.revision;
-    await refuse("LOC", "supply", "LOC is a local Net and no Cell Pin");
-    expect(controller.document.revision).toBe(labelledAt);
-    expect(labelledAt).toBe(revision + 1);
+    const before = structuredClone(controller.document);
+    const netlist = spice(controller.project);
+    const rendered = await client.applyActions([
+      { kind: "render-net-as", net: "LOC", as: "supply" },
+    ]);
+    expect(rendered.ok, rendered.message).toBe(true);
+    expect(JSON.stringify(rendered)).toContain(
+      "Drew LOC as 1 supply marker on its pins",
+    );
+    expect(JSON.stringify(rendered)).toContain("it stays local to this Cell");
+    const after = controller.document;
+    const added = after.instances.filter(
+      (item) => !before.instances.some((old) => old.id === item.id),
+    );
+    expect(added.map((item) => item.symbolId)).toEqual(["vdd-port"]);
+    // The marker names LOC in this Cell only: no Pin, no global name.
+    expect(
+      after.connectivityEvidence.flatMap((evidence) =>
+        evidence.kind === "name-claim" &&
+        evidence.owner.kind === "power-marker" &&
+        evidence.owner.objectId === added[0]!.id
+          ? [`${evidence.name} ${evidence.scope}`]
+          : [],
+      ),
+    ).toEqual(["LOC local"]);
+    expect(nets(after, new Set(added.map((item) => item.id)))).toEqual(
+      nets(before),
+    );
+    expect(ports(after)).toEqual(ports(before));
+    expect(spice(controller.project)).toBe(netlist);
+  });
+
+  /** A Cell with input Pins A and IN, each a Port wired to a resistor. */
+  async function inputs() {
+    const parts = await folder();
+    const placed = await parts.client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RA",
+        position: { x: 0, y: 0 },
+      },
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RB",
+        position: { x: 200, y: 0 },
+      },
+      {
+        kind: "place-component",
+        symbol: "port",
+        id: "pa",
+        reference: "A",
+        direction: "input",
+        position: { x: -200, y: -200 },
+      },
+      {
+        kind: "place-component",
+        symbol: "port",
+        id: "pin",
+        reference: "IN",
+        direction: "input",
+        position: { x: -200, y: 200 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const wired = await parts.client.applyActions([
+      { kind: "connect", from: markerPin("pa", "P"), to: pin("RA", "1") },
+      { kind: "connect", from: markerPin("pin", "P"), to: pin("RB", "1") },
+      { kind: "connect", from: pin("RA", "2"), to: pin("RB", "2") },
+    ]);
+    expect(wired.ok, wired.message).toBe(true);
+    return parts;
+  }
+
+  it("refuses a rendering that would change the netlist, saying which line", async () => {
+    const { controller, client } = await inputs();
+    const revision = controller.document.revision;
+    // A supply marker makes IN a supply Pin, which the Cell's port list
+    // puts first.
+    const refused = await client.applyActions([
+      { kind: "render-net-as", net: "IN", as: "supply" },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toContain("rendering IN would change the netlist");
+    expect(refused.message).toContain("(a Cell's port list)");
+    expect(refused.message).toContain("nothing was changed");
+    expect(controller.document.revision).toBe(revision);
+  });
+
+  it("keeps an old marker that is its Cell Pin's only marker", async () => {
+    const { controller, client } = await folder();
+    // VDD is a Cell Pin drawn as one supply marker on a stub wire: no pin of
+    // VDD needs a marker, and the stub goes.
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "vdd",
+        position: { x: 0, y: 0 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const stub = await client.applyActions([
+      {
+        kind: "connect",
+        from: markerPin("vdd", "P"),
+        to: { kind: "point", x: 100, y: 100 },
+      },
+    ]);
+    expect(stub.ok, stub.message).toBe(true);
+    const before = structuredClone(controller.document);
+    expect(before.routes.length).toBeGreaterThan(0);
+    const rendered = await client.applyActions([
+      { kind: "render-net-as", net: "VDD", as: "supply" },
+    ]);
+    expect(rendered.ok, rendered.message).toBe(true);
+    expect(JSON.stringify(rendered)).toContain(
+      "kept 1 old marker that is its Cell Pin's only marker",
+    );
+    const after = controller.document;
+    expect(after.instances.map((item) => item.id)).toEqual(["vdd"]);
+    expect(after.routes).toEqual([]);
+    expect(ports(after)).toEqual(ports(before));
+  });
+
+  /** Where the marker on RA.2 lands when VSS is rendered, read and undone. */
+  async function markerSpot(
+    client: Awaited<ReturnType<typeof folder>>["client"],
+    controller: Awaited<ReturnType<typeof folder>>["controller"],
+  ) {
+    const ids = new Set(controller.document.instances.map((item) => item.id));
+    const rendered = await client.applyActions([
+      { kind: "render-net-as", net: "VSS", as: "ground" },
+    ]);
+    expect(rendered.ok, rendered.message).toBe(true);
+    const document = controller.document;
+    const ra = document.instances.find((item) => item.reference === "RA")!.id;
+    const marker = document.instances.find(
+      (item) =>
+        !ids.has(item.id) &&
+        JSON.stringify(contact(document, item.id, "P")) ===
+          JSON.stringify(contact(document, ra, "2")),
+    )!;
+    const box = createLabelClearanceContext(document, resolver).symbols.find(
+      (item) => item.id === marker.id,
+    )!.bounds;
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    return box;
+  }
+  type Box = { x: number; y: number; width: number; height: number };
+  const meets = (left: Box, right: Box) =>
+    left.x < right.x + right.width &&
+    right.x < left.x + left.width &&
+    left.y < right.y + right.height &&
+    right.y < left.y + left.height;
+
+  it("refuses a marker drawn over free text, changing nothing", async () => {
+    const { controller, client } = await supplies();
+    const box = await markerSpot(client, controller);
+    const noted = await client.applyActions([
+      {
+        kind: "annotate",
+        text: "NOTE",
+        alignment: "middle",
+        position: {
+          x: Math.round(box.x + box.width / 2),
+          y: Math.round(box.y + box.height / 2),
+        },
+      },
+    ]);
+    expect(noted.ok, noted.message).toBe(true);
+    const revision = controller.document.revision;
+    const refused = await client.applyActions([
+      { kind: "render-net-as", net: "VSS", as: "ground" },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toContain("the marker on RA.2 would cover");
+    expect(refused.message).toContain("nothing was changed");
+    expect(controller.document.revision).toBe(revision);
+  });
+
+  it("moves a part's label a marker would cover clear of it", async () => {
+    const { controller, client } = await supplies();
+    const box = await markerSpot(client, controller);
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RD",
+        position: { x: 1000, y: 1000 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const rd = () =>
+      controller.document.instances.find((item) => item.reference === "RD")!;
+    const label = () => {
+      const document = controller.document;
+      const context = createLabelClearanceContext(document, resolver);
+      const own = context.visible.find(
+        (item) =>
+          item.anchor.kind === "object" && item.anchor.objectId === rd().id,
+      )!;
+      return context.measure(own).inkBounds;
+    };
+    // RD moves to a grid spot where its name, in its own slot, reaches into
+    // where the marker will stand, short of the wire down its middle, its
+    // body clear of every part.
+    const ink = label();
+    const at = rd().placement!.position;
+    const parts = createLabelClearanceContext(
+      controller.document,
+      resolver,
+    ).symbols;
+    const body = parts.find((item) => item.id === rd().id)!.bounds;
+    const wire = box.x + box.width / 2;
+    const spots = [];
+    for (let x = -200; x <= 200; x += 10)
+      for (let y = -100; y <= 200; y += 10) {
+        const name = { ...ink, x: ink.x - at.x + x, y: ink.y - at.y + y };
+        const drawn = { ...body, x: body.x - at.x + x, y: body.y - at.y + y };
+        const clear = (bounds: Box) =>
+          !parts.some(
+            (part) => part.id !== rd().id && meets(bounds, part.bounds),
+          );
+        if (
+          meets(name, box) &&
+          // Clear of the wire down the marker's middle and the dot at its pin.
+          (name.x + name.width < wire - 1 || name.x > wire + 1) &&
+          name.y > box.y + 6 &&
+          !meets(drawn, box) &&
+          clear(drawn) &&
+          clear(name)
+        )
+          spots.push({ x, y });
+      }
+    for (const position of spots) {
+      const moved = await client.applyActions([
+        {
+          kind: "move",
+          target: { kind: "instance", reference: "RD" },
+          position,
+        },
+      ]);
+      expect(moved.ok, moved.message).toBe(true);
+      if (meets(label(), box)) break;
+    }
+    expect(meets(label(), box)).toBe(true);
+    const rendered = await client.applyActions([
+      { kind: "render-net-as", net: "VSS", as: "ground" },
+    ]);
+    expect(rendered.ok, rendered.message).toBe(true);
+    expect(meets(label(), box)).toBe(false);
+  });
+
+  it("compares every Cell's Nets and Pins while the netlist cannot be exported", async () => {
+    const open = {
+      kind: "place-component",
+      symbol: "resistor",
+      reference: "RO",
+      position: { x: 600, y: 0 },
+    } as const;
+    const exports = (project: CircuitProject) =>
+      createDesignNetlistExport(project, { format: "spice" }).status;
+    {
+      const { controller, client } = await supplies();
+      expect((await client.applyActions([open])).ok).toBe(true);
+      expect(exports(controller.project)).not.toBe("ready");
+      const before = structuredClone(controller.document);
+      const rendered = await client.applyActions([
+        { kind: "render-net-as", net: "VSS", as: "ground" },
+      ]);
+      expect(rendered.ok, rendered.message).toBe(true);
+      const added = controller.document.instances.filter(
+        (item) => !before.instances.some((old) => old.id === item.id),
+      );
+      expect(
+        nets(controller.document, new Set(added.map((item) => item.id))),
+      ).toEqual(nets(before, new Set(["vss"])));
+    }
+    const { controller, client } = await inputs();
+    expect((await client.applyActions([open])).ok).toBe(true);
+    expect(exports(controller.project)).not.toBe("ready");
+    const revision = controller.document.revision;
+    const refused = await client.applyActions([
+      { kind: "render-net-as", net: "IN", as: "supply" },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toContain("Cell Pin IN");
+    expect(refused.message).toContain("the netlist cannot be exported");
+    expect(controller.document.revision).toBe(revision);
+  });
+
+  it("names the netlist line a change adds, loses or rewrites", () => {
+    const base = ".subckt main A IN\nR1 A x 1k\n.ends";
+    expect(netlistChange(base, `.global VDD\n${base}`)).toBe(
+      'it would add ".global VDD" (a .global line)',
+    );
+    expect(netlistChange(base, base.replace("A IN", "IN A"))).toBe(
+      '".subckt main A IN" would read ".subckt main IN A" (a Cell\'s port list)',
+    );
+    expect(netlistChange(base, base.replace("R1 A x 1k\n", ""))).toBe(
+      'it would lose "R1 A x 1k"',
+    );
   });
 });

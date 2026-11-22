@@ -38,6 +38,32 @@ export interface WirePlanNote {
   readonly objectIds: readonly string[];
 }
 
+/** A wire's end as its intent names it, to say which wire a refusal is. */
+function anchorText(
+  document: SchematicDocument,
+  anchor: WireIntent["from"],
+): string {
+  const at = (point: Point) => `(${point.x}, ${point.y})`;
+  switch (anchor.kind) {
+    case "endpoint": {
+      const endpoint = anchor.endpoint;
+      if (endpoint.kind === "junction")
+        return `Junction ${endpoint.junctionId}`;
+      const reference = document.instances.find(
+        (instance) => instance.id === endpoint.instanceId,
+      )?.reference;
+      return `${reference ?? endpoint.instanceId}.${endpoint.pinName}`;
+    }
+    case "route-segment":
+      return `Route ${anchor.routeId} at ${at(anchor.point)}`;
+    case "net":
+      return `Net ${anchor.net}`;
+    case "wire-at":
+    case "free":
+      return at(anchor.point);
+  }
+}
+
 /** The receipt's word that a wire-at point off the tap grid was moved. */
 function snappedTapNote(
   document: SchematicDocument,
@@ -546,7 +572,11 @@ export function planWireBatch(
   input:
     | Parameters<typeof proposeWireIntent>[2]
     | Parameters<typeof proposeWireIntent>[2][],
-  options: { keepClear?: boolean } = {},
+  options: {
+    keepClear?: boolean;
+    /** Told the index of the wire a batch's refusal concerns. */
+    onRefusal?: (wireIndex: number) => void;
+  } = {},
 ): { edits: SchematicEdit[]; notes?: WirePlanNote[] } | string {
   /** A keepClear word about wire `index`, as the receipt says it. */
   const sayFor =
@@ -760,9 +790,11 @@ export function planWireBatch(
   const plan = (
     index: number,
     intent: WireIntent,
-  ): { message: string; waits: boolean } | undefined => {
+  ): { index: number; message: string; waits: boolean } | undefined => {
+    // Which wire, by its number and its ends, so an Agent fixes that one.
     const refused = (message: string, waits = false) => ({
-      message: `Wire ${index + 1}: ${message}`,
+      index,
+      message: `Wire ${index + 1} (${anchorText(document, intent.from)} → ${anchorText(document, intent.to)}): ${message}`,
       waits,
     });
     const from = rebaseAnchor(intent.from);
@@ -826,15 +858,21 @@ export function planWireBatch(
   let queue = [...input.entries()];
   while (queue.length) {
     const waiting: typeof queue = [];
-    let firstRefusal: string | undefined;
+    let firstRefusal: { index: number; message: string } | undefined;
     for (const [index, intent] of queue) {
       const refusal = plan(index, intent);
       if (!refusal) continue;
-      if (!refusal.waits) return refusal.message;
+      if (!refusal.waits) {
+        options.onRefusal?.(refusal.index);
+        return refusal.message;
+      }
       waiting.push([index, intent]);
-      firstRefusal ??= refusal.message;
+      firstRefusal ??= refusal;
     }
-    if (waiting.length === queue.length) return firstRefusal!;
+    if (waiting.length === queue.length) {
+      options.onRefusal?.(firstRefusal!.index);
+      return firstRefusal!.message;
+    }
     queue = waiting;
   }
   return notes.length ? { edits, notes } : { edits };

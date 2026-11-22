@@ -348,13 +348,23 @@ information). Hidden bulk needs no decorative wire.
   Net the textbook way: a `named-ground` (`ground` for node 0) or `vdd-port`
   of its name on each of its drawn pins, standing on the pin and pointing away
   from the part, then deletes its wires as `delete-wires` does. Pins a marker
-  stands on already, and the markers' own, are left alone; a marker wired to
-  the Net before stands alone after. A Cell Pin's markers join its one Port
-  with its direction; a global Net's are global; a local Net that is no Cell
-  Pin is refused, as a marker would make it global or a Pin. Every pin keeps
-  its Net and the netlist reads the same, or it is refused with nothing
-  changed, and so is a marker that would overlap a part. One undo;
-  `NET_RENDERED_AS` (information) counts markers and wires.
+  stands on already, and the markers' own, are left alone. A marker wired to
+  the Net before and left touching nothing of it is removed, unless it is its
+  Cell Pin's only marker; a MOS body default on it stays on the Net.
+  - Scope is kept: a Cell Pin's markers join its one Port with its direction;
+    a global Net's name it globally; a local Net's name it in this Cell only
+    (a local supply claim: no `.global`, no Pin). The markers never set a MOS
+    body default.
+  - Every pin keeps its Net and the netlist reads the same, or it is refused
+    with nothing changed, naming the netlist line that would change (a
+    `.global` line, a Cell's port list). While the netlist cannot be
+    exported, every Cell's pin Nets (name, scope, fellow pins), Pins (order,
+    direction, supply role) and MOS body Nets are compared instead.
+  - A marker over a part is refused; one over a part's label moves that
+    label clear, as placement does; one (or its name) over other text or a
+    Net label is refused. One undo; `NET_RENDERED_AS` (information) counts
+    markers, wires and old markers removed or kept, and states the scope
+    kept.
 - `add-power-rail` draws a `vdd-rail` (a primitive, not a symbol) with optional
   `name`/`scope` (existing scope kept, else local; `global` only explicitly);
   a ground name (`0`, `GND`, `GROUND`) is refused: ground is ground symbols.
@@ -481,7 +491,9 @@ which it meets it: move parts, give a trunk or `avoid`. A given trunk is
 checked the same way, never bent. `avoid:true` also keeps clear of drawn
 labels and free text and, when no simple path is clear, searches the grid up
 to 16 squares round the ends; with a trunk, branches go round instead of being
-refused. `prefer: "above"|"below"|"left"|"right"` is the side a detour takes
+refused, each meeting the trunk at one tap only, square with a dot, never
+along it, beside its pin's projection when that is the way round; a branch
+that cannot is refused naming its pin. `prefer: "above"|"below"|"left"|"right"` is the side a detour takes
 when it leaves its ends' span. It moves no device, infers no bulk wiring, and
 does not override import-reference shorts/scope conflicts. Several
 `route-net` actions share a batch, each planned on the previous result.
@@ -542,13 +554,17 @@ document-local terminal equivalence only (omitted means unknown).
 pair: `{"kind":"relocate","parts":[{"instance":"M1","position":{"x":400,"y":0},"mirror":"horizontal"},{"instance":"M2","position":{"x":0,"y":0},"mirror":"horizontal"}]}`
 (`instance`: Reference, ID or Cell Pin name; `rotation`/`mirror` omitted keep
 the part's). Every wire ending on their pins goes and is drawn again as
-`route-net` draws, except a stub reaching no other pin, which goes with its pin
-and turns with it; markers standing unwired on their pins go along; labels on
-redrawn wires stand on their Net's nearest new wire. Every pin keeps its Net
-and the netlist reads the same; otherwise, or for a wire `route-net` cannot
-draw, a bus wire, a Power Rail or a locked label on those pins, it is refused
-with nothing moved. One undo; `RELOCATED` (information) counts wires taken off
-and drawn.
+`route-net` draws, going round the parts (`avoid`) only when no simple path is
+clear; its `WIRE_CROSSES` notes come along. A stub reaching no other pin goes
+with its pin, turned and mirrored as the part is; markers standing unwired on
+their pins go along; labels on redrawn wires stand on their Net's nearest new
+wire. Every pin keeps its Net and the netlist reads the same; otherwise, or for
+a connection `route-net` cannot draw (the refusal names its pins and what is in
+the way), a stub that would touch another Net, a bus wire, a Power Rail or a
+locked label on those pins, it is refused with nothing moved. A pin that comes
+to lie on another Net's pin, Junction or wire is not joined to it:
+`LANDED_ON_OTHER_NET` names the pin and that Net. One undo; `RELOCATED`
+(information) counts wires taken off and drawn.
 
 `delete` uses the GUI deletion planner, including owned displays and interface
 declarations. `delete-selection` nests explicit IDs by type, omitted lists

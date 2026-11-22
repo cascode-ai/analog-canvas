@@ -339,11 +339,13 @@ export function planRouteNet(
       ]);
       if (branchConflict && !input.avoid)
         throw new Error(
-          `route-net: the branch from ${best.node.key} ${branchConflict}`,
+          `route-net: the branch from ${endText(best.node.endpoint)} ${branchConflict}`,
         );
-      // avoid: a branch the plain L cannot draw goes round what it met.
+      // avoid: a branch the plain L cannot draw goes round what it met. The
+      // trunk is part of the way: the branch meets it at one tap only,
+      // never along it, and may tap it beside the projection to get round.
       const round = branchConflict
-        ? clearance.path(best.node.endpoint, tap)
+        ? clearance.path(best.node.endpoint, tap, { trunk: [start, end] })
         : null;
       if (typeof round === "string")
         throw new Error(
@@ -353,7 +355,7 @@ export function planRouteNet(
       wires.push({
         id: id(component.id),
         from: { kind: "endpoint", endpoint: best.node.endpoint },
-        to: { kind: "wire-at", point: tap },
+        to: { kind: "wire-at", point: round?.points?.at(-1) ?? tap },
         ...(round
           ? {
               ...(round.waypoints.length ? { waypoints: round.waypoints } : {}),
@@ -371,6 +373,7 @@ export function planRouteNet(
       clearance,
       id,
       (endpoint, points) => sayCrossings(endText(endpoint), points),
+      endText,
     );
   }
   const plan = planWireBatch(document, resolver, wires);
@@ -397,6 +400,7 @@ function planNetTree(
   clearance: RouteClearance,
   id: (part: string) => string,
   say: (from: RouteEndpoint, points: readonly Point[]) => void,
+  endText: (endpoint: RouteEndpoint) => string,
 ): WireIntent[] {
   const sorted = [...components].sort((a, b) => a.id.localeCompare(b.id, "en"));
   const nodes = sorted.flatMap((component) =>
@@ -434,14 +438,21 @@ function planNetTree(
   // A wire may not run over a pin it does not join: the pin would sit on
   // the wire without belonging to it.
   const overOtherPins = (points: readonly Point[], ends: readonly Point[]) =>
-    nodes.some(
+    nodes.find(
       ({ component, node }) =>
         !joined.has(component.id) &&
         !ends.some((end) => same(end, node.point)) &&
         along(points).some(([from, to]) =>
           pointOnSegment(node.point, from, to),
         ),
-    );
+    )?.node;
+  /** Why a clear path was still not taken: a pin of the Net in its way. */
+  const overText = (
+    from: RouteEndpoint,
+    to: RouteEndpoint | Point,
+    over: TreeNode,
+  ) =>
+    `no clear path from ${endText(from)} to ${"kind" in to ? endText(to) : `(${to.x}, ${to.y})`}: the direct one passes over ${endText(over.endpoint)} at (${over.point.x}, ${over.point.y}), which it does not end on`;
 
   // The trunk: the longest straight run between two components' pins.
   let trunk: { a: (typeof nodes)[number]; b: (typeof nodes)[number] } | null =
@@ -498,7 +509,11 @@ function planNetTree(
         reason ??= path;
         continue;
       }
-      if (overOtherPins(path.points!, [a.node.point, b.node.point])) continue;
+      const over = overOtherPins(path.points!, [a.node.point, b.node.point]);
+      if (over) {
+        reason ??= overText(a.node.endpoint, b.node.endpoint, over);
+        continue;
+      }
       if (!seed || path.cost! < seed.path.cost!) seed = { a, b, path };
     }
     if (!seed) throw new Error(`route-net: ${reason ?? "no clear path"}`);
@@ -566,7 +581,15 @@ function planNetTree(
           reason ??= path;
           continue;
         }
-        if (overOtherPins(path.points!, [node.point, target.point])) continue;
+        const over = overOtherPins(path.points!, [node.point, target.point]);
+        if (over) {
+          reason ??= overText(
+            node.endpoint,
+            target.endpoint ?? target.point,
+            over,
+          );
+          continue;
+        }
         if (!best || path.cost! < best.path.cost!)
           best = { component, node, ...target, path };
       }
