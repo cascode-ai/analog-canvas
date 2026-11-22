@@ -26,6 +26,8 @@ export function nativeBehavioralModel(
       // compiler-owned internal references lowercase; Canvas names stay exact.
       if (element.kind === "voltage" || element.kind === "current")
         return `${element.name.toLowerCase()} (${element.nodes.join(" ")}) ${element.kind === "voltage" ? "v" : "i"}=${projectBehavioralExpression(element.expression, scalar)}`;
+      if (element.kind === "transmission-line")
+        throw new Error(`VACASK has no device for ${target}`);
       const master = models.get(element.kind);
       if (!master) throw new Error(`Missing native primitive for ${target}`);
       return `${element.name} (${element.nodes.join(" ")}) ${master} ${PASSIVE_VALUE[element.kind]}=${scalar(element.value)}`;

@@ -1064,6 +1064,8 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     ["transconductance", ["A", "Y"]],
     ["differential-transconductance", ["IN+", "IN-", "OUT"]],
     ["crystal", ["1", "2"]],
+    ["impedance", ["1", "2"]],
+    ["two-port", ["P1", "N1", "P2", "N2"]],
   ] as const)(
     "binds a %s to a Cell or an external definition whose Pins are its own, keeping its symbol (#1928)",
     (symbolId, pins) => {
@@ -1099,6 +1101,37 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
       }
     },
   );
+
+  it("names the subcircuit a generic block stands for, and clears back to its own (#2445)", () => {
+    const project = partProject("two-port", ["P1", "N1", "P2", "N2"]);
+    const named = bind(project, "matching_network");
+    expect(gate(named)).toMatchObject({
+      symbolId: "two-port",
+      netlist: {
+        binding: { kind: "unresolved-subcircuit", name: "matching_network" },
+      },
+    });
+    const exported = createDesignNetlistExport(named, { format: "spice" });
+    if (exported.status !== "ready")
+      throw new Error(JSON.stringify(exported.diagnostics));
+    expect(exported.file.text).toMatch(
+      /^X1 \S+ \S+ \S+ \S+ matching_network$/mu,
+    );
+    expect(
+      exported.diagnostics.map((diagnostic) => diagnostic.code),
+    ).not.toContain("GENERIC_BLOCK_UNDEFINED");
+    expect(gate(bind(named, "")).netlist?.binding).toEqual({
+      kind: "unresolved-subcircuit",
+      name: "two_port",
+    });
+    expect(() =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", "9 net"),
+    ).toThrow("9 net cannot name a subcircuit");
+    // A body Analog Canvas writes would take the call by position.
+    expect(() =>
+      planSetDeviceModelTarget(project, project.topDocumentId, "X1", "crystal"),
+    ).toThrow("crystal is the body of Analog Canvas's crystal");
+  });
 
   /**
    * An external definition `name` declaring `terminals`, in that order, and

@@ -70,7 +70,7 @@ Opening the section adds no circuit history entry.
   the Cell's sheet, where the block's size and each pin's side and offset are
   fields; Properties keeps only the block's **Symbol layout → Edit on canvas**.
 
-- A two-terminal switch or chopper shows `control` instead of `displayName`:
+- A two-terminal switch, chopper or SPDT shows `control` instead of `displayName`:
   the clock phase its name label names, written as a name (`Φ_1`; `Φ_A_bar`
   draws Φ̄_A), or `null` for its own name. Writing it rewrites the label and
   keeps it shown or hidden as `display.visualAnnotation` says, so a phase drawn

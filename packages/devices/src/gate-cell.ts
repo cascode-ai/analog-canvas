@@ -1,6 +1,6 @@
 // A Library part with a generated body (logic gate, D flip-flop, Delay Cell,
-// op-amp, comparator, signal or analog block, crystal, chopper, T-coil,
-// transformer, centre-tapped inductor) implemented by a Cell or an external
+// op-amp, comparator, signal or analog block, crystal, chopper, SPDT,
+// T-coil, transformer, centre-tapped inductor) implemented by a Cell or an external
 // definition of its Project: the part keeps its symbol, and its call goes to
 // that subcircuit, Pin by name.
 import {
@@ -17,7 +17,10 @@ import {
 
 import type { DeviceDescriptor } from "./contract.js";
 import { drawnMagneticNetwork } from "./drawn-magnetic.js";
-import { drawnSwitchControl } from "./drawn-switch-control.js";
+import {
+  callsClockedSwitchBody,
+  drawnSwitchControl,
+} from "./drawn-switch-control.js";
 import {
   DIFFERENTIAL_COMPARATOR_TARGET,
   callsIdealComparatorBody,
@@ -56,13 +59,14 @@ const amplifierKind = (symbolId: string) =>
 
 /**
  * A drawn device whose call goes to a generated body, as a Library part's
- * does: the chopper's four switches, or the coupled windings of a T-coil,
- * transformer or centre-tapped inductor (#1928).
+ * does: the switches of a chopper or SPDT, or the coupled windings of a
+ * T-coil, transformer or centre-tapped inductor (#1928).
  */
 function generatedBodyDevice(symbolId: string): DeviceDescriptor | undefined {
   const device = deviceDescriptor(symbolId);
   return device &&
-    (drawnSwitchControl(device) === "chopper" || drawnMagneticNetwork(device))
+    (callsClockedSwitchBody(drawnSwitchControl(device)) ||
+      drawnMagneticNetwork(device))
     ? device
     : undefined;
 }
@@ -183,7 +187,9 @@ function partKind(symbolId: string): string {
         ? "gate"
         : symbolId === "chopper"
           ? "chopper"
-          : (amplifierKind(symbolId) ?? "part");
+          : generatedBodyDevice(symbolId)?.deviceClass === "switch"
+            ? "SPDT"
+            : (amplifierKind(symbolId) ?? "part");
 }
 
 /**
@@ -223,8 +229,9 @@ export type GateCellPinMatch = {
 );
 
 /**
- * A Library part's pins, then its VDD and VSS terminals. A chopper's clock is
- * no pin of it: the phase its label names reaches its body's CK.
+ * A Library part's pins, then its VDD and VSS terminals. A chopper's or
+ * SPDT's clock is no pin of it: the phase its label names reaches its body's
+ * CK.
  */
 export function libraryGateTerminals(
   symbolId: string,
@@ -240,7 +247,7 @@ export function libraryGateTerminals(
   if (!device) return [];
   return [
     ...device.pinOrder.map((pinName) => ({ pinName })),
-    ...(drawnSwitchControl(device) === "chopper"
+    ...(callsClockedSwitchBody(drawnSwitchControl(device))
       ? [{ pinName: "CK", clock: true as const }]
       : []),
   ];

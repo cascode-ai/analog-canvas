@@ -10,9 +10,9 @@ import {
 } from "@icm/devices";
 import { idealLogicModel } from "./ideal-logic-gate-models.js";
 import {
-  chopperBehavioralDefinition,
-  IDEAL_CHOPPER_TARGET,
-  spiceChopperBody,
+  clockedSwitchBehavioralDefinition,
+  isClockedSwitchBody,
+  spiceClockedSwitchBody,
 } from "./ideal-switch-model.js";
 import { idealSignalModel } from "./ideal-signal-block-models.js";
 import {
@@ -159,6 +159,31 @@ function potentiometerModel(target: string): BehavioralModel {
 }
 
 /**
+ * A lossless transmission line between port 1 (p1, n1) and port 2 (p2, n2),
+ * of characteristic impedance z0 and delay td: SPICE `T`, Spectre `tline`.
+ */
+function transmissionLineModel(target: string): BehavioralModel {
+  const ports = builtInModelContract(target)?.ports ?? [];
+  const nodes = ports.map((port) => port.name) as [
+    string,
+    string,
+    string,
+    string,
+  ];
+  return {
+    name: target,
+    ports: nodes,
+    comment: "Transmission line: lossless, impedance z0, delay td",
+    parameters: Object.entries(builtInModelDefaults(target)).map(
+      ([name, defaultValue]) => ({ name, defaultValue }),
+    ),
+    elements: [
+      { kind: "transmission-line", name: "T1", nodes, z0: "z0", td: "td" },
+    ],
+  };
+}
+
+/**
  * One family dispatch; printers never own model equations or defaults.
  * `ports` prints the same body with its ports in another order (see
  * `withBodyPortOrder`); its elements name ports, never positions. `name`
@@ -179,7 +204,8 @@ export function generatedBehavioralDefinition(
 }
 
 function familyDefinition(target: string): BehavioralModel {
-  if (target === IDEAL_CHOPPER_TARGET) return chopperBehavioralDefinition();
+  if (isClockedSwitchBody(target))
+    return clockedSwitchBehavioralDefinition(target);
   if (isIdealComparatorBody(target)) return idealComparatorModel(target);
   if (isIdealOpampBody(target)) return idealOpampModel(target);
   const model = builtInModelContract(target);
@@ -188,7 +214,9 @@ function familyDefinition(target: string): BehavioralModel {
   if (model?.family === "passive")
     return model.implementation === "crystal"
       ? crystalModel(target)
-      : potentiometerModel(target);
+      : model.implementation === "transmission-line"
+        ? transmissionLineModel(target)
+        : potentiometerModel(target);
   throw new Error(`No generated behavioral model: ${target}`);
 }
 
@@ -197,10 +225,10 @@ export function generatedBehavioralModel(
   ports?: readonly string[],
   name?: string,
 ): string[] {
-  // SPICE switches the chopper's paths with its native S cards (#1641).
-  if (target === IDEAL_CHOPPER_TARGET) {
-    if (ports) throw new Error("The SPICE chopper body keeps its own ports");
-    return spiceChopperBody(name);
+  // SPICE switches a chopper's or SPDT's paths with native S cards (#1641).
+  if (isClockedSwitchBody(target)) {
+    if (ports) throw new Error(`The SPICE ${target} body keeps its own ports`);
+    return spiceClockedSwitchBody(target, name);
   }
   return printSpiceBehavioralModel(
     generatedBehavioralDefinition(target, ports, name),

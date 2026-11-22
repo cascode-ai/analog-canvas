@@ -61,9 +61,15 @@ export type BuiltInModelRecipe =
   | { readonly family: "comparator"; readonly implementation: "comparator" }
   | {
       readonly family: "passive";
-      readonly implementation: "crystal" | "potentiometer";
+      readonly implementation:
+        "crystal" | "potentiometer" | "transmission-line";
     }
   | { readonly family: "opamp"; readonly implementation: "opamp" }
+  | {
+      /** A box standing for a subcircuit the reader's libraries define. */
+      readonly family: "generic";
+      readonly implementation: "impedance" | "two-port";
+    }
   | {
       readonly family: "semiconductor";
       readonly implementation: "ujt" | "put" | "shockley";
@@ -262,6 +268,28 @@ const potentiometer: readonly DeviceParameterDefinition[] = [
     "Wiper position from end 1 (0) to end 2 (1): end 1 to W is r·pos, W to end 2 is r·(1−pos), each at least 1 mΩ.",
   ),
 ];
+// A lossless line between port 1 (P1, N1) and port 2 (P2, N2): a matched
+// 50 Ω line one nanosecond long. A line given by frequency and electrical
+// length takes td = nl/f.
+const transmissionLine: readonly DeviceParameterDefinition[] = [
+  {
+    ...parameter(
+      "z0",
+      "Characteristic impedance",
+      "50",
+      "Ohm",
+      "Ratio of voltage to current of a wave on the line.",
+    ),
+    displayRole: "value",
+  },
+  parameter(
+    "td",
+    "Delay",
+    "1n",
+    "s",
+    "Time a wave takes from one port to the other. A line of normalized electrical length nl at frequency f has td = nl/f: a quarter wave at 1 GHz is {0.25/1G}.",
+  ),
+];
 // A unijunction's base bar, B2 to B1, with the emitter junction meeting it
 // a fraction `eta` of the way up from B1.
 // Its value is R_BB.
@@ -394,6 +422,12 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   ),
   crystal: { family: "passive", implementation: "crystal" },
   potentiometer: { family: "passive", implementation: "potentiometer" },
+  transmission_line: {
+    family: "passive",
+    implementation: "transmission-line",
+  },
+  impedance: { family: "generic", implementation: "impedance" },
+  two_port: { family: "generic", implementation: "two-port" },
   ujt: { family: "semiconductor", implementation: "ujt" },
   put: { family: "semiconductor", implementation: "put" },
   shockley: { family: "semiconductor", implementation: "shockley" },
@@ -445,7 +479,9 @@ function contract(target: string): BuiltInModelContract | undefined {
             : family === "passive"
               ? implementation === "crystal"
                 ? crystal
-                : potentiometer
+                : implementation === "transmission-line"
+                  ? transmissionLine
+                  : potentiometer
               : family === "semiconductor"
                 ? implementation === "ujt"
                   ? ujt
@@ -460,20 +496,36 @@ function contract(target: string): BuiltInModelContract | undefined {
                     : Object.hasOwn(analog, target)
                       ? [analog[target as keyof typeof analog]]
                       : [],
-    backends: {
-      spice: "included",
-      spectre:
-        family === "linear" ||
-        family === "opamp" ||
-        family === "comparator" ||
-        family === "passive" ||
-        family === "semiconductor" ||
-        (family === "logic" && implementation !== "flip-flop")
-          ? "included"
-          : "external",
-      vacask: "included",
-    },
+    // A generic block is only ever a call: the reader's libraries define it.
+    backends:
+      family === "generic"
+        ? { spice: "external", spectre: "external", vacask: "external" }
+        : {
+            spice: "included",
+            spectre:
+              family === "linear" ||
+              family === "opamp" ||
+              family === "comparator" ||
+              family === "passive" ||
+              family === "semiconductor" ||
+              (family === "logic" && implementation !== "flip-flop")
+                ? "included"
+                : "external",
+            // VACASK has no transmission line device.
+            vacask:
+              implementation === "transmission-line"
+                ? "unsupported"
+                : "included",
+          },
   };
+}
+
+/**
+ * Whether a target is a generic block's (#2445): a box that stands for a
+ * subcircuit of the reader's own, which no netlist here defines.
+ */
+export function isGenericBlockTarget(target: string): boolean {
+  return builtInModelContract(target)?.family === "generic";
 }
 
 /** Model facts, not artwork or Project state. Family factories consume these defaults. */

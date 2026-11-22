@@ -86,7 +86,7 @@ describe("live netlist controls", () => {
     for (const [index, [id, symbolId]] of (
       [
         ["D1", "unit-delay"],
-        ["S1", "spdt-switch"],
+        ["I1", "integrator"],
       ] as const
     ).entries())
       project.documents[0]!.instances.push({
@@ -124,10 +124,10 @@ describe("live netlist controls", () => {
       "Symbol unit-delay has no reviewed netlist definition",
     );
     expect(markup).toContain(
-      "Symbol spdt-switch is drawing-only and has no netlist form",
+      "Symbol integrator has no reviewed netlist definition",
     );
     expect(markup).toContain('<span class="netlist-issue-target">D1</span>');
-    expect(markup).toContain('<span class="netlist-issue-target">S1</span>');
+    expect(markup).toContain('<span class="netlist-issue-target">I1</span>');
   });
 
   it("names a finding's part, pin and Cell", () => {

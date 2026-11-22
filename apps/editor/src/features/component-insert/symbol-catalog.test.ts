@@ -293,6 +293,8 @@ describe("component insertion catalog", () => {
       "center-tap-inductor",
       "xfmr",
       "crystal",
+      "transmission-line",
+      "impedance",
       "speaker",
       "microphone",
       "ammeter",
@@ -397,6 +399,8 @@ describe("reach order inside a category", () => {
       "center-tap-inductor",
       "xfmr",
       "crystal",
+      "transmission-line",
+      "impedance",
       "speaker",
       "microphone",
       "ammeter",
@@ -451,6 +455,7 @@ describe("reach order inside a category", () => {
       "dac",
       "adc-differential",
       "dac-differential",
+      "two-port",
     ]);
     expect(blocks.slice(0, 4).map((id) => libraryDisplayName(id, id))).toEqual([
       "Op Amp",

@@ -149,7 +149,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
         .nullable()
         .optional()
         .describe(
-          "A controlled source's control; null clears it. For a switch clocked by its label (a two-terminal switch or a chopper), the clock phase as written, e.g. Φ_1 or PHIA_bar (_bar draws an overbar); null clocks it by its own name. Its label keeps its visibility.",
+          "A controlled source's control; null clears it. For a switch clocked by its label (a two-terminal switch, a chopper or an SPDT), the clock phase as written, e.g. Φ_1 or PHIA_bar (_bar draws an overbar); null clocks it by its own name. Its label keeps its visibility.",
         ),
       shape: z
         .enum(["circle", "diamond"])

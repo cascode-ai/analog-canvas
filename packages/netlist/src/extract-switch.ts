@@ -4,13 +4,15 @@ import { deriveStableId, foldNetName } from "@icm/model";
 import { drawnSwitchPhase } from "@icm/derived";
 import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 import {
+  callsClockedSwitchBody,
   deviceDescriptor,
   drawnSwitchControl,
   type DeviceDescriptor,
+  type DrawnSwitchControl,
 } from "@icm/devices";
 import type { DesignNetlistInstance, NetlistDiagnostic } from "./ir.js";
 import {
-  IDEAL_CHOPPER_TARGET,
+  clockedSwitchTarget,
   IDEAL_SWITCH_MODEL,
 } from "./ideal-switch-model.js";
 import {
@@ -39,7 +41,7 @@ export function isDrawnSwitch(
 }
 
 /**
- * The node of the clock a switch's or chopper's label names, or null, with a
+ * The node of the clock a switch's, chopper's or SPDT's label names, or null, with a
  * diagnostic, for a label no node can be named after.
  * A phase names its node the way a Net Label would, so the switch meets the
  * clock drawn on a Net of that name, or a Cell Pin of that name. A phase
@@ -106,14 +108,14 @@ export function switchPhaseNode(
 /**
  * A drawn switch as the SPICE `S` card it means: its two switched nodes, then
  * its control against the Cell's ground, closing through the ideal switch. A
- * chopper is the call of the ideal chopper's body on its four pins and the
- * clock its label names.
+ * chopper or SPDT is the call of its switches' body on its pins and the clock
+ * its label names.
  */
 export function extractDrawnSwitch(
   document: SchematicDocument,
   instance: Instance,
   definition: DeviceDescriptor,
-  control: "phase" | "pin" | "chopper",
+  control: DrawnSwitchControl,
   context: CellNetContext,
   options: ResolvedDesignNetlistAnalysisOptions,
   diagnostics: NetlistDiagnostic[],
@@ -146,14 +148,15 @@ export function extractDrawnSwitch(
       terminalNetName(document, instance, pinName, context, diagnostics) ??
       `<unconnected:${pinName}>`,
   }));
-  // A chopper calls its four switches' body with its clock last (#1641).
-  if (control === "chopper")
+  // A chopper or SPDT calls its switches' body with its clock last (#1641,
+  // #2440).
+  if (callsClockedSwitchBody(control))
     return {
       id: instance.id,
       reference,
       invocationKind: "subcircuit",
       deviceClass: "hierarchical",
-      target: IDEAL_CHOPPER_TARGET,
+      target: clockedSwitchTarget(control),
       nodes: [...nodes, { pinName: "CK", netName: controlNode }],
       parameters: [],
     };

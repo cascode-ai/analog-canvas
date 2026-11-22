@@ -6858,6 +6858,40 @@ describe("RNL round trip of built-in blocks", () => {
     },
   );
 
+  it.each([
+    ["impedance", "impedance"],
+    ["two-port", "two_port"],
+    ["two-port", "matching_network"],
+  ] as const)(
+    "draws a generic %s calling %s as a stencil of its own and brings it back (#2445)",
+    async (symbolId, master) => {
+      for (const format of ["spice", "spectre"] as const) {
+        const project = converter(symbolId);
+        project.documents[0]!.instances[0]!.netlist = {
+          binding: { kind: "unresolved-subcircuit", name: master },
+          parameters: {},
+        };
+        const plan = await roundTrip(project, format);
+        expect(
+          plan.diagnostics.filter(
+            (item) =>
+              item.severity === "error" || item.code === "RNL_IMPORT_RNL_ERROR",
+          ),
+        ).toEqual([]);
+        const part = plan.project.documents
+          .flatMap((document) => document.instances)
+          .find((instance) => instance.reference === "X1")!;
+        expect(rnlPart(part)).toEqual(
+          rnlPart(project.documents[0]!.instances[0]!),
+        );
+        const again = createDesignNetlistExport(plan.project, { format });
+        expect(again.status === "ready" && again.file.text).toMatch(
+          new RegExp(`^X1 .* ${master}$`, "mu"),
+        );
+      }
+    },
+  );
+
   it.each(["spice", "spectre"] as const)(
     "brings an op-amp bound to a Cell back drawn, the Cell's IN+ and IN- spelt as Spectre escapes them (%s)",
     async (format) => {
@@ -6951,8 +6985,8 @@ describe("RNL round trip of built-in blocks", () => {
 
 /**
  * Switches placed in Cell `dut` with a ground: S1 clocked by the phase its
- * label names, S2 by its own name, S3 by its CTRL pin, and a chopper
- * clocked by its label.
+ * label names, S2 by its own name, S3 by its CTRL pin, and a chopper and an
+ * SPDT (S5) clocked by their labels.
  */
 function switches(): CircuitProject {
   const project = createEmptyProject("switches", "Switches", "main");
@@ -7008,6 +7042,12 @@ function switches(): CircuitProject {
       reference: "CH1",
       placement: at(450, 100),
     },
+    {
+      id: "S5",
+      symbolId: "spdt-switch",
+      reference: "S5",
+      placement: at(550, 100),
+    },
   );
   document.nets.push(
     {
@@ -7018,6 +7058,7 @@ function switches(): CircuitProject {
         { instanceId: "S2", pinName: "1" },
         { instanceId: "S3", pinName: "P" },
         { instanceId: "CH1", pinName: "INP" },
+        { instanceId: "S5", pinName: "COM" },
       ],
     },
     {
@@ -7029,6 +7070,7 @@ function switches(): CircuitProject {
         { instanceId: "S3", pinName: "N" },
         { instanceId: "CH1", pinName: "INN" },
         { instanceId: "C1", pinName: "1" },
+        { instanceId: "S5", pinName: "A" },
       ],
     },
     {
@@ -7037,6 +7079,7 @@ function switches(): CircuitProject {
         port("PC", "C", "c", 700),
         { instanceId: "S3", pinName: "CTRL" },
         { instanceId: "CH1", pinName: "OUTP" },
+        { instanceId: "S5", pinName: "B" },
       ],
     },
     {
@@ -7066,6 +7109,7 @@ function switches(): CircuitProject {
   for (const [id, text] of [
     ["S1", "Φ1"],
     ["CH1", "Φ2"],
+    ["S5", "Φ3"],
   ] as const)
     document.annotations.push({
       id: `label-${id}`,
@@ -7148,7 +7192,7 @@ describe("RNL round trip of switches", () => {
       const parts = plan.project.documents.flatMap(
         (document) => document.instances,
       );
-      for (const reference of ["S1", "S2", "S3", "CH1"]) {
+      for (const reference of ["S1", "S2", "S3", "CH1", "S5"]) {
         const original = project.documents[0]!.instances.find(
           (instance) => instance.reference === reference,
         )!;
@@ -7169,7 +7213,7 @@ describe("RNL round trip of switches", () => {
             : [],
         ),
       );
-      expect(phases.sort()).toEqual(["CH1 Φ2", "S1 Φ1"]);
+      expect(phases.sort()).toEqual(["CH1 Φ2", "S1 Φ1", "S5 Φ3"]);
       // The phases its labels clock the switches by print as the Cell's
       // pins, but come back as labels alone, no Cell Pins (#1787).
       const pins = (from: CircuitProject) =>

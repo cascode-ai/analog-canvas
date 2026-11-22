@@ -132,7 +132,8 @@ revision; it never silently changes `ngspice-46-core`.
   skipped with `SPICE_IMPORT_COUPLING_SKIPPED`.
 - A subcircuit that is a body Analog Canvas writes itself (an op-amp's, a
   comparator's, a logic gate's, an ideal block's, a crystal's, a
-  potentiometer's, a unijunction's, a PUT's, a Shockley diode's) imports as no
+  potentiometer's, a transmission line's, a unijunction's, a PUT's, a
+  Shockley diode's) imports as no
   Cell; each call of it imports as the built-in block that writes it, bound
   as a placed block is, with the call's parameters as written and an adder's signs from
   the body's name. A body is told from an author's subcircuit of its name by
@@ -145,9 +146,9 @@ revision; it never silently changes `ngspice-46-core`.
   call passes `0`, as an unbound one exports, and a ground no pin then
   reaches goes too. A native Spectre body found so reaches the converter
   without its statements, so its behavioral sources never need converting.
-- The chopper's body is such a body: a call of it imports as the chopper,
-  clocked by the phase its label names, a label naming the node the call
-  passes as its clock.
+- The chopper's and SPDT's bodies are such bodies: a call of one imports as
+  that part, clocked by the phase its label names, a label naming the node
+  the call passes as its clock.
 - An `S` card naming Analog Canvas's ideal switch (its model card exactly as
   Analog Canvas prints it; in Spectre, the ideal switch each Cell defines)
   imports as the switch with a CTRL pin, on the card's control node. Every

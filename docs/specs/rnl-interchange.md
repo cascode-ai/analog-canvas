@@ -181,8 +181,8 @@ the RNL language and its runtime belong to rnl.
   apart on import. Default circle appearances export as `$CANVAS_*_CIRCLE`
   from `analog-canvas-extensions`. Both preserve their appearance, pin
   positions and control connections through import.
-- The standard series' own symbols draw the crystal (`$CRYSTAL`, on the call
-  of its body), the polarized capacitor, photoresistor and speaker (C and R
+- The standard series' own symbols draw the crystal (`$CRYSTAL`) and the
+  transmission line (`$TRANSMISSION_LINE`), each on the call of its body, the polarized capacitor, photoresistor and speaker (C and R
   cards), LED and Schottky diode (D cards), microphone, sine and pulse voltage
   sources and ammeter (V cards), the Shockley diode, PUT, UJT and
   potentiometer (calls of their bodies), the chopper (`$CHOPPER_SYMBOL`) and
@@ -197,6 +197,9 @@ the RNL language and its runtime belong to rnl.
   (`$CANVAS_MOS_VARACTOR`) on the X line of its PDK device
   (`sg13_hv_svaricap`): terminals `g1 w g2 bn`, the substrate undrawn. Import
   reads it back as the MOS Varactor with that device.
+- The generic impedance and two-port, which no package draws, are defined in
+  the file (`$CANVAS_IMPEDANCE`, `$CANVAS_TWO_PORT`) on their call, terminals
+  in their body's port order.
 - Fully differential comparators and Delay Cell define their exact artwork in the file
   using the runtime's `define-symbol` operation. Signals precede supplies;
   Delay Cell retains both VDD/VSS, while comparator numeric-high bodies omit

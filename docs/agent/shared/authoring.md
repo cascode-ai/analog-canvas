@@ -155,9 +155,11 @@ their IDs, never resolved to the first.
   | `dac-differential`                                                         | `IN`, `OUT+`, `OUT-`                                                                |
   | `d-flip-flop`, `-q`, `-reset`                                              | `D`, `CK`, `Q`, `QBAR` where drawn, `RST` for reset                                 |
   | `crystal`                                                                  | `1`, `2`                                                                            |
+  | `transmission-line`                                                        | `P1`, `N1`, `P2`, `N2`                                                              |
   | `tcoil`, `center-tap-inductor`                                             | `1`, `2`, `3`                                                                       |
   | `xfmr`                                                                     | `P+`, `P-`, `S+`, `S-`                                                              |
   | `chopper`                                                                  | `INP`, `INN`, `OUTP`, `OUTN`, plus `CK` for the clock its label names unless global |
+  | `spdt-switch`, `simple-spdt-switch`                                        | `COM`, `A`, `B`, plus `CK` as the chopper's                                         |
 
   A part with inputs `IN+`/`IN-` also takes a set of usual names when none of
   the set is named its own way: `INP`/`INN` (or `INM`), `VINP`/`VINN`,
@@ -209,6 +211,10 @@ their IDs, never resolved to the first.
 - Adder: `signA`/`signB` `"-"` (default `"+"`; `−` stored as `-`) subtracts that
   input, drawn ±, netlisted `adder_minus_b` (`_a`, `_ab`). V_hold − V_DAC is one
   adder with `signB:"-"`, never an undrawn −1 gain block.
+- Transmission line (`transmission-line`, drawn T1): lossless, port 1 `P1`/`N1`,
+  port 2 `P2`/`N2` (tie `N1`/`N2` to ground for a line over a shared
+  reference); `z0` (`"50"`), `td` (`"1n"`; from frequency and electrical
+  length `td:"{0.25/1G}"`). SPICE `T`, Spectre `tline`; VACASK has none.
 - `set-terminal-net {target, pin, net}` sets a terminal no pin of the part's
   symbol draws, as its Properties row does: a block's or Circuit Component's
   `VDD`/`VSS` (fixes `MISSING_BLOCK_SUPPLY`), a SKY130 substrate (`B`, `SUB`,
@@ -272,7 +278,10 @@ label; `null` clocks it by its own name), driven by a Net named `Φ1` or a Cell 
 `Φ1`; an undriven phase becomes a Cell input (`.subckt … PHI1`) passed up
 through callers. `text:"EN_bar"` (drawn E̅N̅) is its own signal: draw the
 inverter if the circuit makes it, else the testbench drives both. Free text
-clocks nothing. `externally-controlled-switch` uses its CTRL pin.
+clocks nothing. `externally-controlled-switch` uses its CTRL pin. An SPDT
+(`spdt-switch`, `simple-spdt-switch`; pins `COM`, `A`, `B`) is clocked the same
+way and throws COM to A while its phase is high, to B while it is low
+(`XS1 com a b PHI1 ideal_spdt`).
 
 ### Coupled inductors
 
@@ -341,6 +350,23 @@ information). Hidden bulk needs no decorative wire.
   and calls the Cell; the Cell's Pins must match the part's (`IN+`/`IN-`/`OUT`,
   or `INP`/`INN`), and `model: ""` unbinds it. `set-cell-symbol-artwork` is
   only for shapes no Library part has.
+- A block the figure leaves unspecified (#2445):
+  - an impedance or two-terminal box (Z_S, "Trimming"): `impedance` (pins `1`,
+    `2`, drawn Z1); a two-port (a matching network, a filter): `two-port`
+    (`P1`/`N1` left, `P2`/`N2` right). Each prints only a call,
+    `X1 a b impedance` / `two_port`, with the warning
+    `GENERIC_BLOCK_UNDEFINED`; `set-model {target, model:"zs"}` names the
+    subcircuit it stands for (any identifier; no warning), `model:""` returns
+    the default, and a Project Cell or external subcircuit of that name with
+    the part's Pins is bound instead. Show the figure's label with
+    `set-display-alias`.
+  - a labelled function box with its own pins (power stage, clock generator,
+    8-to-3 encoder): a Cell of that name. `create-cell {id, name}`, a `port`
+    per pin in it (`documentId` the Cell), then `place-cell` in the parent; arrange
+    with `set-cell-symbol-pins`/`-size`. It prints `X1 … name` and an empty
+    `.subckt name … .ends`; `verify` against a netlist that leaves `name`
+    undefined reports topology equal and one `binding` difference
+    (`compare:{bindings:false}`).
 - `set-port-direction` sets one terminal or a whole Port; `set-vdd-mode`
   switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.

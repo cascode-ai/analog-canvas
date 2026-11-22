@@ -313,6 +313,25 @@ describe("native VACASK circuit projection", () => {
     ]);
   });
 
+  it("refuses a transmission line, which VACASK has no device for (#2442)", () => {
+    const ir = design([
+      {
+        ...card("XT1", "hierarchical", {}, ["a", "0", "b", "0"]),
+        invocationKind: "subcircuit",
+        target: "transmission_line",
+      },
+    ]);
+    ir.generatedDefinitions = [
+      { kind: "behavioral", name: "transmission_line" },
+    ];
+    const result = printVacaskWithLocations(ir);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.diagnostics.map((d) => d.code)).toEqual([
+      "VACASK_UNSUPPORTED_DEVICE",
+    ]);
+  });
+
   it("does not invent defaults for required Cell parameters or a missing top", () => {
     const ir = design([]);
     ir.cells[0]!.formalParameters = [{ name: "r" }];

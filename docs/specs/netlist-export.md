@@ -106,11 +106,11 @@ derive from `parameters`.
   use the same ordered terminal binding. The definition owns the target interface
   and its implementation. The instance's bound symbol maps local endpoints to
   that interface. Presentation edits retain existing callers' electrical bindings.
-- Any Library part with a generated body, the chopper and magnetic parts
+- Any Library part with a generated body, the chopper, SPDT and magnetic parts
   included, can be bound (`set-model`) to a Project Cell or external
   subcircuit without changing artwork or References. Its Pins or ports are the
   part's own pins (an op-amp's `IN+`, `IN-`, `OUT`) and optional VDD/VSS, or a
-  chopper's optional `CK` for the clock its label names, met by name; a part
+  chopper's or SPDT's optional `CK` for the clock its label names, met by name; a part
   with inputs `IN+`/`IN-` also meets a whole set of usual names (`INP`/`INN`,
   `VIP`/`VIN`, `VOUT`; [list](../agent/shared/authoring.md)) while the set
   has none of its own, never a set spelled two ways. The call follows the
@@ -154,7 +154,8 @@ Bodies live in [analog blocks](../../packages/netlist/src/ideal-analog-block-mod
 [signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts),
 [semiconductor devices](../../packages/netlist/src/semiconductor-device-models.ts) and
 [generated models](../../packages/netlist/src/generated-models.ts). Every Block
-but the crystal, the potentiometer and the semiconductor devices declares
+but the crystal, the potentiometer, the transmission line, the generic blocks
+and the semiconductor devices declares
 fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
@@ -225,6 +226,12 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `max(r·(1−pos), 1m)` from the wiper to end 2, defaults `r` = 10 kΩ and
   `pos` = 0.5; the 1 mΩ floor keeps a wiper at either end well conditioned. It
   is an `X` call of that body, as the crystal is.
+- Transmission line (`transmission_line`: `p1 n1 p2 n2` for pins P1, N1, P2,
+  N2, no supplies) is one lossless line, SPICE `T1 p1 n1 p2 n2 Z0={z0}
+TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
+  50 Ω, `td` = 1 ns. A line given by frequency and normalized length takes
+  `td` = nl/f (`{0.25/1G}`). It is an `X` call of that body, as the crystal
+  is; VACASK has no line (`VACASK_UNSUPPORTED_DEVICE`).
 - Semiconductor devices SPICE has no card for are `X` calls of textbook
   equivalent circuits, no supplies, each body carrying its own model cards
   with the generic cards' parameters (`de` the DIODE card, `qn`/`qp` the
@@ -242,22 +249,35 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
     `VBO n1 nz {vbo-1.9}` and `DBO nz p2 dj`, `RGK p2 k 1k` and
     `CGK p2 k 10p`; default `vbo` = 10 V. It breaks over at about `vbo`
     (about 0.65 mA) and holds at about 0.8 V down to about 0.8 mA.
-- SPICE and VACASK include all bodies; Spectre includes comparator,
-  combinational gates (`bsource` with RC delay), the crystal, the
-  potentiometer and the semiconductor devices; DFF,
+- SPICE and VACASK include all bodies but VACASK the transmission line;
+  Spectre includes comparator, combinational gates (`bsource` with RC delay),
+  the crystal, the potentiometer, the transmission line and the semiconductor
+  devices; DFF,
   multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.
   That call's name is the reader's interface: where a Cell, or an external
   subcircuit or model source, in the netlist defines it, an unbound part
   refuses with `LIBRARY_PART_NAME_COLLISION` naming `set-model`.
   Other Analog Blocks are black-box calls.
+- The generic blocks, impedance (`impedance`: `n1 n2`) and two-port
+  (`two_port`: `p1 n1 p2 n2`), no supplies, have no body in any format: each
+  is that call alone, with the warning `GENERIC_BLOCK_UNDEFINED`, under the
+  same collision rule. `set-model` names the subcircuit one stands for (any
+  identifier, an `unresolved-subcircuit` binding, no warning) unless a Cell
+  or external subcircuit of that name is bound by Pin name instead.
 
 ### Switches
 
 - Every switch is an ngspice `S` card through `ideal_switch` (`SW`: RON 1 Ω,
   ROFF 1e12 Ω, VT 0.5 V, VH 0) printed once per using Cell; Spectre uses a hard
   `bsource`, VACASK the qualified `icm_switch` (patched runtime,
-  [patch](../../containers/vacask/patches/README.md)). No clock is invented;
-  SPDT has no primitive.
+  [patch](../../containers/vacask/patches/README.md)). No clock is invented.
+- A chopper or SPDT (`spdt-switch`, `simple-spdt-switch`) calls one generated
+  body of ideal switches on the clock its label names, passed last:
+  `ideal_chopper` (`INP INN OUTP OUTN CK`; straight while high, crossed while
+  low) and `ideal_spdt` (`COM A B CK`; COM–A while high, COM–B while low).
+  SPICE switches each path with an `S` card, the low side on the negated
+  threshold; Spectre and VACASK use the hard `bsource`. One side conducts at
+  a time; the complement is the part's own.
 - Two-terminal switches follow the phase their label names, shown or hidden
   (Φ₁ → `PHI1`; a label showing its own name is its own phase,
   `S1 a b S1 VSS ideal_switch`; Properties edits it as `control`);

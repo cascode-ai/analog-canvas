@@ -32,6 +32,7 @@ import {
   isIdealComparatorBody,
   isIdealOpampBody,
   instanceBuiltInSubcircuit,
+  isGenericBlockTarget,
   callOwner,
   subcircuitDescriptor,
 } from "@icm/devices";
@@ -59,7 +60,7 @@ import {
   finalizeCellInterfaces,
   prepareCellInterface,
 } from "./extract-interface.js";
-import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
+import { CLOCKED_SWITCH_TARGETS } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
 import {
   authorSubcircuitNames,
@@ -545,7 +546,8 @@ function analyzeDesign(
   // Cell, an explicitly declared external master, or one of the generated
   // built-in models below.
   // Whose name each call reaches (callOwner): a Library part's, a magnetic
-  // device's or the chopper's never reaches the author's by name (#1928).
+  // device's, the chopper's or the SPDT's never reaches the author's by name
+  // (#1928).
   const sourceOf = (cellId: StableId, instanceId: StableId) =>
     documentsById
       .get(cellId)
@@ -662,14 +664,25 @@ function analyzeDesign(
       // A Library part's call-only name that no definition in this output
       // has is always left to the reader's libraries.
       if (callOnly && (generated || !availableSubcircuits.has(target))) {
-        diagnostic(
-          diagnostics,
-          cell.id,
-          "SPECTRE_MODEL_NOT_INCLUDED",
-          `${instance.reference} calls ${instance.target}, which this Spectre export does not define: bind it to a cell from your libraries, a PDK standard cell or a Verilog-A model for example. A SPICE export includes an ideal ${instance.target}`,
-          [instance.id],
-          "warning",
-        );
+        // A generic block has no body in any netlist (#2445).
+        if (isGenericBlockTarget(instance.target))
+          diagnostic(
+            diagnostics,
+            cell.id,
+            "GENERIC_BLOCK_UNDEFINED",
+            `${instance.reference} calls ${instance.target}, a generic block no netlist here defines: name the subcircuit it stands for with set-model, or bind it to a Cell`,
+            [instance.id],
+            "warning",
+          );
+        else
+          diagnostic(
+            diagnostics,
+            cell.id,
+            "SPECTRE_MODEL_NOT_INCLUDED",
+            `${instance.reference} calls ${instance.target}, which this Spectre export does not define: bind it to a cell from your libraries, a PDK standard cell or a Verilog-A model for example. A SPICE export includes an ideal ${instance.target}`,
+            [instance.id],
+            "warning",
+          );
         continue;
       }
       // An explicitly retargeted unresolved subcircuit is an intentional
@@ -737,7 +750,7 @@ function analyzeDesign(
   const ownBodies = [
     ...IDEAL_COMPARATOR_BODIES,
     ...IDEAL_OPAMP_BODIES,
-    IDEAL_CHOPPER_TARGET,
+    ...CLOCKED_SWITCH_TARGETS,
   ].filter((name) => generatedTargets.has(name));
   const writtenNames = new Map<string, string>();
   for (const body of [

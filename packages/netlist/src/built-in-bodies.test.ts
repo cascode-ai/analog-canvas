@@ -346,8 +346,9 @@ ends xfmr
 
 /**
  * Switches in Cell `dut` with a ground: S1 clocked by the phase its label
- * names, S2 by its own name, S3 by its CTRL pin, a chopper clocked by its
- * label and, where `withModel`, S4 closed by a model of the author's own.
+ * names, S2 by its own name, S3 by its CTRL pin, a chopper and an SPDT (S5)
+ * clocked by their labels and, where `withModel`, S4 closed by a model of the
+ * author's own.
  */
 function switches(withModel: boolean): CircuitProject {
   const project = createEmptyProject("switches", "Switches", "main");
@@ -384,6 +385,7 @@ function switches(withModel: boolean): CircuitProject {
     part("S2", "ideal-switch"),
     part("S3", "externally-controlled-switch"),
     part("CH1", "chopper"),
+    part("S5", "spdt-switch"),
     ...(withModel
       ? [
           {
@@ -415,6 +417,7 @@ function switches(withModel: boolean): CircuitProject {
           ["S3", "P"],
           ["CH1", "INP"],
           ["S4", "P"],
+          ["S5", "COM"],
         ]),
       ],
     },
@@ -428,6 +431,7 @@ function switches(withModel: boolean): CircuitProject {
           ["S3", "N"],
           ["CH1", "INN"],
           ["S4", "N"],
+          ["S5", "A"],
           ["C1", "1"],
         ]),
       ],
@@ -440,6 +444,7 @@ function switches(withModel: boolean): CircuitProject {
           ["S3", "CTRL"],
           ["CH1", "OUTP"],
           ["S4", "CP"],
+          ["S5", "B"],
         ]),
       ],
     },
@@ -473,6 +478,7 @@ function switches(withModel: boolean): CircuitProject {
   for (const [id, text] of [
     ["S1", "Φ1"],
     ["CH1", "Φ2"],
+    ["S5", "Φ3"],
   ] as const)
     document.annotations.push({
       id: `label-${id}`,
@@ -511,11 +517,12 @@ describe("switches on import", () => {
       const parts = back.documents.flatMap((document) => document.instances);
       const kind = (reference: string) =>
         parts.find((instance) => instance.reference === reference)?.symbolId;
-      expect(["S1", "S2", "S3", "CH1"].map(kind)).toEqual([
+      expect(["S1", "S2", "S3", "CH1", "S5"].map(kind)).toEqual([
         "externally-controlled-switch",
         "externally-controlled-switch",
         "externally-controlled-switch",
         "chopper",
+        "spdt-switch",
       ]);
       if (format === "spice") {
         expect(kind("S4")).toBe("voltage-controlled-switch");

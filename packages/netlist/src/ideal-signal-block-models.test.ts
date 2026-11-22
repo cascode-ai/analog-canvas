@@ -82,10 +82,53 @@ describe("generated block bodies", () => {
         !idealAnalogBlockCell(target, "spice") &&
         !IDEAL_LOGIC_TARGETS.includes(target) &&
         !IDEAL_SIGNAL_TARGETS.includes(target) &&
-        builtInModelContract(target)?.family !== "passive",
+        builtInModelContract(target)?.family !== "passive" &&
+        // A generic block is a call of the reader's own subcircuit.
+        builtInModelContract(target)?.family !== "generic",
     );
     expect(missing).toEqual([]);
   });
+
+  it.each([
+    ["impedance", "X1 n1 n2", "zs"],
+    ["two-port", "X1 p1 n1 p2 n2", "matching_network"],
+  ])(
+    "export a generic %s as a call of the subcircuit it stands for, defined by the reader (#2445)",
+    (symbolId, call, name) => {
+      const project = blockCell(symbolId);
+      const target = subcircuitDescriptor(symbolId)!.target;
+      for (const format of ["spice", "spectre"] as const) {
+        const result = createDesignNetlistExport(project, { format });
+        expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+        if (result.status !== "ready") return;
+        const line = format === "spice" ? call : call.replace(" ", " (") + ")";
+        expect(result.file.text).toMatch(
+          new RegExp(`^${line.replace(/[()]/gu, "\\$&")} ${target}$`, "mu"),
+        );
+        // No body: the reader's libraries define it.
+        expect(result.file.text).not.toMatch(
+          /^\.?subckt (impedance|two_port)/mu,
+        );
+        expect(result.diagnostics).toEqual([
+          expect.objectContaining({
+            code: "GENERIC_BLOCK_UNDEFINED",
+            severity: "warning",
+            objectIds: ["block"],
+          }),
+        ]);
+      }
+      // Named, it calls that subcircuit and says nothing.
+      project.documents[0]!.instances[0]!.netlist!.binding = {
+        kind: "unresolved-subcircuit",
+        name,
+      };
+      const named = createDesignNetlistExport(project);
+      expect(named.status).toBe("ready");
+      if (named.status !== "ready") return;
+      expect(named.file.text).toMatch(new RegExp(`^${call} ${name}$`, "mu"));
+      expect(named.diagnostics).toEqual([]);
+    },
+  );
 
   it("write the multiplier and the converters as single B-sources", () => {
     expect(spiceIdealSignalSubcircuit("multiplier")).toEqual([
@@ -393,6 +436,40 @@ describe("generated block bodies", () => {
     );
   });
 
+  it("export a transmission line as a call of its lossless T body (#2442)", () => {
+    const project = blockCell("transmission-line");
+    project.documents[0]!.instances[0]!.netlist!.parameters = {
+      z0: "75",
+      td: "{0.25/1G}",
+    };
+    const [spice, spectre] = (["spice", "spectre"] as const).map((format) => {
+      const result = createDesignNetlistExport(project, { format });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      return result.status === "ready" ? result.file.text : "";
+    });
+    expect(spice).toContain(
+      [
+        ".subckt transmission_line p1 n1 p2 n2 params: z0=50 td=1n",
+        "T1 p1 n1 p2 n2 Z0={z0} TD={td}",
+        ".ends transmission_line",
+      ].join("\n"),
+    );
+    expect(spice).toMatch(
+      /^X1 p1 n1 p2 n2 transmission_line td=\{0\.25\/1G\} z0=75$/mu,
+    );
+    expect(spectre).toContain(
+      [
+        "subckt transmission_line (p1 n1 p2 n2)",
+        "parameters z0=50 td=1n",
+        "T1 (p1 n1 p2 n2) tline z0=z0 td=td",
+        "ends transmission_line",
+      ].join("\n"),
+    );
+    expect(spectre).toMatch(
+      /^X1 \(p1 n1 p2 n2\) transmission_line td=0\.25\/1G z0=75$/mu,
+    );
+  });
+
   it("export a potentiometer as a call of its two-resistor body", () => {
     const project = blockCell("potentiometer");
     project.documents[0]!.instances[0]!.netlist!.parameters = {
@@ -678,6 +755,53 @@ describe.skipIf(!ngspiceOnPath())(
         expect(measured.dacd_n_bottom).toBeCloseTo(1.35, 4);
         expect(measured.dacd_p_top).toBeCloseTo(0.9 + 0.675 / 2, 4);
         expect(measured.dacd_n_top).toBeCloseTo(0.9 - 0.675 / 2, 4);
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+
+    it("delays a step by td along a matched transmission line (#2442)", () => {
+      const project = blockCell("transmission-line", "line_cell");
+      project.documents[0]!.instances[0]!.netlist!.parameters = {
+        z0: "50",
+        td: "2n",
+      };
+      const result = createDesignNetlistExport(project);
+      if (result.status !== "ready") throw new Error("line blocked");
+      // A 1 V step through 50 Ω into the line, its far end loaded with 50 Ω:
+      // half the step, 2 ns later.
+      const deck = [
+        "* transmission line body",
+        result.file.text.replace(/^\.end\s*$/mu, ""),
+        "VIN in 0 PULSE(0 1 0 10p 10p 10n 20n)",
+        "RS in a 50",
+        "XL a 0 b 0 line_cell",
+        "RL b 0 50",
+        ".tran 10p 4n",
+        ".control",
+        "run",
+        "meas tran near FIND v(a) AT=1n",
+        "meas tran before FIND v(b) AT=1.9n",
+        "meas tran after FIND v(b) AT=2.5n",
+        ".endc",
+        ".end",
+      ].join("\n");
+      const directory = mkdtempSync(join(tmpdir(), "icm-tline-"));
+      try {
+        writeFileSync(join(directory, "deck.cir"), deck, "utf8");
+        const output = execFileSync("ngspice", ["-b", "deck.cir"], {
+          cwd: directory,
+          encoding: "utf8",
+        });
+        const measured = Object.fromEntries(
+          [...output.matchAll(/^(\w+)\s+=\s+(\S+)/gmu)].map((match) => [
+            match[1],
+            Number(match[2]),
+          ]),
+        );
+        expect(measured.near).toBeCloseTo(0.5, 3);
+        expect(measured.before).toBeCloseTo(0, 3);
+        expect(measured.after).toBeCloseTo(0.5, 3);
       } finally {
         rmSync(directory, { recursive: true, force: true });
       }
