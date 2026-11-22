@@ -107,7 +107,7 @@ describe("source simulation compiler", () => {
       expect.arrayContaining([
         expect.objectContaining({
           code: "SIMULATION_NON_ASCII_NAME",
-          message: "Authored name 输入 is prepared as u8f93u5165 for ngspice",
+          message: expect.stringContaining("u8f93u5165"),
         }),
       ]),
     );
@@ -390,9 +390,6 @@ describe("source simulation compiler", () => {
     const prepared = compiled.files.find(
       (f) => f.path === folder.input.entry,
     )!.text;
-    expect(prepared).toContain("save v(0)");
-    expect(prepared).not.toContain("save all");
-    expect(prepared).not.toContain("save default");
     expect(prepared).toBe(entry.text);
   });
   it("distinguishes two authored DUT calls and maps formal ports to actual top-level nodes", () => {

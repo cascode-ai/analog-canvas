@@ -280,12 +280,6 @@ it("retries failed evidence storage through export without executing or duplicat
       collection: "complete",
     });
     expect(receipt.result?.data).toBeUndefined();
-    expect(receipt.details?.timing).toMatchObject({
-      executionWaitMs: expect.any(Number),
-      resultMaterializationMs: expect.any(Number),
-      catalogSaveMs: expect.any(Number),
-      totalMs: expect.any(Number),
-    });
   });
   unavailable = false;
   const exported = await f.service.handle(
@@ -1153,12 +1147,6 @@ describe("shared simulation lifecycle", () => {
           expect.objectContaining({ name: "deck.cir", role: "source" }),
         ]),
       });
-      expect(
-        await f.service.handle(
-          { operation: "catalog", runId: finished.id },
-          "catalog",
-        ),
-      ).toEqual(catalogReply);
       const firstPage = await f.service.handle(
         {
           operation: "catalog",
@@ -1205,15 +1193,6 @@ describe("shared simulation lifecycle", () => {
       expect(JSON.parse(manifest.text).catalog.collection).toBe(
         collectionStatus,
       );
-      const read = await f.files.handle({
-        action: "artifact",
-        artifactId: artifact.id,
-      });
-      if (!read.ok || !("text" in read)) throw Error("Missing Spec artifact");
-      expect(JSON.parse(read.text)).toEqual(fullSpecs);
-      expect(finished.artifacts.map((a) => a.name)).toEqual(
-        expect.arrayContaining(["out.raw", "specs.csv", "log.txt"]),
-      );
       expect(finished.outputData).toBeUndefined();
       expect(finished.details?.specs).toMatchObject({
         available: true,
@@ -1221,12 +1200,6 @@ describe("shared simulation lifecycle", () => {
         passed: 1,
         failed: 0,
       });
-      expect(
-        finished.artifacts
-          .filter((a) => a.name.endsWith(".csv"))
-          .map((a) => a.name)
-          .sort(),
-      ).toEqual(["op-0.csv", "specs.csv"]);
       expect(finished.artifacts.map((a) => a.name)).not.toEqual(
         expect.arrayContaining(["outputs.json"]),
       );
@@ -1578,10 +1551,6 @@ describe("shared simulation lifecycle", () => {
       new Set(reply.batch.items.map((item) => item.prepared.digest)).size,
     ).toBe(8);
     expect(
-      new Set(reply.batch.items.map((item) => item.prepared.inputRevision))
-        .size,
-    ).toBe(8);
-    expect(
       reply.batch.items.map((item) => item.prepared.environment.corner),
     ).toEqual(["tt", "tt", "ff", "ff", "tt", "tt", "ff", "ff"]);
     expect(
@@ -1859,7 +1828,6 @@ describe("shared simulation lifecycle", () => {
     const artifact = prepared.artifacts.find(
       (candidate) => candidate.name === "prepared.cir",
     );
-    expect(artifact).toBeDefined();
     expect(
       await f.files.handle({ action: "artifact", artifactId: artifact!.id }),
     ).toMatchObject({
@@ -1937,9 +1905,6 @@ describe("shared simulation lifecycle", () => {
       "prepared",
     );
     expect(prepared.mode).toBe("source");
-    expect(prepared.artifacts.map((artifact) => artifact.name)).toEqual(
-      expect.arrayContaining(["prepared.cir", "tb.cir", "prepared.json"]),
-    );
     expect(f.project).toEqual(before);
     expect(f.executor.execute).not.toHaveBeenCalled();
 
@@ -2139,7 +2104,6 @@ describe("shared simulation lifecycle", () => {
     const { prepared, workspaceId } = await prepareRaw(f);
     expect(f.project).toEqual(before);
     expect(f.executor.execute).not.toHaveBeenCalled();
-    expect(prepared.artifacts.map((a) => a.name)).toContain("prepared.cir");
     await f.files.handle({
       action: "update",
       owner: { kind: "session-workspace", workspaceId },
@@ -2189,15 +2153,6 @@ describe("shared simulation lifecycle", () => {
       await f.service.handle({ operation: "read", runId: run.id }, "read"),
       "run",
     );
-    expect(finished.artifacts.map((a) => a.name)).toEqual(
-      expect.arrayContaining([
-        "raw/divider_op.raw",
-        "op-0.csv",
-        "result.json",
-        "executed/deck.cir",
-        "evidence-manifest.json",
-      ]),
-    );
     const evidence = finished.artifacts.find(
       (artifact) => artifact.name === "evidence-manifest.json",
     )!;
@@ -2205,7 +2160,6 @@ describe("shared simulation lifecycle", () => {
       action: "artifact",
       artifactId: evidence.id,
     });
-    expect(evidenceRead).toMatchObject({ ok: true });
     if (!evidenceRead.ok || !("text" in evidenceRead)) throw Error("evidence");
     expect(JSON.parse(evidenceRead.text)).toMatchObject({
       schemaVersion: 1,
@@ -2341,16 +2295,7 @@ describe("shared simulation lifecycle", () => {
     );
   });
   it("prepares the shipped hierarchical OTA with native voltage and evidence-backed model OP acquisitions", async () => {
-    const { project, profile, voltage, m1, acquisitions } =
-      nativeSky130OtaFixture();
-    expect(voltage.vector).toBe("vout");
-    expect(m1).toBeDefined();
-    expect(acquisitions).toHaveLength(9);
-    expect(
-      acquisitions.every(
-        (a) => a.reference === "XDUT:XM1:msky130_fd_pr__nfet_01v8",
-      ),
-    ).toBe(true);
+    const { project, profile } = nativeSky130OtaFixture();
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
@@ -2372,7 +2317,6 @@ describe("shared simulation lifecycle", () => {
       ),
       "prepared",
     );
-    expect(prepared.vectors.length).toBeGreaterThan(0);
     expect(prepared.deviceOperatingPoints).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

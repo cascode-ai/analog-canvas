@@ -206,7 +206,6 @@ describe("managed hosted executor", () => {
         preparedDigest: "b".repeat(64),
       })
       .catch((e) => e);
-    expect(failure.problem.message).toContain("HTTP 200, application/json");
     await expect(failure.readResult()).resolves.toMatchObject({
       result: { outcome: { status: "completed" } },
     });

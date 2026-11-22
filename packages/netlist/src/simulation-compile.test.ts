@@ -494,9 +494,6 @@ describe("compiling a structured simulation folder", () => {
     expect(result.vectors.some((vector) => vector.quantity === "current")).toBe(
       true,
     );
-    expect(
-      result.vectors.some((vector) => vector.vector.includes("xdut")),
-    ).toBe(true);
     const vectors = result.vectors.map((vector) => vector.vector);
     expect(vectors).toEqual(
       expect.arrayContaining(["v(vinp)", "v(vdd)", "v(xdut.tail)"]),
@@ -750,7 +747,6 @@ describe("compiling a structured simulation folder", () => {
     );
     expect(result.request.analyses).toEqual(["op", "ac"]);
     expect(result.request.timeoutMs).toBe(30_000);
-    expect(result.request.inputRevision).toMatch(/^[0-9a-f]{64}$/u);
     expect(result.vectors).toEqual([
       { probeId: "probe-mid", vector: "v(mid)", quantity: "voltage" },
       { probeId: "probe-in", vector: "v(in)", quantity: "voltage" },

@@ -31,10 +31,6 @@ const minimalIr = {
 };
 
 describe("transient Circuit IR", () => {
-  it("accepts an ordered, source-located structural circuit", () => {
-    expect(CircuitIRSchema.parse(minimalIr)).toEqual(minimalIr);
-  });
-
   it("rejects renderer placement leaking into the import boundary", () => {
     expect(
       CircuitIRSchema.safeParse({

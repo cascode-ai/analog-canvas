@@ -553,8 +553,7 @@ describe("structural SPICE round trip", () => {
     const capacitor = project.documents
       .find((document) => document.id === "leaf")
       ?.instances.find((instance) => instance.id === "C1");
-    expect(capacitor).toBeDefined();
-    if (!capacitor) return;
+    if (!capacitor) throw Error("Missing C1");
     capacitor.placement = {
       position: { x: 120, y: 80 },
       rotation: 90,

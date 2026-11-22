@@ -49,7 +49,6 @@ it.each(["spi", "scs"])(
     expect(
       imported.diagnostics.filter(({ severity }) => severity === "error"),
     ).toEqual([]);
-    expect(imported.project).toBeDefined();
     const restored = parseProject(serializeProject(imported.project!));
     const driver = restored.documents.find(({ name }) => name === "driver")!;
     expect(driver.instances.find(({ id }) => id === "XREF")).toMatchObject({

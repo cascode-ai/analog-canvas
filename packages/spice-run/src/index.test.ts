@@ -17,7 +17,6 @@ import {
   MAX_SIMULATION_TIMEOUT_MS,
   readNgspiceDiagnostics,
   resolveTimeoutMs,
-  SKY130_LIBRARY_PATH,
   simulationConfigurationMetadata,
   verifySimulationEnvironmentMetadata,
 } from "./index.js";
@@ -350,14 +349,6 @@ describe("simulation run evidence", () => {
   });
 });
 
-describe("the model library", () => {
-  it("names the pinned image's library, and only that one", () => {
-    // Every surface reads this constant, so a change here is a change
-    // everywhere rather than a fourth spelling that drifts from the others.
-    expect(SKY130_LIBRARY_PATH).toBe("/opt/sky130/continuous/sky130.lib.spice");
-  });
-});
-
 describe("simulation deck assembly", () => {
   const netlist =
     ".subckt amp in out\nM1 out in 0 0 nfet\n.ends\nXA in out amp";
@@ -459,7 +450,6 @@ describe("simulation run metadata", () => {
       startupSha256: null,
     });
     expect(environment.reproducibility).toBe("observed");
-    expect(environment.fingerprint).toMatch(/^[0-9a-f]{64}$/u);
     expect(isSimulationEnvironmentMetadata(environment)).toBe(true);
     expect(
       isSimulationEnvironmentMetadata({

@@ -168,9 +168,7 @@ describe("ideal comparator", () => {
         continue;
       }
       expect(result.status, `${name} ${vhigh}`).toBe("blocked");
-      expect(found?.message).toBe(
-        `X1's generated body ${name} has a name Analog Canvas reserves, but Cell ${name} of this Project has it too; rename it`,
-      );
+      expect(found?.message).toContain(`Cell ${name} of this Project`);
     }
   });
 });

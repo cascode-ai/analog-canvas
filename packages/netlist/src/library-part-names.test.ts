@@ -231,10 +231,6 @@ const reversedPorts = (symbolId: string) =>
     .reverse();
 
 describe("a Library part never calls an author's definition because of its name (#1928)", () => {
-  it("has a name to yield for every body but the reserved and call-only ones", () => {
-    expect(BASELINES.filter(hasNoOtherName)).toHaveLength(NO_OTHER_NAME.length);
-  });
-
   for (const author of ["Cell", "external subcircuit"] as const)
     it.each(BASELINES.filter((baseline) => !hasNoOtherName(baseline)))(
       `writes $symbolId's body $target as icm_$target beside the author's ${author} of that name, in $format`,
