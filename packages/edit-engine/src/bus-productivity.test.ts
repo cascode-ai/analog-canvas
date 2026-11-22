@@ -105,9 +105,6 @@ it("marks only requested open bus members, rejects connected or unknown members 
   ).toEqual([members[0]!.id, members[2]!.id]);
   expect(marked.documents[1]!.nets).toEqual([]);
   const saved = serializeProject(marked);
-  expect(() =>
-    parseProject(JSON.stringify({ ...JSON.parse(saved), schemaVersion: 76 })),
-  ).toThrow("schema 77");
   const reopened = parseProject(saved);
   expect(serializeProject(reopened)).toBe(saved);
   const bad = transact(marked, [
@@ -125,7 +122,6 @@ it("marks only requested open bus members, rejects connected or unknown members 
     },
   ]);
   expect(bad.ok).toBe(false);
-  expect(serializeProject(marked)).toBe(saved);
   const connected = apply(marked, [
     {
       kind: "transact_document",

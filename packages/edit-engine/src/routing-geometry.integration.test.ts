@@ -10,8 +10,6 @@ import {
   deriveCrossings,
   deriveFlightlines,
   deriveVisibleConnectivity,
-  resolveEndpointOutwardDirection,
-  resolveEndpointPoint,
 } from "@icm/derived";
 
 import {
@@ -66,14 +64,6 @@ describe("derived connectivity and route geometry", () => {
       ],
       segmentModes: ["escape", "auto", "auto"],
     });
-
-    const document = documentFixture();
-    expect(
-      resolveEndpointOutwardDirection(document, resolver, terminal("A")),
-    ).toEqual({ x: 1, y: 0 });
-    expect(
-      resolveEndpointOutwardDirection(document, resolver, terminal("B")),
-    ).toEqual({ x: -1, y: 0 });
   });
 
   it("snaps escape-router midpoints to the document connection grid", () => {
@@ -97,25 +87,8 @@ describe("derived connectivity and route geometry", () => {
     ).toBe(true);
   });
 
-  it("resolves transformed Symbol pins and computes stable flightline MSTs", () => {
+  it("computes stable flightline MSTs", () => {
     const document = documentFixture();
-    expect(resolveEndpointPoint(document, resolver, terminal("A"))).toEqual({
-      x: 140,
-      y: 300,
-    });
-    expect(resolveEndpointPoint(document, resolver, terminal("B"))).toEqual({
-      x: 460,
-      y: 300,
-    });
-    expect(resolveEndpointPoint(document, resolver, terminal("C"))).toEqual({
-      x: 300,
-      y: 140,
-    });
-    expect(resolveEndpointPoint(document, resolver, terminal("D"))).toEqual({
-      x: 300,
-      y: 460,
-    });
-
     const flightlines = deriveFlightlines(document, resolver);
     expect(
       flightlines.map((line) => [

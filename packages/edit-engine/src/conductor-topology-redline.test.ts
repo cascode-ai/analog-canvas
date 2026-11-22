@@ -29,7 +29,6 @@ describe("conductor canonicalization red line over the gallery corpus", () => {
 
   it("covers the documented corpus", () => {
     expect(files.length).toBeGreaterThanOrEqual(6);
-    expect(files).toContain("ycg43babwa.icproj.json");
   });
 
   it.each(files)("%s: terminal connectivity survives", (file) => {

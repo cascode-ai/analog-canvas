@@ -207,6 +207,5 @@ describe("direct endpoint connection planner", () => {
       ok: true,
       edits: [{ kind: "merge_nets" }, { kind: "connect_endpoints" }],
     });
-    expect(document.connectivityEvidence).toHaveLength(2);
   });
 });

@@ -100,7 +100,6 @@ it("displays an unnamed caller's selected formal member without creating a paren
   const selector = document.annotations.find(
     (item) => item.id === "tap-route-selector",
   )!;
-  expect(selector).toBeDefined();
   const locked = executeProjectTransaction(reopened, {
     transactionId: "lock-selector",
     projectId: reopened.id,

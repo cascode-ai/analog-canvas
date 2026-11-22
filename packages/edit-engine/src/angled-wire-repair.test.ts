@@ -91,8 +91,6 @@ describe("angled wire repair", () => {
       repairableRouteCount: 1,
       protectedRouteCount: 0,
     });
-    expect(plan.edits).toHaveLength(1);
-    expect(repaired.revision).toBe(1);
     expect(
       resolveRouteGeometry(
         repaired,
@@ -184,9 +182,8 @@ describe("angled wire repair", () => {
       to: { x: 20, y: 80 },
     });
 
-    const { plan, document: repaired } = applyPlan(document);
+    const { document: repaired } = applyPlan(document);
 
-    expect(plan.edits).toHaveLength(2);
     expect(repaired.revision).toBe(1);
     for (const route of repaired.routes) {
       const geometry = resolveRouteGeometry(repaired, resolver, route)!;

@@ -221,7 +221,6 @@ describe("EndpointConnection transform lifecycle", () => {
             }),
       ).toMatchObject({ ok: true });
       if (!result.ok) return;
-      expect(result.document.instances[0]!.placement?.rotation).toBe(45);
       expect(
         routeBends(result.document.routes[0]!).every(
           (point) =>

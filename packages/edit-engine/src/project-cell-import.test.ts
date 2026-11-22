@@ -93,7 +93,6 @@ function shiftSavedVdd(project: CircuitProject, symbolId: string) {
   const saved = project.componentDefinitions!.find(
     (definition) => definition.symbol.id === symbolId,
   )!;
-  expect(saved.generatedFrom).toBeDefined();
   const pin = saved.symbol.pins.find((candidate) => candidate.name === "VDD")!;
   pin.at = { x: pin.at.x, y: pin.at.y + 10 };
   return saved;

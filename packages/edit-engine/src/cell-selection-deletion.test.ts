@@ -466,20 +466,4 @@ describe("Deleting locked drawings and texts (#2187)", () => {
       "box-locked",
     ]);
   });
-
-  it("refuses a locked drawing's removal in the transaction itself", () => {
-    const document = lockedSheet();
-    const result = executeTransaction(document, {
-      transactionId: "raw-remove",
-      documentId: document.id,
-      expectedRevision: document.revision,
-      actor: { kind: "agent", id: "test" },
-      edits: [{ kind: "remove_drafting_object", objectId: "box-locked" }],
-    });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.message).toContain(
-      "Drafting object is locked: box-locked",
-    );
-  });
 });

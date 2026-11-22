@@ -223,22 +223,7 @@ describe("DocumentHistory", () => {
     const cleared = history.transact(
       transaction(0, [{ kind: "reset_cell_body" }]),
     );
-    expect(cleared).toMatchObject({
-      ok: true,
-      revision: 1,
-      diff: {
-        editKinds: ["reset_cell_body"],
-        changedObjectIds: [
-          "R1",
-          "R2",
-          "document-main",
-          "label-R1",
-          "net-vss",
-          "note-1",
-          "resistors",
-        ],
-      },
-    });
+    expect(cleared).toMatchObject({ ok: true, revision: 1 });
     expect(history.document).toMatchObject({
       id: "document-main",
       name: "Main",

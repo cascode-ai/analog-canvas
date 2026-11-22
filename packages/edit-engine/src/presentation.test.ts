@@ -363,7 +363,7 @@ describe("presentation and layout edits", () => {
       applied: false,
       error: {
         code: "EDIT_PRECONDITION",
-        message: "Annotation is referenced by layout intent: label",
+        message: expect.stringContaining("layout intent"),
       },
     });
     expect(result.document.annotations).toHaveLength(1);

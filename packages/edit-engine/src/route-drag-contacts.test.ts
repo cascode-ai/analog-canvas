@@ -633,8 +633,7 @@ describe("segment landing on an endpoint", () => {
     ).contacts.find(
       (candidate) => candidate.point.x === 50 && candidate.point.y === 100,
     );
-    expect(contact).toBeDefined();
-    expect(contactRequiresJunctionDot(contact!)).toBe(true);
+    expect(contact && contactRequiresJunctionDot(contact)).toBe(true);
   });
 
   it.each([

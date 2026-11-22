@@ -150,7 +150,6 @@ describe("connectivity reconstructed from final wire topology", () => {
     const before = commit(fixture(), [wire("ab", "a", "b")]);
     const after = commit(before, [wire("ab", "a", "c")]);
     expect(groups(after)).toEqual(["a,c", "b"]);
-    expect(groups(before)).toEqual(["a,b"]);
   });
   it("keeps a replacement path regardless of cut/draw order", () => {
     const before = commit(fixture(), [

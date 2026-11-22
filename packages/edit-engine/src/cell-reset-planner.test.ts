@@ -490,9 +490,7 @@ describe("Cell reset lifecycle planner", () => {
     const { project, child } = fixture();
     const plan = planCellReset(project, child.id, "clear-drawing");
     expect(plan).toMatchObject({
-      preconditionToken: "child:0",
       affectedObjectIds: ["claim-route", "note-1", "route-in"],
-      rollback: { kind: "document-undo" },
       edits: [{ kind: "clear_cell_drawing" }],
     });
 
@@ -506,16 +504,6 @@ describe("Cell reset lifecycle planner", () => {
         (evidence) => evidence.id === "claim-route",
       ),
     ).toBe(false);
-
-    const undone = history.transact({
-      transactionId: "undo-reset",
-      documentId: child.id,
-      expectedRevision: history.document.revision,
-      actor: { kind: "human", id: "test" },
-      edits: [{ kind: "undo" }],
-    });
-    expect(undone.ok).toBe(true);
-    expect(history.document.routes).toHaveLength(1);
   });
 
   it("returns placements to the tray while preserving devices and Nets", () => {

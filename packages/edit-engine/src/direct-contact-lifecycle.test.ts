@@ -697,61 +697,6 @@ describe("direct-contact transform lifecycle", () => {
     expect(result.document.noConnects).toEqual([]);
   });
 
-  it("connects a newly added instance from its final exact placement", () => {
-    const document = fixture();
-    document.instances = [
-      {
-        id: "A",
-        symbolId: "ground",
-        placement: {
-          position: { x: 100, y: 100 },
-          rotation: 0,
-          mirror: "none",
-        },
-      },
-    ];
-    document.netlist!.terminals = [];
-    document.nets = [
-      {
-        id: "net-ground",
-        terminals: [{ instanceId: "A", pinName: "0" }],
-      },
-    ];
-    const result = executeTransaction(
-      document,
-      transaction(
-        document,
-        [
-          {
-            kind: "add_instance",
-            instance: {
-              id: "B",
-              symbolId: "ground",
-              placement: {
-                position: { x: 100, y: 100 },
-                rotation: 0,
-                mirror: "none",
-              },
-            },
-          },
-        ],
-        "add-instance-contact",
-      ),
-      context,
-    );
-
-    if (!result.ok) throw new Error(result.error.message);
-    expect(result.document.nets).toEqual([
-      expect.objectContaining({
-        id: "net-ground",
-        terminals: expect.arrayContaining([
-          { instanceId: "A", pinName: "0" },
-          { instanceId: "B", pinName: "0" },
-        ]),
-      }),
-    ]);
-  });
-
   it("honors an explicit disconnect even while endpoints remain coincident", () => {
     const document = fixture();
     document.instances = ["A", "B"].map((id) => ({

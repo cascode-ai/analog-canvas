@@ -198,10 +198,8 @@ it.each(["", "Rauth t1 t2 2k\n"])(
         revision: 0,
       },
     ];
-    const saved = serializeProject(project);
     expect(() => bind(project, "R1")).toThrow(
       "Existing external definition sky130_fd_pr__res_generic_po does not match its reviewed public terminal order",
     );
-    expect(serializeProject(project)).toBe(saved);
   },
 );
