@@ -571,7 +571,10 @@ describe("simulation checks", () => {
 });
 
 /** What the Owner's local check reports for the divider whose Spec it met. */
-function localPass(digests: { projectDigest: string; testbenchDigest: string }) {
+function localPass(digests: {
+  projectDigest: string;
+  testbenchDigest: string;
+}) {
   return {
     projectDigest: digests.projectDigest,
     testbenchDigest: digests.testbenchDigest,
@@ -687,6 +690,44 @@ describe("local simulation checks", () => {
     ).toBe(404);
   });
 
+  it("let the Owner's token replace an entry's testbench, keeping its byline", async () => {
+    const { env, maker, token, id, send, input } = await setUp();
+    const project = JSON.parse((await input()).projectText);
+    const file = project.simulationFolders[0].input.files[0];
+    file.text += "\n* fixed by the Owner";
+    const update = (who: { token?: string; cookie?: string }) =>
+      call(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            name: "Divider",
+            description: "",
+            projectText: JSON.stringify(project),
+          }),
+          headers: {
+            "content-type": "application/json",
+            ...(who.token ? { Authorization: `Bearer ${who.token}` } : {}),
+            ...(who.cookie ? { Cookie: who.cookie } : {}),
+          },
+        }),
+      );
+    const author = async () =>
+      (
+        (await (
+          await send(`/api/gallery/${id}`, { cookie: maker })
+        ).json()) as {
+          entry: { author: string };
+        }
+      ).entry.author;
+    const byline = await author();
+    expect((await update({ token: "acot_wrong" })).status).toBe(401);
+    expect((await update({ token })).status).toBe(200);
+    const stored = JSON.parse((await input()).projectText);
+    expect(stored.simulationFolders[0].input.files[0].text).toBe(file.text);
+    expect(await author()).toBe(byline);
+  });
+
   it("record the Owner's verdict, by token or same-origin session, private as the hosted one", async () => {
     const { env, maker, owner, token, id, send, input } = await setUp();
     const body = localPass(await input());
@@ -749,9 +790,10 @@ describe("local simulation checks", () => {
       ];
     };
 
-    expect(await refusal({ ...pass, projectDigest: "0".repeat(64) })).toEqual(
-      [409, "stale-content"],
-    );
+    expect(await refusal({ ...pass, projectDigest: "0".repeat(64) })).toEqual([
+      409,
+      "stale-content",
+    ]);
     expect(await refusal({ ...pass, testbenchDigest: "x" })).toEqual([
       400,
       "invalid-fields",
