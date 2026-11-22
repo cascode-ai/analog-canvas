@@ -288,7 +288,7 @@ export function resolveWireDraftPreview({
     resolver,
   );
   if (!to) return EMPTY_WIRE_DRAFT_PREVIEW;
-  const evaluation = evaluateWireMembers(document, source, to);
+  const evaluation = evaluateWireMembers(document, source, to, resolver);
   if (evaluation.kind === "ready") {
     source = evaluation.from;
     to = evaluation.to;
@@ -317,7 +317,8 @@ export function resolveWireDraftPreview({
       message:
         evaluation.kind === "invalid"
           ? evaluation.message
-          : `Choose ${evaluation.choice.expectedWidth ?? 1} bus member(s)`,
+          : (evaluation.choice.sharedPinLabel ??
+            `Choose ${evaluation.choice.expectedWidth ?? 1} bus member(s)`),
     };
   const contacts = wirePassThroughContacts(visibleEndpoints, {
     from: source,
@@ -338,6 +339,22 @@ export function resolveWireDraftPreview({
     const ordered = aggregate
       ? wireMemberChoice(document, aggregate, false).options
       : undefined;
+    const array = source.arrayPinNames
+      ? source
+      : to.arrayPinNames
+        ? to
+        : undefined;
+    const other = array === source ? to : source;
+    const targets =
+      array && other.members
+        ? wireMemberChoice(document, other, false).options
+        : undefined;
+    const pairing =
+      array?.arrayPinNames && targets
+        ? [0, width - 1]
+            .map((i) => array.arrayPinNames![i] + " → " + targets[i]!.label)
+            .join(" … ")
+        : undefined;
     const selected = source.endpoint.memberId
       ? source
       : to.endpoint.memberId
@@ -352,10 +369,12 @@ export function resolveWireDraftPreview({
       width,
       ...(ordered
         ? {
-            message: `${width} members · ${ordered
-              .slice(0, 4)
-              .map((member) => member.label)
-              .join(" → ")}${width > 4 ? " …" : ""}`,
+            message: pairing
+              ? `${width} members · ${pairing}`
+              : `${width} members · ${ordered
+                  .slice(0, 4)
+                  .map((member) => member.label)
+                  .join(" → ")}${width > 4 ? " …" : ""}`,
           }
         : selected
           ? { message: memberName ? `1 member · ${memberName}` : "1 member" }

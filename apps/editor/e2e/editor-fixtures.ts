@@ -427,6 +427,10 @@ export async function editComponentPropertyCode(
   >;
   update(value);
   await input.fill(JSON.stringify(value, null, 2));
+  const applyName = page
+    .getByTestId("component-property-code-editor")
+    .getByRole("button", { name: "Apply name" });
+  if (await applyName.isVisible()) await applyName.click();
 }
 
 /** Read rendered JSON lines only; the inline controls/help are not source text. */

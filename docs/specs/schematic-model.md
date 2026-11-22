@@ -135,10 +135,15 @@ annotations and unlocked layout references.
   ordered members as independent Instances. An authored Reference such as
   `RLOAD<6:0>` and the Properties range fields create the same ordered group
   (`RLOAD6` through `RLOAD0`). Ascending and descending ranges accept 2–256
-  members. Display aliases and loaded reference strings remain literal.
+  members. The collapsed leader shows its continuous range. Expanding shows
+  each scalar reference. Device and bound label Properties accept the same declaration
+  on Apply or Enter. Display aliases and loaded reference strings remain literal.
   A common scalar terminal can share one existing Net or pair with an ordered
   signal of equal width. Reverse changes the pairing order. Creation, layout
   and connection each use one undoable transaction.
+  Drawing from a collapsed common scalar pin pairs the ordered terminals with
+  a same-width bus. A scalar destination requires an explicit shared connection.
+  Creating or collapsing the array preserves existing wiring.
 - Array connection previews the resulting pairings and any wire paths removed
   from reassigned terminals. Undo restores the previous pairing and paths.
 

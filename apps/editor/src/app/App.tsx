@@ -6,7 +6,12 @@ import {
 } from "../features/hierarchy/project-hierarchy";
 import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
 import { instanceGroupDisplay } from "@icm/derived";
-import { canCreateInstanceArray } from "@icm/edit-engine";
+import { collapsedArrayReference } from "@icm/model";
+import {
+  canCreateInstanceArray,
+  instanceArrayRange,
+  planCreateInstanceArray,
+} from "@icm/edit-engine";
 import { planInstanceGroupView } from "../features/instance-groups/instance-group-edits";
 import { NewCellDialog } from "../features/hierarchy/new-cell-dialog";
 import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
@@ -2877,7 +2882,14 @@ function WorkspaceEditor({
         selectedInstanceLabel.content
         ? controlledSourceExpressionSource(selectedInstanceLabel.content) ||
           null
-        : resolveAnnotationName(document, selectedInstanceLabel).trim() || null
+        : ((selectedInstanceLabel.binding?.kind === "instance-reference"
+            ? collapsedArrayReference(
+                document,
+                selectedInstanceLabel.binding.instanceId,
+              )
+            : undefined) ??
+          (resolveAnnotationName(document, selectedInstanceLabel).trim() ||
+            null))
       : null;
   const selectedInstanceValue = selectedInstance
     ? instanceValueAnnotation(document, selectedInstance.id)
@@ -7808,6 +7820,52 @@ function WorkspaceEditor({
                           );
                         return result;
                       },
+                      ...(selectedAnnotation.binding?.kind ===
+                      "instance-reference"
+                        ? {
+                            onRename: (
+                              name: string,
+                              annotation: typeof selectedAnnotation,
+                            ) => {
+                              const binding = annotation.binding;
+                              if (binding?.kind !== "instance-reference")
+                                return { ok: false };
+                              try {
+                                const range = instanceArrayRange(name);
+                                const edits: SchematicEdit[] = range
+                                  ? planCreateInstanceArray(
+                                      document,
+                                      binding.instanceId,
+                                      range,
+                                    )
+                                  : [
+                                      {
+                                        kind: "set_instance_reference",
+                                        instanceId: binding.instanceId,
+                                        reference: name,
+                                      },
+                                    ];
+                                if (
+                                  JSON.stringify(annotation) !==
+                                  JSON.stringify(selectedAnnotation)
+                                )
+                                  edits.unshift({
+                                    kind: "upsert_schematic_annotation",
+                                    annotation,
+                                  });
+                                return transact(edits);
+                              } catch (error) {
+                                return {
+                                  ok: false,
+                                  message:
+                                    error instanceof Error
+                                      ? error.message
+                                      : String(error),
+                                };
+                              }
+                            },
+                          }
+                        : {}),
                       // A Net Label's name renames its Net in its code too,
                       // the way editing its text does (2026-10-18).
                       ...(selectedAnnotation.kind === "net-label" &&

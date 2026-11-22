@@ -231,6 +231,7 @@ const AgentWireIntentAnchorSchema = z
     );
   }, "Use only one of memberId, memberIds or selectionExpression");
 export const AgentWireIntentSchema = z.strictObject({
+  shareArrayPin: z.boolean().optional(),
   id: StableIdSchema,
   from: AgentWireIntentAnchorSchema,
   to: AgentWireIntentAnchorSchema,

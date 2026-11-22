@@ -512,6 +512,25 @@ export function tryParseProjectWithMetadata(
         },
       ]);
     if (sourceSchemaVersion < 85) rejectModelSelection(parsed);
+    if (
+      sourceSchemaVersion < 86 &&
+      Array.isArray(parsed.documents) &&
+      parsed.documents.some(
+        (document) =>
+          Array.isArray(document?.instanceGroups) &&
+          document.instanceGroups.some(
+            (group: unknown) =>
+              isRecord(group) && Object.hasOwn(group, "referencePrefix"),
+          ),
+      )
+    )
+      throw new ProjectFormatError([
+        {
+          code: "INVALID_PROJECT",
+          path: ["documents"],
+          message: "An array reference prefix requires Project schema 86",
+        },
+      ]);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (
       let version = current.schemaVersion as number;

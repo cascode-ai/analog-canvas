@@ -6291,6 +6291,9 @@
     "__schema253": {
       "type": "object",
       "properties": {
+        "shareArrayPin": {
+          "type": "boolean"
+        },
         "id": {
           "$ref": "#/$defs/__schema1"
         },
@@ -11350,6 +11353,10 @@
     "__schema463": {
       "type": "object",
       "properties": {
+        "referencePrefix": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+        },
         "id": {
           "$ref": "#/$defs/__schema1"
         },

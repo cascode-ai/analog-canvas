@@ -1,3 +1,5 @@
+import type { SymbolResolver } from "@icm/symbols";
+import { resolveArrayWirePair } from "./instance-array-wire.js";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { isFreeWireAnchor, type WireSource } from "./wire-commit-planner.js";
 import {
@@ -14,6 +16,7 @@ export interface WireMemberChoice {
   source: WireSource;
   options: readonly WireMemberOption[];
   allowWhole: boolean;
+  sharedPinLabel?: string;
   expectedWidth?: number;
 }
 export type WireMemberEvaluation =
@@ -124,7 +127,21 @@ export function evaluateWireMembers(
   document: SchematicDocument,
   from: WireSource,
   to: WireSource,
+  resolver?: SymbolResolver,
+  shareArrayPin = false,
 ): WireMemberEvaluation {
+  if (resolver && document.instanceGroups?.length) {
+    const adapted = resolveArrayWirePair(
+      document,
+      resolver,
+      from,
+      to,
+      shareArrayPin,
+    );
+    if (adapted.kind !== "ready") return adapted;
+    from = adapted.from;
+    to = adapted.to;
+  }
   if (from.members && to.members) {
     if (from.members.length === to.members.length)
       return { kind: "ready", from, to };

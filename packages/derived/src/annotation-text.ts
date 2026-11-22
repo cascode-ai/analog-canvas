@@ -1,5 +1,7 @@
 import {
   boundAnnotationName,
+  collapsedArrayReference,
+  rewriteRichTextIdentifier,
   flattenRichText,
   labelTextDocument,
   richTextPresentsIdentifier,
@@ -89,6 +91,19 @@ export function resolveAnnotationText(
     labelTextDocument(name, document.presentation);
   const binding = annotation.binding;
   if (!binding) return annotation.content ?? EMPTY_TEXT;
+  if (binding.kind === "instance-reference") {
+    const range = collapsedArrayReference(document, binding.instanceId);
+    if (range)
+      return annotation.formatOverride
+        ? rewriteRichTextIdentifier(annotation.formatOverride, range, {
+            underscoreSubscript: flattenRichText(
+              annotation.formatOverride,
+            ).includes("_")
+              ? false
+              : undefined,
+          })
+        : semanticLabel(range);
+  }
   if (
     annotation.formatOverride &&
     (binding.kind === "instance-reference" ||

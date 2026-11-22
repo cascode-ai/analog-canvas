@@ -26,6 +26,7 @@ export function AnnotationPropertyCodeEditor<T>({
   format: formatNative,
   item,
   onApply,
+  deferApply,
   defaultColor,
   actions,
   title,
@@ -36,6 +37,7 @@ export function AnnotationPropertyCodeEditor<T>({
   parse(source: string): PropertyResult<T>;
   format(value: T): string;
   onApply(value: T): { ok: boolean; message?: string };
+  deferApply?: ((value: T) => boolean) | undefined;
   defaultColor: string;
   actions?: ReactNode;
   title: string;
@@ -68,12 +70,12 @@ export function AnnotationPropertyCodeEditor<T>({
     setRejected(false);
   }, [baseline, draft]);
   const parsed = parse(draft);
-  const change = (source: string) => {
+  const change = (source: string, commit = false) => {
     setDraft(source);
     setMessage(null);
     setRejected(false);
     const next = parse(source);
-    if (!next.ok) return;
+    if (!next.ok || (!commit && deferApply?.(next.value))) return;
     const canonical = format(next.value);
     if (canonical === baseline) return;
     const result = onApply(next.value);
@@ -100,10 +102,27 @@ export function AnnotationPropertyCodeEditor<T>({
     <section
       className="component-property-code-editor"
       aria-label="Annotation property code"
+      onKeyDownCapture={(event) => {
+        if (
+          event.key === "Enter" &&
+          !event.nativeEvent.isComposing &&
+          parsed.ok &&
+          deferApply?.(parsed.value)
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          change(draft, true);
+        }
+      }}
     >
       <header>
         <strong>{title}</strong>
         <div className="component-property-header-actions">
+          {parsed.ok && deferApply?.(parsed.value) && (
+            <button type="button" onClick={() => change(draft, true)}>
+              Apply name
+            </button>
+          )}
           {(!parsed.ok || rejected) && (
             <button
               type="button"

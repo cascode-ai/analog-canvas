@@ -271,216 +271,317 @@ describe("native Instance arrays", () => {
   });
 });
 
-it("keeps all seven offset bits through two callers, node probes and both netlist readers", async () => {
-  let project = createEmptyProject("handoff", "Top", "parent");
-  project.documents.push(createEmptyDocument("loads", "Loads"));
-  const cell = (id: string) => project.documents.find((doc) => doc.id === id)!;
-  const apply = (edits: ProjectStructureEdit[]) => {
-    const result = executeProjectTransaction(project, {
-      projectId: project.id,
-      expectedStructureRevision: project.structureRevision,
-      transactionId: `fixture-${project.structureRevision}`,
-      actor: { kind: "human", id: "array-test" },
-      edits,
-    });
-    if (!result.ok) throw new Error(result.error.message);
-    project = result.project;
-  };
-  const edit = (id: string, edits: SchematicEdit[]) =>
-    apply([
-      {
-        kind: "transact_document",
-        documentId: id,
-        expectedRevision: cell(id).revision,
+it.each(["resistor", "nmos"] as const)(
+  "keeps the %s array through two callers, node probes and both netlist readers",
+  async (symbol) => {
+    const mos = symbol === "nmos";
+    const data = mos ? "DOUT<0:7>" : "DOUT<7:1>";
+    const common = mos ? "VBIAS" : "VSS";
+    const reference = mos ? "M<7:0>" : "RLOAD<6:0>";
+    const pin = mos ? "D" : "1";
+    let project = createEmptyProject("handoff", "Top", "parent");
+    project.documents.push(createEmptyDocument("loads", "Loads"));
+    const cell = (id: string) =>
+      project.documents.find((doc) => doc.id === id)!;
+    const apply = (edits: ProjectStructureEdit[]) => {
+      const result = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: `fixture-${project.structureRevision}`,
+        actor: { kind: "human", id: "array-test" },
         edits,
-      },
-    ]);
-  const place = (x: number, y = 0) => ({
-    position: { x, y },
-    rotation: 0 as const,
-    mirror: "none" as const,
-  });
-  for (const [id, pin, name, x] of [
-    ["loads", "data", "DOUT<7:1>", 0],
-    ["loads", "return", "VSS", 100],
-    ["parent", "left", "LEFT<7:1>", 0],
-    ["parent", "right", "RIGHT<1:7>", 100],
-    ["parent", "common", "GNDREF", 200],
-  ] as const) {
-    apply(
-      planCreateCellPin(project, id, {
-        instance: { id: pin, symbolId: "port", placement: place(x) },
-        terminal: {
-          id: pin + "-formal",
-          name,
-          netId: pin + "-net",
-          direction: "passive",
-          interfaceInstanceIds: [pin],
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      project = result.project;
+    };
+    const edit = (id: string, edits: SchematicEdit[]) =>
+      apply([
+        {
+          kind: "transact_document",
+          documentId: id,
+          expectedRevision: cell(id).revision,
+          edits,
         },
-        signalExpression: name,
-        connectionEdits: [],
-      }),
-    );
-  }
-  edit("loads", [
-    {
-      kind: "add_instance",
-      instance: {
-        id: "seed",
-        reference: "R1",
-        symbolId: "resistor",
-        placement: place(300),
-        netlist: {
-          binding: { kind: "primitive", deviceClass: "resistor" },
-          parameters: { value: "1k" },
-        },
-      },
-    },
-  ]);
-  const resolver = createProjectSymbolResolver(project, builtInSymbols);
-  const seed = cell("loads").instances.find((i) => i.id === "seed")!;
-  const plan = planPropertyApply(
-    { project, document: cell("loads"), instance: seed, resolver },
-    {
-      placement: null,
-      appearance: { color: "auto" },
-      netlistName: "RLOAD<6:0>",
-    },
-  );
-  if (plan.kind !== "edits") throw new Error(JSON.stringify(plan));
-  expect(plan.edits).toEqual(
-    planCreateInstanceArray(cell("loads"), seed.id, {
-      prefix: "RLOAD",
-      first: 6,
-      last: 0,
-    }),
-  );
-  edit("loads", plan.edits);
-  const group = cell("loads").instanceGroups![0]!;
-  for (const [pin, expression] of [
-    ["1", "DOUT<7:1>"],
-    ["2", "VSS"],
-  ] as const) {
-    const mapping = planInstanceArrayConnection(
-      cell("loads"),
-      resolver,
-      group,
-      pin,
-      expression,
-      false,
-    );
-    edit("loads", mapping.edits);
-  }
-  const formal = cell("loads").netlist!.terminals.find(
-    (p) => p.name === "DOUT<7:1>",
-  )!;
-  for (const [call, port, x] of [
-    ["XA", "left", 300],
-    ["XB", "right", 400],
-  ] as const) {
-    edit("parent", [
+      ]);
+    const place = (x: number, y = 0) => ({
+      position: { x, y },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    });
+    for (const [id, pin, name, x] of [
+      ["loads", "data", data, 0],
+      ["loads", "return", common, 100],
+      ["parent", "left", mos ? "LEFT<0:7>" : "LEFT<7:1>", 0],
+      ["parent", "right", mos ? "RIGHT<7:0>" : "RIGHT<1:7>", 100],
+      ["parent", "common", "GNDREF", 200],
+    ] as const) {
+      apply(
+        planCreateCellPin(project, id, {
+          instance: { id: pin, symbolId: "port", placement: place(x) },
+          terminal: {
+            id: pin + "-formal",
+            name,
+            netId: pin + "-net",
+            direction: "passive",
+            interfaceInstanceIds: [pin],
+          },
+          signalExpression: name,
+          connectionEdits: [],
+        }),
+      );
+    }
+    edit("loads", [
       {
         kind: "add_instance",
         instance: {
-          id: call,
-          reference: call,
-          symbolId: hierarchicalSymbolId("Loads"),
-          placement: place(x, port === "left" ? 100 : 300),
+          id: "seed",
+          reference: mos ? "M1" : "R1",
+          symbolId: symbol,
+          placement: place(300),
           netlist: {
-            binding: { kind: "subcircuit", childDocumentId: "loads" },
-            parameters: {},
+            binding: mos
+              ? { kind: "model", deviceClass: "mos", name: "NMOS" }
+              : { kind: "primitive", deviceClass: "resistor" },
+            parameters: mos ? { w: "1u", l: "1u" } : { value: "1k" },
           },
         },
       },
-      {
-        kind: "connect_endpoints",
-        from: { kind: "terminal", instanceId: call, pinName: "VSS" },
-        to: { kind: "terminal", instanceId: "common", pinName: "P" },
-      },
     ]);
-    const bus = proposeWireIntent(cell("parent"), resolver, {
-      id: "bus-" + port,
-      from: {
-        kind: "endpoint",
-        endpoint: { kind: "terminal", instanceId: port, pinName: "P" },
+    const resolver = createProjectSymbolResolver(project, builtInSymbols);
+    const seed = cell("loads").instances.find((i) => i.id === "seed")!;
+    const plan = planPropertyApply(
+      { project, document: cell("loads"), instance: seed, resolver },
+      {
+        placement: null,
+        appearance: { color: "auto" },
+        netlistName: reference,
       },
-      to: {
-        kind: "endpoint",
-        endpoint: { kind: "terminal", instanceId: call, pinName: formal.name },
-      },
-    });
-    if (typeof bus === "string") throw new Error(bus);
-    edit("parent", bus.edits);
-  }
-  project = parseProject(serializeProject(project));
-  expect(cell("loads").instanceGroups).toEqual([group]);
-  const rows = [
-    ["RLOAD6", 7, 1],
-    ["RLOAD5", 6, 2],
-    ["RLOAD4", 5, 3],
-    ["RLOAD3", 4, 4],
-    ["RLOAD2", 3, 5],
-    ["RLOAD1", 2, 6],
-    ["RLOAD0", 1, 7],
-  ] as const;
-  function formalAtPin(doc: SchematicDocument, reference: string, pin: string) {
-    const instance = doc.instances.find(
-      (part) => part.reference === reference,
-    )!;
-    const net = doc.nets.find((net) =>
-      net.terminals.some(
-        (t) => t.instanceId === instance.id && t.pinName === pin,
-      ),
     );
-    return doc.netlist!.terminals.find((t) => t.netId === net?.id)?.name;
-  }
-  for (const format of ["spice", "spectre"] as const) {
-    const out = createDesignNetlistExport(project, {
-      format,
-      includeNodeLocations: true,
-    });
-    if (out.status !== "ready")
-      throw new Error(JSON.stringify(out.diagnostics));
-    const path = format === "spice" ? "top.spi" : "top.scs";
-    const imported = await importNetlistSources(
-      [{ path, bytes: new TextEncoder().encode(out.file.text) }],
-      path,
+    if (plan.kind !== "edits") throw new Error(JSON.stringify(plan));
+    expect(plan.edits).toEqual(
+      planCreateInstanceArray(cell("loads"), seed.id, {
+        prefix: mos ? "M" : "RLOAD",
+        first: mos ? 7 : 6,
+        last: 0,
+      }),
     );
-    if (imported.status !== "imported")
-      throw new Error(JSON.stringify(imported.diagnostics));
-    const loads = imported.project.documents.find(
-      (doc) => doc.netlist?.name === "Loads",
+    edit("loads", plan.edits);
+    const group = cell("loads").instanceGroups![0]!;
+    if (mos) {
+      edit("loads", [
+        {
+          kind: "connect_endpoints",
+          from: {
+            kind: "terminal",
+            instanceId: group.memberIds.at(-1)!,
+            pinName: "G",
+          },
+          to: { kind: "terminal", instanceId: "return", pinName: "P" },
+        },
+      ]);
+      for (const [pinName, target] of [
+        ["D", "data"],
+        ["G", "return"],
+      ] as const) {
+        const wire = proposeWireIntent(cell("loads"), resolver, {
+          id: "array-" + pinName,
+          from: {
+            kind: "endpoint",
+            endpoint: { kind: "terminal", instanceId: seed.id, pinName },
+          },
+          to: {
+            kind: "endpoint",
+            endpoint: { kind: "terminal", instanceId: target, pinName: "P" },
+          },
+          shareArrayPin: pinName === "G",
+        });
+        if (typeof wire === "string") throw new Error(wire);
+        edit("loads", wire.edits);
+        const route = cell("loads").routes.find(
+          (route) => route.id === wire.routeId,
+        )!;
+        expect(route.members?.length ?? 1).toBe(pinName === "D" ? 8 : 1);
+      }
+      for (const pinName of ["S", "B"])
+        edit(
+          "loads",
+          planInstanceArrayConnection(
+            cell("loads"),
+            resolver,
+            group,
+            pinName,
+            common,
+            false,
+          ).edits,
+        );
+    } else
+      for (const [pin, expression] of [
+        ["1", data],
+        ["2", common],
+      ] as const) {
+        const mapping = planInstanceArrayConnection(
+          cell("loads"),
+          resolver,
+          group,
+          pin,
+          expression,
+          false,
+        );
+        edit("loads", mapping.edits);
+      }
+    const formal = cell("loads").netlist!.terminals.find(
+      (p) => p.name === data,
     )!;
-    const top = imported.project.documents.find((doc) =>
-      doc.instances.some((part) => part.reference === "XA"),
-    )!;
-    expect(
-      loads.instances.filter((part) => part.symbolId === "resistor"),
-    ).toHaveLength(7);
-    expect(loads.instanceGroups ?? []).toHaveLength(0);
-    for (const [index, [name, descending, ascending]] of rows.entries()) {
-      const bit = formalAtPin(loads, name, "1")!;
-      // Actual node spelling is dialect-specific. Identity must survive both positional calls.
-      const spelling = (prefix: string, n: number) =>
-        format === "spice" ? `${prefix}_${n}_` : `${prefix}<${n}>`;
-      expect(bit).toBe(spelling("DOUT", descending));
-      expect(formalAtPin(loads, name, "2")).toBe("VSS");
-      expect(formalAtPin(top, "XA", bit)).toBe(spelling("LEFT", descending));
-      expect(formalAtPin(top, "XB", bit)).toBe(spelling("RIGHT", ascending));
-      const probe = out.locations.nodes?.find(
-        (node) =>
-          node.documentId === "loads" &&
-          node.instanceId === group.memberIds[index] &&
-          node.endpoint?.pinName === "1",
-      );
-      expect(probe).toBeDefined();
-      expect(
-        out.file.text
-          .slice(probe!.startOffset, probe!.endOffset)
-          .replaceAll("\\", ""),
-      ).toBe(bit);
+    for (const [call, port, x] of [
+      ["XA", "left", 300],
+      ["XB", "right", 400],
+    ] as const) {
+      edit("parent", [
+        {
+          kind: "add_instance",
+          instance: {
+            id: call,
+            reference: call,
+            symbolId: hierarchicalSymbolId("Loads"),
+            placement: place(x, port === "left" ? 100 : 300),
+            netlist: {
+              binding: { kind: "subcircuit", childDocumentId: "loads" },
+              parameters: {},
+            },
+          },
+        },
+        {
+          kind: "connect_endpoints",
+          from: { kind: "terminal", instanceId: call, pinName: common },
+          to: { kind: "terminal", instanceId: "common", pinName: "P" },
+        },
+      ]);
+      const bus = proposeWireIntent(cell("parent"), resolver, {
+        id: "bus-" + port,
+        from: {
+          kind: "endpoint",
+          endpoint: { kind: "terminal", instanceId: port, pinName: "P" },
+        },
+        to: {
+          kind: "endpoint",
+          endpoint: {
+            kind: "terminal",
+            instanceId: call,
+            pinName: formal.name,
+          },
+        },
+      });
+      if (typeof bus === "string") throw new Error(bus);
+      edit("parent", bus.edits);
     }
-    for (const call of ["XA", "XB"])
-      expect(formalAtPin(top, call, "VSS")).toBe("GNDREF");
-  }
-});
+    project = parseProject(serializeProject(project));
+    expect(cell("loads").instanceGroups).toEqual([group]);
+    if (mos) {
+      const wired = project;
+      const remap = planInstanceArrayConnection(
+        cell("loads"),
+        resolver,
+        group,
+        "D",
+        data,
+        true,
+      );
+      expect(remap.removedRouteCount).toBe(1);
+      edit("loads", remap.edits);
+      expect(cell("loads").routes.map((route) => route.id)).toEqual([
+        "array-G-route",
+      ]);
+      const lastBit = cell("loads").netlist!.terminals.find(
+        (port) => port.name === data,
+      )!.signal!.members[7]!;
+      expect(
+        cell("loads").nets.find((net) => net.id === lastBit.netId)?.terminals,
+      ).toContainEqual({ instanceId: seed.id, pinName: "D" });
+      project = wired;
+    }
+    const rows = mos
+      ? ([
+          ["M7", 0, 7],
+          ["M6", 1, 6],
+          ["M5", 2, 5],
+          ["M4", 3, 4],
+          ["M3", 4, 3],
+          ["M2", 5, 2],
+          ["M1", 6, 1],
+          ["M0", 7, 0],
+        ] as const)
+      : ([
+          ["RLOAD6", 7, 1],
+          ["RLOAD5", 6, 2],
+          ["RLOAD4", 5, 3],
+          ["RLOAD3", 4, 4],
+          ["RLOAD2", 3, 5],
+          ["RLOAD1", 2, 6],
+          ["RLOAD0", 1, 7],
+        ] as const);
+    function formalAtPin(
+      doc: SchematicDocument,
+      reference: string,
+      pin: string,
+    ) {
+      const instance = doc.instances.find(
+        (part) => part.reference === reference,
+      )!;
+      const net = doc.nets.find((net) =>
+        net.terminals.some(
+          (t) => t.instanceId === instance.id && t.pinName === pin,
+        ),
+      );
+      return doc.netlist!.terminals.find((t) => t.netId === net?.id)?.name;
+    }
+    for (const format of ["spice", "spectre"] as const) {
+      const out = createDesignNetlistExport(project, {
+        format,
+        includeNodeLocations: true,
+      });
+      if (out.status !== "ready")
+        throw new Error(JSON.stringify(out.diagnostics));
+      const path = format === "spice" ? "top.spi" : "top.scs";
+      const imported = await importNetlistSources(
+        [{ path, bytes: new TextEncoder().encode(out.file.text) }],
+        path,
+      );
+      if (imported.status !== "imported")
+        throw new Error(JSON.stringify(imported.diagnostics));
+      const loads = imported.project.documents.find(
+        (doc) => doc.netlist?.name === "Loads",
+      )!;
+      const top = imported.project.documents.find((doc) =>
+        doc.instances.some((part) => part.reference === "XA"),
+      )!;
+      expect(
+        loads.instances.filter((part) => part.symbolId === symbol),
+      ).toHaveLength(rows.length);
+      expect(loads.instanceGroups ?? []).toHaveLength(0);
+      for (const [index, [name, descending, ascending]] of rows.entries()) {
+        const bit = formalAtPin(loads, name, pin)!;
+        // Actual node spelling is dialect-specific. Identity must survive both positional calls.
+        const spelling = (prefix: string, n: number) =>
+          format === "spice" ? `${prefix}_${n}_` : `${prefix}<${n}>`;
+        expect(bit).toBe(spelling("DOUT", descending));
+        expect(formalAtPin(loads, name, mos ? "G" : "2")).toBe(common);
+        expect(formalAtPin(top, "XA", bit)).toBe(spelling("LEFT", descending));
+        expect(formalAtPin(top, "XB", bit)).toBe(spelling("RIGHT", ascending));
+        const probe = out.locations.nodes?.find(
+          (node) =>
+            node.documentId === "loads" &&
+            node.instanceId === group.memberIds[index] &&
+            node.endpoint?.pinName === pin,
+        );
+        expect(probe).toBeDefined();
+        expect(
+          out.file.text
+            .slice(probe!.startOffset, probe!.endOffset)
+            .replaceAll("\\", ""),
+        ).toBe(bit);
+      }
+      for (const call of ["XA", "XB"])
+        expect(formalAtPin(top, call, common)).toBe("GNDREF");
+    }
+  },
+);

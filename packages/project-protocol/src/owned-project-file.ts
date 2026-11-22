@@ -18,7 +18,7 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 85;
+export const CURRENT_PROJECT_FILE_VERSION = 86;
 type Value = Record<string, any>;
 
 /** Check shared targets before the codec expands per-type defaults. */

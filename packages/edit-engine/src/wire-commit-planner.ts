@@ -35,6 +35,8 @@ export interface WireSource extends WireEndpointGeometry {
   members?: ReadonlyArray<{ id: string; netId: string; name?: string }>;
   /** An explicit ordered subset/reversal needs its own bound selector display. */
   memberSelection?: boolean;
+  /** Ordered scalar terminal labels for the array wiring preview. */
+  arrayPinNames?: string[];
   /** A transient inline name fixes a loose endpoint at one member until renamed. */
   declaredScalarName?: string;
 }
@@ -371,7 +373,8 @@ export function isFreeWireAnchor(source: WireSource): boolean {
       (edit) =>
         edit.kind === "add_junction" &&
         edit.junctionId === endpoint.junctionId &&
-        !edit.split,
+        !edit.split &&
+        !edit.contactAnchor,
     )
   );
 }

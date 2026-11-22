@@ -192,12 +192,21 @@ export function ComponentPropertyCodeEditor({
     }
   };
 
-  const change = (source: string): void => {
+  const editsDeviceName = (value: ComponentPropertyCodeValue) =>
+    !connection &&
+    !!instance.netlist &&
+    ((value.netlistName !== undefined &&
+      value.netlistName !== instance.reference) ||
+      (value.displayName !== undefined &&
+        value.displayName !== displayName &&
+        displayName === instance.reference));
+  const pendingName = parsed.ok && editsDeviceName(parsed.value);
+  const change = (source: string, commit = false): void => {
     setDraft(source);
     setApplyMessage(null);
     setRejected(false);
     const next = projection.parse(source, nativeAdapter.parse);
-    if (!next.ok) return;
+    if (!next.ok || (!commit && editsDeviceName(next.value))) return;
     const normalized = projection.format(
       serializeComponentPropertyCode(next.value),
     );
@@ -216,10 +225,26 @@ export function ComponentPropertyCodeEditor({
       className="component-property-code-editor"
       aria-label="Canvas property code"
       data-testid="component-property-code-editor"
+      onKeyDownCapture={(event) => {
+        if (
+          pendingName &&
+          event.key === "Enter" &&
+          !event.nativeEvent.isComposing
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          change(draft, true);
+        }
+      }}
     >
       <header>
         <strong>Properties</strong>
         <div className="component-property-header-actions">
+          {pendingName && (
+            <button type="button" onClick={() => change(draft, true)}>
+              Apply name
+            </button>
+          )}
           {genericModelChoice ? (
             <button
               type="button"
