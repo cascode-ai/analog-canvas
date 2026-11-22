@@ -348,13 +348,23 @@ information). Hidden bulk needs no decorative wire.
   Net the textbook way: a `named-ground` (`ground` for node 0) or `vdd-port`
   of its name on each of its drawn pins, standing on the pin and pointing away
   from the part, then deletes its wires as `delete-wires` does. Pins a marker
-  stands on already, and the markers' own, are left alone; a marker wired to
-  the Net before stands alone after. A Cell Pin's markers join its one Port
-  with its direction; a global Net's are global; a local Net that is no Cell
-  Pin is refused, as a marker would make it global or a Pin. Every pin keeps
-  its Net and the netlist reads the same, or it is refused with nothing
-  changed, and so is a marker that would overlap a part. One undo;
-  `NET_RENDERED_AS` (information) counts markers and wires.
+  stands on already, and the markers' own, are left alone. A marker wired to
+  the Net before and left touching nothing of it is removed, unless it is its
+  Cell Pin's only marker; a MOS body default on it stays on the Net.
+  - Scope is kept: a Cell Pin's markers join its one Port with its direction;
+    a global Net's name it globally; a local Net's name it in this Cell only
+    (a local supply claim: no `.global`, no Pin). The markers never set a MOS
+    body default.
+  - Every pin keeps its Net and the netlist reads the same, or it is refused
+    with nothing changed, naming the netlist line that would change (a
+    `.global` line, a Cell's port list). While the netlist cannot be
+    exported, every Cell's pin Nets (name, scope, fellow pins), Pins (order,
+    direction, supply role) and MOS body Nets are compared instead.
+  - A marker over a part is refused; one over a part's label moves that
+    label clear, as placement does; one (or its name) over other text or a
+    Net label is refused. One undo; `NET_RENDERED_AS` (information) counts
+    markers, wires and old markers removed or kept, and states the scope
+    kept.
 - `add-power-rail` draws a `vdd-rail` (a primitive, not a symbol) with optional
   `name`/`scope` (existing scope kept, else local; `global` only explicitly);
   a ground name (`0`, `GND`, `GROUND`) is refused: ground is ground symbols.

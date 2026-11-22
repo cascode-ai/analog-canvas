@@ -295,7 +295,7 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
       as: z.enum(["ground", "supply"]),
     })
     .describe(
-      "Draw a Net the textbook way: a ground marker that keeps its name (named ground; node 0 takes the plain ground) or a supply marker named after it on each of its pins, and its wires deleted. Its name, scope and netlist stay; pins already carrying a marker are left alone. One undo.",
+      "Draw a Net the textbook way: a ground marker that keeps its name (named ground; node 0 takes the plain ground) or a supply marker named after it on each of its pins, and its wires deleted. Its name, scope and netlist stay; pins already carrying a marker are left alone, and an old marker left touching nothing of it goes. One undo.",
     ),
   // Several Cell instances place in one call and one undo, as place-components
   // places several built-in parts (#1231).
