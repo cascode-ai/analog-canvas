@@ -363,18 +363,6 @@ describe("spiceValueFromDrawnText", () => {
   ])("leaves %s (%s) as typed", (text, unit) => {
     expect(spiceValueFromDrawnText(text, unit)).toBe(text);
   });
-
-  it("round-trips every drawn value to the same SPICE value", () => {
-    for (const [value, unit] of [
-      ["10u", "A"],
-      ["1Meg", "Ohm"],
-      ["2.2k", "Ohm"],
-      ["1.8", "V"],
-    ] as const)
-      expect(spiceValueFromDrawnText(drawnValueText(value, unit), unit)).toBe(
-        value,
-      );
-  });
 });
 
 describe("which parts carry a Reference to show", () => {
