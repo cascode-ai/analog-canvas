@@ -267,6 +267,27 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     .describe(
       "Delete wires chosen by exactly one of net, bbox or instance, with the Junctions and Net labels they leave alone, in one undo; parts stay. Matching no wire is refused.",
     ),
+  z
+    .strictObject({
+      kind: z.literal("relocate"),
+      parts: z
+        .array(
+          z.strictObject({
+            instance: z
+              .string()
+              .min(1)
+              .describe("Reference, ID or Cell Pin name."),
+            position: PointSchema,
+            rotation: PlacementSchema.shape.rotation.optional(),
+            mirror: PlacementSchema.shape.mirror.optional(),
+          }),
+        )
+        .min(1)
+        .max(64),
+    })
+    .describe(
+      "Move and turn parts to these places and redraw their wires with route-net, so every Net keeps exactly its pins and the netlist stays the same; markers standing unwired on their pins go along. One undo; a connection that cannot be redrawn is refused with nothing changed.",
+    ),
   // Several Cell instances place in one call and one undo, as place-components
   // places several built-in parts (#1231).
   z.strictObject({

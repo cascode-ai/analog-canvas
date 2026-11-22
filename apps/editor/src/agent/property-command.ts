@@ -126,7 +126,7 @@ function nextSignalFlow(
 }
 
 /** The markers a moved part carries when they stand on its pins (#1531). */
-const PIN_MARKERS = {
+export const PIN_MARKERS = {
   ground: "ground",
   "vdd-port": "supply marker",
   "named-ground": "supply marker",
@@ -141,7 +141,7 @@ const PIN_MARKERS = {
  * the part alone left the ground behind on a jog wire (#1531). A marker that
  * is wired, shares the point with another pin or is locked in place stays.
  */
-function markersOnPinsOnly(
+export function markersOnPinsOnly(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: Instance,

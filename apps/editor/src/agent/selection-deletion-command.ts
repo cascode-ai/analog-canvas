@@ -14,6 +14,7 @@ import {
   polylineIntersectsRect,
   routeEnd,
   type CircuitProject,
+  type Instance,
   type SchematicDocument,
 } from "@icm/model";
 import {
@@ -78,6 +79,38 @@ export function planSelectionDeletion(
 
 type DeleteWires = Extract<AgentAuthoringCommand, { kind: "delete-wires" }>;
 
+/**
+ * The one part a Reference, ID or Cell Pin name names; `outcome` ends a
+ * refusal, as "nothing was deleted".
+ */
+export function instanceNamed(
+  document: SchematicDocument,
+  wanted: string,
+  outcome: string,
+): Instance {
+  const byId = document.instances.find((item) => item.id === wanted);
+  const named = byId
+    ? [byId]
+    : document.instances.filter(
+        (item) =>
+          item.reference === wanted ||
+          document.netlist?.terminals.some(
+            (terminal) =>
+              terminal.name === wanted &&
+              terminal.interfaceInstanceIds.includes(item.id),
+          ),
+      );
+  if (named.length === 0)
+    throw new Error(
+      `no instance matches Reference or ID "${wanted}"; ${outcome}`,
+    );
+  if (named.length > 1)
+    throw new Error(
+      `"${wanted}" names ${named.length} parts (${named.map((item) => item.id).join(", ")}); give one ID; ${outcome}`,
+    );
+  return named[0]!;
+}
+
 /** The wires one selector names, and how to say which they are. */
 function selectedWires(
   document: SchematicDocument,
@@ -121,27 +154,7 @@ function selectedWires(
   }
   if (command.instance !== undefined) {
     const wanted = command.instance;
-    const byId = document.instances.find((item) => item.id === wanted);
-    const named = byId
-      ? [byId]
-      : document.instances.filter(
-          (item) =>
-            item.reference === wanted ||
-            document.netlist?.terminals.some(
-              (terminal) =>
-                terminal.name === wanted &&
-                terminal.interfaceInstanceIds.includes(item.id),
-            ),
-        );
-    if (named.length === 0)
-      throw new Error(
-        `no instance matches Reference or ID "${wanted}"; nothing was deleted`,
-      );
-    if (named.length > 1)
-      throw new Error(
-        `"${wanted}" names ${named.length} parts (${named.map((item) => item.id).join(", ")}); give one ID; nothing was deleted`,
-      );
-    const instance = named[0]!;
+    const instance = instanceNamed(document, wanted, "nothing was deleted");
     return {
       routeIds: document.routes
         .filter((route) =>

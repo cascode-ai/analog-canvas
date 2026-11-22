@@ -98,7 +98,9 @@ export const FOCUSED_TOOLS = [
   {
     name: "circuit_wire",
     source: "apply_actions",
-    operations: ["connect", "disconnect", "delete-wires"],
+    // A relocation redraws the wires of the parts it moves; circuit_transform
+    // and circuit_selection are at the host's declaration budget.
+    operations: ["connect", "disconnect", "delete-wires", "relocate"],
   },
   {
     name: "circuit_transform",

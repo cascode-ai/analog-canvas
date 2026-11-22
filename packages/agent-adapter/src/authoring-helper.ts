@@ -884,6 +884,7 @@ export function compileActions(
       case "set-mos-bulk-default":
       case "delete-selection":
       case "delete-wires":
+      case "relocate":
       case "add-power-rail":
       case "extend-power-rail":
       case "move-annotation":

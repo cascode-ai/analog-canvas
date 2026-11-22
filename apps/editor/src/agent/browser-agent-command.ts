@@ -176,6 +176,7 @@ import {
   planDeleteWires,
   planSelectionDeletion,
 } from "./selection-deletion-command";
+import { planRelocate } from "./relocate-command";
 
 /** What the live editor knows beyond the Project. */
 export interface BrowserAgentPlanningContext {
@@ -533,6 +534,8 @@ export function planBrowserAgentCommand(
         command,
         sequence,
       );
+    case "relocate":
+      return planRelocate(project, documentId, resolver, command);
     case "set-port-direction": {
       if (command.target.kind === "terminal")
         return {

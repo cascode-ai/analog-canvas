@@ -36,6 +36,9 @@ export type RouteNetTarget =
   | { kind: "net"; net: string }
   | { kind: "member"; instanceId: string; pinName: string }
   | { kind: "pins"; pins: readonly Pin[] }
+  /** Pins and Junctions to join, as a relocation rejoins the pieces of a
+   * conductor it took apart; every pin must be visible. */
+  | { kind: "endpoints"; endpoints: readonly RouteEndpoint[] }
   | { kind: "import-net"; sourceNetId: string };
 
 /** Bounded convenience over existing visible-connectivity, MST and wire planners.
@@ -82,6 +85,8 @@ export function planRouteNet(
     selected = guides.flatMap((guide) => [guide.from, guide.to]);
   } else if (target.kind === "pins") {
     selected = target.pins.map((pin) => ({ kind: "terminal", ...pin }));
+  } else if (target.kind === "endpoints") {
+    selected = [...target.endpoints];
   } else {
     const requested =
       target.kind === "member"
@@ -146,7 +151,7 @@ export function planRouteNet(
           `Place ${instance.reference ?? instance.id} before routing its Net`,
         );
       if (!isVisibleEndpoint(document, resolver, endpoint, context)) {
-        if (target.kind === "pins")
+        if (target.kind === "pins" || target.kind === "endpoints")
           throw new Error(
             `Explicit route-net pin is not visible: ${endpoint.instanceId}.${endpoint.pinName}`,
           );

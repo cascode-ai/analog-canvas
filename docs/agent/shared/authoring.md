@@ -525,6 +525,18 @@ keeps text offsets and formatting; attached drafting follows its owner. Locked
 targets reject the request. Receipt `terminalConnectivityChanged` compares
 document-local terminal equivalence only (omitted means unknown).
 
+`relocate` moves and turns parts and redraws their wiring, e.g. swapping a
+pair: `{"kind":"relocate","parts":[{"instance":"M1","position":{"x":400,"y":0},"mirror":"horizontal"},{"instance":"M2","position":{"x":0,"y":0},"mirror":"horizontal"}]}`
+(`instance`: Reference, ID or Cell Pin name; `rotation`/`mirror` omitted keep
+the part's). Every wire ending on their pins goes and is drawn again as
+`route-net` draws, except a stub reaching no other pin, which goes with its pin
+and turns with it; markers standing unwired on their pins go along; labels on
+redrawn wires stand on their Net's nearest new wire. Every pin keeps its Net
+and the netlist reads the same; otherwise, or for a wire `route-net` cannot
+draw, a bus wire, a Power Rail or a locked label on those pins, it is refused
+with nothing moved. One undo; `RELOCATED` (information) counts wires taken off
+and drawn.
+
 `delete` uses the GUI deletion planner, including owned displays and interface
 declarations. `delete-selection` nests explicit IDs by type, omitted lists
 empty: `{"kind":"delete-selection","selection":{"instanceIds":["M1"],"routeIds":["route-3"]}}`
