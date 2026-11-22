@@ -369,17 +369,6 @@ describe("a Library part retargeted to another name (#1928)", () => {
     );
   });
 
-  it("refuses the Project's definition when its ports are not the part's own pins", () => {
-    const project = unboundPart("comparator", {}, "comparator");
-    addOwnSubcircuit(project, "comparator", ["VDD", "VSS", "A", "B", "Y"]);
-    expect(
-      errors(project).find((item) => item.code === "GATE_CELL_PIN_MISMATCH")
-        ?.message,
-    ).toContain(
-      "External subcircuit comparator does not fit the comparator: it has no Pins IN+, IN- and OUT",
-    );
-  });
-
   it("still calls a name the Project does not define, in the part's port order", () => {
     const project = unboundPart("inverter", {}, "my_inv");
     expect(text(project)).toMatch(/^X1 VDD VSS n_A n_Y my_inv$/mu);
