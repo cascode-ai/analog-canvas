@@ -18,8 +18,9 @@
 //     figure.<ext>     a reference dataset's original figure
 //     source.sp        that dataset's own netlist, verbatim (absent when it has none)
 //     netlists/<variant>.sp and .scs, one pair per variant: `saved` (the
-//         Process the drawing was saved in) and each open Process; a pair is
-//         absent when that export is blocked
+//         drawing in its own Process, as the Netlist panel shows it with its
+//         missing defaults filled) and each open Process; a pair is absent
+//         when that export is blocked
 //     netlists/diagnostics.json  why an export is blocked and what it warned
 //
 // The first run reads everything. Later runs read each store's change feed
@@ -228,11 +229,10 @@ export function exportNetlists(headless, projectText) {
       const name = `${variant}.${ext}`;
       let result;
       try {
-        result = headless.workspaceNetlist(
-          project,
-          format,
-          variant === "saved" ? undefined : variant,
-        );
+        result =
+          variant === "saved"
+            ? headless.savedWorkspaceNetlist(project, format)
+            : headless.workspaceNetlist(project, format, variant);
       } catch (error) {
         result = {
           status: "blocked",

@@ -30,6 +30,7 @@ export { parseProject } from "@icm/project-protocol";
 export { embedFormalSvgFontsHeadless } from "@icm/exporters/headless-raster";
 export {
   compareNetlists,
+  savedWorkspaceNetlist,
   workspaceNetlist,
   workspaceSvg,
   type NetlistComparison,

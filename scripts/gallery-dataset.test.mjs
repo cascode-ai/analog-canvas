@@ -22,6 +22,8 @@ import {
 const fakeHeadless = {
   NETLIST_PROFILE_IDS: ["abstract", "sky130", "custom"],
   parseProject: (text) => JSON.parse(text),
+  savedWorkspaceNetlist: (project, format) =>
+    fakeHeadless.workspaceNetlist(project, format, project.process),
   workspaceNetlist: (project, format, process) =>
     project.blocked && process === "sky130"
       ? { status: "blocked", text: null, messages: ["no model"], warnings: [] }
@@ -136,6 +138,11 @@ describe("the netlists of one Project", () => {
       status: "ready",
       warnings: ["W: stand-in"],
     });
+    const own = exportNetlists(
+      fakeHeadless,
+      JSON.stringify({ name: "amp", process: "abstract" }),
+    );
+    expect(own.files["saved.sp"]).toBe("* amp abstract spice\n");
   });
 });
 
@@ -156,6 +163,7 @@ describe("a dataset run", () => {
       bundle,
       `export const NETLIST_PROFILE_IDS = ["abstract", "custom"];
 export const parseProject = (text) => JSON.parse(text);
+export const savedWorkspaceNetlist = (p, format) => workspaceNetlist(p, format);
 export const embedFormalSvgFontsHeadless = async (svg) => svg.replace("<svg/>", "<svg><style>embedded</style></svg>");
 export const workspaceNetlist = (p, format, process) => ({ status: "ready", text: p.name + " " + (process ?? "saved") + " " + format + "\\n", messages: [], warnings: [] });`,
     );

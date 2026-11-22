@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyProject,
+  deriveStableId,
+  type CircuitProject,
+} from "@icm/model";
 import { reviewedExternalBindingForMaster } from "@icm/devices";
 import { createNetlistPlanningProjection } from "./netlist-planning-projection.js";
 import {
@@ -178,5 +182,58 @@ describe("ordered netlist planning projection", () => {
     );
     expect(() => full(source, edits)).toThrow("cannot set and unset value");
     expect(source).toEqual(before);
+  });
+});
+
+describe("a reviewed definition renamed in place", () => {
+  it("leaves its id to it and gives the new master the next one", () => {
+    const project = createEmptyProject("renamed", "Renamed");
+    const old = "sky130_fd_pr__pfet_g5v0d10v5";
+    const id = deriveStableId("external-subcircuit", "sky130_fd_pr__pfet_01v8");
+    project.externalSubcircuitDefinitions.push({
+      id,
+      name: old,
+      terminals: ["D", "G", "S", "B"].map((name, index) => ({
+        id: deriveStableId(
+          "external-subcircuit-terminal",
+          "sky130_fd_pr__pfet_01v8",
+          String(index),
+        ),
+        name,
+        direction: "passive" as const,
+      })),
+      formalParameters: ["w", "l", "nf", "m", "ad", "as", "pd", "ps"].map(
+        (name) => ({ name, defaultValue: "1" }),
+      ),
+      interfaceStatus: "declared",
+    });
+    project.documents[0]!.instances.push({
+      id: "M1",
+      reference: "M1",
+      symbolId: "pmos",
+      placement: null,
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: id },
+        parameters: { w: "1", l: "0.5" },
+      },
+    });
+    const edits = planSetDeviceModelTarget(
+      project,
+      project.documents[0]!.id,
+      "M1",
+      "sky130_fd_pr__pfet_01v8",
+    );
+    const after = full(project, edits);
+    const fresh = after.externalSubcircuitDefinitions.find(
+      (definition) => definition.name === "sky130_fd_pr__pfet_01v8",
+    )!;
+    expect(fresh.id).not.toBe(id);
+    expect(
+      after.externalSubcircuitDefinitions.find((d) => d.id === id)?.name,
+    ).toBe(old);
+    expect(after.documents[0]!.instances[0]!.netlist!.binding).toEqual({
+      kind: "external-subcircuit",
+      definitionId: fresh.id,
+    });
   });
 });

@@ -1525,3 +1525,22 @@ describe("resistors and capacitors keep their value across Processes", () => {
     ]);
   });
 });
+
+it("keeps a Var Cap ideal under SG13G2, whose MIM capacitor it cannot draw, and fills its value", () => {
+  const project = createEmptyProject("var-cap", "Var Cap");
+  project.documents[0]!.instances.push({
+    id: "C1",
+    reference: "C1",
+    symbolId: "variable-capacitor",
+    placement: null,
+    netlist: {
+      binding: { kind: "primitive", deviceClass: "capacitor" },
+      parameters: {},
+    },
+  });
+  const filled = apply(project, createNetlistExportProfile("sg13g2"));
+  expect(filled.documents[0]!.instances[0]!.netlist).toEqual({
+    binding: { kind: "primitive", deviceClass: "capacitor" },
+    parameters: { value: "1p" },
+  });
+});
