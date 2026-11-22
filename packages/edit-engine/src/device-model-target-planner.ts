@@ -45,16 +45,36 @@ import {
   type DocumentEdits,
 } from "./cell-document-edits.js";
 
-function externalDefinitionId(masterName: string): string {
-  return deriveStableId("external-subcircuit", masterName.toLowerCase());
-}
-
-function externalTerminalId(masterName: string, index: number): string {
-  return deriveStableId(
-    "external-subcircuit-terminal",
-    masterName.toLowerCase(),
-    String(index),
+/**
+ * The stable ids of a new definition of this master, and of its terminals.
+ * An older definition can hold the plain id under another name (a
+ * definition renamed in place); the new one then takes the next suffix.
+ */
+function freshExternalDefinitionIds(
+  project: CircuitProject,
+  masterName: string,
+): { id: string; terminalId(index: number): string } {
+  const name = masterName.toLowerCase();
+  const taken = new Set(
+    project.externalSubcircuitDefinitions.map((definition) => definition.id),
   );
+  let suffix: string[] = [];
+  for (
+    let n = 2;
+    taken.has(deriveStableId("external-subcircuit", name, ...suffix));
+    n += 1
+  )
+    suffix = [String(n)];
+  return {
+    id: deriveStableId("external-subcircuit", name, ...suffix),
+    terminalId: (index) =>
+      deriveStableId(
+        "external-subcircuit-terminal",
+        name,
+        String(index),
+        ...suffix,
+      ),
+  };
 }
 
 function matchingReviewedExternalDefinition(
@@ -695,13 +715,14 @@ export function planSetDeviceModelTarget(
       (definition) =>
         definition.name.toLowerCase() === normalizedName.toLowerCase(),
     );
+    const ids = freshExternalDefinitionIds(project, normalizedName);
     const definition =
       sameNameDefinition ??
       ({
-        id: externalDefinitionId(normalizedName),
+        id: ids.id,
         name: normalizedName,
         terminals: targetBinding.terminals.map((terminal, index) => ({
-          id: externalTerminalId(normalizedName, index),
+          id: ids.terminalId(index),
           name: terminal.targetName,
           direction: "passive" as const,
         })),

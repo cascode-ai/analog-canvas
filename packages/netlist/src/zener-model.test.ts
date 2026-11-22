@@ -58,10 +58,10 @@ describe("Zener built-in diode model", () => {
     const spectre = createDesignNetlistExport(zenerProject({ bv: "5.1" }), {
       format: "spectre",
     });
-    expect(spectre.status).toBe("blocked");
-    expect(spectre.diagnostics.map((item) => item.code)).toContain(
-      "ZENER_BUILTIN_SPICE_ONLY",
-    );
+    expect(spectre.status).toBe("ready");
+    if (spectre.status !== "ready") return;
+    expect(spectre.file.text).toContain("model icm_zener_D1 diode bv=5.1");
+    expect(spectre.file.text).toContain("D1 (anode cathode) icm_zener_D1");
   });
 
   it("preserves explicit model binding and refuses conflicting local parameters", () => {

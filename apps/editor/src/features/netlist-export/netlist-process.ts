@@ -678,9 +678,14 @@ export function planNetlistProcessReport(
         (profile.id === "ics55" || profile.id === "gpdk045") &&
         !options.family &&
         namedMosType(profile.id, originalTarget) === family;
-      const target = keepVariant
+      const chosen = keepVariant
         ? originalTarget
         : (own ?? highVoltage ?? rule.target);
+      // A built-in part the Process's device cannot be drawn as, a Var Cap
+      // where the capacitor is IHP's MIM one, stays ideal and still takes
+      // its own defaults.
+      const ideal = !fits(chosen) && descriptor.targetPolicy === "builtin";
+      const target = ideal ? "" : chosen;
       if (!fits(target)) continue;
       const reviewed = reviewedExternalBindingForMaster(target, drawn);
       const passive = options.instanceIds
@@ -697,8 +702,15 @@ export function planNetlistProcessReport(
       if (passive?.kind === "kept") continue;
       // A high-voltage device brings its own geometry, not the family's; a
       // GPDK045 device other than the family's, its own CDF geometry.
-      const familyDefaults: Readonly<Record<string, string>> =
-        highVoltage || own
+      const familyDefaults: Readonly<Record<string, string>> = ideal
+        ? Object.fromEntries(
+            descriptor.parameters.flatMap((parameter) =>
+              parameter.required && parameter.defaultValue !== undefined
+                ? [[parameter.name, parameter.defaultValue]]
+                : [],
+            ),
+          )
+        : highVoltage || own
           ? {}
           : profile.id === "gpdk045" &&
               target !== rule.target &&

@@ -410,15 +410,6 @@ export function extractDeviceInstance(
       );
     }
     if (netlist.binding?.kind !== "model") {
-      if (target && options.format !== "spice") {
-        diagnostic(
-          diagnostics,
-          document.id,
-          "ZENER_BUILTIN_SPICE_ONLY",
-          `Instance ${instance.reference!} uses a generated ngspice Zener model; select SPICE or bind a Spectre model explicitly`,
-          [instance.id],
-        );
-      }
       for (const parameter of modelParameters) {
         const parsed = parseSpiceNumber(parameter.rawValue.trim());
         if (

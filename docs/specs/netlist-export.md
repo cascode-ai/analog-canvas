@@ -324,7 +324,7 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
 
 - Diodes in a Process without its own (Abstract, SKY130, IHP SG13G2, ICS55, GPDK045, Custom)
   bind to `DIODE`; Zeners never do: one is placed with `bv` 5.1, which builds
-  its own SPICE model, and one with neither `bv` nor a model reports
+  its own model card in SPICE and Spectre (`icm_zener_<ref>`, `D` with `BV`/`IBV`), and one with neither `bv` nor a model reports
   `MISSING_MODEL_TARGET`. Each Cell
   naming `DIODE` carries `.model DIODE D(IS=1e-14 N=1)` (information
   `GENERIC_DIODE_MODEL`). Schottky diodes in every Process bind to `DSCH`,

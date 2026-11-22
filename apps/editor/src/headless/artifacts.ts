@@ -12,10 +12,15 @@ import {
 } from "@icm/spice";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
-import type { NetlistProfileId } from "../features/netlist-export/netlist-process-presets";
 import {
+  createNetlistExportProfile,
+  type NetlistProfileId,
+} from "../features/netlist-export/netlist-process-presets";
+import {
+  inferNetlistProcess,
   netlistModelInclude,
   netlistProcessProjection,
+  prepareNetlistExample,
   processValueConversionCode,
 } from "../features/netlist-export/netlist-process";
 
@@ -65,6 +70,22 @@ export function workspaceNetlist(
   return result.status === "ready"
     ? { status: "ready", text: result.file.text, messages, warnings }
     : { status: "blocked", text: null, messages, warnings };
+}
+
+/**
+ * The drawing's netlist in its own Process, as the Netlist panel shows it
+ * once its missing defaults are filled: parts bound to nothing take the
+ * Process's devices, authored models and values stay. The Process is the
+ * one its transistors name, Abstract when none does.
+ */
+export function savedWorkspaceNetlist(
+  project: CircuitProject,
+  format: NetlistFormat = "spice",
+): ReturnType<typeof workspaceNetlist> {
+  const own = createNetlistExportProfile(
+    inferNetlistProcess(project, "abstract"),
+  );
+  return workspaceNetlist(prepareNetlistExample(project, own), format);
 }
 
 /**
