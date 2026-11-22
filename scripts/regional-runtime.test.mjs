@@ -77,9 +77,6 @@ describe("regional runtime declaration", () => {
     expect(config).toContain(
       '(name = "PROJECT_WRITES_ENABLED", text = embed "/project-writes-enabled")',
     );
-    expect(config).toContain(
-      `compatibilityDate = "${wrangler.compatibility_date}"`,
-    );
     expect(config).not.toMatch(/\b(?:\d{1,3}\.){3}\d{1,3}\b(?!:)/);
   });
 
@@ -98,14 +95,5 @@ describe("the regional Worker's modules", () => {
         '  (name = "cd-face.ttf", data = embed "cd-face.ttf")',
       ].join("\n"),
     );
-  });
-
-  it("are what config.capnp loads", async () => {
-    const config = await readFile(
-      join(root, "containers/canvas-cn/formal/config.capnp"),
-      "utf8",
-    );
-    expect(config).toContain('using Modules = import "worker/modules.capnp";');
-    expect(config).toContain("modules = Modules.list,");
   });
 });

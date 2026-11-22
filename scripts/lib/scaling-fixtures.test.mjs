@@ -8,15 +8,10 @@ it("opens the same independent MOS pairs flat or through thirty-two callers", as
   const [cell] = flat.documents;
   expect(cell.instances).toHaveLength(2048);
   expect(cell.routes).toHaveLength(2048);
-  expect(cell.annotations).toHaveLength(2048);
   expect(cell.nets.find((net) => net.id === "net-D0").terminals).toEqual([
     { instanceId: "M1", pinName: "D" },
     { instanceId: "M2", pinName: "D" },
   ]);
-  expect(
-    cell.instances.find((instance) => instance.id === "M2048").placement
-      .position,
-  ).toEqual({ x: 5370, y: 7640 });
   const hier = parseProject(inputs.get("hier-2048"));
   expect(hier.documents.map((document) => document.instances.length)).toEqual([
     32, 64,

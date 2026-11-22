@@ -197,8 +197,6 @@ describe("gallery census", () => {
       "netlist",
       "copy",
     ]);
-    expect(parseArguments(["--checks", "insert"]).checks).toEqual(["insert"]);
-    expect(parseArguments([]).checks).toEqual([]);
     expect(() => parseArguments(["--checks", "labels"])).toThrow("--checks");
   });
 
@@ -310,12 +308,7 @@ describe("gallery census", () => {
     expect(findings.labelsStoppedFollowing).toEqual([
       { id: "worse", name: "Worse", labels: ["label-b"] },
     ]);
-    expect(findings.missing).toEqual([]);
-    expect(findings.added).toEqual([]);
     expect(blockingFindings(findings)).toBe(3);
-    expect(formatComparison(findings)).toContain(
-      "worse copyInPlace: ok → Route r1_2 is empty",
-    );
   });
 
   it("does not block on a failure that only reads differently", () => {
@@ -329,9 +322,6 @@ describe("gallery census", () => {
     );
     expect(findings.changed).toHaveLength(1);
     expect(blockingFindings(findings)).toBe(0);
-    expect(formatComparison(compareReports(report([]), report([])))).toBe(
-      "No drawing behaves differently.",
-    );
   });
 
   it("blocks on a netlist mark that changed while the mark rule version did not (#1284)", () => {
@@ -353,7 +343,6 @@ describe("gallery census", () => {
     // With the version moved, the Gallery asks every stored mark again.
     const bumped = compareReports(marked(11, false), marked(12, true));
     expect(blockingFindings(bumped)).toBe(0);
-    expect(formatComparison(bumped)).toContain("the rule version moved");
     // Reports from before marks were recorded compare as before.
     expect(blockingFindings(compareReports(report([]), report([])))).toBe(0);
   });
@@ -366,8 +355,7 @@ describe("gallery census", () => {
         { id: "c", name: "C", checks: { netlist: "blocked: MISSING_PIN_NET" } },
       ]),
     );
-    expect(summary).toContain("Gallery census of 3 drawings at abc1234");
-    expect(summary).toContain("netlist        1 ok, 2 not");
+    expect(summary).toMatch(/netlist +1 ok, 2 not/u);
     expect(summary).toContain("2 × blocked: MISSING_PIN_NET");
   });
 

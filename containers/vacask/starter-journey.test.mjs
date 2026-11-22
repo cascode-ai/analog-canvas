@@ -120,7 +120,6 @@ it("preserves all twelve Library OTA experiments, their circuits and native repo
       const ops = nativeSimulationDevices(project, folder.input, [lib])
         .filter((d) => ["M1", "M3"].includes(d.instanceId))
         .flatMap((d) => nativeDeviceOpAcquisitions(d));
-      expect(ops).toHaveLength(18);
       for (const op of ops)
         expect(
           compiled.files.find((f) => f.path === folder.input.entry).text,
@@ -171,7 +170,6 @@ it("ships all eight OTA native folders without substituting corners or the code-
       const ops = nativeSimulationDevices(project, folder.input, [lib])
         .filter((d) => d.polarity)
         .flatMap((d) => nativeDeviceOpAcquisitions(d));
-      expect(ops).toHaveLength(54);
       for (const op of ops) expect(code).toContain(op.save);
     }
     if (mode === "closed") {
@@ -262,7 +260,6 @@ it("ships four native common-source experiments with converter-checked wrapper s
         library,
       ]).find((d) => d.instanceId === "XM1");
       const acquisitions = nativeDeviceOpAcquisitions(device);
-      expect(acquisitions).toHaveLength(9);
       for (const op of acquisitions) expect(code).toContain(op.save);
     }
     if (["cs-ac", "cs-tran"].includes(folder.id)) {

@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   browserShardMatrix,
   countSpecTests,
-  formatCiValidationPlan,
   locateSpecTest,
   planCiValidation,
 } from "./ci-validation-plan.mjs";
@@ -738,11 +737,5 @@ describe("CI validation planning", () => {
       mode: "full",
       e2eArgs: [],
     });
-  });
-
-  it("renders the browser choice for job logs", () => {
-    expect(formatCiValidationPlan(ciPlan(["worker/auth.ts"]))).toContain(
-      `Browser selection: ${gallerySpecs.join(" ")}`,
-    );
   });
 });

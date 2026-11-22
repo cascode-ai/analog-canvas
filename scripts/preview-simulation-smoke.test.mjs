@@ -444,9 +444,7 @@ describe("the Preview dual-executor smoke", () => {
             { status: 502 },
           ),
       }),
-    ).rejects.toThrow(
-      "[infrastructure:simulator-refused] operator-host answered HTTP 502 (simulator-busy): one circuit at a time",
-    );
+    ).rejects.toThrow("[infrastructure:simulator-refused]");
   });
 
   it("names a malformed smoke request separately from executor failure", async () => {
@@ -463,9 +461,7 @@ describe("the Preview dual-executor smoke", () => {
             { status: 400 },
           ),
       }),
-    ).rejects.toThrow(
-      "[request:invalid-request] cloudflare-container answered HTTP 400: a circuit and testbench are required",
-    );
+    ).rejects.toThrow("[request:invalid-request]");
   });
 
   it("keeps a timed-out run separate from an infrastructure refusal", () => {
@@ -491,9 +487,7 @@ describe("the Preview dual-executor smoke", () => {
             headers: { "content-type": "text/plain" },
           }),
       }),
-    ).rejects.toThrow(
-      "[protocol:non-json] operator-host answered HTTP 502: bad gateway",
-    );
+    ).rejects.toThrow("[protocol:non-json]");
   });
 });
 

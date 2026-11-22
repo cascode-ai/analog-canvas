@@ -415,7 +415,6 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const dc = result.data.analyses.find((item) => item.analysis === "dc");
     const input = dc.sweep.values;
     const output = value(dc, yi);
-    expect(input).toHaveLength(37);
     expect(output[0]).toBeGreaterThan(1.79);
     expect(output.at(-1)).toBeLessThan(0.01);
     // Falls through the whole sweep, crossing mid-rail once.

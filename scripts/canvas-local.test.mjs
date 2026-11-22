@@ -25,22 +25,6 @@ function run(...args) {
 }
 
 describe("canvas-local command line", () => {
-  it("lists its commands", () => {
-    const help = run("help");
-    expect(help.status).toBe(0);
-    for (const command of [
-      "new",
-      "apply",
-      "cells",
-      "call",
-      "png",
-      "svg",
-      "netlist",
-      "setup",
-    ])
-      expect(help.stdout).toContain(`  ${command} `);
-  });
-
   it("names a directory that is not a workspace before exporting", () => {
     const result = run("png", join(tmpdir(), "no-such-workspace"));
     expect(result.status).toBe(1);

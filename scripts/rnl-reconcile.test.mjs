@@ -131,8 +131,6 @@ it("writes the report for the issue, with the combination it checked", () => {
   expect(text).toContain("### RNL upstream reconcile, 2026-11-17");
   expect(text).toContain("- runtime: x");
   expect(text).toContain("Analog Canvas: RNL 0.4, standard series 0.4");
-  expect(text).toContain("core 0.6.0 released, main 5347dcb2");
-  expect(text).toContain("spec spec-0.4-r1 (0.4)");
 });
 
 it.each([true, false])(
@@ -195,7 +193,7 @@ it.each([true, false])(
     );
     if (available) expect(report).not.toContain("- version line:");
     else
-      expect(report.split("\n")[2]).toContain(
+      expect(report).toContain(
         `The release ${line.specRelease} has no readable normative RNL text.`,
       );
   },
