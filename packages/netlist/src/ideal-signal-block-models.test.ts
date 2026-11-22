@@ -171,25 +171,6 @@ describe("generated block bodies", () => {
     expect(spice.file.text).toMatch(new RegExp(`^${call}$`, "mu"));
   });
 
-  it("export the adder in SPICE and in Spectre from two unity sources", () => {
-    const spice = createDesignNetlistExport(blockCell("adder"));
-    expect(spice.status).toBe("ready");
-    if (spice.status !== "ready") return;
-    expect(spice.file.text).toContain(".subckt adder VDD VSS A B Y");
-    expect(spice.file.text).toContain("ESUMA Y nsum A 0 {1}");
-    expect(spice.file.text).toContain("ESUMB nsum 0 B 0 {1}");
-
-    const spectre = createDesignNetlistExport(blockCell("adder"), {
-      format: "spectre",
-    });
-    expect(spectre.status).toBe("ready");
-    if (spectre.status !== "ready") return;
-    expect(spectre.diagnostics).toEqual([]);
-    expect(spectre.file.text).toMatch(/^subckt adder \(VDD VSS A B Y\)$/mu);
-    expect(spectre.file.text).toMatch(/^ESUMA \(Y nsum A 0\) vcvs gain=1$/mu);
-    expect(spectre.file.text).toMatch(/^ESUMB \(nsum 0 B 0\) vcvs gain=1$/mu);
-  });
-
   it.each([
     ["+", "+", "adder", "1", "1"],
     ["-", "+", "adder_minus_a", "-1", "1"],
@@ -222,6 +203,9 @@ describe("generated block bodies", () => {
       expect(spectre.diagnostics).toEqual([]);
       expect(spectre.file.text).toMatch(
         new RegExp(`^subckt ${body} \\(VDD VSS A B Y\\)$`, "mu"),
+      );
+      expect(spectre.file.text).toMatch(
+        new RegExp(`^ESUMA \\(Y nsum A 0\\) vcvs gain=${gainA}$`, "mu"),
       );
       expect(spectre.file.text).toMatch(
         new RegExp(`^ESUMB \\(nsum 0 B 0\\) vcvs gain=${gainB}$`, "mu"),

@@ -5,7 +5,17 @@ import { importSpiceSources } from "./importer.js";
 const wide = (count: number) =>
   Array.from({ length: count }, (_, index) => `p${index}`).join(" ");
 
-async function imported(text: string) {
+/** A call of `count` terminals to a subcircuit of as many Pins. */
+async function imported(count: number) {
+  const text = [
+    "* wide",
+    `.subckt big ${wide(count)}`,
+    "R1 p0 p1 1k",
+    ".ends big",
+    `.subckt top ${wide(count)}`,
+    `X1 ${wide(count)} big`,
+    ".ends top",
+  ].join("\n");
   return importSpiceSources(
     [{ path: "top.sp", bytes: new TextEncoder().encode(text) }],
     "top.sp",
@@ -13,18 +23,8 @@ async function imported(text: string) {
 }
 
 describe("what a Project holds of one part", () => {
-  it("refuses a call with more terminals than a part takes, by name and line", async () => {
-    const result = await imported(
-      [
-        "* wide",
-        `.subckt big ${wide(130)}`,
-        "R1 p0 p1 1k",
-        ".ends big",
-        `.subckt top ${wide(130)}`,
-        `X1 ${wide(130)} big`,
-        ".ends top",
-      ].join("\n"),
-    );
+  it("refuses a call with more terminals than a part takes, by name and line, and takes exactly as many", async () => {
+    const result = await imported(130);
     expect(result.successful).toBe(false);
     expect(
       result.diagnostics.filter(({ severity }) => severity === "error"),
@@ -38,22 +38,10 @@ describe("what a Project holds of one part", () => {
         }),
       }),
     ]);
-  });
-
-  it("takes a call of exactly as many terminals as a part holds", async () => {
-    const result = await imported(
-      [
-        "* widest",
-        `.subckt big ${wide(128)}`,
-        "R1 p0 p1 1k",
-        ".ends big",
-        `.subckt top ${wide(128)}`,
-        `X1 ${wide(128)} big`,
-        ".ends top",
-      ].join("\n"),
-    );
     expect(
-      result.diagnostics.filter(({ code }) => code === "SPICE_IMPORT_LIMIT"),
+      (await imported(128)).diagnostics.filter(
+        ({ code }) => code === "SPICE_IMPORT_LIMIT",
+      ),
     ).toEqual([]);
   });
 });

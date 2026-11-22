@@ -257,33 +257,8 @@ describe("drawn magnetic devices", () => {
     ).toEqual([["MISSING_REQUIRED_PARAMETER", "ls"]]);
   });
 
-  it("writes its subcircuit under the reserved name where a Cell has the library's (#1928)", () => {
-    const project = tcoil();
-    project.documents[0]!.netlist!.name = "tcoil";
-    const text = exported(project, "spice");
-    expect(text).toContain("X1 a b tap icm_tcoil l1=1n l2=2n k=0.5 cb=10f");
-    expect(text).toContain(".subckt icm_tcoil n1 n2 n3 ");
-    expect(text).toContain(".subckt tcoil ");
-    expect(text.split(".subckt tcoil").length).toBe(2);
-    const spectre = exported(project, "spectre");
-    expect(spectre).toContain(
-      "X1 (a b tap) icm_tcoil l1=1n l2=2n k=0.5 cb=10f",
-    );
-    expect(spectre).toMatch(/^subckt icm_tcoil \(n1 n2 n3\)/mu);
-    // Read back, the renamed body is still the T-coil that wrote it.
-    for (const [format, written] of [
-      ["spice", text],
-      ["spectre", spectre],
-    ] as const)
-      expect(
-        findBuiltInBodies(written, format, "dut.sp").bodies.find(
-          (body) => body.name === "icm_tcoil",
-        ),
-        format,
-      ).toMatchObject({ kind: "subcircuit", symbolId: "tcoil" });
-  });
-
   it.each([
+    ["tcoil", tcoil],
     ["xfmr", transformer],
     [
       "ct_inductor",
@@ -299,7 +274,7 @@ describe("drawn magnetic devices", () => {
         ),
     ],
   ] as const)(
-    "reads the %s body written under its reserved name back as the part that wrote it (#1928)",
+    "writes the %s body under its reserved name where a Cell has the library's, and reads it back as the part that wrote it (#1928)",
     (body, fixture) => {
       const project = fixture();
       project.documents[0]!.netlist!.name = body;

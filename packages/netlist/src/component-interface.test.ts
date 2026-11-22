@@ -75,6 +75,8 @@ function amplifierProject(symbolId = "opamp") {
 
 describe("portable component interfaces meet real netlist export", () => {
   it.each([
+    // VDD is drawn, so the op-amp's limits read its supplies (#1463).
+    ["opamp", {}, "icm_opamp_vdd_vss"],
     ["comparator", {}, "icm_ideal_comparator_vdd"],
     ["comparator", { vhigh: "1.8" }, "icm_ideal_comparator"],
     ["adder", { signA: "-" }, "adder_minus_a"],
@@ -101,9 +103,10 @@ describe("portable component interfaces meet real netlist export", () => {
         );
         expect(valid.status, JSON.stringify(valid.diagnostics)).toBe("ready");
         if (valid.status === "ready") expect(valid.file.text).toContain(target);
-        const ports = project.componentDefinitions!.find(
-          (definition) => definition.symbol.id === symbolId,
-        )!.subcircuit!.ports;
+        const definition = project.componentDefinitions!.find(
+          (item) => item.symbol.id === symbolId,
+        )!;
+        const ports = definition.subcircuit!.ports;
         if (fault === "order") [ports[2], ports[3]] = [ports[3]!, ports[2]!];
         else {
           const first = ports[2]!,
@@ -111,6 +114,10 @@ describe("portable component interfaces meet real netlist export", () => {
           if ("pinName" in first && "pinName" in second)
             [first.pinName, second.pinName] = [second.pinName, first.pinName];
         }
+        // The schema accepts the changed interface; the export refuses it.
+        expect(ComponentDefinitionSchema.safeParse(definition).success).toBe(
+          true,
+        );
         const invalid = createDesignNetlistExport(
           parseProject(serializeProject(project)),
         );
@@ -250,36 +257,6 @@ describe("portable component interfaces meet real netlist export", () => {
       expect(exported.status).toBe("blocked");
       expect(exported.diagnostics).toContainEqual(
         expect.objectContaining({ code: "MODEL_IMPLEMENTATION_MISSING" }),
-      );
-    },
-  );
-
-  it.each(["order", "mapping"] as const)(
-    "does not accept changed %s for an unchanged built-in model",
-    (change) => {
-      const project = amplifierProject();
-      const definition = project.componentDefinitions!.find(
-        (item) => item.symbol.id === "opamp",
-      )!;
-      const ports = definition.subcircuit!.ports;
-      if (change === "order") [ports[2], ports[3]] = [ports[3]!, ports[2]!];
-      else {
-        const positive = ports[2]!,
-          negative = ports[3]!;
-        if (!("pinName" in positive) || !("pinName" in negative))
-          throw new Error("Missing input mapping");
-        [positive.pinName, negative.pinName] = [
-          negative.pinName,
-          positive.pinName,
-        ];
-      }
-      expect(ComponentDefinitionSchema.safeParse(definition).success).toBe(
-        true,
-      );
-      const exported = createDesignNetlistExport(project);
-      expect(exported.status).toBe("blocked");
-      expect(exported.diagnostics).toContainEqual(
-        expect.objectContaining({ code: "COMPONENT_MODEL_INTERFACE_MISMATCH" }),
       );
     },
   );

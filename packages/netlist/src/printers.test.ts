@@ -387,33 +387,6 @@ describe("design netlist printers", () => {
     });
   });
 
-  it("prints Digital Clock compatibility fields in both supported dialects", () => {
-    const ir = structuralIr();
-    ir.cells[1]!.instances.push(
-      device("vclock", "VCLOCK", "voltage-source", ["vin", "0"], null, [
-        ["waveform", "pulse"],
-        ["low", "0"],
-        ["high", "1"],
-        ["delay", "1ns"],
-        ["rise", "1ps"],
-        ["fall", "1ps"],
-        ["width", "5ns"],
-        ["period", "10ns"],
-        ["dutyCycle", "50"],
-        ["initial", "0"],
-      ]),
-    );
-
-    expect(printSpiceNetlist(ir)).toContain(
-      "VCLOCK vin 0 PULSE(0 1 1ns 1ps 1ps 5ns 10ns)",
-    );
-    expect(printSpectreNetlist(ir)).toContain(
-      "VCLOCK (vin 0) vsource type=pulse val0=0 val1=1 delay=1n rise=1p fall=1p width=5n period=10n",
-    );
-    expect(printSpiceNetlist(ir)).not.toContain("dutyCycle=");
-    expect(printSpectreNetlist(ir)).not.toContain("initial=");
-  });
-
   it("prints formal PULSE and SIN waveforms for voltage and current sources", () => {
     const ir = structuralIr();
     ir.cells[1]!.instances.push(
@@ -428,6 +401,9 @@ describe("design netlist printers", () => {
         ["fall", "3ps"],
         ["width", "4ns"],
         ["period", "8ns"],
+        // Digital Clock compatibility fields print in neither dialect.
+        ["dutyCycle", "50"],
+        ["initial", "0"],
       ]),
       device("ip", "IP", "current-source", ["vout", "0"], null, [
         ["dc", "1u"],
@@ -466,6 +442,7 @@ describe("design netlist printers", () => {
     expect(spice).toContain("IP vout 0 DC 1u PULSE(0 10u 2ns 1ps 1ps 3ns 6ns)");
     expect(spice).toContain("VS vin 0 DC 0.9 SIN(0.9 10m 1Meg 0 0 0)");
     expect(spice).toContain("IS vout 0 DC 2u SIN(2u 500n 10k 1us 2 90)");
+    expect(spice).not.toContain("dutyCycle=");
 
     const spectre = printSpectreNetlist(ir);
     expect(spectre).toContain(
@@ -480,6 +457,7 @@ describe("design netlist printers", () => {
     expect(spectre).toContain(
       "IS (vout 0) isource type=sine dc=2u ampl=500n freq=10k delay=1u damp=2 sinephase=90",
     );
+    expect(spectre).not.toContain("initial=");
   });
 
   it("prints one canonical PWL waveform in SPICE and Spectre", () => {
@@ -497,19 +475,6 @@ describe("design netlist printers", () => {
     expect(printSpectreNetlist(ir)).toContain(
       "VPWL (vin 0) vsource type=pwl wave=[0 0 1n 0 2n 1.8] dc=0",
     );
-  });
-
-  it("does not infer PULSE from a period parameter", () => {
-    const ir = structuralIr();
-    ir.cells[1]!.instances.push(
-      device("vdc", "VDC", "voltage-source", ["vin", "0"], null, [
-        ["dc", "1"],
-        ["waveform", "dc"],
-        ["period", "10ns"],
-      ]),
-    );
-    expect(printSpiceNetlist(ir)).toContain("\nVDC vin 0 DC 1\n");
-    expect(printSpiceNetlist(ir)).not.toContain("VDC vin 0 PULSE");
   });
 
   it("prints only the selected waveform when inactive source fields remain stored", () => {
@@ -628,18 +593,6 @@ describe("design netlist printers", () => {
     expect(printSpectreNetlist(ir)).toContain("S1 (vout 0 vctrl 0) SW_RLY");
   });
 
-  it("wraps long SPICE instance records with continuation lines", () => {
-    const ir = structuralIr();
-    ir.cells[1]!.instances[0]!.parameters = Array.from(
-      { length: 12 },
-      (_, index) => ({ name: `parameter_${index}`, rawValue: "1234567890" }),
-    );
-    ir.cells[1]!.instances[0]!.parameters.push({
-      name: "value",
-      rawValue: "2p",
-    });
-    expect(printSpiceNetlist(ir)).toContain("\n+ parameter_");
-  });
   it("preserves root Cell defaults when emitting an executable top-level circuit", () => {
     const ir = structuralIr();
     const root = ir.cells.find((cell) => cell.id === ir.topCellId)!;

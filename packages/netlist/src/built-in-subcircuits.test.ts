@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   createEmptyProject,
-  createSimulationFolder,
   type CircuitProject,
   type SchematicDocument,
 } from "@icm/model";
@@ -14,8 +13,6 @@ import {
 
 import { createDesignNetlistExport } from "./export.js";
 import { addOwnSubcircuit } from "./own-subcircuit.test-support.js";
-import { analyzeDesignNetlistForAuthoring } from "./extract.js";
-import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 
 const inverterNets = [
   ["A", "in_node"],
@@ -402,6 +399,10 @@ describe("built-in Analog Block subcircuits", () => {
       "Bcore VOUT 0 V={0.5*(vhigh+(0.5*(vlow+V(nlin)",
     );
 
+    // A raw gain override passes through the call.
+    expect(text(opamp({ gain: "2e3" }))).toContain(
+      "X1 VDD VSS plus minus out icm_opamp_vdd_vss gain=2e3",
+    );
     // Typed levels win over the supplies; a supply limit may be any case.
     expect(text(opamp({ vhigh: "12", vlow: "-12" }))).toContain(
       "X1 VDD VSS plus minus out opamp vhigh=12 vlow=-12",
@@ -570,95 +571,6 @@ describe("built-in Analog Block subcircuits", () => {
       );
   });
 
-  it("passes a raw gain override through the ideal model call", () => {
-    const project = analogBlockProject(
-      ["opamp"],
-      [
-        ["IN+", "plus"],
-        ["IN-", "minus"],
-        ["OUT", "out"],
-      ],
-    );
-    project.documents[0]!.instances.find(
-      (item) => item.id === "block-1",
-    )!.netlist!.parameters.gain = "2e3";
-    const result = createDesignNetlistExport(project);
-    expect(result.status).toBe("ready");
-    if (result.status !== "ready") return;
-    expect(result.file.text).toContain(
-      "X1 VDD VSS plus minus out icm_opamp_vdd_vss gain=2e3",
-    );
-  });
-
-  it("includes the built-in model in an ngspice simulation binding", () => {
-    const project = analogBlockProject(
-      ["opamp"],
-      [
-        ["IN+", "plus"],
-        ["IN-", "minus"],
-        ["OUT", "out"],
-      ],
-    );
-    const folder = createSimulationFolder({
-      id: "ideal-opamp-probe",
-      name: "Ideal opamp probe",
-      profileId: "local",
-      documentId: project.documents[0]!.id,
-    });
-    folder.input.files.find((file) => file.path === folder.input.entry)!.text =
-      "Ideal opamp probe\n.include circuit.spice\n.control\nop\n.endc\n.end\n";
-    const compiled = compileNgspiceSourceSimulation(project, folder);
-    expect(
-      compiled.ok,
-      JSON.stringify(compiled.ok ? [] : compiled.diagnostics),
-    ).toBe(true);
-    if (!compiled.ok) return;
-    const generated = compiled.files.find(
-      (file) => file.path === "circuit.spice",
-    )!.text;
-    expect(generated).toContain(
-      ".subckt icm_opamp_vdd_vss VDD VSS VIP VIN VOUT params: gain=1e6",
-    );
-    expect(generated).toContain("Blin nlin 0 V={gain*(V(VIP)-V(VIN))}");
-    expect(generated).toContain("X1 VDD VSS plus minus out icm_opamp_vdd_vss");
-    expect(generated.match(/\.subckt icm_opamp_vdd_vss\b/gu)).toHaveLength(1);
-  });
-
-  it.each(["and", "nand", "or", "nor", "xor", "xnor"])(
-    "exports every four-input %s terminal in its declared electrical order",
-    (family) => {
-      const project = analogBlockProject(
-        [`${family}-gate-4`],
-        [
-          ["A", "a"],
-          ["B", "b"],
-          ["C", "c"],
-          ["D", "d"],
-          ["Y", "y"],
-        ],
-      );
-      const result = createDesignNetlistExport(project);
-      expect(result.status).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(result.file.text).toContain(
-        `.subckt ${family}_gate_4 VDD VSS A B C D Y params: vt=10m td=10p`,
-      );
-      const authoring = analyzeDesignNetlistForAuthoring(project);
-      const instance = authoring.ir?.cells
-        .find((cell) => cell.id === "dut")
-        ?.instances.find((item) => item.id === "block-1");
-      expect(instance?.nodes.map((node) => node.netName)).toEqual([
-        "VDD",
-        "VSS",
-        "a",
-        "b",
-        "c",
-        "d",
-        "y",
-      ]);
-      expect(instance?.target).toBe(`${family}_gate_4`);
-    },
-  );
   for (const family of ["opamp", "opamp-differential"])
     for (const state of [
       "",

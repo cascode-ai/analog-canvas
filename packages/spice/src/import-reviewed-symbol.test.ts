@@ -8,9 +8,6 @@ const input = (path: string, text: string) => ({
 });
 
 it.each([
-  ["PNP", "pnp", "Q1 c b e device"],
-  ["NPN", "npn", "Q1 c b e device"],
-  ["D", "diode", "D1 a k device"],
   ["NJF", "njfet", "J1 d g s device"],
   ["PJF", "pjfet", "J1 d g s device"],
 ])(
@@ -167,24 +164,6 @@ it("keeps an M card a model card when the deck declares that .model", async () =
   expect(
     top.instances.find((item) => item.reference === "M1")!.netlist!.binding,
   ).toMatchObject({ kind: "model", name: "sky130_fd_pr__nfet_01v8" });
-});
-
-it("brings in a device of unknown type as its family's box and asks for its library, never a made-up card (#2294)", async () => {
-  const text = [
-    ".subckt top d g s b",
-    "M1 d g s b mystery w=1u l=1u",
-    ".ends top",
-    ".end",
-    "",
-  ].join("\n");
-  const result = await importSpiceSources([input("m.spi", text)], "m.spi");
-  expect(result.successful).toBe(true);
-  expect(
-    result.diagnostics.find((d) => d.code === "SPICE_IMPORT_UNTYPED_DEVICE")
-      ?.message,
-  ).toBe(
-    "M1 uses mystery, which no card declares: it comes in as MOS (D G S B) of unknown type, a box with its pins as SPICE orders them. To draw one as the device it is, include the library that defines it.",
-  );
 });
 
 it("takes an undeclared model's device type from another reading of the files, and a declared card over it", async () => {

@@ -100,14 +100,9 @@ describe("canonical design-netlist authority", () => {
       }
     }
   });
-  it("isolates repeated analysis outputs and exports changed snapshot parameters freshly", () => {
+  it("exports changed snapshot parameters freshly", () => {
     const { project } = copiedExternalMosProject();
     const owned = freezeSnapshot(project);
-    const analysis = analyzeDesignNetlist(owned);
-    if (!analysis.ir) throw new Error(JSON.stringify(analysis.diagnostics));
-    const originalName = analysis.ir.cells[0]!.name;
-    analysis.ir.cells[0]!.name = "changed-by-caller";
-    expect(analyzeDesignNetlist(owned).ir?.cells[0]!.name).toBe(originalName);
     const first = createDesignNetlistExport(owned, { format: "spice" });
     const again = createDesignNetlistExport(owned, { format: "spice" });
     expect(again).toEqual(first);

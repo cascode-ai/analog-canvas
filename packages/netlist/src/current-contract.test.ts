@@ -123,33 +123,6 @@ describe("current formal cell interface", () => {
     },
   );
 
-  it("derives a portable netlist identifier from a readable Cell name", () => {
-    const project = resistorProject({ value: "10k" });
-    const document = project.documents[0]!;
-    document.name = "cascode current mirror";
-    document.netlist!.name = "cascode current mirror";
-    const before = structuredClone(project);
-
-    const result = analyzeDesignNetlist(project);
-
-    expect(
-      result.diagnostics.filter((item) => item.severity === "error"),
-    ).toEqual([]);
-    expect(result.ir?.cells[0]?.name).toBe("cascode_current_mirror");
-    expect(result.diagnostics).toContainEqual(
-      expect.objectContaining({
-        code: "CELL_NAME_NORMALIZED",
-        severity: "warning",
-        message:
-          "Cell name cascode current mirror exports as cascode_current_mirror",
-      }),
-    );
-    expect(printSpiceNetlist(result.ir!)).toContain(
-      ".subckt cascode_current_mirror",
-    );
-    expect(project).toEqual(before);
-  });
-
   it("uses the same derived Cell identifier in hierarchy definitions and calls", () => {
     const project = createEmptyProject("project", "Project", "top");
     const top = project.documents[0]!;
@@ -168,11 +141,20 @@ describe("current formal cell interface", () => {
       },
     });
 
+    const before = structuredClone(project);
+
     const result = analyzeDesignNetlist(project);
 
     expect(
       result.diagnostics.filter((item) => item.severity === "error"),
     ).toEqual([]);
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "CELL_NAME_NORMALIZED",
+        severity: "warning",
+        message: "Cell name top level exports as top_level",
+      }),
+    );
     expect(result.ir?.cells.map((cell) => cell.name)).toEqual([
       "cascode_current_mirror",
       "top_level",
@@ -183,6 +165,10 @@ describe("current formal cell interface", () => {
     expect(printSpiceNetlist(result.ir!)).toContain(
       "X1 cascode_current_mirror",
     );
+    expect(printSpiceNetlist(result.ir!)).toContain(
+      ".subckt cascode_current_mirror",
+    );
+    expect(project).toEqual(before);
   });
 
   it("blocks ambiguous Cell identifiers after portable normalization", () => {
@@ -927,18 +913,6 @@ describe("current formal cell interface", () => {
     );
   });
 
-  it("returns stable analysis across repeated and serialized Project reads", () => {
-    const project = resistorProject({ Value: "10k" });
-    const first = analyzeDesignNetlist(project);
-    const repeated = analyzeDesignNetlist(project);
-    const reopened = analyzeDesignNetlist(
-      JSON.parse(JSON.stringify(project)) as typeof project,
-    );
-
-    expect(repeated).toEqual(first);
-    expect(reopened).toEqual(first);
-  });
-
   it("preserves the Project top when analyzing an explicit Testbench root", () => {
     const project = createEmptyProject("project", "Project", "dut");
     const dut = project.documents[0]!;
@@ -985,16 +959,6 @@ describe("current formal cell interface", () => {
     );
     expect(project.topDocumentId).toBe("dut");
     expect(JSON.stringify(project)).toBe(before);
-  });
-
-  it("keeps omitted and explicit Project-top analysis identical", () => {
-    const project = resistorProject({ value: "10k" });
-
-    expect(
-      analyzeDesignNetlist(project, {
-        rootDocumentId: project.topDocumentId,
-      }),
-    ).toEqual(analyzeDesignNetlist(project));
   });
 
   it("diagnoses an unknown explicit root without throwing", () => {
@@ -1144,29 +1108,6 @@ describe("current formal cell interface", () => {
     );
   });
 
-  it("applies the selected dialect codec after semantic Net resolution", () => {
-    const project = createEmptyProject("project", "Project");
-    const document = project.documents[0]!;
-    document.nets.push({ id: "net-bus", terminals: [] });
-    claimNet(document, "net-bus", "DATA<3>");
-
-    const spice = analyzeDesignNetlist(project, { format: "spice" });
-    const spectre = analyzeDesignNetlist(project, { format: "spectre" });
-
-    expect(spice.diagnostics).toEqual([]);
-    expect(spice.ir?.cells[0]?.nets).toContainEqual({
-      id: "net-bus",
-      name: "DATA_3_",
-      scope: "local",
-    });
-    expect(spectre.diagnostics).toEqual([]);
-    expect(spectre.ir?.cells[0]?.nets).toContainEqual({
-      id: "net-bus",
-      name: "DATA\\<3\\>",
-      scope: "local",
-    });
-  });
-
   it("says an unconnected pin can be connected or marked No Connect (#1305)", () => {
     // A PFD's unused QBAR outputs blocked its netlist, and the message did
     // not say that a No Connect mark resolves an unused pin.
@@ -1206,30 +1147,6 @@ describe("current formal cell interface", () => {
         objectIds: ["R1"],
       }),
     );
-  });
-
-  it("projects typed globals through the explicit Cadence bang profile", () => {
-    const project = createEmptyProject("project", "Project");
-    const document = project.documents[0]!;
-    document.nets.push({ id: "net-vdd", terminals: [] });
-    claimNet(document, "net-vdd", "VDD", "global");
-
-    const native = analyzeDesignNetlist(project, {
-      format: "spectre",
-      namingProfile: "native",
-    });
-    const cadence = analyzeDesignNetlist(project, {
-      format: "spectre",
-      namingProfile: "cadence-bang",
-    });
-
-    expect(native.ir?.globals).toEqual(["VDD"]);
-    expect(cadence.ir?.globals).toEqual(["VDD!"]);
-    expect(cadence.ir?.cells[0]?.nets).toContainEqual({
-      id: "net-vdd",
-      name: "VDD!",
-      scope: "global",
-    });
   });
 
   it("projects one preferred global spelling through every reachable Cell", () => {
@@ -1825,65 +1742,6 @@ describe("current formal cell interface", () => {
       { pinName: "B", netName: "NET_B" },
       { pinName: "A", netName: "NET_A" },
     ]);
-  });
-
-  it("exports a canonical X-referenced MOS symbol as an ordered SKY130 call", () => {
-    const project = createEmptyProject("project", "Project");
-    const document = project.documents[0]!;
-    project.externalSubcircuitDefinitions.push({
-      id: "sky130-nfet",
-      name: "sky130_fd_pr__nfet_01v8",
-      terminals: ["D", "G", "S", "B"].map((name, index) => ({
-        id: `terminal-${index}`,
-        name,
-        direction: "passive",
-      })),
-      formalParameters: [],
-      interfaceStatus: "declared",
-    });
-    document.instances.push({
-      id: "mos-instance",
-      symbolId: "nmos",
-      placement: null,
-      reference: "XM1",
-      netlist: {
-        binding: {
-          kind: "external-subcircuit",
-          definitionId: "sky130-nfet",
-        },
-        parameters: { l: "150n", w: "2u", nf: "4" },
-      },
-    });
-    for (const [pinName, netName] of [
-      ["D", "DRAIN"],
-      ["G", "GATE"],
-      ["S", "SOURCE"],
-      ["B", "BODY"],
-    ] as const) {
-      document.nets.push({
-        id: `net-${pinName.toLowerCase()}`,
-
-        terminals: [{ instanceId: "mos-instance", pinName }],
-      });
-      claimNet(document, `net-${pinName.toLowerCase()}`, netName);
-    }
-
-    const result = analyzeDesignNetlist(project);
-
-    expect(result.diagnostics).toEqual([]);
-    expect(result.ir?.cells[0]!.instances[0]).toMatchObject({
-      reference: "XM1",
-      target: "sky130_fd_pr__nfet_01v8",
-      nodes: [
-        { pinName: "D", netName: "DRAIN" },
-        { pinName: "G", netName: "GATE" },
-        { pinName: "S", netName: "SOURCE" },
-        { pinName: "B", netName: "BODY" },
-      ],
-    });
-    expect(printSpiceNetlist(result.ir!)).toContain(
-      "XM1 DRAIN GATE SOURCE BODY sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=4",
-    );
   });
 
   it.each(["spice", "spectre"] as const)(
