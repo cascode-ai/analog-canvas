@@ -122,8 +122,7 @@ export function extractDeviceInstance(
       diagnostics,
     );
   // A device the registry designates but gives no netlist target is drawing
-  // only, such as a single-pole double-throw selector, which SPICE has no
-  // primitive for. Say so and emit nothing. Falling through would reach the
+  // only. Say so and emit nothing. Falling through would reach the
   // printer with a null target where the model name belongs, and it throws
   // there.
   if (definition.targetPolicy === "none") {

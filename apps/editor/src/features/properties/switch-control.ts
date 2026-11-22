@@ -1,6 +1,10 @@
 import type { SchematicEdit } from "@icm/edit-engine";
 import { drawnSwitchPhase } from "@icm/derived";
-import { deviceDescriptor, drawnSwitchControl } from "@icm/devices";
+import {
+  callsClockedSwitchBody,
+  deviceDescriptor,
+  drawnSwitchControl,
+} from "@icm/devices";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 
 import { planDisplayAlias, type GroupNamingInput } from "./group-naming";
@@ -8,8 +12,8 @@ import { planDisplayAlias, type GroupNamingInput } from "./group-naming";
 type Instance = SchematicDocument["instances"][number];
 
 /**
- * A switch clocked by the phase its label names (a two-terminal switch or a
- * chopper; one with a CTRL pin is wired instead): the phase as written, Φ_A_bar
+ * A switch clocked by the phase its label names (a two-terminal switch, a
+ * chopper or an SPDT; one with a CTRL pin is wired instead): the phase as written, Φ_A_bar
  * for Φ̄_A, or null when the label names none and the switch is clocked by its
  * own name. Undefined for every other part. The label is the one record of the
  * phase, shown or hidden; Properties and the Agent edit it as `control`.
@@ -21,7 +25,7 @@ export function switchControlOf(
 ): string | null | undefined {
   const definition = deviceDescriptor(instance.symbolId, project);
   const kind = definition ? drawnSwitchControl(definition) : null;
-  if (kind !== "phase" && kind !== "chopper") return undefined;
+  if (kind !== "phase" && !callsClockedSwitchBody(kind)) return undefined;
   const phase = drawnSwitchPhase(document, instance);
   return phase ? (phase.drawnName ?? phase.name) : null;
 }

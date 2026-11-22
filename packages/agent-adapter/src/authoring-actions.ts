@@ -259,7 +259,7 @@ export const AuthoringActionSchema = z.discriminatedUnion("kind", [
       .max(128)
       .nullable()
       .describe(
-        "The clock phase a two-terminal switch or chopper reads from its name label, e.g. Φ_1 or PHIA_bar (_bar draws an overbar); null: its own name. The label keeps its visibility.",
+        "The clock phase a two-terminal switch, chopper or SPDT reads from its name label, e.g. Φ_1 or PHIA_bar (_bar draws an overbar); null: its own name. The label keeps its visibility.",
       ),
   }),
   z

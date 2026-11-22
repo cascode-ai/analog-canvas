@@ -2515,6 +2515,75 @@ describe("drawn switches", () => {
     expect(spectre.file.text).toMatch(/^subckt icm_ideal_chopper /mu);
   });
 
+  it.each(["spdt-switch", "simple-spdt-switch"])(
+    "throws a %s's COM to A while the phase its label names is high, to B while low (#2440)",
+    (symbolId) => {
+      const project = createEmptyProject("project", "Project");
+      const document = project.documents[0]!;
+      for (const reference of ["S1", "S2"]) {
+        document.instances.push({
+          id: reference,
+          symbolId,
+          placement: null,
+          reference,
+          netlist: { parameters: {} },
+        });
+        for (const pinName of ["COM", "A", "B"]) {
+          const name = `${reference}_${pinName}`.toLowerCase();
+          document.nets.push({
+            id: `net-${name}`,
+            terminals: [{ instanceId: reference, pinName }],
+          });
+          claimNet(document, `net-${name}`, name);
+        }
+      }
+      // S1 is clocked by Φ₁; S2's label shows its own name, its own phase.
+      document.annotations.push({
+        id: "label-S1",
+        kind: "instance-label",
+        anchor: {
+          kind: "object",
+          objectId: "S1",
+          localOffset: { x: 0, y: -20 },
+          fallbackPosition: { x: 0, y: -20 },
+        },
+        content: phi("1"),
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+      const analysis = analyzeDesignNetlist(project);
+      expect(analysis.diagnostics).toEqual([]);
+      const text = printSpiceNetlist(analysis.ir!);
+      expect(text).toMatch(/^\.subckt dut PHI1 S2$/mu);
+      expect(text).toContain("XS1 s1_com s1_a s1_b PHI1 ideal_spdt");
+      expect(text).toContain("XS2 s2_com s2_a s2_b S2 ideal_spdt");
+      expect(text.match(/^\.subckt ideal_spdt /gmu)).toHaveLength(1);
+      expect(text).toContain(
+        [
+          ".subckt ideal_spdt COM A B CK",
+          "S1 COM A CK 0 spdt_a",
+          "S2 COM B 0 CK spdt_b",
+          ".model spdt_a SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+          ".model spdt_b SW(RON=1 ROFF=1e12 VT=-0.5 VH=0)",
+          ".ends ideal_spdt",
+        ].join("\n"),
+      );
+      const spectre = createDesignNetlistExport(project, { format: "spectre" });
+      expect(spectre.status).toBe("ready");
+      if (spectre.status !== "ready") return;
+      expect(spectre.file.text).toContain(
+        "S1 (s1_com s1_a s1_b PHI1) ideal_spdt",
+      );
+      expect(spectre.file.text).toContain(
+        "s1 (COM A) bsource i=v(COM,A)/(v(CK)>vt ? ron : roff)",
+      );
+      expect(spectre.file.text).toContain(
+        "s2 (COM B) bsource i=v(COM,B)/(v(CK)>vt ? roff : ron)",
+      );
+    },
+  );
+
   it("closes a two-terminal switch on the phase its label names", () => {
     const analysis = analyzeDesignNetlist(switched("ideal-switch", phi("1")));
     expect(

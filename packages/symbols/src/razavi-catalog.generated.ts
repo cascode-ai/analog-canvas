@@ -2618,7 +2618,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
-      "Three-terminal selector; SPICE has no single-pole double-throw primitive.",
+      "Two switches on one clock, COM to A while it is high and to B while it is low; SPICE has no single-pole double-throw primitive.",
     assetPath: "simple-spdt-switch.json",
     assetHash:
       "c586e487e5a4f2dd6fb48f096fa9183162ea9cb02b6ad1edc7706a706f1122cf",
@@ -2652,7 +2652,7 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
-      "Three-terminal selector; SPICE has no single-pole double-throw primitive.",
+      "Two switches on one clock, COM to A while it is high and to B while it is low; SPICE has no single-pole double-throw primitive.",
     assetPath: "spdt-switch.json",
     assetHash:
       "619b00cf2fdb0a6b81830a245018425fcabb38641eec39fe2bb21fd4a285e92d",

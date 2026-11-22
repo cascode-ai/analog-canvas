@@ -145,9 +145,9 @@ revision; it never silently changes `ngspice-46-core`.
   call passes `0`, as an unbound one exports, and a ground no pin then
   reaches goes too. A native Spectre body found so reaches the converter
   without its statements, so its behavioral sources never need converting.
-- The chopper's body is such a body: a call of it imports as the chopper,
-  clocked by the phase its label names, a label naming the node the call
-  passes as its clock.
+- The chopper's and SPDT's bodies are such bodies: a call of one imports as
+  that part, clocked by the phase its label names, a label naming the node
+  the call passes as its clock.
 - An `S` card naming Analog Canvas's ideal switch (its model card exactly as
   Analog Canvas prints it; in Spectre, the ideal switch each Cell defines)
   imports as the switch with a CTRL pin, on the card's control node. Every

@@ -10,9 +10,9 @@ import {
 } from "@icm/devices";
 import { idealLogicModel } from "./ideal-logic-gate-models.js";
 import {
-  chopperBehavioralDefinition,
-  IDEAL_CHOPPER_TARGET,
-  spiceChopperBody,
+  clockedSwitchBehavioralDefinition,
+  isClockedSwitchBody,
+  spiceClockedSwitchBody,
 } from "./ideal-switch-model.js";
 import { idealSignalModel } from "./ideal-signal-block-models.js";
 import {
@@ -179,7 +179,8 @@ export function generatedBehavioralDefinition(
 }
 
 function familyDefinition(target: string): BehavioralModel {
-  if (target === IDEAL_CHOPPER_TARGET) return chopperBehavioralDefinition();
+  if (isClockedSwitchBody(target))
+    return clockedSwitchBehavioralDefinition(target);
   if (isIdealComparatorBody(target)) return idealComparatorModel(target);
   if (isIdealOpampBody(target)) return idealOpampModel(target);
   const model = builtInModelContract(target);
@@ -197,10 +198,10 @@ export function generatedBehavioralModel(
   ports?: readonly string[],
   name?: string,
 ): string[] {
-  // SPICE switches the chopper's paths with its native S cards (#1641).
-  if (target === IDEAL_CHOPPER_TARGET) {
-    if (ports) throw new Error("The SPICE chopper body keeps its own ports");
-    return spiceChopperBody(name);
+  // SPICE switches a chopper's or SPDT's paths with native S cards (#1641).
+  if (isClockedSwitchBody(target)) {
+    if (ports) throw new Error(`The SPICE ${target} body keeps its own ports`);
+    return spiceClockedSwitchBody(target, name);
   }
   return printSpiceBehavioralModel(
     generatedBehavioralDefinition(target, ports, name),

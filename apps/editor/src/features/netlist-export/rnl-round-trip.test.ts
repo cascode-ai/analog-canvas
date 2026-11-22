@@ -6951,8 +6951,8 @@ describe("RNL round trip of built-in blocks", () => {
 
 /**
  * Switches placed in Cell `dut` with a ground: S1 clocked by the phase its
- * label names, S2 by its own name, S3 by its CTRL pin, and a chopper
- * clocked by its label.
+ * label names, S2 by its own name, S3 by its CTRL pin, and a chopper and an
+ * SPDT (S5) clocked by their labels.
  */
 function switches(): CircuitProject {
   const project = createEmptyProject("switches", "Switches", "main");
@@ -7008,6 +7008,12 @@ function switches(): CircuitProject {
       reference: "CH1",
       placement: at(450, 100),
     },
+    {
+      id: "S5",
+      symbolId: "spdt-switch",
+      reference: "S5",
+      placement: at(550, 100),
+    },
   );
   document.nets.push(
     {
@@ -7018,6 +7024,7 @@ function switches(): CircuitProject {
         { instanceId: "S2", pinName: "1" },
         { instanceId: "S3", pinName: "P" },
         { instanceId: "CH1", pinName: "INP" },
+        { instanceId: "S5", pinName: "COM" },
       ],
     },
     {
@@ -7029,6 +7036,7 @@ function switches(): CircuitProject {
         { instanceId: "S3", pinName: "N" },
         { instanceId: "CH1", pinName: "INN" },
         { instanceId: "C1", pinName: "1" },
+        { instanceId: "S5", pinName: "A" },
       ],
     },
     {
@@ -7037,6 +7045,7 @@ function switches(): CircuitProject {
         port("PC", "C", "c", 700),
         { instanceId: "S3", pinName: "CTRL" },
         { instanceId: "CH1", pinName: "OUTP" },
+        { instanceId: "S5", pinName: "B" },
       ],
     },
     {
@@ -7066,6 +7075,7 @@ function switches(): CircuitProject {
   for (const [id, text] of [
     ["S1", "Φ1"],
     ["CH1", "Φ2"],
+    ["S5", "Φ3"],
   ] as const)
     document.annotations.push({
       id: `label-${id}`,
@@ -7148,7 +7158,7 @@ describe("RNL round trip of switches", () => {
       const parts = plan.project.documents.flatMap(
         (document) => document.instances,
       );
-      for (const reference of ["S1", "S2", "S3", "CH1"]) {
+      for (const reference of ["S1", "S2", "S3", "CH1", "S5"]) {
         const original = project.documents[0]!.instances.find(
           (instance) => instance.reference === reference,
         )!;
@@ -7169,7 +7179,7 @@ describe("RNL round trip of switches", () => {
             : [],
         ),
       );
-      expect(phases.sort()).toEqual(["CH1 Φ2", "S1 Φ1"]);
+      expect(phases.sort()).toEqual(["CH1 Φ2", "S1 Φ1", "S5 Φ3"]);
       // The phases its labels clock the switches by print as the Cell's
       // pins, but come back as labels alone, no Cell Pins (#1787).
       const pins = (from: CircuitProject) =>

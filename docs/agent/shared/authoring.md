@@ -158,6 +158,7 @@ their IDs, never resolved to the first.
   | `tcoil`, `center-tap-inductor`                                             | `1`, `2`, `3`                                                                       |
   | `xfmr`                                                                     | `P+`, `P-`, `S+`, `S-`                                                              |
   | `chopper`                                                                  | `INP`, `INN`, `OUTP`, `OUTN`, plus `CK` for the clock its label names unless global |
+  | `spdt-switch`, `simple-spdt-switch`                                        | `COM`, `A`, `B`, plus `CK` as the chopper's                                         |
 
   A part with inputs `IN+`/`IN-` also takes a set of usual names when none of
   the set is named its own way: `INP`/`INN` (or `INM`), `VINP`/`VINN`,
@@ -272,7 +273,10 @@ label; `null` clocks it by its own name), driven by a Net named `Φ1` or a Cell 
 `Φ1`; an undriven phase becomes a Cell input (`.subckt … PHI1`) passed up
 through callers. `text:"EN_bar"` (drawn E̅N̅) is its own signal: draw the
 inverter if the circuit makes it, else the testbench drives both. Free text
-clocks nothing. `externally-controlled-switch` uses its CTRL pin.
+clocks nothing. `externally-controlled-switch` uses its CTRL pin. An SPDT
+(`spdt-switch`, `simple-spdt-switch`; pins `COM`, `A`, `B`) is clocked the same
+way and throws COM to A while its phase is high, to B while it is low
+(`XS1 com a b PHI1 ideal_spdt`).
 
 ### Coupled inductors
 

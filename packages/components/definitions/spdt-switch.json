@@ -190,7 +190,7 @@
     "pinOrder": ["COM", "A", "B"],
     "palette": true,
     "automaticMappings": [],
-    "manualOnlyReason": "Three-terminal selector; SPICE has no single-pole double-throw primitive.",
+    "manualOnlyReason": "Two switches on one clock, COM to A while it is high and to B while it is low; SPICE has no single-pole double-throw primitive.",
     "assetPath": "spdt-switch.json"
   }
 }

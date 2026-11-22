@@ -1,5 +1,6 @@
 import {
   bindsProjectCell,
+  callsClockedSwitchBody,
   deviceDescriptor,
   drawnSwitchControl,
   matchGateCellPins,
@@ -155,16 +156,16 @@ export function keepSourceWaveform(
   parameters["waveform"] = had;
 }
 
-/** What closes a switch Analog Canvas draws: the phase its label names, its CTRL pin, or a chopper's clock. */
+/** What closes a switch Analog Canvas draws: the phase its label names, its CTRL pin, or a chopper's or SPDT's clock. */
 export const switchControl = (symbolId: string) => {
   const definition = deviceDescriptor(symbolId);
   return definition ? drawnSwitchControl(definition) : null;
 };
 
-/** Whether a part is clocked by the phase its label names, as switches and choppers are. */
+/** Whether a part is clocked by the phase its label names, as switches, choppers and SPDTs are. */
 export const clockedByLabel = (instance: Pick<Instance, "symbolId">) => {
   const control = switchControl(instance.symbolId);
-  return control === "phase" || control === "chopper";
+  return control === "phase" || callsClockedSwitchBody(control);
 };
 
 /**

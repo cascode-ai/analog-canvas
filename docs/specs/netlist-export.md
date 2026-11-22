@@ -106,11 +106,11 @@ derive from `parameters`.
   use the same ordered terminal binding. The definition owns the target interface
   and its implementation. The instance's bound symbol maps local endpoints to
   that interface. Presentation edits retain existing callers' electrical bindings.
-- Any Library part with a generated body, the chopper and magnetic parts
+- Any Library part with a generated body, the chopper, SPDT and magnetic parts
   included, can be bound (`set-model`) to a Project Cell or external
   subcircuit without changing artwork or References. Its Pins or ports are the
   part's own pins (an op-amp's `IN+`, `IN-`, `OUT`) and optional VDD/VSS, or a
-  chopper's optional `CK` for the clock its label names, met by name; a part
+  chopper's or SPDT's optional `CK` for the clock its label names, met by name; a part
   with inputs `IN+`/`IN-` also meets a whole set of usual names (`INP`/`INN`,
   `VIP`/`VIN`, `VOUT`; [list](../agent/shared/authoring.md)) while the set
   has none of its own, never a set spelled two ways. The call follows the
@@ -256,8 +256,14 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
 - Every switch is an ngspice `S` card through `ideal_switch` (`SW`: RON 1 Ω,
   ROFF 1e12 Ω, VT 0.5 V, VH 0) printed once per using Cell; Spectre uses a hard
   `bsource`, VACASK the qualified `icm_switch` (patched runtime,
-  [patch](../../containers/vacask/patches/README.md)). No clock is invented;
-  SPDT has no primitive.
+  [patch](../../containers/vacask/patches/README.md)). No clock is invented.
+- A chopper or SPDT (`spdt-switch`, `simple-spdt-switch`) calls one generated
+  body of ideal switches on the clock its label names, passed last:
+  `ideal_chopper` (`INP INN OUTP OUTN CK`; straight while high, crossed while
+  low) and `ideal_spdt` (`COM A B CK`; COM–A while high, COM–B while low).
+  SPICE switches each path with an `S` card, the low side on the negated
+  threshold; Spectre and VACASK use the hard `bsource`. One side conducts at
+  a time; the complement is the part's own.
 - Two-terminal switches follow the phase their label names, shown or hidden
   (Φ₁ → `PHI1`; a label showing its own name is its own phase,
   `S1 a b S1 VSS ideal_switch`; Properties edits it as `control`);

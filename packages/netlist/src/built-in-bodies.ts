@@ -22,10 +22,11 @@ import {
 } from "./generated-models.js";
 import { idealAnalogBlockCell } from "./ideal-analog-block-models.js";
 import {
-  chopperBehavioralDefinition,
+  clockedSwitchBehavioralDefinition,
   IDEAL_CHOPPER_TARGET,
+  IDEAL_SPDT_TARGET,
   IDEAL_SWITCH_MODEL,
-  spiceChopperBody,
+  spiceClockedSwitchBody,
   switchBehavioralDefinition,
 } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
@@ -171,38 +172,51 @@ function isIdealSwitchCard(text: string): boolean {
   );
 }
 
+/** The part each body of switches on one clock is called by, its pins first. */
+const CLOCKED_SWITCH_PARTS = [
+  {
+    target: IDEAL_CHOPPER_TARGET,
+    symbolId: "chopper",
+    referencePrefix: "CH",
+    pins: ["INP", "INN", "OUTP", "OUTN"],
+  },
+  {
+    target: IDEAL_SPDT_TARGET,
+    symbolId: "spdt-switch",
+    referencePrefix: "S",
+    pins: ["COM", "A", "B"],
+  },
+] as const;
+
 /**
- * The chopper's body, if Analog Canvas prints exactly these statements for
- * it: a call of it is the chopper, clocked by the phase its label names.
+ * The chopper's or SPDT's body, if Analog Canvas prints exactly these
+ * statements for it: a call of it is that part, clocked by the phase its
+ * label names.
  */
-function chopperBody(
+function clockedSwitchBody(
   header: { name: string },
   body: readonly Statement[],
   format: NetlistFormat,
 ): Omit<SpiceBuiltInBody, "source"> | null {
   const name = format === "spice" ? header.name.toLowerCase() : header.name;
-  if (
-    name !== IDEAL_CHOPPER_TARGET &&
-    withoutReservedPrefix(name) !== IDEAL_CHOPPER_TARGET
-  )
-    return null;
+  const part = CLOCKED_SWITCH_PARTS.find(
+    ({ target }) => name === target || withoutReservedPrefix(name) === target,
+  );
+  if (!part) return null;
   const printed =
     format === "spice"
-      ? spiceChopperBody(name)
-      : printSpectreBehavioralModel({ ...chopperBehavioralDefinition(), name });
+      ? spiceClockedSwitchBody(part.target, name)
+      : printSpectreBehavioralModel({
+          ...clockedSwitchBehavioralDefinition(part.target),
+          name,
+        });
   if (!samePrinting(printed, body, format)) return null;
   return {
     name: header.name,
     kind: "subcircuit",
-    symbolId: "chopper",
-    referencePrefix: "CH",
-    ports: [
-      { pinName: "INP" },
-      { pinName: "INN" },
-      { pinName: "OUTP" },
-      { pinName: "OUTN" },
-      { phase: true },
-    ],
+    symbolId: part.symbolId,
+    referencePrefix: part.referencePrefix,
+    ports: [...part.pins.map((pinName) => ({ pinName })), { phase: true }],
   };
 }
 
@@ -417,7 +431,7 @@ export function callOnlyBlock(
 
 /**
  * The bodies Analog Canvas writes itself that a netlist source defines (an
- * op-amp's, a logic gate's, an ideal block's, the chopper's, a T-coil's or
+ * op-amp's, a logic gate's, an ideal block's, the chopper's or SPDT's, a T-coil's or
  * transformer's, the ideal switch's), for the SPICE / SCS import to bring each card naming one in as
  * the part that wrote it. `text` is the source as the conversion to SPICE
  * takes it: a SPICE source comes back unchanged; in a Spectre one each such
@@ -488,7 +502,7 @@ export function findBuiltInBodies(
     if (open.length) continue;
     const body =
       builtInBody(closed.header, block, format) ??
-      chopperBody(closed.header, block, format) ??
+      clockedSwitchBody(closed.header, block, format) ??
       magneticBody(closed.header, block, format);
     if (!body) continue;
     bodies.push({ ...body, source: { path, line: block[0]!.first + 1 } });

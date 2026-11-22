@@ -59,7 +59,7 @@ import {
   finalizeCellInterfaces,
   prepareCellInterface,
 } from "./extract-interface.js";
-import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
+import { CLOCKED_SWITCH_TARGETS } from "./ideal-switch-model.js";
 import { magneticSubcircuit } from "./extract-magnetic.js";
 import {
   authorSubcircuitNames,
@@ -545,7 +545,8 @@ function analyzeDesign(
   // Cell, an explicitly declared external master, or one of the generated
   // built-in models below.
   // Whose name each call reaches (callOwner): a Library part's, a magnetic
-  // device's or the chopper's never reaches the author's by name (#1928).
+  // device's, the chopper's or the SPDT's never reaches the author's by name
+  // (#1928).
   const sourceOf = (cellId: StableId, instanceId: StableId) =>
     documentsById
       .get(cellId)
@@ -737,7 +738,7 @@ function analyzeDesign(
   const ownBodies = [
     ...IDEAL_COMPARATOR_BODIES,
     ...IDEAL_OPAMP_BODIES,
-    IDEAL_CHOPPER_TARGET,
+    ...CLOCKED_SWITCH_TARGETS,
   ].filter((name) => generatedTargets.has(name));
   const writtenNames = new Map<string, string>();
   for (const body of [

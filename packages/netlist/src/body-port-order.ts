@@ -4,7 +4,7 @@ import {
   definitionBody,
   generatedBehavioralDefinition,
 } from "./generated-models.js";
-import { IDEAL_CHOPPER_TARGET } from "./ideal-switch-model.js";
+import { isClockedSwitchBody } from "./ideal-switch-model.js";
 import type { DesignNetlistInstance, DesignNetlistIR } from "./ir.js";
 
 /**
@@ -33,7 +33,7 @@ export type BodyPortOrder = (body: GeneratedBody) => readonly string[] | null;
  * in its own terminal order.
  *
  * Only generated bodies move: Cells the author drew and external masters keep
- * their interface, and so does the chopper, whose SPICE body is written by
+ * their interface, and so do the chopper and SPDT, whose SPICE bodies are written by
  * hand. The IR passed in is not changed.
  */
 export function withBodyPortOrder(
@@ -94,7 +94,7 @@ export function withBodyPortOrder(
       reorder(definition.name, definition.ports, (ports) => {
         definition.ports = [...ports];
       });
-    else if (definitionBody(definition) !== IDEAL_CHOPPER_TARGET)
+    else if (!isClockedSwitchBody(definitionBody(definition)))
       reorder(
         definition.name,
         generatedBehavioralDefinition(definitionBody(definition)).ports,
