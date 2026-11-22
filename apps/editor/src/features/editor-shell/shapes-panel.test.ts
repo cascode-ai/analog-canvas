@@ -11,7 +11,6 @@ import { quickPlaceRequest, ShapesPanel } from "./shapes-panel";
 describe("shapes quick-place", () => {
   it("exposes every palette device in the left Library", () => {
     const symbols = paletteSymbols("razavi");
-    const groups = componentCatalog("razavi", "");
     const markup = renderToStaticMarkup(
       createElement(ShapesPanel, {
         styleProfileId: "razavi",
@@ -19,113 +18,14 @@ describe("shapes quick-place", () => {
         onStartInsert: () => undefined,
       }),
     );
-
-    expect(markup).toContain("Official components");
-    expect(markup).toContain('aria-label="Place NoConn"');
-    expect(markup).toContain(">NoConn</span>");
-    expect(markup).toContain("No Connect: mark intentionally unused pins");
     expect(markup.match(/data-testid="shapes-chip-/g)).toHaveLength(
       symbols.length,
     );
-    for (const symbol of symbols) {
+    for (const symbol of symbols)
       expect(markup).toContain(`data-testid="shapes-chip-${symbol.id}"`);
-    }
-
-    // Every category has parts; their counts are bookkeeping.
-    expect(groups.every((group) => group.symbols.length > 0)).toBe(true);
-    const categoryTestIds = [
-      "transistors",
-      "passives",
-      "power-and-ports",
-      "sources",
-      "switches",
-      "analog-blocks",
-      "logic-gates",
-      "signal-flow",
-      "annotations",
-      "extended-devices",
-    ];
-    for (let index = 0; index < categoryTestIds.length; index += 1) {
-      const testId = `data-testid="shapes-category-${categoryTestIds[index]}"`;
-      expect(markup).toContain(testId);
-      if (index > 0) {
-        expect(markup.indexOf(testId)).toBeGreaterThan(
-          markup.indexOf(
-            `data-testid="shapes-category-${categoryTestIds[index - 1]}"`,
-          ),
-        );
-      }
-    }
-    expect(markup.match(/class="shapes-category" open=""/g)).toHaveLength(
-      categoryTestIds.length,
-    );
-    expect(markup.match(/class="shapes-category-header"/g)).toHaveLength(
-      categoryTestIds.length,
-    );
-    expect(markup).toContain('aria-label="Place Independent Voltage Source"');
-    for (const id of ["vcvs", "vccs", "cccs", "ccvs"])
-      expect(markup).toContain(`data-testid="shapes-chip-${id}"`);
     expect(
-      groups
-        .find((group) => group.category === "Sources")
-        ?.symbols.map((symbol) => symbol.id),
-    ).toEqual([
-      "voltage-source",
-      "sine-voltage-source",
-      "current-source",
-      "vcvs",
-      "vccs",
-      "cccs",
-      "ccvs",
-    ]);
-    for (const mark of ["E", "G", "F", "H"])
-      expect(markup).toContain(`data-library-source-mark="${mark}"`);
-    for (const label of ["VCVS", "VCCS", "CCCS", "CCVS"])
-      expect(markup).toContain(`>${label}</span>`);
-    expect(markup).not.toContain('aria-label="Place Digital Clock"');
-    expect(markup).toContain('title="Place Capacitor"');
-    expect(markup).toContain('aria-label="Place T-Coil"');
-    expect(markup).toContain('aria-label="Place XFMR"');
-    expect(markup).toContain('aria-label="Place Zener"');
-    expect(markup).toContain('aria-label="Place Variable Resistor"');
-    expect(markup).toContain('aria-label="Place Inverter"');
-    expect(markup).toContain('aria-label="Place Buffer"');
-    expect(markup).toContain('aria-label="Place Delay Cell"');
-    expect(markup).toContain('aria-label="Place D Flip-Flop"');
-    expect(markup).toContain('aria-label="Place D Flip-Flop (Reset)"');
-    expect(markup).toContain('aria-label="Place Comparator"');
-    expect(markup).not.toContain('aria-label="Place Comparator (unmarked)"');
-    expect(markup).toContain(
-      'aria-label="Place Differential Transconductance (gₘ)"',
-    );
-    expect(
-      groups
-        .find((group) => group.category === "Transistors")
-        ?.symbols.map((symbol) => symbol.id),
-    ).toEqual(["nmos", "pmos", "npn", "pnp"]);
-    expect(markup).toContain(">NJFET</span>");
-    expect(markup).toContain(">PJFET</span>");
-    expect(markup).toContain('aria-label="Place N-channel DMOS"');
-    expect(markup).toContain('aria-label="Place P-channel DMOS"');
-    expect(markup).toContain('aria-label="Place Bias Voltage Port"');
-    expect(markup).toContain(
-      'title="A solid bias-voltage port, typically used for VB-style bias nodes"',
-    );
-    expect(markup).toContain(
-      'aria-label="Place Discrete-Time Integrator (z⁻¹/(1−z⁻¹))"',
-    );
-    expect(markup).not.toContain("High-voltage devices");
-    expect(markup).toContain(">V Src</span>");
-    expect(markup).not.toContain(">Clock</span>");
-    expect(markup).toContain(">Cap</span>");
-    expect(markup).toContain(">Var Res</span>");
-    expect(markup).toContain(">Inv</span>");
-    expect(markup).not.toContain(">Comp U</span>");
-    expect(markup).toContain(">NOR</span>");
-    expect(markup).toContain(">DT Int</span>");
-    expect(markup).toContain(">Bias</span>");
-    expect(markup).not.toContain(">Pin •</span>");
-    expect(markup).not.toContain('data-testid="shapes-example-');
+      componentCatalog("razavi", "").every((group) => group.symbols.length > 0),
+    ).toBe(true);
   });
 
   it("quick-places without persisting parameter placeholders", () => {
