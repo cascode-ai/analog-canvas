@@ -74,6 +74,12 @@ export interface ReviewedExternalParameterBinding extends DeviceParameterDefinit
   readonly targetUnit?: "micrometre";
   readonly targetDefaultValue?: string;
   readonly spiceOrder: number;
+  /**
+   * The X line also gives this count as `m`, the parallel multiplier ngspice
+   * and Spectre apply to the call: the wrapper reads the count itself only to
+   * scale its mismatch, so a call without `m` is one copy (#2447).
+   */
+  readonly alsoParallelM?: true;
   readonly numericLimits?: {
     readonly minimum?: number;
     readonly maximum?: number;
@@ -623,7 +629,10 @@ const sky130ResistorBinding = (
   parameters: [
     geometry("w", "W", "1u", "1", 0),
     geometry("l", "L", "5.5u", "5.5", 1),
-    count("mult", "MULT", "SKY130 resistor wrapper multiplier", 2),
+    {
+      ...count("mult", "MULT", "Parallel resistor count", 2),
+      alsoParallelM: true,
+    },
   ],
 });
 
@@ -644,7 +653,10 @@ const sky130MimCapBinding = (
   parameters: [
     geometry("w", "W", "5u", "5", 0),
     geometry("l", "L", "5u", "5", 1),
-    count("mf", "MF", "SKY130 MIM wrapper multiplicity", 2),
+    {
+      ...count("mf", "MF", "Parallel capacitor count", 2),
+      alsoParallelM: true,
+    },
   ],
 });
 
@@ -675,6 +687,8 @@ const sky130VaractorBinding = (): ReviewedExternalDeviceBinding => ({
   parameters: [
     geometry("w", "W", "5u", "5", 0),
     geometry("l", "L", "500n", "0.5", 1),
+    // The wrapper scales its capacitance and divides its resistance by vm
+    // itself, so vm is the parallel count and no `m` goes with it (#2447).
     count("vm", "VM", "SKY130 varactor multiplicity", 2),
   ],
 });

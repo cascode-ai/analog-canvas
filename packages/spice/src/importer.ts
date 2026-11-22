@@ -716,8 +716,25 @@ function importInstance(
   );
   const keepsSpelling = (name: string) =>
     outsideSources && !name.includes("#") && !deviceNames.has(name);
+  // A reviewed count the export gives again as `m` reads back as that one
+  // count: `mf=20 m=20`, or `m=20` alone, is mf 20 (#2447). An `m` that
+  // differs from the count stays the part's own.
+  const parallelCount = reviewed?.parameters
+    .find((parameter) => parameter.alsoParallelM)
+    ?.name.toLowerCase();
+  const parallelM = instance.parameters.m;
+  const count = parallelCount && instance.parameters[parallelCount];
+  const sourceParameters =
+    parallelCount &&
+    parallelM &&
+    (!count || count.rawText.trim() === parallelM.rawText.trim())
+      ? Object.entries({
+          [parallelCount]: parallelM,
+          ...instance.parameters,
+        }).filter(([name]) => name !== "m")
+      : Object.entries(instance.parameters);
   const parameters = Object.fromEntries(
-    Object.entries(instance.parameters)
+    sourceParameters
       .filter(([name]) => name !== "control-source")
       // A 20 V device's channel is the device's own; export writes it (#1486).
       .filter(

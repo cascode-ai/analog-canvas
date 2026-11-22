@@ -1,4 +1,12 @@
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  reviewedExternalBindingById,
+  type ReviewedExternalBindingId,
+} from "@icm/devices";
 import {
   createEmptyDocument,
   createEmptyProject,
@@ -2135,10 +2143,10 @@ describe("voltage-controlled switch", () => {
       "XM1 XM1_0 XM1_1 XM1_2 XM1_3 sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1 m=2",
     );
     expect(text).toContain(
-      "XR1 XR1_0 XR1_1 XR1_2 sky130_fd_pr__res_high_po w=1 l=5.5 mult=3",
+      "XR1 XR1_0 XR1_1 XR1_2 sky130_fd_pr__res_high_po w=1 l=5.5 mult=3 m=3",
     );
     expect(text).toContain(
-      "XC1 XC1_0 XC1_1 sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=4",
+      "XC1 XC1_0 XC1_1 sky130_fd_pr__cap_mim_m3_1 w=5 l=5 mf=4 m=4",
     );
     expect(text).toContain(
       "XQ1 XQ1_0 XQ1_1 XQ1_2 sky130_fd_pr__pnp_05v5_W0p68L0p68",
@@ -2150,7 +2158,191 @@ describe("voltage-controlled switch", () => {
       analysis.ir?.cells[0]?.instances.map((instance) => instance.reference),
     ).toEqual(["XC1", "XM1", "XQ1", "XQ2", "XR1"]);
   });
+
+  it("gives a SKY130 count its wrapper reads only for mismatch again as m (#2447)", () => {
+    const parts = [
+      ["XR1", "sky130-res-high-po", { w: "1u", l: "5.5u", mult: "3" }],
+      ["XR2", "sky130-res-xhigh-po", { w: "1u", l: "5.5u", mult: "{n}" }],
+      ["XC1", "sky130-cap-mim-m3-1", { w: "25u", l: "25u", mf: "20" }],
+      ["XC2", "sky130-cap-mim-m3-2", { w: "5u", l: "5u", mf: "1" }],
+      // A part that gives its own m keeps it as it is, once.
+      ["XC3", "sky130-cap-mim-m3-1", { w: "5u", l: "5u", mf: "2", m: "3" }],
+      // The varactor scales by vm itself.
+      ["XC4", "sky130-cap-var-lvt", { w: "5u", l: "500n", vm: "3" }],
+    ] as const;
+    const project = reviewedPartsProject(parts);
+    const document = project.documents[0]!;
+    const master = (bindingId: (typeof parts)[number][1]) =>
+      reviewedExternalBindingById(bindingId)!.masterName;
+    const calls = (text: string) =>
+      Object.fromEntries(
+        text
+          .split("\n")
+          .filter((line) => /^X[RC]\d/u.test(line))
+          .map((line) => [line.split(" ")[0], line]),
+      );
+
+    const spice = createDesignNetlistExport(project, {
+      format: "spice",
+      includeLocations: true,
+    });
+    expect(spice.status, JSON.stringify(spice.diagnostics)).toBe("ready");
+    if (spice.status !== "ready") return;
+    expect(calls(spice.file.text)).toEqual({
+      XR1: `XR1 XR1_R0 XR1_R1 XR1_B ${master("sky130-res-high-po")} w=1 l=5.5 mult=3 m=3`,
+      XR2: `XR2 XR2_R0 XR2_R1 XR2_B ${master("sky130-res-xhigh-po")} w=1 l=5.5 mult={n} m={n}`,
+      XC1: `XC1 XC1_C0 XC1_C1 ${master("sky130-cap-mim-m3-1")} w=25 l=25 mf=20 m=20`,
+      XC2: `XC2 XC2_C0 XC2_C1 ${master("sky130-cap-mim-m3-2")} w=5 l=5 mf=1`,
+      XC3: `XC3 XC3_C0 XC3_C1 ${master("sky130-cap-mim-m3-1")} w=5 l=5 mf=2 m=3`,
+      XC4: `XC4 XC4_C0 XC4_C1 XC4_B ${master("sky130-cap-var-lvt")} w=5 l=0.5 vm=3`,
+    });
+    // Both appearances edit the part's one count.
+    expect(
+      spice.locations.fields
+        .filter((field) => field.instanceId === "XC1")
+        .flatMap((field) =>
+          field.kind === "parameter" ? [[field.parameter, field.rawValue]] : [],
+        ),
+    ).toEqual([
+      ["w", "25"],
+      ["l", "25"],
+      ["mf", "20"],
+      ["mf", "20"],
+    ]);
+    // Stored parameters are untouched.
+    expect(document.instances[2]!.netlist!.parameters).toEqual({
+      w: "25u",
+      l: "25u",
+      mf: "20",
+    });
+
+    const spectre = createDesignNetlistExport(project, { format: "spectre" });
+    expect(spectre.status, JSON.stringify(spectre.diagnostics)).toBe("ready");
+    if (spectre.status !== "ready") return;
+    expect(spectre.file.text).toContain(
+      `XC1 (XC1_C0 XC1_C1) ${master("sky130-cap-mim-m3-1")} w=25 l=25 mf=20 m=20`,
+    );
+    expect(spectre.file.text).toContain(
+      `XR1 (XR1_R0 XR1_R1 XR1_B) ${master("sky130-res-high-po")} w=1 l=5.5 mult=3 m=3`,
+    );
+  });
 });
+
+/** Reviewed devices by binding, each terminal on a Net named `<ref>_<terminal>`. */
+function reviewedPartsProject(
+  parts: readonly (readonly [
+    reference: string,
+    bindingId: ReviewedExternalBindingId,
+    parameters: Readonly<Record<string, string>>,
+  ])[],
+): CircuitProject {
+  const project = createEmptyProject("project", "Project");
+  const document = project.documents[0]!;
+  for (const [reference, bindingId, parameters] of parts) {
+    const binding = reviewedExternalBindingById(bindingId)!;
+    project.externalSubcircuitDefinitions.push({
+      id: `def-${reference}`,
+      name: binding.masterName,
+      terminals: binding.terminals.map((terminal) => ({
+        id: `def-${reference}-${terminal.targetName}`,
+        name: terminal.targetName,
+        direction: "passive",
+      })),
+      formalParameters: [],
+      interfaceStatus: "declared",
+    });
+    document.instances.push({
+      id: reference,
+      symbolId: binding.symbolId,
+      placement: null,
+      reference,
+      netlist: {
+        binding: {
+          kind: "external-subcircuit",
+          definitionId: `def-${reference}`,
+        },
+        parameters: { ...parameters },
+      },
+    });
+    for (const terminal of binding.terminals) {
+      const netId = `${reference}-${terminal.pinName}`;
+      document.nets.push({
+        id: netId,
+        terminals: [{ instanceId: reference, pinName: terminal.pinName }],
+      });
+      claimNet(document, netId, `${reference}_${terminal.targetName}`);
+    }
+  }
+  return project;
+}
+
+/**
+ * The open_pdks SKY130 files a MIM capacitor needs, under volare's PDK_ROOT
+ * (default ~/.volare): its model and the typical R+C parameters it reads.
+ */
+const sky130MimFiles = (() => {
+  const root = join(
+    process.env.PDK_ROOT ?? join(homedir(), ".volare"),
+    "sky130A",
+  );
+  return [
+    "libs.tech/ngspice/r+c/res_typical__cap_typical.spice",
+    "libs.tech/ngspice/r+c/res_typical__cap_typical__lin.spice",
+    "libs.ref/sky130_fd_pr/spice/sky130_fd_pr__cap_mim_m3_1.model.spice",
+  ].map((path) => join(root, path));
+})();
+const ngspiceWithSky130 =
+  spawnSync("ngspice", ["--version"], { encoding: "utf8" }).status === 0 &&
+  sky130MimFiles.every((path) => existsSync(path));
+
+/** Skips cleanly where ngspice or the SKY130 models are absent. */
+describe.skipIf(!ngspiceWithSky130)(
+  "a SKY130 MIM capacitor under ngspice",
+  () => {
+    it("is mf times one copy, ~25 pF at W = L = 25 µm and mf 20 (#2447)", () => {
+      const project = reviewedPartsProject([
+        ["XC1", "sky130-cap-mim-m3-1", { w: "25u", l: "25u", mf: "20" }],
+      ]);
+      const result = createDesignNetlistExport(project, {
+        format: "spice",
+        rootAsTopLevel: true,
+      });
+      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+      if (result.status !== "ready") return;
+      const directory = mkdtempSync(join(tmpdir(), "icm-sky130-mim-"));
+      try {
+        writeFileSync(
+          join(directory, "deck.cir"),
+          [
+            "* SKY130 MIM parallel count",
+            ".param mc_mm_switch=0 mc_pr_switch=0",
+            ...sky130MimFiles.map((path) => `.include "${path}"`),
+            result.file.text.replace(/^\.end\s*$/mu, ""),
+            "V1 XC1_C0 0 dc 0 ac 1",
+            "V2 XC1_C1 0 0",
+            ".control",
+            // At 1 rad/s the current through a capacitor is its capacitance.
+            "ac lin 1 0.15915494309189535 0.15915494309189535",
+            "print mag(i(v1))",
+            ".endc",
+            ".end",
+          ].join("\n"),
+          "utf8",
+        );
+        const output = execFileSync("ngspice", ["-b", "deck.cir"], {
+          cwd: directory,
+          encoding: "utf8",
+        });
+        const farads = Number(/mag\(i\(v1\)\)\s*=\s*(\S+)/u.exec(output)?.[1]);
+        // One 25 µm square is ~1.27 pF; twenty of them ~25.3 pF.
+        expect(farads).toBeGreaterThan(24e-12);
+        expect(farads).toBeLessThan(27e-12);
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
+  },
+);
 
 describe("drawn switches", () => {
   // Φ over a subscript 1, as a label draws the phase Φ₁.
