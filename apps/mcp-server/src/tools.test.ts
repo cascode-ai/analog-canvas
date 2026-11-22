@@ -232,10 +232,15 @@ describe("mcp tool surface", () => {
     expect(download.description).toContain("SIMULATION_PLOT_RETIRED");
     expect(download.description).not.toContain("same plot renderer");
   });
-  it("gives every tool a description and a JSON-schema input", () => {
+  // Every Agent context pays for every description on every turn, so a long
+  // workflow or policy text belongs in a reference the description links to.
+  it("gives every tool a description within the length cap and a JSON-schema input", () => {
     const tools = listToolDefinitions();
     for (const tool of tools) {
-      expect(tool.description.length).toBeGreaterThan(10);
+      expect(tool.description.length, tool.name).toBeGreaterThan(10);
+      expect(tool.description.length, tool.name).toBeLessThanOrEqual(
+        MAX_TOOL_DESCRIPTION_LENGTH,
+      );
       expect(tool.inputSchema.type).toBe("object");
     }
     // The full edit union must not be inlined into default tool descriptions.
@@ -260,14 +265,6 @@ describe("mcp tool surface", () => {
         .map((tool) => tool.name)
         .sort(),
     );
-  });
-  // Every Agent context pays for every description on every turn, so a long
-  // workflow or policy text belongs in a reference the description links to.
-  it("keeps every tool description within the length cap", () => {
-    for (const tool of listToolDefinitions())
-      expect(tool.description.length, tool.name).toBeLessThanOrEqual(
-        MAX_TOOL_DESCRIPTION_LENGTH,
-      );
   });
   it("links the Gallery and User Components descriptions to the guidance moved out of them", () => {
     const tools = listToolDefinitions();

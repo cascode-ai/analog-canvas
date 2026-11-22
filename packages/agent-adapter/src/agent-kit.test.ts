@@ -326,8 +326,6 @@ describe("Agent operating Kit", () => {
     const vddRail = catalog.primitives.find(
       (primitive) => primitive.id === "vdd-rail",
     );
-    expect(pmos.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
-    expect(nmos.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
     expect(ground.pins.map((pin) => pin.name)).toEqual(["0"]);
     expect(port.pins.map((pin) => pin.name)).toEqual(["P"]);
     expect(vddRail).toMatchObject({

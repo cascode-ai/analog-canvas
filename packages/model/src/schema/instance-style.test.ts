@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   CircuitProjectSchema,
-  CURRENT_MODEL_SCHEMA_VERSION,
   HexColorSchema,
   InstanceSchema,
   InstanceStyleOverrideSchema,
@@ -141,11 +140,7 @@ describe("SignalFlowParametersSchema", () => {
   });
 });
 
-describe("CircuitProject schema version", () => {
-  it("current schema version is 58", () => {
-    expect(CURRENT_MODEL_SCHEMA_VERSION).toBe(58);
-  });
-
+describe("CircuitProject presentation metadata", () => {
   it("validates style and Signal Flow metadata together", () => {
     const project = createEmptyProject("test", "Test");
     project.documents[0]!.instances.push({

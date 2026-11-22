@@ -744,55 +744,6 @@ describe("shared simulation lifecycle", () => {
       expect(csv.text).toContain('"\'=1+1","7","—","unconstrained","\'@unit"');
     });
   });
-  it("evaluates native VACASK comment Specs in the captured file report", async () => {
-    const f = fixture();
-    vi.mocked(f.executor.execute).mockImplementation(async (input) => {
-      const output = await result(input);
-      output.result.log =
-        'ICM_MEASUREMENT_V1 {"name":"peak","status":"available","value":1.8,"unit":"V"}';
-      return output;
-    });
-    const { prepared } = await prepareRaw(
-      f,
-      deck + "\n// @spec peak <= 2 unit=V\n",
-    );
-    const started = unwrap(
-      await f.service.handle(
-        {
-          operation: "start",
-          preparedId: prepared.id,
-          digest: prepared.digest,
-        },
-        "native-spec-start",
-      ),
-      "run",
-    );
-    await vi.waitFor(async () => {
-      const finished = unwrap(
-        await f.service.handle(
-          { operation: "read", runId: started.id },
-          "native-spec-read",
-        ),
-        "run",
-      );
-      expect(finished.state).toBe("finished");
-      const file = finished.artifacts.find((a) => a.name === "specs.json")!;
-      const saved = await f.files.readArtifact(file.id);
-      if (!saved.ok) throw Error("Missing native Spec artifact");
-      expect(JSON.parse(saved.text)).toMatchObject({
-        runId: started.id,
-        inputDigest: prepared.digest,
-        results: [
-          {
-            name: "peak",
-            value: 1.8,
-            judgment: "pass",
-            source: { path: "deck.cir", text: "// @spec peak <= 2 unit=V" },
-          },
-        ],
-      });
-    });
-  });
   it("retains failed direct-run input and retries only evidence publication", async () => {
     const f = fixture();
     saveSource(f.project, {

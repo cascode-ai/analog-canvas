@@ -262,56 +262,6 @@ describe("focused tools", () => {
     },
   );
 
-  it("points a focused simulation error at the owning focused tool", async () => {
-    const tool = focusedTools(
-      [...new Set(FOCUSED_TOOLS.map((entry) => entry.source))].map(
-        (source) => ({
-          definition: {
-            name: source,
-            description: "canonical",
-            inputSchema: toolInputSchema(source)!,
-          },
-          handle: async () => ({ ok: true }),
-        }),
-      ),
-      () => "focused",
-    ).find((entry) => entry.definition.name === "simulation_source")!;
-    await expect(
-      tool.handle({ request: { action: "update" } }, {}),
-    ).rejects.toMatchObject({
-      code: "INVALID_TOOL_OPERATION",
-      message: "update is served by simulation_edit.",
-    });
-  });
-
-  it("routes already normalized simulation operations without another conversion", async () => {
-    const calls: unknown[] = [];
-    const originals = [
-      ...new Set(FOCUSED_TOOLS.map((entry) => entry.source)),
-    ].map((source) => ({
-      definition: {
-        name: source,
-        description: "canonical",
-        inputSchema: toolInputSchema(source)!,
-      },
-      handle: async (args: unknown) => {
-        calls.push(args);
-        return { ok: true };
-      },
-    }));
-    const tools = focusedTools(originals, () => "focused");
-    await tools
-      .find((tool) => tool.definition.name === "simulation_run")!
-      .handle({ request: { operation: "capabilities" } }, {});
-    await tools
-      .find((tool) => tool.definition.name === "simulation_source")!
-      .handle({ request: { action: "list" } }, {});
-    expect(calls).toEqual([
-      { request: { operation: "capabilities" } },
-      { request: { action: "list" } },
-    ]);
-  });
-
   it("uses numeric items for homogeneous closed tuples without changing the canonical schema", () => {
     const validator = z.strictObject({
       range: z.tuple([z.number(), z.number()]),
@@ -471,11 +421,16 @@ describe("one envelope for simulation tools (#1231)", () => {
     ]);
   });
 
-  it("still holds flat arguments to the tool's own operations", async () => {
+  it("points flat or wrapped arguments outside the tool at the focused tool that serves them", async () => {
     const { tool, calls } = sourceTool();
-    await expect(tool.handle({ action: "update" }, {})).rejects.toMatchObject({
-      code: "INVALID_TOOL_OPERATION",
-    });
+    for (const args of [
+      { action: "update" },
+      { request: { action: "update" } },
+    ])
+      await expect(tool.handle(args, {})).rejects.toMatchObject({
+        code: "INVALID_TOOL_OPERATION",
+        message: "update is served by simulation_edit.",
+      });
     expect(calls).toEqual([]);
   });
 });

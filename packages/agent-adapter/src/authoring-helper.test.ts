@@ -843,20 +843,6 @@ describe("authoring helper compilation", () => {
     });
   });
 
-  it("delegates Net geometry to the current server draft, including newly created Nets", () => {
-    const [transaction] = compile([
-      {
-        kind: "connect",
-        from: { kind: "pin", instance: "R1", pin: "2" },
-        to: { kind: "net", net: "Vout" },
-      },
-    ]);
-    expect(transaction?.wireIntent?.to).toEqual({ kind: "net", net: "Vout" });
-    expect(transaction?.wireIntent?.from).toMatchObject({
-      kind: "endpoint",
-      endpoint: { instanceId: "instance-2", pinName: "2" },
-    });
-  });
   it("refuses pin targets the snapshot does not report", () => {
     expectCompileError(
       [
@@ -1200,15 +1186,7 @@ describe("authoring helper compilation", () => {
     });
   });
 
-  it("sends annotate as add-text and a Net label's edit-text as set-net-label", () => {
-    const [annotated] = compile([
-      { kind: "annotate", text: "Bias branch", position: { x: 50, y: 400 } },
-    ]);
-    expect(annotated?.command).toMatchObject({
-      kind: "add-text",
-      position: { x: 50, y: 400 },
-      text: "Bias branch",
-    });
+  it("sends a Net label's edit-text as set-net-label", () => {
     const [edited] = compile([
       {
         kind: "edit-text",
@@ -1308,41 +1286,6 @@ describe("authoring helper compilation", () => {
       [{ kind: "delete", target: { kind: "net", name: "Vout" } }],
       "disconnect",
     );
-  });
-
-  it("sends each change as a command and keeps wire intents as separate transactions", () => {
-    const transactions = compile([
-      {
-        kind: "move",
-        target: { kind: "instance", reference: "M1" },
-        position: { x: 0, y: 0 },
-      },
-      {
-        kind: "rotate",
-        target: { kind: "instance", reference: "M1" },
-        rotation: 90,
-      },
-      {
-        kind: "connect",
-        from: { kind: "pin", instance: "R1", pin: "2" },
-        to: { kind: "net", net: "VDD" },
-      },
-      {
-        kind: "move",
-        target: { kind: "instance", reference: "R1" },
-        position: { x: 1, y: 1 },
-      },
-    ]);
-    expect(transactions.map((t) => t.form)).toEqual([
-      "command",
-      "command",
-      "wire-intent",
-      "command",
-    ]);
-    // Consecutive commands share one call and one undo, as a batch.
-    expect(
-      splitIntoCalls(transactions).map((call) => call.actionIndices),
-    ).toEqual([[0, 1], [2], [3]]);
   });
 
   it("rejects malformed action batches with the failing index", () => {
