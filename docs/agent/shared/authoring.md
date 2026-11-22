@@ -542,13 +542,17 @@ document-local terminal equivalence only (omitted means unknown).
 pair: `{"kind":"relocate","parts":[{"instance":"M1","position":{"x":400,"y":0},"mirror":"horizontal"},{"instance":"M2","position":{"x":0,"y":0},"mirror":"horizontal"}]}`
 (`instance`: Reference, ID or Cell Pin name; `rotation`/`mirror` omitted keep
 the part's). Every wire ending on their pins goes and is drawn again as
-`route-net` draws, except a stub reaching no other pin, which goes with its pin
-and turns with it; markers standing unwired on their pins go along; labels on
-redrawn wires stand on their Net's nearest new wire. Every pin keeps its Net
-and the netlist reads the same; otherwise, or for a wire `route-net` cannot
-draw, a bus wire, a Power Rail or a locked label on those pins, it is refused
-with nothing moved. One undo; `RELOCATED` (information) counts wires taken off
-and drawn.
+`route-net` draws, going round the parts (`avoid`) only when no simple path is
+clear; its `WIRE_CROSSES` notes come along. A stub reaching no other pin goes
+with its pin, turned and mirrored as the part is; markers standing unwired on
+their pins go along; labels on redrawn wires stand on their Net's nearest new
+wire. Every pin keeps its Net and the netlist reads the same; otherwise, or for
+a connection `route-net` cannot draw (the refusal names its pins and what is in
+the way), a stub that would touch another Net, a bus wire, a Power Rail or a
+locked label on those pins, it is refused with nothing moved. A pin that comes
+to lie on another Net's pin, Junction or wire is not joined to it:
+`LANDED_ON_OTHER_NET` names the pin and that Net. One undo; `RELOCATED`
+(information) counts wires taken off and drawn.
 
 `delete` uses the GUI deletion planner, including owned displays and interface
 declarations. `delete-selection` nests explicit IDs by type, omitted lists

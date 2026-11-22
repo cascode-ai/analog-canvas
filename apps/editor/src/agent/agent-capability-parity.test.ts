@@ -4394,6 +4394,199 @@ describe("relocate", () => {
     expect(same.ok, same.message).toBe(true);
     expect(controller.document.revision).toBe(revision);
   });
+
+  it("mirrors a stub with its part", async () => {
+    const { client, controller } = await pair();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RX",
+        position: { x: 600, y: 0 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    // Up out of pin 1 and off to the right: a lateral part a mirror flips.
+    const stub = await client.applyActions([
+      {
+        kind: "connect",
+        from: pin("RX", "1"),
+        to: { kind: "point", x: 640, y: -60 },
+      },
+    ]);
+    expect(stub.ok, stub.message).toBe(true);
+    const before = structuredClone(controller.document);
+    const [junction] = before.junctions.filter((item) =>
+      before.routes.some(
+        (route) =>
+          [route.start, routeEnd(route)].some(
+            (end) => end.kind === "junction" && end.junctionId === item.id,
+          ) &&
+          [route.start, routeEnd(route)].some(
+            (end) =>
+              end.kind === "terminal" &&
+              before.instances.find((part) => part.id === end.instanceId)
+                ?.reference === "RX",
+          ),
+      ),
+    );
+    expect(junction?.position).toEqual({ x: 640, y: -60 });
+    const relocated = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [
+          { instance: "RX", position: { x: 800, y: 0 }, mirror: "horizontal" },
+        ],
+      },
+    ]);
+    expect(relocated.ok, relocated.message).toBe(true);
+    expect(
+      controller.document.junctions.find((item) => item.id === junction!.id)
+        ?.position,
+    ).toEqual({ x: 760, y: -60 });
+    expect(nets(controller.document)).toEqual(nets(before));
+  });
+
+  it("says when a moved pin lands on another Net's wire, and joins nothing", async () => {
+    const { client, controller } = await pair();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RN",
+        position: { x: 600, y: 0 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const before = structuredClone(controller.document);
+    const outb = before.routes.find(
+      (route) =>
+        resolveDocumentLogicalNets(before).byBaseNetId.get(route.netId)
+          ?.name === "OUTB",
+    )!;
+    // Turned across the OUTB wire at x = 200: pin 2 at (200, 100).
+    const relocated = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [{ instance: "RN", position: { x: 220, y: 100 }, rotation: 90 }],
+      },
+    ]);
+    expect(relocated.ok, relocated.message).toBe(true);
+    const rn = controller.document.instances.find(
+      (item) => item.reference === "RN",
+    )!.id;
+    expect(relocated.diagnosticDelta?.added).toContainEqual(
+      expect.objectContaining({
+        code: "LANDED_ON_OTHER_NET",
+        message: expect.stringContaining(
+          `RN now touches another Net at pin 2 (Route ${outb.id} of Net OUTB)`,
+        ),
+        objectIds: [rn, outb.id],
+      }),
+    );
+    expect(nets(controller.document)).toEqual(nets(before));
+  });
+
+  it("refuses a stub that would come to rest on another Net's wire", async () => {
+    const { client, controller } = await pair();
+    const placed = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RX",
+        position: { x: 600, y: 0 },
+      },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const stub = await client.applyActions([
+      {
+        kind: "connect",
+        from: pin("RX", "1"),
+        to: { kind: "point", x: 600, y: -60 },
+      },
+    ]);
+    expect(stub.ok, stub.message).toBe(true);
+    const revision = controller.document.revision;
+    // Turned right, pin 1 at (160, 100): the stub's end at (200, 100), on
+    // the OUTB wire.
+    const refused = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [{ instance: "RX", position: { x: 140, y: 100 }, rotation: 90 }],
+      },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toMatch(
+      /the wire hanging from RX\.1 .*Net OUTB.*nothing was moved/u,
+    );
+    expect(controller.document.revision).toBe(revision);
+  });
+
+  /** R1 wired to R2 below it; a wall of `count` capacitors at x = 200. */
+  async function walled(count: number) {
+    const parts = await folder();
+    const placed = await parts.client.applyActions([
+      ...(
+        [
+          ["R1", 0, 0],
+          ["R2", 100, 300],
+        ] as const
+      ).map(([reference, x, y]) => ({
+        kind: "place-component",
+        symbol: "resistor",
+        reference,
+        position: { x, y },
+        rotation: 270,
+      })),
+      ...Array.from({ length: count }, (_, index) => ({
+        kind: "place-component",
+        symbol: "capacitor",
+        reference: `C${index}`,
+        position: { x: 200, y: (index - Math.floor(count / 2)) * 50 },
+      })),
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const wired = await parts.client.applyActions([
+      { kind: "connect", from: pin("R1", "2"), to: pin("R2", "1") },
+    ]);
+    expect(wired.ok, wired.message).toBe(true);
+    return parts;
+  }
+
+  it("goes round the parts when no simple path is clear", async () => {
+    const { client, controller } = await walled(5);
+    const before = structuredClone(controller.document);
+    const relocated = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [{ instance: "R2", position: { x: 400, y: 0 } }],
+      },
+    ]);
+    expect(relocated.ok, relocated.message).toBe(true);
+    expect(nets(controller.document)).toEqual(nets(before));
+    const [path] = drawnPaths(controller.document);
+    expect(Math.max(...path!.map(([, y]) => Math.abs(y!)))).toBeGreaterThan(
+      100,
+    );
+  });
+
+  it("refuses naming both pins and what is in the way", async () => {
+    const { client, controller } = await walled(13);
+    const revision = controller.document.revision;
+    const refused = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [{ instance: "R2", position: { x: 400, y: 0 } }],
+      },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toMatch(
+      /the connection of (R1\.2, R2\.1|R2\.1, R1\.2) cannot be redrawn: no clear path from (R1\.2 to R2\.1|R2\.1 to R1\.2): the direct one passes through C6/u,
+    );
+    expect(refused.message).toContain("none goes round");
+    expect(refused.message).toContain("nothing was moved");
+    expect(controller.document.revision).toBe(revision);
+  });
 });
 
 describe("render-net-as", () => {

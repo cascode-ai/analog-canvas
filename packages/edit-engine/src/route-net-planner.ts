@@ -371,6 +371,7 @@ export function planRouteNet(
       clearance,
       id,
       (endpoint, points) => sayCrossings(endText(endpoint), points),
+      endText,
     );
   }
   const plan = planWireBatch(document, resolver, wires);
@@ -397,6 +398,7 @@ function planNetTree(
   clearance: RouteClearance,
   id: (part: string) => string,
   say: (from: RouteEndpoint, points: readonly Point[]) => void,
+  endText: (endpoint: RouteEndpoint) => string,
 ): WireIntent[] {
   const sorted = [...components].sort((a, b) => a.id.localeCompare(b.id, "en"));
   const nodes = sorted.flatMap((component) =>
@@ -434,14 +436,21 @@ function planNetTree(
   // A wire may not run over a pin it does not join: the pin would sit on
   // the wire without belonging to it.
   const overOtherPins = (points: readonly Point[], ends: readonly Point[]) =>
-    nodes.some(
+    nodes.find(
       ({ component, node }) =>
         !joined.has(component.id) &&
         !ends.some((end) => same(end, node.point)) &&
         along(points).some(([from, to]) =>
           pointOnSegment(node.point, from, to),
         ),
-    );
+    )?.node;
+  /** Why a clear path was still not taken: a pin of the Net in its way. */
+  const overText = (
+    from: RouteEndpoint,
+    to: RouteEndpoint | Point,
+    over: TreeNode,
+  ) =>
+    `no clear path from ${endText(from)} to ${"kind" in to ? endText(to) : `(${to.x}, ${to.y})`}: the direct one passes over ${endText(over.endpoint)} at (${over.point.x}, ${over.point.y}), which it does not end on`;
 
   // The trunk: the longest straight run between two components' pins.
   let trunk: { a: (typeof nodes)[number]; b: (typeof nodes)[number] } | null =
@@ -498,7 +507,11 @@ function planNetTree(
         reason ??= path;
         continue;
       }
-      if (overOtherPins(path.points!, [a.node.point, b.node.point])) continue;
+      const over = overOtherPins(path.points!, [a.node.point, b.node.point]);
+      if (over) {
+        reason ??= overText(a.node.endpoint, b.node.endpoint, over);
+        continue;
+      }
       if (!seed || path.cost! < seed.path.cost!) seed = { a, b, path };
     }
     if (!seed) throw new Error(`route-net: ${reason ?? "no clear path"}`);
@@ -566,7 +579,15 @@ function planNetTree(
           reason ??= path;
           continue;
         }
-        if (overOtherPins(path.points!, [node.point, target.point])) continue;
+        const over = overOtherPins(path.points!, [node.point, target.point]);
+        if (over) {
+          reason ??= overText(
+            node.endpoint,
+            target.endpoint ?? target.point,
+            over,
+          );
+          continue;
+        }
         if (!best || path.cost! < best.path.cost!)
           best = { component, node, ...target, path };
       }
