@@ -1,13 +1,19 @@
 import {
   createReferenceIndex,
   deviceDescriptor,
+  formatPassiveValue,
   gpdk045MosGeometry,
   gpdk045MosType,
   ics55MosType,
+  passiveNumber,
   referenceIssuesForInstance,
+  reviewedPassive,
+  reviewedPassiveValue,
+  sizeReviewedPassive,
   reviewedExternalBindingForMaster,
   reviewedExternalBindingSupportsSymbol,
   resolveReviewedExternalBinding,
+  type DeviceDescriptor,
   type ReviewedExternalDeviceBinding,
 } from "@icm/devices";
 import { pdkSubstrateDefaultNet } from "@icm/derived";
@@ -18,7 +24,12 @@ import {
   type ProjectStructureEdit,
   type SchematicEdit,
 } from "@icm/edit-engine";
-import { deriveStableId, type CircuitProject, type Instance } from "@icm/model";
+import {
+  deriveStableId,
+  type CircuitProject,
+  type Instance,
+  type InstanceNetlistData,
+} from "@icm/model";
 import type { NetlistFormat } from "@icm/netlist";
 import {
   createNetlistExportProfile,
@@ -370,8 +381,187 @@ export function processTargetForShortName(
   ].find((target) => target !== "" && target.toLowerCase() === full);
 }
 
+/**
+ * A resistor or capacitor that changed device by value, or kept its device
+ * because its value could not be carried: an approximate conversion the
+ * author should check.
+ */
+export interface ProcessValueConversion {
+  readonly documentId: string;
+  readonly instanceId: string;
+  readonly reference: string;
+  /** `ideal`, or the reviewed device the part was. */
+  readonly from: string;
+  /** `ideal`, or the reviewed device the Process gives it. */
+  readonly to: string;
+  /** The value the part had; absent when it could not be read. */
+  readonly value?: string;
+  /** The value its new parameters give. */
+  readonly result?: string;
+  /**
+   * `converted`; `clamped`: the device cannot reach the value and stops at
+   * its size limit; `kept`: the part keeps its device and parameters.
+   */
+  readonly status: "converted" | "clamped" | "kept";
+  readonly message: string;
+}
+
+/** The export warning code a conversion reads as. */
+export function processValueConversionCode(
+  conversion: ProcessValueConversion,
+): string {
+  return {
+    converted: "PROCESS_VALUE_CONVERTED",
+    clamped: "PROCESS_VALUE_CLAMPED",
+    kept: "PROCESS_VALUE_KEPT",
+  }[conversion.status];
+}
+
+type PassivePlan =
+  | { readonly kind: "kept"; readonly note: ProcessValueConversion }
+  | {
+      readonly kind: "set";
+      readonly note: ProcessValueConversion;
+      readonly parameters: Readonly<Record<string, string>>;
+    };
+
+const parameterEntry = (
+  parameters: Readonly<Record<string, string>>,
+  name: string,
+) =>
+  Object.entries(parameters).find(
+    ([key]) => key.toLowerCase() === name.toLowerCase(),
+  );
+
+/** A reviewed passive's size as its X line reads, for a note. */
+function geometryText(
+  master: string,
+  parameters: Readonly<Record<string, string>>,
+): string {
+  const passive = reviewedPassive(master);
+  if (!passive) return "";
+  const role = (roles: readonly string[]) =>
+    passive.binding.parameters
+      .filter((parameter) => roles.includes(parameter.displayRole))
+      .map((parameter) => parameter.name);
+  return [
+    ...role(["width", "length"]),
+    ...(passive.density.kind === "resistor" && passive.density.bends
+      ? [passive.density.bends.parameter]
+      : []),
+    ...role(["multiplier"]),
+  ]
+    .flatMap((name) => {
+      const entry = parameterEntry(parameters, name);
+      return entry ? [`${entry[0]}=${entry[1]}`] : [];
+    })
+    .join(" ");
+}
+
+/**
+ * How a resistor or capacitor keeps its value when the Process changes its
+ * device: a PDK device's geometry is read through its Process's densities
+ * (`PROCESS_PASSIVE_DENSITIES`) and the new device sized for that value, or
+ * an ideal one given it. Undefined when there is nothing to carry: not an
+ * R or C, the same device, or an ideal part without a value.
+ */
+function planPassiveValue(
+  documentId: string,
+  instance: Instance,
+  netlist: InstanceNetlistData,
+  descriptor: DeviceDescriptor,
+  from: string,
+  to: string,
+): PassivePlan | undefined {
+  const kind = descriptor.deviceClass;
+  if (
+    (kind !== "resistor" && kind !== "capacitor") ||
+    !descriptor.parameters.some((parameter) => parameter.name === "value") ||
+    from.toLowerCase() === to.toLowerCase()
+  )
+    return undefined;
+  const authored = from
+    ? undefined
+    : parameterEntry(netlist.parameters, "value")?.[1].trim();
+  if (!from && !authored) return undefined;
+  const value = from
+    ? reviewedPassiveValue(from, netlist.parameters)
+    : passiveNumber(authored!);
+  const valueText =
+    value === undefined ? authored : formatPassiveValue(value, kind);
+  const fromText = from
+    ? `${from} ${geometryText(from, netlist.parameters)}${valueText ? ` ≈ ${valueText}` : ""}`
+    : `ideal ${authored}`;
+  const base = {
+    documentId,
+    instanceId: instance.id,
+    reference: instance.reference!,
+    from: from || "ideal",
+    to: to || "ideal",
+    ...(valueText ? { value: valueText } : {}),
+  };
+  const kept = (why: string): PassivePlan => ({
+    kind: "kept",
+    note: {
+      ...base,
+      status: "kept",
+      message: `${instance.reference} keeps ${fromText}: ${why}`,
+    },
+  });
+  if (value === undefined)
+    return kept(
+      !from
+        ? "its value is not a number"
+        : reviewedPassive(from)
+          ? "its size is not a number"
+          : `the density of ${from} is not known`,
+    );
+  if (!to) {
+    const result = formatPassiveValue(value, kind);
+    return {
+      kind: "set",
+      parameters: { value: result },
+      note: {
+        ...base,
+        result,
+        status: "converted",
+        message: `${instance.reference}: ${fromText} → ideal ${result} (approximate)`,
+      },
+    };
+  }
+  const sized = sizeReviewedPassive(to, value);
+  if (!sized) return kept(`the density of ${to} is not known`);
+  const result = formatPassiveValue(sized.value, kind);
+  const toText = `${to} ${geometryText(to, sized.parameters)} ≈ ${result}`;
+  return {
+    kind: "set",
+    parameters: sized.parameters,
+    note: {
+      ...base,
+      result,
+      status: sized.clamped ? "clamped" : "converted",
+      message: sized.clamped
+        ? `${instance.reference}: ${fromText} → ${toText}, the ${sized.clamped === "maximum" ? "largest" : "smallest"} ${to} allowed; check the value`
+        : `${instance.reference}: ${fromText} → ${toText} (approximate)`,
+    },
+  };
+}
+
 /** One undoable authoring transaction. Exporters continue to read only Project facts. */
 export function planNetlistProcess(
+  project: CircuitProject,
+  profile: NetlistExportProfile,
+  options: Parameters<typeof planNetlistProcessReport>[2] = {},
+): ProjectStructureEdit[] {
+  return planNetlistProcessReport(project, profile, options).edits;
+}
+
+/**
+ * The Apply process plan, with the resistors and capacitors it converts by
+ * value. A fresh placement's parts take the device's own defaults instead:
+ * their value is the catalog's, not the author's.
+ */
+export function planNetlistProcessReport(
   project: CircuitProject,
   profile: NetlistExportProfile,
   options: {
@@ -380,7 +570,11 @@ export function planNetlistProcess(
     /** Only these Instances, as a fresh placement fills its own parts. */
     instanceIds?: ReadonlySet<string>;
   } = {},
-): ProjectStructureEdit[] {
+): {
+  edits: ProjectStructureEdit[];
+  conversions: ProcessValueConversion[];
+} {
+  const conversions: ProcessValueConversion[] = [];
   const projection = createNetlistPlanningProjection(project);
   const definitions = new Map<
     string,
@@ -489,6 +683,18 @@ export function planNetlistProcess(
         : (own ?? highVoltage ?? rule.target);
       if (!fits(target)) continue;
       const reviewed = reviewedExternalBindingForMaster(target, drawn);
+      const passive = options.instanceIds
+        ? undefined
+        : planPassiveValue(
+            documentId,
+            original,
+            originalNetlist,
+            descriptor,
+            originalTarget,
+            target,
+          );
+      if (passive) conversions.push(passive.note);
+      if (passive?.kind === "kept") continue;
       // A high-voltage device brings its own geometry, not the family's; a
       // GPDK045 device other than the family's, its own CDF geometry.
       const familyDefaults: Readonly<Record<string, string>> =
@@ -568,6 +774,9 @@ export function planNetlistProcess(
         if (!parameters[key]?.trim() || (reviewed && !authored))
           parameters[key] = value;
       }
+      if (passive?.kind === "set")
+        for (const [name, value] of Object.entries(passive.parameters))
+          parameters[parameterEntry(parameters, name)?.[0] ?? name] = value;
       if (
         JSON.stringify(parameters) !==
         JSON.stringify(instance.netlist!.parameters)
@@ -696,7 +905,7 @@ export function planNetlistProcess(
     });
     if (!validated.ok) throw new Error(validated.error.message);
   }
-  return edits;
+  return { edits, conversions };
 }
 
 /** One prepared snapshot consumed by both the exact count and its action. */
@@ -705,7 +914,11 @@ export function prepareNetlistProcess(
   profile: NetlistExportProfile,
   options: Parameters<typeof planNetlistProcess>[2] = {},
 ) {
-  const edits = planNetlistProcess(project, profile, options);
+  const { edits, conversions } = planNetlistProcessReport(
+    project,
+    profile,
+    options,
+  );
   const filled = new Set<string>();
   for (const edit of edits) {
     if (edit.kind !== "transact_document") continue;
@@ -717,19 +930,22 @@ export function prepareNetlistProcess(
           filled.add(`${edit.documentId}:${assignment.instanceId}`);
     }
   }
-  return { edits, instanceCount: filled.size };
+  return { edits, instanceCount: filled.size, conversions };
 }
 
-/** The Project as Apply process would leave it, for one export; nothing is committed. */
-export function projectInNetlistProcess(
+/**
+ * The Project as Apply process would leave it, for one export, and the values
+ * it converted; nothing is committed.
+ */
+export function netlistProcessProjection(
   project: CircuitProject,
   process: Exclude<NetlistProfileId, "custom">,
-): CircuitProject {
-  const edits = planNetlistProcess(
+): { project: CircuitProject; conversions: ProcessValueConversion[] } {
+  const { edits, conversions } = planNetlistProcessReport(
     project,
     createNetlistExportProfile(process),
   );
-  if (!edits.length) return project;
+  if (!edits.length) return { project, conversions };
   const result = executeProjectTransaction(project, {
     transactionId: "export-netlist-process",
     projectId: project.id,
@@ -738,7 +954,7 @@ export function projectInNetlistProcess(
     edits,
   });
   if (!result.ok) throw new Error(result.error.message);
-  return result.project;
+  return { project: result.project, conversions };
 }
 
 /** Defaults belong to creating an example, never to mounting a reader of a saved Project. */

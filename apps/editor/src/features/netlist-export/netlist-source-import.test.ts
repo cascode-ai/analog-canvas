@@ -11,7 +11,7 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import { liveAgentEditor } from "../../agent/live-agent-editor.test-support";
 import { normalizeImportedProject } from "../../document/project-import-normalization";
 import { importNetlistSources } from "./netlist-source-import.js";
-import { projectInNetlistProcess } from "./netlist-process.js";
+import { netlistProcessProjection } from "./netlist-process.js";
 
 function erc(project: CircuitProject) {
   const resolver = createProjectSymbolResolver(project, builtInSymbols);
@@ -58,9 +58,9 @@ describe("netlist source import: model evidence", () => {
       ),
     );
     expect(carriedModels(project)).toEqual([]);
-    expect(carriedModels(projectInNetlistProcess(project, "abstract"))).toEqual(
-      [],
-    );
+    expect(
+      carriedModels(netlistProcessProjection(project, "abstract").project),
+    ).toEqual([]);
   });
 
   it("selects the same generic model in an Agent transaction and restores the imported contract on Undo", async () => {

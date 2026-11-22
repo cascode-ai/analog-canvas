@@ -4,6 +4,7 @@ export * from "./ics55.js";
 export * from "./registry.js";
 export * from "./reference.js";
 export * from "./reviewed-external.js";
+export * from "./passive-densities.js";
 export * from "./validation.js";
 export * from "./parameter-expression.js";
 export * from "./parameter-validation.js";

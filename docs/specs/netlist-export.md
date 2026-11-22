@@ -477,7 +477,32 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   Library gates already bound to TSMC 28 HPC+ cells keep exporting; no
   suggestion names those cells.
 - Process changes keep names, IDs and authored values (except 16 V DMOS
-  sizing); the panel offers filling only missing models in one undo.
+  sizing and R/C values below); the panel offers filling only missing models
+  in one undo.
+
+#### Resistor and capacitor values across Processes
+
+- A resistor or capacitor whose device a Process change (Apply process, a
+  family shortcut, Fill, or the export-time `process` override; one plan)
+  changes keeps its value. PDK → ideal: R = ρ·L_eff/W ÷ multiplier,
+  C = (area·W·L + perimeter·2(W+L)) × multiplier, written with units
+  (`25.4pF`, `232kΩ`, 3 digits). Ideal → PDK: a resistor keeps the Process's
+  width and solves L (parallel copies below the shortest L, series bends
+  above the longest where the model has them, else stops there); a capacitor
+  is square, split into parallel copies past its largest side or value; at
+  most 100 copies; sizes on the Process's grid. PDK → PDK goes through the
+  value. The multiplier is SKY130 `mult`/`mf`, SG13G2 `m`.
+- Densities live in one table per Process (`PROCESS_PASSIVE_DENSITIES`,
+  `packages/devices/src/passive-densities.ts`), each with its source. A
+  device missing there (SKY130 `res_generic_po`, varactor; SG13G2
+  `cap_rfcmim`), or a value or size that is not a number, keeps the part's
+  device and parameters.
+- Each such part is reported, never silently: `PROCESS_VALUE_CONVERTED`
+  (approximate: contact and head resistance are left out),
+  `PROCESS_VALUE_CLAMPED` (the device's size limit stops it short) or
+  `PROCESS_VALUE_KEPT`, as export warnings (headless `workspaceNetlist`,
+  Agent `read-netlist` diagnostics) and as the Netlist panel's note after
+  Apply process. A part being placed takes the device's own size.
 - Import reads an `M` card naming a reviewed SKY130 transistor without a
   same-name `.model` as its `X` wrapper; a model binding naming a reviewed device
   warns `REVIEWED_DEVICE_AS_MODEL_CARD`.
@@ -560,8 +585,10 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
   numeric comparator) tie unbound ports to `0` and never block; the op-amp takes
   no default supply; a `VDD` comparator takes VDD but no ground. Export never
   declares `.global VDD VSS`.
-- Reviewed R/C bindings emit terminals and raw geometry; ideal values never
-  become geometry. Design export injects no environment library.
+- Reviewed R/C bindings emit terminals and raw geometry; export never turns a
+  value into geometry (only a Process change does,
+  [above](#resistor-and-capacitor-values-across-processes)). Design export
+  injects no environment library.
 
 ### Missing models and values
 

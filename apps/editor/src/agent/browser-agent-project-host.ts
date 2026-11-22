@@ -35,7 +35,9 @@ import { isRequestFailure, requestFailureOf } from "../request-failure";
 import { planNetlistCodeEdit } from "../features/netlist-export/netlist-code-edit";
 import {
   netlistModelInclude,
-  projectInNetlistProcess,
+  netlistProcessProjection,
+  processValueConversionCode,
+  type ProcessValueConversion,
 } from "../features/netlist-export/netlist-process";
 import type { NetlistModelLibrary } from "../features/netlist-export/netlist-process-presets";
 import type { RnlReader } from "../features/netlist-export/rnl-read";
@@ -266,9 +268,13 @@ export class BrowserAgentProjectHost {
     }
     if (request.operation === "read-netlist") {
       let project = this.options.getProject();
+      let conversions: ProcessValueConversion[] = [];
       if (request.process) {
         try {
-          project = projectInNetlistProcess(project, request.process);
+          ({ project, conversions } = netlistProcessProjection(
+            project,
+            request.process,
+          ));
         } catch (error) {
           return this.error(
             request,
@@ -304,18 +310,48 @@ export class BrowserAgentProjectHost {
           cells: [],
         };
       }
+      // Each resistor or capacitor the Process converted by value warns in
+      // its Cell's read and in the whole netlist's.
+      const converted = <
+        T extends { diagnostics: AgentNetlistRead["diagnostics"] },
+      >(
+        read: T,
+        documentIds: ReadonlySet<string> | undefined,
+      ): T => ({
+        ...read,
+        diagnostics: [
+          ...conversions
+            .filter(
+              (conversion) =>
+                !documentIds || documentIds.has(conversion.documentId),
+            )
+            .map((conversion) => ({
+              severity: "warning" as const,
+              code: processValueConversionCode(conversion),
+              message: conversion.message,
+              objectIds: [conversion.instanceId],
+            })),
+          ...read.diagnostics,
+        ],
+      });
       return {
         apiVersion: AGENT_API_VERSION,
         requestId: request.requestId,
         operation: request.operation,
         ok: true,
         structureRevision: project.structureRevision,
-        netlist: this.readNetlist(project, {
-          ...request,
-          ...(rootDocumentId ? { rootDocumentId } : {}),
-        }),
+        netlist: converted(
+          this.readNetlist(project, {
+            ...request,
+            ...(rootDocumentId ? { rootDocumentId } : {}),
+          }),
+          undefined,
+        ),
         cells: project.documents.map((document) =>
-          this.readNetlistCell(project, document.id, request),
+          converted(
+            this.readNetlistCell(project, document.id, request),
+            new Set([document.id]),
+          ),
         ),
       };
     }
