@@ -8,6 +8,7 @@ import {
 import { createDesignNetlistExport } from "@icm/netlist";
 import { renderDocumentSvg } from "@icm/render-svg";
 import { parseProject, serializeProject } from "./index.js";
+import { withoutVocmPin } from "./transforms/vocm-pin.js";
 
 /** Every form that may show its supplies (#1833, #1941). */
 const FORMS = builtInSymbols
@@ -18,7 +19,9 @@ const FORMS = builtInSymbols
 
 /** A form as drawn before it had supply pins: no such pins, leads or variants. */
 function beforeSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
-  const { defaultVariantId: _default, ...rest } = structuredClone(symbol);
+  const { defaultVariantId: _default, ...rest } = structuredClone(
+    withoutVocmPin(symbol),
+  );
   for (const primitive of rest.primitives) {
     if ("fillableBody" in primitive) delete primitive.fillableBody;
   }
@@ -57,9 +60,16 @@ function savedProject(symbol: SymbolDefinition) {
     });
   }
   const captured = withProjectComponentDefinitions(project);
-  captured.componentDefinitions!.find(
-    (definition) => definition.symbol.id === symbol.id,
-  )!.symbol = structuredClone(symbol);
+  const definition = captured.componentDefinitions!.find(
+    (candidate) => candidate.symbol.id === symbol.id,
+  )!;
+  definition.symbol = structuredClone(symbol);
+  // Saved before VOCM (#2443), its interface had no VOCM port either.
+  if (definition.subcircuit && !symbol.pins.some((pin) => pin.name === "VOCM"))
+    definition.subcircuit = {
+      ...definition.subcircuit,
+      ports: definition.subcircuit.ports.filter((port) => port.name !== "VOCM"),
+    };
   return captured;
 }
 
@@ -111,11 +121,12 @@ describe("recognized supply pin snapshot repair (#1833, #1941)", () => {
           createProjectSymbolResolver(original, []),
         ),
       );
-      // Its supply pins can now be shown.
+      // Its supply pins can now be shown; a fully differential op-amp's
+      // VOCM stays hidden with them (#2443).
       expect(
         createProjectSymbolResolver(loaded, []).resolve(id, "supply-pins")
           ?.variant?.hiddenPinNames,
-      ).toEqual([]);
+      ).toEqual(id.startsWith("opamp-differential") ? ["VOCM"] : []);
       expect(JSON.stringify(original)).toBe(raw);
       const saved = serializeProject(loaded);
       expect(serializeProject(parseProject(saved))).toBe(saved);

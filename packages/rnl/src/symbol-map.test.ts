@@ -27,6 +27,11 @@ import {
 
 const symbols = new Map(builtInSymbols.map((symbol) => [symbol.id, symbol]));
 const drawnFromCanvas = RNL_SYMBOLS.filter((entry) => entry.ac !== null);
+/** A pin the part may leave unwired, as a fully differential op-amp's VOCM. */
+const optionalPin = (symbolId: string, pinName: string) =>
+  subcircuitDescriptor(symbolId)?.ports.some(
+    (port) => port.optional && port.pinName === pinName,
+  ) ?? false;
 
 /**
  * How far series 0.4 moved the origin of a standard symbol, in RNL units along
@@ -383,7 +388,8 @@ describe("the RNL symbol list", () => {
         entry.symbol,
       ).toEqual(
         entry.terminals.some((terminal) => !terminal.drawn)
-          ? [...hidden].sort()
+          ? // RNL has no terminal for an optional pin, as VOCM (#2443).
+            [...hidden].filter((name) => !optionalPin(entry.ac!, name)).sort()
           : [],
       );
     }
@@ -406,13 +412,15 @@ describe("the RNL symbol list", () => {
       const body = subcircuitDescriptor(entry.ac!);
       if (!body || entry.importOnly) continue;
       expect(
-        body.ports.map((port) =>
-          port.supply
-            ? port.supply === "VDD"
-              ? "vp"
-              : "vn"
-            : entry.terminals[terminalOfPin(entry, port.pinName)! - 1]!.name,
-        ),
+        body.ports
+          .filter((port) => !port.optional)
+          .map((port) =>
+            port.supply
+              ? port.supply === "VDD"
+                ? "vp"
+                : "vn"
+              : entry.terminals[terminalOfPin(entry, port.pinName)! - 1]!.name,
+          ),
         entry.symbol,
       ).toEqual(entry.acNetlistOrder);
     }

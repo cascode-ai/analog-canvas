@@ -44,7 +44,9 @@ function unboundPart(
       parameters,
     },
   });
-  for (const port of descriptor.ports.filter((item) => !item.supply)) {
+  for (const port of descriptor.ports.filter(
+    (item) => !item.supply && !item.optional,
+  )) {
     const id = `pin-${port.name}`;
     const node = `n_${port.name}`;
     document.instances.push({ id, symbolId: "port", placement: null });

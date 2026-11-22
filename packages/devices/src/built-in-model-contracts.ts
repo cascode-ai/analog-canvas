@@ -459,14 +459,15 @@ function contract(target: string): BuiltInModelContract | undefined {
     symbolId: descriptor.symbolId,
     // The ideal comparator's numeric body lowers only signal ports; the body
     // its VDD high level chooses adds VDD (ideal-comparator.ts). Its
-    // historical five-port external master is not a generated model.
+    // historical five-port external master is not a generated model. An
+    // optional port has a body of its own (differential-opamp.ts).
     ports:
       family === "comparator"
         ? idealComparatorBodyPorts(
             target as IdealComparatorBody,
             descriptor.ports,
           )
-        : descriptor.ports,
+        : descriptor.ports.filter((port) => !port.optional),
     parameters:
       family === "logic"
         ? implementation === "delay"

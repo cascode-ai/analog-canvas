@@ -13,6 +13,7 @@ import {
 import { createDesignNetlistExport } from "@icm/netlist";
 import { renderDocumentSvg } from "@icm/render-svg";
 import { parseProject, serializeProject } from "./index.js";
+import { withoutVocmPin } from "./transforms/vocm-pin.js";
 
 const legacySymbol: SymbolDefinition = JSON.parse(
   readFileSync(
@@ -53,15 +54,24 @@ function legacyProject(symbol: SymbolDefinition = legacySymbol) {
     });
   }
   const captured = withProjectComponentDefinitions(project);
-  captured.componentDefinitions!.find(
-    (definition) => definition.symbol.id === symbol.id,
-  )!.symbol = structuredClone(symbol);
+  const definition = captured.componentDefinitions!.find(
+    (candidate) => candidate.symbol.id === symbol.id,
+  )!;
+  definition.symbol = structuredClone(symbol);
+  // Saved before VOCM (#2443), its interface had no VOCM port either.
+  if (definition.subcircuit && !symbol.pins.some((pin) => pin.name === "VOCM"))
+    definition.subcircuit = {
+      ...definition.subcircuit,
+      ports: definition.subcircuit.ports.filter((port) => port.name !== "VOCM"),
+    };
   return captured;
 }
 
 /** A symbol as drawn before it had supply pins. */
 function withoutSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
-  const { defaultVariantId: _default, ...rest } = structuredClone(symbol);
+  const { defaultVariantId: _default, ...rest } = structuredClone(
+    withoutVocmPin(symbol),
+  );
   for (const primitive of rest.primitives)
     if (primitive.kind === "path") delete primitive.fillableBody;
   return {
@@ -135,13 +145,14 @@ describe("recognized amplifier polarity snapshot repair", () => {
     )!;
     if (positive.kind !== "line") throw new Error("Missing positive stroke");
     expect((positive.from.y + positive.to.y) / 2).toBe(-14);
-    // Its pins, and the supplies the supply-pin repair adds (#1941).
+    // Its pins, the supplies the supply-pin repair adds (#1941) and the VOCM
+    // the VOCM repair adds (#2443).
     expect(resolved.pins.slice(0, legacySymbol.pins.length)).toEqual(
       legacySymbol.pins,
     );
     expect(
       resolved.pins.slice(legacySymbol.pins.length).map((pin) => pin.name),
-    ).toEqual(["VDD", "VSS"]);
+    ).toEqual(["VDD", "VSS", "VOCM"]);
     expect(loaded.documents).toEqual(original.documents);
     expect(createDesignNetlistExport(loaded)).toEqual(before);
     expect(JSON.stringify(original)).toBe(raw);

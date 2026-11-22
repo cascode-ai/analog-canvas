@@ -3,7 +3,12 @@ import {
   ANALOG_TRIANGLE_SUPPLY_PINS,
   analogTriangleSupplyPins,
 } from "./analog-triangle.mjs";
-import { withSupplyPins, withoutSupplyPins } from "./supply-pins.mjs";
+import {
+  drawsCommonModePin,
+  withCommonModePin,
+  withSupplyPins,
+  withoutSupplyPins,
+} from "./supply-pins.mjs";
 
 /**
  * A Wide differential form's outputs leave the slanted edges at +/-20 and
@@ -56,14 +61,21 @@ export function deriveWideAmplifier(source) {
     }),
   };
   const differential = symbol.pins.some((pin) => pin.name === "OUT+");
+  const supplied = withSupplyPins(
+    wideSymbol,
+    differential ? WIDE_DIFFERENTIAL_SUPPLY_PINS : ANALOG_TRIANGLE_SUPPLY_PINS,
+  );
   return {
     ...structuredClone(source),
-    symbol: withSupplyPins(
-      wideSymbol,
-      differential
-        ? WIDE_DIFFERENTIAL_SUPPLY_PINS
-        : ANALOG_TRIANGLE_SUPPLY_PINS,
-    ),
+    // The Wide outputs cross the bottom edge's free span and VSS holds x -20,
+    // so its VOCM leaves the apex, midway between OUT+ and OUT- (#2443).
+    symbol: drawsCommonModePin(source.symbol)
+      ? withCommonModePin(supplied, {
+          at: { x: 30, y: 0 },
+          contact: { x: apexX, y: 0 },
+          direction: "east",
+        })
+      : supplied,
     subcircuit: { ...structuredClone(source.subcircuit), id, symbolId: id },
     catalog: {
       ...structuredClone(source.catalog),

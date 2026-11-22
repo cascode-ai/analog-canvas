@@ -1836,14 +1836,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Differential Op Amp",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential.json",
     assetHash:
-      "a2bb9b4a1d5d6aa3e1a386f17ee2ca73d1002198d6d3e65a645a345645e4cee3",
+      "6482bb1eb7f0a473077c6917749a2e7b3e62c772797cbdd66d20ee169e6dd13f",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1872,14 +1872,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "FD Amp Wide",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide.json",
     assetHash:
-      "ea8c1a7d13c206276f781c47205882806be3fd42fa50c6a1d5739163c636b4e0",
+      "4275a4be1d921e355c16bb8c0cd48a770136ae68b93688fb835551b729b35d6c",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1904,14 +1904,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Differential Op Amp (lettered)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered.json",
     assetHash:
-      "ce7251ee1841745ace1baf0c6f77e8351c95e29c21fa4d0c5e16183deba077df",
+      "c9e209274a7922a7f0192059572802ebe99cf19588535b4d75093d1637a7e6be",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1936,14 +1936,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "FD Amp Wide (lettered)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-lettered.json",
     assetHash:
-      "825454b731981f7136dd028e772d35f33334fca875a3bf5822122123e3ccd929",
+      "d0c2df213b27275a5a7a7667ad27475e8df7ce9250e4ac58ac2b21b6cf851a50",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -1968,14 +1968,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Differential Op Amp (lettered) (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-lettered-inputs-swapped.json",
     assetHash:
-      "ab34972ed2d544ef39b39d6eb435cd54bcd66cb6bd9f3fdcbbe59fb6a455a430",
+      "3e47de94aebeddcb2cec55196bfbdfe99e9d9d86e99fa2baf0570d63791f61fb",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2000,14 +2000,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "FD Amp Wide (lettered) (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-lettered-inputs-swapped.json",
     assetHash:
-      "5d92c1c57f2b71d98cdff7e1b26ce842b884a00756915706d131d00c76465e2e",
+      "310fc3dbb46fdcaf9ea6d7e1d26fe088d743874a81c738eaf06d7f0cda9118be",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2032,14 +2032,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Differential Op Amp (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-inputs-swapped.json",
     assetHash:
-      "80a4bb9477e81b8d917fee4b29d70e1f3daada07948872a3d726b2a9f3d624f2",
+      "1d6ae851f43e953af394dce8b370006e6d9f41b9d28c332e76c98a433f39ca7e",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2064,14 +2064,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "FD Amp Wide (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-inputs-swapped.json",
     assetHash:
-      "d6d9fb362716376b8001f9d6ac25cbd0b53cf0d3a325c335ddce0d1d212ecbd0",
+      "25c20f33503958f98d21dc77fafda93952007d2fb81cb6e62e9e0a25ccbce303",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2096,14 +2096,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Differential Op Amp (crossed outputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed.json",
     assetHash:
-      "b1f5cb4e06ce47d2dc58de4d81854225bf14dd6d8ac7504759755dd5d35b3b24",
+      "b8656412284d52b311caecc5475a4dbbb0879b1a3668c1a2326382fd7c1db907",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2132,14 +2132,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "FD Amp Wide (crossed outputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: true,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-crossed.json",
     assetHash:
-      "e7669e65b81f8e02487ebb183cb962f883942e2c935410d5a677f72d161b457b",
+      "70c4c1b6eef975e36e7e9db179e74e8f12c74ecca68be692b659713ae87e33d6",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2164,14 +2164,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Differential Op Amp (crossed outputs, lettered)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered.json",
     assetHash:
-      "d799ab4d3d0d41c10a90fe75b3e2c1f524b3877a05cec8db9b5e02af589e3109",
+      "b90cf9014fee582f894ee70bd60e5e56e9867c786e87a492a0091d6655b0fd0b",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2196,14 +2196,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "FD Amp Wide (crossed outputs, lettered)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-crossed-lettered.json",
     assetHash:
-      "acf5663fc035dc0b61c13c384cd8d77f6cc71e7580efa46c9e46816f29485c8b",
+      "1485b01ae6883c4ec5c7f1c1236441baa928545e487f1fae3dee89d724ded32a",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2228,14 +2228,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Differential Op Amp (crossed outputs, lettered) (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-lettered-inputs-swapped.json",
     assetHash:
-      "f04b3f709ad8ab38c42f6a28087e1feed6c5db1f1dbef2a7fcfb82420317f0e4",
+      "1a786c7f1c3dd255075070dc34297170c0b804488370172d02fca5fc01099492",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2260,14 +2260,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "FD Amp Wide (crossed outputs, lettered) (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-crossed-lettered-inputs-swapped.json",
     assetHash:
-      "d355e7a7b3fec3cfa3ff06d0af36c083734fcfe6115e1eff504b09b9f6dad680",
+      "5f4be0e491a4b5f9221c6809b0606f6bb30173873556267f83b5f756c35f16b9",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2292,14 +2292,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "Differential Op Amp (crossed outputs) (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-crossed-inputs-swapped.json",
     assetHash:
-      "5181f068bd6f4ca2fd65d044a1c87fecb167edf8af8831bb0b758698979de400",
+      "690007630a7cfb5e140c12cf2b24448de6611deb38c2d7d60578845932156cb7",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -2324,14 +2324,14 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     name: "FD Amp Wide (crossed outputs) (swapped inputs)",
     category: "analog-block",
     reviewStatus: "reviewed",
-    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     palette: false,
     automaticMappings: [],
     manualOnlyReason:
       "Output-polarity sibling of opamp-differential; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",
     assetPath: "opamp-differential-wide-crossed-inputs-swapped.json",
     assetHash:
-      "2a53cfac8f5df1a95a49c5e49c5787024e75e4db0f8f696a28f12adb266db9c3",
+      "f09c1554efbe96ba1a8b979815c382bded37b1e351394dea32f0337c126b5468",
     visualAuthority: {
       kind: "razavi-reference-v1",
       referenceManifestPath:
@@ -17002,6 +17002,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -17225,16 +17238,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -17326,6 +17368,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 30,
         },
         direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
         presentation: {
           visibility: "visible",
           leadLength: 10,
@@ -17554,16 +17609,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -17652,6 +17736,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "negative-supply",
         at: {
           x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 0,
           y: 30,
         },
         direction: "south",
@@ -17883,16 +17980,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -17998,6 +18124,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -18221,16 +18360,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -18336,6 +18504,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -18559,16 +18740,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -18674,6 +18884,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -18897,16 +19120,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -19012,6 +19264,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -19235,16 +19500,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -19341,6 +19635,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -19564,16 +19871,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -19670,6 +20006,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -19893,16 +20242,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -19994,6 +20372,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 30,
         },
         direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
         presentation: {
           visibility: "visible",
           leadLength: 10,
@@ -20222,16 +20613,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -20320,6 +20740,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "negative-supply",
         at: {
           x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 0,
           y: 30,
         },
         direction: "south",
@@ -20551,16 +20984,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -20666,6 +21128,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -20889,16 +21364,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -21004,6 +21508,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -21227,16 +21744,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -21342,6 +21888,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           leadLength: 10,
         },
       },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
     ],
     primitives: [
       {
@@ -21565,16 +22124,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -21672,6 +22260,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         role: "negative-supply",
         at: {
           x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 0,
           y: 30,
         },
         direction: "south",
@@ -21903,16 +22504,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],
@@ -22004,6 +22634,19 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           y: 30,
         },
         direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VOCM",
+        role: "common-mode-input",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
         presentation: {
           visibility: "visible",
           leadLength: 10,
@@ -22232,16 +22875,45 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         },
         part: "vss-lead",
       },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "vocm-lead",
+      },
     ],
     variants: [
       {
         id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "VOCM"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["VOCM"],
+        hiddenPrimitiveParts: ["vocm-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "vocm-pin",
         hiddenPinNames: ["VDD", "VSS"],
         hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
         additionalPrimitives: [],
       },
       {
-        id: "supply-pins",
+        id: "supply-vocm-pins",
         hiddenPinNames: [],
         hiddenPrimitiveParts: [],
         additionalPrimitives: [],

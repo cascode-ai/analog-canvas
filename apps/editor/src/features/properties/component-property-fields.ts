@@ -190,6 +190,13 @@ export const CANVAS_PROPERTY_FIELDS: readonly CanvasPropertyField[] = [
     help: "Draw the op-amp's VDD and VSS as pins to wire. Hidden, each takes the Net chosen in its row, or the Cell's supply on Auto; the netlist is the same either way.",
   },
   {
+    path: "appearance.vocmPin",
+    label: "VOCM pin",
+    kind: "boolean",
+    description: "",
+    help: "Draw the fully differential op-amp's output common-mode input VOCM as a pin to wire. Wired, the outputs sit about it; hidden or unwired, about the vocm parameter.",
+  },
+  {
     path: "appearance.windingsMirrored",
     label: "Mirrored windings",
     kind: "boolean",

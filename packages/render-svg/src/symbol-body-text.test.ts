@@ -112,6 +112,7 @@ describe("lettered amplifier body text", () => {
       "OUT-",
       "VDD",
       "VSS",
+      "VOCM",
     ]);
     const svg = renderDocumentSvg(
       documentWithAmplifiers("opamp-differential-lettered", [undefined, "G"]),

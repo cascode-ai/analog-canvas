@@ -5,6 +5,7 @@ import type {
 } from "@icm/model";
 import { builtInSymbols, createProjectHierarchicalSymbols } from "@icm/symbols";
 import { symbolSignature } from "./symbol-signature.js";
+import { withoutVocmPin } from "./vocm-pin.js";
 
 // Exact shipped pre-fill definitions at 84a7e621. Supply and polarity repair
 // runs first, so an older compatible form can reach one of these snapshots.
@@ -92,9 +93,17 @@ const reviewedBodies = new Map(
           : variant,
       ),
     };
-    const signature = symbolSignature("body-fill-v2", legacy);
-    return LEGACY_REVIEWED_BODIES.has(signature)
-      ? [[symbol.id, { symbol, signature }] as const]
+    // A fully differential op-amp shipped without VOCM, which load gives it
+    // before this repair runs (vocm-pin.ts).
+    return LEGACY_REVIEWED_BODIES.has(
+      symbolSignature("body-fill-v2", withoutVocmPin(legacy)),
+    )
+      ? [
+          [
+            symbol.id,
+            { symbol, signature: symbolSignature("body-fill-v2", legacy) },
+          ] as const,
+        ]
       : [];
   }),
 );

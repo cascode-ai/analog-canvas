@@ -3746,8 +3746,9 @@ function wiredSupplyBlock(symbolId: string): CircuitProject {
       placement: at(100 + vdd.x, 100 + vdd.y - 80),
     },
   );
-  for (const { name: port, pinName } of descriptor.ports) {
-    if (!pinName) continue;
+  for (const { name: port, pinName, optional } of descriptor.ports) {
+    // An optional VOCM stays unwired: RNL has no terminal for it (#2443).
+    if (!pinName || optional) continue;
     const id = `pin-${port}`;
     document.instances.push({ id, symbolId: "port", placement: null });
     document.nets.push({
@@ -3823,6 +3824,38 @@ it.each([
     await expectSupplyKept(project, symbolId);
   },
 );
+
+it("refuses a fully differential op-amp whose VOCM has a Net: RNL's symbol has no terminal for it (#2443)", () => {
+  const project = wiredSupplyBlock("opamp-differential");
+  const document = project.documents[0]!;
+  document.instances.push({
+    id: "pin-VOCM",
+    symbolId: "port",
+    placement: null,
+  });
+  document.nets.push({
+    id: "net-VOCM",
+    terminals: [
+      { instanceId: "pin-VOCM", pinName: "P" },
+      { instanceId: "block", pinName: "VOCM" },
+    ],
+  });
+  document.netlist!.terminals.push({
+    id: "terminal-VOCM",
+    name: "VOCM",
+    netId: "net-VOCM",
+    direction: "inout",
+    interfaceInstanceIds: ["pin-VOCM"],
+  });
+  const exported = createRnlExport(project, { format: "spice" });
+  expect(exported.status).not.toBe("ready");
+  expect(exported.diagnostics).toContainEqual(
+    expect.objectContaining({
+      code: "RNL_NO_SYMBOL",
+      message: expect.stringContaining("VOCM on a Net"),
+    }),
+  );
+});
 
 it.each([
   ["opamp-differential", "$DIFFERENTIAL_OPAMP_INVERTED_SUPPLY"],

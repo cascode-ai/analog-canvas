@@ -3573,11 +3573,21 @@ export const agentRazaviAuthoringCatalog = {
             y: 30,
           },
         },
+        {
+          name: "VOCM",
+          role: "common-mode-input",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
       ],
       variants: [
         {
           id: "signal-pins",
-          hiddenPinNames: ["VDD", "VSS"],
+          hiddenPinNames: ["VDD", "VSS", "VOCM"],
           bounds: {
             x: -40,
             y: -30,
@@ -3587,6 +3597,26 @@ export const agentRazaviAuthoringCatalog = {
         },
         {
           id: "supply-pins",
+          hiddenPinNames: ["VOCM"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "vocm-pin",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-vocm-pins",
           hiddenPinNames: [],
           bounds: {
             x: -40,
@@ -3683,11 +3713,21 @@ export const agentRazaviAuthoringCatalog = {
             y: 30,
           },
         },
+        {
+          name: "VOCM",
+          role: "common-mode-input",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
       ],
       variants: [
         {
           id: "signal-pins",
-          hiddenPinNames: ["VDD", "VSS"],
+          hiddenPinNames: ["VDD", "VSS", "VOCM"],
           bounds: {
             x: -40,
             y: -30,
@@ -3697,6 +3737,26 @@ export const agentRazaviAuthoringCatalog = {
         },
         {
           id: "supply-pins",
+          hiddenPinNames: ["VOCM"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "vocm-pin",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-vocm-pins",
           hiddenPinNames: [],
           bounds: {
             x: -40,
@@ -3793,11 +3853,21 @@ export const agentRazaviAuthoringCatalog = {
             y: 30,
           },
         },
+        {
+          name: "VOCM",
+          role: "common-mode-input",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
       ],
       variants: [
         {
           id: "signal-pins",
-          hiddenPinNames: ["VDD", "VSS"],
+          hiddenPinNames: ["VDD", "VSS", "VOCM"],
           bounds: {
             x: -40,
             y: -30,
@@ -3807,6 +3877,26 @@ export const agentRazaviAuthoringCatalog = {
         },
         {
           id: "supply-pins",
+          hiddenPinNames: ["VOCM"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "vocm-pin",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-vocm-pins",
           hiddenPinNames: [],
           bounds: {
             x: -40,
@@ -3903,11 +3993,21 @@ export const agentRazaviAuthoringCatalog = {
             y: 30,
           },
         },
+        {
+          name: "VOCM",
+          role: "common-mode-input",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
       ],
       variants: [
         {
           id: "signal-pins",
-          hiddenPinNames: ["VDD", "VSS"],
+          hiddenPinNames: ["VDD", "VSS", "VOCM"],
           bounds: {
             x: -40,
             y: -30,
@@ -3917,6 +4017,26 @@ export const agentRazaviAuthoringCatalog = {
         },
         {
           id: "supply-pins",
+          hiddenPinNames: ["VOCM"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "vocm-pin",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-vocm-pins",
           hiddenPinNames: [],
           bounds: {
             x: -40,

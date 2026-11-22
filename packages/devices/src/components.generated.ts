@@ -3081,6 +3081,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3094,6 +3095,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3107,6 +3109,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3120,6 +3123,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3133,6 +3137,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3146,6 +3151,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3159,6 +3165,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3172,6 +3179,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3185,6 +3193,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3198,6 +3207,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3211,6 +3221,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3224,6 +3235,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3237,6 +3249,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3250,6 +3263,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3263,6 +3277,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {
@@ -3276,6 +3291,7 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
         { name: "VIN", direction: "input", pinName: "IN-" },
         { name: "VOP", direction: "output", pinName: "OUT+" },
         { name: "VON", direction: "output", pinName: "OUT-" },
+        { name: "VOCM", direction: "input", pinName: "VOCM", optional: true },
       ],
     },
     {

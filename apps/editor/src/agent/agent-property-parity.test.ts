@@ -1919,6 +1919,88 @@ describe("Agent property actions are planned as Apply in Properties", () => {
     });
   });
 
+  it("shows a fully differential op-amp's VOCM as Properties does, beside its supplies, and wires it (#2443)", async () => {
+    const project = createEmptyProject("project-1", "Properties");
+    const { controller, apply, refuse, instance } = await session(project);
+    await apply([
+      place("opamp-differential", "X1", 300),
+      place("resistor", "R1", 300, 300),
+    ]);
+    const wire = {
+      kind: "connect",
+      from: { kind: "pin", instance: "X1", pin: "VOCM" },
+      to: { kind: "pin", instance: "R1", pin: "1" },
+    };
+    expect(await refuse([wire])).toContain(
+      "X1.VOCM is not drawn: show its VOCM pin",
+    );
+    // What the VOCM pin switch in Properties commits for the same choice.
+    const gui = new EditorDocumentController(
+      structuredClone(controller.project),
+    );
+    const part = gui.document.instances.find(
+      (item) => item.reference === "X1",
+    )!;
+    const value = componentPropertyCodeValue({
+      resolver: createProjectSymbolResolver(gui.project, builtInSymbols),
+      instance: part,
+      referenceVisible: true,
+      valueVisible: false,
+    });
+    expect(value.appearance).toMatchObject({
+      supplyPins: false,
+      vocmPin: false,
+    });
+    expect(
+      gui.transact(
+        planComponentPropertyCodeEdits(gui.document, part, {
+          placement: null,
+          appearance: { ...value.appearance, vocmPin: true },
+        }),
+      ).ok,
+    ).toBe(true);
+    const show = { kind: "set-instance-display", instanceIds: [] as string[] };
+    await apply([
+      { ...show, instanceIds: [instance("X1").id], showVocmPin: true },
+    ]);
+    expect(instance("X1").symbolVariantId).toBe("vocm-pin");
+    expect(controller.document.instances).toEqual(gui.document.instances);
+    // Its supplies join it, and VOCM stays drawn.
+    await apply([
+      { ...show, instanceIds: [instance("X1").id], showSupplyPins: true },
+    ]);
+    expect(instance("X1").symbolVariantId).toBe("supply-vocm-pins");
+    await apply([
+      wire,
+      ...(
+        [
+          ["X1", "IN+"],
+          ["X1", "IN-"],
+          ["X1", "OUT+"],
+          ["X1", "OUT-"],
+          ["R1", "2"],
+        ] as const
+      ).map(([part, pin]) => ({
+        kind: "disconnect",
+        target: { kind: "pin", instance: part, pin },
+        noConnect: true,
+      })),
+    ]);
+    const exported = createDesignNetlistExport(controller.project, {
+      format: "spice",
+    });
+    expect(exported.status, JSON.stringify(exported)).toBe("ready");
+    if (exported.status !== "ready") return;
+    expect(exported.file.text).toMatch(
+      /^X1 (?:\S+ ){7}icm_opamp_differential_vocm\b/mu,
+    );
+    expect(
+      await refuse([
+        { ...show, instanceIds: [instance("R1").id], showVocmPin: true },
+      ]),
+    ).toContain("R1 (resistor) has no VOCM pin");
+  });
+
   it("sets a supply a Circuit Component maps to no pin of its artwork (#1833)", async () => {
     // A Gallery LDO's error amplifier: IN+, IN- and OUT on VIP, VIN and VOUT.
     const project = createEmptyProject("project-1", "Properties");

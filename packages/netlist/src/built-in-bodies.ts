@@ -9,6 +9,8 @@ import {
   builtInModelContract,
   builtInSubcircuitDescriptors,
   isGenericBlockTarget,
+  DIFFERENTIAL_OPAMP_TARGET,
+  DIFFERENTIAL_OPAMP_VOCM_BODY,
   isIdealComparatorBody,
   idealComparatorModelTarget,
   isIdealOpampBody,
@@ -345,7 +347,9 @@ function builtInBody(
         : idealComparatorModelTarget(name)
       : adderBodySigns(name)
         ? ADDER_TARGET
-        : name;
+        : name === DIFFERENTIAL_OPAMP_VOCM_BODY
+          ? DIFFERENTIAL_OPAMP_TARGET
+          : name;
   const descriptor = builtInSubcircuitDescriptors.find(
     (candidate) => candidate.target === target,
   );

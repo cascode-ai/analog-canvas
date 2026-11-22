@@ -89,7 +89,13 @@ const ComponentSubcircuitSchema = z.strictObject({
   target: z.string().min(1),
   ports: z.array(
     z.union([
-      z.strictObject({ ...portBase, pinName: z.string().min(1) }),
+      z.strictObject({
+        ...portBase,
+        pinName: z.string().min(1),
+        // In the call only while its pin has a Net, as a fully differential
+        // op-amp's VOCM a figure may leave undrawn.
+        optional: z.literal(true).optional(),
+      }),
       z.strictObject({ ...portBase, supply: z.enum(["VDD", "VSS"]) }),
     ]),
   ),

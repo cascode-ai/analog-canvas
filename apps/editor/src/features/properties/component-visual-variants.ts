@@ -1,7 +1,11 @@
 import type { SchematicEdit } from "@icm/edit-engine";
 import {
+  optionalPinsVariantId,
   SUPPLY_PINS_VARIANT_ID,
   transformPoint,
+  variantDrawsSupplyPins,
+  variantDrawsVocmPin,
+  VOCM_PIN_VARIANT_ID,
   type Instance,
   type SchematicDocument,
 } from "@icm/model";
@@ -153,25 +157,63 @@ export function componentSupplyPins(
     drawnPinNames(shown).length <= drawnPinNames(placed).length
   )
     return undefined;
-  return instance.symbolVariantId === SUPPLY_PINS_VARIANT_ID;
+  return variantDrawsSupplyPins(instance.symbolVariantId);
+}
+
+/**
+ * Whether a fully differential op-amp draws its VOCM pin (#2443); undefined
+ * where a part has none.
+ */
+export function componentVocmPin(
+  instance: Pick<Instance, "symbolId" | "symbolVariantId">,
+  resolver: SymbolResolver | undefined,
+): boolean | undefined {
+  const shown = resolver?.resolve(instance.symbolId, VOCM_PIN_VARIANT_ID);
+  if (!shown || !drawnPinNames(shown).includes("VOCM")) return undefined;
+  return variantDrawsVocmPin(instance.symbolVariantId);
 }
 
 /**
  * Draws a part's VDD and VSS as pins to wire, or hides them so each takes its
  * Net in Properties (#1833): its variant alone, as a source's shape. The
- * netlist meets the same supplies either way. None where already as asked.
+ * netlist meets the same supplies either way. A drawn VOCM stays drawn.
+ * None where already as asked.
  */
 export function supplyPinsEdit(
   instance: Pick<Instance, "id" | "symbolId" | "symbolVariantId">,
   shown: boolean,
 ): SchematicEdit | undefined {
-  if (shown === (instance.symbolVariantId === SUPPLY_PINS_VARIANT_ID))
+  if (shown === variantDrawsSupplyPins(instance.symbolVariantId))
     return undefined;
   return {
     kind: "set_instance_symbol",
     instanceId: instance.id,
     symbolId: instance.symbolId,
-    symbolVariantId: shown ? SUPPLY_PINS_VARIANT_ID : null,
+    symbolVariantId: optionalPinsVariantId(
+      shown,
+      variantDrawsVocmPin(instance.symbolVariantId),
+    ),
+  };
+}
+
+/**
+ * Draws a fully differential op-amp's VOCM as a pin to wire, or hides it
+ * (#2443); its supply pins stay as they are. Wired, VOCM sets the outputs'
+ * common mode; hidden or unwired, its `vocm` does. None where already so.
+ */
+export function vocmPinEdit(
+  instance: Pick<Instance, "id" | "symbolId" | "symbolVariantId">,
+  shown: boolean,
+): SchematicEdit | undefined {
+  if (shown === variantDrawsVocmPin(instance.symbolVariantId)) return undefined;
+  return {
+    kind: "set_instance_symbol",
+    instanceId: instance.id,
+    symbolId: instance.symbolId,
+    symbolVariantId: optionalPinsVariantId(
+      variantDrawsSupplyPins(instance.symbolVariantId),
+      shown,
+    ),
   };
 }
 

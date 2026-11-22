@@ -94,6 +94,9 @@ export function validateComponentDefinition(component, id) {
       if (hasPin === hasSupply) {
         fail(`${id}: port ${port.name} must map one Symbol pin or one supply`);
       }
+      if (port.optional !== undefined && (port.optional !== true || !hasPin)) {
+        fail(`${id}: only a pin port may be optional, as optional: true`);
+      }
       if (hasSupply && port.name !== port.supply) {
         fail(`${id}: supply port ${port.name} must retain its canonical name`);
       }

@@ -5,8 +5,10 @@ import {
   LINEAR_CONTROLLED_SOURCE_KINDS,
   controlledSourceExpressionDocument,
   controlledSourceExpressionSource,
+  optionalPinsVariantId,
   semanticTextDocument,
-  SUPPLY_PINS_VARIANT_ID,
+  variantDrawsSupplyPins,
+  variantDrawsVocmPin,
   type SchematicDocument,
 } from "@icm/model";
 
@@ -22,7 +24,6 @@ import {
   componentSourceShape,
   DIAMOND_SOURCE_VARIANT,
   NO_INTERNAL_MARK,
-  supplyPinsEdit,
   windingsMirroredEdit,
   chopperWideEdit,
   chopperWideLabelEdits,
@@ -329,18 +330,32 @@ export function planComponentPropertyCodeEdits(
     }
   }
   // A block's supply pins stay as chosen across its forms (#1833): lettering,
-  // input swap, input count. The choice alone changes only its variant.
+  // input swap, input count. The choice alone changes only its variant. So
+  // does a fully differential op-amp's VOCM pin (#2443).
   const supplyPins = value.appearance.supplyPins;
-  if (nextSymbolId !== instance.symbolId)
+  const vocmPin = value.appearance.vocmPin;
+  if (nextSymbolId !== instance.symbolId) {
+    const variant = optionalPinsVariantId(!!supplyPins, !!vocmPin);
     edits.push({
       kind: "set_instance_symbol",
       instanceId: instance.id,
       symbolId: nextSymbolId,
-      ...(supplyPins ? { symbolVariantId: SUPPLY_PINS_VARIANT_ID } : {}),
+      ...(variant ? { symbolVariantId: variant } : {}),
     });
-  else if (supplyPins !== undefined) {
-    const edit = supplyPinsEdit(instance, supplyPins);
-    if (edit) edits.push(edit);
+  } else if (supplyPins !== undefined || vocmPin !== undefined) {
+    const supplies =
+      supplyPins ?? variantDrawsSupplyPins(instance.symbolVariantId);
+    const vocm = vocmPin ?? variantDrawsVocmPin(instance.symbolVariantId);
+    if (
+      supplies !== variantDrawsSupplyPins(instance.symbolVariantId) ||
+      vocm !== variantDrawsVocmPin(instance.symbolVariantId)
+    )
+      edits.push({
+        kind: "set_instance_symbol",
+        instanceId: instance.id,
+        symbolId: instance.symbolId,
+        symbolVariantId: optionalPinsVariantId(supplies, vocm),
+      });
   }
   // So is a transformer's secondary, looping either way (#2170).
   if (value.appearance.windingsMirrored !== undefined) {

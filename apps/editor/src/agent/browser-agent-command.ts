@@ -117,7 +117,9 @@ import {
 import { instanceDisplayEdits } from "../features/instance-display/instance-display-edits";
 import {
   componentSupplyPins,
+  componentVocmPin,
   supplyPinsEdit,
+  vocmPinEdit,
 } from "../features/properties/component-visual-variants";
 import {
   planDisplayAlias,
@@ -1200,6 +1202,31 @@ export function planBrowserAgentCommand(
               `${instance.reference ?? instance.id} (${instance.symbolId}) has no supply pins to show; showSupplyPins is for a block that takes VDD and VSS, such as an op-amp, a gate or a flip-flop`,
             );
           const edit = supplyPinsEdit(instance, command.showSupplyPins);
+          if (edit) edits.push(edit);
+        }
+      // A fully differential op-amp's VOCM drawn as a pin (#2443), its
+      // supply pins as the call leaves them.
+      if (command.showVocmPin !== undefined)
+        for (const id of new Set(command.instanceIds)) {
+          const instance = document.instances.find((item) => item.id === id);
+          if (!instance) throw new Error(`Instance not found: ${id}`);
+          if (componentVocmPin(instance, resolver) === undefined)
+            throw new Error(
+              `${instance.reference ?? instance.id} (${instance.symbolId}) has no VOCM pin; showVocmPin is for a fully differential op-amp`,
+            );
+          const supplied = edits.findLast(
+            (edit) =>
+              edit.kind === "set_instance_symbol" && edit.instanceId === id,
+          );
+          const edit = vocmPinEdit(
+            supplied?.kind === "set_instance_symbol"
+              ? {
+                  ...instance,
+                  symbolVariantId: supplied.symbolVariantId ?? undefined,
+                }
+              : instance,
+            command.showVocmPin,
+          );
           if (edit) edits.push(edit);
         }
       return { edits };
