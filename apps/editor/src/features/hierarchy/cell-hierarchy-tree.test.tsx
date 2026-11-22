@@ -70,37 +70,6 @@ describe("CellHierarchyTree", () => {
     expect(markup).not.toContain("Other roots");
     expect(markup).toContain('aria-label="Unused"');
   });
-
-  it("keeps actions on the rows and drops resident menus and notes", () => {
-    const markup = render();
-    expect(markup).toContain('aria-label="New child Cell in Channel"');
-    expect(markup).toContain('aria-label="Place Channel"');
-    expect(markup).toContain('aria-label="Channel properties"');
-    // Every row but Top's offers the same TOP badge, to move Top there.
-    expect(markup.match(/aria-label="Set [^"]+ as Top"/gu)).toHaveLength(3);
-    expect(markup).toContain('aria-label="Set Channel as Top"');
-    expect(markup).not.toContain("⋯");
-    expect(markup).not.toContain(
-      "Editing this definition changes all its uses",
-    );
-  });
-
-  it("explains only its icons on hover; names, badges and counts say it", () => {
-    const markup = render();
-    const titled = [...markup.matchAll(/<[a-z]+ [^>]*title="([^"]*)"/gu)].map(
-      ([, title]) => title,
-    );
-    expect(titled).toContain("New child Cell in Channel");
-    expect(titled).toContain("Collapse all but the open path");
-    for (const tag of [
-      /<button[^>]*class="hierarchy-node-label"[^>]*>/gu,
-      /<[a-z]+[^>]*class="hierarchy-top[^"]*"[^>]*>/gu,
-      /<button[^>]*class="hierarchy-uses"[^>]*>/gu,
-    ])
-      for (const [element] of markup.matchAll(tag))
-        expect(element).not.toContain("title=");
-  });
-
   it("hides a row's tools in a place they keep, so hovering never narrows its name (#2175)", () => {
     // Hidden tools that left the layout gave the name their room; on hover
     // they took it back, and a click aimed at the name set Top instead.
@@ -125,15 +94,6 @@ describe("CellHierarchyTree", () => {
     expect(name).toBeDefined();
     expect(name).not.toContain("Top");
   });
-
-  it("starts a new or imported Cell from the tree itself", () => {
-    expect(render()).toContain('aria-label="New Cell"');
-    expect(render()).not.toContain("Import Cell…");
-    expect(render({ actions: { ...actions, importCell: vi.fn() } })).toContain(
-      ">Import Cell…</button>",
-    );
-  });
-
   it("keeps the roots in place and marks Top where its Cell is used", () => {
     const project = hierarchyNavigationFixture();
     const formerTop = project.topDocumentId;

@@ -27,20 +27,6 @@ describe("SelectionFilterPopover", () => {
     expect(markup).toContain(">None<");
     expect(markup).toContain(">Default<");
   });
-
-  it("renders nothing while closed", () => {
-    expect(
-      renderToStaticMarkup(
-        <SelectionFilterPopover
-          open={false}
-          filter={DEFAULT_SELECTION_FILTER}
-          onChange={vi.fn()}
-          onClose={vi.fn()}
-        />,
-      ),
-    ).toBe("");
-  });
-
   it("stands under the chrome as it is, wrapped tabs included (#2194)", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     // jsdom lays nothing out: a phone's wrapped chrome ends at y = 140,

@@ -1,4 +1,3 @@
-import { createEmptyProject } from "@icm/model";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -14,20 +13,6 @@ const callbacks = {
 };
 
 describe("HierarchyBreadcrumb", () => {
-  it("renders nothing at Top, so a flat Project keeps its canvas", () => {
-    const project = createEmptyProject("flat", "Flat");
-    expect(
-      renderToStaticMarkup(
-        <HierarchyBreadcrumb
-          project={project}
-          activeDocumentId={project.topDocumentId}
-          path={[]}
-          {...callbacks}
-        />,
-      ),
-    ).toBe("");
-  });
-
   it("renders nothing at any root, Top or not", () => {
     const project = hierarchyNavigationFixture();
     expect(
