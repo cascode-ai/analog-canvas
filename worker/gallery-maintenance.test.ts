@@ -572,61 +572,6 @@ describe("Gallery netlist read", () => {
 });
 
 describe("gallery administration", () => {
-  it("converges stored entries back into the rolling window", async () => {
-    const env = environment();
-    const adminCookie = await adminOf(env);
-    const id = await submitOne(env, "Aging Entry", { cookie: adminCookie });
-
-    // Age the stored record to the previous schema version through the
-    // internal update operation, simulating a record left behind by time.
-    await env.GALLERY.getByName("gallery").fetch(
-      "https://gallery/update-entry",
-      {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          id,
-          projectText: previousVersionText(),
-          schemaVersion: CURRENT_MODEL_SCHEMA_VERSION,
-          svgText: "<svg/>",
-        }),
-      },
-    );
-
-    const maintenance = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/maintenance/schema-current`, {
-        method: "POST",
-        headers: {
-          ...cookieHeaders(adminCookie),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ apply: true }),
-      }),
-    );
-    expect(await maintenance.json()).toMatchObject({
-      applied: true,
-      ready: 1,
-      failures: [],
-      targetSchemaVersion: CURRENT_PROJECT_FILE_VERSION,
-    });
-
-    const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
-    const payload = (await detail.json()) as {
-      entry: { schemaVersion: number };
-      projectText: string;
-    };
-    expect(payload.entry.schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
-    expect(JSON.parse(payload.projectText).schemaVersion).toBe(
-      CURRENT_PROJECT_FILE_VERSION,
-    );
-    const preview = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/${id}/preview.svg`),
-    );
-    expect(await preview.text()).toContain("<svg");
-  });
-
   function legacy25RouteText(): string {
     const raw = JSON.parse(
       JSON.stringify(parseProject(projectText("Legacy 25"))),

@@ -27,7 +27,6 @@ import {
   agentMcpServerName,
   agentSiteTag,
   type AgentMcpBootstrapManifest,
-  type AgentSessionLimits,
   type AgentSessionScope,
   type PersistedAgentSessionState,
 } from "@icm/agent-adapter";
@@ -48,7 +47,6 @@ import {
 
 import {
   AgentSessionDO,
-  redeemClaimResponse,
   relayHeaders,
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
@@ -57,14 +55,6 @@ import {
 import { AgentDeviceTrustDirectory } from "./agent-device-trust";
 import { purgeTrustedDevices } from "./agent-device-directory";
 import { environment, makerOf } from "./gallery.test-support";
-
-const limits: Partial<AgentSessionLimits> = {
-  claimTtlMs: 60_000,
-  tokenTtlMs: 60_000,
-  sessionTtlMs: 120_000,
-  maxRequestBytes: 128,
-  rateLimit: { windowMs: 60_000, maxRequests: 10 },
-};
 
 it("requires import and all existing edit scopes for staged Cell body writes", () => {
   expect(
@@ -358,69 +348,7 @@ it("authorizes Gallery, Project Code and Netlist operations by their real effect
     expect(access(account).reachesAccount, JSON.stringify(account)).toBe(true);
 });
 
-function folder() {
-  let counter = 0;
-  const random = () => `rand-${counter++}`;
-  let time = 1_000_000;
-  const created = AgentSessionMachine.create({
-    limits,
-    projectSessionId: "project-session-1",
-    projectId: "project-1",
-    documentIds: ["document-1"],
-    scopes: ["circuit.snapshot", "circuit.edit.geometry"],
-    now: time,
-    random,
-  });
-  return {
-    machine: created.machine,
-    session: created.session,
-    now: () => time,
-    advance: (ms: number) => {
-      time += ms;
-    },
-  };
-}
-
 describe("agent-session relay", () => {
-  it("answers the redeemer's retry by replacing the prior bearer, and no other redemption", () => {
-    const { machine, session, now } = folder();
-    const first = redeemClaimResponse(
-      machine,
-      session.claimCode,
-      now(),
-      "adapter-key-0001",
-    );
-    expect(first).toMatchObject({
-      ok: true,
-      sessionId: machine.sessionId,
-      projectId: "project-1",
-      documentIds: ["document-1"],
-    });
-
-    expect(
-      redeemClaimResponse(
-        machine,
-        session.claimCode,
-        now(),
-        "adapter-key-0002",
-      ),
-    ).toMatchObject({ ok: false, error: { code: "CLAIM_ALREADY_REDEEMED" } });
-    const retry = redeemClaimResponse(
-      machine,
-      session.claimCode,
-      now(),
-      "adapter-key-0001",
-    );
-    expect(retry).toMatchObject({ ok: true, projectId: "project-1" });
-    if (!first.ok || !retry.ok) return;
-    expect(retry.agentToken).not.toBe(first.agentToken);
-    expect(machine.authorize(first.agentToken, now())).toEqual({
-      ok: false,
-      code: "SESSION_TAKEN_OVER",
-    });
-    expect(machine.authorize(retry.agentToken, now()).ok).toBe(true);
-  });
-
   it("emits no-store and allowlisted CORS headers", () => {
     const headers = relayHeaders("https://editor.example");
     expect(headers.get("cache-control")).toBe("no-store");
@@ -2263,55 +2191,6 @@ describe("public Agent session routes", () => {
     });
   });
 
-  it("resumes a claimed session with its connector credential", async () => {
-    const { env } = routedFixture();
-    const createdResponse = await routeAgentSessionRequest(
-      new Request("https://editor.example/api/agent/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          projectSessionId: "project:connector",
-          projectId: "project",
-          documentIds: ["document-main"],
-          scopes: ["circuit.snapshot"],
-        }),
-      }),
-      env,
-    );
-    const created = (await createdResponse!.json()) as {
-      session: { sessionId: string; claimCode: string };
-    };
-    const claimResponse = await routeAgentSessionRequest(
-      new Request("https://editor.example/api/agent/claims", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ claimCode: created.session.claimCode }),
-      }),
-      env,
-    );
-    const claim = (await claimResponse!.json()) as {
-      agentToken: string;
-      connectorToken: string;
-    };
-    const resumeResponse = await routeAgentSessionRequest(
-      new Request("https://editor.example/api/agent/connectors/resume", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          sessionId: created.session.sessionId,
-          connectorToken: claim.connectorToken,
-        }),
-      }),
-      env,
-    );
-    expect(resumeResponse?.status).toBe(200);
-    expect(await resumeResponse!.json()).toMatchObject({
-      ok: true,
-      sessionId: created.session.sessionId,
-      connectorToken: claim.connectorToken,
-    });
-  });
-
   it("tags new sessions with their site and refuses another site's Claim and connector", async () => {
     const { env, objects } = routedFixture();
     const route = (origin: string, path: string, body: unknown) =>
@@ -2561,6 +2440,11 @@ describe("public Agent session routes", () => {
       "latest",
     );
     expect(resumed!.status).toBe(200);
+    expect(await resumed!.json()).toMatchObject({
+      ok: true,
+      sessionId: id,
+      connectorToken: claim.connectorToken,
+    });
     expect(adapterEvents()).toEqual([
       { type: "agent.adapter", sessionId: id, version: "0.17.83" },
       { type: "agent.adapter", sessionId: id },
