@@ -116,9 +116,10 @@ export function entryChanges(
     )
     .toArray();
   const page = changed.slice(0, limit);
-  const ids = page.map((row) => row.entry_id);
+  // The page's cards by its seq range: Cloudflare's SQLite binds at most
+  // 100 parameters, so a page of ids cannot go in an IN list.
   const cards = new Map(
-    ids.length === 0
+    page.length === 0
       ? []
       : sql
           .exec<
@@ -133,10 +134,11 @@ export function entryChanges(
                e.ai_generated,
                (SELECT revision FROM entry_references r
                  WHERE r.entry_id = e.id) AS reference_revision
-             FROM gallery_entries e
-             WHERE e.status = 'public'
-               AND e.id IN (${ids.map(() => "?").join(", ")})`,
-            ...ids,
+             FROM gallery_entry_changes c
+             JOIN gallery_entries e ON e.id = c.entry_id
+             WHERE e.status = 'public' AND c.seq > ? AND c.seq <= ?`,
+            after,
+            page.at(-1)!.seq,
           )
           .toArray()
           .map((row) => [row.id, row]),
