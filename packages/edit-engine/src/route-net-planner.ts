@@ -339,11 +339,13 @@ export function planRouteNet(
       ]);
       if (branchConflict && !input.avoid)
         throw new Error(
-          `route-net: the branch from ${best.node.key} ${branchConflict}`,
+          `route-net: the branch from ${endText(best.node.endpoint)} ${branchConflict}`,
         );
-      // avoid: a branch the plain L cannot draw goes round what it met.
+      // avoid: a branch the plain L cannot draw goes round what it met. The
+      // trunk is part of the way: the branch meets it at one tap only,
+      // never along it, and may tap it beside the projection to get round.
       const round = branchConflict
-        ? clearance.path(best.node.endpoint, tap)
+        ? clearance.path(best.node.endpoint, tap, { trunk: [start, end] })
         : null;
       if (typeof round === "string")
         throw new Error(
@@ -353,7 +355,7 @@ export function planRouteNet(
       wires.push({
         id: id(component.id),
         from: { kind: "endpoint", endpoint: best.node.endpoint },
-        to: { kind: "wire-at", point: tap },
+        to: { kind: "wire-at", point: round?.points?.at(-1) ?? tap },
         ...(round
           ? {
               ...(round.waypoints.length ? { waypoints: round.waypoints } : {}),

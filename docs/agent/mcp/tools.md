@@ -45,7 +45,8 @@ refused action in `issues`.
 An `apply_actions` call is atomic. Wires may name pins of parts the same list
 places; a wire given a new pin's coordinates needs them from a Snapshot
 (`pins` read) first. Several `connect` actions share one call,
-planned in order and committed once (one Undo); a failure leaves no wiring.
+planned in order and committed once (one Undo); a failure leaves no wiring
+and names its connect, `actions[i] (connect): Wire N (<from> → <to>): …`.
 `wireIntent` takes one intent or an ordered array. Multiple taps on one original Route may use pre-batch Route/leg IDs;
 the planner follows split children.
 

@@ -1518,17 +1518,33 @@ export function createAgentCircuitService(
             );
           }
         }
+        let refusedWire: number | undefined;
         const plannedWire = request.wireIntent
           ? planWireBatch(document, resolver, request.wireIntent, {
               keepClear: true,
+              onRefusal: (wireIndex) => {
+                refusedWire = wireIndex;
+              },
             })
           : null;
         if (typeof plannedWire === "string") {
+          // The wire a batch refused, so the action list names its action.
           return fail(
             "transact",
             "EDIT_PRECONDITION",
             plannedWire,
             document.revision,
+            refusedWire === undefined
+              ? []
+              : [
+                  {
+                    code: "EDIT_PRECONDITION",
+                    severity: "error",
+                    message: plannedWire,
+                    path: ["wireIntent", refusedWire],
+                    parameters: { wireIndex: refusedWire },
+                  },
+                ],
           );
         }
         // A tap moved onto the tap grid, a detour and what it went round,

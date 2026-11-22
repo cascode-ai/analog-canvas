@@ -75,10 +75,14 @@ export interface ClearPath {
 export interface RouteClearance {
   /** The cheapest path between two ends that meets nothing it must not, or
    * why every tried path does. An end is an endpoint, or a point: a tap on a
-   * wire of the path's own Net, or an open end. */
+   * wire of the path's own Net, or an open end. With `trunk`, `to` is a tap
+   * on that planned trunk: the path meets the trunk only at its last point,
+   * and avoid's search may tap it elsewhere, each step from `to` costing
+   * one; the path's last point is then the tap. */
   path(
     from: RouteEndpoint | Point,
     to: RouteEndpoint | Point,
+    options?: { trunk?: readonly [Point, Point] },
   ): ClearPath | string;
   /** Why a fixed path, from landing to landing, would read as a false
    * connection, or null. `ends` are the endpoints at its two ends. */
@@ -179,6 +183,31 @@ function contactPoints(a: Point, b: Point, c: Point, d: Point): Point[] {
     points.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
   }
   return points;
+}
+
+/**
+ * Why a branch meets the trunk it taps anywhere but at its own last point,
+ * or null. Along the trunk it would read as one wire drawn twice, and a
+ * second contact as a junction where nothing branches.
+ */
+function offTap(
+  points: readonly Point[],
+  [c, d]: readonly [Point, Point],
+): string | null {
+  const segments = points
+    .slice(1)
+    .map((to, index) => [points[index]!, to] as const);
+  for (const [index, [a, b]] of segments.entries()) {
+    const between = ` between ${format(a)} and ${format(b)}`;
+    if (runsAlong(a, b, c, d)) return `runs along the trunk${between}`;
+    const last = index === segments.length - 1;
+    const met = contactPoints(a, b, c, d).find(
+      (point) => !(last && same(point, b)),
+    );
+    if (met)
+      return `meets the trunk at ${format(met)}, away from its tap,${between}`;
+  }
+  return null;
 }
 
 /**
@@ -727,7 +756,9 @@ export function createRouteClearance(
    * The cheapest orthogonal path on the grid from landing to landing, priced
    * as `path` prices its shapes, that meets nothing `conflict` refuses, or
    * null. Searched only within SEARCH_MARGIN grid squares of its ends, and
-   * only for route-net's avoid, when no simple shape is clear.
+   * only for route-net's avoid, when no simple shape is clear. With a trunk,
+   * any of its grid points is a goal, priced by its distance from `end`, and
+   * the path touches the trunk nowhere else.
    */
   const search = (
     start: Point,
@@ -736,7 +767,11 @@ export function createRouteClearance(
     toEnd: RouteEndpoint | undefined,
     a: EndpointRoutingGeometry,
     b: EndpointRoutingGeometry,
+    trunk?: readonly [Point, Point],
   ): Point[] | null => {
+    const onTrunk = (point: Point) =>
+      Boolean(trunk && pointOnSegment(point, trunk[0], trunk[1]));
+    if (onTrunk(start)) return null;
     const margin = SEARCH_MARGIN * grid;
     const lattice = (s: number, e: number) => {
       const low = Math.min(s, e) - margin;
@@ -875,6 +910,17 @@ export function createRouteClearance(
         box: pointBox(point),
         blocks: (p, q) => pointOnSegment(point, p, q),
       });
+    // A step may reach the trunk, where the path ends, and touch it nowhere
+    // else.
+    if (trunk) {
+      const [c, d] = trunk;
+      obstacles.push({
+        box: segmentBox(c, d),
+        blocks: (p, q) =>
+          runsAlong(p, q, c, d) ||
+          contactPoints(p, q, c, d).some((point) => !same(point, q)),
+      });
+    }
     const cell = grid * 4;
     const buckets = new Map<string, number[]>();
     const cellsOf = (box: Rect) => {
@@ -995,7 +1041,31 @@ export function createRouteClearance(
     const cost = new Float64Array(states).fill(Infinity);
     const parent = new Int32Array(states).fill(-1);
     const goal = pointOf(goalNode);
+    const isGoal = (node: number) =>
+      trunk ? onTrunk(pointOf(node)) : node === goalNode;
+    // To the nearest goal: the trunk, or the one end.
+    const [low, high] = trunk
+      ? [
+          {
+            x: Math.min(trunk[0].x, trunk[1].x),
+            y: Math.min(trunk[0].y, trunk[1].y),
+          },
+          {
+            x: Math.max(trunk[0].x, trunk[1].x),
+            y: Math.max(trunk[0].y, trunk[1].y),
+          },
+        ]
+      : [goal, goal];
     const estimate = (node: number) => {
+      const point = pointOf(node);
+      return (
+        Math.max(0, low.x - point.x, point.x - high.x) +
+        Math.max(0, low.y - point.y, point.y - high.y)
+      );
+    };
+    /** What a trunk tap costs beyond its path: its distance from `end`. */
+    const tapCost = (node: number) => {
+      if (!trunk) return 0;
       const point = pointOf(node);
       return Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y);
     };
@@ -1042,7 +1112,7 @@ export function createRouteClearance(
       const node = Math.floor(state / 5);
       const heading = state % 5;
       if (priority - estimate(node) > cost[state]! + EPSILON) continue;
-      if (node === goalNode) {
+      if (isGoal(node)) {
         const nodes: number[] = [];
         for (let at = state; at >= 0; at = parent[at]!)
           nodes.push(Math.floor(at / 5));
@@ -1064,7 +1134,8 @@ export function createRouteClearance(
           sideCost([p, q], [start, end]) +
           (bends ? 2 * grid : 0) +
           (heading === 4 && leave >= 0 && step !== leave ? grid : 0) +
-          (next === goalNode && arrive >= 0 && step !== arrive ? grid : 0);
+          (next === goalNode && arrive >= 0 && step !== arrive ? grid : 0) +
+          (isGoal(next) ? tapCost(next) : 0);
         const reached = next * 5 + step;
         if (cost[state]! + price >= cost[reached]!) continue;
         cost[reached] = cost[state]! + price;
@@ -1075,7 +1146,8 @@ export function createRouteClearance(
     return null;
   };
 
-  const path: RouteClearance["path"] = (from, to) => {
+  const path: RouteClearance["path"] = (from, to, options = {}) => {
+    const trunk = options.trunk;
     // A point has no pin to leave along, as a Junction has none.
     const endpointOf = (end: RouteEndpoint | Point) =>
       "kind" in end ? end : undefined;
@@ -1092,6 +1164,8 @@ export function createRouteClearance(
           };
     const endText = (end: RouteEndpoint | Point) =>
       "kind" in end ? endpointText(end) : format(end);
+    const clash = (points: readonly Point[], ends = [fromEnd, toEnd]) =>
+      conflict(points, ends) ?? (trunk ? offTap(points, trunk) : null);
     const fromEnd = endpointOf(from);
     const toEnd = endpointOf(to);
     const a = geometryOf(from);
@@ -1267,21 +1341,23 @@ export function createRouteClearance(
     scored.sort((left, right) => left.cost - right.cost);
     let reason: string | null = null;
     for (const entry of scored) {
-      const found = conflict(entry.points, [fromEnd, toEnd]);
+      const found = clash(entry.points);
       if (found === null)
         return { ...entry.candidate, points: entry.points, cost: entry.cost };
       reason ??= found;
     }
     if (own.avoid) {
-      const found = search(start, end, fromEnd, toEnd, a, b);
+      const found = search(start, end, fromEnd, toEnd, a, b, trunk);
       if (found) {
         const candidate: ClearPath = {
           waypoints: bendsOf(found),
           cornerOrder: "horizontal-first",
         };
+        // The search may have tapped the trunk away from `to`.
+        const tap = found.at(-1)!;
         const compiled = compileWireDraft(
           { connection: a },
-          { connection: b },
+          { connection: same(tap, end) ? b : geometryOf(tap)! },
           candidate.waypoints.map((point) => ({
             point,
             routingMode: "orthogonal" as const,
@@ -1297,7 +1373,7 @@ export function createRouteClearance(
             ? compiled.points.length - 2
             : compiled.points.length - 1;
         const points = compiled.points.slice(first, last + 1);
-        if (conflict(points, [fromEnd, toEnd]) === null)
+        if (clash(points) === null)
           return {
             ...candidate,
             points,
@@ -1322,7 +1398,7 @@ export function createRouteClearance(
     const searched = own.avoid
       ? `, and none goes round within ${SEARCH_MARGIN} grid squares`
       : "";
-    return `no clear path from ${endText(from)} to ${endText(to)}: the direct one ${reason ?? "is blocked"}${searched}. Move the parts apart, give a trunk, or name the Net at each end with a Net Label on a short stub`;
+    return `no clear path from ${endText(from)} to ${trunk ? "the trunk" : endText(to)}: the direct one ${reason ?? "is blocked"}${searched}. Move the parts apart, give a trunk, or name the Net at each end with a Net Label on a short stub`;
   };
   return { path, conflict, crossings };
 }

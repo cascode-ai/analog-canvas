@@ -3805,9 +3805,11 @@ describe("connect to wire-at", () => {
   it("still refuses a tap no wire of the call reaches, naming its connect", async () => {
     const { client, controller, wire, tap } = await withResistor();
     const before = structuredClone(controller.document);
-    const result = await client.applyActions([tap({ x: 200, y: 500 }), wire]);
+    const result = await client.applyActions([wire, tap({ x: 200, y: 500 })]);
     expect(result.ok).toBe(false);
-    expect(result.message).toContain("Wire 1: No wire at (200, 500)");
+    expect(result.message).toMatch(
+      /^actions\[1\] \(connect\): Wire 2 \(R1\.2 → \(200, 500\)\): No wire at \(200, 500\)/u,
+    );
     expect(controller.document).toEqual(before);
   });
 
@@ -4099,6 +4101,42 @@ describe("route-net avoid", () => {
     expect(Math.max(...path!.map(([, y]) => y!))).toBe(0);
     expect(nets()).toContain("R1.2 R2.1");
     expect(nets().filter((net) => net.includes("C"))).toEqual([]);
+  });
+
+  it("taps a trunk once, square, past a part between a pin and it", async () => {
+    // C1 stands between R1.2 (20, 0) and the trunk at y = 100.
+    const { route, nets, controller } = await inLine([
+      {
+        kind: "place-component",
+        symbol: "capacitor",
+        reference: "C1",
+        position: { x: 20, y: 50 },
+      },
+    ]);
+    const result = await route({
+      avoid: true,
+      trunk: { start: { x: 0, y: 100 }, end: { x: 400, y: 100 } },
+    });
+    expect(result.ok, result.message).toBe(true);
+    expect(nets()).toEqual(["R1.2 R2.1"]);
+    const paths = drawnPaths(controller.document);
+    const onTrunk = ([x, y]: number[]) => y === 100 && x! >= 0 && x! <= 400;
+    const branches = paths.filter((path) => !path.every(onTrunk));
+    expect(branches).toHaveLength(2);
+    for (const path of branches) {
+      // Only its last point is on the trunk, reached by a vertical stretch.
+      const toTrunk = onTrunk(path.at(-1)!) ? path : [...path].reverse();
+      expect(toTrunk.slice(0, -1).some(onTrunk), JSON.stringify(path)).toBe(
+        false,
+      );
+      expect(toTrunk.at(-2)![0], JSON.stringify(path)).toBe(toTrunk.at(-1)![0]);
+    }
+    // One dot per branch on the trunk, none where nothing branches.
+    expect(
+      controller.document.junctions.filter(
+        ({ position: { x, y } }) => y === 100 && x > 0 && x < 400,
+      ),
+    ).toHaveLength(2);
   });
 
   it("refuses naming the pins when nothing goes round", async () => {

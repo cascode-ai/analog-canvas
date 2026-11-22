@@ -180,7 +180,12 @@ function planWithoutDocument(
         payload: { wireIntent: wires.length === 1 ? wires[0] : wires },
         actions: direct,
         readSnapshot: false,
-        actionIndexOf: () => (rest.length === 1 ? kept[0] : undefined),
+        // A batch's refusal names its wire: the list's connect, in order.
+        actionIndexOf: (diagnostics) => {
+          if (rest.length === 1) return kept[0];
+          const wire = numberParameter(diagnostics, "wireIndex");
+          return wire === undefined ? undefined : kept[wire];
+        },
         naming: "if-unnamed",
         ...after,
       };
@@ -281,7 +286,13 @@ function planOnDocument(
       payload: { wireIntent: compiled.map((item) => item.wireIntent!) },
       actions: direct,
       readSnapshot: true,
-      actionIndexOf: () => undefined,
+      // A batch's refusal names its wire, compiled from this action.
+      actionIndexOf: (diagnostics) => {
+        const wire = numberParameter(diagnostics, "wireIndex");
+        return wire === undefined
+          ? undefined
+          : compiled[wire]?.actionIndices?.[0];
+      },
       naming: "if-unnamed",
       ...after,
     };

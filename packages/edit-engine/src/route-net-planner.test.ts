@@ -1,6 +1,7 @@
 import {
   createEmptyDocument,
   createEmptyProject,
+  type Point,
   type SchematicDocument,
 } from "@icm/model";
 import {
@@ -650,5 +651,200 @@ describe("route-net", () => {
         target: { kind: "import-net", sourceNetId: sourceNet.id },
       }).edits,
     ).toEqual([]);
+  });
+});
+
+describe("route-net trunk with avoid", () => {
+  const trunk = { start: { x: -200, y: 0 }, end: { x: 200, y: 0 } };
+  /** Parts by Reference: a resistor or capacitor, upright or (90) lying. */
+  function parts(
+    list: readonly (readonly [string, string, number, number, (0 | 90)?])[],
+  ) {
+    const document = createEmptyDocument("doc", "Trunk avoid");
+    document.instances = list.map(([id, symbolId, x, y, rotation]) => ({
+      id,
+      reference: id,
+      symbolId,
+      placement: {
+        position: { x, y },
+        rotation: rotation ?? 0,
+        mirror: "none",
+      },
+    }));
+    return document;
+  }
+  const pin = (instanceId: string, pinName: string) => ({
+    instanceId,
+    pinName,
+  });
+  /** Each Net as its pins, sorted. */
+  const nets = (document: SchematicDocument) =>
+    document.nets
+      .map((net) =>
+        net.terminals
+          .map((terminal) => `${terminal.instanceId}.${terminal.pinName}`)
+          .sort()
+          .join(" "),
+      )
+      .filter(Boolean)
+      .sort();
+  /** Where a drawn line meets the (horizontal) trunk: the points it
+   * touches, and whether it runs along it. */
+  function meetsTrunk(line: readonly Point[]) {
+    const level = trunk.start.y;
+    const touches = new Set<string>();
+    let runs = false;
+    for (const [index, q] of line.slice(1).entries()) {
+      const p = line[index]!;
+      if (p.y === level && q.y === level) {
+        const from = Math.max(trunk.start.x, Math.min(p.x, q.x));
+        const to = Math.min(trunk.end.x, Math.max(p.x, q.x));
+        if (to > from) runs = true;
+        else if (to === from) touches.add(`${from},${level}`);
+      } else if (
+        p.x === q.x &&
+        p.x >= trunk.start.x &&
+        p.x <= trunk.end.x &&
+        Math.min(p.y, q.y) <= level &&
+        level <= Math.max(p.y, q.y)
+      )
+        touches.add(`${p.x},${level}`);
+    }
+    return { touches: [...touches], runs };
+  }
+  /** Route the pins onto the trunk with avoid; check every branch meets
+   * the trunk once, square, at its end and with a dot, and nothing else. */
+  function routed(document: SchematicDocument, pins: ReturnType<typeof pin>[]) {
+    const input = {
+      target: { kind: "pins", pins } as RouteNetTarget,
+      trunk,
+      avoid: true,
+    };
+    const next = apply(
+      document,
+      planRouteNet(document, resolver, input).edits,
+    ).document;
+    const onTrunk = (point: Point) =>
+      point.y === trunk.start.y &&
+      point.x >= trunk.start.x &&
+      point.x <= trunk.end.x;
+    const branches = next.routes
+      .map((route) => resolveRouteGeometry(next, resolver, route)!.centerline)
+      .filter((line) => !line.every(onTrunk));
+    expect(branches).toHaveLength(pins.length);
+    const taps: Point[] = [];
+    for (const line of branches) {
+      const shown = JSON.stringify(line);
+      const met = meetsTrunk(line);
+      expect(met.runs, shown).toBe(false);
+      expect(met.touches, shown).toHaveLength(1);
+      const [x, y] = met.touches[0]!.split(",").map(Number);
+      const tap = { x: x!, y: y! };
+      // At the branch's end, reached square: its last stretch is vertical.
+      const toTap =
+        line.at(-1)!.x === tap.x && line.at(-1)!.y === tap.y
+          ? line
+          : [...line].reverse();
+      expect(toTap.at(-1), shown).toEqual(tap);
+      expect(toTap.at(-2)!.x, shown).toBe(tap.x);
+      expect(
+        next.junctions.some(
+          (junction) =>
+            junction.position.x === tap.x && junction.position.y === tap.y,
+        ),
+        shown,
+      ).toBe(true);
+      taps.push(tap);
+    }
+    // No dot on the trunk where nothing branches: a branch that ran along
+    // the trunk to its tap left one there once the overlap merged.
+    const key = (point: Point) => `${point.x},${point.y}`;
+    expect(
+      next.junctions
+        .map((junction) => key(junction.position))
+        .filter((at) => at !== key(trunk.start) && at !== key(trunk.end))
+        .sort(),
+    ).toEqual(taps.map(key).sort());
+    expect(falseContacts(next)).toEqual([]);
+    expect(
+      diagnoseVisualQuality(next, resolver).filter(
+        (diagnostic) => diagnostic.code === "VISUAL_WIRE_THROUGH_SYMBOL",
+      ),
+    ).toEqual([]);
+    expect(planRouteNet(next, resolver, input).edits).toEqual([]);
+    return { next, taps };
+  }
+
+  it("taps square past a part between a pin and the trunk", () => {
+    // R1.2 (0,-100) looks down onto the trunk through C1 (0,-70..-30);
+    // R2.1 (-150,100) has a straight branch.
+    const document = parts([
+      ["R1", "resistor", 0, -120],
+      ["C1", "capacitor", 0, -50],
+      ["R2", "resistor", -150, 120],
+    ]);
+    const { next, taps } = routed(document, [pin("R1", "2"), pin("R2", "1")]);
+    expect(nets(next)).toEqual(["R1.2 R2.1"]);
+    // Near the pin's projection, not far along the trunk.
+    const tap = taps.find((point) => point.x !== -150)!;
+    expect(Math.abs(tap.x)).toBeLessThanOrEqual(40);
+  });
+
+  it("goes round a wall without coming back along the trunk", () => {
+    // Lying resistors from x=-120 to 120 at y=-50: no simple detour clears
+    // them, and the search came down beside the wall and ran back along the
+    // trunk to the tap under the pin.
+    const document = parts([
+      ["R1", "resistor", 0, -120],
+      ...[-100, -50, 0, 50, 100].map(
+        (x, index) => [`W${index}`, "resistor", x, -50, 90] as const,
+      ),
+      ["R2", "resistor", -150, 120],
+    ]);
+    const { next, taps } = routed(document, [pin("R1", "2"), pin("R2", "1")]);
+    expect(nets(next)).toEqual(["R1.2 R2.1"]);
+    // Just past the wall's end, not back under the pin.
+    const tap = taps.find((point) => point.x !== -150)!;
+    expect(Math.abs(tap.x)).toBe(130);
+  });
+
+  it("taps from both sides of the trunk, each branch round its own part", () => {
+    const document = parts([
+      ["R1", "resistor", 0, -120],
+      ["C1", "capacitor", 0, -50],
+      ["R2", "resistor", 60, 120],
+      ["C2", "capacitor", 60, 50],
+      ["R3", "resistor", -150, 120],
+    ]);
+    const { next } = routed(document, [
+      pin("R1", "2"),
+      pin("R2", "1"),
+      pin("R3", "1"),
+    ]);
+    expect(nets(next)).toEqual(["R1.2 R2.1 R3.1"]);
+  });
+
+  it("refuses naming the pin when no branch reaches the trunk", () => {
+    // A wall wider than the search reaches round the pin.
+    const document = parts([
+      ["R1", "resistor", 0, -120],
+      ...Array.from(
+        { length: 17 },
+        (_, index) =>
+          [`W${index}`, "resistor", (index - 8) * 50, -50, 90] as const,
+      ),
+      ["R2", "resistor", -150, 120],
+    ]);
+    const before = structuredClone(document);
+    expect(() =>
+      planRouteNet(document, resolver, {
+        target: { kind: "pins", pins: [pin("R1", "2"), pin("R2", "1")] },
+        trunk,
+        avoid: true,
+      }),
+    ).toThrow(
+      /^route-net: the branch from R1\.2: no clear path from R1\.2 to the trunk: /u,
+    );
+    expect(document).toEqual(before);
   });
 });

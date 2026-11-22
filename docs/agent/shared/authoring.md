@@ -481,7 +481,9 @@ which it meets it: move parts, give a trunk or `avoid`. A given trunk is
 checked the same way, never bent. `avoid:true` also keeps clear of drawn
 labels and free text and, when no simple path is clear, searches the grid up
 to 16 squares round the ends; with a trunk, branches go round instead of being
-refused. `prefer: "above"|"below"|"left"|"right"` is the side a detour takes
+refused, each meeting the trunk at one tap only, square with a dot, never
+along it, beside its pin's projection when that is the way round; a branch
+that cannot is refused naming its pin. `prefer: "above"|"below"|"left"|"right"` is the side a detour takes
 when it leaves its ends' span. It moves no device, infers no bulk wiring, and
 does not override import-reference shorts/scope conflicts. Several
 `route-net` actions share a batch, each planned on the previous result.
