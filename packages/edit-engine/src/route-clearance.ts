@@ -14,6 +14,7 @@ import {
   type NetConnectivityContext,
 } from "@icm/derived";
 import {
+  electricalConnectionGrid,
   flattenRichText,
   transformPoint,
   routeEndpoints,
@@ -70,6 +71,8 @@ export interface ClearPath {
    * against its direction. Set by `path`. */
   points?: Point[];
   cost?: number;
+  /** Where the path taps its own Net's wire short of `to`. */
+  tap?: Point;
 }
 
 export interface RouteClearance {
@@ -78,11 +81,13 @@ export interface RouteClearance {
    * wire of the path's own Net, or an open end. With `trunk`, `to` is a tap
    * on that planned trunk: the path meets the trunk only at its last point,
    * and avoid's search may tap it elsewhere, each step from `to` costing
-   * one; the path's last point is then the tap. */
+   * one; the path's last point is then the tap. With `own`, the path keeps
+   * to meetOwnNet: it may end sooner, on a joined wire of its Net, and its
+   * `tap` is then that point. */
   path(
     from: RouteEndpoint | Point,
     to: RouteEndpoint | Point,
-    options?: { trunk?: readonly [Point, Point] },
+    options?: { trunk?: readonly [Point, Point]; own?: OwnNetWiring },
   ): ClearPath | string;
   /** Why a fixed path, from landing to landing, would read as a false
    * connection, or null. `ends` are the endpoints at its two ends. */
@@ -208,6 +213,90 @@ function offTap(
       return `meets the trunk at ${format(met)}, away from its tap,${between}`;
   }
   return null;
+}
+
+type Segment = readonly [Point, Point];
+
+/** A path's own Net round it: the wiring it may end on, and the rest. */
+export interface OwnNetWiring {
+  /** Wires already joined to the Net's tree, drawn or planned: a path ends
+   * where it first meets one, a tap. */
+  joins?: readonly Segment[];
+  /** The Net's wires not yet joined, the path's own pin's among them: met
+   * only at the path's ends. */
+  apart?: readonly Segment[];
+  /** A planned trunk, which the path meets only at its own tap (offTap):
+   * counted where a tap would land, never tapped short. */
+  trunk?: Segment;
+}
+
+/** How many joined wires leave a point: one for each that ends there, two
+ * for each that passes through. */
+function joinedWiresAt(point: Point, own: OwnNetWiring): number {
+  return [...(own.joins ?? []), ...(own.trunk ? [own.trunk] : [])]
+    .filter(([c, d]) => pointOnSegment(point, c, d))
+    .reduce(
+      (sum, [c, d]) => sum + (same(point, c) || same(point, d) ? 1 : 2),
+      0,
+    );
+}
+
+/**
+ * A path beside the other wires of its own Net, or why it may not be drawn.
+ * Two wires of one Net meet only where one ends on the other, at a dot; a
+ * crossing or a shared stretch reads as a join nobody marked, or as a
+ * crossing that joins nothing. So the path stops at the first joined wire it
+ * meets, a tap (shorter, and the dot is drawn there), and meets the Net's
+ * other wires at its ends alone. A tap where three wires already meet would
+ * make a four-way dot, which reads as a crossing; it is not taken. `tapped`
+ * when it was cut short.
+ */
+export function meetOwnNet(
+  points: readonly Point[],
+  own: OwnNetWiring,
+  grid: number,
+): { points: Point[]; tapped: boolean } | string {
+  const start = points[0]!;
+  const segmentsOf = (path: readonly Point[]) =>
+    path.slice(1).map((to, index) => [path[index]!, to] as const);
+  let drawn = [...points];
+  let tapped = false;
+  for (const [index, [a, b]] of segmentsOf(points).entries()) {
+    let first: { point: Point; along: number } | null = null;
+    for (const [c, d] of own.joins ?? []) {
+      if (index === 0 && runsAlong(a, b, c, d) && pointOnSegment(start, c, d))
+        return `runs along its own Net's wire from ${format(start)}`;
+      for (const point of contactPoints(a, b, c, d)) {
+        if (same(point, start)) continue;
+        const along = Math.hypot(point.x - a.x, point.y - a.y);
+        if (!first || along < first.along) first = { point, along };
+      }
+    }
+    if (!first) continue;
+    if (!same(first.point, points.at(-1)!)) {
+      if (first.point.x % grid !== 0 || first.point.y % grid !== 0)
+        return `meets its own Net's wire off the grid at ${format(first.point)}`;
+      const wires = joinedWiresAt(first.point, own);
+      if (wires >= 3)
+        return `meets its own Net's wire at ${format(first.point)}, where ${wires} wires already meet`;
+      drawn = [...points.slice(0, index + 1), first.point];
+      tapped = true;
+    }
+    break;
+  }
+  const end = drawn.at(-1)!;
+  for (const [a, b] of segmentsOf(drawn))
+    for (const [c, d] of own.apart ?? []) {
+      const between = ` between ${format(a)} and ${format(b)}`;
+      if (runsAlong(a, b, c, d))
+        return `runs along its own Net's wire${between}`;
+      const met = contactPoints(a, b, c, d).find(
+        (point) => !same(point, start) && (tapped || !same(point, end)),
+      );
+      if (met)
+        return `meets its own Net's wire at ${format(met)}, which it does not join,${between}`;
+    }
+  return { points: drawn, tapped };
 }
 
 /**
@@ -758,7 +847,8 @@ export function createRouteClearance(
    * null. Searched only within SEARCH_MARGIN grid squares of its ends, and
    * only for route-net's avoid, when no simple shape is clear. With a trunk,
    * any of its grid points is a goal, priced by its distance from `end`, and
-   * the path touches the trunk nowhere else.
+   * the path touches the trunk nowhere else. A joined wire of its own Net is
+   * a goal too, reached as meetOwnNet reaches it.
    */
   const search = (
     start: Point,
@@ -768,9 +858,14 @@ export function createRouteClearance(
     a: EndpointRoutingGeometry,
     b: EndpointRoutingGeometry,
     trunk?: readonly [Point, Point],
+    ownWiring: OwnNetWiring = {},
   ): Point[] | null => {
     const onTrunk = (point: Point) =>
       Boolean(trunk && pointOnSegment(point, trunk[0], trunk[1]));
+    // A joined wire is a goal where a tap leaves a T, not a four-way dot.
+    const onJoined = (point: Point) =>
+      (ownWiring.joins ?? []).some(([c, d]) => pointOnSegment(point, c, d)) &&
+      joinedWiresAt(point, ownWiring) < 3;
     if (onTrunk(start)) return null;
     const margin = SEARCH_MARGIN * grid;
     const lattice = (s: number, e: number) => {
@@ -921,6 +1016,25 @@ export function createRouteClearance(
           contactPoints(p, q, c, d).some((point) => !same(point, q)),
       });
     }
+    // Its own Net's joined wires likewise; the rest only at its ends.
+    for (const [c, d] of ownWiring.joins ?? [])
+      obstacles.push({
+        box: segmentBox(c, d),
+        blocks: (p, q) =>
+          runsAlong(p, q, c, d) ||
+          contactPoints(p, q, c, d).some(
+            (point) => !same(point, q) && !same(point, start),
+          ),
+      });
+    for (const [c, d] of ownWiring.apart ?? [])
+      obstacles.push({
+        box: segmentBox(c, d),
+        blocks: (p, q) =>
+          runsAlong(p, q, c, d) ||
+          contactPoints(p, q, c, d).some(
+            (point) => !same(point, start) && !same(point, end),
+          ),
+      });
     const cell = grid * 4;
     const buckets = new Map<string, number[]>();
     const cellsOf = (box: Rect) => {
@@ -1042,7 +1156,8 @@ export function createRouteClearance(
     const parent = new Int32Array(states).fill(-1);
     const goal = pointOf(goalNode);
     const isGoal = (node: number) =>
-      trunk ? onTrunk(pointOf(node)) : node === goalNode;
+      (trunk ? onTrunk(pointOf(node)) : node === goalNode) ||
+      (node !== startNode && onJoined(pointOf(node)));
     // To the nearest goal: the trunk, or the one end.
     const [low, high] = trunk
       ? [
@@ -1065,8 +1180,8 @@ export function createRouteClearance(
     };
     /** What a trunk tap costs beyond its path: its distance from `end`. */
     const tapCost = (node: number) => {
-      if (!trunk) return 0;
       const point = pointOf(node);
+      if (!onTrunk(point)) return 0;
       return Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y);
     };
     // A binary heap of [priority, state].
@@ -1268,6 +1383,29 @@ export function createRouteClearance(
           cornerOrder: "horizontal-first",
         });
     }
+    const ownWiring = options.own && {
+      ...options.own,
+      ...(trunk ? { trunk } : {}),
+    };
+    const meet = (points: Point[]) =>
+      ownWiring
+        ? meetOwnNet(points, ownWiring, electricalConnectionGrid(grid))
+        : { points, tapped: false };
+    // A crossing costs what a bend does: of two detours round a part, the
+    // one over a source's supply wire read as joined to it.
+    const priced = (points: readonly Point[]) =>
+      points
+        .slice(1)
+        .reduce(
+          (sum, point, index) =>
+            sum +
+            Math.abs(point.x - points[index]!.x) +
+            Math.abs(point.y - points[index]!.y),
+          0,
+        ) +
+      Math.max(0, points.length - 2) * 2 * grid +
+      crossings(points).length * 2 * grid +
+      sideCost(points);
     const seen = new Set<string>();
     const scored = candidates.flatMap((candidate) => {
       const compiled = compileWireDraft(
@@ -1288,19 +1426,14 @@ export function createRouteClearance(
         compiled.points.length - 2 >= first
           ? compiled.points.length - 2
           : compiled.points.length - 1;
-      const points = compiled.points.slice(first, last + 1);
-      const signature = JSON.stringify(points);
+      const raw = compiled.points.slice(first, last + 1);
+      const signature = JSON.stringify(raw);
       if (seen.has(signature)) return [];
       seen.add(signature);
-      const length = points
-        .slice(1)
-        .reduce(
-          (sum, point, index) =>
-            sum +
-            Math.abs(point.x - points[index]!.x) +
-            Math.abs(point.y - points[index]!.y),
-          0,
-        );
+      const met = meet(raw);
+      const refused = typeof met === "string" ? met : null;
+      const points = typeof met === "string" ? raw : met.points;
+      const tapped = typeof met !== "string" && met.tapped;
       // A wire leaves a pin, and reaches one, along the way the pin points.
       // Of two equally short L shapes, the one turning away right at a pin
       // read as a bump (each node of an R-2R ladder came out as two), and
@@ -1321,19 +1454,14 @@ export function createRouteClearance(
       };
       const turnsAway =
         (along(a, points[0], points[1]) ? 0 : 1) +
-        (along(b, points.at(-1), points.at(-2)) ? 0 : 1);
+        (tapped || along(b, points.at(-1), points.at(-2)) ? 0 : 1);
       return [
         {
           candidate,
           points,
-          // A crossing costs what a bend does: of two detours round a part,
-          // the one over a source's supply wire read as joined to it.
-          cost:
-            length +
-            Math.max(0, points.length - 2) * 2 * grid +
-            turnsAway * grid +
-            crossings(points).length * 2 * grid +
-            sideCost(points),
+          refused,
+          tapped,
+          cost: priced(points) + turnsAway * grid,
         },
       ];
     });
@@ -1341,19 +1469,29 @@ export function createRouteClearance(
     scored.sort((left, right) => left.cost - right.cost);
     let reason: string | null = null;
     for (const entry of scored) {
-      const found = clash(entry.points);
+      const found =
+        entry.refused ??
+        clash(entry.points, [fromEnd, entry.tapped ? undefined : toEnd]);
       if (found === null)
-        return { ...entry.candidate, points: entry.points, cost: entry.cost };
+        return {
+          ...entry.candidate,
+          ...(entry.tapped
+            ? { waypoints: bendsOf(entry.points), tap: entry.points.at(-1)! }
+            : {}),
+          points: entry.points,
+          cost: entry.cost,
+        };
       reason ??= found;
     }
     if (own.avoid) {
-      const found = search(start, end, fromEnd, toEnd, a, b, trunk);
+      const found = search(start, end, fromEnd, toEnd, a, b, trunk, ownWiring);
       if (found) {
         const candidate: ClearPath = {
           waypoints: bendsOf(found),
           cornerOrder: "horizontal-first",
         };
-        // The search may have tapped the trunk away from `to`.
+        // The search may have tapped the trunk, or a wire of its own Net,
+        // away from `to`.
         const tap = found.at(-1)!;
         const compiled = compileWireDraft(
           { connection: a },
@@ -1372,25 +1510,25 @@ export function createRouteClearance(
           compiled.points.length - 2 >= first
             ? compiled.points.length - 2
             : compiled.points.length - 1;
-        const points = compiled.points.slice(first, last + 1);
-        if (clash(points) === null)
-          return {
-            ...candidate,
-            points,
-            cost:
-              points
-                .slice(1)
-                .reduce(
-                  (sum, point, index) =>
-                    sum +
-                    Math.abs(point.x - points[index]!.x) +
-                    Math.abs(point.y - points[index]!.y),
-                  0,
-                ) +
-              Math.max(0, points.length - 2) * 2 * grid +
-              crossings(points).length * 2 * grid +
-              sideCost(points),
-          };
+        const met = meet(compiled.points.slice(first, last + 1));
+        if (typeof met !== "string") {
+          const points = met.points;
+          const reached = points.at(-1)!;
+          const tapped =
+            !same(reached, end) &&
+            !(trunk && pointOnSegment(reached, trunk[0], trunk[1]));
+          if (
+            clash(points, [fromEnd, same(reached, end) ? toEnd : undefined]) ===
+            null
+          )
+            return {
+              ...candidate,
+              waypoints: bendsOf(points),
+              points,
+              cost: priced(points),
+              ...(tapped ? { tap: reached } : {}),
+            };
+        }
       }
     }
     // Textbooks draw a bias line that cannot cross the drawing as a short

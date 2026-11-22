@@ -23,6 +23,7 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 import {
   createRouteClearance,
+  meetOwnNet,
   type ClearPath,
   type DetourSide,
   type RouteClearance,
@@ -46,7 +47,8 @@ export type RouteNetTarget =
  * Net's pin or wire and through no part, and the Net is refused, naming the
  * obstacle, when none does. `avoid` also keeps clear of drawn labels and,
  * when no simple path is clear, searches the grid round the parts; `prefer`
- * is the side a detour takes. No edits reach the live Document until all
+ * is the side a detour takes. The Net's own wires, drawn or planned here,
+ * meet only at dots (meetOwnNet). No edits reach the live Document until all
  * succeed. */
 export function planRouteNet(
   document: SchematicDocument,
@@ -253,6 +255,30 @@ export function planRouteNet(
         objectIds: [...new Set(crossed.map((crossing) => crossing.routeId))],
       });
   };
+  const tapGrid = electricalConnectionGrid(document.presentation.grid);
+  // Each component's wires already drawn: once joined they are the tree a
+  // later wire may tap, until then wiring it must keep clear of.
+  const wiring = new Map(
+    components.map((component) => {
+      const keys = new Set(component.nodes.map((node) => node.key));
+      return [
+        component.id,
+        document.routes.flatMap((route) => {
+          if (
+            !keys.has(endpointKey(route.start)) &&
+            !keys.has(endpointKey(routeEnd(route)))
+          )
+            return [];
+          const line = resolveRouteGeometry(
+            document,
+            resolver,
+            route,
+          )?.centerline;
+          return line ? along(line) : [];
+        }),
+      ];
+    }),
+  );
   let wires: WireIntent[];
   if (input.trunk) {
     const { start, end } = input.trunk;
@@ -311,8 +337,26 @@ export function planRouteNet(
           : { kind: "free", point: end },
       },
     ];
+    // The branches drawn so far, and the wires of the components they and
+    // the trunk joined: a later branch taps the first of them it meets
+    // (the trunk only at its own tap).
+    const joins = components.flatMap((component) =>
+      attached.has(component.id) ? wiring.get(component.id)! : [],
+    );
+    const joinedAt = (point: Point) =>
+      components
+        .filter((component) => attached.has(component.id))
+        .flatMap((component) => component.nodes)
+        .find((node) => node.point.x === point.x && node.point.y === point.y);
     for (const component of components) {
       if (attached.has(component.id)) continue;
+      const own = {
+        joins,
+        apart: components.flatMap((other) =>
+          attached.has(other.id) ? [] : wiring.get(other.id)!,
+        ),
+        trunk: [start, end] as const,
+      };
       const best = component.nodes
         .map((node) => ({
           node,
@@ -323,20 +367,24 @@ export function planRouteNet(
             a.projected.distanceSquared - b.projected.distanceSquared ||
             a.node.key.localeCompare(b.node.key, "en"),
         )[0]!;
-      const tap = snapGridPoint(
-        best.projected.point,
-        electricalConnectionGrid(document.presentation.grid),
-      );
-      // The branch is drawn horizontal first, as an unconstrained wire is.
+      const tap = snapGridPoint(best.projected.point, tapGrid);
+      // The branch is drawn horizontal first, as an unconstrained wire is,
+      // and ends sooner on an earlier branch it meets on the way.
       const from = best.node.point;
-      const straight =
+      const straight = meetOwnNet(
         from.x === tap.x || from.y === tap.y
           ? [from, tap]
-          : [from, { x: tap.x, y: from.y }, tap];
-      const branchConflict = clearance.conflict(straight, [
-        best.node.endpoint,
-        undefined,
-      ]);
+          : [from, { x: tap.x, y: from.y }, tap],
+        own,
+        tapGrid,
+      );
+      const branchConflict =
+        typeof straight === "string"
+          ? straight
+          : clearance.conflict(straight.points, [
+              best.node.endpoint,
+              undefined,
+            ]);
       if (branchConflict && !input.avoid)
         throw new Error(
           `route-net: the branch from ${endText(best.node.endpoint)} ${branchConflict}`,
@@ -345,31 +393,52 @@ export function planRouteNet(
       // trunk is part of the way: the branch meets it at one tap only,
       // never along it, and may tap it beside the projection to get round.
       const round = branchConflict
-        ? clearance.path(best.node.endpoint, tap, { trunk: [start, end] })
+        ? clearance.path(best.node.endpoint, tap, {
+            trunk: [start, end],
+            own,
+          })
         : null;
       if (typeof round === "string")
         throw new Error(
           `route-net: the branch from ${endText(best.node.endpoint)}: ${round}`,
         );
-      sayCrossings(endText(best.node.endpoint), round?.points ?? straight);
+      const plain = round
+        ? null
+        : (straight as Exclude<typeof straight, string>);
+      const drawn = round?.points ?? plain!.points;
+      const reached = drawn.at(-1)!;
+      // A tap on an earlier branch at a pin it joined is that pin.
+      const joined =
+        round?.tap || plain?.tapped ? joinedAt(reached) : undefined;
+      sayCrossings(endText(best.node.endpoint), drawn);
       wires.push({
         id: id(component.id),
         from: { kind: "endpoint", endpoint: best.node.endpoint },
-        to: { kind: "wire-at", point: round?.points?.at(-1) ?? tap },
+        to: joined
+          ? { kind: "endpoint", endpoint: joined.endpoint }
+          : { kind: "wire-at", point: reached },
         ...(round
           ? {
               ...(round.waypoints.length ? { waypoints: round.waypoints } : {}),
               routingMode: "orthogonal" as const,
               cornerOrder: round.cornerOrder,
             }
-          : {}),
+          : plain!.tapped && drawn.length > 2
+            ? {
+                waypoints: drawn.slice(1, -1),
+                routingMode: "orthogonal" as const,
+                cornerOrder: "horizontal-first" as const,
+              }
+            : {}),
       });
+      joins.push(...along(drawn), ...wiring.get(component.id)!);
+      attached.add(component.id);
     }
   } else {
     wires = planNetTree(
-      document,
-      resolver,
       components,
+      wiring,
+      tapGrid,
       clearance,
       id,
       (endpoint, points) => sayCrossings(endText(endpoint), points),
@@ -384,6 +453,8 @@ export function planRouteNet(
 
 type TreeNode = RoutingGuidanceComponent["nodes"][number];
 type Segment = readonly [Point, Point];
+const along = (points: readonly Point[]): Segment[] =>
+  points.slice(1).map((to, index) => [points[index]!, to] as const);
 
 /**
  * The wires that join a Net's visible components, drawn as a person draws a
@@ -392,11 +463,13 @@ type Segment = readonly [Point, Point];
  * Junction already joined or straight onto a wire already drawn. Joining pin
  * to pin alone drew a pipeline stage's hold node down to its capacitor's pin
  * and back up on its way to the adder, two Junctions where one T belongs.
+ * A wire that meets the tree on its way ends there, a T, and none crosses
+ * or runs along a wire of the Net it does not end on.
  */
 function planNetTree(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
   components: readonly RoutingGuidanceComponent[],
+  wiring: ReadonlyMap<string, readonly Segment[]>,
+  tapGrid: number,
   clearance: RouteClearance,
   id: (part: string) => string,
   say: (from: RouteEndpoint, points: readonly Point[]) => void,
@@ -415,26 +488,21 @@ function planNetTree(
   const treeNodes: TreeNode[] = [];
   const segments: Segment[] = [];
   const wires: WireIntent[] = [];
-  const along = (points: readonly Point[]): Segment[] =>
-    points.slice(1).map((to, index) => [points[index]!, to] as const);
   const join = (
     component: RoutingGuidanceComponent,
     points: readonly Point[] = [],
   ) => {
     joined.add(component.id);
     treeNodes.push(...component.nodes);
-    const keys = new Set(component.nodes.map((node) => node.key));
-    for (const route of document.routes) {
-      if (
-        !keys.has(endpointKey(route.start)) &&
-        !keys.has(endpointKey(routeEnd(route)))
-      )
-        continue;
-      const line = resolveRouteGeometry(document, resolver, route)?.centerline;
-      if (line) segments.push(...along(line));
-    }
-    segments.push(...along(points));
+    segments.push(...wiring.get(component.id)!, ...along(points));
   };
+  /** The Net round a wire about to be drawn: the tree, and the rest. */
+  const own = () => ({
+    joins: segments,
+    apart: sorted.flatMap((component) =>
+      joined.has(component.id) ? [] : wiring.get(component.id)!,
+    ),
+  });
   // A wire may not run over a pin it does not join: the pin would sit on
   // the wire without belonging to it.
   const overOtherPins = (points: readonly Point[], ends: readonly Point[]) =>
@@ -467,7 +535,8 @@ function planNetTree(
       if (length <= trunkLength) continue;
       if (
         overOtherPins([p, q], [p, q]) ||
-        clearance.conflict([p, q], [a.node.endpoint, b.node.endpoint])
+        clearance.conflict([p, q], [a.node.endpoint, b.node.endpoint]) ||
+        typeof meetOwnNet([p, q], own(), tapGrid) === "string"
       )
         continue;
       trunk = { a, b };
@@ -504,7 +573,9 @@ function planNetTree(
       .sort((left, right) => left.estimate - right.estimate)
       .slice(0, 8);
     for (const { a, b } of pairs) {
-      const path = clearance.path(a.node.endpoint, b.node.endpoint);
+      const path = clearance.path(a.node.endpoint, b.node.endpoint, {
+        own: own(),
+      });
       if (typeof path === "string") {
         reason ??= path;
         continue;
@@ -531,8 +602,8 @@ function planNetTree(
     join(seed.b.component);
   }
 
-  const tapGrid = electricalConnectionGrid(document.presentation.grid);
   while (joined.size < sorted.length) {
+    const wiringNow = own();
     let best: {
       component: RoutingGuidanceComponent;
       node: TreeNode;
@@ -576,12 +647,16 @@ function planNetTree(
         const path = clearance.path(
           node.endpoint,
           target.endpoint ?? target.point,
+          { own: wiringNow },
         );
         if (typeof path === "string") {
           reason ??= path;
           continue;
         }
-        const over = overOtherPins(path.points!, [node.point, target.point]);
+        const over = overOtherPins(path.points!, [
+          node.point,
+          path.tap ?? target.point,
+        ]);
         if (over) {
           reason ??= overText(
             node.endpoint,
@@ -590,8 +665,17 @@ function planNetTree(
           );
           continue;
         }
+        // Met the tree on the way: the tap, or the pin of it there.
+        const reached = path.tap
+          ? {
+              endpoint:
+                treeNodes.find((tree) => same(tree.point, path.tap!))
+                  ?.endpoint ?? null,
+              point: path.tap,
+            }
+          : target;
         if (!best || path.cost! < best.path.cost!)
-          best = { component, node, ...target, path };
+          best = { component, node, ...reached, path };
       }
     }
     if (!best) throw new Error(`route-net: ${reason ?? "no clear path"}`);

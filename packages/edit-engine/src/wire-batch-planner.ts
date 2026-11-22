@@ -9,6 +9,7 @@ import {
 } from "@icm/derived";
 import {
   routeEnd,
+  routeEndpoints,
   routeElectricalConnections,
   junctionElectricalEndpoints,
   type Point,
@@ -293,7 +294,92 @@ function keepClear(
       ends.flatMap((end) => (end ? [endpointKey(end)] : [])),
     ),
   });
-  const problem = clearance.conflict(points, ends);
+  // Its own Net's wires: those on its ends' Nets, and those an earlier wire
+  // of the batch joined to them, whose Nets settle only at commit. One that
+  // ends on the path, or runs along it, the commit joins in a T; a crossing,
+  // or a bend on the other's line, it leaves with no dot, an unmarked join.
+  const own = new Set([...nets.from, ...nets.to]);
+  const width = path.route.members?.length ?? 1;
+  const reached = new Set(
+    [from, to].flatMap((anchor) =>
+      anchor.kind === "endpoint" ? [endpointKey(anchor.endpoint)] : [],
+    ),
+  );
+  const ownRoutes = new Set<string>(
+    [from, to].flatMap((anchor) =>
+      anchor.kind === "route-segment" ? [anchor.routeId] : [],
+    ),
+  );
+  for (let grown = true; grown;) {
+    grown = false;
+    for (const route of document.routes) {
+      if (ownRoutes.has(route.id) || (route.members?.length ?? 1) !== width)
+        continue;
+      const keys = routeEndpoints(route).map(endpointKey);
+      const connections = routeElectricalConnections(route);
+      if (
+        !keys.some((key) => reached.has(key)) &&
+        !(
+          connections.length &&
+          connections.every((connection) =>
+            own.has(
+              context.logicalNetResolution.byBaseNetId.get(connection.netId)
+                ?.id ?? connection.netId,
+            ),
+          )
+        )
+      )
+        continue;
+      ownRoutes.add(route.id);
+      for (const key of keys) reached.add(key);
+      grown = true;
+    }
+  }
+  const ownLines = document.routes.flatMap((route) => {
+    if (!ownRoutes.has(route.id)) return [];
+    const line = resolveRouteGeometry(document, resolver, route)?.centerline;
+    return line && line.length > 1 ? [line] : [];
+  });
+  const pairs = (line: readonly Point[]) =>
+    line.slice(1).map((to, index) => [line[index]!, to] as const);
+  const unmarked = (path: readonly Point[]) => {
+    // Where the path runs along a wire of its Net, the commit merges the two
+    // and dots the point where they part.
+    const shared = pairs(path).flatMap(([a, b]) =>
+      ownLines.flatMap((line) =>
+        pairs(line).flatMap(([c, d]) => {
+          const near = intersectSegments(a, b, c, d);
+          const far = intersectSegments(b, a, c, d);
+          return near?.kind === "overlap" &&
+            far?.kind === "overlap" &&
+            !samePoint(near.point, far.point)
+            ? [[near.point, far.point] as const]
+            : [];
+        }),
+      ),
+    );
+    for (const [a, b] of pairs(path))
+      for (const line of ownLines)
+        for (const [c, d] of pairs(line)) {
+          const hit = intersectSegments(a, b, c, d);
+          if (
+            hit?.kind === "crossing" &&
+            ![path[0]!, path.at(-1)!, line[0]!, line.at(-1)!].some((end) =>
+              samePoint(end, hit.point),
+            ) &&
+            !shared.some(([p, q]) => pointOnSegment(hit.point, p, q))
+          )
+            return hit.point;
+        }
+    return null;
+  };
+  const crossesOwn = (path: readonly Point[]) => {
+    const point = unmarked(path);
+    return point
+      ? `crosses a wire of its own Net at (${point.x}, ${point.y}), where nothing would put a dot`
+      : null;
+  };
+  const problem = clearance.conflict(points, ends) ?? crossesOwn(points);
   // A crossing joins nothing and has no dot; the receipt names each one, so
   // a wire over a supply's taps is never a silent surprise.
   const crossingText = (path: readonly Point[]) => {
@@ -330,7 +416,12 @@ function keepClear(
         path.route.members?.length ?? 1,
       ) ?? intent
     );
-  const clear = clearance.path(endOf(from), endOf(to));
+  let clear = clearance.path(endOf(from), endOf(to));
+  // A detour over its own Net's wire keeps clear of all of them instead.
+  if (typeof clear !== "string" && unmarked(clear.points!))
+    clear = clearance.path(endOf(from), endOf(to), {
+      own: { apart: ownLines.flatMap(pairs) },
+    });
   if (intent.waypoints?.length) {
     // What the caller can send instead, so it need not guess new via
     // points: a hand-routed body wire was refused where leaving the route
