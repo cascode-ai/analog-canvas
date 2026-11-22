@@ -32,6 +32,7 @@ import {
   isIdealComparatorBody,
   isIdealOpampBody,
   instanceBuiltInSubcircuit,
+  isGenericBlockTarget,
   callOwner,
   subcircuitDescriptor,
 } from "@icm/devices";
@@ -663,14 +664,25 @@ function analyzeDesign(
       // A Library part's call-only name that no definition in this output
       // has is always left to the reader's libraries.
       if (callOnly && (generated || !availableSubcircuits.has(target))) {
-        diagnostic(
-          diagnostics,
-          cell.id,
-          "SPECTRE_MODEL_NOT_INCLUDED",
-          `${instance.reference} calls ${instance.target}, which this Spectre export does not define: bind it to a cell from your libraries, a PDK standard cell or a Verilog-A model for example. A SPICE export includes an ideal ${instance.target}`,
-          [instance.id],
-          "warning",
-        );
+        // A generic block has no body in any netlist (#2445).
+        if (isGenericBlockTarget(instance.target))
+          diagnostic(
+            diagnostics,
+            cell.id,
+            "GENERIC_BLOCK_UNDEFINED",
+            `${instance.reference} calls ${instance.target}, a generic block no netlist here defines: name the subcircuit it stands for with set-model, or bind it to a Cell`,
+            [instance.id],
+            "warning",
+          );
+        else
+          diagnostic(
+            diagnostics,
+            cell.id,
+            "SPECTRE_MODEL_NOT_INCLUDED",
+            `${instance.reference} calls ${instance.target}, which this Spectre export does not define: bind it to a cell from your libraries, a PDK standard cell or a Verilog-A model for example. A SPICE export includes an ideal ${instance.target}`,
+            [instance.id],
+            "warning",
+          );
         continue;
       }
       // An explicitly retargeted unresolved subcircuit is an intentional

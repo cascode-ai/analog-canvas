@@ -350,6 +350,23 @@ information). Hidden bulk needs no decorative wire.
   and calls the Cell; the Cell's Pins must match the part's (`IN+`/`IN-`/`OUT`,
   or `INP`/`INN`), and `model: ""` unbinds it. `set-cell-symbol-artwork` is
   only for shapes no Library part has.
+- A block the figure leaves unspecified (#2445):
+  - an impedance or two-terminal box (Z_S, "Trimming"): `impedance` (pins `1`,
+    `2`, drawn Z1); a two-port (a matching network, a filter): `two-port`
+    (`P1`/`N1` left, `P2`/`N2` right). Each prints only a call,
+    `X1 a b impedance` / `two_port`, with the warning
+    `GENERIC_BLOCK_UNDEFINED`; `set-model {target, model:"zs"}` names the
+    subcircuit it stands for (any identifier; no warning), `model:""` returns
+    the default, and a Project Cell or external subcircuit of that name with
+    the part's Pins is bound instead. Show the figure's label with
+    `set-display-alias`.
+  - a labelled function box with its own pins (power stage, clock generator,
+    8-to-3 encoder): a Cell of that name. `create-cell {id, name}`, a `port`
+    per pin in it (`documentId` the Cell), then `place-cell` in the parent; arrange
+    with `set-cell-symbol-pins`/`-size`. It prints `X1 … name` and an empty
+    `.subckt name … .ends`; `verify` against a netlist that leaves `name`
+    undefined reports topology equal and one `binding` difference
+    (`compare:{bindings:false}`).
 - `set-port-direction` sets one terminal or a whole Port; `set-vdd-mode`
   switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.

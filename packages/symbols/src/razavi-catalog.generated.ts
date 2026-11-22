@@ -1241,6 +1241,41 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "b87bf21015bfb92a4d407c15a7c6a0e601f4d0adcfdd35775f3da86f9e0384b2",
   },
   {
+    symbolId: "impedance",
+    name: "Impedance",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A generic impedance does not appear on the reviewed page; it is drawn as figures draw an impedance or an unspecified two-terminal block, the IEC rectangle on the Resistor's pins, so it reads apart from the zigzag resistor.",
+    pinOrder: ["1", "2"],
+    drawnReferencePrefix: "Z",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A generic block stands for a subcircuit of the reader's own; it prints only as a call of that subcircuit, named impedance until set-model names it.",
+    assetPath: "impedance.json",
+    assetHash:
+      "d14a0d9456ad70ed855e53a66decef7754035b9682b8a4204ca54bf07d637ca2",
+  },
+  {
+    symbolId: "two-port",
+    name: "Two-Port",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A generic two-port does not appear on the reviewed page; it is drawn as figures draw a matching network or filter, a square box with port 1 on the left and port 2 on the right, each a pin pair on the 20-unit row spacing of the op-amp inputs.",
+    pinOrder: ["P1", "N1", "P2", "N2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A generic block stands for a subcircuit of the reader's own; it prints only as a call of that subcircuit, named two_port until set-model names it.",
+    assetPath: "two-port.json",
+    assetHash:
+      "47d3313dad1cad3177cfdda75182ba265dfe7a10fb2069671befbaf2b0e82ae4",
+  },
+  {
     symbolId: "inverter",
     name: "Inverter",
     category: "logic",
@@ -12131,6 +12166,246 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         to: {
           x: 20,
           y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "impedance",
+    name: "Impedance",
+    viewBox: {
+      x: -10,
+      y: -24,
+      width: 20,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "rectangle",
+        bounds: {
+          x: -5,
+          y: -12,
+          width: 10,
+          height: 24,
+        },
+        fillableBody: true,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -20,
+        },
+        to: {
+          x: 0,
+          y: -12,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "two-port",
+    name: "Two-Port",
+    viewBox: {
+      x: -34,
+      y: -24,
+      width: 68,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "P1",
+        role: "passive",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "N1",
+        role: "passive",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "P2",
+        role: "passive",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "N2",
+        role: "passive",
+        at: {
+          x: 30,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "rectangle",
+        bounds: {
+          x: -20,
+          y: -20,
+          width: 40,
+          height: 40,
+        },
+        fillableBody: true,
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 20,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 20,
+          y: 10,
+        },
+        to: {
+          x: 30,
+          y: 10,
         },
         style: {
           strokeRole: "normal",

@@ -40,8 +40,8 @@ import { pinsGround } from "./extract-ground-pin.js";
  * nothing inside used. The ideal comparator whose high level is its own VDD
  * reads that supply alone. The ideal op-amp reads its supplies only once a
  * drawn or selected VDD powers it (ideal-opamp.ts), so an undrawn supply
- * takes no default. The crystal has no supply ports. Every other body reads
- * both.
+ * takes no default. The passive parts and the generic blocks have no supply
+ * ports. Every other body reads both.
  */
 export function bodySupplies(
   target: string,
@@ -53,7 +53,8 @@ export function bodySupplies(
   )
     return idealComparatorReadsSupply(target) ? ["VDD"] : [];
   if (isIdealOpampBody(target)) return [];
-  if (builtInModelContract(target)?.family === "passive") return [];
+  const family = builtInModelContract(target)?.family;
+  if (family === "passive" || family === "generic") return [];
   return idealAnalogBlockCell(target, format) !== null ||
     (format === "spice" &&
       (target === "multiplier" || target === IDEAL_COMPARATOR_TARGET))

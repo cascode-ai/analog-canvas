@@ -193,8 +193,9 @@ const BASELINES = (["spice", "spectre"] as const).flatMap((format) =>
 
 /**
  * The calls that have no other name: a body already reserved (the ideal
- * comparators' VDD bodies, the default), and in Spectre the call-only calls,
- * whose names are the reader's interface.
+ * comparators' VDD bodies, the default), and the call-only calls, in Spectre
+ * and the generic blocks' in every format, whose names are the reader's
+ * interface.
  */
 const NO_OTHER_NAME = [
   ["spice", "icm_ideal_comparator_vdd"],
@@ -209,6 +210,10 @@ const NO_OTHER_NAME = [
   ["spectre", "dac"],
   ["spectre", "adc_differential"],
   ["spectre", "dac_differential"],
+  ["spice", "impedance"],
+  ["spice", "two_port"],
+  ["spectre", "impedance"],
+  ["spectre", "two_port"],
 ] as const;
 const hasNoOtherName = ({ format, target }: (typeof BASELINES)[number]) =>
   NO_OTHER_NAME.some((entry) => entry[0] === format && entry[1] === target);

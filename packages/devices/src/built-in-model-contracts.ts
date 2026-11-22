@@ -66,6 +66,11 @@ export type BuiltInModelRecipe =
     }
   | { readonly family: "opamp"; readonly implementation: "opamp" }
   | {
+      /** A box standing for a subcircuit the reader's libraries define. */
+      readonly family: "generic";
+      readonly implementation: "impedance" | "two-port";
+    }
+  | {
       readonly family: "semiconductor";
       readonly implementation: "ujt" | "put" | "shockley";
     };
@@ -421,6 +426,8 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
     family: "passive",
     implementation: "transmission-line",
   },
+  impedance: { family: "generic", implementation: "impedance" },
+  two_port: { family: "generic", implementation: "two-port" },
   ujt: { family: "semiconductor", implementation: "ujt" },
   put: { family: "semiconductor", implementation: "put" },
   shockley: { family: "semiconductor", implementation: "shockley" },
@@ -489,22 +496,36 @@ function contract(target: string): BuiltInModelContract | undefined {
                     : Object.hasOwn(analog, target)
                       ? [analog[target as keyof typeof analog]]
                       : [],
-    backends: {
-      spice: "included",
-      spectre:
-        family === "linear" ||
-        family === "opamp" ||
-        family === "comparator" ||
-        family === "passive" ||
-        family === "semiconductor" ||
-        (family === "logic" && implementation !== "flip-flop")
-          ? "included"
-          : "external",
-      // VACASK has no transmission line device.
-      vacask:
-        implementation === "transmission-line" ? "unsupported" : "included",
-    },
+    // A generic block is only ever a call: the reader's libraries define it.
+    backends:
+      family === "generic"
+        ? { spice: "external", spectre: "external", vacask: "external" }
+        : {
+            spice: "included",
+            spectre:
+              family === "linear" ||
+              family === "opamp" ||
+              family === "comparator" ||
+              family === "passive" ||
+              family === "semiconductor" ||
+              (family === "logic" && implementation !== "flip-flop")
+                ? "included"
+                : "external",
+            // VACASK has no transmission line device.
+            vacask:
+              implementation === "transmission-line"
+                ? "unsupported"
+                : "included",
+          },
   };
+}
+
+/**
+ * Whether a target is a generic block's (#2445): a box that stands for a
+ * subcircuit of the reader's own, which no netlist here defines.
+ */
+export function isGenericBlockTarget(target: string): boolean {
+  return builtInModelContract(target)?.family === "generic";
 }
 
 /** Model facts, not artwork or Project state. Family factories consume these defaults. */

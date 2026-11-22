@@ -53,6 +53,15 @@ describe("built-in model registration", () => {
 
   it("retains backend scope and parameter defaults independently of Symbol variants", () => {
     for (const model of builtInModelContracts) {
+      // A generic block is a call in every backend (#2445).
+      if (model.family === "generic") {
+        expect(model.backends).toEqual({
+          spice: "external",
+          spectre: "external",
+          vacask: "external",
+        });
+        continue;
+      }
       expect(model.backends.spice).toBe("included");
       // VACASK has no transmission line device.
       expect(model.backends.vacask).toBe(

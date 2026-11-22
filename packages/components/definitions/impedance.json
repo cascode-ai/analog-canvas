@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "impedance",
+    "name": "Impedance",
+    "viewBox": {
+      "x": -10,
+      "y": -24,
+      "width": 20,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "1",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "2",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "rectangle",
+        "bounds": {
+          "x": -5,
+          "y": -12,
+          "width": 10,
+          "height": 24
+        },
+        "fillableBody": true,
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -20
+        },
+        "to": {
+          "x": 0,
+          "y": -12
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 12
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "impedance",
+    "name": "Impedance",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A generic impedance does not appear on the reviewed page; it is drawn as figures draw an impedance or an unspecified two-terminal block, the IEC rectangle on the Resistor's pins, so it reads apart from the zigzag resistor.",
+    "pinOrder": ["1", "2"],
+    "drawnReferencePrefix": "Z",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A generic block stands for a subcircuit of the reader's own; it prints only as a call of that subcircuit, named impedance until set-model names it.",
+    "assetPath": "impedance.json"
+  },
+  "subcircuit": {
+    "id": "impedance",
+    "symbolId": "impedance",
+    "target": "impedance",
+    "ports": [
+      {
+        "name": "n1",
+        "direction": "passive",
+        "pinName": "1"
+      },
+      {
+        "name": "n2",
+        "direction": "passive",
+        "pinName": "2"
+      }
+    ]
+  }
+}

@@ -2866,6 +2866,26 @@ export const componentSubcircuitDescriptors: readonly BuiltInSubcircuitDescripto
       ],
     },
     {
+      id: "impedance",
+      symbolId: "impedance",
+      target: "impedance",
+      ports: [
+        { name: "n1", direction: "passive", pinName: "1" },
+        { name: "n2", direction: "passive", pinName: "2" },
+      ],
+    },
+    {
+      id: "two-port",
+      symbolId: "two-port",
+      target: "two_port",
+      ports: [
+        { name: "p1", direction: "passive", pinName: "P1" },
+        { name: "n1", direction: "passive", pinName: "N1" },
+        { name: "p2", direction: "passive", pinName: "P2" },
+        { name: "n2", direction: "passive", pinName: "N2" },
+      ],
+    },
+    {
       id: "inverter",
       symbolId: "inverter",
       target: "inverter",

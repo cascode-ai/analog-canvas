@@ -29,6 +29,9 @@ const INLINE_TARGETS = new Set([
   ...SUPPLIES_LAST_TARGETS,
   "adc_differential",
   "dac_differential",
+  // The generic blocks (#2445).
+  "impedance",
+  "two_port",
 ]);
 
 /** The pins a symbol's default variant hides. */

@@ -154,8 +154,8 @@ Bodies live in [analog blocks](../../packages/netlist/src/ideal-analog-block-mod
 [signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts),
 [semiconductor devices](../../packages/netlist/src/semiconductor-device-models.ts) and
 [generated models](../../packages/netlist/src/generated-models.ts). Every Block
-but the crystal, the potentiometer, the transmission line and the
-semiconductor devices declares
+but the crystal, the potentiometer, the transmission line, the generic blocks
+and the semiconductor devices declares
 fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
@@ -258,6 +258,12 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
   subcircuit or model source, in the netlist defines it, an unbound part
   refuses with `LIBRARY_PART_NAME_COLLISION` naming `set-model`.
   Other Analog Blocks are black-box calls.
+- The generic blocks, impedance (`impedance`: `n1 n2`) and two-port
+  (`two_port`: `p1 n1 p2 n2`), no supplies, have no body in any format: each
+  is that call alone, with the warning `GENERIC_BLOCK_UNDEFINED`, under the
+  same collision rule. `set-model` names the subcircuit one stands for (any
+  identifier, an `unresolved-subcircuit` binding, no warning) unless a Cell
+  or external subcircuit of that name is bound by Pin name instead.
 
 ### Switches
 

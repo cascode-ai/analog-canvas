@@ -82,10 +82,53 @@ describe("generated block bodies", () => {
         !idealAnalogBlockCell(target, "spice") &&
         !IDEAL_LOGIC_TARGETS.includes(target) &&
         !IDEAL_SIGNAL_TARGETS.includes(target) &&
-        builtInModelContract(target)?.family !== "passive",
+        builtInModelContract(target)?.family !== "passive" &&
+        // A generic block is a call of the reader's own subcircuit.
+        builtInModelContract(target)?.family !== "generic",
     );
     expect(missing).toEqual([]);
   });
+
+  it.each([
+    ["impedance", "X1 n1 n2", "zs"],
+    ["two-port", "X1 p1 n1 p2 n2", "matching_network"],
+  ])(
+    "export a generic %s as a call of the subcircuit it stands for, defined by the reader (#2445)",
+    (symbolId, call, name) => {
+      const project = blockCell(symbolId);
+      const target = subcircuitDescriptor(symbolId)!.target;
+      for (const format of ["spice", "spectre"] as const) {
+        const result = createDesignNetlistExport(project, { format });
+        expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+        if (result.status !== "ready") return;
+        const line = format === "spice" ? call : call.replace(" ", " (") + ")";
+        expect(result.file.text).toMatch(
+          new RegExp(`^${line.replace(/[()]/gu, "\\$&")} ${target}$`, "mu"),
+        );
+        // No body: the reader's libraries define it.
+        expect(result.file.text).not.toMatch(
+          /^\.?subckt (impedance|two_port)/mu,
+        );
+        expect(result.diagnostics).toEqual([
+          expect.objectContaining({
+            code: "GENERIC_BLOCK_UNDEFINED",
+            severity: "warning",
+            objectIds: ["block"],
+          }),
+        ]);
+      }
+      // Named, it calls that subcircuit and says nothing.
+      project.documents[0]!.instances[0]!.netlist!.binding = {
+        kind: "unresolved-subcircuit",
+        name,
+      };
+      const named = createDesignNetlistExport(project);
+      expect(named.status).toBe("ready");
+      if (named.status !== "ready") return;
+      expect(named.file.text).toMatch(new RegExp(`^${call} ${name}$`, "mu"));
+      expect(named.diagnostics).toEqual([]);
+    },
+  );
 
   it("write the multiplier and the converters as single B-sources", () => {
     expect(spiceIdealSignalSubcircuit("multiplier")).toEqual([

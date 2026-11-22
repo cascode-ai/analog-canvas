@@ -47,6 +47,8 @@ const PRODUCT_IDS = [
   "xfmr",
   "center-tap-inductor",
   "transmission-line",
+  "impedance",
+  "two-port",
   "inverter",
   "microphone",
   "ammeter",

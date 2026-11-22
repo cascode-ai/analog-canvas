@@ -9,6 +9,7 @@ import type {
 import { deriveStableId, projectCellInterface } from "@icm/model";
 import { pdkSubstrateDefaultNet } from "@icm/derived";
 import {
+  builtInModelContract,
   builtInModelDefaults,
   deviceDescriptor,
   bindsProjectCell,
@@ -16,6 +17,7 @@ import {
   hasCanvasGenericModel,
   ics55MosType,
   instanceEvidence,
+  isGenericBlockTarget,
   matchGateCellPins,
   matchGateExternalPins,
   matchingGenericModelName,
@@ -571,6 +573,42 @@ export function planSetDeviceModelTarget(
         instance.netlist,
         externalImplementation(instance, external),
       );
+    // A generic block stands for a subcircuit of the reader's own: any name
+    // a netlist can call is its master (#2445).
+    if (
+      !targetBinding &&
+      normalizedName &&
+      gate &&
+      isGenericBlockTarget(gate.target)
+    ) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(normalizedName))
+        throw new Error(
+          `${normalizedName} cannot name a subcircuit: use letters, digits and _, not starting with a digit`,
+        );
+      const body = builtInModelContract(normalizedName.toLowerCase());
+      if (body && body.target !== gate.target)
+        throw new Error(
+          `${normalizedName} is the body of Analog Canvas's ${body.symbolId}; name the subcircuit ${instance.reference ?? instanceId} stands for otherwise`,
+        );
+      const binding = {
+        kind: "unresolved-subcircuit" as const,
+        name: normalizedName,
+      };
+      if (
+        JSON.stringify(instance.netlist.binding ?? null) ===
+        JSON.stringify(binding)
+      )
+        return [];
+      return [
+        transactDocument(project, documentId, [
+          {
+            kind: "bulk_patch_instance_netlist",
+            assignments: [{ instanceId, binding }],
+          },
+          ...clearedMasterNameEdits(project, document, instance),
+        ]),
+      ];
+    }
     if (!targetBinding && normalizedName) {
       const choices = [
         ...gateCellTargets(project, documentId, sourceSymbolId).map(

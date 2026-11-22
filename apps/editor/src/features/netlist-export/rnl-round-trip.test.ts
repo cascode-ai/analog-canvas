@@ -6858,6 +6858,40 @@ describe("RNL round trip of built-in blocks", () => {
     },
   );
 
+  it.each([
+    ["impedance", "impedance"],
+    ["two-port", "two_port"],
+    ["two-port", "matching_network"],
+  ] as const)(
+    "draws a generic %s calling %s as a stencil of its own and brings it back (#2445)",
+    async (symbolId, master) => {
+      for (const format of ["spice", "spectre"] as const) {
+        const project = converter(symbolId);
+        project.documents[0]!.instances[0]!.netlist = {
+          binding: { kind: "unresolved-subcircuit", name: master },
+          parameters: {},
+        };
+        const plan = await roundTrip(project, format);
+        expect(
+          plan.diagnostics.filter(
+            (item) =>
+              item.severity === "error" || item.code === "RNL_IMPORT_RNL_ERROR",
+          ),
+        ).toEqual([]);
+        const part = plan.project.documents
+          .flatMap((document) => document.instances)
+          .find((instance) => instance.reference === "X1")!;
+        expect(rnlPart(part)).toEqual(
+          rnlPart(project.documents[0]!.instances[0]!),
+        );
+        const again = createDesignNetlistExport(plan.project, { format });
+        expect(again.status === "ready" && again.file.text).toMatch(
+          new RegExp(`^X1 .* ${master}$`, "mu"),
+        );
+      }
+    },
+  );
+
   it.each(["spice", "spectre"] as const)(
     "brings an op-amp bound to a Cell back drawn, the Cell's IN+ and IN- spelt as Spectre escapes them (%s)",
     async (format) => {

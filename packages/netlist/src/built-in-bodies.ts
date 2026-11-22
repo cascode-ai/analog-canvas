@@ -8,6 +8,7 @@ import {
   drawnMagneticNetwork,
   builtInModelContract,
   builtInSubcircuitDescriptors,
+  isGenericBlockTarget,
   isIdealComparatorBody,
   idealComparatorModelTarget,
   isIdealOpampBody,
@@ -409,6 +410,25 @@ export function callOnlyBlock(
   const contract = builtInModelContract(
     format === "spice" ? name.toLowerCase() : name,
   );
+  // A generic block's symbol says the call is that block, whatever
+  // subcircuit of the reader's it names (#2445).
+  const generic = builtInModelContract(
+    subcircuitDescriptor(symbolId)?.target ?? "",
+  );
+  if (
+    generic &&
+    isGenericBlockTarget(generic.target) &&
+    (!contract || contract.target === generic.target)
+  )
+    return {
+      name,
+      kind: "subcircuit",
+      symbolId: generic.symbolId,
+      target: contract ? contract.target : name,
+      ports: generic.ports.flatMap((port) =>
+        port.pinName ? [{ pinName: port.pinName }] : [],
+      ),
+    };
   // Any Library symbol drawing the body, an input-swapped sibling included.
   if (
     !contract ||
