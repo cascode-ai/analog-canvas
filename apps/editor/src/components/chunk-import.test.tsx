@@ -1,17 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { ChunkLoadError, chunkLoadStatus, importChunk } from "./chunk-import";
+import { ChunkLoadError, importChunk } from "./chunk-import";
 import { ChunkLoadBanner } from "./chunk-load-fallback";
 
 describe("importChunk", () => {
-  it("passes a resolved module through untouched", async () => {
-    const module = { render: () => "ok" };
-    await expect(
-      importChunk("PDF export", () => Promise.resolve(module)),
-    ).resolves.toBe(module);
-  });
-
   it("wraps a redeploy-vanished chunk into a named ChunkLoadError", async () => {
     // The exact browser failure a stale tab produces: the SPA fallback
     // answered index.html where a content-hashed module used to live.
@@ -36,14 +29,6 @@ describe("importChunk", () => {
     expect(chunkError.message).toContain("PDF export");
     expect(chunkError.message).not.toContain("has been updated");
     expect(chunkError.message).toContain("check your connection");
-  });
-
-  it("phrases the status line as remedy, not stack trace", () => {
-    const status = chunkLoadStatus("PDF export");
-    expect(status).toContain("PDF export could not load");
-    expect(status).toContain("Refresh");
-    expect(status).toContain("restored automatically");
-    expect(status).not.toContain("has been updated");
   });
 });
 

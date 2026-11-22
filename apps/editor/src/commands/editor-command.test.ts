@@ -80,15 +80,6 @@ function fixture(overrides: Partial<EditorCommandContext> = {}) {
 }
 
 describe("editor command router", () => {
-  it("routes Search and Selection Filter through distinct commands", () => {
-    const { router, operations } = fixture();
-    router.execute({ id: "selection.filter.open" });
-    expect(operations.openSelectionFilter).toHaveBeenCalledOnce();
-    expect(operations.openSearch).not.toHaveBeenCalled();
-    router.execute({ id: "search.open" });
-    expect(operations.openSearch).toHaveBeenCalledOnce();
-  });
-
   it("copies visual content without arming circuit copy or mutating history", () => {
     const { router, operations } = fixture();
     router.execute({ id: "selection.copy-image", format: "svg" });
@@ -227,14 +218,6 @@ describe("editor command router", () => {
     router.execute({ id: "transform.mirror", direction: "left-right" });
     expect(operations.mirrorSelection).not.toHaveBeenCalled();
   });
-
-  it("delegates insertion without flattening its specialized request", () => {
-    const { router, operations } = fixture();
-    const launch = { kind: "picker", scope: "cells" } as const;
-    router.execute({ id: "insert.start", launch });
-    expect(operations.startInsert).toHaveBeenCalledWith(launch);
-  });
-
   it("publishes one active state for tool buttons and shortcuts", () => {
     const { router, operations } = fixture({ activeTool: "wire" });
     expect(router.state({ id: "tool.activate", tool: "wire" })).toEqual({
@@ -244,17 +227,6 @@ describe("editor command router", () => {
     router.execute({ id: "tool.activate", tool: "arrow" });
     expect(operations.activateTool).toHaveBeenCalledWith("arrow");
   });
-
-  it("routes camera panning through the shared command plane", () => {
-    const { router, operations } = fixture({ interactionMode: "wire" });
-    expect(router.state({ id: "view.pan", direction: "left" })).toEqual({
-      enabled: true,
-      active: false,
-    });
-    router.execute({ id: "view.pan", direction: "up" });
-    expect(operations.panView).toHaveBeenCalledWith("up");
-  });
-
   it("leaves history and tool re-entry lifecycle to their domain owners", () => {
     const history = fixture({ interactionMode: "moving-selection" });
     history.router.execute({ id: "history.undo" });

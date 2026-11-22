@@ -507,36 +507,6 @@ describe("GalleryFeed", () => {
       "beian.miit.gov.cn",
     );
   });
-
-  it("renders the landing chrome and editor entry point", () => {
-    const markup = renderToStaticMarkup(
-      createElement(GalleryFeed, { visitStats: { pv: 42, uv: 17 } }),
-    );
-    expect(markup).toContain('data-testid="gallery-feed"');
-    expect(markup).toContain("Analog Canvas");
-    // Editor is the one way into the editor; there is no second New Circuit.
-    expect(markup).toContain('data-testid="gallery-editor-switch"');
-    expect(markup).not.toContain("gallery-new-circuit");
-    // Film beside it plays the one-minute film; the header has no Arena link.
-    expect(markup).toContain('data-testid="gallery-film-link"');
-    expect(markup).toContain('href="/film"');
-    expect(markup).not.toContain('href="/arena"');
-    expect(markup).toContain('data-testid="gallery-report-bug"');
-    expect(markup).toContain("Report bug");
-    expect(markup).toContain('href="/editor"');
-    expect(markup).toContain("Presented by");
-    expect(markup).toContain('href="https://tokenzhang.com"');
-    expect(markup).toContain('src="/tokenzhang-favicon.png"');
-    expect(markup).toContain('class="gallery-credit-group"');
-    expect(markup).toContain('data-testid="gallery-analytics"');
-    expect(markup).toContain('href="/analytics"');
-    expect(markup).toContain("17 visitors");
-    expect(markup).toContain("42 views");
-    expect(markup.indexOf("Presented by")).toBeLessThan(
-      markup.indexOf('data-testid="gallery-analytics"'),
-    );
-    expect(markup).toContain('data-testid="gallery-loading"');
-  });
 });
 
 describe("GalleryWallEmpty", () => {

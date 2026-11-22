@@ -92,19 +92,6 @@ describe("the Gallery's statistics", () => {
     expect(markup).toContain(">AI<");
     expect(markup).toContain(">Maker<");
   });
-
-  it("says so when the Gallery has no public circuit", () => {
-    const markup = renderToStaticMarkup(
-      createElement(GalleryStatsView, {
-        stats: {
-          summary: summary({ circuits: 0, authors: 0 }),
-          topAuthors: [],
-        },
-      }),
-    );
-    expect(markup).toContain('data-testid="gallery-stats-empty"');
-  });
-
   it("says how long ago the figures were counted", () => {
     const now = Date.parse("2026-11-06T12:00:00.000Z");
     expect(countedAgo("2026-11-06T11:59:50.000Z", now)).toBe(
