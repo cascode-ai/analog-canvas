@@ -7432,6 +7432,9 @@
           "__schema253": {
             "type": "object",
             "properties": {
+              "shareArrayPin": {
+                "type": "boolean"
+              },
               "id": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
               },
@@ -12491,6 +12494,10 @@
           "__schema463": {
             "type": "object",
             "properties": {
+              "referencePrefix": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+              },
               "id": {
                 "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema1"
               },
