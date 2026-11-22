@@ -290,7 +290,34 @@ describe("render-net-as", () => {
     return parts;
   }
 
-  it("draws a Cell Pin's ground as a named ground on each pin, deletes its wires and keeps the Port and the netlist, in one undo", async () => {
+  /** A part with open pins: the netlist cannot be exported with it. */
+  const open = {
+    kind: "place-component",
+    symbol: "resistor",
+    reference: "RO",
+    position: { x: 600, y: 0 },
+  } as const;
+  const exports = (project: CircuitProject) =>
+    createDesignNetlistExport(project, { format: "spice" }).status;
+  /** A rendering the editor refuses with `message`, changing nothing. */
+  async function refuses(
+    client: Awaited<ReturnType<typeof folder>>["client"],
+    controller: Awaited<ReturnType<typeof folder>>["controller"],
+    net: string,
+    as: string,
+    message: string,
+  ) {
+    const revision = controller.document.revision;
+    const refused = await client.applyActions([
+      { kind: "render-net-as", net, as },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toContain(message);
+    expect(refused.message).toContain("nothing was changed");
+    expect(controller.document.revision).toBe(revision);
+  }
+
+  it("draws a Cell Pin's ground as a named ground on each pin, deletes its wires and keeps the Port and the netlist, in one undo; keeps a Cell Pin first when its old marker goes; compares every Cell's Nets and Pins while the netlist cannot be exported", async () => {
     const { tool, controller, client } = await supplies();
     const before = structuredClone(controller.document);
     const netlist = spice(controller.project);
@@ -353,25 +380,35 @@ describe("render-net-as", () => {
     expect(controller.document.instances).toEqual(before.instances);
     expect(controller.document.routes).toEqual(before.routes);
     expect(controller.document.netlist).toEqual(before.netlist);
-  });
 
-  it("keeps a Cell Pin first among the Cell's Pins when its old marker goes", async () => {
-    const { controller, client } = await supplies();
-    const before = structuredClone(controller.document);
-    const netlist = spice(controller.project);
-    const rendered = await client.applyActions([
+    // VDD's supply marker goes; VDD stays first among the Cell's Pins.
+    const supplied = await client.applyActions([
       { kind: "render-net-as", net: "VDD", as: "supply" },
     ]);
-    expect(rendered.ok, rendered.message).toBe(true);
-    expect(JSON.stringify(rendered)).toContain("removed 1 old marker");
+    expect(supplied.ok, supplied.message).toBe(true);
+    expect(JSON.stringify(supplied)).toContain("removed 1 old marker");
     expect(
       controller.document.instances.some((item) => item.id === "vdd"),
     ).toBe(false);
     expect(ports(controller.document)).toEqual(ports(before));
     expect(spice(controller.project)).toBe(netlist);
+
+    expect((await client.applyActions([open])).ok).toBe(true);
+    expect(exports(controller.project)).not.toBe("ready");
+    const unexported = structuredClone(controller.document);
+    const grounded = await client.applyActions([
+      { kind: "render-net-as", net: "VSS", as: "ground" },
+    ]);
+    expect(grounded.ok, grounded.message).toBe(true);
+    const markers = controller.document.instances.filter(
+      (item) => !unexported.instances.some((old) => old.id === item.id),
+    );
+    expect(
+      nets(controller.document, new Set(markers.map((item) => item.id))),
+    ).toEqual(nets(unexported, new Set(["vss"])));
   });
 
-  it("draws a global supply as supply markers above its pins, and node 0 as plain grounds", async () => {
+  it("refuses a Net it cannot find and supply for node 0, then draws a global supply as supply markers above its pins, and node 0 as plain grounds", async () => {
     const { controller, client } = await supplies();
     const global = await client.applyActions([
       { kind: "set-vdd-mode", instanceId: "vdd", mode: "global" },
@@ -401,6 +438,14 @@ describe("render-net-as", () => {
       { kind: "connect", from: pin("RC", "1"), to: pin("RB", "1") },
     ]);
     expect(tied.ok, tied.message).toBe(true);
+    await refuses(
+      client,
+      controller,
+      "NOPE",
+      "ground",
+      'no Net matches "NOPE"',
+    );
+    await refuses(client, controller, "0", "supply", "Net 0 is ground");
     const before = structuredClone(controller.document);
     const netlist = spice(controller.project);
     const rendered = await client.applyActions([
@@ -436,55 +481,7 @@ describe("render-net-as", () => {
     expect(spice(controller.project)).toBe(netlist);
   });
 
-  it("refuses a Net it cannot find, one with no name, and supply for node 0, changing nothing", async () => {
-    const { controller, client } = await supplies();
-    const placed = await client.applyActions([
-      {
-        kind: "place-component",
-        symbol: "resistor",
-        reference: "RC",
-        position: { x: 400, y: 0 },
-      },
-      {
-        kind: "place-component",
-        symbol: "ground",
-        id: "g0",
-        pinAnchor: { pinName: "0", position: { x: 400, y: 20 } },
-      },
-    ]);
-    expect(placed.ok, placed.message).toBe(true);
-    const stub = await client.applyActions([
-      {
-        kind: "connect",
-        from: pin("RC", "1"),
-        to: { kind: "point", x: 400, y: -60 },
-      },
-    ]);
-    expect(stub.ok, stub.message).toBe(true);
-    const rc = controller.document.instances.find(
-      (item) => item.reference === "RC",
-    )!.id;
-    const unnamed = controller.document.nets.find((net) =>
-      net.terminals.some(
-        (terminal) => terminal.instanceId === rc && terminal.pinName === "1",
-      ),
-    )!.id;
-    const revision = controller.document.revision;
-    const refuse = async (net: string, as: string, message: string) => {
-      const refused = await client.applyActions([
-        { kind: "render-net-as", net, as },
-      ]);
-      expect(refused.ok).toBe(false);
-      expect(refused.message).toContain(message);
-      expect(refused.message).toContain("nothing was changed");
-    };
-    await refuse("NOPE", "ground", 'no Net matches "NOPE"');
-    await refuse(unnamed, "supply", "has no name for its markers to keep");
-    await refuse("0", "supply", "Net 0 is ground");
-    expect(controller.document.revision).toBe(revision);
-  });
-
-  it("draws a local Net's markers naming it in this Cell only, so its scope and the netlist stay", async () => {
+  it("refuses a Net with no name, then draws it, once named, as local markers naming it in this Cell only, so its scope and the netlist stay", async () => {
     const { controller, client } = await supplies();
     const drawn = await client.applyActions([
       {
@@ -501,6 +498,21 @@ describe("render-net-as", () => {
       { kind: "connect", from: pin("RC", "2"), to: pin("RB", "2") },
     ]);
     expect(drawn.ok, drawn.message).toBe(true);
+    const rc = controller.document.instances.find(
+      (item) => item.reference === "RC",
+    )!.id;
+    const unnamed = controller.document.nets.find((net) =>
+      net.terminals.some(
+        (terminal) => terminal.instanceId === rc && terminal.pinName === "1",
+      ),
+    )!.id;
+    await refuses(
+      client,
+      controller,
+      unnamed,
+      "supply",
+      "has no name for its markers to keep",
+    );
     const labelled = await client.applyActions([
       {
         kind: "add-label",
@@ -585,7 +597,7 @@ describe("render-net-as", () => {
     return parts;
   }
 
-  it("refuses a rendering that would change the netlist, saying which line", async () => {
+  it("refuses a rendering that would change the netlist, saying which line, or every Cell's Pins while it cannot be exported", async () => {
     const { controller, client } = await inputs();
     const revision = controller.document.revision;
     // A supply marker makes IN a supply Pin, which the Cell's port list
@@ -598,6 +610,17 @@ describe("render-net-as", () => {
     expect(refused.message).toContain("(a Cell's port list)");
     expect(refused.message).toContain("nothing was changed");
     expect(controller.document.revision).toBe(revision);
+
+    expect((await client.applyActions([open])).ok).toBe(true);
+    expect(exports(controller.project)).not.toBe("ready");
+    const unexported = controller.document.revision;
+    const compared = await client.applyActions([
+      { kind: "render-net-as", net: "IN", as: "supply" },
+    ]);
+    expect(compared.ok).toBe(false);
+    expect(compared.message).toContain("Cell Pin IN");
+    expect(compared.message).toContain("the netlist cannot be exported");
+    expect(controller.document.revision).toBe(unexported);
   });
 
   it("keeps an old marker that is its Cell Pin's only marker", async () => {
@@ -667,7 +690,7 @@ describe("render-net-as", () => {
     left.y < right.y + right.height &&
     right.y < left.y + left.height;
 
-  it("refuses a marker drawn over free text, changing nothing", async () => {
+  it("refuses a marker drawn over free text, changing nothing, and moves a part's label a marker would cover clear of it", async () => {
     const { controller, client } = await supplies();
     const box = await markerSpot(client, controller);
     const noted = await client.applyActions([
@@ -690,11 +713,8 @@ describe("render-net-as", () => {
     expect(refused.message).toContain("the marker on RA.2 would cover");
     expect(refused.message).toContain("nothing was changed");
     expect(controller.document.revision).toBe(revision);
-  });
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
 
-  it("moves a part's label a marker would cover clear of it", async () => {
-    const { controller, client } = await supplies();
-    const box = await markerSpot(client, controller);
     const placed = await client.applyActions([
       {
         kind: "place-component",
@@ -763,44 +783,6 @@ describe("render-net-as", () => {
     ]);
     expect(rendered.ok, rendered.message).toBe(true);
     expect(meets(label(), box)).toBe(false);
-  });
-
-  it("compares every Cell's Nets and Pins while the netlist cannot be exported", async () => {
-    const open = {
-      kind: "place-component",
-      symbol: "resistor",
-      reference: "RO",
-      position: { x: 600, y: 0 },
-    } as const;
-    const exports = (project: CircuitProject) =>
-      createDesignNetlistExport(project, { format: "spice" }).status;
-    {
-      const { controller, client } = await supplies();
-      expect((await client.applyActions([open])).ok).toBe(true);
-      expect(exports(controller.project)).not.toBe("ready");
-      const before = structuredClone(controller.document);
-      const rendered = await client.applyActions([
-        { kind: "render-net-as", net: "VSS", as: "ground" },
-      ]);
-      expect(rendered.ok, rendered.message).toBe(true);
-      const added = controller.document.instances.filter(
-        (item) => !before.instances.some((old) => old.id === item.id),
-      );
-      expect(
-        nets(controller.document, new Set(added.map((item) => item.id))),
-      ).toEqual(nets(before, new Set(["vss"])));
-    }
-    const { controller, client } = await inputs();
-    expect((await client.applyActions([open])).ok).toBe(true);
-    expect(exports(controller.project)).not.toBe("ready");
-    const revision = controller.document.revision;
-    const refused = await client.applyActions([
-      { kind: "render-net-as", net: "IN", as: "supply" },
-    ]);
-    expect(refused.ok).toBe(false);
-    expect(refused.message).toContain("Cell Pin IN");
-    expect(refused.message).toContain("the netlist cannot be exported");
-    expect(controller.document.revision).toBe(revision);
   });
 
   it("names the netlist line a change adds, loses or rewrites", () => {

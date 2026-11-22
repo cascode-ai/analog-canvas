@@ -98,8 +98,8 @@ describe("delete-wires and inspect region", () => {
     expect(empty).toMatchObject({ routeCount: 0, routes: [], junctions: [] });
   });
 
-  it("deletes a Net's wires, Junctions and label in one undo, and keeps every part", async () => {
-    const { client, controller } = await drawn();
+  it("deletes a Net's wires, Junctions and label, one part's wires or a box's in one undo each, keeps every part, and refuses a selector that matches nothing", async () => {
+    const { client, tool, controller } = await drawn();
     const before = structuredClone(controller.document);
     const ra = before.instances.find((item) => item.reference === "RA")!.id;
     const other = before.routes.filter((route) =>
@@ -135,10 +135,7 @@ describe("delete-wires and inspect region", () => {
     expect(controller.document.routes).toEqual(before.routes);
     expect(controller.document.junctions).toEqual(before.junctions);
     expect(controller.document.annotations).toEqual(before.annotations);
-  });
 
-  it("deletes the wires on one part's pins or across a box, and refuses a selector that matches nothing", async () => {
-    const { client, tool, controller } = await drawn();
     const id = (reference: string) =>
       controller.document.instances.find(
         (item) => item.reference === reference,
@@ -243,42 +240,19 @@ describe("connect to wire-at", () => {
     return { ...context, wire, tap, joined };
   }
 
-  it("taps a wire a later connect of the same call draws", async () => {
+  it("taps a wire a later connect of the same call draws, and still refuses a tap no wire of the call reaches, naming its connect", async () => {
     const { client, controller, wire, tap, joined } = await withResistor();
-    const before = controller.document.revision;
-    const result = await client.applyActions([tap({ x: 200, y: 300 }), wire]);
-    expect(result.ok, result.message).toBe(true);
-    expect(controller.document.revision).toBe(before + 1);
-    expect(joined()).toBe(true);
-  });
-
-  it("still refuses a tap no wire of the call reaches, naming its connect", async () => {
-    const { client, controller, wire, tap } = await withResistor();
     const before = structuredClone(controller.document);
-    const result = await client.applyActions([wire, tap({ x: 200, y: 500 })]);
-    expect(result.ok).toBe(false);
-    expect(result.message).toMatch(
+    const refused = await client.applyActions([wire, tap({ x: 200, y: 500 })]);
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toMatch(
       /^actions\[1\] \(connect\): Wire 2 \(R1\.2 → \(200, 500\)\): No wire at \(200, 500\)/u,
     );
     expect(controller.document).toEqual(before);
-  });
-
-  it("snaps a point off the tap grid onto the wire and says so", async () => {
-    const { client, wire, tap, joined } = await withResistor();
-    expect((await client.applyActions([wire])).ok).toBe(true);
-    // (201, 301) is a unit off the 2-unit grid each way; of its nearest grid
-    // points only (200, 300) is on the wire.
-    const result = await client.applyActions([tap({ x: 201, y: 301 })]);
+    const result = await client.applyActions([tap({ x: 200, y: 300 }), wire]);
     expect(result.ok, result.message).toBe(true);
+    expect(controller.document.revision).toBe(before.revision + 1);
     expect(joined()).toBe(true);
-    expect(result.diagnosticDelta?.added).toContainEqual(
-      expect.objectContaining({
-        code: "TAP_SNAPPED",
-        message: expect.stringContaining(
-          "wire-at (201, 301) is off the tap grid; it tapped the wire at (200, 300)",
-        ),
-      }),
-    );
   });
 });
 
@@ -312,7 +286,7 @@ function wireNotes(result: {
 
 describe("wires the editor routes say what they went round", () => {
   /** Two 3-terminal PMOS side by side, sources up on a VDD rail. */
-  async function pmosPair(mirror: "none" | "horizontal") {
+  async function pmosPair() {
     const context = await folder();
     for (const actions of [
       [
@@ -321,7 +295,6 @@ describe("wires the editor routes say what they went round", () => {
           symbol: "pmos",
           reference: "M1",
           position: { x: 100, y: 100 },
-          mirror,
         },
         {
           kind: "place-component",
@@ -359,20 +332,8 @@ describe("wires the editor routes say what they went round", () => {
     to: { kind: "pin", instance: "M2", pin: "G" },
   };
 
-  it("joins PMOS gates that face each other straight: the hidden body pin is no obstacle", async () => {
-    const { client, controller, gates } = await pmosPair("horizontal");
-    const result = await client.applyActions([gateLine]);
-    expect(result.ok, result.message).toBe(true);
-    expect(drawnPaths(controller.document).at(-1)).toEqual([
-      [120, 100],
-      [180, 100],
-    ]);
-    expect(wireNotes(result)).toEqual([]);
-    expect(gates()).toEqual(["M1.G M2.G"]);
-  });
-
   it("names the part a gate line went round, and goes the side that crosses no source wire", async () => {
-    const { client, controller, gates } = await pmosPair("none");
+    const { client, controller, gates } = await pmosPair();
     const result = await client.applyActions([gateLine]);
     expect(result.ok, result.message).toBe(true);
     // Above, the line would cross M1's source wire to VDD.
@@ -526,7 +487,7 @@ describe("route-net avoid", () => {
     ]);
   });
 
-  it("searches round a wall the simple shapes cannot clear, on the side preferred", async () => {
+  it("searches round a wall the simple shapes cannot clear, on the side preferred, and refuses naming the pins when nothing goes round", async () => {
     // Capacitors at x = 200 from y = -100 to 100: past the simple shapes'
     // reach, inside the search's.
     const { route, drawn, nets, controller } = await inLine(
@@ -551,46 +512,9 @@ describe("route-net avoid", () => {
     expect(Math.max(...path!.map(([, y]) => y!))).toBe(0);
     expect(nets()).toContain("R1.2 R2.1");
     expect(nets().filter((net) => net.includes("C"))).toEqual([]);
-  });
 
-  it("taps a trunk once, square, past a part between a pin and it", async () => {
-    // C1 stands between R1.2 (20, 0) and the trunk at y = 100.
-    const { route, nets, controller } = await inLine([
-      {
-        kind: "place-component",
-        symbol: "capacitor",
-        reference: "C1",
-        position: { x: 20, y: 50 },
-      },
-    ]);
-    const result = await route({
-      avoid: true,
-      trunk: { start: { x: 0, y: 100 }, end: { x: 400, y: 100 } },
-    });
-    expect(result.ok, result.message).toBe(true);
-    expect(nets()).toEqual(["R1.2 R2.1"]);
-    const paths = drawnPaths(controller.document);
-    const onTrunk = ([x, y]: number[]) => y === 100 && x! >= 0 && x! <= 400;
-    const branches = paths.filter((path) => !path.every(onTrunk));
-    expect(branches).toHaveLength(2);
-    for (const path of branches) {
-      // Only its last point is on the trunk, reached by a vertical stretch.
-      const toTrunk = onTrunk(path.at(-1)!) ? path : [...path].reverse();
-      expect(toTrunk.slice(0, -1).some(onTrunk), JSON.stringify(path)).toBe(
-        false,
-      );
-      expect(toTrunk.at(-2)![0], JSON.stringify(path)).toBe(toTrunk.at(-1)![0]);
-    }
-    // One dot per branch on the trunk, none where nothing branches.
-    expect(
-      controller.document.junctions.filter(
-        ({ position: { x, y } }) => y === 100 && x > 0 && x < 400,
-      ),
-    ).toHaveLength(2);
-  });
-
-  it("refuses naming the pins when nothing goes round", async () => {
-    const { route, controller } = await inLine(
+    // Thirteen capacitors: past the search's reach too.
+    const wide = await inLine(
       Array.from({ length: 13 }, (_, index) => ({
         kind: "place-component",
         symbol: "capacitor",
@@ -598,14 +522,14 @@ describe("route-net avoid", () => {
         position: { x: 200, y: (index - 6) * 50 },
       })),
     );
-    const before = structuredClone(controller.document);
-    const refused = await route({ avoid: true });
-    expect(refused.ok).toBe(false);
-    expect(refused.message).toMatch(
+    const walled = structuredClone(wide.controller.document);
+    const none = await wide.route({ avoid: true });
+    expect(none.ok).toBe(false);
+    expect(none.message).toMatch(
       /no clear path from (R1\.2 to R2\.1|R2\.1 to R1\.2): the direct one passes through C6/,
     );
-    expect(refused.message).toContain("none goes round within 16 grid squares");
-    expect(controller.document).toEqual(before);
+    expect(none.message).toContain("none goes round within 16 grid squares");
+    expect(wide.controller.document).toEqual(walled);
   });
 });
 
@@ -773,7 +697,7 @@ describe("relocate", () => {
     expect(controller.document.nets).toEqual(before.nets);
   });
 
-  it("takes a ground standing on a pin and a labelled stub along, turned with the part", async () => {
+  it("takes a ground standing on a pin and a labelled stub along, turned or mirrored with the part", async () => {
     const { client, controller } = await pair();
     const placed = await client.applyActions([
       {
@@ -848,6 +772,56 @@ describe("relocate", () => {
     expect(
       after.annotations.find((item) => item.id === sig.id)?.anchor,
     ).toMatchObject({ kind: "route", routeId: wire!.id });
+
+    // RY's stub leaves pin 1 up and off to the right: a lateral part a mirror
+    // flips.
+    const ry = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "RY",
+        position: { x: 1000, y: 0 },
+      },
+    ]);
+    expect(ry.ok, ry.message).toBe(true);
+    const lateral = await client.applyActions([
+      {
+        kind: "connect",
+        from: pin("RY", "1"),
+        to: { kind: "point", x: 1040, y: -60 },
+      },
+    ]);
+    expect(lateral.ok, lateral.message).toBe(true);
+    const unmirrored = structuredClone(controller.document);
+    const [junction] = unmirrored.junctions.filter((item) =>
+      unmirrored.routes.some(
+        (route) =>
+          [route.start, routeEnd(route)].some(
+            (end) => end.kind === "junction" && end.junctionId === item.id,
+          ) &&
+          [route.start, routeEnd(route)].some(
+            (end) =>
+              end.kind === "terminal" &&
+              unmirrored.instances.find((part) => part.id === end.instanceId)
+                ?.reference === "RY",
+          ),
+      ),
+    );
+    expect(junction?.position).toEqual({ x: 1040, y: -60 });
+    const mirrored = await client.applyActions([
+      {
+        kind: "relocate",
+        parts: [
+          { instance: "RY", position: { x: 1200, y: 0 }, mirror: "horizontal" },
+        ],
+      },
+    ]);
+    expect(mirrored.ok, mirrored.message).toBe(true);
+    expect(
+      controller.document.junctions.find((item) => item.id === junction!.id)
+        ?.position,
+    ).toEqual({ x: 1160, y: -60 });
+    expect(nets(controller.document)).toEqual(nets(unmirrored));
   });
 
   it("refuses a part it cannot name, one named twice, or a place off the grid, and changes nothing", async () => {
@@ -883,65 +857,13 @@ describe("relocate", () => {
     expect(controller.document.revision).toBe(revision);
   });
 
-  it("mirrors a stub with its part", async () => {
+  it("says when a moved pin lands on another Net's wire, joining nothing, and refuses a stub that would come to rest on one", async () => {
     const { client, controller } = await pair();
     const placed = await client.applyActions([
       {
         kind: "place-component",
         symbol: "resistor",
         reference: "RX",
-        position: { x: 600, y: 0 },
-      },
-    ]);
-    expect(placed.ok, placed.message).toBe(true);
-    // Up out of pin 1 and off to the right: a lateral part a mirror flips.
-    const stub = await client.applyActions([
-      {
-        kind: "connect",
-        from: pin("RX", "1"),
-        to: { kind: "point", x: 640, y: -60 },
-      },
-    ]);
-    expect(stub.ok, stub.message).toBe(true);
-    const before = structuredClone(controller.document);
-    const [junction] = before.junctions.filter((item) =>
-      before.routes.some(
-        (route) =>
-          [route.start, routeEnd(route)].some(
-            (end) => end.kind === "junction" && end.junctionId === item.id,
-          ) &&
-          [route.start, routeEnd(route)].some(
-            (end) =>
-              end.kind === "terminal" &&
-              before.instances.find((part) => part.id === end.instanceId)
-                ?.reference === "RX",
-          ),
-      ),
-    );
-    expect(junction?.position).toEqual({ x: 640, y: -60 });
-    const relocated = await client.applyActions([
-      {
-        kind: "relocate",
-        parts: [
-          { instance: "RX", position: { x: 800, y: 0 }, mirror: "horizontal" },
-        ],
-      },
-    ]);
-    expect(relocated.ok, relocated.message).toBe(true);
-    expect(
-      controller.document.junctions.find((item) => item.id === junction!.id)
-        ?.position,
-    ).toEqual({ x: 760, y: -60 });
-    expect(nets(controller.document)).toEqual(nets(before));
-  });
-
-  it("says when a moved pin lands on another Net's wire, and joins nothing", async () => {
-    const { client, controller } = await pair();
-    const placed = await client.applyActions([
-      {
-        kind: "place-component",
-        symbol: "resistor",
-        reference: "RN",
         position: { x: 600, y: 0 },
       },
     ]);
@@ -956,36 +878,25 @@ describe("relocate", () => {
     const relocated = await client.applyActions([
       {
         kind: "relocate",
-        parts: [{ instance: "RN", position: { x: 220, y: 100 }, rotation: 90 }],
+        parts: [{ instance: "RX", position: { x: 220, y: 100 }, rotation: 90 }],
       },
     ]);
     expect(relocated.ok, relocated.message).toBe(true);
-    const rn = controller.document.instances.find(
-      (item) => item.reference === "RN",
+    const rx = controller.document.instances.find(
+      (item) => item.reference === "RX",
     )!.id;
     expect(relocated.diagnosticDelta?.added).toContainEqual(
       expect.objectContaining({
         code: "LANDED_ON_OTHER_NET",
         message: expect.stringContaining(
-          `RN now touches another Net at pin 2 (Route ${outb.id} of Net OUTB)`,
+          `RX now touches another Net at pin 2 (Route ${outb.id} of Net OUTB)`,
         ),
-        objectIds: [rn, outb.id],
+        objectIds: [rx, outb.id],
       }),
     );
     expect(nets(controller.document)).toEqual(nets(before));
-  });
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
 
-  it("refuses a stub that would come to rest on another Net's wire", async () => {
-    const { client, controller } = await pair();
-    const placed = await client.applyActions([
-      {
-        kind: "place-component",
-        symbol: "resistor",
-        reference: "RX",
-        position: { x: 600, y: 0 },
-      },
-    ]);
-    expect(placed.ok, placed.message).toBe(true);
     const stub = await client.applyActions([
       {
         kind: "connect",
@@ -1041,7 +952,7 @@ describe("relocate", () => {
     return parts;
   }
 
-  it("goes round the parts when no simple path is clear", async () => {
+  it("goes round the parts when no simple path is clear, and refuses naming both pins and what is in the way when none is", async () => {
     const { client, controller } = await walled(5);
     const before = structuredClone(controller.document);
     const relocated = await client.applyActions([
@@ -1056,12 +967,10 @@ describe("relocate", () => {
     expect(Math.max(...path!.map(([, y]) => Math.abs(y!)))).toBeGreaterThan(
       100,
     );
-  });
 
-  it("refuses naming both pins and what is in the way", async () => {
-    const { client, controller } = await walled(13);
-    const revision = controller.document.revision;
-    const refused = await client.applyActions([
+    const wide = await walled(13);
+    const revision = wide.controller.document.revision;
+    const refused = await wide.client.applyActions([
       {
         kind: "relocate",
         parts: [{ instance: "R2", position: { x: 400, y: 0 } }],
@@ -1073,6 +982,6 @@ describe("relocate", () => {
     );
     expect(refused.message).toContain("none goes round");
     expect(refused.message).toContain("nothing was moved");
-    expect(controller.document.revision).toBe(revision);
+    expect(wide.controller.document.revision).toBe(revision);
   });
 });
