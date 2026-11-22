@@ -458,30 +458,45 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
               (instance) => instance.id === bulkEndpoint.instanceId,
             )
           : undefined;
-      const edits = defaultBoundInstance?.mosBulkBinding
-        ? [
-            {
-              kind: "clear_mos_bulk_default" as const,
-              instanceId: defaultBoundInstance.id,
-            },
-            ...proposal.edits.map((edit) => {
-              if (edit.kind !== "connect_endpoints") return edit;
-              const target =
-                edit.from.kind === "terminal" && edit.from.pinName === "B"
-                  ? edit.to
-                  : edit.from;
-              return {
-                ...edit,
-                from: target,
-                to: {
-                  kind: "terminal" as const,
-                  instanceId: defaultBoundInstance.id,
-                  pinName: "B",
-                },
-              };
-            }),
-          ]
-        : proposal.edits;
+      const edits =
+        defaultBoundInstance?.mosBulkBinding &&
+        !proposal.edits.some(
+          (edit) =>
+            edit.kind === "clear_mos_bulk_default" &&
+            edit.instanceId === defaultBoundInstance.id,
+        )
+          ? [
+              {
+                kind: "clear_mos_bulk_default" as const,
+                instanceId: defaultBoundInstance.id,
+              },
+              ...proposal.edits.map((edit) => {
+                if (
+                  edit.kind !== "connect_endpoints" ||
+                  ![edit.from, edit.to].some(
+                    (end) =>
+                      end.kind === "terminal" &&
+                      end.instanceId === defaultBoundInstance.id &&
+                      end.pinName === "B",
+                  )
+                )
+                  return edit;
+                const target =
+                  edit.from.kind === "terminal" && edit.from.pinName === "B"
+                    ? edit.to
+                    : edit.from;
+                return {
+                  ...edit,
+                  from: target,
+                  to: {
+                    kind: "terminal" as const,
+                    instanceId: defaultBoundInstance.id,
+                    pinName: "B",
+                  },
+                };
+              }),
+            ]
+          : proposal.edits;
       const namedEdits = wire.label
         ? planNamedWireEdits(
             options.document,
@@ -526,7 +541,10 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       accept,
     });
     if (!choice.allowWhole)
-      options.setStatus(`Choose ${choice.expectedWidth ?? 1} bus member(s)`);
+      options.setStatus(
+        choice.sharedPinLabel ??
+          `Choose ${choice.expectedWidth ?? 1} bus member(s)`,
+      );
   };
   const startWire = (candidate: WireSource, description?: string): void => {
     options.setWireRepeat(null);
@@ -552,7 +570,12 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     if (options.readCurrentWireSession().labelEditing) return;
     const source = options.readCurrentWireSession().source;
     if (!source) return;
-    const evaluation = evaluateWireMembers(options.document, source, candidate);
+    const evaluation = evaluateWireMembers(
+      options.document,
+      source,
+      candidate,
+      options.resolver,
+    );
     if (evaluation.kind === "invalid") {
       options.setStatus(evaluation.message);
       return;
@@ -576,7 +599,12 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       pendingChoice.revision !== options.document.revision
     )
       return;
-    if (memberId === null && !pendingChoice.choice.allowWhole) return;
+    if (
+      memberId === null &&
+      !pendingChoice.choice.allowWhole &&
+      !pendingChoice.choice.sharedPinLabel
+    )
+      return;
     const source =
       memberId === null
         ? pendingChoice.choice.source

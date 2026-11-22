@@ -41,7 +41,10 @@ export function instanceArrayRange(
   const match = /^([A-Za-z][A-Za-z0-9_]*)<(\d+):(\d+)>$/u.exec(
     reference.trim(),
   );
-  if (!match && /^[A-Za-z][A-Za-z0-9_]*<[^<>]*:/u.test(reference.trim()))
+  if (
+    !match &&
+    /^[A-Za-z][A-Za-z0-9_]*<(?:[^>]*$|[^<>]*:)/u.test(reference.trim())
+  )
     throw new Error("Use a continuous reference range such as RLOAD<6:0>");
   return match
     ? { prefix: match[1]!, first: Number(match[2]), last: Number(match[3]) }
@@ -133,10 +136,22 @@ export function planCreateInstanceArray(
     group: {
       id: groupId,
       memberIds: [seed.id, ...members.map(({ id }) => id)],
+      ...(/\d$/u.test(range.prefix.trim())
+        ? { referencePrefix: range.prefix.trim() }
+        : {}),
       collapsed: true,
     },
   });
   return edits;
+}
+
+/** Authored array order, shared by Properties and physical pin routing. */
+export function instanceArrayTerminals(group: InstanceGroup, pinName: string) {
+  return group.memberIds.map((instanceId) => ({
+    kind: "terminal" as const,
+    instanceId,
+    pinName,
+  }));
 }
 
 export function commonArrayPins(
@@ -245,12 +260,12 @@ export function planInstanceArrayConnection(
     for (const { netId, endpoint } of junctionElectricalEndpoints(junction))
       addAnchor(netId, endpoint);
 
-  const rows = group.memberIds.map((instanceId, index) => {
+  const rows = instanceArrayTerminals(group, pin).map((endpoint, index) => {
+    const { instanceId } = endpoint;
     const name = ordered[names.length === 1 ? 0 : index]!;
     const [target, ...ambiguous] = logicalByName.get(foldNetName(name)) ?? [];
     if (!target || ambiguous.length || target.conflicts.length)
       throw new Error(`Choose an existing, unambiguous Net for ${name}`);
-    const endpoint: Terminal = { kind: "terminal", instanceId, pinName: pin };
     const current = owner.get(terminalIdentity(endpoint));
     return {
       endpoint,
@@ -264,16 +279,29 @@ export function planInstanceArrayConnection(
   const detached = new Set(
     changing.map(({ endpoint }) => terminalIdentity(endpoint)),
   );
+  const removedJunctions = new Set(
+    document.junctions
+      .filter(
+        (junction) =>
+          changing.length &&
+          junction.members &&
+          junction.contactAnchor?.instanceId === group.memberIds[0] &&
+          junction.contactAnchor?.pinName === pin,
+      )
+      .map((junction) => junction.id),
+  );
   const oldRoutes = document.routes.filter((route) =>
-    routeEndpoints(route).some(
-      (endpoint) =>
-        endpoint.kind === "terminal" &&
-        detached.has(terminalIdentity(endpoint)),
+    routeEndpoints(route).some((endpoint) =>
+      endpoint.kind === "junction"
+        ? removedJunctions.has(endpoint.junctionId)
+        : detached.has(terminalIdentity(endpoint)),
     ),
   );
   const edits: SchematicEdit[] = [];
   for (const route of oldRoutes)
     edits.push({ kind: "remove_route_geometry", routeId: route.id });
+  for (const junctionId of removedJunctions)
+    edits.push({ kind: "remove_junction", junctionId });
   for (const { endpoint, current } of changing)
     if (current) edits.push({ kind: "disconnect_endpoint", endpoint });
   for (const mark of document.noConnects) {
@@ -286,8 +314,9 @@ export function planInstanceArrayConnection(
       .get(target.id)
       ?.find(
         (anchor) =>
-          (anchor.kind === "junction" ||
-            !detached.has(terminalIdentity(anchor))) &&
+          (anchor.kind === "junction"
+            ? !removedJunctions.has(anchor.junctionId)
+            : !detached.has(terminalIdentity(anchor))) &&
           !validateConnectableEndpoint(document, anchor, resolver, lookup),
       );
     if (!anchor)

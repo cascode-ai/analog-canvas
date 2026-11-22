@@ -26,6 +26,43 @@ const fixture = () =>
   );
 
 describe("instance-owned portable source", () => {
+  it("round-trips an ambiguous array prefix and reads earlier group files", () => {
+    const project = createEmptyProject("range-prefix", "Range prefix");
+    const cell = project.documents[0]!;
+    for (const ref of ["R27", "R26"])
+      cell.instances.push({
+        id: ref,
+        reference: ref,
+        symbolId: "resistor",
+        placement: null,
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "1k" },
+        },
+      });
+    cell.instanceGroups = [
+      {
+        id: "array",
+        memberIds: ["R27", "R26"],
+        collapsed: true,
+        referencePrefix: "R2",
+      },
+    ];
+    const file = JSON.parse(serializeProject(project));
+    expect(file.schemaVersion).toBe(86);
+    expect(
+      parseProject(JSON.stringify(file)).documents[0]!.instanceGroups,
+    ).toEqual(cell.instanceGroups);
+    for (const schemaVersion of [84, 85]) {
+      const prior = { ...structuredClone(file), schemaVersion };
+      expect(() => parseProject(JSON.stringify(prior))).toThrow(/schema 86/);
+      delete prior.documents[0].instanceGroups[0].referencePrefix;
+      expect(
+        parseProject(JSON.stringify(prior)).documents[0]!.instanceGroups?.[0]
+          ?.memberIds,
+      ).toEqual(["R27", "R26"]);
+    }
+  });
   it("round-trips an explicit model selection and rejects it in an older envelope", () => {
     const project = createEmptyProject("model-selection", "Model selection");
     const document = project.documents[0]!;
@@ -62,7 +99,7 @@ describe("instance-owned portable source", () => {
       if (binding?.kind === "model") binding.origin = "canvas";
     }
     const saved = serializeProject(project);
-    expect(JSON.parse(saved).schemaVersion).toBe(85);
+    expect(JSON.parse(saved).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
     expect(serializeProject(parseProject(saved))).toBe(saved);
     const downgraded = JSON.parse(saved);
     // The writer shares the target between both Instances in the portable defaults.

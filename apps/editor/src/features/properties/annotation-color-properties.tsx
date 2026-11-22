@@ -42,7 +42,10 @@ export function AnnotationColorProperties({
    * label's `name` in its code is editable; without it `name` stays
    * read-only (2026-10-18: a copied label's name seemed locked).
    */
-  onRename?(name: string): { ok: boolean; message?: string };
+  onRename?(
+    name: string,
+    annotation: Annotation,
+  ): { ok: boolean; message?: string };
 }) {
   const name = document
     ? flattenRichText(
@@ -51,7 +54,9 @@ export function AnnotationColorProperties({
     : annotation.content
       ? flattenRichText(annotation.content)
       : annotation.id;
-  const renames = Boolean(onRename) && annotation.kind === "net-label";
+  const instanceReference = annotation.binding?.kind === "instance-reference";
+  const renames =
+    Boolean(onRename) && (annotation.kind === "net-label" || instanceReference);
   const parse = useMemo(
     () =>
       (source: string): PropertyResult<AnnotationEdit> => {
@@ -123,11 +128,17 @@ export function AnnotationColorProperties({
         adapter={adapter}
         parse={parse}
         format={format}
+        deferApply={
+          instanceReference
+            ? (edit) =>
+                edit.name !== undefined && edit.name.trim() !== name.trim()
+            : undefined
+        }
         onApply={({ annotation: next, name: requested }) =>
           // A rename commits on its own, as editing the label's text does;
           // the label it rewrites is then the one the rest edits.
           requested !== undefined && requested.trim() !== name.trim()
-            ? (onRename?.(requested.trim()) ?? { ok: false })
+            ? (onRename?.(requested.trim(), next) ?? { ok: false })
             : onApply(next)
         }
         defaultColor={inheritedColor}

@@ -22,6 +22,7 @@ import {
   instanceParameterContract,
 } from "@icm/devices";
 import {
+  collapsedArrayReference,
   isSupplyPortSymbol,
   type CircuitProject,
   type Instance,
@@ -91,6 +92,14 @@ export function planPropertyApply(
   input: ComponentPropertyCodeValue,
 ): PropertyApplyPlan {
   const { document, instance } = context;
+  const collapsed = collapsedArrayReference(document, instance.id);
+  if (
+    collapsed &&
+    input.displayName === collapsed &&
+    instanceLabelAnnotationFor(document, instance.id)?.binding?.kind ===
+      "instance-reference"
+  )
+    input = { ...input, displayName: instance.reference! };
   const boundName =
     input.displayName !== undefined &&
     instanceLabelAnnotationFor(document, instance.id)?.binding?.kind ===

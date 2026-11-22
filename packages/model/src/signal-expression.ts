@@ -1,6 +1,45 @@
 import type { ConnectivityEvidence, SchematicDocument } from "./schema.js";
 import { foldNetName } from "./net-name.js";
 
+/** Read the ordered scalar endpoints represented by the placed leader of a collapsed group. */
+export function collapsedArrayGroup(
+  document: SchematicDocument,
+  instanceId: string,
+) {
+  return document.instanceGroups?.find(
+    (group) => group.collapsed && group.memberIds[0] === instanceId,
+  );
+}
+
+export function collapsedArrayReference(
+  document: SchematicDocument,
+  instanceId: string,
+): string | undefined {
+  const group = collapsedArrayGroup(document, instanceId);
+  if (!group) return undefined;
+  const byId = new Map(
+    document.instances.map((instance) => [instance.id, instance.reference]),
+  );
+  const names = group.memberIds.map((id) => byId.get(id));
+  const first = names[0] ?? "";
+  const prefix = group.referencePrefix ?? first.replace(/\d+$/u, "");
+  for (let length = prefix.length; length < first.length; length++) {
+    const candidate = first.slice(0, length);
+    if (group.referencePrefix && candidate !== prefix) break;
+    const suffix = first.slice(length);
+    if (!/^\d+$/u.test(suffix)) break;
+    const start = Number(suffix);
+    const step = names[1] === candidate + (start + 1) ? 1 : -1;
+    const last = start + (names.length - 1) * step;
+    if (
+      last >= 0 &&
+      names.every((name, index) => name === candidate + (start + index * step))
+    )
+      return candidate + "<" + start + ":" + last + ">";
+  }
+  return undefined;
+}
+
 /** Read-only scalar names from each owner; no copied editable name claims. */
 export function scalarConnectivityEvidence(
   document: SchematicDocument,

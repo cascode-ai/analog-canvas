@@ -91,6 +91,11 @@ export const CellNetlistInterfaceSchema = z.strictObject({
 });
 
 export const InstanceGroupSchema = z.strictObject({
+  /** Disambiguates numeric suffixes in authored reference prefixes. */
+  referencePrefix: z
+    .string()
+    .regex(/^[A-Za-z][A-Za-z0-9_]*$/u)
+    .optional(),
   id: StableIdSchema,
   memberIds: z.array(StableIdSchema).min(2),
   collapsed: z.boolean(),

@@ -21,7 +21,7 @@
     },
     {
       "source": "docs/agent/shared/authoring.md",
-      "sha256": "a2b9be8812b1ca0287a60499c2d3feabe7c2f4e1cc233336ee276338460670c8"
+      "sha256": "bdb4695008ba626ccb36acc19c534b3128b7ef863e54b4352afda7fb2dcbb7bf"
     },
     {
       "source": "docs/agent/workflow.md",
@@ -164,11 +164,7 @@
     {
       "id": "reference/simulation-specs",
       "source": "docs/agent/simulation-specs.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Simulation Spec rules and raw handoff",
       "load": "on-demand",
       "requires": [],
@@ -178,10 +174,7 @@
     {
       "id": "reference/quickstart",
       "source": "docs/agent/mcp-quickstart.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "MCP live-session quickstart",
       "load": "entry",
       "requires": [],
@@ -190,9 +183,7 @@
     {
       "id": "fallback/http-session-workflow",
       "source": "docs/agent/http-kit/skills/icm-circuit-session/SKILL.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Raw HTTP live-session workflow",
       "load": "required",
       "requires": [
@@ -205,11 +196,7 @@
     {
       "id": "reference/session",
       "source": "docs/agent/shared/session.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Session contract",
       "load": "on-demand",
       "requires": [],
@@ -219,11 +206,7 @@
     {
       "id": "reference/authoring",
       "source": "docs/agent/shared/authoring.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Built-in authoring contract",
       "load": "on-demand",
       "requires": [],
@@ -233,11 +216,7 @@
     {
       "id": "reference/workflow",
       "source": "docs/agent/workflow.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Schematic workflow",
       "load": "on-demand",
       "requires": [],
@@ -247,11 +226,7 @@
     {
       "id": "reference/tool-behavior",
       "source": "docs/agent/tool-behavior.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Tool behavior",
       "load": "on-demand",
       "requires": [],
@@ -261,11 +236,7 @@
     {
       "id": "reference/recovery",
       "source": "docs/agent/response-semantics.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Response semantics and recovery",
       "load": "on-demand",
       "requires": [],
@@ -275,11 +246,7 @@
     {
       "id": "reference/razavi-style",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Draw or redraw a schematic from a figure, paper or netlist",
       "load": "on-demand",
       "requires": [],
@@ -289,11 +256,7 @@
     {
       "id": "reference/folded-cascode-recommended",
       "source": "docs/agent/assets/folded-cascode-recommended.svg",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Inspect the folded-cascode placement example",
       "load": "on-demand",
       "requires": [],
@@ -303,11 +266,7 @@
     {
       "id": "reference/folded-cascode-not-recommended",
       "source": "docs/agent/assets/folded-cascode-not-recommended.svg",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Compare folded-cascode placement examples",
       "load": "on-demand",
       "requires": [],
@@ -317,11 +276,7 @@
     {
       "id": "reference/diagnostics",
       "source": "docs/agent/shared/diagnostics.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Routing and diagnostics",
       "load": "on-demand",
       "requires": [],
@@ -331,11 +286,7 @@
     {
       "id": "reference/routing",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Drawing guide alias; do not reread",
       "load": "on-demand",
       "requires": [],
@@ -345,11 +296,7 @@
     {
       "id": "contract/advanced-edits",
       "source": "fixtures/agent-api/agent-circuit-request.schema.json",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Advanced transaction contract",
       "load": "on-demand",
       "requires": [],
@@ -359,23 +306,16 @@
     {
       "id": "http-kit/README.md",
       "source": "docs/agent/http-kit/README.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Bootstrap raw HTTP",
       "load": "entry",
-      "requires": [
-        "http-kit/AGENTS.md",
-        "fallback/http-session-workflow"
-      ],
+      "requires": ["http-kit/AGENTS.md", "fallback/http-session-workflow"],
       "kitPath": "README.md"
     },
     {
       "id": "http-kit/AGENTS.md",
       "source": "docs/agent/http-kit/AGENTS.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Bootstrap raw HTTP",
       "load": "entry",
       "requires": [],
@@ -384,24 +324,16 @@
     {
       "id": "reference/http-cli",
       "source": "docs/agent/http-cli.md",
-      "consumers": [
-        "http-cli"
-      ],
+      "consumers": ["http-cli"],
       "task": "Operate shared-client CLI",
       "load": "entry",
-      "requires": [
-        "reference/authoring"
-      ],
+      "requires": ["reference/authoring"],
       "uri": "analog-canvas://reference/http-cli"
     },
     {
       "id": "catalog/builtins",
       "source": "packages/agent-adapter/src/agent-authoring-catalog.generated.ts",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Discover built-in symbols",
       "load": "on-demand",
       "requires": [],
@@ -411,11 +343,7 @@
     {
       "id": "reference/knowledge/circuit-reading",
       "source": "docs/agent/knowledge/circuit-reading.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Evidence-first circuit reading",
       "load": "on-demand",
       "requires": [],
@@ -425,11 +353,7 @@
     {
       "id": "reference/knowledge/hierarchy-and-large-circuits",
       "source": "docs/agent/knowledge/hierarchy-and-large-circuits.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Hierarchy and large circuits",
       "load": "on-demand",
       "requires": [],
@@ -439,11 +363,7 @@
     {
       "id": "reference/knowledge/pdk-and-symbols",
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "PDK models and symbols",
       "load": "on-demand",
       "requires": [],
@@ -453,10 +373,7 @@
     {
       "id": "reference/mcp-install",
       "source": "docs/agent/mcp-install.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "Install the Analog Canvas MCP adapter",
       "load": "on-demand",
       "requires": [],
@@ -465,9 +382,7 @@
     {
       "id": "reference/api-usage",
       "source": "docs/agent/api-usage.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Agent API Usage",
       "load": "on-demand",
       "requires": [],
@@ -476,9 +391,7 @@
     {
       "id": "reference/examples",
       "source": "docs/agent/examples.md",
-      "consumers": [
-        "http-kit"
-      ],
+      "consumers": ["http-kit"],
       "task": "Reproducible Agent Workflows",
       "load": "on-demand",
       "requires": [],
@@ -487,11 +400,7 @@
     {
       "id": "reference/simulation-evidence-storage",
       "source": "docs/agent/simulation-evidence-storage.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Simulation evidence usage and recovery",
       "load": "on-demand",
       "requires": [],
@@ -501,11 +410,7 @@
     {
       "id": "reference/simulation-result-handoff",
       "source": "docs/agent/simulation-result-handoff.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Agent simulation result handoff",
       "load": "on-demand",
       "requires": [],
@@ -515,10 +420,7 @@
     {
       "id": "reference/mcp-tools",
       "source": "docs/agent/mcp/tools.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "MCP editing tools and local inspection",
       "load": "on-demand",
       "requires": [],
@@ -527,10 +429,7 @@
     {
       "id": "reference/mcp-simulation",
       "source": "docs/agent/mcp/simulation.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "MCP simulation calls and file ownership",
       "load": "on-demand",
       "requires": [],
@@ -539,10 +438,7 @@
     {
       "id": "reference/mcp-simulation-details",
       "source": "docs/agent/mcp/simulation-reference.md",
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "Detailed MCP simulation contracts",
       "load": "on-demand",
       "requires": [],
@@ -551,11 +447,7 @@
     {
       "id": "reference/simulation-workflow",
       "source": "docs/agent/shared/simulation.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Shared simulation lifecycle",
       "load": "on-demand",
       "requires": [
@@ -568,11 +460,7 @@
     {
       "id": "reference/knowledge/patterns",
       "source": "docs/agent/circuit-style-knowledge.md",
-      "consumers": [
-        "mcp",
-        "http-cli",
-        "http-kit"
-      ],
+      "consumers": ["mcp", "http-cli", "http-kit"],
       "task": "Drawing guide alias; do not reread",
       "load": "on-demand",
       "requires": [],
@@ -582,9 +470,7 @@
     {
       "id": "repo/routegraph",
       "source": "docs/agent/routegraph.md",
-      "consumers": [
-        "maintainer"
-      ],
+      "consumers": ["maintainer"],
       "task": "Use optional repository RouteGraph helper",
       "load": "on-demand",
       "requires": []
@@ -592,9 +478,7 @@
     {
       "id": "repo/local-workspace",
       "source": "docs/agent/local-workspace.md",
-      "consumers": [
-        "maintainer"
-      ],
+      "consumers": ["maintainer"],
       "task": "Draw in a local workspace without a browser",
       "load": "on-demand",
       "requires": []
@@ -602,29 +486,19 @@
   ],
   "templates": {
     "apiHelp": {
-      "consumers": [
-        "http-kit",
-        "maintainer"
-      ],
+      "consumers": ["http-kit", "maintainer"],
       "task": "Describe published HTTP operations"
     },
     "connect": {
-      "consumers": [
-        "bootstrap"
-      ],
+      "consumers": ["bootstrap"],
       "task": "Install, verify loading, then connect"
     },
     "instructions": {
-      "consumers": [
-        "mcp"
-      ],
+      "consumers": ["mcp"],
       "task": "Initialize MCP reading route"
     },
     "toolHelp": {
-      "consumers": [
-        "mcp",
-        "http-cli"
-      ],
+      "consumers": ["mcp", "http-cli"],
       "task": "Discover tool operation and limitations"
     }
   },
@@ -632,10 +506,7 @@
     {
       "name": "canvas-review",
       "source": "docs/agent/skills/canvas-review",
-      "files": [
-        "SKILL.md",
-        "agents/openai.yaml"
-      ],
+      "files": ["SKILL.md", "agents/openai.yaml"],
       "reads": [
         {
           "document": "reference/quickstart",
@@ -695,7 +566,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "aefa8b40a5a7e9f3d446f59104a88ccb5af2b0c3590a2679563571a0a5f254e5"
+      "sha256": "36009b2fc291bd34e088b3692a12acadbd3d7faa771d9ca152bacfdd6841ad19"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -727,13 +598,11 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "dc1c49908e8f145ea5acc96a7d844399bad82e5efacaa53842e5433cc390ae28"
+      "sha256": "563e4b182ec92e514e82c128e9213f5174c48bef1c50db082097c6465e7e0a9d"
     },
     {
       "file": "packages/agent-adapter/src/agent-skills.generated.ts",
-      "sources": [
-        "docs/agent/distribution.json"
-      ],
+      "sources": ["docs/agent/distribution.json"],
       "sha256": "f606c003dd1028aeab5f168aedc7f13129f705eabbacb59fd22f239ad96ec84f"
     },
     {

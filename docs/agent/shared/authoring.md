@@ -429,6 +429,8 @@ member or a unique authoritative name match in the current Document. Geometry
 and child formal spelling never guess a member. Whole-bus connections map
 equal-width ordered lists positionally. The shared planner rejects wrong
 widths, unknown members and ambiguous selections without mutation.
+A collapsed array pin connects to a same-width bus in instance order. Set
+`shareArrayPin: true` on the wire intent to connect every member to one scalar.
 
 A branch and its bound selector are one transaction. Its `net-name` binding's
 `memberEndpoint` or ordered `memberEndpoints` are display references: unnamed

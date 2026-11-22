@@ -66,6 +66,7 @@ export type WireIntentAnchor =
   | { kind: "free"; point: Point };
 
 export interface WireIntent {
+  shareArrayPin?: boolean | undefined;
   id: string;
   from: WireIntentAnchor;
   to: WireIntentAnchor;
@@ -355,8 +356,16 @@ export function proposeWireIntent(
   if (typeof from === "string") return from;
   let to = source(intent.to, "to");
   if (typeof to === "string") return to;
-  const evaluated = evaluateWireMembers(document, from, to);
+  const evaluated = evaluateWireMembers(
+    document,
+    from,
+    to,
+    resolver,
+    intent.shareArrayPin,
+  );
   if (evaluated.kind === "invalid") return evaluated.message;
+  if (evaluated.kind === "choose" && evaluated.choice.sharedPinLabel)
+    return evaluated.choice.sharedPinLabel;
   if (evaluated.kind === "choose")
     return evaluated.choice.expectedWidth === 1
       ? "Select one bus member before connecting a scalar endpoint"

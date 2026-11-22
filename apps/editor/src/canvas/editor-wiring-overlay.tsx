@@ -359,7 +359,20 @@ export function WireMemberChoiceOverlay({
             <div>Esc ends continuous taps</div>
           </div>
         ) : null}
-        {memberChoice ? (
+        {memberChoice?.sharedPinLabel ? (
+          <>
+            <button
+              type="button"
+              autoFocus
+              onClick={() => onWireMemberChoose?.(null)}
+            >
+              {memberChoice.sharedPinLabel}
+            </button>
+            <button type="button" onClick={onWireMemberCancel}>
+              Cancel · Esc
+            </button>
+          </>
+        ) : memberChoice ? (
           <>
             <label>
               Connect {memberChoice.options.length}-member bus

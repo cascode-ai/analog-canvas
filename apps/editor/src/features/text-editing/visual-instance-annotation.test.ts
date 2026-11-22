@@ -117,10 +117,20 @@ describe("one visual annotation, one electrical authority", () => {
     expect(ids?.[0]).toBe("device-1");
     expect(
       flattenRichText(resolveAnnotationText(after, after.annotations[0]!)),
-    ).toBe("RLOAD6");
+    ).toBe("RLOAD<6:0>");
     const alias = edit(before, text("RLOAD<6:0>"), true);
     expect(alias.instances).toEqual(before.instances);
   });
+
+  it.each(["R1<12:8>", "R2<7:0>"])(
+    "preserves the authored numeric prefix of %s",
+    (range) => {
+      const after = edit(fixture(), text(range), false);
+      expect(
+        flattenRichText(resolveAnnotationText(after, after.annotations[0]!)),
+      ).toBe(range);
+    },
+  );
 
   it("keeps the seed's bound label typography and refuses malformed array declarations", () => {
     const before = fixture();
@@ -140,7 +150,7 @@ describe("one visual annotation, one electrical authority", () => {
     });
     expect(
       flattenRichText(resolveAnnotationText(after, after.annotations[0]!)),
-    ).toBe("RLOAD6");
+    ).toBe("RLOAD<6:0>");
     expect(() => edit(before, text("RLOAD<6:x>"), false)).toThrow("blocked");
   });
 

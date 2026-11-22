@@ -1,7 +1,15 @@
+import { createEmptyProject, type CircuitProject } from "@icm/model";
+import { executeProjectTransaction, planCreateCellPin } from "@icm/edit-engine";
+import { serializeProject } from "@icm/project-protocol";
+import { openSelectionShelf } from "./manual-editor-fixtures.js";
 import { expect, test, type Page } from "@playwright/test";
 import {
+  clickDrawTool,
+  readComponentPropertyCode,
   exportedProject,
+  openProject,
   placeResistors,
+  placeComponentAt,
   openEditor,
 } from "./editor-fixtures.js";
 
@@ -106,21 +114,124 @@ test("canvas edits one visual annotation without changing the Netlist Reference,
 // ("refuses a netlist reference that does not match the device's prefix")
 // and property-apply-plan's ("hides and shows a component's name label…").
 
-test("previews and creates a resistor array from the on-canvas reference in one undo", async ({
+test("previews and creates a MOS array from the on-canvas reference in one undo", async ({
   page,
 }) => {
   await openEditor(page);
-  await placeResistors(page, [360], 240);
-  await page.getByTestId("annotation-hit-instance-label-R1").dblclick();
+  await placeComponentAt(page, "nmos", { x: 360, y: 240 });
+  await page.getByTestId("annotation-hit-instance-label-M1").dblclick();
   const editor = page.getByRole("textbox", { name: "Canvas text editor" });
-  await editor.fill("RLOAD<6:0>");
+  await editor.press("ControlOrMeta+a");
+  await editor.pressSequentially("M<7:0>");
   await expect(page.getByTestId("canvas-text-editor")).toContainText(
-    "7 members",
+    "8 members",
   );
   await editor.press("Enter");
-  await expect(visual(page)).toHaveText("RLOAD6");
+  await expect(
+    page.locator(
+      '[data-layer="annotations"] [data-object-id="instance-label-M1"]',
+    ),
+  ).toHaveText("M<7:0>");
   const cell = (await exportedProject(page)).documents[0];
-  expect(cell.instanceGroups[0].memberIds).toHaveLength(7);
+  expect(cell.instanceGroups[0].memberIds).toHaveLength(8);
   await page.getByTestId("draw-tool-undo").click();
-  await expect(visual(page)).toHaveText("R1");
+  await expect(
+    page.locator(
+      '[data-layer="annotations"] [data-object-id="instance-label-M1"]',
+    ),
+  ).toHaveText("M1");
 });
+
+for (const entry of ["label", "device"] as const)
+  test(`applies a MOS range in ${entry} Properties and draws the drain bus and shared gate`, async ({
+    page,
+  }) => {
+    let project = createEmptyProject("mos-array-input", "MOS array");
+    for (const [id, name, x, y] of [
+      ["out", "DOUT<0:7>", 500, 160],
+      ["bias", "VBIAS", 180, 360],
+    ] as const) {
+      const document = project.documents[0]!;
+      const result = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: id,
+        actor: { kind: "human", id: "test" },
+        edits: planCreateCellPin(project, document.id, {
+          instance: {
+            id,
+            symbolId: "port",
+            placement: { position: { x, y }, rotation: 0, mirror: "none" },
+          },
+          terminal: {
+            id: id + "-pin",
+            name,
+            netId: id + "-net",
+            direction: "passive",
+            interfaceInstanceIds: [id],
+          },
+          signalExpression: name,
+          connectionEdits: [],
+        }),
+      });
+      if (!result.ok) throw new Error(result.error.message);
+      project = result.project;
+    }
+    await openProject(page, serializeProject(project));
+    await placeComponentAt(page, "nmos", { x: 360, y: 240 });
+    await page
+      .getByTestId(
+        entry === "label" ? "annotation-hit-instance-label-M1" : "hit-M1",
+      )
+      .click();
+    await openSelectionShelf(page);
+    const code = JSON.parse(await readComponentPropertyCode(page));
+    const input = page.getByLabel("Editable Canvas property code");
+    const label = page.locator(
+      '[data-layer="annotations"] [data-object-id="instance-label-M1"]',
+    );
+    for (const name of ["M", "M<7", "M<7:0>"]) {
+      await input.fill(JSON.stringify({ ...code, name }, null, 2));
+      await expect(label).toHaveText("M1");
+    }
+    await page.getByRole("button", { name: "Apply name", exact: true }).click();
+    await expect(
+      page.locator(
+        '[data-layer="annotations"] [data-object-id="instance-label-M1"]',
+      ),
+    ).toHaveText("M<7:0>");
+    await clickDrawTool(page, "wire");
+    await page.getByTestId("terminal-M1-D").click();
+    await page.getByTestId("terminal-out-P").hover();
+    await expect(
+      page.getByText(/M7\.D → DOUT<0>.*M0\.D → DOUT<7>/),
+    ).toBeVisible();
+    await page.getByTestId("terminal-out-P").click();
+    await expect(page.getByTestId("status")).toContainText("Committed route");
+    await page.getByTestId("terminal-M1-G").click();
+    await page.getByTestId("terminal-bias-P").click();
+    await page
+      .getByRole("button", { name: "Connect all 8 G pins to VBIAS" })
+      .click();
+    await expect(page.getByTestId("status")).toContainText("Committed route");
+    const after: CircuitProject = await exportedProject(page);
+    const doc = after.documents[0]!;
+    expect(doc.routes.map((route) => route.members?.length ?? 1)).toEqual([
+      8, 1,
+    ]);
+    const group = doc.instanceGroups![0]!;
+    const bits = doc.netlist!.terminals.find((pin) => pin.name === "DOUT<0:7>")!
+      .signal!.members;
+    for (const [index, instanceId] of group.memberIds.entries()) {
+      expect(
+        doc.nets.find((net) => net.id === bits[index]!.netId)?.terminals,
+      ).toContainEqual({ instanceId, pinName: "D" });
+      expect(
+        doc.nets.find(
+          (net) =>
+            net.id ===
+            doc.netlist!.terminals.find((pin) => pin.name === "VBIAS")!.netId,
+        )?.terminals,
+      ).toContainEqual({ instanceId, pinName: "G" });
+    }
+  });
