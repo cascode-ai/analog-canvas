@@ -13,6 +13,25 @@ import { digest } from "./regional-auth-contract";
 
 afterEach(() => vi.unstubAllGlobals());
 
+function emptyGalleryRequest(
+  path: string,
+  method: "POST" | "DELETE",
+  session: string,
+  key: string,
+): Request {
+  return new Request(ORIGIN + path, {
+    method,
+    headers: {
+      origin: ORIGIN,
+      cookie: session,
+      "idempotency-key": key,
+      "content-type": "application/json",
+      "content-length": "0",
+    },
+    body: new Uint8Array(),
+  });
+}
+
 it("withdraws once after the peer waits through maintenance and network transit", async () => {
   const { cn, overseas, publish, auth } = await pair();
   const id = await publish(cn);
@@ -72,10 +91,13 @@ it("withdraws once after the peer waits through maintenance and network transit"
 });
 
 it("unlikes through the other entrance and reconciles a lost reply without toggling again", async () => {
-  const { cn, overseas, publish, loseNextReply } = await pair();
+  const { cn, overseas, publish, loseNextReply, cookie } = await pair();
   const id = await publish(overseas);
   const path = `/api/gallery/${id}/like`;
-  expect((await overseas.call(path, "POST", "first-like")).status).toBe(200);
+  const like = await overseas.route(
+    emptyGalleryRequest(path, "POST", cookie, "first-like"),
+  );
+  expect(await like.json()).toEqual({ likes: 1, likedByViewer: true });
   const changed = await overseas.store.fetch(
     new Request("https://store/resource-sync/changes", {
       method: "POST",
@@ -116,12 +138,63 @@ it("unlikes through the other entrance and reconciles a lost reply without toggl
   ).toBe(1);
 });
 
+it("restores a foreign Gallery version from an empty HTTP request", async () => {
+  const { cn, overseas, publish, cookie } = await pair();
+  const path = `/api/gallery/${await publish(cn)}`;
+  const updated = await cn.call(path, "PUT", "update-drawing", {
+    name: "Updated drawing",
+    projectText: wiredProjectText("Updated drawing", 240),
+  });
+  expect(updated.status, await updated.clone().text()).toBe(200);
+  const { versions } = (await (await cn.call(path + "/versions")).json()) as {
+    versions: { versionId: string; name: string }[];
+  };
+  expect(versions.map(({ name }) => name)).toEqual(["Regional lifecycle"]);
+  const restored = await overseas.route(
+    emptyGalleryRequest(
+      path + `/versions/${versions[0]!.versionId}/restore`,
+      "POST",
+      cookie,
+      "restore-drawing",
+    ),
+  );
+  expect(restored.status, await restored.clone().text()).toBe(200);
+  expect((await (await cn.call(path)).json()).entry.name).toBe(
+    "Regional lifecycle",
+  );
+  expect((await (await overseas.call(path)).json()).entry.name).toBe(
+    "Regional lifecycle",
+  );
+});
+
+it("removes a foreign Gallery reference image from an empty HTTP request", async () => {
+  const { cn, overseas, publish, cnCookie } = await pair();
+  const path = `/api/gallery/${await publish(overseas)}`;
+  const reference = path + "/reference";
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 1, 2]);
+  const saved = await overseas.call(reference, "PUT", "save-reference", {
+    image: { type: "image/png", data: png.toString("base64") },
+    rights: true,
+  });
+  expect(saved.status, await saved.clone().text()).toBe(200);
+  const removed = await cn.route(
+    emptyGalleryRequest(reference, "DELETE", cnCookie, "remove-reference"),
+  );
+  expect(removed.status, await removed.clone().text()).toBe(200);
+  expect((await overseas.call(reference)).status).toBe(404);
+  expect((await cn.call(reference)).status).toBe(404);
+  expect((await overseas.call(path)).status).toBe(200);
+});
+
 it("keeps a prepared like command intact when its retry enters through the other region", async () => {
-  const { cn, overseas, publish, loseNextReply, auth } = await pair();
+  const { cn, overseas, publish, loseNextReply, auth, cnCookie, cookie } =
+    await pair();
   const id = await publish(cn);
   const path = `/api/gallery/${id}/like`;
-  const prepare = await cn.call(path + "/intent", "POST", "travelling-like");
-  expect(prepare.status).toBe(200);
+  const prepare = await cn.route(
+    emptyGalleryRequest(path + "/intent", "POST", cnCookie, "travelling-like"),
+  );
+  expect(prepare.status, await prepare.clone().text()).toBe(200);
   const command = await prepare.json();
   const other = await signIn(auth.source.authDurable, "like-other@example.com");
   const switched = await overseas.route(
@@ -153,6 +226,23 @@ it("keeps a prepared like command intact when its retry enters through the other
       })
     ).status,
   ).toBe(400);
+  const prepareUnlike = await overseas.route(
+    emptyGalleryRequest(path + "/intent", "POST", cookie, "travelling-unlike"),
+  );
+  expect(prepareUnlike.status, await prepareUnlike.clone().text()).toBe(200);
+  const unlike = { command: await prepareUnlike.json() };
+  loseNextReply();
+  expect(
+    (await overseas.call(path, "POST", "travelling-unlike", unlike)).status,
+  ).toBe(503);
+  expect(
+    await (
+      await overseas.call(path, "POST", "travelling-unlike", unlike)
+    ).json(),
+  ).toEqual({ likes: 0, likedByViewer: false });
+  expect(
+    await (await cn.call(path, "POST", "travelling-unlike", unlike)).json(),
+  ).toEqual({ likes: 0, likedByViewer: false });
 });
 
 it("changes the Owner's Dataset hearts across writers and refuses stale or forged intents", async () => {

@@ -760,7 +760,7 @@ test("a gallery tile opens its circuit in the editor", async ({ page }) => {
   await expect(page.getByTestId("gallery-feed")).toBeVisible();
 });
 
-test("retries an uncertain unlike after reload with its original operation", async ({
+test("retries an unlike with its original operation after an unreadable successful reply", async ({
   page,
 }) => {
   await serveWall(page, () => ({
@@ -789,23 +789,38 @@ test("retries an uncertain unlike after reload with its original operation", asy
     });
     await route.fulfill(
       attempts.length === 1
-        ? { status: 503, json: { error: "action-unconfirmed" } }
-        : { json: { likes: 0, likedByViewer: false } },
+        ? { json: {} }
+        : attempts.length === 2
+          ? {
+              status: 429,
+              headers: { "retry-after": "1" },
+              json: { error: "too-many-requests" },
+            }
+          : { json: { likes: 0, likedByViewer: false } },
     );
   });
   await page.goto("/");
-  await page.getByTestId(`gallery-like-${ENTRY.id}`).click();
-  await expect.poll(() => attempts.length).toBe(1);
+  const like = page.getByTestId(`gallery-like-${ENTRY.id}`);
+  await like.click();
+  await expect(
+    page.getByRole("status").filter({
+      hasText: "Retry to check the same operation.",
+    }),
+  ).toBeVisible();
+  await expect(like).toHaveAttribute("aria-pressed", "true");
+  await expect(like).toContainText("1");
   await page.reload();
-  await page.getByTestId(`gallery-like-${ENTRY.id}`).click();
-  await expect(page.getByTestId(`gallery-like-${ENTRY.id}`)).toHaveAttribute(
-    "aria-pressed",
-    "false",
-  );
+  await like.click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Too many requests." }),
+  ).toBeVisible();
+  await like.click();
+  await expect(like).toHaveAttribute("aria-pressed", "false");
   expect(prepared).toBe(1);
-  expect(attempts).toHaveLength(2);
+  expect(attempts).toHaveLength(3);
   expect(attempts[0]!.key).toBeTruthy();
   expect(attempts[1]).toEqual(attempts[0]);
+  expect(attempts[2]).toEqual(attempts[0]);
   expect(attempts[1]!.body).toEqual({ command: command! });
 });
 

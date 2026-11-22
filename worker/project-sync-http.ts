@@ -6,8 +6,12 @@
 export async function readSyncJson(
   message: Pick<Request, "body" | "headers">,
   limit: number,
+  { allowEmpty = false }: { allowEmpty?: boolean } = {},
 ): Promise<unknown> {
-  if (!message.body) throw new SyntaxError("Missing JSON body");
+  if (!message.body) {
+    if (allowEmpty) return null;
+    throw new SyntaxError("Missing JSON body");
+  }
   const encoding = (message.headers.get("content-encoding") ?? "identity")
     .trim()
     .toLowerCase();
@@ -32,7 +36,10 @@ export async function readSyncJson(
       }
       text += decoder.decode(value, { stream: true });
     }
-    return JSON.parse(text + decoder.decode());
+    // An HTTP request can expose an empty stream even for Content-Length: 0.
+    return allowEmpty && size === 0
+      ? null
+      : JSON.parse(text + decoder.decode());
   } catch (error) {
     if (error instanceof RangeError || error instanceof SyntaxError)
       throw error;

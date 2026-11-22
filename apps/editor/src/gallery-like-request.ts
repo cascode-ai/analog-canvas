@@ -85,7 +85,24 @@ export async function galleryLikeRequest(
         ? { body: JSON.stringify({ command: intent.command }) }
         : {}),
     });
-    if (response.ok || [400, 403, 404, 409, 429].includes(response.status))
+    if (response.ok) {
+      const result = (await response
+        .clone()
+        .json()
+        .catch(() => null)) as {
+        likes?: unknown;
+        likedByViewer?: unknown;
+      } | null;
+      // A write can commit before the response body reaches the browser.
+      if (
+        typeof result?.likes !== "number" ||
+        !Number.isSafeInteger(result.likes) ||
+        result.likes < 0 ||
+        typeof result.likedByViewer !== "boolean"
+      )
+        return Response.json({ error: "action-unconfirmed" }, { status: 502 });
+    }
+    if (response.ok || [400, 403, 404, 409].includes(response.status))
       save(identity, null);
     return response;
   };
