@@ -929,18 +929,21 @@ export function createAgentCircuitService(
               document.revision,
             );
           runningCalls = true;
+          // The parts a refused or dry-run list took back leave no entry.
+          const kept = [...history];
           try {
-            return response(
-              runActionCalls({
-                request: { ...request, actions: request.actions },
-                calls: plan.calls,
-                host,
-                atomically,
-                handle: (input) => service.handle(input),
-                diagnosticsFor,
-                before: { project, document, resolver },
-              }),
-            );
+            const answer = runActionCalls({
+              request: { ...request, actions: request.actions },
+              calls: plan.calls,
+              host,
+              atomically,
+              handle: (input) => service.handle(input),
+              diagnosticsFor,
+              before: { project, document, resolver },
+            });
+            if (!answer.ok || request.dryRun)
+              history.splice(0, history.length, ...kept);
+            return response(answer);
           } finally {
             runningCalls = false;
           }
