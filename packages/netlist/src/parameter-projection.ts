@@ -3,7 +3,8 @@ import {
   projectLengthToSky130Micrometres,
   sky130MicrometresToProjectLength,
 } from "@icm/devices";
-import type { DesignNetlistInstance } from "./ir.js";
+import { parseSpiceNumber } from "@icm/spice";
+import type { DesignNetlistInstance, DesignNetlistParameter } from "./ir.js";
 
 /** Internal value projection, not an editable-policy or persisted contract. */
 export type PrintedParameterConversion =
@@ -84,6 +85,34 @@ export function printedParameterConversion(
   )?.targetUnit === "micrometre"
     ? "sky130-micrometres"
     : "identity";
+}
+
+/**
+ * Whether a reviewed device's call gives this count again as `m`, the
+ * parallel multiplier, as its PDK's own symbols do: SKY130's MIM and poly
+ * resistor wrappers read mf or mult only to scale their mismatch (#2447).
+ * Not for a count of exactly 1, which `m` would not change, nor when the part
+ * gives its own `m`, which the call prints as it is.
+ */
+export function printsParallelM(
+  instance: Pick<
+    DesignNetlistInstance,
+    "reviewedExternalBindingId" | "parameters"
+  >,
+  parameter: DesignNetlistParameter,
+): boolean {
+  const binding = reviewedExternalBindingById(
+    instance.reviewedExternalBindingId,
+  );
+  return (
+    !!binding?.parameters.some(
+      (p) =>
+        p.alsoParallelM &&
+        p.name.toLowerCase() === parameter.name.toLowerCase(),
+    ) &&
+    parseSpiceNumber(parameter.rawValue)?.value !== 1 &&
+    !instance.parameters.some((p) => p.name.toLowerCase() === "m")
+  );
 }
 
 /** Native syntax decoding/validation belongs to the caller. Ordinary Netlist

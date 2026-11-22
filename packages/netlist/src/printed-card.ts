@@ -9,6 +9,7 @@ import {
 import { signedControlGain } from "./controlled-current.js";
 import {
   printedParameterConversion,
+  printsParallelM,
   spectreNumber,
 } from "./parameter-projection.js";
 
@@ -253,7 +254,13 @@ export function printInstanceCard(
     const skip = new Set(excluded.map((name) => name.toLowerCase()));
     return items
       .filter((p) => !skip.has(p.name.toLowerCase()))
-      .map((p) => join([plain(`${p.name}=`), parameterValue(p)]));
+      .flatMap((p) => [
+        join([plain(`${p.name}=`), parameterValue(p)]),
+        // The same authored count again, so an edit of either reads back.
+        ...(printsParallelM(instance, p)
+          ? [join([plain("m="), parameterValue(p)])]
+          : []),
+      ]);
   };
   const sourceValues = () => {
     // A source the SPICE import kept as written has its AC and waveform in

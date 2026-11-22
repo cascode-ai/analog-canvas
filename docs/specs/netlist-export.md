@@ -78,6 +78,15 @@ Instance bindings; export defines no parallel shape.
 - Reviewed SKY130 `l/w` are stored as metre strings and printed as micrometres in
   both dialects; editable geometry maps back. Printed keys map back to authored
   case; untouched fields keep their spelling.
+- SKY130 parallel counts reach the simulator as `m`, the call multiplier. MOS
+  and BJT wrappers take `m` itself. The [MIM](https://github.com/google/skywater-pdk-libs-sky130_fd_pr/blob/f62031a1be9aefe902d6d54cddd6f59b57627436/cells/cap_mim_m3/sky130_fd_pr__cap_mim_m3_1.model.spice#L16)
+  `mf` and high/xhigh poly `mult` only scale the wrapper's mismatch, so both
+  dialects print the count again as `m` (`mf=20 m=20`), as the
+  [xschem symbols](https://github.com/StefanSchippers/xschem_sky130/blob/2bfd7d654e12492d47986b78e68bb770e633b5da/sky130_fd_pr/cap_mim_m3_1.sym)
+  do; both appearances edit the one stored count. A count of 1 adds no `m`; a
+  part's own `m` prints as stored. The varactor's `vm` scales the device
+  itself and gets no `m`. Import reads an `m` equal to the count, or alone,
+  back as the count.
 
 ## Device definition
 
@@ -431,7 +440,7 @@ parameters or renumbers first.
   Project or refills deliberately missing parameters.
 - Placing a native device under a process binds its model in the same
   transaction (GUI and Agent share the plan); SKY130 transistors, PNP and NPN
-  arrive as reviewed `X` wrappers. Reviewed SKY130 BJT wrappers take `m`.
+  arrive as reviewed `X` wrappers.
 - IHP SG13G2 binds like its xschem symbols: `sg13_lv_*`/`sg13_hv_*`
   (`d g s b`; `w l ng m`), `npn13G2`/`npn13G2l`/`npn13G2v` (`c b e bn`; `le we
 Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;

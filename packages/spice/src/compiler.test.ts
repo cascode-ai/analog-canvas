@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { reviewedExternalBindingById } from "@icm/devices";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 
 import { compileSourceBundle, compileSpiceSources } from "./compiler.js";
@@ -565,6 +566,49 @@ Q2 collector base emitter QPREF
         (diagnostic) => diagnostic.code === "SPICE_IMPORT_UNSUPPORTED_SYMBOL",
       ),
     ).toEqual([]);
+  });
+
+  it("reads a SKY130 count given again as m back as that one count (#2447)", async () => {
+    const mim = reviewedExternalBindingById("sky130-cap-mim-m3-1")!.masterName;
+    const res = reviewedExternalBindingById("sky130-res-high-po")!.masterName;
+    const varactor =
+      reviewedExternalBindingById("sky130-cap-var-lvt")!.masterName;
+    const compiled = await compileSpiceSources(
+      [
+        {
+          path: "counts.spi",
+          bytes: Buffer.from(
+            [
+              "Counts",
+              `XC1 a 0 ${mim} w=25 l=25 MF=20 m=20`,
+              `XC2 a 0 ${mim} w=25 l=25 m=20`,
+              `XC3 a 0 ${mim} w=25 l=25 mf=2 m=3`,
+              `XR1 a b 0 ${res} w=1 l=5.5 mult=2 m=2`,
+              `XC4 a 0 0 ${varactor} w=5 l=0.5 vm=3 m=3`,
+              ".end",
+              "",
+            ].join("\n"),
+          ),
+        },
+      ],
+      "counts.spi",
+    );
+    const imported = importCompileResult(compiled);
+    const parameters = Object.fromEntries(
+      imported
+        .project!.documents.flatMap((document) => document.instances)
+        .map((instance) => [instance.reference, instance.netlist?.parameters]),
+    );
+    expect(parameters).toMatchObject({
+      XC1: { w: "25u", l: "25u", mf: "20" },
+      XC2: { w: "25u", l: "25u", mf: "20" },
+      XC3: { w: "25u", l: "25u", mf: "2", m: "3" },
+      XR1: { w: "1u", l: "5.5u", mult: "2" },
+      // The varactor's vm is its count; an m beside it is its own.
+      XC4: { w: "5u", l: "500n", vm: "3", m: "3" },
+    });
+    for (const reference of ["XC1", "XC2", "XR1"])
+      expect(parameters[reference]).not.toHaveProperty("m");
   });
 
   it("imports reviewed SKY130 external masters with declared interfaces", async () => {
