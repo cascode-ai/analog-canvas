@@ -438,8 +438,10 @@ status, checkedAt, folders}` → `{recorded: true, check}`. The server makes the
     entry's, with `origin: "local"`, and ends its hosted check.
 - `node scripts/gallery-sim-verify.mjs ID…|--all [--apply]` is that check: the
   headless engine (output/headless) prepares each folder, runs it through the
-  Worker's ngspice route with the local ngspice and model files (`--models`,
-  default volare's sky130A; `--library ID=FILE`), and judges it. Dry run without
+  Worker's ngspice route with the local ngspice and the hosted simulator's
+  model files (`--models`, default the image's continuous library unpacked at
+  `~/.volare/circuit-bench-2.0.8`; the Profile's standard cells from
+  `containers/ngspice/cells`; `--library ID=FILE`), and judges it. Dry run without
   `--apply`. Only the hosted SKY130 ngspice Profile runs; another Profile, no
   ngspice or a missing library is "cannot run" and records nothing.
 - Hosted check, optional: only the Owner starts it: `POST
