@@ -26,6 +26,29 @@ type Page = {
 };
 
 describe("Gallery change feed", () => {
+  it("reads a full page of 1000 changes", async () => {
+    const env = environment();
+    const admin = await adminOf(env);
+    const first = await submitOne(env, "Template", { cookie: admin });
+    env.gallerySql.exec(
+      "CREATE TEMP TABLE template AS SELECT * FROM gallery_entries WHERE id = ?",
+      first,
+    );
+    for (let n = 0; n < 1000; n += 1) {
+      env.gallerySql.exec("UPDATE template SET id = ?", `copy-${n}`);
+      env.gallerySql.exec("INSERT INTO gallery_entries SELECT * FROM template");
+    }
+    const response = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/maintenance/changes`),
+    );
+    expect(response.status).toBe(200);
+    const page = (await response.json()) as Page;
+    expect(page.changes).toHaveLength(1000);
+    expect(page.changes.every((change) => change.entry)).toBe(true);
+    expect(page.nextCursor).not.toBeNull();
+  });
+
   it("lists each entry's latest change after a reader's last one", async () => {
     const env = environment();
     const admin = await adminOf(env);

@@ -24,6 +24,8 @@ export function sqliteState(queries?: string[], maxRowBytes = Infinity) {
     storage: {
       sql: {
         exec<T>(query: string, ...bindings: unknown[]) {
+          // Cloudflare's SQLite binds at most 100 parameters per statement.
+          if (bindings.length > 100) throw new Error("too many SQL variables");
           // Optional target-runtime ceiling for HTTP tests; Node SQLite otherwise
           // admits rows that Cloudflare's SQLite service rejects.
           if (
