@@ -7,6 +7,11 @@ import { publicationResult } from "./gallery-publication-command";
 
 import { sha256Hex } from "@icm/derived";
 import {
+  SIMULATION_CHECK_RULE_VERSION,
+  type SimulationCheck,
+  type SimulationCheckFolder,
+} from "@icm/simulation-service";
+import {
   type DurableObjectStateLike,
   type SqlStorage,
   isRecord,
@@ -14,47 +19,13 @@ import {
 import {
   INLINE_TESTBENCH,
   LEGACY_TESTBENCH,
+  testbenchOf,
   withTestbench,
 } from "./gallery-testbench";
 
-/**
- * The rule a stored verdict answered. Rule 1: every simulation folder runs
- * to completion on the hosted simulator, the testbench states at least one
- * Spec, and every Spec it states passes. A verdict of another rule shows no
- * mark; the Owner checks again.
- */
-export const SIMULATION_CHECK_RULE_VERSION = 1;
-
-/** One folder's run, and each Spec it states. */
-export interface SimulationCheckFolder {
-  name: string;
-  status: "pass" | "fail" | "error";
-  /** Why it did not pass: the run's Problem code, or a Spec's reason. */
-  code?: string;
-  message?: string;
-  /** The simulator and Profile its result named, such as `ngspice ngspice-46`. */
-  simulator?: string;
-  profileId?: string;
-  specs: {
-    name: string;
-    expected: string;
-    value: number | null;
-    unit: string;
-    judgment: string;
-    reason?: string;
-  }[];
-}
-
-/** An entry's latest check, as stored in `simulation_check_json`. */
-export interface SimulationCheck {
-  status: "pass" | "fail" | "error" | "no-testbench";
-  checkedAt: string;
-  rule: number;
-  simulator: string | null;
-  /** Why it did not pass, when it did not. */
-  reason?: string;
-  folders: SimulationCheckFolder[];
-}
+// The verdict's shape and rule are the simulation service's, shared with
+// the Owner's local check (simulation-check.ts there).
+export type { SimulationCheck };
 
 interface QueueRow {
   entry_id: string;
@@ -428,6 +399,110 @@ export function simulationCheckProgress(
       noTestbench: counts["no-testbench"] ?? 0,
     },
     results,
+  });
+}
+
+/**
+ * What a local check speaks for: the stored Project Code and testbench,
+ * each by its SHA-256. A testbench still inside the Project Code (a row the
+ * privacy pass has not moved) is in both.
+ */
+function contentDigests(row: ContentRow): {
+  projectDigest: string;
+  testbenchDigest: string | null;
+} {
+  const testbench = testbenchOf(row);
+  return {
+    projectDigest: sha256Hex(row.project_text),
+    testbenchDigest: testbench === null ? null : sha256Hex(testbench),
+  };
+}
+
+/** A row this store writes, or why not: absent, or another region's. */
+function writtenRow(
+  sql: SqlStorage,
+  id: string,
+): ContentRow | "not-found" | "wrong-writer" {
+  const row = contentOf(sql, id);
+  if (!row) return "not-found";
+  const owned = sql
+    .exec<{ id: string }>(
+      `SELECT id FROM gallery_entries WHERE id = ? AND ${locallyOwnedResources(sql)}`,
+      id,
+    )
+    .toArray();
+  return owned.length > 0 ? row : "wrong-writer";
+}
+
+/** The entries `{all: true}` would queue: every public entry with a testbench. */
+export function simulationCheckInputs(sql: SqlStorage): Response {
+  return Response.json({
+    entries: sql
+      .exec<{ id: string; name: string }>(
+        `SELECT id, name FROM gallery_entries
+         WHERE status = 'public' AND ${HAS_TESTBENCH} AND ${locallyOwnedResources(sql)}
+         ORDER BY created_at, id`,
+      )
+      .toArray()
+      .map((row) => ({ id: row.id, name: row.name })),
+  });
+}
+
+/**
+ * One entry for a local check: its Project Code with the testbench, and the
+ * digests a recorded verdict must name.
+ */
+export function simulationCheckInput(
+  sql: SqlStorage,
+  body: Record<string, unknown>,
+): Response {
+  const row = writtenRow(sql, String(body.id));
+  if (typeof row === "string")
+    return Response.json({ error: row }, { status: row === "wrong-writer" ? 409 : 404 });
+  return Response.json({
+    id: row.id,
+    name: row.name,
+    projectText: withTestbench(row.project_text, row.testbench_text),
+    ...contentDigests(row),
+  });
+}
+
+/**
+ * Store a verdict the Owner's local check made, for the content it names.
+ * Refused, and nothing written, when the entry's Project Code or testbench
+ * is no longer what was checked (`stale-content`) or it has no testbench.
+ * A recorded verdict ends any hosted check of the entry still waiting.
+ */
+export function recordLocalSimulationCheck(
+  state: DurableObjectStateLike,
+  body: Record<string, unknown>,
+): Response {
+  const sql = state.storage.sql;
+  const id = String(body.id);
+  return state.storage.transactionSync(() => {
+    const row = writtenRow(sql, id);
+    if (typeof row === "string")
+      return Response.json(
+        { error: row },
+        { status: row === "wrong-writer" ? 409 : 404 },
+      );
+    const current = contentDigests(row);
+    if (current.testbenchDigest === null)
+      return Response.json({ error: "no-testbench" }, { status: 409 });
+    if (
+      current.projectDigest !== body.projectDigest ||
+      current.testbenchDigest !== body.testbenchDigest
+    )
+      return Response.json({ error: "stale-content" }, { status: 409 });
+    if (!isRecord(body.check))
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    sql.exec(
+      "UPDATE gallery_entries SET simulation_check_json = ? WHERE id = ?",
+      JSON.stringify(body.check),
+      id,
+    );
+    sql.exec("DELETE FROM gallery_simulation_checks WHERE entry_id = ?", id);
+    return Response.json({ recorded: true });
   });
 }
 

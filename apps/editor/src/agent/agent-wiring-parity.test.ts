@@ -487,6 +487,57 @@ describe("route-net avoid", () => {
     ]);
   });
 
+  it("taps an earlier branch a later one going round would cross", async () => {
+    // R4.1's branch round R5.1 to the trunk crossed R1.2's at (-100, 60),
+    // with no dot.
+    const { client, controller } = await folder();
+    const placed = await client.applyActions(
+      (
+        [
+          ["R1", -80, 80, 90],
+          ["R4", -120, 80, 0],
+          ["R5", -120, 40, 90],
+        ] as const
+      ).map(([reference, x, y, rotation]) => ({
+        kind: "place-component",
+        symbol: "resistor",
+        reference,
+        position: { x, y },
+        rotation,
+      })),
+    );
+    expect(placed.ok, placed.message).toBe(true);
+    const id = (reference: string) =>
+      controller.document.instances.find(
+        (instance) => instance.reference === reference,
+      )!.id;
+    const routed = await client.applyActions([
+      {
+        kind: "route-net",
+        target: {
+          kind: "pins",
+          pins: [
+            { instanceId: id("R1"), pinName: "2" },
+            { instanceId: id("R4"), pinName: "1" },
+            { instanceId: id("R5"), pinName: "1" },
+          ],
+        },
+        trunk: { start: { x: -300, y: 0 }, end: { x: 300, y: 0 } },
+        avoid: true,
+      },
+    ]);
+    expect(routed.ok, routed.message).toBe(true);
+    expect(netsByPins(controller.document)).toEqual(["R1.2 R4.1 R5.1"]);
+    // R4.1 (-120, 60) ends on R1.2's branch, at a dot.
+    expect(drawnPaths(controller.document)).toContainEqual([
+      [-120, 60],
+      [-100, 60],
+    ]);
+    expect(
+      controller.document.junctions.map(({ position }) => position),
+    ).toContainEqual({ x: -100, y: 60 });
+  });
+
   it("searches round a wall the simple shapes cannot clear, on the side preferred, and refuses naming the pins when nothing goes round", async () => {
     // Capacitors at x = 200 from y = -100 to 100: past the simple shapes'
     // reach, inside the search's.

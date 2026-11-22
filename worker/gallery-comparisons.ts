@@ -3,7 +3,7 @@
 // figures we may show (`comparisons: true`) answer.
 
 import { gallerySourceOfEntryId, type GallerySource } from "./gallery-sources";
-import { ownerImportRefusal, withGalleryStore } from "./gallery-datasets";
+import { ownerToolRefusal, withGalleryStore } from "./gallery-datasets";
 import { callGallery } from "./gallery-requests";
 import { checkedComparison } from "./gallery-store-comparisons";
 import { isRecord, type GalleryEnv } from "./gallery-store";
@@ -81,7 +81,7 @@ async function importComparisons(
   store: GalleryEnv,
   source: GallerySource,
 ): Promise<Response> {
-  const refusal = await ownerImportRefusal(request, env);
+  const refusal = await ownerToolRefusal(request, env);
   if (refusal instanceof Response) return refusal;
   const body = (await request.json().catch(() => null)) as {
     comparisons?: unknown;

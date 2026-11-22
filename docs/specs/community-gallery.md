@@ -409,25 +409,51 @@ applied, moved, remaining, legacy, failures}`; the scheduled pass moves 25 rows
 
 ## Simulation checks
 
-The Sim mark says the server re-ran the testbench on the hosted simulator, it
-completed, and every stated Spec passed.
+The Sim mark says the testbench ran again, on the Owner's machine or the hosted
+simulator, completed, and every stated Spec passed.
 
 - Every folder must complete, at least one Spec must be stated, and every stated
   Spec (including malformed ones) must pass. Statuses: `error` (unpreparable or
   incomplete), `fail` (missed or unjudgeable Spec, `no-specs`), `no-testbench`,
-  `pass`. Only `pass` under the current rule version earns the mark.
-- Only the Owner starts checks: `POST /api/gallery/simulation-checks` (Owner
-  account, same-origin, else 401/403 `owner-only`) queues `{"ids": [...]}` (≤500)
-  or `{"all": true}` and answers 202 `{queued, noTestbench, missing, waiting}`;
-  `GET` reads `{waiting, current, counts, results}`.
+  `pass`. Only `pass` under the current rule version earns the mark. Both checks
+  judge a folder's run and make the verdict with the simulation service's
+  `judgeSimulationCheckFolder` and `simulationCheckVerdict`; an erring or failing
+  folder ends the check.
+- Local check, the Owner's (an Owner token, or the Owner's session, same-origin
+  for `POST`; else 401/403 `owner-only`), on entries this region writes (else
+  409 `wrong-writer`):
+  - `GET /api/gallery/simulation-checks/inputs` → `{entries: [{id, name}]}`,
+    every public entry with a testbench;
+  - `GET /api/gallery/<id>/simulation-check/input` → `{id, name, projectText,
+projectDigest, testbenchDigest}`: the Project Code with its testbench and the
+    SHA-256 of the stored Project Code and testbench (null: none);
+  - `POST /api/gallery/<id>/simulation-check {projectDigest, testbenchDigest,
+status, checkedAt, folders}` → `{recorded: true, check}`. The server makes the
+    verdict again from `folders`: they must be the testbench's own, in order,
+    passing up to the last (400 `folders-mismatch`), the verdict's status must be
+    `status` (400 `inconsistent-verdict`), and `checkedAt` not ahead of the
+    server by over 10 minutes (400 `invalid-fields`). Digests not of what is
+    stored now are 409 `stale-content`, checked again as the verdict is written;
+    an entry without a testbench is 409 `no-testbench`. The verdict replaces the
+    entry's, with `origin: "local"`, and ends its hosted check.
+- `node scripts/gallery-sim-verify.mjs ID…|--all [--apply]` is that check: the
+  headless engine (output/headless) prepares each folder, runs it through the
+  Worker's ngspice route with the local ngspice and model files (`--models`,
+  default volare's sky130A; `--library ID=FILE`), and judges it. Dry run without
+  `--apply`. Only the hosted SKY130 ngspice Profile runs; another Profile, no
+  ngspice or a missing library is "cannot run" and records nothing.
+- Hosted check, optional: only the Owner starts it: `POST
+/api/gallery/simulation-checks` (Owner account, same-origin, else 401/403
+  `owner-only`) queues `{"ids": [...]}` (≤500) or `{"all": true}` and answers 202
+  `{queued, noTestbench, missing, waiting}`; `GET` reads `{waiting, current,
+counts, results}`.
 - The five-minute pass works the queue first-in first, one folder at a time, for
   ≤4 minutes: `prepareFolderExecutionInput`, a managed run as
-  `gallery-simulation-check` (one waiting, one running), `executionSpecReport`,
-  log only, ≤8 MiB. A busy simulator keeps the folder at the head and re-asks the
-  same run; a run ending without a result is `error`; an erring or failing folder
-  ends the check.
+  `gallery-simulation-check` (one waiting, one running), log only, ≤8 MiB. A busy
+  simulator keeps the folder at the head and re-asks the same run; a run ending
+  without a result is `error`.
 - `simulation_check_json` on the entry holds `{status, checkedAt, rule,
-simulator, reason?, folders}` with per-Spec condition, value, unit and
+simulator, reason?, origin?, folders}` with per-Spec condition, value, unit and
   judgment. Any Project or testbench change clears it; a mid-run change
   restarts. The queue is not backed up.
 - `GET /api/gallery/<id>/simulation-check` answers `{check, waiting}` to
@@ -483,9 +509,10 @@ createdAt?}]}` (≤10), validated like submissions with the prefix
   `{id, ok, created, previewRevision}` or `{id, ok: false, error}`. Imports
   post from the CLI with `pnpm gallery:import-batches … --post`
   ([Batch drawing](../agent/batch-drawing.md)).
-- Owner tokens (#1769): one labelled token per machine for that import and
-  the comparison import below; no other route accepts one, and a token does
-  not expire until it is revoked.
+- Owner tokens (#1769): one labelled token per machine for that import, the
+  comparison import below and the
+  [local simulation check](#simulation-checks); no other route accepts one, and
+  a token does not expire until it is revoked.
   The Owner's same-origin session (else 401/403) mints one
   with `POST /api/auth/owner-tokens {label}` → `{id, label, token, createdAt}`
   (`acot_…`, shown once; AuthDO keeps its SHA-256), lists them with

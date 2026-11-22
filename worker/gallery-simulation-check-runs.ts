@@ -17,23 +17,19 @@ import {
   CapabilitiesSchema,
   ExecutionFailure,
   createManagedHostedExecutor,
-  executionSpecReport,
-  formatSimulationSpec,
+  judgeSimulationCheckFolder,
   prepareFolderExecutionInput,
   sha256,
+  simulationCheckFolderFailure,
+  simulationCheckVerdict,
   type Capabilities,
   type ExecutionInput,
-  type Problem,
-  type SimulationSpecResult,
+  type SimulationCheck,
+  type SimulationCheckFolder,
 } from "@icm/simulation-service";
 import type { SessionUser } from "./auth";
 import { callGallery } from "./gallery-requests";
 import type { GalleryEnv } from "./gallery-store";
-import {
-  SIMULATION_CHECK_RULE_VERSION,
-  type SimulationCheck,
-  type SimulationCheckFolder,
-} from "./gallery-store-simulation-checks";
 import { routeSimulationRequest } from "./simulation";
 import {
   routeManagedSimulationRequest,
@@ -75,9 +71,6 @@ const SIMULATION_CHECK_PASS_MS = 4 * 60_000;
  * come back, and one this large is not read into the Worker.
  */
 const MAX_CHECK_RESULT_BYTES = 8 * 1024 * 1024;
-
-const MAX_CHECK_SPECS = 24;
-const MAX_CHECK_TEXT = 300;
 
 /**
  * Problems that say the simulator cannot take the run yet, or its answer is
@@ -203,28 +196,6 @@ function checkFetch(env: SimulationOperationsEnv, deadline: number) {
   }) as typeof fetch;
 }
 
-function clipped(text: string, limit = MAX_CHECK_TEXT): string {
-  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
-}
-
-function folderFailure(
-  folder: ProjectSimulationFolder,
-  problem: Pick<Problem, "code" | "message">,
-): SimulationCheckFolder {
-  return {
-    name: clipped(folder.name, 80),
-    status: "error",
-    code: problem.code,
-    message: clipped(problem.message),
-    specs: [],
-  };
-}
-
-/** A Spec the testbench states: a condition, or an attempt at one. */
-function statesSpec(result: SimulationSpecResult): boolean {
-  return result.expected !== null || result.reason === "invalid-spec";
-}
-
 /**
  * Run one folder and judge it: `error` when it cannot be prepared or its run
  * does not complete, `fail` when a Spec it states does not pass, else
@@ -252,9 +223,9 @@ async function checkFolder(
     if (!(error instanceof ExecutionFailure)) throw error;
     return error.problem.recovery === "retry-after"
       ? "waiting"
-      : folderFailure(folder, error.problem);
+      : simulationCheckFolderFailure(folder, error.problem);
   }
-  if (!prepared.ok) return folderFailure(folder, prepared.error);
+  if (!prepared.ok) return simulationCheckFolderFailure(folder, prepared.error);
   // Specs are read from the log, so ngspice is asked for no waveform file.
   const input: ExecutionInput =
     prepared.input.collection && "rawfile" in prepared.input.collection
@@ -278,82 +249,13 @@ async function checkFolder(
     if (!(error instanceof ExecutionFailure)) throw error;
     return WAITING_CODES.has(error.problem.code)
       ? "waiting"
-      : folderFailure(folder, error.problem);
+      : simulationCheckFolderFailure(folder, error.problem);
   }
-  const { specs } = executionSpecReport(input, output, {
+  return judgeSimulationCheckFolder(folder, input, output, {
     runId: requestId,
     preparedId: requestId,
     inputDigest: preparedDigest,
   });
-  const { result } = output;
-  const environment = result.metadata.environment;
-  const stated = specs.results.filter(statesSpec);
-  const missed = stated.find((spec) => spec.judgment !== "pass");
-  const completed = result.outcome.status === "completed" && !output.cancelled;
-  const firstError = result.diagnostics.find(
-    (diagnostic) => diagnostic.severity === "error",
-  );
-  return {
-    name: clipped(folder.name, 80),
-    status: !completed ? "error" : missed ? "fail" : "pass",
-    ...(!completed
-      ? {
-          code: output.cancelled
-            ? "run-cancelled"
-            : `run-${result.outcome.status}`,
-          ...(firstError ? { message: clipped(firstError.text) } : {}),
-        }
-      : missed
-        ? { code: missed.reason, message: clipped(missed.detail) }
-        : {}),
-    simulator: `${environment.simulator.name} ${environment.simulator.version}`,
-    ...(environment.profileId ? { profileId: environment.profileId } : {}),
-    specs: stated.slice(0, MAX_CHECK_SPECS).map((spec) => ({
-      name: clipped(spec.name, 80),
-      expected: formatSimulationSpec(spec.expected),
-      value: spec.value,
-      unit: clipped(spec.unit, 24),
-      judgment: spec.judgment,
-      ...(spec.judgment === "pass" ? {} : { reason: spec.reason }),
-    })),
-  };
-}
-
-/**
- * An entry's verdict from its folders' results: no folder is
- * `no-testbench`; a folder that errs or fails decides it; else it passes
- * when its testbench states a Spec at all.
- */
-function simulationCheckVerdict(
-  folders: SimulationCheckFolder[],
-  folderCount: number,
-  checkedAt: string,
-): SimulationCheck {
-  const missed = folders.find((folder) => folder.status !== "pass");
-  const status: SimulationCheck["status"] =
-    folderCount === 0
-      ? "no-testbench"
-      : missed
-        ? missed.status
-        : folders.some((folder) => folder.specs.length > 0)
-          ? "pass"
-          : "fail";
-  const reason =
-    status === "no-testbench"
-      ? "no-testbench"
-      : missed
-        ? (missed.code ?? missed.status)
-        : status === "fail"
-          ? "no-specs"
-          : undefined;
-  return {
-    status,
-    checkedAt,
-    rule: SIMULATION_CHECK_RULE_VERSION,
-    simulator: folders.find((folder) => folder.simulator)?.simulator ?? null,
-    ...(reason ? { reason } : {}),
-    folders,
-  };
 }
 
 interface NextCheck {
@@ -381,13 +283,13 @@ async function checkNext(
   try {
     project = parseProject(next.projectText ?? "");
   } catch (error) {
-    const folder: SimulationCheckFolder = {
-      name: "Project",
-      status: "error",
-      code: "project-unreadable",
-      message: clipped(error instanceof Error ? error.message : String(error)),
-      specs: [],
-    };
+    const folder = simulationCheckFolderFailure(
+      { name: "Project" },
+      {
+        code: "project-unreadable",
+        message: error instanceof Error ? error.message : String(error),
+      },
+    );
     return { verdict: simulationCheckVerdict([folder], 1, at()) };
   }
   const folders = project.simulationFolders;
@@ -405,7 +307,7 @@ async function checkNext(
     `gallery-simulation-check/${job.checkId}/${job.folderIndex}`,
     pass,
   ).catch((error: unknown) =>
-    folderFailure(folder, {
+    simulationCheckFolderFailure(folder, {
       code: "check-failed",
       message: error instanceof Error ? error.message : String(error),
     }),

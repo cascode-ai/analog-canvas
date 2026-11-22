@@ -196,6 +196,7 @@
       "worker/gallery-simulation-checks.ts",
       "worker/gallery-simulation-check-runs.ts",
       "worker/gallery-simulation-checks.test.ts",
+      "worker/gallery-simulation-checks.test-support.ts",
       "config/gallery-sim.json",
       "worker/gallery.test.ts",
       "worker/gallery.test-support.ts",

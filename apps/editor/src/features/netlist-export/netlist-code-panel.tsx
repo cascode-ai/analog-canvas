@@ -37,6 +37,8 @@ import {
   preparedNetlistDefaults,
   netlistFamilyTarget,
   planNetlistProcess,
+  planNetlistProcessReport,
+  type ProcessValueConversion,
 } from "./netlist-process";
 import {
   NETLIST_PROFILE_IDS,
@@ -179,26 +181,39 @@ export function NetlistCodePanel({
       : inferNetlistProcess(project, selectedProcess);
   const profile = profiles[process];
   const [processError, setProcessError] = useState<string | null>(null);
+  // The resistors and capacitors the last Apply process converted by value.
+  const [processConversions, setProcessConversions] = useState<
+    readonly ProcessValueConversion[]
+  >([]);
   const [compileRevision, setCompileRevision] = useState(0);
   function applyProcess(
     next: NetlistExportProfile,
     options: Parameters<typeof planNetlistProcess>[2] = {},
   ) {
-    return applyProcessPlan(() => planNetlistProcess(project, next, options));
+    return applyProcessPlan(() =>
+      planNetlistProcessReport(project, next, options),
+    );
   }
-  function applyProcessPlan(plan: () => ProjectStructureEdit[]) {
+  function applyProcessPlan(
+    plan: () => {
+      edits: ProjectStructureEdit[];
+      conversions: readonly ProcessValueConversion[];
+    },
+  ) {
     try {
-      const edits = plan();
+      const { edits, conversions } = plan();
       if (edits.length && !onApply(edits))
         throw new Error(
           "Could not apply device mappings. The circuit has not changed.",
         );
       setProcessError(null);
+      setProcessConversions(conversions);
       return true;
     } catch (error) {
       setProcessError(
         error instanceof Error ? error.message : "Could not apply process",
       );
+      setProcessConversions([]);
       return false;
     }
   }
@@ -774,8 +789,7 @@ export function NetlistCodePanel({
                 pendingDefaults === 1 ? "device" : "devices"
               } using the ${NETLIST_PROFILE_LABELS[process]} defaults`}
               onClick={() => {
-                if (preparedDefaults)
-                  applyProcessPlan(() => preparedDefaults.edits);
+                if (preparedDefaults) applyProcessPlan(() => preparedDefaults);
               }}
             >
               Fill {pendingDefaults}{" "}
@@ -811,6 +825,21 @@ export function NetlistCodePanel({
       ) : null}
       {!rnl && editError ? <p role="alert">{editError}</p> : null}
       {processError ? <p role="alert">{processError}</p> : null}
+      {processConversions.length ? (
+        <div
+          className="netlist-edit-hint"
+          data-testid="netlist-process-conversions"
+        >
+          <p>Values carried by the Process are approximate:</p>
+          <ul>
+            {processConversions.map((conversion) => (
+              <li key={`${conversion.documentId}:${conversion.instanceId}`}>
+                {conversion.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {!rnl && draftPreview ? (
         <p className="netlist-edit-hint">
           Draft · each ? is something the drawing does not say yet

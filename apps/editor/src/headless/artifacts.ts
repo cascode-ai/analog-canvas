@@ -15,7 +15,8 @@ import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import type { NetlistProfileId } from "../features/netlist-export/netlist-process-presets";
 import {
   netlistModelInclude,
-  projectInNetlistProcess,
+  netlistProcessProjection,
+  processValueConversionCode,
 } from "../features/netlist-export/netlist-process";
 
 /**
@@ -27,7 +28,8 @@ import {
 /**
  * The structural netlist of the top Cell, or why it is blocked. With a
  * `process` it exports as if Apply process had set it, as the editor's
- * read-netlist does; the Project is left as it was.
+ * read-netlist does, warning of each resistor and capacitor it converted by
+ * value; the Project is left as it was.
  */
 export function workspaceNetlist(
   project: CircuitProject,
@@ -40,20 +42,26 @@ export function workspaceNetlist(
   /** What the export warned about, as `CODE: message`. */
   warnings: string[];
 } {
-  const exported = process
-    ? projectInNetlistProcess(project, process)
-    : project;
+  const processed = process
+    ? netlistProcessProjection(project, process)
+    : { project, conversions: [] };
   // A GPDK045 Spectre file names the kit's library where its reader keeps it.
-  const result = createDesignNetlistExport(exported, {
+  const result = createDesignNetlistExport(processed.project, {
     format,
-    modelInclude: netlistModelInclude(exported, format),
+    modelInclude: netlistModelInclude(processed.project, format),
   });
   const of = (severity: string) =>
     result.diagnostics.filter((diagnostic) => diagnostic.severity === severity);
   const messages = of("error").map((diagnostic) => diagnostic.message);
-  const warnings = of("warning").map(
-    (diagnostic) => `${diagnostic.code}: ${diagnostic.message}`,
-  );
+  const warnings = [
+    ...processed.conversions.map(
+      (conversion) =>
+        `${processValueConversionCode(conversion)}: ${conversion.message}`,
+    ),
+    ...of("warning").map(
+      (diagnostic) => `${diagnostic.code}: ${diagnostic.message}`,
+    ),
+  ];
   return result.status === "ready"
     ? { status: "ready", text: result.file.text, messages, warnings }
     : { status: "blocked", text: null, messages, warnings };

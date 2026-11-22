@@ -28,6 +28,7 @@ import {
 } from "./netlist-process-presets";
 import {
   planNetlistProcess,
+  planNetlistProcessReport,
   prepareNetlistProcess,
   createNetlistDefaultsCache,
   inferNetlistProcess,
@@ -35,13 +36,14 @@ import {
   netlistModelInclude,
   placementModelTarget,
   placementProcessFill,
-  projectInNetlistProcess,
+  netlistProcessProjection,
   processPlacementTarget,
   processReviewedLibrary,
 } from "./netlist-process";
 import { initialInstanceNetlist } from "./netlist-authoring";
 import { importNetlistSources } from "./netlist-source-import";
 import { planNetlistCodeEdit } from "./netlist-code-edit";
+import { workspaceNetlist } from "../../headless/artifacts";
 
 /** The devices still waiting for a model, as the Process count reads them. */
 const netlistProcessPendingInstances = (
@@ -91,7 +93,7 @@ it("reads an ICS55 inverter and retains its threshold variants, bulk nets and si
   );
   const project = imported.project!;
   expect(inferNetlistProcess(project, "sky130")).toBe("ics55");
-  const netlist = exported(projectInNetlistProcess(project, "ics55"));
+  const netlist = exported(netlistProcessProjection(project, "ics55").project);
   expect(netlist).toMatch(
     /^MN Y A VSS PW nm1p2_lvt_lp .*l=60n.*mr=1.*w=180n/imu,
   );
@@ -130,7 +132,7 @@ describe("GPDK045", () => {
   it("opens a Project of GPDK045 names in GPDK045 and writes its kit's include in Spectre only", async () => {
     const project = await read();
     expect(inferNetlistProcess(project, "sky130")).toBe("gpdk045");
-    const kept = projectInNetlistProcess(project, "gpdk045");
+    const kept = netlistProcessProjection(project, "gpdk045").project;
     const spectre = createDesignNetlistExport(kept, {
       format: "spectre",
       includeLocations: true,
@@ -164,7 +166,7 @@ describe("GPDK045", () => {
     expect(netlistModelInclude(kept, "spice")).toBeUndefined();
     expect(exported(kept)).not.toMatch(/include|\.lib/iu);
     // Another Process's Project includes nothing.
-    const sky130 = projectInNetlistProcess(project, "sky130");
+    const sky130 = netlistProcessProjection(project, "sky130").project;
     expect(inferNetlistProcess(sky130, "gpdk045")).toBe("sky130");
     expect(netlistModelInclude(sky130, "spectre")).toBeUndefined();
   });
@@ -238,7 +240,7 @@ describe("what the process still owes a circuit", () => {
           createNetlistExportProfile("abstract"),
           { onlyMissing: true },
         ),
-      ).toEqual({ edits: [], instanceCount: 0 });
+      ).toEqual({ edits: [], instanceCount: 0, conversions: [] });
     } finally {
       execute.mockRestore();
       references.mockRestore();
@@ -862,9 +864,11 @@ describe("a part placed into a Process (#1251)", () => {
         ),
       ).toBe(target);
     }
+    // A placed part takes the device's own size; Ideal carries its value
+    // (0.5 × 0.5 µm rppd, 7 × 7 µm cmim).
     for (const [family, value] of [
-      ["resistor", "1k"],
-      ["capacitor", "1p"],
+      ["resistor", "260Ω"],
+      ["capacitor", "74.6fF"],
     ] as const) {
       const ideal = setNetlistDefaultTarget(
         selected.profiles.sg13g2,
@@ -1264,7 +1268,7 @@ describe("persisted netlist process authoring", () => {
 
   it.each([
     ["resistor", "sky130_fd_pr__res_high_po"],
-    ["capacitor", "sky130_fd_pr__cap_var_lvt"],
+    ["capacitor", "sky130_fd_pr__cap_mim_m3_1"],
     ["inductor", "sky130_fd_pr__ind_05_220"],
   ] as const)(
     "authors physical %s geometry and property terminals without stray visible labels",
@@ -1282,7 +1286,9 @@ describe("persisted netlist process authoring", () => {
         },
         netlist: {
           binding: { kind: "primitive", deviceClass: family },
-          parameters: { value: "1p" },
+          parameters: {
+            value: { resistor: "10k", capacitor: "1p", inductor: "1n" }[family],
+          },
         },
       });
       for (const pinName of ["1", "2"])
@@ -1361,4 +1367,154 @@ it("reuses immutable defaults across tab remounts but respects profile content a
   const replaced = { ...project, name: "Changed snapshot" };
   expect(read(replaced, profile)).not.toBe(first);
   expect(project.documents[0]!.instances[0]!.netlist).toBeUndefined();
+});
+
+describe("resistors and capacitors keep their value across Processes", () => {
+  const MIM = "sky130_fd_pr__cap_mim_m3_1";
+  const XHIGH = "sky130_fd_pr__res_xhigh_po";
+  function drawn(values: Record<string, string>) {
+    const project = createEmptyProject("rc", "RC");
+    for (const [id, value] of Object.entries(values)) {
+      const symbolId = id.startsWith("R") ? "resistor" : "capacitor";
+      project.documents[0]!.instances.push({
+        id,
+        reference: id,
+        symbolId,
+        placement: null,
+        netlist: initialInstanceNetlist(symbolId, { value })!,
+      });
+      for (const pinName of ["1", "2"])
+        project.documents[0]!.noConnects.push({
+          id: `${id}-${pinName}`,
+          endpoint: { kind: "terminal", instanceId: id, pinName },
+        });
+    }
+    return project;
+  }
+  const part = (project: CircuitProject, id: string) =>
+    project.documents[0]!.instances.find((instance) => instance.id === id)!
+      .netlist!;
+
+  it("sizes ideal parts for a PDK by value, and gives them back as values", () => {
+    const project = drawn({ R1: "145kΩ", C1: "25pF" });
+    const sg13g2 = createNetlistExportProfile("sg13g2");
+    const report = planNetlistProcessReport(project, sg13g2);
+    expect(
+      report.conversions.map(({ reference, from, to, status, value }) => ({
+        reference,
+        from,
+        to,
+        status,
+        value,
+      })),
+    ).toEqual([
+      {
+        reference: "R1",
+        from: "ideal",
+        to: "rppd",
+        status: "converted",
+        value: "145kΩ",
+      },
+      {
+        reference: "C1",
+        from: "ideal",
+        to: "cap_cmim",
+        status: "converted",
+        value: "25pF",
+      },
+    ]);
+    const physical = apply(project, sg13g2);
+    expect(part(physical, "R1").parameters).toEqual({
+      w: "0.5u",
+      l: "278.845u",
+      b: "0",
+      m: "1",
+    });
+    // Past cmim's 8 pF a copy, 25 pF is four copies in parallel.
+    expect(part(physical, "C1").parameters).toMatchObject({ m: "4" });
+    expect(exported(physical)).toMatch(
+      /^XC1 .* cap_cmim w=64\.\d+u l=64\.\d+u m=4$/mu,
+    );
+    const ideal = apply(physical, createNetlistExportProfile("abstract"));
+    expect(part(ideal, "R1")).toMatchObject({ parameters: { value: "145kΩ" } });
+    expect(part(ideal, "C1")).toMatchObject({ parameters: { value: "25pF" } });
+  });
+
+  it("carries a SKY130 part's value to SG13G2, multiplier included", () => {
+    let sky130 = createNetlistExportProfile("sky130");
+    sky130 = setNetlistDefaultTarget(sky130, "capacitor", MIM);
+    sky130 = setNetlistDefaultTarget(sky130, "resistor", XHIGH);
+    const project = apply(drawn({ R1: "145kΩ", C1: "25pF" }), sky130);
+    expect(part(project, "C1").parameters).toMatchObject({ mf: "14" });
+    expect(part(project, "R1").parameters).toMatchObject({ w: "0.35u" });
+    const sg13g2 = apply(project, createNetlistExportProfile("sg13g2"));
+    expect(part(sg13g2, "C1").parameters).toMatchObject({ m: "4" });
+    expect(
+      planNetlistProcessReport(
+        project,
+        createNetlistExportProfile("sg13g2"),
+      ).conversions.map((conversion) => conversion.result),
+    ).toEqual(["145kΩ", "25pF"]);
+  });
+
+  it("keeps a part whose value or density is not known, and says so", () => {
+    const project = drawn({ R1: "{rload}", C1: "1p" });
+    const { conversions } = planNetlistProcessReport(
+      project,
+      createNetlistExportProfile("sg13g2"),
+    );
+    expect(conversions[0]).toMatchObject({
+      reference: "R1",
+      status: "kept",
+      message: "R1 keeps ideal {rload}: its value is not a number",
+    });
+    const kept = apply(project, createNetlistExportProfile("sg13g2"));
+    expect(part(kept, "R1")).toEqual(part(project, "R1"));
+    // IHP's RF MIM is a network, not a density: the ideal part stays.
+    const rf = setNetlistDefaultTarget(
+      createNetlistExportProfile("sg13g2"),
+      "capacitor",
+      "cap_rfcmim",
+    );
+    expect(
+      planNetlistProcessReport(project, rf, { family: "capacitor" })
+        .conversions,
+    ).toMatchObject([
+      {
+        reference: "C1",
+        status: "kept",
+        message: "C1 keeps ideal 1p: the density of cap_rfcmim is not known",
+      },
+    ]);
+  });
+
+  it("stops a value the device cannot reach at its limit, and says so", () => {
+    const rsil = setNetlistDefaultTarget(
+      createNetlistExportProfile("sg13g2"),
+      "resistor",
+      "rsil",
+    );
+    const { conversions } = planNetlistProcessReport(
+      drawn({ R1: "1MegΩ" }),
+      rsil,
+      { family: "resistor" },
+    );
+    expect(conversions).toMatchObject([
+      { reference: "R1", status: "clamped", result: "14kΩ" },
+    ]);
+    expect(conversions[0]!.message).toContain("the largest rsil allowed");
+  });
+
+  it("warns of each conversion where the export override reads it", () => {
+    const warnings = workspaceNetlist(
+      drawn({ C1: "20pF" }),
+      "spice",
+      "sg13g2",
+    ).warnings;
+    expect(warnings).toEqual([
+      expect.stringMatching(
+        /^PROCESS_VALUE_CONVERTED: C1: ideal 20pF → cap_cmim w=\S+ l=\S+ m=3 ≈ 20pF \(approximate\)$/u,
+      ),
+    ]);
+  });
 });

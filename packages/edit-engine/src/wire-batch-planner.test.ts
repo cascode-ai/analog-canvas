@@ -1207,4 +1207,81 @@ describe("a batch of Agent connects keeps clear of the wires before it", () => {
             `${line.netId} meets ${other.netId}`,
           ).toBe(false);
   });
+
+  /** R1 and R2 lying on y = 0, R3.2 (100, -100) above and R4.1 (100, 100)
+   * below. R1.1 to R2.2 runs along y = 0 past x = 100; R3.2 joins R1.1 by
+   * the via given; R3.2 to R4.1 then runs straight down across that first
+   * wire of its Net, a crossing the commit leaves with no dot. */
+  function across(r1: number, r2: number) {
+    const document = createEmptyDocument("across", "Own crossing");
+    for (const [id, x, y, rotation] of [
+      ["R1", r1, 0, 90],
+      ["R2", r2, 0, 90],
+      ["R3", 100, -120, 0],
+      ["R4", 100, 120, 0],
+    ] as const)
+      document.instances.push({
+        id,
+        symbolId: "resistor",
+        reference: id,
+        placement: { position: { x, y }, rotation, mirror: "none" },
+      });
+    const terminal = (instanceId: string, pinName: string) => ({
+      kind: "endpoint" as const,
+      endpoint: { kind: "terminal" as const, instanceId, pinName },
+    });
+    const plan = planWireBatch(
+      document,
+      resolver,
+      [
+        wire("a", terminal("R1", "1"), terminal("R2", "2")),
+        wire("b", terminal("R1", "1"), terminal("R3", "2"), [
+          { x: r1 + 20, y: -100 },
+        ]),
+        wire("c", terminal("R3", "2"), terminal("R4", "1")),
+      ],
+      { keepClear: true },
+    );
+    return { document, plan };
+  }
+
+  it("goes round an earlier wire of its own Net it would cross", () => {
+    const { document, plan } = across(60, 140);
+    if (typeof plan === "string") throw new Error(plan);
+    const h = history(document);
+    const result = h.transact({
+      transactionId: "across",
+      documentId: document.id,
+      expectedRevision: document.revision,
+      actor: { kind: "agent", id: "test" },
+      edits: plan.edits,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(
+      h.document.nets.map((net) =>
+        net.terminals.map((pin) => `${pin.instanceId}.${pin.pinName}`).sort(),
+      ),
+    ).toEqual([["R1.1", "R2.2", "R3.2", "R4.1"]]);
+    expect(
+      h.document.routes.map(
+        (route) =>
+          resolveRouteGeometry(h.document, resolver, route)!.centerline,
+      ),
+    ).toContainEqual([
+      { x: 100, y: -100 },
+      { x: 170, y: -100 },
+      { x: 170, y: 100 },
+      { x: 100, y: 100 },
+    ]);
+    expect(plan.notes?.map((note) => note.message)).toContain(
+      "Wire 3: the direct path crosses a wire of its own Net at (100, 0), where nothing would put a dot, so it goes round through (170, -100), (170, 100)",
+    );
+  });
+
+  it("refuses, naming the pins, a wire that cannot keep off its own Net's wire", () => {
+    // R1.1 to R2.2 now runs from x = -20 to x = 220, wider than any detour.
+    expect(across(-40, 240).plan).toMatch(
+      /^Wire 3 \(R3\.2 → R4\.1\): no clear path from R3\.2 to R4\.1: the direct one meets its own Net's wire at \(100, /u,
+    );
+  });
 });

@@ -4,17 +4,11 @@
 // public date.
 
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  createEmptyProject,
-  createSimulationFolder,
-  deriveStableId,
-  type SchematicDocument,
-} from "@icm/model";
-import { serializeProject } from "@icm/project-protocol";
 import { createSimulationEnvironmentMetadata } from "@icm/spice-run";
 import ngspiceProfile from "../containers/ngspice/hosted-sky130-profile.json";
 import { routeGalleryRequest, type GalleryRouteRuntime } from "./gallery";
 import { advanceSimulationChecks } from "./gallery-simulation-check-runs";
+import { dividerProjectText } from "./gallery-simulation-checks.test-support";
 import {
   type Harness,
   ORIGIN,
@@ -34,118 +28,6 @@ import {
   type SimulationJobMessage,
 } from "./simulation-operations";
 import { createSimulationOperationsHarness } from "./simulation-operations.test-fixture";
-
-function claimNet(
-  document: SchematicDocument,
-  netId: string,
-  name: string,
-  powerDomain?: "ground",
-): void {
-  const labelId = deriveStableId("divider-label", document.id, netId);
-  document.annotations.push({
-    id: labelId,
-    kind: powerDomain ? "power-label" : "net-label",
-    binding: { kind: "net-name", netId },
-    netId,
-    anchor: { kind: "free", position: { x: 0, y: 0 } },
-    alignment: "start",
-    rotation: 0,
-    locked: false,
-  });
-  document.connectivityEvidence.push({
-    id: deriveStableId("divider-name", document.id, netId),
-    kind: "name-claim",
-    netId,
-    name,
-    owner: { kind: "net-label", annotationId: labelId },
-    scope: powerDomain ? "global" : "local",
-    ...(powerDomain ? { powerDomain } : {}),
-  });
-}
-
-/**
- * A drawn divider, V1 → R1 → MID → R2 → ground, with the testbench its Cell
- * runs as: a DC sweep, the midpoint measured, and `spec` as its Spec.
- */
-function dividerProjectText(name: string, spec: string): string {
-  const project = createEmptyProject("divider", name, "tb");
-  const tb = project.documents[0]!;
-  const part = (
-    id: string,
-    reference: string,
-    deviceClass: "resistor" | "voltage-source",
-    parameters: Record<string, string>,
-  ) => ({
-    id,
-    symbolId: deviceClass,
-    placement: null,
-    reference,
-    netlist: {
-      binding: { kind: "primitive" as const, deviceClass },
-      parameters,
-    },
-  });
-  tb.instances.push(
-    part("inst-v1", "V1", "voltage-source", { dc: "1" }),
-    part("inst-r1", "R1", "resistor", { value: "1k" }),
-    part("inst-r2", "R2", "resistor", { value: "1k" }),
-    { id: "inst-gnd", symbolId: "ground", placement: null },
-  );
-  tb.nets.push(
-    {
-      id: "net-in",
-      terminals: [
-        { instanceId: "inst-v1", pinName: "+" },
-        { instanceId: "inst-r1", pinName: "1" },
-      ],
-    },
-    {
-      id: "net-mid",
-      terminals: [
-        { instanceId: "inst-r1", pinName: "2" },
-        { instanceId: "inst-r2", pinName: "1" },
-      ],
-    },
-    {
-      id: "net-gnd",
-      terminals: [
-        { instanceId: "inst-v1", pinName: "-" },
-        { instanceId: "inst-r2", pinName: "2" },
-        { instanceId: "inst-gnd", pinName: "0" },
-      ],
-    },
-  );
-  claimNet(tb, "net-in", "IN");
-  claimNet(tb, "net-mid", "MID");
-  claimNet(tb, "net-gnd", "0", "ground");
-  const folder = createSimulationFolder({
-    id: "divider-dc",
-    name: "Divider DC",
-    profileId: ngspiceProfile.id,
-    engine: "ngspice",
-    documentId: "tb",
-  });
-  folder.input.files = folder.input.files.map((file) =>
-    file.path === folder.input.entry
-      ? {
-          ...file,
-          text: [
-            "Divider DC",
-            `* @spec ${spec}`,
-            '.include "circuit.spice"',
-            ".control",
-            "dc V1 0 1 0.5",
-            "meas dc vmid find v(mid) at=1",
-            ".endc",
-            ".end",
-            "",
-          ].join("\n"),
-        }
-      : file,
-  );
-  project.simulationFolders = [folder];
-  return serializeProject(project);
-}
 
 /**
  * What ngspice-46 printed running the divider's prepared deck (run.cir and
@@ -685,5 +567,278 @@ describe("simulation checks", () => {
       (await update({ projectText: projectText("Amplifier") })).status,
     ).toBe(200);
     expect(await verdict()).toBeNull();
+  });
+});
+
+/** What the Owner's local check reports for the divider whose Spec it met. */
+function localPass(digests: { projectDigest: string; testbenchDigest: string }) {
+  return {
+    projectDigest: digests.projectDigest,
+    testbenchDigest: digests.testbenchDigest,
+    status: "pass",
+    checkedAt: "2026-11-22T09:00:00.000Z",
+    folders: [
+      {
+        name: "Divider DC",
+        status: "pass",
+        simulator: "ngspice ngspice-46",
+        profileId: ngspiceProfile.id,
+        specs: [
+          {
+            name: "vmid",
+            expected: "[0.45, 0.55]",
+            value: 0.5,
+            unit: "V",
+            judgment: "pass",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("local simulation checks", () => {
+  /** An entry with a testbench, and the Owner's token for a script. */
+  async function setUp() {
+    const env = environment();
+    const maker = await makerOf(env);
+    const owner = await ownerAccountOf(env);
+    const minted = (await (
+      await env.authDurable.fetch(
+        new Request(`${ORIGIN}/api/auth/owner-tokens`, {
+          method: "POST",
+          headers: { Origin: ORIGIN, Cookie: owner },
+          body: JSON.stringify({ label: "simulation machine" }),
+        }),
+      )
+    ).json()) as { token: string };
+    const id = await submitOne(env, "Divider", {
+      cookie: maker,
+      text: dividerProjectText("Divider", "vmid range 0.45 0.55 unit=V"),
+    });
+    /** A script's request: the bearer alone; or a browser's, with `cookie`. */
+    const send = (
+      path: string,
+      who: { token?: string; cookie?: string; origin?: string },
+      body?: unknown,
+    ) =>
+      call(
+        env,
+        new Request(`${ORIGIN}${path}`, {
+          ...(body === undefined
+            ? {}
+            : { method: "POST", body: JSON.stringify(body) }),
+          headers: {
+            "content-type": "application/json",
+            ...(who.token ? { Authorization: `Bearer ${who.token}` } : {}),
+            ...(who.cookie ? { Cookie: who.cookie } : {}),
+            ...(who.origin ? { Origin: who.origin } : {}),
+          },
+        }),
+      );
+    const input = async () =>
+      (await (
+        await send(`/api/gallery/${id}/simulation-check/input`, {
+          token: minted.token,
+        })
+      ).json()) as {
+        projectText: string;
+        projectDigest: string;
+        testbenchDigest: string;
+      };
+    return { env, maker, owner, token: minted.token, id, send, input };
+  }
+
+  it("give the Owner alone the entries, their testbenches and digests", async () => {
+    const { env, maker, token, id, send } = await setUp();
+    const inputs = await send("/api/gallery/simulation-checks/inputs", {
+      token,
+    });
+    expect(inputs.status).toBe(200);
+    expect(await inputs.json()).toEqual({
+      entries: [{ id, name: "Divider" }],
+    });
+    const input = await send(`/api/gallery/${id}/simulation-check/input`, {
+      token,
+    });
+    expect(input.status).toBe(200);
+    const read = (await input.json()) as Record<string, string>;
+    expect(read).toMatchObject({
+      id,
+      name: "Divider",
+      projectDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      testbenchDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+    });
+    expect(JSON.parse(read.projectText!).simulationFolders).toHaveLength(1);
+
+    for (const path of [
+      "/api/gallery/simulation-checks/inputs",
+      `/api/gallery/${id}/simulation-check/input`,
+    ]) {
+      // Its author and a curator are not the Owner; nor is no one.
+      for (const cookie of [maker, await adminOf(env)])
+        expect((await send(path, { cookie })).status).toBe(403);
+      expect((await send(path, {})).status).toBe(401);
+      expect((await send(path, { token: "acot_wrong" })).status).toBe(401);
+    }
+    expect(
+      (await send("/api/gallery/unknown-1/simulation-check/input", { token }))
+        .status,
+    ).toBe(404);
+  });
+
+  it("record the Owner's verdict, by token or same-origin session, private as the hosted one", async () => {
+    const { env, maker, owner, token, id, send, input } = await setUp();
+    const body = localPass(await input());
+    const path = `/api/gallery/${id}/simulation-check`;
+    expect(
+      (await send(path, { cookie: maker, origin: ORIGIN }, body)).status,
+    ).toBe(403);
+    expect(
+      (
+        await send(
+          path,
+          { cookie: owner, origin: "https://elsewhere.example" },
+          body,
+        )
+      ).status,
+    ).toBe(403);
+    expect((await send(path, {}, body)).status).toBe(401);
+
+    const recorded = await send(path, { token }, body);
+    expect(recorded.status).toBe(200);
+    expect(await recorded.json()).toMatchObject({
+      recorded: true,
+      check: {
+        status: "pass",
+        rule: 1,
+        origin: "local",
+        simulator: "ngspice ngspice-46",
+        checkedAt: "2026-11-22T09:00:00.000Z",
+      },
+    });
+    expect(
+      (await send(path, { cookie: owner, origin: ORIGIN }, body)).status,
+    ).toBe(200);
+    expect(await (await checkOf(env, id, maker)).json()).toMatchObject({
+      check: { status: "pass", origin: "local" },
+    });
+    // The mark keeps the hosted one's readers until its public date.
+    expect(await marked(env, owner, [id])).toEqual({
+      wall: [id],
+      detail: [id],
+    });
+    for (const cookie of [
+      await adminOf(env),
+      await signIn(env.authDurable, "other@example.com"),
+      undefined,
+    ])
+      expect(await marked(env, cookie, [id])).toEqual({ wall: [], detail: [] });
+  });
+
+  it("refuse a verdict that does not speak for what is stored", async () => {
+    const { env, maker, token, id, send, input } = await setUp();
+    const path = `/api/gallery/${id}/simulation-check`;
+    const pass = localPass(await input());
+    const spec = pass.folders[0]!.specs[0]!;
+    const refusal = async (body: unknown) => {
+      const response = await send(path, { token }, body);
+      return [
+        response.status,
+        ((await response.json()) as { error?: string }).error,
+      ];
+    };
+
+    expect(await refusal({ ...pass, projectDigest: "0".repeat(64) })).toEqual(
+      [409, "stale-content"],
+    );
+    expect(await refusal({ ...pass, testbenchDigest: "x" })).toEqual([
+      400,
+      "invalid-fields",
+    ]);
+    // A status its folders do not give, another testbench's folder, a
+    // passing folder with a missed Spec, a check from the future.
+    expect(await refusal({ ...pass, status: "fail" })).toEqual([
+      400,
+      "inconsistent-verdict",
+    ]);
+    expect(
+      await refusal({
+        ...pass,
+        folders: [{ ...pass.folders[0], name: "Another folder" }],
+      }),
+    ).toEqual([400, "folders-mismatch"]);
+    expect(
+      await refusal({
+        ...pass,
+        folders: [
+          { ...pass.folders[0], specs: [{ ...spec, judgment: "failed" }] },
+        ],
+      }),
+    ).toEqual([400, "invalid-fields"]);
+    expect(
+      await refusal({ ...pass, checkedAt: "2999-01-01T00:00:00Z" }),
+    ).toEqual([400, "invalid-fields"]);
+    // A missed Spec is a verdict like any other.
+    expect(
+      await refusal({
+        ...pass,
+        status: "fail",
+        folders: [
+          {
+            ...pass.folders[0],
+            status: "fail",
+            code: "outside-spec",
+            specs: [{ ...spec, judgment: "failed", reason: "outside-spec" }],
+          },
+        ],
+      }),
+    ).toEqual([200, undefined]);
+
+    // An edit since the check was read: refused, and the mark it had is gone.
+    expect((await send(path, { token }, pass)).status).toBe(200);
+    const edited = await call(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${id}`, {
+        method: "PUT",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: maker,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Divider",
+          description: "d",
+          projectText: dividerProjectText("Divider", "vmid > 0.4 unit=V"),
+        }),
+      }),
+    );
+    expect(edited.status).toBe(200);
+    expect(
+      ((await (await checkOf(env, id, maker)).json()) as { check: unknown })
+        .check,
+    ).toBeNull();
+    expect(await refusal(pass)).toEqual([409, "stale-content"]);
+
+    // No testbench, nothing to record.
+    const plain = await submitOne(env, "Plain", {
+      cookie: maker,
+      text: projectText("Plain"),
+    });
+    const plainInput = (await (
+      await send(`/api/gallery/${plain}/simulation-check/input`, { token })
+    ).json()) as { projectDigest: string; testbenchDigest: string | null };
+    expect(plainInput.testbenchDigest).toBeNull();
+    const none = await send(
+      `/api/gallery/${plain}/simulation-check`,
+      { token },
+      {
+        ...pass,
+        projectDigest: plainInput.projectDigest,
+        testbenchDigest: "0".repeat(64),
+      },
+    );
+    expect(none.status).toBe(409);
+    expect(await none.json()).toEqual({ error: "no-testbench" });
   });
 });

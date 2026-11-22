@@ -61,6 +61,7 @@
     "draw:batch": "node scripts/draw-batch.mjs",
     "gallery:import-batches": "node scripts/gallery-import-batches.mjs",
     "gallery:author-parts": "node scripts/gallery-author-parts.mjs",
+    "gallery:sim-verify": "node scripts/gallery-sim-verify.mjs",
     "setup:e2e": "playwright install --with-deps chromium",
     "setup:skills": "node scripts/setup-agent-skills.mjs",
     "ci:static": "pnpm format:check && pnpm docs:check && pnpm agent-docs:generated:check && pnpm references:check && pnpm components:check && pnpm agent-kit:catalog:check && pnpm mcp:distribution:check && pnpm regional:check && pnpm typecheck",

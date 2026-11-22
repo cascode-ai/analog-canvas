@@ -474,7 +474,10 @@ Wires are drawn as a person draws them: never over another Net's pin, through
 a part (its own included) or along its leads, or onto another Net's wire; a
 Junction on another Net's wire is refused. A first or last leg that would run
 along its own Net's wire ends on it with a dot (a body tied to its source taps
-the source wire). Plain crossings stay legal; each one a planned wire makes is
+the source wire). A wire never crosses its own Net's wire, earlier wires of the
+same batch included: it goes round, a via path is refused, and a wire that
+cannot is refused naming its pins; end it on that wire with `wire-at` instead.
+Plain crossings of other Nets stay legal; each one a planned wire makes is
 named in a `WIRE_CROSSES` note. A hidden pin (a 3-terminal MOS's body) is no
 obstacle.
 
@@ -493,7 +496,11 @@ labels and free text and, when no simple path is clear, searches the grid up
 to 16 squares round the ends; with a trunk, branches go round instead of being
 refused, each meeting the trunk at one tap only, square with a dot, never
 along it, beside its pin's projection when that is the way round; a branch
-that cannot is refused naming its pin. `prefer: "above"|"below"|"left"|"right"` is the side a detour takes
+that cannot is refused naming its pin. Wires of the routed Net meet only at
+dots: a wire that reaches one already joined, drawn or planned in the same
+call, ends there in a T (never where three wires already meet), and none
+crosses or runs along another of its Net, else that path is not taken.
+`prefer: "above"|"below"|"left"|"right"` is the side a detour takes
 when it leaves its ends' span. It moves no device, infers no bulk wiring, and
 does not override import-reference shorts/scope conflicts. Several
 `route-net` actions share a batch, each planned on the previous result.

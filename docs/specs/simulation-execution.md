@@ -26,7 +26,9 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
   and result bytes remain in the execution region, not resource replication.
 - Gallery [simulation checks](community-gallery.md#simulation-checks) are one
   more managed caller (`prepareFolderExecutionInput`, account
-  `gallery-simulation-check`, judged by `executionSpecReport`).
+  `gallery-simulation-check`, judged by `judgeSimulationCheckFolder`); the
+  Owner's local check drives `routeNgspiceSimulationRequest` in-process with a
+  local ngspice runner (`executor: "local-host"`, `observed`).
 - Model-library selection belongs to the execution environment. Stimuli are
   Testbench Instances or source text; nothing duplicates a drawn source.
   Preparation preserves the entry and file closure; the Worker never recompiles

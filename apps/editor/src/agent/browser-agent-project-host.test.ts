@@ -25,7 +25,7 @@ import {
 } from "../../../../worker/gallery.test-support";
 import { BrowserAgentProjectHost } from "./browser-agent-project-host";
 import { createLibraryExampleProject } from "../examples/library-examples";
-import { projectInNetlistProcess } from "../features/netlist-export/netlist-process";
+import { netlistProcessProjection } from "../features/netlist-export/netlist-process";
 
 // Measuring a figure's crop needs a real browser layout; everything around
 // it, the same formal SVG included, runs as it does in the Editor.
@@ -623,10 +623,10 @@ describe("BrowserAgentProjectHost", () => {
   });
 
   it("reads a netlist in another Process without changing the Project", async () => {
-    const sky130 = projectInNetlistProcess(
+    const sky130 = netlistProcessProjection(
       createLibraryExampleProject("common-source-amplifier")!,
       "sky130",
-    );
+    ).project;
     const host = new BrowserAgentProjectHost({
       getProjectSessionId: () => "session",
       getProject: () => sky130,
@@ -664,6 +664,23 @@ describe("BrowserAgentProjectHost", () => {
     expect(await read("sg13g2", "spectre")).not.toMatch(/include/u);
     expect(await read("abstract")).toMatch(/^M1 .* NMOS l=150n .*w=1u/mu);
     expect(await read()).toBe(await read("sky130"));
+    // An ideal capacitor sized for SG13G2 warns that its value is approximate.
+    const warning = expect.objectContaining({
+      severity: "warning",
+      code: "PROCESS_VALUE_CONVERTED",
+      message: expect.stringMatching(/^CGS: ideal 1p → cap_cmim /u),
+    });
+    await expect(
+      host.handle({
+        apiVersion: AGENT_API_VERSION,
+        requestId: "netlist-sg13g2-warnings",
+        operation: "read-netlist",
+        process: "sg13g2",
+      }),
+    ).resolves.toMatchObject({
+      netlist: { diagnostics: expect.arrayContaining([warning]) },
+      cells: [{ diagnostics: expect.arrayContaining([warning]) }],
+    });
   });
 
   it("reads the live netlist and accepts an unchanged replacement without a commit", async () => {

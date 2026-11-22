@@ -1,6 +1,7 @@
 import {
   createEmptyDocument,
   createEmptyProject,
+  routeEnd,
   type Point,
   type SchematicDocument,
 } from "@icm/model";
@@ -8,6 +9,7 @@ import {
   buildProjectConnectivityIndex,
   deriveVisibleConnectivity,
   diagnoseVisualQuality,
+  intersectSegments,
   resolveRouteGeometry,
   runErcChecks,
 } from "@icm/derived";
@@ -846,5 +848,182 @@ describe("route-net trunk with avoid", () => {
       /^route-net: the branch from R1\.2: no clear path from R1\.2 to the trunk: /u,
     );
     expect(document).toEqual(before);
+  });
+});
+
+describe("route-net keeps a Net's own wires apart", () => {
+  /** Upright (0) or lying (90) resistors, by Reference. */
+  function resistors(
+    list: readonly (readonly [string, number, number, 0 | 90])[],
+  ) {
+    const document = createEmptyDocument("doc", "Own wires");
+    document.instances = list.map(([id, x, y, rotation]) => ({
+      id,
+      reference: id,
+      symbolId: "resistor",
+      placement: { position: { x, y }, rotation, mirror: "none" },
+    }));
+    return document;
+  }
+  const key = (point: Point) => `${point.x},${point.y}`;
+  /** Where two wires of one Net meet anywhere but at both their ends, a
+   * crossing or a shared stretch that reads as a join nobody marked; where
+   * three wire ends meet off a pin with no dot; and a dot where fewer meet
+   * (a free trunk end aside). */
+  function unmarked(document: SchematicDocument, free: readonly Point[]) {
+    const lines = document.routes.map((route) => ({
+      route,
+      line: resolveRouteGeometry(document, resolver, route)!.centerline,
+    }));
+    const pairs = (line: readonly Point[]) =>
+      line.slice(1).map((to, index) => [line[index]!, to] as const);
+    const endOf = (line: readonly Point[], point: Point) =>
+      key(line[0]!) === key(point) || key(line.at(-1)!) === key(point);
+    const found: string[] = [];
+    const ends = new Map<string, number>();
+    for (const [index, a] of lines.entries()) {
+      for (const end of [a.line[0]!, a.line.at(-1)!])
+        ends.set(key(end), (ends.get(key(end)) ?? 0) + 1);
+      for (const b of lines.slice(index + 1)) {
+        if (a.route.netId !== b.route.netId) continue;
+        for (const [p, q] of pairs(a.line))
+          for (const [r, s] of pairs(b.line)) {
+            const hit = intersectSegments(p, q, r, s);
+            if (!hit) continue;
+            if (
+              hit.kind === "overlap" &&
+              key(hit.point) !== key(intersectSegments(q, p, r, s)!.point)
+            )
+              found.push(`overlap at ${key(hit.point)}`);
+            else if (!endOf(a.line, hit.point) || !endOf(b.line, hit.point))
+              found.push(`crossing at ${key(hit.point)}`);
+          }
+      }
+    }
+    const pins = new Set(
+      lines.flatMap(({ route, line }) => [
+        ...(route.start.kind === "terminal" ? [key(line[0]!)] : []),
+        ...(routeEnd(route).kind === "terminal" ? [key(line.at(-1)!)] : []),
+      ]),
+    );
+    const dots = new Set(
+      document.junctions.map((junction) => key(junction.position)),
+    );
+    for (const [at, count] of ends)
+      if (count >= 3 && !dots.has(at) && !pins.has(at))
+        found.push(`${count} wire ends without a dot at ${at}`);
+    for (const at of dots)
+      if ((ends.get(at) ?? 0) < 3 && !free.some((point) => key(point) === at))
+        found.push(`a dot where ${ends.get(at) ?? 0} wire ends meet at ${at}`);
+    return [...new Set(found)];
+  }
+  const target = (pins: readonly string[]): RouteNetTarget => ({
+    kind: "pins",
+    pins: pins.map((pin) => {
+      const [instanceId, pinName] = pin.split(".");
+      return { instanceId: instanceId!, pinName: pinName! };
+    }),
+  });
+  /** Route the pins; their Net is one Net of just them, its wires meet
+   * only at dots, and no pin sits on a wire it is not on. */
+  function routed(
+    document: SchematicDocument,
+    pins: readonly string[],
+    options: { trunk?: { start: Point; end: Point }; avoid?: boolean } = {},
+  ) {
+    const next = apply(
+      document,
+      planRouteNet(document, resolver, { target: target(pins), ...options })
+        .edits,
+    ).document;
+    expect(
+      next.nets
+        .map((net) =>
+          net.terminals
+            .map((terminal) => `${terminal.instanceId}.${terminal.pinName}`)
+            .sort()
+            .join(" "),
+        )
+        .filter(Boolean),
+    ).toEqual([[...pins].sort().join(" ")]);
+    const free = options.trunk ? [options.trunk.start, options.trunk.end] : [];
+    expect(unmarked(next, free)).toEqual([]);
+    expect(falseContacts(next)).toEqual([]);
+    expect(
+      planRouteNet(next, resolver, { target: target(pins), ...options }).edits,
+    ).toEqual([]);
+    return next;
+  }
+  const dots = (document: SchematicDocument) =>
+    document.junctions.map((junction) => key(junction.position)).sort();
+
+  it.each([false, true])(
+    "taps an earlier wire a later one would cross (avoid %s)",
+    (avoid) => {
+      // R4.1's wire down to R2.1 crossed R1.1's at (150, 80) without a dot.
+      const next = routed(
+        resistors([
+          ["R0", 0, 120, 90],
+          ["R1", 0, 80, 90],
+          ["R2", 160, 160, 0],
+          ["R3", 80, -200, 0],
+          ["R4", 160, -120, 0],
+        ]),
+        ["R0.2", "R1.1", "R2.1", "R3.1", "R4.1"],
+        { avoid },
+      );
+      expect(dots(next)).toEqual(["150,-140", "150,90", "20,90"]);
+    },
+  );
+
+  it("ends a wire on the first wire of its Net it meets", () => {
+    // R2.2 (0, 60) went round R4 up to R4.2 (0, -140), across R1.1's wire
+    // at (-10, -100).
+    const next = routed(
+      resistors([
+        ["R0", -120, -120, 90],
+        ["R1", -80, -80, 0],
+        ["R2", 0, 40, 0],
+        ["R3", 40, -160, 90],
+        ["R4", 0, -160, 0],
+      ]),
+      ["R0.2", "R1.1", "R2.2", "R3.2", "R4.2"],
+    );
+    expect(dots(next)).toEqual(["-10,-100"]);
+  });
+
+  it("taps a trunk branch a later branch going round would cross", () => {
+    // On their way round R5.1 to the trunk, R4.1's branch crossed R1.2's
+    // at (-100, 60).
+    const trunk = { start: { x: -300, y: 0 }, end: { x: 300, y: 0 } };
+    const next = routed(
+      resistors([
+        ["R1", -80, 80, 90],
+        ["R4", -120, 80, 0],
+        ["R5", -120, 40, 90],
+      ]),
+      ["R1.2", "R4.1", "R5.1"],
+      { trunk, avoid: true },
+    );
+    expect(dots(next)).toContain("-100,60");
+  });
+
+  it("taps a trunk branch a later one would run along", () => {
+    // R1.2 (250, -100) and R2.2 (300, -40) lie past the trunk's end: both
+    // branches come down x = 200 to it. The second ends on the first, with
+    // its dot planned, rather than drawn over it for the commit to merge.
+    const trunk = { start: { x: -200, y: 0 }, end: { x: 200, y: 0 } };
+    const document = resistors([
+      ["R1", 250, -120, 0],
+      ["R2", 300, -60, 0],
+      ["R3", -100, 120, 0],
+    ]);
+    const pins = ["R1.2", "R2.2", "R3.1"];
+    expect(
+      planRouteNet(document, resolver, { target: target(pins), trunk })
+        .edits.flatMap((edit) => (edit.kind === "add_junction" ? [edit] : []))
+        .map((edit) => key(edit.position)),
+    ).toContain("200,-40");
+    expect(dots(routed(document, pins, { trunk }))).toContain("200,-40");
   });
 });
