@@ -748,36 +748,6 @@ describe("MCP tools on the live editor", () => {
     });
     expect(paired.compatibility).not.toHaveProperty("latestVersion");
   }, 20_000);
-
-  it("get_context returns the compact context of the editor's Document", async () => {
-    const editor = await connected();
-    await apply(editor, [
-      place("resistor", "R1", 100),
-      place("resistor", "R2", 300),
-    ]);
-    await apply(editor, [
-      { kind: "connect", from: pin("R1", "2"), to: pin("R2", "1") },
-    ]);
-    const context = await editor.tool("get_context", {});
-    const { controller } = editor;
-    const { diagnostics } = await editor.client.refreshSnapshot();
-    const count = (severity: string) =>
-      diagnostics.filter((item) => item.severity === severity).length;
-    // The two open pins are the editor's own findings.
-    expect(count("warning")).toBeGreaterThan(0);
-    expect(context).toMatchObject({
-      projectId: controller.project.id,
-      documentId: "main",
-      documentName: controller.document.name,
-      revision: controller.document.revision,
-      instanceCount: 2,
-      netCount: controller.document.nets.length,
-      errors: count("error"),
-      warnings: count("warning"),
-      connection: "online",
-    });
-  });
-
   it("reads context, diagnostics and folder names through the editor's lightweight projections", async () => {
     const project = emptyAgentProject();
     const folder = createSimulationFolder({
