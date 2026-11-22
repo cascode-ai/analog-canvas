@@ -373,15 +373,14 @@ describe("instance label placement", () => {
     });
   });
 
-  it("places the value slot one quantized text row below the reference", () => {
-    const reference = placedDefaultLabel("resistor");
-    const value = placedDefaultLabel("resistor", 0, "none", undefined, "value");
-    expect(value.alignment).toBe(reference.alignment);
-    expect(value.position.x).toBe(reference.position.x);
-    expect(value.position.y - reference.position.y).toBe(20);
-  });
-
   it("keeps the value next to its part: rows a little over one line apart (#1105)", () => {
+    // One quantized text row below the reference, on its side and alignment.
+    expect(
+      placedDefaultLabel("resistor", 0, "none", undefined, "value"),
+    ).toEqual({
+      ...placedDefaultLabel("resistor"),
+      position: { x: 109, y: 125 },
+    });
     // 1.2 em of the 15.1-unit label font, rounded up to the grid.
     expect(instanceLabelRowOffset(profile, 10)).toBe(20);
     expect(instanceLabelRowOffset(profile, 5)).toBe(20);

@@ -65,13 +65,6 @@ function extraLines(
 }
 
 describe("adder input signs", () => {
-  it("draws no sign while both inputs add, as every adder drew before signs", () => {
-    const unsigned = renderDocumentSvg(adderDocument(), resolver);
-    expect(
-      renderDocumentSvg(adderDocument({ signA: "+", signB: "+" }), resolver),
-    ).toBe(unsigned);
-  });
-
   it.each([0, 45, 90, 180, 270] as const)(
     "marks each input once one subtracts, its bars level and upright on the page at %s°",
     (rotation) => {

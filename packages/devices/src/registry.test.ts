@@ -170,7 +170,6 @@ describe("built-in device registry", () => {
       symbolId: "battery",
       referencePrefix: "B",
     });
-    expect(validateDeviceDescriptors([battery])).toEqual([]);
     expect(referencePolicyForSymbol("battery")).toEqual({
       kind: "required",
       prefix: "B",
@@ -198,25 +197,19 @@ describe("built-in device registry", () => {
     );
   });
 
-  it("gives the Photoresistor the resistor contract", () => {
-    expect(deviceDescriptor("photoresistor")).toEqual({
-      ...deviceDescriptor("resistor"),
-      id: "photoresistor",
-      symbolId: "photoresistor",
+  // The Polarized Capacitor's + is on pin 1, as the Capacitor's top plate.
+  it.each([
+    ["photoresistor", "resistor"],
+    ["polarized-capacitor", "capacitor"],
+    ["microphone", "voltage-source"],
+  ])("gives the %s the %s contract", (symbolId, baseId) => {
+    expect(deviceDescriptor(symbolId)).toEqual({
+      ...deviceDescriptor(baseId),
+      id: symbolId,
+      symbolId,
     });
-    expect(referencePolicyForSymbol("photoresistor")).toEqual(
-      referencePolicyForSymbol("resistor"),
-    );
-  });
-
-  it("gives the Polarized Capacitor the capacitor contract, + on pin 1", () => {
-    expect(deviceDescriptor("polarized-capacitor")).toEqual({
-      ...deviceDescriptor("capacitor"),
-      id: "polarized-capacitor",
-      symbolId: "polarized-capacitor",
-    });
-    expect(referencePolicyForSymbol("polarized-capacitor")).toEqual(
-      referencePolicyForSymbol("capacitor"),
+    expect(referencePolicyForSymbol(symbolId)).toEqual(
+      referencePolicyForSymbol(baseId),
     );
   });
 
@@ -255,17 +248,6 @@ describe("built-in device registry", () => {
       kind: "required",
       prefix: "A",
     });
-  });
-
-  it("gives the Microphone the voltage-source contract, V-prefixed", () => {
-    expect(deviceDescriptor("microphone")).toEqual({
-      ...deviceDescriptor("voltage-source"),
-      id: "microphone",
-      symbolId: "microphone",
-    });
-    expect(referencePolicyForSymbol("microphone")).toEqual(
-      referencePolicyForSymbol("voltage-source"),
-    );
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {

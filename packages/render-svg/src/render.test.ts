@@ -501,9 +501,6 @@ describe("render svg", () => {
     expect(scene.formalBody).toContain(
       'data-role="route-direction-arrow" data-arrow-position="middle" points="20,0 ',
     );
-    expect(scene.formalBody).toContain(
-      'data-arrow-position="middle" points="20,0',
-    );
     expect(scene.formalBody).toContain('fill="#CC2244"');
     expect(scene.formalBody).toContain(
       'data-role="route-direction-arrow" data-arrow-position="end" points="40,40 ',

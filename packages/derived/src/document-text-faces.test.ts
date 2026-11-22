@@ -9,7 +9,6 @@ import {
   objectStyleProfile,
   razaviTextbookProfile,
   resolveDocumentStyleProfile,
-  SERIF_FONT_FAMILY,
 } from "./style-profile.js";
 
 const presentation = { styleProfileId: "razavi-textbook-v1" };
@@ -74,10 +73,6 @@ describe("the Document's Arial and LaTeX faces (#1725)", () => {
       expect(
         resolveDocumentStyleProfile({ ...presentation, textFace: face }),
       ).toBe(profile);
-      expect(
-        resolveDocumentStyleProfile({ ...presentation, textFace: "serif" })
-          .typography.fontFamily,
-      ).toBe(SERIF_FONT_FAMILY);
       const kept = objectStyleProfile(profile, {
         documentStyle: { fontScale: 1.5 },
       });

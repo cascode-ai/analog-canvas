@@ -130,26 +130,21 @@ describe("displayableInstanceValue", () => {
     );
   });
 
-  it("draws a bare passive value with its unit, in bold", () => {
-    expect(
-      displayableInstanceValue(instance("resistor", { value: "10k" })),
-    ).toEqual({
-      kind: "displayable",
-      content: { runs: [bold("10kΩ")] },
-    });
-    expect(
-      displayableInstanceValue(instance("capacitor", { value: "2p" })),
-    ).toEqual({
-      kind: "displayable",
-      content: { runs: [bold("2pF")] },
-    });
-    expect(
-      displayableInstanceValue(instance("inductor", { value: "3n" })),
-    ).toEqual({
-      kind: "displayable",
-      content: { runs: [bold("3nH")] },
-    });
-  });
+  it.each<[string, Record<string, string>, string]>([
+    ["resistor", { value: "10k" }, "10kΩ"],
+    ["capacitor", { value: "2p" }, "2pF"],
+    ["inductor", { value: "3n" }, "3nH"],
+    ["voltage-source", { dc: "1.8" }, "1.8V"],
+    ["current-source", { dc: "100u" }, "100µA"],
+  ])(
+    "draws a bare %s value with its unit, in bold",
+    (symbolId, parameters, text) => {
+      expect(displayableInstanceValue(instance(symbolId, parameters))).toEqual({
+        kind: "displayable",
+        content: { runs: [bold(text)] },
+      });
+    },
+  );
 
   it("shows a built-in block's value-role parameter as a resistor's value", () => {
     const block = (symbolId: string, parameters: Record<string, string>) => ({
@@ -201,21 +196,6 @@ describe("displayableInstanceValue", () => {
       displayableInstanceValue(block("crystal", { rm: "25", lm: "12.7m" }))
         .kind,
     ).toBe("undisplayable");
-  });
-
-  it("draws a bare independent source value with its unit", () => {
-    expect(
-      displayableInstanceValue(instance("voltage-source", { dc: "1.8" })),
-    ).toEqual({
-      kind: "displayable",
-      content: { runs: [bold("1.8V")] },
-    });
-    expect(
-      displayableInstanceValue(instance("current-source", { dc: "100u" })),
-    ).toEqual({
-      kind: "displayable",
-      content: { runs: [bold("100µA")] },
-    });
   });
 
   it("does not double a unit the author already typed", () => {

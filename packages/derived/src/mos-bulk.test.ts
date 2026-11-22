@@ -266,9 +266,11 @@ describe("MOS bulk resolution", () => {
     const document = withSupplyMarkers();
     document.nets.push({ id: "net-bias", terminals: [] });
     document.mosBulkDefaults = { nmosNetId: "net-bias" };
-    const resolution = resolveMosBulkConnection(document, "M1");
-    expect(resolution?.status).toBe("cell-default");
-    expect(resolution?.net?.id).toBe("net-bias");
+    expect(resolveMosBulkConnection(document, "M1")).toMatchObject({
+      status: "cell-default",
+      net: { id: "net-bias" },
+      materialized: false,
+    });
     // The other polarity is unconfigured, so it still follows its marker.
     expect(resolveMosBulkConnection(document, "M2")?.net?.id).toBe("net-vdd");
   });
@@ -453,30 +455,6 @@ describe("MOS bulk resolution", () => {
       owner: { kind: "global-declaration", sourceNetId: "source-body" },
     });
     expect(resolveDetachedMosBulkDefault(document, "M1")).toBeUndefined();
-  });
-
-  it("uses the configured stable cell default", () => {
-    const document = createEmptyDocument("main", "Main");
-    document.instances.push(mos("M1", "nmos"));
-    document.nets.push(
-      {
-        id: "net-cell-substrate",
-
-        terminals: [],
-      },
-      {
-        id: "net-vss",
-
-        terminals: [],
-      },
-    );
-    document.mosBulkDefaults = { nmosNetId: "net-cell-substrate" };
-
-    expect(resolveMosBulkConnection(document, "M1")).toMatchObject({
-      status: "cell-default",
-      net: { id: "net-cell-substrate" },
-      materialized: false,
-    });
   });
 
   it("does not infer a bulk connection from supply names or roles", () => {

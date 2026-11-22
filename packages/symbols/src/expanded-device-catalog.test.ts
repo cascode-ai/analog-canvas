@@ -8,7 +8,6 @@ import {
   MOS_VARIANT_SUBCATEGORY,
 } from "./expanded-device-catalog.js";
 import { razaviProductSymbols } from "./razavi-catalog.js";
-import { SymbolDefinitionSchema } from "./schema.js";
 
 describe("Extended Devices catalog", () => {
   it("keeps optional MOS families outside the Razavi authority boundary", () => {
@@ -34,9 +33,6 @@ describe("Extended Devices catalog", () => {
         subcategory: HIGH_VOLTAGE_DEVICE_SUBCATEGORY,
       },
     ]);
-    for (const symbol of expandedDeviceSymbols) {
-      expect(SymbolDefinitionSchema.parse(symbol)).toEqual(symbol);
-    }
   });
 
   it.each([

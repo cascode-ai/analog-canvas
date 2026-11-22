@@ -57,20 +57,23 @@ describe("lettered amplifier body text", () => {
     expect(body).not.toContain("font-style:italic");
     expect(body).toContain("font-weight:700");
   });
-  it("draws the default A and lets each Instance own its own letter", () => {
-    // The point of the feature: one sheet with a gain stage, a buffer and an
-    // unlabelled stage, all the same part.
-    const document = documentWithAmplifiers("opamp-lettered", [
-      undefined,
-      "G",
-      "B",
-    ]);
-    expect(letters(renderDocumentSvg(document, resolver))).toEqual([
-      "A",
-      "G",
-      "B",
-    ]);
-  });
+  it.each([
+    "opamp-lettered",
+    "voltage-amplifier-lettered",
+    "opamp-differential-lettered",
+  ])(
+    "draws the default A on %s and lets each Instance own its own letter",
+    (symbolId) => {
+      // The point of the feature: one sheet with a gain stage, a buffer and
+      // an unlabelled stage, all the same part.
+      const document = documentWithAmplifiers(symbolId, [undefined, "G", "B"]);
+      expect(letters(renderDocumentSvg(document, resolver))).toEqual([
+        "A",
+        "G",
+        "B",
+      ]);
+    },
+  );
 
   it("centres the letter on the triangle, clear of the polarity marks", () => {
     const svg = renderDocumentSvg(
@@ -93,15 +96,7 @@ describe("lettered amplifier body text", () => {
     expect(Number(text![1])).toBeCloseTo(centerX, 2);
   });
 
-  it("gives the voltage amplifier the same editable body letter", () => {
-    const svg = renderDocumentSvg(
-      documentWithAmplifiers("voltage-amplifier-lettered", [undefined, "K"]),
-      resolver,
-    );
-    expect(letters(svg)).toEqual(["A", "K"]);
-  });
-
-  it("gives the fully differential amplifier two outputs and editable body text", () => {
+  it("gives the fully differential lettered amplifier two outputs", () => {
     const definition = builtInSymbols.find(
       (symbol) => symbol.id === "opamp-differential-lettered",
     );
@@ -114,11 +109,6 @@ describe("lettered amplifier body text", () => {
       "VSS",
       "VOCM",
     ]);
-    const svg = renderDocumentSvg(
-      documentWithAmplifiers("opamp-differential-lettered", [undefined, "G"]),
-      resolver,
-    );
-    expect(letters(svg)).toEqual(["A", "G"]);
   });
 
   it("leaves the plain amplifiers unlettered", () => {

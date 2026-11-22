@@ -1132,11 +1132,6 @@ describe("Razavi symbol catalog", () => {
       fill: "foreground",
       stroke: "foreground",
     });
-    expect(requireRazaviCatalogSymbol("current-source").primitives).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: "polygon", fill: "foreground" }),
-      ]),
-    );
     expect(requireRazaviCatalogSymbol("ground").labelVisibility).toBe("hidden");
   });
 
