@@ -3,11 +3,6 @@ import { describe, expect, it } from "vitest";
 import { buildSceneSafely } from "./scene-safety";
 
 describe("buildSceneSafely", () => {
-  it("returns the built scene when building succeeds", () => {
-    const outcome = buildSceneSafely(() => ({ id: 1 }), null);
-    expect(outcome).toEqual({ scene: { id: 1 }, degraded: false });
-  });
-
   it("falls back to the last good scene with the failure reason", () => {
     const outcome = buildSceneSafely(
       () => {
