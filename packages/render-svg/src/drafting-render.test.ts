@@ -592,6 +592,29 @@ describe("drafting layer rendering", () => {
     expect(svg).toContain('points="10,30 90,30 90,70 10,70"');
   });
 
+  it("renders an arc as one SVG arc path", () => {
+    const document = createEmptyDocument("doc", "Arc");
+    document.drafting = {
+      objects: [
+        {
+          id: "arc-1",
+          kind: "arc",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 0, y: 0 } },
+          start: { x: 0, y: 0 },
+          through: { x: 20, y: -20 },
+          end: { x: 40, y: 0 },
+          lineStyle: "dotted",
+        },
+      ],
+    };
+    const svg = renderDocumentSvg(document, resolver);
+    expect(svg).toContain('data-kind="draft-arc"');
+    expect(svg).toContain('d="M 0 0 A 20 20 0 0 1 40 0"');
+    expect(svg).toContain('stroke-dasharray="2 3"');
+  });
+
   it("renders an orientation-free outline circle with the shared drafting style", () => {
     const document = createEmptyDocument("doc", "Circle");
     document.drafting = {

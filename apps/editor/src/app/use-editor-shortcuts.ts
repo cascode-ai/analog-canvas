@@ -458,7 +458,8 @@ function createEditorShortcutHandler({
           tool === "polyline" ||
           tool === "construction-line" ||
           tool === "rectangle" ||
-          tool === "circle") &&
+          tool === "circle" ||
+          tool === "arc") &&
         draftingSource !== null,
       hasRemovableWireWaypoint: Boolean(
         wireSource && wireDraftSteps.length > 0,

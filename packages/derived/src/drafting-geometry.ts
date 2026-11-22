@@ -31,6 +31,7 @@ import {
   type SchematicStyleProfile,
 } from "./style-profile.js";
 import { arrowArtwork, arrowArtworkBounds } from "./arrow-artwork.js";
+import { arcThroughPoints } from "./arc-geometry.js";
 import {
   labelInkDescentEm,
   uprightTextInkBounds,
@@ -134,6 +135,18 @@ export type ResolvedDraftingGeometry =
       diagnostics: [];
     }
   | {
+      kind: "arc";
+      start: DerivedPoint;
+      through: DerivedPoint;
+      end: DerivedPoint;
+      center: DerivedPoint;
+      radius: number;
+      startAngle: number;
+      sweepAngle: number;
+      bounds: DerivedRect;
+      diagnostics: [];
+    }
+  | {
       kind: "floating-symbol";
       position: DerivedPoint;
       rotation: Rotation;
@@ -182,6 +195,7 @@ export function resolveDraftingObjectGeometry(
 ): ResolvedDraftingGeometry {
   if (object.kind === "rectangle") return resolveRectangle(object);
   if (object.kind === "circle") return resolveCircle(object);
+  if (object.kind === "arc") return resolveArc(object);
   if (object.kind === "construction-line")
     return resolveConstructionLine(object);
   // Resolving this per object rebuilt the whole Document's route geometry once
@@ -741,6 +755,23 @@ function resolveCircle(object: Extract<DraftingObject, { kind: "circle" }>) {
       },
       STROKE_PADDING,
     ),
+    diagnostics: [] as [],
+  };
+}
+
+function resolveArc(object: Extract<DraftingObject, { kind: "arc" }>) {
+  // The schema refuses three points on one line, so the circle exists.
+  const arc = arcThroughPoints(object.start, object.through, object.end)!;
+  return {
+    kind: "arc" as const,
+    start: { ...object.start },
+    through: { ...object.through },
+    end: { ...object.end },
+    center: arc.center,
+    radius: arc.radius,
+    startAngle: arc.startAngle,
+    sweepAngle: arc.sweepAngle,
+    bounds: paddedBounds(arc.bounds, STROKE_PADDING),
     diagnostics: [] as [],
   };
 }

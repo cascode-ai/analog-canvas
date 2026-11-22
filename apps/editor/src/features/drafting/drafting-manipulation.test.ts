@@ -337,6 +337,91 @@ describe("drafting manipulation", () => {
     ).toMatchObject({ center: { x: 150, y: 185 }, height: 10 });
   });
 
+  it("reshapes, moves, turns and mirrors an arc by its three points", () => {
+    const object: Extract<DraftingObject, { kind: "arc" }> = {
+      id: "arc-1",
+      kind: "arc",
+      locked: false,
+      zIndex: 0,
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      start: { x: 0, y: 0 },
+      through: { x: 20, y: -20 },
+      end: { x: 40, y: 0 },
+      lineStyle: "solid",
+    };
+    expect(DraftingObjectSchema.safeParse(object).success).toBe(true);
+    expect(
+      DraftingObjectSchema.safeParse({ ...object, through: { x: 20, y: 0 } })
+        .success,
+    ).toBe(false);
+    const geometry = resolveDraftingObjectGeometry(document, resolver, object);
+    expect(draftingDragOrigin(object)).toEqual({ x: 0, y: 0 });
+    // The middle handle bows it further; a drag onto the chord is refused.
+    expect(
+      applyDraftingHandle(
+        object,
+        { kind: "arc-point", index: 1 },
+        { x: 20, y: -30 },
+        geometry,
+        10,
+      ),
+    ).toMatchObject({ through: { x: 20, y: -30 } });
+    expect(
+      applyDraftingHandle(
+        object,
+        { kind: "arc-point", index: 1 },
+        { x: 20, y: 0 },
+        geometry,
+        10,
+      ),
+    ).toBe(object);
+    expect(
+      applyDraftingHandle(
+        object,
+        { kind: "arc-point", index: 2 },
+        { x: 50, y: 10 },
+        geometry,
+        10,
+      ),
+    ).toMatchObject({ start: { x: 0, y: 0 }, end: { x: 50, y: 10 } });
+    expect(translateDraftingObject(object, { x: 10, y: 10 }, 10)).toMatchObject(
+      {
+        anchor: { kind: "free", position: { x: 10, y: 10 } },
+        start: { x: 10, y: 10 },
+        through: { x: 30, y: -10 },
+        end: { x: 50, y: 10 },
+      },
+    );
+    const turned = rotateDraftingObject(object, geometry, 180, 10)!;
+    const back = rotateDraftingObject(
+      turned,
+      resolveDraftingObjectGeometry(document, resolver, turned),
+      180,
+      10,
+    );
+    // As saved: a half turn twice is where it started (−0 writes as 0).
+    expect(JSON.parse(JSON.stringify(back))).toMatchObject({
+      start: object.start,
+      through: object.through,
+      end: object.end,
+    });
+    expect(
+      mirrorDraftingObject(
+        object,
+        { x: 20, y: 0 },
+        "top-bottom",
+        new Set(),
+        (value) => resolveDraftingObjectGeometry(document, resolver, value),
+      ),
+    ).toMatchObject({ through: { x: 20, y: 20 }, end: { x: 40, y: 0 } });
+    expect(
+      applyDraftingStylePatch(object, {
+        lineStyle: "dashed",
+        fillColor: "#f00",
+      }),
+    ).toMatchObject({ styleOverride: { lineStyle: "dashed" } });
+  });
+
   it("moves and resizes a circle while keeping it orientation-free", () => {
     const object = circle();
     const geometry = resolveDraftingObjectGeometry(document, resolver, object);

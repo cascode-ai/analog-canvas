@@ -70,6 +70,16 @@ export function translateDraftingObject(
     const center = translatePoint(object.center, delta, grid);
     return { ...object, center, anchor: { kind: "free", position: center } };
   }
+  if (object.kind === "arc") {
+    const start = translatePoint(object.start, delta, grid);
+    return {
+      ...object,
+      start,
+      through: translatePoint(object.through, delta, grid),
+      end: translatePoint(object.end, delta, grid),
+      anchor: { kind: "free", position: start },
+    };
+  }
   return {
     ...object,
     anchor: translateFreeAnchor(object.anchor, delta, grid),

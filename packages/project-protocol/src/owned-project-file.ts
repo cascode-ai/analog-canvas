@@ -18,7 +18,7 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 86;
+export const CURRENT_PROJECT_FILE_VERSION = 87;
 type Value = Record<string, any>;
 
 /** Check shared targets before the codec expands per-type defaults. */
@@ -47,6 +47,32 @@ export function rejectModelSelection(raw: Value): void {
         check(instance?.netlist?.binding, [...path, "netlist", "binding"]);
       },
     );
+  });
+}
+
+/** Drafting arcs exist from schema 87. */
+export function rejectDraftingArcs(raw: Value): void {
+  if (!Array.isArray(raw.documents)) return;
+  raw.documents.forEach((document: Value, index: number) => {
+    const objects = document?.drafting?.objects;
+    if (!Array.isArray(objects)) return;
+    objects.forEach((object: Value | null, objectIndex: number) => {
+      if (object?.kind === "arc")
+        throw new ProjectFormatError([
+          {
+            code: "INVALID_PROJECT",
+            path: [
+              "documents",
+              index,
+              "drafting",
+              "objects",
+              objectIndex,
+              "kind",
+            ],
+            message: "Drafting arcs require Project schema 87",
+          },
+        ]);
+    });
   });
 }
 

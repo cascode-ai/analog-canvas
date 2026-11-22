@@ -1,5 +1,9 @@
 import type { Point } from "@icm/model";
-import type { SchematicStyleProfile } from "@icm/derived";
+import {
+  arcPathData,
+  arcThroughPoints,
+  type SchematicStyleProfile,
+} from "@icm/derived";
 
 import {
   normalizedRect,
@@ -45,6 +49,10 @@ export function DraftingCreatePreview({
   const rectangle = normalizedRect(start, hover);
   const isRectangle = tool === "rectangle";
   const isCircle = tool === "circle";
+  // After its second click an arc runs from start to that end and bows
+  // through the pointer; before it, the chord previews as a line.
+  const arcEnd = tool === "arc" ? waypoints[0] : undefined;
+  const arc = arcEnd ? arcThroughPoints(start, hover, arcEnd) : undefined;
   const labelX = start.x + dx / 2;
   const labelY = start.y + dy / 2 - 8;
 
@@ -65,6 +73,20 @@ export function DraftingCreatePreview({
         />
       ) : isRectangle ? (
         <rect className="drafting-create-preview" {...rectangle} fill="none" />
+      ) : arcEnd ? (
+        arc ? (
+          <path
+            className="drafting-create-preview"
+            d={arcPathData(start, arcEnd, arc)}
+            fill="none"
+          />
+        ) : (
+          <polyline
+            className="drafting-create-preview"
+            points={serializePolylinePoints([start, arcEnd])}
+            fill="none"
+          />
+        )
       ) : isCircle ? (
         <circle
           className="drafting-create-preview"

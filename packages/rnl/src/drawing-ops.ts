@@ -1,4 +1,5 @@
 import {
+  arcPointAt,
   arrowArtwork,
   arrowEndStyles,
   type ResolvedDraftingGeometry,
@@ -205,6 +206,22 @@ export function draftingShapes(
             params: { radius: rnlLength(geometry.radius) },
           }),
         ];
+      case "arc": {
+        // RNL has no arc of its own: the arc travels as its polyline.
+        const steps = Math.max(
+          4,
+          Math.ceil(Math.abs(geometry.sweepAngle) / 10),
+        );
+        return [
+          own(
+            pathShape(
+              Array.from({ length: steps + 1 }, (_, index) =>
+                arcPointAt(geometry, index / steps),
+              ),
+            ),
+          ),
+        ];
+      }
       case "floating-symbol":
         return null;
     }

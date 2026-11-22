@@ -5,6 +5,7 @@ import type {
 } from "react";
 
 import {
+  arcPathData,
   arrowArtwork,
   resolveDocumentRoutingGeometry,
   objectStyleProfile,
@@ -108,7 +109,8 @@ export function EditorDraftingHitTargets({
       tool === "polyline" ||
       tool === "construction-line" ||
       tool === "rectangle" ||
-      tool === "circle";
+      tool === "circle" ||
+      tool === "arc";
     const geometry = resolveDraftingObjectGeometry(
       document,
       resolver,
@@ -284,6 +286,17 @@ export function EditorDraftingHitTargets({
           cy={geometry.center.y}
           r={geometry.radius}
           fill="none"
+        />
+      );
+    }
+    if (object.kind === "arc" && geometry.kind === "arc") {
+      return (
+        <path
+          key={object.id}
+          {...common}
+          className={`${selectedClass} drafting-path-hit`}
+          fill="none"
+          d={arcPathData(geometry.start, geometry.end, geometry)}
         />
       );
     }
@@ -628,6 +641,27 @@ export function EditorDraftingHandles({
             })
           }
         />
+      </g>
+    );
+  }
+  if (object.kind === "arc" && geometry.kind === "arc") {
+    const points = [geometry.start, geometry.through, geometry.end];
+    const names = ["start", "through", "end"] as const;
+    return (
+      <g data-testid={`drafting-handles-${object.id}`}>
+        {points.map((point, index) => (
+          <circle
+            key={names[index]}
+            className="draft-handle"
+            data-testid={`draft-handle-arc-${names[index]}-${object.id}`}
+            cx={point.x}
+            cy={point.y}
+            r="5"
+            onPointerDown={(event) =>
+              onHandlePointerDown(event, object, { kind: "arc-point", index })
+            }
+          />
+        ))}
       </g>
     );
   }

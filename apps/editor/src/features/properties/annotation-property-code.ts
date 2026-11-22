@@ -124,7 +124,10 @@ export function draftingPropertyValue(
     object.kind === "text" &&
     (object.polarity === "positive" || object.polarity === "negative");
   const closed = object.kind === "rectangle" || object.kind === "circle";
-  const line = object.kind === "arrow" || object.kind === "construction-line";
+  const line =
+    object.kind === "arrow" ||
+    object.kind === "construction-line" ||
+    object.kind === "arc";
   const style = object.styleOverride;
   const value: AnnotationPropertyValue = {
     placement: {
@@ -199,6 +202,16 @@ export function draftingPropertyValue(
       : {}),
     ...(object.kind === "circle"
       ? { geometry: { radius: object.radius } }
+      : {}),
+    // An arc's start, the point it passes through, and its end.
+    ...(object.kind === "arc"
+      ? {
+          geometry: {
+            points: [object.start, object.through, object.end].map(
+              (point) => [point.x, point.y] as [number, number],
+            ),
+          },
+        }
       : {}),
     ...(object.kind === "arrow" && object.outline
       ? { geometry: { width: object.outline.width } }
@@ -380,7 +393,9 @@ export function parseDraftingPropertyCode(
     const anchor = propertyAnchor(value);
     let next = { ...object, anchor, locked: false } as DraftingObject;
     if (
-      (object.kind === "arrow" || object.kind === "construction-line") &&
+      (object.kind === "arrow" ||
+        object.kind === "construction-line" ||
+        object.kind === "arc") &&
       JSON.stringify(anchor) !== JSON.stringify(object.anchor)
     ) {
       if (
@@ -505,6 +520,33 @@ export function parseDraftingPropertyCode(
           : {}),
       };
     }
+    if (
+      next.kind === "arc" &&
+      value.geometry?.points &&
+      JSON.stringify(value.geometry.points) !==
+        JSON.stringify(baseline.geometry?.points)
+    ) {
+      const [start, through, end, extra] = value.geometry.points.map(
+        ([x, y]) => ({ x, y }),
+      );
+      if (!start || !through || !end || extra)
+        throw new Error(
+          "geometry.points of an arc are its start, a point it passes and its end",
+        );
+      next = {
+        ...next,
+        anchor: { kind: "free", position: start },
+        start,
+        through,
+        end,
+      };
+    }
+    if (
+      next.kind === "arc" &&
+      (next.through.x - next.start.x) * (next.end.y - next.start.y) ===
+        (next.through.y - next.start.y) * (next.end.x - next.start.x)
+    )
+      throw new Error("An arc needs three points not on one line");
     if (next.kind === "floating-symbol") {
       next.transform = {
         rotation: RotationSchema.parse(value.placement.rotation),

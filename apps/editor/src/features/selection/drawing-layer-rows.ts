@@ -38,6 +38,7 @@ const draftingKindLabels: Record<DraftingObject["kind"], string> = {
   text: "Text",
   rectangle: "Rectangle",
   circle: "Circle",
+  arc: "Arc",
   arrow: "Arrow",
   leader: "Leader",
   callout: "Callout",

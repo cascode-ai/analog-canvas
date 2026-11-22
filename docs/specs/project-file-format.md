@@ -45,6 +45,8 @@ export -> validate -> encode current file schema -> readable canonical JSON -> d
   preserves the prior evidence rules.
 - Since schema 86, an Instance group can retain a numeric-ending reference prefix
   to reproduce the authored range. Its ordered members own the electrical mapping.
+- Since schema 87, a drafting object may be an `arc`
+  ([schematic model](schematic-model.md)); older envelopes cannot carry one.
 - The reader rejects mixed legacy/current field names, conflicting endpoints,
   unknown fields and missing used component definitions; it never deletes
   unplaced or overlapping instances. An invalid candidate never replaces the

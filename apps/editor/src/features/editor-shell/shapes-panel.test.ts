@@ -20,7 +20,7 @@ describe("shapes quick-place", () => {
       }),
     );
 
-    expect(symbols).toHaveLength(97);
+    expect(symbols).toHaveLength(98);
     expect(markup).toContain("Official components");
     expect(markup).toContain('aria-label="Place NoConn"');
     expect(markup).toContain(">NoConn</span>");
@@ -43,7 +43,7 @@ describe("shapes quick-place", () => {
       ["Analog Blocks", 13],
       ["Logic Gates", 12],
       ["Signal Flow", 6],
-      ["Annotations", 9],
+      ["Annotations", 10],
       ["Extended Devices", 27],
     ]);
     const categoryTestIds = [
@@ -184,6 +184,7 @@ describe("shapes quick-place", () => {
       ["annotation-polyline", "Polyline", "polyline"],
       ["annotation-rectangle", "Rectangle", "rectangle"],
       ["annotation-circle", "Circle", "circle"],
+      ["annotation-arc", "Arc", "arc"],
     ] as const) {
       expect(quickPlaceRequest("razavi", symbolId)).toEqual({
         kind: "drawing-tool",

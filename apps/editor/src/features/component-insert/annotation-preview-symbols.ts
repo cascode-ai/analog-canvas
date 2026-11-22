@@ -12,6 +12,7 @@ const drawingToolBySymbolId = {
   "annotation-line": "construction-line",
   "annotation-rectangle": "rectangle",
   "annotation-circle": "circle",
+  "annotation-arc": "arc",
 } as const satisfies Readonly<Record<string, DrawingTool>>;
 
 // A standalone sign is the same mark as the one the pair draws, so it goes
@@ -144,6 +145,20 @@ const annotationCircle = {
   ],
 } satisfies SymbolDefinition;
 
+const annotationArc = {
+  ...shared,
+  id: "annotation-arc",
+  name: "Arc",
+  viewBox: { x: -20, y: -14, width: 40, height: 28 },
+  primitives: [
+    {
+      kind: "path",
+      data: "M -16 8 A 18 18 0 0 1 16 8",
+      bounds: { x: -16, y: -6, width: 32, height: 14 },
+    },
+  ],
+} satisfies SymbolDefinition;
+
 function textStrokes(centerY: number): SymbolDefinition["primitives"] {
   return [
     {
@@ -239,6 +254,7 @@ export const annotationPreviewSymbols: readonly SymbolDefinition[] = [
   annotationPolyline,
   annotationRectangle,
   annotationCircle,
+  annotationArc,
   annotationPolarityBoth,
   annotationTextPlus,
   annotationTextMinus,

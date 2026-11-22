@@ -84,6 +84,14 @@ function draftingPoints(object: DraftingObject): LocatedPoint[] {
       return [...points, { point: object.center, path: ["object", "center"] }];
     case "circle":
       return [...points, { point: object.center, path: ["object", "center"] }];
+    case "arc":
+      return [
+        ...points,
+        ...(["start", "through", "end"] as const).map((key) => ({
+          point: object[key],
+          path: ["object", key],
+        })),
+      ];
   }
 }
 

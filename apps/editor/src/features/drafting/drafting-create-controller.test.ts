@@ -351,6 +351,54 @@ describe("drafting create controller", () => {
     },
   );
 
+  it("creates an arc from its two ends and the point it bows through", () => {
+    const transact = vi.fn(() => ({ ok: true }));
+    const setStatus = vi.fn();
+    const options = {
+      document: createEmptyDocument("cell", "Cell"),
+      resolver: new InMemorySymbolResolver(builtInSymbols),
+      visibleEndpoints: [],
+      annotationGrid: 1,
+      angleMode: "free" as const,
+      routeGeometryRecords: [],
+      tool: "arc" as const,
+      source: { x: 0, y: 0 },
+      hover: { x: 20, y: -20 },
+      waypoints: [{ x: 40, y: 0 }],
+      setSource: vi.fn(),
+      setHover: vi.fn(),
+      setWaypoints: vi.fn(),
+      setSnapPoint: vi.fn(),
+      clear: vi.fn(),
+      setTool: vi.fn(),
+      transact,
+      setStatus,
+      nextId: () => "arc-1",
+    };
+    createDraftingCreateController({
+      ...options,
+      hover: { x: 20, y: 0 },
+    }).finish();
+    expect(transact).not.toHaveBeenCalled();
+    expect(setStatus).toHaveBeenCalledWith(
+      expect.stringContaining("move off the line"),
+    );
+    createDraftingCreateController(options).finish();
+    expect(transact).toHaveBeenCalledWith([
+      expect.objectContaining({
+        kind: "upsert_drafting_object",
+        object: expect.objectContaining({
+          id: "arc-1",
+          kind: "arc",
+          start: { x: 0, y: 0 },
+          through: { x: 20, y: -20 },
+          end: { x: 40, y: 0 },
+          lineStyle: "solid",
+        }),
+      }),
+    ]);
+  });
+
   it("creates a circle from its center and radius point", () => {
     const transact = vi.fn(() => ({ ok: true }));
     const controller = createDraftingCreateController({

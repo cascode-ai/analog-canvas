@@ -131,6 +131,30 @@ const DraftCircleSchema = DraftingObjectBaseSchema.extend({
   /** Missing preserves the historical foreground drafting plane. */
   layer: z.enum(["background", "foreground"]).optional(),
 });
+/**
+ * A circular arc through three grid points: it starts at `start`, passes
+ * through `through` and ends at `end`. The points stay on the grid where a
+ * centre and radius would not, and every transform maps them directly.
+ */
+const DraftArcSchema = DraftingObjectBaseSchema.extend({
+  kind: z.literal("arc"),
+  start: PointSchema,
+  through: PointSchema,
+  end: PointSchema,
+  lineStyle: z.enum(["solid", "dashed", "dotted"]),
+  /** Missing preserves the historical foreground drafting plane. */
+  layer: z.enum(["background", "foreground"]).optional(),
+}).superRefine((arc, ctx) => {
+  const cross =
+    (arc.through.x - arc.start.x) * (arc.end.y - arc.start.y) -
+    (arc.through.y - arc.start.y) * (arc.end.x - arc.start.x);
+  if (cross === 0)
+    ctx.addIssue({
+      code: "custom",
+      path: ["through"],
+      message: "An arc needs three points not on one line",
+    });
+});
 const DraftFloatingSymbolSchema = DraftingObjectBaseSchema.extend({
   kind: z.literal("floating-symbol"),
   symbolId: StableIdSchema,
@@ -145,6 +169,7 @@ export const DraftingObjectSchema = z
     DraftConstructionLineSchema,
     DraftRectangleSchema,
     DraftCircleSchema,
+    DraftArcSchema,
     DraftFloatingSymbolSchema,
   ])
   .superRefine((object, ctx) => {

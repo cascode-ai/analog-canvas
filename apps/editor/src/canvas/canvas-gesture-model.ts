@@ -55,7 +55,8 @@ export function classifyCanvasGestureStart({
     tool === "arrow" ||
     tool === "polyline" ||
     tool === "rectangle" ||
-    tool === "circle";
+    tool === "circle" ||
+    tool === "arc";
   if (frameZoomDrag) {
     return !placementOwnsClick && !draftingOwnsClick && targetIsCanvas
       ? "zoom"

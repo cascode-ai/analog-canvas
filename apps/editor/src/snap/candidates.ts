@@ -109,6 +109,8 @@ function draftingGeometryPoints(
         { x: geometry.center.x, y: geometry.center.y + geometry.radius },
         { x: geometry.center.x, y: geometry.center.y - geometry.radius },
       ];
+    case "arc":
+      return [geometry.start, geometry.through, geometry.end, geometry.center];
   }
 }
 

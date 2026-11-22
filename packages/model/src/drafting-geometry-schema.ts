@@ -96,6 +96,20 @@ export const ResolvedDraftingGeometrySchema = z.discriminatedUnion("kind", [
     diagnostics: z.array(DraftingDiagnosticSchema),
   }),
   z.strictObject({
+    kind: z.literal("arc"),
+    start: DerivedPointSchema,
+    through: DerivedPointSchema,
+    end: DerivedPointSchema,
+    center: DerivedPointSchema,
+    radius: z.number().positive(),
+    /** Degrees, clockwise from +x in drawing coordinates. */
+    startAngle: z.number().finite(),
+    /** Signed sweep from startAngle to the end, through `through`. */
+    sweepAngle: z.number().finite(),
+    bounds: DerivedRectSchema,
+    diagnostics: z.array(DraftingDiagnosticSchema),
+  }),
+  z.strictObject({
     kind: z.literal("floating-symbol"),
     position: DerivedPointSchema,
     rotation: RotationSchema,

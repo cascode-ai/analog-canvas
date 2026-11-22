@@ -179,7 +179,9 @@ applied to existing labels at once and undoable:
 ## Drawing shapes and arrows
 
 **Arrow** is in the Library's **Annotations** group: click each bend, then
-double-click or press `Enter`. Arrow and construction points snap quietly to
+double-click or press `Enter`. **Arc** draws a circular arc: click both ends,
+then move to bow it and click (or press `Enter`); drag its three handles to
+reshape it. Arrow and construction points snap quietly to
 pins, wires and shapes (hold `Alt` to stop); snapping never connects anything.
 Select a shape and press `Q` to edit its JSON: endpoint styles
 (`small-arrow`, `medium-arrow`, `large-arrow`, `dot`, `none`, `open-arrow`),

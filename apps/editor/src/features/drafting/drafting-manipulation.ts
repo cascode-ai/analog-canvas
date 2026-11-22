@@ -42,6 +42,8 @@ export type DraftingHandle =
         | "rectangle-corner"
         | "rectangle-edge"
         | "circle-radius"
+        /** 0 start, 1 the point it passes through, 2 end. */
+        | "arc-point"
         | "path-corner"
         | "leg";
       index: number;
@@ -105,6 +107,7 @@ export function draftingDragOrigin(object: DraftingObject): GridPoint | null {
   if (object.kind === "construction-line") return object.points[0] ?? null;
   if (object.kind === "rectangle") return object.center;
   if (object.kind === "circle") return object.center;
+  if (object.kind === "arc") return object.start;
   if (object.kind === "arrow") {
     return object.from.kind === "free" && object.to.kind === "free"
       ? object.from.position
@@ -228,7 +231,8 @@ export function applyDraftingHandle(
       handle.kind === "vertex" ||
       handle.kind === "rectangle-corner" ||
       handle.kind === "rectangle-edge" ||
-      handle.kind === "circle-radius"
+      handle.kind === "circle-radius" ||
+      handle.kind === "arc-point"
     ) {
       return object;
     }
@@ -337,7 +341,29 @@ export function applyDraftingHandle(
     );
     return { ...object, radius };
   }
+  if (object.kind === "arc" && handle.kind === "arc-point") {
+    const key = ARC_POINT_KEYS[handle.index];
+    if (!key) return object;
+    const next = { ...object, [key]: point };
+    // Three points on one line make no arc; the drag keeps the last one.
+    return arcPointsTurn(next) ? next : object;
+  }
   return object;
+}
+
+const ARC_POINT_KEYS = ["start", "through", "end"] as const;
+
+/** Nonzero while an arc's three points are not on one line. */
+function arcPointsTurn(
+  arc: Pick<
+    Extract<DraftingObject, { kind: "arc" }>,
+    "start" | "through" | "end"
+  >,
+): number {
+  return (
+    (arc.through.x - arc.start.x) * (arc.end.y - arc.start.y) -
+    (arc.through.y - arc.start.y) * (arc.end.x - arc.start.x)
+  );
 }
 
 /**
@@ -491,7 +517,8 @@ export function applyDraftingStylePatch(
       object.kind !== "arrow" &&
       object.kind !== "construction-line" &&
       object.kind !== "rectangle" &&
-      object.kind !== "circle")
+      object.kind !== "circle" &&
+      object.kind !== "arc")
   ) {
     return null;
   }
@@ -607,6 +634,20 @@ export function rotateDraftingObject(
       ...object,
       rotation: (((object.rotation + deltaDegrees) % 360) + 360) % 360,
     };
+  }
+  if (object.kind === "arc") {
+    const pivot = centerOfBounds(geometry.bounds);
+    const turn = (point: GridPoint) =>
+      snapGridPoint(rotatePointByDegrees(point, pivot, deltaDegrees), grid);
+    const start = turn(object.start);
+    const next = {
+      ...object,
+      start,
+      through: turn(object.through),
+      end: turn(object.end),
+      anchor: { kind: "free" as const, position: start },
+    };
+    return arcPointsTurn(next) ? next : null;
   }
   // A free text turns between reading across and reading up the page, about
   // its anchor; a half turn would stand it on its head.
@@ -778,6 +819,16 @@ export function mirrorDraftingObject(
     case "circle": {
       const center = reflect(object.center);
       return { ...object, center, anchor: { kind: "free", position: center } };
+    }
+    case "arc": {
+      const start = reflect(object.start);
+      return {
+        ...object,
+        start,
+        through: reflect(object.through),
+        end: reflect(object.end),
+        anchor: { kind: "free", position: start },
+      };
     }
     case "floating-symbol":
       return {
