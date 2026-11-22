@@ -193,6 +193,9 @@ the RNL language and its runtime belong to rnl.
   whose name the conversion prefixed with its
   element's letter (the ammeter's `A1 … vsource` read as `VA1`) gets its own
   name back where the part as drawn can have it.
+- The photodiode, varactor diode, current-regulative diode, thyristor,
+  phototransistor, Schottky-clamped NPN, IGBT and MESFET have no RNL symbol
+  yet: export refuses them with `RNL_NO_SYMBOL`.
 - The MOS Varactor, which no package draws, is defined in the file
   (`$CANVAS_MOS_VARACTOR`) on the X line of its PDK device
   (`sg13_hv_svaricap`): terminals `g1 w g2 bn`, the substrate undrawn. Import

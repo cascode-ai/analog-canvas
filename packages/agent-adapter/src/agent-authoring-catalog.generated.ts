@@ -1973,6 +1973,137 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "photodiode",
+      name: "Photodiode",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "area",
+        },
+      ],
+      bounds: {
+        x: -20,
+        y: -17,
+        width: 40,
+        height: 24.34,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "varactor-diode",
+      name: "Varactor Diode",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "area",
+        },
+      ],
+      bounds: {
+        x: -20,
+        y: -7.34,
+        width: 40,
+        height: 14.68,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "current-regulative-diode",
+      name: "Current-Regulative Diode",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "idss",
+          default: "5m",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -7,
+        width: 40,
+        height: 14,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "schottky-diode",
       name: "Schottky Diode",
       category: "passive",
@@ -3280,6 +3411,163 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "phototransistor",
+      name: "NPN Phototransistor",
+      category: "transistor",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "m",
+          default: "1",
+        },
+        {
+          name: "area",
+        },
+      ],
+      bounds: {
+        x: -30,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "C",
+          role: "collector",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "B",
+          role: "base",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
+        },
+        {
+          name: "E",
+          role: "emitter",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "schottky-npn",
+      name: "Schottky-Clamped NPN",
+      category: "transistor",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      parametersOpen: true,
+      bounds: {
+        x: -30,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "C",
+          role: "collector",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "B",
+          role: "base",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
+        },
+        {
+          name: "E",
+          role: "emitter",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "igbt",
+      name: "IGBT",
+      category: "transistor",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      parametersOpen: true,
+      bounds: {
+        x: -30,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "C",
+          role: "collector",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
+        },
+        {
+          name: "E",
+          role: "emitter",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "opamp",
       name: "Operational Amplifier",
       category: "analog-block",
@@ -4205,6 +4493,63 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "mesfet",
+      name: "N-Channel MESFET",
+      category: "transistor",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "m",
+          default: "1",
+        },
+        {
+          name: "area",
+        },
+      ],
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "D",
+          role: "drain",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: -20,
+          },
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "S",
+          role: "source",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "pmos",
       name: "PMOS",
       category: "transistor",
@@ -4616,6 +4961,56 @@ export const agentRazaviAuthoringCatalog = {
           at: {
             x: -20,
             y: 0,
+          },
+        },
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "thyristor",
+      name: "Thyristor (SCR)",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -7.34,
+        width: 40,
+        height: 27.34,
+      },
+      pins: [
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "G",
+          role: "gate",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: 20,
           },
         },
         {

@@ -73,6 +73,14 @@ export function symbolCategory(symbolId: string): string {
       "microphone",
       "ammeter",
       "potentiometer",
+      "photodiode",
+      "varactor-diode",
+      "current-regulative-diode",
+      "thyristor",
+      "phototransistor",
+      "schottky-npn",
+      "igbt",
+      "mesfet",
     ].includes(symbolId)
   ) {
     return EXTENDED_DEVICE_CATEGORY;
@@ -213,6 +221,14 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   "transmission-line": "T-Line",
   impedance: "Z",
   "two-port": "2-Port",
+  photodiode: "Photo D",
+  "varactor-diode": "Varactor",
+  "current-regulative-diode": "CRD",
+  thyristor: "SCR",
+  phototransistor: "Photo Q",
+  "schottky-npn": "Sch NPN",
+  igbt: "IGBT",
+  mesfet: "MESFET",
 };
 
 /** One line saying what an entry does, where the name alone leaves a doubt. */
@@ -275,6 +291,20 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   put: "Programmable unijunction transistor — fires when A rises a diode drop above G",
   "shockley-diode":
     "Shockley (four-layer) diode — blocks until vbo, then latches on",
+  photodiode: "Photodiode — electrically the Diode, on the generic DIODE model",
+  "varactor-diode":
+    "Varactor diode — electrically the Diode; bind a model with CJO for its capacitance",
+  "current-regulative-diode":
+    "Current-regulative diode — a JFET with its gate on its source, about idss from A to K",
+  thyristor:
+    "Thyristor (SCR) — latches on from A to K when G draws current, holds until the current falls",
+  phototransistor:
+    "NPN phototransistor — electrically the NPN; mark B No Connect where the figure draws none",
+  "schottky-npn":
+    "Schottky-clamped NPN — an NPN with a Schottky diode from base to collector",
+  igbt: "IGBT — an NMOS gate driving a PNP, on from C to E above about 4 V on G",
+  mesfet:
+    "N-channel MESFET or HEMT — electrically the N-Channel JFET, on the generic NJF model",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -359,12 +389,20 @@ const SYMBOL_ORDER: readonly string[] = [
   "diode",
   "zener-diode",
   "led",
+  "photodiode",
+  "varactor-diode",
+  "current-regulative-diode",
   "schottky-diode",
   "shockley-diode",
+  "thyristor",
   "put",
   "njfet",
   "pjfet",
   "ujt",
+  "phototransistor",
+  "schottky-npn",
+  "igbt",
+  "mesfet",
   "tcoil",
   "center-tap-inductor",
   "xfmr",

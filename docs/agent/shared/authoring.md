@@ -57,8 +57,8 @@ their IDs, never resolved to the first.
   `X2`; a block that emits nothing gets none). A device placed under another
   prefix takes its own in front and is drawn as asked (NMOS `NB` is `MNB`
   drawn N_B); a `place-cell` under another prefix or a used name is rejected
-  with a free name and nothing is placed. A UJT or PUT is drawn Q1
-  and a Shockley diode D1 by a display alias while its Reference is `X1`; a Q
+  with a free name and nothing is placed. A UJT, PUT, IGBT or Schottky-clamped NPN is drawn Q1
+  and a Shockley diode, thyristor or current-regulative diode D1 by a display alias while its Reference is `X1`; a Q
   or D `reference` or `set-reference` sets that alias. To draw another name (op-amp
   `X1` as A1) use `set-display-alias {target, text}` (`text:null` restores);
   it survives Project Code and Copy. A Port takes one the same way; a Net

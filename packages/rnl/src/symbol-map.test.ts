@@ -123,8 +123,19 @@ describe("the RNL symbol list", () => {
     expect(
       builtInSymbols
         .map((symbol) => symbol.id)
-        .filter((id) => !rnlSymbolFor(id)),
-    ).toEqual([]);
+        .filter((id) => !rnlSymbolFor(id))
+        .sort(),
+      // No standard RNL symbol yet (#2441): RNL_NO_SYMBOL.
+    ).toEqual([
+      "current-regulative-diode",
+      "igbt",
+      "mesfet",
+      "photodiode",
+      "phototransistor",
+      "schottky-npn",
+      "thyristor",
+      "varactor-diode",
+    ]);
   });
 
   it("takes the standard series' symbols, and appearance variants from Analog Canvas's package", () => {

@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "mesfet",
+    "name": "N-Channel MESFET",
+    "viewBox": {
+      "x": -24,
+      "y": -24,
+      "width": 38,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "D",
+        "role": "drain",
+        "at": {
+          "x": 10,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "G",
+        "role": "gate",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "S",
+        "role": "source",
+        "at": {
+          "x": 10,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -4,
+            "y": -8
+          },
+          {
+            "x": 10,
+            "y": -8
+          },
+          {
+            "x": 10,
+            "y": -20
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -4,
+            "y": 8
+          },
+          {
+            "x": 10,
+            "y": 8
+          },
+          {
+            "x": 10,
+            "y": 20
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -4,
+          "y": -12.5
+        },
+        "to": {
+          "x": -4,
+          "y": 12.5
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -4,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "schottky-gate"
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "mesfet",
+    "symbolId": "mesfet",
+    "deviceClass": "jfet",
+    "referencePrefix": "J",
+    "pinOrder": ["D", "G", "S"],
+    "seriesInsertionPinPair": ["D", "S"],
+    "targetPolicy": "required-model",
+    "parameters": [
+      {
+        "name": "m",
+        "label": "M",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "defaultValue": "1",
+        "help": "Parallel multiplier",
+        "displayRole": "multiplier"
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "help": "Area factor, scaling the model's BETA and junction currents",
+        "displayRole": "none"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": true,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "mesfet",
+    "name": "N-Channel MESFET",
+    "category": "transistor",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A MESFET does not appear on the reviewed page; it is the reviewed N-Channel JFET's channel bar, drain and source, with its gate lead meeting the channel without the junction arrow: a metal-semiconductor (Schottky) gate, as a GaAs MESFET or HEMT is drawn.",
+    "pinOrder": ["D", "G", "S"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A SPICE J card does not say the gate is a Schottky barrier, so an imported J card keeps the N-Channel JFET symbol.",
+    "assetPath": "mesfet.json"
+  }
+}

@@ -3,8 +3,10 @@ import { builtInModelContract } from "@icm/devices";
 
 import {
   GENERIC_DIODE_MODEL,
+  GENERIC_NMOS_MODEL,
   GENERIC_NPN_MODEL,
   GENERIC_PNP_MODEL,
+  GENERIC_SCHOTTKY_MODEL,
 } from "./extract-generic-models.js";
 import type {
   DesignNetlistCell,
@@ -36,6 +38,16 @@ import type { NetlistFormat } from "./net-name-codec.js";
  *   emitter, that diode and 1 kΩ from the inner p gate to K, until Q2
  *   turns on and the pair latches. It holds at about 0.8 V down to about
  *   0.8 mA; 10 pF across the 1 kΩ, as in the PUT.
+ * - `scr` (`a g k`): the PUT's pair with the gate on the NPN's base, 10 kΩ
+ *   and 10 pF holding the inner (anode) gate and 1 kΩ and 10 pF the gate.
+ *   Both transistors start the operating point off, so a thyristor rests
+ *   off until its gate draws about 0.65 mA, then latches.
+ * - `igbt` (`c g e`): an NMOS (W/L 1m/1u, vth0 4 V on the generic BSIM4
+ *   card) from the base of a PNP to E, the PNP from C to E.
+ * - `crd` (`a k`): a JFET with its gate on its source, area idss/1 mA on a
+ *   card of IDSS 1 mA, VTO −2 V and LAMBDA 0.002.
+ * - `schottky_npn` (`c b e`): an NPN with a Schottky diode (the generic DSCH
+ *   card) from base to collector, which holds it out of deep saturation.
  */
 export function semiconductorDeviceCell(
   target: string,
@@ -47,10 +59,23 @@ export function semiconductorDeviceCell(
   const expression = (text: string) =>
     format === "spice" ? `{${text}}` : text;
   const part = (
-    deviceClass: "resistor" | "capacitor" | "diode" | "bjt" | "voltage-source",
+    deviceClass:
+      | "resistor"
+      | "capacitor"
+      | "diode"
+      | "bjt"
+      | "jfet"
+      | "mos"
+      | "voltage-source",
     reference: string,
     nodes: readonly (readonly [string, string])[],
-    value: { target: string } | { value: string },
+    value:
+      | {
+          target: string;
+          parameters?: readonly (readonly [string, string])[];
+          off?: true;
+        }
+      | { value: string },
   ): DesignNetlistInstance => ({
     id: deriveStableId("netlist-semiconductor-device", target, reference),
     reference,
@@ -66,7 +91,11 @@ export function semiconductorDeviceCell(
               rawValue: value.value,
             },
           ]
-        : [],
+        : (value.parameters ?? []).map(([name, rawValue]) => ({
+            name,
+            rawValue,
+          })),
+    ...("target" in value && value.off ? { initiallyOff: true as const } : {}),
   });
   const generic = (
     name: string,
@@ -177,6 +206,169 @@ export function semiconductorDeviceCell(
       generic("qn", GENERIC_NPN_MODEL),
       generic("qp", GENERIC_PNP_MODEL),
       generic("dj", GENERIC_DIODE_MODEL),
+    ];
+  } else if (model.implementation === "scr") {
+    const [a, g, k] = ports as [string, string, string];
+    internal = ["n1"];
+    instances = [
+      part(
+        "bjt",
+        "Q1",
+        [
+          ["C", g],
+          ["B", "n1"],
+          ["E", a],
+        ],
+        { target: "qp", off: true },
+      ),
+      part(
+        "bjt",
+        "Q2",
+        [
+          ["C", "n1"],
+          ["B", g],
+          ["E", k],
+        ],
+        { target: "qn", off: true },
+      ),
+      part(
+        "resistor",
+        "RAG",
+        [
+          ["1", "n1"],
+          ["2", a],
+        ],
+        { value: "10k" },
+      ),
+      part(
+        "capacitor",
+        "CAG",
+        [
+          ["1", "n1"],
+          ["2", a],
+        ],
+        { value: "10p" },
+      ),
+      part(
+        "resistor",
+        "RGK",
+        [
+          ["1", g],
+          ["2", k],
+        ],
+        { value: "1k" },
+      ),
+      part(
+        "capacitor",
+        "CGK",
+        [
+          ["1", g],
+          ["2", k],
+        ],
+        { value: "10p" },
+      ),
+    ];
+    models = [
+      generic("qn", GENERIC_NPN_MODEL),
+      generic("qp", GENERIC_PNP_MODEL),
+    ];
+  } else if (model.implementation === "igbt") {
+    const [c, g, e] = ports as [string, string, string];
+    internal = ["nb"];
+    instances = [
+      part(
+        "mos",
+        "M1",
+        [
+          ["D", "nb"],
+          ["G", g],
+          ["S", e],
+          ["B", e],
+        ],
+        {
+          target: "nm",
+          parameters: [
+            ["w", "1m"],
+            ["l", "1u"],
+          ],
+        },
+      ),
+      part(
+        "bjt",
+        "Q1",
+        [
+          ["C", e],
+          ["B", "nb"],
+          ["E", c],
+        ],
+        { target: "qp" },
+      ),
+    ];
+    models = [
+      {
+        name: "nm",
+        type: "nmos",
+        parameters: [
+          ...structuredClone(GENERIC_NMOS_MODEL.parameters),
+          { name: "vth0", rawValue: "4" },
+        ],
+      },
+      generic("qp", GENERIC_PNP_MODEL),
+    ];
+  } else if (model.implementation === "crd") {
+    const [a, k] = ports as [string, string];
+    internal = [];
+    instances = [
+      part(
+        "jfet",
+        "J1",
+        [
+          ["D", a],
+          ["G", k],
+          ["S", k],
+        ],
+        { target: "cj", parameters: [["area", expression("idss/1m")]] },
+      ),
+    ];
+    // IDSS = BETA·VTO² = 1 mA at unit area.
+    models = [
+      {
+        name: "cj",
+        type: "NJF",
+        parameters: [
+          { name: "VTO", rawValue: "-2" },
+          { name: "BETA", rawValue: "0.25m" },
+          { name: "LAMBDA", rawValue: "0.002" },
+        ],
+      },
+    ];
+  } else if (model.implementation === "schottky_npn") {
+    const [c, b, e] = ports as [string, string, string];
+    internal = [];
+    instances = [
+      part(
+        "bjt",
+        "Q1",
+        [
+          ["C", c],
+          ["B", b],
+          ["E", e],
+        ],
+        { target: "qn" },
+      ),
+      part(
+        "diode",
+        "DS",
+        [
+          ["A", b],
+          ["K", c],
+        ],
+        { target: "ds" },
+      ),
+    ];
+    models = [
+      generic("qn", GENERIC_NPN_MODEL),
+      generic("ds", GENERIC_SCHOTTKY_MODEL),
     ];
   } else {
     const [a, g, k] = ports as [string, string, string];

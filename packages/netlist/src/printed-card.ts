@@ -490,7 +490,12 @@ export function printInstanceCard(
     case "switch":
     case "hierarchical":
       master = owned(instance.target!, "target");
-      values = assignments();
+      values = [
+        ...assignments(),
+        ...(instance.initiallyOff
+          ? [plain(format === "spice" ? "off" : "region=off")]
+          : []),
+      ];
       break;
     case "net-marker":
       return { text: "", lines: [], fields: [] };

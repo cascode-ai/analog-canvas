@@ -252,6 +252,19 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
     `VBO n1 nz {vbo-1.9}` and `DBO nz p2 dj`, `RGK p2 k 1k` and
     `CGK p2 k 10p`; default `vbo` = 10 V. It breaks over at about `vbo`
     (about 0.65 mA) and holds at about 0.8 V down to about 0.8 mA.
+  - Thyristor (`scr`: `a g k`): the PUT's pair with the gate on the NPN's
+    base, `Q1 g n1 a qp off`, `Q2 n1 g k qn off`, `RAG`/`CAG` 10 kΩ/10 pF on
+    the inner gate and `RGK`/`CGK` 1 kΩ/10 pF on G; it rests off, fires when
+    G draws about 0.65 mA and holds once fired.
+  - IGBT (`igbt`: `c g e`): `M1 nb g e e nm w=1m l=1u` (BSIM4, `vth0` 4 V)
+    from the base of `Q1 e nb c qp` to E.
+  - Current-regulative diode (`crd`: `a k`): `J1 a k k cj area={idss/1m}` on
+    a card of IDSS 1 mA, VTO −2 V, LAMBDA 0.002; default `idss` = 5 mA.
+  - Schottky-clamped NPN (`schottky_npn`: `c b e`): `Q1 c b e qn` and
+    `DS b c ds` on the generic DSCH card's parameters.
+- A body transistor marked off prints `off` (SPICE) or `region=off`
+  (Spectre). Photodiode and varactor diode are D cards on `DIODE`, the
+  phototransistor a Q card on `NPN`, the MESFET a J card on `NJF`.
 - SPICE and VACASK include all bodies but VACASK the transmission line;
   Spectre includes comparator, combinational gates (`bsource` with RC delay),
   the crystal, the potentiometer, the transmission line and the semiconductor

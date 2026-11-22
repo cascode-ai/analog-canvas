@@ -72,7 +72,8 @@ export type BuiltInModelRecipe =
     }
   | {
       readonly family: "semiconductor";
-      readonly implementation: "ujt" | "put" | "shockley";
+      readonly implementation:
+        "ujt" | "put" | "shockley" | "scr" | "igbt" | "crd" | "schottky_npn";
     };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
@@ -328,6 +329,21 @@ const shockley: readonly DeviceParameterDefinition[] = [
     valueName: "VBO",
   },
 ];
+// A current-regulative diode passes about its rated current from A to K
+// once a few volts are across it, its value I_DSS.
+const crd: readonly DeviceParameterDefinition[] = [
+  {
+    ...parameter(
+      "idss",
+      "Regulated current",
+      "5m",
+      "A",
+      "Current from A to K once about 2 V or more is across it, rising 0.2 %/V; it is the JFET's saturation current.",
+    ),
+    displayRole: "value",
+    valueName: "IDSS",
+  },
+];
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.
 const comparator: readonly DeviceParameterDefinition[] = [
@@ -431,6 +447,10 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   ujt: { family: "semiconductor", implementation: "ujt" },
   put: { family: "semiconductor", implementation: "put" },
   shockley: { family: "semiconductor", implementation: "shockley" },
+  scr: { family: "semiconductor", implementation: "scr" },
+  igbt: { family: "semiconductor", implementation: "igbt" },
+  crd: { family: "semiconductor", implementation: "crd" },
+  schottky_npn: { family: "semiconductor", implementation: "schottky_npn" },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
@@ -488,8 +508,12 @@ function contract(target: string): BuiltInModelContract | undefined {
                   ? ujt
                   : implementation === "shockley"
                     ? shockley
-                    : // A PUT's peak point is its gate's, set by the circuit.
-                      []
+                    : implementation === "crd"
+                      ? crd
+                      : // A PUT's peak point is its gate's, set by the
+                        // circuit; a thyristor, IGBT or clamped NPN has
+                        // its generic transistors' own.
+                        []
                 : target === ADDER_TARGET
                   ? ADDER_SIGN_PARAMETERS
                   : target === "opamp_differential"
