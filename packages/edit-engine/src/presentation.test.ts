@@ -106,21 +106,28 @@ describe("presentation and layout edits", () => {
     });
   });
 
-  it("sets one font for the whole Document and returns to Metropolis, undoably (#1725)", () => {
+  it("switches between the chosen fonts for the whole Document and returns to Metropolis, undoably (#1725)", () => {
     const history = new DocumentHistory(
       createEmptyDocument("doc", "Presentation"),
     );
-    const set = history.transact(
-      transaction("doc", [
-        {
-          kind: "set_presentation_style",
-          styleProfileId: "razavi-textbook-v1",
-          textFace: "serif",
-        },
-      ]),
-    );
-    expect(set).toMatchObject({ ok: true, applied: true });
-    expect(history.document.presentation.textFace).toBe("serif");
+    // Each chosen face is accepted in turn; serif is left set.
+    for (const textFace of ["sans", "latin-modern", "serif"] as const) {
+      const set = history.transact(
+        transaction(
+          "doc",
+          [
+            {
+              kind: "set_presentation_style",
+              styleProfileId: "razavi-textbook-v1",
+              textFace,
+            },
+          ],
+          history.document.revision,
+        ),
+      );
+      expect(set).toMatchObject({ ok: true, applied: true });
+      expect(history.document.presentation.textFace).toBe(textFace);
+    }
 
     const cleared = history.transact(
       transaction(
@@ -159,33 +166,6 @@ describe("presentation and layout edits", () => {
         ),
       ).ok,
     ).toBe(false);
-  });
-
-  it("switches between the chosen faces, undoably (#1725)", () => {
-    const history = new DocumentHistory(
-      createEmptyDocument("doc", "Presentation"),
-    );
-    for (const textFace of ["sans", "latin-modern", "serif"] as const) {
-      const set = history.transact(
-        transaction(
-          "doc",
-          [
-            {
-              kind: "set_presentation_style",
-              styleProfileId: "razavi-textbook-v1",
-              textFace,
-            },
-          ],
-          history.document.revision,
-        ),
-      );
-      expect(set).toMatchObject({ ok: true, applied: true });
-      expect(history.document.presentation.textFace).toBe(textFace);
-    }
-    history.transact(
-      transaction("doc", [{ kind: "undo" }], history.document.revision),
-    );
-    expect(history.document.presentation.textFace).toBe("latin-modern");
   });
 
   it("turns wire hops on and back to plain crossings, undoably, keeping the font", () => {

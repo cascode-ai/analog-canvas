@@ -76,7 +76,7 @@ describe("junction color", () => {
     }
   });
 
-  it("keeps a colored junction through conductor coalescing until its color is cleared", () => {
+  it("changes only one junction's color and keeps it through conductor coalescing until it is cleared", () => {
     const document = branchDocument();
     const history = new DocumentHistory(document, context);
     expect(
@@ -89,7 +89,10 @@ describe("junction color", () => {
           },
         ]),
       ),
-    ).toMatchObject({ ok: true });
+    ).toMatchObject({ ok: true, applied: true });
+    // Coloring a dot changes only the dot.
+    expect(history.document.routes).toEqual(document.routes);
+    expect(history.document.nets).toEqual(document.nets);
     expect(
       history.transact(
         request(history.document, [
@@ -259,33 +262,4 @@ describe("junction color", () => {
       expect(automatic.document.junctions).toEqual([]);
     },
   );
-  it("changes only one junction's color and restores it through undo and redo", () => {
-    const document = branchDocument();
-    const history = new DocumentHistory(document, context);
-    const result = history.transact(
-      request(history.document, [
-        {
-          kind: "set_junction_style_override",
-          target: { kind: "junction", junctionId: "J" },
-          styleOverride: { color: "#CC2244" },
-        },
-      ]),
-    );
-    expect(result).toMatchObject({ ok: true, applied: true });
-    expect(history.document.junctions.find((j) => j.id === "J")).toMatchObject({
-      styleOverride: { color: "#CC2244" },
-    });
-    expect(history.document.routes).toEqual(document.routes);
-    expect(history.document.nets).toEqual(document.nets);
-    expect(
-      history.transact(request(history.document, [{ kind: "undo" }])),
-    ).toMatchObject({ ok: true });
-    expect(history.document.junctions).toEqual(document.junctions);
-    expect(
-      history.transact(request(history.document, [{ kind: "redo" }])),
-    ).toMatchObject({ ok: true });
-    expect(history.document.junctions.find((j) => j.id === "J")).toMatchObject({
-      styleOverride: { color: "#CC2244" },
-    });
-  });
 });

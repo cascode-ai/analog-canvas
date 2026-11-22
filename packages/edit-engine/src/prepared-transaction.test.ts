@@ -24,8 +24,21 @@ describe("prepared atomic transactions", () => {
     }
   });
 
-  it("rechecks symbols used only by intermediate edits", () => {
-    const document = createEmptyDocument("transient", "Transient");
+  const addResistor = {
+    kind: "add_instance" as const,
+    instance: { id: "R1", symbolId: "resistor", placement: null },
+  };
+  it.each([
+    [
+      "used only by intermediate edits",
+      [addResistor, { kind: "remove_instance" as const, instanceId: "R1" }],
+    ],
+    [
+      "kept by the result, even when the resolver object stays the same",
+      [addResistor],
+    ],
+  ])("rechecks a changed symbol context for symbols %s", (_case, edits) => {
+    const document = createEmptyDocument("context", "Context");
     let catalog = new InMemorySymbolResolver(builtInSymbols);
     const context = {
       symbolResolver: {
@@ -33,17 +46,11 @@ describe("prepared atomic transactions", () => {
       },
     };
     const request = {
-      transactionId: "transient",
+      transactionId: "context",
       documentId: document.id,
       expectedRevision: 0,
       actor: { kind: "human" as const, id: "editor" },
-      edits: [
-        {
-          kind: "add_instance" as const,
-          instance: { id: "R1", symbolId: "resistor", placement: null },
-        },
-        { kind: "remove_instance" as const, instanceId: "R1" },
-      ],
+      edits,
     };
     const preparation = prepareTransaction(document, request, context);
     expect(preparation.result.ok).toBe(true);
@@ -103,37 +110,6 @@ describe("prepared atomic transactions", () => {
     expect(changed.document.instances.map((instance) => instance.id)).toEqual([
       "R2",
     ]);
-  });
-
-  it("rechecks a changed symbol context even when the resolver object stays the same", () => {
-    const document = createEmptyDocument("context", "Context");
-    let catalog = new InMemorySymbolResolver(builtInSymbols);
-    const context = {
-      symbolResolver: {
-        resolve: (id: string, variant?: string) => catalog.resolve(id, variant),
-      },
-    };
-    const request = {
-      transactionId: "context",
-      documentId: document.id,
-      expectedRevision: 0,
-      actor: { kind: "human" as const, id: "editor" },
-      edits: [
-        {
-          kind: "add_instance" as const,
-          instance: { id: "R1", symbolId: "resistor", placement: null },
-        },
-      ],
-    };
-    const preparation = prepareTransaction(document, request, context);
-    expect(preparation.result.ok).toBe(true);
-    catalog = new InMemorySymbolResolver([]);
-    const result = executeTransaction(document, request, {
-      ...context,
-      preparedTransactions: [preparation.prepared!],
-    });
-    expect(result.ok).toBe(false);
-    expect(result.document.instances).toEqual([]);
   });
 
   it("cannot adopt a forged candidate and still rejects a stale envelope", () => {

@@ -52,29 +52,12 @@ describe("rotate/mirror seed forwarding (#7)", () => {
     annotationIds: [],
   };
 
-  it("translate carries the selected junctions (control)", () => {
-    const plan = planRoutingTransform(fixture(), resolver, seed, {
-      kind: "translate",
-      delta: { x: 20, y: 0 },
-    });
-    expect(junctionMoves(plan.edits)).toEqual(["J1", "J2"]);
-  });
-
-  it("rotate carries the selected junctions and wire", () => {
-    const plan = planRoutingTransform(fixture(), resolver, seed, {
-      kind: "rotate",
-      degrees: 90,
-      center: { x: 50, y: 50 },
-    });
-    expect(junctionMoves(plan.edits)).toEqual(["J1", "J2"]);
-  });
-
-  it("mirror carries the selected junctions and wire", () => {
-    const plan = planRoutingTransform(fixture(), resolver, seed, {
-      kind: "mirror",
-      axis: "y",
-      center: { x: 50, y: 50 },
-    });
+  it.each([
+    { kind: "translate", delta: { x: 20, y: 0 } },
+    { kind: "rotate", degrees: 90, center: { x: 50, y: 50 } },
+    { kind: "mirror", axis: "y", center: { x: 50, y: 50 } },
+  ] as const)("$kind carries the selected junctions and wire", (transform) => {
+    const plan = planRoutingTransform(fixture(), resolver, seed, transform);
     expect(junctionMoves(plan.edits)).toEqual(["J1", "J2"]);
   });
 });

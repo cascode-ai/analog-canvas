@@ -82,63 +82,36 @@ describe("power Net planner", () => {
     });
   });
 
-  it("rejects Ground on an independently named signal Net", () => {
+  it.each([
+    [
+      "Ground on an independently named signal Net",
+      { name: "TAIL", scope: "local" as const },
+    ],
+    [
+      "a requested supply attached to a differently named Net",
+      { name: "AVDD", scope: "global" as const, powerDomain: "vdd" as const },
+    ],
+  ])("rejects %s", (_name, claim) => {
     const document = createEmptyDocument("main", "Main");
     document.nets.push(
-      {
-        id: "net-tail",
-
-        terminals: [],
-      },
-      {
-        id: "net-global-0",
-
-        terminals: [],
-      },
+      { id: "net-named", terminals: [] },
+      { id: "net-global-0", terminals: [] },
     );
     document.connectivityEvidence.push({
-      id: "claim-tail",
+      id: "claim-named",
       kind: "name-claim",
-      netId: "net-tail",
-      name: "TAIL",
+      netId: "net-named",
       owner: { kind: "net-label", annotationId: "test-net-label-1" },
-      scope: "local",
+      ...claim,
     });
 
     expect(
       planEnsurePowerNet(document, {
-        candidateNetId: "net-tail",
+        candidateNetId: "net-named",
         candidateState: "existing",
         domain: "ground",
         ...marker,
       }),
-    ).toMatchObject({ ok: false, relatedNetIds: ["net-tail"] });
-  });
-
-  it("rejects a requested supply attached to a differently named Net", () => {
-    const document = createEmptyDocument("main", "Main");
-    document.nets.push({
-      id: "net-avdd",
-
-      terminals: [],
-    });
-    document.connectivityEvidence.push({
-      id: "claim-avdd",
-      kind: "name-claim",
-      netId: "net-avdd",
-      name: "AVDD",
-      owner: { kind: "net-label", annotationId: "test-net-label-2" },
-      scope: "global",
-      powerDomain: "vdd",
-    });
-
-    expect(
-      planEnsurePowerNet(document, {
-        candidateNetId: "net-avdd",
-        candidateState: "existing",
-        domain: "ground",
-        ...marker,
-      }),
-    ).toMatchObject({ ok: false, relatedNetIds: ["net-avdd"] });
+    ).toMatchObject({ ok: false, relatedNetIds: ["net-named"] });
   });
 });

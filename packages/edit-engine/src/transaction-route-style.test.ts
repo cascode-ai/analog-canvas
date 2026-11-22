@@ -144,42 +144,24 @@ describe("set_route_style_override edit", () => {
 
   it("rejects invalid colors, missing routes, and no-op changes", () => {
     const document = documentWithRoute();
-    expect(
-      executeTransaction(document, {
-        ...transaction(document, []),
-        edits: [
-          {
-            kind: "set_route_style_override",
-            routeId: "wire",
-            styleOverride: { lineStyle: "long-dash" },
-          },
-        ],
-      }).ok,
-    ).toBe(false);
-    expect(
-      executeTransaction(document, {
-        ...transaction(document, [] as never[]),
-        edits: [
-          {
-            kind: "set_route_style_override",
-            routeId: "wire",
-            styleOverride: { color: "red" },
-          },
-        ],
-      }).ok,
-    ).toBe(false);
-    expect(
-      executeTransaction(document, {
-        ...transaction(document, [] as never[]),
-        edits: [
-          {
-            kind: "set_route_style_override",
-            routeId: "wire",
-            styleOverride: { arrow: "start" },
-          },
-        ],
-      }).ok,
-    ).toBe(false);
+    for (const styleOverride of [
+      { lineStyle: "long-dash" },
+      { color: "red" },
+      { arrow: "start" },
+    ]) {
+      expect(
+        executeTransaction(document, {
+          ...transaction(document, [] as never[]),
+          edits: [
+            {
+              kind: "set_route_style_override",
+              routeId: "wire",
+              styleOverride,
+            },
+          ],
+        }).ok,
+      ).toBe(false);
+    }
     const missing = executeTransaction(
       document,
       transaction(document, [

@@ -343,14 +343,23 @@ describe("routing deletion planner", () => {
     }
   });
 
-  it("deletes a segmented Power Rail as one component while preserving its tap", () => {
-    const document = segmentedPowerRailDocument();
-    const plan = planRoutingDeletion(
-      document,
-      resolver,
+  it.each([
+    [
+      "deletes a segmented Power Rail as one component while preserving its tap",
       { instanceIds: [], routeIds: ["rail-b"], junctionIds: [] },
-      1,
-    );
+    ],
+    [
+      "treats deleting the Power Rail label as deleting the same component",
+      {
+        instanceIds: [],
+        routeIds: [],
+        junctionIds: [],
+        annotationIds: ["label-vdd"],
+      },
+    ],
+  ])("%s", (_name, selection) => {
+    const document = segmentedPowerRailDocument();
+    const plan = planRoutingDeletion(document, resolver, selection, 1);
     expect(
       plan.edits.flatMap((edit) =>
         edit.kind === "cut_connection" ? [edit.routeId] : [],
@@ -373,32 +382,5 @@ describe("routing deletion planner", () => {
     ).toEqual(["rail-2", "tap-end"]);
     expect(result.evaluated.finalDocument.annotations).toEqual([]);
     expect(result.evaluated.finalDocument.connectivityEvidence).toEqual([]);
-  });
-
-  it("treats deleting the Power Rail label as deleting the same component", () => {
-    const document = segmentedPowerRailDocument();
-    const plan = planRoutingDeletion(
-      document,
-      resolver,
-      {
-        instanceIds: [],
-        routeIds: [],
-        junctionIds: [],
-        annotationIds: ["label-vdd"],
-      },
-      1,
-    );
-    expect(
-      plan.edits.flatMap((edit) =>
-        edit.kind === "cut_connection" ? [edit.routeId] : [],
-      ),
-    ).toEqual(["rail-a", "rail-b", "rail-c"]);
-    const result = gateRoutingOperationPlan(document, plan, {
-      symbolResolver: resolver,
-    });
-    if (!result.ok) throw new Error(JSON.stringify(result, null, 2));
-    expect(
-      result.evaluated.finalDocument.routes.map((route) => route.id),
-    ).toEqual(["tap"]);
   });
 });

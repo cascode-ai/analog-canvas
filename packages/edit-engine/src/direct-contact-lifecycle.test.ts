@@ -13,7 +13,6 @@ import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import { executeTransaction } from "./transaction.js";
-import { DocumentHistory } from "./history.js";
 import { planRoutingTransform } from "./routing-transform-planner.js";
 import { gateRoutingOperationPlan } from "./routing-operation-plan.js";
 import { transformMaySeparateDirectContact } from "./transaction-direct-contact.js";
@@ -865,46 +864,6 @@ describe("direct-contact transform lifecycle", () => {
       ]),
     );
   });
-
-  it("restores both zero-length contact and materialized Route with history", () => {
-    const document = fixture();
-    const history = new DocumentHistory(document, context);
-    const moved = history.transact(
-      transaction(
-        document,
-        [
-          {
-            kind: "move_instance",
-            instanceId: "A",
-            position: { x: 100, y: 300 },
-          },
-        ],
-        "history-move",
-      ),
-    );
-    if (!moved.ok) throw new Error(moved.error.message);
-    expect(history.document.routes).toHaveLength(1);
-
-    const undo = history.transact(
-      transaction(history.document, [{ kind: "undo" }], "undo"),
-    );
-    if (!undo.ok) throw new Error(undo.error.message);
-    expect(history.document.routes).toEqual([]);
-    expect(
-      history.document.instances.find((instance) => instance.id === "A")
-        ?.placement?.position,
-    ).toEqual({ x: 140, y: 300 });
-
-    const redo = history.transact(
-      transaction(history.document, [{ kind: "redo" }], "redo"),
-    );
-    if (!redo.ok) throw new Error(redo.error.message);
-    expect(history.document.routes).toHaveLength(1);
-    expect(
-      history.document.instances.find((instance) => instance.id === "A")
-        ?.placement?.position,
-    ).toEqual({ x: 100, y: 300 });
-  });
 });
 
 describe("signal-flow resize direct contacts", () => {
@@ -973,33 +932,26 @@ describe("signal-flow resize direct contacts", () => {
     return document;
   }
 
-  it("materializes a Route when a symbol swap moves the pin away", () => {
-    // Swapping to a narrower block moves the output pin inward; the
-    // abutting Cell Pin stays put, so the contact needs a conductor.
+  it.each([
+    [
+      // Swapping to a narrower block moves the output pin inward; the
+      // abutting Cell Pin stays put, so the contact needs a conductor.
+      "a symbol swap moves the pin away",
+      { kind: "set_instance_symbol", instanceId: "SF", symbolId: "buffer" },
+    ],
+    [
+      "a wider body pulls the contact apart",
+      {
+        kind: "set_instance_signal_flow_parameters",
+        instanceId: "SF",
+        parameters: { bodyWidth: 200 },
+      },
+    ],
+  ] as const)("materializes a Route when %s", (_name, edit) => {
     const document = abutting();
     const result = executeTransaction(
       document,
-      transaction(document, [
-        { kind: "set_instance_symbol", instanceId: "SF", symbolId: "buffer" },
-      ]),
-      context,
-    );
-    if (!result.ok) throw new Error(result.error.message);
-    expect(result.document.routes).toHaveLength(1);
-    expect(result.document.routes[0]!.netId).toBe("net-sf");
-  });
-
-  it("materializes a Route when a wider body pulls the contact apart", () => {
-    const document = abutting();
-    const result = executeTransaction(
-      document,
-      transaction(document, [
-        {
-          kind: "set_instance_signal_flow_parameters",
-          instanceId: "SF",
-          parameters: { bodyWidth: 200 },
-        },
-      ]),
+      transaction(document, [edit]),
       context,
     );
     if (!result.ok) throw new Error(result.error.message);

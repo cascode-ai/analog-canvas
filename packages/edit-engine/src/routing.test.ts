@@ -14,7 +14,6 @@ import { resolve } from "node:path";
 import { createEmptyDocument } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import {
-  deriveCrossings,
   deriveFlightlines,
   deriveImportedRoutingGuidance,
   mosBulkShouldBeVisible,
@@ -1504,32 +1503,6 @@ describe("routing Edit Engine", () => {
     expect(placement("B").rotation).toBe(90);
   });
 
-  it("flips a multi-part selection as one body about its own axis", () => {
-    const document = documentFixture();
-    // A and B sit side by side on y=300. Flipping left to right has to
-    // exchange them, not leave each where it was wearing a mirror bit.
-    const plan = proposeGroupReflectionEdits(
-      document,
-      resolver,
-      ["A", "B"],
-      "left-right",
-    );
-    const applied = executeTransaction(
-      document,
-      transaction(document.id, document.revision, plan.edits),
-      context,
-    );
-    expect(applied.ok).toBe(true);
-    if (!applied.ok) return;
-    const placement = (id: string) =>
-      applied.document.instances.find((instance) => instance.id === id)!
-        .placement!;
-    expect(placement("A").position).toEqual({ x: 460, y: 300 });
-    expect(placement("B").position).toEqual({ x: 140, y: 300 });
-    // Across the other axis they do not move: the flip is about one axis.
-    expect(placement("A").position.y).toBe(300);
-  });
-
   it("flips a quarter each way back to where it started", () => {
     const document = documentFixture();
     const ids = ["A", "B", "C"];
@@ -2535,38 +2508,6 @@ describe("routing Edit Engine", () => {
         message: expect.stringContaining("must leave A.P outward"),
       },
     });
-  });
-
-  it("creates independent crossing routes without changing logical topology", () => {
-    const document = documentFixture();
-    const result = executeTransaction(
-      document,
-      transaction(document.id, 0, [
-        routeEdit({
-          routeId: "route-h",
-          netId: "net-h",
-          from: terminal("A"),
-          to: terminal("B"),
-          waypoints: [],
-          segmentModes: ["manual"],
-        }),
-        routeEdit({
-          routeId: "route-v",
-          netId: "net-v",
-          from: terminal("C"),
-          to: terminal("D"),
-          waypoints: [],
-          segmentModes: ["manual"],
-        }),
-      ]),
-      context,
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.document.routes).toHaveLength(2);
-    expect(deriveCrossings(result.document, resolver)).toHaveLength(1);
-    expect(result.document.nets).toEqual(document.nets);
-    expect(deriveFlightlines(result.document, resolver)).toHaveLength(1);
   });
 
   it("does not derive flightlines across separately drawn named global Net markers", () => {

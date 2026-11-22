@@ -5,7 +5,7 @@ import {
   semanticTextDocument,
   transformPoint,
 } from "@icm/model";
-import type { RichTextDocument } from "@icm/model";
+import type { RichTextDocument, SchematicDocument } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
   instanceLabelInkBounds,
@@ -737,8 +737,22 @@ describe("Edit Transaction envelope", () => {
     ).toBe(false);
   });
 
-  it("rejects an invalid power rail atomically", () => {
+  it.each([
+    ["a diagonal power rail", () => {}, { x: 40, y: 40 }],
+    [
+      "a power rail whose generated IDs collide with an existing object",
+      (document: SchematicDocument) => {
+        document.instances.push({
+          id: "label-vdd",
+          symbolId: "resistor",
+          placement: null,
+        });
+      },
+      { x: 80, y: 10 },
+    ],
+  ] as const)("rejects %s atomically", (_name, prepare, end) => {
     const document = createEmptyDocument("document-main", "Main");
+    prepare(document);
     const before = JSON.stringify(document);
     const result = executeTransaction(
       document,
@@ -756,7 +770,7 @@ describe("Edit Transaction envelope", () => {
             scope: "local",
             powerDomain: "vdd",
             start: { x: 10, y: 10 },
-            end: { x: 40, y: 40 },
+            end,
           },
         ],
       },
@@ -843,41 +857,6 @@ describe("Edit Transaction envelope", () => {
       { symbolResolver: resolver },
     );
     expect(extended.ok).toBe(true);
-  });
-
-  it("rejects a power rail whose generated IDs collide with an existing object", () => {
-    const document = createEmptyDocument("document-main", "Main");
-    document.instances.push({
-      id: "label-vdd",
-      symbolId: "resistor",
-      placement: null,
-    });
-    const before = JSON.stringify(document);
-    const result = executeTransaction(
-      document,
-      {
-        ...transaction(),
-        edits: [
-          {
-            kind: "add_power_rail",
-            netId: "net-vdd",
-            routeId: "rail-vdd",
-            startJunctionId: "junction-start",
-            endJunctionId: "junction-end",
-            labelId: "label-vdd",
-            netName: "VDD",
-            scope: "local",
-            powerDomain: "vdd",
-            start: { x: 10, y: 10 },
-            end: { x: 80, y: 10 },
-          },
-        ],
-      },
-      { symbolResolver: resolver },
-    );
-
-    expect(result).toMatchObject({ ok: false, applied: false, revision: 0 });
-    expect(JSON.stringify(document)).toBe(before);
   });
 
   it("rejects reassignment between non-empty power roles atomically", () => {

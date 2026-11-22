@@ -627,27 +627,42 @@ function junctionDots(document: SchematicDocument) {
  * nothing in the picture says which that was.
  */
 describe("dragging one end of a wire", () => {
-  it("joins the Nets when the end lands part-way along another conductor", () => {
+  it.each([
     // The vertical wire's lower end is at (200, 160); drop it onto the middle
     // of the horizontal wire, which spans x = 100..300 at y = 200.
-    const moved = dragRouteEnd(twoLooseWires(), "wire-vertical", "end", {
-      x: 200,
-      y: 200,
-    });
-
-    expect(conductingNetIds(moved)).toHaveLength(1);
-    expect(ambiguousJunctionErrors(moved)).toEqual([]);
-  });
-
-  it("joins the Nets when the end lands on another wire's bare end", () => {
+    [
+      "joins the Nets when the end lands part-way along another conductor",
+      twoLooseWires,
+      "wire-vertical",
+      "end",
+      200,
+      1,
+    ],
     // End against end: (200, 200) is the left wire's end and lies in no
     // conductor's span, so this is a direct contact rather than a splice.
-    const moved = dragRouteEnd(twoHeadToHeadWires(), "wire-right", "start", {
-      x: 200,
-      y: 200,
-    });
+    [
+      "joins the Nets when the end lands on another wire's bare end",
+      twoHeadToHeadWires,
+      "wire-right",
+      "start",
+      200,
+      1,
+    ],
+    // Stretching the end PAST the horizontal wire puts the conductor's middle
+    // over it and the end on empty page. Interior contact is a crossing, and
+    // reaching it by this handle does not make it a connection.
+    [
+      "keeps a wire stretched across another one a crossing",
+      twoLooseWires,
+      "wire-vertical",
+      "end",
+      260,
+      2,
+    ],
+  ] as const)("%s", (_name, build, routeId, side, y, nets) => {
+    const moved = dragRouteEnd(build(), routeId, side, { x: 200, y });
 
-    expect(conductingNetIds(moved)).toHaveLength(1);
+    expect(conductingNetIds(moved)).toHaveLength(nets);
     expect(ambiguousJunctionErrors(moved)).toEqual([]);
   });
 
@@ -680,19 +695,6 @@ describe("dragging one end of a wire", () => {
     expect(junctionDots(moved)).toEqual([]);
     expect(ambiguousJunctionErrors(moved)).toEqual([]);
   });
-
-  it("keeps a wire stretched across another one a crossing", () => {
-    // Stretching the end PAST the horizontal wire puts the conductor's middle
-    // over it and the end on empty page. Interior contact is a crossing, and
-    // reaching it by this handle does not make it a connection.
-    const moved = dragRouteEnd(twoLooseWires(), "wire-vertical", "end", {
-      x: 200,
-      y: 260,
-    });
-
-    expect(conductingNetIds(moved)).toHaveLength(2);
-    expect(ambiguousJunctionErrors(moved)).toEqual([]);
-  });
 });
 
 /**
@@ -705,7 +707,7 @@ describe("dragging one end of a wire", () => {
  * is one gesture, so it is one transaction and one undo.
  */
 describe("re-pointing a wire end anchored to a pin", () => {
-  it("takes the pin off the Net and lands the end on what it was dropped on", () => {
+  it("takes the pin off the Net and lands the end on what it was dropped on, in one undoable step", () => {
     const document = pinnedWireAndConductor();
     const moved = dragRouteEnd(document, "wire-supply", "start", {
       x: 200,
@@ -717,15 +719,6 @@ describe("re-pointing a wire end anchored to a pin", () => {
     // And the end it now rests on is electrically joined, not merely touching.
     expect(conductingNetIds(moved)).toHaveLength(1);
     expect(ambiguousJunctionErrors(moved)).toEqual([]);
-  });
-
-  it("is one undoable step", () => {
-    const document = pinnedWireAndConductor();
-    const moved = dragRouteEnd(document, "wire-supply", "start", {
-      x: 200,
-      y: 200,
-    });
-
     // Detach, move, and join are one transaction, so one undo puts the wire
     // back on the pin rather than leaving it half-rewired.
     expect(moved.revision).toBe(document.revision + 1);

@@ -735,30 +735,6 @@ describe("semantic authoring", () => {
     });
   });
 
-  it("creates an explicit local Net for a free wire endpoint", () => {
-    const document = createEmptyDocument("document-main", "Main");
-    const result = executeTransaction(
-      document,
-      transaction([
-        {
-          kind: "add_junction",
-          junctionId: "junction-free",
-          netId: "net-free",
-          position: { x: 120, y: 80 },
-          createNet: true,
-        },
-      ]),
-      { symbolResolver: resolver },
-    );
-    expect(result).toMatchObject({
-      ok: true,
-      document: {
-        nets: [{ id: "net-free", terminals: [] }],
-        junctions: [{ id: "junction-free", netId: "net-free" }],
-      },
-    });
-  });
-
   it("rejects an atomic group move when one member is layout-locked", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.instances.push(

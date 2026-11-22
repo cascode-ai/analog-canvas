@@ -35,169 +35,67 @@ function makeTransaction(
   };
 }
 
+function setStyle(
+  document: SchematicDocument,
+  instanceId: string,
+  styleOverride: { foreground?: string; background?: string } | null,
+) {
+  return executeTransaction(
+    document,
+    makeTransaction(document, [
+      { kind: "set_instance_style_override", instanceId, styleOverride },
+    ]),
+  );
+}
+
 describe("set_instance_style_override edit", () => {
-  it("replaces an existing override with foreground only", () => {
+  it.each([
+    {
+      name: "replaces an existing override with foreground only",
+      current: { foreground: "#FF0000", background: "#0000FF" },
+      next: { foreground: "#00FF00" },
+      expected: { foreground: "#00FF00" },
+    },
+    {
+      name: "replaces the existing override as a whole",
+      current: { foreground: "#FF0000" },
+      next: { background: "#0000FF" },
+      expected: { background: "#0000FF" },
+    },
+    {
+      name: "normalizes an empty override to a clear",
+      current: { foreground: "#FF0000" },
+      next: {},
+      expected: undefined,
+    },
+    {
+      name: "null clears all style overrides",
+      current: { foreground: "#FF0000", background: "#0000FF" },
+      next: null,
+      expected: undefined,
+    },
+  ])("$name", ({ current, next, expected }) => {
     const doc = makeDocument();
-    const r1 = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: { foreground: "#FF0000", background: "#0000FF" },
-        },
-      ]),
-    );
-    expect(r1.ok).toBe(true);
-    if (!r1.ok) return;
-
-    const r2 = executeTransaction(
-      r1.document,
-      makeTransaction(r1.document, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: { foreground: "#00FF00" },
-        },
-      ]),
-    );
-    expect(r2.ok).toBe(true);
-    if (!r2.ok) return;
-    expect(r2.document.instances[0]!.styleOverride).toEqual({
-      foreground: "#00FF00",
-    });
-  });
-
-  it("replaces the existing override as a whole", () => {
-    const doc = makeDocument();
-    const r1 = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: { foreground: "#FF0000" },
-        },
-      ]),
-    );
-    expect(r1.ok).toBe(true);
-    if (!r1.ok) return;
-
-    const r2 = executeTransaction(
-      r1.document,
-      makeTransaction(r1.document, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: { background: "#0000FF" },
-        },
-      ]),
-    );
-    expect(r2.ok).toBe(true);
-    if (!r2.ok) return;
-    expect(r2.document.instances[0]!.styleOverride).toEqual({
-      background: "#0000FF",
-    });
-  });
-
-  it("normalizes an empty override to a clear", () => {
-    const doc = makeDocument();
-    doc.instances[0]!.styleOverride = { foreground: "#FF0000" };
-    const result = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: {},
-        },
-      ]),
-    );
+    doc.instances[0]!.styleOverride = current;
+    const result = setStyle(doc, "inst-1", next);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.document.instances[0]!.styleOverride).toBeUndefined();
+    expect(result.document.instances[0]!.styleOverride).toEqual(expected);
   });
 
-  it("null clears all style overrides", () => {
+  it("rejects a missing instance and a no-op edit (same override)", () => {
     const doc = makeDocument();
-    // First set both colors
-    const r1 = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: { foreground: "#FF0000", background: "#0000FF" },
-        },
-      ]),
-    );
-    expect(r1.ok).toBe(true);
-    if (!r1.ok) return;
-    // Then clear
-    const r2 = executeTransaction(
-      r1.document,
-      makeTransaction(r1.document, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: null,
-        },
-      ]),
-    );
-    expect(r2.ok).toBe(true);
-    if (!r2.ok) return;
-    expect(r2.document.instances[0]!.styleOverride).toBeUndefined();
+    expect(
+      setStyle(doc, "nonexistent", { foreground: "#FF0000" }),
+    ).toMatchObject({ ok: false, error: { code: "OBJECT_NOT_FOUND" } });
+    doc.instances[0]!.styleOverride = { foreground: "#FF0000" };
+    expect(setStyle(doc, "inst-1", { foreground: "#FF0000" })).toMatchObject({
+      ok: false,
+      error: { code: "EDIT_PRECONDITION" },
+    });
   });
 
-  it("rejects when instance does not exist", () => {
-    const doc = makeDocument();
-    const result = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "nonexistent",
-          styleOverride: { foreground: "#FF0000" },
-        },
-      ]),
-    );
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("OBJECT_NOT_FOUND");
-  });
-
-  it("rejects a no-op edit (same override)", () => {
-    const doc = makeDocument();
-    // Set foreground
-    const r1 = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: { foreground: "#FF0000" },
-        },
-      ]),
-    );
-    expect(r1.ok).toBe(true);
-    if (!r1.ok) return;
-    // Try to set the same thing again
-    const r2 = executeTransaction(
-      r1.document,
-      makeTransaction(r1.document, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: { foreground: "#FF0000" },
-        },
-      ]),
-    );
-    expect(r2.ok).toBe(false);
-    if (r2.ok) return;
-    expect(r2.error.code).toBe("EDIT_PRECONDITION");
-  });
-
-  it("supports multiple instances with different overrides in one transaction", () => {
+  it("supports multiple instances with different overrides in one transaction without changing connectivity", () => {
     const doc = makeDocument();
     doc.instances.push({
       id: "inst-2",
@@ -234,23 +132,6 @@ describe("set_instance_style_override edit", () => {
       foreground: "#00FF00",
       background: "#EEEEEE",
     });
-  });
-
-  it("does not change connectivity", () => {
-    const doc = makeDocument();
-    const result = executeTransaction(
-      doc,
-      makeTransaction(doc, [
-        {
-          kind: "set_instance_style_override",
-          instanceId: "inst-1",
-          styleOverride: { foreground: "#FF0000" },
-        },
-      ]),
-    );
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    // sourceStatus should not become "connectivity-modified"
     expect(result.document.sourceStatus).not.toBe("connectivity-modified");
   });
 });

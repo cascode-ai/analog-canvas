@@ -109,45 +109,41 @@ describe("angled wire repair", () => {
     );
   });
 
-  it("keeps the incoming direction when repairing a legacy endpoint segment", () => {
-    const document = createEmptyDocument("doc", "Path preserving repair");
-    addRoute(document, {
-      id: "vertical-then-angled",
-      from: { x: 0, y: 0 },
-      to: { x: 30, y: 60 },
-      bends: [{ x: 0, y: 20 }],
-    });
-
-    const { document: repaired } = applyPlan(document);
-    const route = repaired.routes[0]!;
-    expect(resolveRouteGeometry(repaired, resolver, route)?.centerline).toEqual(
+  it.each([
+    [
+      "keeps the incoming direction when repairing a legacy endpoint segment",
+      { x: 30, y: 60 },
+      { x: 0, y: 20 },
       [
         { x: 0, y: 0 },
         { x: 0, y: 60 },
         { x: 30, y: 60 },
       ],
-    );
-  });
-
-  it("preserves an intentional 45-degree leg beside a repaired segment", () => {
-    const document = createEmptyDocument("doc", "Mixed route repair");
-    addRoute(document, {
-      id: "mixed",
-      from: { x: 0, y: 0 },
-      to: { x: 50, y: 30 },
-      bends: [{ x: 20, y: 20 }],
-    });
-
-    const { document: repaired } = applyPlan(document);
-    const route = repaired.routes[0]!;
-    expect(resolveRouteGeometry(repaired, resolver, route)?.centerline).toEqual(
+    ],
+    [
+      "preserves an intentional 45-degree leg beside a repaired segment",
+      { x: 50, y: 30 },
+      { x: 20, y: 20 },
       [
         { x: 0, y: 0 },
         { x: 20, y: 20 },
         { x: 50, y: 20 },
         { x: 50, y: 30 },
       ],
-    );
+    ],
+  ])("%s", (_name, to, bend, centerline) => {
+    const document = createEmptyDocument("doc", "Path preserving repair");
+    addRoute(document, {
+      id: "route",
+      from: { x: 0, y: 0 },
+      to,
+      bends: [bend],
+    });
+
+    const { document: repaired } = applyPlan(document);
+    expect(
+      resolveRouteGeometry(repaired, resolver, repaired.routes[0]!)?.centerline,
+    ).toEqual(centerline);
   });
 
   it("reports locked and trunk routes without editing them", () => {
