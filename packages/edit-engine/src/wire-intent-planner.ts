@@ -13,7 +13,11 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import { electricalConnectionGrid, SUPPLY_PINS_VARIANT_ID } from "@icm/model";
+import {
+  electricalConnectionGrid,
+  SUPPLY_PINS_VARIANT_ID,
+  VOCM_PIN_VARIANT_ID,
+} from "@icm/model";
 import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 import { splitRoutePieceIds } from "./split-route-ids.js";
 import { signalEndpointMembers } from "./signal-endpoint.js";
@@ -205,10 +209,13 @@ function endpointConnectionFailure(
   );
   if (pin && !pinNames.includes(pin.name)) {
     const shown = resolver.resolve(instance.symbolId, SUPPLY_PINS_VARIANT_ID);
+    const vocm = resolver.resolve(instance.symbolId, VOCM_PIN_VARIANT_ID);
     const show =
       shown && drawnPinNames(shown).includes(pin.name)
         ? "show its supply pins (Properties, or set-instance-display showSupplyPins), or "
-        : "";
+        : vocm && drawnPinNames(vocm).includes(pin.name)
+          ? "show its VOCM pin (Properties, or set-instance-display showVocmPin), or "
+          : "";
     return `${label}.${pin.name} is not drawn: ${show}set its Net (set-terminal-net)`;
   }
   if (!pinNames.includes(endpoint.pinName)) {

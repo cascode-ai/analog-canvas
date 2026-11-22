@@ -4,7 +4,10 @@
 // terminals, such as a substrate or an inductor's centre tap. A pin its
 // variant hides counts, as an op-amp's VDD while its supply pins are hidden.
 import type { CircuitProject, Instance } from "@icm/model";
-import { resolveExternalTerminalBindings } from "@icm/devices";
+import {
+  resolveExternalTerminalBindings,
+  subcircuitDescriptor,
+} from "@icm/devices";
 import { drawnPinNames, type SymbolResolver } from "@icm/symbols";
 import { blockSupplyTerminals } from "./gate-cell-target";
 
@@ -72,5 +75,13 @@ export function hiddenTerminals(
         ]
       : [],
   );
-  return [...supplies, ...own];
+  // A fully differential op-amp's VOCM while its pin is hidden (#2443).
+  const optional = (
+    subcircuitDescriptor(instance.symbolId)?.ports ?? []
+  ).flatMap((port) =>
+    port.optional && !drawn.has(port.pinName)
+      ? [{ pinName: port.pinName, label: port.pinName }]
+      : [],
+  );
+  return [...supplies, ...own, ...optional];
 }

@@ -161,7 +161,10 @@ fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
   differential op-amp (unlimited) are frequency-independent E/G sources that
   VDD/VSS neither power nor clamp. The fully differential op-amp's outputs are
-  `vocm` ± `gain`·V(IN+, IN−)/2 from ground (`vocm` 0, an ideal CMFB's level).
+  `vocm` ± `gain`·V(IN+, IN−)/2 from ground (`vocm` 0, an ideal CMFB's level),
+  body `opamp_differential`. While its `VOCM` pin has a Net, the call adds that
+  node last and calls `icm_opamp_differential_vocm` (no `vocm`), whose outputs
+  sit about V(VOCM); a retargeted part passes the node to its own master.
 - Op-amp: `gain`·V(IN+, IN−) (default 1e6), exact between `vlow`/`vhigh` and
   bending onto each limit within 1e-4 of the span. Limits are volts or
   `VDD`/`VSS` (default). It is powered when its VDD is a Net (selected or the one
@@ -249,6 +252,35 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
     `VBO n1 nz {vbo-1.9}` and `DBO nz p2 dj`, `RGK p2 k 1k` and
     `CGK p2 k 10p`; default `vbo` = 10 V. It breaks over at about `vbo`
     (about 0.65 mA) and holds at about 0.8 V down to about 0.8 mA.
+  - Thyristor (`scr`: `a g k`): the PUT's pair with the gate on the NPN's
+    base, `Q1 g n1 a qp off`, `Q2 n1 g k qn off`, `RAG`/`CAG` 10 kΩ/10 pF on
+    the inner gate and `RGK`/`CGK` 1 kΩ/10 pF on G; it rests off, fires when
+    G draws about 0.65 mA and holds once fired.
+  - IGBT (`igbt`: `c g e`): `M1 nb g e e nm w=1m l=1u` (BSIM4, `vth0` 4 V)
+    from the base of `Q1 e nb c qp` to E.
+  - Current-regulative diode (`crd`: `a k`): `J1 a k k cj area={idss/1m}` on
+    a card of IDSS 1 mA, VTO −2 V, LAMBDA 0.002; default `idss` = 5 mA.
+  - Schottky-clamped NPN (`schottky_npn`: `c b e`): `Q1 c b e qn` and
+    `DS b c ds` on the generic DSCH card's parameters.
+- Regulators and board parts are `X` calls the same way:
+  - Shunt regulator (`tl431`: `k a ref`): `VREF nr a DC 2.495`,
+    `EAMP nx a ref nr 1000`, `RB nx nb 1k`, `Q1 k nb a qn`, `DREV a k dj`;
+    it sinks K to A to hold REF 2.495 V above A.
+  - Regulator and reference (`voltage_regulator`, `voltage_reference`:
+    `in gnd out`): `VREF nr gnd DC {vout}`, `EAMP nx gnd nr out 1000`,
+    `RB nx nb 1k`, `Q1 in nb out qn`; `vout` 5 V and 2.5 V. No dropout or
+    current limit.
+  - Solar cell (`solar_cell`: `p n`): `IPH n p DC {isc}` beside `D1 p n dj`;
+    `isc` 10 mA.
+  - Antenna (`antenna`: `p`): `R1 p 0 1G`.
+  - Controlled current source (`controlled_current_source`: `p n ctrl`):
+    `GCORE p n ctrl 0 {gm}`, `gm` 1 mS.
+- Fuse (10 mΩ), voltmeter (10 MΩ), DC motor (10 Ω) are R cards, the piezo
+  buzzer (20 nF) a C card, the thermocouple (1 mV) and noise source (DC 0,
+  AC 1) V cards; Apply process leaves these sources at their own levels.
+- A body transistor marked off prints `off` (SPICE) or `region=off`
+  (Spectre). Photodiode and varactor diode are D cards on `DIODE`, the
+  phototransistor a Q card on `NPN`, the MESFET a J card on `NJF`.
 - SPICE and VACASK include all bodies but VACASK the transmission line;
   Spectre includes comparator, combinational gates (`bsource` with RC delay),
   the crystal, the potentiometer, the transmission line and the semiconductor

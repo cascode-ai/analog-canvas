@@ -46,6 +46,7 @@ import { repairAmplifierPolaritySnapshots } from "./transforms/amplifier-polarit
 import { repairSupplyPinSnapshots } from "./transforms/supply-pins.js";
 import { repairAdcBodySnapshots } from "./transforms/adc-body.js";
 import { repairSymbolBodySnapshots } from "./transforms/symbol-body.js";
+import { repairVocmPinSnapshots } from "./transforms/vocm-pin.js";
 import { upgradeRetiredSymbolLibraryLock } from "./transforms/symbol-library-lock.js";
 import { rejectClosedBodyGeometry } from "./closed-body-envelope.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
@@ -181,8 +182,10 @@ function checkedProject(
         ),
       })),
     };
-  const project = repairAdcBodySnapshots(
-    repairSupplyPinSnapshots(repairAmplifierPolaritySnapshots(result.data)),
+  const project = repairVocmPinSnapshots(
+    repairAdcBodySnapshots(
+      repairSupplyPinSnapshots(repairAmplifierPolaritySnapshots(result.data)),
+    ),
   );
   const modelDiagnostics = collectProjectModelSources(
     project,

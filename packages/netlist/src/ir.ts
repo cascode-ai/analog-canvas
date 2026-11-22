@@ -43,6 +43,12 @@ export interface DesignNetlistInstance {
   };
   /** Compiler-owned probe; never a canvas Instance. */
   terminalCurrentSense?: { instanceId: StableId; pinName: string };
+  /**
+   * A generated body's transistor the operating point starts off from
+   * (SPICE `off`, Spectre `region=off`): a latch, as a thyristor's pair,
+   * then rests off until triggered.
+   */
+  initiallyOff?: true;
 }
 
 /** A model card used by a Cell. */

@@ -98,6 +98,8 @@ const supplied = builtInSymbols.filter((symbol) =>
 );
 const expected = (symbolId: string) =>
   FAMILIES.find(([pattern]) => pattern.test(symbolId))?.[1];
+/** The fully differential op-amps, which draw VOCM on request (#2443). */
+const drawsVocm = (symbolId: string) => /^opamp-differential/u.test(symbolId);
 
 /** Whether two segments cross or touch. */
 function meet(a: Point, b: Point, c: Point, d: Point): boolean {
@@ -135,8 +137,12 @@ describe("a block's supply pins", () => {
     "%s draws VDD above and VSS below on leads from its body when they are shown",
     (symbolId) => {
       const shown = catalog.resolve(symbolId, "supply-pins")!;
-      expect(shown.variant?.hiddenPinNames).toEqual([]);
-      expect(shown.variant?.hiddenPrimitiveParts).toEqual([]);
+      // A fully differential op-amp keeps its VOCM hidden (#2443).
+      const vocm = drawsVocm(symbolId);
+      expect(shown.variant?.hiddenPinNames).toEqual(vocm ? ["VOCM"] : []);
+      expect(shown.variant?.hiddenPrimitiveParts).toEqual(
+        vocm ? ["vocm-lead"] : [],
+      );
       const [vdd, vss] = expected(symbolId)!;
       const pin = (name: string) =>
         shown.definition.pins.find((item) => item.name === name);
@@ -178,10 +184,16 @@ describe("a block's supply pins", () => {
     (symbolId) => {
       const plain = catalog.resolve(symbolId)!;
       expect(plain.variant?.id).toBe("signal-pins");
-      expect(plain.variant?.hiddenPinNames).toEqual(["VDD", "VSS"]);
+      const vocm = drawsVocm(symbolId);
+      expect(plain.variant?.hiddenPinNames).toEqual([
+        "VDD",
+        "VSS",
+        ...(vocm ? ["VOCM"] : []),
+      ]);
       expect(plain.variant?.hiddenPrimitiveParts).toEqual([
         "vdd-lead",
         "vss-lead",
+        ...(vocm ? ["vocm-lead"] : []),
       ]);
     },
   );
@@ -217,4 +229,43 @@ describe("a block's supply pins", () => {
       ]),
     ).toEqual([]);
   });
+});
+
+describe("a fully differential op-amp's VOCM pin (#2443)", () => {
+  const amplifiers = builtInSymbols.filter((symbol) => drawsVocm(symbol.id));
+
+  it("is offered by every fully differential op-amp, compact and Wide", () => {
+    expect(amplifiers).toHaveLength(16);
+  });
+
+  it.each(amplifiers.map((symbol) => symbol.id))(
+    "%s draws VOCM on a lead from its body, alone or with its supplies",
+    (symbolId) => {
+      // Compact: below, beside VSS. Wide: its outputs cross the bottom
+      // edge's free span, so VOCM leaves the apex between them.
+      const at = /-wide/u.test(symbolId) ? { x: 30, y: 0 } : { x: 0, y: 30 };
+      for (const [variant, hidden] of [
+        ["vocm-pin", ["VDD", "VSS"]],
+        ["supply-vocm-pins", []],
+      ] as const) {
+        const shown = catalog.resolve(symbolId, variant)!;
+        expect(shown.variant?.hiddenPinNames).toEqual(hidden);
+        const pin = shown.definition.pins.find((item) => item.name === "VOCM");
+        expect(pin).toMatchObject({ role: "common-mode-input", at });
+        const lines = shown.definition.primitives.filter(
+          (
+            primitive,
+          ): primitive is Extract<SymbolPrimitive, { kind: "line" }> =>
+            primitive.kind === "line",
+        );
+        const lead = lines.find((line) => line.part === "vocm-lead")!;
+        expect(lead.to).toEqual(at);
+        for (const other of lines.filter((line) => line !== lead))
+          expect(
+            meet(lead.from, lead.to, other.from, other.to),
+            `vocm-lead meets ${other.part ?? "a stroke"}`,
+          ).toBe(false);
+      }
+    },
+  );
 });

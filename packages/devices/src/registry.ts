@@ -84,7 +84,8 @@ export function subcircuitDescriptor(
 
 /** Recognize an inherited black-box contract, rather than only its Symbol ID.
  * Formal aliases, order and retargeting remain authorable; generated bodies
- * independently check their fixed positional interface during netlist export. */
+ * independently check their fixed positional interface during netlist export.
+ * A capture made before an optional port existed (a VOCM, #2443) lacks it. */
 export function hasBuiltInSubcircuitInterface(
   component: ComponentDefinition,
 ): boolean {
@@ -94,8 +95,7 @@ export function hasBuiltInSubcircuitInterface(
     !local ||
     !canonical ||
     local.id !== canonical.id ||
-    local.symbolId !== canonical.symbolId ||
-    local.ports.length !== canonical.ports.length
+    local.symbolId !== canonical.symbolId
   )
     return false;
   const contacts = [...local.ports];
@@ -107,8 +107,11 @@ export function hasBuiltInSubcircuitInterface(
           ? candidate.pinName === port.pinName
           : candidate.supply === port.supply),
     );
-    if (index < 0) return false;
+    if (index < 0) {
+      if (port.optional) continue;
+      return false;
+    }
     contacts.splice(index, 1);
   }
-  return true;
+  return contacts.length === 0;
 }

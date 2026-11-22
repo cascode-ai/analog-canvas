@@ -6,6 +6,9 @@ import {
   adderInputSigns,
   builtInModelContract,
   callsIdealComparatorBody,
+  DIFFERENTIAL_OPAMP_LEVEL,
+  DIFFERENTIAL_OPAMP_TARGET,
+  DIFFERENTIAL_OPAMP_VOCM_BODY,
   idealComparatorBodyFor,
   idealComparatorModelTarget,
   type BuiltInSubcircuitDescriptor,
@@ -106,6 +109,8 @@ export function idealAnalogBlockCell(
 ): DesignNetlistCell | null {
   const device = semiconductorDeviceCell(target, format);
   if (device) return device;
+  if (target === DIFFERENTIAL_OPAMP_VOCM_BODY)
+    return differentialOpampVocmCell(format);
   // Every adder body shares the adder's model entry; its signs choose the
   // body and are never a SPICE parameter of it.
   const adderSigns = adderBodySigns(target);
@@ -202,5 +207,60 @@ export function idealAnalogBlockCell(
         : {}),
     })),
     instances,
+  };
+}
+
+/**
+ * The fully differential op-amp whose VOCM pin has a Net: its outputs sit
+ * about V(VOCM) instead of the `vocm` parameter, which it does not declare
+ * (differential-opamp.ts). Ports: the op-amp's, then VOCM.
+ */
+function differentialOpampVocmCell(format: NetlistFormat): DesignNetlistCell {
+  const target = DIFFERENTIAL_OPAMP_VOCM_BODY;
+  const model = builtInModelContract(DIFFERENTIAL_OPAMP_TARGET)!;
+  const ports = [...model.ports.map((port) => port.name), "VOCM"];
+  const e = (
+    reference: string,
+    nodes: readonly [string, string, string, string],
+  ) =>
+    controlledSource(
+      target,
+      reference,
+      "vcvs",
+      nodes,
+      "gain",
+      "gain/2",
+      format,
+    );
+  return {
+    origin: "generated-model",
+    id: deriveStableId("netlist-ideal-block-cell", target),
+    name: target,
+    ports: ports.map((port, index) => ({
+      id: deriveStableId("netlist-ideal-block-port", target, String(index)),
+      name: port,
+      netName: port,
+    })),
+    nets: ports.map((port, index) => ({
+      id: deriveStableId("netlist-ideal-block-net", target, String(index)),
+      name: port,
+      scope: "local" as const,
+    })),
+    formalParameters: model.parameters.flatMap((parameter) =>
+      parameter.name === DIFFERENTIAL_OPAMP_LEVEL
+        ? []
+        : [
+            {
+              name: parameter.name,
+              ...(parameter.defaultValue !== undefined
+                ? { defaultValue: parameter.defaultValue }
+                : {}),
+            },
+          ],
+    ),
+    instances: [
+      e("EPLUS", ["VOP", "VOCM", "VIP", "VIN"]),
+      e("EMINUS", ["VON", "VOCM", "VIN", "VIP"]),
+    ],
   };
 }

@@ -80,22 +80,97 @@ export function withSupplyPins(symbol, { vdd, vss }) {
   };
 }
 
-/** `symbol` as it is drawn without its supplies: its own pins and art. */
+/**
+ * A fully differential op-amp's output common-mode input VOCM (#2443),
+ * drawn when an Instance shows it, on a lead from `contact` on the body to
+ * `at`, leaving `direction`. Hidden, as by default, the call leaves it out
+ * and the model's `vocm` sets the level. Each supply-pin variant keeps its
+ * meaning with VOCM hidden and gains a twin that draws it.
+ */
+const COMMON_MODE_PIN = "VOCM";
+const COMMON_MODE_LEAD_PART = "vocm-lead";
+const COMMON_MODE_VARIANTS = {
+  [SIGNAL_PINS_VARIANT]: "vocm-pin",
+  [SUPPLY_PINS_VARIANT]: "supply-vocm-pins",
+};
+
+export function withCommonModePin(symbol, { at, contact, direction }) {
+  if (symbol.defaultVariantId !== SIGNAL_PINS_VARIANT)
+    throw new Error(`${symbol.id} draws no supplies to add VOCM beside`);
+  if (at.x % GRID !== 0 || at.y % GRID !== 0)
+    throw new Error(`${symbol.id}.VOCM is off the connection grid`);
+  const hide = (variant) => ({
+    ...variant,
+    hiddenPinNames: [...variant.hiddenPinNames, COMMON_MODE_PIN],
+    hiddenPrimitiveParts: [
+      ...variant.hiddenPrimitiveParts,
+      COMMON_MODE_LEAD_PART,
+    ],
+  });
+  return {
+    ...symbol,
+    pins: [
+      ...symbol.pins,
+      {
+        name: COMMON_MODE_PIN,
+        role: "common-mode-input",
+        at,
+        direction,
+        presentation: { visibility: "visible", leadLength: SUPPLY_LEAD_LENGTH },
+      },
+    ],
+    primitives: [
+      ...symbol.primitives,
+      {
+        kind: "line",
+        from: { x: round(contact.x), y: round(contact.y) },
+        to: at,
+        style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
+        part: COMMON_MODE_LEAD_PART,
+      },
+    ],
+    variants: [
+      ...symbol.variants.map(hide),
+      ...symbol.variants.map((variant) => ({
+        ...variant,
+        id: COMMON_MODE_VARIANTS[variant.id],
+      })),
+    ],
+  };
+}
+
+/** Where a vertical line at `x` meets the bottom of `body`. */
+export function bodyBottomAt(body, x) {
+  return bodyEdgeAt(body, x).bottom;
+}
+
+/** `symbol` as it is drawn without its supplies or VOCM: its own pins and art. */
 export function withoutSupplyPins(symbol) {
-  const leads = new Set(Object.values(SUPPLY_LEAD_PARTS));
+  const leads = new Set([
+    ...Object.values(SUPPLY_LEAD_PARTS),
+    COMMON_MODE_LEAD_PART,
+  ]);
+  const optional = new Set([
+    SIGNAL_PINS_VARIANT,
+    SUPPLY_PINS_VARIANT,
+    ...Object.values(COMMON_MODE_VARIANTS),
+  ]);
   const { defaultVariantId: _default, ...rest } = symbol;
   return {
     ...rest,
-    pins: symbol.pins.filter((pin) => !SUPPLY_ROLES.has(pin.role)),
+    pins: symbol.pins.filter(
+      (pin) => !SUPPLY_ROLES.has(pin.role) && pin.name !== COMMON_MODE_PIN,
+    ),
     primitives: symbol.primitives.filter(
       (primitive) => !leads.has(primitive.part),
     ),
-    variants: symbol.variants.filter(
-      (variant) =>
-        variant.id !== SIGNAL_PINS_VARIANT &&
-        variant.id !== SUPPLY_PINS_VARIANT,
-    ),
+    variants: symbol.variants.filter((variant) => !optional.has(variant.id)),
   };
+}
+
+/** Whether `symbol` draws a VOCM pin. */
+export function drawsCommonModePin(symbol) {
+  return symbol.pins.some((pin) => pin.name === COMMON_MODE_PIN);
 }
 
 /** Points along a cubic, line or arc outline, finely enough to find an edge. */

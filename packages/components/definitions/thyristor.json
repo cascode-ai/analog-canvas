@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "thyristor",
+    "name": "Thyristor (SCR)",
+    "viewBox": {
+      "x": -24,
+      "y": -10,
+      "width": 48,
+      "height": 34
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "anode",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "G",
+        "role": "gate",
+        "at": {
+          "x": 10,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "K",
+        "role": "cathode",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -8.333334,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -8.333334,
+            "y": -6.75
+          },
+          {
+            "x": -8.333334,
+            "y": 6.75
+          },
+          {
+            "x": 5.833334,
+            "y": 0
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 6.666666,
+          "y": -7.333334
+        },
+        "to": {
+          "x": 6.666666,
+          "y": 7.333334
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 6.666666,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": 10,
+            "y": 20
+          },
+          {
+            "x": 10,
+            "y": 12
+          },
+          {
+            "x": 6.666666,
+            "y": 7.333334
+          }
+        ],
+        "part": "cathode-gate",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "thyristor",
+    "symbolId": "thyristor",
+    "target": "scr",
+    "ports": [
+      {
+        "name": "a",
+        "direction": "passive",
+        "pinName": "A"
+      },
+      {
+        "name": "g",
+        "direction": "passive",
+        "pinName": "G"
+      },
+      {
+        "name": "k",
+        "direction": "passive",
+        "pinName": "K"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "thyristor",
+    "name": "Thyristor (SCR)",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A thyristor does not appear on the reviewed page; it is the reviewed Diode body and leads, unchanged, with the cathode gate G leaving the foot of the cathode bar, as the PUT's anode gate leaves the anode side.",
+    "pinOrder": ["A", "G", "K"],
+    "drawnReferencePrefix": "D",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "SPICE has no thyristor card; it prints as a call of the generated body, the two-transistor thyristor with its gate on the NPN's base.",
+    "assetPath": "thyristor.json"
+  }
+}

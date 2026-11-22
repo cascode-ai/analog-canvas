@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "voltmeter",
+    "name": "Voltmeter",
+    "viewBox": {
+      "x": -14,
+      "y": -24,
+      "width": 28,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "circle",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 10.755814,
+        "fillableBody": true,
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -4,
+            "y": -5.25
+          },
+          {
+            "x": 0,
+            "y": 5.25
+          },
+          {
+            "x": 4,
+            "y": -5.25
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "upright-letter-v"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ]
+  },
+  "electrical": {
+    "id": "voltmeter",
+    "symbolId": "voltmeter",
+    "deviceClass": "resistor",
+    "referencePrefix": "VM",
+    "pinOrder": ["+", "-"],
+    "targetPolicy": "builtin",
+    "parameters": [
+      {
+        "name": "value",
+        "label": "Value",
+        "required": true,
+        "editor": "text",
+        "unitHint": "Ohm",
+        "placeholder": "10Meg",
+        "defaultValue": "10Meg",
+        "help": "Input resistance of the meter: 10 MΩ for a digital multimeter",
+        "displayRole": "value"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "voltmeter",
+    "name": "Voltmeter",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A voltmeter does not appear on the reviewed page; it is the Ammeter's circle, leads and + / - pins with a V drawn in lines inside.",
+    "pinOrder": ["+", "-"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A SPICE R card does not say the resistor is a meter, so an imported R card keeps the Resistor symbol.",
+    "assetPath": "voltmeter.json"
+  }
+}

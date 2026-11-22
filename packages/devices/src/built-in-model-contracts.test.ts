@@ -21,8 +21,10 @@ describe("built-in model registration", () => {
         model!.ports.map((port) => port.name),
         descriptor.symbolId,
       ).toEqual(
+        // An optional port, such as VOCM, has a body of its own.
         descriptor.ports
           .filter((port) => model!.family !== "comparator" || !port.supply)
+          .filter((port) => !port.optional)
           .map((port) => port.name),
       );
     }

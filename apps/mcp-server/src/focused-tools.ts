@@ -154,6 +154,9 @@ export const FOCUSED_TOOLS = [
       "set-net-label",
       "arrange-labels",
       "apply-label-preset",
+      // A name label's drawn text: circuit_properties is at the host's
+      // 5,000-byte declaration budget (#2443).
+      "set-display-alias",
     ],
   },
   {
@@ -170,7 +173,6 @@ export const FOCUSED_TOOLS = [
       "set-switch-control",
       "set-model",
       "set-instance-display",
-      "set-display-alias",
     ],
   },
 ] as const;

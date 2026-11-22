@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "solar-cell",
+    "name": "Solar Cell",
+    "viewBox": {
+      "x": -24,
+      "y": -24,
+      "width": 48,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 17
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 17
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -20
+        },
+        "to": {
+          "x": 0,
+          "y": -3.361068
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 3.361068
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -15.341072,
+            "y": -4.959888
+          },
+          {
+            "x": 15.366866,
+            "y": -4.959888
+          },
+          {
+            "x": 15.366866,
+            "y": -1.762248
+          },
+          {
+            "x": -15.341072,
+            "y": -1.762248
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -7.987992,
+            "y": 1.762248
+          },
+          {
+            "x": 8.005849,
+            "y": 1.762248
+          },
+          {
+            "x": 8.005849,
+            "y": 4.959888
+          },
+          {
+            "x": -7.987992,
+            "y": 4.959888
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 7.918549,
+          "y": -13.416494
+        },
+        "to": {
+          "x": 15.985905,
+          "y": -13.416494
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 11.952227,
+          "y": -17.450172
+        },
+        "to": {
+          "x": 11.952227,
+          "y": -9.3848
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 7.918549,
+          "y": 13.472049
+        },
+        "to": {
+          "x": 15.985905,
+          "y": 13.472049
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -16,
+          "y": -14
+        },
+        "to": {
+          "x": -12,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "light-arrow-1-shaft"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -10,
+            "y": -8
+          },
+          {
+            "x": -11.2,
+            "y": -11.6
+          },
+          {
+            "x": -13.6,
+            "y": -9.2
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "light-arrow-1-head"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -22,
+          "y": -8
+        },
+        "to": {
+          "x": -18,
+          "y": -4
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "light-arrow-2-shaft"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -16,
+            "y": -2
+          },
+          {
+            "x": -17.2,
+            "y": -5.6
+          },
+          {
+            "x": -19.6,
+            "y": -3.2
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "light-arrow-2-head"
+      }
+    ]
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "solar-cell",
+    "symbolId": "solar-cell",
+    "target": "solar_cell",
+    "ports": [
+      {
+        "name": "p",
+        "direction": "passive",
+        "pinName": "+"
+      },
+      {
+        "name": "n",
+        "direction": "passive",
+        "pinName": "-"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "solar-cell",
+    "name": "Solar Cell",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A solar cell does not appear on the reviewed page; it is the reviewed Battery's cell, leads and + / - pins with the photoresistor's two incoming light arrows.",
+    "pinOrder": ["+", "-"],
+    "drawnReferencePrefix": "B",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "SPICE has no photovoltaic card; it prints as a call of the generated body, a photocurrent isc in parallel with a diode.",
+    "assetPath": "solar-cell.json"
+  }
+}

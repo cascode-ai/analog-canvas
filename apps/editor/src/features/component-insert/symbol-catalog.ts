@@ -73,6 +73,26 @@ export function symbolCategory(symbolId: string): string {
       "microphone",
       "ammeter",
       "potentiometer",
+      "photodiode",
+      "varactor-diode",
+      "current-regulative-diode",
+      "thyristor",
+      "phototransistor",
+      "schottky-npn",
+      "igbt",
+      "mesfet",
+      "fuse",
+      "shunt-regulator",
+      "voltage-regulator",
+      "voltage-reference",
+      "voltmeter",
+      "dc-motor",
+      "buzzer",
+      "antenna",
+      "solar-cell",
+      "thermocouple",
+      "noise-voltage-source",
+      "controlled-current-source",
     ].includes(symbolId)
   ) {
     return EXTENDED_DEVICE_CATEGORY;
@@ -213,6 +233,26 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   "transmission-line": "T-Line",
   impedance: "Z",
   "two-port": "2-Port",
+  photodiode: "Photo D",
+  "varactor-diode": "Varactor",
+  "current-regulative-diode": "CRD",
+  thyristor: "SCR",
+  phototransistor: "Photo Q",
+  "schottky-npn": "Sch NPN",
+  igbt: "IGBT",
+  mesfet: "MESFET",
+  fuse: "Fuse",
+  "shunt-regulator": "TL431",
+  "voltage-regulator": "78xx",
+  "voltage-reference": "V Ref",
+  voltmeter: "Voltmeter",
+  "dc-motor": "Motor",
+  buzzer: "Buzzer",
+  antenna: "Antenna",
+  "solar-cell": "Solar",
+  thermocouple: "Thermo",
+  "noise-voltage-source": "Noise Src",
+  "controlled-current-source": "Ctrl I",
 };
 
 /** One line saying what an entry does, where the name alone leaves a doubt. */
@@ -275,6 +315,40 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
   put: "Programmable unijunction transistor — fires when A rises a diode drop above G",
   "shockley-diode":
     "Shockley (four-layer) diode — blocks until vbo, then latches on",
+  photodiode: "Photodiode — electrically the Diode, on the generic DIODE model",
+  "varactor-diode":
+    "Varactor diode — electrically the Diode; bind a model with CJO for its capacitance",
+  "current-regulative-diode":
+    "Current-regulative diode — a JFET with its gate on its source, about idss from A to K",
+  thyristor:
+    "Thyristor (SCR) — latches on from A to K when G draws current, holds until the current falls",
+  phototransistor:
+    "NPN phototransistor — electrically the NPN; mark B No Connect where the figure draws none",
+  "schottky-npn":
+    "Schottky-clamped NPN — an NPN with a Schottky diode from base to collector",
+  igbt: "IGBT — an NMOS gate driving a PNP, on from C to E above about 4 V on G",
+  mesfet:
+    "N-channel MESFET or HEMT — electrically the N-Channel JFET, on the generic NJF model",
+  fuse: "Fuse — electrically a Resistor, 10 mΩ by default; it never opens",
+  "shunt-regulator":
+    "Adjustable shunt regulator (TL431) — sinks K to A to hold REF at 2.495 V above A",
+  "voltage-regulator":
+    "Three-terminal regulator (78xx) — OUT held at vout above GND while IN is higher",
+  "voltage-reference":
+    "Three-terminal voltage reference — OUT held at vout (2.5 V) above GND",
+  voltmeter:
+    "Voltmeter — a 10 MΩ resistance across; probe the voltage across it",
+  "dc-motor":
+    "DC motor — electrically a Resistor, its winding, 10 Ω by default",
+  buzzer:
+    "Piezo buzzer or earphone — electrically a Capacitor, 20 nF by default",
+  antenna: "Antenna — one pin; electrically 1 GΩ to ground, no reception",
+  "solar-cell": "Solar cell — a photocurrent isc in parallel with a diode",
+  thermocouple: "Thermocouple — electrically a voltage source, 1 mV by default",
+  "noise-voltage-source":
+    "Noise voltage source — electrically a voltage source, AC 1 for noise-like AC analysis",
+  "controlled-current-source":
+    "Current source with a control input — gm times V(CTRL) from + to −",
 };
 
 export function libraryDisplayName(symbolId: string, fallback: string): string {
@@ -352,19 +426,29 @@ const SYMBOL_ORDER: readonly string[] = [
   "variable-resistor",
   "potentiometer",
   "photoresistor",
+  "fuse",
   "variable-capacitor",
   "polarized-capacitor",
   "mos-varactor",
   "variable-inductor",
   "diode",
   "zener-diode",
+  "shunt-regulator",
   "led",
+  "photodiode",
+  "varactor-diode",
+  "current-regulative-diode",
   "schottky-diode",
   "shockley-diode",
+  "thyristor",
   "put",
   "njfet",
   "pjfet",
   "ujt",
+  "phototransistor",
+  "schottky-npn",
+  "igbt",
+  "mesfet",
   "tcoil",
   "center-tap-inductor",
   "xfmr",
@@ -372,8 +456,18 @@ const SYMBOL_ORDER: readonly string[] = [
   "transmission-line",
   "impedance",
   "speaker",
+  "dc-motor",
+  "buzzer",
+  "antenna",
+  "solar-cell",
+  "thermocouple",
+  "noise-voltage-source",
+  "controlled-current-source",
   "microphone",
+  "voltage-regulator",
+  "voltage-reference",
   "ammeter",
+  "voltmeter",
   "depletion-nmos",
   "depletion-pmos",
   "ndmos",

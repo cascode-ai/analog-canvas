@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "buzzer",
+    "name": "Piezo Buzzer",
+    "viewBox": {
+      "x": -14,
+      "y": -24,
+      "width": 28,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "1",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "2",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -20
+        },
+        "to": {
+          "x": 0,
+          "y": -7
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -8,
+          "y": -7
+        },
+        "to": {
+          "x": 8,
+          "y": -7
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "plate-1"
+      },
+      {
+        "kind": "path",
+        "data": "M -7 4 C -7 -4 7 -4 7 4 Z",
+        "bounds": {
+          "x": -7,
+          "y": -2,
+          "width": 14,
+          "height": 6
+        },
+        "part": "dome",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -8,
+          "y": 7
+        },
+        "to": {
+          "x": 8,
+          "y": 7
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "plate-2"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 7
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ]
+  },
+  "electrical": {
+    "id": "buzzer",
+    "symbolId": "buzzer",
+    "deviceClass": "capacitor",
+    "referencePrefix": "BZ",
+    "pinOrder": ["1", "2"],
+    "pinSemantics": [
+      {
+        "pinName": "1",
+        "role": "capacitor-top-plate"
+      },
+      {
+        "pinName": "2",
+        "role": "capacitor-bottom-plate"
+      }
+    ],
+    "targetPolicy": "builtin",
+    "parameters": [
+      {
+        "name": "value",
+        "label": "Value",
+        "required": true,
+        "editor": "text",
+        "unitHint": "F",
+        "placeholder": "20n",
+        "defaultValue": "20n",
+        "help": "Capacitance of the piezo element; no acoustic resonance is modelled",
+        "displayRole": "value"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "buzzer",
+    "name": "Piezo Buzzer",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A piezo buzzer does not appear on the reviewed page; it is two capacitor plates with the sounding dome between them, on the reviewed Capacitor's pins and span.",
+    "pinOrder": ["1", "2"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A SPICE C card does not say the capacitor is a piezo element, so an imported C card keeps the Capacitor symbol.",
+    "assetPath": "buzzer.json"
+  }
+}

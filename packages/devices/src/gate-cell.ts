@@ -200,6 +200,8 @@ export interface PartTerminal {
   readonly pinName: string;
   readonly supply?: "VDD" | "VSS";
   readonly clock?: true;
+  /** A pin the part may leave unwired, as a fully differential op-amp's VOCM. */
+  readonly optional?: true;
 }
 
 /** One Pin of the Cell a gate calls, and the gate terminal on it. */
@@ -241,7 +243,10 @@ export function libraryGateTerminals(
     return subcircuit.ports.map((port) =>
       port.supply
         ? { pinName: port.supply, supply: port.supply }
-        : { pinName: port.pinName },
+        : {
+            pinName: port.pinName,
+            ...(port.optional ? { optional: true as const } : {}),
+          },
     );
   const device = generatedBodyDevice(symbolId);
   if (!device) return [];
@@ -398,6 +403,7 @@ function matchPartPins(
   }
   const signals = terminals.filter(isPartPin);
   const missing = signals
+    .filter((terminal) => !terminal.optional)
     .filter((terminal) => !pins.some((pin) => pin.pinName === terminal.pinName))
     .map((terminal) => terminal.pinName);
   if (usual.ambiguous) {
@@ -439,6 +445,9 @@ function matchPartPins(
           `CK for the clock its label names unless the ${noun} takes its clock globally`,
         ]
       : []),
+    ...terminals
+      .filter((terminal) => terminal.optional)
+      .map((terminal) => `${terminal.pinName} where the ${noun} has one`),
   ];
   const sets = partPinNameSets(partPins);
   const usualNames = sets.length
@@ -450,7 +459,9 @@ function matchPartPins(
     missing,
     extra,
     message: `${title} ${cell.name} does not fit the ${symbolId}: ${problems.join(", and ")}. Its Pins must be ${spokenList(
-      signals.map((terminal) => terminal.pinName),
+      signals
+        .filter((terminal) => !terminal.optional)
+        .map((terminal) => terminal.pinName),
     )}, in any letter case${usualNames}${optional.map((clause) => `, and ${clause}`).join("")}`,
   };
 }

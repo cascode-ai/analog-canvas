@@ -72,7 +72,17 @@ export type BuiltInModelRecipe =
     }
   | {
       readonly family: "semiconductor";
-      readonly implementation: "ujt" | "put" | "shockley";
+      readonly implementation:
+        "ujt" | "put" | "shockley" | "scr" | "igbt" | "crd" | "schottky_npn";
+    }
+  | {
+      readonly family: "board";
+      readonly implementation:
+        | "tl431"
+        | "regulator"
+        | "solar_cell"
+        | "antenna"
+        | "controlled_current_source";
     };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
@@ -328,6 +338,66 @@ const shockley: readonly DeviceParameterDefinition[] = [
     valueName: "VBO",
   },
 ];
+// A current-regulative diode passes about its rated current from A to K
+// once a few volts are across it, its value I_DSS.
+const crd: readonly DeviceParameterDefinition[] = [
+  {
+    ...parameter(
+      "idss",
+      "Regulated current",
+      "5m",
+      "A",
+      "Current from A to K once about 2 V or more is across it, rising 0.2 %/V; it is the JFET's saturation current.",
+    ),
+    displayRole: "value",
+    valueName: "IDSS",
+  },
+];
+// Regulators and board parts whose body is a few primitive cards. A
+// regulator's or reference's value is the level it holds OUT at, a solar
+// cell's its short-circuit current, a controlled source's its gain.
+const level = (defaultValue: string): DeviceParameterDefinition => ({
+  ...parameter(
+    "vout",
+    "Output voltage",
+    defaultValue,
+    "V",
+    "Level OUT is held at above GND while IN is above it; below that OUT follows IN.",
+  ),
+  displayRole: "value",
+  valueName: "VOUT",
+});
+const boardParameters: Readonly<
+  Record<string, readonly DeviceParameterDefinition[]>
+> = {
+  voltage_regulator: [level("5")],
+  voltage_reference: [level("2.5")],
+  solar_cell: [
+    {
+      ...parameter(
+        "isc",
+        "Short-circuit current",
+        "10m",
+        "A",
+        "Photocurrent at the light the figure means: the current into a short; open, the cell sits at about 0.7 V.",
+      ),
+      displayRole: "value",
+      valueName: "ISC",
+    },
+  ],
+  controlled_current_source: [
+    {
+      ...parameter(
+        "gm",
+        "Transconductance",
+        "1m",
+        "S",
+        "Current gm·V(CTRL) from + to − through the source, CTRL read from ground.",
+      ),
+      displayRole: "value",
+    },
+  ],
+};
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.
 const comparator: readonly DeviceParameterDefinition[] = [
@@ -431,6 +501,19 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   ujt: { family: "semiconductor", implementation: "ujt" },
   put: { family: "semiconductor", implementation: "put" },
   shockley: { family: "semiconductor", implementation: "shockley" },
+  scr: { family: "semiconductor", implementation: "scr" },
+  igbt: { family: "semiconductor", implementation: "igbt" },
+  crd: { family: "semiconductor", implementation: "crd" },
+  schottky_npn: { family: "semiconductor", implementation: "schottky_npn" },
+  tl431: { family: "board", implementation: "tl431" },
+  voltage_regulator: { family: "board", implementation: "regulator" },
+  voltage_reference: { family: "board", implementation: "regulator" },
+  solar_cell: { family: "board", implementation: "solar_cell" },
+  antenna: { family: "board", implementation: "antenna" },
+  controlled_current_source: {
+    family: "board",
+    implementation: "controlled_current_source",
+  },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
@@ -459,14 +542,15 @@ function contract(target: string): BuiltInModelContract | undefined {
     symbolId: descriptor.symbolId,
     // The ideal comparator's numeric body lowers only signal ports; the body
     // its VDD high level chooses adds VDD (ideal-comparator.ts). Its
-    // historical five-port external master is not a generated model.
+    // historical five-port external master is not a generated model. An
+    // optional port has a body of its own (differential-opamp.ts).
     ports:
       family === "comparator"
         ? idealComparatorBodyPorts(
             target as IdealComparatorBody,
             descriptor.ports,
           )
-        : descriptor.ports,
+        : descriptor.ports.filter((port) => !port.optional),
     parameters:
       family === "logic"
         ? implementation === "delay"
@@ -487,15 +571,21 @@ function contract(target: string): BuiltInModelContract | undefined {
                   ? ujt
                   : implementation === "shockley"
                     ? shockley
-                    : // A PUT's peak point is its gate's, set by the circuit.
-                      []
-                : target === ADDER_TARGET
-                  ? ADDER_SIGN_PARAMETERS
-                  : target === "opamp_differential"
-                    ? differentialOpamp
-                    : Object.hasOwn(analog, target)
-                      ? [analog[target as keyof typeof analog]]
-                      : [],
+                    : implementation === "crd"
+                      ? crd
+                      : // A PUT's peak point is its gate's, set by the
+                        // circuit; a thyristor, IGBT or clamped NPN has
+                        // its generic transistors' own.
+                        []
+                : family === "board"
+                  ? (boardParameters[target] ?? [])
+                  : target === ADDER_TARGET
+                    ? ADDER_SIGN_PARAMETERS
+                    : target === "opamp_differential"
+                      ? differentialOpamp
+                      : Object.hasOwn(analog, target)
+                        ? [analog[target as keyof typeof analog]]
+                        : [],
     // A generic block is only ever a call: the reader's libraries define it.
     backends:
       family === "generic"
@@ -508,6 +598,7 @@ function contract(target: string): BuiltInModelContract | undefined {
               family === "comparator" ||
               family === "passive" ||
               family === "semiconductor" ||
+              family === "board" ||
               (family === "logic" && implementation !== "flip-flop")
                 ? "included"
                 : "external",

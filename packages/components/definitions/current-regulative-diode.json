@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "current-regulative-diode",
+    "name": "Current-Regulative Diode",
+    "viewBox": {
+      "x": -24,
+      "y": -10,
+      "width": 48,
+      "height": 20
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "anode",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "K",
+        "role": "cathode",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -6,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -6,
+          "y": -7
+        },
+        "to": {
+          "x": -6,
+          "y": 7
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "crd-bar"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -6,
+            "y": -7
+          },
+          {
+            "x": -4.188267,
+            "y": -6.761481
+          },
+          {
+            "x": -2.5,
+            "y": -6.062178
+          },
+          {
+            "x": -1.050253,
+            "y": -4.949747
+          },
+          {
+            "x": 0.062178,
+            "y": -3.5
+          },
+          {
+            "x": 0.761481,
+            "y": -1.811733
+          },
+          {
+            "x": 1,
+            "y": 0
+          },
+          {
+            "x": 0.761481,
+            "y": 1.811733
+          },
+          {
+            "x": 0.062178,
+            "y": 3.5
+          },
+          {
+            "x": -1.050253,
+            "y": 4.949747
+          },
+          {
+            "x": -2.5,
+            "y": 6.062178
+          },
+          {
+            "x": -4.188267,
+            "y": 6.761481
+          },
+          {
+            "x": -6,
+            "y": 7
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "foreground",
+        "part": "crd-dome",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 1,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "current-regulative-diode",
+    "symbolId": "current-regulative-diode",
+    "target": "crd",
+    "ports": [
+      {
+        "name": "a",
+        "direction": "passive",
+        "pinName": "A"
+      },
+      {
+        "name": "k",
+        "direction": "passive",
+        "pinName": "K"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "current-regulative-diode",
+    "name": "Current-Regulative Diode",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A current-regulative diode does not appear on the reviewed page; it is drawn as JIS draws it, a bar and a filled half disc facing the cathode, on the reviewed Diode's leads and pins.",
+    "pinOrder": ["A", "K"],
+    "drawnReferencePrefix": "D",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "SPICE has no current-regulative diode card; it prints as a call of the generated body, a JFET with its gate tied to its source.",
+    "assetPath": "current-regulative-diode.json"
+  }
+}

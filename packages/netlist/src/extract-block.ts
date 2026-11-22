@@ -13,8 +13,12 @@ import {
   UNPOWERED_OPAMP_LIMITS,
   adderInputSigns,
   HIGH_LEVEL_PARAMETER,
+  callPorts,
   callsIdealComparatorBody,
   callsIdealOpampBody,
+  DIFFERENTIAL_OPAMP_LEVEL,
+  DIFFERENTIAL_OPAMP_TARGET,
+  DIFFERENTIAL_OPAMP_VOCM_BODY,
   idealComparatorBodyPorts,
   idealOpampBodyFor,
   idealOpampBodyReads,
@@ -219,12 +223,24 @@ export function extractBuiltInSubcircuitInstance(
   // powers the block (ideal-opamp.ts). The default VDD the netlist adds for
   // other parts of a Cell that drew none does not.
   let powered = false;
-  // The ideal comparator's call lowers only the ports its body reads.
-  const nodes = (
+  // The ideal comparator's call lowers only the ports its body reads, and
+  // any call an optional port only while its pin has a Net.
+  const ports = callPorts(
     idealComparator
       ? idealComparatorBodyPorts(target, definition.ports)
-      : definition.ports
-  ).flatMap((port) => {
+      : definition.ports,
+    (pinName) =>
+      context.netByTerminal.has(`${instance.id}\u0000${pinName}`) &&
+      !context.noConnectNameByTerminal.has(`${instance.id}\u0000${pinName}`),
+  );
+  // A Library fully differential op-amp whose VOCM has a Net calls the body
+  // that reads it, which takes no `vocm`.
+  const vocmBody =
+    libraryPart &&
+    definition.target === DIFFERENTIAL_OPAMP_TARGET &&
+    target === DIFFERENTIAL_OPAMP_TARGET &&
+    ports.some((port) => port.optional);
+  const nodes = ports.flatMap((port) => {
     if (port.supply) {
       // A property-only terminal is an explicit electrical binding even
       // though the Symbol exposes no canvas pin. Its identity wins over any
@@ -332,7 +348,7 @@ export function extractBuiltInSubcircuitInstance(
     reference,
     invocationKind: "subcircuit",
     deviceClass: "hierarchical",
-    target: opampBody ?? target,
+    target: opampBody ?? (vocmBody ? DIFFERENTIAL_OPAMP_VOCM_BODY : target),
     nodes,
     // A comparator's call keeps the authored order. Its body that reads VDD
     // takes no vhigh, so that call carries none. An op-amp's limit set to its
@@ -347,8 +363,9 @@ export function extractBuiltInSubcircuitInstance(
       : parameters
           .filter(
             ([name, rawValue]) =>
-              definition.target !== OPAMP_TARGET ||
-              !isSupplyLimitParameter(name, rawValue),
+              (definition.target !== OPAMP_TARGET ||
+                !isSupplyLimitParameter(name, rawValue)) &&
+              (!vocmBody || name.toLowerCase() !== DIFFERENTIAL_OPAMP_LEVEL),
           )
           .sort(([a], [b]) => compareText(a, b))
     ).map(([name, rawValue]) => ({ name, rawValue })),

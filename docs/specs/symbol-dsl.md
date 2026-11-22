@@ -35,6 +35,11 @@ owns visual authority.
   body. A form switch (lettering, input swap, input count) keeps the variant.
   Drawn and unwired, it is Auto, as hidden. A subcircuit supply port is drawn
   by the Symbol pin named after its supply where no port maps that pin.
+- A fully differential op-amp also has an optional `VOCM` pin (role
+  `common-mode-input`), hidden by `signal-pins` and `supply-pins`; `vocm-pin`
+  and `supply-vocm-pins` draw it, south at (0, 30) on a compact body and east
+  at its apex (30, 0) on a Wide one. Its subcircuit port is `optional`: in the
+  call only while the pin has a Net (wired or set in Properties).
 - `port`, `port-filled`, `vdd-port` have one pin `P`; naming and interface
   follow the [schematic model](schematic-model.md). `nmos`/`pmos` keep D/G/S/B;
   default variant `textbook-3terminal` may hide bulk and never implies `B=S`;

@@ -36,7 +36,8 @@ without a netlist implementation (for example, compound magnetic symbols).
 
 Primitive pin order must cover each Symbol pin exactly once. Subcircuit formal
 port names are unique ignoring case; each port maps one pin or one supply,
-and pin mappings cover each Symbol pin exactly once. These structural rules
+and pin mappings cover each Symbol pin exactly once. A pin port marked
+`optional: true` is in the call only while its pin has a Net. These structural rules
 are shared by authoring validation, portable Project validation and netlist
 preflight. A portable descriptor calling a built-in model must also retain
 that model's positional pin/supply mapping. A deliberately different interface

@@ -19,7 +19,12 @@ import {
   ANALOG_TRIANGLE_SUPPLY_PINS,
   DIFFERENTIAL_TRIANGLE_SUPPLY_PINS,
 } from "./lib/analog-triangle.mjs";
-import { withSupplyPins, withoutSupplyPins } from "./lib/supply-pins.mjs";
+import {
+  bodyBottomAt,
+  withCommonModePin,
+  withSupplyPins,
+  withoutSupplyPins,
+} from "./lib/supply-pins.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const referenceRoot = resolve(
@@ -384,9 +389,19 @@ const differentialSymbols = [
     "Differential Op Amp (crossed outputs)",
     false,
   ),
-].map((candidate) =>
-  withSupplyPins(candidate, DIFFERENTIAL_TRIANGLE_SUPPLY_PINS),
-);
+].map((candidate) => {
+  const supplied = withSupplyPins(candidate, DIFFERENTIAL_TRIANGLE_SUPPLY_PINS);
+  // VOCM leaves the bottom edge at x 0, beside VSS and clear of OUT+, which
+  // leaves the slanted edge right of it (#2443).
+  const body = supplied.primitives.find(
+    (primitive) => primitive.kind === "path",
+  );
+  return withCommonModePin(supplied, {
+    at: { x: 0, y: 30 },
+    contact: { x: 0, y: bodyBottomAt(body, 0) },
+    direction: "south",
+  });
+});
 const differentialSources = new Map(
   await Promise.all(
     differentialSymbols.map(async (candidate) => [

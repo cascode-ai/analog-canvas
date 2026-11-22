@@ -7922,6 +7922,10 @@
                   "pinName": {
                     "type": "string",
                     "minLength": 1
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "const": true
                   }
                 },
                 "required": [
@@ -9811,6 +9815,9 @@
           }
         },
         "showSupplyPins": {
+          "type": "boolean"
+        },
+        "showVocmPin": {
           "type": "boolean"
         }
       },

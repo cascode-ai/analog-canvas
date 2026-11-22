@@ -28,6 +28,7 @@ import {
   componentOutputsSwapped,
   componentSourceShape,
   componentSupplyPins,
+  componentVocmPin,
   componentWindingsMirrored,
   componentChopperWide,
   NO_INTERNAL_MARK,
@@ -87,6 +88,8 @@ export interface ComponentPropertyCodeValue
     shape?: SourceShape;
     /** A block's VDD and VSS drawn as pins to wire (#1833, #1941). */
     supplyPins?: boolean;
+    /** A fully differential op-amp's VOCM drawn as a pin to wire (#2443). */
+    vocmPin?: boolean;
     /** A transformer's secondary looping away from its primary (#2170). */
     windingsMirrored?: boolean;
     /** A chopper drawn 80 tall with its pins at the corners (#2170). */
@@ -287,6 +290,7 @@ function parseAppearance(
     inputsSwapped: componentInputsSwapped(context.instance.symbolId),
     outputsSwapped: componentOutputsSwapped(context.instance.symbolId),
     supplyPins: componentSupplyPins(context.instance, context.resolver),
+    vocmPin: componentVocmPin(context.instance, context.resolver),
     windingsMirrored: componentWindingsMirrored(context.instance),
     wide: componentChopperWide(context.instance),
   };
@@ -343,6 +347,7 @@ export function componentPropertyCodeValue(
   const outputsSwapped = componentOutputsSwapped(instance.symbolId);
   const shape = componentSourceShape(instance);
   const supplyPins = componentSupplyPins(instance, context.resolver);
+  const vocmPin = componentVocmPin(instance, context.resolver);
   const windingsMirrored = componentWindingsMirrored(instance);
   const wide = componentChopperWide(instance);
   const display: ComponentPropertyDisplayCode = {};
@@ -439,6 +444,7 @@ export function componentPropertyCodeValue(
       ...(outputsSwapped !== undefined ? { outputsSwapped } : {}),
       ...(shape !== undefined ? { shape } : {}),
       ...(supplyPins !== undefined ? { supplyPins } : {}),
+      ...(vocmPin !== undefined ? { vocmPin } : {}),
       ...(windingsMirrored !== undefined ? { windingsMirrored } : {}),
       ...(wide !== undefined ? { wide } : {}),
     },
@@ -486,6 +492,9 @@ export function serializeComponentPropertyCode(
         ...(appearance.shape !== undefined ? { shape: appearance.shape } : {}),
         ...(appearance.supplyPins !== undefined
           ? { supplyPins: appearance.supplyPins }
+          : {}),
+        ...(appearance.vocmPin !== undefined
+          ? { vocmPin: appearance.vocmPin }
           : {}),
         ...(appearance.windingsMirrored !== undefined
           ? { windingsMirrored: appearance.windingsMirrored }
@@ -764,6 +773,7 @@ export function defaultComponentPropertyCode(
       ...(value.appearance.supplyPins !== undefined
         ? { supplyPins: false }
         : {}),
+      ...(value.appearance.vocmPin !== undefined ? { vocmPin: false } : {}),
       ...(value.appearance.wide !== undefined ? { wide: false } : {}),
     };
   if (value.parameters && context.details) {

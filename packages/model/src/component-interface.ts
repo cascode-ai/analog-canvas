@@ -28,16 +28,58 @@ interface ComponentInterface {
 /** The variant that draws a symbol's optional supply pins (#1833). */
 export const SUPPLY_PINS_VARIANT_ID = "supply-pins";
 
-/** The roles of supply pins a drawing shows on request (#1833). */
+/**
+ * The variants of a fully differential op-amp that draw its VOCM pin
+ * (#2443): alone, and with the supply pins.
+ */
+export const VOCM_PIN_VARIANT_ID = "vocm-pin";
+const SUPPLY_VOCM_PINS_VARIANT_ID = "supply-vocm-pins";
+
+/** The variant drawing the supply pins and VOCM as asked, or the default. */
+export function optionalPinsVariantId(
+  supplyPins: boolean,
+  vocmPin: boolean,
+): string | null {
+  return vocmPin
+    ? supplyPins
+      ? SUPPLY_VOCM_PINS_VARIANT_ID
+      : VOCM_PIN_VARIANT_ID
+    : supplyPins
+      ? SUPPLY_PINS_VARIANT_ID
+      : null;
+}
+
+/** Whether a variant draws the supply pins. */
+export function variantDrawsSupplyPins(variantId: string | undefined): boolean {
+  return (
+    variantId === SUPPLY_PINS_VARIANT_ID ||
+    variantId === SUPPLY_VOCM_PINS_VARIANT_ID
+  );
+}
+
+/** Whether a variant draws VOCM. */
+export function variantDrawsVocmPin(variantId: string | undefined): boolean {
+  return (
+    variantId === VOCM_PIN_VARIANT_ID ||
+    variantId === SUPPLY_VOCM_PINS_VARIANT_ID
+  );
+}
+
+/**
+ * The roles of pins a drawing shows on request: supplies (#1833) and a fully
+ * differential op-amp's VOCM (#2443).
+ */
 const OPTIONAL_SUPPLY_PIN_ROLES: ReadonlySet<string> = new Set([
   "positive-supply",
   "negative-supply",
+  "common-mode-input",
 ]);
 
 /**
- * A supply pin a symbol draws only on request: a supply role its default
- * variant hides. It draws the supply port of its name; left unwired, shown or
- * hidden, that supply takes its Net in Properties or Auto.
+ * A pin a symbol draws only on request: a supply or VOCM role its default
+ * variant hides. A supply draws the supply port of its name; left unwired,
+ * shown or hidden, that supply takes its Net in Properties or Auto. An
+ * unwired VOCM leaves the call, and the op-amp's `vocm` sets the level.
  */
 export function isOptionalSupplyPin(
   symbol: {

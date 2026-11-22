@@ -664,6 +664,30 @@ function exportCell(
   const placeOf = new Map<StableId, { object: string; at: RnlPoint }>();
   for (const instance of document.instances) {
     let symbol = rnlSymbolForPart(instance, context.project);
+    // An optional pin with a Net, as a fully differential op-amp's VOCM
+    // (#2443), is a terminal no RNL symbol of the part has.
+    const optional = symbol
+      ? subcircuitDescriptor(instance.symbolId)?.ports.find(
+          (port) =>
+            port.optional &&
+            document.nets.some((net) =>
+              net.terminals.some(
+                (terminal) =>
+                  terminal.instanceId === instance.id &&
+                  terminal.pinName === port.pinName,
+              ),
+            ),
+        )
+      : undefined;
+    if (optional) {
+      report(
+        "error",
+        "RNL_NO_SYMBOL",
+        `${describe(instance)} has its ${optional.pinName} on a Net, which RNL's ${symbol!.symbol} has no terminal for`,
+        [instance.id],
+      );
+      continue;
+    }
     const block = symbol
       ? undefined
       : blockTerminals(instance, context.project, context.ir);

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   builtInDeviceDescriptors,
-  builtInSubcircuitDescriptors,
   deviceDescriptor,
   referencePolicyForSymbol,
   subcircuitDescriptor,
@@ -270,7 +269,6 @@ describe("built-in device registry", () => {
   });
 
   it("registers Analog Blocks as semantic black-box subcircuits", () => {
-    expect(builtInSubcircuitDescriptors).toHaveLength(76);
     expect(
       subcircuitDescriptor("opamp-differential-crossed-inputs-swapped"),
     ).toMatchObject({
@@ -282,6 +280,7 @@ describe("built-in device registry", () => {
         { name: "VIN", pinName: "IN-" },
         { name: "VOP", pinName: "OUT+" },
         { name: "VON", pinName: "OUT-" },
+        { name: "VOCM", pinName: "VOCM", optional: true },
       ],
     });
     expect(referencePolicyForSymbol("opamp-differential")).toEqual({

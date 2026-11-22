@@ -25,6 +25,7 @@ import {
   hasCanvasGenericModel,
   drawnMagneticNetwork,
   callsIdealComparatorBody,
+  callsIdealDifferentialOpampBody,
   callsIdealOpampBody,
   idealComparatorBodyPorts,
   idealComparatorBodyContract,
@@ -595,10 +596,16 @@ function analyzeDesign(
           ? idealOpampBodyContract(target).ports
           : builtInModelContract(adderBodySigns(target) ? ADDER_TARGET : target)
               ?.ports;
-      const callPorts =
+      // An optional port is in the call only while its pin has a Net.
+      const callPorts = (
         descriptor && callsIdealComparatorBody(descriptor, target)
           ? idealComparatorBodyPorts(target, descriptor.ports)
-          : descriptor?.ports;
+          : descriptor?.ports
+      )?.filter(
+        (port) =>
+          !port.optional ||
+          instance.nodes.some((node) => node.pinName === port.name),
+      );
       // A generated body has a fixed positional interface. A User
       // Component's own subcircuit answers only to its own declared master,
       // not to the unrelated built-in body with the same target spelling.
@@ -833,6 +840,7 @@ function analyzeDesign(
     if (
       callOwner(project, instance) === "library" &&
       (callsIdealOpampBody(descriptor, target) ||
+        callsIdealDifferentialOpampBody(descriptor, target) ||
         idealCells.some((model) => model.name === target) ||
         behaviouralBodies.includes(target))
     )

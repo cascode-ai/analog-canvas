@@ -57,8 +57,8 @@ their IDs, never resolved to the first.
   `X2`; a block that emits nothing gets none). A device placed under another
   prefix takes its own in front and is drawn as asked (NMOS `NB` is `MNB`
   drawn N_B); a `place-cell` under another prefix or a used name is rejected
-  with a free name and nothing is placed. A UJT or PUT is drawn Q1
-  and a Shockley diode D1 by a display alias while its Reference is `X1`; a Q
+  with a free name and nothing is placed. A UJT, PUT, IGBT or Schottky-clamped NPN is drawn Q1
+  and a Shockley diode, thyristor or current-regulative diode D1 by a display alias while its Reference is `X1`; a Q
   or D `reference` or `set-reference` sets that alias. To draw another name (op-amp
   `X1` as A1) use `set-display-alias {target, text}` (`text:null` restores);
   it survives Project Code and Copy. A Port takes one the same way; a Net
@@ -74,7 +74,9 @@ their IDs, never resolved to the first.
   (op-amp, comparator, gate, flip-flop, converter …) `VDD`/`VSS` as pins to
   wire (a wired one must be disconnected before
   `false`, one set by `set-terminal-net` returned to `net: null` before
-  `true`); hidden, each takes `set-terminal-net`. Parameter keys come from the actual
+  `true`); hidden, each takes `set-terminal-net`. `showVocmPin` draws a fully
+  differential op-amp's output common-mode input `VOCM` (variant `vocm-pin`,
+  or `supply-vocm-pins` with the supplies). Parameter keys come from the actual
   model contract: a built-in part's are its catalog `parameters`; bound
   geometry offers its `w/l/mult/mf/vm`, and custom definitions their declared
   parameters. Omitted keys stay; an unsupported key rejects the whole action.
@@ -231,7 +233,8 @@ their IDs, never resolved to the first.
   VSS). Set a figure's stated swing (`vhigh:"12"`, `vlow:"-12"`) so oscillators
   and Schmitt triggers saturate as drawn. The fully differential op-amp is
   unlimited; its outputs sit about `vocm` (`"0"`, volts from ground), so set
-  it where they drive gates on a single supply.
+  it where they drive gates on a single supply, or about its `VOCM` pin while
+  that is wired (unwired, the call leaves it out).
 - Formula blocks (catalog `formula: true`: integrator, unit delay,
   discrete-time integrator, transconductance) take
   `signalFlow:{formula?, coefficient?, bodyWidth?, bodyHeight?}`;

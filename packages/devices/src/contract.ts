@@ -123,8 +123,17 @@ export type BuiltInSubcircuitPort = {
   readonly name: string;
   readonly direction: BuiltInSubcircuitPortDirection;
 } & (
-  | { readonly pinName: string; readonly supply?: never }
-  | { readonly supply: "VDD" | "VSS"; readonly pinName?: never }
+  | {
+      readonly pinName: string;
+      readonly supply?: never;
+      /** In the call only while its pin has a Net (a VOCM left undrawn). */
+      readonly optional?: true | undefined;
+    }
+  | {
+      readonly supply: "VDD" | "VSS";
+      readonly pinName?: never;
+      readonly optional?: never;
+    }
 );
 
 /** Structural netlist contract for a built-in Analog Block. */

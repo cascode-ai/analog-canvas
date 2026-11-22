@@ -1,0 +1,230 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "photodiode",
+    "name": "Photodiode",
+    "viewBox": {
+      "x": -24,
+      "y": -20,
+      "width": 48,
+      "height": 30
+    },
+    "pins": [
+      {
+        "name": "A",
+        "role": "anode",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "K",
+        "role": "cathode",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -8.333334,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -8.333334,
+            "y": -6.75
+          },
+          {
+            "x": -8.333334,
+            "y": 6.75
+          },
+          {
+            "x": 5.833334,
+            "y": 0
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 6.666666,
+          "y": -7.333334
+        },
+        "to": {
+          "x": 6.666666,
+          "y": 7.333334
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 6.666666,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -8,
+          "y": -17
+        },
+        "to": {
+          "x": -4,
+          "y": -13
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "light-arrow-1-shaft"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -2,
+            "y": -11
+          },
+          {
+            "x": -3.2,
+            "y": -14.6
+          },
+          {
+            "x": -5.6,
+            "y": -12.2
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "light-arrow-1-head"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -2,
+          "y": -17
+        },
+        "to": {
+          "x": 2,
+          "y": -13
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "light-arrow-2-shaft"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 4,
+            "y": -11
+          },
+          {
+            "x": 2.8,
+            "y": -14.6
+          },
+          {
+            "x": 0.4,
+            "y": -12.2
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "light-arrow-2-head"
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "photodiode",
+    "symbolId": "photodiode",
+    "deviceClass": "diode",
+    "referencePrefix": "D",
+    "pinOrder": ["A", "K"],
+    "targetPolicy": "required-model",
+    "parameters": [
+      {
+        "name": "area",
+        "label": "Area",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "help": "Area factor, scaling the model's junction currents and capacitances",
+        "displayRole": "none"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": true,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "photodiode",
+    "name": "Photodiode",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A photodiode does not appear on the reviewed page; it is the reviewed Diode body and leads, unchanged, with the photoresistor's two incoming light arrows above the junction.",
+    "pinOrder": ["A", "K"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A SPICE D card does not say the junction senses light, so an imported D card keeps the plain Diode symbol.",
+    "assetPath": "photodiode.json"
+  }
+}

@@ -1,4 +1,4 @@
-import { deviceDescriptor } from "@icm/devices";
+import { deviceDescriptor, subcircuitDescriptor } from "@icm/devices";
 import type { CircuitProject, Instance, StableId } from "@icm/model";
 import type { BodyPortOrder } from "@icm/netlist";
 import { builtInSymbols, type SymbolDefinition } from "@icm/symbols";
@@ -371,6 +371,13 @@ export function rnlBodyPortOrder(project: CircuitProject): BodyPortOrder {
       const order = entry?.acNetlistOrder;
       if (!entry || !order) continue;
       const terminals = bodyTerminals(ports, order);
+      // A part whose optional pin has a Net (a VOCM, #2443) calls a body
+      // with that port too; export refuses it with RNL_NO_SYMBOL.
+      if (
+        !terminals &&
+        subcircuitDescriptor(part.symbolId)?.ports.some((port) => port.optional)
+      )
+        continue;
       if (!terminals)
         throw new Error(
           `${entry.symbol} reads ${order.length} terminals, but ${name} has ${ports.length} ports`,

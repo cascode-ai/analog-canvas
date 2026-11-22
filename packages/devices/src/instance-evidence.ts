@@ -37,20 +37,34 @@ export const GENERIC_MODEL_TARGETS = {
   "schottky-diode": "DSCH",
 } as const;
 
+/** Symbols drawn otherwise that take a family's stand-in (#2441). */
+const GENERIC_MODEL_FAMILY_OF: Readonly<
+  Record<string, keyof typeof GENERIC_MODEL_TARGETS>
+> = {
+  photodiode: "diode",
+  "varactor-diode": "diode",
+  phototransistor: "npn",
+  mesfet: "njfet",
+};
+
 export function matchingGenericModelName(
   instance: EvidenceOwner,
 ): string | undefined {
   const binding = instance.netlist?.binding;
   const symbol = instance.symbolId;
+  const family =
+    symbol && Object.hasOwn(GENERIC_MODEL_FAMILY_OF, symbol)
+      ? GENERIC_MODEL_FAMILY_OF[symbol]
+      : symbol;
   if (
     binding?.kind !== "model" ||
     typeof binding.name !== "string" ||
-    !symbol ||
-    !Object.hasOwn(GENERIC_MODEL_TARGETS, symbol)
+    !family ||
+    !Object.hasOwn(GENERIC_MODEL_TARGETS, family)
   )
     return undefined;
   const name =
-    GENERIC_MODEL_TARGETS[symbol as keyof typeof GENERIC_MODEL_TARGETS];
+    GENERIC_MODEL_TARGETS[family as keyof typeof GENERIC_MODEL_TARGETS];
   return binding.name.toUpperCase() === name ? name : undefined;
 }
 

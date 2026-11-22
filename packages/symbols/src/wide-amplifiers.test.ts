@@ -26,11 +26,14 @@ describe("Wide amplifier geometry", () => {
       if (!("sourceSymbolId" in generation)) throw new Error("missing source");
       const compact = requireRazaviCatalogSymbol(generation.sourceSymbolId);
       const wide = requireRazaviCatalogSymbol(entry.symbolId);
+      // A fully differential form's VOCM leaves the apex, where its compact
+      // form's leaves the bottom edge (#2443).
+      const vocm = (pin: (typeof wide.pins)[number]) => pin.name === "VOCM";
       expect(
         wide.pins.map(({ name, role, direction }) => ({
           name,
           role,
-          direction,
+          direction: name === "VOCM" ? "south" : direction,
         })),
       ).toEqual(
         compact.pins.map(({ name, role, direction }) => ({
@@ -39,11 +42,14 @@ describe("Wide amplifier geometry", () => {
           direction,
         })),
       );
+      expect(wide.pins.filter(vocm).map((pin) => pin.at)).toEqual(
+        compact.pins.filter(vocm).map(() => ({ x: 30, y: 0 })),
+      );
       // Wide spreads the signal pins; the supplies stay at the body's extent,
       // where the compact form draws them (#1833), but a differential form's
       // stand at x -20, clear of its outputs (#1941).
       const supply = (pin: (typeof wide.pins)[number]) =>
-        pin.role.endsWith("-supply");
+        pin.role.endsWith("-supply") || vocm(pin);
       const signals = (symbol: typeof wide) =>
         symbol.pins.filter((pin) => !supply(pin));
       expect(signals(compact).map((pin) => pin.at.y)).toEqual(
@@ -54,9 +60,11 @@ describe("Wide amplifier geometry", () => {
           Math.min(...signals(wide).map((pin) => pin.at.y)),
       ).toBe(40);
       const differential = wide.pins.some((pin) => pin.name === "OUT+");
-      expect(wide.pins.filter(supply)).toEqual(
+      const supplyOnly = (pin: (typeof wide.pins)[number]) =>
+        supply(pin) && !vocm(pin);
+      expect(wide.pins.filter(supplyOnly)).toEqual(
         compact.pins
-          .filter(supply)
+          .filter(supplyOnly)
           .map((pin) =>
             differential ? { ...pin, at: { ...pin.at, x: -20 } } : pin,
           ),

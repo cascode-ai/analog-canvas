@@ -1,0 +1,293 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "phototransistor",
+    "name": "NPN Phototransistor",
+    "viewBox": {
+      "x": -34,
+      "y": -24,
+      "width": 42,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "C",
+        "role": "collector",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "B",
+        "role": "base",
+        "at": {
+          "x": -30,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "E",
+        "role": "emitter",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 0
+        },
+        "to": {
+          "x": -16.868887,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -16.868887,
+          "y": -13.345607
+        },
+        "to": {
+          "x": -16.868887,
+          "y": 13.32954
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -16.868887,
+            "y": -6.401526
+          },
+          {
+            "x": 0,
+            "y": -13.379732
+          },
+          {
+            "x": 0,
+            "y": -20
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -16.868887,
+          "y": 6.403673
+        },
+        "to": {
+          "x": -7.30071,
+          "y": 10.358712
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -0.936056,
+            "y": 12.990761
+          },
+          {
+            "x": 0,
+            "y": 13.377859
+          },
+          {
+            "x": 0,
+            "y": 20
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -6.635095,
+            "y": 6.792086
+          },
+          {
+            "x": -9.952643,
+            "y": 13.377859
+          },
+          {
+            "x": 0,
+            "y": 13.377859
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26,
+          "y": -18
+        },
+        "to": {
+          "x": -22,
+          "y": -14
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "light-arrow-1-shaft"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -20,
+            "y": -12
+          },
+          {
+            "x": -21.2,
+            "y": -15.6
+          },
+          {
+            "x": -23.6,
+            "y": -13.2
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "light-arrow-1-head"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26,
+          "y": -10
+        },
+        "to": {
+          "x": -22,
+          "y": -6
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "light-arrow-2-shaft"
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -20,
+            "y": -4
+          },
+          {
+            "x": -21.2,
+            "y": -7.6
+          },
+          {
+            "x": -23.6,
+            "y": -5.2
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "light-arrow-2-head"
+      }
+    ],
+    "variants": []
+  },
+  "electrical": {
+    "id": "phototransistor",
+    "symbolId": "phototransistor",
+    "deviceClass": "bjt",
+    "referencePrefix": "Q",
+    "pinOrder": ["C", "B", "E"],
+    "seriesInsertionPinPair": ["C", "E"],
+    "targetPolicy": "required-model",
+    "parameters": [
+      {
+        "name": "m",
+        "label": "M",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "defaultValue": "1",
+        "help": "Parallel multiplier",
+        "displayRole": "multiplier"
+      },
+      {
+        "name": "area",
+        "label": "Area",
+        "required": false,
+        "editor": "decimal",
+        "placeholder": "1",
+        "help": "Area factor, scaling the model's junction currents and capacitances",
+        "displayRole": "none"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": true,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "phototransistor",
+    "name": "NPN Phototransistor",
+    "category": "transistor",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A phototransistor does not appear on the reviewed page; it is the reviewed NPN body and leads, unchanged, with the photoresistor's two incoming light arrows at its base. A figure that draws no base leaves B marked No Connect.",
+    "pinOrder": ["C", "B", "E"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A SPICE Q card does not say the base is lit, so an imported Q card keeps the plain NPN symbol.",
+    "assetPath": "phototransistor.json"
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "shunt-regulator",
+    "name": "Shunt Regulator (TL431)",
+    "viewBox": {
+      "x": -24,
+      "y": -12,
+      "width": 48,
+      "height": 36
+    },
+    "pins": [
+      {
+        "name": "K",
+        "role": "cathode",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "A",
+        "role": "anode",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "REF",
+        "role": "reference",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -7.802511,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": -7.802511,
+            "y": -6.404463
+          },
+          {
+            "x": -7.802511,
+            "y": 6.404463
+          },
+          {
+            "x": 6.606415,
+            "y": 0
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -0.639331,
+            "y": -8.506555
+          },
+          {
+            "x": 6.666666,
+            "y": -8.406137
+          },
+          {
+            "x": 6.666666,
+            "y": 8.2053
+          },
+          {
+            "x": 13.870013,
+            "y": 8.2053
+          }
+        ],
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 6.666666,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 20
+        },
+        "to": {
+          "x": 0,
+          "y": 2.936
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "reference-lead"
+      }
+    ]
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "shunt-regulator",
+    "symbolId": "shunt-regulator",
+    "target": "tl431",
+    "ports": [
+      {
+        "name": "k",
+        "direction": "passive",
+        "pinName": "K"
+      },
+      {
+        "name": "a",
+        "direction": "passive",
+        "pinName": "A"
+      },
+      {
+        "name": "ref",
+        "direction": "passive",
+        "pinName": "REF"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "shunt-regulator",
+    "name": "Shunt Regulator (TL431)",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "An adjustable shunt regulator does not appear on the reviewed page; it is the reviewed Zener body, leads and A/K pins, with the reference input REF entering the triangle's lower edge from below, as TL431 data sheets draw it.",
+    "pinOrder": ["K", "A", "REF"],
+    "drawnReferencePrefix": "U",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "SPICE has no shunt-regulator card; it prints as a call of the generated body, a 2.495 V reference, an error amplifier and an NPN sinking K to A.",
+    "assetPath": "shunt-regulator.json"
+  }
+}

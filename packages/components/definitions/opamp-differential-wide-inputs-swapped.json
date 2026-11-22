@@ -88,6 +88,19 @@
           "visibility": "visible",
           "leadLength": 10
         }
+      },
+      {
+        "name": "VOCM",
+        "role": "common-mode-input",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
       }
     ],
     "primitives": [
@@ -311,17 +324,46 @@
           "lineJoin": "miter"
         },
         "part": "vss-lead"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 21.961524,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "vocm-lead"
       }
     ],
     "variants": [
       {
         "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS", "VOCM"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead", "vocm-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": ["VOCM"],
+        "hiddenPrimitiveParts": ["vocm-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "vocm-pin",
         "hiddenPinNames": ["VDD", "VSS"],
         "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
         "additionalPrimitives": []
       },
       {
-        "id": "supply-pins",
+        "id": "supply-vocm-pins",
         "hiddenPinNames": [],
         "hiddenPrimitiveParts": [],
         "additionalPrimitives": []
@@ -364,6 +406,12 @@
         "name": "VON",
         "direction": "output",
         "pinName": "OUT-"
+      },
+      {
+        "name": "VOCM",
+        "direction": "input",
+        "pinName": "VOCM",
+        "optional": true
       }
     ]
   },
@@ -373,7 +421,7 @@
     "name": "FD Amp Wide (swapped inputs)",
     "category": "analog-block",
     "reviewStatus": "reviewed",
-    "pinOrder": ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    "pinOrder": ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS", "VOCM"],
     "palette": false,
     "automaticMappings": [],
     "manualOnlyReason": "Fully differential textbook body; SPICE subcircuit pin and supply contracts require an explicit PDK mapping.",

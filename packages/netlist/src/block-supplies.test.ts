@@ -33,7 +33,9 @@ function unpoweredBlock(symbolId: string): CircuitProject {
       parameters: {},
     },
   });
-  for (const port of descriptor.ports.filter((item) => !item.supply)) {
+  for (const port of descriptor.ports.filter(
+    (item) => !item.supply && !item.optional,
+  )) {
     const id = `port-${port.name}`;
     document.instances.push({ id, symbolId: "port", placement: null });
     document.nets.push({

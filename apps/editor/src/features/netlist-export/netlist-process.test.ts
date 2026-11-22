@@ -636,22 +636,29 @@ describe("a part placed into a Process (#1251)", () => {
     },
   );
 
-  it("leaves an ammeter at 0 V: Apply process gives it no source defaults", () => {
-    let project = createEmptyProject("ammeter", "Ammeter");
-    const edit = place("ammeter");
-    project = commit(project, [
-      {
-        kind: "transact_document",
-        documentId: project.topDocumentId,
-        expectedRevision: project.documents[0]!.revision,
-        edits: [{ ...edit, instance: { ...edit.instance, reference: "A1" } }],
-      },
-    ]);
-    for (const process of NETLIST_PROFILE_IDS)
-      expect(
-        planNetlistProcess(project, createNetlistExportProfile(process)),
-      ).toEqual([]);
-  });
+  it.each([
+    ["ammeter", "A1"],
+    ["thermocouple", "TC1"],
+    ["noise-voltage-source", "VN1"],
+  ])(
+    "leaves a %s at its own levels: Apply process gives it no source defaults",
+    (symbolId, reference) => {
+      let project = createEmptyProject(symbolId, symbolId);
+      const edit = place(symbolId);
+      project = commit(project, [
+        {
+          kind: "transact_document",
+          documentId: project.topDocumentId,
+          expectedRevision: project.documents[0]!.revision,
+          edits: [{ ...edit, instance: { ...edit.instance, reference } }],
+        },
+      ]);
+      for (const process of NETLIST_PROFILE_IDS)
+        expect(
+          planNetlistProcess(project, createNetlistExportProfile(process)),
+        ).toEqual([]);
+    },
+  );
 
   it.each(NETLIST_PROFILE_IDS)(
     "binds a placed Schottky diode to the generic DSCH under %s",
