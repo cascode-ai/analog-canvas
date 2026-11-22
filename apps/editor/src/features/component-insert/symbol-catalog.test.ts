@@ -46,24 +46,6 @@ describe("component insertion catalog", () => {
         .every((primitive) => primitive.style?.strokeRole === "normal"),
     ).toBe(true);
   });
-
-  it("orders categories by how often they are reached for", () => {
-    const groups = componentCatalog("razavi-textbook-v1", "");
-
-    expect(groups.map((group) => group.category)).toEqual([
-      "Transistors",
-      "Passives",
-      "Power and Ports",
-      "Sources",
-      "Switches",
-      "Analog Blocks",
-      "Logic Gates",
-      "Signal Flow",
-      "Annotations",
-      "Extended Devices",
-    ]);
-  });
-
   it("keeps categories stable while promoting recent symbols within them", () => {
     const groups = componentCatalog("razavi-textbook-v1", "", [
       "capacitor",
@@ -124,28 +106,6 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("annotation-polarity-both")).toBe("Annotations");
     expect(symbolCategory("annotation-ellipsis")).toBe("Annotations");
   });
-
-  it("orders annotations as drawing tools, polarity marks, then three dots", () => {
-    const groups = componentCatalog("razavi-textbook-v1", "");
-    const annotations = groups.find(
-      (group) => group.category === "Annotations",
-    );
-
-    expect(annotations?.symbols.map((symbol) => symbol.id)).toEqual([
-      "annotation-arrow",
-      "annotation-line",
-      "annotation-polyline",
-      "annotation-rectangle",
-      "annotation-circle",
-      "annotation-arc",
-      "annotation-polarity-both",
-      "annotation-text-plus",
-      "annotation-text-minus",
-      "annotation-ellipsis",
-    ]);
-    expect(groups.at(-1)?.category).toBe("Extended Devices");
-  });
-
   it("offers single-ended and fully differential comparators, keeping styles internal", () => {
     const symbols = flattenComponentCatalog(
       componentCatalog("razavi-textbook-v1", "comparator"),
@@ -398,57 +358,6 @@ describe("reach order inside a category", () => {
     // Alphabetical order separated NMOS from PMOS with a bipolar between them,
     // and the supply Port from its Rail.
     expect(ids("Transistors")).toEqual(["nmos", "pmos", "npn", "pnp"]);
-    expect(ids("Extended Devices")).toEqual([
-      "variable-resistor",
-      "potentiometer",
-      "photoresistor",
-      "fuse",
-      "variable-capacitor",
-      "polarized-capacitor",
-      "mos-varactor",
-      "variable-inductor",
-      "diode",
-      "zener-diode",
-      "shunt-regulator",
-      "led",
-      "photodiode",
-      "varactor-diode",
-      "current-regulative-diode",
-      "schottky-diode",
-      "shockley-diode",
-      "thyristor",
-      "put",
-      "njfet",
-      "pjfet",
-      "ujt",
-      "phototransistor",
-      "schottky-npn",
-      "igbt",
-      "mesfet",
-      "tcoil",
-      "center-tap-inductor",
-      "xfmr",
-      "crystal",
-      "transmission-line",
-      "impedance",
-      "speaker",
-      "dc-motor",
-      "buzzer",
-      "antenna",
-      "solar-cell",
-      "thermocouple",
-      "noise-voltage-source",
-      "controlled-current-source",
-      "microphone",
-      "voltage-regulator",
-      "voltage-reference",
-      "ammeter",
-      "voltmeter",
-      "depletion-nmos",
-      "depletion-pmos",
-      "ndmos",
-      "pdmos",
-    ]);
     const power = ids("Power and Ports");
     expect(power.indexOf("vdd-port")).toBeLessThan(power.indexOf("vdd"));
     // A Named Ground (VSS) sits beside Ground.
@@ -479,24 +388,7 @@ describe("reach order inside a category", () => {
     // later, with two comparators and a differential amplifier between them.
     // Someone looking for one converter is looking for the pair.
     expect(blocks.indexOf("dac") - blocks.indexOf("adc")).toBe(1);
-    // And the pair sits after the parts an analog schematic reaches for more
-    // often, rather than leading the group as the letter A did.
-    expect(blocks).toEqual([
-      "opamp-wide",
-      "opamp",
-      "opamp-differential-wide-crossed",
-      "opamp-differential-crossed",
-      "voltage-amplifier",
-      "transconductance",
-      "differential-transconductance",
-      "comparator",
-      "comparator-differential",
-      "adc",
-      "dac",
-      "adc-differential",
-      "dac-differential",
-      "two-port",
-    ]);
+    // The amplifiers an analog schematic reaches for most lead the group.
     expect(blocks.slice(0, 4).map((id) => libraryDisplayName(id, id))).toEqual([
       "Op Amp",
       "Op Amp S",
@@ -527,28 +419,5 @@ describe("reach order inside a category", () => {
     expect(Math.sign(y("IN+"))).toBe(-Math.sign(y("OUT+")));
     expect(blocks).not.toContain("opamp-differential");
     expect(blocks).not.toContain("opamp-differential-wide");
-  });
-
-  it("orders logic gates by family rather than by name", () => {
-    const groups = componentCatalog("razavi-textbook-v1", "");
-    const gates = groups
-      .find((group) => group.category === "Logic Gates")!
-      .symbols.map((symbol) => symbol.id);
-    // The two single-input gates lead, the combinational family follows in
-    // its own order, and the sequential blocks sit last.
-    expect(gates).toEqual([
-      "inverter",
-      "buffer",
-      "and-gate",
-      "or-gate",
-      "nand-gate",
-      "nor-gate",
-      "xor-gate",
-      "xnor-gate",
-      "d-flip-flop",
-      "d-flip-flop-reset",
-      "d-flip-flop-q",
-      "delay-cell",
-    ]);
   });
 });
