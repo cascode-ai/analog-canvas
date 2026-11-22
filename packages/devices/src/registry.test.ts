@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   builtInDeviceDescriptors,
-  builtInSubcircuitDescriptors,
   deviceDescriptor,
   referencePolicyForSymbol,
   subcircuitDescriptor,
