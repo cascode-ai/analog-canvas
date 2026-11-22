@@ -145,8 +145,12 @@ function fixture(symbolId: string, parameters: Record<string, string> = {}) {
       parameters,
     },
   });
+  // The optional VOCM pin stays unwired: the default `vocm` 0 body, as
+  // differential-opamp-vocm.test.ts covers the wired one (#2443).
   const ports = descriptor.ports.filter(
-    (p) => symbolId !== "comparator" || !p.supply,
+    (p) =>
+      (symbolId !== "comparator" || !p.supply) &&
+      !(symbolId === "opamp-differential" && p.name === "VOCM"),
   );
   for (const port of ports) {
     const pinName = port.pinName ?? port.supply!;

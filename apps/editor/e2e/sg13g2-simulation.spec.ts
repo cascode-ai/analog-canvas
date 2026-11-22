@@ -102,13 +102,14 @@ test("SG13 Properties use qualified targets, model defaults and physical Process
   await page.getByTestId("netlist-panel-toggle").click();
   await page.getByLabel("R netlist target").selectOption("");
   const ideal = await exportedProject(page);
+  // rppd at its default size goes ideal by value (netlist-export.md, #2446).
   expect(
     ideal.documents[0].instances.find(
       (instance: { reference: string }) => instance.reference === "R1",
     ).netlist,
   ).toMatchObject({
     binding: { kind: "primitive" },
-    parameters: { value: "1k" },
+    parameters: { value: "260Ω" },
   });
   await placeComponent(page, "resistor", { x: 700, y: 300 });
   await openSelectionShelf(page);
