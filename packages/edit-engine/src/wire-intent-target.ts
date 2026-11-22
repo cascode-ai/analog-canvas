@@ -66,7 +66,7 @@ export const NO_WIRE_AT = "No wire at";
  * The tap-grid points nearest `point`: itself when on the grid, else the
  * two or four as near as each other in each coordinate.
  */
-export function nearestTapPoints(point: Point, pitch: number): Point[] {
+function nearestTapPoints(point: Point, pitch: number): Point[] {
   const near = (value: number): number[] => {
     const low = Math.floor(value / pitch) * pitch;
     const high = low + pitch;

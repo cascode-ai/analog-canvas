@@ -109,7 +109,7 @@ export function verifyInformation(entry: CachedSnapshot): {
 
 /** A compact receipt names this many changed objects or cleared findings,
  * then counts the rest. */
-export const COMPACT_CHANGED_OBJECT_LIMIT = 50;
+const COMPACT_CHANGED_OBJECT_LIMIT = 50;
 
 /** A removed finding's identity (`agentDiagnosticIdentity`), read back. */
 function removedFinding(identity: string): Record<string, unknown> {

@@ -2100,7 +2100,7 @@ async function invokeOperation(
 const SLOW_EDITOR_MS = 5000;
 
 /** The timing warning these requests earn, if any. */
-export function timingWarningCode(
+function timingWarningCode(
   requests: readonly AgentRequestTiming[],
 ): "SLOW_RELAY" | "EDITOR_BACKGROUND" | undefined {
   if (requests.some((request) => (request.relayMs ?? 0) > SLOW_EDITOR_MS))
