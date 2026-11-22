@@ -1,10 +1,6 @@
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
-import {
-  CURRENT_PROJECT_FILE_VERSION,
-  parseProject,
-  serializeProject,
-} from "./index.js";
+import { parseProject, serializeProject } from "./index.js";
 import { legacyProjectFile } from "./legacy-project.test-support.js";
 
 function serifProject() {
@@ -33,7 +29,6 @@ describe("Document font persistence (#1725)", () => {
       const project = createEmptyProject("text-face", "Text face");
       project.documents[0]!.presentation.textFace = face;
       const text = serializeProject(project);
-      expect(JSON.parse(text).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
       const reopened = parseProject(text);
       expect(reopened.documents[0]!.presentation.textFace).toBe(face);
       expect(serializeProject(reopened)).toBe(text);

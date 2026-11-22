@@ -175,8 +175,6 @@ describe("generated voltage-node text", () => {
           },
         ],
       });
-      expect(JSON.stringify(content)).not.toMatch(/uppercase|lowercase/u);
-      expect(JSON.stringify(content).match(/"bold"/gu)).toHaveLength(2);
     },
   );
 

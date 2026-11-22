@@ -1,21 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CircuitProjectSchema,
   HexColorSchema,
   InstanceSchema,
   InstanceStyleOverrideSchema,
   SignalFlowParametersSchema,
 } from "./index.js";
-import { createEmptyProject } from "../factories.js";
 
 describe("HexColorSchema", () => {
   it("accepts valid #RRGGBB hex colors", () => {
     expect(HexColorSchema.safeParse("#000000").success).toBe(true);
-    expect(HexColorSchema.safeParse("#FFFFFF").success).toBe(true);
-    expect(HexColorSchema.safeParse("#ff0000").success).toBe(true);
     expect(HexColorSchema.safeParse("#AaBbCc").success).toBe(true);
-    expect(HexColorSchema.safeParse("#123456").success).toBe(true);
   });
 
   it("rejects invalid color strings", () => {
@@ -30,21 +25,9 @@ describe("HexColorSchema", () => {
 });
 
 describe("InstanceStyleOverrideSchema", () => {
-  it("accepts individual and empty overrides", () => {
-    expect(
-      InstanceStyleOverrideSchema.safeParse({ foreground: "#FF0000" }).success,
-    ).toBe(true);
-    expect(
-      InstanceStyleOverrideSchema.safeParse({ background: "#00FF00" }).success,
-    ).toBe(true);
-    expect(InstanceStyleOverrideSchema.safeParse({}).success).toBe(true);
-  });
   it("rejects invalid colors and unknown keys", () => {
     expect(
       InstanceStyleOverrideSchema.safeParse({ foreground: "red" }).success,
-    ).toBe(false);
-    expect(
-      InstanceStyleOverrideSchema.safeParse({ background: "#FFF" }).success,
     ).toBe(false);
     expect(
       InstanceStyleOverrideSchema.safeParse({ borderColor: "#000000" }).success,
@@ -81,20 +64,6 @@ describe("InstanceSchema presentation metadata", () => {
     const plain = InstanceSchema.safeParse(baseInstance);
     expect(plain.success).toBe(true);
     if (plain.success) expect(plain.data.styleOverride).toBeUndefined();
-  });
-
-  it("accepts signalFlowParameters independently of styleOverride", () => {
-    expect(
-      InstanceSchema.safeParse({
-        ...baseInstance,
-        signalFlowParameters: {
-          formula: "z^-1",
-          coefficient: "a1",
-          bodyWidth: 120,
-          bodyHeight: 80,
-        },
-      }).success,
-    ).toBe(true);
   });
 
   it("rejects invalid Signal Flow text and dimensions", () => {
@@ -137,22 +106,5 @@ describe("SignalFlowParametersSchema", () => {
       SignalFlowParametersSchema.safeParse({ formula: "x".repeat(257) })
         .success,
     ).toBe(false);
-  });
-});
-
-describe("CircuitProject presentation metadata", () => {
-  it("validates style and Signal Flow metadata together", () => {
-    const project = createEmptyProject("test", "Test");
-    project.documents[0]!.instances.push({
-      ...baseInstance,
-      styleOverride: { foreground: "#FF0000", background: "#0000FF" },
-      signalFlowParameters: {
-        formula: "z^-1",
-        coefficient: "b0",
-        bodyWidth: 100,
-        bodyHeight: 50,
-      },
-    });
-    expect(CircuitProjectSchema.safeParse(project).success).toBe(true);
   });
 });

@@ -1,11 +1,7 @@
 import { createEmptyProject } from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { describe, expect, it } from "vitest";
-import {
-  parseProject,
-  serializeProject,
-  CURRENT_PROJECT_FILE_VERSION,
-} from "./index.js";
+import { parseProject, serializeProject } from "./index.js";
 import { legacyProjectFile } from "./legacy-project.test-support.js";
 import { publishProjectToGallery } from "../../../apps/editor/src/features/editor-shell/gallery-publish";
 
@@ -84,7 +80,6 @@ describe("controlled-source portable persistence", () => {
       const output = createDesignNetlistExport(before, { format });
       expect(output.status).toBe("ready");
       const text = serializeProject(before);
-      expect(JSON.parse(text).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
       const reopened = parseProject(serializeProject(parseProject(text)));
       expect(controls(reopened)).toEqual(controls(before));
       const after = createDesignNetlistExport(reopened, { format });

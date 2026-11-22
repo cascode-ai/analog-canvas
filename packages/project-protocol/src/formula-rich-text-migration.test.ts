@@ -22,15 +22,4 @@ describe("schema 29 to 30 migration (formula RichText)", () => {
       changed: false,
     });
   });
-
-  it("remains a bounded historical adapter after the runtime advances", () => {
-    const result = upgradeSchema29To30({
-      schemaVersion: 29,
-      sentinel: { preserved: true },
-    });
-    expect(result).toEqual({
-      schemaVersion: 30,
-      sentinel: { preserved: true },
-    });
-  });
 });

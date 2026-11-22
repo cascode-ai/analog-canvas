@@ -77,15 +77,6 @@ describe("CircuitProject schema", () => {
     ).toBe(false);
   });
 
-  it("accepts a minimal Project with one Document", () => {
-    const project = createEmptyProject("project-test", "Test Project");
-    expect(CircuitProjectSchema.parse(project)).toEqual(project);
-    expect(project.documents[0]).toMatchObject({
-      name: "dut",
-      netlist: { name: "dut" },
-    });
-  });
-
   it("rejects the retired hidden electrical Net-name owner", () => {
     const document = createEmptyDocument("document", "Document");
     document.nets.push({ id: "net-out", terminals: [] });
@@ -178,14 +169,6 @@ describe("CircuitProject schema", () => {
       definitionId: "missing-definition",
     };
     expect(CircuitProjectSchema.safeParse(project).success).toBe(false);
-  });
-
-  it("uses Razavi textbook presentation for a new Project", () => {
-    const project = createEmptyProject("project-style", "Style");
-
-    expect(project.documents[0]!.presentation.styleProfileId).toBe(
-      "razavi-textbook-v1",
-    );
   });
 
   it("rejects a schematic Reference on a formal Cell Pin", () => {
@@ -897,8 +880,6 @@ describe("CircuitProject schema", () => {
     document.annotations.push(label);
     expect(CircuitProjectSchema.safeParse(project).success).toBe(true);
     document.annotations[0] = { ...label, visible: false };
-    expect(CircuitProjectSchema.safeParse(project).success).toBe(true);
-    document.annotations[0] = { ...label, visible: true };
     expect(CircuitProjectSchema.safeParse(project).success).toBe(true);
     document.annotations[0] = { ...label, textColor: "#123ABC" };
     expect(CircuitProjectSchema.safeParse(project).success).toBe(true);

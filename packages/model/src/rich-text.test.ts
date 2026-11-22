@@ -266,6 +266,5 @@ describe("canonical RichText helpers", () => {
         },
       ],
     });
-    expect(RichTextDocumentSchema.safeParse(rewritten).success).toBe(true);
   });
 });

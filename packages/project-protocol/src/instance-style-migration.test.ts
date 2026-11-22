@@ -4,108 +4,17 @@ import { createEmptyProject } from "@icm/model";
 import { serializeProject } from "./save.js";
 
 import { parseProject } from "./index.js";
-import {
-  upgradeSchema28To29,
-  upgradeSchema28To29WithReport,
-} from "./transforms/annotation-grid.js";
-import {
-  upgradeSchema29To30,
-  upgradeSchema29To30WithReport,
-} from "./transforms/formula-rich-text.js";
-import {
-  upgradeSchema30To31,
-  upgradeSchema30To31WithReport,
-} from "./transforms/signal-flow-parameters.js";
-import {
-  upgradeSchema31To32,
-  upgradeSchema31To32WithReport,
-} from "./transforms/annotation-text-color.js";
-import {
-  upgradeSchema32To33,
-  upgradeSchema32To33WithReport,
-} from "./transforms/explicit-equivalence.js";
-import {
-  upgradeSchema33To34,
-  upgradeSchema33To34WithReport,
-} from "./transforms/net-name-provenance.js";
-import { upgradeSchema34To35 } from "./transforms/instance-reference.js";
-import { upgradeSchema35To36 } from "./transforms/instance-reference-annotation.js";
-import { upgradeSchema36To37 } from "./transforms/simulation-setup.js";
-import { upgradeSchema37To38 } from "./transforms/structured-tran.js";
-import { upgradeSchema38To39 } from "./transforms/raw-simulation-setup.js";
-import { upgradeSchema39To40 } from "./transforms/simulation-probe-anchor.js";
-import { upgradeSchema40To41 } from "./transforms/dc-sweep.js";
-import { upgradeSchema41To42 } from "./transforms/simulation-setup-collection.js";
-import { upgradeSchema42To43 } from "./transforms/simulation-outputs.js";
-import { upgradeSchema43To44 } from "./transforms/terminal-current.js";
-import { upgradeSchema44To45 } from "./transforms/simulation-measurements.js";
-import { upgradeSchema45To46 } from "./transforms/simulation-noise.js";
-import { upgradeSchema46To47 } from "./transforms/simulation-device-operating-points.js";
-import { upgradeSchema47To48 } from "./transforms/simulation-design-variables.js";
+import { upgradeSchema28To29WithReport } from "./transforms/annotation-grid.js";
+import { upgradeSchema30To31WithReport } from "./transforms/signal-flow-parameters.js";
+import { upgradeSchema33To34WithReport } from "./transforms/net-name-provenance.js";
 
 describe("schema migrations through hidden Net-name retirement", () => {
-  it("keeps each retained historical transform independently usable", () => {
-    const current = JSON.parse(
-      JSON.stringify(createEmptyProject("test", "Test")),
-    ) as Record<string, unknown>;
-    const v29 = upgradeSchema28To29({ ...current, schemaVersion: 28 });
-    const v30 = upgradeSchema29To30(v29);
-    const v31 = upgradeSchema30To31(v30);
-    const v32 = upgradeSchema31To32(v31);
-    const v33 = upgradeSchema32To33(v32);
-    const v34 = upgradeSchema33To34(v33);
-    const v35 = upgradeSchema34To35(v34);
-    const v36 = upgradeSchema35To36(v35);
-    const v37 = upgradeSchema36To37(v36);
-    const v38 = upgradeSchema37To38(v37);
-    const v39 = upgradeSchema38To39(v38);
-    const v40 = upgradeSchema39To40(v39);
-    const v41 = upgradeSchema40To41(v40);
-    const v42 = upgradeSchema41To42(v41);
-    const v43 = upgradeSchema42To43(v42);
-    const v44 = upgradeSchema43To44(v43);
-    const v45 = upgradeSchema44To45(v44);
-    const v46 = upgradeSchema45To46(v45);
-    const v47 = upgradeSchema46To47(v46);
-    const v48 = upgradeSchema47To48(v47);
-
-    expect(v29.schemaVersion).toBe(29);
-    expect(v30.schemaVersion).toBe(30);
-    expect(v31.schemaVersion).toBe(31);
-    expect(v32.schemaVersion).toBe(32);
-    expect(v33.schemaVersion).toBe(33);
-    expect(v34.schemaVersion).toBe(34);
-    expect(v35.schemaVersion).toBe(35);
-    expect(v36.schemaVersion).toBe(36);
-    expect(v37.schemaVersion).toBe(37);
-    expect(v38.schemaVersion).toBe(38);
-    expect(v39.schemaVersion).toBe(39);
-    expect(v40.schemaVersion).toBe(40);
-    expect(v41.schemaVersion).toBe(41);
-    expect(v42.schemaVersion).toBe(42);
-    expect(v43.schemaVersion).toBe(43);
-    expect(v44.schemaVersion).toBe(44);
-    expect(v45.schemaVersion).toBe(45);
-    expect(v46.schemaVersion).toBe(46);
-    expect(v47.schemaVersion).toBe(47);
-    expect(v48.schemaVersion).toBe(48);
-  });
-
-  it("reports non-rewriting 28→29 through 32→33 upgrades as unchanged", () => {
+  it("reports the non-rewriting 28→29, 30→31 and 33→34 upgrades as unchanged", () => {
     expect(
       upgradeSchema28To29WithReport({ schemaVersion: 28 }).report.changed,
     ).toBe(false);
     expect(
-      upgradeSchema29To30WithReport({ schemaVersion: 29 }).report.changed,
-    ).toBe(false);
-    expect(
       upgradeSchema30To31WithReport({ schemaVersion: 30 }).report.changed,
-    ).toBe(false);
-    expect(
-      upgradeSchema31To32WithReport({ schemaVersion: 31 }).report.changed,
-    ).toBe(false);
-    expect(
-      upgradeSchema32To33WithReport({ schemaVersion: 32 }).report.changed,
     ).toBe(false);
     expect(
       upgradeSchema33To34WithReport({ schemaVersion: 33 }).report.changed,

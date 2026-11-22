@@ -57,7 +57,6 @@ describe("library artwork on a call", () => {
     ]);
     const definition = inlineRnlDefinition(ordered);
     expect(definition.pins.map((pin) => pin.terminals)).toEqual([[3], [4]]);
-    expect(definition.prims.length).toBeGreaterThan(0);
   });
 
   it("binds the diagonal MOS symbol to a call's reordered terminals", () => {

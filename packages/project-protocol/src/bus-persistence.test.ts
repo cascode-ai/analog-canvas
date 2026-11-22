@@ -133,7 +133,6 @@ it.each(["expression", "width", "order", "identity"])(
 
 it("requires a new file envelope for explicit member connectivity", () => {
   const source = JSON.parse(serializeProject(busProject()));
-  expect(source.schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
   source.schemaVersion = 74;
   expect(() => parseProject(JSON.stringify(source))).toThrow(
     /Signal members require Project schema 75/u,

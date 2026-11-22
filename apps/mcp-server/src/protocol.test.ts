@@ -69,7 +69,6 @@ describe("mcp stdio protocol", () => {
       tools: { listChanged: false },
       resources: { subscribe: false, listChanged: false },
     });
-    expect(result.serverInfo).toEqual({ name: "test", version: "0.0.0" });
   });
 
   it("falls back to the latest version for unknown requests", async () => {

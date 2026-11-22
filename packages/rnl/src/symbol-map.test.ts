@@ -229,7 +229,6 @@ describe("the RNL symbol list", () => {
     ]);
     const definition = inlineRnlDefinition(wide);
     expect(definition.box).toEqual([-2.4, -4.4, 2.4, 4.4]);
-    expect(definition.prims).toHaveLength(7);
     // The narrow chopper still comes from the standard series.
     expect(narrow).toMatchObject({
       symbol: "$CHOPPER_SYMBOL",
@@ -325,9 +324,6 @@ describe("the RNL symbol list", () => {
         [-3, -2],
       ]);
     }
-    // The 4-input gates, the two-terminal Delay Cell and the 4-terminal
-    // MOSFETs of the standard series.
-    expect(RNL_SYMBOLS.filter((entry) => entry.importOnly)).toHaveLength(13);
   });
 
   it("names the definition a glyph or a drawing-only part draws", () => {

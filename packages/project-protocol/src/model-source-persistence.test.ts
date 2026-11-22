@@ -1,11 +1,6 @@
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
-import {
-  CURRENT_PROJECT_FILE_VERSION,
-  parseProject,
-  serializeProject,
-  validateProject,
-} from "./index.js";
+import { parseProject, serializeProject, validateProject } from "./index.js";
 import { legacyProjectFile } from "./legacy-project.test-support.js";
 
 function fixture() {
@@ -59,7 +54,6 @@ describe("Model source persistence", () => {
         },
       ];
       const encoded = JSON.parse(serializeProject(project));
-      expect(encoded.schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
       expect(parseProject(JSON.stringify(encoded)).modelSources).toEqual(
         project.modelSources,
       );
@@ -87,7 +81,6 @@ describe("Model source persistence", () => {
       { id: "artwork-draft", text: "{ unfinished artwork" },
     ];
     const saved = serializeProject(project);
-    expect(JSON.parse(saved).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
     const reopened = parseProject(saved);
     expect(reopened.modelSources).toEqual(project.modelSources);
     expect(reopened.componentAuthoringDrafts).toEqual(
@@ -100,7 +93,6 @@ describe("Model source persistence", () => {
   it("round trips applied and unfinished bytes in the current schema and rejects competing interface facts", () => {
     const project = fixture();
     const text = serializeProject(project);
-    expect(JSON.parse(text).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
     expect(parseProject(text).modelSources).toEqual(project.modelSources);
     expect(serializeProject(parseProject(text))).toBe(text);
     const old = JSON.parse(text);

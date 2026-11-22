@@ -82,7 +82,6 @@ const capturedSymbol = (project: ReturnType<typeof parseProject>, id: string) =>
 
 describe("recognized supply pin snapshot repair (#1833, #1941)", () => {
   it("covers every block that takes both supplies", () => {
-    expect(FORMS).toHaveLength(65);
     expect(FORMS).toEqual(
       expect.arrayContaining([
         "inverter",

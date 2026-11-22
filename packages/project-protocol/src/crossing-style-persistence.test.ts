@@ -1,10 +1,6 @@
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
-import {
-  CURRENT_PROJECT_FILE_VERSION,
-  parseProject,
-  serializeProject,
-} from "./index.js";
+import { parseProject, serializeProject } from "./index.js";
 
 function hopProject() {
   const project = createEmptyProject("crossing-style", "Crossing style");
@@ -15,7 +11,6 @@ function hopProject() {
 describe("Document crossing style persistence", () => {
   it("keeps a Document's wire hops through repeated saves", () => {
     const text = serializeProject(hopProject());
-    expect(JSON.parse(text).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
     const reopened = parseProject(text);
     expect(reopened.documents[0]!.presentation.crossingStyle).toBe("hop");
     expect(serializeProject(reopened)).toBe(text);

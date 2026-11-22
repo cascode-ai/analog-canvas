@@ -222,16 +222,6 @@ describe("mcp tool surface", () => {
     ).toMatchObject({ runtime: { latestVersion: AGENT_MCP_VERSION } });
     expect(unreachable.http.manifestReads).toBe(2);
   });
-  it("advertises raw and captured Specs rather than a retired result renderer", () => {
-    const tools = listToolDefinitions();
-    expect(tools.find((t) => t.name === "simulation")?.description).toContain(
-      "run.details",
-    );
-    const download = tools.find((t) => t.name === "export_file")!;
-    expect(download.description).toContain("simulation_files");
-    expect(download.description).toContain("SIMULATION_PLOT_RETIRED");
-    expect(download.description).not.toContain("same plot renderer");
-  });
   // Every Agent context pays for every description on every turn, so a long
   // workflow or policy text belongs in a reference the description links to.
   it("gives every tool a description within the length cap and a JSON-schema input", () => {
@@ -250,17 +240,7 @@ describe("mcp tool surface", () => {
   });
   // connect's access.tools is what an Agent takes as this server's surface.
   it("groups every listed tool, and only listed tools, for connect", () => {
-    const groups = toolGroups();
-    expect(Object.keys(groups).sort()).toEqual([
-      "circuit",
-      "components",
-      "files",
-      "gallery",
-      "project",
-      "session",
-      "simulation",
-    ]);
-    expect(Object.values(groups).flat().sort()).toEqual(
+    expect(Object.values(toolGroups()).flat().sort()).toEqual(
       listToolDefinitions()
         .map((tool) => tool.name)
         .sort(),

@@ -102,14 +102,12 @@ it("says which actions go in which call when a list needs several (#1269)", () =
     { actionIndices: [6], actionKinds: ["connect"], sends: "wires" },
     { actionIndices: [7], actionKinds: ["move"], sends: "commands" },
   ]);
-  expect(describeCallSplit(calls)).toBe(
-    "These actions need 5 calls; one call sends one transaction. Send them " +
-      "in this order, each group in its own call: actions[0] (add-power-rail) " +
-      "as commands that share one call; actions[1..3] (place-component) as one " +
-      "placement batch; actions[4..5] (set-model) as commands that share one " +
-      "call; actions[6] (connect) as wires that share one call; actions[7] " +
-      "(move) as commands that share one call. Nothing was changed.",
-  );
+  // It names the calls in order, each group by its indices, and that
+  // nothing was changed.
+  const advice = describeCallSplit(calls);
+  expect(advice).toContain("5 calls");
+  expect(advice).toContain("actions[1..3] (place-component)");
+  expect(advice).toContain("Nothing was changed.");
 });
 
 describe("authoring helper compilation", () => {

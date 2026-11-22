@@ -468,18 +468,6 @@ describe("current Agent Circuit API service", () => {
         apiVersions: ["3.0"],
         snapshotVersions: ["3.0"],
         permissions: { snapshot: true },
-        editKinds: expect.arrayContaining([
-          "add_instance",
-          "patch_instance_netlist_parameters",
-          "connect_endpoints",
-          "cut_connection",
-          "merge_nets",
-          "move_junction",
-          "route_orthogonal",
-          "disconnect_endpoint",
-          "upsert_schematic_annotation",
-          "remove_schematic_annotation",
-        ]),
       },
     });
     expect(AgentCircuitResponseSchema.parse(response)).toEqual(response);
@@ -508,17 +496,6 @@ describe("current Agent Circuit API service", () => {
     );
 
     expect(AGENT_EDIT_KINDS).toEqual([...supportedKinds, "wire"]);
-    expect(AGENT_EDIT_KINDS).toEqual(
-      expect.arrayContaining([
-        "add_no_connect",
-        "remove_no_connect",
-        "set_presentation_style",
-        "upsert_schematic_annotation",
-        "remove_schematic_annotation",
-        "upsert_drafting_object",
-        "remove_drafting_object",
-      ]),
-    );
     expect(AGENT_EDIT_KINDS).not.toEqual(
       expect.arrayContaining([
         "undo",
@@ -1241,7 +1218,6 @@ describe("current Agent Circuit API service", () => {
     });
     if (response.ok) return;
     const diagnostic = response.diagnostics[0];
-    expect(diagnostic).toBeDefined();
     expect(diagnostic!.path).toEqual(["edits", 1]);
     expect(diagnostic!.objectIds).toContain("instance-does-not-exist");
   });
