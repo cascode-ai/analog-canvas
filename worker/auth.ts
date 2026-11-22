@@ -52,8 +52,9 @@ export function hasBearer(request: Request): boolean {
 /**
  * The account an Owner token (#1769) in `Authorization: Bearer <token>`
  * belongs to, through the AuthDO. Null for no bearer, an unknown or revoked
- * token, or any failure. Only the dataset import may call this; the caller
- * still checks `isOwner`.
+ * token, or any failure. Only the Owner tools ownerToolRefusal names (and
+ * the regional batch import) may call this; the caller still checks
+ * `isOwner`.
  */
 export async function ownerTokenUserOf(
   request: Request,

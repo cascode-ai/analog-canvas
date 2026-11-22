@@ -60,10 +60,11 @@ export async function gallerySourceCounts(env: GalleryEnv) {
 }
 
 /**
- * Why a dataset import is refused, or the Owner importing: the Owner's
- * same-origin session or an Owner token (#1769), which opens no other route.
+ * Why an Owner tool a script may call is refused, or the Owner calling: the
+ * Owner's same-origin session or an Owner token (#1769). Only dataset and
+ * comparison imports and the local simulation check (#1545) accept a token.
  */
-export async function ownerImportRefusal(
+export async function ownerToolRefusal(
   request: Request,
   env: GalleryEnv,
 ): Promise<Response | { id: string; displayName: string }> {
@@ -96,7 +97,7 @@ export async function handleSourceImport(
   env: GalleryEnv,
   source: GallerySource,
 ): Promise<Response> {
-  const owner = await ownerImportRefusal(request, env);
+  const owner = await ownerToolRefusal(request, env);
   if (owner instanceof Response) return owner;
   const body = (await request.json().catch(() => null)) as {
     entries?: unknown;

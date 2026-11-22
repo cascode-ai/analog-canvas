@@ -176,7 +176,10 @@ import {
   installSimulationChecks,
   nextSimulationCheck,
   queueSimulationChecks,
+  recordLocalSimulationCheck,
   recordSimulationCheck,
+  simulationCheckInput,
+  simulationCheckInputs,
   simulationCheckProgress,
 } from "./gallery-store-simulation-checks";
 
@@ -839,6 +842,12 @@ export class GalleryDO {
         return recordSimulationCheck(this.state, body);
       case "simulation-checks-progress":
         return simulationCheckProgress(this.sql, body.ownedOnly === true);
+      case "simulation-check-inputs":
+        return simulationCheckInputs(this.sql);
+      case "simulation-check-input":
+        return simulationCheckInput(this.sql, body);
+      case "simulation-check-record-local":
+        return recordLocalSimulationCheck(this.state, body);
       case "curate":
         return curate(this.state, body);
       case "tags":

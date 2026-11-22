@@ -34,6 +34,14 @@ export {
   workspaceSvg,
   type NetlistComparison,
 } from "./artifacts";
+/** A Gallery testbench checked on this machine (scripts/gallery-sim-verify.mjs). */
+export {
+  localSimulationCheck,
+  LOCAL_SIMULATION_MODELS_ID,
+  LOCAL_SIMULATION_PROFILE_ID,
+  type LocalSimulationCheck,
+  type LocalSimulator,
+} from "./simulation-check";
 export {
   gradeNetlists,
   structuralSpice,
