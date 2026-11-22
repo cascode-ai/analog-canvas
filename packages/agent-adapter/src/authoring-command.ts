@@ -288,6 +288,15 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     .describe(
       "Move and turn parts to these places and redraw their wires with route-net, so every Net keeps exactly its pins and the netlist stays the same; markers standing unwired on their pins go along. One undo; a connection that cannot be redrawn is refused with nothing changed.",
     ),
+  z
+    .strictObject({
+      kind: z.literal("render-net-as"),
+      net: z.string().min(1).describe("Net ID or name."),
+      as: z.enum(["ground", "supply"]),
+    })
+    .describe(
+      "Draw a Net the textbook way: a ground marker that keeps its name (named ground; node 0 takes the plain ground) or a supply marker named after it on each of its pins, and its wires deleted. Its name, scope and netlist stay; pins already carrying a marker are left alone. One undo.",
+    ),
   // Several Cell instances place in one call and one undo, as place-components
   // places several built-in parts (#1231).
   z.strictObject({

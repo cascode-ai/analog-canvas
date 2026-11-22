@@ -111,6 +111,37 @@ export function instanceNamed(
   return named[0]!;
 }
 
+/**
+ * The one logical Net an ID or name names: its exact name before one that
+ * differs only in case; `outcome` ends a refusal.
+ */
+export function netNamed(
+  document: SchematicDocument,
+  wanted: string,
+  outcome: string,
+) {
+  const { groups } = resolveDocumentLogicalNets(document);
+  const byId = groups.find(
+    (group) => group.id === wanted || group.baseNetIds.includes(wanted),
+  );
+  const named = byId
+    ? [byId]
+    : groups.filter((group) => group.name === wanted).length
+      ? groups.filter((group) => group.name === wanted)
+      : groups.filter(
+          (group) =>
+            group.name !== undefined &&
+            foldNetName(group.name) === foldNetName(wanted),
+        );
+  if (named.length === 0)
+    throw new Error(`no Net matches "${wanted}"; ${outcome}`);
+  if (named.length > 1)
+    throw new Error(
+      `"${wanted}" names ${named.length} Nets (${named.map((group) => group.id).join(", ")}); give one ID; ${outcome}`,
+    );
+  return named[0]!;
+}
+
 /** The wires one selector names, and how to say which they are. */
 function selectedWires(
   document: SchematicDocument,
@@ -118,27 +149,7 @@ function selectedWires(
   command: DeleteWires,
 ): { routeIds: string[]; which: string } {
   if (command.net !== undefined) {
-    const wanted = command.net;
-    const { groups } = resolveDocumentLogicalNets(document);
-    const byId = groups.find(
-      (group) => group.id === wanted || group.baseNetIds.includes(wanted),
-    );
-    const named = byId
-      ? [byId]
-      : groups.filter((group) => group.name === wanted).length
-        ? groups.filter((group) => group.name === wanted)
-        : groups.filter(
-            (group) =>
-              group.name !== undefined &&
-              foldNetName(group.name) === foldNetName(wanted),
-          );
-    if (named.length === 0)
-      throw new Error(`no Net matches "${wanted}"; nothing was deleted`);
-    if (named.length > 1)
-      throw new Error(
-        `"${wanted}" names ${named.length} Nets (${named.map((group) => group.id).join(", ")}); give one ID; nothing was deleted`,
-      );
-    const net = named[0]!;
+    const net = netNamed(document, command.net, "nothing was deleted");
     const baseNetIds = new Set(net.baseNetIds);
     return {
       // A bus wire goes only when all its lanes are this Net's.

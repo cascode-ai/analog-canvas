@@ -885,6 +885,7 @@ export function compileActions(
       case "delete-selection":
       case "delete-wires":
       case "relocate":
+      case "render-net-as":
       case "add-power-rail":
       case "extend-power-rail":
       case "move-annotation":

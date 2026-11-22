@@ -93,6 +93,7 @@ export const FOCUSED_TOOLS = [
       "place-existing",
       "add-power-rail",
       "set-mos-bulk-default",
+      "render-net-as",
     ],
   },
   {

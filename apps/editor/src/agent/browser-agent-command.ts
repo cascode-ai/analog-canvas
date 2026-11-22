@@ -177,6 +177,7 @@ import {
   planSelectionDeletion,
 } from "./selection-deletion-command";
 import { planRelocate } from "./relocate-command";
+import { planRenderNetAs } from "./render-net-as-command";
 
 /** What the live editor knows beyond the Project. */
 export interface BrowserAgentPlanningContext {
@@ -536,6 +537,21 @@ export function planBrowserAgentCommand(
       );
     case "relocate":
       return planRelocate(project, documentId, resolver, command);
+    case "render-net-as":
+      return planRenderNetAs(
+        project,
+        documentId,
+        resolver,
+        command,
+        (draft, item) =>
+          planBrowserAgentCommand(
+            draft,
+            documentId,
+            createProjectSymbolResolver(draft, builtInSymbols),
+            item,
+            context,
+          ),
+      );
     case "set-port-direction": {
       if (command.target.kind === "terminal")
         return {

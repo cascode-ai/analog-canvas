@@ -344,6 +344,17 @@ information). Hidden bulk needs no decorative wire.
 - `set-port-direction` sets one terminal or a whole Port; `set-vdd-mode`
   switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.
+- `render-net-as {net, as:"ground"|"supply"}` (`circuit_place`) draws a named
+  Net the textbook way: a `named-ground` (`ground` for node 0) or `vdd-port`
+  of its name on each of its drawn pins, standing on the pin and pointing away
+  from the part, then deletes its wires as `delete-wires` does. Pins a marker
+  stands on already, and the markers' own, are left alone; a marker wired to
+  the Net before stands alone after. A Cell Pin's markers join its one Port
+  with its direction; a global Net's are global; a local Net that is no Cell
+  Pin is refused, as a marker would make it global or a Pin. Every pin keeps
+  its Net and the netlist reads the same, or it is refused with nothing
+  changed, and so is a marker that would overlap a part. One undo;
+  `NET_RENDERED_AS` (information) counts markers and wires.
 - `add-power-rail` draws a `vdd-rail` (a primitive, not a symbol) with optional
   `name`/`scope` (existing scope kept, else local; `global` only explicitly);
   a ground name (`0`, `GND`, `GROUND`) is refused: ground is ground symbols.
