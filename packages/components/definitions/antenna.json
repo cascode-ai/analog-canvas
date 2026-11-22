@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "antenna",
+    "name": "Antenna",
+    "viewBox": {
+      "x": -12,
+      "y": -24,
+      "width": 24,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "P",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 20
+        },
+        "to": {
+          "x": 0,
+          "y": -16
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -9,
+            "y": -16
+          },
+          {
+            "x": 0,
+            "y": -2
+          },
+          {
+            "x": 9,
+            "y": -16
+          }
+        ],
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "antenna-fork"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -9,
+          "y": -16
+        },
+        "to": {
+          "x": 9,
+          "y": -16
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "antenna-top"
+      }
+    ]
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "antenna",
+    "symbolId": "antenna",
+    "target": "antenna",
+    "ports": [
+      {
+        "name": "p",
+        "direction": "passive",
+        "pinName": "P"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "antenna",
+    "name": "Antenna",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "An antenna does not appear on the reviewed page; it is drawn as IEC 60617 draws it, a mast with an open triangle at its top, its one pin at the foot.",
+    "pinOrder": ["P"],
+    "drawnReferencePrefix": "E",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "SPICE has no antenna card; it prints as a call of the generated body, a radiation resistance to ground.",
+    "assetPath": "antenna.json"
+  }
+}

@@ -1,0 +1,401 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "thermocouple",
+    "name": "Thermocouple",
+    "viewBox": {
+      "x": -14,
+      "y": -24,
+      "width": 28,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 17
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 17
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -20
+        },
+        "to": {
+          "x": 0,
+          "y": -7
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -7
+        },
+        "to": {
+          "x": 10,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "wire-a"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 7
+        },
+        "to": {
+          "x": 10,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "wire-b"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 7
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": 10,
+          "y": 0
+        },
+        "radius": 2,
+        "fill": "foreground",
+        "stroke": "none",
+        "part": "hot-junction"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -8,
+          "y": -13.4
+        },
+        "to": {
+          "x": -3,
+          "y": -13.4
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "plus"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -5.5,
+          "y": -15.9
+        },
+        "to": {
+          "x": -5.5,
+          "y": -10.9
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "plus"
+      }
+    ]
+  },
+  "electrical": {
+    "id": "thermocouple",
+    "symbolId": "thermocouple",
+    "deviceClass": "voltage-source",
+    "referencePrefix": "TC",
+    "pinOrder": ["+", "-"],
+    "targetPolicy": "builtin",
+    "sourceWaveformDefault": "dc",
+    "parameters": [
+      {
+        "name": "dc",
+        "label": "DC value",
+        "required": true,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "1m",
+        "defaultValue": "1m",
+        "help": "Thermoelectric voltage at the junction's temperature, about 41 µV/°C for type K",
+        "displayRole": "value"
+      },
+      {
+        "name": "waveform",
+        "label": "Transient",
+        "required": false,
+        "editor": "select",
+        "options": [
+          {
+            "value": "dc",
+            "label": "None"
+          },
+          {
+            "value": "pulse",
+            "label": "PULSE"
+          },
+          {
+            "value": "sin",
+            "label": "SIN"
+          },
+          {
+            "value": "pwl",
+            "label": "PWL"
+          }
+        ],
+        "placeholder": "dc",
+        "help": "Transient waveform emitted by this source",
+        "defaultValue": "dc",
+        "displayRole": "none"
+      },
+      {
+        "name": "pwlPoints",
+        "label": "PWL points",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s / V",
+        "placeholder": "0s 0, 1ns 0, 2ns 1",
+        "help": "Comma-separated time/value pairs",
+        "visibleForSourceWaveforms": ["pwl"],
+        "displayRole": "none"
+      },
+      {
+        "name": "acMagnitude",
+        "label": "AC magnitude",
+        "required": false,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "1",
+        "help": "Small-signal magnitude for AC analysis; leave empty for no AC excitation",
+        "displayRole": "none"
+      },
+      {
+        "name": "acPhase",
+        "label": "AC phase",
+        "required": false,
+        "editor": "text",
+        "unitHint": "deg",
+        "placeholder": "0",
+        "help": "Small-signal phase in degrees; used only with an AC magnitude",
+        "displayRole": "none"
+      },
+      {
+        "name": "low",
+        "label": "Low",
+        "required": false,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "0",
+        "help": "PULSE value before and between active pulses",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "high",
+        "label": "High",
+        "required": false,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "1",
+        "help": "PULSE active value",
+        "defaultValue": "1",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "delay",
+        "label": "Delay",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "0",
+        "help": "Time before the transient waveform begins",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["pulse", "sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "rise",
+        "label": "Rise time",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "1ps",
+        "help": "PULSE rising-edge duration",
+        "defaultValue": "1ps",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "fall",
+        "label": "Fall time",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "1ps",
+        "help": "PULSE falling-edge duration",
+        "defaultValue": "1ps",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "width",
+        "label": "Pulse width",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "5ns",
+        "help": "Time the PULSE source remains at its high value",
+        "defaultValue": "5ns",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "period",
+        "label": "Period",
+        "required": false,
+        "editor": "text",
+        "unitHint": "s",
+        "placeholder": "10ns",
+        "help": "Time between PULSE rising edges",
+        "defaultValue": "10ns",
+        "visibleForSourceWaveforms": ["pulse"],
+        "displayRole": "none"
+      },
+      {
+        "name": "offset",
+        "label": "Offset",
+        "required": false,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "0",
+        "help": "SIN waveform offset",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "amplitude",
+        "label": "Amplitude",
+        "required": false,
+        "editor": "text",
+        "unitHint": "V",
+        "placeholder": "1",
+        "help": "SIN peak amplitude",
+        "defaultValue": "1",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "frequency",
+        "label": "Frequency",
+        "required": false,
+        "editor": "text",
+        "unitHint": "Hz",
+        "placeholder": "1k",
+        "help": "SIN frequency",
+        "defaultValue": "1k",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "damping",
+        "label": "Damping",
+        "required": false,
+        "editor": "text",
+        "unitHint": "1/s",
+        "placeholder": "0",
+        "help": "SIN exponential damping factor",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      },
+      {
+        "name": "phase",
+        "label": "SIN phase",
+        "required": false,
+        "editor": "text",
+        "unitHint": "deg",
+        "placeholder": "0",
+        "help": "SIN phase in degrees",
+        "defaultValue": "0",
+        "visibleForSourceWaveforms": ["sin"],
+        "displayRole": "none"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "thermocouple",
+    "name": "Thermocouple",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A thermocouple does not appear on the reviewed page; it is drawn as two dissimilar wires, one thin and one thick, meeting at a filled hot junction, on the reviewed Battery's + / - pins.",
+    "pinOrder": ["+", "-"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A SPICE V card does not say the source is a thermocouple, so an imported V card keeps the voltage source symbol.",
+    "assetPath": "thermocouple.json"
+  }
+}

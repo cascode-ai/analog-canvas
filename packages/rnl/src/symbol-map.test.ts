@@ -125,16 +125,28 @@ describe("the RNL symbol list", () => {
         .map((symbol) => symbol.id)
         .filter((id) => !rnlSymbolFor(id))
         .sort(),
-      // No standard RNL symbol yet (#2441): RNL_NO_SYMBOL.
+      // No standard RNL symbol yet (#2441, #2444): RNL_NO_SYMBOL.
     ).toEqual([
+      "antenna",
+      "buzzer",
+      "controlled-current-source",
       "current-regulative-diode",
+      "dc-motor",
+      "fuse",
       "igbt",
       "mesfet",
+      "noise-voltage-source",
       "photodiode",
       "phototransistor",
       "schottky-npn",
+      "shunt-regulator",
+      "solar-cell",
+      "thermocouple",
       "thyristor",
       "varactor-diode",
+      "voltage-reference",
+      "voltage-regulator",
+      "voltmeter",
     ]);
   });
 

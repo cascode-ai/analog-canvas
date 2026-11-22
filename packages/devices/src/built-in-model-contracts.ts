@@ -74,6 +74,15 @@ export type BuiltInModelRecipe =
       readonly family: "semiconductor";
       readonly implementation:
         "ujt" | "put" | "shockley" | "scr" | "igbt" | "crd" | "schottky_npn";
+    }
+  | {
+      readonly family: "board";
+      readonly implementation:
+        | "tl431"
+        | "regulator"
+        | "solar_cell"
+        | "antenna"
+        | "controlled_current_source";
     };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
@@ -344,6 +353,51 @@ const crd: readonly DeviceParameterDefinition[] = [
     valueName: "IDSS",
   },
 ];
+// Regulators and board parts whose body is a few primitive cards. A
+// regulator's or reference's value is the level it holds OUT at, a solar
+// cell's its short-circuit current, a controlled source's its gain.
+const level = (defaultValue: string): DeviceParameterDefinition => ({
+  ...parameter(
+    "vout",
+    "Output voltage",
+    defaultValue,
+    "V",
+    "Level OUT is held at above GND while IN is above it; below that OUT follows IN.",
+  ),
+  displayRole: "value",
+  valueName: "VOUT",
+});
+const boardParameters: Readonly<
+  Record<string, readonly DeviceParameterDefinition[]>
+> = {
+  voltage_regulator: [level("5")],
+  voltage_reference: [level("2.5")],
+  solar_cell: [
+    {
+      ...parameter(
+        "isc",
+        "Short-circuit current",
+        "10m",
+        "A",
+        "Photocurrent at the light the figure means: the current into a short; open, the cell sits at about 0.7 V.",
+      ),
+      displayRole: "value",
+      valueName: "ISC",
+    },
+  ],
+  controlled_current_source: [
+    {
+      ...parameter(
+        "gm",
+        "Transconductance",
+        "1m",
+        "S",
+        "Current gm·V(CTRL) from + to − through the source, CTRL read from ground.",
+      ),
+      displayRole: "value",
+    },
+  ],
+};
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.
 const comparator: readonly DeviceParameterDefinition[] = [
@@ -451,6 +505,15 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   igbt: { family: "semiconductor", implementation: "igbt" },
   crd: { family: "semiconductor", implementation: "crd" },
   schottky_npn: { family: "semiconductor", implementation: "schottky_npn" },
+  tl431: { family: "board", implementation: "tl431" },
+  voltage_regulator: { family: "board", implementation: "regulator" },
+  voltage_reference: { family: "board", implementation: "regulator" },
+  solar_cell: { family: "board", implementation: "solar_cell" },
+  antenna: { family: "board", implementation: "antenna" },
+  controlled_current_source: {
+    family: "board",
+    implementation: "controlled_current_source",
+  },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_reset: { family: "logic", implementation: "flip-flop" },
@@ -514,13 +577,15 @@ function contract(target: string): BuiltInModelContract | undefined {
                         // circuit; a thyristor, IGBT or clamped NPN has
                         // its generic transistors' own.
                         []
-                : target === ADDER_TARGET
-                  ? ADDER_SIGN_PARAMETERS
-                  : target === "opamp_differential"
-                    ? differentialOpamp
-                    : Object.hasOwn(analog, target)
-                      ? [analog[target as keyof typeof analog]]
-                      : [],
+                : family === "board"
+                  ? (boardParameters[target] ?? [])
+                  : target === ADDER_TARGET
+                    ? ADDER_SIGN_PARAMETERS
+                    : target === "opamp_differential"
+                      ? differentialOpamp
+                      : Object.hasOwn(analog, target)
+                        ? [analog[target as keyof typeof analog]]
+                        : [],
     // A generic block is only ever a call: the reader's libraries define it.
     backends:
       family === "generic"
@@ -533,6 +598,7 @@ function contract(target: string): BuiltInModelContract | undefined {
               family === "comparator" ||
               family === "passive" ||
               family === "semiconductor" ||
+              family === "board" ||
               (family === "logic" && implementation !== "flip-flop")
                 ? "included"
                 : "external",

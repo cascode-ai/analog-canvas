@@ -44,13 +44,27 @@ function partCell(
                 },
               }
             : {}),
-          parameters,
+          // As placed: each parameter's default, then the given ones.
+          parameters: {
+            ...Object.fromEntries(
+              device!.parameters.flatMap((parameter) =>
+                parameter.defaultValue
+                  ? [[parameter.name, parameter.defaultValue]]
+                  : [],
+              ),
+            ),
+            ...parameters,
+          },
         },
   });
   const pins = body
     ? body.ports.map((port) => [port.name, port.pinName!] as const)
     : device!.pinOrder.map(
-        (pin) => [`n_${pin.replace(/\W/gu, "")}`, pin] as const,
+        (pin) =>
+          [
+            `n_${pin === "+" ? "p" : pin === "-" ? "n" : pin.replace(/\W/gu, "")}`,
+            pin,
+          ] as const,
       );
   for (const [name, pinName] of pins) {
     document.instances.push({
@@ -88,8 +102,12 @@ describe("optoelectronic and power semiconductors (#2441)", () => {
   it.each([
     ["photodiode", /^D1 n_A n_K DIODE$/mu, /^D1 \(n_A n_K\) DIODE$/mu],
     ["varactor-diode", /^D1 n_A n_K DIODE$/mu, /^D1 \(n_A n_K\) DIODE$/mu],
-    ["phototransistor", /^Q1 n_C n_B n_E NPN$/mu, /^Q1 \(n_C n_B n_E\) NPN$/mu],
-    ["mesfet", /^J1 n_D n_G n_S NJF$/mu, /^J1 \(n_D n_G n_S\) NJF$/mu],
+    [
+      "phototransistor",
+      /^Q1 n_C n_B n_E NPN\b/mu,
+      /^Q1 \(n_C n_B n_E\) NPN\b/mu,
+    ],
+    ["mesfet", /^J1 n_D n_G n_S NJF\b/mu, /^J1 \(n_D n_G n_S\) NJF\b/mu],
   ])(
     "export a %s as its primitive on the generic card",
     (symbolId, spice, spectre) => {
@@ -183,5 +201,114 @@ describe("optoelectronic and power semiconductors (#2441)", () => {
     );
     expect(spice).toMatch(/^X1 c b e schottky_npn$/mu);
     expect(spectre).toContain("DS (b c) ds");
+  });
+});
+
+describe("regulators, references and board parts (#2444)", () => {
+  it.each([
+    ["fuse", /^RF1 n_1 n_2 10m$/mu, /^F1 \(n_1 n_2\) resistor r=10m$/mu],
+    [
+      "voltmeter",
+      /^RVM1 n_p n_n 10Meg$/mu,
+      /^VM1 \(n_p n_n\) resistor r=10M$/mu,
+    ],
+    ["dc-motor", /^RM1 n_1 n_2 10$/mu, /^M1 \(n_1 n_2\) resistor r=10$/mu],
+    ["buzzer", /^CBZ1 n_1 n_2 20n$/mu, /^BZ1 \(n_1 n_2\) capacitor c=20n$/mu],
+    [
+      "thermocouple",
+      /^VTC1 n_p n_n DC 1m$/mu,
+      /^TC1 \(n_p n_n\) vsource dc=1m/mu,
+    ],
+    [
+      "noise-voltage-source",
+      /^VN1 n_p n_n DC 0 AC 1/mu,
+      /^VN1 \(n_p n_n\) vsource dc=0/mu,
+    ],
+  ])("export a %s as its primitive", (symbolId, spice, spectre) => {
+    const [spiceText, spectreText] = exported(partCell(symbolId));
+    expect(spiceText).toMatch(spice);
+    expect(spectreText).toMatch(spectre);
+  });
+
+  it("export a TL431 as a reference, an error amplifier and an NPN", () => {
+    const [spice, spectre] = exported(partCell("shunt-regulator"));
+    expect(spice).toContain(
+      [
+        ".subckt tl431 k a ref",
+        ".model qn NPN(IS=1e-16 BF=100 VAF=100)",
+        ".model dj D(IS=1e-14 N=1)",
+        "VREF nr a DC 2.495",
+        "EAMP nx a ref nr 1000",
+        "RB nx nb 1k",
+        "Q1 k nb a qn",
+        "DREV a k dj",
+        ".ends tl431",
+      ].join("\n"),
+    );
+    expect(spice).toMatch(/^X1 k a ref tl431$/mu);
+    expect(spectre).toContain("EAMP (nx a ref nr) vcvs gain=1000");
+  });
+
+  it.each([
+    ["voltage-regulator", "voltage_regulator", "5"],
+    ["voltage-reference", "voltage_reference", "2.5"],
+  ])(
+    "export a %s as a pass transistor held at vout",
+    (symbolId, target, vout) => {
+      const [spice, spectre] = exported(partCell(symbolId, { vout: "3.3" }));
+      expect(spice).toContain(
+        [
+          `.subckt ${target} in gnd out params: vout=${vout}`,
+          ".model qn NPN(IS=1e-16 BF=100 VAF=100)",
+          "VREF nr gnd DC {vout}",
+          "EAMP nx gnd nr out 1000",
+          "RB nx nb 1k",
+          "Q1 in nb out qn",
+          `.ends ${target}`,
+        ].join("\n"),
+      );
+      expect(spice).toMatch(
+        new RegExp(`^X1 in gnd out ${target} vout=3.3$`, "mu"),
+      );
+      expect(spectre).toContain("VREF (nr gnd) vsource dc=vout");
+    },
+  );
+
+  it("export a solar cell as a photocurrent beside a diode", () => {
+    const [spice, spectre] = exported(partCell("solar-cell"));
+    expect(spice).toContain(
+      [
+        ".subckt solar_cell p n params: isc=10m",
+        ".model dj D(IS=1e-14 N=1)",
+        "IPH n p DC {isc}",
+        "D1 p n dj",
+        ".ends solar_cell",
+      ].join("\n"),
+    );
+    expect(spectre).toContain("IPH (n p) isource dc=isc");
+  });
+
+  it("export an antenna as a resistance to ground on its one pin", () => {
+    const [spice, spectre] = exported(partCell("antenna"));
+    expect(spice).toContain(
+      [".subckt antenna p", "R1 p 0 1G", ".ends antenna"].join("\n"),
+    );
+    expect(spice).toMatch(/^X1 p antenna$/mu);
+    expect(spectre).toContain("R1 (p 0) resistor r=1G");
+  });
+
+  it("export a controlled current source as gm times V(CTRL)", () => {
+    const [spice, spectre] = exported(
+      partCell("controlled-current-source", { gm: "2m" }),
+    );
+    expect(spice).toContain(
+      [
+        ".subckt controlled_current_source p n ctrl params: gm=1m",
+        "GCORE p n ctrl 0 {gm}",
+        ".ends controlled_current_source",
+      ].join("\n"),
+    );
+    expect(spice).toMatch(/^X1 p n ctrl controlled_current_source gm=2m$/mu);
+    expect(spectre).toContain("GCORE (p n ctrl 0) vccs gm=gm");
   });
 });

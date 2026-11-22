@@ -36,7 +36,8 @@ values, drafting text, formulas or Symbol body text.
   [editor interaction](editor-interaction.md#text-and-presentation).
 - A built-in block whose catalog declares a `drawnReferencePrefix` (UJT, PUT,
   IGBT and Schottky-clamped NPN `Q`; Shockley diode, thyristor and
-  current-regulative diode `D`) is placed with that alias, the first such name
+  current-regulative diode `D`; shunt regulator, regulator and reference
+  `U`; solar cell `B`; antenna `E`; controlled current source `I`) is placed with that alias, the first such name
   no Reference or alias in the drawing shows (`Q2` beside a BJT `Q1`), its
   Reference the next free X. A name with that letter, in Properties,
   `set-reference` or `place-component` `reference`, sets the alias; an X name

@@ -106,7 +106,11 @@ function addOwnCell(
     netlist: { parameters: { value: "1k" } },
   });
   cell.nets[0]!.terminals.push({ instanceId: "R1", pinName: "1" });
-  cell.nets[1]!.terminals.push({ instanceId: "R1", pinName: "2" });
+  // A one-pin part's (an antenna's) resistor meets its one Pin twice.
+  (cell.nets[1] ?? cell.nets[0]!).terminals.push({
+    instanceId: "R1",
+    pinName: "2",
+  });
   project.documents.push(cell);
   if (!called) return;
   const top = project.documents[0]!;

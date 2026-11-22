@@ -284,7 +284,13 @@ export function netlistDeviceFamily(
   if (symbolId === "schottky-diode") return "schottky-diode";
   // An ammeter is a 0 V source: a Process's source defaults (1.8 V) never
   // apply to it.
-  if (symbolId === "ammeter") return undefined;
+  // So are a thermocouple's millivolts and a noise source's AC 1 (#2444).
+  if (
+    symbolId === "ammeter" ||
+    symbolId === "thermocouple" ||
+    symbolId === "noise-voltage-source"
+  )
+    return undefined;
   // A depletion MOS is on at VGS = 0: no Process's enhancement device fits
   // it, so it is a family of its own with a generic depletion model.
   if (symbolId === "depletion-nmos" || symbolId === "depletion-pmos")

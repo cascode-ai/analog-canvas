@@ -214,6 +214,157 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "thermocouple",
+      name: "Thermocouple",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "dc",
+          default: "1m",
+        },
+        {
+          name: "waveform",
+          default: "dc",
+          choices: ["dc", "pulse", "sin", "pwl"],
+        },
+        {
+          name: "pwlPoints",
+        },
+        {
+          name: "acMagnitude",
+        },
+        {
+          name: "acPhase",
+        },
+        {
+          name: "low",
+          default: "0",
+        },
+        {
+          name: "high",
+          default: "1",
+        },
+        {
+          name: "delay",
+          default: "0",
+        },
+        {
+          name: "rise",
+          default: "1ps",
+        },
+        {
+          name: "fall",
+          default: "1ps",
+        },
+        {
+          name: "width",
+          default: "5ns",
+        },
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "offset",
+          default: "0",
+        },
+        {
+          name: "amplitude",
+          default: "1",
+        },
+        {
+          name: "frequency",
+          default: "1k",
+        },
+        {
+          name: "damping",
+          default: "0",
+        },
+        {
+          name: "phase",
+          default: "0",
+        },
+      ],
+      bounds: {
+        x: -8,
+        y: -20,
+        width: 20,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "solar-cell",
+      name: "Solar Cell",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "isc",
+          default: "10m",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -22,
+        y: -20,
+        width: 37.99,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "buffer",
       name: "Buffer",
       category: "logic",
@@ -854,6 +1005,61 @@ export const agentRazaviAuthoringCatalog = {
           },
         },
       ],
+    },
+    {
+      symbolId: "controlled-current-source",
+      name: "Controlled Current Source",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gm",
+          default: "1m",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 30.76,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+        {
+          name: "CTRL",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
     },
     {
       symbolId: "vccs",
@@ -2957,6 +3163,36 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "antenna",
+      name: "Antenna",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      parametersOpen: true,
+      bounds: {
+        x: -9,
+        y: -16,
+        width: 18,
+        height: 36,
+      },
+      pins: [
+        {
+          name: "P",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "ammeter",
       name: "Ammeter",
       category: "source",
@@ -2965,6 +3201,50 @@ export const agentRazaviAuthoringCatalog = {
       formula: false,
       coefficient: false,
       parameters: [],
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "voltmeter",
+      name: "Voltmeter",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "10Meg",
+        },
+      ],
       bounds: {
         x: -10.76,
         y: -20,
@@ -5071,6 +5351,50 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "fuse",
+      name: "Fuse",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "10m",
+        },
+      ],
+      bounds: {
+        x: -4,
+        y: -20,
+        width: 8,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "resistor",
       name: "Resistor",
       category: "passive",
@@ -5220,6 +5544,94 @@ export const agentRazaviAuthoringCatalog = {
         x: -3,
         y: -20,
         width: 14,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "dc-motor",
+      name: "DC Motor",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "10",
+        },
+      ],
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "1",
+          role: "passive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "buzzer",
+      name: "Piezo Buzzer",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "value",
+          default: "20n",
+        },
+      ],
+      bounds: {
+        x: -8,
+        y: -20,
+        width: 16,
         height: 40,
       },
       pins: [
@@ -5845,6 +6257,113 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "noise-voltage-source",
+      name: "Noise Voltage Source",
+      category: "source",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "dc",
+          default: "0",
+        },
+        {
+          name: "waveform",
+          default: "dc",
+          choices: ["dc", "pulse", "sin", "pwl"],
+        },
+        {
+          name: "pwlPoints",
+        },
+        {
+          name: "acMagnitude",
+          default: "1",
+        },
+        {
+          name: "acPhase",
+        },
+        {
+          name: "low",
+          default: "0",
+        },
+        {
+          name: "high",
+          default: "1",
+        },
+        {
+          name: "delay",
+          default: "0",
+        },
+        {
+          name: "rise",
+          default: "1ps",
+        },
+        {
+          name: "fall",
+          default: "1ps",
+        },
+        {
+          name: "width",
+          default: "5ns",
+        },
+        {
+          name: "period",
+          default: "10ns",
+        },
+        {
+          name: "offset",
+          default: "0",
+        },
+        {
+          name: "amplitude",
+          default: "1",
+        },
+        {
+          name: "frequency",
+          default: "1k",
+        },
+        {
+          name: "damping",
+          default: "0",
+        },
+        {
+          name: "phase",
+          default: "0",
+        },
+      ],
+      bounds: {
+        x: -10.76,
+        y: -20,
+        width: 21.52,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "+",
+          role: "positive",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -20,
+          },
+        },
+        {
+          name: "-",
+          role: "negative",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
       symbolId: "sine-voltage-source",
       name: "Sine Voltage Source",
       category: "source",
@@ -6304,6 +6823,166 @@ export const agentRazaviAuthoringCatalog = {
           visibility: "visible",
           at: {
             x: 20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "shunt-regulator",
+      name: "Shunt Regulator (TL431)",
+      category: "passive",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -8.51,
+        width: 40,
+        height: 28.51,
+      },
+      pins: [
+        {
+          name: "K",
+          role: "cathode",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+        {
+          name: "A",
+          role: "anode",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+        {
+          name: "REF",
+          role: "reference",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "voltage-regulator",
+      name: "Voltage Regulator (78xx)",
+      category: "analog-block",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: true,
+      coefficient: false,
+      parameters: [
+        {
+          name: "vout",
+          default: "5",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -30,
+        y: -10,
+        width: 60,
+        height: 30,
+      },
+      pins: [
+        {
+          name: "IN",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
+        },
+        {
+          name: "GND",
+          role: "ground",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "voltage-reference",
+      name: "Voltage Reference",
+      category: "analog-block",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: true,
+      coefficient: false,
+      parameters: [
+        {
+          name: "vout",
+          default: "2.5",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -30,
+        y: -10,
+        width: 60,
+        height: 30,
+      },
+      pins: [
+        {
+          name: "IN",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -30,
+            y: 0,
+          },
+        },
+        {
+          name: "GND",
+          role: "ground",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 20,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
             y: 0,
           },
         },

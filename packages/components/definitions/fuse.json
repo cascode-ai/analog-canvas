@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "fuse",
+    "name": "Fuse",
+    "viewBox": {
+      "x": -10,
+      "y": -24,
+      "width": 20,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "1",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "2",
+        "role": "passive",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -20
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "rectangle",
+        "bounds": {
+          "x": -4,
+          "y": -10,
+          "width": 8,
+          "height": 20
+        },
+        "fill": "none",
+        "stroke": "foreground",
+        "part": "fuse-body",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ]
+  },
+  "electrical": {
+    "id": "fuse",
+    "symbolId": "fuse",
+    "deviceClass": "resistor",
+    "referencePrefix": "F",
+    "pinOrder": ["1", "2"],
+    "targetPolicy": "builtin",
+    "parameters": [
+      {
+        "name": "value",
+        "label": "Value",
+        "required": true,
+        "editor": "text",
+        "unitHint": "Ohm",
+        "placeholder": "10m",
+        "defaultValue": "10m",
+        "help": "Cold resistance of the fuse element; it never opens in simulation",
+        "displayRole": "value"
+      }
+    ],
+    "dialects": ["spice", "spectre"],
+    "capabilities": {
+      "supportsModel": false,
+      "supportsBulkBinding": false,
+      "supportsValueAnnotation": true
+    }
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "fuse",
+    "name": "Fuse",
+    "category": "passive",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A fuse does not appear on the reviewed page; it is drawn as IEC 60617 draws it, a box its lead runs straight through, on the reviewed Resistor's pins and span.",
+    "pinOrder": ["1", "2"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "A SPICE R card does not say the resistor is a fuse, so an imported R card keeps the Resistor symbol.",
+    "assetPath": "fuse.json"
+  }
+}

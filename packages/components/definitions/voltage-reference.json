@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "voltage-reference",
+    "name": "Voltage Reference",
+    "viewBox": {
+      "x": -34,
+      "y": -14,
+      "width": 68,
+      "height": 38
+    },
+    "pins": [
+      {
+        "name": "IN",
+        "role": "input",
+        "at": {
+          "x": -30,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "GND",
+        "role": "ground",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "rectangle",
+        "bounds": {
+          "x": -20,
+          "y": -10,
+          "width": 40,
+          "height": 20
+        },
+        "fill": "none",
+        "stroke": "foreground",
+        "fillableBody": true,
+        "part": "body",
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -30,
+          "y": 0
+        },
+        "to": {
+          "x": -20,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 20,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 10
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "formulaPresentation": {
+      "defaultFormula": "REF",
+      "supportsCoefficient": false,
+      "center": {
+        "x": 0,
+        "y": 0
+      },
+      "fontSize": 12
+    }
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "voltage-reference",
+    "symbolId": "voltage-reference",
+    "target": "voltage_reference",
+    "ports": [
+      {
+        "name": "in",
+        "direction": "passive",
+        "pinName": "IN"
+      },
+      {
+        "name": "gnd",
+        "direction": "passive",
+        "pinName": "GND"
+      },
+      {
+        "name": "out",
+        "direction": "passive",
+        "pinName": "OUT"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "voltage-reference",
+    "name": "Voltage Reference",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A three-terminal voltage reference does not appear on the reviewed page; it is drawn as the regulator is, a box with IN on the left, OUT on the right and GND below, the box marked REF.",
+    "pinOrder": ["IN", "GND", "OUT"],
+    "drawnReferencePrefix": "U",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "SPICE has no regulator card; it prints as a call of the generated body, a reference at vout, an error amplifier and an NPN pass transistor from IN to OUT.",
+    "assetPath": "voltage-reference.json"
+  }
+}

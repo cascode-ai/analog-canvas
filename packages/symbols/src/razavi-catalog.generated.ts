@@ -130,6 +130,41 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "thermocouple",
+    name: "Thermocouple",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A thermocouple does not appear on the reviewed page; it is drawn as two dissimilar wires, one thin and one thick, meeting at a filled hot junction, on the reviewed Battery's + / - pins.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE V card does not say the source is a thermocouple, so an imported V card keeps the voltage source symbol.",
+    assetPath: "thermocouple.json",
+    assetHash:
+      "b243c31721fbd119f41bc80d721e5cdd0cc96fc6d8ee7342281bb2cff7639e04",
+  },
+  {
+    symbolId: "solar-cell",
+    name: "Solar Cell",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A solar cell does not appear on the reviewed page; it is the reviewed Battery's cell, leads and + / - pins with the photoresistor's two incoming light arrows.",
+    pinOrder: ["+", "-"],
+    drawnReferencePrefix: "B",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no photovoltaic card; it prints as a call of the generated body, a photocurrent isc in parallel with a diode.",
+    assetPath: "solar-cell.json",
+    assetHash:
+      "ff191ca6ff98e7af50d323da5a7fc30356295fdd21ab47ea26500b5ebebde0aa",
+  },
+  {
     symbolId: "buffer",
     name: "Buffer",
     category: "logic",
@@ -525,6 +560,24 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterPath: "scripts/generate-razavi-peripheral-assets.mjs",
       converterVersion: 1,
     },
+  },
+  {
+    symbolId: "controlled-current-source",
+    name: "Controlled Current Source",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A current source with a control input does not appear on the reviewed page; it is the reviewed current source's circle, arrow, leads and + / - pins with the control input CTRL entering from the left.",
+    pinOrder: ["+", "-", "CTRL"],
+    drawnReferencePrefix: "I",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Its control is one voltage from ground, which a four-terminal G card cannot say on its own; it prints as a call of the generated body, a G card of gm times V(CTRL).",
+    assetPath: "controlled-current-source.json",
+    assetHash:
+      "d41823db204d742fac1b44d92aca57009a6f05d47af28f8e38892f4323241992",
   },
   {
     symbolId: "vccs",
@@ -1380,6 +1433,24 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "0f2809eb08b91e7a2f06be9d99d845b0a3ce69007b8e74700c30764088b54fb1",
   },
   {
+    symbolId: "antenna",
+    name: "Antenna",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An antenna does not appear on the reviewed page; it is drawn as IEC 60617 draws it, a mast with an open triangle at its top, its one pin at the foot.",
+    pinOrder: ["P"],
+    drawnReferencePrefix: "E",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no antenna card; it prints as a call of the generated body, a radiation resistance to ground.",
+    assetPath: "antenna.json",
+    assetHash:
+      "8529ecaa8ed3c1090348bfd982680dd345f2c0028093e4196647a4b5383b15de",
+  },
+  {
     symbolId: "ammeter",
     name: "Ammeter",
     category: "source",
@@ -1395,6 +1466,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     assetPath: "ammeter.json",
     assetHash:
       "5d111af1a3f83c952992d7b380fd07bdd2daa4fa2b9d89cbb17432c47e89b4f8",
+  },
+  {
+    symbolId: "voltmeter",
+    name: "Voltmeter",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A voltmeter does not appear on the reviewed page; it is the Ammeter's circle, leads and + / - pins with a V drawn in lines inside.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE R card does not say the resistor is a meter, so an imported R card keeps the Resistor symbol.",
+    assetPath: "voltmeter.json",
+    assetHash:
+      "e01278b63b35ae843c6cafae863c17f15243b3c1fab86f102d61353ca1c3f2de",
   },
   {
     symbolId: "nand-gate",
@@ -2778,6 +2866,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "1c00907a1f4d22919c4d411312e71828b45ed9ed6e1cce822a563bb0cae1becc",
   },
   {
+    symbolId: "fuse",
+    name: "Fuse",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A fuse does not appear on the reviewed page; it is drawn as IEC 60617 draws it, a box its lead runs straight through, on the reviewed Resistor's pins and span.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE R card does not say the resistor is a fuse, so an imported R card keeps the Resistor symbol.",
+    assetPath: "fuse.json",
+    assetHash:
+      "4624c69e53638d6ce575c9037fc7900fed3ae4ad4275a5f8adcfa3015e9d7f7b",
+  },
+  {
     symbolId: "resistor",
     name: "Resistor",
     category: "passive",
@@ -2866,6 +2971,40 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     assetPath: "speaker.json",
     assetHash:
       "8ed7bf95b794493de170c9875ed862cd51227c086e025e9251258f9b60538c5a",
+  },
+  {
+    symbolId: "dc-motor",
+    name: "DC Motor",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A motor does not appear on the reviewed page; it is the Ammeter's circle and leads with an M drawn in lines inside, as IEC 60617 marks a machine.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE R card does not say the resistor is a motor, so an imported R card keeps the Resistor symbol.",
+    assetPath: "dc-motor.json",
+    assetHash:
+      "2395c5014a5ceccf9223b857ec843ac10174bd8eec85c0e98d7e0cab1143c5fc",
+  },
+  {
+    symbolId: "buzzer",
+    name: "Piezo Buzzer",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A piezo buzzer does not appear on the reviewed page; it is two capacitor plates with the sounding dome between them, on the reviewed Capacitor's pins and span.",
+    pinOrder: ["1", "2"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE C card does not say the capacitor is a piezo element, so an imported C card keeps the Capacitor symbol.",
+    assetPath: "buzzer.json",
+    assetHash:
+      "d0c1106ea3f827c5bf50e6094dcf35d3bbd6beec63dd5b5cfb573539f69ee6c2",
   },
   {
     symbolId: "chopper",
@@ -3126,6 +3265,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "noise-voltage-source",
+    name: "Noise Voltage Source",
+    category: "source",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A noise source does not appear on the reviewed page; it is the reviewed voltage source's circle, leads and + / - pins with a noise trace inside in place of its polarity marks.",
+    pinOrder: ["+", "-"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "A SPICE V card does not say the source stands for noise, so an imported V card keeps the voltage source symbol.",
+    assetPath: "noise-voltage-source.json",
+    assetHash:
+      "e0d81f64d26b89bd101fdefb15d7957f2bec4a88cb6158bb691eddf68b07f1a3",
+  },
+  {
     symbolId: "sine-voltage-source",
     name: "Sine Voltage Source",
     category: "source",
@@ -3373,6 +3529,60 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       converterPath: "scripts/generate-razavi-zener-asset.mjs",
       converterVersion: 1,
     },
+  },
+  {
+    symbolId: "shunt-regulator",
+    name: "Shunt Regulator (TL431)",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An adjustable shunt regulator does not appear on the reviewed page; it is the reviewed Zener body, leads and A/K pins, with the reference input REF entering the triangle's lower edge from below, as TL431 data sheets draw it.",
+    pinOrder: ["K", "A", "REF"],
+    drawnReferencePrefix: "U",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no shunt-regulator card; it prints as a call of the generated body, a 2.495 V reference, an error amplifier and an NPN sinking K to A.",
+    assetPath: "shunt-regulator.json",
+    assetHash:
+      "e0ff078d4f8b3df1a6823fb035dadd254af76d2710b8f8a8f765b8c3aa3dedb0",
+  },
+  {
+    symbolId: "voltage-regulator",
+    name: "Voltage Regulator (78xx)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A three-terminal regulator does not appear on the reviewed page; it is drawn as data sheets draw a 78xx, a box with IN on the left, OUT on the right and GND below, the box marked REG.",
+    pinOrder: ["IN", "GND", "OUT"],
+    drawnReferencePrefix: "U",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no regulator card; it prints as a call of the generated body, a reference at vout, an error amplifier and an NPN pass transistor from IN to OUT.",
+    assetPath: "voltage-regulator.json",
+    assetHash:
+      "903e3dd467543e1a56ba01bc587921ed4cb3a4c422222b0f7d5a85aadb36ae27",
+  },
+  {
+    symbolId: "voltage-reference",
+    name: "Voltage Reference",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A three-terminal voltage reference does not appear on the reviewed page; it is drawn as the regulator is, a box with IN on the left, OUT on the right and GND below, the box marked REF.",
+    pinOrder: ["IN", "GND", "OUT"],
+    drawnReferencePrefix: "U",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no regulator card; it prints as a call of the generated body, a reference at vout, an error amplifier and an NPN pass transistor from IN to OUT.",
+    assetPath: "voltage-reference.json",
+    assetHash:
+      "d234b7a178d2f07c2d014a8c995b548032d9d0beae82f86529eafc45f3f26757",
   },
   {
     symbolId: "adc",
@@ -4316,6 +4526,401 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "thermocouple",
+    name: "Thermocouple",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -20,
+        },
+        to: {
+          x: 0,
+          y: -7,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -7,
+        },
+        to: {
+          x: 10,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "wire-a",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 7,
+        },
+        to: {
+          x: 10,
+          y: 0,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "wire-b",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 7,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 10,
+          y: 0,
+        },
+        radius: 2,
+        fill: "foreground",
+        stroke: "none",
+        part: "hot-junction",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -8,
+          y: -13.4,
+        },
+        to: {
+          x: -3,
+          y: -13.4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "plus",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -5.5,
+          y: -15.9,
+        },
+        to: {
+          x: -5.5,
+          y: -10.9,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "plus",
+      },
+    ],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "solar-cell",
+    name: "Solar Cell",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 48,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -20,
+        },
+        to: {
+          x: 0,
+          y: -3.361068,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 3.361068,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -15.341072,
+            y: -4.959888,
+          },
+          {
+            x: 15.366866,
+            y: -4.959888,
+          },
+          {
+            x: 15.366866,
+            y: -1.762248,
+          },
+          {
+            x: -15.341072,
+            y: -1.762248,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -7.987992,
+            y: 1.762248,
+          },
+          {
+            x: 8.005849,
+            y: 1.762248,
+          },
+          {
+            x: 8.005849,
+            y: 4.959888,
+          },
+          {
+            x: -7.987992,
+            y: 4.959888,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 7.918549,
+          y: -13.416494,
+        },
+        to: {
+          x: 15.985905,
+          y: -13.416494,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 11.952227,
+          y: -17.450172,
+        },
+        to: {
+          x: 11.952227,
+          y: -9.3848,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 7.918549,
+          y: 13.472049,
+        },
+        to: {
+          x: 15.985905,
+          y: 13.472049,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16,
+          y: -14,
+        },
+        to: {
+          x: -12,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "light-arrow-1-shaft",
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -10,
+            y: -8,
+          },
+          {
+            x: -11.2,
+            y: -11.6,
+          },
+          {
+            x: -13.6,
+            y: -9.2,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-1-head",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -22,
+          y: -8,
+        },
+        to: {
+          x: -18,
+          y: -4,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "light-arrow-2-shaft",
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -16,
+            y: -2,
+          },
+          {
+            x: -17.2,
+            y: -5.6,
+          },
+          {
+            x: -19.6,
+            y: -3.2,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+        part: "light-arrow-2-head",
+      },
+    ],
   },
   {
     schemaVersion: 1,
@@ -7573,6 +8178,162 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
             },
           },
         ],
+      },
+    ],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "controlled-current-source",
+    name: "Controlled Current Source",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 39,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "CTRL",
+        role: "input",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        fillableBody: true,
+        part: "body",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -6.976744,
+        },
+        to: {
+          x: 0,
+          y: -2.325581,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 0,
+            y: 6.976744,
+          },
+          {
+            x: -4.651163,
+            y: -2.325581,
+          },
+          {
+            x: 4.651163,
+            y: -2.325581,
+          },
+        ],
+        fill: "foreground",
+        stroke: "none",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        part: "lead-positive",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        part: "lead-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -10.755814,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "control-lead",
       },
     ],
   },
@@ -13368,6 +14129,91 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    variants: [],
+    id: "antenna",
+    name: "Antenna",
+    viewBox: {
+      x: -12,
+      y: -24,
+      width: 24,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "P",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 20,
+        },
+        to: {
+          x: 0,
+          y: -16,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -9,
+            y: -16,
+          },
+          {
+            x: 0,
+            y: -2,
+          },
+          {
+            x: 9,
+            y: -16,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "antenna-fork",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -9,
+          y: -16,
+        },
+        to: {
+          x: 9,
+          y: -16,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "antenna-top",
+      },
+    ],
+  },
+  {
+    schemaVersion: 1,
     id: "ammeter",
     name: "Ammeter",
     viewBox: {
@@ -13493,6 +14339,117 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "voltmeter",
+    name: "Voltmeter",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        fillableBody: true,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4,
+            y: -5.25,
+          },
+          {
+            x: 0,
+            y: 5.25,
+          },
+          {
+            x: 4,
+            y: -5.25,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-letter-v",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
   },
   {
     schemaVersion: 1,
@@ -26470,6 +27427,81 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    variants: [],
+    id: "fuse",
+    name: "Fuse",
+    viewBox: {
+      x: -10,
+      y: -24,
+      width: 20,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -20,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "rectangle",
+        bounds: {
+          x: -4,
+          y: -10,
+          width: 8,
+          height: 20,
+        },
+        fill: "none",
+        stroke: "foreground",
+        part: "fuse-body",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+  },
+  {
+    schemaVersion: 1,
     id: "resistor",
     name: "Resistor",
     viewBox: {
@@ -27016,6 +28048,249 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "dc-motor",
+    name: "DC Motor",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        fillableBody: true,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -4.5,
+            y: 5.25,
+          },
+          {
+            x: -4.5,
+            y: -5.25,
+          },
+          {
+            x: 0,
+            y: 2,
+          },
+          {
+            x: 4.5,
+            y: -5.25,
+          },
+          {
+            x: 4.5,
+            y: 5.25,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "upright-letter-m",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "buzzer",
+    name: "Piezo Buzzer",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "1",
+        role: "passive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -20,
+        },
+        to: {
+          x: 0,
+          y: -7,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -8,
+          y: -7,
+        },
+        to: {
+          x: 8,
+          y: -7,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "plate-1",
+      },
+      {
+        kind: "path",
+        data: "M -7 4 C -7 -4 7 -4 7 4 Z",
+        bounds: {
+          x: -7,
+          y: -2,
+          width: 14,
+          height: 6,
+        },
+        part: "dome",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -8,
+          y: 7,
+        },
+        to: {
+          x: 8,
+          y: 7,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "plate-2",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 7,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
   },
   {
     schemaVersion: 1,
@@ -28619,6 +29894,141 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "noise-voltage-source",
+    name: "Noise Voltage Source",
+    viewBox: {
+      x: -14,
+      y: -24,
+      width: 28,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "+",
+        role: "positive",
+        at: {
+          x: 0,
+          y: -20,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "-",
+        role: "negative",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "circle",
+        center: {
+          x: 0,
+          y: 0,
+        },
+        radius: 10.755814,
+        fillableBody: true,
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -6,
+            y: 0,
+          },
+          {
+            x: -4,
+            y: -4,
+          },
+          {
+            x: -2.5,
+            y: 3,
+          },
+          {
+            x: -1,
+            y: -5,
+          },
+          {
+            x: 0.5,
+            y: 4,
+          },
+          {
+            x: 2,
+            y: -2.5,
+          },
+          {
+            x: 3.5,
+            y: 3.5,
+          },
+          {
+            x: 5,
+            y: -1.5,
+          },
+          {
+            x: 6,
+            y: 0,
+          },
+        ],
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "noise-trace",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -10.755814,
+        },
+        to: {
+          x: 0,
+          y: -20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10.755814,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
   },
   {
     schemaVersion: 1,
@@ -30748,6 +32158,420 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "shunt-regulator",
+    name: "Shunt Regulator (TL431)",
+    viewBox: {
+      x: -24,
+      y: -12,
+      width: 48,
+      height: 36,
+    },
+    pins: [
+      {
+        name: "K",
+        role: "cathode",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "A",
+        role: "anode",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "REF",
+        role: "reference",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -7.802511,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: -7.802511,
+            y: -6.404463,
+          },
+          {
+            x: -7.802511,
+            y: 6.404463,
+          },
+          {
+            x: 6.606415,
+            y: 0,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -0.639331,
+            y: -8.506555,
+          },
+          {
+            x: 6.666666,
+            y: -8.406137,
+          },
+          {
+            x: 6.666666,
+            y: 8.2053,
+          },
+          {
+            x: 13.870013,
+            y: 8.2053,
+          },
+        ],
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 6.666666,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 20,
+        },
+        to: {
+          x: 0,
+          y: 2.936,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+        part: "reference-lead",
+      },
+    ],
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "voltage-regulator",
+    name: "Voltage Regulator (78xx)",
+    viewBox: {
+      x: -34,
+      y: -14,
+      width: 68,
+      height: 38,
+    },
+    pins: [
+      {
+        name: "IN",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "GND",
+        role: "ground",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "rectangle",
+        bounds: {
+          x: -20,
+          y: -10,
+          width: 40,
+          height: 20,
+        },
+        fill: "none",
+        stroke: "foreground",
+        fillableBody: true,
+        part: "body",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 20,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    formulaPresentation: {
+      defaultFormula: "REG",
+      supportsCoefficient: false,
+      center: {
+        x: 0,
+        y: 0,
+      },
+      fontSize: 12,
+    },
+  },
+  {
+    schemaVersion: 1,
+    variants: [],
+    id: "voltage-reference",
+    name: "Voltage Reference",
+    viewBox: {
+      x: -34,
+      y: -14,
+      width: 68,
+      height: 38,
+    },
+    pins: [
+      {
+        name: "IN",
+        role: "input",
+        at: {
+          x: -30,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "GND",
+        role: "ground",
+        at: {
+          x: 0,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "rectangle",
+        bounds: {
+          x: -20,
+          y: -10,
+          width: 40,
+          height: 20,
+        },
+        fill: "none",
+        stroke: "foreground",
+        fillableBody: true,
+        part: "body",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -30,
+          y: 0,
+        },
+        to: {
+          x: -20,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 20,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 10,
+        },
+        to: {
+          x: 0,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    formulaPresentation: {
+      defaultFormula: "REF",
+      supportsCoefficient: false,
+      center: {
+        x: 0,
+        y: 0,
+      },
+      fontSize: 12,
+    },
   },
   {
     schemaVersion: 1,

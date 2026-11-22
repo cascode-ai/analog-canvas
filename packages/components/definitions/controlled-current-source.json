@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "variants": [],
+    "id": "controlled-current-source",
+    "name": "Controlled Current Source",
+    "viewBox": {
+      "x": -24,
+      "y": -24,
+      "width": 39,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "+",
+        "role": "positive",
+        "at": {
+          "x": 0,
+          "y": -20
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "-",
+        "role": "negative",
+        "at": {
+          "x": 0,
+          "y": 20
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "CTRL",
+        "role": "input",
+        "at": {
+          "x": -20,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "circle",
+        "center": {
+          "x": 0,
+          "y": 0
+        },
+        "radius": 10.755814,
+        "fillableBody": true,
+        "part": "body",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -6.976744
+        },
+        "to": {
+          "x": 0,
+          "y": -2.325581
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 0,
+            "y": 6.976744
+          },
+          {
+            "x": -4.651163,
+            "y": -2.325581
+          },
+          {
+            "x": 4.651163,
+            "y": -2.325581
+          }
+        ],
+        "fill": "foreground",
+        "stroke": "none"
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": -20
+        },
+        "part": "lead-positive",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 10.755814
+        },
+        "to": {
+          "x": 0,
+          "y": 20
+        },
+        "part": "lead-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -20,
+          "y": 0
+        },
+        "to": {
+          "x": -10.755814,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        },
+        "part": "control-lead"
+      }
+    ]
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "controlled-current-source",
+    "symbolId": "controlled-current-source",
+    "target": "controlled_current_source",
+    "ports": [
+      {
+        "name": "p",
+        "direction": "passive",
+        "pinName": "+"
+      },
+      {
+        "name": "n",
+        "direction": "passive",
+        "pinName": "-"
+      },
+      {
+        "name": "ctrl",
+        "direction": "passive",
+        "pinName": "CTRL"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "controlled-current-source",
+    "name": "Controlled Current Source",
+    "category": "source",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A current source with a control input does not appear on the reviewed page; it is the reviewed current source's circle, arrow, leads and + / - pins with the control input CTRL entering from the left.",
+    "pinOrder": ["+", "-", "CTRL"],
+    "drawnReferencePrefix": "I",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Its control is one voltage from ground, which a four-terminal G card cannot say on its own; it prints as a call of the generated body, a G card of gm times V(CTRL).",
+    "assetPath": "controlled-current-source.json"
+  }
+}

@@ -48,16 +48,33 @@ import type { NetlistFormat } from "./net-name-codec.js";
  *   card of IDSS 1 mA, VTO −2 V and LAMBDA 0.002.
  * - `schottky_npn` (`c b e`): an NPN with a Schottky diode (the generic DSCH
  *   card) from base to collector, which holds it out of deep saturation.
+ *
+ * Regulators and board parts (family `board`) are bodies the same way:
+ * - `tl431` (`k a ref`): a 2.495 V reference, an error amplifier of gain
+ *   1000 and an NPN sinking K to A, so REF is held 2.495 V above A.
+ * - `voltage_regulator`, `voltage_reference` (`in gnd out`): a reference at
+ *   vout, an error amplifier of gain 1000 and an NPN pass transistor from IN
+ *   to OUT (no dropout or current limit model).
+ * - `solar_cell` (`p n`): a photocurrent isc in parallel with a diode.
+ * - `antenna` (`p`): 1 GΩ to ground, so its Net is never floating.
+ * - `controlled_current_source` (`p n ctrl`): gm·V(CTRL) from + to −.
  */
 export function semiconductorDeviceCell(
   target: string,
   format: NetlistFormat,
 ): DesignNetlistCell | null {
   const model = builtInModelContract(target);
-  if (model?.family !== "semiconductor") return null;
+  if (model?.family !== "semiconductor" && model?.family !== "board")
+    return null;
   const ports = model.ports.map((port) => port.name);
   const expression = (text: string) =>
     format === "spice" ? `{${text}}` : text;
+  const valueName = {
+    "voltage-source": "dc",
+    "current-source": "dc",
+    vcvs: "gain",
+    vccs: "gm",
+  } as const;
   const part = (
     deviceClass:
       | "resistor"
@@ -66,7 +83,10 @@ export function semiconductorDeviceCell(
       | "bjt"
       | "jfet"
       | "mos"
-      | "voltage-source",
+      | "voltage-source"
+      | "current-source"
+      | "vcvs"
+      | "vccs",
     reference: string,
     nodes: readonly (readonly [string, string])[],
     value:
@@ -87,7 +107,9 @@ export function semiconductorDeviceCell(
       "value" in value
         ? [
             {
-              name: deviceClass === "voltage-source" ? "dc" : "value",
+              name: Object.hasOwn(valueName, deviceClass)
+                ? valueName[deviceClass as keyof typeof valueName]
+                : "value",
               rawValue: value.value,
             },
           ]
@@ -342,6 +364,164 @@ export function semiconductorDeviceCell(
         ],
       },
     ];
+  } else if (model.implementation === "tl431") {
+    const [k, a, ref] = ports as [string, string, string];
+    internal = ["nr", "nx", "nb"];
+    instances = [
+      part(
+        "voltage-source",
+        "VREF",
+        [
+          ["+", "nr"],
+          ["-", a],
+        ],
+        { value: "2.495" },
+      ),
+      part(
+        "vcvs",
+        "EAMP",
+        [
+          ["OUT+", "nx"],
+          ["OUT-", a],
+          ["CTRL+", ref],
+          ["CTRL-", "nr"],
+        ],
+        { value: "1000" },
+      ),
+      part(
+        "resistor",
+        "RB",
+        [
+          ["1", "nx"],
+          ["2", "nb"],
+        ],
+        { value: "1k" },
+      ),
+      part(
+        "bjt",
+        "Q1",
+        [
+          ["C", k],
+          ["B", "nb"],
+          ["E", a],
+        ],
+        { target: "qn" },
+      ),
+      part(
+        "diode",
+        "DREV",
+        [
+          ["A", a],
+          ["K", k],
+        ],
+        { target: "dj" },
+      ),
+    ];
+    models = [
+      generic("qn", GENERIC_NPN_MODEL),
+      generic("dj", GENERIC_DIODE_MODEL),
+    ];
+  } else if (model.implementation === "regulator") {
+    const [input, gnd, out] = ports as [string, string, string];
+    internal = ["nr", "nx", "nb"];
+    instances = [
+      part(
+        "voltage-source",
+        "VREF",
+        [
+          ["+", "nr"],
+          ["-", gnd],
+        ],
+        { value: expression("vout") },
+      ),
+      part(
+        "vcvs",
+        "EAMP",
+        [
+          ["OUT+", "nx"],
+          ["OUT-", gnd],
+          ["CTRL+", "nr"],
+          ["CTRL-", out],
+        ],
+        { value: "1000" },
+      ),
+      part(
+        "resistor",
+        "RB",
+        [
+          ["1", "nx"],
+          ["2", "nb"],
+        ],
+        { value: "1k" },
+      ),
+      part(
+        "bjt",
+        "Q1",
+        [
+          ["C", input],
+          ["B", "nb"],
+          ["E", out],
+        ],
+        { target: "qn" },
+      ),
+    ];
+    models = [generic("qn", GENERIC_NPN_MODEL)];
+  } else if (model.implementation === "solar_cell") {
+    const [p, n] = ports as [string, string];
+    internal = [];
+    instances = [
+      part(
+        "current-source",
+        "IPH",
+        [
+          ["+", n],
+          ["-", p],
+        ],
+        { value: expression("isc") },
+      ),
+      part(
+        "diode",
+        "D1",
+        [
+          ["A", p],
+          ["K", n],
+        ],
+        { target: "dj" },
+      ),
+    ];
+    models = [generic("dj", GENERIC_DIODE_MODEL)];
+  } else if (model.implementation === "antenna") {
+    const [p] = ports as [string];
+    internal = [];
+    instances = [
+      part(
+        "resistor",
+        "R1",
+        [
+          ["1", p],
+          ["2", "0"],
+        ],
+        { value: "1G" },
+      ),
+    ];
+    models = [];
+  } else if (model.implementation === "controlled_current_source") {
+    const [p, n, ctrl] = ports as [string, string, string];
+    internal = [];
+    instances = [
+      part(
+        "vccs",
+        "GCORE",
+        [
+          ["OUT+", p],
+          ["OUT-", n],
+          ["CTRL+", ctrl],
+          ["CTRL-", "0"],
+        ],
+        { value: expression("gm") },
+      ),
+    ];
+    models = [];
   } else if (model.implementation === "schottky_npn") {
     const [c, b, e] = ports as [string, string, string];
     internal = [];
