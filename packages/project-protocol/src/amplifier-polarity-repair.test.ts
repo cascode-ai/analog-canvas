@@ -85,11 +85,10 @@ function withoutSupplyPins(symbol: SymbolDefinition): SymbolDefinition {
 }
 
 describe("recognized amplifier polarity snapshot repair", () => {
-  it("covers all sixteen recognized forms, keeps current forms and custom snapshots", () => {
+  it("covers every recognized form, keeps current forms and custom snapshots", () => {
     const current = builtInSymbols.filter((symbol) =>
       symbol.id.startsWith("opamp-differential"),
     );
-    expect(current).toHaveLength(16);
     for (const symbol of current) {
       // As converter v8 drew it: its marks flipped, and no supply pins, which
       // the supply-pin repair then adds (#1941).

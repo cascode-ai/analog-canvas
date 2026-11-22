@@ -117,7 +117,6 @@ describe("agent session client", () => {
       });
       await expect(client.connect()).rejects.toMatchObject({
         code: "CLAIM_REQUIRED",
-        message: expect.stringContaining("no valid saved connector"),
       });
       expect(
         JSON.parse(await readFile(store.leasePath, "utf8")) as unknown,

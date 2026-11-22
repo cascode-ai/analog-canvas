@@ -200,19 +200,53 @@ describe("same-Net conductor topology normalization", () => {
     expect(contact && contactRequiresJunctionDot(contact)).toBe(true);
   });
 
-  it("does not connect a geometric crossing without an authored contact", () => {
-    const document = documentWith(
-      [
-        junction("left", 0, 50),
-        junction("right", 100, 50),
-        junction("top", 50, 0),
-        junction("bottom", 50, 100),
-      ],
-      [
-        route("horizontal", "left", "right"),
-        route("vertical", "top", "bottom"),
-      ],
-    );
+  it.each([
+    [
+      "does not connect a geometric crossing without an authored contact",
+      () =>
+        documentWith(
+          [
+            junction("left", 0, 50),
+            junction("right", 100, 50),
+            junction("top", 50, 0),
+            junction("bottom", 50, 100),
+          ],
+          [
+            route("horizontal", "left", "right"),
+            route("vertical", "top", "bottom"),
+          ],
+        ),
+    ],
+    [
+      "does not union an ordinary wire with a MOS bulk presentation",
+      () => {
+        const document = documentWith(
+          [junction("left", 0, 0), junction("right", 100, 0)],
+          [route("wire", "left", "right"), route("bulk", "left", "right")],
+        );
+        document.routes[1]!.presentation = "bulk-dashed";
+        return document;
+      },
+    ],
+    [
+      "leaves an already canonical three-arm Junction unchanged",
+      () =>
+        documentWith(
+          [
+            junction("left", 0, 0),
+            junction("middle", 50, 0, "branch"),
+            junction("right", 100, 0),
+            junction("top", 50, 50),
+          ],
+          [
+            route("left-arm", "left", "middle"),
+            route("right-arm", "middle", "right"),
+            route("top-arm", "top", "middle"),
+          ],
+        ),
+    ],
+  ])("%s", (_name, build) => {
+    const document = build();
     const before = structuredClone(document);
 
     const result = normalizeSameNetConductorTopology(document, resolver);
@@ -399,20 +433,6 @@ describe("same-Net conductor topology normalization", () => {
     });
   });
 
-  it("does not union an ordinary wire with a MOS bulk presentation", () => {
-    const document = documentWith(
-      [junction("left", 0, 0), junction("right", 100, 0)],
-      [route("wire", "left", "right"), route("bulk", "left", "right")],
-    );
-    document.routes[1]!.presentation = "bulk-dashed";
-    const before = structuredClone(document);
-
-    const result = normalizeSameNetConductorTopology(document, resolver);
-
-    expect(result.changed).toBe(false);
-    expect(document).toEqual(before);
-  });
-
   it("remaps Route annotations and layout ownership onto the union", () => {
     const document = documentWith(
       [junction("left", 0, 0), junction("right", 100, 0)],
@@ -509,28 +529,6 @@ describe("same-Net conductor topology normalization", () => {
       expect(document).toEqual(before);
     },
   );
-
-  it("leaves an already canonical three-arm Junction unchanged", () => {
-    const document = documentWith(
-      [
-        junction("left", 0, 0),
-        junction("middle", 50, 0, "branch"),
-        junction("right", 100, 0),
-        junction("top", 50, 50),
-      ],
-      [
-        route("left-arm", "left", "middle"),
-        route("right-arm", "middle", "right"),
-        route("top-arm", "top", "middle"),
-      ],
-    );
-    const before = structuredClone(document);
-
-    const result = normalizeSameNetConductorTopology(document, resolver);
-
-    expect(result.changed).toBe(false);
-    expect(document).toEqual(before);
-  });
 
   it("normalizes a newly authored overlapping Route in the transaction boundary", () => {
     const document = documentWith(

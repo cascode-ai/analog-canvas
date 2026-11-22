@@ -633,45 +633,32 @@ describe("segment landing on an endpoint", () => {
     ).contacts.find(
       (candidate) => candidate.point.x === 50 && candidate.point.y === 100,
     );
-    expect(contact).toBeDefined();
-    expect(contactRequiresJunctionDot(contact!)).toBe(true);
+    expect(contact && contactRequiresJunctionDot(contact)).toBe(true);
   });
 
-  it("connects when a moved segment lands on another wire endpoint", () => {
+  it.each([
+    [
+      "connects when a moved segment lands on another wire endpoint",
+      { x: 0, y: 50 },
+      { x: -100, y: 50 },
+      1,
+    ],
+    [
+      "keeps a true wire-interior crossing unconnected",
+      { x: 50, y: 20 },
+      { x: 50, y: 80 },
+      2,
+    ],
+  ] as const)("%s", (_name, x, y, nets) => {
     const d = looseWires();
-    d.junctions.find((junction) => junction.id === "X")!.position = {
-      x: 0,
-      y: 50,
-    };
-    d.junctions.find((junction) => junction.id === "Y")!.position = {
-      x: -100,
-      y: 50,
-    };
+    d.junctions.find((junction) => junction.id === "X")!.position = { ...x };
+    d.junctions.find((junction) => junction.id === "Y")!.position = { ...y };
     const proposal = proposeWireSegmentMove(d, resolver, "r", 0, {
       x: 50,
       y: 50,
     });
     const final = commit(d, proposal.edits, proposal.expectedElectricalEffect);
 
-    expect(conductorNets(final).size).toBe(1);
-  });
-
-  it("keeps a true wire-interior crossing unconnected", () => {
-    const d = looseWires();
-    d.junctions.find((junction) => junction.id === "X")!.position = {
-      x: 50,
-      y: 20,
-    };
-    d.junctions.find((junction) => junction.id === "Y")!.position = {
-      x: 50,
-      y: 80,
-    };
-    const proposal = proposeWireSegmentMove(d, resolver, "r", 0, {
-      x: 50,
-      y: 50,
-    });
-    const final = commit(d, proposal.edits, proposal.expectedElectricalEffect);
-
-    expect(conductorNets(final).size).toBe(2);
+    expect(conductorNets(final).size).toBe(nets);
   });
 });

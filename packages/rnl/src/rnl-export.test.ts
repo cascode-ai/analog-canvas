@@ -36,7 +36,6 @@ describe("the SPICE+RNL and Spectre+RNL exports", () => {
       if (result.status !== "ready") return;
       const { request } = result;
       expect(request.dialect).toBe(format);
-      expect(request.author).toBe("analog-canvas");
       const lines = request.netlist.split("\n");
       // SPICE: `XM1 out in ...`; Spectre: `XM1 (out in ...) master`.
       const prints = (instance: string) =>
@@ -77,7 +76,6 @@ describe("the SPICE+RNL and Spectre+RNL exports", () => {
         expect.objectContaining({
           op: "use-package",
           name: "rnl-std-45deg",
-          version: "0.4",
         }),
       );
       expect(result.request.ops).toContainEqual(

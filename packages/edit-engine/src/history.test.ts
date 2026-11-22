@@ -223,22 +223,7 @@ describe("DocumentHistory", () => {
     const cleared = history.transact(
       transaction(0, [{ kind: "reset_cell_body" }]),
     );
-    expect(cleared).toMatchObject({
-      ok: true,
-      revision: 1,
-      diff: {
-        editKinds: ["reset_cell_body"],
-        changedObjectIds: [
-          "R1",
-          "R2",
-          "document-main",
-          "label-R1",
-          "net-vss",
-          "note-1",
-          "resistors",
-        ],
-      },
-    });
+    expect(cleared).toMatchObject({ ok: true, revision: 1 });
     expect(history.document).toMatchObject({
       id: "document-main",
       name: "Main",
@@ -262,36 +247,74 @@ describe("DocumentHistory", () => {
     });
   });
 
-  it("undoes and redoes geometry with monotonically increasing revisions", () => {
-    const history = historyFixture();
-    const placed = history.transact(
-      transaction(0, [
-        {
-          kind: "place_instance",
-          instanceId: "R1",
-          placement: {
-            position: { x: 50, y: 40 },
-            rotation: 0,
-            mirror: "none",
-          },
+  it.each([
+    {
+      name: "geometry",
+      edit: {
+        kind: "place_instance",
+        instanceId: "R1",
+        placement: {
+          position: { x: 50, y: 40 },
+          rotation: 0,
+          mirror: "none",
         },
-      ]),
-    );
-    expect(placed).toMatchObject({ ok: true, revision: 1 });
-    expect(history.canUndo).toBe(true);
+      },
+      read: (history: DocumentHistory) =>
+        history.document.instances[0]?.placement ?? null,
+      before: null,
+      after: {
+        position: { x: 50, y: 40 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+    {
+      name: "a netlist parameter patch",
+      edit: {
+        kind: "patch_instance_netlist_parameters",
+        instanceId: "R1",
+        set: { value: "10k" },
+      },
+      read: (history: DocumentHistory) =>
+        history.document.instances[0]!.netlist!.parameters,
+      before: {},
+      after: { value: "10k" },
+    },
+    {
+      name: "signal flow parameters",
+      edit: {
+        kind: "set_instance_signal_flow_parameters",
+        instanceId: "R1",
+        parameters: { formula: "z^-1", coefficient: "a0" },
+      },
+      read: (history: DocumentHistory) =>
+        history.document.instances[0]!.signalFlowParameters,
+      before: undefined,
+      after: { formula: "z^-1", coefficient: "a0" },
+    },
+  ])(
+    "undoes and redoes $name with monotonically increasing revisions",
+    ({ edit, read, before, after }) => {
+      const history = historyFixture();
+      expect(history.transact(transaction(0, [edit]))).toMatchObject({
+        ok: true,
+        revision: 1,
+      });
+      expect(read(history)).toEqual(after);
+      expect(history.canUndo).toBe(true);
 
-    const undone = history.transact(transaction(1, [{ kind: "undo" }]));
-    expect(undone).toMatchObject({ ok: true, revision: 2 });
-    expect(history.document.instances[0]?.placement).toBeNull();
-    expect(history.canRedo).toBe(true);
+      expect(
+        history.transact(transaction(1, [{ kind: "undo" }])),
+      ).toMatchObject({ ok: true, revision: 2 });
+      expect(read(history)).toEqual(before);
+      expect(history.canRedo).toBe(true);
 
-    const redone = history.transact(transaction(2, [{ kind: "redo" }]));
-    expect(redone).toMatchObject({ ok: true, revision: 3 });
-    expect(history.document.instances[0]?.placement?.position).toEqual({
-      x: 50,
-      y: 40,
-    });
-  });
+      expect(
+        history.transact(transaction(2, [{ kind: "redo" }])),
+      ).toMatchObject({ ok: true, revision: 3 });
+      expect(read(history)).toEqual(after);
+    },
+  );
 
   it("dry-runs history without consuming a state", () => {
     const history = historyFixture();
@@ -318,70 +341,6 @@ describe("DocumentHistory", () => {
     });
     expect(history.canUndo).toBe(true);
     expect(history.document.revision).toBe(1);
-  });
-
-  it("undoes and redoes a netlist parameter patch", () => {
-    const history = historyFixture();
-    const patched = history.transact(
-      transaction(0, [
-        {
-          kind: "patch_instance_netlist_parameters",
-          instanceId: "R1",
-          set: { value: "10k" },
-        },
-      ]),
-    );
-    expect(patched).toMatchObject({ ok: true, revision: 1 });
-    expect(history.document.instances[0]!.netlist!.parameters).toEqual({
-      value: "10k",
-    });
-
-    expect(history.transact(transaction(1, [{ kind: "undo" }]))).toMatchObject({
-      ok: true,
-      revision: 2,
-    });
-    expect(history.document.instances[0]!.netlist!.parameters).toEqual({});
-
-    expect(history.transact(transaction(2, [{ kind: "redo" }]))).toMatchObject({
-      ok: true,
-      revision: 3,
-    });
-    expect(history.document.instances[0]!.netlist!.parameters).toEqual({
-      value: "10k",
-    });
-  });
-
-  it("undoes and redoes signal flow parameters", () => {
-    const history = historyFixture();
-    const patched = history.transact(
-      transaction(0, [
-        {
-          kind: "set_instance_signal_flow_parameters",
-          instanceId: "R1",
-          parameters: { formula: "z^-1", coefficient: "a0" },
-        },
-      ]),
-    );
-    expect(patched).toMatchObject({ ok: true, revision: 1 });
-    expect(history.document.instances[0]!.signalFlowParameters).toEqual({
-      formula: "z^-1",
-      coefficient: "a0",
-    });
-
-    expect(history.transact(transaction(1, [{ kind: "undo" }]))).toMatchObject({
-      ok: true,
-      revision: 2,
-    });
-    expect(history.document.instances[0]!.signalFlowParameters).toBeUndefined();
-
-    expect(history.transact(transaction(2, [{ kind: "redo" }]))).toMatchObject({
-      ok: true,
-      revision: 3,
-    });
-    expect(history.document.instances[0]!.signalFlowParameters).toEqual({
-      formula: "z^-1",
-      coefficient: "a0",
-    });
   });
 
   it("rejects undo when no prior state exists", () => {

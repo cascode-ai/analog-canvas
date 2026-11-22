@@ -26,8 +26,9 @@ const frame = () => ({
 
 describe("native starter acceptance evidence", () => {
   it("requires all 31 experiments including Library OTA rather than a subset success", () => {
-    expect(nativeExampleFolderIds).toHaveLength(31);
-    expect(new Set(nativeExampleFolderIds).size).toBe(31);
+    expect(new Set(nativeExampleFolderIds).size).toBe(
+      nativeExampleFolderIds.length,
+    );
     expect(() => analyzeNativeExampleRuns(new Map())).toThrow("all 31");
     expect(() => analyzeNativeExampleRuns(new Map([["cs-op", {}]]))).toThrow(
       "all 31",

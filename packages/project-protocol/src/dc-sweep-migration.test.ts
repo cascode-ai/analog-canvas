@@ -14,11 +14,8 @@ describe("schema 40 to 41", () => {
       ...previous,
       schemaVersion: 41,
     });
-  });
-
-  it("reports that the version-only migration rewrites no authored data", () => {
-    expect(upgradeSchema40To41WithReport({ schemaVersion: 40 }).report).toEqual(
-      { changed: false },
-    );
+    expect(upgradeSchema40To41WithReport(previous).report).toEqual({
+      changed: false,
+    });
   });
 });

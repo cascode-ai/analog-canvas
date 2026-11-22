@@ -79,7 +79,6 @@ describe("wire editing proposals", () => {
       "add_junction",
       "set_route_path",
     ]);
-    expect(proposal.edits[2]?.kind).toBe("set_route_path");
   });
 
   it("commits coincident endpoints as direct contact without a Route", () => {
@@ -130,7 +129,6 @@ describe("wire editing proposals", () => {
     const routed = proposal.edits.filter(
       (edit) => edit.kind === "set_route_path",
     );
-    expect(routed).toHaveLength(2);
     expect(routed).toEqual([
       expect.objectContaining({
         route: expect.objectContaining({ start: from.endpoint }),

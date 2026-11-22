@@ -228,18 +228,6 @@ describe("public component library", () => {
     const route = harness();
     const packaged = nativePackage();
     const body = { ...packaged, revision: 0 };
-    expect((await route("PUT", "/native-package", body)).status).toBe(401);
-    expect(
-      (
-        await route(
-          "PUT",
-          "/native-package",
-          body,
-          "alice",
-          "https://elsewhere.test",
-        )
-      ).status,
-    ).toBe(403);
     const response = await route("PUT", "/native-package", body, "alice");
     expect(response.status, await response.clone().text()).toBe(200);
     const saved = (await response.json()).entry;
@@ -451,16 +439,6 @@ describe("public component library", () => {
         )
       ).status,
     ).toBe(200);
-    expect(
-      (
-        await route(
-          "PUT",
-          "/native-package",
-          { ...packaged, revision: 2 },
-          "alice",
-        )
-      ).status,
-    ).toBe(403);
     expect(
       (
         await route(

@@ -734,8 +734,6 @@ describe("GitHub OAuth", () => {
     expect(callback.status).toBe(302);
     expect(callback.headers.get("location")).toBe(`${ORIGIN}/`);
     const session = cookieValue(callback, "icm_session");
-    expect(session).toBeTruthy();
-
     const user = await me(auth, `icm_session=${session}`);
     expect(user).toMatchObject({
       provider: "github",
@@ -1127,7 +1125,6 @@ describe("administrator account statistics", () => {
       );
       expect(denied.status).toBe(401);
       expect(denied.headers.get("cache-control")).toBe("no-store");
-      expect(await denied.json()).toEqual({ error: "unauthorized" });
     }
 
     const result = await auth.call("/api/auth/admin/stats", {

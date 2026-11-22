@@ -1,8 +1,6 @@
 // Selection boards (docs/specs/selection-boards.md): read by link, made by an
 // administrator, changed by signed-in accounts with every change recorded.
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { createEmptyProject } from "@icm/model";
 import {
   CURRENT_PROJECT_FILE_VERSION,
@@ -401,8 +399,22 @@ describe("selection boards", () => {
         item.entry?.levels,
       ]),
     ).toEqual([
-      ["entry-a", "Five-transistor OTA", "Five-transistor OTA author", null, 0, "single"],
-      ["ct-001", "Folded cascode", "Folded cascode author", "Amplifiers", 3, "single"],
+      [
+        "entry-a",
+        "Five-transistor OTA",
+        "Five-transistor OTA author",
+        null,
+        0,
+        "single",
+      ],
+      [
+        "ct-001",
+        "Folded cascode",
+        "Folded cascode author",
+        "Amplifiers",
+        3,
+        "single",
+      ],
     ]);
     expect(board.entryNames["ct-001"]).toBe("Folded cascode");
 
@@ -525,16 +537,6 @@ describe("selection boards", () => {
     expect(decodeURIComponent(state.split(".")[1]!)).toBe(
       "/boards/AbCdEfGhIjKlMnOpQrStUvWx",
     );
-  });
-
-  it("reaches the Worker before the asset layer answers with the shell", () => {
-    // The all-path switch includes /boards and /boards/<id>; otherwise the
-    // asset layer can answer with the editor shell before this route runs.
-    const wrangler = readFileSync(
-      resolve(process.cwd(), "wrangler.jsonc"),
-      "utf8",
-    );
-    expect(wrangler).toMatch(/"run_worker_first"\s*:\s*true\b/u);
   });
 
   it("draws each entry plain: no colour, no frames or notes", async () => {

@@ -58,16 +58,14 @@ it("isolates a variant while definition edits address every caller by identity",
     id: id + "-nc",
     endpoint: { kind: "terminal" as const, instanceId: id, pinName: "B" },
   }));
-  const before = structuredClone(project);
   const variant = prepareComponentVariant(
     project,
     project.documents[0]!.id,
     "X1",
     "v2",
   );
-  expect(project).toEqual(before);
   expect(variant.project.documents[0]!.instances[1]).toEqual(
-    before.documents[0]!.instances[1],
+    project.documents[0]!.instances[1],
   );
   expect(variant.project.documents[0]!.nets).toEqual(
     project.documents[0]!.nets,

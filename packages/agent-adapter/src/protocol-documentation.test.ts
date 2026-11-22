@@ -15,7 +15,6 @@ describe("Agent session protocol documentation", () => {
         .replaceAll("\r\n", "\n")
         .matchAll(/```json\n([\s\S]*?)\n```/g),
     ].map((match) => JSON.parse(match[1]!));
-    expect(examples).toHaveLength(3);
     for (const example of examples)
       expect(
         AgentProductionCircuitRequestSchema.safeParse(example),

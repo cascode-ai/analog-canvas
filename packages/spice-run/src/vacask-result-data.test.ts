@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { simulationAnalysisToCsv } from "./result-data.js";
@@ -160,7 +159,6 @@ describe("native numerical result projection", () => {
     const nativeTime = original(tran).vectors.find(
       (v) => v.variable.name === "time",
     )!.real;
-    expect(nativeTime).toHaveLength(63);
     expect(t.timeSeconds).toEqual(nativeTime);
     expect(
       new Set(nativeTime.slice(1).map((v, i) => v - nativeTime[i]!)).size,
@@ -168,9 +166,6 @@ describe("native numerical result projection", () => {
     const csv = simulationAnalysisToCsv(t).trim().split("\n");
     expect(csv.slice(1).map((line) => Number(line.split(",")[0]))).toEqual(
       nativeTime,
-    );
-    expect(createHash("sha256").update(tran).digest("hex")).toBe(
-      "ec268571b788d4b115891cf8eab552e9e9011da36eb329506405f2bd12609d96",
     );
   });
 

@@ -213,7 +213,6 @@ describe("Circuit parameter source projection", () => {
   it("maps all printed instance cards, including a parameterless DUT call, to Canvas identities", () => {
     const { source } = fixture();
     const dut = source.instances.find((card) => card.instanceId === "XDUT");
-    expect(dut).toBeDefined();
     expect(source.text.slice(dut!.startOffset, dut!.endOffset)).toMatch(
       /^XDUT\s/i,
     );

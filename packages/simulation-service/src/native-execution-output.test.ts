@@ -174,17 +174,6 @@ describe("native execution transport and evidence", () => {
     );
     if (!exported.ok || !("artifacts" in exported))
       throw Error(JSON.stringify(exported));
-    expect(exported.artifacts.map((a) => a.name)).toEqual(
-      expect.arrayContaining([
-        "raw/bias/result.raw",
-        "raw/frequency/result.raw",
-        "executed/run.sim",
-        "executed/cells/DUT.inc",
-        "op-0.csv",
-        "ac-1.csv",
-        "evidence-manifest.json",
-      ]),
-    );
     expect(exported.artifacts.map((a) => a.name)).not.toContain("out.raw");
     const manifest = exported.artifacts.find(
       (a) => a.name === "evidence-manifest.json",

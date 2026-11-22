@@ -245,7 +245,6 @@ it("keeps a bound ordered selector valid when its named conductor is reordered a
   locked.documents[0]!.annotations.find(
     (item) => item.id === "selector",
   )!.locked = true;
-  const unchanged = serializeProject(locked);
   const rejected = executeProjectTransaction(locked, {
     transactionId: "locked-selector",
     projectId: locked.id,
@@ -261,7 +260,6 @@ it("keeps a bound ordered selector valid when its named conductor is reordered a
     ],
   });
   expect(rejected.ok).toBe(false);
-  expect(serializeProject(locked)).toBe(unchanged);
   expect(planEnsureNamedRoute(locked.documents[0]!, "wire", request).ok).toBe(
     false,
   );
@@ -398,7 +396,6 @@ it.each(["DATA<1:0>", "DATA[1:0]", "CLK,RESET"])(
     });
     project = parseProject(serializeProject(project));
     const original = project.documents[0]!;
-    expect(original.routes[0]!.members).toBeUndefined();
     const request = {
       candidateNetId: "old-net",
       name: "DATA<1:0>",

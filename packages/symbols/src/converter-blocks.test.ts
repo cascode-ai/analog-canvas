@@ -143,7 +143,6 @@ describe("converter blocks", () => {
       ["dac", "DAC"],
     ] as const) {
       const presentation = requireRazaviCatalogSymbol(id).formulaPresentation;
-      expect(presentation, `${id} body text`).toBeDefined();
       expect(presentation!.defaultFormula).toBe(text);
       // Naming a block is not scaling it.
       expect(presentation!.supportsCoefficient).toBe(false);

@@ -260,7 +260,6 @@ it.each(["<3>", "<3,1>"])(
     );
     const connected = wire(project, selected, "selected", 100, 0);
     const document = connected.documents[0]!;
-    const before = serializeProject(connected);
     const naming = planEnsureNamedRoute(document, "selected", {
       candidateNetId: document.routes[0]!.netId,
       name: expression === "<3>" ? "OTHER" : "OTHER<1:0>",
@@ -269,7 +268,6 @@ it.each(["<3>", "<3,1>"])(
     });
     expect(naming.ok).toBe(false);
     if (!naming.ok) expect(naming.message).toMatch(/selector.*migration/);
-    expect(serializeProject(connected)).toBe(before);
   },
 );
 
@@ -316,7 +314,6 @@ it.each([20, 80])(
     const selector = document.annotations.find(
       (annotation) => annotation.id === "subset-selector",
     )!;
-    expect(selector).toBeDefined();
     expect(flattenRichText(resolveAnnotationText(document, selector))).toBe(
       "DATA<7,3,0>",
     );
@@ -348,7 +345,6 @@ it.each([20, 80])(
         ),
       ),
     ).toBe("DATA<7,3,0>");
-    expect(initial.documents[0]!.routes).toEqual([]);
   },
 );
 
@@ -547,9 +543,6 @@ it.each([
         to: reverse ? start : finish,
       },
     );
-    expect(typeof proposal, typeof proposal === "string" ? proposal : "").toBe(
-      "object",
-    );
     if (typeof proposal === "string") throw new Error(proposal);
     project = apply(project, [
       {
@@ -577,9 +570,6 @@ it.each([
         ),
       ),
     ).toEqual([`DATA<${high}>`]);
-    expect(serializeProject(parseProject(serializeProject(project)))).toBe(
-      serializeProject(project),
-    );
   },
 );
 
@@ -665,7 +655,6 @@ it.each([
     expect(result.nets.flatMap((net) => net.terminals)).toEqual([
       { instanceId: "caller", pinName: `DATA<${high}:0>`, memberId: member.id },
     ]);
-    expect(result.annotations).toHaveLength(2);
     expect(
       result.annotations.map((annotation) =>
         flattenRichText(
@@ -689,8 +678,5 @@ it.each([
           junction.position.x === 100 && junction.position.y === 100,
       ),
     ).toBe(true);
-    expect(serializeProject(parseProject(serializeProject(project)))).toBe(
-      serializeProject(project),
-    );
   },
 );

@@ -189,7 +189,6 @@ describe("native simulation route", () => {
     });
     expect(response!.status).toBe(503);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(fetch.mock.calls[0]).toBeDefined();
   });
   it("forwards exact native files/dependencies and never composes a model directive", async () => {
     const input = nativeInput();

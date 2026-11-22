@@ -217,17 +217,25 @@ describe("native measured environment", () => {
     ).rejects.toThrow("invalid");
     expect(execFile).not.toHaveBeenCalled();
   });
-  it.each(["binary", "startup", "modules"])(
+  it.each(["binary", "startup", "modules", "dynamic-library"])(
     "refuses changed %s bytes before executing a probe",
     async (field) => {
+      const libraries = join(root, "libraries");
+      if (field === "dynamic-library") {
+        // Explicitly configured dynamic-library bytes count too.
+        await mkdir(libraries);
+        await writeFile(join(libraries, "libsolver.so"), "solver-v1");
+        config.libraryPath = libraries;
+      }
       const expectedEnvironment = await locked();
       vi.mocked(execFile).mockClear();
       await writeFile(
-        field === "binary"
-          ? config.binary
-          : field === "startup"
-            ? config.startupPath
-            : join(config.modules, "resistor.osdi"),
+        {
+          binary: config.binary,
+          startup: config.startupPath,
+          modules: join(config.modules, "resistor.osdi"),
+          "dynamic-library": join(libraries, "libsolver.so"),
+        }[field],
         "changed",
       );
       await expect(
@@ -252,17 +260,6 @@ describe("native measured environment", () => {
     expect(second.environment.fingerprint).not.toBe(
       first.environment.fingerprint,
     );
-  });
-  it("accounts for explicitly configured dynamic-library bytes", async () => {
-    const libraries = join(root, "libraries");
-    await mkdir(libraries);
-    await writeFile(join(libraries, "libsolver.so"), "solver-v1");
-    config.libraryPath = libraries;
-    const expectedEnvironment = await locked();
-    await writeFile(join(libraries, "libsolver.so"), "solver-v2");
-    await expect(
-      initializeVacaskRuntime({ ...config, expectedEnvironment }),
-    ).rejects.toThrow("differs");
   });
   it("checks exit status as well as the version banner and always removes the probe directory", async () => {
     vi.mocked(execFile).mockImplementationOnce(

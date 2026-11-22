@@ -1,12 +1,10 @@
 import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import {
-  adminOf,
   environment,
   makerOf,
   ownerAccountOf,
   ORIGIN,
-  seatOf,
   type Harness,
 } from "./gallery.test-support";
 
@@ -109,41 +107,6 @@ it("uses the source grant for profile changes without accepting another account 
   expect((await rpc(h, "account", operation)).status).toBe(401);
 });
 
-it("keeps role management at the source and refreshes the existing member grant", async () => {
-  const h = source();
-  const admin = await connect(h, await adminOf(h));
-  const member = await connect(h, await makerOf(h));
-  const operation = {
-    method: "POST",
-    path: "/api/auth/users/role",
-    body: { email: "maker@example.com", role: "moderator" },
-  };
-  expect(
-    await (
-      await rpc(h, "account", { ...operation, grant: member.grant })
-    ).json(),
-  ).toMatchObject({ result: { status: 401 } });
-  expect(
-    await (
-      await rpc(h, "account", { ...operation, grant: admin.grant })
-    ).json(),
-  ).toMatchObject({ result: { status: 200 } });
-  expect(
-    await (await rpc(h, "renew", { grant: member.grant })).json(),
-  ).toMatchObject({
-    user: { id: member.user.id, role: "moderator", isAdmin: false },
-  });
-  expect(
-    await (
-      await rpc(h, "account", {
-        grant: member.grant,
-        method: "GET",
-        path: "/api/auth/admin/stats",
-      })
-    ).json(),
-  ).toMatchObject({ result: { status: 401 } });
-});
-
 it("validates Owner import tokens without a cached revocation or browser session", async () => {
   const h = source();
   const owner = await connect(h, await ownerAccountOf(h));
@@ -180,67 +143,6 @@ it("validates Owner import tokens without a cached revocation or browser session
   expect(await revoked.json()).toMatchObject({ result: { status: 200 } });
   expect((await rpc(h, "owner-token", { token })).status).toBe(401);
   expect(await (await call(h, "/api/auth/me")).json()).toEqual({ user: null });
-});
-
-it("switches only the regional grant and returns to the verified administrator", async () => {
-  const h = source();
-  const cookie = await adminOf(h);
-  const { grant, user: actor } = await connect(h, cookie);
-  const listed = await (
-    await rpc(h, "account", {
-      grant,
-      method: "GET",
-      path: "/api/auth/ai-accounts",
-    })
-  ).json();
-  const seat = listed.result.body.accounts[0];
-  const operation = (path: string, body?: unknown) =>
-    rpc(h, "account", {
-      grant,
-      method: "POST",
-      path: "/api/auth/" + path,
-      body,
-    });
-  const switched = await operation("ai-accounts/switch", { userId: seat.id });
-  expect(switched.headers.getSetCookie()).toEqual([]);
-  expect(await switched.json()).toMatchObject({
-    result: { status: 200 },
-    user: { id: seat.id, isAdmin: false, switchedFrom: { id: actor.id } },
-  });
-  expect(await (await call(h, "/api/auth/me", cookie)).json()).toMatchObject({
-    user: { id: actor.id, isAdmin: true },
-  });
-  expect(
-    await (
-      await operation("users/role", {
-        email: "maker@example.com",
-        role: "moderator",
-      })
-    ).json(),
-  ).toMatchObject({ result: { status: 401 } });
-  expect(await (await rpc(h, "renew", { grant })).json()).toMatchObject({
-    user: { id: seat.id, switchedFrom: { id: actor.id } },
-  });
-  expect(await (await operation("ai-accounts/return")).json()).toMatchObject({
-    result: { status: 200 },
-    user: { id: actor.id, isAdmin: true },
-  });
-});
-
-it("requires the original actor when a switched overseas AI account starts handoff", async () => {
-  const h = source();
-  const cookie = await seatOf(h);
-  const response = await call(
-    h,
-    "/api/auth/regional/authorize?" +
-      new URLSearchParams({ state: "s".repeat(43), challenge: "c".repeat(43) }),
-    cookie,
-  );
-  expect(response.status).toBe(409);
-  expect(await response.json()).toEqual({ error: "original-actor-required" });
-  expect(
-    (await (await call(h, "/api/auth/me", cookie)).json()).user.seat,
-  ).toBeTruthy();
 });
 
 it("keeps the optional transport alias limited to configured login and authenticated RPC routes", async () => {

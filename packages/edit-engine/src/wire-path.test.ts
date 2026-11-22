@@ -150,43 +150,26 @@ describe("doubled-back legs", () => {
       cornerOrder: "auto",
     }) as never;
 
-  it("drops a leg that folds back over the one before it", () => {
+  it.each([
     // Pull left, then drift back right while heading down: the wire retraced
     // the line it had just drawn before turning.
-    expect(
-      compileWireDraft(at(100, 100), at(90, 150), [step(80, 100)]).points,
-    ).toEqual([
-      { x: 100, y: 100 },
-      { x: 90, y: 100 },
-      { x: 90, y: 150 },
-    ]);
-  });
-
-  it("drops an overshoot that came back, stub and all", () => {
+    ["drops a leg that folds back over the one before it", [step(80, 100)], 90],
     // Down past the corner and back up left the overshoot hanging in mid-air.
-    expect(
-      compileWireDraft(at(100, 100), at(80, 150), [
-        step(80, 100),
-        step(80, 200),
-      ]).points,
-    ).toEqual([
+    [
+      "drops an overshoot that came back, stub and all",
+      [step(80, 100), step(80, 200)],
+      80,
+    ],
+    [
+      "collapses a wander that crossed its own path twice",
+      [step(60, 100), step(120, 100), step(120, 200)],
+      120,
+    ],
+  ])("%s", (_name, steps, x) => {
+    expect(compileWireDraft(at(100, 100), at(x, 150), steps).points).toEqual([
       { x: 100, y: 100 },
-      { x: 80, y: 100 },
-      { x: 80, y: 150 },
-    ]);
-  });
-
-  it("collapses a wander that crossed its own path twice", () => {
-    expect(
-      compileWireDraft(at(100, 100), at(120, 150), [
-        step(60, 100),
-        step(120, 100),
-        step(120, 200),
-      ]).points,
-    ).toEqual([
-      { x: 100, y: 100 },
-      { x: 120, y: 100 },
-      { x: 120, y: 150 },
+      { x, y: 100 },
+      { x, y: 150 },
     ]);
   });
 });

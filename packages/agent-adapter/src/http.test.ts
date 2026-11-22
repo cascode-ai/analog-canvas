@@ -58,31 +58,14 @@ describe("authenticated loopback Agent HTTP adapter", () => {
       });
       expect(authorized.status).toBe(200);
       expect(await authorized.json()).toMatchObject({
-        ok: true,
-        operation: "capabilities",
-      });
-      expect(authorized.headers.get("cache-control")).toBe("no-store");
-
-      const snapshotCapabilities = await fetch(server.url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          apiVersion: "3.0",
-          requestId: "snapshot-capabilities",
-          operation: "capabilities",
-        }),
-      });
-      expect(snapshotCapabilities.status).toBe(200);
-      expect(await snapshotCapabilities.json()).toMatchObject({
         apiVersion: "3.0",
         ok: true,
+        operation: "capabilities",
         capabilities: {
           operations: ["capabilities", "snapshot", "transact", "render"],
         },
       });
+      expect(authorized.headers.get("cache-control")).toBe("no-store");
 
       const malformedV2 = await fetch(server.url, {
         method: "POST",

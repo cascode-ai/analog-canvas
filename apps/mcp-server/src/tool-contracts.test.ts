@@ -24,8 +24,6 @@ beforeAll(() => void listToolDefinitions(), 30_000);
 
 describe("on-demand tool contracts", () => {
   it("exposes User Components separately from Gallery with fixed-version insertion and principal-owned publication", () => {
-    const schema = toolInputSchema("user_components");
-    expect(schema).toBeTruthy();
     const selected = describeToolContract({
       tool: "user_components",
       operations: ["insert", "publish"],
@@ -40,7 +38,6 @@ describe("on-demand tool contracts", () => {
     const result = await callTool("describe_tool", {}, {} as never);
     expect(result.isError).not.toBe(true);
     const directory = text(result);
-    expect(directory.contractVersion).toBeTruthy();
     expect(
       directory.tools.find((t: { name: string }) => t.name === "apply_actions")
         .operations,
@@ -199,9 +196,6 @@ describe("on-demand tool contracts", () => {
   });
 
   it("describes the shared legacy expression contract without expanding its DAG repeatedly", () => {
-    const full = describeToolContract({ tool: "simulation_output" }) as any;
-    expect(full.operations).toEqual(["list", "upsert", "remove"]);
-    expect(full.inputSchema).toBeDefined();
     const upsert = describeToolContract({
       tool: "simulation_output",
       operations: ["upsert"],

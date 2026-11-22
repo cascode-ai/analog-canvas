@@ -5,45 +5,10 @@ import { createEmptyDocument } from "@icm/model";
 import { executeTransaction } from "./transaction.js";
 
 describe("formula edit validation", () => {
-  it("accepts a valid atomic formula through the ordinary drafting edit", () => {
+  function upsertFormula(latex: string) {
     const document = createEmptyDocument("doc", "Formula");
-    const result = executeTransaction(document, {
-      transactionId: "formula-valid",
-      documentId: document.id,
-      expectedRevision: document.revision,
-      actor: { kind: "human", id: "editor" },
-      edits: [
-        {
-          kind: "upsert_drafting_object",
-          object: {
-            id: "formula",
-            kind: "text",
-            locked: false,
-            zIndex: 0,
-            anchor: { kind: "free", position: { x: 100, y: 100 } },
-            content: {
-              runs: [
-                {
-                  kind: "math",
-                  latex: String.raw`A_v=\frac{g_m}{1+s/\omega_p}`,
-                  display: "inline",
-                },
-              ],
-            },
-            alignment: "middle",
-            rotation: 0,
-          },
-        },
-      ],
-    });
-
-    expect(result.ok).toBe(true);
-  });
-
-  it("rejects malformed formula source at its typed-edit path", () => {
-    const document = createEmptyDocument("doc", "Formula");
-    const result = executeTransaction(document, {
-      transactionId: "formula-invalid",
+    return executeTransaction(document, {
+      transactionId: "formula",
       documentId: document.id,
       expectedRevision: document.revision,
       actor: { kind: "agent", id: "agent" },
@@ -56,23 +21,23 @@ describe("formula edit validation", () => {
             locked: false,
             zIndex: 0,
             anchor: { kind: "free", position: { x: 100, y: 100 } },
-            content: {
-              runs: [
-                {
-                  kind: "math",
-                  latex: String.raw`\frac{V_{OUT}`,
-                  display: "inline",
-                },
-              ],
-            },
+            content: { runs: [{ kind: "math", latex, display: "inline" }] },
             alignment: "middle",
             rotation: 0,
           },
         },
       ],
     });
+  }
 
-    expect(result).toMatchObject({
+  it("accepts a valid atomic formula through the ordinary drafting edit", () => {
+    expect(upsertFormula(String.raw`A_v=\frac{g_m}{1+s/\omega_p}`).ok).toBe(
+      true,
+    );
+  });
+
+  it("rejects malformed formula source at its typed-edit path", () => {
+    expect(upsertFormula(String.raw`\frac{V_{OUT}`)).toMatchObject({
       ok: false,
       error: { code: "INVALID_TRANSACTION" },
       diagnostics: [

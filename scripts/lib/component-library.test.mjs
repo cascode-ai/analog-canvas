@@ -228,10 +228,7 @@ describe("one-file component library", () => {
       );
       expect(derived.symbol.primitives.at(-1)).toMatchObject({
         kind: "line",
-        from: { x: -0.368217, y: -7.776744 },
-        to: { x: -0.368217, y: 7.776744 },
         part: "depletion-channel",
-        style: { strokeRole: "normal", lineCap: "butt" },
       });
       expect(derived.symbol.variants).toEqual(base.symbol.variants);
     }

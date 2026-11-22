@@ -897,7 +897,6 @@ describe("ERC engine", () => {
         code: "ERC_SHORTED_DEVICE",
         severity: "warning",
         gateEligible: false,
-        message: "R1's two pins are on one Net, so the part is shorted",
         primary: expect.objectContaining({
           kind: "instance",
           objectId: "I1",
@@ -1058,9 +1057,6 @@ describe("ERC engine", () => {
       net("net-b", "I2.L", "I2.R"),
     ]);
     expect(rest).toEqual([]);
-    expect(finding!.message).toBe(
-      "Pins I1.R and I2.L sit on one point but belong to different Nets",
-    );
     expect(finding!.parameters).toEqual({
       instanceId: "I1",
       pinName: "R",
@@ -2113,17 +2109,14 @@ describe("Nets that reach only gates, bulks and block inputs (#1473)", () => {
     expect(undriven(project)).toEqual([]);
   });
 
-  it("warns about bodies that only reach each other", () => {
-    // A bulk-driven OTA whose input reaches the bulks alone.
-    const found = undriven(lineTo("pmos", ["M1.B", "M2.B"]));
+  // A bulk-driven OTA whose input reaches the bulks alone, and logic inputs.
+  it.each([
+    ["bodies that only reach each other", "pmos", ["M1.B", "M2.B"]],
+    ["logic inputs that nothing drives", "inverter", ["U1.A", "U2.A"]],
+  ] as const)("warns about %s", (_, symbolId, pins) => {
+    const found = undriven(lineTo(symbolId, pins));
     expect(found).toHaveLength(1);
-    expect(found[0]!.message).toContain("M1.B, M2.B");
-  });
-
-  it("warns about logic inputs that nothing drives", () => {
-    const found = undriven(lineTo("inverter", ["U1.A", "U2.A"]));
-    expect(found).toHaveLength(1);
-    expect(found[0]!.message).toContain("U1.A, U2.A");
+    expect(found[0]!.message).toContain(pins.join(", "));
   });
 
   it("leaves a lone gate to ERC_FLOATING_GATE", () => {

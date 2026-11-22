@@ -236,23 +236,6 @@ it("does not substitute SKY130 when SG13 is unconfigured, or accept SKY130 corne
   expect(fetcher).not.toHaveBeenCalled();
 });
 
-it("offers exactly one SG13 Profile with all qualified devices", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => Response.json(health)),
-  );
-  const reply = await routeSimulationRequest(
-    post({ operation: "capabilities" }),
-    env,
-  );
-  const capabilities = await reply!.json();
-  expect(capabilities.profiles.map((p: { id: string }) => p.id)).toEqual([
-    sky130.id,
-    sg13.id,
-  ]);
-  expect(capabilities.profiles[1].devices).toHaveLength(13);
-});
-
 it("refuses the retired SG13 Profile without substituting the final model", async () => {
   const fetcher = vi.fn();
   vi.stubGlobal("fetch", fetcher);

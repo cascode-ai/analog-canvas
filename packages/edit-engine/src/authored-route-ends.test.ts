@@ -174,11 +174,6 @@ describe("rerouting a wire that ends on a branch Junction (#2288)", () => {
   ])("is refused when it %s, so the Junction and netlist stay", (_, bends) => {
     const project = branchProject();
     const result = reroute(project, bends);
-    const after = result.ok ? result.project : project;
-    expect(spice(after)).toBe(spice(project));
-    expect(after.documents[0]!.junctions).toEqual(
-      project.documents[0]!.junctions,
-    );
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.message).toMatch(

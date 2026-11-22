@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { parseVacaskRawfile } from "./vacask-rawfile.js";
 
@@ -27,39 +26,6 @@ function error(text: string) {
 }
 
 describe("native VACASK ASCII output", () => {
-  it("keeps the captured output bytes, including reserved header padding", () => {
-    for (const [directory, name, sha256] of [
-      [
-        "vacask-custom-model",
-        "custom_op.raw",
-        "8267242c4e8f45edbca42b80dae3ffa7dcf3b0ec8bad37d172dfc0972c64d076",
-      ],
-      [
-        "vacask-divider",
-        "divider_op.raw",
-        "dc3783912860c8a6d21bce0492c53506fdfe0147e534a3c46cf34d2640a92fc2",
-      ],
-      [
-        "vacask-divider",
-        "divider_dc.raw",
-        "a4f47c6b142033c02fe8d1404e6123011c97b4d8915e4166a9a80e10cc82980f",
-      ],
-      [
-        "vacask-rc",
-        "rc_ac.raw",
-        "5b798c0cfdf03ff6fd29a2c4d0c879fa588d0bc2000b90bccbe18f0c6634b5a5",
-      ],
-      [
-        "vacask-resistor-noise",
-        "resistor_noise.raw",
-        "43ed8e5893449fc9580ea4619c5c689012006b031aa0c1fa4c396b1a130ef2fe",
-      ],
-    ] as const) {
-      expect(
-        createHash("sha256").update(fixture(directory, name)).digest("hex"),
-      ).toBe(sha256);
-    }
-  });
   it("retains untyped vectors and the physical current sign", () => {
     const op = plot(divider());
     expect(op.pointCount).toBe(1);

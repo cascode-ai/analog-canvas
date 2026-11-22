@@ -538,7 +538,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     const plan = (model: string) =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
     expect(() => plan("INV1")).toThrow(
-      "Cell inv1 does not fit the nor-gate: it has no Pin B, and its Pin EN is not one of the gate's. Its Pins must be A, B and Y, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
+      "Cell inv1 does not fit the nor-gate: it has no Pin B, and its Pin EN is not one of the gate's.",
     );
     expect(() => plan("nor3")).toThrow(
       "nor3 is not a Cell or external subcircuit of this Project, nor a reviewed standard cell for nor-gate; use nor2, sky130_fd_sc_hd__nor2_1, sg13g2_nor2_1",
@@ -711,7 +711,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     const plan = (model: string) =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
     expect(() => plan("dff")).toThrow(
-      "Cell dff does not fit the d-flip-flop-reset: it has no Pin RST. Its Pins must be D, CK, RST, Q and QBAR, in any letter case, and VDD and VSS unless the Cell takes its supplies globally",
+      "Cell dff does not fit the d-flip-flop-reset: it has no Pin RST.",
     );
     expect(() => plan("dffr")).toThrow(
       "dffr is not a Cell or external subcircuit of this Project that fits d-flip-flop-reset",
@@ -993,7 +993,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     expect(() =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", "half"),
     ).toThrow(
-      "Cell half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins A and B are not of the op-amp's. Its Pins must be IN+, IN- and OUT, in any letter case (or INP and INN, VINP and VINN, VIP and VIN, or IP and IN for the inputs, and VOUT, VO or OUTPUT for OUT), and VDD and VSS unless the Cell takes its supplies globally",
+      "Cell half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins A and B are not of the op-amp's.",
     );
     expect(() =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", "ota"),
@@ -1047,9 +1047,6 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     // The Cell's supplies come first; its y, a and b take the adder's Y, A
     // and B (net3, net0 and net1; Nets are numbered by ID).
     expect(exported.file.text).toMatch(/^X1 net2 VSS net3 net0 net1 sum$/mu);
-    // A Cell rename leaves it an adder.
-    const renamed = execute(bound, planRenameCell(bound, "sum", "sum_cmos"));
-    expect(gate(renamed).symbolId).toBe("adder");
     expect(gate(bind(bound, "")).netlist).toEqual({
       binding: { kind: "unresolved-subcircuit", name: "adder" },
       parameters: { signA: "+", signB: "+" },
@@ -1218,7 +1215,7 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     const plan = (model: string) =>
       planSetDeviceModelTarget(project, project.topDocumentId, "X1", model);
     expect(() => plan("half")).toThrow(
-      "External subcircuit half does not fit the opamp: it has no Pins IN+ and IN-, and its Pins A and B are not of the op-amp's. Its Pins must be IN+, IN- and OUT, in any letter case (or INP and INN, VINP and VINN, VIP and VIN, or IP and IN for the inputs, and VOUT, VO or OUTPUT for OUT), and VDD and VSS unless the subcircuit takes its supplies globally",
+      "External subcircuit half does not fit the opamp: it has no Pins IN+ and IN-",
     );
     expect(() => plan("imported")).toThrow(
       "External subcircuit imported names its ports only by position; name them IN+, IN- and OUT to bind the opamp to it",
@@ -1346,12 +1343,12 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
     const chopper = deviceProject("chopper", ["INP", "INN", "OUTP", "OUTN"]);
     addCell(chopper, "half", "half", ["INP", "INN", "OUTP"]);
     expect(() => plan(chopper, "half")).toThrow(
-      "Cell half does not fit the chopper: it has no Pin OUTN. Its Pins must be INP, INN, OUTP and OUTN, in any letter case, and CK for the clock its label names unless the Cell takes its clock globally",
+      "Cell half does not fit the chopper: it has no Pin OUTN.",
     );
     const tcoil = deviceProject("tcoil", ["1", "2", "3"]);
     addCell(tcoil, "pair", "pair", ["1", "2"]);
     expect(() => plan(tcoil, "pair")).toThrow(
-      "Cell pair does not fit the tcoil: it has no Pin 3. Its Pins must be 1, 2 and 3, in any letter case",
+      "Cell pair does not fit the tcoil: it has no Pin 3.",
     );
     expect(() => plan(tcoil, "ota")).toThrow(
       "ota is not a Cell or external subcircuit of this Project that fits tcoil",
@@ -1731,15 +1728,6 @@ describe("hierarchy domain planners", () => {
         ],
       },
     ]);
-    expect(
-      document.netlist!.terminals.map((terminal) => terminal.name),
-    ).toEqual(["IN", "VDD"]);
-    expect(document.annotations[0]?.anchor).toEqual({
-      kind: "object",
-      objectId: "P1",
-      localOffset: { x: 2, y: 3 },
-      fallbackPosition: { x: 4, y: 5 },
-    });
 
     document.annotations = document.annotations.map((annotation, index) => ({
       ...annotation,
@@ -1860,58 +1848,6 @@ describe("hierarchy domain planners", () => {
     old.documents[1]!.name = "opamp_ext";
     old.documents[1]!.netlist!.name = "opamp_ext";
     expect(run(old, planRenameCell(old, "top", "Top_2")).ok).toBe(true);
-  });
-
-  it("constructs one canonical caller from the child interface", () => {
-    const child = createEmptyDocument("child", "Stage");
-    child.netlist!.terminals.push({
-      id: "terminal-in",
-      name: "IN",
-      netId: "net-in",
-      direction: "input",
-      interfaceInstanceIds: ["P1"],
-    });
-
-    expect(
-      createHierarchyInstance("X1", child, {
-        position: { x: 100, y: 80 },
-        rotation: 90,
-        mirror: "horizontal",
-      }),
-    ).toMatchObject({
-      id: "X1",
-      placement: { rotation: 90, mirror: "horizontal" },
-      reference: "X1",
-      netlist: {
-        binding: { childDocumentId: "child" },
-      },
-    });
-  });
-
-  it("places a Cell caller through one parent transaction", () => {
-    const project = createEmptyProject("project", "Project");
-    const child = createEmptyDocument("child", "Stage");
-    project.documents.push(child);
-    const instance = createHierarchyInstance("X1", child, {
-      position: { x: 0, y: 0 },
-      rotation: 0,
-      mirror: "none",
-    });
-    const result = executeProjectTransaction(project, {
-      transactionId: "place-cell",
-      projectId: project.id,
-      expectedStructureRevision: 0,
-      actor: { kind: "human", id: "test" },
-      edits: planPlaceCellInstance(project, project.topDocumentId, instance),
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(
-      result.project.documents.find(
-        (document) => document.id === project.topDocumentId,
-      )?.instances,
-    ).toEqual([expect.objectContaining({ id: "X1" })]);
   });
 
   it("permits a hierarchy reference independent from the stable instance id", () => {

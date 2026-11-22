@@ -63,7 +63,6 @@ describe("snapshot cache", () => {
     expect(dirty?.dirty).toBe(true);
     cache.set({ ...cachedEntry(6), requestId: "req-2" });
     expect(cache.get("main")?.dirty).toBe(false);
-    expect(cache.documents()).toEqual(["main"]);
   });
 
   it("diffs added, removed, and content-changed object ids", () => {

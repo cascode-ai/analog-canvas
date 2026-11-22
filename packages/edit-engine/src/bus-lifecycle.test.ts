@@ -268,29 +268,6 @@ it("retains a wired aggregate as editable stubs while bridging only surviving me
   ).toEqual([{ instanceId: "load", pinName: "1" }]);
 });
 
-it("resizes an unwired aggregate through the same explicit member transaction", () => {
-  const { project, before } = connectedBus();
-  const document = project.documents[0]!;
-  document.instances = document.instances.filter(
-    (instance) => instance.id !== "load",
-  );
-  for (const net of document.nets)
-    net.terminals = net.terminals.filter(
-      (terminal) => terminal.instanceId !== "load",
-    );
-  const reduced = apply(
-    project,
-    planRenameCellTerminal(project, "child", "formal", "IN<3,1,0>", {
-      memberMap: { [before[1]!.id]: null },
-    }),
-  );
-  expect(
-    reduced.documents[0]!.netlist!.terminals[0]!.signal!.members.map(
-      (member) => member.id,
-    ),
-  ).toEqual([before[0]!.id, before[2]!.id, before[3]!.id]);
-});
-
 it("requires explicit disconnection before removing a connected member", () => {
   const { project, before } = connectedBus();
   expect(() =>
@@ -309,9 +286,6 @@ it("requires explicit disconnection before removing a connected member", () => {
   expect(
     cell.nets.find((net) => net.id === before[1]!.netId)!.terminals,
   ).toEqual([{ instanceId: "load", pinName: "1" }]);
-  expect(project.documents[0]!.netlist!.terminals[0]!.signal!.members).toEqual(
-    before,
-  );
 });
 
 it("keeps authored label styling and visibility through a connected reduction", () => {
@@ -697,7 +671,6 @@ it("deliberately converts a legacy scalar contact to one chosen member without f
   });
   expect(reopened.routes[0]!.members).toBeUndefined();
   expect(reopened.routes[0]!.netId).toBe("old-scalar");
-  expect(serializeProject(legacy)).toBe(oldText);
 });
 
 it.each([

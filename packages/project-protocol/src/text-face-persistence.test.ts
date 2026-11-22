@@ -1,10 +1,6 @@
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
-import {
-  CURRENT_PROJECT_FILE_VERSION,
-  parseProject,
-  serializeProject,
-} from "./index.js";
+import { parseProject, serializeProject } from "./index.js";
 import { legacyProjectFile } from "./legacy-project.test-support.js";
 
 function serifProject() {
@@ -14,14 +10,6 @@ function serifProject() {
 }
 
 describe("Document font persistence (#1725)", () => {
-  it("keeps a Document's serif face through repeated saves", () => {
-    const text = serializeProject(serifProject());
-    expect(JSON.parse(text).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
-    const reopened = parseProject(text);
-    expect(reopened.documents[0]!.presentation.textFace).toBe("serif");
-    expect(serializeProject(reopened)).toBe(text);
-  });
-
   it("writes no field for a Document in the default face", () => {
     const text = serializeProject(createEmptyProject("plain", "Plain"));
     expect(text).not.toContain("textFace");
@@ -35,7 +23,7 @@ describe("Document font persistence (#1725)", () => {
     );
   });
 
-  it.each(["sans", "latin-modern"] as const)(
+  it.each(["serif", "sans", "latin-modern"] as const)(
     "keeps a Document's %s face through repeated saves",
     (face) => {
       const project = createEmptyProject("text-face", "Text face");

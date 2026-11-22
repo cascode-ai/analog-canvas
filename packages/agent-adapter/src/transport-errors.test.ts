@@ -4,7 +4,6 @@ import { AgentTransportErrorCodeSchema } from "./envelope.js";
 import {
   AGENT_TRANSPORT_ERRORS,
   agentTransportErrorCategory,
-  agentTransportErrorMessage,
   agentTransportErrorStatus,
 } from "./transport-errors.js";
 
@@ -18,7 +17,6 @@ describe("agent transport error table", () => {
     ]);
     for (const code of AgentTransportErrorCodeSchema.options) {
       const descriptor = AGENT_TRANSPORT_ERRORS[code];
-      expect(descriptor, code).toBeDefined();
       expect(Number.isInteger(descriptor.status), code).toBe(true);
       expect(descriptor.status, code).toBeGreaterThanOrEqual(400);
       expect(categories.has(descriptor.category), code).toBe(true);
@@ -53,9 +51,6 @@ describe("agent transport error table", () => {
     );
     expect(agentTransportErrorStatus("REQUEST_TIMEOUT")).toBe(504);
     expect(agentTransportErrorCategory("REQUEST_TIMEOUT")).toBe("retryable");
-    expect(agentTransportErrorMessage("EDITOR_OFFLINE")).toBe(
-      "The authorized browser editor is offline",
-    );
   });
 
   it("keeps a credential valid at its own site, and ends a taken-over or reused pairing", () => {

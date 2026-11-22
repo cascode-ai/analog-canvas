@@ -164,30 +164,50 @@ describe("contactRequiresJunctionDot", () => {
     expect(dotAt(document, { x: 0, y: 0 })).toBe(true);
   });
 
-  it("keeps three collinear MOS Gates dotless at the middle terminal", () => {
-    const document = documentWith(
-      [
-        {
-          id: "left",
-          from: { instanceId: "M3", pinName: "G" },
-          to: { instanceId: "M2", pinName: "G" },
-        },
-        {
-          id: "right",
-          from: { instanceId: "M2", pinName: "G" },
-          to: { instanceId: "M1", pinName: "G" },
-        },
-      ],
-      [
-        { id: "M3", symbolId: "nmos", position: { x: 0, y: 0 }, pins: ["G"] },
-        { id: "M2", symbolId: "nmos", position: { x: 60, y: 0 }, pins: ["G"] },
-        { id: "M1", symbolId: "nmos", position: { x: 120, y: 0 }, pins: ["G"] },
-      ],
-    );
-    // Gate pins resolve at x = instance.x - 20. The M2 stem and right-hand
-    // Route share one direction, leaving only the two visible line directions.
-    expect(dotAt(document, { x: 40, y: 0 })).toBe(false);
-  });
+  // Gate pins resolve at x = instance.x - 20 upright. The M2 stem and the
+  // Route beyond it share one direction, leaving only the two visible line
+  // directions; rotated and mirrored terminal directions classify the same.
+  it.each([
+    ["upright", {}, (step: number) => ({ x: step, y: 0 }), { x: 40, y: 0 }],
+    [
+      "rotated",
+      { rotation: 90 as const },
+      (step: number) => ({ x: 0, y: step }),
+      { x: 0, y: 40 },
+    ],
+    [
+      "mirrored",
+      { mirror: "horizontal" as const },
+      (step: number) => ({ x: step, y: 0 }),
+      { x: 80, y: 0 },
+    ],
+  ])(
+    "keeps three collinear %s MOS Gates dotless at the middle terminal",
+    (_, orientation, at, middle) => {
+      const document = documentWith(
+        [
+          {
+            id: "first",
+            from: { instanceId: "M3", pinName: "G" },
+            to: { instanceId: "M2", pinName: "G" },
+          },
+          {
+            id: "second",
+            from: { instanceId: "M2", pinName: "G" },
+            to: { instanceId: "M1", pinName: "G" },
+          },
+        ],
+        ["M3", "M2", "M1"].map((id, index) => ({
+          id,
+          symbolId: "nmos",
+          position: at(index * 60),
+          ...orientation,
+          pins: ["G"],
+        })),
+      );
+      expect(dotAt(document, middle)).toBe(false);
+    },
+  );
 
   it("keeps a single right-angle Route from a terminal dotless", () => {
     const document = documentWith(
@@ -201,88 +221,6 @@ describe("contactRequiresJunctionDot", () => {
       [{ id: "M1", symbolId: "pmos", position: { x: 0, y: 0 }, pins: ["G"] }],
     );
     expect(dotAt(document, { x: -20, y: 0 })).toBe(false);
-  });
-
-  it("uses rotated terminal directions when classifying collinear Gates", () => {
-    const document = documentWith(
-      [
-        {
-          id: "top",
-          from: { instanceId: "M3", pinName: "G" },
-          to: { instanceId: "M2", pinName: "G" },
-        },
-        {
-          id: "bottom",
-          from: { instanceId: "M2", pinName: "G" },
-          to: { instanceId: "M1", pinName: "G" },
-        },
-      ],
-      [
-        {
-          id: "M3",
-          symbolId: "nmos",
-          position: { x: 0, y: 0 },
-          rotation: 90,
-          pins: ["G"],
-        },
-        {
-          id: "M2",
-          symbolId: "nmos",
-          position: { x: 0, y: 60 },
-          rotation: 90,
-          pins: ["G"],
-        },
-        {
-          id: "M1",
-          symbolId: "nmos",
-          position: { x: 0, y: 120 },
-          rotation: 90,
-          pins: ["G"],
-        },
-      ],
-    );
-    expect(dotAt(document, { x: 0, y: 40 })).toBe(false);
-  });
-
-  it("uses mirrored terminal directions when classifying collinear Gates", () => {
-    const document = documentWith(
-      [
-        {
-          id: "left",
-          from: { instanceId: "M3", pinName: "G" },
-          to: { instanceId: "M2", pinName: "G" },
-        },
-        {
-          id: "right",
-          from: { instanceId: "M2", pinName: "G" },
-          to: { instanceId: "M1", pinName: "G" },
-        },
-      ],
-      [
-        {
-          id: "M3",
-          symbolId: "nmos",
-          position: { x: 0, y: 0 },
-          mirror: "horizontal",
-          pins: ["G"],
-        },
-        {
-          id: "M2",
-          symbolId: "nmos",
-          position: { x: 60, y: 0 },
-          mirror: "horizontal",
-          pins: ["G"],
-        },
-        {
-          id: "M1",
-          symbolId: "nmos",
-          position: { x: 120, y: 0 },
-          mirror: "horizontal",
-          pins: ["G"],
-        },
-      ],
-    );
-    expect(dotAt(document, { x: 80, y: 0 })).toBe(false);
   });
 
   it("dots a true three-direction branch containing 45-degree arms", () => {

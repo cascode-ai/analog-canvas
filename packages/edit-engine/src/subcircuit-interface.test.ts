@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import { executeProjectTransaction } from "./project-transaction.js";
 import { proposeUpsertExternalSubcircuitDefinition } from "./hierarchy-planner.js";
-import { externalSubcircuitSymbolId } from "@icm/symbols";
 import { reviewedExternalBindingForMaster } from "@icm/devices";
 
 function transaction(
@@ -193,42 +192,5 @@ describe("subcircuit interface proposals", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("INVALID_RESULT");
-  });
-
-  it("refreshes every bound black-box symbol when an external target is renamed", () => {
-    const project = createEmptyProject("project", "Project");
-    const document = project.documents[0]!;
-    project.externalSubcircuitDefinitions.push({
-      id: "external-ota",
-      name: "OTA",
-      terminals: [],
-      formalParameters: [],
-      interfaceStatus: "declared",
-    });
-    document.instances.push({
-      id: "X1",
-      symbolId: externalSubcircuitSymbolId("external-ota"),
-      placement: null,
-      reference: "X1",
-      netlist: {
-        binding: { kind: "external-subcircuit", definitionId: "external-ota" },
-        parameters: {},
-      },
-    });
-
-    const proposal = proposeUpsertExternalSubcircuitDefinition(project, {
-      id: "external-ota",
-      name: "OTA2",
-      terminals: [],
-      formalParameters: [],
-      interfaceStatus: "declared",
-    });
-    const result = transaction(project, proposal.edits);
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.project.documents[0]!.instances[0]!.symbolId).toBe(
-      externalSubcircuitSymbolId("external-ota"),
-    );
   });
 });

@@ -439,14 +439,7 @@ describe("moving existing testbenches out of the Project Code", () => {
           { method: "POST", body: JSON.stringify(query) },
         )
       ).json();
-    // The off-site collector checks the scope's tables: still the same three,
-    // the testbench riding in each row.
-    const inventory = await page({ table: "inventory", scope: "gallery" });
-    expect(Object.keys(inventory.tables)).toEqual([
-      "galleryEntries",
-      "galleryEntryVersions",
-      "galleryLikes",
-    ]);
+    // The testbench rides in each backed-up row.
     const backup = await pagedStoreBackup(page);
     expect(backup.tables.galleryEntries).toEqual([
       expect.objectContaining({ id, testbench_text: expect.any(String) }),

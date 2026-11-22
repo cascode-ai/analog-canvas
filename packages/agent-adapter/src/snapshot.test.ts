@@ -459,7 +459,6 @@ describe("Agent Document Snapshot", () => {
         const instance = snapshot.document.instances.find(
           (candidate) => candidate.id === terminal.instanceId,
         );
-        expect(instance).toBeDefined();
         expect(
           instance?.pins.find((pin) => pin.name === terminal.pinName)?.netId,
         ).toBe(net.id);

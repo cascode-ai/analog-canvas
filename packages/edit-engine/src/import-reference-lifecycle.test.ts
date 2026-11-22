@@ -82,8 +82,6 @@ describe("import reference through real edit lifecycle", () => {
       documents: project.documents.map((d) => (d.id === doc.id ? merged : d)),
     };
     const after = analyzeDesignNetlist(changed);
-    expect(before.ir).not.toBeNull();
-    expect(after.ir).not.toBeNull();
     const nodes = (result: typeof before, id: string) =>
       result
         .ir!.cells.flatMap((c) => c.instances)

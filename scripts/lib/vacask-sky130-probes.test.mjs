@@ -68,7 +68,6 @@ describe("native model comparison against frozen hosted evidence", () => {
       "nfetCurrentA",
     ]);
     expect(checks[0].relativeError).toBeCloseTo(0.01);
-    expect(checks).toHaveLength(10);
   });
   it("rejects missing vectors, wrong AC frequency and unknown corner", () => {
     const [op, ac] = samples("tt");

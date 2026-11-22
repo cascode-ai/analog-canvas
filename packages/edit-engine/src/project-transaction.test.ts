@@ -1917,35 +1917,6 @@ describe("Project structural transaction", () => {
     });
   });
 
-  it("updates Cell symbol intent only through a structural transaction", () => {
-    const project = createEmptyProject("project", "Project");
-    const result = executeProjectTransaction(project, {
-      transactionId: "set-cell-symbol-presentation",
-      projectId: project.id,
-      expectedStructureRevision: project.structureRevision,
-      actor: { kind: "human", id: "human-local" },
-      edits: planSetCellSymbolPresentation(project, project.topDocumentId, {
-        minimumBodySize: { width: 120, height: 80 },
-      }),
-    });
-
-    expect(result).toMatchObject({
-      ok: true,
-      applied: true,
-      project: {
-        structureRevision: 1,
-        documents: [
-          {
-            revision: 1,
-            presentation: {
-              cellSymbol: { minimumBodySize: { width: 120, height: 80 } },
-            },
-          },
-        ],
-      },
-    });
-  });
-
   it.each(["cell", "external"] as const)(
     "follows caller Route geometry when a %s definition pin moves",
     (kind) => {

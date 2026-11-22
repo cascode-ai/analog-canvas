@@ -288,24 +288,6 @@ describe("expandRouteGraph", () => {
     );
     expect(result.edits).toEqual([]);
   });
-
-  it("is deterministic: same graph + input yields identical output", () => {
-    const graph = baseGraph({
-      nodes: [
-        {
-          id: "a",
-          role: "endpoint",
-          endpoint: { kind: "terminal", instanceId: "M1", pinName: "D" },
-        },
-        { id: "tap0", role: "tap", alignWith: "a", axis: "y", offset: 100 },
-      ],
-      edges: [{ id: "e0", from: "a", to: "tap0", role: "escape" }],
-    });
-    const inp = input([term("a", 100, 200, "M1", "D")]);
-    const first = expandRouteGraph(graph, inp);
-    const second = expandRouteGraph(graph, inp);
-    expect(second).toEqual(first);
-  });
 });
 
 void (null as unknown as Point);

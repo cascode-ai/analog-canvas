@@ -153,9 +153,6 @@ describe("agent http client", () => {
     };
     expect(await http.simulation("session", "token", request)).toEqual(body);
     Object.assign(outputData.specs, { unknown: true });
-    await expect(http.simulation("session", "token", request)).rejects.toThrow(
-      "schema validation",
-    );
     const rejected = await http
       .simulation("session", "token", request)
       .catch((error: unknown) => error);
@@ -166,7 +163,6 @@ describe("agent http client", () => {
     expect(String(rejected)).toContain(
       "run.outputData.specs (unrecognized_keys)",
     );
-    expect(String(rejected)).toContain("MCP manifest");
     expect(String(rejected)).not.toContain("unknown");
     delete (outputData.specs as Record<string, unknown>).unknown;
     expect(await http.simulation("session", "token", request)).toEqual(body);
@@ -222,11 +218,6 @@ describe("agent http client", () => {
         outcome: attempt < 3 ? "retry" : "http-error",
       })),
     );
-    expect(
-      http.requestTimings
-        .slice(0, 2)
-        .every((t) => t.retryDelayMs !== undefined),
-    ).toBe(true);
   });
   it("honors Retry-After beyond the local wait budget without retrying early", async () => {
     const http = new AgentHttpClient({

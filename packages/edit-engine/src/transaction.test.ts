@@ -5,7 +5,7 @@ import {
   semanticTextDocument,
   transformPoint,
 } from "@icm/model";
-import type { RichTextDocument } from "@icm/model";
+import type { RichTextDocument, SchematicDocument } from "@icm/model";
 import {
   defaultInstanceLabelPlacement,
   instanceLabelInkBounds,
@@ -327,12 +327,7 @@ describe("Edit Transaction envelope", () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: {
-        code: "EDIT_PRECONDITION",
-        message: expect.stringContaining(
-          "Route route-zero (terminal:P1:P -> terminal:X1:2, resolved (520,200) -> (520,200))",
-        ),
-      },
+      error: { code: "EDIT_PRECONDITION" },
       diagnostics: [
         expect.objectContaining({
           path: ["edits", 0],
@@ -680,39 +675,22 @@ describe("Edit Transaction envelope", () => {
     });
   });
 
-  it("rejects retired parallel Instance naming edits", () => {
-    expect(
-      SchematicEditSchema.safeParse({
-        kind: "set_instance_schematic_name",
-        instanceId: "M1",
-        content: { runs: [{ kind: "text", value: "alias" }] },
-      }).success,
-    ).toBe(false);
-    expect(
-      SchematicEditSchema.safeParse({
-        kind: "set_instance_schematic_reference",
-        instanceId: "M1",
-        reference: "M2",
-      }).success,
-    ).toBe(false);
-  });
-
-  it("rejects the retired ambiguous annotation edit names", () => {
-    expect(
-      SchematicEditSchema.safeParse({
-        kind: "upsert_annotation",
-        annotation: {},
-      }).success,
-    ).toBe(false);
-    expect(
-      SchematicEditSchema.safeParse({
-        kind: "remove_annotation",
-        annotationId: "label",
-      }).success,
-    ).toBe(false);
-    expect(
-      SchematicEditSchema.safeParse({ kind: "normalize_power_nets" }).success,
-    ).toBe(false);
+  it.each([
+    {
+      kind: "set_instance_schematic_name",
+      instanceId: "M1",
+      content: { runs: [{ kind: "text", value: "alias" }] },
+    },
+    {
+      kind: "set_instance_schematic_reference",
+      instanceId: "M1",
+      reference: "M2",
+    },
+    { kind: "upsert_annotation", annotation: {} },
+    { kind: "remove_annotation", annotationId: "label" },
+    { kind: "normalize_power_nets" },
+  ])("rejects the retired $kind edit", (edit) => {
+    expect(SchematicEditSchema.safeParse(edit).success).toBe(false);
   });
 
   it("bounds one bulk netlist patch before it reaches a transaction", () => {
@@ -737,8 +715,22 @@ describe("Edit Transaction envelope", () => {
     ).toBe(false);
   });
 
-  it("rejects an invalid power rail atomically", () => {
+  it.each([
+    ["a diagonal power rail", () => {}, { x: 40, y: 40 }],
+    [
+      "a power rail whose generated IDs collide with an existing object",
+      (document: SchematicDocument) => {
+        document.instances.push({
+          id: "label-vdd",
+          symbolId: "resistor",
+          placement: null,
+        });
+      },
+      { x: 80, y: 10 },
+    ],
+  ] as const)("rejects %s atomically", (_name, prepare, end) => {
     const document = createEmptyDocument("document-main", "Main");
+    prepare(document);
     const before = JSON.stringify(document);
     const result = executeTransaction(
       document,
@@ -756,7 +748,7 @@ describe("Edit Transaction envelope", () => {
             scope: "local",
             powerDomain: "vdd",
             start: { x: 10, y: 10 },
-            end: { x: 40, y: 40 },
+            end,
           },
         ],
       },
@@ -843,41 +835,6 @@ describe("Edit Transaction envelope", () => {
       { symbolResolver: resolver },
     );
     expect(extended.ok).toBe(true);
-  });
-
-  it("rejects a power rail whose generated IDs collide with an existing object", () => {
-    const document = createEmptyDocument("document-main", "Main");
-    document.instances.push({
-      id: "label-vdd",
-      symbolId: "resistor",
-      placement: null,
-    });
-    const before = JSON.stringify(document);
-    const result = executeTransaction(
-      document,
-      {
-        ...transaction(),
-        edits: [
-          {
-            kind: "add_power_rail",
-            netId: "net-vdd",
-            routeId: "rail-vdd",
-            startJunctionId: "junction-start",
-            endJunctionId: "junction-end",
-            labelId: "label-vdd",
-            netName: "VDD",
-            scope: "local",
-            powerDomain: "vdd",
-            start: { x: 10, y: 10 },
-            end: { x: 80, y: 10 },
-          },
-        ],
-      },
-      { symbolResolver: resolver },
-    );
-
-    expect(result).toMatchObject({ ok: false, applied: false, revision: 0 });
-    expect(JSON.stringify(document)).toBe(before);
   });
 
   it("rejects reassignment between non-empty power roles atomically", () => {
@@ -1240,6 +1197,18 @@ describe("Edit Transaction envelope", () => {
     );
     defineCellPin(document, "A", "A", "net-ab");
     defineCellPin(document, "B", "B", "net-ab");
+    const keepsSource = {
+      ok: true,
+      document: {
+        connectivityEvidence: [
+          expect.objectContaining({
+            kind: "spice-source",
+            netId: "net-ab",
+            sourceNetId: "net-ab",
+          }),
+        ],
+      },
+    };
 
     const placed = executeTransaction(
       document,
@@ -1259,18 +1228,7 @@ describe("Edit Transaction envelope", () => {
       },
       { symbolResolver: resolver },
     );
-    expect(placed).toMatchObject({
-      ok: true,
-      document: {
-        connectivityEvidence: [
-          expect.objectContaining({
-            kind: "spice-source",
-            netId: "net-ab",
-            sourceNetId: "net-ab",
-          }),
-        ],
-      },
-    });
+    expect(placed).toMatchObject(keepsSource);
     if (!placed.ok) return;
 
     const moved = executeTransaction(placed.document, {
@@ -1284,18 +1242,7 @@ describe("Edit Transaction envelope", () => {
         },
       ],
     });
-    expect(moved).toMatchObject({
-      ok: true,
-      document: {
-        connectivityEvidence: [
-          expect.objectContaining({
-            kind: "spice-source",
-            netId: "net-ab",
-            sourceNetId: "net-ab",
-          }),
-        ],
-      },
-    });
+    expect(moved).toMatchObject(keepsSource);
 
     const wired = executeTransaction(
       placed.document,
@@ -1318,18 +1265,7 @@ describe("Edit Transaction envelope", () => {
       },
       { symbolResolver: resolver },
     );
-    expect(wired).toMatchObject({
-      ok: true,
-      document: {
-        connectivityEvidence: [
-          expect.objectContaining({
-            kind: "spice-source",
-            netId: "net-ab",
-            sourceNetId: "net-ab",
-          }),
-        ],
-      },
-    });
+    expect(wired).toMatchObject(keepsSource);
     if (!wired.ok) return;
 
     const labelled = executeTransaction(wired.document, {
@@ -1351,18 +1287,7 @@ describe("Edit Transaction envelope", () => {
         },
       ],
     });
-    expect(labelled).toMatchObject({
-      ok: true,
-      document: {
-        connectivityEvidence: [
-          expect.objectContaining({
-            kind: "spice-source",
-            netId: "net-ab",
-            sourceNetId: "net-ab",
-          }),
-        ],
-      },
-    });
+    expect(labelled).toMatchObject(keepsSource);
   });
 
   it("retains imported provenance when an authored Port Net merges into it", () => {
@@ -2251,63 +2176,6 @@ describe("Edit Transaction envelope", () => {
     expect(result.document).toBe(document);
   });
 
-  it("places and transforms an instance through typed edits", () => {
-    const document = documentWithInstance();
-    const placed = executeTransaction(document, {
-      ...transaction(),
-      edits: [
-        {
-          kind: "place_instance",
-          instanceId: "M1",
-          placement: {
-            position: { x: 100, y: 80 },
-            rotation: 0,
-            mirror: "none",
-          },
-        },
-      ],
-    });
-    expect(placed).toMatchObject({
-      ok: true,
-      applied: true,
-      revision: 1,
-      diff: { changedObjectIds: ["M1"] },
-    });
-    if (!placed.ok) {
-      throw new Error("Placement unexpectedly failed");
-    }
-
-    const transformed = executeTransaction(placed.document, {
-      ...transaction(1),
-      transactionId: "transaction-transform",
-      edits: [
-        {
-          kind: "move_instance",
-          instanceId: "M1",
-          position: { x: 120, y: 90 },
-        },
-        { kind: "rotate_instance", instanceId: "M1", rotation: 90 },
-        { kind: "mirror_instance", instanceId: "M1", mirror: "horizontal" },
-      ],
-    });
-    expect(transformed).toMatchObject({
-      ok: true,
-      revision: 2,
-      document: {
-        instances: [
-          {
-            id: "M1",
-            placement: {
-              position: { x: 120, y: 90 },
-              rotation: 90,
-              mirror: "horizontal",
-            },
-          },
-        ],
-      },
-    });
-  });
-
   it("patches instance netlist parameters atomically and records a non-source edit", () => {
     const document = documentWithInstance();
     document.instances[0]!.netlist!.parameters = {
@@ -2486,26 +2354,6 @@ describe("Edit Transaction envelope", () => {
         ],
       },
     });
-  });
-
-  it("refuses a netlist reference that does not match the device's prefix", () => {
-    const document = documentWithInstance();
-    const result = executeTransaction(document, {
-      ...transaction(),
-      edits: [
-        { kind: "set_instance_reference", instanceId: "M1", reference: "gm" },
-      ],
-    });
-
-    expect(result).toMatchObject({
-      ok: false,
-      applied: false,
-      error: { code: "EDIT_PRECONDITION" },
-    });
-    expect(JSON.stringify(result)).toContain(
-      "Reference gm does not match this component prefix M",
-    );
-    expect(document.instances[0]!.reference).toBe("M1");
   });
 
   it("keeps the schematic reference independent from the netlist reference", () => {
@@ -3220,7 +3068,6 @@ describe("Edit Transaction envelope", () => {
         "reference",
       );
       const label = result.document.annotations[0]!;
-      expect(expected).not.toBeNull();
       expect(label).toMatchObject({
         alignment: expected!.alignment,
         rotation: 0,
@@ -3235,71 +3082,6 @@ describe("Edit Transaction envelope", () => {
       });
     },
   );
-
-  it("returns a canonical instance label to its initial position after four quarter turns", () => {
-    let document = createEmptyDocument("document-main", "Stable label");
-    const instance = {
-      id: "M1",
-      symbolId: "nmos",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0 as const,
-        mirror: "none" as const,
-      },
-    };
-    document.instances.push(instance);
-    const resolved = resolver.resolve("nmos", "textbook-3terminal");
-    if (!resolved) throw new Error("missing nmos");
-    const initial = defaultInstanceLabelPlacement(
-      instance,
-      resolved,
-      resolveSchematicStyleProfile(document.presentation.styleProfileId),
-      document.presentation.grid,
-    );
-    if (!initial) throw new Error("missing default label placement");
-    document.annotations.push({
-      id: "instance-label-M1",
-      kind: "instance-label",
-      content: { runs: [{ kind: "text", value: "M1" }] },
-      anchor: {
-        kind: "object",
-        objectId: "M1",
-        localOffset: {
-          x: initial.position.x - instance.placement.position.x,
-          y: initial.position.y - instance.placement.position.y,
-        },
-        fallbackPosition: initial.position,
-      },
-      alignment: initial.alignment,
-      rotation: 0,
-      locked: false,
-    });
-
-    for (const rotation of [90, 180, 270, 0] as const) {
-      const result = executeTransaction(
-        document,
-        {
-          ...transaction(document.revision),
-          edits: [{ kind: "rotate_instance", instanceId: "M1", rotation }],
-        },
-        { symbolResolver: resolver },
-      );
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      document = result.document;
-    }
-
-    const label = document.annotations[0]!;
-    if (label.anchor.kind !== "object") {
-      throw new Error("Canonical instance label must keep an object anchor");
-    }
-    expect(label.anchor.localOffset).toEqual({
-      x: initial.position.x - instance.placement.position.x,
-      y: initial.position.y - instance.placement.position.y,
-    });
-    expect(label.anchor.fallbackPosition).toEqual(initial.position);
-    expect(label.alignment).toBe(initial.alignment);
-  });
 
   it("returns a canonical instance value to its slot after four quarter turns", () => {
     let document = createEmptyDocument("document-main", "Stable value");

@@ -100,7 +100,6 @@ describe("environment workflow execution boundaries", () => {
     const diagnostics = job.steps.find((step) =>
       step.with?.name?.startsWith("vacask-unqualified-build-"),
     );
-    expect(diagnostics).toBeDefined();
     expect(diagnostics.uses).toBe("actions/upload-artifact@v4");
     const built = { [build.id]: { outcome: "success" } };
     expect(permitsStep(diagnostics, built, false)).toBe(true);

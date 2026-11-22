@@ -273,6 +273,7 @@ describe("blocks whose body never reads its supplies", () => {
       expect(result.file.text).toContain(card);
       expect(result.file.text).toMatch(/^\.subckt dut VDD VSS /mu);
       expect(result.file.text).not.toMatch(/\.global/u);
+      expect(result.diagnostics, symbolId).toEqual([]);
     }
   });
 });

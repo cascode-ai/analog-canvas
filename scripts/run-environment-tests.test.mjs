@@ -105,27 +105,6 @@ describe("environment test execution evidence", () => {
     expect(result.stdout).not.toContain("RUN ");
   });
 
-  it("rejects a skipped target even when the same file has passing pure assertions", () => {
-    const result = verify("windows", {
-      testResults: [
-        {
-          name: resolve("apps/desktop/src/windows-association.test.ts"),
-          assertionResults: [
-            { fullName: "pure registry helper", status: "passed" },
-            {
-              fullName:
-                "Windows project association registers and removes this executable only under an isolated per-user key",
-              status: "pending",
-            },
-          ],
-        },
-      ],
-    });
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Target did not pass");
-    expect(result.stderr).toContain("Windows project association");
-  });
-
   it("rejects empty, missing and partially skipped target evidence", () => {
     const report = {
       success: true,
@@ -163,6 +142,12 @@ describe("environment test execution evidence", () => {
       fullName: "Windows project association unregisters the executable",
       status: "pending",
     });
-    expect(verify("windows", report).stderr).toContain("Target did not pass");
+    // The file's other assertions passing does not make the target pass.
+    const partial = verify("windows", report);
+    expect(partial.status).toBe(1);
+    expect(partial.stderr).toContain("Target did not pass");
+    expect(partial.stderr).toContain(
+      "Windows project association unregisters the executable",
+    );
   });
 });

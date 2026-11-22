@@ -103,6 +103,7 @@ class ParametersTest(unittest.TestCase):
 
     def test_units_not_scaled_twice(self):
         self.assertEqual(number("150nm", "um", "length"), number("150n"))
+        self.assertEqual(number("1u", "um"), number("1u"))
 
     def test_inductor_and_voltage_parameters(self):
         for kind, source, expected in [("inductor", {"value": "2mH"}, {"L": "0.002", "M": "1"}),
@@ -122,9 +123,6 @@ class ParametersTest(unittest.TestCase):
         item = mos(w="1", l="0.15")
         item["sourceLengthUnit"] = "um"
         self.assertEqual(parameter_plan(item)["expected"], parameter_plan(mos())["expected"])
-
-    def test_suffix_not_scaled_twice(self):
-        self.assertEqual(number("1u", "um"), number("1u"))
 
     def test_requires_unit(self):
         item = mos()

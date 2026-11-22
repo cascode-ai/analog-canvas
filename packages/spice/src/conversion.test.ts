@@ -240,16 +240,9 @@ describe("netlist-crawler structural conversion", () => {
     expect(converted("M1 (d g s b) NMOS w=(size*2u) l=150n m=2M")).toContain(
       "w={(size*2u)} l=150n m=2Meg",
     );
-  });
-  it("distinguishes mega and milli and translates arithmetic coefficients", () => {
-    expect(
-      converted("R1 (a b) resistor r=1M\nR2 (b 0) resistor r=1m"),
-    ).toContain("R1 a b 1Meg\nR2 b 0 1m");
+    // Back to Spectre, SPICE's Meg is mega and its M is milli.
     expect(converted("R1 a b 1Meg\nR2 b 0 1M", "spice")).toContain(
       "r=1000000\nR2 (b 0) resistor r=0.001",
-    );
-    expect(converted("M1 (d g s b) NMOS w=(size*2u) l=150n")).toContain(
-      "w={(size*2u)} l=150n",
     );
   });
   it.each([

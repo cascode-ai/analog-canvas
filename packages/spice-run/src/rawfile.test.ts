@@ -152,20 +152,11 @@ describe("values a run cannot use", () => {
     expect(error.line).toBe(21);
   });
 
-  it("rejects an infinity as firmly as a NaN", () => {
+  // An infinity, or a decimal that overflows a double, as firmly as a NaN.
+  it.each(["-inf", "1e999"])("rejects %s as not finite", (value) => {
     const text = fixture("divider-op.raw").replace(
       "\t5.000000000000000e-01",
-      "\t-inf",
-    );
-    expect(expectError(parseNgspiceRawfile(text)).code).toBe(
-      "value-not-finite",
-    );
-  });
-
-  it("rejects a decimal that overflows a double", () => {
-    const text = fixture("divider-op.raw").replace(
-      "\t5.000000000000000e-01",
-      "\t1e999",
+      `\t${value}`,
     );
     expect(expectError(parseNgspiceRawfile(text)).code).toBe(
       "value-not-finite",

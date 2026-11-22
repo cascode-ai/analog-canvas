@@ -42,8 +42,6 @@ it("keeps the embedded components and authored sources of existing amplifier pro
       serializeProject({ ...copy, id: original.id, name: original.name }),
     ).toBe(before);
     expect(copy.simulationFolders.length).toBeGreaterThan(0);
-    if (path.startsWith("netlists/"))
-      expect(copy.componentDefinitions).toHaveLength(8);
     copy.simulationFolders.splice(0);
     expect(serializeProject(original)).toBe(before);
   }

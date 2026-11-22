@@ -63,8 +63,7 @@ describe("schema 32 to 33 migration (ownerless Net equivalence)", () => {
       diagnostics: [
         {
           code: "INVALID_PROJECT",
-          message:
-            "Schema 32 explicit-equivalence has no authoring owner and cannot be migrated safely; replace it with physical topology, owner-addressed Net Labels, or hierarchy terminals",
+          message: expect.stringContaining("cannot be migrated safely"),
           path: ["documents", 0, "connectivityEvidence", 0],
         },
       ],

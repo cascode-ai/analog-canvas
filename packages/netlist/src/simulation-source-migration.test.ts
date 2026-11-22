@@ -126,8 +126,7 @@ describe("legacy experiment source migration", () => {
     const compiled = await compileStructuredSimulation(project, folder);
     expect(plan.ok && compiled.ok).toBe(true);
     if (!plan.ok || !compiled.ok) return;
-    const { inputRevision, ...request } = compiled.request;
-    expect(inputRevision).toMatch(/^[a-f0-9]{64}$/u);
+    const { inputRevision: _revision, ...request } = compiled.request;
     expect(request).toEqual(plan.request);
   });
 });

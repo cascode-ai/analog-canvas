@@ -494,9 +494,6 @@ describe("compiling a structured simulation folder", () => {
     expect(result.vectors.some((vector) => vector.quantity === "current")).toBe(
       true,
     );
-    expect(
-      result.vectors.some((vector) => vector.vector.includes("xdut")),
-    ).toBe(true);
     const vectors = result.vectors.map((vector) => vector.vector);
     expect(vectors).toEqual(
       expect.arrayContaining(["v(vinp)", "v(vdd)", "v(xdut.tail)"]),
@@ -750,7 +747,6 @@ describe("compiling a structured simulation folder", () => {
     );
     expect(result.request.analyses).toEqual(["op", "ac"]);
     expect(result.request.timeoutMs).toBe(30_000);
-    expect(result.request.inputRevision).toMatch(/^[0-9a-f]{64}$/u);
     expect(result.vectors).toEqual([
       { probeId: "probe-mid", vector: "v(mid)", quantity: "voltage" },
       { probeId: "probe-in", vector: "v(in)", quantity: "voltage" },
@@ -1224,28 +1220,49 @@ describe("refusing a folder that cannot be simulated", () => {
     expect(codes(result)).toEqual(["SIMULATION_ROOT_HAS_NO_INSTANCES"]);
   });
 
-  it("reports a probe naming a Document that is not in the Project", async () => {
+  it.each([
+    {
+      refusal: "a probe naming a Document that is not in the Project",
+      probe: {
+        id: "probe-lost",
+        kind: "net-voltage",
+        documentId: "no-such-document",
+        anchor: { kind: "terminal", instanceId: "inst-r1", pinName: "2" },
+        occurrence: [],
+      },
+      code: "SIMULATION_PROBE_UNKNOWN_DOCUMENT",
+    },
+    {
+      refusal: "a probe naming an Instance the Document does not hold",
+      probe: {
+        id: "probe-lost",
+        kind: "terminal-current",
+        documentId: "tb",
+        instanceId: "no-such-instance",
+        pinName: "+",
+        occurrence: [],
+      },
+      code: "SIMULATION_PROBE_UNKNOWN_INSTANCE",
+    },
+    {
+      refusal: "an occurrence step that is not a hierarchy Instance",
+      probe: {
+        id: "probe-lost",
+        kind: "net-voltage",
+        documentId: "tb",
+        anchor: { kind: "terminal", instanceId: "inst-r1", pinName: "2" },
+        occurrence: ["inst-r1"],
+      },
+      code: "SIMULATION_PROBE_INVALID_OCCURRENCE",
+    },
+  ] as const)("reports $refusal", async ({ probe, code }) => {
     const result = await compile(
       dividerProject(),
-      setupWith({
-        probes: [
-          {
-            id: "probe-lost",
-            kind: "net-voltage",
-            documentId: "no-such-document",
-            anchor: {
-              kind: "terminal",
-              instanceId: "inst-r1",
-              pinName: "2",
-            },
-            occurrence: [],
-          },
-        ],
-      }),
+      setupWith({ probes: [probe] }),
     );
 
     expect(result.ok).toBe(false);
-    expect(codes(result)).toEqual(["SIMULATION_PROBE_UNKNOWN_DOCUMENT"]);
+    expect(codes(result)).toEqual([code]);
   });
 
   it("reports a voltage-probe anchor the Document no longer holds", async () => {
@@ -1283,27 +1300,6 @@ describe("refusing a folder that cannot be simulated", () => {
     });
   });
 
-  it("reports a probe naming an Instance the Document does not hold", async () => {
-    const result = await compile(
-      dividerProject(),
-      setupWith({
-        probes: [
-          {
-            id: "probe-lost",
-            kind: "terminal-current",
-            documentId: "tb",
-            instanceId: "no-such-instance",
-            pinName: "+",
-            occurrence: [],
-          },
-        ],
-      }),
-    );
-
-    expect(result.ok).toBe(false);
-    expect(codes(result)).toEqual(["SIMULATION_PROBE_UNKNOWN_INSTANCE"]);
-  });
-
   it("reports a current output naming a terminal the Instance does not hold", async () => {
     const result = await compile(
       dividerProject(),
@@ -1336,30 +1332,6 @@ describe("refusing a folder that cannot be simulated", () => {
         },
       },
     );
-  });
-
-  it("reports an occurrence step that is not a hierarchy Instance", async () => {
-    const result = await compile(
-      dividerProject(),
-      setupWith({
-        probes: [
-          {
-            id: "probe-lost",
-            kind: "net-voltage",
-            documentId: "tb",
-            anchor: {
-              kind: "terminal",
-              instanceId: "inst-r1",
-              pinName: "2",
-            },
-            occurrence: ["inst-r1"],
-          },
-        ],
-      }),
-    );
-
-    expect(result.ok).toBe(false);
-    expect(codes(result)).toEqual(["SIMULATION_PROBE_INVALID_OCCURRENCE"]);
   });
 
   it("reports an occurrence that reaches a different Document", async () => {

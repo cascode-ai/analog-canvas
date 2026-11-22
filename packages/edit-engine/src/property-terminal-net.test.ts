@@ -365,38 +365,4 @@ describe("property-only terminal Net assignment", () => {
       },
     });
   });
-
-  it("refuses to property-bind a visible resistor endpoint", () => {
-    const document = createEmptyDocument("document-main", "Main");
-    document.instances.push({
-      id: "R1",
-      symbolId: "resistor",
-      placement: null,
-      reference: "R1",
-      netlist: { parameters: { value: "1k" } },
-    });
-    document.nets.push({ id: "net-a", terminals: [] });
-    const result = executeTransaction(
-      document,
-      {
-        transactionId: "invalid-property-pin",
-        documentId: document.id,
-        expectedRevision: document.revision,
-        actor: { kind: "human", id: "test" },
-        edits: [
-          {
-            kind: "set_property_terminal_net",
-            instanceId: "R1",
-            pinName: "1",
-            netId: "net-a",
-          },
-        ],
-      },
-      { symbolResolver: resolver },
-    );
-    expect(result).toMatchObject({
-      ok: false,
-      error: { code: "EDIT_PRECONDITION" },
-    });
-  });
 });

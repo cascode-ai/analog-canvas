@@ -52,49 +52,50 @@ async function startGateway(executorPort, environment = {}) {
 }
 
 describe("operator-host simulation gateway", () => {
-  it("routes SG13 health, runs and cancellation to its isolated executor without forwarding credentials", async () => {
+  it("routes SKY130 and SG13 health, runs and cancellation to their executors, authenticating outside them without forwarding credentials", async () => {
     const seen = [];
-    const main = createServer((request, response) => {
-      seen.push(`sky:${request.url}`);
-      request.resume();
-      response.end("sky");
-    });
-    const sg13 = createServer((request, response) => {
-      seen.push(`sg13:${request.url}`);
-      expect(request.headers.authorization).toBeUndefined();
-      request.resume();
-      response.end("sg13");
-    });
-    const port = await startGateway(await listen(main), {
-      SG13G2_EXECUTOR_URL: `http://127.0.0.1:${await listen(sg13)}`,
+    const executor = (name) =>
+      createServer((request, response) => {
+        seen.push(`${name}:${request.url}:${request.headers.authorization}`);
+        request.resume();
+        response.end(name);
+      });
+    const port = await startGateway(await listen(executor("sky")), {
+      SG13G2_EXECUTOR_URL: `http://127.0.0.1:${await listen(executor("sg13"))}`,
     });
     const base = `http://127.0.0.1:${port}`;
     expect(await (await fetch(`${base}/health`)).text()).toBe("sky");
     expect(await (await fetch(`${base}/sg13g2/health`)).text()).toBe("sg13");
-    for (const operation of ["run", "cancel"]) {
-      expect(
-        (
-          await fetch(`${base}/sg13g2/${operation}`, {
-            method: "POST",
-            body: "{}",
-          })
-        ).status,
-      ).toBe(401);
-      expect(
-        await (
-          await fetch(`${base}/sg13g2/${operation}`, {
-            method: "POST",
-            headers: { authorization: "Bearer gateway-secret" },
-            body: "{}",
-          })
-        ).text(),
-      ).toBe("sg13");
-    }
+    for (const [prefix, name] of [
+      ["", "sky"],
+      ["/sg13g2", "sg13"],
+    ])
+      for (const operation of ["run", "cancel"]) {
+        expect(
+          (
+            await fetch(`${base}${prefix}/${operation}`, {
+              method: "POST",
+              body: "{}",
+            })
+          ).status,
+        ).toBe(401);
+        expect(
+          await (
+            await fetch(`${base}${prefix}/${operation}`, {
+              method: "POST",
+              headers: { authorization: "Bearer gateway-secret" },
+              body: "{}",
+            })
+          ).text(),
+        ).toBe(name);
+      }
     expect(seen).toEqual([
-      "sky:/health",
-      "sg13:/health",
-      "sg13:/run",
-      "sg13:/cancel",
+      "sky:/health:undefined",
+      "sg13:/health:undefined",
+      "sky:/run:undefined",
+      "sky:/cancel:undefined",
+      "sg13:/run:undefined",
+      "sg13:/cancel:undefined",
     ]);
   });
   it("preserves internal receipts while streaming and rejects an overlong chunked body", async () => {
@@ -150,50 +151,5 @@ describe("operator-host simulation gateway", () => {
     expect(await oversized.json()).toEqual({
       error: "executor-response-too-large",
     });
-  });
-  it("authenticates outside the executor and never forwards the credential", async () => {
-    const seen = [];
-    const executor = createServer((request, response) => {
-      seen.push({
-        url: request.url,
-        authorization: request.headers.authorization,
-      });
-      const body = JSON.stringify(
-        request.url === "/health" ? { status: "ready" } : { accepted: true },
-      );
-      response.writeHead(200, {
-        "content-type": "application/json",
-        "content-length": Buffer.byteLength(body),
-      });
-      response.end(body);
-    });
-    const gatewayPort = await startGateway(await listen(executor));
-    const base = `http://127.0.0.1:${gatewayPort}`;
-
-    expect((await fetch(`${base}/health`)).status).toBe(200);
-    expect(
-      (
-        await fetch(`${base}/run`, {
-          method: "POST",
-          body: JSON.stringify({ deck: "x" }),
-        })
-      ).status,
-    ).toBe(401);
-    expect(
-      (
-        await fetch(`${base}/run`, {
-          method: "POST",
-          headers: {
-            authorization: "Bearer gateway-secret",
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({ deck: "x" }),
-        })
-      ).status,
-    ).toBe(200);
-    expect(seen).toEqual([
-      { url: "/health", authorization: undefined },
-      { url: "/run", authorization: undefined },
-    ]);
   });
 });

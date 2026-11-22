@@ -505,7 +505,6 @@ describe("source execution preparation", () => {
       line: 2,
       column: 1,
     });
-    expect(diagnostic.source?.textDigest).toMatch(/^[0-9a-f]{64}$/u);
     expect(
       entry.text.slice(
         diagnostic.source!.startOffset,

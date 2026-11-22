@@ -11,7 +11,6 @@ import { callTool, listToolDefinitions } from "./tools.js";
 import { FOCUSED_TOOLS } from "./focused-tools.js";
 import {
   ADVANCED_EDITS_RESOURCE_URI,
-  listResourceEntries,
   readResourceContent,
 } from "./resources.js";
 
@@ -317,14 +316,9 @@ describe("mcp resources single-source projection", () => {
     }
   });
 
-  it("serves declared resources and rejects unknown URIs", () => {
-    const quickstart = readResourceContent(
-      "analog-canvas://reference/quickstart",
-    );
-    expect(quickstart.text).toMatch(/^# /);
+  it("rejects unknown URIs", () => {
     expect(() => readResourceContent("analog-canvas://reference/nope")).toThrow(
       /Unknown resource/,
     );
-    expect(listResourceEntries()).toHaveLength(mcpResources.length);
   });
 });

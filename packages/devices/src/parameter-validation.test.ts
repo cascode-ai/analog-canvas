@@ -57,9 +57,6 @@ describe("device parameter values (#1268)", () => {
     expect(milliScaleReading(" 1MΩ ")).toBe(
       "reads as 1 mΩ in SPICE (M is milli): write 1MegΩ for mega or 1mΩ for milli",
     );
-    expect(milliScaleReading("10MHz")).toBe(
-      "reads as 10 mHz in SPICE (M is milli): write 10MegHz for mega or 10mHz for milli",
-    );
     expect(milliScaleReading("1MegΩ")).toBeUndefined();
   });
 

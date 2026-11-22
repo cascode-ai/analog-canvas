@@ -185,7 +185,6 @@ describe("object-anchored drafting text on rectangles", () => {
     );
     if (geometry.kind !== "text") throw new Error("expected text geometry");
     expect(geometry.position).toEqual({ x: 40, y: 20 });
-    expect(geometry.diagnostics).toHaveLength(1);
     expect(geometry.diagnostics[0]).toMatchObject({
       code: "DRAFTING_ANCHOR_TARGET_MISSING",
       anchorRole: "anchor",
@@ -383,8 +382,6 @@ describe("polarity drafting text", () => {
       from: { y: 80 },
       to: { y: 80 },
     });
-    expect(positiveGeometry.position).toEqual({ x: 100, y: 80 });
-    expect(negativeGeometry.position).toEqual({ x: 100, y: 80 });
     // Hidden placeholder content must not inflate the hit/selection box.
     for (const geometry of [positiveGeometry, negativeGeometry]) {
       expect(geometry.bounds.x + geometry.bounds.width / 2).toBeCloseTo(100);

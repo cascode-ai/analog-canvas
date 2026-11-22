@@ -66,7 +66,6 @@ describe("legacy authoring candidates", () => {
       baseline,
       "add-circuit",
     );
-    expect(project).toEqual(before);
     const symbol = candidate.project.componentDefinitions!.find(
       (d) => d.symbol.id === candidate.symbolId,
     )!;
@@ -315,7 +314,6 @@ describe("legacy authoring candidates", () => {
     expect(
       applied.project.documents[0]!.instances[0]!.netlist!.binding!.kind,
     ).toBe("external-subcircuit");
-    expect(project.documents[0]!.noConnects).toHaveLength(1);
   });
   it("uses the captured baseline for concurrency while applying a four-to-six terminal candidate", () => {
     const baseline = legacyDefinition();
@@ -425,7 +423,6 @@ describe("legacy authoring candidates", () => {
     )!;
     expect(captured.symbol.name).toBe("Repaired amplifier");
     expect(captured.circuitBinding!.terminals).toHaveLength(6);
-    expect(project.componentDefinitions).toEqual([baseline]);
     const stale = structuredClone(project) as CircuitProject;
     stale.componentDefinitions![0]!.symbol.name = "Concurrent change";
     expect(() =>

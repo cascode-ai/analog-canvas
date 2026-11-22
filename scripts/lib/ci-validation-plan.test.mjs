@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   browserShardMatrix,
   countSpecTests,
-  formatCiValidationPlan,
   locateSpecTest,
   planCiValidation,
 } from "./ci-validation-plan.mjs";
@@ -145,17 +144,31 @@ describe("CI validation planning", () => {
     ).toBeGreaterThan(25);
   });
 
-  it("skips implementation jobs for documentation-only work", () => {
-    expect(ciPlan(["docs/user/getting-started.md"])).toMatchObject({
-      heavy: false,
-      browser: false,
-      mode: "documentation",
-      e2eArgs: [],
-    });
-  });
+  // Validation-policy documentation forces full gates locally, but is still
+  // documentation to CI.
+  it.each(["docs/user/getting-started.md", "docs/testing/README.md"])(
+    "skips implementation jobs for documentation-only work (%s)",
+    (path) => {
+      expect(ciPlan([path])).toMatchObject({
+        heavy: false,
+        browser: false,
+        mode: "documentation",
+        e2eArgs: [],
+      });
+    },
+  );
 
-  it("routes Shelf, snapshot history, duplicate correspondence and project sessions to their actual browser workflows", () => {
+  it("routes Gallery sources, Shelf, snapshot history, duplicate correspondence and project sessions to their actual browser workflows (#1646)", () => {
     for (const path of [
+      "apps/editor/src/gallery-client.ts",
+      "apps/editor/src/gallery-filters.ts",
+      "apps/editor/src/gallery-search.ts",
+      "apps/editor/src/components/gallery-tag-sidebar.tsx",
+      "apps/editor/src/components/account-page.tsx",
+      "apps/editor/src/features/editor-shell/examples-panel-tags.tsx",
+      "apps/editor/src/features/editor-shell/project-shelf.tsx",
+      "apps/editor/src/app/use-gallery-publishing.ts",
+      "worker/gallery-curation.ts",
       "worker/gallery-do.ts",
       "apps/editor/src/components/shelf-wall.tsx",
       "apps/editor/src/components/gallery-version-diff.ts",
@@ -190,23 +203,6 @@ describe("CI validation planning", () => {
         "apps/editor/e2e/project-file.spec.ts",
       );
     }
-  });
-
-  it("routes Gallery sources to the Gallery browser specs (#1646)", () => {
-    for (const path of [
-      "apps/editor/src/gallery-client.ts",
-      "apps/editor/src/gallery-filters.ts",
-      "apps/editor/src/gallery-search.ts",
-      "apps/editor/src/components/gallery-tag-sidebar.tsx",
-      "apps/editor/src/components/account-page.tsx",
-      "apps/editor/src/features/editor-shell/examples-panel-tags.tsx",
-      "apps/editor/src/features/editor-shell/project-shelf.tsx",
-      "apps/editor/src/app/use-gallery-publishing.ts",
-      "worker/gallery-curation.ts",
-    ])
-      expect(ciPlan([path]).e2eArgs, path).toEqual(
-        expect.arrayContaining(gallerySpecs),
-      );
   });
 
   it("maps label naming, circuit settings and recovery changes to their browser contracts", () => {
@@ -711,15 +707,6 @@ describe("CI validation planning", () => {
     }
   });
 
-  it("does not turn validation-policy documentation into implementation CI", () => {
-    expect(ciPlan(["docs/testing/README.md"])).toMatchObject({
-      heavy: false,
-      browser: false,
-      mode: "documentation",
-      e2eArgs: [],
-    });
-  });
-
   it.each(["playwright.config.ts", "scripts/build-e2e-editor.mjs"])(
     "runs the browser smoke when %s changes",
     (path) => {
@@ -750,11 +737,5 @@ describe("CI validation planning", () => {
       mode: "full",
       e2eArgs: [],
     });
-  });
-
-  it("renders the browser choice for job logs", () => {
-    expect(formatCiValidationPlan(ciPlan(["worker/auth.ts"]))).toContain(
-      `Browser selection: ${gallerySpecs.join(" ")}`,
-    );
   });
 });

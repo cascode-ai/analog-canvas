@@ -503,59 +503,67 @@ describe("copy/export netlist projection", () => {
       );
     },
   );
-  it.each(["spice", "spectre"] as const)(
-    "exports a Battery as an independent voltage source in %s",
-    (format) => {
-      const project = createEmptyProject("battery-project", "Battery");
+  it.each([
+    // An Ammeter's stray value (pasted, or from an Agent) changes nothing.
+    [
+      "battery",
+      "B1",
+      { dc: "1.8", acMagnitude: "10m" },
+      /^VB1 \S+ \S+ DC 1\.8 AC 10m/mu,
+      /^B1 \(\S+ \S+\) vsource .*\bdc=1\.8\b/mu,
+    ],
+    [
+      "ammeter",
+      "A1",
+      { dc: "5", acMagnitude: "1" },
+      /^VA1 \S+ \S+ DC 0$/mu,
+      /^A1 \(\S+ \S+\) vsource dc=0$/mu,
+    ],
+    [
+      "microphone",
+      "V1",
+      {
+        dc: "0",
+        acMagnitude: "1m",
+        waveform: "sin",
+        offset: "0",
+        amplitude: "10m",
+        frequency: "1k",
+      },
+      /^V1 \S+ \S+ DC 0 AC 1m 0 SIN\(0 10m 1k\b/mu,
+      /^V1 \(\S+ \S+\) vsource .*\btype=sine\b/mu,
+    ],
+  ] as const)(
+    "exports a %s as an independent voltage source in SPICE and Spectre",
+    (symbolId, reference, parameters, spice, spectre) => {
+      const project = createEmptyProject(`${symbolId}-project`, symbolId);
       const document = project.documents[0]!;
       document.instances.push({
-        id: "B1",
-        symbolId: "battery",
-        reference: "B1",
+        id: reference,
+        symbolId,
+        reference,
         placement: null,
-        netlist: { parameters: { dc: "1.8", acMagnitude: "10m" } },
+        netlist: { parameters: { ...parameters } },
       });
       document.nets = [
-        { id: "positive", terminals: [{ instanceId: "B1", pinName: "+" }] },
-        { id: "negative", terminals: [{ instanceId: "B1", pinName: "-" }] },
+        {
+          id: "positive",
+          terminals: [{ instanceId: reference, pinName: "+" }],
+        },
+        {
+          id: "negative",
+          terminals: [{ instanceId: reference, pinName: "-" }],
+        },
       ];
-      const result = createDesignNetlistExport(project, { format });
-      expect(result.status).toBe("ready");
-      if (result.status !== "ready") return;
-      if (format === "spice") {
-        expect(result.file.text).toMatch(/^VB1\s+\S+\s+\S+\s+DC 1\.8 AC 10m/mu);
-      } else {
-        expect(result.file.text).toMatch(/^B1\s+\S+\s+\S+\s+vsource\s+/mu);
-        expect(result.file.text).toContain("dc=1.8");
+      for (const [format, card] of [
+        ["spice", spice],
+        ["spectre", spectre],
+      ] as const) {
+        const result = createDesignNetlistExport(project, { format });
+        expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
+        if (result.status !== "ready") return;
+        expect(result.file.text).toMatch(card);
       }
-    },
-  );
-
-  it.each(["spice", "spectre"] as const)(
-    "exports an Ammeter as a 0 V source whatever its record holds, in %s",
-    (format) => {
-      const project = createEmptyProject("ammeter-project", "Ammeter");
-      const document = project.documents[0]!;
-      document.instances.push({
-        id: "A1",
-        symbolId: "ammeter",
-        reference: "A1",
-        placement: null,
-        // A stray value (pasted, or from an Agent) changes nothing.
-        netlist: { parameters: { dc: "5", acMagnitude: "1" } },
-      });
-      document.nets = [
-        { id: "in", terminals: [{ instanceId: "A1", pinName: "+" }] },
-        { id: "out", terminals: [{ instanceId: "A1", pinName: "-" }] },
-      ];
-      const result = createDesignNetlistExport(project, { format });
-      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(result.file.text).toMatch(
-        format === "spice"
-          ? /^VA1 \S+ \S+ DC 0$/mu
-          : /^A1 \(\S+ \S+\) vsource dc=0$/mu,
-      );
     },
   );
 
@@ -640,84 +648,45 @@ describe("copy/export netlist projection", () => {
     },
   );
 
-  it.each(["spice", "spectre"] as const)(
-    "exports a Speaker as the resistor it is in %s",
-    (format) => {
-      const project = createEmptyProject("speaker-project", "Speaker");
+  it.each([
+    ["spice", "speaker", "R1", "8", /^R1\s+\S+\s+\S+\s+8$/mu],
+    ["spectre", "speaker", "R1", "8", /^R1\s+\(\S+ \S+\)\s+resistor r=8$/mu],
+    ["spice", "photoresistor", "R1", "10k", /^R1\s+\S+\s+\S+\s+10k$/mu],
+    [
+      "spectre",
+      "photoresistor",
+      "R1",
+      "10k",
+      /^R1\s+\(\S+ \S+\)\s+resistor r=10k$/mu,
+    ],
+    ["spice", "polarized-capacitor", "C1", "10u", /^C1\s+\S+\s+\S+\s+10u$/mu],
+    [
+      "spectre",
+      "polarized-capacitor",
+      "C1",
+      "10u",
+      /^C1\s+\(\S+ \S+\)\s+capacitor c=10u$/mu,
+    ],
+  ] as const)(
+    "exports a %s %s as the passive it is",
+    (format, symbolId, reference, value, card) => {
+      const project = createEmptyProject("passive-project", symbolId);
       const document = project.documents[0]!;
       document.instances.push({
-        id: "R1",
-        symbolId: "speaker",
-        reference: "R1",
+        id: reference,
+        symbolId,
+        reference,
         placement: null,
-        netlist: { parameters: { value: "8" } },
+        netlist: { parameters: { value } },
       });
       document.nets = [
-        { id: "a", terminals: [{ instanceId: "R1", pinName: "1" }] },
-        { id: "b", terminals: [{ instanceId: "R1", pinName: "2" }] },
+        { id: "a", terminals: [{ instanceId: reference, pinName: "1" }] },
+        { id: "b", terminals: [{ instanceId: reference, pinName: "2" }] },
       ];
       const result = createDesignNetlistExport(project, { format });
       expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
       if (result.status !== "ready") return;
-      expect(result.file.text).toMatch(
-        format === "spice"
-          ? /^R1\s+\S+\s+\S+\s+8$/mu
-          : /^R1\s+\(\S+ \S+\)\s+resistor r=8$/mu,
-      );
-    },
-  );
-
-  it.each(["spice", "spectre"] as const)(
-    "exports a Photoresistor as the resistor it is in %s",
-    (format) => {
-      const project = createEmptyProject("photo-project", "Photoresistor");
-      const document = project.documents[0]!;
-      document.instances.push({
-        id: "R1",
-        symbolId: "photoresistor",
-        reference: "R1",
-        placement: null,
-        netlist: { parameters: { value: "10k" } },
-      });
-      document.nets = [
-        { id: "a", terminals: [{ instanceId: "R1", pinName: "1" }] },
-        { id: "b", terminals: [{ instanceId: "R1", pinName: "2" }] },
-      ];
-      const result = createDesignNetlistExport(project, { format });
-      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(result.file.text).toMatch(
-        format === "spice"
-          ? /^R1\s+\S+\s+\S+\s+10k$/mu
-          : /^R1\s+\(\S+ \S+\)\s+resistor r=10k$/mu,
-      );
-    },
-  );
-
-  it.each(["spice", "spectre"] as const)(
-    "exports a Polarized Capacitor as the capacitor it is in %s",
-    (format) => {
-      const project = createEmptyProject("polarized-project", "Polarized");
-      const document = project.documents[0]!;
-      document.instances.push({
-        id: "C1",
-        symbolId: "polarized-capacitor",
-        reference: "C1",
-        placement: null,
-        netlist: { parameters: { value: "10u" } },
-      });
-      document.nets = [
-        { id: "a", terminals: [{ instanceId: "C1", pinName: "1" }] },
-        { id: "b", terminals: [{ instanceId: "C1", pinName: "2" }] },
-      ];
-      const result = createDesignNetlistExport(project, { format });
-      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(result.file.text).toMatch(
-        format === "spice"
-          ? /^C1\s+\S+\s+\S+\s+10u$/mu
-          : /^C1\s+\(\S+ \S+\)\s+capacitor c=10u$/mu,
-      );
+      expect(result.file.text).toMatch(card);
     },
   );
 
@@ -797,22 +766,6 @@ V1 a 0 1
         code: "MISSING_REQUIRED_PARAMETER",
         parameter: "dc",
       }),
-    );
-  });
-
-  it("keeps ordinary imported SPICE V cards on the circular source symbol", async () => {
-    const imported = await importSpiceSources(
-      [
-        {
-          path: "source.spi",
-          bytes: new TextEncoder().encode("Source\nV1 out 0 DC 1.8\n.end\n"),
-        },
-      ],
-      "source.spi",
-    );
-    expect(imported.successful).toBe(true);
-    expect(imported.project?.documents[0]?.instances[0]?.symbolId).toBe(
-      "voltage-source",
     );
   });
 
@@ -1458,38 +1411,41 @@ describe("netlist extractability", () => {
     expect(findings(oneTransistor({ body: true }))).toEqual([]);
   });
 
-  it("blocks a drawing whose process fields are missing", () => {
-    const project = oneTransistor({ body: true });
-    project.documents[0]!.instances[0]!.netlist = { parameters: {} };
-    const errors = analyzeDesignNetlist(project).diagnostics.filter(
-      (item) => item.severity === "error",
-    );
-    expect(errors.map((item) => item.code).sort()).toEqual([
-      "MISSING_MODEL_TARGET",
-      "MISSING_REQUIRED_PARAMETER",
-      "MISSING_REQUIRED_PARAMETER",
-    ]);
-    expect(designExtractsNetlist(project)).toBe(false);
-    expect(
-      errors.filter((item) => item.code === "MISSING_REQUIRED_PARAMETER"),
-    ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          parameter: "w",
-          primary: expect.objectContaining({
-            kind: "instance",
-            objectId: "M1",
-          }),
-        }),
-        expect.objectContaining({
-          parameter: "l",
-          primary: expect.objectContaining({
-            kind: "instance",
-            objectId: "M1",
-          }),
-        }),
-      ]),
-    );
+  it("blocks a drawing whose process fields are missing, or whose netlist record is absent", () => {
+    // Older Projects, imports and Agent-authored instances reach the exporter
+    // with no netlist object at all. It binds nothing and sets no parameter,
+    // exactly what an empty record says, and the Project is left as it was.
+    for (const absent of [false, true]) {
+      const project = oneTransistor({ body: true });
+      const instance = project.documents[0]!.instances[0]!;
+      if (absent) delete (instance as { netlist?: unknown }).netlist;
+      else instance.netlist = { parameters: {} };
+      const errors = createDesignNetlistExport(project, {
+        format: "spice",
+      }).diagnostics.filter((item) => item.severity === "error");
+      expect(errors.map((item) => item.code).sort()).toEqual([
+        "MISSING_MODEL_TARGET",
+        "MISSING_REQUIRED_PARAMETER",
+        "MISSING_REQUIRED_PARAMETER",
+      ]);
+      expect(designExtractsNetlist(project)).toBe(false);
+      expect(
+        errors.filter((item) => item.code === "MISSING_REQUIRED_PARAMETER"),
+      ).toEqual(
+        expect.arrayContaining(
+          ["w", "l"].map((parameter) =>
+            expect.objectContaining({
+              parameter,
+              primary: expect.objectContaining({
+                kind: "instance",
+                objectId: "M1",
+              }),
+            }),
+          ),
+        ),
+      );
+      if (absent) expect(instance.netlist).toBeUndefined();
+    }
   });
 
   it("writes the fourth node from the supply the author drew", () => {
@@ -1545,16 +1501,13 @@ describe("netlist extractability", () => {
     expect(designExtractsNetlist(project)).toBe(true);
   });
 
-  it("answers no while connectivity is still missing", () => {
+  it("gives the same answer as the export the editor performs", () => {
     // A body on no Net is not a process choice: SPICE has no fourth node to
     // write, and no export option supplies one.
-    expect(designExtractsNetlist(oneTransistor({ body: false }))).toBe(false);
-  });
-
-  it("gives the same answer as the export the editor performs", () => {
     for (const body of [true, false]) {
       const project = oneTransistor({ body });
       const result = createDesignNetlistExport(project, { format: "spice" });
+      expect(designExtractsNetlist(project)).toBe(body);
       expect(designExtractsNetlist(project)).toBe(
         result.status === "ready" &&
           unfinishedDrawingDiagnostics(result.diagnostics).length === 0,
@@ -1599,31 +1552,6 @@ describe("netlist extractability", () => {
     }
     return project;
   }
-
-  it("reads an absent netlist record as an empty one", () => {
-    // Older Projects, imports and Agent-authored instances reach the exporter
-    // with no netlist object at all. It binds nothing and sets no parameter —
-    // exactly what an empty record says — so extraction reports every missing
-    // field without mutating the Project.
-    const project = oneTransistor({ body: true });
-    const instance = project.documents[0]!.instances[0]!;
-    delete (instance as { netlist?: unknown }).netlist;
-
-    expect(designExtractsNetlist(project)).toBe(false);
-    const result = createDesignNetlistExport(project, { format: "spice" });
-    expect(result.status).toBe("blocked");
-    expect(
-      result.diagnostics
-        .filter((item) => item.severity === "error")
-        .map((item) => item.code)
-        .sort(),
-    ).toEqual([
-      "MISSING_MODEL_TARGET",
-      "MISSING_REQUIRED_PARAMETER",
-      "MISSING_REQUIRED_PARAMETER",
-    ]);
-    expect(instance.netlist).toBeUndefined();
-  });
 
   it("refuses a drawing whose wire was never finished", () => {
     // The printed card would name this node once and nothing else in the file

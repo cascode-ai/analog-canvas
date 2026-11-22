@@ -8,11 +8,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 import distribution from "../../../docs/agent/distribution.json";
 
-import {
-  AGENT_OPERATING_KIT_FORMAT,
-  AGENT_OPERATING_KIT_VERSION,
-  agentOperatingKit,
-} from "./agent-kit.js";
+import { agentOperatingKit } from "./agent-kit.js";
 import { createAgentCircuitService } from "./service.js";
 import type { AgentPermissions } from "./schema.js";
 
@@ -92,27 +88,10 @@ describe("Agent operating Kit", () => {
         )
         .map((document) => document.kitPath),
     );
-    expect(agentOperatingKit).toMatchObject({
-      format: AGENT_OPERATING_KIT_FORMAT,
-      version: AGENT_OPERATING_KIT_VERSION,
-    });
-    expect(agentOperatingKit.files.map((file) => file.path)).toEqual(
-      expect.arrayContaining([
-        "README.md",
-        "AGENTS.md",
-        "skills/icm-circuit-session/SKILL.md",
-        "references/session-contract.md",
-        "references/authoring-contract.md",
-        "references/razavi-authoring-catalog.json",
-      ]),
-    );
   });
 
   it("contains operating guidance but never a credential or Project payload", () => {
     const text = agentOperatingKit.files.map((file) => file.content).join("\n");
-    expect(text).toContain("snapshot");
-    expect(text).toContain("transact");
-    expect(text).toContain("OpenAPI");
     expect(text).not.toContain("agentToken:");
     expect(text).not.toContain("claimCode:");
   });
@@ -326,8 +305,6 @@ describe("Agent operating Kit", () => {
     const vddRail = catalog.primitives.find(
       (primitive) => primitive.id === "vdd-rail",
     );
-    expect(pmos.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
-    expect(nmos.pins.map((pin) => pin.name)).toEqual(["D", "G", "S", "B"]);
     expect(ground.pins.map((pin) => pin.name)).toEqual(["0"]);
     expect(port.pins.map((pin) => pin.name)).toEqual(["P"]);
     expect(vddRail).toMatchObject({

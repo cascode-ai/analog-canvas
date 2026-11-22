@@ -118,7 +118,6 @@ describe("Cell parameter authoring", () => {
       before,
       planBindCellParameter(before, "child", "R1", "value", "Rbase", "1k"),
     );
-    expect(before.documents[1]!.netlist!.formalParameters).toEqual([]);
     expect(project.documents[1]!.netlist!.formalParameters).toEqual([
       { name: "Rbase", defaultValue: "1k" },
     ]);
@@ -187,9 +186,6 @@ describe("Cell parameter authoring", () => {
       kind: "instance-value",
       instanceId: "X1",
       parameter: "Resistance",
-    });
-    expect(before.documents[0]!.instances[0]!.netlist!.parameters).toEqual({
-      Rbase: "{Rbase * 3}",
     });
   });
 

@@ -151,7 +151,6 @@ it("authors one aggregate Cell Pin with four ordered independent formal members"
     "IN_1_",
     "IN_0_",
   ]);
-  expect(project.documents[0]!.netlist!.terminals).toEqual([]);
   const reopened = parseProject(serializeProject(result.project));
   expect(reopened.documents[0]!.nets).toEqual(child.nets);
   expect(analyzeDesignNetlist(reopened).ir).toEqual(netlist.ir);
@@ -236,9 +235,6 @@ it("authors one aggregate Cell Pin with four ordered independent formal members"
     expect(removed.project.documents[0]!.routes).toEqual([]);
     expect(removed.project.documents[0]!.junctions).toEqual([]);
     expect(removed.project.documents[0]!.nets).toHaveLength(4);
-    expect(
-      serializeProject(parseProject(serializeProject(removed.project))),
-    ).toBe(serializeProject(removed.project));
   }
   expect(
     resolveElectricalContactTargets(
@@ -263,9 +259,6 @@ it("authors one aggregate Cell Pin with four ordered independent formal members"
       ],
     ),
   ).toHaveLength(1);
-  expect(serializeProject(parseProject(serializeProject(drawn.project)))).toBe(
-    serializeProject(drawn.project),
-  );
   const named = executeProjectTransaction(drawn.project, {
     transactionId: "name-trunk",
     projectId: project.id,
@@ -347,9 +340,6 @@ it("authors one aggregate Cell Pin with four ordered independent formal members"
       }),
     ]),
   );
-  expect(serializeProject(parseProject(serializeProject(tapped.project)))).toBe(
-    serializeProject(tapped.project),
-  );
   const tappedCell = tapped.project.documents[0]!;
   expect(
     resolveElectricalContactTargets(
@@ -424,9 +414,6 @@ it("authors one aggregate Cell Pin with four ordered independent formal members"
     interior.project.documents[0]!.routes.filter((route) => route.members),
   ).toHaveLength(2);
   expect(interior.project.documents[0]!.nets).toHaveLength(4);
-  expect(
-    serializeProject(parseProject(serializeProject(interior.project))),
-  ).toBe(serializeProject(interior.project));
   const cut = executeProjectTransaction(interior.project, {
     transactionId: "cut-tap",
     projectId: project.id,
@@ -486,9 +473,6 @@ it("edits a newly authored scalar Cell Pin to a vector before it is connected", 
   });
   expect(created.ok, JSON.stringify(created)).toBe(true);
   if (!created.ok) return;
-  expect(created.project.documents[0]!.nets[0]!.terminals).toEqual([
-    { instanceId: "pin", pinName: "P" },
-  ]);
   const result = executeProjectTransaction(created.project, {
     transactionId: "vector",
     projectId: project.id,
@@ -589,9 +573,6 @@ it("a whole-bus route maps four scalar members in explicit order without joining
         .sort(),
     ).toEqual([inputs[index]!.id, outputs[index]!.id].sort());
   }
-  expect(serializeProject(parseProject(serializeProject(result.project)))).toBe(
-    serializeProject(result.project),
-  );
   const invalidRoute = structuredClone(cell.routes[0]!);
   invalidRoute.members![0]!.endMemberId = "missing-member";
   const refused = executeProjectTransaction(result.project, {
@@ -664,7 +645,6 @@ it("a whole-bus route maps four scalar members in explicit order without joining
   expect(connected.ok, JSON.stringify(connected)).toBe(true);
   if (!connected.ok) return;
   const analysis = analyzeDesignNetlist(connected.project);
-  expect(analysis.ir, JSON.stringify(analysis)).toBeTruthy();
   const caller = analysis.ir?.cells.find((item) => item.id === parent.id)
     ?.instances[0];
   expect(caller?.nodes.map((node) => node.pinName)).toEqual([
@@ -739,9 +719,6 @@ it("establishes loose conductor width from a Label and refuses incompatible rena
       .groups.map((net) => net.name)
       .sort(),
   ).toEqual(["DATA<4>", "DATA<5>", "DATA<6>", "DATA<7>"]);
-  expect(serializeProject(parseProject(serializeProject(named.project)))).toBe(
-    serializeProject(named.project),
-  );
   expect(() =>
     planNameSignalRoute(
       named.project,

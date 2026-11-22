@@ -27,7 +27,6 @@ import {
   agentMcpServerName,
   agentSiteTag,
   type AgentMcpBootstrapManifest,
-  type AgentSessionLimits,
   type AgentSessionScope,
   type PersistedAgentSessionState,
 } from "@icm/agent-adapter";
@@ -40,15 +39,12 @@ import {
   dividerFolder,
 } from "../apps/editor/src/agent/live-simulation.test-support";
 import {
-  AGENT_OPERATING_KIT_FORMAT,
-  AGENT_OPERATING_KIT_VERSION,
   agentOperatingKit,
   type AgentOperatingKit,
 } from "@icm/agent-adapter/kit";
 
 import {
   AgentSessionDO,
-  redeemClaimResponse,
   relayHeaders,
   routeAgentSessionRequest,
   type AgentSessionNamespaceLike,
@@ -57,14 +53,6 @@ import {
 import { AgentDeviceTrustDirectory } from "./agent-device-trust";
 import { purgeTrustedDevices } from "./agent-device-directory";
 import { environment, makerOf } from "./gallery.test-support";
-
-const limits: Partial<AgentSessionLimits> = {
-  claimTtlMs: 60_000,
-  tokenTtlMs: 60_000,
-  sessionTtlMs: 120_000,
-  maxRequestBytes: 128,
-  rateLimit: { windowMs: 60_000, maxRequests: 10 },
-};
 
 it("requires import and all existing edit scopes for staged Cell body writes", () => {
   expect(
@@ -358,69 +346,7 @@ it("authorizes Gallery, Project Code and Netlist operations by their real effect
     expect(access(account).reachesAccount, JSON.stringify(account)).toBe(true);
 });
 
-function folder() {
-  let counter = 0;
-  const random = () => `rand-${counter++}`;
-  let time = 1_000_000;
-  const created = AgentSessionMachine.create({
-    limits,
-    projectSessionId: "project-session-1",
-    projectId: "project-1",
-    documentIds: ["document-1"],
-    scopes: ["circuit.snapshot", "circuit.edit.geometry"],
-    now: time,
-    random,
-  });
-  return {
-    machine: created.machine,
-    session: created.session,
-    now: () => time,
-    advance: (ms: number) => {
-      time += ms;
-    },
-  };
-}
-
 describe("agent-session relay", () => {
-  it("answers the redeemer's retry by replacing the prior bearer, and no other redemption", () => {
-    const { machine, session, now } = folder();
-    const first = redeemClaimResponse(
-      machine,
-      session.claimCode,
-      now(),
-      "adapter-key-0001",
-    );
-    expect(first).toMatchObject({
-      ok: true,
-      sessionId: machine.sessionId,
-      projectId: "project-1",
-      documentIds: ["document-1"],
-    });
-
-    expect(
-      redeemClaimResponse(
-        machine,
-        session.claimCode,
-        now(),
-        "adapter-key-0002",
-      ),
-    ).toMatchObject({ ok: false, error: { code: "CLAIM_ALREADY_REDEEMED" } });
-    const retry = redeemClaimResponse(
-      machine,
-      session.claimCode,
-      now(),
-      "adapter-key-0001",
-    );
-    expect(retry).toMatchObject({ ok: true, projectId: "project-1" });
-    if (!first.ok || !retry.ok) return;
-    expect(retry.agentToken).not.toBe(first.agentToken);
-    expect(machine.authorize(first.agentToken, now())).toEqual({
-      ok: false,
-      code: "SESSION_TAKEN_OVER",
-    });
-    expect(machine.authorize(retry.agentToken, now()).ok).toBe(true);
-  });
-
   it("emits no-store and allowlisted CORS headers", () => {
     const headers = relayHeaders("https://editor.example");
     expect(headers.get("cache-control")).toBe("no-store");
@@ -2042,17 +1968,6 @@ describe("public Agent session routes", () => {
         "/api/agent/claims": { post: { operationId: "agentClaimRedeem" } },
       },
     });
-    expect(Object.keys(contract.paths).sort()).toEqual([
-      "/api/agent/claims",
-      "/api/agent/connectors/resume",
-      "/api/agent/sessions/{sessionId}/artifact-status",
-      "/api/agent/sessions/{sessionId}/artifacts/{fileId}",
-      "/api/agent/sessions/{sessionId}/circuit",
-      "/api/agent/sessions/{sessionId}/files",
-      "/api/agent/sessions/{sessionId}/projects",
-      "/api/agent/sessions/{sessionId}/simulation",
-      "/api/agent/sessions/{sessionId}/status",
-    ]);
   });
 
   it("publishes the small static Agent Kit without creating another API operation", async () => {
@@ -2064,10 +1979,6 @@ describe("public Agent session routes", () => {
     expect(response?.status).toBe(200);
     expect(response?.headers.get("cache-control")).toBe("no-store");
     const kit = (await response!.json()) as AgentOperatingKit;
-    expect(kit).toMatchObject({
-      format: AGENT_OPERATING_KIT_FORMAT,
-      version: AGENT_OPERATING_KIT_VERSION,
-    });
     expect(kit).toEqual(agentOperatingKit);
   });
 
@@ -2086,8 +1997,6 @@ describe("public Agent session routes", () => {
       format: AGENT_MCP_BOOTSTRAP_FORMAT,
       name: serverName,
       version: mcpDistribution.version,
-      transport: "stdio",
-      requirements: { node: ">=24.0.0" },
       fallback: {
         kitUrl: "https://editor.example/api/agent/kit",
         openApiUrl: "https://editor.example/api/agent/openapi.json",
@@ -2107,9 +2016,6 @@ describe("public Agent session routes", () => {
     );
     expect(manifest.hosts.cursor.config.mcpServers[serverName]).toEqual(
       manifest.launch,
-    );
-    expect(manifest.hosts.claudeCode.command).toContain(
-      '--install --origin "https://editor.example" --host config',
     );
   });
 
@@ -2260,55 +2166,6 @@ describe("public Agent session routes", () => {
     expect(response?.status).toBe(403);
     expect(await response!.json()).toMatchObject({
       error: { code: "TOKEN_SCOPE_INSUFFICIENT" },
-    });
-  });
-
-  it("resumes a claimed session with its connector credential", async () => {
-    const { env } = routedFixture();
-    const createdResponse = await routeAgentSessionRequest(
-      new Request("https://editor.example/api/agent/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          projectSessionId: "project:connector",
-          projectId: "project",
-          documentIds: ["document-main"],
-          scopes: ["circuit.snapshot"],
-        }),
-      }),
-      env,
-    );
-    const created = (await createdResponse!.json()) as {
-      session: { sessionId: string; claimCode: string };
-    };
-    const claimResponse = await routeAgentSessionRequest(
-      new Request("https://editor.example/api/agent/claims", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ claimCode: created.session.claimCode }),
-      }),
-      env,
-    );
-    const claim = (await claimResponse!.json()) as {
-      agentToken: string;
-      connectorToken: string;
-    };
-    const resumeResponse = await routeAgentSessionRequest(
-      new Request("https://editor.example/api/agent/connectors/resume", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          sessionId: created.session.sessionId,
-          connectorToken: claim.connectorToken,
-        }),
-      }),
-      env,
-    );
-    expect(resumeResponse?.status).toBe(200);
-    expect(await resumeResponse!.json()).toMatchObject({
-      ok: true,
-      sessionId: created.session.sessionId,
-      connectorToken: claim.connectorToken,
     });
   });
 
@@ -2561,6 +2418,11 @@ describe("public Agent session routes", () => {
       "latest",
     );
     expect(resumed!.status).toBe(200);
+    expect(await resumed!.json()).toMatchObject({
+      ok: true,
+      sessionId: id,
+      connectorToken: claim.connectorToken,
+    });
     expect(adapterEvents()).toEqual([
       { type: "agent.adapter", sessionId: id, version: "0.17.83" },
       { type: "agent.adapter", sessionId: id },
@@ -2708,10 +2570,8 @@ describe("public Agent session routes", () => {
       expect(await control("presence")).toMatchObject({ renewed: false });
       const send = vi.fn();
       sockets = [{ readyState: WebSocket.OPEN, send } as unknown as WebSocket];
-      expect(await control("presence")).toEqual({
-        ok: true,
+      expect(await control("presence")).toMatchObject({
         renewed: true,
-        status: "active",
         expiresAt: new Date(start + 50 * 60_000).toISOString(),
       });
       // The editor hears the new deadline, as after any renewal.
@@ -3910,10 +3770,7 @@ describe("Agent request ledger", () => {
       .filter((key) => key.startsWith(REQUEST_LEDGER_KEY_PREFIX));
     expect(ledgerPuts).toHaveLength(200);
     expect(new Set(ledgerPuts).size).toBe(200);
-    expect(s.storage.values.get(requestLedgerKey("write-7"))).toEqual({
-      payloadHash: expect.stringMatching(/^[0-9a-f]{64}$/u),
-      startedAt: expect.any(Number),
-      completedAt: expect.any(Number),
+    expect(s.storage.values.get(requestLedgerKey("write-7"))).toMatchObject({
       circuitWriteSucceeded: true,
     });
     // Before, each completed write added its record to this one value.

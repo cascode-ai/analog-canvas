@@ -149,36 +149,9 @@ it("applies subscript case even beneath an older whole-label case style", () => 
   expect(JSON.stringify(text)).toContain('"bold"');
 });
 
-it("stores the supply look as italic V over an upright subscript", () => {
-  const format = supplyLabelFormat("VDD")!;
-  expect(format).toEqual({
-    runs: [
-      {
-        kind: "span",
-        style: "italic",
-        children: [
-          {
-            kind: "span",
-            style: "bold",
-            children: [{ kind: "text", value: "V" }],
-          },
-        ],
-      },
-      {
-        kind: "span",
-        style: "subscript",
-        children: [
-          {
-            kind: "span",
-            style: "bold",
-            children: [{ kind: "text", value: "DD" }],
-          },
-        ],
-      },
-    ],
-  });
+it("gives the supply look only to a V-led supply name, spelled exactly", () => {
   // The visible characters are the electrical name, exactly.
-  expect(flattenRichText(format)).toBe("VDD");
+  expect(flattenRichText(supplyLabelFormat("VDD")!)).toBe("VDD");
   expect(flattenRichText(supplyLabelFormat("Vdd1V8")!)).toBe("Vdd1V8");
   for (const name of ["AVDD", "VDD_1V8", "V", "VDD!", ""])
     expect(supplyLabelFormat(name)).toBeUndefined();

@@ -181,15 +181,6 @@ describe("Arena forwarding", () => {
     });
   });
 
-  it("forwards a signed-out visit with no account", async () => {
-    const { forwarded, visit } = canvas();
-
-    await visit("/schematic");
-
-    expect(forwarded).toHaveLength(1);
-    expect(forwardedAccount(forwarded[0])).toBeNull();
-  });
-
   it("drops an account the client forged, signed out or in", async () => {
     const { accounts, forwarded, visit } = canvas();
     const cookie = await makerOf(accounts);

@@ -78,5 +78,4 @@ it("deletes typed candidates atomically without deleting shared source or applie
       edits: plan.edits,
     }).ok,
   ).toBe(false);
-  expect(stale.componentAuthoringDrafts).toHaveLength(1);
 });

@@ -78,7 +78,6 @@ describe("caller input contracts", () => {
           message: "Expected exactly two numbers: [minimum, maximum].",
         }),
       );
-      expect(failure.error.details).toBeDefined();
       // Details must not re-expand unrelated file/workspace union branches.
       if (failure.error.details[0].code === "invalid_union")
         expect(failure.error.details[0].errors).toHaveLength(1);
@@ -91,7 +90,6 @@ describe("caller input contracts", () => {
     expect(field.variants[0].schema).toMatchObject({
       minItems: 2,
       maxItems: 2,
-      description: "Exactly two numbers: [minimum, maximum].",
     });
   });
 

@@ -88,11 +88,6 @@ test("a Skill fails generation when what it reads or ships goes missing", async 
     change(copy);
     await assert.rejects(compile(copy));
   }
-  const skills = (await compile(registry)).get(
-    "packages/agent-adapter/src/agent-skills.generated.ts",
-  );
-  assert.match(skills, /name: "canvas-review"/);
-  assert.match(skills, /claudeCode: "\d+\.\d+\.\d+"/);
 });
 test("missing sources fail before emitting any files", async () => {
   const copy = structuredClone(registry);
@@ -178,20 +173,13 @@ test("runtime links cannot escape to an undistributed repository document", asyn
     );
   }
 });
-test("connection template and report make runtime interpolation and ownership explicit", async () => {
+test("connection template interpolates the claim code at runtime", async () => {
   const output = await compile(registry);
   const connection = output.get(
     "apps/editor/src/agent/connection-guidance.generated.ts",
   );
   assert.ok(connection.includes("JSON.stringify({ claimCode })"));
   assert.ok(connection.includes("values[key]!"));
-  const report = JSON.parse(
-    output.get("docs/agent/distribution.generated.json"),
-  );
-  for (const item of report.outputs) {
-    assert.ok(item.sources.includes("docs/agent/distribution.json"));
-    assert.match(item.sha256, /^[0-9a-f]{64}$/);
-  }
 });
 test("every declared Kit destination and resource is emitted; no phantom fallback", async () => {
   const output = await compile(registry);

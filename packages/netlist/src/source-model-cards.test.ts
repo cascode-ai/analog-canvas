@@ -44,7 +44,6 @@ describe("the model cards of the imported files", () => {
     // Only what the circuit calls, from the file's own level.
     expect(spice).not.toContain("unused");
     expect(spice).not.toContain("vto=0.9");
-    // Spectre reads the card in its own words.
     // Spectre reads the card as SPICE, in a section of its own.
     expect(printed(project, "spectre")).toContain(
       "\nsimulator lang=spice\n.model nch nmos level=1 vto=0.5 kp=200u\nsimulator lang=spectre\n",

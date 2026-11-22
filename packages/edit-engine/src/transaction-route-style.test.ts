@@ -40,27 +40,32 @@ function transaction(
 }
 
 describe("set_route_style_override edit", () => {
-  it.each(["solid", "dashed"] as const)(
-    "sets %s styling alone, preserves connectivity, and supports undo/redo",
-    (lineStyle) => {
+  it.each([
+    { lineStyle: "solid" },
+    { lineStyle: "dashed" },
+    { color: "#FF0000" },
+    { arrow: "middle" },
+  ] as const)(
+    "sets %o alone, preserves connectivity, undoes, redoes and clears",
+    (styleOverride) => {
       const document = documentWithRoute();
       const history = new DocumentHistory(document);
-      const result = history.transact(
-        transaction(history.document, [
-          {
-            kind: "set_route_style_override",
-            routeId: "wire",
-            styleOverride: { lineStyle },
-          },
-        ]),
-      );
-      expect(result).toMatchObject({ ok: true, applied: true });
-      expect(history.document.routes[0]!.styleOverride).toEqual({ lineStyle });
+      const set = (value: typeof styleOverride | null) =>
+        history.transact(
+          transaction(history.document, [
+            {
+              kind: "set_route_style_override",
+              routeId: "wire",
+              styleOverride: value,
+            },
+          ]),
+        );
+      expect(set(styleOverride)).toMatchObject({ ok: true, applied: true });
       expect(history.document.nets).toEqual(document.nets);
       expect(history.document.junctions).toEqual(document.junctions);
       expect(history.document.routes[0]).toEqual({
         ...document.routes[0],
-        styleOverride: { lineStyle },
+        styleOverride,
       });
       expect(
         history.transact(transaction(history.document, [{ kind: "undo" }])),
@@ -69,117 +74,32 @@ describe("set_route_style_override edit", () => {
       expect(
         history.transact(transaction(history.document, [{ kind: "redo" }])),
       ).toMatchObject({ ok: true });
-      expect(history.document.routes[0]!.styleOverride).toEqual({ lineStyle });
+      expect(history.document.routes[0]!.styleOverride).toEqual(styleOverride);
+      expect(set(null)).toMatchObject({ ok: true });
+      expect(history.document.routes[0]!.styleOverride).toBeUndefined();
     },
   );
 
-  it("sets and clears a wire color without changing connectivity", () => {
-    const document = documentWithRoute();
-    const set = executeTransaction(
-      document,
-      transaction(document, [
-        {
-          kind: "set_route_style_override",
-          routeId: "wire",
-          styleOverride: { color: "#FF0000" },
-        },
-      ]),
-    );
-    expect(set.ok).toBe(true);
-    if (!set.ok) return;
-    expect(set.document.routes[0]!.styleOverride).toEqual({ color: "#FF0000" });
-    expect(set.document.routes[0]!.netId).toBe("net");
-
-    const clear = executeTransaction(
-      set.document,
-      transaction(set.document, [
-        {
-          kind: "set_route_style_override",
-          routeId: "wire",
-          styleOverride: null,
-        },
-      ]),
-    );
-    expect(clear.ok).toBe(true);
-    if (!clear.ok) return;
-    expect(clear.document.routes[0]!.styleOverride).toBeUndefined();
-  });
-
-  it("sets an independent wire arrow and preserves it across color edits", () => {
-    const document = documentWithRoute();
-    const arrow = executeTransaction(
-      document,
-      transaction(document, [
-        {
-          kind: "set_route_style_override",
-          routeId: "wire",
-          styleOverride: { arrow: "middle" },
-        },
-      ]),
-    );
-    expect(arrow.ok).toBe(true);
-    if (!arrow.ok) return;
-    expect(arrow.document.routes[0]!.styleOverride).toEqual({
-      arrow: "middle",
-    });
-
-    const colored = executeTransaction(
-      arrow.document,
-      transaction(arrow.document, [
-        {
-          kind: "set_route_style_override",
-          routeId: "wire",
-          styleOverride: { arrow: "middle", color: "#123456" },
-        },
-      ]),
-    );
-    expect(colored.ok).toBe(true);
-    if (!colored.ok) return;
-    expect(colored.document.routes[0]!.styleOverride).toEqual({
-      color: "#123456",
-      arrow: "middle",
-    });
-    expect(colored.document.routes[0]!.netId).toBe("net");
-  });
-
   it("rejects invalid colors, missing routes, and no-op changes", () => {
     const document = documentWithRoute();
-    expect(
-      executeTransaction(document, {
-        ...transaction(document, []),
-        edits: [
-          {
-            kind: "set_route_style_override",
-            routeId: "wire",
-            styleOverride: { lineStyle: "long-dash" },
-          },
-        ],
-      }).ok,
-    ).toBe(false);
-    expect(
-      executeTransaction(document, {
-        ...transaction(document, [] as never[]),
-        edits: [
-          {
-            kind: "set_route_style_override",
-            routeId: "wire",
-            styleOverride: { color: "red" },
-          },
-        ],
-      }).ok,
-    ).toBe(false);
-    expect(
-      executeTransaction(document, {
-        ...transaction(document, [] as never[]),
-        edits: [
-          {
-            kind: "set_route_style_override",
-            routeId: "wire",
-            styleOverride: { arrow: "start" },
-          },
-        ],
-      }).ok,
-    ).toBe(false);
+    for (const styleOverride of [
+      { lineStyle: "long-dash" },
+      { color: "red" },
+      { arrow: "start" },
+    ]) {
+      expect(
+        executeTransaction(document, {
+          ...transaction(document, [] as never[]),
+          edits: [
+            {
+              kind: "set_route_style_override",
+              routeId: "wire",
+              styleOverride,
+            },
+          ],
+        }).ok,
+      ).toBe(false);
+    }
     const missing = executeTransaction(
       document,
       transaction(document, [

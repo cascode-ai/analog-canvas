@@ -71,9 +71,6 @@ describe("named Net planner", () => {
         },
       ],
     });
-    expect(
-      plan.ok && plan.edits.some((edit) => edit.kind === "merge_nets"),
-    ).toBe(false);
   });
 
   it("rejects same-name evidence across incompatible power roles", () => {

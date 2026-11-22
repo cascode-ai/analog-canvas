@@ -1,10 +1,6 @@
 import { createEmptyProject } from "@icm/model";
 import { describe, expect, it } from "vitest";
-import {
-  parseProject,
-  serializeProject,
-  CURRENT_PROJECT_FILE_VERSION,
-} from "./index.js";
+import { parseProject, serializeProject } from "./index.js";
 
 function fixture() {
   const project = createEmptyProject("coupling-persistence", "Coupling");
@@ -39,7 +35,6 @@ describe("inductor coupling portable persistence", () => {
   it("keeps every coupling field through repeated saves", () => {
     const before = fixture();
     const text = serializeProject(before);
-    expect(JSON.parse(text).schemaVersion).toBe(CURRENT_PROJECT_FILE_VERSION);
     const reopened = parseProject(text);
     expect(reopened.documents[0]!.inductorCouplings).toEqual(
       before.documents[0]!.inductorCouplings,

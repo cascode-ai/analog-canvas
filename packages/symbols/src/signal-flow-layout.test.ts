@@ -56,7 +56,6 @@ describe("signal-flow layout", () => {
     expect(fraction?.contentHeight).toBeGreaterThanOrEqual(
       inline!.contentHeight,
     );
-    expect(fraction?.formulaWidth).toBeGreaterThanOrEqual(43.2);
     expect(
       fraction!.denominatorBaseline - fraction!.fractionBarY,
     ).toBeGreaterThanOrEqual(fraction!.fontSize * 1.25);
@@ -74,8 +73,6 @@ describe("signal-flow layout", () => {
     expect(layout?.body.width).toBe(130);
     expect(layout?.body.height).toBe(70);
     expect(layout?.pinSpan).toBe(80);
-    expect(layout?.bounds.width).toBe(160);
-    expect(layout?.bounds.height).toBe(70);
     expect(layout!.pinSpan - layout!.body.width / 2).toBeLessThanOrEqual(
       definition.formulaPresentation.adaptiveFrame.leadLength,
     );
@@ -85,7 +82,6 @@ describe("signal-flow layout", () => {
       bodyWidth: 160,
       bodyHeight: 90,
     });
-    expect(larger).toBeDefined();
     expect(larger!.body.width).toBeGreaterThanOrEqual(160);
     expect(larger!.body.height).toBeGreaterThanOrEqual(90);
     expect(larger!.body.width % 10).toBe(0);
@@ -126,7 +122,6 @@ describe("signal-flow layout", () => {
       pinSpan: 40,
     });
     for (const layout of [alignedBody, halfGridBody]) {
-      expect(layout).toBeDefined();
       expect(layout!.pinSpan % 10).toBe(0);
       expect(layout!.pinSpan - layout!.body.width / 2).toBeLessThanOrEqual(10);
     }

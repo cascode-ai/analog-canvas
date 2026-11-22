@@ -44,161 +44,105 @@ describe("gallery data migrations", () => {
     ).toEqual({ preview_width: 320, preview_height: 180 });
   });
 
-  it("renames tokenzhang across entries and restorable versions once", () => {
-    const state = sqliteState();
-    new GalleryDO(state);
-    state.storage.sql.exec(
-      `INSERT INTO gallery_entries
-       (id, name, author, description, created_at, schema_version, status,
-        project_text, svg_text)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      "legacy-entry",
-      "Legacy",
-      "tokenzhang",
-      "",
-      "2026-08-01T00:00:00.000Z",
-      CURRENT_PROJECT_FILE_VERSION,
-      "public",
-      projectText("Legacy"),
-      "<svg/>",
-      "other-entry",
-      "Other",
-      "Other Author",
-      "",
-      "2026-08-01T00:00:00.000Z",
-      CURRENT_PROJECT_FILE_VERSION,
-      "recycled",
-      projectText("Other"),
-      "<svg/>",
-    );
-    state.storage.sql.exec(
-      `INSERT INTO gallery_entry_versions
-       (id, entry_id, version_no, name, author, description, schema_version,
-        project_text, svg_text, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      "legacy-version",
-      "legacy-entry",
-      1,
-      "Legacy",
-      "Token Zhang",
-      "",
-      CURRENT_PROJECT_FILE_VERSION,
-      projectText("Legacy"),
-      "<svg/>",
-      "2026-08-01T00:00:00.000Z",
-    );
-    state.storage.sql.exec("DELETE FROM data_migrations");
+  it.each([
+    {
+      byline: "tokenzhang",
+      entry: "tokenzhang",
+      version: "Token Zhang",
+      renamed: "Zhishuai Zhang",
+      migrations: "%",
+    },
+    {
+      byline: "the Magic Li byline",
+      entry: " 3187863239-NETIZEN ",
+      version: "3187863239-netizen",
+      renamed: "Magic Li",
+      migrations: "%magic-li%",
+    },
+  ])(
+    "renames $byline across entries and restorable versions once",
+    ({ entry, version, renamed, migrations }) => {
+      const state = sqliteState();
+      new GalleryDO(state);
+      state.storage.sql.exec(
+        `INSERT INTO gallery_entries
+         (id, name, author, description, created_at, schema_version, status,
+          project_text, svg_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        "renamed-entry",
+        "Renamed",
+        entry,
+        "",
+        "2026-09-19T00:00:00.000Z",
+        CURRENT_PROJECT_FILE_VERSION,
+        "public",
+        projectText("Renamed"),
+        "<svg/>",
+        "unrelated-entry",
+        "Unrelated",
+        "Another Contributor",
+        "",
+        "2026-09-19T00:00:00.000Z",
+        CURRENT_PROJECT_FILE_VERSION,
+        "recycled",
+        projectText("Unrelated"),
+        "<svg/>",
+      );
+      state.storage.sql.exec(
+        `INSERT INTO gallery_entry_versions
+         (id, entry_id, version_no, name, author, description, schema_version,
+          project_text, svg_text, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        "renamed-version",
+        "renamed-entry",
+        1,
+        "Renamed",
+        version,
+        "",
+        CURRENT_PROJECT_FILE_VERSION,
+        projectText("Renamed"),
+        "<svg/>",
+        "2026-09-19T00:00:00.000Z",
+      );
+      state.storage.sql.exec(
+        "DELETE FROM data_migrations WHERE id LIKE ?",
+        migrations,
+      );
 
-    new GalleryDO(state);
-    expect(
-      state.storage.sql
-        .exec<{ id: string; author: string }>(
-          "SELECT id, author FROM gallery_entries ORDER BY id",
-        )
-        .toArray(),
-    ).toEqual([
-      { id: "legacy-entry", author: "Zhishuai Zhang" },
-      { id: "other-entry", author: "Other Author" },
-    ]);
-    expect(
-      state.storage.sql
-        .exec<{ author: string }>(
-          "SELECT author FROM gallery_entry_versions WHERE id = 'legacy-version'",
-        )
-        .one().author,
-    ).toBe("Zhishuai Zhang");
+      new GalleryDO(state);
+      expect(
+        state.storage.sql
+          .exec<{ id: string; author: string }>(
+            "SELECT id, author FROM gallery_entries ORDER BY id",
+          )
+          .toArray(),
+      ).toEqual([
+        { id: "renamed-entry", author: renamed },
+        { id: "unrelated-entry", author: "Another Contributor" },
+      ]);
+      expect(
+        state.storage.sql
+          .exec<{ author: string }>(
+            "SELECT author FROM gallery_entry_versions WHERE id = 'renamed-version'",
+          )
+          .one().author,
+      ).toBe(renamed);
 
-    state.storage.sql.exec(
-      "UPDATE gallery_entries SET author = 'Token Zhang' WHERE id = 'legacy-entry'",
-    );
-    new GalleryDO(state);
-    expect(
-      state.storage.sql
-        .exec<{ author: string }>(
-          "SELECT author FROM gallery_entries WHERE id = 'legacy-entry'",
-        )
-        .one().author,
-    ).toBe("Token Zhang");
-  });
-
-  it("renames the Magic Li byline across entries and restorable versions once", () => {
-    const state = sqliteState();
-    new GalleryDO(state);
-    state.storage.sql.exec(
-      `INSERT INTO gallery_entries
-       (id, name, author, description, created_at, schema_version, status,
-        project_text, svg_text)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      "magic-li-entry",
-      "Magic Li circuit",
-      " 3187863239-NETIZEN ",
-      "",
-      "2026-09-19T00:00:00.000Z",
-      CURRENT_PROJECT_FILE_VERSION,
-      "public",
-      projectText("Magic Li circuit"),
-      "<svg/>",
-      "unrelated-entry",
-      "Unrelated",
-      "Another Contributor",
-      "",
-      "2026-09-19T00:00:00.000Z",
-      CURRENT_PROJECT_FILE_VERSION,
-      "recycled",
-      projectText("Unrelated"),
-      "<svg/>",
-    );
-    state.storage.sql.exec(
-      `INSERT INTO gallery_entry_versions
-       (id, entry_id, version_no, name, author, description, schema_version,
-        project_text, svg_text, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      "magic-li-version",
-      "magic-li-entry",
-      1,
-      "Magic Li circuit",
-      "3187863239-netizen",
-      "",
-      CURRENT_PROJECT_FILE_VERSION,
-      projectText("Magic Li circuit"),
-      "<svg/>",
-      "2026-09-19T00:00:00.000Z",
-    );
-    state.storage.sql.exec(
-      "DELETE FROM data_migrations WHERE id LIKE '%magic-li%'",
-    );
-
-    new GalleryDO(state);
-    expect(
-      state.storage.sql
-        .exec<{ id: string; author: string }>(
-          "SELECT id, author FROM gallery_entries ORDER BY id",
-        )
-        .toArray(),
-    ).toEqual([
-      { id: "magic-li-entry", author: "Magic Li" },
-      { id: "unrelated-entry", author: "Another Contributor" },
-    ]);
-    expect(
-      state.storage.sql
-        .exec<{ author: string }>(
-          "SELECT author FROM gallery_entry_versions WHERE id = 'magic-li-version'",
-        )
-        .one().author,
-    ).toBe("Magic Li");
-
-    state.storage.sql.exec(
-      "UPDATE gallery_entries SET author = '3187863239-netizen' WHERE id = 'magic-li-entry'",
-    );
-    new GalleryDO(state);
-    expect(
-      state.storage.sql
-        .exec<{ author: string }>(
-          "SELECT author FROM gallery_entries WHERE id = 'magic-li-entry'",
-        )
-        .one().author,
-    ).toBe("3187863239-netizen");
-  });
+      // Once: the old byline written again afterwards stays.
+      state.storage.sql.exec(
+        "UPDATE gallery_entries SET author = ? WHERE id = 'renamed-entry'",
+        version,
+      );
+      new GalleryDO(state);
+      expect(
+        state.storage.sql
+          .exec<{ author: string }>(
+            "SELECT author FROM gallery_entries WHERE id = 'renamed-entry'",
+          )
+          .one().author,
+      ).toBe(version);
+    },
+  );
 
   it("moves GPT-6 Astra's circuits after its 25th to GPT-6.1 Sol, once and after a restore", async () => {
     const state = sqliteState();

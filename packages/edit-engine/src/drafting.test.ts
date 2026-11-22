@@ -269,69 +269,35 @@ describe("drafting and guide edits", () => {
     expect(removed.ok).toBe(true);
   });
 
-  it("rejects a floating symbol without a resolver (no decorative validation possible)", () => {
-    const document = createEmptyDocument("doc", "Floating");
-    const result = executeTransaction(
-      document,
-      transaction("doc", [
-        {
-          kind: "upsert_drafting_object",
-          object: {
-            id: "f1",
-            kind: "floating-symbol",
-            locked: false,
-            zIndex: 0,
-            anchor: { kind: "free", position: { x: 0, y: 0 } },
-            symbolId: "nmos",
-            transform: { rotation: 0, mirror: "none" },
+  it.each([
+    ["without a resolver (no decorative validation possible)", "nmos", false],
+    ["that was a removed decorative symbol", "decorative-note-box", true],
+    ["that bears terminals", "nmos", true],
+  ] as const)(
+    "rejects a floating symbol %s",
+    (_name, symbolId, withResolver) => {
+      const document = createEmptyDocument("doc", "Floating");
+      const result = executeTransaction(
+        document,
+        transaction("doc", [
+          {
+            kind: "upsert_drafting_object",
+            object: {
+              id: "f1",
+              kind: "floating-symbol",
+              locked: false,
+              zIndex: 0,
+              anchor: { kind: "free", position: { x: 0, y: 0 } },
+              symbolId,
+              transform: { rotation: 0, mirror: "none" },
+            },
           },
-        },
-      ]),
-    );
-    expect(result.ok).toBe(false);
-  });
-
-  it("rejects removed decorative and terminal-bearing floating symbols", () => {
-    const resolver = new InMemorySymbolResolver(builtInSymbols);
-    const document = createEmptyDocument("doc", "Floating");
-    const decorative = executeTransaction(
-      document,
-      transaction("doc", [
-        {
-          kind: "upsert_drafting_object",
-          object: {
-            id: "f1",
-            kind: "floating-symbol",
-            locked: false,
-            zIndex: 0,
-            anchor: { kind: "free", position: { x: 0, y: 0 } },
-            symbolId: "decorative-note-box",
-            transform: { rotation: 0, mirror: "none" },
-          },
-        },
-      ]),
-      { symbolResolver: resolver },
-    );
-    expect(decorative.ok).toBe(false);
-
-    const terminal = executeTransaction(
-      document,
-      transaction("doc", [
-        {
-          kind: "upsert_drafting_object",
-          object: {
-            id: "f2",
-            kind: "floating-symbol",
-            locked: false,
-            zIndex: 0,
-            anchor: { kind: "free", position: { x: 0, y: 0 } },
-            symbolId: "nmos",
-            transform: { rotation: 0, mirror: "none" },
-          },
-        },
-      ]),
-      { symbolResolver: resolver },
-    );
-    expect(terminal.ok).toBe(false);
-  });
+        ]),
+        withResolver
+          ? { symbolResolver: new InMemorySymbolResolver(builtInSymbols) }
+          : undefined,
+      );
+      expect(result.ok).toBe(false);
+    },
+  );
 });

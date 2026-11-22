@@ -4,26 +4,9 @@ import {
   AgentSessionStatusResponseSchema,
 } from "@icm/agent-adapter";
 import { AgentSessionDO } from "./agent-session-do";
-import {
-  SESSION_STATE_KEY,
-  routeAgentSessionRequest,
-} from "./agent-session-runtime";
+import { SESSION_STATE_KEY } from "./agent-session-runtime";
 
 describe("Session observation", () => {
-  it("routes status through the existing session service", async () => {
-    const fetch = vi.fn(
-      async (_request: string | Request) => new Response("{}"),
-    );
-    await routeAgentSessionRequest(
-      new Request("https://example.test/api/agent/sessions/session/status"),
-      {
-        AGENT_SESSION: { getByName: () => ({ fetch }) },
-      },
-    );
-    const request = fetch.mock.calls[0]?.[0] as unknown as Request;
-    expect(request.url).toBe("https://agent-session.internal/status");
-  });
-
   it("authenticates paused observations, never forwards or renews, and rejects expired authority", async () => {
     const now = Date.now();
     let counter = 0;

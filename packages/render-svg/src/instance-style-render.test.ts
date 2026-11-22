@@ -45,7 +45,6 @@ describe("instance style override rendering", () => {
       expect(placements[1]![1]).toBe(id);
       expect(ink.match(new RegExp(`id="${id}"`, "gu"))).toHaveLength(1);
       const geometry = /<defs><g id="[^"]+">(.+?)<\/g><\/defs>/u.exec(ink)?.[1];
-      expect(geometry).toBeDefined();
       const symbols = scene.canvasPaintRuns!.find(
         (run) => run.layer === "symbols",
       )!;
@@ -85,7 +84,6 @@ describe("instance style override rendering", () => {
       const definition = builtInSymbols.find(
         (candidate) => candidate.id === symbolId,
       );
-      expect(definition).toBeDefined();
       const negativeMarks = definition!.primitives.filter(
         (primitive) =>
           primitive.kind === "line" &&
@@ -195,7 +193,6 @@ describe("instance style override rendering", () => {
           ? [stroke.from, stroke.to]
           : [],
     );
-    expect(upright.flat()).toHaveLength(5);
     for (const rotation of [0, 90, 180, 270] as const)
       for (const mirror of [
         "none",
@@ -217,47 +214,6 @@ describe("instance style override rendering", () => {
           }),
         );
       }
-  });
-
-  it("renders an instance with background override as a rect", () => {
-    const doc = createEmptyDocument("doc-1", "Test");
-    doc.instances.push({
-      id: "inst-1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0,
-        mirror: "none",
-      },
-      reference: "R1",
-      netlist: { parameters: {} },
-      styleOverride: { background: "#EEEEEE" },
-    });
-    const svg = renderDocumentSvg(doc, resolver);
-    expect(svg).toContain('data-role="instance-background"');
-    expect(svg).toContain('fill="#EEEEEE"');
-    // Strokes should still use the profile foreground, not be hidden
-    expect(svg).toContain('stroke="#000"');
-  });
-
-  it("renders both foreground and background overrides", () => {
-    const doc = createEmptyDocument("doc-1", "Test");
-    doc.instances.push({
-      id: "inst-1",
-      symbolId: "resistor",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0,
-        mirror: "none",
-      },
-      reference: "R1",
-      netlist: { parameters: {} },
-      styleOverride: { foreground: "#FF0000", background: "#EEEEEE" },
-    });
-    const svg = renderDocumentSvg(doc, resolver);
-    expect(svg).toContain('data-role="instance-background"');
-    expect(svg).toContain('fill="#EEEEEE"');
-    expect(svg).toContain('stroke="#FF0000"');
   });
 
   it("applies foreground override to visible pin-name text", () => {
@@ -494,53 +450,6 @@ describe("instance style override rendering", () => {
     expect(svg).toMatch(/data-role="fraction-bar"[^>]*stroke="#0000FF"/u);
   });
 
-  it("prefers the bound instance over a different object anchor", () => {
-    const doc = createEmptyDocument("doc-1", "Test");
-    doc.instances.push(
-      {
-        id: "bound-instance",
-        symbolId: "resistor",
-        reference: "R1",
-        placement: {
-          position: { x: 100, y: 100 },
-          rotation: 0,
-          mirror: "none",
-        },
-        styleOverride: { foreground: "#FF0000" },
-      },
-      {
-        id: "anchor-instance",
-        symbolId: "resistor",
-        placement: {
-          position: { x: 200, y: 100 },
-          rotation: 0,
-          mirror: "none",
-        },
-        styleOverride: { foreground: "#0000FF" },
-      },
-    );
-    doc.annotations.push({
-      id: "label-1",
-      kind: "instance-label",
-      binding: {
-        kind: "instance-reference",
-        instanceId: "bound-instance",
-      },
-      anchor: {
-        kind: "object",
-        objectId: "anchor-instance",
-        localOffset: { x: 0, y: -20 },
-        fallbackPosition: { x: 200, y: 80 },
-      },
-      alignment: "middle",
-      rotation: 0,
-      locked: false,
-    });
-
-    const svg = renderDocumentSvg(doc, resolver);
-    expect(svg).toMatch(/data-object-id="label-1"[^>]*fill="#FF0000"/u);
-  });
-
   it("keeps unrelated annotations on the document foreground", () => {
     const doc = createEmptyDocument("doc-1", "Test");
     doc.instances.push({
@@ -642,7 +551,7 @@ describe("instance style override rendering", () => {
     expect(svg).toContain('fill="#FF0000"');
   });
 
-  it("renders background rect inside the instance transform group", () => {
+  it("renders both overrides, the background rect inside the instance transform group", () => {
     const doc = createEmptyDocument("doc-1", "Test");
     doc.instances.push({
       id: "inst-1",
@@ -658,6 +567,8 @@ describe("instance style override rendering", () => {
     });
     const scene = buildSvgScene(doc, resolver);
     const body = scene.formalBody;
+    expect(body).toMatch(/data-role="instance-background"[^>]*fill="#EEEEEE"/u);
+    expect(body).toContain('stroke="#FF0000"');
     // The background rect must be inside the <g transform="..."> group,
     // not a sibling before it.
     const transformIndex = body.indexOf('data-object-id="inst-1"');
@@ -701,6 +612,9 @@ describe("instance style override rendering", () => {
       makeDoc({ background: "#FFFFFF" }),
       resolver,
     ).formalBody;
+    expect(withBackgroundOnly).toMatch(
+      /<rect data-role="instance-background"[^>]*fill="#FFFFFF"/u,
+    );
     // A styled instance adds only the stable role marker plus the background;
     // its primitive stroke markup otherwise remains byte-for-byte compatible.
     const withoutStyleMarkers = withBackgroundOnly

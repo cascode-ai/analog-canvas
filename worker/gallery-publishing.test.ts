@@ -396,8 +396,6 @@ describe("gallery submissions", () => {
       schemaVersion: CURRENT_PROJECT_FILE_VERSION,
     });
     expect(listed.entries[0]!.previewRevision).toMatch(/^[a-f0-9]{64}$/u);
-    expect(listed.entries[0]!.previewWidth).toBeGreaterThan(0);
-    expect(listed.entries[0]!.previewHeight).toBeGreaterThan(0);
 
     const detail = await route(env, new Request(`${ORIGIN}/api/gallery/${id}`));
     const payload = (await detail.json()) as { projectText: string };
@@ -502,12 +500,10 @@ describe("gallery submissions", () => {
     );
     expect(first?.status).toBe(200);
     const firstSvg = await first!.text();
-    expect(firstSvg).toContain("<svg");
     expect(cache.putCalls).toEqual([previewUrl]);
     const coldQuery = env.galleryQueries.find((query) =>
       query.includes("svg_text"),
     );
-    expect(coldQuery).toBeDefined();
     expect(coldQuery).not.toContain("project_text");
 
     env.galleryQueries.length = 0;

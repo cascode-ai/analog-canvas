@@ -13,8 +13,8 @@ import type { SymbolDefinition } from "./schema.js";
  */
 
 export const EXTENDED_DEVICE_CATEGORY = "Extended Devices";
-export const HIGH_VOLTAGE_DEVICE_SUBCATEGORY = "High-voltage devices";
-export const MOS_VARIANT_SUBCATEGORY = "MOS variants";
+const HIGH_VOLTAGE_DEVICE_SUBCATEGORY = "High-voltage devices";
+const MOS_VARIANT_SUBCATEGORY = "MOS variants";
 
 export interface ExpandedDeviceCatalogEntry {
   readonly symbolId: string;
@@ -26,7 +26,7 @@ export interface ExpandedDeviceCatalogEntry {
 export const expandedDeviceSymbols: readonly SymbolDefinition[] =
   expandedComponentSymbols;
 
-export const expandedDeviceCatalogEntries: readonly ExpandedDeviceCatalogEntry[] =
+const expandedDeviceCatalogEntries: readonly ExpandedDeviceCatalogEntry[] =
   expandedComponentCatalogEntries;
 
 export function expandedDeviceCatalogEntry(

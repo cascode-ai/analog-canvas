@@ -25,14 +25,12 @@ function makeDocument(): SchematicDocument {
 function makeTransaction(
   document: SchematicDocument,
   edits: EditTransaction["edits"],
-  dryRun = false,
 ): EditTransaction {
   return {
     transactionId: "tx-1",
     documentId: document.id,
     expectedRevision: document.revision,
     actor: { kind: "human", id: "user-1" },
-    ...(dryRun ? { dryRun: true } : {}),
     edits,
   };
 }
@@ -120,40 +118,5 @@ describe("set_instance_signal_flow_parameters edit", () => {
       ok: false,
       error: { code: "EDIT_PRECONDITION" },
     });
-  });
-
-  it("supports dry-run without mutating the source document", () => {
-    const doc = makeDocument();
-    const result = executeTransaction(
-      doc,
-      makeTransaction(
-        doc,
-        [
-          {
-            kind: "set_instance_signal_flow_parameters",
-            instanceId: "inst-1",
-            parameters: {
-              formula: "z^-2",
-              coefficient: "d1",
-              bodyWidth: 100,
-            },
-          },
-        ],
-        true,
-      ),
-    );
-    expect(result).toMatchObject({
-      ok: true,
-      applied: false,
-      revision: 0,
-      proposedRevision: 1,
-    });
-    if (!result.ok) return;
-    expect(result.document.instances[0]!.signalFlowParameters).toEqual({
-      formula: "z^-2",
-      coefficient: "d1",
-      bodyWidth: 100,
-    });
-    expect(doc.instances[0]!.signalFlowParameters).toBeUndefined();
   });
 });

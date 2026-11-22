@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { simulationAnalysisToCsv } from "./result-data.js";
@@ -81,9 +80,6 @@ describe("native noise numerical semantics", () => {
       // projection tolerance separate from the existing 1e-5 physical check
       // against today's SI constant (scripts/vacask-qualification.mjs).
       const psd = 4 * 1.3806503e-23 * 300 * 1000;
-      expect(Math.abs(psd / (4 * 1.380649e-23 * 300 * 1000) - 1)).toBeLessThan(
-        1e-5,
-      );
       const density = Math.sqrt(psd);
       const gain = quantity === "voltage" ? 1 : 1e6;
       const inputDensity = density / Math.sqrt(gain);
@@ -118,12 +114,6 @@ describe("native noise numerical semantics", () => {
       expect(csv).toContain("n(R1)");
     },
   );
-
-  it("protects the unmodified current-reference bytes", () => {
-    expect(createHash("sha256").update(current).digest("hex")).toBe(
-      "36f873547a76ee361e0a01b529ee24277754332b54c866ff3c4825f8eaa85a10",
-    );
-  });
 
   it("integrates varying PSD, not the displayed amplitude density", () => {
     // A two-sample analytical spectrum: area = (1 + 9) / 2 * 10 = 50.

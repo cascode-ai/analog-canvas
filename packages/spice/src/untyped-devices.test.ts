@@ -61,8 +61,8 @@ describe("device cards of unknown type (#2294)", () => {
   });
 
   it("asks a caller that cannot give types for the library alone", async () => {
-    const message = finding(await imported("M1 a b c d nch_mac"));
-    expect(message).toContain("include the library that defines it");
-    expect(message).not.toContain("modelTypes");
+    expect(finding(await imported("M1 a b c d nch_mac"))).toBe(
+      "M1 uses nch_mac, which no card declares: it comes in as MOS (D G S B) of unknown type, a box with its pins as SPICE orders them. To draw one as the device it is, include the library that defines it.",
+    );
   });
 });

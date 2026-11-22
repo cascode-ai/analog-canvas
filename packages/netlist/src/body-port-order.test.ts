@@ -145,66 +145,53 @@ function connections(file: string, format: NetlistFormat): Map<string, string> {
 }
 
 describe("bodies printed in another port order", () => {
-  it.each(["spice", "spectre"] as const)(
-    "moves an op-amp body and its call together in %s",
-    (format) => {
-      const project = block("opamp");
-      const before = text(project, format);
-      const after = text(project, format, rnlOrder);
-      expect(before).toContain(
+  // An op-amp as its macromodels read, a gate's supplies after its signals
+  // (its open supplies become the Cell's own VDD and VSS pins), a
+  // transformer's dotted ends first.
+  it.each(
+    (
+      [
+        [
+          "op-amp",
+          () => block("opamp"),
+          "X1 n_VIP n_VIN 0 0 n_VOUT opamp",
+          "opamp VIP VIN VDD VSS VOUT",
+        ],
+        [
+          "gate",
+          () => block("and-gate"),
+          "X1 n_A n_B n_Y VDD VSS and_gate",
+          "and_gate A B Y VDD VSS",
+        ],
+        [
+          "transformer",
+          transformer,
+          "X7 pp pm sp sm xfmr",
+          "xfmr p_plus p_minus s_plus s_minus",
+        ],
+      ] as const
+    ).flatMap((row) =>
+      (["spice", "spectre"] as const).map(
+        (format) => [...row, format] as const,
+      ),
+    ),
+  )(
+    "moves the %s body and its call together in %s",
+    (_, project, call, body, format) => {
+      const before = text(project(), format);
+      const after = text(project(), format, rnlOrder);
+      const [reference, ...nodes] = call.split(" ");
+      const master = nodes.pop()!;
+      const [name, ...ports] = body.split(" ");
+      expect(after).toContain(
         format === "spice"
-          ? "X1 0 0 n_VIP n_VIN n_VOUT opamp"
-          : "X1 (0 0 n_VIP n_VIN n_VOUT) opamp",
+          ? call
+          : `${reference} (${nodes.join(" ")}) ${master}`,
       );
       expect(after).toContain(
         format === "spice"
-          ? "X1 n_VIP n_VIN 0 0 n_VOUT opamp"
-          : "X1 (n_VIP n_VIN 0 0 n_VOUT) opamp",
-      );
-      expect(after).toContain(
-        format === "spice"
-          ? ".subckt opamp VIP VIN VDD VSS VOUT params:"
-          : "subckt opamp (VIP VIN VDD VSS VOUT)",
-      );
-      expect(connections(after, format)).toEqual(connections(before, format));
-    },
-  );
-
-  it.each(["spice", "spectre"] as const)(
-    "moves a gate's supplies after its signals in %s",
-    (format) => {
-      const project = block("and-gate");
-      const before = text(project, format);
-      const after = text(project, format, rnlOrder);
-      expect(after).not.toEqual(before);
-      // A gate's open supplies become the Cell's own VDD and VSS pins.
-      expect(after).toContain(
-        format === "spice"
-          ? "X1 n_A n_B n_Y VDD VSS and_gate"
-          : "X1 (n_A n_B n_Y VDD VSS) and_gate",
-      );
-      expect(after).toContain(
-        format === "spice"
-          ? ".subckt and_gate A B Y VDD VSS params:"
-          : "subckt and_gate (A B Y VDD VSS)",
-      );
-      expect(connections(after, format)).toEqual(connections(before, format));
-    },
-  );
-
-  it.each(["spice", "spectre"] as const)(
-    "moves a transformer's dotted ends first in %s",
-    (format) => {
-      const project = transformer();
-      const before = text(project, format);
-      const after = text(project, format, rnlOrder);
-      expect(after).toContain(
-        format === "spice"
-          ? ".subckt xfmr p_plus p_minus s_plus s_minus params:"
-          : "subckt xfmr (p_plus p_minus s_plus s_minus)",
-      );
-      expect(after).toContain(
-        format === "spice" ? "X7 pp pm sp sm xfmr" : "X7 (pp pm sp sm) xfmr",
+          ? `.subckt ${body} params:`
+          : `subckt ${name} (${ports.join(" ")})`,
       );
       expect(connections(after, format)).toEqual(connections(before, format));
     },

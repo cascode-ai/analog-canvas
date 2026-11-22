@@ -56,7 +56,6 @@ describe("routing guidance", () => {
       ],
     });
 
-    expect(guides).toHaveLength(2);
     expect(guides.map((guide) => [guide.fromPoint, guide.toPoint])).toEqual([
       [
         { x: 0, y: 0 },

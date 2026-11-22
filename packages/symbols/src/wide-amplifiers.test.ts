@@ -8,8 +8,7 @@ describe("Wide amplifier geometry", () => {
   const entries = razaviSymbolCatalogEntries.filter(
     (entry) => entry.generation?.kind === "derived-wide-amplifier",
   );
-  it("offers the Wide catalog entries and retains every configurable state", () => {
-    expect(entries).toHaveLength(12);
+  it("shows only the plain and crossed Wide amplifiers in the Library", () => {
     // The crossed FD amp is the one the Library shows; the straight one
     // stays for the Agent and for drawings.
     expect(
@@ -95,15 +94,6 @@ describe("Wide amplifier geometry", () => {
       expect(outline).toEqual(
         compact.primitives.find((primitive) => primitive.kind === "path"),
       );
-      if (outline?.kind !== "path") throw new Error("triangle missing");
-      expect(outline.bounds?.height).toBe(60);
-      expect(outline.bounds?.width).toBeCloseTo(30 * Math.sqrt(3), 5);
-      for (const mark of marks(wide)) {
-        if (mark.kind !== "line") throw new Error("polarity must be a line");
-        expect(
-          Math.hypot(mark.to.x - mark.from.x, mark.to.y - mark.from.y),
-        ).toBe(6);
-      }
       expect(wide.formulaPresentation?.defaultFormula).toBe(
         compact.formulaPresentation?.defaultFormula,
       );

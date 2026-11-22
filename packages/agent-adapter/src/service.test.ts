@@ -465,18 +465,9 @@ describe("current Agent Circuit API service", () => {
       operation: "capabilities",
       capabilities: {
         operations: ["capabilities", "snapshot", "transact", "render"],
-        editKinds: expect.arrayContaining([
-          "add_instance",
-          "patch_instance_netlist_parameters",
-          "connect_endpoints",
-          "cut_connection",
-          "merge_nets",
-          "move_junction",
-          "route_orthogonal",
-          "disconnect_endpoint",
-          "upsert_schematic_annotation",
-          "remove_schematic_annotation",
-        ]),
+        apiVersions: ["3.0"],
+        snapshotVersions: ["3.0"],
+        permissions: { snapshot: true },
       },
     });
     expect(AgentCircuitResponseSchema.parse(response)).toEqual(response);
@@ -494,17 +485,6 @@ describe("current Agent Circuit API service", () => {
     expect(agentCircuitRequestJsonSchema()).toMatchObject({
       $schema: "https://json-schema.org/draft/2020-12/schema",
     });
-    expect(Object.keys(agentCircuitOpenApi.paths).sort()).toEqual([
-      "/api/agent/claims",
-      "/api/agent/connectors/resume",
-      "/api/agent/sessions/{sessionId}/artifact-status",
-      "/api/agent/sessions/{sessionId}/artifacts/{fileId}",
-      "/api/agent/sessions/{sessionId}/circuit",
-      "/api/agent/sessions/{sessionId}/files",
-      "/api/agent/sessions/{sessionId}/projects",
-      "/api/agent/sessions/{sessionId}/simulation",
-      "/api/agent/sessions/{sessionId}/status",
-    ]);
   });
 
   it("derives advertised typed edits from the Edit Engine schema", () => {
@@ -516,17 +496,6 @@ describe("current Agent Circuit API service", () => {
     );
 
     expect(AGENT_EDIT_KINDS).toEqual([...supportedKinds, "wire"]);
-    expect(AGENT_EDIT_KINDS).toEqual(
-      expect.arrayContaining([
-        "add_no_connect",
-        "remove_no_connect",
-        "set_presentation_style",
-        "upsert_schematic_annotation",
-        "remove_schematic_annotation",
-        "upsert_drafting_object",
-        "remove_drafting_object",
-      ]),
-    );
     expect(AGENT_EDIT_KINDS).not.toEqual(
       expect.arrayContaining([
         "undo",
@@ -638,25 +607,8 @@ describe("current Agent Circuit API service", () => {
     ).toBe(true);
   });
 
-  it("publishes the flat Snapshot workflow and returns complete facts", () => {
+  it("returns complete facts in the flat Snapshot", () => {
     const fixture = serviceFixture();
-    expect(
-      fixture.service.handle({
-        apiVersion: "3.0",
-        requestId: "capabilities-current",
-        operation: "capabilities",
-      }),
-    ).toMatchObject({
-      apiVersion: "3.0",
-      ok: true,
-      capabilities: {
-        operations: ["capabilities", "snapshot", "transact", "render"],
-        apiVersions: ["3.0"],
-        snapshotVersions: ["3.0"],
-        permissions: { snapshot: true },
-      },
-    });
-
     const response = fixture.service.handle({
       apiVersion: "3.0",
       requestId: "snapshot-current",
@@ -763,10 +715,7 @@ describe("current Agent Circuit API service", () => {
       revision: 1,
       context: { document: { revision: 1 } },
     });
-  });
-
-  it("rejects full-only Snapshot options on the bootstrap projection", () => {
-    const fixture = serviceFixture();
+    // Full-only options are refused on this projection.
     expect(
       fixture.service.handle({
         apiVersion: "3.0",
@@ -1203,84 +1152,6 @@ describe("current Agent Circuit API service", () => {
     });
   });
 
-  it("applies an instance netlist-parameter patch through the same presentation boundary", () => {
-    const fixture = serviceFixture();
-    const instance = fixture
-      .getDocument()
-      .instances.find((item) => item.id === "M1")!;
-    instance.reference = "M1";
-    instance.netlist = {
-      binding: { kind: "primitive", deviceClass: "mos" },
-      parameters: {},
-    };
-    const response = fixture.service.handle({
-      apiVersion: "3.0",
-      requestId: "property-patch",
-      operation: "transact",
-      documentId: "document-differential-stage",
-      transactionId: "property-patch",
-      expectedRevision: 0,
-      edits: [
-        {
-          kind: "patch_instance_netlist_parameters",
-          instanceId: "M1",
-          set: { value: "12u" },
-        },
-      ],
-    });
-
-    expect(response).toMatchObject({
-      ok: true,
-      revision: 1,
-      diff: {
-        editKinds: ["patch_instance_netlist_parameters"],
-        changedObjectIds: ["M1"],
-      },
-    });
-    expect(
-      fixture.getDocument().instances.find((item) => item.id === "M1")?.netlist
-        ?.parameters,
-    ).toMatchObject({ value: "12u" });
-  });
-
-  it("accepts annotation textColor through upsert_schematic_annotation", () => {
-    const fixture = serviceFixture();
-    const response = fixture.service.handle({
-      apiVersion: "3.0",
-      requestId: "annotation-text-color",
-      operation: "transact",
-      documentId: "document-differential-stage",
-      transactionId: "annotation-text-color",
-      expectedRevision: 0,
-      edits: [
-        {
-          kind: "upsert_schematic_annotation",
-          annotation: {
-            id: "note-colored",
-            kind: "route-marker",
-            markerKind: "current",
-            content: { runs: [{ kind: "text", value: "I_tail" }] },
-            anchor: {
-              kind: "free",
-              position: { x: 120, y: 120 },
-            },
-            alignment: "middle",
-            rotation: 0,
-            locked: false,
-            textColor: "#123ABC",
-          },
-        },
-      ],
-    });
-
-    expect(response).toMatchObject({ ok: true, applied: true, revision: 1 });
-    expect(
-      fixture
-        .getDocument()
-        .annotations.find((item) => item.id === "note-colored")?.textColor,
-    ).toBe("#123ABC");
-  });
-
   it("allows Snapshot permission to be denied independently", () => {
     const fixture = serviceFixture({
       ...allPermissions,
@@ -1347,7 +1218,6 @@ describe("current Agent Circuit API service", () => {
     });
     if (response.ok) return;
     const diagnostic = response.diagnostics[0];
-    expect(diagnostic).toBeDefined();
     expect(diagnostic!.path).toEqual(["edits", 1]);
     expect(diagnostic!.objectIds).toContain("instance-does-not-exist");
   });

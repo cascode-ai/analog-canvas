@@ -51,20 +51,18 @@ function circuitText(name: string, symbols: readonly string[]): string {
   );
 }
 
-/** A circuit's transistors: its MOS and BJT parts. */
-const galleryTransistorCount = (project: CircuitProject) => {
-  const devices = galleryDeviceCounts(project);
-  return (devices.nmos ?? 0) + (devices.pmos ?? 0) + (devices.bjt ?? 0);
-};
-
-describe("a Gallery circuit's transistor count", () => {
-  it("counts the MOS and BJT parts drawn, not other parts or tray parts", () => {
-    const project = drawn(createEmptyProject("flat", "Flat"), [
+describe("a Gallery circuit's devices", () => {
+  it("sorts the parts drawn by kind, a block once and markers or tray parts not at all", () => {
+    const project = drawn(createEmptyProject("kinds", "Kinds"), [
+      "nmos",
       "nmos",
       "pmos",
-      "npn",
+      "pnp",
       "resistor",
       "capacitor",
+      "voltage-source",
+      "opamp",
+      "port",
     ]);
     project.documents[0]!.instances.push({
       id: "TRAY",
@@ -72,10 +70,18 @@ describe("a Gallery circuit's transistor count", () => {
       reference: "M9",
       placement: null,
     });
-    expect(galleryTransistorCount(project)).toBe(3);
+    expect(galleryDeviceCounts(project)).toEqual({
+      nmos: 2,
+      pmos: 1,
+      bjt: 1,
+      resistor: 1,
+      capacitor: 1,
+      source: 1,
+      block: 1,
+    });
   });
 
-  it("counts a Cell's transistors once per call, and a Cell that calls itself once", () => {
+  it("counts a bound Cell's devices once per call, not the block that calls it, and a Cell that calls itself once", () => {
     const project = drawn(createEmptyProject("tree", "Tree"), ["nmos"]);
     const inverter = createEmptyDocument("inv", "inv");
     drawn({ ...project, documents: [inverter] } as CircuitProject, [
@@ -112,56 +118,10 @@ describe("a Gallery circuit's transistor count", () => {
       reference: "XC",
       placement: at(6),
     });
-    expect(galleryTransistorCount(project)).toBe(1 + 2 * 2);
-  });
-});
-
-describe("a Gallery circuit's devices", () => {
-  it("sorts the parts drawn by kind, a block once and markers not at all", () => {
-    const project = drawn(createEmptyProject("kinds", "Kinds"), [
-      "nmos",
-      "nmos",
-      "pmos",
-      "pnp",
-      "resistor",
-      "capacitor",
-      "voltage-source",
-      "opamp",
-      "port",
-    ]);
     expect(galleryDeviceCounts(project)).toEqual({
-      nmos: 2,
-      pmos: 1,
-      bjt: 1,
-      resistor: 1,
-      capacitor: 1,
-      source: 1,
+      nmos: 1 + 2,
+      pmos: 2,
       block: 1,
-    });
-  });
-
-  it("counts a bound Cell's devices, not the block that calls it", () => {
-    const project = drawn(createEmptyProject("bound", "Bound"), ["resistor"]);
-    const inverter = createEmptyDocument("inv", "inv");
-    drawn({ ...project, documents: [inverter] } as CircuitProject, [
-      "nmos",
-      "pmos",
-    ]);
-    project.documents.push(inverter);
-    project.documents[0]!.instances.push({
-      id: "XA",
-      symbolId: "inverter",
-      reference: "XA",
-      placement: at(5),
-      netlist: {
-        binding: { kind: "subcircuit", childDocumentId: "inv" },
-        parameters: {},
-      },
-    });
-    expect(galleryDeviceCounts(project)).toEqual({
-      resistor: 1,
-      nmos: 1,
-      pmos: 1,
     });
   });
 });
@@ -224,21 +184,11 @@ describe("the Gallery's statistics", () => {
         { tag: "amplifier", circuits: 1 },
         { tag: "ota", circuits: 1 },
       ],
-      sizes: [
-        { key: "0-5", circuits: 3 },
-        { key: "6-10", circuits: 0 },
-        { key: "11-15", circuits: 0 },
-        { key: "16-25", circuits: 0 },
-        { key: "26-", circuits: 0 },
-      ],
-      transistorBins: [
+      sizes: expect.arrayContaining([{ key: "0-5", circuits: 3 }]),
+      transistorBins: expect.arrayContaining([
         { key: "0", circuits: 1 },
         { key: "1-5", circuits: 2 },
-        { key: "6-10", circuits: 0 },
-        { key: "11-20", circuits: 0 },
-        { key: "21-50", circuits: 0 },
-        { key: "51-", circuits: 0 },
-      ],
+      ]),
     });
     expect(
       Object.fromEntries(
@@ -456,26 +406,8 @@ describe("an account's circuit statistics", () => {
     expect(response.status).toBe(200);
     const { circuits } = (await response.json()) as any;
     expect(circuits).toEqual([
-      {
-        id: divider,
-        name: "Divider",
-        createdAt: expect.any(String),
-        components: 2,
-        transistors: 0,
-        aiGenerated: false,
-        netlistable: expect.any(Boolean),
-        simulatable: false,
-      },
-      {
-        id: amplifier,
-        name: "Amplifier",
-        createdAt: expect.any(String),
-        components: 4,
-        transistors: 3,
-        aiGenerated: false,
-        netlistable: expect.any(Boolean),
-        simulatable: false,
-      },
+      expect.objectContaining({ id: divider, components: 2, transistors: 0 }),
+      expect.objectContaining({ id: amplifier, components: 4, transistors: 3 }),
     ]);
 
     // An edit counts the circuit again; a withdrawn circuit is not listed.

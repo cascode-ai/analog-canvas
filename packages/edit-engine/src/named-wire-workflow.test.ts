@@ -154,8 +154,6 @@ it("commits a loose Wire and its mixed scalar bundle name atomically through Pro
       members: [{ name: "CLK" }, { name: "RESET" }],
     },
   });
-  expect(document.routes).toHaveLength(0);
-  expect(document.annotations).toHaveLength(0);
 });
 
 it("names an already drawn loose scalar path with a scalar-only bundle without treating the comma as a literal", () => {

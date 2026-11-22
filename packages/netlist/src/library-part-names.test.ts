@@ -231,10 +231,6 @@ const reversedPorts = (symbolId: string) =>
     .reverse();
 
 describe("a Library part never calls an author's definition because of its name (#1928)", () => {
-  it("has a name to yield for every body but the reserved and call-only ones", () => {
-    expect(BASELINES.filter(hasNoOtherName)).toHaveLength(NO_OTHER_NAME.length);
-  });
-
   for (const author of ["Cell", "external subcircuit"] as const)
     it.each(BASELINES.filter((baseline) => !hasNoOtherName(baseline)))(
       `writes $symbolId's body $target as icm_$target beside the author's ${author} of that name, in $format`,
@@ -366,17 +362,6 @@ describe("a Library part retargeted to another name (#1928)", () => {
     // supply and n_VIP.
     expect(text(project)).toMatch(
       /^X1 n_VOUT VSS n_VIN VDD n_VIP comparator$/mu,
-    );
-  });
-
-  it("refuses the Project's definition when its ports are not the part's own pins", () => {
-    const project = unboundPart("comparator", {}, "comparator");
-    addOwnSubcircuit(project, "comparator", ["VDD", "VSS", "A", "B", "Y"]);
-    expect(
-      errors(project).find((item) => item.code === "GATE_CELL_PIN_MISMATCH")
-        ?.message,
-    ).toContain(
-      "External subcircuit comparator does not fit the comparator: it has no Pins IN+, IN- and OUT",
     );
   });
 

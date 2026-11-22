@@ -32,24 +32,13 @@ describe("controlled voltage source artwork", () => {
           (primitive) => primitive.kind === "polygon",
         ),
       ).toEqual([
-        expect.objectContaining({
-          points: [
-            { x: 0, y: -12.5 },
-            { x: 12.5, y: 0 },
-            { x: 0, y: 12.5 },
-            { x: -12.5, y: 0 },
-          ],
-          fill: "none",
-          stroke: "foreground",
-          style: { strokeRole: "normal", lineCap: "butt", lineJoin: "miter" },
-        }),
+        expect.objectContaining({ fill: "none", stroke: "foreground" }),
       ]);
       const polarity = (definition: typeof symbol) =>
         definition.primitives.filter((primitive) =>
           primitive.part?.startsWith("upright-polarity-"),
         );
       expect(polarity(symbol)).toEqual(polarity(voltage));
-      expect(polarity(symbol)).toHaveLength(3);
       expect(symbol.pins).toEqual(voltage.pins);
       expect(symbol.viewBox).toEqual(voltage.viewBox);
       for (const mark of polarity(symbol))

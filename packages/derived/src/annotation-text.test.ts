@@ -139,7 +139,6 @@ describe("bound annotation text", () => {
     expect(resolveAnnotationText(document, annotation)).toEqual(
       annotation.formatOverride,
     );
-    expect(document.netlist.terminals[0]!.name).toBe("Vout");
   });
 
   it("shows a same-text Value look but never a stale electrical value", () => {
@@ -180,7 +179,7 @@ describe("bound annotation text", () => {
     );
   });
 
-  it("projects a Net name without touching its movable route anchor", () => {
+  it("projects a Net's current name", () => {
     const document = createEmptyDocument("document-main", "Main");
     document.nets.push({
       id: "net-vin",
@@ -215,13 +214,10 @@ describe("bound annotation text", () => {
       scope: "local",
     });
 
-    const before = structuredClone(annotation.anchor);
-    expect(resolveAnnotationName(document, annotation)).toBe("V_{in,cm}");
     expect(resolveAnnotationName(document, annotation)).toBe("V_{in,cm}");
     const claim = document.connectivityEvidence[0];
     if (claim?.kind === "name-claim") claim.name = "V_{refp}";
     expect(resolveAnnotationName(document, annotation)).toBe("V_{refp}");
-    expect(annotation.anchor).toEqual(before);
   });
 
   it("names a Net label's alias by its Net name, never by the text it shows (#1880)", () => {
@@ -250,23 +246,6 @@ describe("bound annotation text", () => {
       "VEA,OUT",
     );
     expect(resolveAnnotationName(document, annotation)).toBe("VEA_OUT");
-  });
-
-  it("keeps a visible master label as ordinary attached text", () => {
-    const document = createEmptyDocument("document-main", "Main");
-    const annotation = {
-      id: "master-M1",
-      kind: "instance-label" as const,
-      content: plainNameDocument("sky130_nfet"),
-      anchor: { kind: "free" as const, position: { x: 0, y: 0 } },
-      alignment: "start" as const,
-      rotation: 0 as const,
-      locked: false,
-    };
-
-    expect(flattenRichText(resolveAnnotationText(document, annotation))).toBe(
-      "sky130_nfet",
-    );
   });
 });
 

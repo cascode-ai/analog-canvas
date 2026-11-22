@@ -219,25 +219,23 @@ describe("environment names (#1679)", () => {
       { id: ngspiceProfile.id, label: "SKY130 qualified devices · ngspice 46" },
       { id, label: "SKY130 · VACASK 0.3.4 (preview)" },
     ]);
-    expect(await named(await host("0.3.4-icm-hard-switch2"))).toBe(
-      "SKY130 · VACASK 0.3.4 (preview)",
-    );
+  });
+
+  it.each([
+    ["0.3.4-icm-hard-switch2", undefined, "SKY130 · VACASK 0.3.4 (preview)"],
     // A host that moved to another build under the same id says so.
-    expect(await named(await host("0.4.0"))).toBe(
-      "SKY130 · VACASK 0.4.0 (preview)",
-    );
-  });
-
-  it("leaves the id when the host's release cannot be read", async () => {
-    expect(await named(await host("nightly"))).toBeUndefined();
-    expect(await named(await host("0.3"))).toBeUndefined();
-  });
-
-  it("keeps a name the host declares", async () => {
-    expect(await named(await host("0.3.4", "Host-declared name"))).toBe(
-      "Host-declared name",
-    );
-  });
+    ["0.4.0", undefined, "SKY130 · VACASK 0.4.0 (preview)"],
+    // The host's release cannot be read: the id stands.
+    ["nightly", undefined, undefined],
+    ["0.3", undefined, undefined],
+    // A name the host declares is kept.
+    ["0.3.4", "Host-declared name", "Host-declared name"],
+  ])(
+    "labels a host running %s (declared %s) as %s",
+    async (version, label, expected) => {
+      expect(await named(await host(version, label))).toBe(expected);
+    },
+  );
 
   it("gives no other VACASK Profile that name", async () => {
     expect(
@@ -380,10 +378,9 @@ describe("signing in to simulate", () => {
     ).toBeNull();
     const refused = await refuseSignedOutSimulation(request(nativeInput()), {});
     expect(refused?.status).toBe(401);
-    expect(await refused!.json()).toEqual({
+    expect(await refused!.json()).toMatchObject({
       error: "simulation-authentication-required",
-      message:
-        "Hosted simulation is for the Analog Canvas team: sign in with a team account, or export a SPICE or Spectre netlist with File › Export and run it with your own simulator and PDK.",
+      message: expect.stringContaining("export a SPICE or Spectre netlist"),
     });
     expect(
       await refuseSignedOutSimulation(

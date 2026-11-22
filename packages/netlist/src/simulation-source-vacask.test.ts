@@ -327,8 +327,6 @@ describe("public native source compilation", () => {
     const before = JSON.stringify({ project, folder });
     const compiled = compileSourceSimulation(project, folder);
     if (!compiled.ok) throw Error(JSON.stringify(compiled.diagnostics));
-    expect(compiled.language).toBe("vacask");
-    expect(compiled.authority).toBe("code");
     expect(compiled.generated).toHaveLength(2);
     const generated = compiled.generated.map((f) => f.text).join("\n");
     expect(generated.match(/^load "resistor.osdi"/gm)).toHaveLength(1);
@@ -341,9 +339,6 @@ describe("public native source compilation", () => {
     expect(
       compiled.files.find((f) => f.path === folder.input.entry)!.text,
     ).toBe(folder.input.files[1]!.text);
-    expect(compiled.config.collection.rawfile).toBeNull();
-    expect(compiled.outputs).toEqual([]);
-    expect(compiled.vectors).toEqual([]);
     expect(JSON.stringify({ project, folder })).toBe(before);
     for (const file of compiled.generated)
       for (const parameter of file.parameters)

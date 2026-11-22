@@ -76,6 +76,9 @@ it.each([
   ".editorconfig",
   "pnpm-lock.yaml",
   "package.json",
+  // package.yaml carries Prettier options too.
+  "package.yaml",
+  "apps/editor/package.yaml",
 ])("checks the full format domain when %s changes", (path) => {
   const root = fixture();
   put(root, "apps/editor/old.ts", "export const old=1\n");
@@ -87,7 +90,9 @@ it.each([
       ? "export default {};\n"
       : path.endsWith(".json") || path === ".prettierrc"
         ? '{"singleQuote":true}\n'
-        : "# changed\n",
+        : path.endsWith("package.yaml")
+          ? "prettier:\n  semi: false\n"
+          : "# changed\n",
   );
   commit(root);
   const result = check(root, base);
@@ -107,20 +112,6 @@ it("handles deleted files and literal renamed paths containing spaces and glob c
   commit(root);
   expect(check(root, base).status).toBe(1);
 });
-
-it.each(["package.yaml", "apps/editor/package.yaml"])(
-  "checks existing sources when %s changes Prettier options",
-  (path) => {
-    const root = fixture();
-    const base = commit(root);
-    put(root, path, "prettier:\n  semi: false\n");
-    commit(root);
-    const result = check(root, base);
-    expect(result.status).toBe(1);
-    expect(result.stdout).toContain("Full formatting check:");
-    expect(result.stdout + result.stderr).toContain("old.ts");
-  },
-);
 
 it.each(["delete", "rename"])(
   "falls back when a configuration is removed by %s",

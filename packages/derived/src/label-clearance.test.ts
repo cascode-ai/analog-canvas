@@ -692,8 +692,6 @@ describe("labels that run on (#1412)", () => {
         category: "observation",
         gateEligible: false,
         objectIds: ["C3-value", "C5-value"],
-        message:
-          'C3\'s value "637pF" and C5\'s value "197pF" share a line 6 units apart and read as one',
       }),
     ]);
     // A placement planner reads the same run-on, either way along the row.
@@ -724,9 +722,7 @@ describe("labels that run on (#1412)", () => {
     label("C1", "name", reference("C", "1"), "start", 162, 45);
     label("L1", "value", bold("31.8nH"), "middle", 214, 46);
     row(["C1-name", "L1-value"], 45, 4);
-    expect(runOn().map((d) => d.message)).toEqual([
-      'C1\'s name "C1" and L1\'s value "31.8nH" share a line 4 units apart and read as one',
-    ]);
+    expect(runOn().map((d) => d.objectIds)).toEqual([["C1-name", "L1-value"]]);
   });
 
   it("reports an LC ladder's names and values running along their rows", () => {

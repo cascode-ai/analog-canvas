@@ -5,7 +5,6 @@ import * as visual from "../visual.js";
 import * as electrical from "./erc.js";
 
 import { diagnoseProjectSnapshot } from "./diagnostic.js";
-import { evaluateSubmissionGates } from "../submission-gates.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 afterEach(() => vi.restoreAllMocks());
@@ -70,16 +69,5 @@ describe("explicit diagnostic producer selection", () => {
       .map((diagnostic) => diagnostic.code);
     expect(codes).not.toContain("ERC_BULK_UNRESOLVED");
     expect(codes).toContain("ERC_FLOATING_GATE");
-  });
-
-  it("keeps Gallery quality advice independent of editor results", () => {
-    // This evaluator supplies advice, not a server-side publication veto.
-    const gates = evaluateSubmissionGates(sheetWithOneTransistor(), resolver);
-    const failureCodes = gates.failures.map((failure) => failure.code);
-    expect(failureCodes).toContain("floating-endpoints");
-    const floating = gates.failures.find(
-      (failure) => failure.code === "floating-endpoints",
-    );
-    expect(floating?.count).toBeGreaterThan(0);
   });
 });

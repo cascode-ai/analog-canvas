@@ -188,7 +188,6 @@ describe("resolved logical Nets", () => {
       conflicts: [],
       evidenceIds: ["claim-global", "claim-local"],
     });
-    expect(document.connectivityEvidence).toHaveLength(2);
   });
 
   it("does not promote a legacy source spelling into a Logical Net name", () => {
@@ -285,7 +284,6 @@ describe("resolved logical Nets", () => {
         conflicts: [],
       }),
     ]);
-    expect(document.connectivityEvidence).toHaveLength(1);
   });
 
   it("reports a different Net Label on a formal Port even when both names resolve to one node", () => {

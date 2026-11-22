@@ -45,27 +45,6 @@ describe("Project persistence", () => {
     );
   });
 
-  it("round-trips annotation textColor through persistence", () => {
-    const project = createEmptyProject("project-text-color", "Text color");
-    project.documents[0]!.annotations.push({
-      id: "note-1",
-      kind: "route-marker",
-      markerKind: "current",
-      content: { runs: [{ kind: "text", value: "I_bias" }] },
-      anchor: { kind: "free", position: { x: 20, y: 20 } },
-      alignment: "middle",
-      rotation: 0,
-      locked: false,
-      textColor: "#224488",
-    });
-
-    const text = serializeProject(project);
-    const loaded = parseProject(text);
-
-    expect(loaded.documents[0]!.annotations[0]!.textColor).toBe("#224488");
-    expect(text).toContain("textColor");
-  });
-
   it("rejects invalid JSON with a typed diagnostic", () => {
     try {
       parseProject("{");

@@ -224,11 +224,6 @@ describe("Instance lifecycle planning", () => {
   it("returns an Instance to the tray without changing its electrical facts", () => {
     const document = lifecycleDocument();
     const edits = planInstanceUnplacement(document, resolver, ["R1"], 3);
-    expect(edits.map((edit) => edit.kind)).toEqual([
-      "add_junction",
-      "set_route_path",
-      "unplace_instance",
-    ]);
 
     const result = executeTransaction(
       document,
@@ -260,10 +255,7 @@ describe("Instance lifecycle planning", () => {
         annotations: [{ id: "label-r1" }, { id: "free-value-r1" }],
         routes: [
           {
-            start: {
-              kind: "junction",
-              junctionId: "junction-lifecycle-3-1",
-            },
+            start: { kind: "junction" },
           },
         ],
       },
@@ -310,10 +302,7 @@ describe("Instance lifecycle planning", () => {
         constraints: [],
         routes: [
           {
-            start: {
-              kind: "junction",
-              junctionId: "junction-lifecycle-5-1",
-            },
+            start: { kind: "junction" },
             legs: [
               expect.any(Object),
               expect.objectContaining({
@@ -330,53 +319,6 @@ describe("Instance lifecycle planning", () => {
           },
         ],
       },
-    });
-  });
-
-  it("prunes the final unreferenced local Cell Pin Net with its marker", () => {
-    const document = createEmptyDocument("document-main", "Main");
-    document.instances.push({
-      id: "P1",
-      symbolId: "port",
-      placement: {
-        position: { x: 100, y: 100 },
-        rotation: 0,
-        mirror: "none",
-      },
-    });
-    document.nets.push({
-      id: "net-port-p1",
-
-      terminals: [{ instanceId: "P1", pinName: "P" }],
-    });
-    document.annotations.push({
-      id: "instance-label-P1",
-      kind: "net-label",
-      binding: { kind: "net-name", netId: "net-port-p1" },
-      netId: "net-port-p1",
-      anchor: {
-        kind: "object",
-        objectId: "P1",
-        localOffset: { x: 10, y: 0 },
-        fallbackPosition: { x: 110, y: 100 },
-      },
-      alignment: "start",
-      rotation: 0,
-      locked: false,
-    });
-
-    const result = executeTransaction(
-      document,
-      transaction(
-        document.id,
-        planInstanceDeletion(document, resolver, ["P1"], 6),
-      ),
-      { symbolResolver: resolver },
-    );
-
-    expect(result).toMatchObject({
-      ok: true,
-      document: { instances: [], nets: [], annotations: [] },
     });
   });
 

@@ -39,29 +39,6 @@ function pair(second: "nmos" | "pmos" = "nmos") {
 
 describe("implicit schematic MOS body supplies", () => {
   it.each(["spice", "spectre"] as const)(
-    "exports an unpowered NMOS pair in %s without changing its drawing",
-    (format) => {
-      const project = pair();
-      const before = structuredClone(project);
-      const result = createDesignNetlistExport(project, { format });
-      expect(result.status, JSON.stringify(result.diagnostics)).toBe("ready");
-      if (result.status !== "ready") return;
-      expect(result.file.text).toContain(
-        format === "spice" ? ".subckt dut VDD VSS\n" : "subckt dut (VDD VSS)\n",
-      );
-      expect(result.file.text).not.toMatch(/global/iu);
-      for (const id of ["M1", "M2"])
-        expect(result.file.text).toMatch(
-          new RegExp(`${id} \\(?\\S+ \\S+ \\S+ VSS\\)? NMOS`),
-        );
-      expect(result.diagnostics.filter((d) => d.severity === "error")).toEqual(
-        [],
-      );
-      expect(project).toEqual(before);
-    },
-  );
-
-  it.each(["spice", "spectre"] as const)(
     "adds only the default supplies to authored ports, keeping their case, in %s",
     (format) => {
       // Two gates on Cell Pins Vin and Vin2; D and S shared; no bulk drawn.

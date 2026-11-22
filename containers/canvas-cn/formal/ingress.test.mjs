@@ -15,10 +15,11 @@ async function listen(server) {
 }
 
 test("a snapshot-length hold queues a save once and still bounds abandoned maintenance", async (t) => {
-  let writes = 0;
-  const backend = http.createServer((req, res) => {
-    req.resume();
-    writes++;
+  const saved = [];
+  const backend = http.createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    saved.push(body);
     res.end("saved");
   });
   const ingress = createIngress({ upstreamPort: await listen(backend) });
@@ -35,16 +36,16 @@ test("a snapshot-length hold queues a save once and still bounds abandoned maint
   while (!ingress.status().pending) await new Promise(setImmediate);
   await vi.advanceTimersByTimeAsync(45_000);
   assert.equal(ingress.status().pending, 1);
-  assert.equal(writes, 0);
+  assert.deepEqual(saved, []);
   ingress.resume();
   assert.deepEqual(await saving, { status: 200, body: "saved" });
-  assert.equal(writes, 1);
+  assert.deepEqual(saved, ["once"]);
   assert.equal(await ingress.hold(), true);
   const expired = request(port, "/api/projects", "not-sent");
   while (!ingress.status().pending) await new Promise(setImmediate);
   await vi.advanceTimersByTimeAsync(60_001);
   assert.equal((await expired).status, 503);
-  assert.equal(writes, 1);
+  assert.deepEqual(saved, ["once"]);
 });
 
 function request(port, path = "/", body, headers) {
@@ -267,31 +268,6 @@ test("maintenance releases within capacity and ordinary work gets a turn among s
     (await Promise.all(responses)).every((reply) => reply.status === 200),
     true,
   );
-});
-
-test("a save arriving during handover reaches the domestic backend once after resume", async (t) => {
-  const saved = [];
-  const backend = http.createServer(async (req, res) => {
-    let body = "";
-    for await (const chunk of req) body += chunk;
-    saved.push(body);
-    res.end("saved domestically");
-  });
-  const port = await listen(backend);
-  const ingress = createIngress({ upstreamPort: port });
-  t.onTestFinished(async () => {
-    await ingress.close();
-    backend.closeAllConnections();
-    backend.close();
-  });
-  const publicPort = await listen(ingress.server);
-  assert.equal(await ingress.hold(), true);
-  const response = request(publicPort, "/api/projects", "draft-1");
-  await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.deepEqual(saved, []);
-  ingress.resume();
-  assert.deepEqual(await response, { status: 200, body: "saved domestically" });
-  assert.deepEqual(saved, ["draft-1"]);
 });
 
 test("a busy save cancels handover and keeps the old backend serving", async (t) => {

@@ -117,34 +117,30 @@ describe("mcp-release-bump --version", () => {
       "0.15.7",
     );
     expect(output).toContain("--stamp");
-  });
-
-  it("keeps the file formatting stable", () => {
-    const { root, configPath } = fixture();
-    run(root, ["--version", "0.15.7"]);
+    // The file formatting stays stable.
     const text = readFileSync(configPath, "utf8");
     expect(text.endsWith("}\n")).toBe(true);
     expect(text).toContain('  "release": {');
   });
 
-  it("refuses the current version", () => {
-    const { root } = fixture({ version: "0.15.7" });
-    expect(run(root, ["--version", "0.15.7"]).output).toMatch(
+  it.each([
+    [
+      "the current version",
+      "0.15.7",
+      ["--version", "0.15.7"],
       /already declares/su,
-    );
-  });
-
-  it("refuses a non-semver version", () => {
-    const { root } = fixture();
-    expect(run(root, ["--version", "next"]).output).toMatch(/plain semver/su);
-  });
-
-  it("requires exactly one mode", () => {
-    const { root } = fixture();
-    expect(run(root, []).output).toMatch(/exactly one mode/su);
-    expect(run(root, ["--version", "0.15.7", "--stamp"]).output).toMatch(
+    ],
+    ["a non-semver version", "0.15.6", ["--version", "next"], /plain semver/su],
+    ["no mode", "0.15.6", [], /exactly one mode/su],
+    [
+      "two modes",
+      "0.15.6",
+      ["--version", "0.15.7", "--stamp"],
       /exactly one mode/su,
-    );
+    ],
+  ])("refuses %s", (_, version, args, message) => {
+    const { root } = fixture({ version });
+    expect(run(root, args).output).toMatch(message);
   });
 });
 

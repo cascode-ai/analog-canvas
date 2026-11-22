@@ -69,7 +69,7 @@ describe("deployment candidate", () => {
   });
 
   it("carries a brotli sibling for this build's compressible assets only", async () => {
-    const { output, manifest } = await fixture();
+    const { output } = await fixture();
     const assets = join(output, "editor", "assets");
     expect((await readdir(assets)).sort()).toEqual([
       "app-test.js",
@@ -80,7 +80,6 @@ describe("deployment candidate", () => {
     expect(
       brotliDecompressSync(await readFile(join(assets, "app-test.js.br"))),
     ).toEqual(await readFile(join(assets, "app-test.js")));
-    expect(manifest.fileCount).toBe(6);
   });
 
   it("proves that the deployed editor serves the accepted entry bytes", async () => {

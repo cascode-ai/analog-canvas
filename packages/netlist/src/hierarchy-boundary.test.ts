@@ -181,6 +181,5 @@ describe("hierarchy netlist boundaries", () => {
     expect(
       result.diagnostics.filter((item) => /DIRECTION/u.test(item.code)),
     ).toEqual([]);
-    expect(result.ir).toBeDefined();
   });
 });

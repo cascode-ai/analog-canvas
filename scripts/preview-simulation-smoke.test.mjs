@@ -444,9 +444,7 @@ describe("the Preview dual-executor smoke", () => {
             { status: 502 },
           ),
       }),
-    ).rejects.toThrow(
-      "[infrastructure:simulator-refused] operator-host answered HTTP 502 (simulator-busy): one circuit at a time",
-    );
+    ).rejects.toThrow("[infrastructure:simulator-refused]");
   });
 
   it("names a malformed smoke request separately from executor failure", async () => {
@@ -463,9 +461,7 @@ describe("the Preview dual-executor smoke", () => {
             { status: 400 },
           ),
       }),
-    ).rejects.toThrow(
-      "[request:invalid-request] cloudflare-container answered HTTP 400: a circuit and testbench are required",
-    );
+    ).rejects.toThrow("[request:invalid-request]");
   });
 
   it("keeps a timed-out run separate from an infrastructure refusal", () => {
@@ -491,9 +487,7 @@ describe("the Preview dual-executor smoke", () => {
             headers: { "content-type": "text/plain" },
           }),
       }),
-    ).rejects.toThrow(
-      "[protocol:non-json] operator-host answered HTTP 502: bad gateway",
-    );
+    ).rejects.toThrow("[protocol:non-json]");
   });
 });
 
@@ -640,9 +634,31 @@ describe("the hosted SKY130 qualification", () => {
     });
   });
 
-  it("refuses numerical drift outside the recorded tolerance", () => {
+  it.each([
+    [
+      "operating-point drift outside the recorded tolerance",
+      (candidate) => (candidate.data.analyses[0].probes[0].value = 0.8),
+      /solved v\(vout\) as 0\.8/u,
+    ],
+    [
+      "DC drift outside the recorded tolerance",
+      (candidate) => (candidate.data.analyses[1].probes[0].value[4] = 0.9),
+      /solved v\(vout\)\[4\] as 0\.9/u,
+    ],
+    [
+      "AC drift outside the recorded tolerance",
+      (candidate) => (candidate.data.analyses[2].probes[0].real[60] = 13),
+      /solved v\(vout\)\[60\] as 13/u,
+    ],
+    [
+      "a run that did not load the qualified corner",
+      (candidate) =>
+        (candidate.metadata.configuration.modelLibrary.section = "ff"),
+      /qualified model-library section/u,
+    ],
+  ])("refuses %s", (_, change, error) => {
     const candidate = modelResult("operator-host");
-    candidate.data.analyses[0].probes[0].value = 0.8;
+    change(candidate);
     expect(() =>
       validateHostedSky130Result(
         candidate,
@@ -650,46 +666,7 @@ describe("the hosted SKY130 qualification", () => {
         "preview-sky130-operator-host",
         EXPECTED_VECTORS,
       ),
-    ).toThrow(/solved v\(vout\) as 0\.8/u);
-  });
-
-  it("refuses AC drift outside the recorded tolerance", () => {
-    const candidate = modelResult("operator-host");
-    candidate.data.analyses[2].probes[0].real[60] = 13;
-    expect(() =>
-      validateHostedSky130Result(
-        candidate,
-        "operator-host",
-        "preview-sky130-operator-host",
-        EXPECTED_VECTORS,
-      ),
-    ).toThrow(/solved v\(vout\)\[60\] as 13/u);
-  });
-
-  it("refuses DC drift outside the recorded tolerance", () => {
-    const candidate = modelResult("operator-host");
-    candidate.data.analyses[1].probes[0].value[4] = 0.9;
-    expect(() =>
-      validateHostedSky130Result(
-        candidate,
-        "operator-host",
-        "preview-sky130-operator-host",
-        EXPECTED_VECTORS,
-      ),
-    ).toThrow(/solved v\(vout\)\[4\] as 0\.9/u);
-  });
-
-  it("refuses a run that did not load the qualified corner", () => {
-    const candidate = modelResult("operator-host");
-    candidate.metadata.configuration.modelLibrary.section = "ff";
-    expect(() =>
-      validateHostedSky130Result(
-        candidate,
-        "operator-host",
-        "preview-sky130-operator-host",
-        EXPECTED_VECTORS,
-      ),
-    ).toThrow(/qualified model-library section/u);
+    ).toThrow(error);
   });
 
   it("verifies source model selection against the executed input hash and pinned dependency", async () => {

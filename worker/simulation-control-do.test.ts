@@ -115,8 +115,11 @@ describe("simulation control durable object", () => {
         }),
       );
     const first = await body<{ run: { id: string } }>(await accept("a"));
-    expect(await body(await accept("b"))).toMatchObject({
+    const queued = await accept("b");
+    expect(queued.status).toBe(409);
+    expect(await body(queued)).toEqual({
       error: "OWNER_QUEUE_LIMIT",
+      retryAfterMs: 2_000,
     });
     await control.fetch(
       new Request(`https://control/runs/${first.run.id}`, {
@@ -276,34 +279,6 @@ describe("simulation control durable object", () => {
       ),
     );
     expect(listed.runs.map((run) => run.id)).toEqual([accepted.run.id]);
-  });
-
-  it("enforces the per-owner queue limit atomically", async () => {
-    const control = new SimulationControlDO(sqliteState());
-    expect(
-      (
-        await control.fetch(
-          new Request("https://control/accept", {
-            method: "POST",
-            body: JSON.stringify(admission()),
-          }),
-        )
-      ).status,
-    ).toBe(201);
-    const refused = await control.fetch(
-      new Request("https://control/accept", {
-        method: "POST",
-        body: JSON.stringify({
-          ...admission("request-b"),
-          requestFingerprint: digest("c"),
-        }),
-      }),
-    );
-    expect(refused.status).toBe(409);
-    expect(await body(refused)).toEqual({
-      error: "OWNER_QUEUE_LIMIT",
-      retryAfterMs: 2_000,
-    });
   });
 
   it("drains new work without invalidating idempotent reads of accepted work", async () => {

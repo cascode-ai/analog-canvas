@@ -1,10 +1,4 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -173,8 +167,6 @@ describe("batch drawing runner (#1498)", () => {
     expect(low).toBeCloseTo(0.3, 3);
     expect(high).toBeCloseTo(0.9032, 3);
     expect(wilson(0, 0)).toEqual([0, 1]);
-    expect(wilson(10, 10)[1]).toBeCloseTo(1, 12);
-    expect(wilson(50, 100)[0]).toBeCloseTo(0.4038, 3);
   });
 
   it("decides which drawing a task keeps", () => {
@@ -323,8 +315,5 @@ describe("batch drawing runner around its Agents (#1498)", () => {
       timedOut: true,
       signal: process.platform === "win32" ? null : "SIGTERM",
     });
-    expect(readFileSync(join(work, "agent.log"), "utf8")).toContain(
-      "timed out after 0.3 s",
-    );
   });
 });

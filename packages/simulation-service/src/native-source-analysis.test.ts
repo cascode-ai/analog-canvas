@@ -88,7 +88,6 @@ endc
     const plan = inspect(text);
     expect(plan.projections).toEqual([]);
     expect(plan.warnings).toHaveLength(5);
-    expect(text).toContain("write=(enabled)");
   });
   it("refuses ambiguous source attribution after repeated output names", () => {
     const plan = inspect(

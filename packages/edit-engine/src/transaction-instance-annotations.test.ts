@@ -213,20 +213,26 @@ describe("adaptive presentation label reflow", () => {
 });
 
 describe("followAttachedAnnotations rigid fallback", () => {
-  it("keeps the alignment through a quarter turn", () => {
-    const { document, annotation } = documentWithDraggedLabel();
-    followAttachedAnnotations(
-      document,
-      "R1",
-      { x: 200, y: 100 },
-      { rotation: 0, mirror: "none" },
-      { x: 200, y: 100 },
-      { rotation: 90, mirror: "none" },
-      new Set(),
-      resolver,
-    );
-    expect(annotation.alignment).toBe("start");
-  });
+  it.each([
+    [90, "start"],
+    [180, "end"],
+  ] as const)(
+    "turns by %i degrees with alignment %s",
+    (rotation, alignment) => {
+      const { document, annotation } = documentWithDraggedLabel();
+      followAttachedAnnotations(
+        document,
+        "R1",
+        { x: 200, y: 100 },
+        { rotation: 0, mirror: "none" },
+        { x: 200, y: 100 },
+        { rotation, mirror: "none" },
+        new Set(),
+        resolver,
+      );
+      expect(annotation.alignment).toBe(alignment);
+    },
+  );
 
   it("persists a user-moved label through a 45-degree turn", () => {
     const { document, annotation } = documentWithDraggedLabel();
@@ -244,21 +250,6 @@ describe("followAttachedAnnotations rigid fallback", () => {
     expect(annotation.anchor.localOffset).toEqual({ x: 46, y: 53 });
     expect(annotation.anchor.fallbackPosition).toEqual({ x: 246, y: 153 });
     expect(SchematicDocumentSchema.safeParse(document).success).toBe(true);
-  });
-
-  it("flips the alignment through a half turn", () => {
-    const { document, annotation } = documentWithDraggedLabel();
-    followAttachedAnnotations(
-      document,
-      "R1",
-      { x: 200, y: 100 },
-      { rotation: 0, mirror: "none" },
-      { x: 200, y: 100 },
-      { rotation: 180, mirror: "none" },
-      new Set(),
-      resolver,
-    );
-    expect(annotation.alignment).toBe("end");
   });
 });
 
