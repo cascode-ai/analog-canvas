@@ -883,6 +883,9 @@ export function compileActions(
       case "set-vdd-mode":
       case "set-mos-bulk-default":
       case "delete-selection":
+      case "delete-wires":
+      case "relocate":
+      case "render-net-as":
       case "add-power-rail":
       case "extend-power-rail":
       case "move-annotation":
@@ -2134,7 +2137,7 @@ function resolveDeletion(
       throw new ActionCompileError(
         index,
         action.kind,
-        "a Net is derived from connectivity; disconnect its terminals/routes instead",
+        "a Net is derived from connectivity; delete-wires {net} deletes its wires, disconnect frees a pin",
       );
     case "route":
       return {

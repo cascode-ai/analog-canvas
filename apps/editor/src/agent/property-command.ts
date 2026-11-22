@@ -6,6 +6,7 @@ import type {
 import {
   deriveDocumentContactEvidence,
   endpointKey,
+  mosBulkKind,
   resolveEndpointPoint,
 } from "@icm/derived";
 import {
@@ -40,6 +41,7 @@ import {
   logicGateInputInfo,
   type LogicGateInputCount,
 } from "../features/properties/logic-gate-input-count";
+import { capacitorPlateNote } from "./capacitor-plate-note";
 import { planPropertyApply } from "../features/properties/property-apply-plan";
 import { planPropertyContactMove } from "../features/properties/property-contact-move";
 import { switchControlOf } from "../features/properties/switch-control";
@@ -124,7 +126,7 @@ function nextSignalFlow(
 }
 
 /** The markers a moved part carries when they stand on its pins (#1531). */
-const PIN_MARKERS = {
+export const PIN_MARKERS = {
   ground: "ground",
   "vdd-port": "supply marker",
   "named-ground": "supply marker",
@@ -139,7 +141,7 @@ const PIN_MARKERS = {
  * the part alone left the ground behind on a jog wire (#1531). A marker that
  * is wired, shares the point with another pin or is locked in place stays.
  */
-function markersOnPinsOnly(
+export function markersOnPinsOnly(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: Instance,
@@ -363,6 +365,7 @@ export function planSetProperties(
   if (command.signalFlow) {
     value.signalFlow = nextSignalFlow(instance, command.signalFlow, resolver);
   }
+  const bodyEdits: SchematicEdit[] = [];
   if (command.supplies || command.terminals) {
     // Those Properties lists (#1833): a gate bound to a Cell has the Cell's
     // supplies (#1450), a Circuit Component those it maps to no pin.
@@ -384,6 +387,36 @@ export function planSetProperties(
       choose(terminal, netId);
     }
     for (const [pinName, netId] of Object.entries(command.terminals ?? {})) {
+      // A MOS body its artwork does not draw joins a Net by name alone, no
+      // dashed wire: the drawing stays clean while the netlist keeps it
+      // (#2429). null returns it to the Cell's body default.
+      if (pinName === "B" && mosBulkKind(instance) && netId !== undefined) {
+        const symbol = resolver.resolve(
+          instance.symbolId,
+          instance.symbolVariantId,
+        );
+        if (symbol?.variant?.hiddenPinNames.includes("B")) {
+          if (netId !== null && !document.nets.some((net) => net.id === netId))
+            throw new Error(`Net not found: ${netId}`);
+          bodyEdits.push(
+            {
+              kind: "set_property_terminal_net",
+              instanceId: instance.id,
+              pinName: "B",
+              netId,
+            },
+            ...(netId === null
+              ? [
+                  {
+                    kind: "reconcile_mos_bulk" as const,
+                    instanceIds: [instance.id],
+                  },
+                ]
+              : []),
+          );
+          continue;
+        }
+      }
       const terminal = hidden.find((item) => item.pinName === pinName);
       if (terminal) {
         choose(terminal, netId);
@@ -478,6 +511,17 @@ export function planSetProperties(
     instance.placement !== null &&
     (value.placement.rotation !== instance.placement.rotation ||
       value.placement.mirror !== instance.placement.mirror);
+  const turnedPlacement =
+    turned && value.placement
+      ? {
+          position: {
+            x: value.placement.coordinate[0],
+            y: value.placement.coordinate[1],
+          },
+          rotation: value.placement.rotation,
+          mirror: value.placement.mirror,
+        }
+      : undefined;
   const keepAttached = command.placement?.keepMarkersAttached !== false;
   const carried =
     value.placement && instance.placement && !turned && keepAttached
@@ -528,34 +572,44 @@ export function planSetProperties(
       ...(command.placement?.join === true
         ? []
         : landedOnOtherNetNotes(document, resolver, instance, edits, carried)),
+      ...(turnedPlacement
+        ? [
+            capacitorPlateNote(document, resolver, [
+              { ...instance, placement: turnedPlacement },
+            ]),
+          ].filter((note) => note !== undefined)
+        : []),
     ];
     return notes.length ? { edits, notes } : { edits };
   };
-  const controlEdits = clearControl
-    ? [
-        {
-          kind: "set_instance_netlist" as const,
-          instanceId: instance.id,
-          netlist: {
-            ...(instance.netlist?.binding
-              ? { binding: instance.netlist.binding }
-              : {}),
-            // The parameters this same call leaves, not the ones it replaced.
-            parameters: value.parameters
-              ? Object.fromEntries(
-                  Object.entries(value.parameters).filter(
-                    ([, raw]) => raw.trim() !== "",
-                  ),
-                )
-              : { ...(instance.netlist?.parameters ?? {}) },
-            ...(typeof command.control === "object" &&
-            command.control?.kind === "current"
-              ? { control: command.control }
-              : {}),
+  const controlEdits = [
+    ...bodyEdits,
+    ...(clearControl
+      ? [
+          {
+            kind: "set_instance_netlist" as const,
+            instanceId: instance.id,
+            netlist: {
+              ...(instance.netlist?.binding
+                ? { binding: instance.netlist.binding }
+                : {}),
+              // The parameters this same call leaves, not the ones it replaced.
+              parameters: value.parameters
+                ? Object.fromEntries(
+                    Object.entries(value.parameters).filter(
+                      ([, raw]) => raw.trim() !== "",
+                    ),
+                  )
+                : { ...(instance.netlist?.parameters ?? {}) },
+              ...(typeof command.control === "object" &&
+              command.control?.kind === "current"
+                ? { control: command.control }
+                : {}),
+            },
           },
-        },
-      ]
-    : [];
+        ]
+      : []),
+  ];
   switch (plan.kind) {
     case "rejected":
       throw new Error(plan.message);

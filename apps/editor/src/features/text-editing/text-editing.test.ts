@@ -18,6 +18,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import { signalFlowBodyTextDocument } from "@icm/symbols";
+import { resolveAnnotationText } from "@icm/derived";
 
 import {
   createTextEditingSession,
@@ -298,6 +299,16 @@ describe("unified text editing", () => {
         },
       ],
     });
+    // The label draws 1kΩ; a value typed as drawn is written as SPICE reads
+    // it, so 1MΩ is a megohm (not SPICE's milli M) and µ becomes u.
+    expect(flattenRichText(resolveAnnotationText(document, label))).toBe("1kΩ");
+    expect(edit("1MΩ")).toMatchObject({
+      beforeEdits: [{ set: { value: "1Meg" } }],
+    });
+    expect(edit("4.7µ")).toMatchObject({
+      beforeEdits: [{ set: { value: "4.7u" } }],
+    });
+    expect(edit("1kΩ")).toEqual({ kind: "unchanged" });
     expect(edit("Value")).toMatchObject({
       kind: "update",
       beforeEdits: [

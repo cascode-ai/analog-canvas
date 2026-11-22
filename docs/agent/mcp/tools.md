@@ -35,18 +35,16 @@ alone. An editor page loaded before it could plan lists answers
 `EDITOR_OUTDATED`: reload and retry. `circuit_view` `focus` never edits (scope
 `editor.semantic-control`).
 
-A focused tool sends actions that cannot share a transaction as consecutive
-calls in the compiler's order, reported under `split` (each call's actions,
-outcome, revision). Each call is atomic; the first failure stops the rest and
-earlier calls stay applied. `apply_actions` instead refuses such a mix with
-`ACTION_BATCH_NOT_ATOMIC` and keeps every action family (Cell structure,
-reset, history). A refusal names its action as `actions[i] (kind): …` with
+Actions that cannot share a transaction commit together, one Undo step or
+nothing ([batches](../shared/authoring.md#batches-and-limits)), in every
+tool; `apply_actions` keeps every action family (Cell structure, reset,
+history). A refusal names its action as `actions[i] (kind): …` with
 `actionIndex` and `actionKind`; `ACTION_COMPILE_FAILED` also lists every
 refused action in `issues`.
 
-`apply_actions` takes one atomic edit batch, wire batch, planned command or
-focus per call. Split create and wire phases so new pin geometry comes from
-a Snapshot (`pins` read). Several `connect` actions share one call,
+An `apply_actions` call is atomic. Wires may name pins of parts the same list
+places; a wire given a new pin's coordinates needs them from a Snapshot
+(`pins` read) first. Several `connect` actions share one call,
 planned in order and committed once (one Undo); a failure leaves no wiring.
 `wireIntent` takes one intent or an ordered array. Multiple taps on one original Route may use pre-batch Route/leg IDs;
 the planner follows split children.
@@ -68,13 +66,15 @@ Simulation tools take arguments flat (`{action, …}`) or in `request`. `detail`
   [tool behavior](../tool-behavior.md)). The wire passes every `via` point
   (listed either direction); an order that would double back is refused. A
   wire from a pin or Junction keeps clear of other Nets and parts' bodies:
-  without `via` it detours; with a blocked `via` it is refused naming the obstacle, the two
+  without `via` it detours, and a `WIRE_DETOURED` note names what the direct
+  path met (a part, pin or wire, and where) and the corners taken; with a
+  blocked `via` it is refused naming the obstacle, the two
   points between which it meets it, and the clear path as `via` points to send
   (or why leaving the route to the editor fails too). With no clear path it is
   refused like `route-net`. A wire between free points is drawn as asked and
   may end on a wire to join it.
-- `{kind:"wire-at",point,member:{instanceId,pinName}}` (or `net`) taps a trunk
-  drawn earlier in the batch; `{kind:"net",net}` taps the conductor nearest the
+- `{kind:"wire-at",point,member:{instanceId,pinName}}` (or `net`) taps a wire
+  any connect of the batch draws, snapping an off-grid point (`TAP_SNAPPED`); `{kind:"net",net}` taps the conductor nearest the
   adjacent `via`, else the other end; `point` is a free end; `route-segment`
   takes a `legId` and `point`. Existing Junctions are reused.
 - Pin targets take a Reference string or `instance:{kind:"instance",id}`.
@@ -147,6 +147,10 @@ in `total`; diagnostics `inspect` lists everything.
 - `{kind:"geometry",objectIds}` reads up to 64 authored objects with revision
   and missing IDs, not pins or connectivity; `textBounds:true` adds each
   label's `text.position` (what `move-annotation` sets) and glyph `bounds`.
+- `{kind:"region",bbox:{x,y,width,height}}` lists the wires with a segment in
+  or across the box (`id`, `netId`, `netName`, `polyline`) and the Junctions
+  in it (`id`, `netId`, `position`), up to 200 each (`routeCount`,
+  `junctionCount`, `truncated`): what `delete-wires` `bbox` takes.
 - `{kind:"activity"}`: recent local receipts and live relay records
   (failures, cache hits; lost on relay replacement). Not durable history or
   other people's edits.
@@ -222,7 +226,9 @@ Tool descriptions cover each action; these are the extra rules.
 - `publish`/`update` return `galleryEntryId`, `url` (`/g/<id>`) and
   `previewRevision` and bind the copy to the entry. The AI mark is changed only
   by its author in the Editor; AI accounts always keep it. A background tab is
-  `WORKSPACE_NOT_SHOWN`: activate it. Older pairings lack `gallery.publish`
+  `WORKSPACE_NOT_SHOWN`: activate it. An `update` with `galleryEntryId` and
+  only `name`/`description` needs no working copy. The published Project
+  takes the entry's name. Older pairings lack `gallery.publish`
   and need a new connection. `SIGN_IN_REQUIRED`: sign in to the Editor, not
   another Claim; `SESSION_NOT_FOUND`: pair again.
 - AI-account redraws: as an AI account, `list` with `scope:"ai-seats"`
@@ -477,7 +483,8 @@ recent attempts by requestId/resource/operation, with header wait, JSON
 validation, retry delays and relay phases (restoration, pre-forward,
 forwarding, completion; legacy `relayMs` is the last two) separate. Byte
 streams stop at headers. `SLOW_RELAY` asks to inspect phases, not refresh
-blindly. One-shot CLI adds `startupMs`. No payloads or credentials are logged.
+blindly; a timing warning (`SLOW_RELAY`, `EDITOR_BACKGROUND`) shows once per
+session until it changes. One-shot CLI adds `startupMs`. No payloads or credentials are logged.
 HTTP 429 retries are bounded and honour `Retry-After` with identical body and
 IDs; longer waits return to the caller. `analog-canvas-mcp --http batch` runs
 one call per JSON line (`{"tool": "...", "args": {...}}`) on one session,

@@ -25,6 +25,8 @@ export interface OperationSession {
   workspaceBases?: Map<string, string>;
   workspaceRoot?: string;
   taskDirectory?: string;
+  /** The timing warning the last call reported; the next does not repeat it. */
+  timingWarning?: string | undefined;
 }
 
 export interface RuntimeConfig {

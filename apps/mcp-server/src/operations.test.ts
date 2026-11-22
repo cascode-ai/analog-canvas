@@ -86,5 +86,31 @@ describe("timing on a tool result (#1227)", () => {
       (withTiming({ ok: true }, 300, [request], false) as { timing: object })
         .timing,
     ).not.toHaveProperty("warning");
+    // The call after one that said so does not say it again; a new one does.
+    const hiddenRequest = { ...request, editorVisibility: "hidden" as const };
+    expect(
+      (
+        withTiming(
+          { ok: true },
+          400,
+          [hiddenRequest],
+          false,
+          undefined,
+          "EDITOR_BACKGROUND",
+        ) as { timing: object }
+      ).timing,
+    ).not.toHaveProperty("warning");
+    expect(
+      (
+        withTiming(
+          { ok: true },
+          9000,
+          [{ ...hiddenRequest, relayMs: 8800 }],
+          false,
+          undefined,
+          "EDITOR_BACKGROUND",
+        ) as any
+      ).timing.warning.code,
+    ).toBe("SLOW_RELAY");
   });
 });

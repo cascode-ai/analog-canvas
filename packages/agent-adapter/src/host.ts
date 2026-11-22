@@ -98,6 +98,13 @@ export interface AgentOperationHost {
     /** History target; must not change the foreground Cell. */
     documentId?: string,
   ): ProjectTransactionResult;
+  /**
+   * Run several dispatches as one history step: one Undo takes them all
+   * back. When `keep` refuses the result, the Project is put back exactly as
+   * it was, as if none had run, with no history step. A host without it
+   * refuses a list that needs several transactions.
+   */
+  atomically?<T>(run: () => T, keep: (result: T) => boolean): T;
   /** Optional because loopback/in-process hosts deliberately have no GUI. */
   applySemanticIntent?(
     request: AgentHostSemanticIntentRequest,

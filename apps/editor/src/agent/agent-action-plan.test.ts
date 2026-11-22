@@ -274,22 +274,20 @@ describe("the editor plans an Agent's action list", () => {
         },
       ],
       [
+        // Two transactions: the second fails, so the placement goes too.
         [
           place("resistor", "R3", 500),
           {
-            kind: "set-property",
-            target: { kind: "instance", reference: "R1" },
-            set: { value: "3k" },
+            kind: "connect",
+            from: pin("R1", "2"),
+            to: { kind: "net", net: "Vout" },
           },
         ],
         {
-          stage: "compile",
-          code: "ACTION_BATCH_NOT_ATOMIC",
-          transactions: 2,
-          calls: [
-            { actionIndices: [0], actionKinds: ["place-component"] },
-            { actionIndices: [1], actionKinds: ["set-property"] },
-          ],
+          stage: "commit",
+          code: "EDIT_PRECONDITION",
+          actionIndex: 1,
+          actionKind: "connect",
         },
       ],
       [
@@ -384,20 +382,9 @@ describe("the editor plans an Agent's action list", () => {
         to: { kind: "point", x: 600, y: -100 },
       },
     ];
-    // The wires name parts the list places: it plans whole, as two calls.
+    // The wires name parts the list places: two transactions, one call.
     const report = await client.applyActions(actions);
-    expect(report).toMatchObject({
-      ok: false,
-      code: "ACTION_BATCH_NOT_ATOMIC",
-      calls: [{ actionIndices: [0, 1, 2, 3] }, { actionIndices: [4, 5, 6] }],
-    });
-    for (const call of (report as { calls: { actionIndices: number[] }[] })
-      .calls) {
-      const sent = await client.applyActions(
-        call.actionIndices.map((index) => actions[index]),
-      );
-      expect(sent.ok, sent.message).toBe(true);
-    }
+    expect(report.ok, report.message).toBe(true);
     const netOf = (instanceId: string, pinName: string) =>
       controller.document.nets.find((net) =>
         net.terminals.some(

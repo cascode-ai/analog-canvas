@@ -93,12 +93,15 @@ export const FOCUSED_TOOLS = [
       "place-existing",
       "add-power-rail",
       "set-mos-bulk-default",
+      "render-net-as",
     ],
   },
   {
     name: "circuit_wire",
     source: "apply_actions",
-    operations: ["connect", "disconnect"],
+    // A relocation redraws the wires of the parts it moves; circuit_transform
+    // and circuit_selection are at the host's declaration budget.
+    operations: ["connect", "disconnect", "delete-wires", "relocate"],
   },
   {
     name: "circuit_transform",
@@ -225,84 +228,11 @@ export function focusedTools<S>(
           );
         }
         // Parse and execute with the exact original handler: revision guards,
-        // idempotency, atomic planning, offline workspaces and errors stay shared.
-        const result = await original.handle(args, session);
-        const calls = notAtomicCalls(result);
-        return source === "apply_actions" && calls
-          ? splitCalls(args, calls, (part) => original.handle(part, session))
-          : result;
+        // idempotency, atomic planning, offline workspaces and errors stay
+        // shared. A list needing several transactions commits them together
+        // in the editor, as one Undo step or not at all.
+        return original.handle(args, session);
       },
     };
   });
-}
-
-/** The calls a refused mixed call names, when it was refused only for that. */
-function notAtomicCalls(
-  result: unknown,
-): { actionIndices: number[]; actionKinds: string[] }[] | undefined {
-  const report = result as {
-    ok?: unknown;
-    code?: unknown;
-    calls?: unknown;
-  } | null;
-  return report?.ok === false &&
-    report.code === "ACTION_BATCH_NOT_ATOMIC" &&
-    Array.isArray(report.calls) &&
-    report.calls.length > 1
-    ? (report.calls as { actionIndices: number[]; actionKinds: string[] }[])
-    : undefined;
-}
-
-/**
- * A focused tool's actions that cannot share one transaction, sent as the
- * calls the compiler names, in order (#1231): the tool advertised them
- * together, so it splits them itself and says so. Each call is atomic; the
- * first that fails stops the rest, and the calls before it stay applied.
- */
-async function splitCalls(
-  args: unknown,
-  calls: readonly { actionIndices: number[]; actionKinds: string[] }[],
-  run: (args: unknown) => Promise<unknown>,
-): Promise<unknown> {
-  const actions = (args as { actions: unknown[] }).actions;
-  const done: {
-    actionIndices: number[];
-    actionKinds: string[];
-    report: any;
-  }[] = [];
-  for (const call of calls) {
-    const report = (await run({
-      ...(args as object),
-      actions: call.actionIndices.map((index) => actions[index]),
-    })) as any;
-    done.push({ ...call, report });
-    if (report?.ok === false) break;
-  }
-  const last = done.at(-1)!.report;
-  const applied = done.filter(({ report }) => report?.ok !== false).length;
-  return {
-    ...(typeof last === "object" && last !== null ? last : {}),
-    ok: applied === calls.length,
-    split: {
-      note:
-        applied === calls.length
-          ? `These actions cannot share one transaction, so they were sent as ${calls.length} calls in order; each call was atomic.`
-          : `These actions were sent as ${calls.length} calls in order; call ${applied + 1} failed and the rest were not sent. The ${applied} before it stay applied.`,
-      applied,
-      calls: done.map(({ actionIndices, actionKinds, report }) => ({
-        actionIndices,
-        actionKinds,
-        ok: report?.ok !== false,
-        ...(typeof report?.revision === "number"
-          ? { revision: report.revision }
-          : {}),
-        ...(report?.ok === false
-          ? {
-              ...(report.code ? { code: report.code } : {}),
-              ...(report.message ? { message: report.message } : {}),
-            }
-          : {}),
-      })),
-    },
-  };
 }

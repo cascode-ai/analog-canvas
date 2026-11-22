@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -28,7 +28,16 @@ describe("canvas-local command line", () => {
   it("lists its commands", () => {
     const help = run("help");
     expect(help.status).toBe(0);
-    for (const command of ["new", "call", "png", "svg", "netlist", "setup"])
+    for (const command of [
+      "new",
+      "apply",
+      "cells",
+      "call",
+      "png",
+      "svg",
+      "netlist",
+      "setup",
+    ])
       expect(help.stdout).toContain(`  ${command} `);
   });
 
@@ -36,6 +45,38 @@ describe("canvas-local command line", () => {
     const result = run("png", join(tmpdir(), "no-such-workspace"));
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/is not a workspace; create one with/u);
+  });
+
+  it("lists a workspace's Cells and names them when --cell matches none", () => {
+    const dir = mkdtempSync(join(tmpdir(), "canvas-local-ws-"));
+    made.push(dir);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "project.icproj.json"),
+      JSON.stringify({
+        topDocumentId: "main",
+        documents: [
+          { id: "half", name: "half" },
+          { id: "main", name: "dut" },
+        ],
+      }),
+    );
+    const cells = run("cells", dir);
+    expect(cells.status).toBe(0);
+    expect(cells.stdout).toBe("main\tdut\t(top)\nhalf\thalf\n");
+    const missing = run("png", dir, "--cell", "ota");
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain("No Cell is named ota; the Cells are:");
+    expect(missing.stderr).toContain("  half  half");
+  });
+
+  it("names an action file it cannot read", () => {
+    const dir = mkdtempSync(join(tmpdir(), "canvas-local-ws-"));
+    made.push(dir);
+    writeFileSync(join(dir, "project.icproj.json"), "{}");
+    const result = run("apply", dir, join(dir, "missing.json"));
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/Cannot read .*missing\.json/u);
   });
 
   it("refuses a version that is not a release", () => {

@@ -65,13 +65,85 @@ export function createAgentGalleryPublisher<
       error: { code, message, recovery },
     });
     const state = options.current();
+    const fetchLike = options.fetch ?? fetch;
+    // A new name or description alone needs no working copy: the entry's
+    // details change in place, its drawing kept (#2429).
+    if (
+      !state &&
+      request.operation === "update-gallery-entry" &&
+      request.galleryEntryId &&
+      request.tags === undefined &&
+      !request.takeOver &&
+      (request.name !== undefined || request.description !== undefined)
+    ) {
+      let stored: GalleryEntryContext | null;
+      try {
+        stored = await loadGalleryPublicationContext(
+          request.galleryEntryId,
+          "",
+          fetchLike,
+        );
+      } catch (error) {
+        return error instanceof GalleryReadError && error.status === 401
+          ? fail(
+              "SIGN_IN_REQUIRED",
+              "Sign in to the Editor to update a Gallery entry",
+              "sign-in",
+            )
+          : fail(
+              "GALLERY_UNAVAILABLE",
+              `Gallery entry ${request.galleryEntryId} could not be read; nothing was changed`,
+              "retry",
+            );
+      }
+      if (!stored)
+        return fail(
+          "GALLERY_ENTRY_NOT_FOUND",
+          `Gallery entry ${request.galleryEntryId} does not exist`,
+          "fix-input",
+        );
+      const response = await fetchLike(
+        `/api/gallery/${encodeURIComponent(request.galleryEntryId)}`,
+        {
+          method: "PATCH",
+          credentials: "same-origin",
+          headers: {
+            "content-type": "application/json",
+            "idempotency-key": request.requestId,
+          },
+          body: JSON.stringify({
+            name: (request.name ?? stored.name).trim(),
+            description: (request.description ?? stored.description).trim(),
+          }),
+        },
+      );
+      if (!response.ok)
+        return response.status === 401
+          ? fail(
+              "SIGN_IN_REQUIRED",
+              "Sign in to the Editor to update a Gallery entry",
+              "sign-in",
+            )
+          : fail(
+              "GALLERY_REJECTED",
+              `The Gallery refused the new details (${response.status}); nothing was changed`,
+              response.status >= 500 ? "retry" : "fix-input",
+            );
+      return {
+        apiVersion: AGENT_API_VERSION,
+        requestId: request.requestId,
+        operation: request.operation,
+        ok: true,
+        galleryEntryId: request.galleryEntryId,
+        url: `/g/${request.galleryEntryId}`,
+      };
+    }
     if (!state)
       return fail(
         "WORKSPACE_NOT_SHOWN",
-        "Publishing takes the Project its tab shows: activate this working copy first (workspace activate)",
+        "Publishing takes the Project its tab shows: activate this working copy first (workspace activate); a new name or description alone needs only galleryEntryId",
         "fix-input",
       );
-    const fetchLike = options.fetch ?? fetch;
     let target: GalleryEntryContext | null = null;
     if (request.operation === "update-gallery-entry") {
       const entryId = request.galleryEntryId ?? state.linked?.id;

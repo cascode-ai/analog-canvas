@@ -223,8 +223,11 @@ async function sendGalleryProject(
         ...(fields.takeOver ? { takeOver: true } : {}),
         // Publishing a drawing must not also publish private source comments
         // or model files. The frozen topology still supports routing guidance.
+        // The Project goes out under the entry's name, not a working name
+        // such as "Arena drawing" or "New Circuit" (#2429).
         projectText: serializeCompactProject({
           ...project,
+          name: fields.name.trim() || project.name,
           source: {
             ...project.source,
             files: project.source.files.map(

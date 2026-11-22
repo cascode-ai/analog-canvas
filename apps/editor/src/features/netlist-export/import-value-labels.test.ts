@@ -67,11 +67,11 @@ describe("the value labels of a circuit imported from the netlist it was exporte
           expect(text, `${cell} ${reference}`).toBe(drawn[cell]![reference]);
       // The testbench's sources are among them (a vacuous loop shows nothing).
       expect(read["testbench"]).toMatchObject({
-        vdd: "1.8",
-        vinp: "0.9",
-        vinn: "0.9",
-        ibias: "15u",
-        cl: "1p",
+        vdd: "1.8V",
+        vinp: "0.9V",
+        vinn: "0.9V",
+        ibias: "15µA",
+        cl: "1pF",
       });
       expect(Object.keys(read["ota_5t"]!)).toHaveLength(6);
     },

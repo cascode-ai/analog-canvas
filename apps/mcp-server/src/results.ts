@@ -1,6 +1,11 @@
 import type { AgentDiagnostic, AgentSessionSnapshot } from "@icm/agent-adapter";
 import type { CachedSnapshot, ApplyActionsReport } from "@icm/agent-client";
-import { RichTextDocumentSchema, flattenRichText } from "@icm/model";
+import {
+  RichTextDocumentSchema,
+  flattenRichText,
+  pointInRect,
+  polylineIntersectsRect,
+} from "@icm/model";
 
 /**
  * Compact result projections (Agent rationale): every tool answer is bounded to what
@@ -102,11 +107,83 @@ export function verifyInformation(entry: CachedSnapshot): {
   return { information, omitted: named.length - information.length };
 }
 
-/** Successful edit receipts: all errors, one example per warning/info code.
- * Complete diagnostic derivation and the explicit full response are unchanged.
+/** A compact receipt names this many changed objects or cleared findings,
+ * then counts the rest. */
+const COMPACT_CHANGED_OBJECT_LIMIT = 50;
+
+/** A removed finding's identity (`agentDiagnosticIdentity`), read back. */
+function removedFinding(identity: string): Record<string, unknown> {
+  try {
+    const { code, objectIds } = JSON.parse(identity) as {
+      code?: unknown;
+      objectIds?: unknown;
+    };
+    return {
+      code,
+      ...(Array.isArray(objectIds) && objectIds.length ? { objectIds } : {}),
+    };
+  } catch {
+    return { identity };
+  }
+}
+
+/**
+ * Successful edit receipts carry what the call changed, not the drawing's
+ * standing findings: the findings it added, the ones it cleared, counts of
+ * the rest, and the first changed object IDs. An editor that sends no
+ * delta gets all errors and one example per warning/info code. The
+ * explicit full response is unchanged.
  */
 export function compactActionReport(report: ApplyActionsReport) {
-  if (!report.ok || !report.diagnostics) return report;
+  if (!report.ok) return report;
+  const changed = report.changedObjectIds;
+  const capped =
+    changed && changed.length > COMPACT_CHANGED_OBJECT_LIMIT
+      ? {
+          changedObjectIds: changed.slice(0, COMPACT_CHANGED_OBJECT_LIMIT),
+          changedObjectCount: changed.length,
+        }
+      : {};
+  if (!report.diagnostics) return { ...report, ...capped };
+  const { diagnosticDelta, ...rest } = report;
+  const details = {
+    tool: "inspect",
+    target: { kind: "diagnostics" },
+    detail: "full",
+    ...(report.documentId ? { documentId: report.documentId } : {}),
+  };
+  if (diagnosticDelta) {
+    const removed = [
+      ...diagnosticDelta.removed.map((diagnostic) => ({
+        code: diagnostic.code,
+        ...(diagnostic.objectIds?.length
+          ? { objectIds: diagnostic.objectIds }
+          : {}),
+      })),
+      ...(diagnosticDelta.removedIds ?? []).map(removedFinding),
+    ];
+    return {
+      ...rest,
+      ...capped,
+      diagnostics: diagnosticDelta.added,
+      // What the call cleared, by code and objects; past the limit, counted.
+      ...(removed.length
+        ? { diagnosticsRemoved: removed.slice(0, COMPACT_CHANGED_OBJECT_LIMIT) }
+        : {}),
+      ...(removed.length > COMPACT_CHANGED_OBJECT_LIMIT
+        ? { diagnosticsRemovedCount: removed.length }
+        : {}),
+      diagnosticSummary: {
+        total: report.diagnostics.length,
+        // Findings the drawing had before this call and still has.
+        standing: Math.max(
+          0,
+          report.diagnostics.length - diagnosticDelta.added.length,
+        ),
+        details,
+      },
+    };
+  }
   const byCode: Record<string, number> = {};
   const seen = new Set<string>();
   const diagnostics = report.diagnostics.filter((d) => {
@@ -117,32 +194,16 @@ export function compactActionReport(report: ApplyActionsReport) {
     seen.add(key);
     return true;
   });
-  const { diagnosticDelta, ...rest } = report;
   return {
     ...rest,
+    ...capped,
     diagnostics,
     diagnosticSummary: {
       total: report.diagnostics.length,
       omitted: report.diagnostics.length - diagnostics.length,
       byCode,
-      details: {
-        tool: "inspect",
-        target: { kind: "diagnostics" },
-        detail: "full",
-        ...(report.documentId ? { documentId: report.documentId } : {}),
-      },
+      details,
     },
-    ...(diagnosticDelta
-      ? {
-          diagnosticDelta: {
-            projection: "summary",
-            addedCount: diagnosticDelta.added.length,
-            removedCount:
-              diagnosticDelta.removed.length +
-              (diagnosticDelta.removedIds?.length ?? 0),
-          },
-        }
-      : {}),
   };
 }
 
@@ -513,6 +574,50 @@ export function inspectNet(
   return net
     ? netAnswer(reference, net, inspectNetValue)
     : notFound(document, reference, "net");
+}
+
+/** At most this many wires, and as many Junctions, answer a region. */
+const REGION_LIMIT = 200;
+
+/**
+ * The wires with a segment in or across a box, as a crossing marquee takes
+ * them and delete-wires bbox deletes them, and the Junctions in it: found
+ * without reading the whole Snapshot.
+ */
+export function inspectRegion(
+  entry: CachedSnapshot,
+  bbox: { x: number; y: number; width: number; height: number },
+): Record<string, unknown> {
+  const document = entry.snapshot.document;
+  const netName = new Map(document.nets.map((net) => [net.id, net.name]));
+  const routes = document.routes.filter(
+    (route) => route.polyline && polylineIntersectsRect(route.polyline, bbox),
+  );
+  const junctions = document.junctions.filter((junction) =>
+    pointInRect(junction.position, bbox),
+  );
+  return {
+    revision: entry.revision,
+    bbox,
+    routeCount: routes.length,
+    routes: routes.slice(0, REGION_LIMIT).map((route) => ({
+      id: route.id,
+      netId: route.netId,
+      netName: netName.get(route.netId) ?? null,
+      polyline: route.polyline,
+    })),
+    junctionCount: junctions.length,
+    junctions: junctions.slice(0, REGION_LIMIT).map((junction) => ({
+      id: junction.id,
+      netId: junction.netId,
+      position: junction.position,
+    })),
+    ...(routes.length > REGION_LIMIT || junctions.length > REGION_LIMIT
+      ? {
+          truncated: `listing the first ${REGION_LIMIT}; inspect a smaller box`,
+        }
+      : {}),
+  };
 }
 
 export function inspectConnectivity(

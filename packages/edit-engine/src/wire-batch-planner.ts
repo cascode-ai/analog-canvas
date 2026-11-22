@@ -25,9 +25,43 @@ import {
 import { createContactPlanningDraft } from "./contact-planning-draft.js";
 import { createRouteClearance } from "./route-clearance.js";
 import {
+  NO_WIRE_AT,
+  onTapGrid,
   resolveWireIntentTarget,
   wireTargetReference,
 } from "./wire-intent-target.js";
+
+/** What a wire batch's plan says beside its edits, for the receipt. */
+export interface WirePlanNote {
+  readonly code: string;
+  readonly message: string;
+  readonly objectIds: readonly string[];
+}
+
+/** The receipt's word that a wire-at point off the tap grid was moved. */
+function snappedTapNote(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  index: number,
+  requested: WireIntent["from"],
+  resolved: Exclude<WireIntent["from"], { kind: "net" | "wire-at" }>,
+): WirePlanNote[] {
+  if (requested.kind !== "wire-at" || onTapGrid(document, requested.point))
+    return [];
+  const landing =
+    resolved.kind === "endpoint"
+      ? resolveEndpointConnection(document, resolver, resolved.endpoint)
+          ?.gridLanding
+      : resolved.point;
+  const at = (point: Point) => `(${point.x}, ${point.y})`;
+  return [
+    {
+      code: "TAP_SNAPPED",
+      message: `Wire ${index + 1}: wire-at ${at(requested.point)} is off the tap grid; it tapped the wire at ${landing ? at(landing) : "the nearest grid point"}`,
+      objectIds: resolved.kind === "route-segment" ? [resolved.routeId] : [],
+    },
+  ];
+}
 
 /**
  * A drawn path from landing to landing, as the clearance check reads one: the
@@ -75,6 +109,9 @@ function keepClear(
   document: SchematicDocument,
   resolver: SymbolResolver,
   intent: WireIntent,
+  say: (
+    note: Omit<WirePlanNote, "message"> & { text: string },
+  ) => void = () => {},
 ): WireIntent | string {
   const from = resolveWireIntentTarget(
     document,
@@ -231,6 +268,31 @@ function keepClear(
     ),
   });
   const problem = clearance.conflict(points, ends);
+  // A crossing joins nothing and has no dot; the receipt names each one, so
+  // a wire over a supply's taps is never a silent surprise.
+  const crossingText = (path: readonly Point[]) => {
+    const crossed = clearance.crossings(path);
+    return crossed.length
+      ? `it crosses ${crossed
+          .map(
+            (crossing) =>
+              `Route ${crossing.routeId} of Net ${crossing.net} at (${crossing.point.x}, ${crossing.point.y})`,
+          )
+          .join(", ")}, without a dot: a crossing joins nothing`
+      : null;
+  };
+  const crossedIds = (path: readonly Point[]) => [
+    ...new Set(clearance.crossings(path).map((crossing) => crossing.routeId)),
+  ];
+  if (!problem) {
+    const crossing = crossingText(points);
+    if (crossing)
+      say({
+        code: "WIRE_CROSSES",
+        text: crossing,
+        objectIds: crossedIds(points),
+      });
+  }
   if (!problem)
     return (
       tapOwnWire(
@@ -259,6 +321,16 @@ function keepClear(
     return `the requested path ${problem}, so it would read as connected there. ${instead}`;
   }
   if (typeof clear === "string") return clear;
+  // Say what the direct path met, so a detour is never unexplained: two
+  // PMOS gates joined over the transistors' sources said only that the
+  // wire was drawn.
+  const round = corners(clear.points!);
+  const crossing = crossingText(clear.points!);
+  say({
+    code: "WIRE_DETOURED",
+    text: `the direct path ${problem}, so it goes round${round.length ? ` through ${round.map((point) => `(${point.x}, ${point.y})`).join(", ")}` : ""}${crossing ? `; ${crossing}` : ""}`,
+    objectIds: crossedIds(clear.points!),
+  });
   // The detour is orthogonal and its corners the planner's, never a
   // caller's diagonal to refuse (#1437).
   const cleared = {
@@ -465,7 +537,9 @@ function endOf(
 
 /** Plan on private evolving state, then dispatch the combined edits once.
  * `keepClear` (the Agent's connect) routes each wire between two endpoints
- * clear of foreign pins, bodies and wires; route-net clears its own. */
+ * clear of foreign pins, bodies and wires; route-net clears its own. A wire
+ * whose wire-at finds no wire yet waits until the rest are drawn, so a tap
+ * may name a wire a later intent draws. */
 export function planWireBatch(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -473,13 +547,41 @@ export function planWireBatch(
     | Parameters<typeof proposeWireIntent>[2]
     | Parameters<typeof proposeWireIntent>[2][],
   options: { keepClear?: boolean } = {},
-): { edits: SchematicEdit[] } | string {
+): { edits: SchematicEdit[]; notes?: WirePlanNote[] } | string {
+  /** A keepClear word about wire `index`, as the receipt says it. */
+  const sayFor =
+    (index: number, into: WirePlanNote[]) =>
+    ({ text, ...note }: Omit<WirePlanNote, "message"> & { text: string }) =>
+      into.push({ ...note, message: `Wire ${index + 1}: ${text}` });
   if (!Array.isArray(input)) {
+    const routed: WirePlanNote[] = [];
     const intent = options.keepClear
-      ? keepClear(document, resolver, input)
+      ? keepClear(document, resolver, input, sayFor(0, routed))
       : input;
     if (typeof intent === "string") return intent;
-    return proposeWireIntent(document, resolver, intent);
+    const planned = proposeWireIntent(document, resolver, intent);
+    if (typeof planned === "string") return planned;
+    const notes = [
+      ...routed,
+      ...(["from", "to"] as const).flatMap((side) => {
+        const requested = input[side];
+        if (requested.kind !== "wire-at") return [];
+        const resolved = resolveWireIntentTarget(
+          document,
+          resolver,
+          requested,
+          wireTargetReference(
+            input.waypoints,
+            side,
+            side === "from" ? input.to : input.from,
+          ),
+        );
+        return typeof resolved === "string"
+          ? []
+          : snappedTapNote(document, resolver, 0, requested, resolved);
+      }),
+    ];
+    return notes.length ? { edits: planned.edits, notes } : planned;
   }
   const draft = createContactPlanningDraft(document, resolver);
   const working = draft.document;
@@ -652,30 +754,48 @@ export function planWireBatch(
       legId: match.segment.address.legId,
     };
   };
-  for (const [index, intent] of input.entries()) {
+  const notes: WirePlanNote[] = [];
+  /** Plan one intent onto the draft, or say why not; `waits` when only a
+   * wire-at found no wire, which a later intent may still draw. */
+  const plan = (
+    index: number,
+    intent: WireIntent,
+  ): { message: string; waits: boolean } | undefined => {
+    const refused = (message: string, waits = false) => ({
+      message: `Wire ${index + 1}: ${message}`,
+      waits,
+    });
     const from = rebaseAnchor(intent.from);
-    if (typeof from === "string") return `Wire ${index + 1}: ${from}`;
+    if (typeof from === "string") return refused(from);
     const to = rebaseAnchor(intent.to);
-    if (typeof to === "string") return `Wire ${index + 1}: ${to}`;
+    if (typeof to === "string") return refused(to);
+    const waits = (anchor: WireIntent["from"], message: string) =>
+      anchor.kind === "wire-at" && message.startsWith(NO_WIRE_AT);
     const selectedFrom = resolveAnchor(
       from,
       wireTargetReference(intent.waypoints, "from", to),
     );
     if (typeof selectedFrom === "string")
-      return `Wire ${index + 1}: ${selectedFrom}`;
+      return refused(selectedFrom, waits(from, selectedFrom));
     const selectedTo = resolveAnchor(
       to,
       wireTargetReference(intent.waypoints, "to", selectedFrom),
     );
     if (typeof selectedTo === "string")
-      return `Wire ${index + 1}: ${selectedTo}`;
+      return refused(selectedTo, waits(to, selectedTo));
     const selected = { ...intent, from: selectedFrom, to: selectedTo };
+    const routed: WirePlanNote[] = [];
     const cleared = options.keepClear
-      ? keepClear(working, resolver, selected)
+      ? keepClear(working, resolver, selected, sayFor(index, routed))
       : selected;
-    if (typeof cleared === "string") return `Wire ${index + 1}: ${cleared}`;
+    if (typeof cleared === "string") return refused(cleared);
     const planned = proposeWireIntent(working, resolver, cleared);
-    if (typeof planned === "string") return `Wire ${index + 1}: ${planned}`;
+    if (typeof planned === "string") return refused(planned);
+    notes.push(
+      ...routed,
+      ...snappedTapNote(working, resolver, index, from, selectedFrom),
+      ...snappedTapNote(working, resolver, index, to, selectedTo),
+    );
     // Match the final transaction's pre-finalization state. Normalizing each
     // private step would invent Net/Route identities absent during replay.
     // A new route's Net remains a hint until finalization; a tap can materialize
@@ -689,7 +809,7 @@ export function planWireBatch(
     try {
       for (const edit of materialized) draft.apply(edit);
     } catch (error) {
-      return `Wire ${index + 1}: ${error instanceof Error ? error.message : String(error)}`;
+      return refused(error instanceof Error ? error.message : String(error));
     }
     for (const edit of planned.edits) {
       if (edit.kind !== "add_junction" || !edit.split) continue;
@@ -699,6 +819,23 @@ export function planWireBatch(
         lineage.add(edit.split.secondRouteId);
       }
     }
+    return undefined;
+  };
+  // In order; a wire whose tap finds no wire yet waits for the rest, and the
+  // batch is refused only once a round draws nothing new.
+  let queue = [...input.entries()];
+  while (queue.length) {
+    const waiting: typeof queue = [];
+    let firstRefusal: string | undefined;
+    for (const [index, intent] of queue) {
+      const refusal = plan(index, intent);
+      if (!refusal) continue;
+      if (!refusal.waits) return refusal.message;
+      waiting.push([index, intent]);
+      firstRefusal ??= refusal.message;
+    }
+    if (waiting.length === queue.length) return firstRefusal!;
+    queue = waiting;
   }
-  return { edits };
+  return notes.length ? { edits, notes } : { edits };
 }

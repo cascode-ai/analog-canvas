@@ -30,6 +30,11 @@ grant. Placement with an explicit body fill takes both geometry and presentation
   replaces removed bodies with `removedIds`; an empty compact `removed` does
   not mean nothing was removed. Raw HTTP defaults to full; MCP edits default to
   compact and accept `detail:"full"`.
+- A compact MCP edit receipt carries only what the call changed:
+  `diagnostics` holds the findings it added, `diagnosticsRemoved` the ones it
+  cleared (code and objects), `diagnosticSummary` counts the `standing` rest,
+  and `changedObjectIds` holds the first 50 (`changedObjectCount` counts all).
+  `detail:"full"` returns every finding and ID.
 
 ## Geometry and electrical identity
 
@@ -44,8 +49,9 @@ route-segment attachment uses `{routeId, legId}` and the actual point; a
 segment index is not stable across revisions. Manual, locked or trunk segments
 do not autoroute. `wire-at` taps a `point` on the evolving wire batch,
 optionally restricted by `net` or a member `{instanceId,pinName}`, including a
-trunk created earlier in the batch; the point is tapped exactly and, like a via
-point, must be on the pin grid (refused, never moved). A `net` target taps that
+wire another connect of the same batch draws, before or after it. A point off
+the 2-unit tap grid taps at its nearest grid point on a wire, noted
+`TAP_SNAPPED`; with no wire there it is refused. A `net` target taps that
 Net's nearest conductor where a pointer would land. A `free` anchor is not a
 tap. Different Nets may cross, but a tap joining them is rejected.
 

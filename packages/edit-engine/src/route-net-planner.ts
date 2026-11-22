@@ -24,31 +24,40 @@ import type { SymbolResolver } from "@icm/symbols";
 import {
   createRouteClearance,
   type ClearPath,
+  type DetourSide,
   type RouteClearance,
 } from "./route-clearance.js";
+import type { SchematicEdit } from "./transaction.js";
 import type { WireIntent } from "./wire-intent-planner.js";
-import { planWireBatch } from "./wire-batch-planner.js";
+import { planWireBatch, type WirePlanNote } from "./wire-batch-planner.js";
 
 type Pin = { instanceId: string; pinName: string };
 export type RouteNetTarget =
   | { kind: "net"; net: string }
   | { kind: "member"; instanceId: string; pinName: string }
   | { kind: "pins"; pins: readonly Pin[] }
+  /** Pins and Junctions to join, as a relocation rejoins the pieces of a
+   * conductor it took apart; every pin must be visible. */
+  | { kind: "endpoints"; endpoints: readonly RouteEndpoint[] }
   | { kind: "import-net"; sourceNetId: string };
 
 /** Bounded convenience over existing visible-connectivity, MST and wire planners.
- * Not a general autorouter: each wire takes the cheapest of a few simple paths
- * that passes over no other Net's pin or wire and through no part, and the Net
- * is refused, naming the obstacle, when none does. No edits reach the live
- * Document until all succeed. */
+ * Each wire takes the cheapest of a few simple paths that passes over no other
+ * Net's pin or wire and through no part, and the Net is refused, naming the
+ * obstacle, when none does. `avoid` also keeps clear of drawn labels and,
+ * when no simple path is clear, searches the grid round the parts; `prefer`
+ * is the side a detour takes. No edits reach the live Document until all
+ * succeed. */
 export function planRouteNet(
   document: SchematicDocument,
   resolver: SymbolResolver,
   input: {
     target: RouteNetTarget;
     trunk?: { start: Point; end: Point } | undefined;
+    avoid?: boolean | undefined;
+    prefer?: DetourSide | undefined;
   },
-) {
+): { edits: SchematicEdit[]; notes?: WirePlanNote[] } {
   const context = deriveNetConnectivityContext(document, resolver);
   const target = input.target;
   let selected: RouteEndpoint[];
@@ -76,6 +85,8 @@ export function planRouteNet(
     selected = guides.flatMap((guide) => [guide.from, guide.to]);
   } else if (target.kind === "pins") {
     selected = target.pins.map((pin) => ({ kind: "terminal", ...pin }));
+  } else if (target.kind === "endpoints") {
+    selected = [...target.endpoints];
   } else {
     const requested =
       target.kind === "member"
@@ -140,7 +151,7 @@ export function planRouteNet(
           `Place ${instance.reference ?? instance.id} before routing its Net`,
         );
       if (!isVisibleEndpoint(document, resolver, endpoint, context)) {
-        if (target.kind === "pins")
+        if (target.kind === "pins" || target.kind === "endpoints")
           throw new Error(
             `Explicit route-net pin is not visible: ${endpoint.instanceId}.${endpoint.pinName}`,
           );
@@ -218,7 +229,30 @@ export function planRouteNet(
         component.nodes.map((node) => node.key),
       ),
     ),
+    ...(input.avoid ? { avoid: true } : {}),
+    ...(input.prefer ? { prefer: input.prefer } : {}),
   });
+  // Each crossing of another Net's wire is said: it has no dot and joins
+  // nothing, yet reads as a question.
+  const notes: WirePlanNote[] = [];
+  const endText = (endpoint: RouteEndpoint) =>
+    endpoint.kind === "terminal"
+      ? `${context.instancesById.get(endpoint.instanceId)?.reference ?? endpoint.instanceId}.${endpoint.pinName}`
+      : `Junction ${endpoint.junctionId}`;
+  const sayCrossings = (from: string, points: readonly Point[]) => {
+    const crossed = clearance.crossings(points);
+    if (crossed.length)
+      notes.push({
+        code: "WIRE_CROSSES",
+        message: `route-net: the wire from ${from} crosses ${crossed
+          .map(
+            (crossing) =>
+              `Route ${crossing.routeId} of Net ${crossing.net} at (${crossing.point.x}, ${crossing.point.y})`,
+          )
+          .join(", ")}, without a dot: a crossing joins nothing`,
+        objectIds: [...new Set(crossed.map((crossing) => crossing.routeId))],
+      });
+  };
   let wires: WireIntent[];
   if (input.trunk) {
     const { start, end } = input.trunk;
@@ -265,6 +299,7 @@ export function planRouteNet(
       [first?.node.endpoint, last?.node.endpoint],
     );
     if (trunkConflict) throw new Error(`route-net: the trunk ${trunkConflict}`);
+    sayCrossings("the trunk", [start, end]);
     wires = [
       {
         id: id("trunk"),
@@ -294,28 +329,54 @@ export function planRouteNet(
       );
       // The branch is drawn horizontal first, as an unconstrained wire is.
       const from = best.node.point;
-      const branchConflict = clearance.conflict(
+      const straight =
         from.x === tap.x || from.y === tap.y
           ? [from, tap]
-          : [from, { x: tap.x, y: from.y }, tap],
-        [best.node.endpoint, undefined],
-      );
-      if (branchConflict)
+          : [from, { x: tap.x, y: from.y }, tap];
+      const branchConflict = clearance.conflict(straight, [
+        best.node.endpoint,
+        undefined,
+      ]);
+      if (branchConflict && !input.avoid)
         throw new Error(
           `route-net: the branch from ${best.node.key} ${branchConflict}`,
         );
+      // avoid: a branch the plain L cannot draw goes round what it met.
+      const round = branchConflict
+        ? clearance.path(best.node.endpoint, tap)
+        : null;
+      if (typeof round === "string")
+        throw new Error(
+          `route-net: the branch from ${endText(best.node.endpoint)}: ${round}`,
+        );
+      sayCrossings(endText(best.node.endpoint), round?.points ?? straight);
       wires.push({
         id: id(component.id),
         from: { kind: "endpoint", endpoint: best.node.endpoint },
         to: { kind: "wire-at", point: tap },
+        ...(round
+          ? {
+              ...(round.waypoints.length ? { waypoints: round.waypoints } : {}),
+              routingMode: "orthogonal" as const,
+              cornerOrder: round.cornerOrder,
+            }
+          : {}),
       });
     }
   } else {
-    wires = planNetTree(document, resolver, components, clearance, id);
+    wires = planNetTree(
+      document,
+      resolver,
+      components,
+      clearance,
+      id,
+      (endpoint, points) => sayCrossings(endText(endpoint), points),
+    );
   }
   const plan = planWireBatch(document, resolver, wires);
   if (typeof plan === "string") throw new Error(`route-net: ${plan}`);
-  return plan;
+  const all = [...notes, ...(plan.notes ?? [])];
+  return all.length ? { edits: plan.edits, notes: all } : { edits: plan.edits };
 }
 
 type TreeNode = RoutingGuidanceComponent["nodes"][number];
@@ -335,6 +396,7 @@ function planNetTree(
   components: readonly RoutingGuidanceComponent[],
   clearance: RouteClearance,
   id: (part: string) => string,
+  say: (from: RouteEndpoint, points: readonly Point[]) => void,
 ): WireIntent[] {
   const sorted = [...components].sort((a, b) => a.id.localeCompare(b.id, "en"));
   const nodes = sorted.flatMap((component) =>
@@ -406,6 +468,7 @@ function planNetTree(
       from: { kind: "endpoint", endpoint: trunk.a.node.endpoint },
       to: { kind: "endpoint", endpoint: trunk.b.node.endpoint },
     });
+    say(trunk.a.node.endpoint, [trunk.a.node.point, trunk.b.node.point]);
     join(trunk.a.component, [trunk.a.node.point, trunk.b.node.point]);
     join(trunk.b.component);
   } else {
@@ -448,6 +511,7 @@ function planNetTree(
       routingMode: "orthogonal",
       cornerOrder: seed.path.cornerOrder,
     });
+    say(seed.a.node.endpoint, seed.path.points!);
     join(seed.a.component, seed.path.points);
     join(seed.b.component);
   }
@@ -519,6 +583,7 @@ function planNetTree(
       routingMode: "orthogonal",
       cornerOrder: best.path.cornerOrder,
     });
+    say(best.node.endpoint, best.path.points!);
     join(best.component, best.path.points);
   }
   return wires;

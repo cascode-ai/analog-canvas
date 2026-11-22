@@ -34,13 +34,11 @@ import {
   planRemoveCellParameter,
   planRenameCellTerminal,
   planRemoveCellTerminal,
-  planRemoveCellTerminals,
   planSetCellSymbolPins,
   planSetCellPinOrder,
   planSetCellSymbolSize,
   planSetCellSymbolArtwork,
   planMoveRouteClearance,
-  planCellSelectionDeletion,
   gateRoutingOperationPlan,
   createRoutingOperationPlan,
   planEnsureNamedNet,
@@ -103,6 +101,7 @@ import {
   planProjectCopyPlacement,
 } from "../features/clipboard/project-copy";
 import { planDetachedMove } from "../features/selection/detached-move";
+import { capacitorPlateNote } from "./capacitor-plate-note";
 import { planSetProperties } from "./property-command";
 import { planAddText, planSetText, withDefaultWeight } from "./text-command";
 import {
@@ -173,6 +172,12 @@ import {
   logicalNetChoices,
 } from "../features/logical-net-choices";
 import { placedInstanceNetlist } from "../features/component-insert/placed-instance-netlist";
+import {
+  planDeleteWires,
+  planSelectionDeletion,
+} from "./selection-deletion-command";
+import { planRelocate } from "./relocate-command";
+import { planRenderNetAs } from "./render-net-as-command";
 
 /** What the live editor knows beyond the Project. */
 export interface BrowserAgentPlanningContext {
@@ -512,37 +517,41 @@ export function planBrowserAgentCommand(
               `selection.${field}: ${id} ${actual ? `belongs in ${actual}` : "does not exist"}; no objects were deleted`,
             );
         }
-      const selected = planCellSelectionDeletion(
+      return planSelectionDeletion(
+        project,
+        documentId,
         document,
         resolver,
         command.selection,
         sequence,
-      );
-      // The GUI keeps the locked ones and deletes the rest; an Agent is told
-      // instead, so it never believes them gone.
-      const locked = [
-        ...selected.locked.draftingIds,
-        ...selected.locked.annotationIds,
-      ];
-      if (locked.length)
-        throw new Error(
-          `selection: ${locked.join(", ")} ${locked.length === 1 ? "is" : "are"} locked; unlock before deleting; no objects were deleted`,
-        );
-      if (selected.terminalIds.length)
-        return {
-          structureEdits: planRemoveCellTerminals(
-            project,
-            documentId,
-            selected.terminalIds,
-            [...selected.routing.edits],
-          ),
-        };
-      const gate = gateRoutingOperationPlan(document, selected.routing, {
-        symbolResolver: resolver,
-      });
-      if (!gate.ok) throw new Error(gate.message);
-      return { edits: [...gate.edits] };
+      ).plan;
     }
+    case "delete-wires":
+      return planDeleteWires(
+        project,
+        documentId,
+        document,
+        resolver,
+        command,
+        sequence,
+      );
+    case "relocate":
+      return planRelocate(project, documentId, resolver, command);
+    case "render-net-as":
+      return planRenderNetAs(
+        project,
+        documentId,
+        resolver,
+        command,
+        (draft, item) =>
+          planBrowserAgentCommand(
+            draft,
+            documentId,
+            createProjectSymbolResolver(draft, builtInSymbols),
+            item,
+            context,
+          ),
+      );
     case "set-port-direction": {
       if (command.target.kind === "terminal")
         return {
@@ -980,6 +989,29 @@ export function planBrowserAgentCommand(
           const { reference: _reference, ...unnamed } = instance;
           instance = unnamed;
         }
+        // A part asked for under another prefix, an NMOS as NB, is drawn NB
+        // and named MNB, as a Cell instance A1 exports as XA1 (#2429).
+        let aliasName: string | undefined;
+        if (!drawnName && instance.reference) {
+          const policy = referencePolicyForInstance(instance, project);
+          const asked = instance;
+          const wrongPrefix =
+            policy.kind === "required" &&
+            referenceIssuesForInstance(
+              createReferenceIndex(
+                {
+                  ...document,
+                  instances: [...document.instances, ...placed, asked],
+                },
+                project,
+              ),
+              asked.id,
+            ).some((issue) => issue.code === "WRONG_REFERENCE_PREFIX");
+          if (wrongPrefix && policy.kind === "required") {
+            aliasName = asked.reference!.trim();
+            instance = { ...asked, reference: `${policy.prefix}${aliasName}` };
+          }
+        }
         instance = namedPlacement(project, document, placed, instance, index);
         placed.push(instance);
         const power = proposedStandalonePowerConnection(document, instance);
@@ -1045,13 +1077,40 @@ export function planBrowserAgentCommand(
             annotation,
           })),
         );
+        if (aliasName !== undefined) {
+          const labelled: SchematicDocument = {
+            ...drawn,
+            instances: [...drawn.instances, instance],
+            annotations: [
+              ...drawn.annotations,
+              ...edits.flatMap((edit) =>
+                edit.kind === "upsert_schematic_annotation" &&
+                own(edit.annotation)
+                  ? [edit.annotation]
+                  : [],
+              ),
+            ],
+          };
+          const alias = planDisplayAlias({
+            document: labelled,
+            instanceId: instance.id,
+            alias: aliasName,
+            labelFor: instanceLabelAnnotationFor,
+            newLabelFor: () => undefined,
+          });
+          if (!alias.ok)
+            throw new AgentCommandPlanningError(index, alias.message);
+          edits.push(...alias.edits);
+        }
       }
       // Labels of parts already drawn that the new ones cover move clear.
       const settled = withLabelsClearOfPlacedParts(document, resolver, edits);
       // A BJT the Process maps to a reviewed subcircuit arrives bound to it,
       // with its definition, exactly as a GUI placement does.
+      const plate = capacitorPlateNote(document, resolver, placed);
+      const notes = plate ? { notes: [plate] } : {};
       const filled = context.processFill?.(project, documentId, settled);
-      if (filled) return { structureEdits: filled };
+      if (filled) return { structureEdits: filled, ...notes };
       // Keep mixed device/Port batches atomic, including the interface facts.
       return changesInterface
         ? {
@@ -1063,8 +1122,9 @@ export function planBrowserAgentCommand(
                 edits: settled,
               },
             ],
+            ...notes,
           }
-        : { edits: settled };
+        : { edits: settled, ...notes };
     }
     case "set-display-alias": {
       const { instanceId, annotationId } = command;

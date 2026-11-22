@@ -176,7 +176,7 @@ export const AgentWireAtAnchorSchema = z
     member: TerminalRefSchema.optional(),
   })
   .describe(
-    "Resolve a tap on the current draft, including earlier wires. Optional net or member restricts the intended Net; a tap joining a different crossing Net is rejected.",
+    "Resolve a tap on the current draft, including wires other connects of the batch draw, before or after it. A point off the tap grid taps at its nearest grid point on a wire (TAP_SNAPPED). Optional net or member restricts the intended Net; a tap joining a different crossing Net is rejected.",
   );
 export const AgentWireMemberSelectionShape = {
   memberIds: z

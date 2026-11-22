@@ -87,10 +87,14 @@ appear only when present. Local and production codecs share one schema.
   require `expectedStructureRevision`.
 - `transact.actions` (exclusive form): MCP `apply_actions` actions
   ([authoring](../agent/shared/authoring.md)). The browser plans and commits
-  them as one edit batch, wire batch, command or focus operation. The MCP
+  them as one edit batch, wire batch, command or focus operation; a list
+  needing several runs them in order inside one history group, answering one
+  receipt and one Undo step, or the first refusal with every earlier one
+  taken back. The MCP
   Helper never plans them itself: an editor not listing `actions` in
   `transactionForms` gets `EDITOR_OUTDATED` and nothing is sent. Refusals:
-  `ACTION_BATCH_NOT_ATOMIC` (with `error.calls`, the consecutive calls to send
+  `ACTION_BATCH_NOT_ATOMIC` (`undo`/`redo` beside other actions, or a host
+  without history groups; `error.calls` lists the consecutive calls to send
   instead), `ACTION_COMPILE_FAILED` (malformed or naming absent objects); each
   names `error.actionIndex`/`error.actionKind` and its message starts
   `actions[i] (kind):`. `ACTION_COMPILE_FAILED` checks every action and lists

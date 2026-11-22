@@ -1343,7 +1343,7 @@ describe("MCP tools on the live editor", () => {
     expect(await pinsOf()).toEqual(expect.arrayContaining(["GND", "VSS"]));
   });
 
-  it("apply_actions returns the editor's refusal of a list that needs several calls, after one request", async () => {
+  it("apply_actions commits nothing of a list needing several transactions when one fails, in one request", async () => {
     const editor = await connected();
     await apply(editor, [place("resistor", "R1", 100)]);
     const { call, controller, http } = editor;
@@ -1360,27 +1360,21 @@ describe("MCP tools on the live editor", () => {
       ],
     });
     expect(result.isError).toBe(true);
-    expect(parseText(result)).toEqual({
+    expect(parseText(result)).toMatchObject({
       ok: false,
-      stage: "compile",
-      code: "ACTION_BATCH_NOT_ATOMIC",
+      stage: "commit",
+      code: "EDIT_PRECONDITION",
+      actionIndex: 1,
+      actionKind: "connect",
       message: expect.stringContaining(
-        "actions[0] (place-component) as one placement batch; actions[1] (connect) as wires",
+        "transaction 2 failed, so the 1 before it were taken back and nothing changed",
       ),
       revision: controller.document.revision,
-      transactions: 2,
-      calls: [
-        {
-          actionIndices: [0],
-          actionKinds: ["place-component"],
-          sends: "placement batch",
-        },
-        { actionIndices: [1], actionKinds: ["connect"], sends: "wires" },
-      ],
     });
-    // The one request was the editor's to refuse; nothing else was sent.
+    // The editor ran both transactions for the one request and kept neither.
     expect(transacts(http)).toBe(sent + 1);
     expect(controller.document).toEqual(before);
+    expect(controller.canRedo).toBe(false);
   });
 
   it("allows advanced transactions without a resource-read ceremony", async () => {

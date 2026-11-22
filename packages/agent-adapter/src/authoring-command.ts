@@ -15,6 +15,7 @@ import {
   SignalFlowParametersSchema,
   ComponentDefinitionSchema,
   NoConnectSchema,
+  GridRectSchema,
 } from "@icm/model";
 
 /** Small server-planned conveniences; results still commit as existing edits. */
@@ -74,7 +75,19 @@ const RouteNetCommandSchema = z.strictObject({
     .strictObject({ start: PointSchema, end: PointSchema })
     .optional()
     .describe(
-      "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic, not an obstacle autorouter.",
+      "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic; refused if it meets a part, another Net's pin or wire (or, with avoid, a label).",
+    ),
+  avoid: z
+    .boolean()
+    .optional()
+    .describe(
+      "Route round part bodies, markers and drawn labels too, searching the grid when no simple path is clear; with trunk, branches go round. No path: refused naming the pins.",
+    ),
+  prefer: z
+    .enum(["above", "below", "left", "right"])
+    .optional()
+    .describe(
+      "The side a detour takes when it must leave the span of its ends.",
     ),
 });
 const TextInputSchema = z.union([
@@ -230,6 +243,59 @@ const BatchItemSchema = z.discriminatedUnion("kind", [
     })
     .describe(
       "Explicit selection. Includes owned displays and formal interface declarations, and, as in the GUI, a wire that only tapped a deleted part into other wiring. Select all object IDs for complete Cell deletion.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("delete-wires"),
+      net: z.string().min(1).optional().describe("Net ID or name."),
+      bbox: GridRectSchema.optional().describe(
+        "Wires with a segment in or across it, as a crossing marquee takes them.",
+      ),
+      instance: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Reference or ID: the wires ending on its pins."),
+    })
+    .refine(
+      (command) =>
+        [command.net, command.bbox, command.instance].filter(
+          (given) => given !== undefined,
+        ).length === 1,
+      { message: "Give exactly one of net, bbox or instance" },
+    )
+    .describe(
+      "Delete wires chosen by exactly one of net, bbox or instance, with the Junctions and Net labels they leave alone, in one undo; parts stay. Matching no wire is refused.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("relocate"),
+      parts: z
+        .array(
+          z.strictObject({
+            instance: z
+              .string()
+              .min(1)
+              .describe("Reference, ID or Cell Pin name."),
+            position: PointSchema,
+            rotation: PlacementSchema.shape.rotation.optional(),
+            mirror: PlacementSchema.shape.mirror.optional(),
+          }),
+        )
+        .min(1)
+        .max(64),
+    })
+    .describe(
+      "Move and turn parts to these places and redraw their wires with route-net, so every Net keeps exactly its pins and the netlist stays the same; markers standing unwired on their pins go along. One undo; a connection that cannot be redrawn is refused with nothing changed.",
+    ),
+  z
+    .strictObject({
+      kind: z.literal("render-net-as"),
+      net: z.string().min(1).describe("Net ID or name."),
+      as: z.enum(["ground", "supply"]),
+    })
+    .describe(
+      "Draw a Net the textbook way: a ground marker that keeps its name (named ground; node 0 takes the plain ground) or a supply marker named after it on each of its pins, and its wires deleted. Its name, scope and netlist stay; pins already carrying a marker are left alone. One undo.",
     ),
   // Several Cell instances place in one call and one undo, as place-components
   // places several built-in parts (#1231).

@@ -135,6 +135,16 @@ interface ProjectHistoryEntry {
   structural: boolean;
 }
 
+/** What {@link EditorDocumentController.beginHistoryGroup} keeps to end it. */
+export interface EditorHistoryGroup {
+  readonly project: CircuitProject;
+  readonly activeDocumentId: string;
+  readonly resolver: ProjectSymbolResolver;
+  readonly undo: readonly ProjectHistoryEntry[];
+  readonly redo: readonly ProjectHistoryEntry[];
+  readonly agentEdited: boolean;
+}
+
 /**
  * One bounded chronological history per open Project working copy. Document
  * and structural transactions keep their executors, not separate undo stacks.
@@ -152,6 +162,8 @@ export class EditorDocumentController {
   private transactionCounter = 0;
   private projectSessionCounter = 1;
   private agentEditedValue = false;
+  /** The steps recorded since {@link beginHistoryGroup}, while one is open. */
+  private groupEntries: ProjectHistoryEntry[] | null = null;
 
   constructor(initialProject: CircuitProject) {
     this.projectValue = parseProjectSnapshot(
@@ -282,10 +294,57 @@ export class EditorDocumentController {
     structural: boolean,
   ): void {
     this.undoStack.push({ project, documentId, structural });
+    this.groupEntries?.push({ project, documentId, structural });
     if (this.undoStack.length > DEFAULT_DOCUMENT_HISTORY_LIMIT)
       this.undoStack.shift();
     this.redoStack.length = 0;
     this.rememberRevisions();
+  }
+
+  /**
+   * Collect the commits that follow into one history step, until
+   * {@link endHistoryGroup}. Each commit still applies at once, so a later
+   * one plans on the earlier ones. Groups do not nest.
+   */
+  beginHistoryGroup(): EditorHistoryGroup {
+    if (this.groupEntries) throw new Error("A history group is already open");
+    this.groupEntries = [];
+    return {
+      project: this.projectValue,
+      activeDocumentId: this.activeDocumentIdValue,
+      resolver: this.resolverValue,
+      undo: [...this.undoStack],
+      redo: [...this.redoStack],
+      agentEdited: this.agentEditedValue,
+    };
+  }
+
+  /**
+   * Keep the group's commits as one Undo step, or put the Project, the
+   * viewed Cell and both history stacks back exactly as the group found
+   * them. Answers whether the Project changed.
+   */
+  endHistoryGroup(group: EditorHistoryGroup, keep: boolean): boolean {
+    const entries = this.groupEntries ?? [];
+    this.groupEntries = null;
+    if (!keep || this.projectValue === group.project) {
+      this.projectValue = group.project;
+      this.activeDocumentIdValue = group.activeDocumentId;
+      this.resolverValue = group.resolver;
+      this.undoStack.splice(0, this.undoStack.length, ...group.undo);
+      this.redoStack.splice(0, this.redoStack.length, ...group.redo);
+      this.agentEditedValue = group.agentEdited;
+      return false;
+    }
+    this.undoStack.splice(0, this.undoStack.length, ...group.undo, {
+      project: group.project,
+      documentId: entries[0]?.documentId ?? group.activeDocumentId,
+      structural: entries.some((entry) => entry.structural),
+    });
+    if (this.undoStack.length > DEFAULT_DOCUMENT_HISTORY_LIMIT)
+      this.undoStack.shift();
+    this.redoStack.length = 0;
+    return true;
   }
 
   /** Share immutable document objects after whole-Project validation cloned them. */

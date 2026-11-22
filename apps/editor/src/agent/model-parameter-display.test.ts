@@ -288,7 +288,7 @@ describe("bound parameters through the editor", () => {
         },
       },
     ]);
-    expect(texts()).toContain("10k");
+    expect(texts()).toContain("10kΩ");
     expect(texts()).not.toContain("L = 50u");
   });
 });
@@ -336,7 +336,7 @@ describe("a built-in block's value", () => {
         (a) =>
           a.binding?.kind === "instance-value" && a.binding.instanceId === id,
       )!;
-    expect(texts(controller)).toEqual(["X1", "10k", "R1", "10k"]);
+    expect(texts(controller)).toEqual(["X1", "10kΩ", "R1", "10kΩ"]);
     // The same bold value text in the same slot under the name.
     const potValue = valueOf(pot!.id);
     const resistorValue = valueOf(resistor!.id);
@@ -369,7 +369,7 @@ describe("a built-in block's value", () => {
       ]),
     ).toMatchObject({ ok: true });
     expect(controller.document.instances[0]!.netlist?.parameters.r).toBe("22k");
-    expect(texts(controller)).toContain("22k");
+    expect(texts(controller)).toContain("22kΩ");
     expect(
       await client.applyActions([
         {
@@ -379,7 +379,7 @@ describe("a built-in block's value", () => {
         },
       ]),
     ).toMatchObject({ ok: true });
-    expect(texts(controller)).toEqual(["X1", "R1", "10k"]);
+    expect(texts(controller)).toEqual(["X1", "R1", "10kΩ"]);
     expect(
       await client.applyActions([
         {
@@ -389,10 +389,10 @@ describe("a built-in block's value", () => {
         },
       ]),
     ).toMatchObject({ ok: true });
-    expect(texts(controller)).toContain("22k");
+    expect(texts(controller)).toContain("22kΩ");
     expect(
       renderDocumentSvg(controller.document, controller.resolver),
-    ).toContain("22k");
+    ).toContain("22kΩ");
   });
 
   it("shows a Shockley diode's breakover voltage under its textbook name and reads an edit back", async () => {
@@ -416,8 +416,8 @@ describe("a built-in block's value", () => {
         },
       ]),
     ).toMatchObject({ ok: true });
-    expect(texts(controller)).toContain("VBO = 10");
-    expect(texts(controller)).toContain("RBB = 7k");
+    expect(texts(controller)).toContain("VBO = 10V");
+    expect(texts(controller)).toContain("RBB = 7kΩ");
     const diode = controller.document.instances[0]!;
     const value = controller.document.annotations.find(
       (a) =>
@@ -441,6 +441,6 @@ describe("a built-in block's value", () => {
         vbo,
       );
     }
-    expect(texts(controller)).toContain("VBO = 30");
+    expect(texts(controller)).toContain("VBO = 30V");
   });
 });

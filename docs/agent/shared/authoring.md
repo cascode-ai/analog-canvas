@@ -54,8 +54,10 @@ their IDs, never resolved to the first.
   per part in order, so wiring needs no read.
 - References follow the GUI: a device's starts with its prefix (R, C, M, …), a
   `place-cell` instance's with X; omitted, the next free name is taken (`R1`,
-  `X2`; a block that emits nothing gets none). A wrong prefix or a used name is
-  rejected with a free name and nothing is placed. A UJT or PUT is drawn Q1
+  `X2`; a block that emits nothing gets none). A device placed under another
+  prefix takes its own in front and is drawn as asked (NMOS `NB` is `MNB`
+  drawn N_B); a `place-cell` under another prefix or a used name is rejected
+  with a free name and nothing is placed. A UJT or PUT is drawn Q1
   and a Shockley diode D1 by a display alias while its Reference is `X1`; a Q
   or D `reference` or `set-reference` sets that alias. To draw another name (op-amp
   `X1` as A1) use `set-display-alias {target, text}` (`text:null` restores);
@@ -76,10 +78,13 @@ their IDs, never resolved to the first.
   model contract: a built-in part's are its catalog `parameters`; bound
   geometry offers its `w/l/mult/mf/vm`, and custom definitions their declared
   parameters. Omitted keys stay; an unsupported key rejects the whole action.
-  Show Value uses authored values: scalar parts keep their value, MOS keeps
+  Show Value draws a bare SPICE number of an R, C, L or independent source
+  with its unit (`10u` on a current source reads `10µA`, `1Meg` on a resistor
+  `1MΩ`) while the netlist keeps `10u`; a value with a unit, a lone `M` or an
+  expression shows as authored. MOS keeps
   its W/L fraction, and geometry R/C shows `W=… L=…` with its non-unit multiplier.
   A block's value goes by its textbook name where the number alone says
-  nothing: a Shockley diode shows `V_BO = 10`, a UJT `R_BB = 7k`.
+  nothing: a Shockley diode shows `V_BO = 10V`, a UJT `R_BB = 7kΩ`.
   A separate multiplier label shows only while that summary is hidden.
 - A placed Cell shows its Cell name and hides `X1`; `set-instance-display`
   `showReference:true` shows `X1` above it (to tell which block is `x1` in
@@ -283,6 +288,10 @@ when hidden. Uncouple with `apply_actions` `delete`
 `target:{kind:"inductor-coupling",name:"TF1"}`; deleting an inductor removes
 its couplings. SPICE `K` cards import as couplings.
 
+A capacitor placed, turned or mirrored is answered with where its top plate
+(pin 1, PLUS of a PDK MIM capacitor) stands (`CAPACITOR_TOP_PLATE`): the
+symbol looks the same either way round.
+
 ## MOS bodies
 
 Three-terminal MOS artwork still has an electrical B pin; read `mosBulk` and
@@ -298,6 +307,11 @@ information). Hidden bulk needs no decorative wire.
   Junction. Body to own source:
   `{kind:"connect",from:{kind:"pin",instance:"MP",pin:"B"},to:{kind:"pin",instance:"MP",pin:"S"},via:[{x:X+20,y:Y},{x:X+20,y:SY}]}`
   (SY the source landing's y).
+- One device, no wire: on a 3-terminal MOS (default artwork),
+  `{kind:"set-terminal-net",target,pin:"B",net:{kind:"net",name:"TAIL"}}`
+  ties the body to that Net in the netlist with nothing drawn; `net:null`
+  returns it to the Cell default. A body with a dashed wire is disconnected
+  first.
 - Cell default: `{kind:"set-mos-bulk-default",mos:"pmos"|"nmos",net:"VB"}`
   (`circuit_place`; Net name or ID; `null` clears), as Cell Properties: bodies
   on the old default move, wired bodies stay (raw `set_mos_bulk_defaults` /
@@ -321,9 +335,26 @@ information). Hidden bulk needs no decorative wire.
   centres it (house style); a `named-ground`'s stands centred below its bars.
   `arrange-labels` sets an upside-down supply name upright beside its marker,
   and puts a VDD name drawn over another part over its bar when that is clear.
+- A Cell drawn as an op-amp, comparator or other Library block, with no
+  hand-made artwork: place the Library part (`opamp`, `comparator`, …) in the
+  parent, then `set-model {target, model: "<Cell name>"}`. It keeps its look
+  and calls the Cell; the Cell's Pins must match the part's (`IN+`/`IN-`/`OUT`,
+  or `INP`/`INN`), and `model: ""` unbinds it. `set-cell-symbol-artwork` is
+  only for shapes no Library part has.
 - `set-port-direction` sets one terminal or a whole Port; `set-vdd-mode`
   switches a `vdd-port` or `named-ground` between Cell Pin and Global. Remove a Pin with
   `remove-cell-terminal` or selection deletion, never by disconnecting `P`.
+- `render-net-as {net, as:"ground"|"supply"}` (`circuit_place`) draws a named
+  Net the textbook way: a `named-ground` (`ground` for node 0) or `vdd-port`
+  of its name on each of its drawn pins, standing on the pin and pointing away
+  from the part, then deletes its wires as `delete-wires` does. Pins a marker
+  stands on already, and the markers' own, are left alone; a marker wired to
+  the Net before stands alone after. A Cell Pin's markers join its one Port
+  with its direction; a global Net's are global; a local Net that is no Cell
+  Pin is refused, as a marker would make it global or a Pin. Every pin keeps
+  its Net and the netlist reads the same, or it is refused with nothing
+  changed, and so is a marker that would overlap a part. One undo;
+  `NET_RENDERED_AS` (information) counts markers and wires.
 - `add-power-rail` draws a `vdd-rail` (a primitive, not a symbol) with optional
   `name`/`scope` (existing scope kept, else local; `global` only explicitly);
   a ground name (`0`, `GND`, `GROUND`) is refused: ground is ground symbols.
@@ -431,7 +462,9 @@ Wires are drawn as a person draws them: never over another Net's pin, through
 a part (its own included) or along its leads, or onto another Net's wire; a
 Junction on another Net's wire is refused. A first or last leg that would run
 along its own Net's wire ends on it with a dot (a body tied to its source taps
-the source wire). Plain crossings stay legal.
+the source wire). Plain crossings stay legal; each one a planned wire makes is
+named in a `WIRE_CROSSES` note. A hidden pin (a 3-terminal MOS's body) is no
+obstacle.
 
 `route-net` (`apply_actions`, native `command`) fills missing visible
 connections for a current Net ID/name, one member pin, a pin list, or a frozen
@@ -440,13 +473,17 @@ import `sourceNetId` (not a current Net ID), skipping connected components.
 between two aligned pins with nothing between, then joins each component
 where cheapest (a joined pin, Junction, or straight onto a wire) in T
 junctions, each wire the cheapest clear path (L, short lead, or detour along a
-free row/column). When none is clear the whole operation is refused naming the
-obstacle and the two points between which it meets it: move parts or give a
-trunk. A given trunk is checked the same way, never bent. It is not an
-autorouter: it moves no device, infers no bulk wiring, and does not override
-import-reference shorts/scope conflicts. Several `route-net` actions share a
-batch, each planned on the previous result. Contract:
-`describe_tool({tool:"apply_actions",operations:["route-net"]})`.
+free row/column; a crossing costs as a bend). When none is clear the whole
+operation is refused naming the pins, the obstacle and the two points between
+which it meets it: move parts, give a trunk or `avoid`. A given trunk is
+checked the same way, never bent. `avoid:true` also keeps clear of drawn
+labels and free text and, when no simple path is clear, searches the grid up
+to 16 squares round the ends; with a trunk, branches go round instead of being
+refused. `prefer: "above"|"below"|"left"|"right"` is the side a detour takes
+when it leaves its ends' span. It moves no device, infers no bulk wiring, and
+does not override import-reference shorts/scope conflicts. Several
+`route-net` actions share a batch, each planned on the previous result.
+Contract: `describe_tool({tool:"apply_actions",operations:["route-net"]})`.
 
 Where a Net cannot cross the drawing (a cascode bias to both halves), name it
 at each end: `connect` the pin to an open `{kind:"point"}` a grid step or two
@@ -476,8 +513,11 @@ batch with `LIMIT_EXCEEDED` or `INVALID_REQUEST`: reload it and retry.
 Display flags, Port directions, VDD mode, terminal removal and power rails
 share a command batch (a VDD and a VSS rail: one call). Pure presentation
 batches keep the structure revision. A list needing several transactions
-commits nothing: `ACTION_BATCH_NOT_ATOMIC`'s `calls` gives action indexes per
-call, in order (placements apart from their wires; a `focus` with the last).
+(placements apart from their wires) commits them in order, each planned on the
+one before, as one Undo step; if one fails, the earlier ones are taken back and
+nothing changes. A `focus` shows after all of them. `undo`/`redo` go alone: a
+list mixing them is refused with `ACTION_BATCH_NOT_ATOMIC`, whose `calls`
+gives action indexes per call, in order.
 
 ## Move, delete and reset
 
@@ -496,6 +536,18 @@ keeps text offsets and formatting; attached drafting follows its owner. Locked
 targets reject the request. Receipt `terminalConnectivityChanged` compares
 document-local terminal equivalence only (omitted means unknown).
 
+`relocate` moves and turns parts and redraws their wiring, e.g. swapping a
+pair: `{"kind":"relocate","parts":[{"instance":"M1","position":{"x":400,"y":0},"mirror":"horizontal"},{"instance":"M2","position":{"x":0,"y":0},"mirror":"horizontal"}]}`
+(`instance`: Reference, ID or Cell Pin name; `rotation`/`mirror` omitted keep
+the part's). Every wire ending on their pins goes and is drawn again as
+`route-net` draws, except a stub reaching no other pin, which goes with its pin
+and turns with it; markers standing unwired on their pins go along; labels on
+redrawn wires stand on their Net's nearest new wire. Every pin keeps its Net
+and the netlist reads the same; otherwise, or for a wire `route-net` cannot
+draw, a bus wire, a Power Rail or a locked label on those pins, it is refused
+with nothing moved. One undo; `RELOCATED` (information) counts wires taken off
+and drawn.
+
 `delete` uses the GUI deletion planner, including owned displays and interface
 declarations. `delete-selection` nests explicit IDs by type, omitted lists
 empty: `{"kind":"delete-selection","selection":{"instanceIds":["M1"],"routeIds":["route-3"]}}`
@@ -504,6 +556,15 @@ empty: `{"kind":"delete-selection","selection":{"instanceIds":["M1"],"routeIds":
 IDs reject it all; unlock a locked drawing or text first. Deleting a part deletes wires that only tapped it; a wire
 running on to another pin, or carrying a label, stays open there so a
 replacement reconnects (`ERC_DANGLING_WIRE` names open ends).
+
+`delete-wires` takes exactly one of `net` (ID or name), `bbox`
+(`{x,y,width,height}`: wires with a segment in or across it) or `instance`
+(Reference or ID: wires ending on its pins), e.g.
+`{"kind":"delete-wires","net":"VOUT"}`. It deletes those wires as a selection
+of them, with the Junctions and Net labels they leave alone, in one undo;
+every part stays, and a bus wire goes only when all its lanes are the Net's.
+Matching no wire is refused. `WIRES_DELETED` (information) counts the wires,
+Junctions and labels that went. `delete` refuses a Net.
 
 `reset-placement` (intentional redraw) and `clear-drawing` remove every wire:
 labels on wires stay free with their names, markers on wires go, a rail's

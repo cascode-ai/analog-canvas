@@ -1554,6 +1554,55 @@ describe("Agent property actions are planned as Apply in Properties", () => {
       ),
     )?.id;
 
+  it("says where a capacitor's top plate is when it is placed or turned (#2429)", async () => {
+    const { client, instance } = await session();
+    const placed = await client.applyActions([
+      { ...place("capacitor", "C1", 200), rotation: 90 },
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const plate = (report: typeof placed) =>
+      report.diagnosticDelta?.added.find(
+        (item) => item.code === "CAPACITOR_TOP_PLATE",
+      );
+    expect(plate(placed)).toMatchObject({
+      objectIds: [instance("C1").id],
+      message: expect.stringContaining("C1 pin 1 at ("),
+    });
+    const turned = await client.applyActions([
+      {
+        kind: "rotate",
+        target: { kind: "instance", reference: "C1" },
+        rotation: 270,
+      },
+    ]);
+    expect(turned.ok, turned.message).toBe(true);
+    expect(plate(turned)).toBeDefined();
+    expect(plate(turned)!.message).not.toBe(plate(placed)!.message);
+  });
+
+  it("ties a MOS body its artwork does not draw to a Net with no wire, and back to the default (#2429)", async () => {
+    const { controller, apply, instance } = await session();
+    await apply([place("nmos", "M1", 200), place("port", "TAIL", 300, 200)]);
+    const port = controller.document.instances.find(
+      (item) => item.symbolId === "port",
+    )!;
+    const tail = netOf(controller.document, port.id, "P")!;
+    const target = { kind: "instance", reference: "M1" };
+    const routes = controller.document.routes.length;
+    await apply([
+      {
+        kind: "set-terminal-net",
+        target,
+        pin: "B",
+        net: { kind: "net", id: tail },
+      },
+    ]);
+    expect(netOf(controller.document, instance("M1").id, "B")).toBe(tail);
+    expect(controller.document.routes).toHaveLength(routes);
+    await apply([{ kind: "set-terminal-net", target, pin: "B", net: null }]);
+    expect(netOf(controller.document, instance("M1").id, "B")).not.toBe(tail);
+  });
+
   it("sets each terminal a reviewed inductor draws no pin for, as its Properties rows do, and refuses a pin it draws (#1833)", async () => {
     const { controller, apply, refuse, instance } = await session();
     await apply([

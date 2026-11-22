@@ -32,11 +32,14 @@ export function applyPropertyTerminalEdit(
       [],
       [instance.id],
     );
-  // A pin the symbol draws is wired; a 3-terminal MOS body follows its own
-  // body binding. One without canvas presence takes its Net here (#1833): a
-  // supply a Circuit Component maps to no pin of its artwork, or one an
-  // op-amp's variant hides.
-  if (drawnPinNames(symbol).includes(edit.pinName))
+  // A pin the symbol draws is wired. One without canvas presence takes its
+  // Net here (#1833): a supply a Circuit Component maps to no pin of its
+  // artwork, one an op-amp's variant hides, or a 3-terminal MOS body, whose
+  // dashed wire is optional (#2429).
+  if (
+    drawnPinNames(symbol).includes(edit.pinName) &&
+    !symbol.variant?.hiddenPinNames.includes(edit.pinName)
+  )
     return refuse(
       "EDIT_PRECONDITION",
       `Canvas terminal ${instance.id}.${edit.pinName} must be wired, not property-bound`,
