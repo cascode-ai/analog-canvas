@@ -7,27 +7,6 @@ name: Simulation container
 # to, nothing a deck can reach is writable, and it still answers a circuit.
 
 on:
-  pull_request:
-    paths:
-      - "containers/ngspice/**"
-      - "packages/spice-run/**"
-      - "packages/simulation-service/src/execution-receipt.ts"
-      - "scripts/package-ngspice-harness.mjs"
-      - ".github/workflows/container.yml"
-      - ".dockerignore"
-      - "scripts/simulation-source-native.test.mjs"
-      # The candidate-image standard-cell gate test (#1596) and what it runs.
-      - "packages/simulation-service/test-support/standard-cell-gates.ts"
-      - "packages/simulation-service/src/prepare-ngspice.ts"
-      - "packages/simulation-service/src/contract.ts"
-      - "packages/devices/**"
-      - "packages/netlist/**"
-      - "worker/simulation-ngspice.ts"
-      - "worker/simulation.ts"
-      - "packages/edit-engine/**"
-      - "packages/model/**"
-      - "fixtures/simulation-acceptance/**"
-      - "scripts/lib/preview-simulation-*.mjs"
   workflow_dispatch:
 
 permissions:

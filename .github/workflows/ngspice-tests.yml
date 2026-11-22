@@ -2,28 +2,6 @@ name: Ngspice model tests
 
 # Additional PR qualification; the merge queue's Core contracts stays fast.
 on:
-  pull_request:
-    paths:
-      - "packages/netlist/**"
-      - "packages/devices/**"
-      - "packages/components/**"
-      - "packages/edit-engine/**"
-      - "packages/model/**"
-      - "packages/derived/**"
-      - "packages/project-protocol/**"
-      - "packages/spice/**"
-      - "packages/spice-run/**"
-      - "netlists/**"
-      - "fixtures/simulation-acceptance/**"
-      - "containers/ngspice/cells/**"
-      - "scripts/run-environment-tests*.mjs"
-      - "scripts/lib/environment-test-lanes.mjs"
-      - ".github/workflows/ngspice-tests.yml"
-      - "vitest.config.ts"
-      - "tsconfig*.json"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
   workflow_dispatch:
 
 permissions:

@@ -166,19 +166,12 @@ describe("environment workflow execution boundaries", () => {
     expect(config.permissions.contents).toBe("read");
   });
 
-  it("runs ngspice model checks on affected PRs without a deployment environment", async () => {
+  it("runs simulations in CI only by hand, never on PRs or the merge queue", async () => {
+    for (const file of ["ngspice-tests", "sg13g2-tests", "container"]) {
+      const config = await workflow(`.github/workflows/${file}.yml`);
+      expect(Object.keys(config.on), file).toEqual(["workflow_dispatch"]);
+    }
     const config = await workflow(".github/workflows/ngspice-tests.yml");
-    for (const path of [
-      "packages/netlist/src/generated-models.ts",
-      "packages/devices/src/reviewed-external.ts",
-      "packages/edit-engine/src/bus-netlist.test.ts",
-      "packages/components/definitions/inverter.json",
-      "scripts/lib/environment-test-lanes.mjs",
-    ])
-      expect(matchesAny(path, config.on.pull_request.paths), path).toBe(true);
-    expect(
-      matchesAny("docs/user/getting-started.md", config.on.pull_request.paths),
-    ).toBe(false);
     const job = config.jobs.qualify;
     expect(job.environment).toBeUndefined();
     expect(job.env.NGSPICE_BIN).toBe("/usr/bin/ngspice");

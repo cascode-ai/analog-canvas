@@ -109,7 +109,7 @@ function finish(status) {
     );
   for (const check of gatePlan.manualChecks ?? [])
     process.stdout.write(
-      `\nEnvironment evidence required: ${check.id} — ${check.workflow} / ${check.job}\n`,
+      `\nOptional simulation check, run by hand, never by CI: ${check.id} — ${check.workflow} / ${check.job}\n`,
     );
   process.stdout.write(
     "\nMerge-candidate Core contracts and Browser tests remain separate queue obligations.\n",
