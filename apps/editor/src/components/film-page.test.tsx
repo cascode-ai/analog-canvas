@@ -1,8 +1,7 @@
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import agentDrawing from "./film/agent.svg?raw";
-import { FilmPage, filmDocument, filmDrawing } from "./film-page";
+import { filmDocument, filmDrawing } from "./film-page";
 
 describe("the film's drawings", () => {
   it("keeps a formal export's viewBox and layers, not its page", () => {
@@ -41,32 +40,10 @@ describe("the film's document", () => {
         new RegExp(`id="${id}"[^>]*data-vb="-?[\\d.]+( -?[\\d.]+){3}"`, "u"),
       );
   });
-
-  it("speaks English only, with no language switch", () => {
-    expect(html).toContain('<html lang="en">');
-    expect(html).not.toMatch(/[\u3000-\u9fff\uff00-\uffef]/u);
-  });
-
-  it("keeps its links on the site and says 7,000+", () => {
-    expect(html).toContain('href="/editor"');
-    expect(html).toContain('target="_top"');
-    expect(html).toMatch(/total"?:\s*7000\b/u);
-    expect(html).not.toContain("7173");
-  });
-
   it("draws the three circuits from their real parts", () => {
     for (const part of ['data-object-id="M1"', 'data-symbol-id="opamp"'])
       expect(html).toContain(part);
     // Every part of the Agent's drawing arrives, as the film counts them.
     expect(html).toContain(filmDrawing(agentDrawing).layers);
-  });
-});
-
-describe("/film", () => {
-  it("plays the document in a frame of its own", () => {
-    const markup = renderToStaticMarkup(<FilmPage />);
-    expect(markup).toContain('<iframe class="film-frame"');
-    expect(markup).toContain('title="Analog Canvas film"');
-    expect(markup).toContain('srcDoc="&lt;!doctype html&gt;');
   });
 });

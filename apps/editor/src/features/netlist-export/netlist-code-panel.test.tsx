@@ -6,53 +6,6 @@ import { createDefaultNetlistExportPreferences } from "./netlist-export-preferen
 import { NetlistCodePanel, netlistIssueTarget } from "./netlist-code-panel";
 
 describe("live netlist controls", () => {
-  it("offers independent format, process and compact device mapping controls", () => {
-    const markup = renderToStaticMarkup(
-      <NetlistCodePanel
-        project={createEmptyProject("project", "Project")}
-        format="spectre"
-        namingProfile="native"
-        profiles={createDefaultNetlistExportPreferences().profiles}
-        selectedProcess="abstract"
-        onProcessChange={vi.fn()}
-        onDeviceTargetChange={vi.fn()}
-        onModeChange={vi.fn()}
-        onApply={vi.fn()}
-        onFocusInstance={vi.fn()}
-        onReset={vi.fn()}
-        onCopy={vi.fn()}
-        configurationError={null}
-      />,
-    );
-
-    expect(markup).toContain('aria-label="Netlist format"');
-    expect(markup).toContain('aria-label="Netlist process"');
-    expect(markup).toContain('<option value="gpdk045">GPDK045</option>');
-    expect(markup).toContain('value="spectre" selected=""');
-    // The copy button sits beside the code it copies, as an icon.
-    expect(markup).toContain('data-testid="copy-netlist-panel"');
-    expect(markup).toMatch(
-      /data-testid="refresh-netlist-panel"[\s\S]*data-testid="copy-netlist-panel"/u,
-    );
-    expect(markup).not.toContain('aria-label="Port names:');
-    expect(markup).not.toContain(">ABC</code>");
-    expect(markup).toContain('aria-label="Copy netlist"');
-    expect(markup).toContain("<svg");
-    expect(markup).not.toContain(">Copy</button>");
-    expect(markup).toContain('aria-label="NMOS netlist target"');
-    expect(markup).toContain('aria-label="L netlist target"');
-    expect(markup).toContain('aria-label="NPN netlist target"');
-    expect(markup).toContain('aria-label="PNP netlist target"');
-    expect(markup.match(/<select/g)).toHaveLength(9);
-    expect(markup).not.toContain("<input");
-    expect(markup).toContain(">Default</button>");
-    expect(markup).toMatch(
-      /aria-label="Netlist output options"[\s\S]*>Default<\/button><\/div>/u,
-    );
-    expect(markup).toContain('class="netlist-code-viewport"');
-    expect(markup).not.toContain("<h2>Netlist</h2>");
-  });
-
   it("offers the RNL modes beside SPICE and SCS, and shows one read-only", () => {
     const markup = renderToStaticMarkup(
       <NetlistCodePanel

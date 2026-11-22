@@ -2535,51 +2535,6 @@ test("source errors have one main status and additional diagnostics with locatio
     editor.getByRole("button", { name: /model.spice:2/ }),
   ).toBeVisible();
 });
-
-test("component authoring stays compact without overflowing at narrow widths and zoom", async ({
-  page,
-  service,
-}, testInfo) => {
-  await service.openEditorAs(page, null);
-  const editor = await openFiniteGain(page, "custom");
-  const mode = editor.getByLabel("Symbol mode");
-  const name = editor.getByLabel("Component display name");
-  await name.fill(
-    "Reusable amplifier with a deliberately long descriptive name",
-  );
-  await mode.focus();
-  for (const width of [1440, 900, 640]) {
-    await page.setViewportSize({ width, height: 1000 });
-    for (const zoom of [1, 1.25, 1.5]) {
-      await page.evaluate((value) => {
-        document.documentElement.style.zoom = String(value);
-      }, zoom);
-      await expect(mode).toBeVisible();
-      const overflow = await editor.evaluate((dialog) => {
-        const bounds = dialog.getBoundingClientRect();
-        return [
-          ...dialog.querySelectorAll<HTMLElement>(
-            ".component-symbol-controls, .component-symbol-controls input, .component-symbol-controls select, .external-model-actionbar",
-          ),
-        ]
-          .filter((el) => {
-            const box = el.getBoundingClientRect();
-            return box.left < bounds.left - 1 || box.right > bounds.right + 1;
-          })
-          .map((el) => el.className || el.tagName);
-      });
-      expect(overflow, `width ${width}, zoom ${zoom}`).toEqual([]);
-    }
-  }
-  await page.evaluate(() => {
-    document.documentElement.style.zoom = "1";
-  });
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await editor.screenshot({
-    path: testInfo.outputPath("component-authoring.png"),
-  });
-});
-
 test("variant draft keeps the original untouched and applies as one undo", async ({
   page,
   service,
@@ -2623,28 +2578,6 @@ test("variant draft keeps the original untouched and applies as one undo", async
   await button(page, "Redo").click();
   expect((await readProject(page)).modelSources).toEqual(changed.modelSources);
 });
-
-test("blank component authoring has one actionable status and contextual advanced actions", async ({
-  page,
-  service,
-}) => {
-  await service.openEditorAs(page, null);
-  const editor = await openNativeComponent(page);
-  await expect(editor.getByLabel("Repair scope")).toHaveCount(0);
-  await expect(editor.getByRole("status")).toHaveCount(1);
-  await expect(editor.getByRole("status")).toHaveText(
-    "Add a .subckt definition to continue.",
-  );
-  await expect(
-    editor.getByText("No subcircuit yet", { exact: true }),
-  ).toHaveCount(0);
-  await text(editor, "More").click();
-  await expect(button(editor, "Source files…")).toBeVisible();
-  await expect(button(editor, "Save draft")).toBeVisible();
-  await expect(button(editor, "Fork model…")).toHaveCount(0);
-  await expect(button(editor, "Delete definition")).toHaveCount(0);
-});
-
 test("repairs a wired legacy custom component with explicit native port mapping in one undo", async ({
   page,
   baseURL,

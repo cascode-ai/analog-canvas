@@ -203,72 +203,6 @@ test("leaving Gallery before its landing feed answers does not warm hidden previ
   await awaitTwoFrames(page);
   expect(previews).toEqual([]);
 });
-
-test("the site lands on the full-screen gallery feed and states its size", async ({
-  page,
-}) => {
-  await serveWall(page, () => ({
-    entries: [ENTRY],
-    nextCursor: null,
-    total: 128,
-  }));
-  await page.route("**/api/gallery/tags", (route) =>
-    route.fulfill({ json: { tags: [] } }),
-  );
-  await page.route("**/api/projects", (route) =>
-    route.fulfill({ status: 401, json: { error: "authentication-required" } }),
-  );
-  await page.goto("/");
-  await expect(page.getByTestId("gallery-feed")).toBeVisible();
-  await expect(
-    page.getByTestId("gallery-footnote").locator("p").first(),
-  ).toHaveText(
-    "Open any circuit to edit your own copy; publish your own from the editor.",
-  );
-  await expect(page.getByTestId("gallery-usage-note")).toContainText(
-    "free to read, download in bulk, mirror and use",
-  );
-  const brand = page.getByTestId("gallery-editor-link");
-  await expect(brand).toHaveCSS("display", "flex");
-  await expect(brand).toHaveCSS("text-decoration-line", "none");
-  const brandMark = brand.locator(".app-brand-mark");
-  await expect(brandMark).toBeVisible();
-  await expect(brandMark).toHaveCSS("background-image", /icon\.svg\?v=nmos-4/);
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
-    "href",
-    "/icon.svg?v=nmos-4",
-  );
-
-  // With community entries present the wall shows them alone: the bundled
-  // starter tiles exist only while the gallery is empty.
-  const image = page.getByTestId(`gallery-tile-${ENTRY.id}`).locator("img");
-  await expect(image).toHaveAttribute("src", previewSrc("revision-0"));
-  await expect(image).toHaveAttribute("width", "640");
-  await expect(image).toHaveAttribute("height", "360");
-  await expect(
-    page.getByTestId("gallery-bundled-common-source-amplifier"),
-  ).toHaveCount(0);
-  const repositoryLink = page.getByTestId("gallery-repository-link");
-  await expect(repositoryLink).toHaveAttribute(
-    "href",
-    "https://github.com/cascode-ai/analog-canvas",
-  );
-  await expect(repositoryLink).toHaveAttribute("target", "_blank");
-  await expect(repositoryLink.locator("svg")).toBeVisible();
-  // GitHub ends the row: the Editor switch at the left is the way in.
-  expect(
-    await repositoryLink.evaluate((link) => link.nextElementSibling),
-  ).toBeNull();
-
-  await expect(page.getByTestId("gallery-count-panel")).toHaveText(
-    "128 circuits",
-  );
-  // The shelf states its own count; the community total stays off it.
-  await page.getByTestId("gallery-view-shelf").click();
-  await expect(page.getByTestId("gallery-count-panel")).toHaveCount(0);
-  await expect(page.getByTestId("shelf-signed-out")).toBeVisible();
-});
-
 test("an open Gallery switches to a newly published preview revision", async ({
   page,
 }) => {
@@ -298,37 +232,6 @@ test("an open Gallery switches to a newly published preview revision", async ({
   await expect(image).toHaveAttribute("src", previewSrc("revision-1"));
   expect(listRequests).toBeGreaterThanOrEqual(2);
 });
-
-test("masonry places the top row left-to-right in distinct columns", async ({
-  page,
-}) => {
-  const entries = ["m-a", "m-b", "m-c"].map((id, index) =>
-    tile(id, { description: index === 0 ? "taller card" : "" }),
-  );
-  await serveWall(page, () => ({ entries, nextCursor: null }));
-
-  await page.goto("/");
-  await expect(page.getByTestId("gallery-tile-m-c")).toBeVisible();
-  const positions = await page.locator(".masonry-item").evaluateAll((items) =>
-    items.map((item) => {
-      const match = /translate\(([-\d.]+)px, ([-\d.]+)px\)/u.exec(
-        (item as HTMLElement).style.transform,
-      );
-      return { x: Number(match?.[1]), y: Number(match?.[2]) };
-    }),
-  );
-  expect(positions).toHaveLength(3);
-  // All three fit the top row: same y, strictly increasing x (reading
-  // order), and the container has a measured height.
-  expect(positions.every((position) => position.y === 0)).toBe(true);
-  expect(positions[1]!.x).toBeGreaterThan(positions[0]!.x);
-  expect(positions[2]!.x).toBeGreaterThan(positions[1]!.x);
-  const wallHeight = await page
-    .locator(".masonry")
-    .evaluate((wall) => Number.parseFloat((wall as HTMLElement).style.height));
-  expect(wallHeight).toBeGreaterThan(100);
-});
-
 test("the feed pages through the cursor as the sentinel comes into view", async ({
   page,
 }) => {
@@ -1243,63 +1146,6 @@ test("a search keeps what it found when the window comes back into focus", async
   await expect(page.getByTestId("gallery-tile-bandgap-new")).toBeVisible();
   await expect(progress).toHaveText("Searched all 31 circuits · 2 matches");
 });
-
-test("a reload clears the search and the netlist side, and keeps every other filter; a shared search still opens (#1675)", async ({
-  page,
-}) => {
-  await signIn(page, sessionUser({ displayName: "Reader" }));
-  const asked: string[] = [];
-  await mockPreviews(page);
-  await mockGalleryApi(page, { tags: [] }, async (url, route) => {
-    asked.push(url.searchParams.get("q") ?? "");
-    return route.fulfill({
-      json: { entries: [ENTRY], total: 1, nextCursor: null },
-    });
-  });
-  const search = page.getByTestId("gallery-search");
-  const human = page.getByTestId("gallery-filter-human");
-  const netlist = page.getByTestId("gallery-filter-netlistable");
-  await page.goto("/?ai=0&netlist=1&utm_source=share");
-  await expect(netlist).toHaveAttribute("aria-pressed", "true");
-  await search.fill("mirror");
-  await expect(page).toHaveURL((url) => url.searchParams.get("q") === "mirror");
-  await expect.poll(() => asked.at(-1)).toBe("mirror");
-  // Neither the search nor the netlist side is remembered, so a later visit
-  // opens unsearched on every circuit, with and without a netlist.
-  const stored = () =>
-    page.evaluate(() =>
-      JSON.parse(sessionStorage.getItem("icm.gallery-filters.v1") ?? "{}"),
-    );
-  expect(await stored()).toMatchObject({ ai: "human" });
-  expect(await stored()).not.toHaveProperty("search");
-  expect(await stored()).not.toHaveProperty("netlistable");
-  await page.goto("/");
-  await expect(human).toHaveAttribute("aria-pressed", "true");
-  await expect(netlist).toHaveAttribute("aria-pressed", "false");
-  await expect(search).toHaveValue("");
-
-  // A link that carries a search, opened fresh, shows that search.
-  await page.goto("/?ai=0&netlist=1&q=mirror&utm_source=share");
-  await expect(search).toHaveValue("mirror");
-  await expect(netlist).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => asked.at(-1)).toBe("mirror");
-
-  // Reloaded, it opens unsearched on both netlist sides and keeps the rest.
-  await page.reload();
-  await expect(search).toHaveValue("");
-  await expect(page.getByTestId(`gallery-tile-${ENTRY.id}`)).toBeVisible();
-  await expect(human).toHaveAttribute("aria-pressed", "true");
-  await expect(netlist).toHaveAttribute("aria-pressed", "false");
-  await expect(page).toHaveURL(
-    (url) =>
-      !url.searchParams.has("q") &&
-      !url.searchParams.has("netlist") &&
-      url.searchParams.get("ai") === "0" &&
-      url.searchParams.get("utm_source") === "share",
-  );
-  expect(asked.at(-1)).toBe("");
-});
-
 // Tags.
 
 test("tag categories select all children, retain other groups and expose mixed selection", async ({

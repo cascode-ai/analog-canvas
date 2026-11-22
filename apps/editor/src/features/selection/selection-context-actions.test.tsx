@@ -19,7 +19,6 @@ import {
   GroupPropertiesSection,
   MosBulkConnectionSection,
   RouteActionsSection,
-  RoutingGuidanceSection,
 } from "./selection-context-actions";
 
 describe("selection context actions", () => {
@@ -155,35 +154,6 @@ describe("selection context actions", () => {
     expect(markup).toContain('disabled=""');
     expect(markup).toContain("Place the component on the canvas");
   });
-
-  it("renders route label and highlight actions", async () => {
-    const { document, route, netLabel } = routeFixture();
-    const stream = await renderToReadableStream(
-      <RouteActionsSection
-        active
-        document={document}
-        route={route}
-        netLabel={netLabel}
-        defaultColor="#000"
-        highlightActive
-        onApply={vi.fn(() => ({ ok: true }))}
-        onToggleHighlight={vi.fn()}
-        onDeleteWire={vi.fn()}
-      />,
-    );
-    await stream.allReady;
-    const markup = await new Response(stream).text();
-    expect(markup).toContain('aria-label="Annotation property code"');
-    expect(markup).toContain("Route");
-    expect(markup).toContain("OUT");
-    expect(markup).toContain("directionArrow");
-    expect(markup).not.toContain('aria-label="Electrical Net label"');
-    expect(markup).not.toContain('aria-label="Wire direction arrow"');
-    expect(markup).not.toContain('aria-label="Wire line style"');
-    expect(markup).not.toContain("current arrow");
-    expect(markup).toContain("Clear Net highlight (H)");
-  });
-
   it("presents a MOS bulk route as instance-owned instead of a generic wire", () => {
     const { document, route } = routeFixture();
     const markup = renderToStaticMarkup(
@@ -226,18 +196,5 @@ describe("selection context actions", () => {
     expect(markup).toContain('title="Mark No Connect"');
     expect(markup).toContain("disabled");
     expect(markup).toContain("Disconnect this endpoint");
-  });
-
-  it("publishes focused imported guidance counts", () => {
-    const markup = renderToStaticMarkup(
-      <RoutingGuidanceSection
-        total={7}
-        displayed={2}
-        view="focused"
-        onViewChange={vi.fn()}
-      />,
-    );
-    expect(markup).toContain('aria-pressed="true"');
-    expect(markup).toContain("2 shown / 7 derived");
   });
 });

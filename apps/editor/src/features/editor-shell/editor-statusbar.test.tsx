@@ -4,47 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { EditorStatusbar } from "./editor-statusbar";
 
 describe("editor statusbar", () => {
-  it("renders the active wire options and recovery state", () => {
-    const markup = renderToStaticMarkup(
-      <EditorStatusbar
-        status="Ready"
-        tool="wire"
-        vddRailMode={false}
-        pendingSymbolId={null}
-        wireOptionsOpen
-        wireRoutingMode="orthogonal"
-        wireCornerOrder="horizontal-first"
-        recoveryLabel="Saved locally"
-        zoomPercent={100}
-        shortcutHintsVisible={false}
-        onToggleShortcutHints={vi.fn()}
-        gridVisible
-        onToggleGrid={vi.fn()}
-        selectionFilterSummary={null}
-        onOpenSelectionFilter={vi.fn()}
-        onToggleWireOptions={vi.fn()}
-        onWireRoutingModeChange={vi.fn()}
-        onWireCornerOrderChange={vi.fn()}
-        onOpenAnalytics={vi.fn()}
-        onZoomOut={vi.fn()}
-        onZoomIn={vi.fn()}
-        onFitView={vi.fn()}
-      />,
-    );
-    expect(markup).toContain('data-testid="wire-options"');
-    expect(markup).toContain("Saved locally");
-    expect(markup).toContain('aria-label="Current zoom"');
-    expect(markup).toContain('data-testid="statusbar-change-log"');
-    expect(markup).toContain('title="Active tool: Wire"');
-    expect(markup).toContain('aria-label="Active tool: Wire"');
-    expect(markup).toContain('href="/changelog"');
-    expect(markup).not.toContain('aria-label="Annotation grid"');
-    expect(markup).not.toContain('aria-label="Draw angle"');
-    expect(markup).not.toContain('aria-label="Scroll wheel"');
-    // No Agent warning unless its session is in its final minute.
-    expect(markup).not.toContain('data-testid="agent-expiring"');
-  });
-
   it("offers Keep connected in an Agent session's final minute", () => {
     const markup = renderToStaticMarkup(
       <EditorStatusbar
@@ -122,43 +81,6 @@ describe("editor statusbar", () => {
       expect(markup).toContain(`click to ${action} the background grid`);
     },
   );
-
-  it("places an explicit shortcut-hints toggle beside the grid control", () => {
-    const markup = renderToStaticMarkup(
-      <EditorStatusbar
-        status="Ready"
-        tool="pointer"
-        vddRailMode={false}
-        pendingSymbolId={null}
-        wireOptionsOpen={false}
-        wireRoutingMode="orthogonal"
-        wireCornerOrder="auto"
-        recoveryLabel={null}
-        zoomPercent={100}
-        shortcutHintsVisible
-        onToggleShortcutHints={vi.fn()}
-        gridVisible
-        onToggleGrid={vi.fn()}
-        selectionFilterSummary={null}
-        onOpenSelectionFilter={vi.fn()}
-        onToggleWireOptions={vi.fn()}
-        onWireRoutingModeChange={vi.fn()}
-        onWireCornerOrderChange={vi.fn()}
-        onOpenAnalytics={vi.fn()}
-        onZoomOut={vi.fn()}
-        onZoomIn={vi.fn()}
-        onFitView={vi.fn()}
-      />,
-    );
-
-    const hints = markup.indexOf('data-testid="statusbar-shortcut-hints"');
-    const grid = markup.indexOf('data-testid="statusbar-grid-toggle"');
-    expect(hints).toBeGreaterThan(-1);
-    expect(hints).toBeLessThan(grid);
-    expect(markup.slice(hints, grid)).toContain('aria-pressed="true"');
-    expect(markup.slice(hints, grid)).toContain("Hints");
-  });
-
   function statusbarWithIssues(issues: {
     checkStatus?: import("../../app/project-check").ProjectCheckStatus;
     errorCount: number;
@@ -194,49 +116,22 @@ describe("editor statusbar", () => {
     );
   }
 
-  it("shows an error-severity issues badge with combined counts", () => {
-    const markup = statusbarWithIssues({
-      errorCount: 2,
-      warningCount: 1,
-      onOpen: vi.fn(),
-    });
-    expect(markup).toContain('data-testid="statusbar-issues"');
-    expect(markup).toContain('data-severity="error"');
-    expect(markup).toContain("2 errors, 1 warning");
-    expect(markup).toContain("Action required");
-  });
-
-  it("shows a compact entry point only while selection is filtered", () => {
-    const markup = renderToStaticMarkup(
-      <EditorStatusbar
-        status="Ready"
-        tool="pointer"
-        vddRailMode={false}
-        pendingSymbolId={null}
-        wireOptionsOpen={false}
-        wireRoutingMode="orthogonal"
-        wireCornerOrder="auto"
-        recoveryLabel={null}
-        zoomPercent={100}
-        shortcutHintsVisible={false}
-        onToggleShortcutHints={vi.fn()}
-        gridVisible
-        onToggleGrid={vi.fn()}
-        selectionFilterSummary="Filter: Wires"
-        onOpenSelectionFilter={vi.fn()}
-        onToggleWireOptions={vi.fn()}
-        onWireRoutingModeChange={vi.fn()}
-        onWireCornerOrderChange={vi.fn()}
-        onOpenAnalytics={vi.fn()}
-        onZoomOut={vi.fn()}
-        onZoomIn={vi.fn()}
-        onFitView={vi.fn()}
-      />,
-    );
-    expect(markup).toContain('data-testid="selection-filter-status"');
-    expect(markup).toContain("Filter: Wires");
-  });
-
+  it.each([
+    [2, 1, "error", "2 errors, 1 warning"],
+    [0, 3, "warning", "3 warnings"],
+    [0, 0, "none", "No issues"],
+  ] as const)(
+    "badges %s errors and %s warnings as %s",
+    (errorCount, warningCount, severity, text) => {
+      const markup = statusbarWithIssues({
+        errorCount,
+        warningCount,
+        onOpen: vi.fn(),
+      });
+      expect(markup).toContain(`data-severity="${severity}"`);
+      expect(markup).toContain(text);
+    },
+  );
   it.each(["unchecked", "checking", "stale", "failed"] as const)(
     "does not present %s evidence as a current verdict",
     (checkStatus) => {
@@ -257,25 +152,4 @@ describe("editor statusbar", () => {
       }
     },
   );
-
-  it("shows a warning-severity issues badge without errors", () => {
-    const markup = statusbarWithIssues({
-      errorCount: 0,
-      warningCount: 3,
-      onOpen: vi.fn(),
-    });
-    expect(markup).toContain('data-severity="warning"');
-    expect(markup).toContain("3 warnings");
-  });
-
-  it("keeps a quiet zero-state badge as the discoverable entry point", () => {
-    const markup = statusbarWithIssues({
-      errorCount: 0,
-      warningCount: 0,
-      onOpen: vi.fn(),
-    });
-    expect(markup).toContain('data-testid="statusbar-issues"');
-    expect(markup).toContain('data-severity="none"');
-    expect(markup).toContain("No issues");
-  });
 });

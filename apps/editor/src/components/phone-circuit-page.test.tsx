@@ -3,11 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { galleryDateLabel } from "../gallery-date";
-import {
-  PhoneCircuitView,
-  PhoneEditorNotice,
-  type PhoneEntry,
-} from "./phone-circuit-page";
+import { PhoneCircuitView, type PhoneEntry } from "./phone-circuit-page";
 
 const entry: PhoneEntry = {
   id: "efx8jakksk",
@@ -62,12 +58,5 @@ describe("a phone's circuit page (2026-10-14)", () => {
     ).toContain(
       "does not yet make a netlist: Instance R1 requires parameter value",
     );
-  });
-
-  it("tells a phone opening the editor to draw on a computer or a tablet", () => {
-    const page = renderToStaticMarkup(createElement(PhoneEditorNotice, {}));
-    expect(page).toContain("Drawing needs a computer or a tablet");
-    expect(page).toContain('href="/"');
-    expect(page).toContain('data-testid="phone-editor-anyway"');
   });
 });

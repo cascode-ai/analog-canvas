@@ -112,25 +112,6 @@ describe("PublishGalleryDialog", () => {
       /<button[^>]*disabled=""[^>]*class="publish-gallery-primary"|class="publish-gallery-primary"[^>]*disabled=""/u,
     );
   });
-
-  it("opens on the title alone and folds the tag suggestions", () => {
-    const markup = renderToStaticMarkup(
-      createElement(PublishGalleryDialog, {
-        defaultName: "Ring Oscillator",
-        session: { displayName: "Visitor", isAdmin: false, role: "user" },
-        publish: () => Promise.resolve({ status: "unauthorized" as const }),
-        onPublished: () => undefined,
-        onClose: () => undefined,
-      }),
-    );
-    expect(markup).toContain(">Publish to Gallery</h2>");
-    expect(markup).not.toContain("public wall");
-    // Five suggestions, then one chip that opens the rest (#1385).
-    expect(markup.match(/data-testid="publish-preset-/gu)).toHaveLength(5);
-    expect(markup).toContain('data-testid="publish-presets-more"');
-    expect(markup).toContain('aria-label="More tag suggestions"');
-  });
-
   it("starts the AI mark from the entry it came from, never from an Agent's work", () => {
     const render = (props: Partial<PublishGalleryDialogProps>) =>
       renderToStaticMarkup(

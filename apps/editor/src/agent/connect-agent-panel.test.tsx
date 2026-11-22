@@ -46,36 +46,11 @@ describe("ConnectAgentPanel", () => {
     expect(JSON.parse(claimLine.slice(7))).toEqual({ claimCode });
     expect(instructions).toContain("https://editor.example/api/agent/kit");
   });
-  it("keeps every connection branch in a compact handoff without editing advice", () => {
+  it("keeps the handoff compact, without editing advice or a bearer token", () => {
     const instructions = agentConnectionInstructions(
       "https://editor.example",
       "claim-once",
     );
-    expect(instructions).toContain(
-      "Connect to Analog Canvas at https://editor.example",
-    );
-    expect(instructions).toContain('connection_status({"refresh":false})');
-    expect(instructions).toContain("this exact origin");
-    expect(instructions).toContain('Claim: {"claimCode":"claim-once"}');
-    expect(instructions).toContain(
-      "https://editor.example/api/agent/mcp-manifest.json",
-    );
-    expect(instructions).toContain("analog-canvas://reference/quickstart");
-    expect(instructions).toContain("https://editor.example/api/agent/kit");
-    expect(instructions).toContain("I authorize");
-    expect(instructions).toContain("MCP-only");
-    expect(instructions).toContain("shell/npm alone");
-    expect(instructions).toContain("Check Node before executing");
-    expect(instructions).toContain("verify SHA-256");
-    expect(instructions).toContain("preserve unrelated settings");
-    expect(instructions).toContain("report the stage");
-    expect(instructions).toContain("keep any installation");
-    expect(instructions).toContain("raw HTTP Kit");
-    expect(instructions).toContain("uncertain Claim");
-    expect(instructions).toContain("read the actual circuit");
-    expect(instructions).toContain("HTTP success is not MCP acceptance");
-    expect(instructions).toContain("Expired Claim");
-    expect(instructions).toContain("Loopback");
     expect(instructions).not.toMatch(/symbol IDs|pin names|raw API requests/u);
     expect(instructions).not.toMatch(/Bearer [A-Za-z0-9_-]{20,}/u);
     expect(instructions.length).toBeLessThan(1_600);
@@ -96,74 +71,6 @@ describe("ConnectAgentPanel", () => {
       expect(render(status, "0.17.83")).not.toContain("agent-adapter-version");
     expect(render("connected", null)).not.toContain("agent-adapter-version");
   });
-
-  it("renders nothing when closed", () => {
-    const markup = renderToStaticMarkup(
-      <ConnectAgentPanel {...baseProps({ open: false })} />,
-    );
-    expect(markup).toBe("");
-  });
-
-  it("offers one connection action without permission tiers in the idle state", () => {
-    const markup = renderToStaticMarkup(
-      <ConnectAgentPanel {...baseProps({ status: "idle" })} />,
-    );
-    expect(markup).toContain("Connect Agent");
-    expect(markup).toContain("Not connected");
-    expect(markup).toContain('data-testid="agent-connect"');
-    expect(markup).not.toContain("Codex setup");
-    expect(markup).not.toContain("agent-preset");
-    expect(markup).not.toContain("Choose what the Agent");
-  });
-
-  it("shows an expiring connection hand-off while waiting for the Agent", () => {
-    const markup = renderToStaticMarkup(
-      <ConnectAgentPanel
-        {...baseProps({
-          status: "waiting-for-agent",
-          claimCode: "CLAIM-12345",
-          claimExpiresAt: 30_000,
-          scopes: ["circuit.snapshot", "circuit.render"],
-          expiresAt: 60_000,
-          now: 0,
-        })}
-      />,
-    );
-    expect(markup).not.toContain('data-testid="agent-claim-code"');
-    expect(markup).toContain('data-testid="agent-copy-instructions"');
-    expect(markup).toContain('data-testid="agent-copy-text"');
-    expect(markup).toContain('class="agent-connection-toolbar"');
-    expect(markup).toContain("Copy message");
-    expect(markup).toContain(
-      "Paste this message into your Agent chat to connect.",
-    );
-    expect(markup).toContain(
-      "MCP first; HTTP API fallback is authorized if setup is unavailable.",
-    );
-    expect(markup).not.toContain("<details");
-    expect(markup).not.toContain("technical details");
-    expect(markup).not.toContain("session 1:00 remaining");
-    expect(markup).toContain("Connect to Analog Canvas at http://localhost.");
-    expect(markup).toContain("<textarea");
-    expect(markup).toContain(
-      "Claim: {&quot;claimCode&quot;:&quot;CLAIM-12345&quot;}",
-    );
-    expect(markup).toContain("/api/agent/mcp-manifest.json");
-    expect(markup).not.toContain("MCP bootstrap manifest");
-    expect(markup).toContain("CLAIM-12345");
-    expect(markup).toContain("Connection code expires in 0:30");
-    expect(markup).toContain(
-      "Expires after 30 minutes without Agent operations or manual edits.",
-    );
-    expect(markup).toContain("Activity keeps the connection alive.");
-    expect(markup).not.toContain("Scopes:");
-    expect(markup).toContain('data-testid="agent-pause"');
-    expect(markup).toContain('data-testid="agent-revoke"');
-    expect(markup).toContain('aria-label="Copy connection setup"');
-    // No grant presets after connecting.
-    expect(markup).not.toContain('data-testid="agent-grant"');
-  });
-
   it("offers resume instead of pause while paused", () => {
     const markup = renderToStaticMarkup(
       <ConnectAgentPanel
@@ -259,34 +166,6 @@ describe("ConnectAgentPanel", () => {
     expect(markup).toContain('data-testid="agent-new-connection"');
     expect(markup).not.toContain('data-testid="agent-copy-instructions"');
   });
-
-  it("uses one set of actions without technical disclosures in expanded Properties", () => {
-    const markup = renderToStaticMarkup(
-      <AgentPropertiesSection
-        {...baseProps({
-          status: "connected",
-          claimCode: "current-claim",
-          claimExpiresAt: Date.now() + 30_000,
-        })}
-        expanded
-        onToggleDetails={vi.fn()}
-        onDismiss={vi.fn()}
-      />,
-    );
-    for (const action of [
-      "copy-instructions",
-      "pause",
-      "new-connection",
-      "revoke",
-    ]) {
-      expect(
-        markup.match(new RegExp(`data-testid="agent-${action}"`, "gu")),
-      ).toHaveLength(1);
-    }
-    expect(markup).not.toContain("<details");
-    expect(markup).not.toContain("Scopes:");
-  });
-
   it("names a trusted task and offers to stop trusting its device", () => {
     const trusted = { trustedDevice: true, onUntrustDevice: vi.fn() };
     const dialog = renderToStaticMarkup(

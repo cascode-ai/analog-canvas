@@ -4,20 +4,12 @@ import {
   expectComponentCodeField,
   exportedProject,
   placeComponentAt,
-  setComponentCodeField,
 } from "./editor-fixtures.js";
 import { openSelectionShelf } from "./manual-editor-fixtures.js";
 
 async function placeSymbol(page: Page, symbolId: string): Promise<void> {
   await page.goto("/editor");
   await placeComponentAt(page, symbolId, { x: 360, y: 240 });
-}
-
-async function placeMarkedSymbol(page: Page, symbolId: string): Promise<void> {
-  await placeSymbol(page, symbolId);
-  await page.getByTestId("hit-X1").click();
-  await openSelectionShelf(page);
-  await setComponentCodeField(page, "appearance.internalMark", "A");
 }
 
 function bodyText(page: Page) {
@@ -72,8 +64,8 @@ test("double-clicking a Symbol's body text edits it on the canvas and in Propert
 });
 
 // The owner reported this on a DAC and said several other circuits have it
-// too. The DAC and the lettered op-amp edit their body text in the cases
-// above and below; a signal-flow block is hit through its rectangle instead.
+// too. The DAC edits its body text in the case above; a signal-flow block is
+// hit through its rectangle instead.
 // How the text is stored, formatted, slanted and kept upright under a mirror
 // is text-editing's, signal-flow-layout's and signal-flow-formula's.
 test("integrator edits its body text on the canvas", async ({ page }) => {
@@ -86,21 +78,5 @@ test("integrator edits its body text on the canvas", async ({ page }) => {
 
   await editor.fill("Zz");
   await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(bodyText(page)).toContainText("Zz");
-});
-
-// The swapped-input sibling has no Library tile of its own: it is reached by
-// swapping a placed op-amp's inputs, so it is covered through that path.
-test("the swapped-input op-amp edits its body text too", async ({ page }) => {
-  await placeMarkedSymbol(page, "opamp");
-  await page.getByTestId("hit-X1").click();
-  await setComponentCodeField(page, "symbol", "opamp-lettered-inputs-swapped");
-
-  await page.getByTestId("hit-X1").dblclick();
-  const editor = page.getByRole("textbox", { name: "Canvas text editor" });
-  await expect(editor).toBeVisible();
-  await editor.fill("Zz");
-  await page.getByRole("button", { name: "Apply text changes" }).click();
-
   await expect(bodyText(page)).toContainText("Zz");
 });

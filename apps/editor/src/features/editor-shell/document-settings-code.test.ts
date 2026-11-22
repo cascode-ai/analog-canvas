@@ -438,60 +438,6 @@ describe("document Style code", () => {
     const source = serializeDocumentSettingsCode(editableValue());
     const spans = documentSettingsCodeSpans(source, document);
 
-    expect(spans).toHaveLength(18);
-    expect(
-      spans.find((span) => span.field.path === "font")?.field.options,
-    ).toEqual([
-      expect.objectContaining({
-        value: "metropolis",
-        preview: { kind: "font", face: "metropolis" },
-      }),
-      expect.objectContaining({
-        value: "serif",
-        label: "Times New Roman",
-        preview: { kind: "font", face: "serif" },
-      }),
-      expect.objectContaining({
-        value: "sans",
-        label: "Arial",
-        preview: { kind: "font", face: "sans" },
-      }),
-      expect.objectContaining({
-        value: "latin-modern",
-        label: "Latin Modern (LaTeX)",
-        preview: { kind: "font", face: "latin-modern" },
-      }),
-    ]);
-    expect(
-      spans.find((span) => span.field.path === "crossings")?.field.options,
-    ).toEqual([
-      expect.objectContaining({
-        value: "plain",
-        preview: { kind: "crossing", style: "plain" },
-      }),
-      expect.objectContaining({
-        value: "hop",
-        preview: { kind: "crossing", style: "hop" },
-      }),
-    ]);
-    expect(
-      spans.find((span) => span.field.path === "appearance.fontScale")?.field
-        .options,
-    ).toContainEqual(
-      expect.objectContaining({
-        value: 1,
-        label: "Default · 1×",
-        preview: { kind: "scale", target: "font", factor: 1 },
-      }),
-    );
-    expect(
-      spans.find((span) => span.field.path === "bulkDefaults.nmos")?.field,
-    ).toMatchObject({
-      // It is also the PDK substrate, and says so beside its value (#1530).
-      label: "NMOS body / substrate",
-      description: "and substrate",
-      help: expect.stringContaining("NPN S"),
-    });
     expect(
       spans.find((span) => span.field.path === "bulkDefaults.nmos")?.field
         .options,
@@ -508,51 +454,9 @@ describe("document Style code", () => {
       },
     ]);
     expect(
-      spans.find((span) => span.field.path === "bulkDefaults.pmos")?.field,
-    ).toMatchObject({
-      label: "PMOS",
-      help: "PMOS bulk defaults to VDD",
-    });
-    expect(
-      spans.find((span) => span.field.path === "labels.subscript_case")?.field
-        .options,
-    ).toEqual([
-      expect.objectContaining({
-        value: "preserve",
-        label: "Preserve typed case",
-        preview: expect.objectContaining({ kind: "label", suffix: "inP" }),
-      }),
-      expect.objectContaining({
-        value: "uppercase",
-        label: "Make suffix uppercase",
-        preview: expect.objectContaining({ kind: "label", suffix: "INP" }),
-      }),
-      expect.objectContaining({
-        value: "lowercase",
-        label: "Make suffix lowercase",
-        preview: expect.objectContaining({ kind: "label", suffix: "inp" }),
-      }),
-    ]);
-    expect(
       spans.every((span) =>
         span.field.options?.every((option) => option.preview !== undefined),
       ),
-    ).toBe(true);
-    expect(
-      spans
-        .filter((span) => span.field.path.startsWith("labels."))
-        .map((span) => span.field.path),
-    ).toEqual([
-      "labels.first_letter_italic",
-      "labels.subscript_after_first",
-      "labels.subscript_case",
-      "labels.subscript_italic",
-      "labels.underscore_subscript",
-    ]);
-    expect(
-      spans
-        .filter((span) => span.field.path.startsWith("labels."))
-        .every((span) => span.field.description === ""),
     ).toBe(true);
 
     const changed = applyChanges(

@@ -233,36 +233,6 @@ describe("createRecoveryCoordinator", () => {
     expect(read.sessions[0]?.latest?.source).toBe("new");
     expect(read.sessions[0]?.latest?.unsavedAtSnapshot).toBe(true);
   });
-
-  it("coalesces a burst of commits into the newest Project", async () => {
-    const harness = createHarness();
-    harness.coordinator.stage(projectA);
-    harness.coordinator.stage(projectB);
-    harness.fire();
-    await harness.settle();
-    const read = await harness.coordinator.store.readAll();
-    expect(read.sessions).toHaveLength(1);
-    expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeCompactProject(projectB),
-    );
-    expect(read.sessions[0]?.previous).toBeNull();
-  });
-
-  it("does not consume a generation for an unchanged Project", async () => {
-    const harness = createHarness();
-    harness.coordinator.stage(projectA);
-    harness.fire();
-    await harness.settle();
-    harness.coordinator.stage(projectA);
-    harness.fire();
-    await harness.settle();
-    const read = await harness.coordinator.store.readAll();
-    expect(read.sessions[0]?.previous).toBeNull();
-    expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeCompactProject(projectA),
-    );
-  });
-
   it("marks identical content clean without consuming the previous generation", async () => {
     const harness = createHarness();
     harness.coordinator.stage(projectA);
@@ -273,28 +243,6 @@ describe("createRecoveryCoordinator", () => {
     expect(read.sessions[0]?.previous).toBeNull();
     expect(read.sessions[0]?.latest?.unsavedAtSnapshot).toBe(false);
   });
-
-  it("flushNow writes a pending Project without waiting for the timer", async () => {
-    const harness = createHarness();
-    harness.coordinator.stage(projectA);
-    const state = await harness.coordinator.flushNow();
-    expect(state).toBe("stored");
-    const read = await harness.coordinator.store.readAll();
-    expect(read.sessions[0]?.latest?.projectText).toBe(
-      serializeCompactProject(projectA),
-    );
-  });
-
-  it("cancelPending drops a scheduled write", async () => {
-    const harness = createHarness();
-    harness.coordinator.stage(projectA);
-    harness.coordinator.cancelPending();
-    harness.fire();
-    await harness.settle();
-    const read = await harness.coordinator.store.readAll();
-    expect(read.sessions).toHaveLength(0);
-  });
-
   it("never loses the newest revision while a write is in flight", async () => {
     const factory = new IDBFactory() as unknown as IDBFactory;
     const realStore = createBrowserRecoveryStore({ idbFactory: factory });

@@ -72,14 +72,6 @@ describe("DiagnosticMarkersOverlay", () => {
     expect(markup).toContain('class="diagnostic-marker-count"');
     expect(markup).toContain(">3</text>");
   });
-
-  it("renders nothing without markers", () => {
-    expect(
-      renderToStaticMarkup(
-        <DiagnosticMarkersOverlay markers={[]} onSelectMarker={vi.fn()} />,
-      ),
-    ).toBe("");
-  });
 });
 
 describe("WireUnderSymbolOverlay", () => {

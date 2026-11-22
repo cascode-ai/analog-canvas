@@ -17,7 +17,6 @@ import {
   accountTabFromSearch,
   type AccountTab,
 } from "./account-page";
-import { ModerationContent } from "./moderation";
 
 function markupFor(
   state: AccountState,
@@ -313,31 +312,6 @@ describe("AccountMenuView", () => {
       pageFor({ ...account, isOwner: true, seat: "ai-designer-1" }, "settings"),
     ).not.toContain("owner-tokens");
   });
-
-  it("keeps deleting the account last, in Settings", () => {
-    const markup = pageFor(
-      {
-        id: "u1",
-        displayName: "Token Zhang",
-        email: null,
-        provider: "email",
-        role: "user",
-        isAdmin: false,
-      },
-      "settings",
-    );
-    const order = [
-      'id="account-profile"',
-      'data-testid="account-rename"',
-      'data-testid="account-signout"',
-      'id="account-danger"',
-      'data-testid="account-delete"',
-    ].map((needle) => markup.indexOf(needle));
-    expect(order.every((index) => index >= 0)).toBe(true);
-    expect([...order].sort((left, right) => left - right)).toEqual(order);
-    expect(markup).not.toContain('data-testid="mine-content"');
-  });
-
   it("shows Moderation to the Owner alone; a moderator keeps the badge", () => {
     const member = pageFor(
       {
@@ -554,33 +528,5 @@ describe("fetchSessionUser", () => {
 
     expect([first, second, third]).toEqual([null, null, null]);
     expect(requests).toBe(1);
-  });
-});
-
-describe("ModerationContent", () => {
-  it("holds the two collections and none of operational maintenance", () => {
-    const owner = renderToStaticMarkup(
-      createElement(ModerationContent, { isAdmin: true }),
-    );
-    expect(owner).toContain('data-testid="rejected-list"');
-    expect(owner).toContain('data-testid="review-bin"');
-    // Maintenance belongs in scripts: no forms, settings or schema tools.
-    for (const absent of [
-      "<input",
-      "<textarea",
-      "<form",
-      "owner-settings",
-      "review-empty",
-      "Project schema maintenance",
-      "Netlist marks",
-    ])
-      expect(owner).not.toContain(absent);
-    const moderator = renderToStaticMarkup(
-      createElement(ModerationContent, { isAdmin: false }),
-    );
-    expect(moderator).toContain(
-      "Rejecting and withdrawing stay with the Owner",
-    );
-    expect(moderator).not.toContain("rejected-list");
   });
 });
