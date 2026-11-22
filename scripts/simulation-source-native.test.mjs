@@ -33,7 +33,7 @@ import {
 import { standardCellGates } from "../packages/simulation-service/test-support/standard-cell-gates.ts";
 
 // This opt-in layer exercises the candidate image, not a mock or the shared Preview.
-// container.yml always enables it before the operator-host rollout can occur.
+// A manual container.yml run enables it before the operator-host rollout.
 const endpoint = process.env.ICM_SOURCE_ACCEPTANCE_URL;
 if (
   endpoint &&

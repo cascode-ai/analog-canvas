@@ -148,17 +148,19 @@ builds its own dependencies.
 
 ## Environment-dependent execution
 
-[Ngspice model tests](../../.github/workflows/ngspice-tests.yml) and
-[Windows platform tests](../../.github/workflows/platform-tests.yml) qualify
-affected PRs and support manual runs. [Simulator host](../../.github/workflows/simulator-host.yml),
+Simulations never run in CI on their own: no PR or merge-queue trigger.
+[Ngspice model tests](../../.github/workflows/ngspice-tests.yml),
+[SG13G2 qualification](../../.github/workflows/sg13g2-tests.yml) and
+[Simulation container](../../.github/workflows/container.yml) run only by
+hand (workflow_dispatch). [Windows platform tests](../../.github/workflows/platform-tests.yml)
+qualify affected PRs and support manual runs. [Simulator host](../../.github/workflows/simulator-host.yml),
 action/job `vacask-compat-build`, manually qualifies native execution, pinned
 source conversion and the real MCP journey. [Browser performance
 evidence](../../.github/workflows/performance.yml), job `measure`, measures a
 fresh production build with synthetic fixtures. These checks do not deploy or
 replace required merge checks or existing performance budgets.
 
-[SG13G2 qualification](../../.github/workflows/sg13g2-tests.yml), job `qualify`,
-builds the pinned image and runs native electrical, Canvas/reference and
+SG13G2 qualification, job `qualify`, builds the pinned image and runs native electrical, Canvas/reference and
 GUI/MCP checks. Its `sg13g2` and `mcp-sg13g2` lanes require a real executor
 through `ICM_SG13G2_URL`; skipped targets fail qualification.
 
