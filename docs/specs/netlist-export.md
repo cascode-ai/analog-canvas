@@ -154,7 +154,8 @@ Bodies live in [analog blocks](../../packages/netlist/src/ideal-analog-block-mod
 [signal blocks](../../packages/netlist/src/ideal-signal-block-models.ts),
 [semiconductor devices](../../packages/netlist/src/semiconductor-device-models.ts) and
 [generated models](../../packages/netlist/src/generated-models.ts). Every Block
-but the crystal, the potentiometer and the semiconductor devices declares
+but the crystal, the potentiometer, the transmission line and the
+semiconductor devices declares
 fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
@@ -225,6 +226,12 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   `max(r·(1−pos), 1m)` from the wiper to end 2, defaults `r` = 10 kΩ and
   `pos` = 0.5; the 1 mΩ floor keeps a wiper at either end well conditioned. It
   is an `X` call of that body, as the crystal is.
+- Transmission line (`transmission_line`: `p1 n1 p2 n2` for pins P1, N1, P2,
+  N2, no supplies) is one lossless line, SPICE `T1 p1 n1 p2 n2 Z0={z0}
+TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
+  50 Ω, `td` = 1 ns. A line given by frequency and normalized length takes
+  `td` = nl/f (`{0.25/1G}`). It is an `X` call of that body, as the crystal
+  is; VACASK has no line (`VACASK_UNSUPPORTED_DEVICE`).
 - Semiconductor devices SPICE has no card for are `X` calls of textbook
   equivalent circuits, no supplies, each body carrying its own model cards
   with the generic cards' parameters (`de` the DIODE card, `qn`/`qp` the
@@ -242,9 +249,10 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
     `VBO n1 nz {vbo-1.9}` and `DBO nz p2 dj`, `RGK p2 k 1k` and
     `CGK p2 k 10p`; default `vbo` = 10 V. It breaks over at about `vbo`
     (about 0.65 mA) and holds at about 0.8 V down to about 0.8 mA.
-- SPICE and VACASK include all bodies; Spectre includes comparator,
-  combinational gates (`bsource` with RC delay), the crystal, the
-  potentiometer and the semiconductor devices; DFF,
+- SPICE and VACASK include all bodies but VACASK the transmission line;
+  Spectre includes comparator, combinational gates (`bsource` with RC delay),
+  the crystal, the potentiometer, the transmission line and the semiconductor
+  devices; DFF,
   multiplier and converters stay call-only with `SPECTRE_MODEL_NOT_INCLUDED`.
   That call's name is the reader's interface: where a Cell, or an external
   subcircuit or model source, in the netlist defines it, an unbound part

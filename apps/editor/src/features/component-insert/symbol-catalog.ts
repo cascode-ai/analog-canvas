@@ -67,6 +67,7 @@ export function symbolCategory(symbolId: string): string {
       "center-tap-inductor",
       "xfmr",
       "crystal",
+      "transmission-line",
       "speaker",
       "microphone",
       "ammeter",
@@ -207,6 +208,7 @@ const LIBRARY_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   microphone: "Mic",
   "center-tap-inductor": "CT Coil",
   "mos-varactor": "MOS Var",
+  "transmission-line": "T-Line",
 };
 
 /** One line saying what an entry does, where the name alone leaves a doubt. */
@@ -223,6 +225,8 @@ const LIBRARY_DESCRIPTIONS: Readonly<Record<string, string>> = {
     "Bridged T-coil: two coupled windings with a bridge capacitor across the ends",
   "center-tap-inductor":
     "Center-tapped inductor: two series halves meeting at the tap, no bridge capacitor",
+  "transmission-line":
+    "Lossless transmission line: impedance z0, delay td; port 1 is P1/N1, port 2 is P2/N2",
   opamp: "Compact Op Amp — input pin spacing: 20",
   "opamp-wide": "Op Amp — input pin spacing: 40",
   "opamp-differential-crossed":
@@ -357,6 +361,7 @@ const SYMBOL_ORDER: readonly string[] = [
   "center-tap-inductor",
   "xfmr",
   "crystal",
+  "transmission-line",
   "speaker",
   "microphone",
   "ammeter",

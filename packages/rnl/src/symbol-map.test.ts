@@ -141,6 +141,7 @@ describe("the RNL symbol list", () => {
   it("draws with the standard series 0.4 each part it has a symbol for", () => {
     for (const [symbolId, symbol, pkg] of [
       ["crystal", "$CRYSTAL", "rnl-std-basic"],
+      ["transmission-line", "$TRANSMISSION_LINE", "rnl-std-basic"],
       ["polarized-capacitor", "$POLARIZED_CAPACITOR", "rnl-std-basic"],
       ["led", "$LED", "rnl-std-semiconductors"],
       ["schottky-diode", "$SCHOTTKY_DIODE", "rnl-std-semiconductors"],

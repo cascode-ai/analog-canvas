@@ -159,6 +159,31 @@ function potentiometerModel(target: string): BehavioralModel {
 }
 
 /**
+ * A lossless transmission line between port 1 (p1, n1) and port 2 (p2, n2),
+ * of characteristic impedance z0 and delay td: SPICE `T`, Spectre `tline`.
+ */
+function transmissionLineModel(target: string): BehavioralModel {
+  const ports = builtInModelContract(target)?.ports ?? [];
+  const nodes = ports.map((port) => port.name) as [
+    string,
+    string,
+    string,
+    string,
+  ];
+  return {
+    name: target,
+    ports: nodes,
+    comment: "Transmission line: lossless, impedance z0, delay td",
+    parameters: Object.entries(builtInModelDefaults(target)).map(
+      ([name, defaultValue]) => ({ name, defaultValue }),
+    ),
+    elements: [
+      { kind: "transmission-line", name: "T1", nodes, z0: "z0", td: "td" },
+    ],
+  };
+}
+
+/**
  * One family dispatch; printers never own model equations or defaults.
  * `ports` prints the same body with its ports in another order (see
  * `withBodyPortOrder`); its elements name ports, never positions. `name`
@@ -189,7 +214,9 @@ function familyDefinition(target: string): BehavioralModel {
   if (model?.family === "passive")
     return model.implementation === "crystal"
       ? crystalModel(target)
-      : potentiometerModel(target);
+      : model.implementation === "transmission-line"
+        ? transmissionLineModel(target)
+        : potentiometerModel(target);
   throw new Error(`No generated behavioral model: ${target}`);
 }
 

@@ -1223,6 +1223,24 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
       "04288eb964236b39a10bd9392e3930ee68bcc208a0aa9be4a24fbbb9c42b357d",
   },
   {
+    symbolId: "transmission-line",
+    name: "Transmission Line",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A transmission line does not appear on the reviewed page; it is drawn as RF figures draw a coaxial line, a cylinder whose open end shows its face, the signal conductors P1 and P2 entering its ends and the return conductors N1 and N2 leaving its shield below.",
+    pinOrder: ["P1", "N1", "P2", "N2"],
+    drawnReferencePrefix: "T",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Prints as a call of the generated body, one lossless SPICE T line (Spectre tline) of characteristic impedance z0 and delay td across its two ports.",
+    assetPath: "transmission-line.json",
+    assetHash:
+      "b87bf21015bfb92a4d407c15a7c6a0e601f4d0adcfdd35775f3da86f9e0384b2",
+  },
+  {
     symbolId: "inverter",
     name: "Inverter",
     category: "logic",
@@ -11923,6 +11941,202 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
         fill: "foreground",
         stroke: "none",
         part: "center-tap-junction",
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "transmission-line",
+    name: "Transmission Line",
+    viewBox: {
+      x: -44,
+      y: -14,
+      width: 88,
+      height: 38,
+    },
+    pins: [
+      {
+        name: "P1",
+        role: "passive",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "N1",
+        role: "passive",
+        at: {
+          x: -20,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "P2",
+        role: "passive",
+        at: {
+          x: 40,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "N2",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 20,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "path",
+        data: "M -20 -10 C -17.791 -10 -16 -5.523 -16 0 C -16 5.523 -17.791 10 -20 10 C -22.209 10 -24 5.523 -24 0 C -24 -5.523 -22.209 -10 -20 -10 Z",
+        bounds: {
+          x: -24,
+          y: -10,
+          width: 8,
+          height: 20,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: -10,
+        },
+        to: {
+          x: 20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 10,
+        },
+        to: {
+          x: 20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 20 -10 C 22.209 -10 24 -5.523 24 0 C 24 5.523 22.209 10 20 10",
+        bounds: {
+          x: 20,
+          y: -10,
+          width: 4,
+          height: 20,
+        },
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -24,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 24,
+          y: 0,
+        },
+        to: {
+          x: 40,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 10,
+        },
+        to: {
+          x: -20,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 20,
+          y: 10,
+        },
+        to: {
+          x: 20,
+          y: 20,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
       },
     ],
     variants: [],

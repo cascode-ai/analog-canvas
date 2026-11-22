@@ -314,7 +314,7 @@
     "symbol": "$TRANSMISSION_LINE",
     "definition": null,
     "package": "rnl-std-basic",
-    "ac": null,
+    "ac": "transmission-line",
     "variant": null,
     "orient": "R0",
     "terminals": [
@@ -340,11 +340,28 @@
       }
     ],
     "offset": [0, 0],
-    "pins": [],
+    "pins": [
+      {
+        "terminal": 1,
+        "name": "p1",
+        "ac_pin": "P1",
+        "at": [-4, 0],
+        "dir": 180
+      },
+      {
+        "terminal": 2,
+        "name": "n1",
+        "ac_pin": "N1",
+        "at": [-2, -2],
+        "dir": 270
+      },
+      { "terminal": 3, "name": "p2", "ac_pin": "P2", "at": [4, 0], "dir": 0 },
+      { "terminal": 4, "name": "n2", "ac_pin": "N2", "at": [2, -2], "dir": 270 }
+    ],
     "undrawn_pins": [],
-    "box": null,
-    "ac_netlist_order": null,
-    "note": "新画：AC 没有。T（无损）、O（有损）"
+    "box": [-4.4, -2.4, 4.4, 1.4],
+    "ac_netlist_order": ["p1", "n1", "p2", "n2"],
+    "note": "AC 印成子电路 transmission_line（无损 T，Spectre tline），端口顺序 P1 N1 P2 N2；有损 O 不画"
   },
   {
     "symbol": "$RC_LINE",

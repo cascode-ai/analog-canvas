@@ -18,6 +18,16 @@ export type BehavioralElement =
       nodes: readonly [string, string];
       value: string;
       expression?: boolean;
+    }
+  | {
+      /** A lossless line: SPICE `T`, Spectre `tline`; VACASK has none. */
+      kind: "transmission-line";
+      name: string;
+      /** Port 1's two nodes, then port 2's. */
+      nodes: readonly [string, string, string, string];
+      /** Parameter names of its impedance and delay. */
+      z0: string;
+      td: string;
     };
 
 export interface BehavioralModel {
@@ -68,6 +78,8 @@ export function printSpiceBehavioralModel(model: BehavioralModel): string[] {
     `.subckt ${model.name} ${model.ports.join(" ")} params: ${model.parameters.map((p) => `${p.name}=${p.defaultValue}`).join(" ")}`,
     ...model.elements.map((element) => {
       const prefix = `${element.name} ${element.nodes.join(" ")}`;
+      if (element.kind === "transmission-line")
+        return `${prefix} Z0={${element.z0}} TD={${element.td}}`;
       return element.kind === "voltage" || element.kind === "current"
         ? `${prefix} ${element.kind === "voltage" ? "V" : "I"}={${element.expression}}`
         : `${prefix} ${element.expression ? `{${element.value}}` : element.value}`;
@@ -88,6 +100,8 @@ export function printSpectreBehavioralModel(model: BehavioralModel): string[] {
       : []),
     ...model.elements.map((element) => {
       const prefix = `${element.name} (${element.nodes.join(" ")})`;
+      if (element.kind === "transmission-line")
+        return `${prefix} tline z0=${element.z0} td=${element.td}`;
       return element.kind === "voltage" || element.kind === "current"
         ? `${prefix} bsource ${element.kind === "voltage" ? "v" : "i"}=${projectBehavioralExpression(element.expression, (value) => value)}`
         : `${prefix} ${element.kind} ${PASSIVE_VALUE[element.kind]}=${element.value}`;

@@ -46,6 +46,7 @@ const PRODUCT_IDS = [
   "tcoil",
   "xfmr",
   "center-tap-inductor",
+  "transmission-line",
   "inverter",
   "microphone",
   "ammeter",

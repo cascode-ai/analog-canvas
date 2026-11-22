@@ -181,8 +181,8 @@ the RNL language and its runtime belong to rnl.
   apart on import. Default circle appearances export as `$CANVAS_*_CIRCLE`
   from `analog-canvas-extensions`. Both preserve their appearance, pin
   positions and control connections through import.
-- The standard series' own symbols draw the crystal (`$CRYSTAL`, on the call
-  of its body), the polarized capacitor, photoresistor and speaker (C and R
+- The standard series' own symbols draw the crystal (`$CRYSTAL`) and the
+  transmission line (`$TRANSMISSION_LINE`), each on the call of its body, the polarized capacitor, photoresistor and speaker (C and R
   cards), LED and Schottky diode (D cards), microphone, sine and pulse voltage
   sources and ammeter (V cards), the Shockley diode, PUT, UJT and
   potentiometer (calls of their bodies), the chopper (`$CHOPPER_SYMBOL`) and

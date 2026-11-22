@@ -359,7 +359,11 @@ export function printVacaskWithLocations(
       for (const element of generatedBehavioralDefinition(
         definitionBody(definition),
       ).elements)
-        if (element.kind !== "voltage" && element.kind !== "current")
+        if (
+          element.kind === "resistor" ||
+          element.kind === "capacitor" ||
+          element.kind === "inductor"
+        )
           classes.add(element.kind);
     }
   }
@@ -665,6 +669,18 @@ export function printVacaskWithLocations(
     )
       continue;
     if (definition.kind === "behavioral") {
+      const body = definitionBody(definition);
+      if (builtInModelContract(body)?.backends.vacask === "unsupported") {
+        report(
+          ir.topCellId,
+          undefined,
+          new ProjectionError(
+            "VACASK_UNSUPPORTED_DEVICE",
+            `VACASK has no device for ${body}; simulate it with ngspice.`,
+          ),
+        );
+        continue;
+      }
       for (const line of nativeBehavioralModel(
         definitionBody(definition),
         (raw) => vacaskProjectValue(raw),

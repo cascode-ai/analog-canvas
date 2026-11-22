@@ -155,6 +155,7 @@ their IDs, never resolved to the first.
   | `dac-differential`                                                         | `IN`, `OUT+`, `OUT-`                                                                |
   | `d-flip-flop`, `-q`, `-reset`                                              | `D`, `CK`, `Q`, `QBAR` where drawn, `RST` for reset                                 |
   | `crystal`                                                                  | `1`, `2`                                                                            |
+  | `transmission-line`                                                        | `P1`, `N1`, `P2`, `N2`                                                              |
   | `tcoil`, `center-tap-inductor`                                             | `1`, `2`, `3`                                                                       |
   | `xfmr`                                                                     | `P+`, `P-`, `S+`, `S-`                                                              |
   | `chopper`                                                                  | `INP`, `INN`, `OUTP`, `OUTN`, plus `CK` for the clock its label names unless global |
@@ -210,6 +211,10 @@ their IDs, never resolved to the first.
 - Adder: `signA`/`signB` `"-"` (default `"+"`; `−` stored as `-`) subtracts that
   input, drawn ±, netlisted `adder_minus_b` (`_a`, `_ab`). V_hold − V_DAC is one
   adder with `signB:"-"`, never an undrawn −1 gain block.
+- Transmission line (`transmission-line`, drawn T1): lossless, port 1 `P1`/`N1`,
+  port 2 `P2`/`N2` (tie `N1`/`N2` to ground for a line over a shared
+  reference); `z0` (`"50"`), `td` (`"1n"`; from frequency and electrical
+  length `td:"{0.25/1G}"`). SPICE `T`, Spectre `tline`; VACASK has none.
 - `set-terminal-net {target, pin, net}` sets a terminal no pin of the part's
   symbol draws, as its Properties row does: a block's or Circuit Component's
   `VDD`/`VSS` (fixes `MISSING_BLOCK_SUPPLY`), a SKY130 substrate (`B`, `SUB`,
