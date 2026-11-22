@@ -1,7 +1,12 @@
 import {
   deviceDescriptor,
   GENERIC_MODEL_TARGETS,
+  GPDK045_CORNERS,
+  GPDK045_MOS_MODELS,
+  gpdk045MosGeometry,
+  gpdk045MosType,
   ICS55_MOS_MODELS,
+  type Gpdk045Corner,
   LIBRARY_PROCESS,
   reviewedExternalDeviceBindings,
   reviewedExternalBindingForMaster,
@@ -11,6 +16,7 @@ export const NETLIST_PROFILE_IDS = [
   "sky130",
   "sg13g2",
   "ics55",
+  "gpdk045",
   "custom",
 ] as const;
 export type NetlistProfileId = (typeof NETLIST_PROFILE_IDS)[number];
@@ -19,6 +25,7 @@ export const NETLIST_PROFILE_LABELS = {
   sky130: "SKY130",
   sg13g2: "IHP SG13G2",
   ics55: "ICsprout55 (ICS55)",
+  gpdk045: "GPDK045",
   custom: "Custom",
 } as const;
 export const NETLIST_QUICK_TARGET_FAMILIES = [
@@ -111,6 +118,14 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
     capacitor: [""],
     inductor: [""],
   },
+  gpdk045: {
+    ...GPDK045_MOS_MODELS,
+    npn: [GENERIC_MODEL_TARGETS.npn],
+    pnp: [GENERIC_MODEL_TARGETS.pnp],
+    resistor: [""],
+    capacitor: [""],
+    inductor: [""],
+  },
   custom: {
     npn: [
       GENERIC_MODEL_TARGETS.npn,
@@ -135,6 +150,7 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__nfet_20v0_zvt",
       ...SG13G2_QUICK_TARGETS.sg13g2.nmos,
       ...ICS55_MOS_MODELS.nmos,
+      ...GPDK045_MOS_MODELS.nmos,
     ],
     pmos: [
       "PMOS",
@@ -146,6 +162,7 @@ export const NETLIST_DEVICE_TARGET_OPTIONS: Readonly<
       "sky130_fd_pr__pfet_20v0",
       ...SG13G2_QUICK_TARGETS.sg13g2.pmos,
       ...ICS55_MOS_MODELS.pmos,
+      ...GPDK045_MOS_MODELS.pmos,
     ],
     resistor: [
       ...SKY130_QUICK_TARGETS.sky130.resistor,
@@ -184,10 +201,25 @@ export interface NetlistDeviceDefaults {
   /** Default for new property-only substrate terminals; existing nets win. */
   substrate: string;
 }
+/**
+ * Where a Spectre netlist finds the Process's own model library, written as
+ * `include "<directory>/gpdk045.scs" section=<corner>`. Only GPDK045 has one:
+ * its models are licensed, so the directory is the reader's own.
+ */
+export interface NetlistModelLibrary {
+  directory: string;
+  corner: Gpdk045Corner;
+}
 export interface NetlistExportProfile {
   id: NetlistProfileId;
   devices: Record<NetlistDeviceFamily, NetlistDeviceDefaults>;
+  models?: NetlistModelLibrary;
 }
+/** Until the reader names the directory holding the kit's `gpdk045.scs`. */
+export const GPDK045_DEFAULT_MODELS: NetlistModelLibrary = {
+  directory: "<models>",
+  corner: "tt",
+};
 
 const GENERIC_TARGETS: Partial<Record<NetlistDeviceFamily, string>> = {
   ...GENERIC_MODEL_TARGETS,
@@ -282,6 +314,10 @@ export function createNetlistExportProfile(
     sky130: SKY130_TARGETS,
     sg13g2: SG13G2_TARGETS,
     ics55: { nmos: ICS55_MOS_MODELS.nmos[0], pmos: ICS55_MOS_MODELS.pmos[0] },
+    gpdk045: {
+      nmos: GPDK045_MOS_MODELS.nmos[0],
+      pmos: GPDK045_MOS_MODELS.pmos[0],
+    },
   }[id];
   const devices = Object.fromEntries(
     NETLIST_DEVICE_FAMILIES.map((family) => {
@@ -306,6 +342,12 @@ export function createNetlistExportProfile(
           delete parameters.m;
           delete parameters.nf;
         }
+        // The kit CDF's defaults for its 1 V core devices.
+        if (id === "gpdk045")
+          Object.assign(
+            parameters,
+            gpdk045MosGeometry(foundryTargets?.[family] ?? ""),
+          );
       }
       if (family === "voltage-source") parameters.dc = "1.8";
       if (family === "current-source") parameters.dc = "100u";
@@ -336,6 +378,7 @@ export function createNetlistExportProfile(
   return {
     id,
     devices,
+    ...(id === "gpdk045" ? { models: { ...GPDK045_DEFAULT_MODELS } } : {}),
   };
 }
 
@@ -355,6 +398,9 @@ export function setNetlistDefaultTarget(
     : createNetlistExportProfile(target ? profile.id : "abstract").devices[
         family
       ].parameters;
+  // A 2 V GPDK045 device starts from its own CDF geometry, not the 1 V one.
+  if (profile.id === "gpdk045" && gpdk045MosType(target) === family)
+    Object.assign(next.devices[family].parameters, gpdk045MosGeometry(target));
   return next;
 }
 
@@ -367,6 +413,18 @@ export function isNetlistExportProfile(
   const text = (v: unknown) =>
     typeof v === "string" && v.length <= 1024 && !/[\r\n\0]/u.test(v);
   if (!(NETLIST_PROFILE_IDS as readonly unknown[]).includes(p.id)) return false;
+  if (
+    p.models !== undefined &&
+    !(
+      p.id === "gpdk045" &&
+      typeof p.models === "object" &&
+      text(p.models.directory) &&
+      p.models.directory.trim() &&
+      !p.models.directory.includes('"') &&
+      (GPDK045_CORNERS as readonly unknown[]).includes(p.models.corner)
+    )
+  )
+    return false;
   return NETLIST_DEVICE_FAMILIES.every((family) => {
     const rule = p.devices?.[family];
     return (

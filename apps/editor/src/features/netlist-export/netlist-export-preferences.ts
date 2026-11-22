@@ -79,6 +79,7 @@ function migrateStoredNetlistExportPreferences(raw: string): string {
   // without discarding any edited legacy profile or its selected preset.
   profiles.sg13g2 ??= createNetlistExportProfile("sg13g2");
   profiles.ics55 ??= createNetlistExportProfile("ics55");
+  profiles.gpdk045 ??= createNetlistExportProfile("gpdk045");
   // TSMC 28 and TSMC 180 are retired, as they are not open processes; one
   // still remembered reads as Custom. Custom takes that process's templates while
   // it is the untouched default, so new parts keep the models their author

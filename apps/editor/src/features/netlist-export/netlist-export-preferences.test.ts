@@ -90,6 +90,7 @@ describe("netlist authoring preferences", () => {
       "sky130",
       "sg13g2",
       "ics55",
+      "gpdk045",
       "custom",
     ]);
   });
@@ -129,6 +130,7 @@ describe("netlist authoring preferences", () => {
       "sky130",
       "sg13g2",
       "ics55",
+      "gpdk045",
       "custom",
     ]);
     expect(restored.profiles.custom.id).toBe("custom");
@@ -169,18 +171,53 @@ describe("netlist authoring preferences", () => {
         }),
       ),
     ).toThrow(
-      "selected must be one of: abstract, sky130, sg13g2, ics55, custom.",
+      "selected must be one of: abstract, sky130, sg13g2, ics55, gpdk045, custom.",
     );
+  });
+
+  it("keeps GPDK045's model library as the reader names it, and refuses another", () => {
+    const saved = createDefaultNetlistExportPreferences();
+    saved.profiles.gpdk045.models = {
+      directory: "/cadence/gpdk045_v_6_0/models/spectre",
+      corner: "ff",
+    };
+    expect(readNetlistExportPreferences(JSON.stringify(saved))).toEqual(saved);
+    for (const models of [
+      { directory: "/pdk", corner: "mc" },
+      { directory: 'a" section=ss', corner: "tt" },
+      { directory: " ", corner: "tt" },
+    ]) {
+      const pasted = structuredClone(saved);
+      pasted.profiles.gpdk045.models = models as never;
+      expect(() =>
+        parseNetlistExportPreferences(JSON.stringify(pasted)),
+      ).toThrow("Keep every preset");
+    }
+    const elsewhere = structuredClone(saved);
+    elsewhere.profiles.sky130.models = { directory: "/pdk", corner: "tt" };
+    expect(() =>
+      parseNetlistExportPreferences(JSON.stringify(elsewhere)),
+    ).toThrow("Keep every preset");
   });
 
   it("adds the IHP SG13G2 template to preferences saved before it existed", () => {
     const saved = createDefaultNetlistExportPreferences();
-    const { sg13g2: _ihp, ics55: _ics55, ...older } = saved.profiles;
+    const {
+      sg13g2: _ihp,
+      ics55: _ics55,
+      gpdk045: _gpdk045,
+      ...older
+    } = saved.profiles;
     const restored = readNetlistExportPreferences(
       JSON.stringify({ ...saved, selected: "sky130", profiles: older }),
     );
     expect(restored.selected).toBe("sky130");
     expect(restored.profiles.ics55.devices.pmos.target).toBe("pm1p2_svt_lp");
+    expect(restored.profiles.gpdk045.devices.nmos.target).toBe("nmos1v");
+    expect(restored.profiles.gpdk045.models).toEqual({
+      directory: "<models>",
+      corner: "tt",
+    });
     expect(restored.profiles.sg13g2.devices.nmos.target).toBe("sg13_lv_nmos");
     expect(restored.profiles.sg13g2.devices.npn.target).toBe("npn13G2");
     expect(restored.profiles.sg13g2.devices.nmos.parameters).toMatchObject({

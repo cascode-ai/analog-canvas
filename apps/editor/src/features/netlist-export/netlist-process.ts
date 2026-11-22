@@ -1,6 +1,8 @@
 import {
   createReferenceIndex,
   deviceDescriptor,
+  gpdk045MosGeometry,
+  gpdk045MosType,
   ics55MosType,
   referenceIssuesForInstance,
   reviewedExternalBindingForMaster,
@@ -17,14 +19,17 @@ import {
   type SchematicEdit,
 } from "@icm/edit-engine";
 import { deriveStableId, type CircuitProject, type Instance } from "@icm/model";
+import type { NetlistFormat } from "@icm/netlist";
 import {
   createNetlistExportProfile,
+  GPDK045_DEFAULT_MODELS,
   NETLIST_DEVICE_TARGET_OPTIONS,
   NETLIST_HIGH_VOLTAGE_TARGETS,
   NETLIST_QUICK_TARGET_FAMILIES,
   netlistDeviceFamily,
   processOwnDevice,
   type NetlistExportProfile,
+  type NetlistModelLibrary,
   type NetlistProfileId,
   type NetlistDeviceFamily,
   type NetlistQuickTargetFamily,
@@ -103,14 +108,42 @@ export function inferNetlistProcess(
   );
   if (!targets.length) return fallback;
   return (
-    (["abstract", "sky130", "sg13g2", "ics55"] as const).find((id) =>
+    (["abstract", "sky130", "sg13g2", "ics55", "gpdk045"] as const).find((id) =>
       targets.every(({ family, target }) =>
-        id === "ics55"
-          ? ics55MosType(target) === family
+        id === "ics55" || id === "gpdk045"
+          ? namedMosType(id, target) === family
           : NETLIST_DEVICE_TARGET_OPTIONS[id][family].includes(target),
       ),
     ) ?? "custom"
   );
+}
+
+/** A Process whose MOS names say their channel, in any case. */
+function namedMosType(process: "ics55" | "gpdk045", target: string) {
+  return process === "ics55" ? ics55MosType(target) : gpdk045MosType(target);
+}
+
+/**
+ * The model library a Spectre netlist of a GPDK045 Project includes, from
+ * the reader's own GPDK045 settings (defaults where none are given); none
+ * for SPICE, whose files cannot read the kit's Spectre models, or for any
+ * other Process.
+ */
+export function netlistModelInclude(
+  project: CircuitProject,
+  format: NetlistFormat,
+  models: NetlistModelLibrary = GPDK045_DEFAULT_MODELS,
+): { path: string; section: string } | undefined {
+  if (
+    format !== "spectre" ||
+    inferNetlistProcess(project, "custom") !== "gpdk045"
+  )
+    return undefined;
+  const { directory, corner } = models;
+  return {
+    path: `${directory.replace(/\/+$/u, "")}/gpdk045.scs`,
+    section: corner,
+  };
 }
 
 /**
@@ -147,7 +180,7 @@ export function placementModelTarget(
 }
 
 function fitsPrimitiveMos(target: string, symbolId: string): boolean {
-  const channel = ics55MosType(target);
+  const channel = ics55MosType(target) ?? gpdk045MosType(target);
   return channel === undefined || channel === symbolId;
 }
 
@@ -445,19 +478,27 @@ export function planNetlistProcess(
         (drawn === "ndmos" || drawn === "pdmos")
           ? NETLIST_HIGH_VOLTAGE_TARGETS[profile.id]?.[drawn]
           : undefined;
-      // A whole-process read keeps the threshold mix of an ICS55 Cell.
+      // A whole-process read keeps the threshold and oxide mix of an ICS55
+      // or GPDK045 Cell.
       const keepVariant =
-        profile.id === "ics55" &&
+        (profile.id === "ics55" || profile.id === "gpdk045") &&
         !options.family &&
-        ics55MosType(originalTarget) === family;
+        namedMosType(profile.id, originalTarget) === family;
       const target = keepVariant
         ? originalTarget
         : (own ?? highVoltage ?? rule.target);
       if (!fits(target)) continue;
       const reviewed = reviewedExternalBindingForMaster(target, drawn);
-      // A high-voltage device brings its own geometry, not the family's.
+      // A high-voltage device brings its own geometry, not the family's; a
+      // GPDK045 device other than the family's, its own CDF geometry.
       const familyDefaults: Readonly<Record<string, string>> =
-        highVoltage || own ? {} : rule.parameters;
+        highVoltage || own
+          ? {}
+          : profile.id === "gpdk045" &&
+              target !== rule.target &&
+              gpdk045MosType(target) === family
+            ? { ...rule.parameters, ...gpdk045MosGeometry(target) }
+            : rule.parameters;
       if (!original.netlist)
         transact(documentId, [
           {

@@ -1,4 +1,5 @@
 export * from "./contract.js";
+export * from "./gpdk045.js";
 export * from "./ics55.js";
 export * from "./registry.js";
 export * from "./reference.js";

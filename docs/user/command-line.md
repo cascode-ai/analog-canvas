@@ -39,7 +39,7 @@ node canvas-local.mjs netlist cs
 refused. A refused file changes nothing, and `apply` stops there. `png`
 writes `cs/schematic.png`, `svg` writes `cs/schematic.svg`, `netlist` writes
 `cs/netlist.sp`; give a path to write elsewhere. `netlist --format spectre`
-writes Spectre; `--process abstract|sky130|sg13g2|ics55` writes that Process
+writes Spectre; `--process abstract|sky130|sg13g2|ics55|gpdk045` writes that Process
 without changing the Project. A blocked netlist lists each reason and writes
 nothing. PDF needs the web editor.
 

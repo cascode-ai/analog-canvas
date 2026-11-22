@@ -81,7 +81,7 @@ Request `{ text, source, target, fragment }`; `source`/`target` are `spice`,
     library section or in a section some include selects, and a caller's
     device types, classify every file's calls; a card in an unselected section
     declares and types nothing.
-  - Exact [ICS55 MOS names](netlist-export.md#process-configuration) with no
+  - Exact [ICS55 and GPDK045 MOS names](netlist-export.md#process-configuration) with no
     overriding declaration or explicit call binding identify four-terminal MOS devices.
     Any other unrecognized master is a call of it, whatever its instance's first
     letter, keeping ordered ports, parameters as written and its Spectre name

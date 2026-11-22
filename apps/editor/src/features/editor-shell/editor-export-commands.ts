@@ -73,17 +73,21 @@ export function planDesignNetlistExport({
   namingProfile = "native",
   electricalWarningsPresent = false,
   rootDocumentId,
+  modelInclude,
 }: {
   format: NetlistFormat;
   project: CircuitProject;
   namingProfile?: NetlistNamingProfile;
   electricalWarningsPresent?: boolean;
   rootDocumentId?: string;
+  /** The Process's model library a Spectre file includes (GPDK045). */
+  modelInclude?: { path: string; section?: string } | undefined;
 }): DesignNetlistExportPlan {
   const result = createDesignNetlistExport(project, {
     format,
     namingProfile,
     ...(rootDocumentId ? { rootDocumentId } : {}),
+    ...(modelInclude ? { modelInclude } : {}),
   });
   if (result.status === "blocked") {
     return {

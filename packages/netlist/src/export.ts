@@ -247,6 +247,11 @@ export function createDesignNetlistExport(
      * source did; a netlist handed out to run keeps refusing.
      */
     callsWithoutBodies?: boolean;
+    /**
+     * A Process's own model library, as `include "<path>" section=<section>`
+     * after `simulator lang=spectre` (GPDK045). Spectre only; SPICE ignores it.
+     */
+    modelInclude?: { path: string; section?: string } | undefined;
   } = {},
 ): DesignNetlistExportResult {
   const format = options.format ?? "spice";
@@ -322,6 +327,14 @@ export function createDesignNetlistExport(
   // the first directive intact when this structural file is used as an entry.
   file.text = file.text.slice(file.text.indexOf("\n") + 1).trimStart();
   if (format === "spice") file.text = `\n${file.text}`;
+  else if (options.modelInclude) {
+    // Its first line is `simulator lang=spectre`, which carries no field.
+    const { path, section } = options.modelInclude;
+    const after = file.text.indexOf("\n") + 1;
+    file.text = `${file.text.slice(0, after)}include ${JSON.stringify(path)}${
+      section ? ` section=${section}` : ""
+    }\n${file.text.slice(after)}`;
+  }
   const shift = file.text.length - originalLength;
   const composed = appendProjectModelSources(file.text, models.sources, format);
   const cards = sourceModelCards(project, ir, models.sources, format);
