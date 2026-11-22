@@ -103,9 +103,9 @@ export async function routeRegionalLikeActions(
       const commandId =
         request.headers.get("idempotency-key") ?? crypto.randomUUID();
       if (!validId(commandId)) return fail("invalid-command-id", 400);
-      const input = request.body
-        ? ((await readSyncJson(request, 8192)) as { command?: unknown } | null)
-        : null;
+      const input = (await readSyncJson(request, 8192, {
+        allowEmpty: true,
+      })) as { command?: unknown } | null;
       if (input?.command !== undefined && !match![2]) {
         const supplied = readCommand(input.command);
         if (

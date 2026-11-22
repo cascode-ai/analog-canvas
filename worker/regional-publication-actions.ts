@@ -238,10 +238,16 @@ export async function routeRegionalPublicationActions(
           ? await ownerTokenUserOf(request, env)
           : await sessionUserOf(request, env);
       if (!user) return fail("unauthorized", 401);
+      // The two bodyless operations admitted by entryFor.
+      const allowEmpty =
+        request.method === "DELETE" ||
+        (request.method === "POST" && url.pathname.endsWith("/restore"));
       const body =
         request.body === null
           ? null
-          : await readSyncJson(request, batch && !singleItem ? MAX * 10 : MAX);
+          : await readSyncJson(request, batch && !singleItem ? MAX * 10 : MAX, {
+              allowEmpty,
+            });
       if (batch && !singleItem) {
         if (!user.isOwner) return fail("owner-only", 403);
         const items = (body as Record<string, unknown> | null)?.[batch.field];

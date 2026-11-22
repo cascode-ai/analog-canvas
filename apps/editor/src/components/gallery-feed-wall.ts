@@ -20,7 +20,7 @@ import {
   type GalleryQuickFilterCounts,
   type GalleryTagSummary,
 } from "../gallery-client";
-import { isRequestFailure } from "../request-failure";
+import { isRequestFailure, requestFailureOf } from "../request-failure";
 import { requestSignIn } from "./sign-in-request";
 
 /**
@@ -146,6 +146,7 @@ export function useGalleryWall({
   searchQuery,
   serverSearch,
   likedOnly,
+  reportLikeFailure,
 }: {
   active: boolean;
   preload: GalleryLandingPreload | undefined;
@@ -153,6 +154,7 @@ export function useGalleryWall({
   searchQuery: string;
   serverSearch: string;
   likedOnly: boolean;
+  reportLikeFailure: (message: string | null) => void;
 }) {
   const [tagOptions, setTagOptions] = useState<
     { tag: string; count: number }[]
@@ -244,10 +246,13 @@ export function useGalleryWall({
    * cannot drift apart.
    */
   async function toggleLike(entryId: string, take = false): Promise<void> {
+    const failure = "Could not confirm the like. Try again.";
+    reportLikeFailure(null);
     let response: Response;
     try {
       response = await galleryLikeRequest(entryId, take);
     } catch {
+      reportLikeFailure(failure);
       return;
     }
     // Signed out: the header's sign-in choices, every way this site offers,
@@ -256,12 +261,18 @@ export function useGalleryWall({
       requestSignIn();
       return;
     }
-    if (!response.ok) return;
+    if (!response.ok) {
+      reportLikeFailure((await requestFailureOf(response, failure)).message);
+      return;
+    }
     const result = (await response.json().catch(() => null)) as {
       likes?: number;
       likedByViewer?: boolean;
     } | null;
-    if (!result) return;
+    if (!result) {
+      reportLikeFailure(failure);
+      return;
+    }
     setState((previous) =>
       withGalleryLike(previous, entryId, result, likedOnly),
     );

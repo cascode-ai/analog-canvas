@@ -326,6 +326,8 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
   `?take=1` (⌥-click), the last taking the like away; `likes` counts hearts.
   A signed-out like or Publish opens the header's sign-in choices (every
   method the site offers, regional login included), never one provider.
+  When a like or unlike fails, the Gallery shows the failure and keeps its
+  displayed count until a confirmed result or a refreshed entry arrives.
 - Withdraw is immediate and restorable; Reject takes preset reasons plus a note
   and, ticked by default, emails the author that reason (the account's address,
   else the one it published with; replies to the Owner; never an AI account);

@@ -225,6 +225,20 @@ export function GalleryFeed({
     };
   }, []);
 
+  // Actions share the notice over the wall so the latest result is visible.
+  const [notice, setNotice] = useState<{
+    source: "like" | "owner";
+    ok: boolean;
+    text: string;
+  } | null>(null);
+  useEffect(() => {
+    if (notice?.source !== "owner") return;
+    const timer = window.setTimeout(() => {
+      setNotice((current) => (current === notice ? null : current));
+    }, 8_000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
   const {
     tagOptions,
     tagGroupCounts,
@@ -248,13 +262,18 @@ export function GalleryFeed({
     searchQuery,
     serverSearch,
     likedOnly,
+    reportLikeFailure(message) {
+      if (message !== null) {
+        setNotice({ source: "like", ok: false, text: message });
+      } else {
+        setNotice((current) => (current?.source === "like" ? null : current));
+      }
+    },
   });
   const {
     duplicateReport,
     setDuplicateReport,
     ownerBusy,
-    ownerNotice,
-    setOwnerNotice,
     rejecting,
     setRejecting,
     reviewing,
@@ -262,7 +281,11 @@ export function GalleryFeed({
     withdrawEntry,
     rejectEntry,
     verifySimulation,
-  } = useGalleryOwnerTools({ isOwner, removeManagedEntry });
+  } = useGalleryOwnerTools({
+    isOwner,
+    removeManagedEntry,
+    setOwnerNotice: (next) => setNotice(next && { ...next, source: "owner" }),
+  });
 
   function selectAuthor(
     nextAuthor: string | null,
@@ -728,22 +751,26 @@ export function GalleryFeed({
               </div>
             ) : null}
             {datasetWall ? <GallerySourceNote source={datasetWall} /> : null}
-            {ownerNotice ? (
+            {notice ? (
               <aside
                 className="gallery-owner-toast"
-                data-testid="gallery-owner-notice"
-                data-ok={ownerNotice.ok}
+                data-testid={
+                  notice.source === "like"
+                    ? "gallery-like-notice"
+                    : "gallery-owner-notice"
+                }
+                data-ok={notice.ok}
               >
                 <span role="status">
                   <span className="gallery-owner-toast-mark" aria-hidden="true">
-                    {ownerNotice.ok ? "✓" : "!"}
+                    {notice.ok ? "✓" : "!"}
                   </span>{" "}
-                  {ownerNotice.text}
+                  {notice.text}
                 </span>
                 <button
                   type="button"
                   aria-label="Dismiss"
-                  onClick={() => setOwnerNotice(null)}
+                  onClick={() => setNotice(null)}
                 >
                   ×
                 </button>

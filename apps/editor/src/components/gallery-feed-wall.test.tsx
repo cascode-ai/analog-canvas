@@ -26,6 +26,7 @@ it("opens the page's sign-in choices when a signed-out reader likes a circuit (#
       searchQuery: "",
       serverSearch: "",
       likedOnly: false,
+      reportLikeFailure: () => undefined,
     }));
     return null;
   }

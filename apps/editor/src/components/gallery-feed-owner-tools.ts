@@ -3,7 +3,7 @@
  * an entry, queue its simulation check, the duplicate report, and the
  * passing message each one leaves.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   announceGalleryChange,
   type GalleryFeedEntry,
@@ -17,24 +17,15 @@ import { requestFailureOf } from "../request-failure";
 export function useGalleryOwnerTools({
   isOwner,
   removeManagedEntry,
+  setOwnerNotice,
 }: {
   isOwner: boolean;
   removeManagedEntry: (entry: GalleryFeedEntry) => void;
+  setOwnerNotice: (notice: { text: string; ok: boolean } | null) => void;
 }) {
   const [duplicateReport, setDuplicateReport] =
     useState<GalleryDuplicateReport | null>(null);
   const [ownerBusy, setOwnerBusy] = useState<string | null>(null);
-  // A withdraw or reject says how it went in a passing message over the
-  // wall, as Publish does, so the wall never moves (#1504).
-  const [ownerNotice, setOwnerNotice] = useState<{
-    text: string;
-    ok: boolean;
-  } | null>(null);
-  useEffect(() => {
-    if (!ownerNotice) return;
-    const timer = window.setTimeout(() => setOwnerNotice(null), 8_000);
-    return () => window.clearTimeout(timer);
-  }, [ownerNotice]);
   const [rejecting, setRejecting] = useState<GalleryFeedEntry | null>(null);
   const [reviewing, setReviewing] = useState<GalleryFeedEntry | null>(null);
 
@@ -137,8 +128,6 @@ export function useGalleryOwnerTools({
     duplicateReport,
     setDuplicateReport,
     ownerBusy,
-    ownerNotice,
-    setOwnerNotice,
     rejecting,
     setRejecting,
     reviewing,
