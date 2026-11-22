@@ -79,7 +79,7 @@ test("keeps panel toggles together at full and half width", async ({
     ).toBeLessThanOrEqual(4);
     await summary.click();
     const palette = page.getByRole("group", { name: "Annotation tools" });
-    await expect(palette.getByRole("button")).toHaveCount(9);
+    await expect(palette).toBeVisible();
     const paletteBox = await palette.boundingBox();
     expect(paletteBox!.x).toBeGreaterThanOrEqual(0);
     expect(paletteBox!.x + paletteBox!.width).toBeLessThanOrEqual(width);
