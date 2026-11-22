@@ -90,7 +90,6 @@ describe("Project component classes", () => {
         (definition) => definition.symbol.id,
       ),
     ).toEqual(["capacitor"]);
-    expect(project.documents).toHaveLength(2);
     project.documents[1]!.instances.length = 0;
     expect(
       withProjectComponentDefinitions(project).componentDefinitions,

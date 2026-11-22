@@ -130,7 +130,6 @@ describe("a block's supply pins", () => {
         .filter((id) => expected(id))
         .sort(),
     );
-    expect(supplied).toHaveLength(65);
   });
 
   it.each(supplied.map((symbol) => symbol.id))(

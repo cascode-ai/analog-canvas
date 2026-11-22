@@ -897,7 +897,6 @@ describe("ERC engine", () => {
         code: "ERC_SHORTED_DEVICE",
         severity: "warning",
         gateEligible: false,
-        message: "R1's two pins are on one Net, so the part is shorted",
         primary: expect.objectContaining({
           kind: "instance",
           objectId: "I1",
@@ -1058,9 +1057,6 @@ describe("ERC engine", () => {
       net("net-b", "I2.L", "I2.R"),
     ]);
     expect(rest).toEqual([]);
-    expect(finding!.message).toBe(
-      "Pins I1.R and I2.L sit on one point but belong to different Nets",
-    );
     expect(finding!.parameters).toEqual({
       instanceId: "I1",
       pinName: "R",

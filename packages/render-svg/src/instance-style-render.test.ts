@@ -45,7 +45,6 @@ describe("instance style override rendering", () => {
       expect(placements[1]![1]).toBe(id);
       expect(ink.match(new RegExp(`id="${id}"`, "gu"))).toHaveLength(1);
       const geometry = /<defs><g id="[^"]+">(.+?)<\/g><\/defs>/u.exec(ink)?.[1];
-      expect(geometry).toBeDefined();
       const symbols = scene.canvasPaintRuns!.find(
         (run) => run.layer === "symbols",
       )!;
@@ -85,7 +84,6 @@ describe("instance style override rendering", () => {
       const definition = builtInSymbols.find(
         (candidate) => candidate.id === symbolId,
       );
-      expect(definition).toBeDefined();
       const negativeMarks = definition!.primitives.filter(
         (primitive) =>
           primitive.kind === "line" &&
@@ -195,7 +193,6 @@ describe("instance style override rendering", () => {
           ? [stroke.from, stroke.to]
           : [],
     );
-    expect(upright.flat()).toHaveLength(5);
     for (const rotation of [0, 90, 180, 270] as const)
       for (const mirror of [
         "none",

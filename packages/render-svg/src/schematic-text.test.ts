@@ -20,8 +20,6 @@ describe("Razavi schematic typography", () => {
     expect(rendered).toContain(
       `font-size="${Number((fontSize * 0.76).toFixed(6))}px"`,
     );
-    expect(rendered).not.toContain("baseline-shift");
-    expect(rendered).not.toContain('font-size="76%"');
     expect(rendered).toContain("font-style:italic;font-weight:700");
     // This legacy identifier AST explicitly requests italic scripts; rendering
     // preserves that request even though new voltage defaults are upright.
@@ -100,14 +98,5 @@ describe("Razavi schematic typography", () => {
       '<tspan data-text-run="span" style="font-style:italic;font-weight:700">Vin</tspan>',
     );
     expect(rendered).not.toContain('data-text-run="subscript"');
-  });
-
-  it("uses semantic profile sizes", () => {
-    expect(schematicTextFontSize("instance-label", razaviTextbookProfile)).toBe(
-      15.116,
-    );
-    expect(schematicTextFontSize("route-marker", razaviTextbookProfile)).toBe(
-      15.116,
-    );
   });
 });

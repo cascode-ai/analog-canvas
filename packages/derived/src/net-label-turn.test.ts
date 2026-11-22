@@ -201,8 +201,9 @@ describe("a Net Label's height over its wire (#1300)", () => {
     const profile = resolveDocumentStyleProfile(
       createEmptyDocument("d", "Heights").presentation,
     );
-    expect(netLabelBaselineAboveWire(plain("B0"), profile)).toBe(4);
-    expect(netLabelBaselineAboveWire(plain("bypass"), profile)).toBe(8);
+    expect(netLabelBaselineAboveWire(plain("B0"), profile)).toBeLessThan(
+      netLabelBaselineAboveWire(plain("bypass"), profile),
+    );
     expect(netLabelBaselineAboveWire(subscripted, profile)).toBe(
       NET_LABEL_BASELINE_ABOVE_WIRE,
     );

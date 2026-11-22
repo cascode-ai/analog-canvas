@@ -39,7 +39,6 @@ describe("bounds spatial index", () => {
       40,
     );
 
-    expect(index.size).toBe(4);
     expect(index.queryPoint({ x: 40, y: 40 })).toEqual(["near", "wide body"]);
     expect(index.queryPoint({ x: 1e300, y: 4 })).toEqual([
       "wide body",

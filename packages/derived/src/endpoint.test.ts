@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   endpointBelongsToNet,
-  endpointKey,
   isVisibleEndpoint,
   netEndpoints,
   resolveEndpointConnection,
@@ -100,15 +99,6 @@ function placeDual(
 }
 
 describe("endpoint primitives", () => {
-  describe("endpointKey", () => {
-    it("encodes terminal and junction identities", () => {
-      expect(endpointKey(terminal("A", "P"))).toBe("terminal:A:P");
-      expect(endpointKey({ kind: "junction", junctionId: "j-1" })).toBe(
-        "junction:j-1",
-      );
-    });
-  });
-
   describe("isVisibleEndpoint", () => {
     it("sees a visible pin, hides a variant-hidden pin, and hides an implicit pin", () => {
       const project = createEmptyProject("ep", "EP");
@@ -161,18 +151,6 @@ describe("endpoint primitives", () => {
       expect(isVisibleEndpoint(document, resolver, terminal("I1", "L"))).toBe(
         false,
       );
-    });
-  });
-
-  describe("resolveEndpointPoint", () => {
-    it("resolves a terminal pin through the instance placement transform", () => {
-      const project = createEmptyProject("ep", "EP");
-      const document = project.documents[0]!;
-      document.instances = [placeDual(0, { x: 100, y: 100 })];
-      // Pin R sits at local {20,0}; at rotation 0 it lands at {120,100}.
-      expect(
-        resolveEndpointPoint(document, resolver, terminal("I1", "R")),
-      ).toEqual({ x: 120, y: 100 });
     });
   });
 

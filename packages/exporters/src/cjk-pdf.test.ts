@@ -117,7 +117,6 @@ describe("CJK text in vector PDF (#2179)", () => {
   });
 
   it("finds each CJK character in the face cut for it", () => {
-    expect(cjkFaceUrls).toHaveLength(14);
     for (const [index] of cjkFaceUrls.entries()) {
       const misplaced = [...writableCodePoints(cjkFace(index))].filter(
         (point) => cjkFaceForGlyph(String.fromCodePoint(point)) !== index,

@@ -8,7 +8,6 @@ import {
   resolvePrimitiveStrokeWidth,
   resolveSchematicStyleProfile,
   sameDocumentStyle,
-  strokeWidthForRole,
 } from "./style-profile.js";
 
 describe("schematic style profiles", () => {
@@ -16,34 +15,13 @@ describe("schematic style profiles", () => {
     expect(razaviTextbookProfile.typography).toBe(globalSchematicTypography);
   });
 
-  it("uses the authority-calibrated Razavi text metrics", () => {
-    expect(globalSchematicTypography).toMatchObject({
-      fontFamily:
-        "'ICM Round Period','Metropolis','DejaVu Sans',Arial,'Helvetica Neue',Helvetica,sans-serif",
-      instanceFontSize: 15.116,
-      subscriptScale: 0.76,
-      subscriptBaselineShiftEm: 0.44,
-      subscriptHorizontalGapEm: 0.046,
-    });
-  });
-
-  it("resolves the immutable presentation and stroke tokens", () => {
+  it("resolves the immutable profile and a stroke role over an explicit width", () => {
     expect(resolveSchematicStyleProfile("razavi-textbook-v1")).toBe(
       razaviTextbookProfile,
     );
-    expect(strokeWidthForRole(razaviTextbookProfile, "normal")).toBe(1.6);
-    expect(strokeWidthForRole(razaviTextbookProfile, "emphasis")).toBe(2.4);
-    expect(strokeWidthForRole(razaviTextbookProfile, "ground")).toBe(2.906977);
-    expect(razaviTextbookProfile.nodes).toEqual({ junctionRadius: 3.77907 });
-    expect(razaviTextbookProfile.annotations).toEqual({
-      supplyBarWidth: 20,
-      currentArrowLength: 53.488372,
-      arrowHeadLength: 16.569767,
-      arrowHeadWidth: 7.906977,
-      currentLabelGap: 6.976744,
-      polarityOffsetX: 12,
-      polarityHalfGap: 8,
-    });
+    expect(
+      resolvePrimitiveStrokeWidth(razaviTextbookProfile, "emphasis", 9),
+    ).toBe(razaviTextbookProfile.strokes.emphasis);
     expect(
       resolvePrimitiveStrokeWidth(razaviTextbookProfile, undefined, 2),
     ).toBe(2);

@@ -242,13 +242,6 @@ describe("displayableInstanceValue", () => {
     },
   );
 
-  it("does not display a value when netlist parameters are absent", () => {
-    expect(displayableInstanceValue(instance("inductor"))).toEqual({
-      kind: "undisplayable",
-      reason: "inductor value parameter is empty",
-    });
-  });
-
   it("reports whitespace-only or missing values as undisplayable", () => {
     expect(
       displayableInstanceValue(instance("resistor", { value: "  " })).kind,

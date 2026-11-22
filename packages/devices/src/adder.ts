@@ -20,7 +20,7 @@ export type InputSign = "+" | "-";
  * The minus sign, U+2212, as typeset text and #1324 spell it. A sign typed
  * so means `-`, and is stored as `-`.
  */
-export const UNICODE_MINUS = "\u2212";
+const UNICODE_MINUS = "\u2212";
 
 /**
  * The adder's inputs, each with the parameter that signs it. The signs are

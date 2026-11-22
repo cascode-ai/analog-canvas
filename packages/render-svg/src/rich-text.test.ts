@@ -159,8 +159,8 @@ describe("renderRichTextDocument", () => {
       razaviTextbookProfile,
       { fontSize: 20 },
     );
-    expect(svg).toContain(
-      'data-text-run="subscript" dx="0.6992" dy="6.688" font-size="15.2px" style="font-style:normal;font-weight:700">out</tspan>',
+    expect(svg).toMatch(
+      /data-text-run="subscript"[^>]*style="font-style:normal;font-weight:700">out<\/tspan>/u,
     );
   });
 

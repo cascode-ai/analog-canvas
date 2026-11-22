@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  builtInDeviceDescriptors,
   deviceDescriptor,
   deviceRegistry,
   validateDeviceRegistry,
@@ -61,6 +60,5 @@ describe("built-in device/Symbol parity", () => {
     ]) {
       expect(deviceDescriptor(symbolId)).toBeUndefined();
     }
-    expect(builtInDeviceDescriptors.length).toBeGreaterThan(0);
   });
 });

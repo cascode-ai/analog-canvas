@@ -309,7 +309,7 @@ export function sameDocumentStyle(
   );
 }
 
-export function strokeWidthForRole(
+function strokeWidthForRole(
   profile: SchematicStyleProfile,
   role: SymbolStrokeRole,
 ): number {

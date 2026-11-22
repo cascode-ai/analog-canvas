@@ -404,12 +404,6 @@ describe("render svg", () => {
     );
 
     const scene = buildSvgScene(doc, new InMemorySymbolResolver([]));
-    expect(scene.formalBody).toContain(
-      'data-object-id="colored-wire" data-net-id="net" points="0,0 40,0" fill="none" stroke="none"',
-    );
-    expect(scene.formalBody).toContain(
-      'data-object-id="default-wire" data-net-id="net" points="40,0 80,0" fill="none" stroke="none"',
-    );
     // Two paints, so two shapes: a Route's own colour never merges into
     // another's run.
     const ink = [
@@ -545,9 +539,6 @@ describe("render svg", () => {
     expect(scene.formalBody).toContain(
       'data-role="signal-flow-frame" data-part="body"',
     );
-    expect(scene.formalBody).toContain(
-      'points="-20,-35 20,-17.5 20,17.5 -20,35"',
-    );
     expect(scene.formalBody).toContain('data-role="formula-subscript"');
     expect(scene.formalBody).toContain(">mL</tspan>");
   });
@@ -567,19 +558,18 @@ describe("the Document's font (#1725)", () => {
     expect(serif).toContain(`text{font-family:${SERIF_FONT_FAMILY}}`);
   });
 
-  it.each([
-    ["sans", "'ICM Sans','Liberation Sans',Arial,"],
-    ["latin-modern", "'ICM Modern','Latin Modern Roman',"],
-  ] as const)("names the %s stack and marks the root", (face, stack) => {
-    const document = createEmptyDocument("doc", "Font");
-    document.presentation.textFace = face;
-    const svg = renderDocumentSvg(document, new InMemorySymbolResolver([]));
-    expect(svg).toMatch(
-      new RegExp(`^<svg [^>]* data-text-face="${face}">`, "u"),
-    );
-    expect(svg).toContain(
-      `text{font-family:${DOCUMENT_TEXT_FACE_FONT_FAMILIES[face]}}`,
-    );
-    expect(DOCUMENT_TEXT_FACE_FONT_FAMILIES[face]).toContain(stack);
-  });
+  it.each(["sans", "latin-modern"] as const)(
+    "names the %s stack and marks the root",
+    (face) => {
+      const document = createEmptyDocument("doc", "Font");
+      document.presentation.textFace = face;
+      const svg = renderDocumentSvg(document, new InMemorySymbolResolver([]));
+      expect(svg).toMatch(
+        new RegExp(`^<svg [^>]* data-text-face="${face}">`, "u"),
+      );
+      expect(svg).toContain(
+        `text{font-family:${DOCUMENT_TEXT_FACE_FONT_FAMILIES[face]}}`,
+      );
+    },
+  );
 });

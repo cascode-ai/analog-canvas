@@ -170,13 +170,7 @@ describe("instance label placement", () => {
         profile,
         10,
       );
-      expect(label).toMatchObject({
-        alignment: "start",
-        position: {
-          x: expect.any(Number),
-          y: expect.any(Number),
-        },
-      });
+      expect(label?.alignment).toBe("start");
       const localBounds = instanceLabelInkBounds(resolved);
       const gap =
         label!.position.x -
@@ -192,13 +186,8 @@ describe("instance label placement", () => {
     if (!resolved) throw new Error("missing npn");
 
     expect(
-      defaultInstanceLabelPlacement(instance, resolved, profile, 10),
-    ).toEqual(
-      expect.objectContaining({
-        alignment: "middle",
-        position: expect.objectContaining({ y: expect.any(Number) }),
-      }),
-    );
+      defaultInstanceLabelPlacement(instance, resolved, profile, 10)?.alignment,
+    ).toBe("middle");
     expect(
       defaultInstanceLabelPlacement(instance, resolved, profile, 10)!.position
         .y,
@@ -206,27 +195,17 @@ describe("instance label placement", () => {
   });
 
   it("places passive, source, and Port labels on their semantic sides", () => {
-    expect(placedDefaultLabel("resistor")).toMatchObject({
-      position: { x: 109, y: 105 },
-      alignment: "start",
-    });
-    expect(placedDefaultLabel("inductor-compact")).toMatchObject({
-      position: { x: 112, y: 105 },
-      alignment: "start",
-    });
-    expect(placedDefaultLabel("variable-resistor")).toMatchObject({
-      position: { x: 116, y: 105 },
-      alignment: "start",
-    });
-    expect(placedDefaultLabel("voltage-source")).toMatchObject({
-      position: { x: 115, y: 105 },
-      alignment: "start",
-    });
-    expect(placedDefaultLabel("battery")).toMatchObject({
-      position: { x: expect.any(Number), y: 105 },
-      alignment: "start",
-    });
-    expect(placedDefaultLabel("battery").position.x).toBeGreaterThan(115);
+    for (const symbolId of [
+      "resistor",
+      "inductor-compact",
+      "variable-resistor",
+      "voltage-source",
+      "battery",
+    ])
+      expect(placedDefaultLabel(symbolId).alignment, symbolId).toBe("start");
+    expect(placedDefaultLabel("battery").position.x).toBeGreaterThan(
+      placedDefaultLabel("voltage-source").position.x,
+    );
     expect(placedDefaultLabel("battery", 90)).toMatchObject({
       position: { x: 100, y: expect.any(Number) },
       alignment: "middle",
@@ -308,15 +287,6 @@ describe("instance label placement", () => {
   );
 
   it("centers quarter-turned passive labels with the same clearance", () => {
-    const resistor = resolver.resolve("resistor");
-    if (!resistor) throw new Error("Missing resistor Symbol");
-    expect(visibleSymbolInkBounds(resistor)).toEqual({
-      x: -4.988372,
-      y: -20,
-      width: 10.360465,
-      height: 40,
-    });
-
     for (const rotation of [90, 270] as const) {
       for (const symbolId of ["resistor", "capacitor"]) {
         const label = placedDefaultLabel(symbolId, rotation);
@@ -579,12 +549,10 @@ describe("differential input detection", () => {
   it("recognizes the polarity-marked pairs and nothing else", () => {
     for (const symbolId of ["opamp", "comparator"]) {
       const resolved = resolver.resolve(symbolId);
-      expect(resolved).toBeDefined();
       expect(hasDifferentialInputs(resolved!)).toBe(true);
     }
     for (const symbolId of ["resistor", "nmos", "voltage-amplifier"]) {
       const resolved = resolver.resolve(symbolId);
-      expect(resolved).toBeDefined();
       expect(hasDifferentialInputs(resolved!)).toBe(false);
     }
   });

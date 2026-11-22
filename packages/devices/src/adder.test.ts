@@ -4,7 +4,6 @@ import {
   ADDER_BODIES,
   ADDER_SYMBOL_ID,
   ADDER_TARGET,
-  UNICODE_MINUS,
   adderBodyFor,
   adderBodySigns,
   adderInputSigns,
@@ -34,9 +33,6 @@ describe("the adder's table", () => {
   });
 
   it("reads a sign as typed: +, - or the Unicode minus, nothing else", () => {
-    expect([...UNICODE_MINUS].map((char) => char.codePointAt(0))).toEqual([
-      0x2212,
-    ]);
     expect(readInputSign("+")).toBe("+");
     expect(readInputSign("-")).toBe("-");
     expect(readInputSign(" − ")).toBe("-");

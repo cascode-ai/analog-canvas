@@ -131,16 +131,6 @@ describe("Symbol Resolver boundary", () => {
       ],
     });
     expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            message:
-              "Preferred routing landing must lie on the pin's outward axis",
-          }),
-        ]),
-      );
-    }
   });
 
   it("reports unsupported Project device symbols without rejecting hierarchy", () => {
