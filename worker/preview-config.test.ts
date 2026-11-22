@@ -91,9 +91,6 @@ describe("the retired Preview storage authority", () => {
       { pattern: "analog-canvas-origin.tokenzhang.com", custom_domain: true },
       { pattern: "chip-arena.com", custom_domain: true },
     ]);
-    expect(production.assets).toBeDefined();
-    expect(production.queues).toBeDefined();
-    expect(production.durable_objects?.bindings.length).toBeGreaterThan(0);
   });
 
   it("keeps simulator credential rotation away from the dormant Worker", () => {

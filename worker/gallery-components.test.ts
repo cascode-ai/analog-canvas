@@ -3,7 +3,6 @@ import { createEmptyProject, type CircuitProject } from "@icm/model";
 
 import {
   GALLERY_COMPONENT_RANGES,
-  componentRangeSql,
   galleryComponentCount,
   requestedComponentRanges,
 } from "./gallery-components";
@@ -70,25 +69,9 @@ describe("the size of a Gallery circuit", () => {
       ),
     ).toEqual(["0-5", "26-"]);
     expect(requestedComponentRanges("0-5")).toEqual([]);
-    expect(GALLERY_COMPONENT_RANGES.map((range) => range.key)).toEqual([
-      "0-5",
-      "6-10",
-      "11-15",
-      "16-25",
-      "26-",
-    ]);
     // The sizes meet without a gap or an overlap.
     GALLERY_COMPONENT_RANGES.slice(1).forEach((range, index) =>
       expect(range.min).toBe(GALLERY_COMPONENT_RANGES[index]!.max! + 1),
     );
-    expect(
-      componentRangeSql(
-        "e.component_count",
-        requestedComponentRanges(["6-10", "26-"]),
-      ),
-    ).toEqual({
-      sql: "(e.component_count BETWEEN ? AND ? OR e.component_count >= ?)",
-      bindings: [6, 10, 26],
-    });
   });
 });

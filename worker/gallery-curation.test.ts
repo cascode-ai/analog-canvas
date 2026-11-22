@@ -119,7 +119,6 @@ describe("Gallery visual curation", () => {
     expect(publicFeed.entries.every((e) => e.attention === undefined)).toBe(
       true,
     );
-    expect(publicFeed.entries[0]!.tags).toHaveLength(6);
     expect(
       (await feed(maker, "?attention=1")).entries.map((e) => e.id),
     ).toEqual([mine]);

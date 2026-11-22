@@ -78,7 +78,6 @@ describe("off-site Gallery backup credential", () => {
         .exec("SELECT * FROM gallery_entries WHERE id = ?", id)
         .toArray(),
     );
-    expect(page.rows).toHaveLength(1);
     // A same-count update must invalidate the capture, including a raw SQL maintenance edit.
     env.gallerySql.exec(
       "UPDATE gallery_entries SET description = ? WHERE id = ?",

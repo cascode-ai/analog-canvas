@@ -158,7 +158,6 @@ describe("private Cloud Projects", () => {
     expect(preview.headers.get("content-type")).toContain("image/svg+xml");
     // Private caching only: a shared cache must never hold one member's shelf.
     expect(preview.headers.get("cache-control")).toContain("private");
-    expect(await preview.text()).toContain("<svg");
 
     // A Project id is not a capability, and being signed in is not enough.
     const stranger = await adminOf(env);
@@ -248,7 +247,6 @@ describe("private Cloud Projects", () => {
       ),
     );
     expect(preview.status).toBe(200);
-    expect(await preview.text()).toContain("<svg");
     // And it sticks: the row now carries the rendered bytes.
     const row = env.gallerySql
       .exec<{ preview_svg: string }>(

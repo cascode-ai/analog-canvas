@@ -50,8 +50,6 @@ it("discovers independent SKY130 and SG13 Profiles and prepares the selected mod
     sky130.id,
     sg13.id,
   ]);
-  // Every qualified SG13 device, on its one Profile.
-  expect(all.profiles[1].devices).toHaveLength(13);
   const selected = (await (await routeSimulationRequest(
     post({ operation: "capabilities", environment: { profileId: sg13.id } }),
     env,

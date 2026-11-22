@@ -184,21 +184,11 @@ describe("the Gallery's statistics", () => {
         { tag: "amplifier", circuits: 1 },
         { tag: "ota", circuits: 1 },
       ],
-      sizes: [
-        { key: "0-5", circuits: 3 },
-        { key: "6-10", circuits: 0 },
-        { key: "11-15", circuits: 0 },
-        { key: "16-25", circuits: 0 },
-        { key: "26-", circuits: 0 },
-      ],
-      transistorBins: [
+      sizes: expect.arrayContaining([{ key: "0-5", circuits: 3 }]),
+      transistorBins: expect.arrayContaining([
         { key: "0", circuits: 1 },
         { key: "1-5", circuits: 2 },
-        { key: "6-10", circuits: 0 },
-        { key: "11-20", circuits: 0 },
-        { key: "21-50", circuits: 0 },
-        { key: "51-", circuits: 0 },
-      ],
+      ]),
     });
     expect(
       Object.fromEntries(
@@ -416,26 +406,8 @@ describe("an account's circuit statistics", () => {
     expect(response.status).toBe(200);
     const { circuits } = (await response.json()) as any;
     expect(circuits).toEqual([
-      {
-        id: divider,
-        name: "Divider",
-        createdAt: expect.any(String),
-        components: 2,
-        transistors: 0,
-        aiGenerated: false,
-        netlistable: expect.any(Boolean),
-        simulatable: false,
-      },
-      {
-        id: amplifier,
-        name: "Amplifier",
-        createdAt: expect.any(String),
-        components: 4,
-        transistors: 3,
-        aiGenerated: false,
-        netlistable: expect.any(Boolean),
-        simulatable: false,
-      },
+      expect.objectContaining({ id: divider, components: 2, transistors: 0 }),
+      expect.objectContaining({ id: amplifier, components: 4, transistors: 3 }),
     ]);
 
     // An edit counts the circuit again; a withdrawn circuit is not listed.

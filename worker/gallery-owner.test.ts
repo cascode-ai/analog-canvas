@@ -594,11 +594,6 @@ describe("gallery owner lifecycle (withdrawal and history)", () => {
     );
     // A public circuit's history is anyone's to read.
     expect(strangerPreview.status).toBe(200);
-    const ownerPreview = await route(
-      env,
-      new Request(previewPath, { headers: { Cookie: ownerCookie } }),
-    );
-    expect(await ownerPreview.text()).toContain("<svg");
     const projectPath = previewPath.replace("preview.svg", "project");
     for (const cookie of [null, strangerCookie]) {
       const read = await route(

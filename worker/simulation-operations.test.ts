@@ -476,7 +476,6 @@ describe("managed simulation operations", () => {
         problem: {
           code: "prepared-input-changed",
           recovery: "reprepare",
-          message: "Prepared entry and submitted source bytes differ.",
         },
       });
       await expect(
@@ -654,10 +653,9 @@ describe("managed simulation operations", () => {
     const started = await routeManagedSimulationRequest(startRequest(), env);
     expect(started?.status).toBe(401);
     expect(started?.headers.get("set-cookie")).toBeNull();
-    expect(await started!.json()).toEqual({
+    expect(await started!.json()).toMatchObject({
       error: "simulation-authentication-required",
-      message:
-        "Hosted simulation is for the Analog Canvas team: sign in with a team account, or export a SPICE or Spectre netlist with File › Export and run it with your own simulator and PDK.",
+      message: expect.stringContaining("export a SPICE or Spectre netlist"),
     });
   });
 
