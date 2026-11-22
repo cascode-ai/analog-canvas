@@ -56,102 +56,103 @@ function check({
 }
 
 describe("documentation checker CLI", () => {
-  it("retains rejection of numbered titles on unnumbered topic files", () => {
-    const result = check({
-      adrName: "storage-owner.md",
-      adrText: "# 0055 - Storage\n\nStatus: accepted\n",
-      index: "[Storage](storage-owner.md)\n",
-    });
+  it.each([
+    [
+      "a numbered title on an unnumbered topic file",
+      {
+        adrName: "storage-owner.md",
+        adrText: "# 0055 - Storage\n\nStatus: accepted\n",
+        index: "[Storage](storage-owner.md)\n",
+      },
+      ["unnumbered topic title"],
+    ],
+    [
+      "a topic file outside the accepted/proposed status contract",
+      {
+        adrName: "storage-owner.md",
+        adrText: "# Storage\n\nStatus: superseded\n",
+        index: "[Storage](storage-owner.md)\n",
+      },
+      ["Status: accepted or proposed"],
+    ],
+    [
+      "a missing link inside ADR content",
+      {
+        adrName: "storage-owner.md",
+        adrText: "# Storage\n\nStatus: accepted\n\n[Missing](missing.md)\n",
+        index: "[Storage](storage-owner.md)\n",
+      },
+      ["missing.md"],
+    ],
+    [
+      "an existing topic explanation without status or index entry",
+      {
+        adrName: "storage-owner.md",
+        adrText: "# Storage ownership\n\nThe Project owns this boundary.\n",
+      },
+      ["must have Status", "missing from docs/adr/README.md"],
+    ],
+    [
+      "a malformed decision filename",
+      {
+        adrName: "0001_bad_name.md",
+        adrText: "# Storage ownership\n\nA real decision.\n",
+      },
+      ["filename"],
+    ],
+    [
+      "a numbered decision without a title",
+      {
+        adrName: "0001-storage-owner.md",
+        adrText: "A decision without a title.\n",
+      },
+      ["must have a title"],
+    ],
+    [
+      "a missing local link",
+      { readme: "# Project\n\n[Absent](docs/absent.md)\n" },
+      ["docs/absent.md"],
+    ],
+    [
+      "an accepted product spec without ownership",
+      { specText: "# Model\n\nStatus: accepted\n" },
+      ["model.md must state ownership"],
+    ],
+  ])("rejects %s", (_, input, messages) => {
+    const result = check(input);
     expect(result.status).toBe(1);
-    expect(result.output).toContain("unnumbered topic title");
+    for (const message of messages) expect(result.output).toContain(message);
   });
 
-  it("retains the accepted/proposed status contract on topic files", () => {
-    const result = check({
-      adrName: "storage-owner.md",
-      adrText: "# Storage\n\nStatus: superseded\n",
-      index: "[Storage](storage-owner.md)\n",
-    });
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("Status: accepted or proposed");
-  });
-
-  it("retains missing-link checks inside ADR content", () => {
-    const result = check({
-      adrName: "storage-owner.md",
-      adrText: "# Storage\n\nStatus: accepted\n\n[Missing](missing.md)\n",
-      index: "[Storage](storage-owner.md)\n",
-    });
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("missing.md");
-  });
-
-  it("accepts an original numbered ADR with only a title and decision paragraph", () => {
-    const result = check({
-      adrName: "0001-storage-owner.md",
-      adrText:
-        "# Storage ownership\n\nEach Project owns its stored data so callers share one authority.\n",
-    });
+  it.each([
+    [
+      "an original numbered ADR with only a title and decision paragraph",
+      {
+        adrName: "0001-storage-owner.md",
+        adrText:
+          "# Storage ownership\n\nEach Project owns its stored data so callers share one authority.\n",
+      },
+    ],
+    [
+      "optional superseded status without requiring an index entry",
+      {
+        adrName: "0002-storage-owner.md",
+        adrText:
+          "---\nstatus: superseded by ADR-0003\n---\n\n# Storage ownership\n\nThe replacement decision owns the changed boundary.\n",
+      },
+    ],
+    [
+      "an indexed accepted topic explanation",
+      {
+        adrName: "storage-owner.md",
+        adrText:
+          "# Storage ownership\n\nStatus: accepted\n\nThe Project owns this boundary.\n",
+        index: "# Decisions\n\n[Storage](storage-owner.md)\n",
+      },
+    ],
+  ])("accepts %s", (_, input) => {
+    const result = check(input);
     expect(result.output).toContain("Validated local Markdown links");
     expect(result.status).toBe(0);
-  });
-
-  it("accepts optional superseded status without requiring an index entry", () => {
-    const result = check({
-      adrName: "0002-storage-owner.md",
-      adrText:
-        "---\nstatus: superseded by ADR-0003\n---\n\n# Storage ownership\n\nThe replacement decision owns the changed boundary.\n",
-    });
-    expect(result.status).toBe(0);
-  });
-
-  it("retains indexed accepted topic explanations", () => {
-    const result = check({
-      adrName: "storage-owner.md",
-      adrText:
-        "# Storage ownership\n\nStatus: accepted\n\nThe Project owns this boundary.\n",
-      index: "# Decisions\n\n[Storage](storage-owner.md)\n",
-    });
-    expect(result.status).toBe(0);
-  });
-
-  it("retains status and index protection for existing topic explanations", () => {
-    const result = check({
-      adrName: "storage-owner.md",
-      adrText: "# Storage ownership\n\nThe Project owns this boundary.\n",
-    });
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("must have Status");
-    expect(result.output).toContain("missing from docs/adr/README.md");
-  });
-
-  it("rejects malformed decision filenames", () => {
-    const result = check({
-      adrName: "0001_bad_name.md",
-      adrText: "# Storage ownership\n\nA real decision.\n",
-    });
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("filename");
-  });
-
-  it("requires a title for a numbered decision", () => {
-    const result = check({
-      adrName: "0001-storage-owner.md",
-      adrText: "A decision without a title.\n",
-    });
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("must have a title");
-  });
-
-  it("still rejects missing local links", () => {
-    const result = check({ readme: "# Project\n\n[Absent](docs/absent.md)\n" });
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("docs/absent.md");
-  });
-
-  it("still requires ownership for accepted product specs", () => {
-    const result = check({ specText: "# Model\n\nStatus: accepted\n" });
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("model.md must state ownership");
   });
 });
