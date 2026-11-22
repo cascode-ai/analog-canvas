@@ -75,7 +75,19 @@ const RouteNetCommandSchema = z.strictObject({
     .strictObject({ start: PointSchema, end: PointSchema })
     .optional()
     .describe(
-      "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic, not an obstacle autorouter.",
+      "Straight horizontal/vertical trunk; otherwise use MST guidance. Atomic; refused if it meets a part, another Net's pin or wire (or, with avoid, a label).",
+    ),
+  avoid: z
+    .boolean()
+    .optional()
+    .describe(
+      "Route round part bodies, markers and drawn labels too, searching the grid when no simple path is clear; with trunk, branches go round. No path: refused naming the pins.",
+    ),
+  prefer: z
+    .enum(["above", "below", "left", "right"])
+    .optional()
+    .describe(
+      "The side a detour takes when it must leave the span of its ends.",
     ),
 });
 const TextInputSchema = z.union([

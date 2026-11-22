@@ -66,7 +66,9 @@ Simulation tools take arguments flat (`{action, …}`) or in `request`. `detail`
   [tool behavior](../tool-behavior.md)). The wire passes every `via` point
   (listed either direction); an order that would double back is refused. A
   wire from a pin or Junction keeps clear of other Nets and parts' bodies:
-  without `via` it detours; with a blocked `via` it is refused naming the obstacle, the two
+  without `via` it detours, and a `WIRE_DETOURED` note names what the direct
+  path met (a part, pin or wire, and where) and the corners taken; with a
+  blocked `via` it is refused naming the obstacle, the two
   points between which it meets it, and the clear path as `via` points to send
   (or why leaving the route to the editor fails too). With no clear path it is
   refused like `route-net`. A wire between free points is drawn as asked and

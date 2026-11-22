@@ -8,6 +8,7 @@ import {
 import {
   resolveDocumentLogicalNets,
   resolveEndpointConnection,
+  resolveRouteGeometry,
   derivePowerRailComponent,
 } from "@icm/derived";
 import { createAgentCircuitService } from "@icm/agent-adapter";
@@ -3825,5 +3826,296 @@ describe("connect to wire-at", () => {
         ),
       }),
     );
+  });
+});
+
+const routeSymbols = new InMemorySymbolResolver(builtInSymbols);
+function drawnPaths(document: EditorDocumentController["document"]) {
+  return document.routes.map((route) =>
+    resolveRouteGeometry(document, routeSymbols, route)!.centerline.map(
+      ({ x, y }) => [x, y],
+    ),
+  );
+}
+/** Each Net by its pins, as the netlist joins them. */
+function netsByPins(document: EditorDocumentController["document"]) {
+  const refs = new Map(document.instances.map((v) => [v.id, v.reference]));
+  return document.nets
+    .map((net) =>
+      net.terminals
+        .map((t) => `${refs.get(t.instanceId)}.${t.pinName}`)
+        .sort()
+        .join(" "),
+    )
+    .sort();
+}
+function wireNotes(result: {
+  diagnosticDelta?: { added?: readonly unknown[] | undefined } | undefined;
+}) {
+  return (result.diagnosticDelta?.added ?? []).filter((diagnostic) =>
+    String((diagnostic as { code: string }).code).startsWith("WIRE_"),
+  );
+}
+
+describe("wires the editor routes say what they went round", () => {
+  /** Two 3-terminal PMOS side by side, sources up on a VDD rail. */
+  async function pmosPair(mirror: "none" | "horizontal") {
+    const context = await folder();
+    for (const actions of [
+      [
+        {
+          kind: "place-component",
+          symbol: "pmos",
+          reference: "M1",
+          position: { x: 100, y: 100 },
+          mirror,
+        },
+        {
+          kind: "place-component",
+          symbol: "pmos",
+          reference: "M2",
+          position: { x: 200, y: 100 },
+        },
+      ],
+      [
+        {
+          kind: "add-power-rail",
+          start: { x: 0, y: 40 },
+          end: { x: 300, y: 40 },
+          name: "VDD",
+        },
+      ],
+      ["M1", "M2"].map((instance) => ({
+        kind: "connect",
+        from: { kind: "pin", instance, pin: "S" },
+        to: { kind: "net", net: "VDD" },
+      })),
+    ]) {
+      const result = await context.client.applyActions(actions);
+      expect(result.ok, result.message).toBe(true);
+    }
+    const gates = () =>
+      netsByPins(context.controller.document).filter((net) =>
+        net.includes("M1.G"),
+      );
+    return { ...context, gates };
+  }
+  const gateLine = {
+    kind: "connect",
+    from: { kind: "pin", instance: "M1", pin: "G" },
+    to: { kind: "pin", instance: "M2", pin: "G" },
+  };
+
+  it("joins PMOS gates that face each other straight: the hidden body pin is no obstacle", async () => {
+    const { client, controller, gates } = await pmosPair("horizontal");
+    const result = await client.applyActions([gateLine]);
+    expect(result.ok, result.message).toBe(true);
+    expect(drawnPaths(controller.document).at(-1)).toEqual([
+      [120, 100],
+      [180, 100],
+    ]);
+    expect(wireNotes(result)).toEqual([]);
+    expect(gates()).toEqual(["M1.G M2.G"]);
+  });
+
+  it("names the part a gate line went round, and goes the side that crosses no source wire", async () => {
+    const { client, controller, gates } = await pmosPair("none");
+    const result = await client.applyActions([gateLine]);
+    expect(result.ok, result.message).toBe(true);
+    // Above, the line would cross M1's source wire to VDD.
+    expect(drawnPaths(controller.document).at(-1)).toEqual([
+      [80, 100],
+      [80, 130],
+      [180, 130],
+      [180, 100],
+    ]);
+    expect(wireNotes(result)).toEqual([
+      expect.objectContaining({
+        code: "WIRE_DETOURED",
+        message:
+          "Wire 1: the direct path passes through M1 between (80, 100) and (180, 100), so it goes round through (80, 130), (180, 130)",
+      }),
+    ]);
+    expect(gates()).toEqual(["M1.G M2.G"]);
+  });
+
+  it("names each crossing of another Net's wire", async () => {
+    const { client, controller } = await folder();
+    for (const actions of [
+      [0, 400].map((x, index) => ({
+        kind: "place-component",
+        symbol: "resistor",
+        reference: `R${index + 1}`,
+        position: { x, y: 0 },
+        rotation: 270,
+      })),
+      [
+        {
+          kind: "connect",
+          from: { kind: "point", x: 200, y: -100 },
+          to: { kind: "point", x: 200, y: 100 },
+        },
+      ],
+    ]) {
+      const result = await client.applyActions(actions);
+      expect(result.ok, result.message).toBe(true);
+    }
+    const crossed = controller.document.routes[0]!;
+    const result = await client.applyActions([
+      {
+        kind: "connect",
+        from: { kind: "pin", instance: "R1", pin: "2" },
+        to: { kind: "pin", instance: "R2", pin: "1" },
+      },
+    ]);
+    expect(result.ok, result.message).toBe(true);
+    expect(wireNotes(result)).toEqual([
+      expect.objectContaining({
+        code: "WIRE_CROSSES",
+        message: expect.stringMatching(
+          new RegExp(
+            `^Wire 1: it crosses Route ${crossed.id} of Net .+ at \\(200, 0\\), without a dot: a crossing joins nothing$`,
+          ),
+        ),
+        objectIds: [crossed.id],
+      }),
+    ]);
+    expect(netsByPins(controller.document)).toContain("R1.2 R2.1");
+  });
+});
+
+describe("route-net avoid", () => {
+  /** R1.2 at (20, 0) and R2.1 at (380, 0) in line, with `between` on it. */
+  async function inLine(between: Record<string, unknown>[]) {
+    const context = await folder();
+    const placed = await context.client.applyActions([
+      ...[0, 400].map((x, index) => ({
+        kind: "place-component",
+        symbol: "resistor",
+        reference: `R${index + 1}`,
+        position: { x, y: 0 },
+        rotation: 270,
+      })),
+      ...between,
+    ]);
+    expect(placed.ok, placed.message).toBe(true);
+    const id = (reference: string) =>
+      context.controller.document.instances.find(
+        (instance) => instance.reference === reference,
+      )!.id;
+    const route = (options: Record<string, unknown> = {}) =>
+      context.client.applyActions([
+        {
+          kind: "route-net",
+          target: {
+            kind: "pins",
+            pins: [
+              { instanceId: id("R1"), pinName: "2" },
+              { instanceId: id("R2"), pinName: "1" },
+            ],
+          },
+          ...options,
+        },
+      ]);
+    // Which end a wire starts from follows generated IDs: read it from R1.
+    const drawn = () =>
+      drawnPaths(context.controller.document).map((path) =>
+        path[0]![0]! > path.at(-1)![0]! ? path.reverse() : path,
+      );
+    const nets = () => netsByPins(context.controller.document);
+    return { ...context, route, drawn, nets };
+  }
+
+  it("goes round a part on the straight line and its label", async () => {
+    const { route, drawn, nets } = await inLine([
+      {
+        kind: "place-component",
+        symbol: "resistor",
+        reference: "R3",
+        position: { x: 200, y: 0 },
+        rotation: 270,
+      },
+    ]);
+    const result = await route({ avoid: true });
+    expect(result.ok, result.message).toBe(true);
+    // R3's name stands above it, where the plain detour runs.
+    expect(drawn()).toEqual([
+      [
+        [20, 0],
+        [20, 10],
+        [380, 10],
+        [380, 0],
+      ],
+    ]);
+    expect(nets()).toContain("R1.2 R2.1");
+  });
+
+  it("keeps a free text clear only when asked", async () => {
+    const { client, route, drawn } = await inLine([]);
+    const text = await client.applyActions([
+      { kind: "annotate", text: "NOTE TEXT", position: { x: 200, y: 0 } },
+    ]);
+    expect(text.ok, text.message).toBe(true);
+    expect((await route()).ok).toBe(true);
+    expect(drawn()).toEqual([
+      [
+        [20, 0],
+        [380, 0],
+      ],
+    ]);
+    expect((await client.applyActions([{ kind: "undo" }])).ok).toBe(true);
+    expect(drawn()).toEqual([]);
+    expect((await route({ avoid: true })).ok).toBe(true);
+    expect(drawn()).toHaveLength(1);
+    expect(drawn()[0]).not.toEqual([
+      [20, 0],
+      [380, 0],
+    ]);
+  });
+
+  it("searches round a wall the simple shapes cannot clear, on the side preferred", async () => {
+    // Capacitors at x = 200 from y = -100 to 100: past the simple shapes'
+    // reach, inside the search's.
+    const { route, drawn, nets, controller } = await inLine(
+      [-100, -50, 0, 50, 100].map((y, index) => ({
+        kind: "place-component",
+        symbol: "capacitor",
+        reference: `C${index}`,
+        position: { x: 200, y },
+      })),
+    );
+    const before = structuredClone(controller.document);
+    const refused = await route();
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toMatch(
+      /no clear path from (R1\.2 to R2\.1|R2\.1 to R1\.2): the direct one passes through C2/,
+    );
+    expect(controller.document).toEqual(before);
+    const result = await route({ avoid: true, prefer: "above" });
+    expect(result.ok, result.message).toBe(true);
+    const [path] = drawn();
+    expect(Math.min(...path!.map(([, y]) => y!))).toBeLessThan(-100);
+    expect(Math.max(...path!.map(([, y]) => y!))).toBe(0);
+    expect(nets()).toContain("R1.2 R2.1");
+    expect(nets().filter((net) => net.includes("C"))).toEqual([]);
+  });
+
+  it("refuses naming the pins when nothing goes round", async () => {
+    const { route, controller } = await inLine(
+      Array.from({ length: 13 }, (_, index) => ({
+        kind: "place-component",
+        symbol: "capacitor",
+        reference: `C${index}`,
+        position: { x: 200, y: (index - 6) * 50 },
+      })),
+    );
+    const before = structuredClone(controller.document);
+    const refused = await route({ avoid: true });
+    expect(refused.ok).toBe(false);
+    expect(refused.message).toMatch(
+      /no clear path from (R1\.2 to R2\.1|R2\.1 to R1\.2): the direct one passes through C6/,
+    );
+    expect(refused.message).toContain("none goes round within 16 grid squares");
+    expect(controller.document).toEqual(before);
   });
 });

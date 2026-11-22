@@ -1536,7 +1536,8 @@ export function createAgentCircuitService(
             document.revision,
           );
         }
-        // A tap moved onto the tap grid is said in the receipt.
+        // A tap moved onto the tap grid, a detour and what it went round,
+        // and each crossing of another Net's wire are said in the receipt.
         if (plannedWire?.notes)
           commandNotes = plannedWire.notes.map((note) => ({
             code: note.code,

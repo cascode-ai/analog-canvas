@@ -451,7 +451,9 @@ Wires are drawn as a person draws them: never over another Net's pin, through
 a part (its own included) or along its leads, or onto another Net's wire; a
 Junction on another Net's wire is refused. A first or last leg that would run
 along its own Net's wire ends on it with a dot (a body tied to its source taps
-the source wire). Plain crossings stay legal.
+the source wire). Plain crossings stay legal; each one a planned wire makes is
+named in a `WIRE_CROSSES` note. A hidden pin (a 3-terminal MOS's body) is no
+obstacle.
 
 `route-net` (`apply_actions`, native `command`) fills missing visible
 connections for a current Net ID/name, one member pin, a pin list, or a frozen
@@ -460,13 +462,17 @@ import `sourceNetId` (not a current Net ID), skipping connected components.
 between two aligned pins with nothing between, then joins each component
 where cheapest (a joined pin, Junction, or straight onto a wire) in T
 junctions, each wire the cheapest clear path (L, short lead, or detour along a
-free row/column). When none is clear the whole operation is refused naming the
-obstacle and the two points between which it meets it: move parts or give a
-trunk. A given trunk is checked the same way, never bent. It is not an
-autorouter: it moves no device, infers no bulk wiring, and does not override
-import-reference shorts/scope conflicts. Several `route-net` actions share a
-batch, each planned on the previous result. Contract:
-`describe_tool({tool:"apply_actions",operations:["route-net"]})`.
+free row/column; a crossing costs as a bend). When none is clear the whole
+operation is refused naming the pins, the obstacle and the two points between
+which it meets it: move parts, give a trunk or `avoid`. A given trunk is
+checked the same way, never bent. `avoid:true` also keeps clear of drawn
+labels and free text and, when no simple path is clear, searches the grid up
+to 16 squares round the ends; with a trunk, branches go round instead of being
+refused. `prefer: "above"|"below"|"left"|"right"` is the side a detour takes
+when it leaves its ends' span. It moves no device, infers no bulk wiring, and
+does not override import-reference shorts/scope conflicts. Several
+`route-net` actions share a batch, each planned on the previous result.
+Contract: `describe_tool({tool:"apply_actions",operations:["route-net"]})`.
 
 Where a Net cannot cross the drawing (a cascode bias to both halves), name it
 at each end: `connect` the pin to an open `{kind:"point"}` a grid step or two
