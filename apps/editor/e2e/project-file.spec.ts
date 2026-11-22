@@ -102,7 +102,11 @@ test("fits and repairs an old booster symbol on open, and rejects invalid import
       symbol,
       subcircuit: {
         ...descriptor,
-        ports: descriptor.ports.map((port) => ({ ...port })),
+        // Saved before VOCM existed (#2443): its ports lack it, as the file
+        // the symbol came from did.
+        ports: descriptor.ports
+          .filter((port) => !("pinName" in port) || port.pinName !== "VOCM")
+          .map((port) => ({ ...port })),
       },
     },
   ];
