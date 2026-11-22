@@ -94,23 +94,3 @@ export function arcPathData(
   const r = Number(arc.radius.toFixed(3));
   return `M ${start.x} ${start.y} A ${r} ${r} 0 ${large} ${sweep} ${end.x} ${end.y}`;
 }
-
-/** Distance from a point to the arc's stroke (its nearest point on the arc). */
-export function distanceToArc(arc: ArcGeometry, point: DerivedPoint): number {
-  const angle = turn(
-    degrees(Math.atan2(point.y - arc.center.y, point.x - arc.center.x)) -
-      arc.startAngle,
-  );
-  const onArc =
-    arc.sweepAngle > 0
-      ? angle <= arc.sweepAngle
-      : 360 - angle <= -arc.sweepAngle;
-  if (onArc || angle === 0)
-    return Math.abs(
-      Math.hypot(point.x - arc.center.x, point.y - arc.center.y) - arc.radius,
-    );
-  const ends = [arcPointAt(arc, 0), arcPointAt(arc, 1)];
-  return Math.min(
-    ...ends.map((end) => Math.hypot(point.x - end.x, point.y - end.y)),
-  );
-}

@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  arcPathData,
-  arcPointAt,
-  arcThroughPoints,
-  distanceToArc,
-} from "./arc-geometry.js";
+import { arcPathData, arcPointAt, arcThroughPoints } from "./arc-geometry.js";
 
 /** Bounds to a thousandth, past floating-point noise from the angles. */
 const rounded = (bounds: { [key: string]: number }) =>
@@ -77,7 +72,7 @@ describe("arcThroughPoints", () => {
     ).toBeUndefined();
   });
 
-  it("walks the sweep and measures distance to the stroke", () => {
+  it("walks the sweep", () => {
     const arc = arcThroughPoints(
       { x: -10, y: 0 },
       { x: 0, y: -10 },
@@ -86,8 +81,5 @@ describe("arcThroughPoints", () => {
     const middle = arcPointAt(arc, 0.5);
     expect(middle.x).toBeCloseTo(0);
     expect(middle.y).toBeCloseTo(-10);
-    expect(distanceToArc(arc, { x: 0, y: -12 })).toBeCloseTo(2);
-    // Below the chord is off the arc: the nearest point is an end.
-    expect(distanceToArc(arc, { x: 10, y: 5 })).toBeCloseTo(5);
   });
 });
