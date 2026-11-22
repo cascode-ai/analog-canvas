@@ -9,9 +9,9 @@
 //       [--apply] [--origin URL] [--ngspice BIN] [--models FILE]
 //       [--library ID=FILE]... [--bundle FILE]
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   DEFAULT_ORIGIN,
@@ -25,26 +25,50 @@ const DEFAULT_BUNDLE = resolve(
   "output/headless/analog-canvas-headless.mjs",
 );
 const MODELS_ENV = "ANALOG_CANVAS_SKY130_LIB";
+/**
+ * Where the hosted simulator image's continuous (unbinned) SKY130 library is
+ * kept here: its /opt/sky130 layer, unpacked under this directory. Volare's
+ * binned library is not a stand-in: it caps W at 100 µm and fails entries the
+ * hosted check runs.
+ */
+const CONTINUOUS_MODELS =
+  ".volare/circuit-bench-2.0.8/opt/sky130/continuous/sky130.lib.spice";
+const PROFILE = resolve(root, "containers/ngspice/hosted-sky130-profile.json");
 const USAGE = `usage: node scripts/gallery-sim-verify.mjs ID [ID...] | --all [--apply] [--origin URL] [--ngspice BIN] [--models FILE] [--library ID=FILE]... [--bundle FILE]
 
 Runs each entry's testbench with the local ngspice and judges it as the hosted
 check does. Without --apply nothing is recorded. --all takes every public entry
 with a testbench. --models names the SKY130 library file the Profile's models
-load from (default $${MODELS_ENV}, else volare's sky130A); --library ID=FILE
-names another Profile library (a standard-cell file). The Owner token comes
+load from: the hosted simulator's continuous library (default $${MODELS_ENV},
+else ~/${CONTINUOUS_MODELS}). --library ID=FILE names another Profile library;
+the Profile's standard cells default to the copy in containers/ngspice/cells. The Owner token comes
 from $ANALOG_CANVAS_OWNER_TOKEN or ~/.config/analog-canvas/owner-token.`;
 
 export class UsageError extends Error {}
 
-/** Volare's SKY130 ngspice library, the models a local check loads by default. */
+/** The hosted simulator's continuous SKY130 library, the models a local check loads by default. */
 export function defaultModels(env = process.env, home = homedir()) {
   const fromEnv = env[MODELS_ENV]?.trim();
   if (fromEnv) return resolve(fromEnv);
-  const volare = join(
-    home,
-    ".volare/sky130A/libs.tech/ngspice/sky130.lib.spice",
+  const continuous = join(home, CONTINUOUS_MODELS);
+  return existsSync(continuous) ? continuous : null;
+}
+
+/** The hosted Profile's standard-cell libraries, from the copies this checkout vendors. */
+export function defaultLibraries(profile = PROFILE) {
+  const { cellLibraries = [] } = JSON.parse(readFileSync(profile, "utf8"));
+  return Object.fromEntries(
+    cellLibraries
+      .map((cell) => [
+        cell.id,
+        resolve(
+          root,
+          "containers/ngspice/cells",
+          basename(cell.library.runtimePath),
+        ),
+      ])
+      .filter(([, file]) => existsSync(file)),
   );
-  return existsSync(volare) ? volare : null;
 }
 
 export function parseArguments(argv, env = process.env, home = homedir()) {
@@ -55,7 +79,7 @@ export function parseArguments(argv, env = process.env, home = homedir()) {
     origin: DEFAULT_ORIGIN,
     ngspice: "ngspice",
     models: defaultModels(env, home),
-    libraries: {},
+    libraries: defaultLibraries(),
     bundle: undefined,
   };
   for (let index = 0; index < argv.length; index += 1) {

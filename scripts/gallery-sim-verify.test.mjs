@@ -39,10 +39,14 @@ describe("gallery-sim-verify arguments", () => {
         home,
       ),
     ).toMatchObject({ all: true, apply: true, models: "/m/sky130.lib.spice" });
+    const cells = parseArguments(["g-1"], {}, home).libraries;
+    expect(Object.values(cells)).toEqual([
+      expect.stringMatching(/containers\/ngspice\/cells\/.+\.spice$/u),
+    ]);
     expect(
       parseArguments(["g-1", "--library", "cells=/c/cells.spice"], {}, home)
         .libraries,
-    ).toEqual({ cells: "/c/cells.spice" });
+    ).toEqual({ ...cells, cells: "/c/cells.spice" });
     expect(
       parseArguments(["g-1"], { ANALOG_CANVAS_SKY130_LIB: "/l.spice" }, home)
         .models,
