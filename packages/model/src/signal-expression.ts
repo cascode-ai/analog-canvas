@@ -18,6 +18,23 @@ export function scalarConnectivityEvidence(
   );
 }
 
+/** Inclusive electrical order for an explicitly authored range. */
+export function orderedSignalIndices(first: number, last: number): number[] {
+  if (
+    ![first, last].every(
+      (index) => Number.isSafeInteger(index) && index >= 0 && index <= 65535,
+    )
+  )
+    throw new Error("Signal indices must be between 0 and 65535");
+  const width = Math.abs(first - last) + 1;
+  if (width > 256) throw new Error("A signal may contain at most 256 members");
+  const step = last < first ? -1 : 1;
+  return Array.from(
+    { length: width },
+    (_, position) => first + position * step,
+  );
+}
+
 /** The explicitly authored signal grammar. Loading names never calls this parser. */
 export function parseSignalExpression(expression: string): readonly string[] {
   const text = expression.trim();
@@ -59,15 +76,10 @@ export function parseSignalExpression(expression: string): readonly string[] {
           );
         const first = Number(indices[1]);
         const last = Number(indices[2] ?? indices[1]);
-        if (first > 65535 || last > 65535)
-          throw new Error("Signal indices must be between 0 and 65535");
-        const width = Math.abs(last - first) + 1;
-        if (members.length + width > 256)
+        const ordered = orderedSignalIndices(first, last);
+        if (members.length + ordered.length > 256)
           throw new Error("A signal may contain at most 256 members");
-        for (let index = 0; index < width; index++)
-          members.push(
-            `${match[1]}<${first + index * (last < first ? -1 : 1)}>`,
-          );
+        members.push(...ordered.map((index) => `${match[1]}<${index}>`));
       }
     }
     if (members.length > 256)

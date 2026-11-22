@@ -192,6 +192,7 @@ export function EditorPlacementPreview({
 }
 
 export function EditorInteractionPreviews({
+  referenceDocument,
   boxPreview,
   draftingSource,
   arrowPreset = DEFAULT_ARROW_PRESET,
@@ -221,6 +222,7 @@ export function EditorInteractionPreviews({
   tool: EditorTool;
   styleProfile: SchematicStyleProfile;
   wirePreviewPoint: Point | null;
+  referenceDocument?: CanvasTextEditorOverlayProps["referenceDocument"];
   textEditing: TextEditingSession | null;
   textEditingBounds: DerivedRect | null;
   viewBox: GridRect;
@@ -269,6 +271,7 @@ export function EditorInteractionPreviews({
       ) : null}
       {textEditing && textEditingBounds ? (
         <CanvasTextEditorOverlay
+          {...(referenceDocument && { referenceDocument })}
           session={textEditing}
           bounds={textEditingBounds}
           viewBox={viewBox}

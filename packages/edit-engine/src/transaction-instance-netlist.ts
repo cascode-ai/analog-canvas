@@ -60,7 +60,7 @@ export function createReferenceValidationCache(draft: SchematicDocument) {
 
 export type InstanceNetlistEditOutcome = EditMutationOutcome;
 
-function referencePolicyFailure(
+export function referencePolicyFailure(
   draft: SchematicDocument,
   instanceId: string,
   references?: InstanceNetlistEditContext["references"],

@@ -26,11 +26,7 @@ import {
   AgentSnapshotInstanceSchema,
 } from "./schema.js";
 import type { AgentPermissions } from "./schema.js";
-import {
-  AGENT_EDIT_KINDS,
-  agentEditCategory,
-  createAgentCircuitService,
-} from "./service.js";
+import { AGENT_EDIT_KINDS, createAgentCircuitService } from "./service.js";
 import {
   addedAmbiguousJunctions,
   agentProjectDiagnostics,
@@ -516,7 +512,7 @@ describe("current Agent Circuit API service", () => {
       (option) => option.shape.kind.value,
     );
     const supportedKinds = typedKinds.filter(
-      (kind) => agentEditCategory(kind) !== "unsupported",
+      (kind) => kind !== "set_instance_group",
     );
 
     expect(AGENT_EDIT_KINDS).toEqual([...supportedKinds, "wire"]);

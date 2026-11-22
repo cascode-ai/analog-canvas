@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 
-import type { DerivedRect, GridRect } from "@icm/model";
+import type { DerivedRect, GridRect, SchematicDocument } from "@icm/model";
 import {
   flattenRichText,
   parseSignalExpression,
@@ -18,13 +18,18 @@ import {
   type CanvasInsets,
 } from "../../canvas/fit-view";
 import { RichTextEditor } from "./rich-text-editor";
-import { spliceVisibleEdit, type TextEditingSession } from "./text-editing";
+import {
+  planTextReferenceArray,
+  spliceVisibleEdit,
+  type TextEditingSession,
+} from "./text-editing";
 
 type TextEditingUpdate = Partial<
   Pick<TextEditingSession, "content" | "sizeScale" | "alignment">
 >;
 
 export interface CanvasTextEditorOverlayProps {
+  referenceDocument?: SchematicDocument;
   session: TextEditingSession;
   bounds: DerivedRect;
   viewBox: GridRect;
@@ -278,6 +283,7 @@ function resolveInlineTextEditorFrame(
 }
 
 export function CanvasTextEditorOverlay({
+  referenceDocument,
   session,
   bounds,
   viewBox,
@@ -412,6 +418,9 @@ export function CanvasTextEditorOverlay({
     : NO_INSETS;
   const signalPreview = (() => {
     const visible = flattenRichText(session.content);
+    const array =
+      referenceDocument && planTextReferenceArray(referenceDocument, session);
+    if (array) return array;
     if (
       !visible.trim() ||
       !["cell-terminal-name", "net-name"].includes(session.bindingKind ?? "") ||

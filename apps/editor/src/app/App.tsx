@@ -6,10 +6,8 @@ import {
 } from "../features/hierarchy/project-hierarchy";
 import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
 import { instanceGroupDisplay } from "@icm/derived";
-import {
-  canCreateInstanceArray,
-  planInstanceGroupView,
-} from "../features/instance-groups/instance-group-edits";
+import { canCreateInstanceArray } from "@icm/edit-engine";
+import { planInstanceGroupView } from "../features/instance-groups/instance-group-edits";
 import { NewCellDialog } from "../features/hierarchy/new-cell-dialog";
 import { ReplaceCellDialog } from "../features/hierarchy/replace-cell-dialog";
 import type {
@@ -8674,6 +8672,7 @@ function WorkspaceEditor({
             onDeleteVertex: deleteConstructionVertex,
           }}
           interactionPreviews={{
+            referenceDocument: document,
             boxPreview,
             draftingSource,
             arrowPreset,

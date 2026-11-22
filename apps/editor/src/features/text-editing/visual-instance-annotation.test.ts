@@ -24,6 +24,7 @@ import {
 import {
   createTextEditingSession,
   proposeTextEditingCommit,
+  planTextReferenceArray,
   updateTextEditingSession,
 } from "./text-editing";
 
@@ -96,6 +97,84 @@ const text = (value: string): RichTextDocument => ({
 });
 
 describe("one visual annotation, one electrical authority", () => {
+  it("creates ordered independent resistors from a bound Reference and keeps aliases literal", () => {
+    const before = fixture();
+    const after = edit(before, text("RLOAD<6:0>"), false);
+    const ids = after.instanceGroups?.[0]?.memberIds;
+    expect(
+      ids?.map(
+        (id) => after.instances.find((part) => part.id === id)?.reference,
+      ),
+    ).toEqual([
+      "RLOAD6",
+      "RLOAD5",
+      "RLOAD4",
+      "RLOAD3",
+      "RLOAD2",
+      "RLOAD1",
+      "RLOAD0",
+    ]);
+    expect(ids?.[0]).toBe("device-1");
+    expect(
+      flattenRichText(resolveAnnotationText(after, after.annotations[0]!)),
+    ).toBe("RLOAD6");
+    const alias = edit(before, text("RLOAD<6:0>"), true);
+    expect(alias.instances).toEqual(before.instances);
+  });
+
+  it("keeps the seed's bound label typography and refuses malformed array declarations", () => {
+    const before = fixture();
+    before.annotations[0]!.formatOverride = {
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "R1" }],
+        },
+      ],
+    };
+    const after = edit(before, text("RLOAD<6:0>"), false);
+    expect(after.annotations[0]?.formatOverride?.runs[0]).toMatchObject({
+      kind: "span",
+      style: "bold",
+    });
+    expect(
+      flattenRichText(resolveAnnotationText(after, after.annotations[0]!)),
+    ).toBe("RLOAD6");
+    expect(() => edit(before, text("RLOAD<6:x>"), false)).toThrow("blocked");
+  });
+
+  it("previews the same electrical prefix when the label omits a styled underscore", () => {
+    const before = fixture();
+    before.instances[0]!.reference = "R_load";
+    before.annotations[0]!.formatOverride = {
+      runs: [
+        { kind: "text", value: "R" },
+        {
+          kind: "span",
+          style: "subscript",
+          children: [{ kind: "text", value: "load" }],
+        },
+      ],
+    };
+    const content = text("Rload<2:0>");
+    const session = updateTextEditingSession(
+      createTextEditingSession(
+        { owner: "annotation", object: before.annotations[0]! },
+        before,
+      ),
+      { content },
+    );
+    expect(planTextReferenceArray(before, session)?.members).toEqual([
+      "R_load2",
+      "R_load1",
+      "R_load0",
+    ]);
+    expect(
+      edit(before, content, false).instances.map((part) => part.reference),
+    ).toEqual(["R_load2", "R_load1", "R_load0"]);
+  });
+
   it("defaults to synchronized names and renames without moving or detaching the label", () => {
     const before = fixture();
     const session = createTextEditingSession(

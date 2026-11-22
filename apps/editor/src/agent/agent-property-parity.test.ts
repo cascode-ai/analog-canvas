@@ -71,6 +71,29 @@ const place = (symbol: string, reference: string, x: number, y = 100) => ({
 });
 
 describe("Agent property actions are planned as Apply in Properties", () => {
+  it("uses the ordered array planner for a set-reference action", async () => {
+    const { controller, apply, instance, refuse } = await session();
+    await apply([
+      place("resistor", "R1", 100),
+      place("resistor", "RLOAD2", 200),
+    ]);
+    const before = structuredClone(controller.document);
+    const set = (reference: string) => ({
+      kind: "set-reference",
+      target: { kind: "instance", reference: "R1" },
+      reference,
+    });
+    expect(await refuse([set("RLOAD<6:0>")])).toContain("RLOAD2");
+    expect(controller.document).toEqual(before);
+    const seed = instance("R1").id;
+    await apply([set("RL<0:3>")]);
+    const members = controller.document.instanceGroups![0]!.memberIds;
+    expect(members[0]).toBe(seed);
+    expect(members).toEqual(
+      ["RL0", "RL1", "RL2", "RL3"].map((ref) => instance(ref).id),
+    );
+  });
+
   it("leaves a part exactly as Properties would", async () => {
     const { controller, apply, instance } = await session();
     await apply([

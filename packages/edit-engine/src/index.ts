@@ -1,6 +1,7 @@
 export * from "./drafting-transform.js";
 export * from "./annotation-reflection.js";
 export * from "./history.js";
+export * from "./instance-array.js";
 export * from "./document-structural-sharing.js";
 export * from "./route-geometry-edit.js";
 export * from "./angled-wire-repair.js";
@@ -66,7 +67,6 @@ export * from "./cell-symbol-artwork.js";
 export * from "./cell-pin-planner.js";
 export * from "./signal-wire-planner.js";
 export * from "./signal-endpoint.js";
-export { validateConnectableEndpoint } from "./transaction-routing.js";
 export * from "./no-connect-planner.js";
 export * from "./cell-interface-change-planner.js";
 export * from "./device-model-target-planner.js";
