@@ -139,30 +139,6 @@ describe("account deletion", () => {
   });
 });
 
-describe("gallery admin sessions", () => {
-  it("lets a curator session reach the curator-only surfaces", async () => {
-    const env = environment();
-    const adminCookie = await adminOf(env);
-    const memberCookie = await makerOf(env);
-
-    const asCurator = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/recycled`, {
-        headers: cookieHeaders(adminCookie),
-      }),
-    );
-    expect(asCurator.status).toBe(200);
-
-    const asMember = await route(
-      env,
-      new Request(`${ORIGIN}/api/gallery/recycled`, {
-        headers: cookieHeaders(memberCookie),
-      }),
-    );
-    expect(asMember.status).toBe(401);
-  });
-});
-
 describe("administrator duplicate cleanup", () => {
   function ref(env: Harness, id: string) {
     return {
@@ -416,14 +392,22 @@ describe("gallery administration", () => {
     );
     expect(impossible.status).toBe(404);
 
+    const memberCookie = await makerOf(env);
     const asMember = await route(
       env,
       new Request(`${ORIGIN}/api/gallery/${id}`, {
         method: "DELETE",
-        headers: cookieHeaders(await makerOf(env)),
+        headers: cookieHeaders(memberCookie),
       }),
     );
     expect(asMember.status).toBe(401);
+    const memberBin = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/recycled`, {
+        headers: cookieHeaders(memberCookie),
+      }),
+    );
+    expect(memberBin.status).toBe(401);
   });
 
   it("recycles, hides, restores, and only hard-deletes from the bin", async () => {
