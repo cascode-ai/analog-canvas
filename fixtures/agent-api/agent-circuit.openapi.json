@@ -31479,7 +31479,16 @@
                         "const": "rename"
                       },
                       "name": {
-                        "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema74"
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema74"
+                          },
+                          {
+                            "type": "string",
+                            "maxLength": 120,
+                            "pattern": "^\\s+$"
+                          }
+                        ]
                       },
                       "workspaceId": {
                         "$ref": "#/components/schemas/agentProjectResourceRequest/$defs/__schema1"

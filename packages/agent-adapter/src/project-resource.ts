@@ -1,4 +1,4 @@
-import { ProjectWriteNameSchema } from "@icm/model";
+import { MAX_PROJECT_NAME_LENGTH, ProjectWriteNameSchema } from "@icm/model";
 import {
   AgentComponentLibraryActionSchema,
   AgentComponentLibraryResultSchema,
@@ -82,7 +82,11 @@ export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
   // The Project's own name; Cells keep theirs. Defaults to the bound copy.
   z.strictObject({
     action: z.literal("rename"),
-    name: ProjectWriteNameSchema,
+    // A whitespace-only rename reaches the Editor so existing clients receive
+    // its recoverable INVALID_REQUEST response and keep their current Project.
+    name: ProjectWriteNameSchema.or(
+      z.string().regex(/^\s+$/u).max(MAX_PROJECT_NAME_LENGTH),
+    ),
     workspaceId: StableIdSchema.optional(),
   }),
   z.strictObject({
