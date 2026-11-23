@@ -3,7 +3,7 @@ import {
   MAX_READABLE_PROJECT_FILE_VERSION,
   OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION,
 } from "@icm/project-protocol";
-import { StableIdSchema } from "@icm/model";
+import { MAX_PROJECT_NAME_LENGTH, StableIdSchema } from "@icm/model";
 import { GALLERY_MAX_PROJECT_BYTES, isRecord } from "./gallery-store";
 import { projectPayloadHash, type ProjectEvent } from "./project-sync-journal";
 
@@ -55,7 +55,7 @@ function document(
   if (
     typeof value.name !== "string" ||
     !value.name.trim() ||
-    value.name.length > 120 ||
+    value.name.length > MAX_PROJECT_NAME_LENGTH ||
     !positive(value.schema_version) ||
     Number(value.schema_version) > MAX_READABLE_PROJECT_FILE_VERSION ||
     typeof value.project_text !== "string" ||

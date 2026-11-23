@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  ProjectWriteNameSchema,
+  createEmptyProject,
+  type CircuitProject,
+} from "@icm/model";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 import type { NetlistProfileId } from "../features/netlist-export/netlist-process-presets";
 import { createLocalEditor, type LocalEditor } from "./local-editor";
@@ -28,7 +32,7 @@ export async function createWorkspace(
   await mkdir(dir, { recursive: true });
   const project = createEmptyProject(
     `project-${randomUUID()}`,
-    options.name ?? "Untitled",
+    ProjectWriteNameSchema.parse(options.name ?? "Untitled"),
   );
   project.documents[0]!.id = "main";
   project.topDocumentId = "main";

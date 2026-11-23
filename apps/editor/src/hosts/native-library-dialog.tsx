@@ -1,4 +1,5 @@
 import "./native-dialog.css";
+import { MAX_PROJECT_NAME_LENGTH } from "@icm/model";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { parseProject } from "@icm/project-protocol";
@@ -255,7 +256,7 @@ export function NativeLibraryDialog({
                 Project name{" "}
                 <input
                   autoFocus
-                  maxLength={120}
+                  maxLength={MAX_PROJECT_NAME_LENGTH}
                   value={renaming.name}
                   onChange={(event) =>
                     setRenaming({ ...renaming, name: event.target.value })

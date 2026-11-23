@@ -1,3 +1,5 @@
+import { AgentWorkspaceActionSchema } from "@icm/agent-adapter";
+import { executeProjectTransaction } from "../packages/edit-engine/src/project-transaction";
 import * as galleryRequests from "./gallery-requests";
 // Private Cloud Projects and the Shelf drafts a publication comes from.
 
@@ -25,6 +27,7 @@ import {
   ORIGIN,
   adminOf,
   cookieHeaders,
+  editorFetchAs,
   environment,
   formulaProjectText,
   makerOf,
@@ -38,6 +41,67 @@ import {
 } from "./gallery.test-support";
 
 describe("private Cloud Projects", () => {
+  it("accepts new Project names through 120 characters and lets older names be repaired", async () => {
+    const env = environment(),
+      cookie = await makerOf(env);
+    const fetchLike = editorFetchAs(env, cookie);
+    const project = createEmptyProject("name-boundary", "Original");
+    for (const length of [120, 121, 128, 129, 256]) {
+      const name = "x".repeat(length);
+      for (const action of ["new", "rename"] as const)
+        expect(
+          AgentWorkspaceActionSchema.safeParse({ action, name }).success,
+        ).toBe(length === 120);
+      const result = executeProjectTransaction(project, {
+        projectId: project.id,
+        transactionId: "rename",
+        expectedStructureRevision: 0,
+        actor: { kind: "agent", id: "editor" },
+        edits: [{ kind: "rename_project", name }],
+      });
+      expect(result.ok).toBe(length === 120);
+      if (result.ok)
+        expect(
+          (await saveCloudProject(result.project, null, fetchLike)).status,
+        ).toBe("saved");
+      else expect(result.project.name).toBe("Original");
+    }
+    const legacy = parseProject(
+      serializeProject({ ...project, name: "x".repeat(129) }),
+    );
+    expect(legacy.name.length).toBe(129);
+    expect(
+      (
+        await editorFetchAs(env, cookie)("/api/projects", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: "Short",
+            projectText: serializeProject(legacy),
+          }),
+        })
+      ).status,
+    ).toBe(400);
+    expect(await saveCloudProject(legacy, null, fetchLike)).toMatchObject({
+      status: "rejected",
+      message: expect.stringContaining("120"),
+    });
+    const renamed = executeProjectTransaction(legacy, {
+      projectId: legacy.id,
+      transactionId: "rename-old",
+      expectedStructureRevision: 0,
+      actor: { kind: "human", id: "editor" },
+      edits: [{ kind: "rename_project", name: "  Repaired  " }],
+    });
+    expect(renamed.project.name).toBe("Repaired");
+    expect(
+      (await saveCloudProject(renamed.project, null, fetchLike)).status,
+    ).toBe("saved");
+    expect(
+      (await route(env, saveRequest(cookie, "x".repeat(121)))).status,
+    ).toBe(400);
+  });
+
   it("saves and reopens a Project whose readable copy exceeds the byte limit", async () => {
     const env = environment();
     const cookie = await makerOf(env);

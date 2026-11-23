@@ -46,3 +46,14 @@ it("keeps the embedded components and authored sources of existing amplifier pro
     expect(serializeProject(original)).toBe(before);
   }
 });
+
+it("opens a historical Project and requires a valid name for its independent copy", () => {
+  const original = parseProject(
+    serializeProject(createEmptyProject("old", "x".repeat(129))),
+  );
+  expect(() => createIndependentProject(original, "copy")).toThrow(/120/);
+  expect(createIndependentProject(original, "copy", "  Repaired  ").name).toBe(
+    "Repaired",
+  );
+  expect(original.name).toHaveLength(129);
+});

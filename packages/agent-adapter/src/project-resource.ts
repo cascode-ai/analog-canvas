@@ -1,3 +1,4 @@
+import { MAX_PROJECT_NAME_LENGTH, ProjectWriteNameSchema } from "@icm/model";
 import {
   AgentComponentLibraryActionSchema,
   AgentComponentLibraryResultSchema,
@@ -27,7 +28,6 @@ export const NetlistProcessSchema = z.enum([
   "ics55",
   "gpdk045",
 ]);
-const ProjectNameSchema = z.string().min(1).max(256);
 const GalleryEntryStatusSchema = z.enum(["public", "rejected", "recycled"]);
 /**
  * A Gallery entry's fields an Agent may set, at the Gallery's own limits
@@ -76,13 +76,17 @@ export const AgentWorkspaceActionSchema = z.discriminatedUnion("action", [
   // A blank working copy, as the tab strip's + opens one.
   z.strictObject({
     action: z.literal("new"),
-    name: ProjectNameSchema.optional(),
+    name: ProjectWriteNameSchema.optional(),
     background: z.boolean().optional(),
   }),
   // The Project's own name; Cells keep theirs. Defaults to the bound copy.
   z.strictObject({
     action: z.literal("rename"),
-    name: ProjectNameSchema,
+    // A whitespace-only rename reaches the Editor so existing clients receive
+    // its recoverable INVALID_REQUEST response and keep their current Project.
+    name: ProjectWriteNameSchema.or(
+      z.string().regex(/^\s+$/u).max(MAX_PROJECT_NAME_LENGTH),
+    ),
     workspaceId: StableIdSchema.optional(),
   }),
   z.strictObject({

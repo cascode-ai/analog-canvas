@@ -1,5 +1,10 @@
 import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
-import type { CircuitProject } from "@icm/model";
+import {
+  PROJECT_NAME_REQUIREMENT,
+  ProjectWriteNameSchema,
+  MAX_PROJECT_NAME_LENGTH,
+  type CircuitProject,
+} from "@icm/model";
 import {
   createIndependentProject,
   ProjectWriterNotActiveError,
@@ -134,6 +139,9 @@ export async function saveCloudProject(
   galleryEntryId?: string,
   serialize: (project: CircuitProject) => string = serializeCompactProject,
 ): Promise<CloudProjectSaveOutcome> {
+  const name = ProjectWriteNameSchema.safeParse(project.name);
+  if (!name.success)
+    return { status: "rejected", message: PROJECT_NAME_REQUIREMENT };
   cloudLists.delete(fetchLike);
   let response: Response;
   let creation: PendingCreate | undefined;
@@ -141,7 +149,7 @@ export async function saveCloudProject(
   try {
     binding ??= pendingCreates.get(fetchLike)?.get(project.id)?.binding ?? null;
     body = JSON.stringify({
-      name: project.name,
+      name: name.data,
       projectText: serialize(project),
       ...(!binding && galleryEntryId ? { galleryEntryId } : {}),
     });
@@ -386,19 +394,19 @@ export async function editShelfProject(
         createIndependentProject(
           project,
           crypto.randomUUID(),
-          `${loaded.project.name.slice(0, 113)} (copy)`,
+          `${loaded.project.name.slice(0, MAX_PROJECT_NAME_LENGTH - " (copy)".length)} (copy)`,
         ),
         null,
         fetchLike,
       );
     }
-    const name = action.name.trim();
-    if (!name || name.length > 120)
+    const name = ProjectWriteNameSchema.safeParse(action.name);
+    if (!name.success)
       return {
         status: "rejected",
-        message: "Use a name between 1 and 120 characters",
+        message: PROJECT_NAME_REQUIREMENT,
       };
-    project.name = name;
+    project.name = name.data;
     return saveCloudProject(project, loaded.project, fetchLike);
   } catch (error) {
     return {

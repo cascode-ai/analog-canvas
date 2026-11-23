@@ -83,6 +83,9 @@ importers:
       "@icm/edit-engine":
         specifier: workspace:*
         version: link:../../packages/edit-engine
+      "@icm/model":
+        specifier: workspace:*
+        version: link:../../packages/model
       "@icm/project-protocol":
         specifier: workspace:*
         version: link:../../packages/project-protocol

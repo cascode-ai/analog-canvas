@@ -1,3 +1,4 @@
+import { MAX_PROJECT_NAME_LENGTH } from "@icm/model";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { ContextMenu } from "../../components/context-menu";
 import type { CloudProjectSummary } from "./cloud-projects";
@@ -81,7 +82,11 @@ export function ProjectTabs({
     onEditingChange(false);
     if (value === session.original) return false;
     const name = value?.trim();
-    if (name && name !== session.original && name.length <= 120) {
+    if (
+      name &&
+      name !== session.original &&
+      name.length <= MAX_PROJECT_NAME_LENGTH
+    ) {
       onRename(session.id, name);
       return true;
     }
@@ -287,7 +292,7 @@ export function ProjectTabs({
                   className="project-tab-name-input"
                   aria-label="Project name"
                   autoComplete="off"
-                  maxLength={120}
+                  maxLength={MAX_PROJECT_NAME_LENGTH}
                   defaultValue={editing.original}
                   style={{ width: editing.width }}
                   onBlur={(event) => finishRename(event.currentTarget.value)}
