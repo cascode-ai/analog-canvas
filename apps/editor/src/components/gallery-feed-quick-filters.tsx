@@ -37,6 +37,26 @@ function NetlistIcon() {
   );
 }
 
+/** "Simulation passed": a waveform, the icon-sized stand-in for the tiles' Sim mark. */
+function SimulationIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12c2.5-7 5.5-7 8 0s5.5 7 8 0c1-2.8 2.2-4.2 4-4.2" />
+    </svg>
+  );
+}
+
 /** A quick filter's row, highlighted while it narrows the wall. */
 function quickMarkClass(selected: boolean): string {
   return selected
@@ -407,8 +427,7 @@ export function GalleryQuickFilters({
           }
           onClick={() => updateFilters({ sim: !simOnly })}
         >
-          {/* The tiles' Sim mark is its own name here. */}
-          <span className="gallery-tile-mark gallery-tile-sim">Sim</span>
+          <SimulationIcon /> <span>Simulation passed</span>
           {quickCount("sim")}
         </button>
       ) : null}
