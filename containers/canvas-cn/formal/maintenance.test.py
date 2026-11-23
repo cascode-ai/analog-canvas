@@ -57,6 +57,37 @@ class EntranceTest(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('rsync'), 'requires Linux rsync')
 class SnapshotTest(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'posix', 'requires Linux I/O accounting')
+    def test_small_edit_to_large_database_fits_the_stopped_write_budget(self):
+        import resource
+
+        def output_bytes():
+            return 512 * sum(resource.getrusage(who).ru_oublock
+                             for who in (resource.RUSAGE_SELF, resource.RUSAGE_CHILDREN))
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            data = root / 'data'
+            (data / 'state' / 'gallery').mkdir(parents=True)
+            (data / 'artifacts').mkdir()
+            db = data / 'state' / 'gallery' / ('a' * 64 + '.sqlite')
+            db.write_bytes(b'A' * (32 * 1024 * 1024))
+            record = root / 'release.json'
+            record.write_text('{}')
+            snapshot = Snapshot(data, root / 'backups')
+            with db.open('r+b') as dbfile, mmap.mmap(dbfile.fileno(), 0) as mapped:
+                before = output_bytes()
+                snapshot.prepare()
+                if output_bytes() - before < db.stat().st_size:
+                    self.skipTest('filesystem does not account for buffered disk writes')
+                mapped[11000:11003] = b'new'
+            before = output_bytes()
+            snapshot.capture(record)
+            self.assertLess(output_bytes() - before, 4 * 1024 * 1024)
+            archive = snapshot.publish()
+            with tarfile.open(archive / 'state.tar.gz') as bundle:
+                self.assertEqual(bundle.extractfile(str(db.relative_to(data))).read(), db.read_bytes())
+
     def test_capture_includes_writes_through_an_existing_memory_mapping(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
