@@ -105,6 +105,13 @@ export function estimateSimulationOutputBytes(
   return Math.ceil(bytes);
 }
 
+/** A byte count as the advisories say it: megabytes (MiB), one decimal below ten. */
+export function formatMegabytes(bytes: number): string {
+  const megabytes = bytes / (1024 * 1024);
+  return `${megabytes < 10 ? megabytes.toFixed(1) : Math.round(megabytes)} MB`;
+}
+
+/** An executor without a limit (the in-browser simulator) gets no advisory. */
 export function outputVolumeWarning(
   analyses: readonly ResultVolumeAnalysis[],
   probeCount: number,
@@ -113,5 +120,5 @@ export function outputVolumeWarning(
   if (maxOutputBytes === undefined) return null;
   const estimated = estimateSimulationOutputBytes(analyses, probeCount);
   if (estimated <= maxOutputBytes) return null;
-  return `Estimated ASCII raw output is about ${estimated} bytes for ${probeCount} probes, above this executor's ${maxOutputBytes}-byte output limit; the run remains allowed but its result may be truncated.`;
+  return `Estimated ASCII raw output is about ${formatMegabytes(estimated)} for ${probeCount} probes, above the ${formatMegabytes(maxOutputBytes)} this executor returns. The run remains allowed, but its raw output is cut at ${formatMegabytes(maxOutputBytes)} and the result is reported incomplete.`;
 }

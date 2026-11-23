@@ -63,7 +63,9 @@ export interface SimulationConfigurationMetadata {
 }
 
 export interface SimulationEnvironmentFacts {
-  executor: "hosted-container" | "local-host";
+  /** Where ngspice ran: the hosted harness, a local binary, or the WebAssembly
+   * build in the user's browser (`browser-wasm`). */
+  executor: "hosted-container" | "local-host" | "browser-wasm";
   /** `pinned` is reserved for a build verified against an environment lock. */
   reproducibility: "observed" | "pinned";
   /** Named runtime contract, or null for an unqualified local environment. */

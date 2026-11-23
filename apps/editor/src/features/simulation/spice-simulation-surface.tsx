@@ -127,6 +127,12 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
   const selectedFolder = project.simulationFolders.find(
     (folder) => folder.id === props.selectedFolderId,
   );
+  const selectedFolderConfig = selectedFolder
+    ? readSimulationExperimentConfig(selectedFolder)
+    : undefined;
+  const runsOnThisComputer =
+    !!selectedFolderConfig?.ok &&
+    session.runsInBrowser(selectedFolderConfig.config.environment.profileId);
   const activeFolderId = useRef(props.selectedFolderId);
   activeFolderId.current = props.selectedFolderId;
   const [capabilities, setCapabilities] = useState<Capabilities>();
@@ -1370,8 +1376,9 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             ))}
             {run?.resultPreview ? (
               <p>
-                The on-screen result is bounded; exported artifacts contain the
-                complete data.
+                {run.details?.collection === "partial"
+                  ? "The on-screen result is bounded, and the raw output was cut at the executor's limit: exported artifacts hold what was collected, not the complete data."
+                  : "The on-screen result is bounded; exported artifacts contain the complete data."}
               </p>
             ) : null}
             {run && evidencePersistenceFailed(run) ? (
@@ -1471,8 +1478,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
           disabled={busy}
           onClick={() => void execute(true)}
           aria-label="Run"
-          title={`Run ${selectedFolder.name} / ${selectedFolder.input.entry}`}
-          aria-description={`Run ${selectedFolder.name} / ${selectedFolder.input.entry}`}
+          title={`Run ${selectedFolder.name} / ${selectedFolder.input.entry}${runsOnThisComputer ? " on this computer" : ""}`}
+          aria-description={`Run ${selectedFolder.name} / ${selectedFolder.input.entry}${runsOnThisComputer ? " on this computer" : ""}`}
         >
           <SimulationActionIcon kind={busy ? "saving" : "run"} />
           <span className="simulation-run-target">{selectedFolder.name}</span>
@@ -1488,6 +1495,14 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
       >
         {activeDirty ? "Source changed" : statusLabel}
       </span>
+      {runsOnThisComputer ? (
+        <span
+          className="simulation-run-location"
+          title="ngspice runs in this browser, with the SKY130 models loaded here; the circuit is not sent to a server."
+        >
+          On this computer
+        </span>
+      ) : null}
       {batch ? (
         <details
           ref={batchMenuRef}

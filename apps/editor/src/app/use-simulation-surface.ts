@@ -25,6 +25,7 @@ import type { ControlPickState } from "../features/properties/controlled-source-
 import { BrowserSimulationSession } from "../features/simulation/browser-simulation-session";
 import type { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import { createSimulationProjectFileHost } from "../features/simulation/project-file-host";
+import { BROWSER_SIMULATION_ENABLED } from "../features/simulation/simulation-executor";
 import type { ProjectRunHistory } from "../features/simulation/project-run-history";
 import { deriveSimulationProbeOptions } from "../features/simulation/simulation-probe-options";
 import {
@@ -140,6 +141,8 @@ export function useSimulationSurface({
               actor: { kind: "human", id: "human-local" },
             }),
             transport: simulationTransport,
+            // The person's SKY130 ngspice runs stay on this computer.
+            browserExecution: BROWSER_SIMULATION_ENABLED,
           })
         : null,
     [

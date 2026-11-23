@@ -84,6 +84,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.simulation-run-location {
+  flex: 0 0 auto;
+  color: var(--icm-text-muted);
+  font-size: 10px;
+  line-height: 22px;
+  white-space: nowrap;
+}
 .simulation-agent-guidance {
   display: flex;
   align-items: center;

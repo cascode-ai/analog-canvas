@@ -49,10 +49,11 @@ function isStaticAsset(request) {
     ["script", "worker", "style", "image", "font", "manifest"].includes(
       request.destination,
     ) ||
-    // Fonts and the RNL Worker read these built assets with fetch(), which
-    // has no destination. Imported/user package files stay outside this cache.
+    // Fonts, the RNL Worker and the in-browser simulator read these built
+    // assets with fetch(), which has no destination. Imported/user package
+    // files stay outside this cache.
     /\.(?:ttf|woff2?)$/u.test(new URL(request.url).pathname) ||
-    /^\/assets\/(?:analog-canvas-extensions-[^/]+\.rnl|rnl_runtime_wasm-[^/]+\.wasm)$/u.test(
+    /^\/assets\/(?:analog-canvas-extensions-[^/]+\.rnl|rnl_runtime_wasm-[^/]+\.wasm|ngspice-[^/]+\.wasm|[^/]+-[^/]+\.spice)$/u.test(
       new URL(request.url).pathname,
     )
   );

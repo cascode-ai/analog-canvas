@@ -12,6 +12,11 @@ import type { ProjectRunHistory } from "./project-run-history";
 import type { sourcePresentation } from "./source-presentation";
 import { serializeProject } from "@icm/project-protocol";
 import { simulationFileEngine } from "./file-engine";
+import {
+  runsInBrowser,
+  simulationExecutor,
+  type SimulationExecutorOptions,
+} from "./simulation-executor";
 import { createBrowserSimulationArtifactStore } from "./browser-simulation-artifact-store";
 
 /** Do not export a pre-prepare Project when editing raced with compilation. */
@@ -23,16 +28,13 @@ export function unchangedProjectSnapshot(
   return file === serializeProject(after) ? file : "";
 }
 
-export interface BrowserSimulationSessionOptions {
+export interface BrowserSimulationSessionOptions extends SimulationExecutorOptions {
   runHistory?: ProjectRunHistory;
   owner?: "agent" | "human";
   getProjectSessionId(): string;
   getProject(): CircuitProject;
   files?: SimulationFiles;
   projectFiles?: ProjectSimulationFileHost;
-  fetch?: typeof fetch;
-  /** Explicit deployment composition; never inferred after a start fails. */
-  transport?: "direct" | "managed";
 }
 
 /** Shared browser composition, not a second run registry. Each owner has an
@@ -51,14 +53,16 @@ export class BrowserSimulationSession {
     }
   >();
   private readonly projectSessionId: string;
+  private readonly executor: ReturnType<typeof simulationExecutor>;
   constructor(private options: BrowserSimulationSessionOptions) {
     this.projectSessionId = options.getProjectSessionId();
+    this.executor = simulationExecutor(options);
     this.files =
       options.files ??
       new SimulationFiles(
         Date.now,
         options.projectFiles,
-        simulationFileEngine(options),
+        simulationFileEngine({ executor: this.executor }),
         createBrowserSimulationArtifactStore(
           options.getProject().id,
           undefined,
@@ -78,6 +82,10 @@ export class BrowserSimulationSession {
       (value) => value.clear(),
       () => {},
     );
+  }
+  /** Whether a Profile's runs stay on this computer rather than a server. */
+  runsInBrowser(profileId: string | undefined): boolean {
+    return runsInBrowser(this.options, profileId);
   }
   /** Read the current controller state after an awaited File Resource commit. */
   currentProject(): CircuitProject | undefined {
@@ -104,25 +112,15 @@ export class BrowserSimulationSession {
         },
       };
     try {
-      this.service ??= import("@icm/simulation-service")
+      this.service ??= Promise.all([
+        import("@icm/simulation-service"),
+        this.executor(),
+      ])
         .then(
-          ({
-            SimulationService,
-            createHostedExecutor,
-            createManagedHostedExecutor,
-          }) =>
+          ([{ SimulationService }, executor]) =>
             new SimulationService(
               this.files,
-              this.options.transport === "managed"
-                ? createManagedHostedExecutor({
-                    fetch:
-                      this.options.fetch ??
-                      ((...args) => globalThis.fetch(...args)),
-                  })
-                : createHostedExecutor(
-                    this.options.fetch ??
-                      ((...args) => globalThis.fetch(...args)),
-                  ),
+              executor,
               this.options.getProject,
             ),
         )

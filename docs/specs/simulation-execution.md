@@ -164,6 +164,33 @@ type ModelLibrarySelection =
 - Cells use `scale=1.0u`; only Library-gate cells are reviewed; flip-flops and
   latches need `special_*` models the continuous library lacks.
 
+#### In-browser execution
+
+- The Simulation panel runs this Profile's folders in the person's browser:
+  ngspice 46 built for WebAssembly by
+  [`scripts/build-ngspice-wasm.sh`](../../scripts/build-ngspice-wasm.sh)
+  (reproducible; no XSPICE, OSDI, CIDER or OpenMP) in a Web Worker, behind the
+  Worker's ngspice route run in the page. No server, account or sign-in; the
+  panel says "On this computer". Agents, headless checks and every other
+  Profile keep their executor; the browser-test editor turns it off
+  (`VITE_ICM_BROWSER_SIMULATION=disabled`).
+- The Profile's `browser` section pins the wasm SHA-256, platform
+  `emscripten/wasm32` and the digest of the image's `/opt/sky130/continuous`
+  subtree, vendored unmodified in
+  `apps/editor/src/features/simulation/browser-ngspice/`; cell libraries and
+  startup keep their hosted digests. The Worker measures what it loaded and runs
+  only on a full match. Runs report `executor: "browser-wasm"`, `pinned`, and no
+  hosted `execution` target; the route checks every such result against the pin.
+- Each run gets a fresh module with the libraries at their hosted runtime paths
+  and a `/proc/meminfo` of 2 GiB (ngspice refuses to run without one). Cancel
+  and the deadline terminate the Worker. The whole rawfile is returned, so
+  capabilities advertise no `maxOutputBytes`. A rawfile over 192 Mi characters
+  (the route's result, about twice that, must stay one V8 string) is reported
+  uncollected, with the reason in the log. Logs keep the 1 MiB cap.
+- Simulator and models load on the first run as content-hashed assets (HTTP and
+  service-worker caches) and stay loaded in the Worker. Gallery Sim verdicts are
+  never recorded from browser runs.
+
 ## Run metadata V1
 
 [SimulationRunMetadata](../../packages/spice-run/src/contract.ts) owns the fields;
@@ -175,8 +202,9 @@ type ModelLibrarySelection =
   ngspice input would exceed its budget, and for VACASK until circuit text is
   accepted. `testbenchSha256` and `deckSha256` cover the executed entry.
   `catalog.files` holds every other file's SHA-256.
-- Hosted executors report `pinned` only after matching the Profile; nothing is
-  fabricated. Metadata is provenance, not correctness.
+- Hosted executors report `pinned` only after matching the Profile, the browser
+  executor only after matching its `browser` section; nothing is fabricated.
+  Metadata is provenance, not correctness.
 
 ## Execution boundary
 
@@ -210,7 +238,7 @@ Shared minimums for the hosted runner and the local host:
 | ----------------------- | ---------------------------- | -------------------------------------------------------- |
 | Deck size               | 2 MiB                        | `413 deck-too-large`                                     |
 | Request envelope        | 8 MiB                        | connection closed, `413 request-too-large`               |
-| Raw waveform collection | 64 MiB per run               | incomplete collection reported, never certified complete |
+| Raw waveform collection | 64 MiB per run (hosted)      | incomplete collection reported, never certified complete |
 | Simulator logs          | 1 MiB per run, independently | split between stdout and stderr; truncation reported     |
 | Default deadline        | 30 s                         | when the caller names none                               |
 | Maximum deadline        | 120 s                        | longer requests clamped                                  |
@@ -237,7 +265,8 @@ Shared minimums for the hosted runner and the local host:
 
 - Capabilities read qualified `analyses` from the Profile, report
   `parsedAnalyses` separately and advertise `maxOutputBytes`; an estimated
-  rawfile over budget warns but never blocks.
+  rawfile over it warns, in MB, that the file is cut there, but never blocks. An
+  executor without a limit advertises none and gets no warning.
 - The service exposes `prepare`, `start`, `read`, `cancel`, `export`. `start`
   runs exactly the prepared digest; run ids are bound to their session or
   Project owner. Unavailable evidence reads as lost; lost runs never rerun.
@@ -276,10 +305,9 @@ Shared minimums for the hosted runner and the local host:
   or exporting a netlist; any other account gets
   `403 hosted-simulation-team-only`, which points to exporting a netlist.
   Profile discovery, and reading, cancelling or deleting one's own runs, stay
-  open. `/api/auth/me` marks team accounts `hostedSimulation: true`; over the
-  managed transport the editor shows Simulate only to them (a direct transport
-  keeps it). Gallery checks and the deploy smoke credential are admitted
-  explicitly.
+  open. `/api/auth/me` marks team accounts `hostedSimulation: true`. The editor
+  shows Simulate to everyone, since SKY130 runs stay in the browser. Gallery
+  checks and the deploy smoke credential are admitted explicitly.
 - Managed admission: runs survive tab loss with one day of evidence; at most 50
   waiting, one queued and one active per owner, five-minute wait, one
   operator-host slot. `SIMULATION_DISPATCH=alarm` schedules a control-DO alarm
@@ -319,7 +347,8 @@ Shared minimums for the hosted runner and the local host:
 
 - Rawfile/result tests use ngspice- and VACASK-generated divider, RC and resistor
   Noise fixtures with closed-form expectations; harness tests use real processes
-  and misbehaving stand-ins.
+  and misbehaving stand-ins. The browser executor's tests run the vendored
+  WebAssembly on one RC deck through the route and check the pins.
 - `scripts/simulation-acceptance.mjs` and `scripts/preview-simulation-smoke.mjs`
   check the OTA through the hosted path.
 - Recorded fixtures and local runs prove protocol handling, not hosted

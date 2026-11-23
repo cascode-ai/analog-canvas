@@ -47,7 +47,18 @@ describe("simulation result volume estimate", () => {
       1024 * 1024,
     );
     expect(warning).toContain("run remains allowed");
-    expect(warning).toContain("may be truncated");
+    expect(warning).toContain("cut at 1.0 MB");
+    expect(warning).not.toMatch(/\d{6,}/u);
+  });
+
+  it("gives no advisory for an executor without an output limit", () => {
+    expect(
+      outputVolumeWarning(
+        [{ kind: "tran", stepSeconds: 1e-12, stopSeconds: 1 }],
+        64,
+        undefined,
+      ),
+    ).toBeNull();
   });
 
   it("counts the exact authored points of a forward or reverse DC sweep", () => {

@@ -77,8 +77,13 @@ export default defineConfig({
         webServer: {
           command: editorServer,
           // Start the local Agent relay with the server, not in the first
-          // Agent test (apps/editor/dev/agent-relay.ts).
-          env: { ICM_E2E_RELAY_AT_START: "1" },
+          // Agent test (apps/editor/dev/agent-relay.ts). Simulation specs
+          // answer /api/simulate themselves, so the test editor keeps SKY130
+          // runs on that executor instead of ngspice in the page.
+          env: {
+            ICM_E2E_RELAY_AT_START: "1",
+            VITE_ICM_BROWSER_SIMULATION: "disabled",
+          },
           url: e2eBaseUrl,
           reuseExistingServer:
             !process.env.CI && process.env.ICM_E2E_ISOLATED !== "1",

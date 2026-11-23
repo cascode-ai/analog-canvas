@@ -33,6 +33,16 @@
     "filetype": "ascii",
     "contentSha256": "5ad94681e17bba379ac84d01fe7773458b34f9bbd77c127a3738f1af47ad5634"
   },
+  "browser": {
+    "platform": "emscripten/wasm32",
+    "simulator": {
+      "binarySha256": "5545508b187d879f57aa45a55c93d8ca92ad1e131f20789cad366a7ab2d7de21"
+    },
+    "models": {
+      "root": "/opt/sky130/continuous",
+      "contentSha256": "dd557ad582948cf7d47b689dbd5e7311f8c1b796ac83ffebf5cc849576de0880"
+    }
+  },
   "qualifiedScope": {
     "devices": [
       "sky130_fd_pr__nfet_01v8",
