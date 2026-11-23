@@ -4,7 +4,11 @@ import {
   type RoutingAffectedClosure,
   type RoutingSelectionSeed,
 } from "@icm/derived";
-import { routeElectricalConnections, type SchematicDocument } from "@icm/model";
+import {
+  junctionElectricalEndpoints,
+  routeElectricalConnections,
+  type SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { withPowerMarkerOwnership } from "./power-marker-ownership.js";
 
@@ -45,34 +49,34 @@ export function captureRoutingCopyFragment(
     ...(seed.annotationIds ?? []),
     ...affected.electricalAnnotationIds,
   ]);
+  const capturedNetIds = new Set<string>();
+  const routes = new Set(affected.internalRoutes);
+  if (routes.size) {
+    for (const route of document.routes) {
+      if (!routes.has(route.id)) continue;
+      for (const edge of routeElectricalConnections(route))
+        capturedNetIds.add(edge.netId);
+    }
+  }
+  const junctions = new Set(affected.internalJunctions);
+  if (junctions.size) {
+    for (const junction of document.junctions) {
+      if (!junctions.has(junction.id) || !junction.styleOverride?.color)
+        continue;
+      for (const edge of junctionElectricalEndpoints(junction))
+        capturedNetIds.add(edge.netId);
+    }
+  }
   const internalNetIds = stable(
     document.nets.flatMap((net) =>
-      options.includeImplicitInstanceRoutes !== false &&
-      net.terminals.length > 0 &&
-      net.terminals.every((terminal) =>
-        selectedInstances.has(terminal.instanceId),
-      )
+      capturedNetIds.has(net.id) ||
+      (options.includeImplicitInstanceRoutes !== false &&
+        net.terminals.length > 0 &&
+        net.terminals.every((terminal) =>
+          selectedInstances.has(terminal.instanceId),
+        ))
         ? [net.id]
-        : affected.internalJunctions.some((id) =>
-              document.junctions.some(
-                (j) =>
-                  j.id === id &&
-                  (j.members?.some((member) => member.netId === net.id) ??
-                    j.netId === net.id) &&
-                  j.styleOverride?.color,
-              ),
-            ) ||
-            affected.internalRoutes.some((routeId) =>
-              document.routes.some(
-                (route) =>
-                  route.id === routeId &&
-                  routeElectricalConnections(route).some(
-                    (connection) => connection.netId === net.id,
-                  ),
-              ),
-            )
-          ? [net.id]
-          : [],
+        : [],
     ),
   );
   const ownerNetIds = stable([
