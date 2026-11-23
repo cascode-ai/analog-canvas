@@ -81,7 +81,9 @@ export async function reserveRegionalProject(
   env: GalleryEnv,
   id: string,
   ownerUserId: string,
-): Promise<{ reservation: string } | Response> {
+): Promise<
+  { reservation: string } | { refusedBeforeReservation: Response } | Response
+> {
   const response = await env
     .PROJECTS!.getByName(env.PROJECTS_STORE_NAME ?? "projects")
     .fetch("https://projects/cloud-project-region", {
@@ -95,10 +97,12 @@ export async function reserveRegionalProject(
     !env.PROJECT_SYNC_PEER_URL ||
     !env.PROJECT_SYNC_PEER_TOKEN
   )
-    return Response.json(
-      { error: "quota-authority-unavailable" },
-      { status: 503 },
-    );
+    return {
+      refusedBeforeReservation: Response.json(
+        { error: "quota-authority-unavailable" },
+        { status: 503 },
+      ),
+    };
   try {
     const origin = peerOrigin(env.PROJECT_SYNC_PEER_URL);
     const reserved = await fetch(new URL("/api/project-sync/quota", origin), {
@@ -113,7 +117,7 @@ export async function reserveRegionalProject(
     });
     if (reserved.status === 409) {
       const reason = (await readSyncJson(reserved, 4096)) as { error?: string };
-      return Response.json(
+      const refusal = Response.json(
         {
           error:
             reason.error === "project-limit"
@@ -123,6 +127,15 @@ export async function reserveRegionalProject(
         },
         { status: 409 },
       );
+      // Only these replies come from checks preceding the authority's quota write.
+      return [
+        "project-limit",
+        "resource-collision",
+        "resource-deleted",
+        "account-deleted",
+      ].includes(reason.error ?? "")
+        ? { refusedBeforeReservation: refusal }
+        : refusal;
     }
     if (!reserved.ok) throw new Error("Reservation unavailable");
     const value = (await readSyncJson(reserved, 16384)) as {

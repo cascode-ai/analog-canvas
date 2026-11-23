@@ -5,6 +5,9 @@ import {
   regionalMemoryStatus,
 } from "../containers/canvas-cn/formal/memory.mjs";
 import { bearerMatches } from "./bearer";
+import { refuseApiFlood } from "./api-rate-limit";
+import { readSyncJson } from "./project-sync-http";
+import { validCreateTicket } from "./project-create-receipt";
 import {
   arenaCapabilityRequest,
   REGIONAL_ARENA_CAPABILITY,
@@ -48,7 +51,61 @@ export default {
     const local = new URL(incoming.url),
       origin = new URL(config.clientOrigin);
     // The browser proxy names the client; nothing a client sends is trusted.
-    const proxied = incoming.headers.get("x-real-ip");
+    const publicClient = incoming.headers.get("x-real-ip");
+    const controlCreate =
+      local.pathname === "/__regional/project-create-receipt";
+    const dispatchCreate = local.pathname === "/__regional/project-create";
+    const ticketHeader = "x-icm-project-create-ticket";
+    const addressHeader = "x-icm-project-client-address";
+    const proxied = dispatchCreate
+      ? incoming.headers.get(addressHeader)
+      : publicClient;
+    if (controlCreate || dispatchCreate) {
+      if (
+        local.hostname !== "127.0.0.1" ||
+        incoming.method !== "POST" ||
+        !base.PROJECTS ||
+        base.PROJECT_REGION !== "cn" ||
+        publicClient !== null
+      )
+        return new Response(null, { status: 404 });
+      if (controlCreate) {
+        const body = (await readSyncJson(incoming, 512).catch(() => null)) as {
+          ticket?: unknown;
+          action?: unknown;
+          address?: unknown;
+        } | null;
+        if (
+          !validCreateTicket(body?.ticket) ||
+          !["register", "settle"].includes(String(body?.action))
+        )
+          return new Response(null, { status: 400 });
+        if (body?.action === "register" && body.address !== undefined) {
+          if (
+            typeof body.address !== "string" ||
+            !/^[0-9a-f:.]{1,45}$/iu.test(body.address)
+          )
+            return new Response(null, { status: 400 });
+          const flood = await refuseApiFlood(
+            new Request(new URL("/api/projects", origin), {
+              method: "POST",
+              headers: { "cf-connecting-ip": body.address },
+            }),
+            { ...base, ...regionalRateLimiters(base.REGIONAL_RATE_LIMITS) },
+          );
+          if (flood) return flood;
+        }
+        return base.PROJECTS.getByName(
+          base.PROJECTS_STORE_NAME ?? "projects",
+        ).fetch("https://projects/cloud-project-create-receipt", {
+          method: "POST",
+          body: JSON.stringify({ action: body?.action, ticket: body.ticket }),
+        });
+      }
+      if (!validCreateTicket(incoming.headers.get(ticketHeader)))
+        return new Response(null, { status: 400 });
+      local.pathname = "/api/projects";
+    }
     if (local.pathname === "/__regional/health") {
       if (
         incoming.method !== "GET" ||
@@ -83,6 +140,9 @@ export default {
     }
     const env: Env = {
       ...base,
+      ...(dispatchCreate
+        ? { regionalProjectCreateTicket: incoming.headers.get(ticketHeader)! }
+        : {}),
       ...regionalRateLimiters(base.REGIONAL_RATE_LIMITS),
       regionalAnalyticsCountry: proxied
         ? (incoming.headers.get(ANALYTICS_COUNTRY_HEADER) ?? undefined)
@@ -90,6 +150,8 @@ export default {
       // Agents download the pinned MCP bundle from this site (nginx /downloads/mcp/).
       AGENT_MCP_DOWNLOAD_ORIGIN: config.clientOrigin,
     } as Env;
+    // The fixed entrance spent this request's allowance before registering the ticket.
+    if (dispatchCreate) delete env.API_RATE_LIMITER;
     if (
       local.host !== origin.host &&
       !["localhost", "127.0.0.1"].includes(local.hostname)
@@ -101,6 +163,8 @@ export default {
     );
     request.headers.delete("cf-connecting-ip");
     request.headers.delete("x-real-ip");
+    request.headers.delete(ticketHeader);
+    request.headers.delete(addressHeader);
     request.headers.delete(ANALYTICS_COUNTRY_HEADER);
     if (proxied) request.headers.set("cf-connecting-ip", proxied);
     if (
@@ -153,16 +217,17 @@ export default {
         );
       }
     }
-    if (
+    const writesDisabled =
       local.pathname.startsWith("/api/projects") &&
       incoming.method !== "GET" &&
-      env.PROJECT_WRITES_ENABLED?.trim() !== "true"
-    )
-      return Response.json(
-        { error: "regional-writes-disabled" },
-        { status: 503 },
-      );
-    return canvas.fetch(request, env);
+      env.PROJECT_WRITES_ENABLED?.trim() !== "true";
+    const response = writesDisabled
+      ? Response.json({ error: "regional-writes-disabled" }, { status: 503 })
+      : await canvas.fetch(request, env);
+    if (!dispatchCreate) return response;
+    const marked = new Response(response.body, response);
+    marked.headers.set("x-icm-project-create-protocol", "1");
+    return marked;
   },
   scheduled: canvas.scheduled,
 };

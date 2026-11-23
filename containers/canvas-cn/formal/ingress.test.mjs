@@ -8,11 +8,316 @@ import { test, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { createIngress, serveIngress } from "./ingress.mjs";
 
+test("a lost Cloud Project response reconciles from its private receipt without repeating the creation", async (t) => {
+  let ticket;
+  const writes = [];
+  const snapshots = [];
+  let result = "claimed";
+  const backend = http.createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    if (req.url === "/__regional/project-create-receipt") {
+      const call = JSON.parse(body);
+      assert.equal(req.headers.cookie, undefined);
+      assert.equal(req.headers["idempotency-key"], undefined);
+      assert.equal(req.headers["x-real-ip"], undefined);
+      assert.equal(req.headers["x-icm-project-client-address"], undefined);
+      assert.equal(
+        call.address,
+        call.action === "register" ? "192.0.2.42" : undefined,
+      );
+      if (call.action === "register") ticket = call.ticket;
+      res.end(
+        JSON.stringify({
+          version: 1,
+          ticket: call.ticket,
+          state: call.action === "register" ? "registered" : result,
+        }),
+      );
+      return;
+    }
+    writes.push({
+      path: req.url,
+      ticket: req.headers["x-icm-project-create-ticket"],
+      key: req.headers["idempotency-key"],
+      publicAddress: req.headers["x-real-ip"],
+      privateAddress: req.headers["x-icm-project-client-address"],
+      body,
+    });
+    req.socket.destroy();
+  });
+  const ingress = createIngress({
+    upstreamPort: await listen(backend),
+    receiptRetryMs: 20,
+    onUncertaintyChange: (records) => snapshots.push(structuredClone(records)),
+  });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  assert.equal(
+    (
+      await request(port, "/api/projects", "private design", {
+        "idempotency-key": "private-project-key",
+        "x-real-ip": "192.0.2.42",
+        "x-icm-project-client-address": "untrusted",
+        cookie: "icm_session=private-session",
+        "x-icm-project-create-ticket": "untrusted",
+      })
+    ).status,
+    502,
+  );
+  assert.match(ticket ?? "", /^[a-f0-9]{64}$/u);
+  assert.equal(await ingress.hold(), false);
+  assert.doesNotMatch(
+    JSON.stringify(snapshots),
+    /private design|private-project-key|private-session|192\.0\.2\.42/,
+  );
+  result = "committed";
+  await vi.waitFor(() => assert.equal(ingress.status().uncertain, false));
+  assert.equal(await ingress.hold(), true);
+  assert.deepEqual(writes, [
+    {
+      path: "/__regional/project-create",
+      ticket,
+      key: "private-project-key",
+      publicAddress: undefined,
+      privateAddress: "192.0.2.42",
+      body: "private design",
+    },
+  ]);
+});
+
+test("a rolled-back runtime cannot report a successful save or clear an unrelated or mismatched receipt", async (t) => {
+  const legacy = { at: "2026-11-21", category: "projects" };
+  const records = [];
+  let terminal = false;
+  let writes = 0;
+  const backend = http.createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    if (req.url === "/__regional/project-create-receipt") {
+      const { action, ticket } = JSON.parse(body);
+      const mismatch = action === "settle" && !terminal;
+      res.end(
+        JSON.stringify({
+          version: 1,
+          ticket: mismatch ? "0".repeat(64) : ticket,
+          state: action === "register" ? "registered" : "denied",
+        }),
+      );
+    } else {
+      writes++;
+      res.end("<html>old runtime</html>");
+    }
+  });
+  const upstreamPort = await listen(backend);
+  let ingress = createIngress({
+    upstreamPort,
+    uncertaintyRecords: [legacy],
+    receiptRetryMs: 10,
+    onUncertaintyChange: (state) => records.push(structuredClone(state)),
+  });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  assert.equal(
+    (await request(port, "/__regional/project-create", "{}")).status,
+    404,
+  );
+  assert.equal(
+    (await request(port, "/__regional/project-create-receipt", "{}")).status,
+    404,
+  );
+  assert.equal(
+    (
+      await request(port, "/api/projects", "private", {
+        "idempotency-key": "retry",
+        cookie: "icm_regional_session=example",
+      })
+    ).status,
+    503,
+  );
+  assert.equal(writes, 1);
+  await ingress.close();
+  const saved = records.at(-1);
+  assert.equal(saved.length, 2);
+  ingress = createIngress({
+    upstreamPort,
+    uncertaintyRecords: saved,
+    receiptRetryMs: 10,
+    onUncertaintyChange: (state) => records.push(structuredClone(state)),
+  });
+  await listen(ingress.server);
+  terminal = true;
+  await vi.waitFor(() => assert.deepEqual(records.at(-1), [legacy]));
+  assert.equal(await ingress.hold(), false);
+  assert.equal(writes, 1);
+});
+
 async function listen(server) {
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   return server.address().port;
 }
+
+test("an older domestic Worker still accepts keyed creates with the legacy lost-write fence", async (t) => {
+  let writes = 0;
+  let registrations = 0;
+  let malformed = false;
+  const backend = http.createServer((req, res) => {
+    req.resume();
+    if (req.url === "/__regional/project-create-receipt") {
+      registrations++;
+      if (malformed)
+        res.writeHead(200, { "content-type": "application/json" }).end("{}");
+      else
+        res
+          .writeHead(200, { "content-type": "text/html; charset=utf-8" })
+          .end("<html>old runtime</html>");
+      return;
+    }
+    assert.equal(req.url, "/api/projects");
+    if (!req.headers.cookie?.includes("icm_session="))
+      return res.writeHead(401).end();
+    if (++writes === 1) res.writeHead(201).end("accepted by older Worker");
+    else req.socket.destroy();
+  });
+  const ingress = createIngress({ upstreamPort: await listen(backend) });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  const create = (key) =>
+    request(port, "/api/projects", "project", {
+      "idempotency-key": key,
+      cookie: "icm_session=example",
+    });
+  assert.equal(
+    (
+      await request(port, "/api/projects", "project", {
+        "idempotency-key": "anonymous",
+        cookie: "preference=on",
+      })
+    ).status,
+    401,
+  );
+  assert.equal(registrations, 0);
+  assert.equal((await create("one")).status, 201);
+  assert.equal((await create("two")).status, 502);
+  assert.equal(await ingress.hold(), false);
+  malformed = true;
+  assert.equal((await create("three")).status, 503);
+  assert.equal(writes, 2);
+});
+
+test("a receipt lookup for one creation leaves a second active creation alone", async (t) => {
+  let active;
+  let activeTicket;
+  const proofs = [];
+  const backend = http.createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    if (req.url === "/__regional/project-create-receipt") {
+      const { action, ticket } = JSON.parse(body);
+      if (action === "settle") proofs.push(ticket);
+      res.end(
+        JSON.stringify({
+          version: 1,
+          ticket,
+          state: action === "register" ? "registered" : "committed",
+        }),
+      );
+    } else if (body === "working") {
+      activeTicket = req.headers["x-icm-project-create-ticket"];
+      active = res;
+    } else req.socket.destroy();
+  });
+  const ingress = createIngress({
+    upstreamPort: await listen(backend),
+    receiptRetryMs: 5,
+  });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  const original = request(port, "/api/projects", "working", {
+    "idempotency-key": "working",
+    cookie: "icm_session=example",
+  });
+  await vi.waitFor(() => assert.ok(active));
+  assert.equal(
+    (
+      await request(port, "/api/projects", "lost reply", {
+        "idempotency-key": "lost",
+        cookie: "icm_regional_session=example",
+      })
+    ).status,
+    502,
+  );
+  await vi.waitFor(() => assert.equal(ingress.status().uncertain, false));
+  assert.equal(proofs.length, 1);
+  assert.notEqual(proofs[0], activeTicket);
+  active
+    .writeHead(201, { "x-icm-project-create-protocol": "1" })
+    .end("created");
+  assert.deepEqual(await original, { status: 201, body: "created" });
+  await vi.waitFor(() => assert.ok(proofs.includes(activeTicket)));
+  assert.equal(await ingress.hold(), true);
+});
+
+test("slow outstanding lookups leave a later completed receipt a turn", async (t) => {
+  const tickets = Array.from({ length: 5 }, (_, i) => String(i).repeat(64));
+  const waiting = new Map();
+  let latest = tickets.map((projectTicket) => ({
+    at: "2026-11-23",
+    category: "projects",
+    projectTicket,
+  }));
+  const backend = http.createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    const { ticket } = JSON.parse(body);
+    if (ticket === tickets[4])
+      res.end(JSON.stringify({ version: 1, ticket, state: "committed" }));
+    else
+      waiting.set(ticket, () =>
+        res.end(JSON.stringify({ version: 1, ticket, state: "claimed" })),
+      );
+  });
+  const ingress = createIngress({
+    upstreamPort: await listen(backend),
+    receiptRetryMs: 5,
+    uncertaintyRecords: latest,
+    onUncertaintyChange: (records) => {
+      latest = records;
+    },
+  });
+  await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  await vi.waitFor(() => assert.equal(waiting.size, 4));
+  waiting.get(tickets[0])();
+  await vi.waitFor(() =>
+    assert.deepEqual(
+      new Set(latest.map((record) => record.projectTicket)),
+      new Set(tickets.slice(0, 4)),
+    ),
+  );
+  assert.equal(await ingress.hold(), false);
+});
 
 test("a snapshot-length hold queues a save once and still bounds abandoned maintenance", async (t) => {
   const saved = [];
