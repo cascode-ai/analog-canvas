@@ -216,33 +216,21 @@ export function classifyWheelSource(event: WheelSourceShape): WheelSource {
   // Firefox and older engines report a wheel in lines or pages; a precise
   // surface always reports pixels.
   if (event.deltaMode !== 0) return "mouse";
-  // Chromium and WebKit carry the raw platform value alongside the
-  // normalized one. A precise surface keeps the fixed 3:1 pixel ratio,
-  // while a physical detent is quantized to multiples of 120 and breaks
-  // that ratio however much pointer acceleration shrinks its deltaY.
+  // A physical detent is quantized to multiples of 120 in the raw value
+  // Chromium and WebKit carry. Nothing on one axis proves a surface: on
+  // macOS a mouse wheel with scroll acceleration reports the same 3:1
+  // wheelDeltaY ratio and the same sub-pixel deltas as a trackpad, and
+  // reading those as a surface made the Mac mouse wheel pan, not zoom.
   const wheelDeltaY = event.wheelDeltaY;
-  if (typeof wheelDeltaY === "number" && wheelDeltaY !== 0) {
-    if (Math.abs(wheelDeltaY) === 3 * Math.abs(event.deltaY)) return "trackpad";
-    if (wheelDeltaY % 120 === 0) return "mouse";
-    // At a page zoom other than 100% Chromium divides a detent's deltaY by
-    // the zoom (100 → 111.1 at 90%) and derives wheelDeltaY from it at the
-    // wheel's 1.2 ratio (133), so neither the multiple of 120 nor a whole
-    // deltaY survives (#2169). A detent-sized, single-axis step at that
-    // ratio is no evidence of a surface, so it stays "unknown" — which
-    // zooms unless a trackpad gesture is under way — rather than "mouse",
-    // which would wipe a surface's evidence for the steps that follow.
-    if (
-      event.deltaX === 0 &&
-      Math.abs(wheelDeltaY) >= 60 &&
-      Math.abs(Math.abs(wheelDeltaY) - 1.2 * Math.abs(event.deltaY)) <=
-        0.02 * Math.abs(wheelDeltaY)
-    )
-      return "unknown";
-  }
+  if (
+    typeof wheelDeltaY === "number" &&
+    wheelDeltaY !== 0 &&
+    wheelDeltaY % 120 === 0 &&
+    Math.abs(wheelDeltaY) !== 3 * Math.abs(event.deltaY)
+  )
+    return "mouse";
   // Two axes at once is a surface, not a wheel.
   if (event.deltaX !== 0) return "trackpad";
-  // Sub-pixel precision comes from momentum, which a detent cannot produce.
-  if (!Number.isInteger(event.deltaY)) return "trackpad";
   return "unknown";
 }
 
