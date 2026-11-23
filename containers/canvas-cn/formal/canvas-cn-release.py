@@ -537,7 +537,6 @@ def tick(args, host=None, fetcher=None, now=None):
     unit_dir = pathlib.Path(args.unit_dir)
     saved_units = {p.name: p.read_bytes() for p in unit_files(unit_dir)}
     nginx_before = site.read_bytes() if site.exists() else None
-    host.pause_background()
     changed, added, operator_restarted = [], [], False
     try:
         try:
@@ -551,6 +550,7 @@ def tick(args, host=None, fetcher=None, now=None):
         # Transport failure here is retryable: no release has been switched yet.
         if read_current(fetcher) != published or not verified_overseas(fetcher, published):
             return dict(result, status='source-changed', pending={})
+        host.pause_background()
         try:
             host.hold()
         except Exception as error:
