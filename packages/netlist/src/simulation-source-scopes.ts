@@ -75,6 +75,7 @@ export type AuthoredScope =
       vector(name: string): string;
     });
 
+/** @internal Tests pin ngspice vector names and ambiguous call-path rejection through this adapter. */
 export function resolveAuthoredCircuitScope(
   graph: SimulationSourceGraph,
   binding: SimulationCircuitBinding,
