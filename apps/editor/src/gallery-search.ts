@@ -13,6 +13,10 @@ export interface GallerySearchableEntry {
   tags?: readonly string[] | null;
 }
 
+export function gallerySearchQuery(input: string): string {
+  return input.slice(0, 200).trim();
+}
+
 export function normalizeGallerySearchText(value: string): string {
   return value
     .normalize("NFKD")
@@ -80,7 +84,7 @@ export function galleryEntryMatchesQuery(
   entry: GallerySearchableEntry,
   query: string,
 ): boolean {
-  const normalizedQuery = normalizeGallerySearchText(query);
+  const normalizedQuery = normalizeGallerySearchText(gallerySearchQuery(query));
   if (!normalizedQuery) return true;
   const fields = [
     entry.name,

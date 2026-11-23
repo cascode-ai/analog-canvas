@@ -7,7 +7,10 @@ import {
 } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import type { GalleryFeedEntry } from "./gallery-client";
-import { closeTopologyMatches } from "./gallery-topology-selection";
+import {
+  closeTopologyMatches,
+  countTopologyComparison,
+} from "./gallery-topology-selection";
 
 export interface GalleryTopologyMatch extends TopologyCorrespondence {
   entry: GalleryFeedEntry;
@@ -159,7 +162,7 @@ export async function scanGalleryTopologyMatches(
               ...comparison,
               candidate: { ...candidateProject, simulationFolders: [] },
             });
-            report.comparable++;
+            countTopologyComparison(report, comparison);
           } catch {
             report.uncheckable++;
           }

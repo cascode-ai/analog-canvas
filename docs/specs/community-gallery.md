@@ -131,7 +131,8 @@ entries, keyset cursor, limit ≤60.
 
 ### Search, tags and authors
 
-- `q` matches name, byline, description and tags (never Project or preview)
+- Search uses the first 200 UTF-16 code units of `q`, with surrounding whitespace trimmed.
+  It matches name, byline, description and tags (never Project or preview)
   with `apps/editor/src/gallery-search.ts`: case-insensitive containment, else
   each word within one Latin-letter edit (words under four letters exact). It
   narrows before cursor and counts and is echoed as `search`; a response without

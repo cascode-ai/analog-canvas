@@ -1,3 +1,4 @@
+import { gallerySearchQuery } from "./gallery-search";
 import type { GalleryOrder } from "./gallery-order";
 import type { GalleryAttention } from "../../../worker/gallery-curation";
 import {
@@ -461,7 +462,7 @@ export function galleryQueryFromFilters(
   return {
     ...filters,
     author: filters.ownerUserId ? null : filters.author,
-    q: search.trim(),
+    q: gallerySearchQuery(search),
     ...ordering,
   };
 }
@@ -470,7 +471,8 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   const params = new URLSearchParams();
   if (query.source) params.set("source", query.source);
   else if (query.hideDatasets) params.set("source", "community");
-  if (query.q?.trim()) params.set("q", query.q.trim());
+  const search = gallerySearchQuery(query.q ?? "");
+  if (search) params.set("q", search);
   if (query.attention) params.set("attention", "1");
   if (query.attention && query.attentionKind)
     params.set("reason", query.attentionKind);

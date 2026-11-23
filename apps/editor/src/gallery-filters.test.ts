@@ -1,3 +1,4 @@
+import { galleryEntryMatchesQuery } from "./gallery-search";
 import { describe, expect, it } from "vitest";
 import {
   createDefaultGalleryFilters,
@@ -426,4 +427,16 @@ it("round-trips attention independently of tags and retires category links", () 
     "category",
   );
   expect(parseGalleryFilterQuery("?category=amplifiers").narrowed).toBe(false);
+});
+
+it("uses the same 200 characters for shared links and live Gallery matches", () => {
+  const entry = { name: "OTA", author: "A" };
+  for (const length of [199, 200, 201]) {
+    const raw = "ota".padEnd(length - 1) + "z";
+    const search = parseGalleryFilterQuery(
+      "?" + new URLSearchParams({ q: raw }),
+    ).filters.search;
+    expect(galleryEntryMatchesQuery(entry, raw)).toBe(length === 201);
+    expect(galleryEntryMatchesQuery(entry, search)).toBe(length === 201);
+  }
 });
