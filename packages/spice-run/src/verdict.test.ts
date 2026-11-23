@@ -241,6 +241,23 @@ describe("model-card notices (#1313)", () => {
     });
   });
 
+  it("reads a notice glued to ngspice's DC progress line as the library's", () => {
+    const glued = PDK_NPN_BLOCK.replace(
+      "Warning:",
+      " Reference value :  0.00000e+00Warning:",
+    );
+    expect(completedRun([glued], NPN_PAIR_SOURCES).outcome).toEqual({
+      status: "completed",
+    });
+    const carriage = PDK_NPN_BLOCK.replace(
+      "Warning:",
+      " Reference value :  1.00000e-01\rWarning:",
+    );
+    expect(completedRun([carriage], NPN_PAIR_SOURCES).outcome).toEqual({
+      status: "completed",
+    });
+  });
+
   it("keeps the author's own cards and unreadable lines as dropped input", () => {
     const ownDiode = [
       ...NPN_PAIR_SOURCES,
