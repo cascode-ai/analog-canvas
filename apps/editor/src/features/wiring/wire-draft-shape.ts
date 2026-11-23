@@ -1,3 +1,4 @@
+import type { WireContacts } from "./wire-contact-index";
 import { resolveRouteGeometry, visibleSymbolInkBounds } from "@icm/derived";
 import {
   compileWireDraft,
@@ -55,7 +56,7 @@ function pointOnSegment(point: Point, from: Point, to: Point): boolean {
 function overrunPins(
   from: WireSource,
   to: WireSource,
-  visibleEndpoints: readonly WireSource[],
+  visibleEndpoints: WireContacts,
 ): Point[] {
   const owners = new Set(
     [from.endpoint, to.endpoint]
@@ -66,7 +67,11 @@ function overrunPins(
   const ends = [from, to].map(
     (source) => source.connection.contactPoint,
   ) as Point[];
-  return visibleEndpoints
+  const candidates =
+    "forOwner" in visibleEndpoints
+      ? [...owners].flatMap((id) => visibleEndpoints.forOwner(id))
+      : visibleEndpoints;
+  return candidates
     .filter(
       (candidate) =>
         candidate.endpoint.kind === "terminal" &&
@@ -307,7 +312,7 @@ export function resolveWireDraftShape(
   steps: readonly WireDraftStep[],
   routingMode: WireRoutingMode,
   cornerOrder: WireCornerOrder,
-  visibleEndpoints: readonly WireSource[],
+  visibleEndpoints: WireContacts,
 ): WireDraftShapeChoice {
   if (routingMode !== "orthogonal" || cornerOrder !== "auto" || steps.length)
     return { steps, cornerOrder };

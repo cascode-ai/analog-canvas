@@ -165,6 +165,7 @@ export interface UseSelectionInteractionOptions {
   cancelInteraction: () => void;
   cancelCanvasDrag: () => void;
   paintSnapGuides: (guides: []) => void;
+  preflightCopy: (clipboard: SchematicClipboard) => void;
   beginCopyPlacementInteraction: (
     clipboard: SchematicClipboard,
     anchor: Point,
@@ -1325,7 +1326,7 @@ export function useSelectionInteraction(
           ? []
           : options.visualSelection.annotationIds,
       });
-      if (copied) prepareProjectCopy(options.project, options.document, copied);
+      if (copied) options.preflightCopy(copied);
     } catch (error) {
       options.setStatus(error instanceof Error ? error.message : String(error));
       return;

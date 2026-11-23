@@ -1,3 +1,4 @@
+import type { WireContacts } from "./wire-contact-index";
 import type {
   MouseEvent as ReactMouseEvent,
   MutableRefObject,
@@ -126,7 +127,7 @@ export interface UseWireInteractionOptions {
     document: SchematicDocument;
     resolver: SymbolResolver;
     externalSubcircuitDefinitions: CircuitProject["externalSubcircuitDefinitions"];
-    visibleEndpoints: readonly WireSource[];
+    visibleEndpoints: WireContacts;
     routeGeometryRecords: readonly RouteGeometryRecord[];
     contactComponents: Parameters<typeof resolveElectricalContactTargets>[3];
     /** The name the netlist writes a Net under, which a clicked wire is
