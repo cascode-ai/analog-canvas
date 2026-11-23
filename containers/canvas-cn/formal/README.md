@@ -202,8 +202,8 @@ names and port numbers enter the monitor state, never configuration bodies.
   browser shares one address and therefore one allowance.
 - Project sync fails a tick on `retry`, `blocked`, `disabled`, a remaining write
   fence, 120 seconds without catch-up, or 80% of the journal budget; its
-  monitor records the receive cursor, acknowledged send cursor, and failed delivery stage. The region pulls and pushes; the source needs no
-  inbound domestic URL. The sync service never starts a stopped runtime.
+  monitor records the receive cursor, acknowledged send cursor, and failed
+  delivery stage. The region pulls and pushes without an inbound domestic URL. The sync service never starts a stopped runtime.
 - Project and Publication failure mail requires two minutes of unhealthy
   observations after the monitor detects an anomaly. A monitor report of
   blocked or disabled sync or journal capacity alerts at the next check,
@@ -250,8 +250,10 @@ names and port numbers enter the monitor state, never configuration bodies.
   Capture checks free space before seeding. The budget includes the live data
   size, the largest of the last three compressed archives plus 25%, and 1 GiB
   of operating space. With no archive history, use the live size to estimate
-  the compressed size. Low space for the next capture alerts after five minutes
-  outside capture. Less than 1 GiB free alerts after two minutes at any time.
+  the compressed size. Compression checks the remaining free space before each
+  write and preserves the stopped-state copy if it reaches the 1 GiB reserve.
+  Low space for the next capture alerts after five minutes outside capture.
+  Less than 1 GiB free alerts after two minutes at any time.
   Schedule the host's off-host file backup after the formal timer. Restore a
   completed archive from that independent copy, verify `state.sha256`, and
   check its database and artifacts in isolation. Record the drill in the

@@ -19,6 +19,7 @@ import time
 from contextlib import closing
 
 CONTROL = '/run/canvas-cn-ingress/control.sock'
+DISK_RESERVE = 1024**3
 BLOCK = 512 * 1024
 
 
@@ -149,7 +150,7 @@ def check_capture_space(data, backups):
     seed = sum(apparent_size(data / name) for name in ('state', 'artifacts'))
     recent = sorted(backups.glob('20*/state.tar.gz'), reverse=True)[:3]
     archive = max((p.stat().st_size for p in recent), default=seed)
-    required = seed + archive * 5 // 4 + 1024**3
+    required = seed + archive * 5 // 4 + DISK_RESERVE
     temp = backups / '.capacity.next'
     temp.write_text(json.dumps({'requiredBytes': required, 'pid': os.getpid(),
                                 'processInode': pathlib.Path('/proc/self').stat().st_ino}))
@@ -197,12 +198,24 @@ class Snapshot:
         if not self.captured:
             raise RuntimeError('snapshot-not-captured')
         archive = self.stage / 'state.tar.gz'
-        with archive.open('wb') as output:
-            subprocess.run(['tar', '-czf', '-', '-C', str(self.stage), 'state', 'artifacts'],
-                           stdout=output, stderr=subprocess.PIPE, check=True,
-                           env=dict(os.environ, GZIP='-1'))
-            output.flush()
-            os.fsync(output.fileno())
+        # Compress after resuming the writer. New images can compress much less
+        # than the forecast, and serving traffic can also consume free space.
+        try:
+            with archive.open('wb') as output, subprocess.Popen(
+                ['tar', '-czf', '-', '-C', str(self.stage), 'state', 'artifacts'],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=dict(os.environ, GZIP='-1'),
+            ) as tar, tar.stdout:
+                while chunk := tar.stdout.read(8 * 1024**2):
+                    if shutil.disk_usage(self.stage).free < DISK_RESERVE + len(chunk):
+                        raise RuntimeError('backup-headroom')
+                    output.write(chunk)
+                if tar.wait() != 0:
+                    raise RuntimeError('snapshot-compression-failed')
+                output.flush()
+                os.fsync(output.fileno())
+        except BaseException:
+            archive.unlink(missing_ok=True)
+            raise
         with archive.open('rb') as source:
             digest = hashlib.file_digest(source, 'sha256').hexdigest()
         (self.stage / 'state.sha256').write_text(digest + '  state.tar.gz\n')

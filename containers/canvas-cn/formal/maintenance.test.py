@@ -141,6 +141,32 @@ class SnapshotTest(unittest.TestCase):
                 '20261111T070000Z-release', newest.name,
             })
 
+    def test_compression_preserves_live_disk_reserve_when_new_assets_do_not_compress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            data = root / 'data'
+            backups = root / 'backups'
+            old = backups / '20261120T100000Z-old'
+            old.mkdir(parents=True)
+            (old / 'state.tar.gz').write_bytes(b'old small archive')
+            (data / 'artifacts').mkdir(parents=True)
+            (data / 'state').mkdir()
+            asset = os.urandom(9 * 1024**2)
+            (data / 'artifacts' / 'image').write_bytes(asset)
+            record = root / 'release.json'
+            record.write_text('{}')
+            snapshot = Snapshot(data, backups)
+            snapshot.prepare()
+            snapshot.capture(record)
+            room = iter((2 * 1024**3, 1024**3))
+            with patch.object(maintenance.shutil, 'disk_usage',
+                              side_effect=lambda _: type('Disk', (), {'free': next(room)})()):
+                with self.assertRaisesRegex(RuntimeError, 'backup-headroom'):
+                    snapshot.publish()
+            self.assertFalse((snapshot.stage / 'state.tar.gz').exists())
+            self.assertEqual((snapshot.stage / 'artifacts' / 'image').read_bytes(), asset)
+            self.assertEqual(list(backups.glob('20*')), [old])
+
     def test_insufficient_capture_space_refuses_before_creating_a_seed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
