@@ -394,6 +394,14 @@ class ReleaseTest(unittest.TestCase):
         self.assertNotIn(('systemctl', 'restart', 'canvas-cn-formal.service'), host.calls)
         self.assertEqual(release.tick(self.args(0), host, production, now=1100)['status'], 'installed')
 
+    def test_withdrawn_overseas_receipt_after_live_seed_leaves_sync_running(self):
+        production, host = FakeProduction(self.files), FakeHost({'canvas-cn-project-sync.timer'})
+        host.backup = lambda target: production.served.pop(production.proof_path)
+        result = release.tick(self.args(0), host, production, now=1000)
+        self.assertEqual(result['status'], 'source-changed')
+        self.assertNotIn(('systemctl', 'stop', 'canvas-cn-project-sync.timer'), host.calls)
+        self.assertNotIn(('hold',), host.calls)
+
     def test_waits_for_production_to_settle_then_installs_changed_files(self):
         production, host = FakeProduction(self.files), FakeHost({'canvas-cn-project-sync.timer'})
         first = release.tick(self.args(), host, production, now=1000)
@@ -412,6 +420,9 @@ class ReleaseTest(unittest.TestCase):
         self.assertIn(('systemctl', 'enable', '--now', 'canvas-cn-formal-backup.timer'), host.calls)
         self.assertNotIn(('systemctl', 'enable', '--now', 'canvas-cn-resource-sync.timer'), host.calls)
         # Only the replication timer that was running is paused and restarted.
+        pause = host.calls.index(('systemctl', 'stop', 'canvas-cn-project-sync.timer'))
+        self.assertLess(host.calls.index(('backup', NEW)), pause)
+        self.assertLess(pause, host.calls.index(('hold',)))
         self.assertIn(('systemctl', 'start', 'canvas-cn-project-sync.timer'), host.calls)
         self.assertLess(host.calls.index(('systemctl', 'start', 'canvas-cn-project-sync.timer')),
                         host.calls.index(('archive',)))
