@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyDocument, freezeSnapshot } from "@icm/model";
 import { createRoutingOperationPlan } from "./routing-operation-plan.js";
-import { projectRoutingTransformGeometry } from "./instance-contact-transform.js";
+import {
+  projectRoutingGestureGeometry,
+  projectRoutingTransformGeometry,
+} from "./instance-contact-transform.js";
 
 function source() {
   const document = createEmptyDocument("projection", "Projection");
@@ -34,6 +37,31 @@ function source() {
 }
 
 describe("coordinate-only routing projection", () => {
+  it("isolates caller-owned edits and documents when sharing gesture geometry", () => {
+    const document = source();
+    document.junctions.push({
+      id: "joint",
+      netId: "signal",
+      position: { x: 0, y: 0 },
+    });
+    const position = { x: 20, y: 10 };
+    const plan = createRoutingOperationPlan(document, {
+      intent: "transform",
+      edits: [{ kind: "move_junction", junctionId: "joint", position }],
+      diagnostics: [],
+    });
+    const detached = projectRoutingGestureGeometry(document, plan);
+    detached.nets[0]!.id = "caller-change";
+    expect(document.nets[0]!.id).toBe("signal");
+
+    const owned = freezeSnapshot(document);
+    const gesture = projectRoutingGestureGeometry(owned, plan);
+    position.x = 60;
+    expect(gesture.junctions[0]!.position).toEqual({ x: 20, y: 10 });
+    expect(owned.junctions[0]!.position).toEqual({ x: 0, y: 0 });
+    expect(gesture.nets).toBe(owned.nets);
+    expect(Object.isFrozen(gesture.junctions[0]!.position)).toBe(true);
+  });
   it("keeps public projections detached and legacy duplicate moves find-first", () => {
     const document = source();
     document.instances.push(

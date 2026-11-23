@@ -462,21 +462,31 @@ export function proposeGroupMove(
     source?.document === document
       ? source.routingGeometry
       : resolveDocumentRoutingGeometry(document, resolver);
-  const movedDocument = structuredClone(document);
-  for (const instance of movedDocument.instances) {
-    const target = moveByInstance.get(instance.id);
-    if (target && instance.placement) {
-      instance.placement.position = { ...target };
-    }
-  }
-  for (const junction of movedDocument.junctions) {
-    if (movableJunctionIds.has(junction.id)) {
-      junction.position = {
-        x: junction.position.x + groupDelta.x,
-        y: junction.position.y + groupDelta.y,
-      };
-    }
-  }
+  const movedDocument: SchematicDocument = {
+    ...document,
+    instances: document.instances.map((instance) => {
+      const target = moveByInstance.get(instance.id);
+      return target && instance.placement
+        ? {
+            ...instance,
+            placement: { ...instance.placement, position: { ...target } },
+          }
+        : instance;
+    }),
+    junctions: movableJunctionIds.size
+      ? document.junctions.map((junction) =>
+          movableJunctionIds.has(junction.id)
+            ? {
+                ...junction,
+                position: {
+                  x: junction.position.x + groupDelta.x,
+                  y: junction.position.y + groupDelta.y,
+                },
+              }
+            : junction,
+        )
+      : document.junctions,
+  };
   const smoothing: BoundarySmoothing = {
     originalDocument: document,
     movedDocument,
