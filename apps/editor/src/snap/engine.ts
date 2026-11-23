@@ -511,15 +511,20 @@ export function resolveTranslationSnap(
     };
   }
 
-  const choose = (axis: SnapAxis): AxisCandidate | undefined =>
-    (axis === "x" ? retainedX : retainedY) ??
-    candidates[axis]
-      .filter(
-        (candidate) =>
-          candidate.distance <= captureTolerance ||
-          candidate.targetKind === "grid",
+  const choose = (axis: SnapAxis): AxisCandidate | undefined => {
+    const held = axis === "x" ? retainedX : retainedY;
+    if (held) return held;
+    let best: AxisCandidate | undefined;
+    for (const candidate of candidates[axis]) {
+      if (
+        (candidate.distance <= captureTolerance ||
+          candidate.targetKind === "grid") &&
+        (!best || compareCandidate(candidate, best) < 0)
       )
-      .sort(compareCandidate)[0];
+        best = candidate;
+    }
+    return best;
+  };
   const x = choose("x");
   const y = choose("y");
   return {

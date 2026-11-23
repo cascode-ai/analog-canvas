@@ -26,6 +26,7 @@ import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import type { WireDraftTarget } from "../../interaction/interaction-state";
+import { indexedWireContacts } from "./wire-contact-index";
 import { resolveWireDraftShape } from "./wire-draft-shape";
 import {
   resolveWireDraftPreview,
@@ -221,7 +222,10 @@ function previewFor(
     steps: draft.steps ?? [],
     routingMode: draft.routingMode ?? "orthogonal",
     cornerOrder: draft.cornerOrder ?? "auto",
-    visibleEndpoints: visibleTerminals(document),
+    visibleEndpoints: indexedWireContacts(
+      visibleTerminals(document),
+      document.presentation.grid,
+    ),
   });
 }
 

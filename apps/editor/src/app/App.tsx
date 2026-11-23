@@ -483,6 +483,7 @@ import {
   turnedNetLabel,
   type NetLabelDirection,
 } from "@icm/derived";
+import { indexedWireContacts } from "../features/wiring/wire-contact-index";
 import { useWireCanvasController } from "../features/wiring/use-wire-canvas-controller";
 import {
   EMPTY_WIRE_DRAFT_PREVIEW,
@@ -1651,6 +1652,23 @@ function WorkspaceEditor({
     beginSelectionMove: beginSelectionMoveInteraction,
     cancelInteraction,
   } = useInteractionState<SchematicClipboard>();
+  // A gesture validates its clipboard before entering placement. Its preview can
+  // reuse those resolved dependencies while the same source and target are current.
+  const copyPreflights = useMemo(
+    () =>
+      new WeakMap<
+        SchematicClipboard,
+        Pick<ReturnType<typeof prepareProjectCopy>, "clipboard" | "resolver">
+      >(),
+    [project, document, resolver],
+  );
+  function preflightCopy(clipboard: SchematicClipboard): void {
+    const prepared = prepareProjectCopy(project, document, clipboard);
+    copyPreflights.set(clipboard, {
+      clipboard: prepared.clipboard,
+      resolver: prepared.resolver,
+    });
+  }
   const readCurrentWireSession = () => {
     const current = getCurrentInteractionState();
     return current.kind === "wire"
@@ -1760,7 +1778,7 @@ function WorkspaceEditor({
       openGalleryProjectInTabRef.current(next, view, context),
     guardDirtyReplacement,
     beginCopyPlacement: (clipboard, anchor) => {
-      prepareProjectCopy(project, document, clipboard);
+      preflightCopy(clipboard);
       beginCopyPlacementInteraction(clipboard, anchor);
     },
     cancelAllTransientInteraction,
@@ -1993,11 +2011,9 @@ function WorkspaceEditor({
       return { scene: null, anchors: [], error: null };
     }
     try {
-      const prepared = prepareProjectCopy(
-        project,
-        document,
-        copyPlacement.clipboard,
-      );
+      const prepared =
+        copyPreflights.get(copyPlacement.clipboard) ??
+        prepareProjectCopy(project, document, copyPlacement.clipboard);
       const previewDocument = clipboardPreviewDocument(
         document,
         prepared.clipboard,
@@ -2025,6 +2041,7 @@ function WorkspaceEditor({
     copyPlacement?.clipboard,
     copyPlacement?.orientationOperations,
     copyPlacement?.sequence,
+    copyPreflights,
     project,
     document,
     resolver,
@@ -2169,12 +2186,17 @@ function WorkspaceEditor({
   });
   const wireContactEndpoints = useMemo(() => {
     const committed = committedSceneState.scene.drawingScene;
-    return committed.hasOcclusion
+    const contacts = committed.hasOcclusion
       ? visibleEndpoints.filter(({ endpoint, connection }) =>
           committed.isEndpointVisibleAt(endpoint, connection.contactPoint),
         )
       : visibleEndpoints;
-  }, [committedSceneState.scene.drawingScene, visibleEndpoints]);
+    return indexedWireContacts(contacts, document.presentation.grid);
+  }, [
+    committedSceneState.scene.drawingScene,
+    visibleEndpoints,
+    document.presentation.grid,
+  ]);
   const netChoices = useMemo(() => logicalNetChoices(document), [document]);
   // A Net label showing a display alias still names its Net here.
   const selectedNetNameAnnotation =
@@ -3464,6 +3486,7 @@ function WorkspaceEditor({
     cancelInteraction,
     cancelCanvasDrag: () => canvasDragSessionRef.current?.cancel(),
     paintSnapGuides,
+    preflightCopy,
     beginCopyPlacementInteraction: (clipboard, anchor) => {
       beginCopyPlacementInteraction(clipboard, anchor);
       seedCopyPreviewFromPointer();
@@ -4503,7 +4526,7 @@ function WorkspaceEditor({
       setStatus("Finish or cancel the active tool before pasting");
       return;
     }
-    prepareProjectCopy(project, document, clipboard);
+    preflightCopy(clipboard);
     const anchor = clipboardPlacementAnchor(clipboard);
     if (!anchor) throw new Error("Copied objects have no placeable origin");
     cancelAllTransientInteraction();
