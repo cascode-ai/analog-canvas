@@ -180,10 +180,23 @@ function projectStore(
     });
 }
 
-/** One bounded delivery per tick. A lost response is retried from durable peer state. */
-export async function pumpProjectSync(env: GalleryEnv): Promise<{
+type Delivery = {
   status: "disabled" | "caught-up" | "sent" | "retry" | "blocked";
-}> {
+  stage?: string;
+  httpStatus?: number;
+  direction?: "pull" | "push";
+};
+
+function peerFailure(stage: string, response: Response): Delivery {
+  return {
+    status: response.status >= 500 ? "retry" : "blocked",
+    stage,
+    httpStatus: response.status,
+  };
+}
+
+/** One bounded delivery per tick. A lost response is retried from durable peer state. */
+export async function pumpProjectSync(env: GalleryEnv): Promise<Delivery> {
   const pulled =
     env.PROJECT_SYNC_PULL === "true" ? await pullProjectSync(env) : null;
   let result =
@@ -192,23 +205,25 @@ export async function pumpProjectSync(env: GalleryEnv): Promise<{
       : await deliverProjectSync(env);
   if (result.status === "caught-up" && pulled?.status === "sent")
     result = pulled;
+  if (result.stage) result.direction = result === pulled ? "pull" : "push";
   if (env.PROJECTS) await projectStore(env, "sync-delivery", result);
   return result;
 }
 
 /** Fetch one ordered peer event without exposing an inbound domestic endpoint. */
-async function pullProjectSync(
-  env: GalleryEnv,
-): Promise<{ status: "sent" | "caught-up" | "retry" | "blocked" }> {
+async function pullProjectSync(env: GalleryEnv): Promise<Delivery> {
   if (
     !env.PROJECTS ||
     !env.PROJECT_SYNC_PEER_URL ||
     !env.PROJECT_SYNC_PEER_TOKEN
   )
-    return { status: "blocked" };
+    return { status: "blocked", stage: "configuration" };
+  let stage = "local-status";
   try {
     const localResponse = await projectStore(env, "sync-status", {});
-    if (!localResponse.ok) return { status: "blocked" };
+    if (!localResponse.ok)
+      return { status: "blocked", stage, httpStatus: localResponse.status };
+    stage = "peer-pull";
     const response = await fetch(
       new URL("/api/project-sync/pull", peerOrigin(env.PROJECT_SYNC_PEER_URL)),
       {
@@ -223,43 +238,41 @@ async function pullProjectSync(
         body: JSON.stringify({ status: await localResponse.json() }),
       },
     );
-    if (!response.ok)
-      return { status: response.status >= 500 ? "retry" : "blocked" };
+    if (!response.ok) return peerFailure(stage, response);
+    stage = "peer-response";
     const result = (await readSyncJson(
       response,
       MAX_SYNC_BYTES * 2 + 4096,
     )) as { peer?: ProjectSyncStatus; events?: unknown[] } | null;
     if (!result || !Array.isArray(result.events) || result.events.length > 1)
-      return { status: "blocked" };
+      return { status: "blocked", stage };
+    stage = "reconcile";
     const reconciled = await projectStore(env, "sync-reconcile", {
       peer: result.peer,
     });
-    if (!reconciled.ok) return { status: "blocked" };
+    if (!reconciled.ok)
+      return { status: "blocked", stage, httpStatus: reconciled.status };
     if (!result.events.length) return { status: "caught-up" };
+    stage = "decode-event";
     const decoded = await decodeProjectSyncEvent(result.events[0]);
-    if (!decoded) return { status: "blocked" };
+    if (!decoded) return { status: "blocked", stage };
+    stage = "receive-event";
     const received = await receiveProjectEvent(env, decoded);
-    return {
-      status: received.ok
-        ? "sent"
-        : received.status >= 500
-          ? "retry"
-          : "blocked",
-    };
+    if (received.ok) return { status: "sent" };
+    return peerFailure(stage, received);
   } catch {
-    return { status: "retry" };
+    return { status: "retry", stage };
   }
 }
 
-async function deliverProjectSync(env: GalleryEnv): Promise<{
-  status: "disabled" | "caught-up" | "sent" | "retry" | "blocked";
-}> {
+async function deliverProjectSync(env: GalleryEnv): Promise<Delivery> {
   if (
     !env.PROJECTS ||
     !env.PROJECT_SYNC_PEER_URL ||
     !env.PROJECT_SYNC_PEER_TOKEN
   )
-    return { status: "disabled" };
+    return { status: "disabled", stage: "configuration" };
+  let stage = "peer-status";
   try {
     const peer = peerOrigin(env.PROJECT_SYNC_PEER_URL);
     const headers = {
@@ -271,16 +284,18 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
       redirect: "manual",
       signal: AbortSignal.timeout(10000),
     });
-    if (!response.ok)
-      return { status: response.status >= 500 ? "retry" : "blocked" };
+    if (!response.ok) return peerFailure(stage, response);
     const remote = (await readSyncJson(response, 4096)) as ProjectSyncStatus;
+    stage = "local-status";
     const local = (await (
       await projectStore(env, "sync-status", {})
     ).json()) as ProjectSyncStatus;
+    stage = "reconcile";
     const reconciled = await projectStore(env, "sync-reconcile", {
       peer: remote,
     });
-    if (!reconciled.ok) return { status: "blocked" };
+    if (!reconciled.ok)
+      return { status: "blocked", stage, httpStatus: reconciled.status };
     if (
       !["cn", "overseas"].includes(remote.origin) ||
       remote.origin === local.origin ||
@@ -290,20 +305,26 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
           !Number.isSafeInteger(remote.received.sequence) ||
           remote.received.sequence < 0))
     )
-      return { status: "blocked" };
+      return { status: "blocked", stage };
+    stage = "export-event";
     const after = remote.received?.sequence ?? 0;
     const exported = await projectStore(env, "sync-events", { after });
-    if (!exported.ok) return { status: "blocked" };
+    if (!exported.ok)
+      return { status: "blocked", stage, httpStatus: exported.status };
     const { events } = (await exported.json()) as { events: ProjectEvent[] };
     if (!events.length) {
+      stage = "acknowledge";
       const ack = await projectStore(env, "sync-ack", {
         epoch: local.epoch,
         sequence: after,
       });
-      return { status: ack.ok ? "caught-up" : "blocked" };
+      return ack.ok
+        ? { status: "caught-up" }
+        : { status: "blocked", stage, httpStatus: ack.status };
     }
     const event = events[0]!;
     const body = JSON.stringify({ event });
+    stage = "send-event";
     const sent = await fetch(new URL("/api/project-sync/events", peer), {
       method: "POST",
       headers: { ...headers, "Content-Encoding": "gzip" },
@@ -313,7 +334,8 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
       ),
       body: await gzipBody(body),
     });
-    if (!sent.ok) return { status: sent.status >= 500 ? "retry" : "blocked" };
+    if (!sent.ok) return peerFailure(stage, sent);
+    stage = "peer-receipt";
     const received = (await readSyncJson(sent, 4096)) as {
       epoch: string;
       acknowledged: number;
@@ -323,14 +345,17 @@ async function deliverProjectSync(env: GalleryEnv): Promise<{
       !Number.isSafeInteger(received.acknowledged) ||
       received.acknowledged < event.sequence
     )
-      return { status: "blocked" };
+      return { status: "blocked", stage };
+    stage = "acknowledge";
     const ack = await projectStore(env, "sync-ack", {
       epoch: received.epoch,
       sequence: received.acknowledged,
     });
-    return { status: ack.ok ? "sent" : "blocked" };
+    return ack.ok
+      ? { status: "sent" }
+      : { status: "blocked", stage, httpStatus: ack.status };
   } catch {
-    return { status: "retry" };
+    return { status: "retry", stage };
   }
 }
 

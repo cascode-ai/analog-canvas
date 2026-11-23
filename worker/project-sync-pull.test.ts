@@ -104,18 +104,17 @@ it.each([
         return response;
       },
     );
-    const tick = async () =>
+    const report = async () =>
       (
-        await (
-          await route(
-            domestic.env,
-            new Request("https://cn.test/api/project-sync/run", {
-              method: "POST",
-              headers: { Authorization: "Bearer test-admin" },
-            }),
-          )
-        ).json()
-      ).status;
+        await route(
+          domestic.env,
+          new Request("https://cn.test/api/project-sync/run", {
+            method: "POST",
+            headers: { Authorization: "Bearer test-admin" },
+          }),
+        )
+      ).json();
+    const tick = async () => (await report()).status;
     const open = async (env: typeof domestic.env) => {
       const response = await route(
         env,
@@ -126,7 +125,12 @@ it.each([
       expect(response.status).toBe(200);
       return (await response.json()).project;
     };
-    expect(await tick()).toBe("blocked");
+    expect(await report()).toMatchObject({
+      status: "blocked",
+      direction: "pull",
+      stage: "peer-pull",
+      httpStatus: 302,
+    });
     redirectPeer = false;
     if (losePullReply) expect(await tick()).toBe("retry");
     expect(await tick()).toBe("sent");

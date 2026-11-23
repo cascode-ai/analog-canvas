@@ -3,6 +3,7 @@
 The live seed is NEVER a backup. Only a successful final copy with the sole
 writer stopped can be published. Compression happens after service resumes.
 """
+import datetime
 import hashlib
 import http.client
 import json
@@ -83,6 +84,80 @@ def entrance(action):
         return json.loads(body) if body else None
 
 
+def prune_archives(backups):
+    """Select only completed formal archives; a drill receipt enables shorter retention."""
+    rows = []
+    for path in sorted(backups.glob('20*'), reverse=True):
+        if path.is_symlink() or not path.is_dir():
+            continue
+        if not re.fullmatch(r'\d{8}T\d{6}Z(?:-[a-zA-Z0-9_-]+)?', path.name):
+            continue
+        try:
+            stamp = datetime.datetime.strptime(path.name[:16], '%Y%m%dT%H%M%SZ')
+            files = [path / name for name in ('release.json', 'state.sha256', 'state.tar.gz')]
+            if any(f.is_symlink() or not f.is_file() for f in files) or files[2].stat().st_size == 0:
+                continue
+            commit = json.loads(files[0].read_text())['commit']
+            digest, filename = files[1].read_text().strip().split()
+            if (not isinstance(commit, str) or not re.fullmatch('[0-9a-f]{40}', commit)
+                    or not re.fullmatch('[0-9a-f]{64}', digest) or filename != 'state.tar.gz'):
+                continue
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+        day = (stamp + datetime.timedelta(hours=8)).date()
+        rows.append((path, day, commit, digest))
+
+    keep = set()
+    days, releases = set(), set()
+    for path, day, commit, _ in rows:
+        if day not in days and len(days) < 7:
+            keep.add(path)
+            days.add(day)
+        if commit not in releases and len(releases) < 3:
+            keep.add(path)
+            releases.add(commit)
+    try:
+        receipt = json.loads((backups / 'offsite-restore.json').read_text())
+    except (OSError, ValueError):
+        receipt = None
+    proof = None
+    if isinstance(receipt, dict) and receipt.get('verified') is True:
+        proof = next((path for path, day, _, digest in rows
+                      if path.name == receipt.get('archive') and digest == receipt.get('sha256')
+                      and (rows[0][1] - day).days < 7), None)
+    if proof is None:
+        keep.update(path for path, *_ in rows[:20])
+    else:
+        keep.add(proof)
+    for path, *_ in rows:
+        if path not in keep:
+            shutil.rmtree(path)
+
+
+def check_capture_space(data, backups):
+    # rsync materializes sparse files and hard links. Count each directory
+    # entry's apparent size without reading live database contents.
+    def apparent_size(path):
+        try:
+            info = path.lstat()
+            if stat.S_ISDIR(info.st_mode):
+                return info.st_size + sum(apparent_size(child) for child in path.iterdir())
+            return info.st_size
+        except FileNotFoundError:
+            return 0  # A live WAL or temporary asset disappeared during measurement.
+
+    seed = sum(apparent_size(data / name) for name in ('state', 'artifacts'))
+    recent = sorted(backups.glob('20*/state.tar.gz'), reverse=True)[:3]
+    archive = max((p.stat().st_size for p in recent), default=seed)
+    required = seed + archive * 5 // 4 + 1024**3
+    temp = backups / '.capacity.next'
+    temp.write_text(json.dumps({'requiredBytes': required, 'pid': os.getpid(),
+                                'processInode': pathlib.Path('/proc/self').stat().st_ino}))
+    temp.replace(backups / 'capacity.json')
+    if shutil.disk_usage(backups).free < required:
+        raise RuntimeError('backup-headroom')
+
+
 class Snapshot:
     def __init__(self, data=pathlib.Path('/var/lib/analog-canvas-formal'),
                  backups=pathlib.Path('/var/backups/analog-canvas-formal')):
@@ -93,6 +168,7 @@ class Snapshot:
 
     def prepare(self):
         self.backups.mkdir(parents=True, exist_ok=True, mode=0o700)
+        check_capture_space(self.data, self.backups)
         self.stage = pathlib.Path(tempfile.mkdtemp(prefix='.incomplete.', dir=self.backups))
         # Files may vanish while the application is writing the seed. A final
         # checksum pass after shutdown must succeed without this exception.
@@ -135,9 +211,7 @@ class Snapshot:
         destination = self.backups / (time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '-' + self.stage.name[-8:])
         self.stage.rename(destination)
         self.stage = None
-        old = sorted((p for p in self.backups.glob('20*') if p.is_dir()), reverse=True)
-        for path in old[20:]:
-            shutil.rmtree(path)
+        prune_archives(self.backups)
         return destination
 
     def discard(self):

@@ -102,6 +102,7 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.assertEqual(self.tick(scope='Publication').returncode, 0)
         self.assertEqual(len(self.calls), 1)
         self.assertIn('replication-lag', self.calls[0][1]['text'])
+        self.assertIn('image2net cn -> overseas, cursor 0, retry', self.calls[0][1]['text'])
 
     def test_progress_cannot_hide_thirty_minutes_of_backlog_or_a_block(self):
         self.publication(10)
@@ -325,6 +326,19 @@ runpy.run_path(sys.argv[0], run_name='__main__')
         self.assertEqual(self.tick(scope='Release').returncode, 0)
         self.assertEqual(len(self.calls), 1)
         self.assertIn('Status: retry', self.calls[0][1]['text'])
+
+    def test_project_failure_mail_identifies_checkpoint_without_repeating_as_it_changes(self):
+        path = self.root / 'monitor.json'
+        report = {'health': 'failed', 'reason': 'blocked', 'lastAttemptAt': self.now,
+                  'direction': 'pull', 'stage': 'peer-pull', 'httpStatus': 403,
+                  'received': 14, 'acknowledged': 4, 'pending': 3}
+        path.write_text(json.dumps(report))
+        self.tick()
+        report['received'] = 15
+        path.write_text(json.dumps(report))
+        self.tick()
+        self.assertEqual(len(self.calls), 1)
+        self.assertIn('overseas -> cn, cursor 14, peer-pull HTTP 403', self.calls[0][1]['text'])
 
     def test_lost_mail_response_reuses_same_message_and_key(self):
         self.health('failed')

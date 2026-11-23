@@ -166,7 +166,19 @@ def collect():
         result = subprocess.run(['systemctl', 'is-active', name], capture_output=True,
                                 text=True, timeout=5)
         metrics['services'][name] = result.returncode == 0
-    backups = [p for p in Path('/var/backups/analog-canvas-formal').glob('*/state.tar.gz')
+    backup_root = Path('/var/backups/analog-canvas-formal')
+    try:
+        capacity = load(backup_root / 'capacity.json')
+        needed = capacity.get('requiredBytes')
+        if type(needed) is int and needed > 0:
+            metrics['backupRequiredBytes'] = needed
+            metrics['backupFreeBytes'] = shutil.disk_usage(backup_root).free
+            pid = capacity.get('pid')
+            metrics['backupRunning'] = (type(pid) is int and pid > 0
+                                        and Path(f'/proc/{pid}').stat().st_ino == capacity.get('processInode'))
+    except (OSError, ValueError, AttributeError):
+        pass
+    backups = [p for p in backup_root.glob('20*/state.tar.gz')
                if p.stat().st_size > 0 and (p.parent / 'state.sha256').is_file()
                and (p.parent / 'release.json').is_file()]
     metrics['backupAgeHours'] = (now - max(p.stat().st_mtime for p in backups)) / 3600 if backups else None
@@ -218,11 +230,22 @@ def evaluate(metrics, previous, since, now):
                 raw['public-listener-drift'] = 120
             if runtime['changed']:
                 raw['runtime-config-drift'] = 120
-    for key, threshold in [('diskPct', 80), ('inodePct', 80), ('memoryPct', 90)]:
+    for key, threshold in [('inodePct', 80), ('memoryPct', 90)]:
         if metrics[key] >= threshold:
             raw[key] = 120
-    if metrics['diskPct'] >= 90:
-        raw['disk-critical'] = 120
+    budget = metrics.get('backupRequiredBytes')
+    if budget is None:
+        # Older capture tools have not measured their staging workspace yet.
+        if metrics['diskPct'] >= 80:
+            raw['diskPct'] = 120
+        if metrics['diskPct'] >= 90:
+            raw['disk-critical'] = 120
+    else:
+        backup_free = metrics.get('backupFreeBytes', metrics['diskFreeBytes'])
+        if not metrics.get('backupRunning') and backup_free < budget:
+            raw['backup-headroom'] = 300
+        if min(metrics['diskFreeBytes'], backup_free) < 1024**3:
+            raw['disk-critical'] = 120
     if metrics['backupAgeHours'] is None or metrics['backupAgeHours'] > 26:
         raw['backup-stale'] = 120
     if metrics.get('dailyBackupResult', 'success') != 'success':
