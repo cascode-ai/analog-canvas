@@ -79,3 +79,17 @@ Use `--resume` to finish an interrupted matrix and `--dist` for an alternate
 production build directory. The [benchmark matrix](../../scripts/lib/scaling-metrics.mjs)
 defines the fixed revision, actions, fixtures and sample floors. The report
 compares complete semantic outputs and per-action timings.
+
+For edit comparisons, `edits --case flat-2048 --group groupCopy --samples 3`
+uses the same prepared inputs, checkout and browser options. The supported
+groups are `copy`, `groupCopy`, `move`, `wire`, `rotate` and `box`. Run each
+batch in a separate output directory. Passing `--compare <reference-output>`
+checks the input, harness, machine, camera, preview and complete committed
+Project against the reference batch before reporting timings. History checks
+allow revisions to advance when an Undo restores prior content. Project
+readback includes the download and parse and is recorded separately.
+
+For operation counts, run `diagnostic-build --checkout <checkout> --dist
+<separate-output>`, then repeat `edits` with `--diagnostics --dist
+<separate-output>` in a separate results directory. Diagnostic phase timings
+are inclusive and can overlap. Collect user latency from the normal build.

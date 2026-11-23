@@ -24,6 +24,7 @@ import { parseArgs } from "node:util";
 import { chromium } from "@playwright/test";
 
 import { browserContext, measureBrowser } from "./lib/scaling-browser.mjs";
+import { editActions, measureEdit } from "./lib/scaling-edit-gestures.mjs";
 import {
   createScalingInputs,
   createSharedSupplyInput,
@@ -55,6 +56,8 @@ const {
     case: { type: "string" },
     resume: { type: "boolean" },
     channel: { type: "string", default: "chrome" },
+    samples: { type: "string", default: "3" },
+    diagnostics: { type: "boolean" },
   },
 });
 const checkout = resolve(opts.checkout ?? root);
@@ -135,7 +138,21 @@ async function corpusSignatures(parseProject, corpus) {
 }
 
 async function measure() {
-  const selected = Object.entries(matrix).flatMap(([group, entry]) =>
+  const edits = command === "edits";
+  const samples = Number(opts.samples);
+  assert.ok(
+    Number.isSafeInteger(samples) && samples > 0,
+    "Expected a positive sample count",
+  );
+  const cases = edits
+    ? Object.fromEntries(
+        editActions.map((group) => [
+          group,
+          { cases: ["flat-128", "flat-512", "flat-2048"] },
+        ]),
+      )
+    : matrix;
+  const selected = Object.entries(cases).flatMap(([group, entry]) =>
     entry.cases
       .filter(
         (name) =>
@@ -148,7 +165,7 @@ async function measure() {
   );
   assert.ok(
     selected.length,
-    "No matching group/case. Groups: " + Object.keys(matrix).join(", "),
+    "No matching group/case. Groups: " + Object.keys(cases).join(", "),
   );
   const { hashes, corpus } = readJson(manifestFile);
   for (const [name, expected] of Object.entries(hashes)) {
@@ -159,9 +176,22 @@ async function measure() {
     );
   }
   const dist = resolve(opts.dist ?? join(checkout, "apps/editor/dist"));
+  assert.equal(
+    existsSync(join(dist, ".edit-benchmark-diagnostics")),
+    Boolean(edits && opts.diagnostics),
+    "Diagnostic bundles require edits --diagnostics; timing requires an ordinary production build",
+  );
   const build = sha256(readFileSync(join(dist, "index.html")));
   const harnessFiles = [
     "scripts/scaling-benchmark.mjs",
+    ...(edits
+      ? [
+          "scripts/lib/scaling-edit-gestures.mjs",
+          ...(opts.diagnostics
+            ? ["scripts/lib/scaling-edit-diagnostics.mjs"]
+            : []),
+        ]
+      : []),
     ...["browser", "contracts", "fixtures", "metrics", "model"].map(
       (part) => "scripts/lib/scaling-" + part + ".mjs",
     ),
@@ -212,8 +242,14 @@ async function measure() {
     const url = server.resolvedUrls.local[0];
     mkdirSync(output, { recursive: true });
     for (const { group, name } of selected) {
-      const reportFile = join(output, group + "-" + name + ".json");
-      if (opts.resume && existsSync(reportFile)) {
+      const filename =
+        (edits ? "gesture-" + (opts.diagnostics ? "diagnostic-" : "") : "") +
+        group +
+        "-" +
+        name +
+        ".json";
+      const reportFile = join(output, filename);
+      if (!edits && opts.resume && existsSync(reportFile)) {
         let prior;
         try {
           prior = readJson(reportFile);
@@ -258,7 +294,54 @@ async function measure() {
         const bytes = readFileSync(file(name));
         const project = parseProject(bytes.toString("utf8"));
         let metrics;
-        if (group === "model") {
+        if (edits) {
+          const result = await measureEdit({
+            browser,
+            url,
+            file: file(name),
+            name,
+            project,
+            group,
+            samples,
+            diagnostics: opts.diagnostics,
+          });
+          report.signatures = result.signatures;
+          report.workload = result.workload;
+          if (opts.diagnostics) report.counters = result.counters;
+          report.metrics = Object.fromEntries(
+            Object.entries(result.metrics).map(([key, values]) => [
+              key,
+              summarize(values, samples),
+            ]),
+          );
+          if (opts.compare) {
+            const prior = readJson(join(resolve(opts.compare), filename));
+            assert.ok(prior.complete, "Incomplete reference batch");
+            for (const field of [
+              "environment",
+              "inputs",
+              "harness",
+              "workload",
+              "signatures",
+            ])
+              assert.deepEqual(
+                report[field],
+                prior[field],
+                "Gesture A/B mismatch in " + field,
+              );
+            report.comparison = Object.fromEntries(
+              Object.entries(report.metrics).map(([key, entry]) => [
+                key,
+                {
+                  referenceMs: prior.metrics[key].p50Ms,
+                  candidateMs: entry.p50Ms,
+                },
+              ]),
+            );
+          }
+          report.complete = true;
+          continue;
+        } else if (group === "model") {
           // The external process keeps JIT state and allocations isolated across input sizes and revisions.
           const worker = fileURLToPath(
             new URL("./lib/scaling-model.mjs", import.meta.url),
@@ -330,8 +413,16 @@ async function measure() {
 }
 
 if (command === "prepare") await prepare();
-else if (command === "measure") await measure();
-else if (command === "report") {
+else if (command === "measure" || command === "edits") await measure();
+else if (command === "diagnostic-build") {
+  assert.ok(
+    opts.dist,
+    "Supply a separate --dist directory for a diagnostic build",
+  );
+  const { buildEditDiagnostics } =
+    await import("./lib/scaling-edit-diagnostics.mjs");
+  await buildEditDiagnostics({ checkout, outDir: resolve(opts.dist) });
+} else if (command === "report") {
   const report = assembleReport(output);
   if (opts.compare)
     report.comparison = compareReports(
@@ -347,5 +438,5 @@ else if (command === "report") {
   );
 } else
   throw new Error(
-    "Use prepare [--inputs DIR], measure [--checkout BUILT_CHECKOUT] [--dist DIR] [--inputs DIR] [--output DIR] [--group GROUP] [--case CASE] [--resume], or report [--output DIR] [--compare BASELINE_DIR].",
+    "Use prepare, measure, report, edits [--group ACTION] [--case FIXTURE] [--samples N] [--compare BASELINE_DIR], or diagnostic-build --dist DIR. See docs/specs/performance.md for checkout and output options.",
   );
