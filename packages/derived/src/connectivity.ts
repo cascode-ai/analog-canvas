@@ -117,7 +117,11 @@ export function deriveNetConnectivity(
   }
   const cached = contextCache?.get(net.id);
   if (cached) return cached;
-  const endpoints = netEndpoints(document, net).filter((endpoint) =>
+  const endpoints = netEndpoints(
+    document,
+    net,
+    context ? (context.junctionsByNetId.get(net.id) ?? []) : document.junctions,
+  ).filter((endpoint) =>
     isVisibleEndpoint(document, resolver, endpoint, context),
   );
   const nodes = new Map(

@@ -1,3 +1,4 @@
+import { groupedBy } from "./grouped-by.js";
 import { registerDocumentCache } from "./document-caches.js";
 import {
   foldNetName,
@@ -112,34 +113,62 @@ function unionGroups(
 export function resolveDocumentLogicalNets(
   document: SchematicDocument,
 ): ResolvedDocumentLogicalNets {
-  const electricalEvidence = scalarConnectivityEvidence(document);
+  const groups = resolveGroups(document);
+  const byId = new Map(groups.map((group) => [group.id, group]));
+  const byBaseNetId = new Map(
+    groups.flatMap((group) =>
+      group.baseNetIds.map((netId) => [netId, group] as const),
+    ),
+  );
+  return { groups, byId, byBaseNetId };
+}
+
+function resolveGroups(
+  document: SchematicDocument,
+  closedNetIds?: ReadonlySet<string>,
+) {
+  const inScope = (item: { netId: string }) =>
+    !closedNetIds || closedNetIds.has(item.netId);
+  const electricalEvidence =
+    scalarConnectivityEvidence(document).filter(inScope);
   const baseNetIds = document.nets
+    .filter((net) => !closedNetIds || closedNetIds.has(net.id))
     .map((net) => net.id)
     .sort((left, right) => left.localeCompare(right, "en"));
   const set = new DisjointSet(baseNetIds);
 
   const byScopedName = new Map<string, string[]>();
-  const formalNames = scalarCellTerminals(document.netlist).map((terminal) => {
+  const terminals = scalarCellTerminals(document.netlist).filter(inScope);
+  const instancesById = groupedBy(
+    terminals.length ? document.instances : [],
+    (item) => item.id,
+  );
+  const annotationsById = groupedBy(
+    terminals.length ? document.annotations : [],
+    (item) => item.id,
+  );
+  const globalNamesByNet = new Map<string, Set<string>>();
+  for (const evidence of electricalEvidence) {
+    if (
+      evidence.kind !== "name-claim" ||
+      evidence.scope !== "global" ||
+      !terminals.length
+    )
+      continue;
+    const names = globalNamesByNet.get(evidence.netId) ?? new Set<string>();
+    names.add(foldNetName(evidence.name));
+    globalNamesByNet.set(evidence.netId, names);
+  }
+  const formalNames = terminals.map((terminal) => {
     const interfaceInstances = terminal.interfaceInstanceIds.flatMap(
-      (instanceId) => {
-        const instance = document.instances.find(
-          (candidate) => candidate.id === instanceId,
-        );
-        return instance ? [instance] : [];
-      },
+      (id) => instancesById.get(id)?.slice(0, 1) ?? [],
     );
     const interfaceAnnotation = terminal.interfaceAnnotationId
-      ? document.annotations.find(
-          (candidate) => candidate.id === terminal.interfaceAnnotationId,
-        )
+      ? annotationsById.get(terminal.interfaceAnnotationId)?.[0]
       : undefined;
-    const matchingGlobalClaim = electricalEvidence.some(
-      (evidence) =>
-        evidence.kind === "name-claim" &&
-        evidence.netId === terminal.netId &&
-        evidence.scope === "global" &&
-        foldNetName(evidence.name) === foldNetName(terminal.name),
-    );
+    const matchingGlobalClaim = globalNamesByNet
+      .get(terminal.netId)
+      ?.has(foldNetName(terminal.name));
     const powerDomain =
       interfaceAnnotation?.kind === "power-label" ||
       interfaceInstances.some((instance) =>
@@ -185,24 +214,19 @@ export function resolveDocumentLogicalNets(
   unionGroups(set, byScopedName.values());
   unionGroups(set, byFormalName.values());
 
-  const membersByRoot = new Map<string, string[]>();
-  for (const netId of baseNetIds) {
-    const root = set.find(netId);
-    const members = membersByRoot.get(root) ?? [];
-    members.push(netId);
-    membersByRoot.set(root, members);
-  }
-
-  const groups = [...membersByRoot.values()]
-    .map((members): ResolvedLogicalNet => {
-      members.sort((left, right) => left.localeCompare(right, "en"));
-      const memberSet = new Set(members);
-      const evidence = electricalEvidence
-        .filter((item) => memberSet.has(item.netId))
-        .sort((left, right) => left.id.localeCompare(right.id, "en"));
-      const memberFormalNames = formalNames.filter((item) =>
-        memberSet.has(item.netId),
+  const rootByNet = new Map(baseNetIds.map((id) => [id, set.find(id)]));
+  const membersByRoot = groupedBy(baseNetIds, (id) => rootByNet.get(id));
+  const rootOf = (item: { netId: string }) => rootByNet.get(item.netId);
+  const evidenceByRoot = groupedBy(electricalEvidence, rootOf);
+  // Preserve declaration order: the first formal Pin supplies spelling.
+  const formalNamesByRoot = groupedBy(formalNames, rootOf);
+  return [...membersByRoot]
+    .map(([root, memberIds]): ResolvedLogicalNet => {
+      const members = [...memberIds];
+      const evidence = [...(evidenceByRoot.get(root) ?? [])].sort(
+        (left, right) => left.id.localeCompare(right.id, "en"),
       );
+      const memberFormalNames = formalNamesByRoot.get(root) ?? [];
       const nameCandidates = [
         ...evidence.flatMap((item) =>
           item.kind === "name-claim" ? [item.name] : [],
@@ -322,13 +346,6 @@ export function resolveDocumentLogicalNets(
       };
     })
     .sort((left, right) => left.id.localeCompare(right.id, "en"));
-  const byId = new Map(groups.map((group) => [group.id, group]));
-  const byBaseNetId = new Map(
-    groups.flatMap((group) =>
-      group.baseNetIds.map((netId) => [netId, group] as const),
-    ),
-  );
-  return { groups, byId, byBaseNetId };
 }
 
 /**
@@ -356,12 +373,29 @@ export function resolveCommittedDocumentLogicalNets(
   return resolution;
 }
 
-/** Electrical naming invariants evaluated on the one resolved semantic view. */
+/** A scope, if supplied, must contain every Base Net of each old and new
+ * logical group touched by the edit, including remote naming dependencies. */
 export function validateLogicalNetContract(
   document: SchematicDocument,
+  closedNetIds?: ReadonlySet<string>,
 ): readonly LogicalNetContractIssue[] {
-  return resolveDocumentLogicalNets(document)
-    .groups.flatMap((group): LogicalNetContractIssue[] => [
+  const committed = isFrozenSnapshot(document)
+    ? resolveCommittedDocumentLogicalNets(document)
+    : undefined;
+  const groups = !committed
+    ? resolveGroups(document, closedNetIds)
+    : !closedNetIds
+      ? committed.groups
+      : [
+          ...new Set(
+            [...closedNetIds].flatMap((id) => {
+              const group = committed.byBaseNetId.get(id);
+              return group ? [group] : [];
+            }),
+          ),
+        ];
+  return groups
+    .flatMap((group): LogicalNetContractIssue[] => [
       ...(group.conflicts.includes("name-conflict")
         ? [
             {

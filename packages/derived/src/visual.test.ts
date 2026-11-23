@@ -54,6 +54,44 @@ function filledRectangle(
 }
 
 describe("visual quality diagnostics", () => {
+  it("reads Net identities once per diagnostic pass as labels are added", () => {
+    function diagnose(count: number) {
+      const document = createEmptyDocument("labels", "Labels");
+      let reads = 0;
+      document.nets.push({
+        get id() {
+          reads++;
+          return "named";
+        },
+        terminals: [],
+      });
+      document.connectivityEvidence.push({
+        id: "claim",
+        kind: "name-claim",
+        netId: "named",
+        name: "DATA",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-0" },
+      });
+      for (let i = 0; i < count; i++)
+        document.annotations.push({
+          id: "label-" + i,
+          kind: "net-label",
+          netId: "named",
+          binding: { kind: "net-name", netId: "named" },
+          anchor: { kind: "free", position: { x: 0, y: 100 * i } },
+          alignment: "middle",
+          rotation: 0,
+          locked: false,
+        });
+      const issues = diagnoseVisualQuality(document, resolver);
+      expect(
+        issues.filter((issue) => issue.code === "VISUAL_LABEL_OVERLAP"),
+      ).toEqual([]);
+      return reads;
+    }
+    expect(diagnose(32)).toBeLessThanOrEqual(diagnose(1) + 8);
+  });
   it.each([
     {
       name: "separate lobes",

@@ -205,14 +205,18 @@ function buildDocumentIndex(
       return index;
     }
   }
+  const connectivityContext = deriveNetConnectivityContext(document, resolver);
   const endpointToBaseNetId = new Map<string, string>();
   for (const net of document.nets) {
-    for (const endpoint of netEndpoints(document, net)) {
+    for (const endpoint of netEndpoints(
+      document,
+      net,
+      connectivityContext.junctionsByNetId.get(net.id) ?? [],
+    )) {
       endpointToBaseNetId.set(endpointKey(endpoint), net.id);
     }
   }
 
-  const connectivityContext = deriveNetConnectivityContext(document, resolver);
   const routingGuidanceByNet = new Map<string, RoutingGuide[]>();
   const routingGuidance = deriveImportedRoutingGuidance(
     document,
@@ -328,8 +332,9 @@ function buildNetRecord(
     ),
   ].sort((a, b) => endpointKey(a).localeCompare(endpointKey(b), "en"));
 
-  const visibleEndpoints = netEndpoints(document, net).filter((endpoint) =>
-    isVisibleEndpoint(document, resolver, endpoint, connectivityContext),
+  const visibleEndpoints = netEndpoints(document, net, junctionsForNet).filter(
+    (endpoint) =>
+      isVisibleEndpoint(document, resolver, endpoint, connectivityContext),
   );
 
   const routedComponents = deriveNetConnectivity(

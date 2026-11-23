@@ -1,17 +1,22 @@
 import { routeEndpoints } from "@icm/model";
 import type { Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
+  buildBoundsSpatialIndex,
   buildDocumentSpatialIndex,
   buildEndpointObjectLookup,
   drawingHasOpaqueFill,
   endpointKey,
   findRouteSegmentsAtPoint,
   isVisibleEndpoint,
+  pointOnSegment,
+  resolveRouteGeometry,
+  SEGMENT_QUERY_PADDING,
+  segmentNeedsExactPointQuery,
   resolveDocumentRoutingGeometry,
   resolveDrawingScene,
   resolveEndpointConnection,
 } from "@icm/derived";
-import type { DocumentSpatialIndex, EndpointObjectLookup } from "@icm/derived";
+import type { EndpointObjectLookup, ResolvedRouteGeometry } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
@@ -63,7 +68,8 @@ function visibleEndpoints(
         instanceId: instance.id,
         pinName: pin.name,
       };
-      if (signalEndpointMembers(document, resolver, endpoint)) return [];
+      if (signalEndpointMembers(document, resolver, endpoint, lookup))
+        return [];
       return isVisibleEndpoint(document, resolver, endpoint, lookup)
         ? [endpoint]
         : [];
@@ -82,44 +88,19 @@ function visibleEndpoints(
   );
 }
 
-/** One exact answer per coordinate, owned by this immutable local geometry. */
-function authoredRoutesAtPoint(
-  document: SchematicDocument,
-  geometry: ReturnType<typeof resolveDocumentRoutingGeometry>,
-  spatialIndex: DocumentSpatialIndex,
-): (point: Point) => ReadonlySet<string> {
-  const routesById = new Map(document.routes.map((route) => [route.id, route]));
-  const byPoint = new Map<string, ReadonlySet<string>>();
-  return (point) => {
-    const key = physicalContactPointKey(point);
-    const cached = byPoint.get(key);
-    if (cached) return cached;
-    const routeIds = new Set<string>();
-    for (const address of findRouteSegmentsAtPoint(
-      geometry,
-      point,
-      spatialIndex,
-    )) {
-      const route = routesById.get(address.routeId);
-      // Rail taps and MOS bodies retain their dedicated contact planners.
-      if (
-        !route ||
-        route.members ||
-        route.presentation === "bulk-dashed" ||
-        route.presentation === "power-rail"
-      )
-        continue;
-      const segment = geometry.routes
-        .get(address.routeId)
-        ?.segments.find(
-          (candidate) =>
-            candidate.address.segmentIndex === address.segmentIndex,
-        );
-      if (segment && segment.mode !== "escape") routeIds.add(address.routeId);
-    }
-    byPoint.set(key, routeIds);
-    return routeIds;
-  };
+function contactSegments(
+  route: SchematicDocument["routes"][number],
+  geometry?: ResolvedRouteGeometry | null,
+) {
+  if (
+    route.members ||
+    route.presentation === "bulk-dashed" ||
+    route.presentation === "power-rail"
+  )
+    return [];
+  return (
+    geometry?.segments.filter((segment) => segment.mode !== "escape") ?? []
+  );
 }
 
 export interface NewlyTouchedRouteEndpoint {
@@ -151,66 +132,101 @@ export function newlyTouchedRouteEndpoints(
   if (routeIds.size === 0) return [];
   // New Routes are reconciled by their authoring planner. Only existing
   // conductors can have moved onto a previously separate endpoint.
-  const existingRouteIds = new Set(before.routes.map((route) => route.id));
-  const movedRouteIds = new Set(
-    [...routeIds].filter((id) => existingRouteIds.has(id)),
+  const beforeRoutes = new Map(before.routes.map((route) => [route.id, route]));
+  const moved = after.routes.filter(
+    (route) => routeIds.has(route.id) && beforeRoutes.has(route.id),
   );
-  if (movedRouteIds.size === 0) return [];
-  const routesById = new Map(after.routes.map((route) => [route.id, route]));
-  const beforeGeometry =
-    options.beforeGeometry ?? resolveDocumentRoutingGeometry(before, resolver);
-  const afterGeometry = resolveDocumentRoutingGeometry(after, resolver);
-  // These answers cannot outlive the sweep: a mutable draft's geometry can
-  // change between normalization rounds without changing its revision.
-  const beforeIndex = buildDocumentSpatialIndex(before, beforeGeometry);
-  const afterIndex = buildDocumentSpatialIndex(after, afterGeometry);
-  const beforeHits = authoredRoutesAtPoint(before, beforeGeometry, beforeIndex);
-  const afterHits = authoredRoutesAtPoint(after, afterGeometry, afterIndex);
-  const result: NewlyTouchedRouteEndpoint[] = [];
+  if (!moved.length) return [];
   const lookup = buildEndpointObjectLookup(after);
+  const beforeLookup = options.beforeGeometry
+    ? undefined
+    : buildEndpointObjectLookup(before);
+  const positioned = visibleEndpoints(after, resolver, lookup).flatMap(
+    (endpoint) => {
+      if (
+        endpoint.kind === "terminal"
+          ? options.excludeInstanceIds?.has(endpoint.instanceId)
+          : options.excludeJunctionIds?.has(endpoint.junctionId)
+      )
+        return [];
+      const point = resolveEndpointConnection(
+        after,
+        resolver,
+        endpoint,
+        lookup,
+      )?.contactPoint;
+      return point ? [{ endpoint, point }] : [];
+    },
+  );
+  const endpoints = buildBoundsSpatialIndex(
+    positioned.map((value) => ({
+      bounds: { ...value.point, width: 0, height: 0 },
+      value,
+    })),
+    Math.max(80, after.presentation.grid * 8),
+  );
   const drawing = drawingHasOpaqueFill(after)
     ? resolveDrawingScene(after, resolver)
     : undefined;
-  for (const endpoint of visibleEndpoints(after, resolver, lookup)) {
-    if (
-      endpoint.kind === "terminal"
-        ? options.excludeInstanceIds?.has(endpoint.instanceId)
-        : options.excludeJunctionIds?.has(endpoint.junctionId)
-    )
-      continue;
-    const point = resolveEndpointConnection(
-      after,
-      resolver,
-      endpoint,
-      lookup,
-    )?.contactPoint;
-    if (!point) continue;
-    if (
-      drawing &&
-      (!drawing.isEndpointVisibleAt(endpoint, point) ||
-        !drawing.isVisibleAt({ kind: "electrical" }, point))
-    )
-      continue;
-    const candidates = [...afterHits(point)]
-      .filter((id) => movedRouteIds.has(id))
-      .sort((left, right) => left.localeCompare(right, "en"));
-    for (const routeId of candidates) {
-      const route = routesById.get(routeId);
-      if (!route) continue;
-      if (
-        routeEndpoints(route).some(
-          (candidate) => endpointKey(candidate) === endpointKey(endpoint),
+  const touchedByEndpoint = new Map<RouteEndpoint, string[]>();
+  for (const route of moved) {
+    const old = beforeRoutes.get(route.id)!;
+    const previous = contactSegments(
+      old,
+      options.beforeGeometry
+        ? options.beforeGeometry.routes.get(old.id)
+        : resolveRouteGeometry(before, resolver, old, undefined, beforeLookup),
+    );
+    const ownEnds = new Set(routeEndpoints(route).map(endpointKey));
+    const seen = new Set<RouteEndpoint>();
+    for (const { from, to } of contactSegments(
+      route,
+      resolveRouteGeometry(after, resolver, route, undefined, lookup),
+    )) {
+      // Match findRouteSegmentsAtPoint's conservative tolerance for short segments.
+      const padding = SEGMENT_QUERY_PADDING;
+      const candidates = segmentNeedsExactPointQuery(from, to)
+        ? positioned
+        : endpoints.queryBounds({
+            x: Math.min(from.x, to.x) - padding,
+            y: Math.min(from.y, to.y) - padding,
+            width: Math.abs(to.x - from.x) + 2 * padding,
+            height: Math.abs(to.y - from.y) + 2 * padding,
+          });
+      for (const { endpoint, point } of candidates) {
+        const key = endpointKey(endpoint);
+        if (
+          seen.has(endpoint) ||
+          ownEnds.has(key) ||
+          !pointOnSegment(point, from, to)
         )
-      ) {
-        continue;
+          continue;
+        seen.add(endpoint);
+        if (
+          previous.some((segment) =>
+            pointOnSegment(point, segment.from, segment.to),
+          )
+        )
+          continue;
+        if (
+          drawing &&
+          (!drawing.isEndpointVisibleAt(endpoint, point) ||
+            !drawing.isVisibleAt({ kind: "electrical" }, point))
+        )
+          continue;
+        const touched = touchedByEndpoint.get(endpoint) ?? [];
+        touched.push(route.id);
+        touchedByEndpoint.set(endpoint, touched);
       }
-      if (beforeHits(point).has(routeId)) {
-        continue;
-      }
-      result.push({ endpoint, routeId, point: { ...point } });
     }
   }
-  return result;
+  // visibleEndpoints defines the original traversal order, including ties
+  // between distinct endpoints whose display keys happen to compare equal.
+  return positioned.flatMap(({ endpoint, point }) =>
+    (touchedByEndpoint.get(endpoint) ?? [])
+      .sort((a, b) => a.localeCompare(b, "en"))
+      .map((routeId) => ({ endpoint, point: { ...point }, routeId })),
+  );
 }
 
 /**
@@ -323,8 +339,27 @@ export function nextPhysicalContactOperation(
   // Only the exact licensed locations may attach a terminal to a conductor.
   // Junctions can also attach anywhere on an introduced Route.
   const typedPoints = pointKeys(license.routePoints);
+  const licensedRoutes = document.routes.filter(
+    (route) =>
+      license.objectIds.has(route.id) ||
+      license.routePoints.has(route.id) ||
+      license.routeGeometryPoints.has(route.id),
+  );
+  const introducedRoute = licensedRoutes.some((route) =>
+    license.objectIds.has(route.id),
+  );
+  const licensedJunction = positioned.some(
+    ({ endpoint }) =>
+      endpoint.kind === "junction" && endpointLicensed(endpoint),
+  );
   const segmentCandidates = positioned.filter(({ endpoint, point }) => {
-    if (endpoint.kind === "junction") return true;
+    if (endpoint.kind === "junction")
+      return (
+        endpointLicensed(endpoint) ||
+        introducedRoute ||
+        changedPoints.has(physicalContactPointKey(point)) ||
+        typedPoints.has(physicalContactPointKey(point))
+      );
     const key = physicalContactPointKey(point);
     return (
       changedPoints.has(key) ||
@@ -332,10 +367,23 @@ export function nextPhysicalContactOperation(
     );
   });
   if (!segmentCandidates.length) return null;
-  const geometry = resolveDocumentRoutingGeometry(document, resolver);
+  // An explicitly licensed Junction may land on any conductor. Otherwise
+  // only Routes named by this transaction can satisfy the exact test below.
+  const routeDocument = licensedJunction
+    ? document
+    : { ...document, routes: licensedRoutes };
+  const routesById = new Map(
+    routeDocument.routes.map((route) => [route.id, route]),
+  );
+  const geometry = resolveDocumentRoutingGeometry(
+    routeDocument,
+    resolver,
+    undefined,
+    lookup,
+  );
   // A draft can split/merge Routes without advancing its revision. Keep this
   // broad phase local to this normalization round, never to that revision.
-  const spatialIndex = buildDocumentSpatialIndex(document, geometry);
+  const spatialIndex = buildDocumentSpatialIndex(routeDocument, geometry);
   for (const { endpoint, point } of segmentCandidates) {
     const endpointIsLicensed = endpointLicensed(endpoint);
     for (const address of findRouteSegmentsAtPoint(
@@ -343,9 +391,7 @@ export function nextPhysicalContactOperation(
       point,
       spatialIndex,
     )) {
-      const route = document.routes.find(
-        (candidate) => candidate.id === address.routeId,
-      );
+      const route = routesById.get(address.routeId);
       const segment = geometry.routes
         .get(address.routeId)
         ?.segments.find(

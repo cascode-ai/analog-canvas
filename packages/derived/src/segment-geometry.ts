@@ -29,6 +29,11 @@ const EPSILON = 1e-9;
  * it is not a coordinate-distance tolerance.
  */
 export const SEGMENT_EPSILON = EPSILON;
+// Fixed padding bounds the cross/dot tolerance for segments of length >= 2.
+export const SEGMENT_QUERY_PADDING = 2 * EPSILON;
+export function segmentNeedsExactPointQuery(from: Point, to: Point): boolean {
+  return Math.hypot(to.x - from.x, to.y - from.y) < 2;
+}
 
 export function samePoint(left: Point, right: Point): boolean {
   return left.x === right.x && left.y === right.y;

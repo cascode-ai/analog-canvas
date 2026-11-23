@@ -1,5 +1,6 @@
 import type { Point, Rect, SchematicDocument } from "@icm/model";
 
+import { segmentNeedsExactPointQuery } from "./segment-geometry.js";
 import type { ResolvedDocumentRoutingGeometry } from "./resolved-route-geometry.js";
 
 export interface SpatialEntry<T> {
@@ -182,12 +183,8 @@ export function buildDocumentSpatialIndex(
   return {
     documentId: document.id,
     documentRevision: document.revision,
-    shortRouteSegments: segments.filter(
-      (segment) =>
-        Math.hypot(
-          segment.to.x - segment.from.x,
-          segment.to.y - segment.from.y,
-        ) < 2,
+    shortRouteSegments: segments.filter(({ from, to }) =>
+      segmentNeedsExactPointQuery(from, to),
     ),
     routeSegments: buildBoundsSpatialIndex(
       segments.map((segment) => ({ bounds: segment.bounds, value: segment })),

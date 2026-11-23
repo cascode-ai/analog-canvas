@@ -126,16 +126,14 @@ export function mergeBaseNets(
     for (const member of terminal.signal?.members ?? [])
       if (member.netId === source.id) member.netId = target.id;
   }
+  const terminalKey = (terminal: (typeof target.terminals)[number]) =>
+    JSON.stringify([terminal.instanceId, terminal.pinName, terminal.memberId]);
+  const present = new Set(target.terminals.map(terminalKey));
   for (const terminal of source.terminals) {
-    if (
-      !target.terminals.some(
-        (candidate) =>
-          candidate.instanceId === terminal.instanceId &&
-          candidate.pinName === terminal.pinName &&
-          candidate.memberId === terminal.memberId,
-      )
-    ) {
+    const key = terminalKey(terminal);
+    if (!present.has(key)) {
       target.terminals.push(structuredClone(terminal));
+      present.add(key);
     }
   }
   for (const route of draft.routes) {

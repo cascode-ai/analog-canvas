@@ -6,6 +6,7 @@ import {
   resolveDrawingOrder,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
+import { scalarRenameGroup, renameCanAffectRoute } from "./scalar-rename.js";
 import { applyLabelSignalMigration } from "./label-signal-migration.js";
 import { diffDocumentObjectIds } from "./history.js";
 import {
@@ -260,52 +261,6 @@ export function executeTransaction(
   const originalEndpointLookup = resolver
     ? routingEndpointLookup(document)
     : undefined;
-  const originalPathRead = resolver
-    ? prepareRoutePathRead(document, resolver, originalEndpointLookup)
-    : undefined;
-  const originalRouteStates = new Map(
-    resolver
-      ? document.routes
-          .filter(
-            (route) =>
-              routeValidationIds === undefined ||
-              routeValidationIds.has(route.id),
-          )
-          .map((route) => {
-            const resolvedPath = originalPathRead!(route);
-            return [
-              route.id,
-              {
-                points: resolvedPath?.points ?? null,
-                error: validateRoute(
-                  document,
-                  route,
-                  resolver,
-                  resolvedPath,
-                  "committed",
-                  originalEndpointLookup,
-                ),
-              },
-            ];
-          })
-      : [],
-  );
-  const originalNetLabelAnchors = resolver
-    ? captureNetLabelRouteAnchors(
-        document,
-        resolver,
-        routeValidationIds,
-        originalPathRead,
-      )
-    : [];
-  const originalRouteMarkerAnchors = resolver
-    ? captureRouteMarkerAnchors(
-        document,
-        resolver,
-        routeValidationIds,
-        originalPathRead,
-      )
-    : [];
   const changedRouteIds = new Set<string>();
   let geometryChanged = false;
   let connectivityChanged = false;
@@ -1236,13 +1191,24 @@ export function executeTransaction(
     reconcileJunctionContactAnchors(draft, resolver, changedObjectIds);
   moveFreeNetLabelsWithJunctions(document, draft, changedObjectIds);
 
+  // A scalar claim changes edges incident to its old group. Following those
+  // Base Nets through the new unions includes both split pieces and joined Nets.
+  const affectedNameGroup =
+    connectivityChanged &&
+    !invalidatedBulkDefault &&
+    !reconciledBulkConnectivity &&
+    deferredNetPruneIds.size === 0
+      ? scalarRenameGroup(document, transaction)
+      : undefined;
   const originalNetContractIssueKeys = connectivityChanged
     ? new Set(
-        validateLogicalNetContract(document).map(logicalNetContractIssueKey),
+        validateLogicalNetContract(document, affectedNameGroup).map(
+          logicalNetContractIssueKey,
+        ),
       )
     : new Set<string>();
   const introducedNetContractIssue = connectivityChanged
-    ? validateLogicalNetContract(draft).find(
+    ? validateLogicalNetContract(draft, affectedNameGroup).find(
         (issue) =>
           !originalNetContractIssueKeys.has(logicalNetContractIssueKey(issue)),
       )
@@ -1267,21 +1233,44 @@ export function executeTransaction(
   }
 
   if (resolver) {
-    const routesToValidate =
-      routeValidationIds === undefined
-        ? draft.routes
-        : draft.routes.filter(
-            (route) =>
-              routeValidationIds.has(route.id) || changedRouteIds.has(route.id),
-          );
+    const originalPathRead = prepareRoutePathRead(
+      document,
+      resolver,
+      originalEndpointLookup,
+    );
+    const originalRoutes = new Map(
+      document.routes
+        .filter(
+          (route) => !routeValidationIds || routeValidationIds.has(route.id),
+        )
+        .map((route) => [route.id, route]),
+    );
     const finalEndpointLookup = routingEndpointLookup(draft);
     const finalPathRead = prepareRoutePathRead(
       draft,
       resolver,
       finalEndpointLookup,
     );
-    for (const route of routesToValidate) {
-      const original = originalRouteStates.get(route.id);
+    for (const route of draft.routes) {
+      if (
+        routeValidationIds &&
+        !routeValidationIds.has(route.id) &&
+        !changedRouteIds.has(route.id)
+      )
+        continue;
+      if (
+        affectedNameGroup &&
+        finalEndpointLookup &&
+        !renameCanAffectRoute(
+          route,
+          affectedNameGroup,
+          changedObjectIds,
+          finalEndpointLookup,
+        )
+      )
+        continue;
+      const original = originalRoutes.get(route.id);
+      const originalPath = original ? originalPathRead(original) : null;
       const resolvedPath = finalPathRead(route);
       const routeError = validateRoute(
         draft,
@@ -1294,12 +1283,19 @@ export function executeTransaction(
       const resolvedPoints = resolvedPath?.points ?? null;
       const resolvedGeometryChanged =
         original === undefined ||
-        !sameResolvedRoutePoints(original.points, resolvedPoints);
+        !sameResolvedRoutePoints(originalPath?.points ?? null, resolvedPoints);
       if (routeError) {
         const unchangedPreexistingError =
           original !== undefined &&
           !resolvedGeometryChanged &&
-          original.error === routeError;
+          validateRoute(
+            document,
+            original,
+            resolver,
+            originalPath,
+            "committed",
+            originalEndpointLookup,
+          ) === routeError;
         if (!unchangedPreexistingError) {
           return rejectTransaction(
             document,
@@ -1316,20 +1312,37 @@ export function executeTransaction(
         changedRouteIds.add(route.id);
       }
     }
-    followNetLabelsOnChangedRoutes(
-      draft,
-      resolver,
-      originalNetLabelAnchors,
-      changedRouteIds,
-      changedObjectIds,
-    );
-    followRouteMarkersOnChangedRoutes(
-      draft,
-      resolver,
-      originalRouteMarkerAnchors,
-      changedRouteIds,
-      changedObjectIds,
-    );
+    // Original anchors are read from the untouched source Document. The
+    // follow operations consume only Routes whose geometry actually changed.
+    const anchorRouteIds = routeValidationIds
+      ? new Set([...changedRouteIds].filter((id) => routeValidationIds.has(id)))
+      : changedRouteIds;
+    if (anchorRouteIds.size) {
+      followNetLabelsOnChangedRoutes(
+        draft,
+        resolver,
+        captureNetLabelRouteAnchors(
+          document,
+          resolver,
+          anchorRouteIds,
+          originalPathRead,
+        ),
+        changedRouteIds,
+        changedObjectIds,
+      );
+      followRouteMarkersOnChangedRoutes(
+        draft,
+        resolver,
+        captureRouteMarkerAnchors(
+          document,
+          resolver,
+          anchorRouteIds,
+          originalPathRead,
+        ),
+        changedRouteIds,
+        changedObjectIds,
+      );
+    }
   }
 
   if (connectivityChanged) {

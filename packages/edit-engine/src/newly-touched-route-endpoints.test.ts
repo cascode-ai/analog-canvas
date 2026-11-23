@@ -48,16 +48,76 @@ function crossing() {
 }
 
 describe("newly touched authored conductors", () => {
-  it("queries real geometry once per coordinate and snapshot, not once per coincident owner", () => {
+  it("keeps exact contact checks local as distant Junctions are added", () => {
     const { before, after } = crossing();
-    const query = vi.spyOn(derived, "findRouteSegmentsAtPoint");
+    const exact = vi.spyOn(derived, "pointOnSegment");
     try {
-      newlyTouchedRouteEndpoints(before, after, resolver, new Set(["wire"]));
-      // The spy calls the real query unchanged; no fabricated answers.
-      expect(query).toHaveBeenCalledTimes(4);
+      const move = () =>
+        newlyTouchedRouteEndpoints(before, after, resolver, new Set(["wire"]));
+      const contacts = move();
+      const checks = exact.mock.calls.length;
+      expect(checks).toBeGreaterThan(0);
+      for (let i = 0; i < 128; i++) {
+        const far = {
+          id: "far-" + i,
+          netId: "pins",
+          position: { x: 1000, y: 100 * i },
+        };
+        before.junctions.push(far);
+        after.junctions.push(far);
+      }
+      exact.mockClear();
+      expect(move()).toEqual(contacts);
+      expect(exact.mock.calls).toHaveLength(checks);
     } finally {
-      query.mockRestore();
+      exact.mockRestore();
     }
+  });
+  it("retains separate contact points for pin and instance names containing colons", () => {
+    const { before, after } = crossing();
+    const port = resolver.resolve("port")!.definition;
+    const namedPort = {
+      ...port,
+      id: "qualified-port",
+      pins: port.pins.map((pin) => ({ ...pin, name: "B:P" })),
+    };
+    const qualified = new InMemorySymbolResolver([namedPort], resolver);
+    for (const document of [before, after]) {
+      document.routes.push(
+        createRoutePath({
+          id: "other-wire",
+          netId: "wire-net",
+          start: { kind: "junction", junctionId: "A" },
+          end: { kind: "junction", junctionId: "B" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+      document.instances[0]!.id = "device:B";
+      document.instances[1]!.id = "device";
+      document.instances[1]!.symbolId = namedPort.id;
+      document.instances[1]!.placement!.position.x = 70;
+      document.nets[1]!.terminals = [
+        { instanceId: "device:B", pinName: "P" },
+        { instanceId: "device", pinName: "B:P" },
+      ];
+    }
+    const contacts = newlyTouchedRouteEndpoints(
+      before,
+      after,
+      qualified,
+      new Set(["wire", "other-wire"]),
+    );
+    expect(
+      contacts
+        .filter(({ endpoint }) => endpoint.kind === "terminal")
+        .map((c) => [c.point.x, c.routeId]),
+    ).toEqual([
+      [50, "other-wire"],
+      [50, "wire"],
+      [70, "other-wire"],
+      [70, "wire"],
+    ]);
   });
   it("keeps every coincident endpoint and stable order when a wire reaches them", () => {
     const { before, after } = crossing();

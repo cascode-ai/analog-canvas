@@ -241,12 +241,13 @@ export function resolveDocumentRoutingGeometry(
   document: SchematicDocument,
   resolver: SymbolResolver,
   endpointConnections?: ReadonlyMap<string, EndpointConnection>,
+  endpointLookup?: EndpointObjectLookup,
 ): ResolvedDocumentRoutingGeometry {
   // Build the index only when the caller did not already supply resolved
   // connections; callers that have them are already O(1).
-  const lookup = endpointConnections
-    ? undefined
-    : buildEndpointObjectLookup(document);
+  const lookup =
+    endpointLookup ??
+    (endpointConnections ? undefined : buildEndpointObjectLookup(document));
   const routes = new Map<string, ResolvedRouteGeometry>();
   const terminalJoins: EndpointJoin[] = [];
   for (const route of [...document.routes].sort((left, right) =>

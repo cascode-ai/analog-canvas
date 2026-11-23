@@ -1,3 +1,4 @@
+import { groupedBy } from "./grouped-by.js";
 import {
   isGridAlignedCoordinate,
   electricalConnectionGrid,
@@ -338,6 +339,7 @@ export function endpointBelongsToNet(
   document: SchematicDocument,
   net: Net,
   endpoint: RouteEndpoint,
+  lookup?: EndpointObjectLookup,
 ): boolean {
   switch (endpoint.kind) {
     case "terminal":
@@ -347,29 +349,40 @@ export function endpointBelongsToNet(
           terminal.pinName === endpoint.pinName &&
           terminal.memberId === endpoint.memberId,
       );
-    case "junction":
-      return document.junctions.some(
-        (junction) =>
-          junction.id === endpoint.junctionId &&
-          junctionElectricalEndpoints(junction).some(
-            (item) =>
-              item.netId === net.id &&
-              endpointKey(item.endpoint) === endpointKey(endpoint),
-          ),
-      );
+    case "junction": {
+      const ownsEndpoint = (junction: SchematicDocument["junctions"][number]) =>
+        junction.id === endpoint.junctionId &&
+        junctionElectricalEndpoints(junction).some(
+          (item) =>
+            item.netId === net.id &&
+            item.endpoint.memberId === endpoint.memberId,
+        );
+      if (!lookup) return document.junctions.some(ownsEndpoint);
+      const junction = lookup.junctionsById.get(endpoint.junctionId);
+      return junction !== undefined && ownsEndpoint(junction);
+    }
   }
+}
+
+export function indexJunctionsByNet(junctions: SchematicDocument["junctions"]) {
+  return groupedBy(
+    junctions,
+    (junction) =>
+      junction.members?.map((member) => member.netId) ?? junction.netId,
+  );
 }
 
 export function netEndpoints(
   document: SchematicDocument,
   net: Net,
+  junctions: readonly SchematicDocument["junctions"][number][] = document.junctions,
 ): RouteEndpoint[] {
   return [
     ...net.terminals.map((terminal): RouteEndpoint => ({
       kind: "terminal",
       ...terminal,
     })),
-    ...document.junctions
+    ...junctions
       .flatMap(junctionElectricalEndpoints)
       .filter((item) => item.netId === net.id)
       .map((item) => item.endpoint),
