@@ -449,6 +449,10 @@ test("shows first-party visitor analytics without tracking the dashboard itself"
 
   await page.goto("/analytics");
   await expect(page.getByRole("heading", { name: "Analytics" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "MaxMind" })).toHaveAttribute(
+    "href",
+    "https://www.maxmind.com/",
+  );
   await expect(page.getByText("Registered accounts")).toBeVisible();
   await expect(page.getByText("42", { exact: true })).toBeVisible();
   await expect(page).toHaveTitle("Analytics — Analog Canvas");

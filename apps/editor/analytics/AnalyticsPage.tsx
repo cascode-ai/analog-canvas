@@ -416,6 +416,10 @@ export function AnalyticsPage() {
                 loading={!summary && !error}
                 unavailable={error}
               />
+              <p className="analytics-note">
+                Hangzhou country lookups use GeoLite data from{" "}
+                <a href="https://www.maxmind.com/">MaxMind</a> when available.
+              </p>
             </section>
             <section
               className="analytics-section"

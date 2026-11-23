@@ -299,6 +299,17 @@ journal retention, abandoned quota reservations and regional recovery.
 
 ## Visitor statistics
 
+Country lookup is opt-in. Install the nginx GeoIP2 module and use a host
+[MaxMind GeoIP Update schedule](https://dev.maxmind.com/geoip/updating-databases/) for
+`GeoLite2-Country` in `/var/lib/GeoIP`. Keep the download credential on the
+host and the database readable by nginx workers. Once the database is present,
+take the formal release lock. Install root-owned copies of
+`nginx-analytics-country.conf` and `nginx-analytics-country.map` from
+`/opt/analog-canvas/current-formal/` into
+`/etc/analog-canvas-formal/nginx-analytics-country/`, run `nginx -t` and reload.
+Refresh the host copies under the same lock when changing the integration.
+To disable lookup, remove both copies, test the configuration and reload.
+
 Analytics replication is opt-in. Use the existing peer token to prepare the
 source at `POST /api/analytics-sync/prepare`, then read its authenticated
 `GET /api/analytics-sync/summary`. After verified backups, pass that summary

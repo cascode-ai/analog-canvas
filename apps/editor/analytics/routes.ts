@@ -31,6 +31,8 @@ export type AnalyticsRouteEnv = {
   PROJECT_SYNC_PEER_TOKEN?: string;
   PROJECT_SYNC_PEER_URL?: string;
   PROJECT_REGION?: string;
+  /** Per-request country supplied by the trusted regional entrance. */
+  regionalAnalyticsCountry?: string;
 };
 
 type RequestCf = {
@@ -148,8 +150,10 @@ function countable(request: Request): boolean {
   return Boolean(userAgent) && !BOT_UA.test(userAgent);
 }
 
-/** The visitor's country as Cloudflare reports it; "XX" when unknown. */
-function requestCountry(request: Request): string {
+/** Country reported by the serving edge. "XX" when unknown. */
+function requestCountry(request: Request, regionalCountry?: string): string {
+  if (regionalCountry && /^[A-Z]{2}$/.test(regionalCountry))
+    return regionalCountry;
   const cf = (request as Request & { cf?: RequestCf }).cf ?? {};
   const rawCountry =
     typeof cf.country === "string" ? cf.country.toUpperCase() : "";
@@ -178,7 +182,7 @@ async function trackPageLoad(
   if (ttfb === null || shown === null) return noContent;
   try {
     await recordPageLoad(env.ANALYTICS, {
-      country: requestCountry(request),
+      country: requestCountry(request, env.regionalAnalyticsCountry),
       ttfb,
       shown,
     });
@@ -221,7 +225,7 @@ async function trackPageView(
     new URL(request.url),
   );
   const cf = (request as Request & { cf?: RequestCf }).cf ?? {};
-  const country = requestCountry(request);
+  const country = requestCountry(request, env.regionalAnalyticsCountry);
   const secure = request.url.startsWith("https://");
   const headers = new Headers({ "cache-control": "no-store" });
   // Set once, never renewed: the id lasts a year from the first visit.

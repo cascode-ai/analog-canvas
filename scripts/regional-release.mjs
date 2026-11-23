@@ -41,6 +41,8 @@ export const RELEASE_SOURCES = [
   "memory.mjs",
   "nginx.conf",
   "nginx-public.conf",
+  "nginx-analytics-country.conf",
+  "nginx-analytics-country.map",
   "formal-backup.sh",
   "maintenance.py",
   "daily-backup.py",

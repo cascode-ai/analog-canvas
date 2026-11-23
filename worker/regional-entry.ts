@@ -36,6 +36,8 @@ type Env = Parameters<typeof canvas.fetch>[1] & {
   REGIONAL_RATE_LIMITS?: string;
 };
 
+const ANALYTICS_COUNTRY_HEADER = "x-canvas-analytics-country";
+
 /** The common Canvas runtime behind a trusted regional loopback proxy. */
 export default {
   async fetch(incoming: Request, base: Env): Promise<Response> {
@@ -82,6 +84,9 @@ export default {
     const env: Env = {
       ...base,
       ...regionalRateLimiters(base.REGIONAL_RATE_LIMITS),
+      regionalAnalyticsCountry: proxied
+        ? (incoming.headers.get(ANALYTICS_COUNTRY_HEADER) ?? undefined)
+        : undefined,
       // Agents download the pinned MCP bundle from this site (nginx /downloads/mcp/).
       AGENT_MCP_DOWNLOAD_ORIGIN: config.clientOrigin,
     } as Env;
@@ -96,6 +101,7 @@ export default {
     );
     request.headers.delete("cf-connecting-ip");
     request.headers.delete("x-real-ip");
+    request.headers.delete(ANALYTICS_COUNTRY_HEADER);
     if (proxied) request.headers.set("cf-connecting-ip", proxied);
     if (
       config.origin === config.clientOrigin &&
