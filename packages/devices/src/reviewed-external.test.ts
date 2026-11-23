@@ -650,6 +650,35 @@ describe("standard cells behind Library gates (#1450)", () => {
     ).toBeDefined();
   });
 
+  it("reviews every SKY130 transistor inside the hosted standard cells (#2498)", () => {
+    // A Project that imports these cells declares each device they call; an
+    // unreviewed one blocks its netlist as an unverified legacy declaration.
+    const cells = readFileSync(
+      new URL(
+        "../../../containers/ngspice/cells/sky130_fd_sc_hd.spice",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const masters = new Set(cells.match(/\bsky130_fd_pr__\w*fet\w*/g));
+    expect(masters).toContain("sky130_fd_pr__special_nfet_01v8");
+    for (const master of masters)
+      expect(
+        resolveReviewedLibraryInterface(master, ["D", "G", "S", "B"]),
+        master,
+      ).toBeDefined();
+    const special = reviewedExternalBindingForMaster(
+      "sky130_fd_pr__special_nfet_01v8",
+    )!;
+    // The cells' own size runs; one outside the model bins is flagged.
+    expect(reviewedSizeOutOfRange(special, { w: "360n", l: "150n" })).toEqual(
+      [],
+    );
+    expect(reviewedSizeOutOfRange(special, { w: "1u", l: "500n" })).not.toEqual(
+      [],
+    );
+  });
+
   it("matches names in any case and finds a netlisted cell by its id", () => {
     const cell = standardCellBindingForMaster("nd2d1bwp12t30p140lvt")!;
     expect(cell.masterName).toBe("ND2D1BWP12T30P140LVT");
