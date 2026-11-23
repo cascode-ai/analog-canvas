@@ -73,26 +73,45 @@ function supplyMarkerCandidates(instances: Instance[]): readonly Instance[] {
 }
 
 /** First physical B membership in document order, including legacy duplicates. */
-function connectedMosBodyNet(document: SchematicDocument, instanceId: string) {
-  if (!isFrozenSnapshot(document.nets))
-    return document.nets.find((net) =>
-      net.terminals.some(
-        (terminal) =>
-          terminal.instanceId === instanceId && terminal.pinName === "B",
-      ),
-    );
-  let bodies = bodyNetsByMembership.get(document.nets);
-  if (!bodies) {
-    bodies = new Map();
-    for (const net of document.nets) {
-      for (const terminal of net.terminals) {
-        if (terminal.pinName === "B" && !bodies.has(terminal.instanceId))
-          bodies.set(terminal.instanceId, net);
-      }
+function indexMosBodyNets(nets: readonly Net[]): Map<string, Net> {
+  const cached = bodyNetsByMembership.get(nets);
+  if (cached) return cached;
+  const bodies = new Map<string, Net>();
+  for (const net of nets) {
+    for (const terminal of net.terminals) {
+      if (terminal.pinName === "B" && !bodies.has(terminal.instanceId))
+        bodies.set(terminal.instanceId, net);
     }
-    bodyNetsByMembership.set(document.nets, bodies);
   }
-  return bodies.get(instanceId);
+  if (isFrozenSnapshot(nets)) bodyNetsByMembership.set(nets, bodies);
+  return bodies;
+}
+
+function connectedMosBodyNet(document: SchematicDocument, instanceId: string) {
+  if (isFrozenSnapshot(document.nets))
+    return indexMosBodyNets(document.nets).get(instanceId);
+  return document.nets.find((net) =>
+    net.terminals.some(
+      (terminal) =>
+        terminal.instanceId === instanceId && terminal.pinName === "B",
+    ),
+  );
+}
+
+/** A nonmember cannot have an explicit body. Build the membership index only
+ * when a synchronous endpoint read actually encounters a hidden body pin. */
+export function readMosBulkVisibility(
+  document: SchematicDocument,
+  logicalNets: ResolvedDocumentLogicalNets,
+): (instance: Instance) => boolean {
+  let bodies: Map<string, Net> | undefined;
+  return (instance) => {
+    bodies ??= indexMosBodyNets(document.nets);
+    return (
+      bodies.has(instance.id) &&
+      mosBulkShouldBeVisible(document, instance, logicalNets)
+    );
+  };
 }
 
 function bulkContactKeys(index: BulkRouteIndex, route: RouteBranch): string[] {

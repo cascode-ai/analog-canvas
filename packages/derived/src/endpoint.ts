@@ -18,7 +18,7 @@ import {
   resolveSignalFlowPinAt,
   type SymbolResolver,
 } from "@icm/symbols";
-import { mosBulkShouldBeVisible } from "./mos-bulk.js";
+import { mosBulkShouldBeVisible, readMosBulkVisibility } from "./mos-bulk.js";
 import {
   resolveCommittedDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
@@ -59,6 +59,7 @@ export interface EndpointObjectLookup {
   >;
   /** Logical Nets for this Document, shared by MOS body visibility and bus Junction member names. */
   readonly logicalNetResolution?: ResolvedDocumentLogicalNets;
+  readonly isMosBulkVisible?: ReturnType<typeof readMosBulkVisibility>;
 }
 
 /** One raw lookup for this exact model value, including hidden MOS body policy. */
@@ -67,6 +68,7 @@ export function buildEndpointObjectLookup(
 ): EndpointObjectLookup & {
   readonly logicalNetResolution: ResolvedDocumentLogicalNets;
 } {
+  const logicalNetResolution = resolveCommittedDocumentLogicalNets(document);
   return {
     instancesById: new Map(
       document.instances.map((instance) => [instance.id, instance]),
@@ -74,7 +76,8 @@ export function buildEndpointObjectLookup(
     junctionsById: new Map(
       document.junctions.map((junction) => [junction.id, junction]),
     ),
-    logicalNetResolution: resolveCommittedDocumentLogicalNets(document),
+    logicalNetResolution,
+    isMosBulkVisible: readMosBulkVisibility(document, logicalNetResolution),
   };
 }
 
@@ -293,7 +296,12 @@ export function isVisibleEndpoint(
     return Boolean(
       endpoint.pinName === "B" &&
       resolved.variant.auxiliaryPins?.some((pin) => pin.name === "B") &&
-      mosBulkShouldBeVisible(document, instance, lookup?.logicalNetResolution),
+      (lookup?.isMosBulkVisible?.(instance) ??
+        mosBulkShouldBeVisible(
+          document,
+          instance,
+          lookup?.logicalNetResolution,
+        )),
     );
   }
   const pin = resolved.definition.pins.find(

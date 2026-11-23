@@ -270,6 +270,13 @@ export function nextPhysicalContactOperation(
   });
 
   const positionedByPoint = new Map<string, typeof positioned>();
+  function pointKeys(byRoute: ReadonlyMap<string, Set<string>>) {
+    const keys = new Set<string>();
+    for (const points of byRoute.values())
+      for (const point of points) keys.add(point);
+    return keys;
+  }
+  const changedPoints = pointKeys(license.routeGeometryPoints);
   for (const entry of positioned) {
     const key = physicalContactPointKey(entry.point);
     const entries = positionedByPoint.get(key) ?? [];
@@ -279,10 +286,7 @@ export function nextPhysicalContactOperation(
   for (const coincident of positionedByPoint.values()) {
     const point = coincident[0]?.point;
     const changedRouteLandedHere =
-      point !== undefined &&
-      [...license.routeGeometryPoints.values()].some((points) =>
-        points.has(physicalContactPointKey(point)),
-      );
+      point !== undefined && changedPoints.has(physicalContactPointKey(point));
     if (
       !changedRouteLandedHere &&
       !coincident.some(({ endpoint }) => endpointLicensed(endpoint))
@@ -316,11 +320,23 @@ export function nextPhysicalContactOperation(
     }
   }
 
+  // Only the exact licensed locations may attach a terminal to a conductor.
+  // Junctions can also attach anywhere on an introduced Route.
+  const typedPoints = pointKeys(license.routePoints);
+  const segmentCandidates = positioned.filter(({ endpoint, point }) => {
+    if (endpoint.kind === "junction") return true;
+    const key = physicalContactPointKey(point);
+    return (
+      changedPoints.has(key) ||
+      (endpointLicensed(endpoint) && typedPoints.has(key))
+    );
+  });
+  if (!segmentCandidates.length) return null;
   const geometry = resolveDocumentRoutingGeometry(document, resolver);
   // A draft can split/merge Routes without advancing its revision. Keep this
   // broad phase local to this normalization round, never to that revision.
   const spatialIndex = buildDocumentSpatialIndex(document, geometry);
-  for (const { endpoint, point } of positioned) {
+  for (const { endpoint, point } of segmentCandidates) {
     const endpointIsLicensed = endpointLicensed(endpoint);
     for (const address of findRouteSegmentsAtPoint(
       geometry,

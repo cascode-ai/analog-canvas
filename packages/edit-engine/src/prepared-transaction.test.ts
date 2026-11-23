@@ -28,6 +28,31 @@ describe("prepared atomic transactions", () => {
     kind: "add_instance" as const,
     instance: { id: "R1", symbolId: "resistor", placement: null },
   };
+  it("checks content when a prepared immutable source is replaced at the same revision", () => {
+    const source = freezeSnapshot(createEmptyDocument("sheet", "Original"));
+    const request = {
+      transactionId: "place",
+      documentId: source.id,
+      expectedRevision: source.revision,
+      actor: { kind: "human" as const, id: "editor" },
+      edits: [addResistor],
+    };
+    const context = {
+      symbolResolver: new InMemorySymbolResolver(builtInSymbols),
+    };
+    const { prepared } = prepareTransaction(source, request, context);
+    expect(prepared).toBeDefined();
+    const replacement = freezeSnapshot({ ...source, name: "Replacement" });
+    const committed = executeTransaction(replacement, request, {
+      ...context,
+      preparedTransactions: [prepared!],
+    });
+    expect(committed.ok).toBe(true);
+    expect(committed.document.name).toBe("Replacement");
+    expect(committed.document.instances.map((instance) => instance.id)).toEqual(
+      ["R1"],
+    );
+  });
   it.each([
     [
       "used only by intermediate edits",

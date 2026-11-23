@@ -10,9 +10,13 @@ export function routingEndpointLookup(document: SchematicDocument) {
   // authoritative schema rejects them, rather than acquire Map's last winner.
   const unique = (items: readonly { id: string }[]) =>
     new Set(items.map((item) => item.id)).size === items.length;
-  return unique(document.instances) && unique(document.junctions)
-    ? buildEndpointObjectLookup(document)
-    : undefined;
+  if (!unique(document.instances) || !unique(document.junctions))
+    return undefined;
+  const netsById = new Map<string, SchematicDocument["nets"][number]>();
+  for (const net of document.nets) {
+    if (!netsById.has(net.id)) netsById.set(net.id, net);
+  }
+  return { ...buildEndpointObjectLookup(document), netsById };
 }
 
 export function prepareRoutePathRead(

@@ -138,6 +138,35 @@ function junctionNetIds(document: SchematicDocument): Record<string, string> {
 }
 
 describe("physical contact license", () => {
+  it("skips remote segments when no terminal has a licensed interior point", () => {
+    const document = fixture({
+      keepInstances: ["A", "B"],
+      parkedJunctionX: 250,
+    });
+    document.junctions = [];
+    const route = document.routes[0]!;
+    let routeGeometryReads = 0;
+    document.routes = [
+      {
+        ...route,
+        get legs() {
+          routeGeometryReads++;
+          return route.legs;
+        },
+      },
+    ];
+    const license = {
+      objectIds: new Set(["A"]),
+      endpointKeys: new Set<string>(),
+      routePoints: new Map<string, Set<string>>(),
+      routeGeometryPoints: new Map<string, Set<string>>(),
+    };
+    expect(
+      nextPhysicalContactOperation(document, resolver, license, new Set()),
+    ).toBeNull();
+    expect(routeGeometryReads).toBe(0);
+  });
+
   it("rebuilds the contact broad phase after each split in one draft revision", () => {
     const document = fixture({
       keepInstances: ["A", "B"],

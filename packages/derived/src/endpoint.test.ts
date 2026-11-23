@@ -1,12 +1,14 @@
 import { createEmptyProject, transformPoint } from "@icm/model";
 import type { Net, RouteEndpoint } from "@icm/model";
 import {
+  builtInSymbols,
   InMemorySymbolResolver,
   requireRazaviCatalogSymbol,
 } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
+  buildEndpointObjectLookup,
   endpointBelongsToNet,
   isVisibleEndpoint,
   netEndpoints,
@@ -100,6 +102,46 @@ function placeDual(
 
 describe("endpoint primitives", () => {
   describe("isVisibleEndpoint", () => {
+    it("checks hidden MOS body membership in one sweep per endpoint read", () => {
+      const document = createEmptyProject("sheet", "Sheet").documents[0]!;
+      const symbols = new InMemorySymbolResolver(builtInSymbols);
+      let membershipReads = 0;
+      for (let i = 0; i < 32; i++) {
+        const id = "M" + i;
+        document.instances.push({
+          ...placeDual(),
+          id,
+          symbolId: "nmos",
+          symbolVariantId: "textbook-3terminal",
+        });
+        const terminals = [{ instanceId: id, pinName: "G" }];
+        document.nets.push({
+          id: "gate-" + i,
+          get terminals() {
+            membershipReads++;
+            return terminals;
+          },
+        });
+      }
+      const lookup = buildEndpointObjectLookup(document);
+      membershipReads = 0;
+      for (const { id } of document.instances)
+        expect(
+          isVisibleEndpoint(document, symbols, terminal(id, "B"), lookup),
+        ).toBe(false);
+      expect(membershipReads).toBeLessThanOrEqual(document.nets.length);
+
+      document.nets[0]!.terminals.push({ instanceId: "M0", pinName: "B" });
+      expect(
+        isVisibleEndpoint(
+          document,
+          symbols,
+          terminal("M0", "B"),
+          buildEndpointObjectLookup(document),
+        ),
+      ).toBe(true);
+    });
+
     it("sees a visible pin, hides a variant-hidden pin, and hides an implicit pin", () => {
       const project = createEmptyProject("ep", "EP");
       const document = project.documents[0]!;
