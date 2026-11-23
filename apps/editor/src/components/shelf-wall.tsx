@@ -1,3 +1,4 @@
+import { MAX_PROJECT_NAME_LENGTH } from "@icm/model";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TilePreview } from "./tile-preview";
 import { InlineConfirm } from "./inline-confirm";
@@ -412,7 +413,7 @@ export function ShelfWall() {
                       aria-label="Project name"
                       autoComplete="off"
                       autoFocus
-                      maxLength={120}
+                      maxLength={MAX_PROJECT_NAME_LENGTH}
                       value={renaming.name}
                       disabled={busyId !== null}
                       onChange={(event) =>

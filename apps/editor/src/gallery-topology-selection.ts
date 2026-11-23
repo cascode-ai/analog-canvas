@@ -37,3 +37,18 @@ export function closeTopologyMatches<
   );
   return { matches, omitted: Math.max(0, close - NEAREST_LIMIT) };
 }
+
+/** Count every comparison before ranking can discard its witness. */
+export function countTopologyComparison(
+  report: {
+    comparable: number;
+    exactMatches?: number;
+    limitedComparisons?: number;
+  },
+  result: { exact: boolean; limited: boolean },
+): void {
+  report.comparable++;
+  if (result.exact) report.exactMatches = (report.exactMatches ?? 0) + 1;
+  if (result.limited)
+    report.limitedComparisons = (report.limitedComparisons ?? 0) + 1;
+}

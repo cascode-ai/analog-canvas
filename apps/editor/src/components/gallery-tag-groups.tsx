@@ -1,4 +1,4 @@
-import taxonomy from "../../../../config/gallery-taxonomy.json";
+import { galleryTagGroups, galleryTagGroup } from "../gallery-taxonomy";
 import { useId, useState } from "react";
 import type { GalleryTagOption } from "../gallery-client";
 import {
@@ -8,35 +8,6 @@ import {
 } from "../gallery-tag-label";
 import { galleryOriginTagMark } from "../gallery-origin-tags";
 import "./gallery-tag-groups.css";
-
-const TAG_GROUPS = Object.entries(taxonomy.tagsByGroup);
-const TAG_ALIASES: Record<string, string> = {
-  op: "operational amplifier",
-  osc: "oscillator",
-  bgr: "bandgap",
-  dcdc: "dc-dc",
-  "d-latch": "d latch",
-  levelshifter: "level shifter",
-  sha: "sample and hold",
-  "switch capacitor": "switched capacitor",
-  cts: "charge transfer switch",
-  "v-i": "voltage to current",
-  vtc: "voltage to time",
-  tdc: "time to digital",
-  "gain-boost": "gain boosting",
-  "low-dropout": "ldo",
-  dropout: "ldo",
-  "linear regulator": "regulator",
-  "bootstrapped cts": "charge transfer switch",
-};
-
-function tagGroup(tag: string): string {
-  const key = TAG_ALIASES[tag.toLowerCase()] ?? tag.toLowerCase();
-  return (
-    TAG_GROUPS.find(([, values]) => values.includes(key))?.[0] ??
-    "Custom & legacy"
-  );
-}
 
 /** Shared taxonomy selection for the Gallery wall and a widened Editor dock. */
 export function GalleryTagGroups({
@@ -60,14 +31,18 @@ export function GalleryTagGroups({
   const options = [
     ...tags,
     ...[
-      ...new Set([...Object.values(taxonomy.tagsByGroup).flat(), ...selected]),
+      ...new Set([
+        ...galleryTagGroups.flatMap(([, tags]) => tags),
+        ...selected,
+      ]),
     ]
       .filter((tag) => !tags.some((option) => option.tag === tag))
       .map((tag) => ({ tag, count: 0 })),
   ].filter(({ tag }) => !galleryOriginTagMark(tag));
-  const groups = [...TAG_GROUPS.map(([name]) => name), "Custom & legacy"].sort(
-    compareGalleryLabels,
-  );
+  const groups = [
+    ...galleryTagGroups.map(([name]) => name),
+    "Custom & legacy",
+  ].sort(compareGalleryLabels);
   // New counts on their way keep the last ones, dimmed, until they arrive
   // (#2160); only the first load has none to show.
   const countsUnknown =
@@ -78,7 +53,7 @@ export function GalleryTagGroups({
     <div className="gallery-tag-groups" aria-busy={countsLoading}>
       {groups.map((name) => {
         const group = options
-          .filter(({ tag }) => tagGroup(tag) === name)
+          .filter(({ tag }) => galleryTagGroup(tag) === name)
           .sort((a, b) => compareGalleryTagLabels(a.tag, b.tag));
         if (!group.length) return null;
         const circuitCount =

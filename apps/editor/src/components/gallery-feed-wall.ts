@@ -1,3 +1,4 @@
+import { gallerySearchQuery } from "../gallery-search";
 /**
  * What the wall holds and how it loads: the first page and every later one,
  * the tag counts beside it, refreshes, likes, and entries taken off it.
@@ -363,7 +364,7 @@ export function useGalleryWall({
     if (loadingMoreRef.current) return false;
     // Words the server has not been asked yet: it will answer them over the
     // whole Gallery, so reading older pages for them now is wasted.
-    if (searchQuery.trim() !== serverSearch) return false;
+    if (gallerySearchQuery(searchQuery) !== serverSearch) return false;
     loadingMoreRef.current = true;
     const generation = feedGenerationRef.current;
     void loadGalleryFeed(fetch, { ...feedQuery, cursor }).then((page) => {

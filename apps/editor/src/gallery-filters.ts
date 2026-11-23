@@ -1,3 +1,4 @@
+import { gallerySearchQuery } from "./gallery-search";
 /**
  * The Gallery's "show me only…" state, in one shape.
  *
@@ -187,7 +188,7 @@ export function parseGalleryFilterQuery(search: string): {
       ownerUserId:
         ownerUserId.length > 0 ? ownerUserId.slice(0, MAX_FILTER_LENGTH) : null,
       tags: boundedTags((params.get("tags") ?? "").split(",")),
-      search: (params.get("q") ?? "").slice(0, MAX_FILTER_LENGTH),
+      search: gallerySearchQuery(params.get("q") ?? ""),
       netlistable: params.get("netlist") === "1",
       withoutNetlist: params.get("netlist") === "0",
       withoutReference: params.get("reference") === "0",
@@ -224,7 +225,7 @@ export function galleryFilterSearch(
   set("author", filters.author);
   set("owner", filters.ownerUserId);
   set("tags", filters.tags.length > 0 ? filters.tags.join(",") : null);
-  set("q", filters.search.trim().length > 0 ? filters.search : null);
+  set("q", gallerySearchQuery(filters.search) || null);
   set(
     "netlist",
     filters.netlistable ? "1" : filters.withoutNetlist ? "0" : null,

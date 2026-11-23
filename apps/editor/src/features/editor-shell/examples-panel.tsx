@@ -9,7 +9,10 @@ import {
   subscribeGalleryRefresh,
   type GalleryFeedEntry,
 } from "../../gallery-client";
-import { galleryEntryMatchesQuery } from "../../gallery-search";
+import {
+  galleryEntryMatchesQuery,
+  gallerySearchQuery,
+} from "../../gallery-search";
 import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
 import { createGalleryPanelLoader } from "./gallery-panel-loader";
 import { isRequestFailure } from "../../request-failure";
@@ -97,15 +100,13 @@ export function deriveGalleryPanelView(
   >,
   options: { searchQuery: string; selectedTags?: readonly string[] },
 ): GalleryPanelView {
-  const normalizedQuery = options.searchQuery.trim().toLowerCase();
+  const normalizedQuery = gallerySearchQuery(options.searchQuery);
   const selectedTags = options.selectedTags ?? [];
   const request = feed.requestedSearch ?? feed.search;
-  const pendingQuery =
-    request !== undefined && request !== options.searchQuery.trim();
+  const pendingQuery = request !== undefined && request !== normalizedQuery;
   // The server answered this search over the whole Gallery: its total is
   // the matches and nothing older is left to read.
-  const answered =
-    !!normalizedQuery && feed.search === options.searchQuery.trim();
+  const answered = !!normalizedQuery && feed.search === normalizedQuery;
   const showGallery =
     feed.status === "ready" &&
     (feed.entries.length > 0 ||
@@ -148,7 +149,7 @@ export function deriveGalleryPanelView(
           : exhausted || (answered && !selectedTags.length)
             ? selectedTags.length
               ? "No circuits match these filters."
-              : `No circuits match “${options.searchQuery.trim()}”.`
+              : `No circuits match “${normalizedQuery}”.`
             : "No matches yet — searching older circuits…"
         : null,
   };
@@ -202,11 +203,11 @@ function GalleryPanel({
   const [feed, setFeed] = useState<FeedState>(EMPTY_FEED);
   const [searchQuery, setSearchQuery] = useState("");
   const searchTextRef = useRef("");
-  searchTextRef.current = searchQuery.trim();
+  searchTextRef.current = gallerySearchQuery(searchQuery);
   // The same server search as the Gallery wall, asked a moment after typing.
   const [serverSearch, setServerSearch] = useState("");
   useEffect(() => {
-    const next = searchQuery.trim();
+    const next = gallerySearchQuery(searchQuery);
     if (next === serverSearch) return;
     const handle = window.setTimeout(() => setServerSearch(next), 250);
     return () => window.clearTimeout(handle);

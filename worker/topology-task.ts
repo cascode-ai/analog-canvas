@@ -5,7 +5,10 @@ import {
 import { parseProject } from "@icm/project-protocol";
 import type { GalleryFeedEntry } from "../apps/editor/src/gallery-client";
 import type { GalleryTopologyMatchReport } from "../apps/editor/src/gallery-topology-match";
-import { closeTopologyMatches } from "../apps/editor/src/gallery-topology-selection";
+import {
+  closeTopologyMatches,
+  countTopologyComparison,
+} from "../apps/editor/src/gallery-topology-selection";
 import { sessionUserOf, type SessionUser } from "./auth";
 import type { GalleryEnv, GalleryNamespaceLike } from "./gallery-store";
 import {
@@ -320,12 +323,7 @@ export class TopologyTaskDO {
             candidate.graph,
             200_000,
           );
-          job.report.comparable++;
-          if (comparison.exact)
-            job.report.exactMatches = (job.report.exactMatches ?? 0) + 1;
-          if (comparison.limited)
-            job.report.limitedComparisons =
-              (job.report.limitedComparisons ?? 0) + 1;
+          countTopologyComparison(job.report, comparison);
           // A match names its circuit and the version compared, never the
           // drawing itself: opening it to compare spends a daily open.
           const ranked = [

@@ -13,8 +13,9 @@ import {
 } from "./gallery-store-stats";
 import { GALLERY_ISSUE_KINDS } from "./gallery-curation";
 import { HAS_TESTBENCH } from "./gallery-testbench";
-import taxonomy from "../config/gallery-taxonomy.json";
+import { galleryTagGroup } from "../apps/editor/src/gallery-taxonomy";
 import {
+  gallerySearchQuery,
   galleryEntryMatchesQuery,
   normalizeGallerySearchText,
 } from "../apps/editor/src/gallery-search";
@@ -38,48 +39,12 @@ export function wallStatisticsRevision(sql: SqlStorage): number {
     .one().revision;
 }
 
-/** Longest search a reader may send; longer text is cut, not refused. */
-const GALLERY_MAX_SEARCH_LENGTH = 200;
-
-const GALLERY_TAG_GROUPS = Object.entries(taxonomy.tagsByGroup);
-const GALLERY_TAG_ALIASES: Record<string, string> = {
-  op: "operational amplifier",
-  osc: "oscillator",
-  bgr: "bandgap",
-  dcdc: "dc-dc",
-  "d-latch": "d latch",
-  levelshifter: "level shifter",
-  sha: "sample and hold",
-  "switch capacitor": "switched capacitor",
-  cts: "charge transfer switch",
-  "v-i": "voltage to current",
-  vtc: "voltage to time",
-  tdc: "time to digital",
-  "gain-boost": "gain boosting",
-  "low-dropout": "ldo",
-  dropout: "ldo",
-  "linear regulator": "regulator",
-  "bootstrapped cts": "charge transfer switch",
-};
-
-function galleryTagGroup(tag: string): string {
-  const normalized = tag.toLowerCase();
-  const key = GALLERY_TAG_ALIASES[normalized] ?? normalized;
-  return (
-    GALLERY_TAG_GROUPS.find(([, values]) => values.includes(key))?.[0] ??
-    "Custom & legacy"
-  );
-}
-
 const GALLERY_DEFAULT_LIST_LIMIT = 30;
 const GALLERY_MAX_LIST_LIMIT = 60;
 
 /** The search a feed request asks, if any. */
 export function requestedSearch(body: Record<string, unknown>): string | null {
-  const query =
-    typeof body.q === "string"
-      ? body.q.slice(0, GALLERY_MAX_SEARCH_LENGTH)
-      : "";
+  const query = typeof body.q === "string" ? gallerySearchQuery(body.q) : "";
   return normalizeGallerySearchText(query) ? query : null;
 }
 

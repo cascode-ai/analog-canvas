@@ -1,3 +1,4 @@
+import { gallerySearchQuery } from "../gallery-search";
 /**
  * The wall's filters as React state, remembered for the tab and in the
  * URL, and the search words the server is asked once typing pauses.
@@ -41,9 +42,11 @@ export function useGalleryFilters() {
   }
   // The server answers a search over the whole Gallery. Typing waits a
   // moment before asking it, and the wall narrows what it has meanwhile.
-  const [serverSearch, setServerSearch] = useState(() => searchQuery.trim());
+  const [serverSearch, setServerSearch] = useState(() =>
+    gallerySearchQuery(searchQuery),
+  );
   useEffect(() => {
-    const next = searchQuery.trim();
+    const next = gallerySearchQuery(searchQuery);
     if (next === serverSearch) return;
     const handle = window.setTimeout(() => setServerSearch(next), 250);
     return () => window.clearTimeout(handle);

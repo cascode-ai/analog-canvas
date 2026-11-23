@@ -251,6 +251,31 @@ describe("current Gallery topology matching", () => {
     );
   });
 
+  it("counts a limited comparison even when its candidate falls below the display cutoff", async () => {
+    const candidate = entry("larger");
+    const other = resistorProject("1p", 257);
+    for (const part of other.documents[0]!.instances) {
+      part.reference = part.id.replace("R", "C");
+      part.symbolId = "capacitor";
+      part.netlist!.binding = { kind: "primitive", deviceClass: "capacitor" };
+    }
+    const projectText = serializeProject(other);
+    const report = await scanGalleryTopologyMatches(
+      resistorProject("1k", 257),
+      () => {},
+      async (url) =>
+        String(url).includes("?")
+          ? json({ entries: [candidate] })
+          : json({ status: "public", entry: candidate, projectText }),
+    );
+    expect(report).toMatchObject({
+      complete: true,
+      comparable: 1,
+      limitedComparisons: 1,
+      matches: [],
+    });
+  });
+
   it("explains an uncheckable current Cell without reading the Gallery", async () => {
     let requests = 0;
     const report = await scanGalleryTopologyMatches(

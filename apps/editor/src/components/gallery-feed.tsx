@@ -17,7 +17,10 @@ import {
   type GalleryTagOption,
   type GalleryLandingPreload,
 } from "../gallery-client";
-import { galleryEntryMatchesQuery } from "../gallery-search";
+import {
+  galleryEntryMatchesQuery,
+  gallerySearchQuery,
+} from "../gallery-search";
 import { galleryTileOpened, rememberGalleryReturn } from "../gallery-return";
 import { galleryFiltersNarrowQuery } from "../gallery-filters";
 import {
@@ -347,12 +350,12 @@ export function GalleryFeed({
   }
 
   const entries = state.entries;
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const normalizedSearchQuery = gallerySearchQuery(searchQuery);
   // Once the server has answered this search, its totals, tags and
   // contributors are the search's and nothing older is left to read; until
   // then the wall narrows what it has loaded, by the same rule.
   const searchAnswered =
-    Boolean(normalizedSearchQuery) && state.search === searchQuery.trim();
+    Boolean(normalizedSearchQuery) && state.search === normalizedSearchQuery;
   const searchingLoaded = Boolean(normalizedSearchQuery) && !searchAnswered;
   const visibleEntries = normalizedSearchQuery
     ? entries.filter((entry) =>
@@ -363,7 +366,8 @@ export function GalleryFeed({
   // asked. Meanwhile the wall shown before them stays, dimmed, when they
   // match nothing loaded, rather than blanking until the answer (#2160).
   const wordsPending =
-    searchingLoaded && (searchQuery.trim() !== serverSearch || !answersQuery);
+    searchingLoaded &&
+    (normalizedSearchQuery !== serverSearch || !answersQuery);
   const answeredWallRef = useRef<GalleryFeedEntry[]>([]);
   if (state.status === "ready" && !wordsPending)
     answeredWallRef.current = visibleEntries;
@@ -860,7 +864,7 @@ export function GalleryFeed({
                           className="gallery-status"
                           data-testid="gallery-search-empty"
                         >
-                          No circuits match “{searchQuery.trim()}”.
+                          No circuits match “{normalizedSearchQuery}”.
                         </p>
                       )
                     ) : null}
