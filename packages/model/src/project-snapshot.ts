@@ -5,6 +5,14 @@ import type { CircuitProject, SchematicDocument } from "./schema/types.js";
 import { shareEqualProjectStructure } from "./snapshot-structural-sharing.js";
 
 const validatedSnapshots = new WeakSet<CircuitProject>();
+const restoredContent = new WeakMap<SchematicDocument, SchematicDocument>();
+
+/** The immutable document whose content history restored, apart from revision. */
+export function documentContentSource(
+  document: SchematicDocument,
+): SchematicDocument {
+  return restoredContent.get(document) ?? document;
+}
 const validatedResults = new WeakMap<
   CircuitProject,
   { source: string; snapshot?: CircuitProject }
@@ -82,9 +90,10 @@ export function restoreProjectSnapshot(
   const source = parseProjectSnapshot(retained);
   const documents = source.documents.map((document) => {
     const revision = documentRevision(document);
-    return revision === document.revision
-      ? document
-      : { ...document, revision };
+    if (revision === document.revision) return document;
+    const restored = { ...document, revision };
+    restoredContent.set(restored, documentContentSource(document));
+    return restored;
   });
   const next = { ...source, documents, structureRevision };
   // The source owns every field except the revisions. Delegate invalid values
