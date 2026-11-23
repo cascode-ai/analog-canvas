@@ -202,13 +202,14 @@ names and port numbers enter the monitor state, never configuration bodies.
   browser shares one address and therefore one allowance.
 - Project sync fails a tick on `retry`, `blocked`, `disabled`, a remaining write
   fence, 120 seconds without catch-up, or 80% of the journal budget; its
-  monitor holds counters only. The region pulls and pushes; the source needs no
-  inbound domestic URL. The sync service never starts a stopped runtime.
+  monitor records the receive cursor, acknowledged send cursor, and failed
+  delivery stage. The region pulls and pushes without an inbound domestic URL. The sync service never starts a stopped runtime.
 - Project and Publication failure mail requires two minutes of unhealthy
   observations after the monitor detects an anomaly. A monitor report of
   blocked or disabled sync or journal capacity alerts at the next check,
   including escalation from an open incident with a less urgent report.
-  An escalation waits in the delivery state during an unresolved send.
+  Failure mail includes the direction, durable cursor and observed cause when
+  available. An escalation waits in the delivery state during an unresolved send.
   Publication backlog stays recorded without mail while every unfinished
   direction advances within five minutes, for at most thirty minutes without
   catch-up. Old or invalid reports cannot prove progress. Progress never clears
@@ -243,9 +244,23 @@ names and port numbers enter the monitor state, never configuration bodies.
   Compress and publish the captured copy atomically after service resumes.
   Never restore data as part of a code rollback. An archive failure retains
   the incomplete capture and must not roll back an already healthy release.
-  Keep the newest 20 local archives. Schedule the host's off-host file backup
-  after the formal timer and restore from its completed archives under
-  `/var/backups/analog-canvas-formal`. Check `state.sha256` before extracting.
+  Keep the latest capture from each of seven distinct Beijing dates and three
+  distinct release commits. A capture can serve both purposes. Until an
+  off-system-disk restore is verified, also keep the latest 20 completed archives.
+  Capture checks free space before seeding. The budget includes the live data
+  size, the largest of the last three compressed archives plus 25%, and 1 GiB
+  of operating space. With no archive history, use the live size to estimate
+  the compressed size. Compression checks the remaining free space before each
+  write and preserves the stopped-state copy if it reaches the 1 GiB reserve.
+  Low space for the next capture alerts after five minutes outside capture.
+  Less than 1 GiB free alerts after two minutes at any time.
+  Schedule the host's off-host file backup after the formal timer. Restore a
+  completed archive from that independent copy, verify `state.sha256`, and
+  check its database and artifacts in isolation. Record the drill in the
+  private backup root `/var/backups/analog-canvas-formal/offsite-restore.json`
+  as `{"verified":true,"archive":"<directory name>","sha256":"<archive digest>"}`.
+  A matching local archive within seven calendar days of the newest capture
+  authorizes the shorter policy and is also retained.
   Restore into a separate directory and port, clear restored sessions
   and pending handoffs before connecting it to the authority. Follow
   [regional recovery](../../../docs/deployment.md#point-in-time-recovery)

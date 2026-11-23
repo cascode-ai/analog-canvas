@@ -5,6 +5,7 @@ import json
 import math
 import os
 import pathlib
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -130,6 +131,47 @@ def publication_progress(state, monitor, health, now):
         return False
 
 
+def sync_details(scope, path):
+    """Describe durable checkpoints without copying private monitor or peer payloads."""
+    def cursor(value):
+        return str(value) if type(value) is int and value >= 0 else 'unknown'
+
+    try:
+        report = json.loads(path.read_text())
+        if scope == 'Project':
+            checkpoints = {'pull': ('overseas -> cn', cursor(report.get('received'))),
+                           'push': ('cn -> overseas', cursor(report.get('acknowledged')))}
+            direction = report.get('direction')
+            if direction not in checkpoints:
+                return ''.join(f'{label}, cursor {value}\n' for label, value in checkpoints.values())
+            label, value = checkpoints[direction]
+            stage = report.get('stage')
+            if not isinstance(stage, str) or not re.fullmatch('[a-z-]{1,24}', stage):
+                stage = 'unknown stage'
+            http = report.get('httpStatus')
+            code = f' HTTP {http}' if type(http) is int and 100 <= http < 600 else ''
+            return f'{label}, cursor {value}, {stage}{code}\n'
+        if scope == 'Publication':
+            details = []
+            for stream, data in report.get('streams', {}).items():
+                if not isinstance(stream, str) or not re.fullmatch('[a-z0-9-]{1,64}', stream):
+                    continue
+                for target, source in [('cn', 'overseas'), ('overseas', 'cn')]:
+                    item = data['directions'][target]
+                    status = item.get('status')
+                    order = ('blocked', 'retry', 'pending', 'sent')
+                    if status not in order:
+                        continue
+                    reason = item.get('reason')
+                    detail = f', {reason}' if isinstance(reason, str) and re.fullmatch('[a-z0-9-]{1,64}', reason) else ''
+                    line = f"{stream} {source} -> {target}, cursor {cursor(item.get('cursor'))}, {status}{detail}\n"
+                    details.append((order.index(status), line))
+            return ''.join(line for _, line in sorted(details)[:3])
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        pass
+    return ''
+
+
 def run(args):
     scope = getattr(args, 'scope', 'Project')
     service = {'Publication': 'canvas-cn-resource-sync.service',
@@ -183,6 +225,8 @@ def run(args):
                             'subject': '[Canvas CN] ' + scope + ' sync ' + label,
                             'text': 'Canvas domestic ' + scope + ' synchronization\n'
                                     + 'Status: ' + target + '\n'
+                                    + (sync_details(scope, pathlib.Path(args.monitor))
+                                       if target == health and target not in ('ok', 'stale-monitor', 'invalid-monitor') else '')
                                     + 'Time (UTC): ' + datetime.now(timezone.utc).isoformat() + '\n'
                                     + 'Inspect ' + service + ' and its private monitor.json on the domestic ECS.\n'
                                     + 'This message contains no Project content or credentials.'}}

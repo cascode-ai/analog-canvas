@@ -97,6 +97,19 @@ def run(args):
                   status=pump['status'], pending=status['pending'],
                   journalBytes=status['journalBytes'], lagSeconds=round(max(lag, 0)),
                   lastAttemptAt=now, lastCaughtUpAt=caught_up)
+    received = status.get('received')
+    cursor = received.get('sequence') if isinstance(received, dict) else (0 if 'received' in status and received is None else None)
+    result['received'] = cursor if type(cursor) is int and cursor >= 0 else None
+    result['acknowledged'] = status['acknowledged']
+    if pump.get('direction') in ('pull', 'push'):
+        result['direction'] = pump['direction']
+    if pump.get('stage') in ('configuration', 'local-status', 'peer-pull', 'peer-response', 'reconcile',
+                             'decode-event', 'receive-event', 'peer-status', 'export-event', 'send-event',
+                             'peer-receipt', 'acknowledge'):
+        result['stage'] = pump['stage']
+    code = pump.get('httpStatus')
+    if type(code) is int and 100 <= code < 600:
+        result['httpStatus'] = code
     save_status(state, result)
     return result
 

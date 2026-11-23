@@ -75,8 +75,12 @@ class SyncTickTest(unittest.TestCase):
         ])
 
     def test_http_success_with_retry_is_a_failed_tick(self):
-        self.pump = {'status': 'retry'}
+        self.pump = {'status': 'retry', 'stage': 'peer-pull', 'direction': 'pull', 'httpStatus': 503}
+        self.status['received'] = {'sequence': 7}
         result = self.run_tick()
+        report = json.loads(result.stdout)
+        self.assertEqual((report['direction'], report['stage'], report['httpStatus'],
+                          report['received'], report['acknowledged']), ('pull', 'peer-pull', 503, 7, 4))
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(json.loads(result.stdout)['reason'], 'retry')
 

@@ -258,6 +258,19 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(evaluate(m,{},since,1120)[0],['diskPct'])
         self.assertEqual(evaluate(sample(),{},since,1180),([],{}))
 
+    def test_backup_warning_uses_measured_workspace_after_maintenance(self):
+        metrics = {**sample(), 'diskPct': 86, 'diskFreeBytes': 14 * 1024**3,
+                   'backupRequiredBytes': 9 * 1024**3}
+        _, since = evaluate(metrics, {}, {}, 1000)
+        self.assertEqual(evaluate(metrics, {}, since, 1300)[0], [])
+        metrics['diskFreeBytes'] = 8 * 1024**3
+        _, since = evaluate(metrics, {}, {}, 1400)
+        self.assertEqual(evaluate(metrics, {}, since, 1700)[0], ['backup-headroom'])
+        metrics['backupRunning'] = True
+        self.assertEqual(evaluate(metrics, {}, since, 1760)[0], [])
+        metrics.update(diskPct=97, diskFreeBytes=512 * 1024**2)
+        self.assertIn('disk-critical', evaluate(metrics, {}, {'disk-critical': 1500}, 1760)[0])
+
     def test_high_egress_and_restart(self):
         old=sample(); new=sample(1060); new['txBytes']=750_000_000
         self.assertEqual(evaluate(new,old,{'egress-critical':900},1060)[0],['egress-critical'])
