@@ -47,3 +47,9 @@ fixtures/ngspice-failures/*.raw -text !eol whitespace=-blank-at-eol,-blank-at-eo
 containers/ngspice/cells/*.spice -text !eol whitespace=-blank-at-eol,-blank-at-eof
 # The Canvas package lock hashes upstream bytes, before text decoding.
 apps/editor/src/features/netlist-export/analog-canvas-extensions-*.rnl -text !eol whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+# The in-browser simulator's build output (scripts/build-ngspice-wasm.sh) and
+# its SKY130 models: the Profile's browser section pins these bytes.
+apps/editor/src/features/simulation/browser-ngspice/vendor/ngspice.mjs -text !eol whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+apps/editor/src/features/simulation/browser-ngspice/vendor/ngspice.wasm binary
+apps/editor/src/features/simulation/browser-ngspice/vendor/spinit -text !eol whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+apps/editor/src/features/simulation/browser-ngspice/sky130-continuous/*.spice -text !eol whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab

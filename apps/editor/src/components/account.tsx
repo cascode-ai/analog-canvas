@@ -363,30 +363,6 @@ export async function signOut(
 /** Fired on the page after the account changes, so the header reads it again. */
 export const ACCOUNT_CHANGED_EVENT = "icm-account-changed";
 
-/**
- * Whether the signed-in account is offered hosted simulation (#2074): the
- * Worker says so in `/api/auth/me`, the one place that decides. Read again
- * when the account changes; false until known.
- */
-export function useHostedSimulation(enabled: boolean): boolean {
-  const [hosted, setHosted] = useState(false);
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-    const load = () =>
-      void fetchSessionUser().then((user) => {
-        if (!cancelled) setHosted(user?.hostedSimulation === true);
-      });
-    load();
-    window.addEventListener(ACCOUNT_CHANGED_EVENT, load);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(ACCOUNT_CHANGED_EVENT, load);
-    };
-  }, [enabled]);
-  return enabled && hosted;
-}
-
 /** The first letter a name starts with, for the round mark beside it. */
 export function accountInitial(name: string): string {
   return [...name.trim()][0]?.toUpperCase() ?? "?";

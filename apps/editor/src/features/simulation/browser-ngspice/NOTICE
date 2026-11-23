@@ -1,0 +1,28 @@
+Third-party files of the in-browser simulator
+
+vendor/ngspice.wasm, vendor/ngspice.mjs, vendor/spinit
+  ngspice 46, built for WebAssembly by scripts/build-ngspice-wasm.sh from
+  https://downloads.sourceforge.net/project/ngspice/ng-spice-rework/old-releases/46/ngspice-46.tar.gz
+  (SHA-256 a0d1699af1940b06649276dcd6ff5a566c8c0cad01b2f7b5e99dedbb4d64c19b),
+  unmodified. Licensed as ngspice's COPYING states (served beside the editor
+  as apps/editor/public/third-party/ngspice-COPYING.txt): the Modified BSD
+  license, with KLU and numparam under LGPLv2 (or newer); that source and the
+  script rebuild the module, so a modified build can replace it. The loader
+  carries one added line, the lint exclusion the script writes.
+  ngspice.wasm SHA-256 5545508b187d879f57aa45a55c93d8ca92ad1e131f20789cad366a7ab2d7de21
+  (containers/ngspice/hosted-sky130-profile.json, browser.simulator).
+
+sky130-continuous/
+  SkyWater SKY130 continuous (unbinned) device models for ngspice.
+  Copyright 2020-2022 The SkyWater PDK Authors. Apache License 2.0
+  (SPDX: Apache-2.0), https://www.apache.org/licenses/LICENSE-2.0; the notice
+  is repeated in each file's own header. Unmodified: these 19 files are
+  /opt/sky130/continuous/ of the simulator image the hosted Profile pins
+  (sourceImage). That image's model tree /opt/sky130 has the Profile's
+  models.contentSha256 (0bf299f0e3e1616478203d370107865635fd08935bb1a9cf9db18efd31703100);
+  this directory is its continuous/ subtree, whose digest by the same tree
+  hash (containers/ngspice/entrypoint.mjs, sha256Tree) is
+  dd557ad582948cf7d47b689dbd5e7311f8c1b796ac83ffebf5cc849576de0880, the
+  Profile's browser.models.contentSha256.
+
+The standard cells come from containers/ngspice/cells/ (see its NOTICE).

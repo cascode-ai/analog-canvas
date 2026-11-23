@@ -5,7 +5,8 @@ import {
   sourceOutputVolumeWarning,
 } from "./source-analysis.js";
 
-const volume = (program: string, limit = 1048576) =>
+/** `null`: an executor without an output limit. */
+const volume = (program: string, limit: number | null = 1048576) =>
   sourceOutputVolumeWarning(
     inspectSimulationSourceGraph({
       kind: "source",
@@ -17,7 +18,7 @@ const volume = (program: string, limit = 1048576) =>
       circuitBindings: [],
       dependencies: [],
     }),
-    limit,
+    limit ?? undefined,
   );
 
 it("estimates each write subset, not every internally saved device vector", () => {
@@ -32,6 +33,19 @@ it("estimates each write subset, not every internally saved device vector", () =
       `save ${saves}\nop\nwrite out.raw all\ntran 1n 1u\nwrite out.raw all`,
     ),
   ).toContain("across 2 write commands");
+  expect(
+    volume(`save ${saves}\ntran 1n 1u\nwrite out.raw all`, 64 * 1048576),
+  ).toBeNull();
+  const cut = volume(
+    `save ${saves}\ntran 1p 1m\nwrite out.raw all`,
+    64 * 1048576,
+  );
+  expect(cut).toContain("raw file is cut at 64 MB");
+  expect(cut).not.toContain("67108864");
+  // The in-browser executor keeps the whole file and advertises no limit.
+  expect(
+    volume(`save ${saves}\ntran 1p 1m\nwrite out.raw all`, null),
+  ).toBeNull();
 });
 it("distinguishes unbounded capture from no capture without blocking", () => {
   expect(volume("op\nprint all")).toBeNull();

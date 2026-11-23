@@ -4,6 +4,7 @@ export * from "./files.js";
 export * from "./service.js";
 export * from "./hosted-executor.js";
 export * from "./managed-hosted-executor.js";
+export * from "./profile-routed-executor.js";
 export * from "./result-volume.js";
 export * from "./managed-run.js";
 export * from "./managed-run-registry.js";

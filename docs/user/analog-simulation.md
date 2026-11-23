@@ -1,8 +1,9 @@
 # Testbench, Specs and simulation
 
 Canvas saves the circuit, Testbench and Specs together in the Project. Run an
-exported netlist with your own simulator and PDK, or use
-[hosted simulation](#hosted-simulation-team-accounts) with a team account.
+exported netlist with your own simulator and PDK, or run it in the
+[Simulation workspace](#simulation-workspace): SKY130 ngspice experiments run
+on your own computer, in the browser.
 
 ## Testbench and Specs
 
@@ -39,11 +40,15 @@ see testbenches.
    your selected corner. For SG13G2 in ngspice, also load the OSDI modules those
    models require.
 
-## Hosted simulation (team accounts)
+## Simulation workspace
 
-Hosted simulation is for the Analog Canvas team's own debugging. Other
-accounts do not see **Simulate**, and the service refuses their runs. The rest
-of this page describes that workspace.
+Experiments in the SKY130 ngspice environment run in your browser: ngspice 46
+and the SKY130 models load on the first run (about 8 MB, then cached), nothing
+is sent to a server and no sign-in is needed. The toolbar says **On this
+computer**. Raw output is kept whole up to about 200 MB (the hosted
+simulator cuts it at 64 MB). Other environments (VACASK, SG13G2) run on the
+hosted simulator, which is for the Analog Canvas team's own debugging and
+refuses other accounts' runs.
 
 The top **Simulation** button opens Code beside the canvas. Before setup it
 shows a three-step Agent guide (connect your Agent, describe your goal, review

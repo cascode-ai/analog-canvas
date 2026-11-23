@@ -175,7 +175,7 @@ const SimulationRunMetadataSchema = z.strictObject({
       .nullable(),
   }),
   environment: z.strictObject({
-    executor: z.enum(["hosted-container", "local-host"]),
+    executor: z.enum(["hosted-container", "local-host", "browser-wasm"]),
     reproducibility: z.enum(["observed", "pinned"]),
     profileId: z.string().nullable(),
     platform: z.string(),

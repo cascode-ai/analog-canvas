@@ -84,27 +84,45 @@ function advertisedMaxOutputBytes(env: SimulationEnv): number {
 
 export type NgspiceProfile = Omit<
   typeof hostedSky130Profile,
-  "cellLibraries"
+  "cellLibraries" | "browser"
 > & {
   cellLibraries: ((typeof hostedSky130Profile.cellLibraries)[number] & {
     masters?: string[];
   })[];
+  /** The WebAssembly build that runs this Profile in the editor's browser. */
+  browser?: typeof hostedSky130Profile.browser;
 };
 
+/**
+ * Whether measured run metadata is this Profile's pinned environment: the
+ * hosted image, or the browser's WebAssembly build of the same simulator
+ * version over the image's continuous model subtree.
+ */
 async function matchesProfile(value: unknown, profile: NgspiceProfile) {
   const actual = await verifySimulationEnvironmentMetadata(value);
+  if (
+    !actual ||
+    actual.reproducibility !== "pinned" ||
+    actual.profileId !== profile.id ||
+    actual.simulator.name !== profile.simulator.name ||
+    actual.simulator.version !== profile.simulator.version ||
+    actual.models?.id !== profile.models.id ||
+    actual.startupSha256 !== profile.startup.contentSha256
+  )
+    return false;
+  if (actual.executor === "browser-wasm")
+    return (
+      !!profile.browser &&
+      actual.platform === profile.browser.platform &&
+      actual.simulator.binarySha256 ===
+        profile.browser.simulator.binarySha256 &&
+      actual.models.contentSha256 === profile.browser.models.contentSha256
+    );
   return (
-    !!actual &&
     actual.executor === "hosted-container" &&
-    actual.reproducibility === "pinned" &&
-    actual.profileId === profile.id &&
     actual.platform === profile.platform &&
-    actual.simulator.name === profile.simulator.name &&
-    actual.simulator.version === profile.simulator.version &&
     actual.simulator.binarySha256 === profile.simulator.binarySha256 &&
-    actual.models?.id === profile.models.id &&
-    actual.models.contentSha256 === profile.models.contentSha256 &&
-    actual.startupSha256 === profile.startup.contentSha256
+    actual.models.contentSha256 === profile.models.contentSha256
   );
 }
 
@@ -350,7 +368,7 @@ export async function routeNgspiceSimulationRequest(
     );
   if (body.operation === "capabilities") {
     // The running collector is authoritative, including during a rolling deploy.
-    let outputBytes = advertisedMaxOutputBytes(env);
+    let outputBytes: number | undefined = advertisedMaxOutputBytes(env);
     // New model Profiles stay undiscoverable until the executor proves its
     // identity. Preserve the historical SKY130 offline discovery contract.
     let ready = profile.id === hostedSky130Profile.id && !!selected;
@@ -365,7 +383,7 @@ export async function routeNgspiceSimulationRequest(
         const facts = (await health.json()) as {
           status?: unknown;
           environment?: unknown;
-          limits?: { outputBytes?: number };
+          limits?: { outputBytes?: number | null };
           dependencies?: unknown;
         };
         if (
@@ -374,7 +392,9 @@ export async function routeNgspiceSimulationRequest(
           (await matchesProfile(facts.environment, profile))
         )
           ready = true;
-        if (
+        // A browser executor keeps the whole rawfile: no limit to advertise.
+        if (facts.limits?.outputBytes === null) outputBytes = undefined;
+        else if (
           Number.isSafeInteger(facts.limits?.outputBytes) &&
           facts.limits!.outputBytes! > 0
         )
@@ -426,7 +446,7 @@ export async function routeNgspiceSimulationRequest(
       },
       maxTimeoutMs: 120000,
       maxInputBytes: MAX_INPUT_BYTES,
-      maxOutputBytes: outputBytes,
+      ...(outputBytes === undefined ? {} : { maxOutputBytes: outputBytes }),
       cancel: true,
     });
   }
@@ -736,8 +756,14 @@ export async function routeNgspiceSimulationRequest(
     const payload = (await containerResponse.json()) as {
       environment?: unknown;
     };
+    // A browser run is always checked against the pin it claims, and names
+    // no hosted target; the historical SKY130 hosted path keeps its
+    // unchecked buffered reply.
+    const browserRun =
+      (payload.environment as { executor?: unknown } | undefined)?.executor ===
+      "browser-wasm";
     if (
-      profile.id !== hostedSky130Profile.id &&
+      (profile.id !== hostedSky130Profile.id || browserRun) &&
       !(await matchesProfile(payload.environment, profile))
     )
       throw new Error("Simulation result does not match the selected Profile");
@@ -750,7 +776,7 @@ export async function routeNgspiceSimulationRequest(
         timeoutMs,
         modelLibrary,
         collection,
-        execution,
+        ...(browserRun ? {} : { execution }),
         runToken: body.runToken,
         // The deck and these files are everything this run sent; the
         // Profile's library is mounted beside them. Without them every

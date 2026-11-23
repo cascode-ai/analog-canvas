@@ -282,6 +282,8 @@ describe("static shell cache policy", () => {
     ["font", "/assets/DejaVuSans-abc.ttf"],
     ["Canvas package", "/assets/analog-canvas-extensions-abc.rnl"],
     ["RNL runtime", "/assets/rnl_runtime_wasm-abc.wasm"],
+    ["simulator", "/assets/ngspice-abc.wasm"],
+    ["simulator model file", "/assets/models_fet-abc.spice"],
   ])("keeps a %s read with fetch()", async (_name, path) => {
     const fetched = (path: string) => {
       const { listeners, stored } = loadWorker(

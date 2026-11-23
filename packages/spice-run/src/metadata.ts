@@ -85,7 +85,8 @@ export function isSimulationEnvironmentMetadata(
   const models = candidate.models;
   return (
     (candidate.executor === "hosted-container" ||
-      candidate.executor === "local-host") &&
+      candidate.executor === "local-host" ||
+      candidate.executor === "browser-wasm") &&
     (candidate.reproducibility === "observed" ||
       candidate.reproducibility === "pinned") &&
     (candidate.profileId === null ||

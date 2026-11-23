@@ -1,10 +1,14 @@
 import { parseSpiceNumber } from "@icm/spice";
 import type { SimulationSourceGraph } from "@icm/netlist";
 import type { ResultVolumeAnalysis } from "./result-volume.js";
-import { estimateSimulationOutputBytes } from "./result-volume.js";
+import {
+  estimateSimulationOutputBytes,
+  formatMegabytes,
+} from "./result-volume.js";
 
 /** Estimate captured plots, never multiply every device OP vector by TRAN length.
- * Dynamic programs stay executable; an unknown count is not a guessed number. */
+ * Dynamic programs stay executable; an unknown count is not a guessed number.
+ * An executor without a limit (the in-browser simulator) gets no advisory. */
 export function sourceOutputVolumeWarning(
   graph: SimulationSourceGraph,
   limit: number | undefined,
@@ -74,7 +78,7 @@ export function sourceOutputVolumeWarning(
   if (unknown)
     return "Raw output size cannot be reliably estimated from this native capture program; no numerical size estimate is asserted and the run remains allowed. Read result diagnostics and artifact availability after execution.";
   if (bytes <= limit) return null;
-  return `Estimated ASCII raw capture is about ${bytes} bytes across ${writes} write commands, above this executor's ${limit}-byte output limit. This is advisory (TRAN uses a conservative adaptive-step allowance); the run remains allowed. A shortened result preview is not file loss; actual missing or truncated artifacts are reported by result diagnostics.`;
+  return `Estimated ASCII raw capture is about ${formatMegabytes(bytes)} across ${writes} write commands, above the ${formatMegabytes(limit)} this executor returns (TRAN uses a conservative adaptive-step allowance). The run remains allowed, but its raw file is cut at ${formatMegabytes(limit)} and the result is reported incomplete.`;
 }
 
 /** Advisory only. Symbolic arguments/loops remain native ngspice programs, never admission failures. */
