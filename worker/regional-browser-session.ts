@@ -61,7 +61,11 @@ function unavailable() {
 }
 
 /** Authenticate transport, then let the owning store authenticate the original cookie. */
-async function forward(request: Request, env: Env): Promise<Response> {
+async function forward(
+  request: Request,
+  env: Env,
+  options?: { allowEmpty: boolean },
+): Promise<Response> {
   try {
     const peer = new URL(env.RESOURCE_ACTION_PEER ?? "");
     if (
@@ -79,7 +83,9 @@ async function forward(request: Request, env: Env): Promise<Response> {
       "authorization",
     ])
       if (request.headers.has(name)) headers[name] = request.headers.get(name)!;
-    const body = request.body ? await readSyncJson(request, 65_536) : undefined;
+    const body = request.body
+      ? await readSyncJson(request, 65_536, options)
+      : undefined;
     return await fetch(
       new Request(peer.origin + REGIONAL_SESSION_PEER_PATH, {
         method: "POST",
@@ -186,7 +192,7 @@ export function browserSessionNamespace(env: Env): AuthNamespaceLike {
               [...regions].map((region) =>
                 (region === env.RESOURCE_REGION
                   ? local.fetch(request.clone())
-                  : forward(request.clone(), env)
+                  : forward(request.clone(), env, { allowEmpty: true })
                 ).catch(() => unavailable()),
               ),
             );

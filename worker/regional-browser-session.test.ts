@@ -54,7 +54,11 @@ function browserRegions() {
           "sec-fetch-site": "same-origin",
           "content-type": "application/json",
         },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        // The browser's empty POST arrives at workerd with a zero-byte stream.
+        body:
+          method === "POST" && body === undefined
+            ? new Uint8Array(0)
+            : JSON.stringify(body),
       }),
       region,
     );
@@ -138,7 +142,7 @@ it("signs out both presented sessions without ending another browser", async () 
     otherBrowser = await makerOf(auth.source);
   const regional = await auth.connect(native);
   const result = await call(
-    cn,
+    overseas,
     "/api/auth/logout",
     native + "; " + regional,
     "POST",
@@ -247,6 +251,19 @@ it("reports incomplete logout and safely retries without reviving local authoriz
   expect(failed.headers.getSetCookie()).toEqual([]);
   expect(
     (await (await call(cn, "/api/auth/me", cookies)).json()).user,
+  ).toBeNull();
+  vi.stubGlobal(
+    "fetch",
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      await transport(input, init);
+      throw Error("lost logout reply");
+    },
+  );
+  const unconfirmed = await call(cn, "/api/auth/logout", cookies, "POST");
+  expect(unconfirmed.status).toBe(503);
+  expect(unconfirmed.headers.getSetCookie()).toEqual([]);
+  expect(
+    (await (await call(overseas, "/api/auth/me", native)).json()).user,
   ).toBeNull();
   vi.stubGlobal("fetch", transport);
   expect((await call(cn, "/api/auth/logout", cookies, "POST")).status).toBe(
