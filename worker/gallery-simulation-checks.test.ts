@@ -508,6 +508,122 @@ describe("simulation checks", () => {
       expect(await marked(env, cookie, ids, since)).toEqual(both);
   });
 
+  it("narrows the wall to the Sim mark and counts it only for a viewer who sees every mark", async () => {
+    const env = environment();
+    const maker = await makerOf(env);
+    const owner = await ownerAccountOf(env);
+    const other = await signIn(env.authDurable, "other@example.com");
+    const passing = await submitOne(env, "Passing divider", {
+      cookie: maker,
+      text: testbenchProjectText("Passing divider"),
+    });
+    const unchecked = await submitOne(env, "Unchecked divider", {
+      cookie: maker,
+      text: testbenchProjectText("Unchecked divider"),
+    });
+    // Tagged, so the tag counts beside the wall say what it narrows to.
+    for (const [id, name] of [
+      [passing, "Passing divider"],
+      [unchecked, "Unchecked divider"],
+    ] as const)
+      expect(
+        (
+          await call(
+            env,
+            new Request(`${ORIGIN}/api/gallery/${id}`, {
+              method: "PUT",
+              headers: {
+                Origin: ORIGIN,
+                Cookie: maker,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                name,
+                description: "d",
+                projectText: testbenchProjectText(name),
+                tags: ["amplifier"],
+              }),
+            }),
+          )
+        ).status,
+      ).toBe(200);
+    seedPass(env, passing);
+    const wall = async (
+      query: string,
+      cookie?: string,
+      runtime: GalleryRouteRuntime = {},
+    ) =>
+      (await (
+        await call(
+          env,
+          new Request(
+            `${ORIGIN}/api/gallery${query}`,
+            cookie ? { headers: { Cookie: cookie } } : {},
+          ),
+          runtime,
+        )
+      ).json()) as {
+        entries: { id: string }[];
+        total: number;
+        filterCounts: { sim?: number };
+      };
+    const tagTotal = async (cookie?: string) =>
+      (
+        (await (
+          await call(
+            env,
+            new Request(
+              `${ORIGIN}/api/gallery/tags?sim=1`,
+              cookie ? { headers: { Cookie: cookie } } : {},
+            ),
+          )
+        ).json()) as { tags: { tag: string; count: number }[] }
+      ).tags.find((each) => each.tag === "amplifier")?.count;
+
+    // An Owner account sees every mark, so it may narrow by it and count it.
+    const narrowed = await wall("?sim=1", owner);
+    expect(narrowed.entries.map((entry) => entry.id)).toEqual([passing]);
+    expect(narrowed.total).toBe(1);
+    expect(narrowed.filterCounts.sim).toBe(1);
+    expect((await wall("", owner)).filterCounts.sim).toBe(1);
+    expect(await tagTotal(owner)).toBe(1);
+    // Off indexes alone: the verdict sits past each row's Project and SVG.
+    const counting = env.galleryQueries.find(
+      (query) => query.includes("AS total") && query.includes("AS sim"),
+    )!;
+    const searches = env.gallerySql
+      .exec<{ detail: string }>(
+        `EXPLAIN QUERY PLAN ${counting}`,
+        ...Array.from(
+          { length: (counting.match(/\?/g) ?? []).length },
+          () => "",
+        ),
+      )
+      .toArray()
+      .map((step) => step.detail)
+      .filter((detail) => /^SEARCH [es] /u.test(detail));
+    expect(searches.length).toBeGreaterThanOrEqual(2);
+    for (const detail of searches) expect(detail).toContain("COVERING INDEX");
+    // Anyone else, the author of the passing circuit too, would learn which
+    // circuits pass: before the public date their `sim=1` narrows nothing
+    // and no count is sent.
+    for (const cookie of [maker, other, undefined]) {
+      const ignored = await wall("?sim=1", cookie);
+      expect(ignored.entries.map((entry) => entry.id).sort()).toEqual(
+        [passing, unchecked].sort(),
+      );
+      expect(ignored.filterCounts).not.toHaveProperty("sim");
+      expect(await tagTotal(cookie)).toBe(2);
+    }
+    // Once the mark is public, everyone may.
+    const since = { simulationMarkPublicFrom: "2026-01-01" };
+    for (const cookie of [other, undefined]) {
+      const shown = await wall("?sim=1", cookie, since);
+      expect(shown.entries.map((entry) => entry.id)).toEqual([passing]);
+      expect(shown.filterCounts.sim).toBe(1);
+    }
+  });
+
   it("clears an entry's verdict once its Project or testbench changes, not its tags", async () => {
     const env = environment();
     const maker = await makerOf(env);

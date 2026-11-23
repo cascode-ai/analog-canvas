@@ -252,6 +252,11 @@ export interface GalleryQuickFilterCounts {
   datasets?: number;
   /** Circuits whose author gave no reference image (#2129). */
   withoutReference?: number;
+  /**
+   * Circuits wearing the Sim mark; sent only to a viewer the Worker lets
+   * narrow by it (the mark is public, or an Owner account).
+   */
+  sim?: number;
   /** Entries under Needs attention per reason; only with that filter on. */
   attentionKinds?: Record<string, number>;
   /**
@@ -435,6 +440,8 @@ export interface GalleryFeedQuery {
   withoutNetlist?: boolean;
   /** Only circuits whose author gave no reference image (#2129). */
   withoutReference?: boolean;
+  /** Only circuits wearing the Sim mark. */
+  sim?: boolean;
   /** Only AI-generated circuits, those made by hand, or the datasets'. */
   ai?: "ai" | "human" | "dataset" | null;
   /** Only circuits the signed-in viewer has liked. */
@@ -486,6 +493,7 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
   if (query.netlistable) params.set("netlistable", "1");
   else if (query.withoutNetlist) params.set("netlistable", "0");
   if (query.withoutReference) params.set("reference", "0");
+  if (query.sim) params.set("sim", "1");
   if (query.ai)
     params.set(
       "ai",
@@ -582,6 +590,7 @@ export async function loadGalleryFeed(
                     "human",
                     "datasets",
                     "withoutReference",
+                    "sim",
                   ] as const
                 ).flatMap((key) => {
                   const count = payload.filterCounts![key];

@@ -1,7 +1,7 @@
 /**
  * The sidebar's quick filters: Needs attention and its reason, how circuits
- * were made (AI, by hand, or from a dataset), with or without a netlist, and
- * Liked.
+ * were made (AI, by hand, or from a dataset), with or without a netlist,
+ * without a reference image, the Sim mark, and Liked.
  */
 import type { ReactNode } from "react";
 import type { GalleryFilterState } from "../gallery-filters";
@@ -163,6 +163,8 @@ export function GalleryQuickFilters({
   withoutNetlistOnly,
   showWithoutReference,
   withoutReferenceOnly,
+  showSim,
+  simOnly,
   likedOnly,
   origins,
   selectedTags,
@@ -181,6 +183,9 @@ export function GalleryQuickFilters({
   withoutNetlistOnly: boolean;
   showWithoutReference: boolean;
   withoutReferenceOnly: boolean;
+  /** Whether the Worker lets this viewer narrow by the Sim mark. */
+  showSim: boolean;
+  simOnly: boolean;
   likedOnly: boolean;
   /** Origin tags on the wall ("virtuoso-exported"), with their counts. */
   origins: readonly { tag: string; mark: string; count: ReactNode }[];
@@ -195,7 +200,8 @@ export function GalleryQuickFilters({
       | "human"
       | "datasets"
       | "liked"
-      | "withoutReference",
+      | "withoutReference"
+      | "sim",
   ) => ReactNode;
 }) {
   return (
@@ -386,6 +392,24 @@ export function GalleryQuickFilters({
         >
           <NoReferenceIcon /> <span>Without reference</span>
           {quickCount("withoutReference")}
+        </button>
+      ) : null}
+      {showSim ? (
+        <button
+          type="button"
+          className={quickMarkClass(simOnly)}
+          data-testid="gallery-filter-sim"
+          aria-pressed={simOnly}
+          title={
+            simOnly
+              ? "Stop filtering by the simulation check"
+              : "Show only circuits whose testbench passes the simulation check"
+          }
+          onClick={() => updateFilters({ sim: !simOnly })}
+        >
+          {/* The tiles' Sim mark is its own name here. */}
+          <span className="gallery-tile-mark gallery-tile-sim">Sim</span>
+          {quickCount("sim")}
         </button>
       ) : null}
       {signedIn || likedOnly ? (

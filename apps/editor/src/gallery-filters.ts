@@ -45,6 +45,8 @@ export interface GalleryFilterState {
   withoutNetlist: boolean;
   /** Only circuits whose author gave no reference image (#2129). */
   withoutReference: boolean;
+  /** Only circuits wearing the Sim mark: their testbench passes its check. */
+  sim: boolean;
   /**
    * How the circuits were made: AI-generated, by hand (community circuits
    * without the AI mark) or redrawn from a reference dataset; null for all.
@@ -87,6 +89,7 @@ const NARROWING_PARAMS = [
   "q",
   "netlist",
   "reference",
+  "sim",
   "ai",
   "liked",
   "attention",
@@ -107,6 +110,7 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
     netlistable: false,
     withoutNetlist: false,
     withoutReference: false,
+    sim: false,
     ai: null,
     liked: false,
     parts: [],
@@ -129,6 +133,7 @@ export function galleryFiltersNarrowQuery(
     filters.netlistable ||
     filters.withoutNetlist ||
     filters.withoutReference ||
+    filters.sim ||
     filters.ai !== null ||
     filters.liked ||
     filters.attention ||
@@ -192,6 +197,7 @@ export function parseGalleryFilterQuery(search: string): {
       netlistable: params.get("netlist") === "1",
       withoutNetlist: params.get("netlist") === "0",
       withoutReference: params.get("reference") === "0",
+      sim: params.get("sim") === "1",
       ai: readAi(params.get("ai")),
       liked: params.get("liked") === "1",
       attention: params.get("attention") === "1",
@@ -231,6 +237,7 @@ export function galleryFilterSearch(
     filters.netlistable ? "1" : filters.withoutNetlist ? "0" : null,
   );
   set("reference", filters.withoutReference ? "0" : null);
+  set("sim", filters.sim ? "1" : null);
   set(
     "ai",
     filters.ai === "ai"
@@ -309,6 +316,7 @@ export function parseStoredGalleryFilters(
     netlistable: false,
     withoutNetlist: false,
     withoutReference: record.withoutReference === true,
+    sim: record.sim === true,
     ai: readAi(record.ai),
     liked: record.liked === true,
     attention: record.attention === true,

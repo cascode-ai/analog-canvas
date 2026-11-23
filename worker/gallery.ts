@@ -72,6 +72,7 @@ import {
 import {
   gateSimulationMarks,
   routeSimulationChecks,
+  seesEverySimulationMark,
   simulationMarkOf,
   simulationMarkPublic,
 } from "./gallery-simulation-checks";
@@ -215,6 +216,9 @@ function wallFilters(url: URL) {
     withoutNetlist: url.searchParams.get("netlistable") === "0",
     // Circuits whose author has not given a reference image (#2129).
     withoutReference: url.searchParams.get("reference") === "0",
+    // Circuits wearing the Sim mark; honored only for a viewer who sees
+    // every mark (seesEverySimulationMark).
+    sim: url.searchParams.get("sim") === "1",
     // How a circuit was made: AI-generated (the AI mark), by hand (a
     // community circuit without it), or redrawn from a reference dataset.
     ai:
@@ -596,8 +600,12 @@ export async function routeGalleryRequest(
     const filters = wallFilters(url);
     if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
+    const markPublic = simulationMarkPublic(runtime.simulationMarkPublicFrom);
+    const simCount = seesEverySimulationMark(viewer, markPublic);
     const listing = {
       ...filters,
+      sim: filters.sim && simCount,
+      simCount,
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
       limit: url.searchParams.get("limit"),
@@ -612,11 +620,7 @@ export async function routeGalleryRequest(
     const payload = (await wallList(wallStores, listing)) as {
       entries: GalleryEntrySummary[];
     };
-    const entries = gateSimulationMarks(
-      payload.entries,
-      viewer,
-      simulationMarkPublic(runtime.simulationMarkPublicFrom),
-    );
+    const entries = gateSimulationMarks(payload.entries, viewer, markPublic);
     return Response.json(
       {
         ...payload,
@@ -716,14 +720,19 @@ export async function routeGalleryRequest(
     request.method === "GET"
   ) {
     // Tag counts follow every filter of the wall except its tag choice. The
-    // personal two need the session; the public counts stay a plain read.
+    // personal two, and Sim before its mark is public, need the session;
+    // the public counts stay a plain read.
     const filters = wallFilters(url);
+    const markPublic = simulationMarkPublic(runtime.simulationMarkPublicFrom);
     const viewer =
-      filters.attention || filters.liked ? await readSession() : null;
+      filters.attention || filters.liked || (filters.sim && !markPublic)
+        ? await readSession()
+        : null;
     if (filters.attention && !viewer)
       return Response.json({ error: "unauthorized" }, { status: 401 });
     const counting = {
       ...filters,
+      sim: filters.sim && seesEverySimulationMark(viewer, markPublic),
       isAdmin: viewer?.isAdmin === true,
       viewerId: viewer?.id ?? "",
     };

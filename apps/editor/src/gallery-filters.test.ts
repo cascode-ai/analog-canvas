@@ -25,6 +25,7 @@ describe("gallery filter preferences", () => {
       netlistable: true,
       withoutNetlist: false,
       withoutReference: false,
+      sim: false,
       ai: null,
       liked: true,
       attention: false,
@@ -108,6 +109,14 @@ describe("gallery filter preferences", () => {
     expect(
       parseStoredGalleryFilters(storedGalleryFilters(unreferenced.filters))
         ?.withoutReference,
+    ).toBe(true);
+    // Circuits wearing the Sim mark, the same way.
+    const simulated = parseGalleryFilterQuery("?sim=1");
+    expect(simulated.filters.sim).toBe(true);
+    expect(simulated.narrowed).toBe(true);
+    expect(galleryFilterSearch("", simulated.filters)).toBe("?sim=1");
+    expect(
+      parseStoredGalleryFilters(storedGalleryFilters(simulated.filters))?.sim,
     ).toBe(true);
     expect(
       galleryFilterSearch("", {
@@ -244,6 +253,7 @@ describe("gallery filter preferences", () => {
       netlistable: false,
       withoutNetlist: false,
       withoutReference: false,
+      sim: false,
       ai: "human",
       liked: true,
       attention: true,
@@ -339,6 +349,7 @@ describe("gallery filter preferences", () => {
       netlistable: false,
       withoutNetlist: false,
       withoutReference: false,
+      sim: false,
       ai: null,
       liked: false,
       parts: [],
