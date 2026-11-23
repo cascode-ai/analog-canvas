@@ -957,6 +957,37 @@ test(`places a D flip-flop on the first click with slight pointer drift over its
   await expect(instances).toHaveCount(3);
 });
 
+test("picks up a Library device with a drifting click and drops a held drag once", async ({
+  page,
+}) => {
+  await openEditor(page);
+  const tile = page.getByTestId("shapes-chip-nmos");
+  const canvas = page.getByTestId("schematic-canvas");
+  const preview = page.getByTestId("component-placement-preview");
+  const count = page.getByTestId("instance-count").first();
+  const box = (await tile.boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 8, y);
+  await page.mouse.up();
+  await canvas.hover({ position: { x: 180, y: 160 } });
+  await expect(preview).toBeVisible();
+  await expect(count).toHaveText("0");
+  await canvas.click({ position: { x: 180, y: 160 } });
+  await expect(count).toHaveText("1");
+  await page.keyboard.press("Escape");
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await canvas.hover({ position: { x: 290, y: 240 } });
+  await expect(preview).toBeVisible();
+  await page.mouse.up();
+  await expect(count).toHaveText("2");
+  await expect(preview).toHaveCount(0);
+});
+
 test("shows the complete foldable categorized Library, quick-places a device, and restores state", async ({
   page,
 }) => {
