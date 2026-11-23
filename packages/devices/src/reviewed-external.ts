@@ -15,6 +15,8 @@ export type ReviewedExternalBindingId =
   | "sky130-nfet-20v0-nvt"
   | "sky130-nfet-20v0-zvt"
   | "sky130-pfet-01v8-hvt"
+  | "sky130-special-nfet-01v8"
+  | "sky130-special-pfet-01v8-hvt"
   | "sky130-pfet-g5v0d10v5"
   | "sky130-pfet-g5v0d16v0"
   | "sky130-pfet-20v0"
@@ -1169,6 +1171,25 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       "1u",
       "150n",
       sky130Limits(1.5e-7, 2.02e-5),
+    ),
+    // The standard cells' latch devices (#2498). Their library models them
+    // only at the cells' own sizes: L 0.15 to 0.18 µm, W 0.36 to 0.42 µm
+    // (sky130_fd_pr__special_{nfet_01v8,pfet_01v8_hvt}__tt.pm3.spice).
+    sky130MosBinding(
+      "sky130-special-nfet-01v8",
+      "sky130_fd_pr__special_nfet_01v8",
+      "nmos",
+      "360n",
+      "150n",
+      sky130Limits(1.5e-7, 1.8e-7, 3.6e-7),
+    ),
+    sky130MosBinding(
+      "sky130-special-pfet-01v8-hvt",
+      "sky130_fd_pr__special_pfet_01v8_hvt",
+      "pmos",
+      "360n",
+      "150n",
+      sky130Limits(1.5e-7, 1.8e-7, 3.6e-7),
     ),
     sky130MosBinding(
       "sky130-pfet-g5v0d10v5",
