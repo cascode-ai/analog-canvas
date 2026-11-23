@@ -170,8 +170,8 @@ type ModelLibrarySelection =
   ngspice 46 built for WebAssembly by
   [`scripts/build-ngspice-wasm.sh`](../../scripts/build-ngspice-wasm.sh)
   (reproducible; no XSPICE, OSDI, CIDER or OpenMP) in a Web Worker, behind the
-  Worker's ngspice route run in the page. No server, account or sign-in; the
-  panel says "On this computer". Agents, headless checks and every other
+  Worker's ngspice route run in the page. No server, account or sign-in.
+  Agents, headless checks and every other
   Profile keep their executor; the browser-test editor turns it off
   (`VITE_ICM_BROWSER_SIMULATION=disabled`).
 - The Profile's `browser` section pins the wasm SHA-256, platform
