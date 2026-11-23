@@ -2,7 +2,13 @@ import {
   resolveEndpointConnection,
   type RoutingSelectionSeed,
 } from "@icm/derived";
-import { routeEndpoints, type Point, type SchematicDocument } from "@icm/model";
+import {
+  freezeSnapshot,
+  isFrozenSnapshot,
+  routeEndpoints,
+  type Point,
+  type SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import {
   createPlacementContactContext,
@@ -16,7 +22,10 @@ import {
   type RoutingOperationPlan,
 } from "./routing-operation-plan.js";
 import type { WireSource } from "./wire-commit-planner.js";
-import { projectRoutingEditGeometry } from "./routing-geometry-projection.js";
+import {
+  projectRoutingEditGeometry,
+  projectRoutingGeometryRead,
+} from "./routing-geometry-projection.js";
 
 /** Transient geometry from the same typed plan, before transaction normalization.
  * This is not a committed Document and must never be persisted.
@@ -26,6 +35,16 @@ export function projectRoutingTransformGeometry(
   plan: RoutingOperationPlan,
 ): SchematicDocument {
   return projectRoutingEditGeometry(document, plan.edits);
+}
+
+/** A gesture may share data owned by the editor's immutable source. */
+export function projectRoutingGestureGeometry(
+  document: SchematicDocument,
+  plan: RoutingOperationPlan,
+): SchematicDocument {
+  return isFrozenSnapshot(document)
+    ? freezeSnapshot(projectRoutingGeometryRead(document, plan.edits))
+    : projectRoutingTransformGeometry(document, plan);
 }
 
 /** One final-position plan for moving geometry and an explicit snapped pin drop.

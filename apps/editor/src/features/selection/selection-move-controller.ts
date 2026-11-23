@@ -1,6 +1,6 @@
 import {
   prepareInstanceContactTransform,
-  projectRoutingTransformGeometry,
+  projectRoutingGestureGeometry,
   canProjectRoutingEditGeometry,
   gateRoutingOperationPlan,
   transformMaySeparateDirectContact,
@@ -12,11 +12,13 @@ import {
   type WireSource,
 } from "@icm/edit-engine";
 import {
+  buildEndpointObjectLookup,
   deriveNetConnectivity,
   endpointKey,
   isMosBulkTerminal,
   isVisibleEndpoint,
   resolveDocumentRoutingGeometry,
+  resolveRouteGeometry,
   resolveElectricalContactTargets,
   resolveEndpointConnection,
   type RoutedComponent,
@@ -715,7 +717,7 @@ export function createSelectionMoveController({
       );
     let finalDocument: SchematicDocument;
     if (geometryOnly)
-      finalDocument = projectRoutingTransformGeometry(sourceDocument, plan);
+      finalDocument = projectRoutingGestureGeometry(sourceDocument, plan);
     else {
       const gate = gateRoutingOperationPlan(sourceDocument, plan, {
         symbolResolver: resolver,
@@ -791,14 +793,23 @@ export function createSelectionMoveController({
       sameIds(sourceDocument.routes, finalDocument.routes) &&
       sameIds(sourceDocument.junctions, finalDocument.junctions)
     ) {
-      const geometry = resolveDocumentRoutingGeometry(finalDocument, resolver);
+      const lookup = buildEndpointObjectLookup(finalDocument);
+      const points = new Map<string, readonly Point[]>();
+      for (const route of finalDocument.routes) {
+        if (!movingRoutes.has(route.id)) continue;
+        const geometry = resolveRouteGeometry(
+          finalDocument,
+          resolver,
+          route,
+          undefined,
+          lookup,
+        );
+        if (geometry) points.set(route.id, geometry.centerline);
+      }
       value.visualRoutePoints = new Map(
-        [
-          ...plan.affected.internalRoutes,
-          ...plan.affected.boundaryRoutes,
-        ].flatMap((id) => {
-          const route = geometry.routes.get(id);
-          return route ? [[id, route.centerline] as const] : [];
+        [...movingRoutes].flatMap((id) => {
+          const line = points.get(id);
+          return line ? [[id, line] as const] : [];
         }),
       );
     }
