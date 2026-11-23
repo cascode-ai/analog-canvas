@@ -288,7 +288,7 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
   with a reason shown to the submitter.
 - `GET /api/gallery/mine`: own entries with `status`, `rejectReason`,
   `recycledAt`, `likes`, `withdrawnByCurator`; `scope=ai-seats` for AI seats
-  (others 403 `ai-accounts-only`; unknown 400 `invalid-scope`).
+  (others 403 `ai-accounts-only`; unknown 400 `invalid-scope`). With `limit` (1–60), the AI list returns `entries`, `total` and an opaque `nextCursor` scoped to its optional `status`. Continue newest first after the last creation time and ID. The unpaged request retains its original response.
 - Statistics tab (account page; `view=mine` opens the account's own,
   `source=community|datasets` the Gallery's stores, all by default):
   - `GET /api/gallery/stats?source=all|community|datasets` (anyone):

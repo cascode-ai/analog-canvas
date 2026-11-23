@@ -447,6 +447,7 @@ describe("BrowserAgentProjectHost", () => {
         limit: number;
         cursor: string;
       }>,
+      legacyWorker = false,
     ) =>
       new BrowserAgentProjectHost({
         getProjectSessionId: () => "session",
@@ -456,7 +457,13 @@ describe("BrowserAgentProjectHost", () => {
         dispatchProjectTransaction: () => {
           throw new Error("must not dispatch");
         },
-        fetch: editorFetchAs(env, cookie),
+        fetch: legacyWorker
+          ? (_input, init) =>
+              editorFetchAs(env, cookie)(
+                "/api/gallery/mine?scope=ai-seats",
+                init,
+              )
+          : editorFetchAs(env, cookie),
       }).handle({
         apiVersion: AGENT_API_VERSION,
         requestId: "ai-list",
@@ -480,18 +487,27 @@ describe("BrowserAgentProjectHost", () => {
       nextCursor: null,
       total: 1,
     });
-    // One list, newest first, paged by the cursor.
+    const page = await list(claude, { scope: "ai-seats", limit: 1 });
+    expect(page).toMatchObject({ entries: [{ id: redo }], total: 2 });
+    if (!page.ok || page.operation !== "list-gallery" || !page.nextCursor)
+      throw new Error("Expected another page");
+    const later = await submitOne(env, "Later", { cookie: sol });
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET created_at = ? WHERE id = ?",
+      "2099-01-01",
+      later,
+    );
     await expect(
-      list(claude, { scope: "ai-seats", limit: 1 }),
-    ).resolves.toMatchObject({
-      entries: [{ id: redo }],
-      nextCursor: "1",
-      total: 2,
-    });
+      list(claude, {
+        scope: "ai-seats",
+        status: "rejected",
+        cursor: page.nextCursor,
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "INVALID_CURSOR" } });
     const rest = await list(claude, {
       scope: "ai-seats",
       limit: 1,
-      cursor: "1",
+      cursor: page.nextCursor,
     });
     expect(rest).toMatchObject({
       entries: [{ id: kept, status: "public" }],
@@ -500,6 +516,50 @@ describe("BrowserAgentProjectHost", () => {
     if (!rest.ok || rest.operation !== "list-gallery")
       throw new Error(JSON.stringify(rest));
     expect(rest.entries[0]).not.toHaveProperty("rejectReason");
+    // A legacy offset can resume once and both versions agree on equal-time ties.
+    env.gallerySql.exec(
+      "UPDATE gallery_entries SET created_at = ?",
+      "2026-01-01",
+    );
+    const ids = [kept, redo, later].sort().reverse();
+    for (const legacyWorker of [false, true]) {
+      const middle = await list(
+        claude,
+        { scope: "ai-seats", limit: 1, cursor: "1" },
+        legacyWorker,
+      );
+      expect(middle).toMatchObject({
+        ok: true,
+        total: 3,
+        entries: [{ id: ids[1] }],
+      });
+      if (
+        !middle.ok ||
+        middle.operation !== "list-gallery" ||
+        !middle.nextCursor
+      )
+        throw new Error("Expected a cursor for the last tied entry");
+      await expect(
+        list(
+          claude,
+          { scope: "ai-seats", limit: 1, cursor: middle.nextCursor },
+          !legacyWorker,
+        ),
+      ).resolves.toMatchObject({
+        ok: true,
+        total: 3,
+        entries: [{ id: ids[2] }],
+        nextCursor: null,
+      });
+    }
+    await expect(
+      list(claude, { scope: "ai-seats", status: "rejected", limit: 1 }, true),
+    ).resolves.toMatchObject({
+      ok: true,
+      total: 1,
+      entries: [{ id: redo }],
+      nextCursor: null,
+    });
     // A person's Editor is refused, and status narrows the scope only.
     await expect(
       list(await makerOf(env), { scope: "ai-seats" }),

@@ -815,7 +815,7 @@ export class GalleryDO {
       case "mine":
         return mine(this.sql, String(body.ownerUserId));
       case "ai-seat-entries":
-        return aiSeatEntries(this.sql);
+        return aiSeatEntries(this.sql, body);
       case "quota":
         return quota(this.sql, String(body.ownerUserId), String(body.day));
       case "contributions":

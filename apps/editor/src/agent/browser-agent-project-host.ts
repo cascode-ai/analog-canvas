@@ -1,3 +1,4 @@
+import { aiSeatCursor, readAiSeatCursor } from "../gallery-ai-seat-page";
 import {
   AGENT_API_VERSION,
   AgentGalleryEntryReadSchema,
@@ -482,7 +483,7 @@ export class BrowserAgentProjectHost {
   /**
    * Every AI account's entries, rejected and withdrawn ones with their status
    * and reason, for an AI account to redo and take over (#1540). The Gallery
-   * answers them in one list, newest first; the cursor is an offset into it.
+   * pages them newest first, including their current moderation status.
    */
   private async listAiSeatEntries(
     request: Extract<
@@ -490,21 +491,33 @@ export class BrowserAgentProjectHost {
       { operation: "list-gallery" }
     >,
   ): Promise<AgentProjectResourceResponse> {
-    const start = request.cursor === undefined ? 0 : Number(request.cursor);
-    if (!Number.isSafeInteger(start) || start < 0)
+    const position = request.cursor
+      ? readAiSeatCursor(request.cursor, request.status)
+      : null;
+    if (request.cursor && !position)
       return this.error(
         request,
         "INVALID_CURSOR",
-        "Continue with the nextCursor this listing returned",
+        "Restart this listing to request a fresh cursor",
         "fix-input",
       );
-    let entries: (GalleryFeedEntry & {
-      status: "public" | "rejected" | "recycled";
-      rejectReason: string | null;
-    })[];
+    const params = new URLSearchParams({
+      scope: "ai-seats",
+      limit: String(request.limit ?? 30),
+    });
+    if (request.status) params.set("status", request.status);
+    if (request.cursor) params.set("cursor", request.cursor);
+    let page: {
+      total: number;
+      nextCursor: string | null;
+      entries: (GalleryFeedEntry & {
+        status: "public" | "rejected" | "recycled";
+        rejectReason: string | null;
+      })[];
+    };
     try {
       const response = await (this.options.fetch ?? fetch)(
-        "/api/gallery/mine?scope=ai-seats",
+        `/api/gallery/mine?${params}`,
         { credentials: "same-origin", cache: "no-store" },
       );
       if (response.status === 401)
@@ -516,6 +529,13 @@ export class BrowserAgentProjectHost {
         );
       if (!response.ok) {
         const failure = await requestFailureOf(response);
+        if (response.status === 400 && request.cursor)
+          return this.error(
+            request,
+            "INVALID_CURSOR",
+            "Restart this listing to request a fresh cursor",
+            "fix-input",
+          );
         if (response.status !== 403)
           return this.error(
             request,
@@ -530,8 +550,44 @@ export class BrowserAgentProjectHost {
           "fix-input",
         );
       }
-      entries =
-        ((await response.json()) as { entries?: typeof entries }).entries ?? [];
+      page = await response.json();
+      // An older Worker serves the complete, ordered list during rollout or rollback.
+      if (
+        Array.isArray(page.entries) &&
+        page.total === undefined &&
+        page.nextCursor === undefined
+      ) {
+        const listed = page.entries.filter(
+          (entry) => !request.status || entry.status === request.status,
+        );
+        const remaining =
+          position && "offset" in position
+            ? listed.slice(position.offset)
+            : position
+              ? listed.filter(
+                  (entry) =>
+                    entry.createdAt < position.createdAt ||
+                    (entry.createdAt === position.createdAt &&
+                      entry.id < position.id),
+                )
+              : listed;
+        const entries = remaining.slice(0, request.limit ?? 30);
+        const last = entries.at(-1);
+        page = {
+          entries,
+          total: listed.length,
+          nextCursor:
+            last && remaining.length > entries.length
+              ? aiSeatCursor(last, request.status)
+              : null,
+        };
+      }
+      if (
+        !Array.isArray(page.entries) ||
+        !Number.isSafeInteger(page.total) ||
+        !(page.nextCursor === null || typeof page.nextCursor === "string")
+      )
+        throw new Error("Invalid Gallery page");
     } catch {
       return this.error(
         request,
@@ -540,22 +596,18 @@ export class BrowserAgentProjectHost {
         "retry",
       );
     }
-    const listed = request.status
-      ? entries.filter((entry) => entry.status === request.status)
-      : entries;
-    const end = start + (request.limit ?? 30);
     return {
       apiVersion: AGENT_API_VERSION,
       requestId: request.requestId,
       operation: request.operation,
       ok: true,
-      entries: listed.slice(start, end).map((entry) => ({
+      entries: page.entries.map((entry) => ({
         ...this.gallerySummary(entry),
         status: entry.status,
         ...(entry.rejectReason ? { rejectReason: entry.rejectReason } : {}),
       })),
-      nextCursor: end < listed.length ? String(end) : null,
-      total: listed.length,
+      nextCursor: page.nextCursor,
+      total: page.total,
     };
   }
 
