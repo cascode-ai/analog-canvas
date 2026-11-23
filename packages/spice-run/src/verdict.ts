@@ -19,6 +19,8 @@ const DROPPED_INPUT_PATTERNS = [
  * The second line echoes the card as ngspice holds it: lowercased, renamed
  * `xpath:name` inside a subcircuit, cut at 72 characters and ended with "...".
  */
+const PROGRESS_PREFIX_PATTERN =
+  /^\s*reference value\s*:\s*[-+]?\d+(?:\.\d*)?(?:e[-+]?\d+)?\s*/iu;
 const MODEL_ISSUE_PATTERN = /^warning:\s*model issue on line \d+\s*:?$/iu;
 const MODEL_ECHO_PATTERN = /^\.model\s+(.*)$/iu;
 const MODEL_PARAMETER_NOTICE_PATTERN =
@@ -159,7 +161,12 @@ export function readNgspiceDiagnostics(
   sources?: readonly string[],
 ): SimulationDiagnostic[] {
   const diagnostics: SimulationDiagnostic[] = [];
-  const lines = output.split(/\r?\n/u);
+  // ngspice's progress line ("Reference value : 1.00000e-01") ends in a bare
+  // carriage return, or in nothing at all, so the next notice can arrive
+  // glued to it; it is never a diagnostic itself.
+  const lines = output
+    .split(/\r\n|\r|\n/u)
+    .map((line) => line.replace(PROGRESS_PREFIX_PATTERN, ""));
   const defined =
     sources === undefined ? undefined : definedModelNames(sources);
   let modelCard: ModelCardEcho | "header" | undefined;
