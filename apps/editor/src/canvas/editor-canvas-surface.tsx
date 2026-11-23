@@ -1,5 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useMemo } from "react";
-import type { ComponentProps, CSSProperties, ReactNode, SVGProps } from "react";
+import type {
+  ComponentProps,
+  CSSProperties,
+  ReactNode,
+  RefObject,
+  SVGProps,
+} from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { flushSync } from "react-dom";
 import { createPointerPreviewFrame } from "./pointer-preview-frame";
@@ -20,7 +26,10 @@ import {
   type LabelTether,
 } from "./editor-canvas-overlays";
 import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
-import { useCanvasVisibleObjects } from "./canvas-visible-objects";
+import {
+  type CanvasDrawingQueries,
+  useCanvasVisibleObjects,
+} from "./canvas-visible-objects";
 import { EditorCellSymbolLayoutOverlay } from "./editor-cell-symbol-layout-overlay";
 import { EditorRouteHandles } from "./editor-route-handles";
 import { EditorSelectionHalo } from "./editor-selection-halo";
@@ -74,6 +83,7 @@ function ownEventHandlers(
 }
 
 export interface EditorCanvasSurfaceProps {
+  drawingQueriesRef?: RefObject<CanvasDrawingQueries | null>;
   shortcutHintsVisible: boolean;
   className: string;
   /** The Document's chosen font stack, or null for the default Metropolis. */
@@ -143,6 +153,7 @@ function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
 
 /** SVG scene composition; interaction semantics arrive through typed models. */
 export function EditorCanvasSurface({
+  drawingQueriesRef,
   shortcutHintsVisible,
   className,
   textFontFamily,
@@ -186,6 +197,7 @@ export function EditorCanvasSurface({
     svgRef,
     selectionHitLayer.selection.wouldMoveIds,
     selectionHitLayer.endpoints.endpointHitRadius,
+    drawingQueriesRef,
   );
   const paintRuns = useMemo(
     () =>

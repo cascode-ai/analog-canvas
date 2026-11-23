@@ -1,4 +1,5 @@
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { CanvasDrawingQueries } from "./canvas-visible-objects";
+import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type {
   DocumentDerivedContext,
@@ -72,6 +73,7 @@ export interface CanvasGestureControllerDependencies {
     routeGeometryRecords: readonly RouteGeometryRecord[];
     styleProfile: SchematicStyleProfile;
     selectionPolicy: SelectionPolicy;
+    drawingQueriesRef?: RefObject<CanvasDrawingQueries | null>;
     selectionRead?:
       | Pick<DocumentDerivedContext, "routingGeometry" | "logicalNetResolution">
       | undefined;
@@ -271,6 +273,7 @@ export function createCanvasGestureController({
     styleProfile,
     selectionPolicy,
     selectionRead,
+    drawingQueriesRef,
   },
   viewport: {
     defaultViewBox,
@@ -731,6 +734,7 @@ export function createCanvasGestureController({
     const clicked =
       rect.width <= document.presentation.grid &&
       rect.height <= document.presentation.grid;
+    const queries = drawingQueriesRef?.current;
     const boxed = clicked
       ? EMPTY_VISUAL_SELECTION
       : marqueeSelection(
@@ -742,6 +746,12 @@ export function createCanvasGestureController({
           marqueeMode(activeBox.start, activeBox.end),
           selectionPolicy,
           selectionRead,
+          queries?.document === document &&
+            queries.resolver === resolver &&
+            queries.routeGeometryRecords === routeGeometryRecords &&
+            queries.styleProfile === styleProfile
+            ? queries.marquee(rect)
+            : undefined,
         );
     const selection = activeBox.additive
       ? unionSelections(currentSelection(), boxed)

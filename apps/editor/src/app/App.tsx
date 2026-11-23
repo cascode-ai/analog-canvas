@@ -168,7 +168,10 @@ import {
   type CameraRuntime,
 } from "../canvas/camera-runtime";
 import type { CanvasDragSession } from "../canvas/canvas-drag-session";
-import { usesCanvasViewport } from "../canvas/canvas-visible-objects";
+import {
+  type CanvasDrawingQueries,
+  usesCanvasViewport,
+} from "../canvas/canvas-visible-objects";
 import { instanceVisibleHitBox } from "../canvas/instance-geometry";
 import { resolveSimulationTransport } from "../features/simulation/deployment-transport";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
@@ -3922,6 +3925,7 @@ function WorkspaceEditor({
       },
     },
   });
+  const drawingQueriesRef = useRef<CanvasDrawingQueries | null>(null);
   const {
     fitView,
     panView,
@@ -3938,6 +3942,7 @@ function WorkspaceEditor({
       routeGeometryRecords,
       styleProfile,
       selectionPolicy,
+      drawingQueriesRef,
       selectionRead: projectConnectivityIndex.documents.get(document.id),
     },
     viewport: {
@@ -8177,6 +8182,7 @@ function WorkspaceEditor({
           }
         />
         <EditorCanvasSurface
+          drawingQueriesRef={drawingQueriesRef}
           shortcutHintsVisible={shortcutHintsVisible}
           textFontFamily={
             styleProfile.typography.face &&
