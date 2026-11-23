@@ -356,6 +356,40 @@ it("updates a foreign drawing once after a lost reply and exposes the committed 
   ).toBe(409);
 });
 
+it("updates a foreign community entry by the Owner's token, keeping its byline", async () => {
+  const { auth, cn, overseas, publish } = await pair();
+  const id = await publish(overseas);
+  const before = (await (await cn.call(`/api/gallery/${id}`)).json()).entry;
+  const owner = await ownerAccountOf(auth.source);
+  const token = await (
+    await auth.source.authDurable.fetch(
+      new Request(ORIGIN + "/api/auth/owner-tokens", {
+        method: "POST",
+        headers: { origin: ORIGIN, cookie: owner },
+        body: JSON.stringify({ label: "Testbench fixes" }),
+      }),
+    )
+  ).json();
+  const update = (bearer: string) =>
+    cn.route(
+      new Request(ORIGIN + `/api/gallery/${id}`, {
+        method: "PUT",
+        headers: { authorization: "Bearer " + bearer },
+        body: JSON.stringify({
+          name: before.name,
+          description: "",
+          projectText: wiredProjectText(before.name),
+        }),
+      }),
+    );
+  expect((await update("acot_wrong")).status).toBe(401);
+  const updated = await update(token.token);
+  expect(updated.status, await updated.clone().text()).toBe(200);
+  expect(
+    (await (await cn.call(`/api/gallery/${id}`)).json()).entry.author,
+  ).toBe(before.author);
+});
+
 it("reimports foreign Dataset items and their comparisons with per-item retry receipts", async () => {
   const { cn, overseas, auth, loseNextReply } = await pair();
   const owner = await ownerAccountOf(auth.source),

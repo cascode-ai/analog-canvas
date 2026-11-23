@@ -183,6 +183,15 @@ export async function routeRegionalPublicationActions(
     return incoming ? fail("not-found", 404) : null;
   if (incoming && request.method !== "POST")
     return fail("method-not-allowed", 405);
+  // The Owner's scripts write by Owner token: a dataset batch, or one
+  // community entry's update (a dataset entry's PUT stays session-only).
+  const byToken =
+    hasBearer(request) &&
+    (Boolean(batch) ||
+      (request.method === "PUT" &&
+        entryId !== null &&
+        !url.pathname.endsWith("/reference") &&
+        !gallerySourceOfEntryId(entryId)));
   let committed = false;
   try {
     const peer = new URL(env.RESOURCE_ACTION_PEER);
@@ -200,7 +209,7 @@ export async function routeRegionalPublicationActions(
           method: "POST",
           headers: {
             cookie: request.headers.get("cookie") ?? "",
-            ...(batch && hasBearer(request)
+            ...(byToken
               ? { authorization: request.headers.get("authorization")! }
               : {}),
           },
@@ -231,13 +240,12 @@ export async function routeRegionalPublicationActions(
       if (!verified.ok) return fail("unauthorized", verified.status);
       user = sessionIdentity((await verified.json()).user);
     } else {
-      if (!(batch && hasBearer(request)) && !sameOrigin(request))
-        return fail("forbidden", 403);
-      user =
-        batch && hasBearer(request)
-          ? await ownerTokenUserOf(request, env)
-          : await sessionUserOf(request, env);
+      if (!byToken && !sameOrigin(request)) return fail("forbidden", 403);
+      user = byToken
+        ? await ownerTokenUserOf(request, env)
+        : await sessionUserOf(request, env);
       if (!user) return fail("unauthorized", 401);
+      if (byToken && !user.isOwner) return fail("owner-only", 403);
       // The two bodyless operations admitted by entryFor.
       const allowEmpty =
         request.method === "DELETE" ||
