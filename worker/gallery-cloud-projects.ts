@@ -9,20 +9,18 @@ import {
   serializeCompactProject,
 } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
-import { type CircuitProject } from "@icm/model";
+import { ProjectWriteNameSchema, type CircuitProject } from "@icm/model";
 import { sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
 import { reserveRegionalProject } from "./project-quota";
 import { includesProjectOwner } from "./project-region-scope";
 import {
-  GALLERY_MAX_NAME_LENGTH,
   GALLERY_MAX_PROJECT_BYTES,
   shortId,
   type GalleryEnv,
 } from "./gallery-store";
 import {
   callGallery,
-  fieldText,
   recoverFormulaPreview,
   renderPreview,
 } from "./gallery-requests";
@@ -89,7 +87,7 @@ async function handleCloudProjects(
   const body: CloudProjectSaveBody | null =
     archived ??
     ((await request.json().catch(() => null)) as CloudProjectSaveBody | null);
-  const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
+  const name = ProjectWriteNameSchema.safeParse(body?.name).data;
   if (!body || !name || typeof body.projectText !== "string") {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
@@ -110,6 +108,10 @@ async function handleCloudProjects(
   let projectText: string;
   try {
     project = parseProject(body.projectText);
+    const projectName = ProjectWriteNameSchema.safeParse(project.name);
+    if (!projectName.success)
+      return Response.json({ error: "invalid-fields" }, { status: 400 });
+    project.name = projectName.data;
     projectText = serializeCompactProject(project);
   } catch (error) {
     if (error instanceof ProjectWriterNotActiveError)

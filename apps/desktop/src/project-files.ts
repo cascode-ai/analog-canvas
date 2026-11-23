@@ -1,3 +1,8 @@
+import {
+  MAX_PROJECT_NAME_LENGTH,
+  PROJECT_NAME_REQUIREMENT,
+  ProjectWriteNameSchema,
+} from "@icm/model";
 // Adapted from LXY-freshman/schematic-draft @ 5231840f (AGPL-3.0-only).
 // See ../SOURCES.md: dialog/outcome flow retained, path authority and writes adapted.
 import { createHash, randomUUID } from "node:crypto";
@@ -238,7 +243,7 @@ export function createProjectFileHandler(
     const copy = createIndependentProject(
       project,
       copyIdentity(creation),
-      `${project.name.slice(0, 120 - suffix.length - 3)} (${suffix})`,
+      `${project.name.slice(0, MAX_PROJECT_NAME_LENGTH - suffix.length - 3)} (${suffix})`,
     );
     const bytes = Buffer.from(serializeProject(copy));
     const resolution = creation
@@ -489,18 +494,14 @@ export function createProjectFileHandler(
           const before = await readBounded(entry.path);
           const project = parseProject(before.toString("utf8"));
           if (body.action === "rename") {
-            if (
-              typeof body.name !== "string" ||
-              !body.name.trim() ||
-              body.name.trim().length > 120
-            )
-              throw new Error("Use a name between 1 and 120 characters");
+            const name = ProjectWriteNameSchema.safeParse(body.name);
+            if (!name.success) throw new Error(PROJECT_NAME_REQUIREMENT);
             const renamed = executeProjectTransaction(project, {
               transactionId: randomUUID(),
               projectId: project.id,
               expectedStructureRevision: project.structureRevision,
               actor: { kind: "human", id: "desktop" },
-              edits: [{ kind: "rename_project", name: body.name.trim() }],
+              edits: [{ kind: "rename_project", name: name.data }],
             });
             if (!renamed.ok) throw new Error(renamed.error.message);
             await commitProjectFile(

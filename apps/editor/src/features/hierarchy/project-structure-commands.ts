@@ -28,6 +28,8 @@ import type {
   SchematicEdit,
 } from "@icm/edit-engine";
 import {
+  PROJECT_NAME_REQUIREMENT,
+  ProjectWriteNameSchema,
   CircuitProjectSchema,
   CellSymbolPresentationSchema,
   semanticTextDocument,
@@ -1007,8 +1009,14 @@ export function createProjectStructureCommands({
   };
 
   const renameProject = (inputName: string | null): void => {
-    const name = (inputName ?? "").trim();
-    if (!name || name === project.name) return;
+    if (inputName === null) return;
+    const parsed = ProjectWriteNameSchema.safeParse(inputName);
+    if (!parsed.success) {
+      setStatus(PROJECT_NAME_REQUIREMENT);
+      return;
+    }
+    const name = parsed.data;
+    if (name === project.name) return;
     if (commitStructure("rename-project", [{ kind: "rename_project", name }])) {
       setStatus(`Renamed circuit to ${name}`);
     }

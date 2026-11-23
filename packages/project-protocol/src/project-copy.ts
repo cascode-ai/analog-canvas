@@ -1,4 +1,4 @@
-import type { CircuitProject } from "@icm/model";
+import { ProjectWriteNameSchema, type CircuitProject } from "@icm/model";
 import { parseProject } from "./load.js";
 import { serializeProject } from "./save.js";
 
@@ -9,8 +9,9 @@ export function createIndependentProject(
   id: string,
   name = project.name,
 ): CircuitProject {
+  const validatedName = ProjectWriteNameSchema.parse(name);
   const copy = parseProject(serializeProject(project));
   copy.id = id;
-  copy.name = name;
+  copy.name = validatedName;
   return copy;
 }

@@ -118,6 +118,7 @@ DELETE /api/projects/:id           explicitly delete one Project
   metadata when it opens.
 - `favorite` (default false) is account metadata in summary, open and backup;
   it changes no bytes, revision or publication.
+- New and renamed Projects accept 1–120 characters after trimming. Older names remain readable and exportable. Rename an overlong Project before Cloud Save.
 - Duplicate is an independent Project (new identity, no Gallery link). Rename
   is a revision-checked Save. Opening an already open Cloud id selects its
   tab without fetching. Delete keeps an open drawing as an unbound unsaved

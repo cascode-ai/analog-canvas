@@ -15,6 +15,15 @@ export const MAX_PART_TERMINALS = 128;
 /** What a Project holds of one Cell or external master: its parameters. */
 export const MAX_FORMAL_PARAMETERS = 128;
 
+/** Limits newly assigned names. Persisted Projects can have older, longer names. */
+export const MAX_PROJECT_NAME_LENGTH = 120;
+export const PROJECT_NAME_REQUIREMENT = `Use a Project name between 1 and ${MAX_PROJECT_NAME_LENGTH} characters`;
+export const ProjectWriteNameSchema = z
+  .string()
+  .trim()
+  .min(1, PROJECT_NAME_REQUIREMENT)
+  .max(MAX_PROJECT_NAME_LENGTH, PROJECT_NAME_REQUIREMENT);
+
 export const StableIdSchema = z.string().min(1).max(256);
 /** Strict persisted/presentation hex color token. Format: `#RRGGBB`. */
 export const HexColorSchema = z

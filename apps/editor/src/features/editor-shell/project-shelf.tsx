@@ -1,3 +1,4 @@
+import { MAX_PROJECT_NAME_LENGTH } from "@icm/model";
 import { lazy, Suspense, useState } from "react";
 import type { CloudProjectSummary } from "./cloud-projects";
 
@@ -58,7 +59,7 @@ export function ProjectShelf({
                 <input
                   aria-label="Shelf project name"
                   value={editing.name}
-                  maxLength={120}
+                  maxLength={MAX_PROJECT_NAME_LENGTH}
                   autoFocus
                   disabled={busy}
                   onChange={(event) =>

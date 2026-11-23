@@ -1,3 +1,4 @@
+import { ProjectWriteNameSchema, PROJECT_NAME_REQUIREMENT } from "@icm/model";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { FileCommandMenuProps } from "../features/editor-shell/file-command-menu";
@@ -13,6 +14,7 @@ export function NativeFileCommands(
     intoLibrary: boolean;
   } | null>(null);
   const saveDialog = useRef<HTMLDialogElement>(null);
+  const copyName = ProjectWriteNameSchema.safeParse(copy?.name);
   const copyOpen = copy !== null;
   useEffect(() => {
     if (copyOpen) saveDialog.current?.showModal();
@@ -54,7 +56,8 @@ export function NativeFileCommands(
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
-                  nativeFiles.saveAs({ ...copy, name: copy.name.trim() });
+                  if (!copyName.success) return;
+                  nativeFiles.saveAs({ ...copy, name: copyName.data });
                   setCopy(null);
                 }}
               >
@@ -68,12 +71,18 @@ export function NativeFileCommands(
                   <input
                     autoFocus
                     value={copy.name}
-                    maxLength={120}
+                    aria-invalid={!copyName.success}
+                    aria-describedby={
+                      copyName.success ? undefined : "native-copy-name-error"
+                    }
                     onChange={(event) =>
                       setCopy({ ...copy, name: event.target.value })
                     }
                   />
                 </label>
+                {!copyName.success && (
+                  <p id="native-copy-name-error">{PROJECT_NAME_REQUIREMENT}</p>
+                )}
                 <label>
                   Location{" "}
                   <select
@@ -91,7 +100,7 @@ export function NativeFileCommands(
                 </label>
                 <button
                   type="submit"
-                  disabled={!copy.name.trim() || nativeFiles.busy}
+                  disabled={!copyName.success || nativeFiles.busy}
                 >
                   Save copy
                 </button>

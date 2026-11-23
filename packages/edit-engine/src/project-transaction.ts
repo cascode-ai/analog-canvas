@@ -1,4 +1,5 @@
 import {
+  ProjectWriteNameSchema,
   ComponentDefinitionSchema,
   ComponentLibraryOriginSchema,
   isFrozenSnapshot,
@@ -193,7 +194,7 @@ const projectStructureEditOptions = [
   }),
   z.strictObject({
     kind: z.literal("rename_project"),
-    name: z.string().min(1).max(128),
+    name: ProjectWriteNameSchema,
   }),
   z.strictObject({
     kind: z.literal("rename_document"),
