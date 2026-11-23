@@ -628,8 +628,13 @@ export function captureProjectCopy(
     ),
   );
   const fileIds = referencedSourceFiles([clipboard, [...documents.values()]]);
+  const externalSubcircuitDefinitions =
+    project.externalSubcircuitDefinitions.filter((definition) =>
+      externalIds.has(definition.id),
+    );
   const componentProject = withProjectComponentDefinitions({
     ...project,
+    externalSubcircuitDefinitions,
     documents: [
       {
         ...document,
@@ -649,15 +654,11 @@ export function captureProjectCopy(
       ...project.source,
       files: project.source.files.filter((f) => fileIds.has(f.id)),
     },
-    externalSubcircuitDefinitions: project.externalSubcircuitDefinitions.filter(
-      (d) => externalIds.has(d.id),
-    ),
+    externalSubcircuitDefinitions,
     modelSources:
       project.modelSources?.filter((source) =>
-        project.externalSubcircuitDefinitions.some(
-          (definition) =>
-            externalIds.has(definition.id) &&
-            definition.implementation?.sourceId === source.id,
+        externalSubcircuitDefinitions.some(
+          (definition) => definition.implementation?.sourceId === source.id,
         ),
       ) ?? [],
     documents: [...documents.values()],
