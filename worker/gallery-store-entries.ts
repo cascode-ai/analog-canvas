@@ -1,3 +1,7 @@
+import {
+  aiSeatCursor,
+  readAiSeatCursor,
+} from "../apps/editor/src/gallery-ai-seat-page";
 import { publicationResult } from "./gallery-publication-command";
 // One entry: publishing, updating and importing it, reading it and its
 // preview, the daily publish quota and the daily allowance of opens.
@@ -15,11 +19,11 @@ import { AI_SEATS } from "./auth";
 import {
   type DurableObjectStateLike,
   type EntryRow,
+  type EntrySummaryRow,
   GALLERY_DAILY_SUBMISSION_LIMIT,
   type SqlStorage,
   advanceCurationRevision,
   countedParts,
-  isAiSeatEntry,
   shortId,
   summaryOf,
   svgPreviewDimensions,
@@ -555,11 +559,19 @@ function submissionsOn(
   );
 }
 
+type OwnedEntryRow = EntrySummaryRow &
+  Pick<
+    EntryRow,
+    "status" | "reject_reason" | "reviewed_by" | "reviewed_at" | "recycled_at"
+  > & { likes: number };
+
 /** Entries as their owner sees them: hidden ones too, and why. */
 function ownedEntries(
-  rows: readonly (EntryRow & { likes: number })[],
+  rows: readonly OwnedEntryRow[],
+  page?: { total: number; nextCursor: string | null },
 ): Response {
   return Response.json({
+    ...page,
     entries: rows.map((row) => ({
       ...summaryOf(row),
       status: row.status,
@@ -573,7 +585,11 @@ function ownedEntries(
 }
 
 /** Owned rows with the likes they hold, as the wall counts them. */
-const OWNED_ROWS = `SELECT e.*,
+const OWNED_ROWS = `SELECT e.id, e.name, e.author, e.description, e.created_at,
+    e.owner_user_id, e.schema_version, e.tags, e.curation_json, e.netlistable,
+    e.preview_revision, e.preview_width, e.preview_height, e.ai_generated,
+    e.component_count, e.component_count_version, e.status, e.reject_reason,
+    e.reviewed_by, e.reviewed_at, e.recycled_at,
     (SELECT COALESCE(SUM(hearts), 0) FROM gallery_likes WHERE entry_id = e.id)
       AS likes
   FROM gallery_entries e`;
@@ -581,7 +597,7 @@ const OWNED_ROWS = `SELECT e.*,
 export function mine(sql: SqlStorage, ownerUserId: string): Response {
   return ownedEntries(
     sql
-      .exec<EntryRow & { likes: number }>(
+      .exec<OwnedEntryRow>(
         `${OWNED_ROWS} WHERE e.owner_user_id = ?
          ORDER BY e.created_at DESC, e.id DESC`,
         ownerUserId,
@@ -594,19 +610,86 @@ export function mine(sql: SqlStorage, ownerUserId: string): Response {
  * Every AI account's entries (isAiSeatEntry), as `mine` lists one account's:
  * where an AI account finds another's rejected work to redo (#1540).
  */
-export function aiSeatEntries(sql: SqlStorage): Response {
-  const ids = AI_SEATS.map((seat) => seat.userId);
-  return ownedEntries(
-    sql
-      .exec<EntryRow & { likes: number }>(
-        `${OWNED_ROWS}
-         WHERE e.owner_user_id IN (${ids.map(() => "?").join(", ")})
-         ORDER BY e.created_at DESC, e.id DESC`,
-        ...ids,
-      )
-      .toArray()
-      .filter((row) => isAiSeatEntry(row.owner_user_id, row.author)),
-  );
+export function aiSeatEntries(
+  sql: SqlStorage,
+  body: Record<string, unknown>,
+): Response {
+  const where =
+    "(" +
+    AI_SEATS.map(() => "(e.owner_user_id = ? AND e.author IN (?, ?))").join(
+      " OR ",
+    ) +
+    ")";
+  const bindings: string[] = AI_SEATS.flatMap((seat) => [
+    seat.userId,
+    seat.displayName,
+    seat.formerName ?? seat.displayName,
+  ]);
+  let filter = where;
+  const status = body.status;
+  if (status !== undefined) {
+    if (status !== "public" && status !== "rejected" && status !== "recycled")
+      return Response.json({ error: "invalid-status" }, { status: 400 });
+    filter += " AND e.status = ?";
+    bindings.push(status);
+  }
+  const query = `${OWNED_ROWS} WHERE ${filter}`;
+  const order = " ORDER BY e.created_at DESC, e.id DESC";
+  if (
+    body.limit === undefined &&
+    body.cursor === undefined &&
+    status === undefined
+  )
+    return ownedEntries(
+      sql.exec<OwnedEntryRow>(query + order, ...bindings).toArray(),
+    );
+  const limit = Number(body.limit ?? 30);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 60)
+    return Response.json({ error: "invalid-limit" }, { status: 400 });
+  let after = "";
+  const tail: string[] = [];
+  let offset: number | undefined;
+  if (body.cursor !== undefined) {
+    const position =
+      typeof body.cursor === "string"
+        ? readAiSeatCursor(body.cursor, status)
+        : null;
+    if (!position)
+      return Response.json({ error: "invalid-cursor" }, { status: 400 });
+    if ("offset" in position) offset = position.offset;
+    else {
+      after = " AND (e.created_at, e.id) < (?, ?)";
+      tail.push(position.createdAt, position.id);
+    }
+  }
+  const total = sql
+    .exec<{ total: number }>(
+      `SELECT COUNT(*) AS total FROM gallery_entries e WHERE ${filter}`,
+      ...bindings,
+    )
+    .one().total;
+  const rows = sql
+    .exec<OwnedEntryRow>(
+      query +
+        after +
+        order +
+        (offset === undefined ? " LIMIT ?" : " LIMIT ? OFFSET ?"),
+      ...bindings,
+      ...tail,
+      limit + 1,
+      ...(offset === undefined ? [] : [offset]),
+    )
+    .toArray();
+  const more = rows.length > limit;
+  if (more) rows.pop();
+  const last = rows.at(-1);
+  return ownedEntries(rows, {
+    total,
+    nextCursor:
+      more && last
+        ? aiSeatCursor({ createdAt: last.created_at, id: last.id }, status)
+        : null,
+  });
 }
 
 export function updateEntry(

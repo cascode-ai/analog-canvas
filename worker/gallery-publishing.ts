@@ -634,17 +634,27 @@ export async function routeGalleryPublishing(
     // `scope=ai-seats`: every AI account's entries, rejected ones with their
     // reasons, for an AI account to redo and take over (#1540). A person's
     // entries never appear there, and only an AI account may ask.
-    const scope = new URL(request.url).searchParams.get("scope");
+    const params = new URL(request.url).searchParams;
+    const scope = params.get("scope");
     if (scope !== null && scope !== "ai-seats")
       return Response.json({ error: "invalid-scope" }, { status: 400 });
     if (scope && !aiSeatOf(user))
       return Response.json({ error: "ai-accounts-only" }, { status: 403 });
-    const { payload } = await callGallery(
+    const { status, payload } = await callGallery(
       env,
       scope ? "ai-seat-entries" : "mine",
-      { ownerUserId: user.id },
+      scope
+        ? Object.fromEntries(
+            ["limit", "cursor", "status"].flatMap((key) =>
+              params.has(key) ? [[key, params.get(key)]] : [],
+            ),
+          )
+        : { ownerUserId: user.id },
     );
-    return Response.json(payload, { headers: { "cache-control": "no-store" } });
+    return Response.json(payload, {
+      status,
+      headers: { "cache-control": "no-store" },
+    });
   }
   if (
     segments.length === 2 &&
