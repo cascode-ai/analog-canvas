@@ -1,5 +1,4 @@
 import type { DurableObjectStateLike, SqlStorage } from "./gallery-store";
-import { sha256Hex } from "@icm/derived";
 import {
   ProjectSyncJournal,
   ProjectSyncCapacityError,
@@ -12,6 +11,12 @@ import {
   validAccountId,
 } from "./retired-accounts";
 import { ProjectQuota } from "./project-quota";
+import {
+  ProjectCreateReceipts,
+  validCreateTicket,
+  projectCreateBinding,
+  projectCreateIntent,
+} from "./project-create-receipt";
 import { installProjectBaseline } from "./project-baseline";
 import {
   projectExpansion,
@@ -59,12 +64,15 @@ export class RegionalProjectDO {
   private readonly sql: SqlStorage;
   private readonly journal: ProjectSyncJournal;
   private readonly quota: ProjectQuota;
+  private readonly createReceipts?: ProjectCreateReceipts;
   private baselineInstalled = false;
   constructor(
     private readonly state: DurableObjectStateLike,
     private readonly env: ProjectRegionConfig,
   ) {
     this.sql = state.storage.sql;
+    if (env.PROJECT_REGION === "cn")
+      this.createReceipts = new ProjectCreateReceipts(this.sql);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS cloud_projects (
       id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL,
@@ -301,6 +309,60 @@ export class RegionalProjectDO {
       return this.publish(operation, body, users, protectedIds);
     if (operation === "cloud-project-region")
       return Response.json({ region: this.env.PROJECT_REGION });
+    if (operation === "cloud-project-create-receipt" && this.createReceipts)
+      return this.state.storage.transactionSync(() =>
+        this.createReceipts!.control(body.action, body.ticket),
+      );
+    if (
+      (operation === "cloud-project-claim-create" ||
+        operation === "cloud-project-refuse-create") &&
+      this.createReceipts
+    ) {
+      const { ticket, id, userId, intent } = body;
+      if (
+        !validCreateTicket(ticket) ||
+        typeof intent !== "string" ||
+        !/^[a-f0-9]{64}$/u.test(intent) ||
+        typeof id !== "string" ||
+        typeof userId !== "string"
+      )
+        return Response.json({ error: "invalid-receipt" }, { status: 400 });
+      const binding = projectCreateBinding(body, intent),
+        receipts = this.createReceipts;
+      return this.state.storage.transactionSync(() => {
+        const applied =
+          operation === "cloud-project-claim-create"
+            ? receipts.claim(ticket, binding)
+            : receipts.finish(ticket, binding, "denied");
+        if (!applied)
+          return Response.json(
+            { error: "create-receipt-unavailable" },
+            { status: 409 },
+          );
+        if (
+          operation === "cloud-project-claim-create" &&
+          !protectedIds.includes(id)
+        ) {
+          const original = this.journal.creationIntent(id);
+          if (original && original !== intent && !this.journal.deleted(id)) {
+            const heads = this.journal.heads(id);
+            if (
+              heads.length === 1 &&
+              heads[0]!.project &&
+              heads[0]!.ownerUserId === userId
+            ) {
+              // The original local create proves the key collision before any quota RPC.
+              receipts.finish(ticket, binding, "denied");
+              return Response.json(
+                { error: "create-key-reused" },
+                { status: 409 },
+              );
+            }
+          }
+        }
+        return Response.json({ applied });
+      });
+    }
     if (operation === "sync-seed")
       return this.seed(this.baselineInstalled ? null : users);
     if (operation === "sync-quota") {
@@ -473,6 +535,22 @@ export class RegionalProjectDO {
       }
       const before = this.journal.snapshot(id);
       const result = this.execute(operation, body, userId, id);
+      if (
+        operation === "cloud-project-create" &&
+        body.ticket !== undefined &&
+        result.ok &&
+        !(
+          validCreateTicket(body.ticket) &&
+          this.createReceipts?.finish(
+            body.ticket,
+            projectCreateBinding(body, projectCreateIntent(body)),
+            "committed",
+          )
+        )
+      )
+        throw new ProjectWriteRefused(
+          Response.json({ error: "create-receipt-mismatch" }, { status: 409 }),
+        );
       if (
         result.ok &&
         [
@@ -715,13 +793,7 @@ export class RegionalProjectDO {
     }
     switch (operation) {
       case "cloud-project-create": {
-        const intent = sha256Hex(
-          JSON.stringify([
-            body.name,
-            body.projectText,
-            body.galleryEntryId ?? null,
-          ]),
-        );
+        const intent = projectCreateIntent(body);
         if (heads.length) {
           const existing = heads[0]!.project!;
           const originalIntent = this.journal.creationIntent(id);
@@ -731,11 +803,23 @@ export class RegionalProjectDO {
                 existing.project_text === body.projectText &&
                 existing.gallery_entry_id === (body.galleryEntryId ?? null)
               : originalIntent === intent;
-          return identical
-            ? Response.json({
-                project: cloudProjectSavedSummary(this.sql, userId, id),
-              })
-            : Response.json({ error: "create-key-reused" }, { status: 409 });
+          if (identical)
+            return Response.json({
+              project: cloudProjectSavedSummary(this.sql, userId, id),
+            });
+          // Both attempts may have claimed before either committed. This
+          // owner's live Project accounts for the exact returned reservation.
+          if (
+            validCreateTicket(body.ticket) &&
+            originalIntent !== undefined &&
+            this.quota.matches(id, userId, body.reservation)
+          )
+            this.createReceipts?.finish(
+              body.ticket,
+              projectCreateBinding(body, intent),
+              "denied",
+            );
+          return Response.json({ error: "create-key-reused" }, { status: 409 });
         }
         if (this.env.PROJECT_REGION === "overseas") {
           const reserved = this.quota.reserve(id, userId);

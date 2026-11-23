@@ -148,6 +148,8 @@ export type GalleryEnv = {
   GALLERY: GalleryNamespaceLike;
   /** Opt-in formal regional Project store; never the disposable login dataset. */
   PROJECTS?: GalleryNamespaceLike;
+  /** Set only for the fixed entrance's private regional create route. */
+  regionalProjectCreateTicket?: string;
   PROJECTS_STORE_NAME?: "projects" | "gallery";
   PROJECT_REGION?: "cn" | "overseas";
   /** Optional JSON list of accounts admitted to the regional Project trial. */

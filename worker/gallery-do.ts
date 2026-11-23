@@ -665,6 +665,7 @@ export class GalleryDO {
     if (this.regionalProjects) {
       if (
         (participating && operation.startsWith("cloud-project-")) ||
+        operation === "cloud-project-create-receipt" ||
         operation === "cloud-project-region" ||
         operation.startsWith("sync-") ||
         operation === "submit" ||

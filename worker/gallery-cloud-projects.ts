@@ -13,6 +13,7 @@ import { ProjectWriteNameSchema, type CircuitProject } from "@icm/model";
 import { sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
 import { reserveRegionalProject } from "./project-quota";
+import { projectCreateIntent } from "./project-create-receipt";
 import { includesProjectOwner } from "./project-region-scope";
 import {
   GALLERY_MAX_PROJECT_BYTES,
@@ -150,6 +151,11 @@ async function handleCloudProjects(
       : null;
   if (createKey && !/^[a-zA-Z0-9_-]{1,160}$/.test(createKey))
     return Response.json({ error: "invalid-idempotency-key" }, { status: 400 });
+  if (env.regionalProjectCreateTicket && !createKey)
+    return Response.json(
+      { error: "idempotency-key-required" },
+      { status: 400 },
+    );
   const fields = {
     userId: user.id,
     id:
@@ -167,6 +173,26 @@ async function handleCloudProjects(
       ? { expectedRevision: Number(expectedRevisionMatch[1]) }
       : {}),
   };
+  const receipt = env.regionalProjectCreateTicket
+    ? {
+        ticket: env.regionalProjectCreateTicket,
+        userId: user.id,
+        id: fields.id,
+        intent: projectCreateIntent({
+          ...fields,
+          galleryEntryId: body.galleryEntryId,
+        }),
+      }
+    : null;
+  if (receipt) {
+    const claimed = await callGallery(
+      env,
+      "cloud-project-claim-create",
+      receipt,
+    );
+    if (claimed.status !== 200)
+      return Response.json(claimed.payload, { status: claimed.status });
+  }
   if (request.method === "PUT") {
     // The DO decides idempotency and conflicts before expensive preview work.
     // Changed writes still repeat the revision check at the atomic commit.
@@ -195,8 +221,13 @@ async function handleCloudProjects(
       ? await reserveRegionalProject(env, fields.id, user.id)
       : null;
   if (reserved instanceof Response) return reserved;
+  if (reserved && "refusedBeforeReservation" in reserved) {
+    if (receipt) await callGallery(env, "cloud-project-refuse-create", receipt);
+    return reserved.refusedBeforeReservation;
+  }
   const { status, payload } = await callGallery(env, operation, {
     ...fields,
+    ...(receipt ? { ticket: receipt.ticket } : {}),
     ...(reserved ?? {}),
     mayEditGallery: user.isAdmin === true || user.role === "moderator",
     ...(body.galleryEntryId === undefined

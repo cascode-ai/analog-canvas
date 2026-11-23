@@ -120,6 +120,33 @@ write even if the reply body is lost. An exact authenticated retry resolves
 only the matching request fingerprint, including after a Project context or
 Cell roster change, or a request result eviction. The entrance never initiates
 a retry.
+
+For a keyed `POST /api/projects`, the entrance registers a one-use ticket on
+loopback and persists it before forwarding the authenticated creation. The
+domestic Project store claims that ticket before reserving a quota slot. The
+store commits the creation and its receipt in the same transaction. A lost
+reply triggers a local receipt lookup. A committed creation or an atomically
+cancelled, unclaimed ticket releases only that attempt. An in-flight claim,
+missing proof or older marker keeps maintenance fenced. The marker records
+an opaque ticket and may include the interruption phase and socket error code.
+Keep it private. A lookup never submits a Project or advances a sync cursor.
+The store may prune unclaimed tickets after ten minutes and finished claims
+after 30 days; it retains unresolved claims. A pruned ticket supplies no
+evidence for clearing a marker. Registration checks the existing API limit
+for the browser's address before allocating a receipt.
+
+When upgrading this pinned entrance, deploy the compatible domestic Worker
+first. From the host, send a fresh ticket (12 hexadecimal Unix-millisecond
+digits and 52 random hexadecimal digits) to `POST /__regional/project-create-receipt`
+on `127.0.0.1:8792`, using a JSON object with `ticket` and `action`.
+Verify `register` returns version 1, the same ticket and state `registered`;
+then `settle` that ticket and verify state `denied`. This creates no Project.
+Install the new entrance only after this check and the existing clean
+handover checks pass. If an older workerd serves its usual missing-route
+response at registration, the new entrance forwards the create once under the
+legacy write fence. A rollback after registration cannot trigger a second
+dispatch; an unrecognized response on the private route returns 503.
+
 An incomplete marker update or an unclean entrance stop leaves maintenance
 fenced, including when the latest marker could not be written. Keep one
 entrance per state directory. Resolve legacy and unclassified records before
