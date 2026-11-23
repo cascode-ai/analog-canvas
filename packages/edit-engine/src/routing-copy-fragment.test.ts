@@ -4,6 +4,56 @@ import { describe, expect, it } from "vitest";
 import { captureRoutingCopyFragment } from "./routing-copy-fragment.js";
 
 describe("routing copy fragment", () => {
+  it("captures selected wiring with bounded passes over the sheet", () => {
+    const document = createEmptyDocument("main", "Main");
+    const routeIds: string[] = [];
+    let routeReads = 0;
+    for (let i = 0; i < 64; i++) {
+      const netId = "net-" + i;
+      const id = "wire-" + i;
+      const terminals = ["A", "B"].map((prefix) => ({
+        instanceId: prefix + i,
+        pinName: "1",
+      }));
+      for (const terminal of terminals)
+        document.instances.push({
+          id: terminal.instanceId,
+          symbolId: "resistor",
+          placement: null,
+        });
+      document.nets.push({ id: netId, terminals });
+      const route = createRoutePath({
+        id,
+        netId,
+        start: { kind: "terminal", ...terminals[0]! },
+        end: { kind: "terminal", ...terminals[1]! },
+        bends: [],
+        modes: ["manual"],
+      });
+      document.routes.push({
+        ...route,
+        get id() {
+          routeReads++;
+          return id;
+        },
+      });
+      routeIds.push(id);
+    }
+    const result = captureRoutingCopyFragment(
+      document,
+      {
+        instanceIds: document.instances.map((instance) => instance.id),
+        routeIds,
+        junctionIds: [],
+      },
+      { includeImplicitInstanceRoutes: false },
+    );
+    expect(new Set(result.internalNetIds)).toEqual(
+      new Set(document.nets.map((net) => net.id)),
+    );
+    expect(routeReads).toBeLessThan(12 * document.routes.length);
+  });
+
   it("disconnects ordinary boundary terminals but retains selected named owners", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances.push(
