@@ -16,7 +16,12 @@ import {
   type CircuitProject,
 } from "@icm/model";
 import { galleryStatsOf, galleryStatsSourceOf } from "./gallery-stats-sources";
-import { AI_ACCOUNT_PROVIDER, sessionUserOf } from "./auth";
+import {
+  AI_ACCOUNT_PROVIDER,
+  hasBearer,
+  ownerTokenUserOf,
+  sessionUserOf,
+} from "./auth";
 import { sameOrigin } from "./same-origin";
 import {
   aiSeatOf,
@@ -373,7 +378,11 @@ export async function handleEntryUpdate(
   env: GalleryEnv,
   id: string,
 ): Promise<Response> {
-  if (!sameOrigin(request)) {
+  // The Owner's scripts update by Owner token (a browser never adds a
+  // bearer by itself, so it needs no same-origin check); anyone else by
+  // their same-origin session.
+  const viaToken = hasBearer(request);
+  if (!viaToken && !sameOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   const existing = await callGallery<{
@@ -391,11 +400,16 @@ export async function handleEntryUpdate(
   if (existing.status !== 200) {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
-  const user = await sessionUserOf(request, env);
+  const user = viaToken
+    ? await ownerTokenUserOf(request, env)
+    : await sessionUserOf(request, env);
   if (!user) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
-  const privileged = user.isAdmin === true || user.role === "moderator";
+  if (viaToken && !user.isOwner)
+    return Response.json({ error: "owner-only" }, { status: 403 });
+  const privileged =
+    user.isAdmin === true || user.isOwner === true || user.role === "moderator";
   const owner =
     user !== null &&
     existing.payload.ownerUserId != null &&

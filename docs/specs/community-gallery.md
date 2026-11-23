@@ -336,8 +336,10 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
 
 ## Owner editing
 
-- `PUT /api/gallery/<id>` (same-origin) updates content and metadata under
-  submission rules: admins and moderators any entry, others their own. Anyone
+- `PUT /api/gallery/<id>` (same-origin, or an Owner token with no origin
+  check; another account's token is 403 `owner-only`) updates content and
+  metadata under submission rules: the Owner, admins and moderators any entry,
+  others their own; the Owner's update carries the testbench. Anyone
   else fixes its drawing in place under the dataset rule (403 `fix-locked`
   `{contributions, needed}` below 10 public circuits): only the drawing
   changes, the fixer's Shelf draft stays unlinked, and anyone but the owner
