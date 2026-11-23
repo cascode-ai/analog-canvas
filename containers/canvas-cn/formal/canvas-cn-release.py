@@ -408,6 +408,26 @@ def configure_public(release, mode, number, credentials, host):
         raise
 
 
+def compatible_project_formats(serving, candidate):
+    # Bootstrap from a pre-capability release. Once installed, an unknown
+    # candidate is as unsafe as an explicitly unreadable one.
+    prior = serving / 'project-format.json'
+    after = candidate / 'project-format.json'
+    if not prior.exists() and not after.exists():
+        return True
+    def read(path):
+        value = json.loads(path.read_bytes())
+        if (not isinstance(value, dict) or type(value.get('read')) is not int or
+                type(value.get('write')) is not int or not 0 < value['write'] <= value['read']):
+            raise ValueError('Invalid Project format capability')
+        return value
+    if not prior.is_file() or not after.is_file():
+        return False
+    old = read(prior)
+    new = read(after)
+    return new['read'] >= old['read'] and old['write'] <= new['write'] <= old['read']
+
+
 def tick(args, host=None, fetcher=None, now=None):
     host = host or Host()
     fetcher = fetcher or Fetcher(args.origin)
@@ -498,6 +518,9 @@ def tick(args, host=None, fetcher=None, now=None):
         if path.is_file() and path.relative_to(partial).as_posix() not in manifest['files']:
             path.unlink()
     downloaded = assemble(fetcher, manifest, serving, partial)
+    if not compatible_project_formats(serving, partial):
+        return dict(result, health='failed', reason='release-failed', status='incompatible-project-format',
+                    failedCommit=commit, failedReason='release-failed')
     # A rollback or another deploy while downloading invalidates this candidate.
     if read_current(fetcher) != published or not verified_overseas(fetcher, published):
         return dict(result, status='source-changed', pending={})

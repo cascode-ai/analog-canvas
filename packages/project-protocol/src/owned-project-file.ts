@@ -18,7 +18,9 @@ import {
   materializeSourceConnectivity,
   type SourceConnectivity,
 } from "./source-connectivity.js";
-export const CURRENT_PROJECT_FILE_VERSION = 87;
+import fileFormat from "./file-format.json" with { type: "json" };
+export const CURRENT_PROJECT_FILE_VERSION = fileFormat.write;
+export const MAX_READABLE_PROJECT_FILE_VERSION = fileFormat.read;
 type Value = Record<string, any>;
 
 /** Check shared targets before the codec expands per-type defaults. */
@@ -321,7 +323,10 @@ export function rejectKeptDocumentStyle(raw: Value): void {
   });
 }
 
-export function encodeProjectFile(project: CircuitProject): Value {
+export function encodeProjectFile(
+  project: CircuitProject,
+  version = CURRENT_PROJECT_FILE_VERSION,
+): Value {
   const owned = encodeOwned(project) as Value;
   const connections = captureSourceConnectivity(project);
   for (const [index, document] of owned.documents.entries()) {
@@ -342,7 +347,7 @@ export function encodeProjectFile(project: CircuitProject): Value {
         );
     }
   }
-  owned.schemaVersion = CURRENT_PROJECT_FILE_VERSION;
+  owned.schemaVersion = version;
   return compactProjectFile(owned);
 }
 

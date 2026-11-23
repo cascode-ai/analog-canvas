@@ -4,6 +4,7 @@
 import { formulaPreviewNeedsRefresh } from "./gallery-preview";
 import {
   CURRENT_PROJECT_FILE_VERSION,
+  ProjectWriterNotActiveError,
   parseProject,
   serializeCompactProject,
 } from "@icm/project-protocol";
@@ -110,7 +111,12 @@ async function handleCloudProjects(
   try {
     project = parseProject(body.projectText);
     projectText = serializeCompactProject(project);
-  } catch {
+  } catch (error) {
+    if (error instanceof ProjectWriterNotActiveError)
+      return Response.json(
+        { error: "project-format-not-active" },
+        { status: 409 },
+      );
     return Response.json({ error: "invalid-project" }, { status: 400 });
   }
   if (new TextEncoder().encode(projectText).length > GALLERY_MAX_PROJECT_BYTES)

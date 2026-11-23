@@ -6,6 +6,6 @@
     "rootDir": "src",
     "tsBuildInfoFile": "dist/project-protocol.tsbuildinfo"
   },
-  "include": ["src"],
+  "include": ["src", "src/file-format.json"],
   "exclude": ["src/**/*.test.ts"]
 }

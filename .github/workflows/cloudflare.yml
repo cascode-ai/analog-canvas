@@ -129,6 +129,8 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Verify the pinned MCP release before deployment
         run: node scripts/verify-agent-manifest.mjs --asset-only
+      - name: Require compatible live Project readers
+        run: node scripts/project-format-rollout.mjs
       - name: Deploy the verified candidate
         id: deploy_worker
         run: |

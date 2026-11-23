@@ -218,6 +218,10 @@ export async function createRegionalRelease(dist, sha, work, options = {}) {
   const target = join(dist, RELEASE_DIRECTORY, sha);
   await rm(join(dist, RELEASE_DIRECTORY), { recursive: true, force: true });
   await mkdir(target, { recursive: true });
+  await copyFile(
+    join(root, "packages/project-protocol/src/file-format.json"),
+    join(target, "project-format.json"),
+  );
   const build = options.bundle ?? bundle;
   await (options.bundleWorker ?? bundleWorker)(
     join(FORMAL, "bundle.jsonc"),

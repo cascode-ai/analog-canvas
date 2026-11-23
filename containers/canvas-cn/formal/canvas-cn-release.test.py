@@ -424,6 +424,19 @@ class ReleaseTest(unittest.TestCase):
         again = release.tick(self.args(), host, production, now=1800)
         self.assertEqual(again['status'], 'current')
 
+    def test_incompatible_project_writer_or_reader_never_holds_the_entrance(self):
+        (self.current / 'project-format.json').write_text('{"read":88,"write":87}')
+        for candidate in ['{"read":89,"write":89}', '{"read":87,"write":87}', None]:
+            with self.subTest(candidate=candidate):
+                files = dict(self.files)
+                if candidate:
+                    files['project-format.json'] = candidate.encode()
+                host = FakeHost()
+                result = release.tick(self.args(0), host, FakeProduction(files), now=1000)
+                self.assertEqual(result['status'], 'incompatible-project-format')
+                self.assertEqual(self.current.resolve().name, OLD)
+                self.assertNotIn(('hold',), host.calls)
+
     def test_reads_only_the_small_pointer_while_current(self):
         production = FakeProduction(self.files, commit=OLD)
         result = release.tick(self.args(0), FakeHost(), production, now=1000)

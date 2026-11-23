@@ -1,4 +1,4 @@
-import { CURRENT_PROJECT_FILE_VERSION } from "./owned-project-file.js";
+import { MAX_READABLE_PROJECT_FILE_VERSION } from "./owned-project-file.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -354,13 +354,15 @@ describe("Project persistence", () => {
       1,
       22,
       23,
-      CURRENT_PROJECT_FILE_VERSION + 1,
+      MAX_READABLE_PROJECT_FILE_VERSION + 1,
       99,
     ]) {
       expect(() =>
         parseProject(JSON.stringify({ ...project, schemaVersion })),
       ).toThrow(
-        new RegExp(`must be between 24 and ${CURRENT_PROJECT_FILE_VERSION}`),
+        new RegExp(
+          `must be between 24 and ${MAX_READABLE_PROJECT_FILE_VERSION}`,
+        ),
       );
     }
   });

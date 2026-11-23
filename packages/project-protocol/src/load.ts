@@ -60,6 +60,7 @@ import { upgradeSchema55To56 } from "./transforms/route-line-style.js";
 import { upgradeSchema56To57 } from "./transforms/power-rail-terminals.js";
 import {
   CURRENT_PROJECT_FILE_VERSION,
+  MAX_READABLE_PROJECT_FILE_VERSION,
   decodeProjectFile,
   rejectModelSelection,
   rejectDraftingArcs,
@@ -249,17 +250,17 @@ export function tryParseProjectWithMetadata(
   }
 
   const sourceSchemaVersion = parsed.schemaVersion as number;
-  const migrated = sourceSchemaVersion !== CURRENT_PROJECT_FILE_VERSION;
+  const migrated = sourceSchemaVersion < CURRENT_PROJECT_FILE_VERSION;
   if (
     sourceSchemaVersion < OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION ||
-    sourceSchemaVersion > CURRENT_PROJECT_FILE_VERSION
+    sourceSchemaVersion > MAX_READABLE_PROJECT_FILE_VERSION
   ) {
     return {
       ok: false,
       diagnostics: [
         {
           code: "UNSUPPORTED_SCHEMA_VERSION",
-          message: `Project schemaVersion must be between ${OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION} and ${CURRENT_PROJECT_FILE_VERSION}`,
+          message: `Project schemaVersion must be between ${OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION} and ${MAX_READABLE_PROJECT_FILE_VERSION}`,
           path: ["schemaVersion"],
         },
       ],
