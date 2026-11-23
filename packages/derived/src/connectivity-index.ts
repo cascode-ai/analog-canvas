@@ -1,6 +1,6 @@
 import { projectHierarchyCalls } from "./project-hierarchy.js";
 import { registerDocumentCache } from "./document-caches.js";
-import { deriveStableId, foldNetName } from "@icm/model";
+import { deriveStableId, documentContentSource, foldNetName } from "@icm/model";
 import type {
   CircuitProject,
   Net,
@@ -179,10 +179,31 @@ function normalizeRoutingGuidance(line: RoutingGuide): RoutingGuide {
 function buildDocumentIndex(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  reuseRestoredContent: boolean,
 ): DocumentConnectivityIndex {
   const cached = documentIndexCache.get(document);
   if (cached?.revision === document.revision && cached.resolver === resolver) {
     return cached.index;
+  }
+  if (reuseRestoredContent) {
+    const source = documentContentSource(document);
+    const prior =
+      source !== document ? documentIndexCache.get(source) : undefined;
+    if (prior?.revision === source.revision && prior.resolver === resolver) {
+      const documentRevision = document.revision;
+      const index = {
+        ...prior.index,
+        documentRevision,
+        routingGeometry: { ...prior.index.routingGeometry, documentRevision },
+        spatialIndex: { ...prior.index.spatialIndex, documentRevision },
+      };
+      documentIndexCache.set(document, {
+        revision: documentRevision,
+        resolver,
+        index,
+      });
+      return index;
+    }
   }
   const endpointToBaseNetId = new Map<string, string>();
   for (const net of document.nets) {
@@ -614,10 +635,19 @@ function buildObjectIndex(
 export function buildProjectConnectivityIndex(
   project: CircuitProject,
   resolver: SymbolResolver,
+  /** The editor retains an immutable resolver across geometry-only history. */
+  options?: { reuseRestoredContent: boolean },
 ): ProjectConnectivityIndex {
   const documents = new Map<string, DocumentConnectivityIndex>();
   for (const document of project.documents) {
-    documents.set(document.id, buildDocumentIndex(document, resolver));
+    documents.set(
+      document.id,
+      buildDocumentIndex(
+        document,
+        resolver,
+        options?.reuseRestoredContent === true,
+      ),
+    );
   }
   return {
     projectId: project.id,
