@@ -158,6 +158,7 @@ export function GalleryFeed({
     netlistable: netlistableOnly,
     withoutNetlist: withoutNetlistOnly,
     withoutReference: withoutReferenceOnly,
+    sim: simOnly,
     ai: aiFilter,
     liked: likedOnly,
     attention: attentionOnly,
@@ -197,6 +198,7 @@ export function GalleryFeed({
       netlistableOnly,
       withoutNetlistOnly,
       withoutReferenceOnly,
+      simOnly,
       aiFilter,
       likedOnly,
       attentionOnly,
@@ -448,6 +450,7 @@ export function GalleryFeed({
     datasets: loadedCount((entry) => gallerySourceOfEntryId(entry.id) !== null),
     liked: loadedCount((entry) => entry.likedByViewer === true),
     withoutReference: loadedCount((entry) => entry.hasReference !== true),
+    sim: loadedCount((entry) => entry.simVerified === true),
   };
   const quickCounts = localQuickCounts
     ? loadedQuickCounts
@@ -480,6 +483,9 @@ export function GalleryFeed({
     datasetShare,
     quickCounts,
     quickCountsPartial,
+    // The Worker counts the Sim mark exactly for a viewer it lets narrow by
+    // it: the mark is public, or this is an Owner account.
+    simOffered: state.filterCounts?.sim !== undefined,
     attentionKindCounts,
     componentRangeCounts,
   };
@@ -688,6 +694,11 @@ export function GalleryFeed({
                 // A dataset's circuits have its figures, not their author's.
                 showWithoutReference={!datasetWall || withoutReferenceOnly}
                 withoutReferenceOnly={withoutReferenceOnly}
+                // Datasets' circuits never carry the Sim mark.
+                showSim={
+                  (!datasetWall && counts?.simOffered === true) || simOnly
+                }
+                simOnly={simOnly}
                 likedOnly={likedOnly}
                 origins={[
                   ...new Set([

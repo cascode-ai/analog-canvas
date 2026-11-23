@@ -50,10 +50,10 @@ function pairCountsWithout(
   removed: boolean,
 ): Pick<
   GalleryQuickFilterCounts,
-  "withoutNetlist" | "ai" | "human" | "withoutReference"
+  "withoutNetlist" | "ai" | "human" | "withoutReference" | "sim"
 > {
   const less = (
-    key: "withoutNetlist" | "ai" | "human" | "withoutReference",
+    key: "withoutNetlist" | "ai" | "human" | "withoutReference" | "sim",
     matches: boolean,
   ) =>
     counts[key] === undefined
@@ -62,6 +62,7 @@ function pairCountsWithout(
   return {
     ...less("withoutNetlist", entry.netlistable !== true),
     ...less("withoutReference", entry.hasReference !== true),
+    ...less("sim", entry.simVerified === true),
     ...less("ai", entry.aiGenerated === true),
     ...less("human", entry.aiGenerated !== true),
   };

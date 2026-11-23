@@ -36,6 +36,7 @@ export function GalleryWallEmpty({
     netlistable: netlistableOnly,
     withoutNetlist: withoutNetlistOnly,
     withoutReference: withoutReferenceOnly,
+    sim: simOnly,
     ai: aiFilter,
     liked: likedOnly,
     parts: selectedParts,
@@ -53,6 +54,7 @@ export function GalleryWallEmpty({
         selectedParts.length > 0 ||
         netlistableOnly ||
         withoutNetlistOnly ||
+        simOnly ||
         aiFilter !== null ||
         likedOnly
           ? "No circuits match these filters."
@@ -77,6 +79,7 @@ export function GalleryWallEmpty({
       selectedTags.length === 0 &&
       !netlistableOnly &&
       !withoutNetlistOnly &&
+      !simOnly &&
       aiFilter === null &&
       !likedOnly &&
       selectedParts.length > 0 ? (
@@ -87,6 +90,7 @@ export function GalleryWallEmpty({
       {!narrowedToAuthor &&
       (netlistableOnly ||
         withoutNetlistOnly ||
+        simOnly ||
         aiFilter !== null ||
         likedOnly) ? (
         <p className="gallery-status" data-testid="gallery-mark-empty">
@@ -94,12 +98,16 @@ export function GalleryWallEmpty({
             ? "Sign in to collect the circuits you like."
             : likedOnly && netlistableOnly
               ? "None of the circuits you liked extracts to a netlist yet."
-              : likedOnly && !withoutNetlistOnly && aiFilter === null
+              : likedOnly &&
+                  !withoutNetlistOnly &&
+                  !simOnly &&
+                  aiFilter === null
                 ? "You have not liked any circuits yet."
                 : likedOnly ||
                     [
                       netlistableOnly,
                       withoutNetlistOnly,
+                      simOnly,
                       aiFilter !== null,
                     ].filter(Boolean).length > 1
                   ? "No circuits match these filters."
@@ -107,11 +115,13 @@ export function GalleryWallEmpty({
                     ? "No circuits here extract to a netlist yet."
                     : withoutNetlistOnly
                       ? "Every circuit here extracts to a netlist."
-                      : aiFilter === "ai"
-                        ? "No AI-generated circuits here yet."
-                        : aiFilter === "dataset"
-                          ? "No dataset circuits here yet."
-                          : "No circuits made by hand here yet."}
+                      : simOnly
+                        ? "No circuits here pass the simulation check yet."
+                        : aiFilter === "ai"
+                          ? "No AI-generated circuits here yet."
+                          : aiFilter === "dataset"
+                            ? "No dataset circuits here yet."
+                            : "No circuits made by hand here yet."}
         </p>
       ) : null}
       {!galleryFiltersNarrowQuery(filters) ? (

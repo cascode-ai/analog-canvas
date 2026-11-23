@@ -55,6 +55,19 @@ function seesSimulationMark(
   return markPublic || readsTestbench(viewer, entry);
 }
 
+/**
+ * Whether a viewer sees every entry's Sim mark, and so may narrow the wall
+ * by it and read its count: anyone once it is public, else an Owner
+ * account. Anyone else's `sim=1` would tell which entries pass, so it is
+ * ignored and no count is sent.
+ */
+export function seesEverySimulationMark(
+  viewer: SessionUser | null,
+  markPublic: boolean,
+): boolean {
+  return markPublic || viewer?.isOwner === true;
+}
+
 /** A feed page with the Sim mark kept only where its viewer may see it. */
 export function gateSimulationMarks<
   T extends {

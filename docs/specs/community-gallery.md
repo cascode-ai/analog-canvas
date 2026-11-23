@@ -104,7 +104,10 @@ entries, keyset cursor, limit ≤60.
   `tags=a,b` (ANY), `netlistable=0|1`,
   `ai=1|0|dataset` (the AI mark; community circuits without it; reference
   datasets' circuits), `reference=0` (no reference image from its author; not
-  offered on a dataset's wall), `liked=1` (signed out selects none),
+  offered on a dataset's wall), `sim=1` (the Sim mark; honored only for a
+  viewer who sees every mark, so before `publicFrom` only for an Owner
+  account, else ignored; not offered on a dataset's wall), `liked=1` (signed
+  out selects none),
   `parts=0-5,…` (ANY taxonomy size; unknown narrows nothing), `q`, authorized
   `attention`/`reason`.
 - `order`: `newest` (default), `oldest`, `parts`/`fewest` (unknown counts
@@ -115,7 +118,8 @@ entries, keyset cursor, limit ≤60.
 - `filterCounts` gives each side (`netlistable`/`withoutNetlist`,
   `ai`/`human`/`datasets`), size (`componentRanges`) and reason
   (`attentionKinds`) with every other filter applied and its own left out, and
-  `liked`, `attention` and `withoutReference` over the wall as filtered; the
+  `liked`, `attention`, `withoutReference` and `sim` (only where `sim=1` is
+  honored) over the wall as filtered; the
   `authors` aggregate counts before pagination. Rejected and recycled entries
   never appear.
 - Entry fields: `previewRevision`, `previewWidth`/`previewHeight` (may be absent;

@@ -26,7 +26,10 @@ import {
   summaryOf,
   unwrapTags,
 } from "./gallery-store";
-import { SIMULATION_CHECK_PASSES } from "./gallery-store-simulation-checks";
+import {
+  SIMULATION_CHECK_PASSES,
+  SIMULATION_CHECK_PASSES_INDEXED,
+} from "./gallery-store-simulation-checks";
 import { fixersOf } from "./gallery-store-fixes";
 import { GalleryRevisionCache } from "./gallery-store-wall-cache";
 
@@ -212,6 +215,8 @@ function feedConditions(
     else if (body.withoutNetlist === true) conditions.push("e.netlistable = 0");
   }
   if (body.withoutReference === true) conditions.push(`NOT ${HAS_REFERENCE}`);
+  // The route asks it only for a viewer who sees every Sim mark.
+  if (body.sim === true) conditions.push(SIMULATION_CHECK_PASSES_INDEXED);
   if (options.ai !== false && (body.ai === "ai" || body.ai === "human"))
     conditions.push(`e.ai_generated = ${body.ai === "ai" ? 1 : 0}`);
   // A store holding none of the chosen kind (#1697) answers with none.
@@ -464,6 +469,8 @@ function statisticsKey(body: Record<string, unknown>): string {
           : "",
     ai: ["ai", "human", "none"].includes(String(body.ai)) ? body.ai : null,
     withoutReference: body.withoutReference === true,
+    sim: body.sim === true,
+    simCount: body.simCount === true,
     liked: body.liked === true,
     parts: requestedComponentRanges(body.parts).map((range) => range.key),
     search: normalizeGallerySearchText(requestedSearch(body) ?? ""),
@@ -484,11 +491,13 @@ function wallStatistics(sql: SqlStorage, body: Record<string, unknown>) {
       attention: number;
       liked: number;
       without_reference: number;
+      sim: number;
     }>(
       `SELECT COUNT(*) AS total,
          COUNT(CASE WHEN EXISTS (SELECT 1 FROM gallery_likes
            WHERE entry_id = e.id AND user_id = ?) THEN 1 END) AS liked,
          COUNT(CASE WHEN NOT ${HAS_REFERENCE} THEN 1 END) AS without_reference,
+         COUNT(CASE WHEN ${SIMULATION_CHECK_PASSES_INDEXED} THEN 1 END) AS sim,
          COUNT(CASE WHEN ? != '' AND (? = 1 OR e.owner_user_id = ?)
            AND ${NEEDS_ATTENTION} THEN 1 END) AS attention
        FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
@@ -511,6 +520,9 @@ function wallStatistics(sql: SqlStorage, body: Record<string, unknown>) {
       attention: Number(counts.attention),
       liked: Number(counts.liked),
       withoutReference: Number(counts.without_reference),
+      // Only for a viewer who sees every Sim mark: the count would tell how
+      // many pass to anyone else.
+      ...(body.simCount === true ? { sim: Number(counts.sim) } : {}),
       ...pairs,
       ...(attentionKinds ? { attentionKinds } : {}),
       componentRanges,

@@ -71,6 +71,14 @@ export function installSimulationChecks(sql: SqlStorage): void {
       folders_json TEXT NOT NULL DEFAULT '[]'
     )
   `);
+  // The passing verdicts alone, each with its id: the wall narrows and counts
+  // by the Sim mark off it (SIMULATION_CHECK_PASSES_INDEXED) instead of
+  // reading the verdict at the end of every row, past its Project and SVG.
+  sql.exec(`
+    CREATE INDEX IF NOT EXISTS idx_gallery_entries_simulation_pass
+    ON gallery_entries(id, simulation_check_json)
+    WHERE json_extract(simulation_check_json, '$.status') = 'pass'
+  `);
   sql.exec(`
     CREATE TRIGGER IF NOT EXISTS gallery_entries_simulation_check_stale
     AFTER UPDATE OF project_text, testbench_text ON gallery_entries
@@ -109,6 +117,16 @@ export function simulationCheckPasses(check: SimulationCheck | null): boolean {
 /** The same test in SQL, over an entry row `e`. */
 export const SIMULATION_CHECK_PASSES = `(json_extract(e.simulation_check_json, '$.status') = 'pass'
   AND json_extract(e.simulation_check_json, '$.rule') = ${SIMULATION_CHECK_RULE_VERSION})`;
+
+/**
+ * The same test off the passing verdicts' index, for the wall's filter and
+ * counts: they read the covering wall index alone, never an entry's row.
+ */
+export const SIMULATION_CHECK_PASSES_INDEXED = `EXISTS (SELECT 1 FROM gallery_entries s
+  INDEXED BY idx_gallery_entries_simulation_pass
+  WHERE s.id = e.id
+    AND json_extract(s.simulation_check_json, '$.status') = 'pass'
+    AND json_extract(s.simulation_check_json, '$.rule') = ${SIMULATION_CHECK_RULE_VERSION})`;
 
 /** What a check verifies: the stored Project Code and its testbench. */
 function contentDigest(row: ContentRow): string {
@@ -458,7 +476,10 @@ export function simulationCheckInput(
 ): Response {
   const row = writtenRow(sql, String(body.id));
   if (typeof row === "string")
-    return Response.json({ error: row }, { status: row === "wrong-writer" ? 409 : 404 });
+    return Response.json(
+      { error: row },
+      { status: row === "wrong-writer" ? 409 : 404 },
+    );
   return Response.json({
     id: row.id,
     name: row.name,

@@ -638,6 +638,8 @@ describe("GalleryQuickFilters", () => {
     withoutNetlistOnly: false,
     showWithoutReference: true,
     withoutReferenceOnly: false,
+    showSim: true,
+    simOnly: false,
     likedOnly: false,
     origins: [],
     selectedTags: [],
@@ -714,6 +716,13 @@ describe("GalleryQuickFilters", () => {
         ),
       ),
     ).not.toContain("gallery-filter-without-reference");
+    // The Sim mark, offered only where the Worker counts it.
+    expect(pressed("gallery-filter-sim")).toEqual([{ sim: true }]);
+    expect(
+      renderToStaticMarkup(
+        createElement(GalleryQuickFilters, props({ showSim: false })),
+      ),
+    ).not.toContain("gallery-filter-sim");
     expect(pressed("gallery-filter-human")).toEqual([{ ai: "human" }]);
     expect(pressed("gallery-filter-datasets")).toEqual([{ ai: "dataset" }]);
     expect(pressed("gallery-filter-ai")).toEqual([{ ai: null }]);
