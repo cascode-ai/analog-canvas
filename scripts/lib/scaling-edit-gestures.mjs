@@ -385,7 +385,8 @@ export async function measureEdit({
       }
       if (op === "box" || op === "groupCopy") {
         const a = await screen(world.x - 54, world.y - 49),
-          b = await screen(world.x + 239, world.y + 142);
+          // Four-digit reference labels extend beyond their device hit boxes.
+          b = await screen(world.x + 275, world.y + 142);
         await page.mouse.move(a.x, a.y);
         await page.mouse.down();
         await page.mouse.move(b.x, b.y, { steps: 3 });
