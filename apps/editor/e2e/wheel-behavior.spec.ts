@@ -262,15 +262,20 @@ test("arrow keys pan by one screen-space step, a wheel zooms and a trackpad pans
   await wheel(page, { deltaY: -4, wheelDeltaY: 120 });
   await expect.poll(() => width(page)).toBeLessThan(beforeWheel);
 
-  // The trackpad's 3:1 ratio pans instead, leaving the zoom untouched.
+  // A Mac mouse wheel with acceleration (3:1 ratio, one axis) zooms too.
+  const afterDetent = await width(page);
+  await wheel(page, { deltaY: -40, wheelDeltaY: 120 });
+  await expect.poll(() => width(page)).toBeLessThan(afterDetent);
+
+  // A two-axis trackpad swipe pans instead, leaving the zoom untouched.
   const afterWheel = await width(page);
-  await wheel(page, { deltaY: 40, wheelDeltaY: -120 });
+  await wheel(page, { deltaX: 3, deltaY: 40, wheelDeltaY: -120 });
   await expect.poll(() => width(page)).toBe(afterWheel);
 
   // An explicit choice wins over any evidence: the same trackpad
   // signature now zooms.
   await setScrollBehavior("zoom");
-  await wheel(page, { deltaY: -40, wheelDeltaY: 120 });
+  await wheel(page, { deltaX: -3, deltaY: -40, wheelDeltaY: 120 });
   await expect.poll(() => width(page)).toBeLessThan(afterWheel);
 
   // And a mouse detent pans once the person says the device is a surface.

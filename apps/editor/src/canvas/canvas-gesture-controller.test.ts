@@ -50,50 +50,30 @@ describe("classifyWheelSource", () => {
     ).toBe("mouse");
   });
 
-  it("reads the trackpad's fixed 3:1 ratio as a surface", () => {
-    // A precise surface keeps wheelDeltaY = -3 * deltaY, including where
-    // the product happens to land on a multiple of 120.
-    expect(
-      classifyWheelSource({
-        deltaMode: 0,
-        deltaX: 0,
-        deltaY: 40,
-        wheelDeltaY: -120,
-      }),
-    ).toBe("trackpad");
-    expect(
-      classifyWheelSource({
-        deltaMode: 0,
-        deltaX: 0,
-        deltaY: 7,
-        wheelDeltaY: -21,
-      }),
-    ).toBe("trackpad");
-  });
-
-  it("no longer reads a detent at another page zoom as a surface (#2169)", () => {
-    // Chromium at 90% and 75% page zoom: deltaY = 100 / zoom, wheelDeltaY
-    // derived from it at 1.2, so the detent is neither whole nor a multiple
-    // of 120 — the case that read as a trackpad and panned. "unknown" zooms
-    // unless a trackpad gesture is under way.
+  it("reads a Mac mouse wheel's accelerated deltas as no evidence of a surface", () => {
+    // Chromium on macOS: an accelerated wheel keeps wheelDeltaY = -3 * deltaY
+    // and sub-pixel deltaY, just as a trackpad does, so one axis decides
+    // nothing; "unknown" zooms unless a two-axis gesture is under way.
     for (const [deltaY, wheelDeltaY] of [
+      [40, -120],
+      [7, -21],
+      [4.000244140625, -12],
+      [0.33, -1],
       [111.11111, -133],
-      [133.33333, -160],
       [125, -150],
     ] as const)
       expect(
         classifyWheelSource({ deltaMode: 0, deltaX: 0, deltaY, wheelDeltaY }),
       ).toBe("unknown");
-    // Small momentum steps and two-axis swipes near that ratio stay a
-    // surface.
-    expect(
-      classifyWheelSource({
-        deltaMode: 0,
-        deltaX: 0,
-        deltaY: 0.33,
-        wheelDeltaY: -1,
-      }),
-    ).toBe("trackpad");
+    expect(classifyWheelSource({ deltaMode: 0, deltaX: 0, deltaY: 33.4 })).toBe(
+      "unknown",
+    );
+  });
+
+  it("reads two axes at once as a surface", () => {
+    expect(classifyWheelSource({ deltaMode: 0, deltaX: 4, deltaY: 12 })).toBe(
+      "trackpad",
+    );
     expect(
       classifyWheelSource({
         deltaMode: 0,
@@ -102,15 +82,6 @@ describe("classifyWheelSource", () => {
         wheelDeltaY: -5,
       }),
     ).toBe("trackpad");
-  });
-
-  it("reads two axes or sub-pixel precision as a surface", () => {
-    expect(classifyWheelSource({ deltaMode: 0, deltaX: 4, deltaY: 12 })).toBe(
-      "trackpad",
-    );
-    expect(classifyWheelSource({ deltaMode: 0, deltaX: 0, deltaY: 33.4 })).toBe(
-      "trackpad",
-    );
   });
 
   it("admits it cannot tell when the engine offers no evidence", () => {
