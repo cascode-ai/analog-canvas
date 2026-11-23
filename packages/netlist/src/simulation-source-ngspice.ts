@@ -57,7 +57,11 @@ import {
   type SimulationSourceDiagnostic,
   type SimulationSourceGraph,
 } from "./simulation-source-graph.js";
-import { resolveAuthoredCircuitScope } from "./simulation-source-scopes.js";
+import {
+  ngspiceCircuitScopes,
+  ngspiceScopeKey,
+  type AuthoredScope,
+} from "./simulation-source-scopes.js";
 import { nativeSourceCollection } from "./simulation-native-collection.js";
 import {
   ngspiceSimulationDevices,
@@ -529,26 +533,28 @@ export function compileNgspiceSourceSimulation(
     }
   }
   const capture = new Set<string>();
-  const scopes = new Map<
+  const bindingScopes = new Map<
     string,
-    ReturnType<typeof resolveAuthoredCircuitScope>
+    ReturnType<typeof ngspiceCircuitScopes>
   >();
+  const scopes = new Map<string, AuthoredScope>();
   const getScope = (
     binding: SimulationCircuitBinding,
     scope: SimulationCircuitScope,
   ) => {
-    const key = JSON.stringify([
-      binding.id,
-      scope.callPath.map((part) => part.toLowerCase()),
-    ]);
+    const key = ngspiceScopeKey(scope);
     let resolved = scopes.get(key);
     if (!resolved) {
-      resolved = resolveAuthoredCircuitScope(
-        graph,
-        binding,
-        plans.get(binding.id)!.circuit,
-        scope,
-      );
+      let index = bindingScopes.get(binding.id);
+      if (!index) {
+        index = ngspiceCircuitScopes(
+          graph,
+          binding,
+          plans.get(binding.id)!.circuit,
+        );
+        bindingScopes.set(binding.id, index);
+      }
+      resolved = index.resolve(scope);
       scopes.set(key, resolved);
       if (!resolved.ok) fail("SIMULATION_CALL_SCOPE", resolved.message);
     }

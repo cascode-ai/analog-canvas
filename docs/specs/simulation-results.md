@@ -32,7 +32,7 @@ owns receipts and artifacts. Exact shapes:
   probe→vector mapping is made at compile time, never inferred from results.
 - Vector spellings are exact identities: lookup, IDs, labels and CSV never
   case-fold (VACASK can return `Out` and `out`). Name normalization belongs to
-  the source adapter. Physical AC acquisitions stay complex with units even
+  the source adapter. ngspice authored call paths ignore case within the same binding. Physical AC acquisitions stay complex with units even
   when all imaginary parts are zero.
 
 ## Reading the rawfile

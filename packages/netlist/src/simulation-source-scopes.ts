@@ -10,7 +10,14 @@ import {
   type ResolvedAuthoredScope,
 } from "./authored-circuit-scopes.js";
 
-function scopes(
+export function ngspiceScopeKey(scope: SimulationCircuitScope): string {
+  return JSON.stringify([
+    scope.bindingId,
+    scope.callPath.map((name) => name.toLowerCase()),
+  ]);
+}
+
+export function ngspiceCircuitScopes(
   graph: SimulationSourceGraph,
   binding: SimulationCircuitBinding,
   circuit: DesignNetlistIR,
@@ -42,11 +49,16 @@ function scopes(
         conditional: conditionalDepth > 0,
       });
   }
-  return authoredCircuitScopes(events, binding, circuit, {
+  const scopes = authoredCircuitScopes(events, binding, circuit, {
     key: (name) => name.toLowerCase(),
     separator: ".",
     flatDefinitions: true,
   });
+  return {
+    list: scopes.list,
+    resolve: (scope: SimulationCircuitScope) =>
+      withNgspiceVectors(scopes.resolve(scope)),
+  };
 }
 
 /** Existing source adapter; traversal is shared with native VACASK. */
@@ -55,7 +67,7 @@ export function listAuthoredCircuitScopes(
   binding: SimulationCircuitBinding,
   circuit: DesignNetlistIR,
 ): SimulationCircuitScope[] {
-  return scopes(graph, binding, circuit).list();
+  return ngspiceCircuitScopes(graph, binding, circuit).list();
 }
 export type AuthoredScope =
   | Exclude<ResolvedAuthoredScope, { ok: true }>
@@ -69,7 +81,10 @@ export function resolveAuthoredCircuitScope(
   circuit: DesignNetlistIR,
   scope: SimulationCircuitScope,
 ): AuthoredScope {
-  const resolved = scopes(graph, binding, circuit).resolve(scope);
+  return ngspiceCircuitScopes(graph, binding, circuit).resolve(scope);
+}
+
+function withNgspiceVectors(resolved: ResolvedAuthoredScope): AuthoredScope {
   if (!resolved.ok) return resolved;
   return {
     ...resolved,
