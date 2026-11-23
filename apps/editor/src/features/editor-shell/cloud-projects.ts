@@ -2,6 +2,7 @@ import { ACCOUNT_CHANGED_EVENT } from "../../components/account";
 import type { CircuitProject } from "@icm/model";
 import {
   createIndependentProject,
+  ProjectWriterNotActiveError,
   parseProject,
   serializeCompactProject,
 } from "@icm/project-protocol";
@@ -163,6 +164,8 @@ export async function saveCloudProject(
       },
     );
   } catch (error) {
+    if (error instanceof ProjectWriterNotActiveError)
+      return { status: "rejected", message: error.message };
     if (creation) creation.state = "ambiguous";
     return {
       status: "unreachable",
@@ -197,7 +200,9 @@ export async function saveCloudProject(
     // refusal cannot disprove that an earlier ambiguous request committed.
     creation.state =
       [400, 401, 403, 404, 413, 429].includes(response.status) ||
-      (response.status === 409 && payload?.error === "project-limit")
+      (response.status === 409 &&
+        (payload?.error === "project-limit" ||
+          payload?.error === "project-format-not-active"))
         ? "rejected"
         : "ambiguous";
   }
@@ -211,6 +216,11 @@ export async function saveCloudProject(
           message: "Cloud Project service is unavailable (404)",
         };
   }
+  if (response.status === 409 && payload?.error === "project-format-not-active")
+    return {
+      status: "rejected",
+      message: new ProjectWriterNotActiveError().message,
+    };
   if (response.status === 409 && payload?.error === "revision-conflict") {
     return returnedProject
       ? { status: "conflict", project: returnedProject }

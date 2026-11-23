@@ -7,6 +7,29 @@ disabled in Production. [Regional login](regional-login.md) supplies sessions
 and identity lookup. Gallery, User Components, Arena and simulation are separate
 deliveries under the [regional roadmap](china-regional-identity-sync.md).
 
+## Project file releases
+
+The Project protocol records the newest file it can read and the version it
+writes in `packages/project-protocol/src/file-format.json`. Land the decoder,
+migration and old-format writer first. Keep new-format authoring disabled.
+Once that release is verified in both regions, advance the writer and enable
+the feature. Other merges continue to follow the usual release workflow.
+
+The deployment checks the exact overseas release served by the fixed origin.
+A writer advance additionally requires that release's matching CI receipt and
+a smoke-verified Hangzhou reader. If a region is still catching up, rerun the
+release once its reader is installed. A missed reader-only release must be
+shipped before the writer. Roll back application changes using a release that
+retains the installed format capabilities. Automatic recovery of a failed
+writer activation can use the preceding reader because it already reads every
+format the candidate could have written.
+
+During the transition each region can save Projects in its active format.
+Replication preserves the other region's current and historical bytes. An
+edit requiring fields the local writer cannot retain is refused before a
+revision or journal event is created. Keep the draft and retry after that
+region's writer activates.
+
 ## Rules
 
 - A participating store preserves existing Project and owner IDs. Browser

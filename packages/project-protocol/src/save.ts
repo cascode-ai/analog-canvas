@@ -1,8 +1,24 @@
 import { withProjectComponentDefinitions } from "@icm/symbols";
 import type { CircuitProject } from "@icm/model";
 
-import { validateProjectReadSnapshot } from "./load.js";
-import { encodeProjectFile } from "./owned-project-file.js";
+import {
+  tryParseProjectWithMetadata,
+  validateProjectReadSnapshot,
+} from "./load.js";
+import {
+  CURRENT_PROJECT_FILE_VERSION,
+  MAX_READABLE_PROJECT_FILE_VERSION,
+  encodeProjectFile,
+} from "./owned-project-file.js";
+
+export class ProjectWriterNotActiveError extends Error {
+  constructor() {
+    super(
+      "This Project needs a newer writer. Keep your draft and retry after the regional update.",
+    );
+    this.name = "ProjectWriterNotActiveError";
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -83,14 +99,39 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
-function orderedProjectFile(project: CircuitProject): unknown {
+function normalizedFile(
+  project: CircuitProject,
+  version = CURRENT_PROJECT_FILE_VERSION,
+): unknown {
   return sortKeys(
     encodeProjectFile(
       validateProjectReadSnapshot(
         withProjectComponentDefinitions(validateProjectReadSnapshot(project)),
       ),
+      version,
     ),
   );
+}
+
+function orderedProjectFile(project: CircuitProject): unknown {
+  const file = normalizedFile(project);
+  if (MAX_READABLE_PROJECT_FILE_VERSION > CURRENT_PROJECT_FILE_VERSION) {
+    // During a staged release a newer feature may arrive through replication
+    // or an updated editor. Never stamp it with a format that cannot retain it.
+    const text = JSON.stringify(file);
+    const reopened = tryParseProjectWithMetadata(text);
+    if (
+      !reopened.ok ||
+      JSON.stringify(
+        normalizedFile(reopened.project, MAX_READABLE_PROJECT_FILE_VERSION),
+      ) !==
+        JSON.stringify(
+          normalizedFile(project, MAX_READABLE_PROJECT_FILE_VERSION),
+        )
+    )
+      throw new ProjectWriterNotActiveError();
+  }
+  return file;
 }
 
 export function serializeProject(project: CircuitProject): string {

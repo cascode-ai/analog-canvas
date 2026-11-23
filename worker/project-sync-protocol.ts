@@ -1,6 +1,6 @@
 import {
   parseProject,
-  CURRENT_PROJECT_FILE_VERSION,
+  MAX_READABLE_PROJECT_FILE_VERSION,
   OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION,
 } from "@icm/project-protocol";
 import { StableIdSchema } from "@icm/model";
@@ -57,7 +57,7 @@ function document(
     !value.name.trim() ||
     value.name.length > 120 ||
     !positive(value.schema_version) ||
-    Number(value.schema_version) > CURRENT_PROJECT_FILE_VERSION ||
+    Number(value.schema_version) > MAX_READABLE_PROJECT_FILE_VERSION ||
     typeof value.project_text !== "string" ||
     new TextEncoder().encode(value.project_text).length >
       GALLERY_MAX_PROJECT_BYTES ||
@@ -70,7 +70,7 @@ function document(
   } catch {
     if (
       !retainedVersion ||
-      value.schema_version >= CURRENT_PROJECT_FILE_VERSION ||
+      value.schema_version >= MAX_READABLE_PROJECT_FILE_VERSION ||
       value.schema_version < OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION
     )
       return false;
