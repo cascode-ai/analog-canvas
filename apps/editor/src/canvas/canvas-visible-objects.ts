@@ -82,7 +82,24 @@ interface DrawingInputs {
   styleProfile: SchematicStyleProfile;
 }
 
-function drawingIndex(
+// A spatial query returns drawing order within its buckets. Marquee selection
+// preserves the original model order, including conservative always-candidates.
+function orderedObjects<T>(objects: readonly T[], id: (object: T) => string) {
+  const byId = new Map(
+    objects.map((object, order) => [id(object), { object, order }]),
+  );
+  return (ids: ReadonlySet<string>) => {
+    if (ids.size === 0) return [];
+    const found = [];
+    for (const key of ids) {
+      const value = byId.get(key);
+      if (value) found.push(value);
+    }
+    return found.sort((a, b) => a.order - b.order).map((item) => item.object);
+  };
+}
+
+export function createCanvasDrawingQueries(
   { document, resolver, routeGeometryRecords, styleProfile }: DrawingInputs,
   endpoints: readonly WireSource[],
 ) {
@@ -172,11 +189,15 @@ function drawingIndex(
   }
   for (const { route, geometry: routeGeometry } of routeGeometryRecords) {
     for (const { from, to } of routeGeometry.segments) {
+      // Enclose fractional pins on both inclusive edges. Reconstructing an
+      // exact maximum as min + abs(delta) can round just inside the endpoint.
+      const x = Math.floor(Math.min(from.x, to.x));
+      const y = Math.floor(Math.min(from.y, to.y));
       add(route.id, {
-        x: Math.min(from.x, to.x),
-        y: Math.min(from.y, to.y),
-        width: Math.abs(to.x - from.x),
-        height: Math.abs(to.y - from.y),
+        x,
+        y,
+        width: Math.ceil(Math.max(from.x, to.x)) - x,
+        height: Math.ceil(Math.max(from.y, to.y)) - y,
       });
     }
   }
@@ -221,7 +242,7 @@ function drawingIndex(
   );
   const family =
     SCHEMATIC_TEXT_FACE_FAMILIES[styleProfile.typography.face ?? "metropolis"];
-  return (bounds: Rect) => {
+  const visibleIds = (bounds: Rect) => {
     const visible = new Set([...always, ...index.queryBounds(bounds)]);
     if (labelsByFace.size) {
       // Web fonts use swap. Until the actual face loads, the OS can choose
@@ -239,7 +260,60 @@ function drawingIndex(
     }
     return visible;
   };
+  // Rendering uses the currently active terminal tool. A marquee uses every
+  // model Junction, even when the tool supplied no pickable endpoints.
+  function prepareSelection() {
+    const junctionIndex = buildBoundsSpatialIndex(
+      document.junctions.map((junction) => ({
+        value: junction,
+        bounds: { ...junction.position, width: 0, height: 0 },
+      })),
+      Math.max(80, document.presentation.grid * 8),
+    );
+    const instances = orderedObjects(document.instances, (item) => item.id);
+    const routes = orderedObjects(
+      routeGeometryRecords,
+      (item) => item.route.id,
+    );
+    const annotations = orderedObjects(document.annotations, (item) => item.id);
+    const drafting = orderedObjects(
+      document.drafting?.objects ?? [],
+      (item) => item.id,
+    );
+    const unbounded = new Set(always);
+    // Net-label picking combines the reserved advance with the ink ascent.
+    // That mixed rectangle can extend beyond either painted box at its corners.
+    for (const annotation of document.annotations) {
+      if (annotation.kind === "net-label") unbounded.add(annotation.id);
+    }
+    for (const record of routeGeometryRecords) {
+      if (!record.geometry.segments.length) unbounded.add(record.route.id);
+    }
+    return (bounds: Rect) => {
+      const ids = new Set([...unbounded, ...index.queryBounds(bounds)]);
+      return {
+        instances: instances(ids),
+        routeGeometryRecords: routes(ids),
+        annotations: annotations(ids),
+        drafting: drafting(ids),
+        junctions: junctionIndex.queryBounds(bounds),
+      };
+    };
+  }
+  let selection: ReturnType<typeof prepareSelection> | undefined;
+  return {
+    document,
+    resolver,
+    routeGeometryRecords,
+    styleProfile,
+    visibleIds,
+    marquee: (bounds: Rect) => (selection ??= prepareSelection())(bounds),
+  };
 }
+
+export type CanvasDrawingQueries = ReturnType<
+  typeof createCanvasDrawingQueries
+>;
 
 export function useCanvasVisibleObjects(
   inputs: DrawingInputs,
@@ -248,18 +322,26 @@ export function useCanvasVisibleObjects(
   svg: RefObject<SVGSVGElement | null>,
   retained: ReadonlySet<string>,
   endpointHitRadius: number,
+  queriesRef?: RefObject<CanvasDrawingQueries | null>,
 ) {
   const { document, resolver, routeGeometryRecords, styleProfile } = inputs;
   const index = useMemo(
     () =>
       usesCanvasViewport(document)
-        ? drawingIndex(
+        ? createCanvasDrawingQueries(
             { document, resolver, routeGeometryRecords, styleProfile },
             endpoints,
           )
         : null,
     [document, resolver, routeGeometryRecords, styleProfile, endpoints],
   );
+  useLayoutEffect(() => {
+    if (!queriesRef) return;
+    queriesRef.current = index;
+    return () => {
+      queriesRef.current = null;
+    };
+  }, [index, queriesRef]);
   const [coverage, setCoverage] = useState<Rect | null>(null);
   const previous = useRef<Rect | null>(null);
   useLayoutEffect(() => {
@@ -304,7 +386,7 @@ export function useCanvasVisibleObjects(
     return runtime.observeViewport(update);
   }, [index, runtime, svg, endpointHitRadius]);
   const inWindow = useMemo(
-    () => (index && coverage ? index(coverage) : null),
+    () => (index && coverage ? index.visibleIds(coverage) : null),
     [index, coverage],
   );
   const visible = useMemo(

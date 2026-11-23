@@ -33,6 +33,16 @@ import {
   type SelectionPolicy,
 } from "./selection-filter";
 
+export interface MarqueeCandidates {
+  instances: readonly SchematicDocument["instances"][number][];
+  junctions: readonly SchematicDocument["junctions"][number][];
+  annotations: readonly SchematicDocument["annotations"][number][];
+  drafting: readonly NonNullable<
+    SchematicDocument["drafting"]
+  >["objects"][number][];
+  routeGeometryRecords: readonly RouteGeometryRecord[];
+}
+
 /**
  * Classic drafting-tool marquee semantics: dragging left-to-right is a
  * `window` (an object is selected only when fully contained), dragging
@@ -66,6 +76,7 @@ export function marqueeSelection(
     DocumentDerivedContext,
     "routingGeometry" | "logicalNetResolution"
   >,
+  candidates?: MarqueeCandidates,
 ): VisualSelection {
   const window = mode === "window";
   const boxSelected = (bounds: Rect): boolean =>
@@ -79,7 +90,7 @@ export function marqueeSelection(
 
   return {
     instanceIds: (policy.allowsClass("instance", "select")
-      ? document.instances
+      ? (candidates?.instances ?? document.instances)
       : []
     )
       .filter((instance) => {
@@ -95,7 +106,7 @@ export function marqueeSelection(
       })
       .map((instance) => instance.id),
     routeIds: (policy.allowsClass("route", "select")
-      ? routeGeometryRecords
+      ? (candidates?.routeGeometryRecords ?? routeGeometryRecords)
       : []
     )
       .filter(
@@ -107,7 +118,7 @@ export function marqueeSelection(
       )
       .map(({ route }) => route.id),
     junctionIds: (policy.allowsClass("junction", "select")
-      ? document.junctions
+      ? (candidates?.junctions ?? document.junctions)
       : []
     )
       .filter(
@@ -118,7 +129,7 @@ export function marqueeSelection(
           ) && pointInRect(junction.position, rect),
       )
       .map((junction) => junction.id),
-    annotationIds: document.annotations
+    annotationIds: (candidates?.annotations ?? document.annotations)
       .filter(
         (annotation) =>
           policy.allowsAnnotation(annotation, "select") &&
@@ -142,7 +153,7 @@ export function marqueeSelection(
           ),
       )
       .map((annotation) => annotation.id),
-    draftingIds: (document.drafting?.objects ?? [])
+    draftingIds: (candidates?.drafting ?? document.drafting?.objects ?? [])
       .filter((object) => {
         if (!policy.allowsDrafting(object, "select")) return false;
         const geometry = resolveDraftingObjectGeometry(

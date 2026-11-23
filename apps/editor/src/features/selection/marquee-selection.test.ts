@@ -16,6 +16,7 @@ import {
   type RouteGeometryRecord,
 } from "../wiring/route-interaction-geometry";
 import { marqueeMode, marqueeSelection } from "./marquee-selection";
+import { createCanvasDrawingQueries } from "../../canvas/canvas-visible-objects";
 import { createSelectionPolicy, NO_SELECTION_FILTER } from "./selection-filter";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -29,6 +30,75 @@ function grow(rect: Rect, margin: number): Rect {
     height: rect.height + margin * 2,
   };
 }
+
+it("uses world-space candidates while preserving exact window and crossing selections", () => {
+  const { document, records, instanceBounds, labelBounds } = fixture();
+  const queries = createCanvasDrawingQueries(
+    { document, resolver, routeGeometryRecords: records, styleProfile },
+    [],
+  );
+  for (const rect of [
+    instanceBounds,
+    labelBounds,
+    { x: -10, y: -10, width: 45, height: 30 },
+    { x: -1000, y: -1000, width: 3000, height: 3000 },
+  ]) {
+    const candidates = queries.marquee(rect);
+    for (const mode of ["window", "crossing"] as const) {
+      const full = marqueeSelection(
+        document,
+        resolver,
+        records,
+        styleProfile,
+        rect,
+        mode,
+      );
+      expect(
+        marqueeSelection(
+          document,
+          resolver,
+          records,
+          styleProfile,
+          rect,
+          mode,
+          undefined,
+          undefined,
+          candidates,
+        ),
+      ).toEqual(full);
+    }
+  }
+  const empty = queries.marquee({ x: 100000, y: 100000, width: 5, height: 5 });
+  expect(empty.routeGeometryRecords).toHaveLength(0);
+  expect(empty.junctions).toHaveLength(0);
+});
+
+it("keeps a fractional Route endpoint on a crossing window's edge", () => {
+  const { document } = fixture();
+  document.junctions[0]!.position = { x: -10, y: 0 };
+  document.junctions[1]!.position = { x: 0.1, y: 0 };
+  const route = document.routes[0]!;
+  const geometry = resolveRouteGeometry(document, resolver, route)!;
+  const records = [{ route, geometry }];
+  const queries = createCanvasDrawingQueries(
+    { document, resolver, routeGeometryRecords: records, styleProfile },
+    [],
+  );
+  const rect = { x: 0.1, y: -1, width: 1, height: 2 };
+  expect(
+    marqueeSelection(
+      document,
+      resolver,
+      records,
+      styleProfile,
+      rect,
+      "crossing",
+      undefined,
+      undefined,
+      queries.marquee(rect),
+    ).routeIds,
+  ).toContain(route.id);
+});
 
 function fixture(): {
   document: SchematicDocument;
