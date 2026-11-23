@@ -288,9 +288,15 @@ export function validateRoute(
   resolver: SymbolResolver,
   resolvedPath?: ReturnType<typeof resolveRouteEditPath>,
   membership: "committed" | "pending" = "committed",
-  lookup?: EndpointObjectLookup,
+  lookup?: EndpointObjectLookup & {
+    readonly netsById?: ReadonlyMap<string, SchematicDocument["nets"][number]>;
+  },
 ): string | null {
-  const net = document.nets.find((candidate) => candidate.id === route.netId);
+  const findNet = (id: string) =>
+    lookup?.netsById
+      ? lookup.netsById.get(id)
+      : document.nets.find((candidate) => candidate.id === id);
+  const net = findNet(route.netId);
   if (membership === "committed" && !net)
     return `Route net does not exist: ${route.netId}`;
   if (
@@ -302,9 +308,7 @@ export function validateRoute(
   }
   const end = routeEnd(route);
   for (const edge of routeElectricalConnections(route)) {
-    const memberNet = document.nets.find(
-      (candidate) => candidate.id === edge.netId,
-    );
+    const memberNet = edge.netId === route.netId ? net : findNet(edge.netId);
     for (const endpoint of edge.endpoints) {
       const problem = validateConnectableEndpoint(
         document,

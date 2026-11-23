@@ -19,7 +19,7 @@ export interface PreparedTransaction {
 }
 
 interface Preparation {
-  source: string;
+  source: string | SchematicDocument;
   edits: string;
   symbols: readonly (readonly [string, string | undefined])[];
   context: string;
@@ -105,7 +105,7 @@ export function prepareTransaction(
     );
   const owned = freezeSnapshot(detached);
   preparations.set(prepared, {
-    source: JSON.stringify(document),
+    source: isFrozenSnapshot(document) ? document : JSON.stringify(document),
     edits: JSON.stringify(transaction.edits),
     symbols,
     context: executionContextKey(context, symbols),
@@ -126,7 +126,15 @@ export function reusePreparedTransaction(
   transaction: EditTransaction,
   context: EditExecutionContext,
 ): AppliedTransaction | undefined {
-  let source: string | undefined;
+  let sourceContent: string | undefined;
+  function matchesSource(source: Preparation["source"]): boolean {
+    // Only an engine-owned immutable source is stored by identity. Equivalent
+    // independently loaded documents and mutable inputs retain content checks.
+    if (source === document) return true;
+    const expected =
+      typeof source === "string" ? source : JSON.stringify(source);
+    return expected === (sourceContent ??= JSON.stringify(document));
+  }
   let edits: string | undefined;
   const latest = latestPreparation.get(document);
   const candidates = context.preparedTransactions ?? (latest ? [latest] : []);
@@ -140,7 +148,7 @@ export function reusePreparedTransaction(
       continue;
     if (
       preparation.edits !== (edits ??= JSON.stringify(transaction.edits)) ||
-      preparation.source !== (source ??= JSON.stringify(document)) ||
+      !matchesSource(preparation.source) ||
       preparation.context !== executionContextKey(context, preparation.symbols)
     )
       continue;
