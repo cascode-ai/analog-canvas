@@ -389,6 +389,7 @@ export function ShapesPanel({
                         }
                         onPointerDown={(event) =>
                           startCanvasDrag(event, {
+                            clickTile: event.currentTarget,
                             begin: () => beginTileDrag(symbol.id),
                             drop: (x, y) => onDropPlacement?.(x, y),
                             suppressClick,

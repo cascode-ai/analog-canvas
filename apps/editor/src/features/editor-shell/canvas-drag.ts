@@ -11,6 +11,8 @@ export function startCanvasDrag(
   gesture: {
     begin(): boolean | Promise<boolean>;
     drop(clientX: number, clientY: number): void;
+    /** Movement inside a Library tile still belongs to its pickup click. */
+    clickTile?: HTMLElement;
     /** Set while the click that ends a drag arrives, so it does not also act. */
     suppressClick: { current: boolean };
   },
@@ -27,7 +29,10 @@ export function startCanvasDrag(
     if (
       started ||
       Math.hypot(moveEvent.clientX - origin.x, moveEvent.clientY - origin.y) <
-        DRAG_THRESHOLD
+        DRAG_THRESHOLD ||
+      gesture.clickTile?.contains(
+        document.elementFromPoint(moveEvent.clientX, moveEvent.clientY),
+      )
     )
       return;
     started = gesture.begin();
