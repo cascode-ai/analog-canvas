@@ -1,0 +1,2 @@
+"POST:/api/track" $canvas_cn_geoip_country;
+"POST:/api/track/load" $canvas_cn_geoip_country;

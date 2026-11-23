@@ -5,8 +5,8 @@ Status: `accepted`
 Primary owner: first-party analytics and regional runtime. #2174.
 
 - Preserve the existing overseas AnalyticsDO identity, visitor cookie, public
-  response shapes and every existing page. Only the privacy notice's retention
-  explanation changes. A returning browser, not an account, is a visitor.
+  response shapes and every existing page. A visitor is identified by the
+  browser cookie.
 - Back up both current stores and verify isolated restores before enabling
   replication. Keep the overseas history in place. Imports never replace a
   live database or recompute the lifetime counter from surviving identities.
@@ -37,8 +37,10 @@ Primary owner: first-party analytics and regional runtime. #2174.
   or already-retired histories require explicit reconciliation before import.
 - Sync and migration endpoints require existing trusted peer or local admin
   credentials. Never expose visitor hashes publicly or put them in logs.
-- Unknown visitor locations remain unknown; the collector's server location
-  is not evidence of a visitor's country.
+- Resolve each page view and load report's country at collection from
+  Cloudflare request metadata or a client IP lookup at the trusted China public
+  entrance. Pass only the lookup's country code to analytics. Use `XX` for
+  requests without a valid country result.
 - Reverting program code must preserve the baseline, pending events, receipts,
   sequence and cached summary. After activation, do not deploy a version that
   cannot collect the durable stream; route new traffic to the authority first.

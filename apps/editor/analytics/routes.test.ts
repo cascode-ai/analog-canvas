@@ -218,7 +218,11 @@ describe("the visitor cookie", () => {
 });
 
 describe("page-load reports (#1581)", () => {
-  function report(body: unknown, headers: Record<string, string> = {}) {
+  function report(
+    body: unknown,
+    headers: Record<string, string> = {},
+    country = "cn",
+  ) {
     const request = new Request(`${SITE}${ANALYTICS_PAGE_LOAD_PATH}`, {
       method: "POST",
       headers: {
@@ -228,7 +232,7 @@ describe("page-load reports (#1581)", () => {
       },
       body: JSON.stringify(body),
     });
-    Object.defineProperty(request, "cf", { value: { country: "cn" } });
+    Object.defineProperty(request, "cf", { value: { country } });
     return request;
   }
 
@@ -246,6 +250,22 @@ describe("page-load reports (#1581)", () => {
     expect(response!.status).toBe(204);
     expect(response!.headers.getSetCookie()).toEqual([]);
     expect(recorded).toEqual([{ country: "CN", ttfb: 812, shown: 2411 }]);
+  });
+
+  it("uses the trusted regional country when the edge reports Unknown", async () => {
+    const recorded: unknown[] = [];
+    const env = {
+      ...analyticsEnv({}, (_input, init) => {
+        recorded.push(JSON.parse(String(init?.body)));
+      }),
+      regionalAnalyticsCountry: "JP",
+    };
+    const response = await routeAnalyticsRequest(
+      report({ t: 250, l: 750 }, {}, "XX"),
+      env,
+    );
+    expect(response!.status).toBe(204);
+    expect(recorded).toEqual([{ country: "JP", ttfb: 250, shown: 750 }]);
   });
 
   it("drops reports from browsers that ask not to be counted, bots and bad values", async () => {

@@ -28,6 +28,23 @@ function target(extra: Record<string, unknown> = {}) {
   };
 }
 
+function analyticsReport(
+  path: string,
+  body: object,
+  headers: Record<string, string>,
+): Request {
+  return new Request(origin + path, {
+    method: "POST",
+    headers: {
+      origin,
+      "content-type": "application/json",
+      "user-agent": "Mozilla/5.0 Firefox/150.0",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
 it("advertises the verified release archive from the regional editor origin", async () => {
   const response = await entry.fetch(
     new Request(`${origin}/api/agent/mcp-manifest.json`),
@@ -118,6 +135,96 @@ it("limits API floods by the proxy's address and ignores a client's own header",
       )
     ).status,
   ).toBe(200);
+});
+
+it("attributes regional page views and keeps a returning browser's first country", async () => {
+  const env = target();
+  const tracked = await entry.fetch(
+    analyticsReport(
+      "/api/track",
+      { p: "/editor" },
+      {
+        "x-real-ip": "198.51.100.7",
+        "x-canvas-analytics-country": "CN",
+      },
+    ),
+    env,
+  );
+  expect(tracked.status).toBe(200);
+  const cookie = tracked.headers.getSetCookie()[0]!.split(";")[0]!;
+  const returning = await entry.fetch(
+    analyticsReport(
+      "/api/track",
+      { p: "/editor" },
+      {
+        cookie,
+        "x-real-ip": "2001:db8::7",
+        "x-canvas-analytics-country": "JP",
+      },
+    ),
+    env,
+  );
+  expect(returning.status).toBe(200);
+
+  const summary = await entry.fetch(
+    new Request(`${origin}/api/analytics`),
+    env,
+  );
+  expect(await summary.json()).toMatchObject({
+    totals: { pv: 2, uv: 1 },
+    countries: [
+      { code: "CN", pv: 1, uv: 1 },
+      { code: "JP", pv: 1, uv: 0 },
+    ],
+  });
+});
+
+it("uses the regional proxy's country for page-load samples", async () => {
+  const env = target();
+  const tracked = await entry.fetch(
+    analyticsReport(
+      "/api/track/load",
+      { t: 250, l: 750 },
+      {
+        "x-real-ip": "2001:db8::7",
+        "x-canvas-analytics-country": "JP",
+      },
+    ),
+    env,
+  );
+  expect(tracked.status).toBe(204);
+
+  const summary = await entry.fetch(
+    new Request(`${origin}/api/analytics`),
+    env,
+  );
+  expect(await summary.json()).toMatchObject({
+    totals: { pv: 0, uv: 0 },
+    loadTimes: { countries: [{ code: "JP", n: 1 }] },
+  });
+});
+
+it("keeps visits without a valid proxy country in Unknown", async () => {
+  const env = target();
+  for (const headers of [
+    { "x-real-ip": "198.51.100.7" },
+    { "x-real-ip": "198.51.100.7", "x-canvas-analytics-country": "CN, JP" },
+    { "x-canvas-analytics-country": "JP" },
+  ] as Record<string, string>[]) {
+    const response = await entry.fetch(
+      analyticsReport("/api/track", { p: "/editor" }, headers),
+      env,
+    );
+    expect(response.status).toBe(200);
+  }
+
+  const summary = await entry.fetch(
+    new Request(`${origin}/api/analytics`),
+    env,
+  );
+  expect(await summary.json()).toMatchObject({
+    countries: [{ code: "XX", pv: 3, uv: 3 }],
+  });
 });
 
 it("runs Production's scheduled work only for the loopback timer's credential", async () => {

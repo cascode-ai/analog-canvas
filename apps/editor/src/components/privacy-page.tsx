@@ -13,7 +13,7 @@ import {
 } from "./site-resource-links";
 
 /** When the notice last changed; update it with the text. */
-export const PRIVACY_UPDATED = "25 October 2026";
+export const PRIVACY_UPDATED = "23 November 2026";
 
 /**
  * Every cookie the site sets. All but `canvas_vid` belong to a feature you
@@ -158,13 +158,13 @@ export function PrivacyPage() {
 
         <h2>Visit statistics</h2>
         <p>
-          For each page view the site records the page, your country and an
-          approximate location (to about 100 km, from Cloudflare&rsquo;s
-          network), and where the visit came from: a search engine, another
-          website, or a campaign tag. It also records how long the page took to
-          load (when its first byte arrived and when it was shown), kept only as
-          counts per day and country, without the cookie below or any other way
-          to tell visitors apart.
+          For each page view the site records the page, the country estimated
+          from your IP address, and where the visit came from, such as a search
+          engine, another website, or a campaign tag. When Cloudflare provides
+          location data, the site records it to about 100 km. The site also
+          records how long the page took to load (when its first byte arrived
+          and when it was shown), kept only as counts per day and country,
+          without the cookie below or any other way to tell visitors apart.
         </p>
         <p>
           To count a returning visitor only once, the site sets one cookie of
