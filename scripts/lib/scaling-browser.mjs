@@ -39,6 +39,7 @@ function installObserver() {
   for (const event of [
     "change",
     "keydown",
+    "pointermove",
     "pointerdown",
     "pointerup",
     "wheel",
@@ -70,6 +71,8 @@ function installObserver() {
         const inputCamera = svg()?.getAttribute("viewBox");
         const settled = () => {
           switch (target.goal) {
+            case "editResult":
+              return window.scalingEditSettled(target);
             case "camera":
               return svg()?.getAttribute("viewBox") !== target.before;
             case "fit":
@@ -159,6 +162,8 @@ function installObserver() {
                 camera: svg()?.getAttribute("viewBox"),
                 inputCamera,
                 point: target.goal === "open" ? current : null,
+                ...(target.goal === "editResult" &&
+                  Array.isArray(current) && { editWitness: current }),
               };
             }),
           );
@@ -181,6 +186,7 @@ function installObserver() {
               "y",
               "data-net-id",
               "transform",
+              ...(target.goal === "editResult" ? ["points", "d"] : []),
             ],
           });
         }
@@ -191,7 +197,7 @@ function installObserver() {
   }
 }
 
-async function openEditorPage(browser, url) {
+export async function openEditorPage(browser, url) {
   const context = await browser.newContext(browserContext);
   const errors = [];
   try {
@@ -208,7 +214,7 @@ async function openEditorPage(browser, url) {
   }
 }
 
-async function measured(page, event, goal, args, action) {
+export async function measured(page, event, goal, args, action) {
   await page.evaluate(
     (target) => {
       window.scalingResult = undefined;
@@ -269,7 +275,7 @@ async function loadFile(page, file) {
   await page.getByTestId("project-file").setInputFiles(file);
 }
 
-async function loadDrawing(page, file, name) {
+export async function loadDrawing(page, file, name) {
   await loadFile(page, file);
   await page.waitForFunction(
     (title) =>
@@ -280,7 +286,7 @@ async function loadDrawing(page, file, name) {
   await fitButton(page).click();
 }
 
-async function detail(page) {
+export async function detail(page) {
   const box = await canvas(page).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   for (let i = 0; i < 4; i++) {
