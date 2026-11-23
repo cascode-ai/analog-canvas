@@ -107,7 +107,126 @@ function electricalEqual(a: CircuitProject, b: CircuitProject) {
     expect(compareElectricalGraphs(left.graph, right.graph)).toBe("equal");
 }
 
+function nativeAmplifierProject() {
+  const source = createEmptyProject("source", "Source");
+  const document = source.documents[0]!;
+  const resistor = builtInSymbols.find((symbol) => symbol.id === "resistor")!;
+  const artwork = { ...resistor, id: "amp-artwork", name: "Amp artwork" };
+  const owner = {
+    id: "amp",
+    name: "AMP",
+    symbolId: artwork.id,
+    terminals: [
+      { id: "in", name: "IN", direction: "input" as const },
+      { id: "out", name: "OUT", direction: "output" as const },
+    ],
+    formalParameters: [],
+    interfaceStatus: "declared" as const,
+  };
+  source.externalSubcircuitDefinitions.push(owner);
+  source.componentDefinitions = [
+    {
+      symbol: artwork,
+      circuitBinding: {
+        definitionId: owner.id,
+        terminals: [
+          { terminalId: "in", pinName: "2" },
+          { terminalId: "out", pinName: "1" },
+        ],
+      },
+    },
+  ];
+  document.instances.push(
+    {
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    },
+    {
+      id: "X1",
+      reference: "X1",
+      symbolId: artwork.id,
+      placement: {
+        position: { x: 500, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      },
+      netlist: {
+        binding: { kind: "external-subcircuit", definitionId: owner.id },
+        parameters: {},
+      },
+    },
+  );
+  return source;
+}
+
 describe("portable system circuit clipboard", () => {
+  it.each([
+    { instanceIds: ["R1"], symbols: ["resistor"] },
+    { instanceIds: ["X1"], symbols: ["amp-artwork"] },
+    { instanceIds: ["R1", "X1"], symbols: ["amp-artwork", "resistor"] },
+  ])(
+    "pastes only the native dependencies selected by $instanceIds",
+    ({ instanceIds, symbols }) => {
+      const native = instanceIds.includes("X1");
+      const source = nativeAmplifierProject();
+      const document = source.documents[0]!;
+      const encoded = encodeCircuitClipboard(source, document, {
+        instanceIds,
+        draftingIds: [],
+        routeIds: [],
+        junctionIds: [],
+        annotationIds: [],
+      })!;
+      const fragment = decodeCircuitClipboard(encoded)!.context!;
+      expect(fragment.externalSubcircuitDefinitions).toHaveLength(
+        native ? 1 : 0,
+      );
+      expect(
+        fragment.componentDefinitions?.map((item) => item.symbol.id).sort(),
+      ).toEqual(symbols);
+      const pasted = paste(createEmptyProject("target", "Target"), encoded);
+      expect(pasted.documents[0]!.instances).toHaveLength(instanceIds.length);
+      expect(pasted.externalSubcircuitDefinitions).toHaveLength(native ? 1 : 0);
+      if (native) {
+        const importedOwner = pasted.externalSubcircuitDefinitions[0]!;
+        const instance = pasted.documents[0]!.instances.find(
+          (item) => item.netlist?.binding?.kind === "external-subcircuit",
+        )!;
+        expect(instance.netlist?.binding).toMatchObject({
+          definitionId: importedOwner.id,
+        });
+        const component = pasted.componentDefinitions!.find(
+          (item) => item.symbol.id === instance.symbolId,
+        );
+        expect(component?.symbol.name).toBe("Amp artwork");
+        expect(component?.circuitBinding?.definitionId).toBe(importedOwner.id);
+        const mappings = component!.circuitBinding!.terminals.map(
+          (mapping) => ({
+            pin: "pinName" in mapping ? mapping.pinName : undefined,
+            port: importedOwner.terminals.find(
+              (port) => port.id === mapping.terminalId,
+            )?.name,
+          }),
+        );
+        expect(mappings).toEqual([
+          { pin: "2", port: "IN" },
+          { pin: "1", port: "OUT" },
+        ]);
+      } else {
+        const duplicated = paste(source, encoded);
+        expect(
+          duplicated.documents[0]!.instances.map(
+            (item) => item.reference,
+          ).sort(),
+        ).toEqual(["R1", "R2", "X1"]);
+        expect(duplicated.externalSubcircuitDefinitions).toEqual(
+          source.externalSubcircuitDefinitions,
+        );
+      }
+    },
+  );
   it("keeps a copied conductor in front of the same opaque body", () => {
     const source = createEmptyProject("wires-over-body", "Wires over body");
     const document = source.documents[0]!;
