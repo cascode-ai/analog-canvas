@@ -3,8 +3,8 @@ import { analyzeDesignNetlist, SIMULATION_DECK_GROUND } from "./extract.js";
 import type { DesignNetlistCell } from "./ir.js";
 import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
 import {
-  listAuthoredCircuitScopes,
-  resolveAuthoredCircuitScope,
+  ngspiceCircuitScopes,
+  ngspiceScopeKey,
 } from "./simulation-source-scopes.js";
 
 export interface NgspiceSignalTarget {
@@ -33,6 +33,7 @@ export function ngspiceSignals(
   input: SimulationSourceInput,
   selectedScope?: import("@icm/model").SimulationCircuitScope,
 ): Record<string, { label: string; targets: NgspiceSignalTarget[] }> {
+  const requested = selectedScope && ngspiceScopeKey(selectedScope);
   const graph = inspectSimulationSourceGraph(input);
   const authoredNetIds = new Map(
     project.documents.map((document) => [
@@ -53,15 +54,10 @@ export function ngspiceSignals(
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);
     if (!root) continue;
-    for (const scope of listAuthoredCircuitScopes(graph, binding, ir)) {
-      if (
-        selectedScope &&
-        (selectedScope.bindingId !== scope.bindingId ||
-          JSON.stringify(selectedScope.callPath) !==
-            JSON.stringify(scope.callPath))
-      )
-        continue;
-      const resolved = resolveAuthoredCircuitScope(graph, binding, ir, scope);
+    const scopes = ngspiceCircuitScopes(graph, binding, ir);
+    for (const scope of scopes.list()) {
+      if (requested && requested !== ngspiceScopeKey(scope)) continue;
+      const resolved = scopes.resolve(scope);
       if (!resolved.ok) continue;
       const qualify = resolved.node;
       let visits = 0;

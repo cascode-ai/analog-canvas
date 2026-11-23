@@ -32,6 +32,7 @@ import {
   migrateSimulationConfigToNative,
   vacaskIdentifier,
   nativeVoltageSelectorNode,
+  ngspiceScopeKey,
   ngspiceSignals,
   ngspiceAcquisitionEdit,
   ngspiceSimulationDevices,
@@ -421,9 +422,12 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
             item.instanceId === expression.instanceId &&
             JSON.stringify(item.occurrence) ===
               JSON.stringify(expression.occurrence) &&
-            item.circuit.bindingId === expression.circuit.bindingId &&
-            JSON.stringify(item.circuit.callPath) ===
-              JSON.stringify(expression.circuit.callPath),
+            (engine === "ngspice"
+              ? ngspiceScopeKey(item.circuit) ===
+                ngspiceScopeKey(expression.circuit)
+              : item.circuit.bindingId === expression.circuit.bindingId &&
+                JSON.stringify(item.circuit.callPath) ===
+                  JSON.stringify(expression.circuit.callPath)),
         );
         const result = device
           ? engine === "ngspice"

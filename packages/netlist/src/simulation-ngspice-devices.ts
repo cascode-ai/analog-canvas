@@ -8,10 +8,7 @@ import { mosBulkKind } from "@icm/derived";
 import { analyzeDesignNetlist, SIMULATION_DECK_GROUND } from "./extract.js";
 import type { DesignNetlistCell, DesignNetlistInstance } from "./ir.js";
 import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
-import {
-  listAuthoredCircuitScopes,
-  resolveAuthoredCircuitScope,
-} from "./simulation-source-scopes.js";
+import { ngspiceCircuitScopes } from "./simulation-source-scopes.js";
 
 export interface NativeSimulationDevice {
   documentId: string;
@@ -43,8 +40,9 @@ export function ngspiceSimulationDevices(
     if (!ir) continue;
     const root = ir.cells.find((cell) => cell.id === ir.topCellId);
     if (!root) continue;
-    for (const circuit of listAuthoredCircuitScopes(graph, binding, ir)) {
-      const resolved = resolveAuthoredCircuitScope(graph, binding, ir, circuit);
+    const scopes = ngspiceCircuitScopes(graph, binding, ir);
+    for (const circuit of scopes.list()) {
+      const resolved = scopes.resolve(circuit);
       if (!resolved.ok) continue;
       let visits = 0;
       function visit(
