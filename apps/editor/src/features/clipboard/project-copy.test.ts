@@ -2139,6 +2139,11 @@ describe("one Project copy path", () => {
       placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
       netlist: { parameters: {} },
     });
+    project.documents[0]!.instances.push({
+      ...project.documents[0]!.instances[0]!,
+      id: "other",
+      reference: "X3",
+    });
     const copied = place(
       project,
       captureProjectCopy(project, project.documents[0]!, selection(["delay"]))!,
@@ -2146,6 +2151,7 @@ describe("one Project copy path", () => {
     expect(copied.instances.map((item) => item.reference).sort()).toEqual([
       "X2",
       "X3",
+      "X4",
     ]);
   });
 

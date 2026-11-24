@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyDocument,
   createEmptyProject,
+  freezeSnapshot,
   type RichTextDocument,
 } from "@icm/model";
 
@@ -14,9 +15,61 @@ import {
   externalSubcircuitSymbolId,
   freeHierarchicalBlockOffsets,
   hierarchicalSymbolId,
+  projectCellSymbolTerminals,
 } from "./hierarchical-block.js";
 
 describe("hierarchical block formal terminals", () => {
+  it("reuses terminal artwork within an owned Cell and reads a replacement annotation at the same revision", () => {
+    const cell = createEmptyDocument("child", "Child");
+    cell.netlist = {
+      name: "child",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "in",
+          name: "IN",
+          direction: "input",
+          netId: "N1",
+          interfaceInstanceIds: [],
+        },
+      ],
+    };
+    const label = {
+      id: "label",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "N1" },
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    } as const;
+    let reads = 0;
+    cell.annotations.push({
+      ...label,
+      get binding() {
+        reads++;
+        return label.binding;
+      },
+    });
+    freezeSnapshot(cell);
+    const first = projectCellSymbolTerminals(cell);
+    reads = 0;
+    expect(projectCellSymbolTerminals(cell)).toEqual(first);
+    expect(reads).toBe(0);
+    const alias = { runs: [{ kind: "text" as const, value: "Clock" }] };
+    const edited = {
+      ...cell,
+      annotations: [
+        {
+          ...label,
+          kind: "instance-label" as const,
+          binding: { kind: "cell-terminal-name" as const, terminalId: "in" },
+          formatOverride: alias,
+        },
+      ],
+    };
+    expect(projectCellSymbolTerminals(edited)[0]?.nameContent).toEqual(alias);
+  });
   it("derives an unreferenced manual top before its first placement without persisting defaults", () => {
     const project = createEmptyProject("p", "Top", "dut");
     const before = JSON.stringify(project);

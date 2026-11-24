@@ -25,6 +25,7 @@ import type {
 import type { SymbolResolver } from "@icm/symbols";
 import {
   createRoutePath,
+  isFrozenSnapshot,
   controlledSourceExpressionDocument,
   controlledSourceExpressionSource,
   defaultControlledSourceExpression,
@@ -75,6 +76,70 @@ export interface PasteProposal {
 export const GRID_INCOMPATIBLE =
   "Source geometry is incompatible with target grid";
 
+const pasteIdsByCell = new WeakMap<
+  SchematicDocument,
+  {
+    occupied: ReadonlySet<string>;
+    occupiedRouteChildren: ReadonlySet<string>;
+  }
+>();
+
+function pasteTargetIds(document: SchematicDocument) {
+  const cached = pasteIdsByCell.get(document);
+  if (cached) return cached;
+  const occupied = new Set<string>();
+  for (const items of [
+    document.instances,
+    document.nets,
+    document.routes,
+    document.junctions,
+    document.noConnects,
+    document.annotations,
+    document.layoutGroups,
+    document.constraints,
+    document.connectivityEvidence,
+    document.inductorCouplings ?? [],
+    document.netlist?.terminals ?? [],
+    document.drafting?.objects ?? [],
+  ])
+    for (const object of items) occupied.add(object.id);
+  const occupiedRouteChildren = new Set(
+    document.routes.flatMap((route) =>
+      route.legs.flatMap((leg) => [
+        leg.id,
+        ...(leg.to.kind === "bend" ? [leg.to.bendId] : []),
+      ]),
+    ),
+  );
+  const ids = { occupied, occupiedRouteChildren };
+  if (isFrozenSnapshot(document)) pasteIdsByCell.set(document, ids);
+  return ids;
+}
+
+const targetReferences = new WeakMap<
+  SchematicDocument["instances"],
+  {
+    definitions: CircuitProject["componentDefinitions"] | undefined;
+    index: ReturnType<typeof createReferenceIndex>;
+  }
+>();
+
+function pasteReferenceIndex(
+  document: SchematicDocument,
+  project?: Pick<CircuitProject, "componentDefinitions">,
+) {
+  const definitions = project?.componentDefinitions;
+  const cached = targetReferences.get(document.instances);
+  if (cached && cached.definitions === definitions) return cached.index;
+  const index = createReferenceIndex(document, project);
+  if (
+    isFrozenSnapshot(document.instances) &&
+    (!definitions || isFrozenSnapshot(definitions))
+  )
+    targetReferences.set(document.instances, { definitions, index });
+  return index;
+}
+
 export function proposePaste(
   document: SchematicDocument,
   clipboard: SchematicClipboard,
@@ -89,30 +154,7 @@ export function proposePaste(
   const sameControlScope =
     clipboard.sourceDocumentId === document.id &&
     (clipboard.context ? clipboard.context.id === project?.id : !project);
-  const occupied = new Set<string>(
-    [
-      ...document.instances,
-      ...document.nets,
-      ...document.routes,
-      ...document.junctions,
-      ...document.noConnects,
-      ...document.annotations,
-      ...document.layoutGroups,
-      ...document.constraints,
-      ...document.connectivityEvidence,
-      ...(document.inductorCouplings ?? []),
-      ...(document.netlist?.terminals ?? []),
-      ...(document.drafting?.objects ?? []),
-    ].map((object) => object.id),
-  );
-  const occupiedRouteChildren = new Set(
-    document.routes.flatMap((route) =>
-      route.legs.flatMap((leg) => [
-        leg.id,
-        ...(leg.to.kind === "bend" ? [leg.to.bendId] : []),
-      ]),
-    ),
-  );
+  const { occupied, occupiedRouteChildren } = pasteTargetIds(document);
   const pasted = pastedIdentities(
     [
       ...clipboard.instances,
@@ -143,22 +185,22 @@ export function proposePaste(
     occupied,
     occupiedRouteChildren,
   );
-  for (const id of pasted.values()) occupied.add(id);
   const pastedId = (id: string) => pasted.get(id)!;
   let compositionOccurrenceId: string | undefined;
   if (clipboard.intent === "compose-document") {
     compositionOccurrenceId = `composition-${clipboard.sourceDocumentId}-${sequence}`;
-    for (let ordinal = 2; occupied.has(compositionOccurrenceId); ordinal += 1)
+    const newIds = new Set(pasted.values());
+    for (
+      let ordinal = 2;
+      occupied.has(compositionOccurrenceId) ||
+      newIds.has(compositionOccurrenceId);
+      ordinal += 1
+    )
       compositionOccurrenceId = `composition-${clipboard.sourceDocumentId}-${sequence}_${ordinal}`;
-    occupied.add(compositionOccurrenceId);
   }
-  const referenceIndex = createReferenceIndex(document, project);
+  const referenceIndex = pasteReferenceIndex(document, project);
   const reservedReferences = new Set<string>();
-  const occupiedReferences = new Set(
-    document.instances.flatMap((instance) =>
-      instance.reference ? [instance.reference.toLowerCase()] : [],
-    ),
-  );
+  const occupiedReferences = referenceIndex.byReference;
   const instanceReferences = new Map(
     (clipboard.intent === "compose-document"
       ? clipboard.instances
@@ -200,19 +242,21 @@ export function proposePaste(
   const freshInstances = new Map<string, Instance>();
   if (clipboard.intent === "clone-selection") {
     instanceReferences.clear();
-    const allocationDocument = {
-      ...document,
-      instances: [...document.instances],
-    };
     // A copy keeps its Reference wherever that name is still free, so a
     // circuit copied into another tab keeps R7 and XDUT, and what its
     // simulation setups call them. Only a taken name gets the next free one,
     // and names that can be kept are claimed before any is allocated.
-    const taken = new Set(occupiedReferences);
+    const taken = new Set<string>();
     const keptReferences = new Map<string, string>();
     for (const source of clipboard.instances) {
       const key = source.reference?.toLowerCase();
-      if (!source.reference || !key || taken.has(key)) continue;
+      if (
+        !source.reference ||
+        !key ||
+        occupiedReferences.has(key) ||
+        taken.has(key)
+      )
+        continue;
       taken.add(key);
       keptReferences.set(source.id, source.reference);
     }
@@ -222,7 +266,7 @@ export function proposePaste(
     ];
     for (const source of allocationOrder) {
       const policy = referencePolicyForInstance(source, project);
-      const instance = createNewInstance(allocationDocument, source, {
+      const instance = createNewInstance(document, source, {
         id: instanceIds.get(source.id)!,
         project,
         reference:
@@ -234,15 +278,14 @@ export function proposePaste(
             ? nextUnconstrainedReference(
                 source.reference,
                 sequence,
+                occupiedReferences,
                 taken,
-                new Set(),
               )
             : nextReference(referenceIndex, policy, {
                 reservedReferences: taken,
               })),
       });
       freshInstances.set(source.id, instance);
-      allocationDocument.instances.push(instance);
       if (instance.reference) {
         instanceReferences.set(source.id, instance.reference);
         taken.add(instance.reference.toLowerCase());

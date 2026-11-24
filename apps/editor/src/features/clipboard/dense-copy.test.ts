@@ -1,3 +1,5 @@
+import { freezeSnapshot } from "@icm/model";
+import { proposePaste } from "./paste-proposal";
 import { describe, expect, it } from "vitest";
 import { parseProject } from "@icm/project-protocol";
 import { deriveInternalGroupSelection } from "@icm/derived";
@@ -13,6 +15,63 @@ import {
 } from "./test-support/dense-copy-fixture";
 
 describe("dense copy workload", () => {
+  it("captures a tile without resolving the geometry of a remote Junction", () => {
+    const project = createDenseCopyPerformanceProject();
+    const document = project.documents[0]!;
+    const junction = document.junctions.at(-1)!;
+    const position = junction.position;
+    let reads = 0;
+    Object.defineProperty(junction, "position", {
+      get() {
+        reads += 1;
+        return position;
+      },
+    });
+
+    const copied = captureProjectCopy(project, document, {
+      instanceIds: [document.instances[0]!.id],
+      routeIds: [document.routes[0]!.id],
+      annotationIds: [],
+      junctionIds: [],
+      draftingIds: [],
+    });
+
+    expect(copied?.instances.map((item) => item.id)).toEqual(["R1"]);
+    expect(copied?.routes.map((item) => item.id)).toContain(
+      document.routes[0]!.id,
+    );
+    expect(reads).toBe(0);
+  });
+
+  it("copies different small selections and allocates their IDs without rereading distant routes on an owned Cell", () => {
+    const project = createDenseCopyPerformanceProject();
+    const document = project.documents[0]!;
+    const far = document.routes.at(-1)!;
+    const id = far.id;
+    let reads = 0;
+    Object.defineProperty(far, "id", {
+      get() {
+        reads++;
+        return id;
+      },
+    });
+    freezeSnapshot(project);
+    function copy(tile: number) {
+      const clipboard = captureProjectCopy(project, document, {
+        instanceIds: [document.instances[tile * 4]!.id],
+        routeIds: [document.routes[tile * 13]!.id],
+        annotationIds: [],
+        junctionIds: [],
+        draftingIds: [],
+      })!;
+      return proposePaste(document, clipboard, { x: 18000, y: 0 }, 1, project);
+    }
+    expect(copy(0).edits.length).toBeGreaterThan(0);
+    reads = 0;
+    expect(copy(1).edits.length).toBeGreaterThan(0);
+    expect(reads).toBe(0);
+  });
+
   it("copies routed MOS/label tiles as one undoable operation and repeats after undo", () => {
     const project = parseProject(
       JSON.stringify(createDenseCopyPerformanceProject()),

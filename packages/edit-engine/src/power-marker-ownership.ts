@@ -12,16 +12,18 @@ export function missingPowerMarkerClaims(
   document: SchematicDocument,
   options: { netId?: string; recoverImportedGround?: boolean } = {},
 ): ConnectivityEvidence[] {
-  const resolution = resolveDocumentLogicalNets(document);
+  let resolution: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
   const groundSources = new Set(
-    document.connectivityEvidence.flatMap((evidence) =>
-      evidence.kind === "name-claim" &&
-      evidence.owner.kind === "global-declaration" &&
-      evidence.name === "0" &&
-      evidence.scope === "global"
-        ? [evidence.owner.sourceNetId]
-        : [],
-    ),
+    options.recoverImportedGround
+      ? document.connectivityEvidence.flatMap((evidence) =>
+          evidence.kind === "name-claim" &&
+          evidence.owner.kind === "global-declaration" &&
+          evidence.name === "0" &&
+          evidence.scope === "global"
+            ? [evidence.owner.sourceNetId]
+            : [],
+        )
+      : [],
   );
   const claims: ConnectivityEvidence[] = [];
   for (const instance of document.instances) {
@@ -47,6 +49,7 @@ export function missingPowerMarkerClaims(
     if (nets.length !== 1) continue;
     const net = nets[0]!;
     if (options.netId && net.id !== options.netId) continue;
+    resolution ??= resolveDocumentLogicalNets(document);
     const logical = resolution.byBaseNetId.get(net.id)!;
     if (logical.conflicts.length > 0) continue;
     let name = logical.name;
