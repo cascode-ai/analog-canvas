@@ -41,6 +41,19 @@ export const hvtPfetQualification = JSON.parse(
     "utf8",
   ),
 );
+/**
+ * The 5 V gate-oxide MOS pair Gallery model sources call, at every corner:
+ * saturated OP currents and a 1 MHz AC transconductance.
+ */
+export const mos5vQualification = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../fixtures/simulation-acceptance/hosted-sky130-5v-mos-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 if (qualification.profileId !== profile.id) {
   throw new Error(
     `Qualification ${qualification.fixtureId} targets ${String(qualification.profileId)}, not Profile ${profile.id}.`,
@@ -55,6 +68,7 @@ const evidencedDevices = new Set([
   ...(qualification.devices ?? []),
   ...(extendedQualification.devices ?? []),
   ...(hvtPfetQualification.devices ?? []),
+  ...(mos5vQualification.devices ?? []),
 ]);
 if (
   evidencedDevices.size !== profile.qualifiedScope.devices.length ||
@@ -119,7 +133,7 @@ if (
   );
 }
 
-for (const fixture of [hvtPfetQualification]) {
+for (const fixture of [hvtPfetQualification, mos5vQualification]) {
   const corners = Object.keys(fixture.expectedCorners ?? {});
   if (
     fixture.profileId !== profile.id ||
@@ -314,6 +328,38 @@ export function hostedSky130HvtPfetRequest(corner) {
     ].join("\n"),
     timeoutMs: 110_000,
     inputRevision: `preview-sky130-hvt-pfet-${corner}`,
+    environment: { profileId: profile.id, corner },
+  };
+}
+
+export function hostedSky130Mos5vRequest(corner) {
+  return {
+    netlist: [
+      ".subckt mos_5v gn dn gp sp dp",
+      "XMN5 dn gn 0 0 sky130_fd_pr__nfet_g5v0d10v5 L=0.5 W=3",
+      "XMP5 dp gp sp sp sky130_fd_pr__pfet_g5v0d10v5 L=0.5 W=3",
+      ".ends mos_5v",
+    ].join("\n"),
+    testbench: [
+      "* 5 V MOS qualification",
+      "VGN5 gn 0 DC 2.5 AC 1",
+      "VDN5 dn 0 2.5",
+      "VGP5 gp 0 DC 2.5 AC 1",
+      "VSP5 sp 0 5",
+      "VDP5 dp 0 2.5",
+      "XDUT gn dn gp sp dp mos_5v",
+      ".control",
+      "set filetype=ascii",
+      "op",
+      "write out.raw i(vdn5) i(vsp5)",
+      "set appendwrite",
+      "ac lin 1 1meg 1meg",
+      "write out.raw i(vdn5) i(vsp5)",
+      ".endc",
+      ".end",
+    ].join("\n"),
+    timeoutMs: 110_000,
+    inputRevision: `preview-sky130-5v-mos-${corner}`,
     environment: { profileId: profile.id, corner },
   };
 }

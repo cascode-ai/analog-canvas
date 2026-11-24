@@ -13,6 +13,7 @@ import {
   runHostedSky130CornerAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
+  runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewDcSmoke,
@@ -30,6 +31,7 @@ export {
   hostedSky130CornerRequest,
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
+  hostedSky130Mos5vRequest,
   RC_TRAN_REQUEST,
   RESISTOR_NOISE_REQUEST,
 } from "./lib/preview-simulation-qualification.mjs";
@@ -43,6 +45,7 @@ export {
   validateHostedSky130CornerResult,
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
+  validateHostedSky130Mos5vResult,
   validateHostedSky130NoiseResult,
   validateHostedSky130Result,
   validateHostedSky130TransientResult,
@@ -52,6 +55,7 @@ export {
   runHostedSky130CornerAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
+  runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewDcSmoke,
@@ -180,6 +184,15 @@ async function main() {
       });
       console.log(
         `${target}: SKY130 ${hvt.corner.toUpperCase()} high-Vt PFET passed`,
+      );
+      const mos5v = await runHostedSky130Mos5vAcceptance({
+        baseUrl,
+        target,
+        corner,
+        fetchImpl,
+      });
+      console.log(
+        `${target}: SKY130 ${mos5v.corner.toUpperCase()} 5 V MOS passed`,
       );
     }
   }

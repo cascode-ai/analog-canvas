@@ -9,6 +9,11 @@ dependency identities from the selected Profile's capabilities (model-symbol
 information is tied to a dependency digest and section), and never infer a
 family from one accepted device.
 
+A device a Project model source calls must be in the Profile's qualified
+`devices`, else Prepare refuses it with `MODEL_SOURCE_PROFILE_CONFLICT`. Hosted
+SKY130 qualifies the 5 V `nfet_g5v0d10v5`/`pfet_g5v0d10v5` pair; the
+parameter-dropping NPN stays outside it.
+
 A Profile's `cellLibraries` declare the standard-cell libraries it defines and
 how a deck loads them. Hosted SKY130 ngspice offers `sky130_fd_sc_hd`: Prepare
 mounts and `.include`s the cell file after the models' `.lib`, and the cell is

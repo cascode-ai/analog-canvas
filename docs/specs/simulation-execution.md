@@ -140,11 +140,12 @@ type ModelLibrarySelection =
 - The harness measures binary, models, platform, `.spiceinit` and cell-library
   bytes at startup and reports `reproducibility: "pinned"` only when all match;
   otherwise `/health` and `/run` stay not ready, never downgraded.
-- Qualified scope: core and LVT 1.8 V NFET/PFET, high-Vt 1.8 V PFET,
-  `res_high_po`, `cap_mim_m3_1`, three-terminal `pnp_05v5_W0p68L0p68`; corners
-  `tt/ff/ss/fs/sf`; OP/DC/AC/TRAN/Noise. New devices need a hosted OP/AC fixture
-  at every corner. Excluded: SKY130 diode (unresolved in the continuous library)
-  and four-terminal NPN (ngspice 46 discards parameters).
+- Qualified scope: core and LVT 1.8 V NFET/PFET, high-Vt 1.8 V PFET, 5 V
+  `nfet_g5v0d10v5`/`pfet_g5v0d10v5`, `res_high_po`, `cap_mim_m3_1`,
+  three-terminal `pnp_05v5_W0p68L0p68`; corners `tt/ff/ss/fs/sf`;
+  OP/DC/AC/TRAN/Noise. New devices need a hosted OP/AC fixture at every corner.
+  Excluded: SKY130 diode (unresolved in the continuous library) and
+  four-terminal NPN (ngspice 46 discards parameters).
 
 #### Standard cells
 

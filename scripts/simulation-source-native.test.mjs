@@ -21,6 +21,7 @@ import {
   compileHostedSky130NoiseProject,
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
+  hostedSky130Mos5vRequest,
   profile,
 } from "./lib/preview-simulation-qualification.mjs";
 import {
@@ -29,6 +30,7 @@ import {
   validateHostedSky130NoiseResult,
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
+  validateHostedSky130Mos5vResult,
 } from "./lib/preview-simulation-sky130-validation.mjs";
 import { standardCellGates } from "../packages/simulation-service/test-support/standard-cell-gates.ts";
 
@@ -289,7 +291,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     );
   }
 
-  it("solves the extended devices and the HD cells' high-Vt PFET at every corner", async () => {
+  it("solves the extended devices, the HD cells' high-Vt PFET and the 5 V MOS pair at every corner", async () => {
     for (const corner of profile.qualifiedScope.sections) {
       validateHostedSky130ExtendedDeviceResult(
         await run(
@@ -301,6 +303,11 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
       );
       validateHostedSky130HvtPfetResult(
         await run(hostedSky130HvtPfetRequest(corner), `hvt-pfet-${corner}`),
+        "operator-host",
+        corner,
+      );
+      validateHostedSky130Mos5vResult(
+        await run(hostedSky130Mos5vRequest(corner), `5v-mos-${corner}`),
         "operator-host",
         corner,
       );

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "sky130-5v-mos-op-ac-v1",
+  "profileId": "sky130-core-continuous-ngspice46-v1",
+  "devices": ["sky130_fd_pr__nfet_g5v0d10v5", "sky130_fd_pr__pfet_g5v0d10v5"],
+  "analyses": ["op", "ac"],
+  "modelLibrary": {
+    "directive": "lib"
+  },
+  "expectedCorners": {
+    "tt": {
+      "nfetDrainCurrentA": -0.0006361053000361744,
+      "pfetSourceCurrentA": -0.0002459657400702697,
+      "nfetAcDrainReal": -0.0004522799565988578,
+      "nfetAcDrainImag": 1.141886043624551e-8,
+      "pfetAcSourceReal": 0.0002297142149999029,
+      "pfetAcSourceImag": 1.530168320927509e-8
+    },
+    "ff": {
+      "nfetDrainCurrentA": -0.0006857587031505047,
+      "pfetSourceCurrentA": -0.00027200774443778,
+      "nfetAcDrainReal": -0.0004653345422540776,
+      "nfetAcDrainImag": 1.170017722432433e-8,
+      "pfetAcSourceReal": 0.0002422800607997874,
+      "pfetAcSourceImag": 1.545650247000417e-8
+    },
+    "ss": {
+      "nfetDrainCurrentA": -0.0005888815093341021,
+      "pfetSourceCurrentA": -0.0002261118973187343,
+      "nfetAcDrainReal": -0.0004392091937429622,
+      "nfetAcDrainImag": 1.116039900607948e-8,
+      "pfetAcSourceReal": 0.0002107035257052606,
+      "pfetAcSourceImag": 1.516397211673583e-8
+    },
+    "fs": {
+      "nfetDrainCurrentA": -0.0005788152996024087,
+      "pfetSourceCurrentA": -0.0002753651791656125,
+      "nfetAcDrainReal": -0.0004472142909932895,
+      "nfetAcDrainImag": 1.140996287887658e-8,
+      "pfetAcSourceReal": 0.0002378932879597678,
+      "pfetAcSourceImag": 1.530402489703677e-8
+    },
+    "sf": {
+      "nfetDrainCurrentA": -0.0006939306463467909,
+      "pfetSourceCurrentA": -0.00021800054657653,
+      "nfetAcDrainReal": -0.0004567893131011534,
+      "nfetAcDrainImag": 1.142726105912195e-8,
+      "pfetAcSourceReal": 0.0002208906230428554,
+      "pfetAcSourceImag": 1.529860140267036e-8
+    }
+  },
+  "tolerances": {
+    "mosCurrentA": 1e-10,
+    "acCurrentA": 1e-12
+  },
+  "evidence": {
+    "observedAt": "2026-11-24",
+    "executor": "reference-ngspice46",
+    "environmentFingerprint": "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d"
+  }
+}
