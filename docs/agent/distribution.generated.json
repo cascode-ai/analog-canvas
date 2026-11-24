@@ -81,7 +81,7 @@
     },
     {
       "source": "docs/agent/knowledge/pdk-and-symbols.md",
-      "sha256": "48e6079e4a7fcc7d5cc347ab4507c4df20ceeda3fc56c101186cd06ea9f0e856"
+      "sha256": "a5df8965d0c491c98f3070305f0673c2946b8b30782a818158675b4df4001019"
     },
     {
       "source": "docs/agent/mcp-install.md",
@@ -695,7 +695,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "a79898629e2836e9bff876352db8e9edea066961ccd96a03567f2ab5e96e21f7"
+      "sha256": "6f08d202988137119a46eb84f4b856bbc1509053526d15daa1511cf8d78a2ece"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -727,7 +727,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "82b0a35b5c88619f922abe877c30a9e2c729d437a486bfcfbfcdb70d404c5e4a"
+      "sha256": "ecdbdeb28145eb60c68f4f5ba7202091a17e045e97b97be15e59329937f21667"
     },
     {
       "file": "packages/agent-adapter/src/agent-skills.generated.ts",

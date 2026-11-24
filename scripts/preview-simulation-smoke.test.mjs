@@ -9,10 +9,12 @@ import {
   hostedSky130CornerRequest,
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
+  hostedSky130Mos5vRequest,
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
+  runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewSimulationSmoke,
@@ -24,6 +26,7 @@ import {
   validateHostedSky130CornerResult,
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
+  validateHostedSky130Mos5vResult,
   validatePreviewSimulationResult,
 } from "./preview-simulation-smoke.mjs";
 
@@ -224,6 +227,57 @@ function hvtPfetResult(target, corner = "ff", value = -0.0001390822188942903) {
     },
     data: {
       analyses: [{ analysis: "op", probes: [{ name: "i(vsph)", value }] }],
+    },
+  };
+}
+
+const MOS_5V_FF = {
+  nfetDrainCurrentA: -0.0006857587031505047,
+  pfetSourceCurrentA: -0.00027200774443778,
+  nfetAcDrainReal: -0.0004653345422540776,
+  nfetAcDrainImag: 1.170017722432433e-8,
+  pfetAcSourceReal: 0.0002422800607997874,
+  pfetAcSourceImag: 1.545650247000417e-8,
+};
+
+function mos5vResult(target, corner = "ff", expected = MOS_5V_FF) {
+  const base = result(target);
+  return {
+    ...base,
+    metadata: {
+      ...base.metadata,
+      input: { inputRevision: `preview-sky130-5v-mos-${corner}` },
+      configuration: { modelLibrary: { directive: "lib", section: corner } },
+      environment: {
+        ...base.metadata.environment,
+        fingerprint: CORNER_ENVIRONMENT_SHA,
+      },
+    },
+    data: {
+      analyses: [
+        {
+          analysis: "op",
+          probes: [
+            { name: "i(vdn5)", value: expected.nfetDrainCurrentA },
+            { name: "i(vsp5)", value: expected.pfetSourceCurrentA },
+          ],
+        },
+        {
+          analysis: "ac",
+          probes: [
+            {
+              name: "i(vdn5)",
+              real: [expected.nfetAcDrainReal],
+              imag: [expected.nfetAcDrainImag],
+            },
+            {
+              name: "i(vsp5)",
+              real: [expected.pfetAcSourceReal],
+              imag: [expected.pfetAcSourceImag],
+            },
+          ],
+        },
+      ],
     },
   };
 }
@@ -604,6 +658,44 @@ describe("the hosted SKY130 qualification", () => {
         "ff",
       ),
     ).toThrow(/hvtPfetSourceCurrentA at ff/u);
+  });
+
+  it("qualifies the 5 V MOS pair Gallery model sources call", async () => {
+    const request = hostedSky130Mos5vRequest("ff");
+    expect(request.netlist).toContain(
+      "XMN5 dn gn 0 0 sky130_fd_pr__nfet_g5v0d10v5 L=0.5 W=3",
+    );
+    expect(
+      validateHostedSky130Mos5vResult(
+        mos5vResult("operator-host"),
+        "operator-host",
+        "ff",
+      ),
+    ).toEqual({ corner: "ff", ...MOS_5V_FF });
+    let submitted;
+    await runHostedSky130Mos5vAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      corner: "ff",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(mos5vResult("operator-host"));
+      },
+    });
+    expect(submitted.environment).toEqual({
+      profileId: PROFILE_ID,
+      corner: "ff",
+    });
+    expect(() =>
+      validateHostedSky130Mos5vResult(
+        mos5vResult("operator-host", "ff", {
+          ...MOS_5V_FF,
+          pfetAcSourceImag: 1.6e-8,
+        }),
+        "operator-host",
+        "ff",
+      ),
+    ).toThrow(/pfetAcSourceImag at ff/u);
   });
 
   it("refuses extended-device numerical drift", () => {

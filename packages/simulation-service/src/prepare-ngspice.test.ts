@@ -15,6 +15,7 @@ import { CapabilitiesSchema } from "./contract.js";
 import { ProjectInputIdentity } from "./input-identity.js";
 import { prepareNgspiceExecutionInput } from "./prepare-ngspice.js";
 import { standardCellGates } from "../test-support/standard-cell-gates.js";
+import hostedSky130 from "../../../containers/ngspice/hosted-sky130-profile.json";
 
 function nativeSweepFixture() {
   const project = CircuitProjectSchema.parse(
@@ -221,6 +222,67 @@ describe("ngspice authored input identity", () => {
           modelSource: { sourceId: "owner", revision: 1 },
         });
       expect(next).toEqual(before);
+    },
+  );
+  it.each([
+    ["sky130_fd_pr__nfet_g5v0d10v5", true],
+    ["sky130_fd_pr__pfet_g5v0d10v5", true],
+    ["sky130_fd_pr__nfet_03v3_nvt", false],
+  ])(
+    "checks a Gallery model source's %s against the hosted SKY130 Profile",
+    async (master, qualified) => {
+      const project = createEmptyProject("gallery-5v", "Gallery 5 V");
+      const applied = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        transactionId: "gallery-5v-source",
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "owner",
+              revision: 0,
+              language: "spice",
+              entry: "mos.spice",
+              dependencies: [],
+              files: [
+                {
+                  path: "mos.spice",
+                  text: `.subckt pair\nX1 d g s b ${master} w=3 l=0.5\n.ends pair\n`,
+                },
+              ],
+            },
+            definitions: [{ definitionId: "pair", entry: "pair" }],
+          },
+        ],
+      });
+      expect(applied.ok).toBe(true);
+      if (!applied.ok) return;
+      const next = applied.project;
+      next.documents[0]!.instances.push(
+        createExternalSubcircuitInstance(
+          "XTOP",
+          next.externalSubcircuitDefinitions[0]!,
+          { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        ),
+      );
+      const folder = createSimulationFolder({
+        id: "process",
+        name: "Process",
+        profileId: "ngspice",
+        engine: "ngspice",
+        documentId: next.topDocumentId,
+      });
+      next.simulationFolders = [folder];
+      const caps = nativeSweepFixture().caps;
+      caps.profiles[0]!.devices = hostedSky130.qualifiedScope.devices;
+      const prepared = await prepareNgspiceExecutionInput(next, folder, caps);
+      expect(prepared.ok, JSON.stringify(prepared)).toBe(qualified);
+      if (!prepared.ok)
+        expect(prepared.error.diagnostics?.[0]).toMatchObject({
+          code: "MODEL_SOURCE_PROFILE_CONFLICT",
+        });
     },
   );
   it.each([false, true])(

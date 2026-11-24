@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   extendedQualification,
   hvtPfetQualification,
+  mos5vQualification,
   profile,
   qualification,
 } from "./preview-simulation-qualification.mjs";
@@ -550,6 +551,98 @@ export function validateHostedSky130HvtPfetResult(
       `${expectedTarget} solved hvtPfetSourceCurrentA at ${corner} as ${hvtPfetSourceCurrentA}, expected ${expected.hvtPfetSourceCurrentA} ± ${tolerance}.`,
     );
   return { corner, hvtPfetSourceCurrentA };
+}
+
+export function validateHostedSky130Mos5vResult(
+  payload,
+  expectedTarget,
+  corner,
+) {
+  const expected = mos5vQualification.expectedCorners?.[corner];
+  if (!expected) throw new Error(`No 5 V MOS evidence exists for ${corner}.`);
+  const result = object(payload, "simulation response");
+  if (object(result.execution, "execution metadata").target !== expectedTarget)
+    throw new Error(`${expectedTarget} did not execute 5 V MOS at ${corner}.`);
+  if (object(result.outcome, "simulation outcome").status !== "completed")
+    throw new Error(`${expectedTarget} did not complete 5 V MOS at ${corner}.`);
+  const metadata = object(result.metadata, "run metadata");
+  const modelLibrary = object(
+    object(metadata.configuration, "configuration metadata").modelLibrary,
+    "model selection",
+  );
+  if (
+    modelLibrary.directive !== profile.models.library.directive ||
+    modelLibrary.section !== corner
+  )
+    throw new Error(
+      `${expectedTarget} loaded ${String(modelLibrary.section)}, expected corner ${corner}.`,
+    );
+  const environment = object(metadata.environment, "environment metadata");
+  validatePinnedEnvironment(environment, expectedTarget);
+  if (
+    environment.fingerprint !==
+    mos5vQualification.evidence.environmentFingerprint
+  )
+    throw new Error(
+      `${expectedTarget} 5 V MOS evidence came from a different environment.`,
+    );
+  const data = object(result.data, "parsed result data");
+  const analyses = Array.isArray(data.analyses) ? data.analyses : [];
+  const operatingPoint = analyses.find(
+    (analysis) => analysis?.analysis === "op",
+  );
+  const ac = analyses.find((analysis) => analysis?.analysis === "ac");
+  if (!Array.isArray(operatingPoint?.probes) || !Array.isArray(ac?.probes))
+    throw new Error(
+      `${expectedTarget} returned incomplete 5 V MOS analyses for ${corner}.`,
+    );
+  const scalar = (name) => {
+    const probe = operatingPoint.probes.find(
+      (candidate) => candidate?.name === name,
+    );
+    if (typeof probe?.value !== "number")
+      throw new Error(`${expectedTarget} returned no ${name} for ${corner}.`);
+    return probe.value;
+  };
+  const complex = (name) => {
+    const probe = ac.probes.find((candidate) => candidate?.name === name);
+    if (
+      !Array.isArray(probe?.real) ||
+      !Array.isArray(probe?.imag) ||
+      typeof probe.real[0] !== "number" ||
+      typeof probe.imag[0] !== "number"
+    )
+      throw new Error(
+        `${expectedTarget} returned no AC ${name} for ${corner}.`,
+      );
+    return [probe.real[0], probe.imag[0]];
+  };
+  const [nfetAcDrainReal, nfetAcDrainImag] = complex("i(vdn5)");
+  const [pfetAcSourceReal, pfetAcSourceImag] = complex("i(vsp5)");
+  const actual = {
+    nfetDrainCurrentA: scalar("i(vdn5)"),
+    pfetSourceCurrentA: scalar("i(vsp5)"),
+    nfetAcDrainReal,
+    nfetAcDrainImag,
+    pfetAcSourceReal,
+    pfetAcSourceImag,
+  };
+  const tolerances = mos5vQualification.tolerances;
+  const checks = [
+    ["nfetDrainCurrentA", tolerances.mosCurrentA],
+    ["pfetSourceCurrentA", tolerances.mosCurrentA],
+    ["nfetAcDrainReal", tolerances.acCurrentA],
+    ["nfetAcDrainImag", tolerances.acCurrentA],
+    ["pfetAcSourceReal", tolerances.acCurrentA],
+    ["pfetAcSourceImag", tolerances.acCurrentA],
+  ];
+  for (const [name, tolerance] of checks) {
+    if (Math.abs(actual[name] - expected[name]) > tolerance)
+      throw new Error(
+        `${expectedTarget} solved ${name} at ${corner} as ${actual[name]}, expected ${expected[name]} ± ${tolerance}.`,
+      );
+  }
+  return { corner, ...actual };
 }
 
 export function validateHostedSky130ExtendedDeviceResult(
