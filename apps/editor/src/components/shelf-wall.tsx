@@ -172,6 +172,7 @@ export function ShelfWall() {
       },
       async branch(project) {
         const result = await saveCloudProject(project, null);
+        if (result.status === "pending") throw new Error(result.message);
         if (result.status !== "saved")
           throw new Error(
             `Could not create a Shelf branch (${result.status}).`,
@@ -234,7 +235,8 @@ export function ShelfWall() {
               ? "This Project changed in another tab. Refresh your shelf and try again; no changes were overwritten."
               : result.status === "limit"
                 ? `Your shelf has reached its ${CLOUD_PROJECT_LIMIT}-Project limit. Export or remove a Project before duplicating.`
-                : result.status === "rejected" ||
+                : result.status === "pending" ||
+                    result.status === "rejected" ||
                     result.status === "unreachable"
                   ? result.message
                   : `Could not ${action} this Project (${result.status}).`,
