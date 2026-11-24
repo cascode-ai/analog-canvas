@@ -666,6 +666,7 @@ export class GalleryDO {
       if (
         (participating && operation.startsWith("cloud-project-")) ||
         operation === "cloud-project-create-receipt" ||
+        operation === "cloud-project-operation-next" ||
         operation === "cloud-project-region" ||
         operation.startsWith("sync-") ||
         operation === "submit" ||

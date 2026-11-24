@@ -1,4 +1,5 @@
 import type { GalleryEnv } from "./gallery-store";
+import { resumeProjectCreate } from "./project-create-executor";
 import {
   purgeAccountResources,
   type AccountResourceBindings,
@@ -198,7 +199,7 @@ function peerFailure(stage: string, response: Response): Delivery {
 /** One bounded delivery per tick. A lost response is retried from durable peer state. */
 export async function pumpProjectSync(env: GalleryEnv): Promise<Delivery> {
   const pulled =
-    env.PROJECT_SYNC_PULL === "true" ? await pullProjectSync(env) : null;
+    env.PROJECT_SYNC_PULL === "true" ? await coordinatedPull(env, false) : null;
   let result =
     pulled?.status === "retry" || pulled?.status === "blocked"
       ? pulled
@@ -207,11 +208,48 @@ export async function pumpProjectSync(env: GalleryEnv): Promise<Delivery> {
     result = pulled;
   if (result.stage) result.direction = result === pulled ? "pull" : "push";
   if (env.PROJECTS) await projectStore(env, "sync-delivery", result);
+  if (
+    env.PROJECTS &&
+    env.PROJECT_REGION === "cn" &&
+    env.PROJECT_WRITES_ENABLED !== "false"
+  )
+    await resumeProjectCreate(env, () => catchUpProjectQuota(env));
   return result;
 }
 
 /** Fetch one ordered peer event without exposing an inbound domestic endpoint. */
-async function pullProjectSync(env: GalleryEnv): Promise<Delivery> {
+export async function catchUpProjectQuota(env: GalleryEnv) {
+  const result = await coordinatedPull(env, true);
+  if (result.status === "sent" || result.status === "caught-up") return null;
+  return result.status === "blocked"
+    ? "quota-catch-up-" + result.stage
+    : "quota-catch-up-unavailable";
+}
+
+async function coordinatedPull(
+  env: GalleryEnv,
+  foreground: boolean,
+): Promise<Delivery> {
+  if (env.PROJECT_REGION !== "cn") return pullProjectSync(env, 120_000);
+  const token = crypto.randomUUID();
+  const lock = await projectStore(env, "sync-create-pull-lock", {
+    token,
+    foreground,
+  });
+  if (!lock.ok || !((await lock.json()) as { acquired?: boolean }).acquired)
+    return { status: "retry", stage: "pull-in-progress" };
+  try {
+    return await pullProjectSync(env, foreground ? 2_000 : 120_000);
+  } finally {
+    await projectStore(env, "sync-create-pull-lock", { token, release: true });
+  }
+}
+
+async function pullProjectSync(
+  env: GalleryEnv,
+  timeout: number,
+): Promise<Delivery> {
+  const budget = AbortSignal.timeout(timeout);
   if (
     !env.PROJECTS ||
     !env.PROJECT_SYNC_PEER_URL ||
@@ -230,7 +268,7 @@ async function pullProjectSync(env: GalleryEnv): Promise<Delivery> {
         method: "POST",
         redirect: "manual",
         // The reply may carry one maximal event across the border.
-        signal: AbortSignal.timeout(120_000),
+        signal: budget,
         headers: {
           Authorization: `Bearer ${env.PROJECT_SYNC_PEER_TOKEN}`,
           "Content-Type": "application/json",
@@ -257,7 +295,7 @@ async function pullProjectSync(env: GalleryEnv): Promise<Delivery> {
     const decoded = await decodeProjectSyncEvent(result.events[0]);
     if (!decoded) return { status: "blocked", stage };
     stage = "receive-event";
-    const received = await receiveProjectEvent(env, decoded);
+    const received = await receiveProjectEvent(env, decoded, budget);
     if (received.ok) return { status: "sent" };
     return peerFailure(stage, received);
   } catch {
@@ -362,11 +400,13 @@ async function deliverProjectSync(env: GalleryEnv): Promise<Delivery> {
 async function receiveProjectEvent(
   env: GalleryEnv,
   decoded: NonNullable<Awaited<ReturnType<typeof decodeProjectSyncEvent>>>,
+  signal?: AbortSignal,
 ): Promise<Response> {
   const owners = await lookupAccounts(
     env,
     [decoded.ownerUserId],
     env.PROJECT_REGION === "overseas",
+    signal,
   );
   if (owners instanceof Response) return owners;
   const retired = owners.deleted.includes(decoded.ownerUserId);

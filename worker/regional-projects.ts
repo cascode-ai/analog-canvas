@@ -12,6 +12,11 @@ import {
 } from "./retired-accounts";
 import { ProjectQuota } from "./project-quota";
 import {
+  ProjectCreateOperations,
+  createPending,
+} from "./project-create-operations";
+import createFormat from "./project-create-operation-format.json";
+import {
   ProjectCreateReceipts,
   validCreateTicket,
   projectCreateBinding,
@@ -65,14 +70,17 @@ export class RegionalProjectDO {
   private readonly journal: ProjectSyncJournal;
   private readonly quota: ProjectQuota;
   private readonly createReceipts?: ProjectCreateReceipts;
+  private readonly createOperations?: ProjectCreateOperations;
   private baselineInstalled = false;
   constructor(
     private readonly state: DurableObjectStateLike,
     private readonly env: ProjectRegionConfig,
   ) {
     this.sql = state.storage.sql;
-    if (env.PROJECT_REGION === "cn")
+    if (env.PROJECT_REGION === "cn") {
       this.createReceipts = new ProjectCreateReceipts(this.sql);
+      this.createOperations = new ProjectCreateOperations(this.sql);
+    }
     this.sql.exec(`CREATE TABLE IF NOT EXISTS cloud_projects (
       id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL,
@@ -245,7 +253,12 @@ export class RegionalProjectDO {
       if (error instanceof ProjectWriteRefused) return error.response;
       if (error instanceof ProjectSyncCapacityError)
         return Response.json(
-          { error: "replication-capacity" },
+          {
+            error: "replication-capacity",
+            ...(body.createLease
+              ? { mayFitAfterCompaction: error.mayFitAfterCompaction }
+              : {}),
+          },
           { status: 507 },
         );
       if (error instanceof ProjectSyncFenceError)
@@ -293,6 +306,7 @@ export class RegionalProjectDO {
         return Response.json({ error: "invalid-user" }, { status: 400 });
       const userId = body.userId;
       const complete = this.state.storage.transactionSync(() => {
+        this.createOperations?.retire(userId);
         const done = this.journal.retireOwner(userId);
         if (done && this.baselineInstalled)
           this.sql.exec(
@@ -309,10 +323,154 @@ export class RegionalProjectDO {
       return this.publish(operation, body, users, protectedIds);
     if (operation === "cloud-project-region")
       return Response.json({ region: this.env.PROJECT_REGION });
-    if (operation === "cloud-project-create-receipt" && this.createReceipts)
-      return this.state.storage.transactionSync(() =>
-        this.createReceipts!.control(body.action, body.ticket),
+    if (operation === "sync-create-pull-lock" && this.createOperations)
+      return this.createOperations.pullLock(
+        body.token,
+        body.release === true,
+        body.foreground === true,
       );
+    if (
+      operation === "cloud-project-create-receipt" &&
+      this.createOperations &&
+      this.createReceipts
+    )
+      return this.state.storage.transactionSync(() => {
+        if (body.action === "capabilities")
+          return this.createOperations!.capabilities();
+        if (body.action === "diagnostics")
+          return this.createOperations!.diagnostics();
+        if (body.action === "handoff")
+          return this.journal.restoreFenced
+            ? Response.json({ error: "restore-fenced" }, { status: 409 })
+            : this.createOperations!.handoff(body.ticket);
+        return this.createReceipts!.control(body.action, body.ticket);
+      });
+    if (
+      operation.startsWith("cloud-project-operation-") &&
+      this.createOperations &&
+      this.createReceipts
+    ) {
+      const store = this.createOperations,
+        receipts = this.createReceipts;
+      return this.state.storage.transactionSync(() => {
+        if (this.journal.restoreFenced)
+          return Response.json({ error: "restore-fenced" }, { status: 503 });
+        if (operation === "cloud-project-operation-next") store.expire();
+        if (operation === "cloud-project-operation-prepare") {
+          if (createFormat.write !== 1)
+            return Response.json(
+              { error: "create-format-read-only" },
+              { status: 503 },
+            );
+          const ticket = body.ticket,
+            fields: Record<string, unknown> = {
+              userId: body.userId,
+              id: body.id,
+              name: body.name,
+              projectText: body.projectText,
+              schemaVersion: body.schemaVersion,
+              updatedAt: body.updatedAt,
+            };
+          if (body.galleryEntryId !== undefined) {
+            fields.galleryEntryId = body.galleryEntryId;
+            fields.mayEditGallery = body.mayEditGallery;
+          }
+          const id = String(fields.id),
+            userId = String(fields.userId);
+          let refused: Response | null = null;
+          if (this.journal.deleted(id))
+            refused = Response.json({ error: "not-found" }, { status: 404 });
+          else if (protectedIds.includes(id))
+            refused = Response.json(
+              { error: "protected-project" },
+              { status: 403 },
+            );
+          else if (users && !users.includes(userId))
+            refused = Response.json(
+              { error: "owner-not-admitted" },
+              { status: 403 },
+            );
+          if (fields.galleryEntryId !== undefined && !refused) {
+            const gallery = this.sql
+              .exec<{ owner_user_id: string | null }>(
+                "SELECT owner_user_id FROM gallery_entries WHERE id=?",
+                fields.galleryEntryId,
+              )
+              .toArray()[0];
+            if (
+              !gallery ||
+              (gallery.owner_user_id !== userId &&
+                fields.mayEditGallery !== true)
+            )
+              refused = Response.json(
+                { error: "gallery-link-forbidden" },
+                { status: 403 },
+              );
+            else {
+              fields.galleryOwnerAtAcceptance = gallery.owner_user_id;
+              fields.requiresGalleryReview = gallery.owner_user_id !== userId;
+            }
+          }
+          delete fields.mayEditGallery;
+          if (!refused && this.journal.heads(id).length) {
+            const existing = this.execute(
+              "cloud-project-create",
+              fields,
+              userId,
+              id,
+            );
+            if (!existing.ok) refused = existing;
+            else if (validCreateTicket(ticket)) {
+              const binding = projectCreateBinding(
+                fields,
+                projectCreateIntent(fields),
+              );
+              if (!receipts.claim(ticket, binding))
+                return Response.json(
+                  { error: "create-receipt-unavailable" },
+                  { status: 409 },
+                );
+              receipts.finish(ticket, binding, "committed");
+              return Response.json({
+                project: {
+                  ...cloudProjectSavedSummary(this.sql, userId, id),
+                  saveToken: this.head(id),
+                },
+              });
+            }
+          }
+          return store.prepare(ticket, fields, receipts, refused);
+        }
+        if (operation === "cloud-project-operation-next") return store.next();
+        if (!store.owns(body.lease))
+          return Response.json(
+            { error: "create-executor-fenced" },
+            { status: 409 },
+          );
+        if (operation === "cloud-project-operation-contact")
+          return store.contactQuota(body.lease);
+        if (operation === "cloud-project-operation-owner-retired") {
+          store.retire(String(body.userId));
+          return Response.json({ retired: true });
+        }
+        if (operation === "cloud-project-operation-grant")
+          return store.rememberGrant(
+            body.lease,
+            body.grant as Parameters<typeof store.rememberGrant>[1],
+          )
+            ? Response.json({ recorded: true })
+            : Response.json({ error: "quota-grant-mismatch" }, { status: 409 });
+        if (operation === "cloud-project-operation-refused")
+          return store.refuseQuota(body.lease);
+        if (operation === "cloud-project-operation-defer") {
+          store.defer(body.lease, String(body.reason), body.blocked === true);
+          return body.blocked === true
+            ? Response.json({ error: body.reason }, { status: 503 })
+            : createPending();
+        }
+        return Response.json({ error: "not-found" }, { status: 404 });
+      });
+    }
     if (
       (operation === "cloud-project-claim-create" ||
         operation === "cloud-project-refuse-create") &&
@@ -444,6 +602,11 @@ export class RegionalProjectDO {
       if (!decoded)
         return Response.json({ error: "invalid-event" }, { status: 400 });
       return this.state.storage.transactionSync(() => {
+        if (body.createLease && !this.createOperations?.owns(body.createLease))
+          return Response.json(
+            { error: "create-executor-fenced" },
+            { status: 409 },
+          );
         const { event, change, ownerUserId } = decoded;
         const retired =
           body.retired === true || retiredAccount(this.sql, ownerUserId);
@@ -481,8 +644,29 @@ export class RegionalProjectDO {
         // A refused delivery cannot commit baseline writes made in preparation.
         if (!result.ok) throw new ProjectWriteRefused(result);
         if (result.ok && retired) retireAccount(this.sql, ownerUserId);
-        if (result.ok && !retired && change && this.journal.deleted(change.id))
+        if (
+          result.ok &&
+          !retired &&
+          change?.kind === "quota" &&
+          typeof change.reservation === "string" &&
+          this.quota.matches(change.id, ownerUserId, change.reservation)
+        )
+          this.createOperations?.observeGrant(
+            ownerUserId,
+            change.id,
+            change.reservation,
+            event,
+          );
+        if (result.ok && retired) this.createOperations?.retire(ownerUserId);
+        if (
+          result.ok &&
+          !retired &&
+          change &&
+          this.journal.deleted(change.id)
+        ) {
+          this.createOperations?.retire(ownerUserId, change.id);
           this.quota.release(change.id);
+        }
         return result;
       });
     }
@@ -520,6 +704,40 @@ export class RegionalProjectDO {
         : Response.json({ error: "not-found" }, { status: 404 });
     }
     const captured = this.state.storage.transactionSync(() => {
+      const ownedOperation = this.createOperations?.owns(body.createLease)
+        ? body.createLease.operation
+        : null;
+      if (body.createLease) {
+        if (
+          ownedOperation !==
+          projectCreateBinding(body, projectCreateIntent(body))
+        )
+          throw new ProjectWriteRefused(
+            Response.json({ error: "create-executor-fenced" }, { status: 409 }),
+          );
+        if (!this.quota.matches(id, userId, body.reservation))
+          throw new ProjectWriteRefused(
+            Response.json(
+              { error: "quota-receipt-unverified" },
+              { status: 409 },
+            ),
+          );
+      }
+      if (body.createLease && body.galleryEntryId !== undefined) {
+        const gallery = this.sql
+          .exec<{ owner_user_id: string | null }>(
+            "SELECT owner_user_id FROM gallery_entries WHERE id=?",
+            body.galleryEntryId,
+          )
+          .toArray()[0];
+        if (!gallery || gallery.owner_user_id !== body.galleryOwnerAtAcceptance)
+          throw new ProjectWriteRefused(
+            Response.json(
+              { error: "gallery-link-owner-changed" },
+              { status: 403 },
+            ),
+          );
+      }
       this.captureExisting(id, userId);
       this.capturePending(id, userId);
       if (operation === "cloud-project-list") {
@@ -535,6 +753,10 @@ export class RegionalProjectDO {
       }
       const before = this.journal.snapshot(id);
       const result = this.execute(operation, body, userId, id);
+      if (result.ok && operation === "cloud-project-create" && ownedOperation)
+        this.createOperations!.finish(ownedOperation, "committed");
+      if (result.ok && operation === "cloud-project-delete")
+        this.createOperations?.retire(userId, id);
       if (
         operation === "cloud-project-create" &&
         body.ticket !== undefined &&

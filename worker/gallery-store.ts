@@ -151,6 +151,7 @@ export type GalleryEnv = {
   /** Set only for the fixed entrance's private regional create route. */
   regionalProjectCreateTicket?: string;
   PROJECTS_STORE_NAME?: "projects" | "gallery";
+  PROJECT_WRITES_ENABLED?: string;
   PROJECT_REGION?: "cn" | "overseas";
   /** Optional JSON list of accounts admitted to the regional Project trial. */
   PROJECT_REGION_USERS?: string;

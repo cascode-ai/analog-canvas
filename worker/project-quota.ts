@@ -1,4 +1,5 @@
 import type { GalleryEnv, SqlStorage } from "./gallery-store";
+import type { CreateExecutor } from "./project-create-operations";
 import { CLOUD_PROJECT_LIMIT } from "./gallery-store-cloud-projects";
 import { decodeProjectEvent } from "./project-sync-protocol";
 import { readSyncJson, peerOrigin } from "./project-sync-http";
@@ -81,6 +82,11 @@ export async function reserveRegionalProject(
   env: GalleryEnv,
   id: string,
   ownerUserId: string,
+  recovery?: {
+    lease: CreateExecutor;
+    grant: unknown;
+    catchUp: () => Promise<string | null>;
+  },
 ): Promise<
   { reservation: string } | { refusedBeforeReservation: Response } | Response
 > {
@@ -96,27 +102,49 @@ export async function reserveRegionalProject(
     region !== "cn" ||
     !env.PROJECT_SYNC_PEER_URL ||
     !env.PROJECT_SYNC_PEER_TOKEN
-  )
-    return {
-      refusedBeforeReservation: Response.json(
-        { error: "quota-authority-unavailable" },
-        { status: 503 },
-      ),
-    };
+  ) {
+    const unavailable = Response.json(
+      { error: "quota-authority-unavailable" },
+      { status: 503 },
+    );
+    return recovery ? unavailable : { refusedBeforeReservation: unavailable };
+  }
   try {
     const origin = peerOrigin(env.PROJECT_SYNC_PEER_URL);
-    const reserved = await fetch(new URL("/api/project-sync/quota", origin), {
-      method: "POST",
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
-      headers: {
-        Authorization: `Bearer ${env.PROJECT_SYNC_PEER_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ id, ownerUserId }),
-    });
+    const store = env.PROJECTS!.getByName(
+      env.PROJECTS_STORE_NAME ?? "projects",
+    );
+    let first = true;
+    if (recovery && !recovery.grant) {
+      const checked = await store.fetch(
+        "https://projects/cloud-project-operation-contact",
+        {
+          method: "POST",
+          body: JSON.stringify({ userId: ownerUserId, lease: recovery.lease }),
+        },
+      );
+      if (!checked.ok) return checked;
+      first = ((await checked.json()) as { first: boolean }).first;
+    }
+    const reserved = recovery?.grant
+      ? Response.json(recovery.grant)
+      : await fetch(new URL("/api/project-sync/quota", origin), {
+          method: "POST",
+          redirect: "manual",
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            Authorization: `Bearer ${env.PROJECT_SYNC_PEER_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ id, ownerUserId }),
+        });
     if (reserved.status === 409) {
       const reason = (await readSyncJson(reserved, 4096)) as { error?: string };
+      if (recovery && !first)
+        return Response.json(
+          { error: "quota-outcome-unconfirmed" },
+          { status: 503 },
+        );
       const refusal = Response.json(
         {
           error:
@@ -150,22 +178,54 @@ export async function reserveRegionalProject(
       typeof value.reservation !== "string" ||
       !value.reservation
     )
-      throw new Error("Invalid reservation");
+      return Response.json({ error: "invalid-quota-grant" }, { status: 503 });
     const grant = await decodeProjectEvent(value.event);
     if (
       !grant ||
+      grant.event.origin !== "overseas" ||
       grant.change.kind !== "quota" ||
       grant.change.id !== id ||
       grant.change.ownerUserId !== ownerUserId ||
       grant.change.reservation !== value.reservation
     )
-      throw new Error("Invalid reservation event");
-    const applied = await env
-      .PROJECTS!.getByName(env.PROJECTS_STORE_NAME ?? "projects")
-      .fetch("https://projects/sync-receive", {
+      return Response.json({ error: "invalid-quota-grant" }, { status: 503 });
+    if (recovery) {
+      const recorded = await store.fetch(
+        "https://projects/cloud-project-operation-grant",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            userId: ownerUserId,
+            lease: recovery.lease,
+            grant: {
+              id,
+              ownerUserId,
+              reservation: value.reservation,
+              event: grant.event,
+            },
+          }),
+        },
+      );
+      if (!recorded.ok) return recorded;
+    }
+    const apply = () =>
+      store.fetch("https://projects/sync-receive", {
         method: "POST",
-        body: JSON.stringify({ event: grant.event }),
+        body: JSON.stringify({
+          event: grant.event,
+          ...(recovery ? { createLease: recovery.lease } : {}),
+        }),
       });
+    let applied = await apply();
+    if (recovery && applied.status === 409) {
+      const outcome = (await applied.clone().json()) as { error?: string };
+      if (outcome.error === "sequence-gap") {
+        const refusal = await recovery.catchUp();
+        if (refusal) return Response.json({ error: refusal }, { status: 503 });
+        applied = await apply();
+      }
+    }
+    if (!applied.ok && recovery) return applied;
     if (!applied.ok)
       return Response.json(
         { error: "quota-catch-up-required" },

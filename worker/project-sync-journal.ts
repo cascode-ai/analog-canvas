@@ -38,7 +38,14 @@ export interface ProjectSyncStatus {
     hash: string;
   } | null;
 }
-export class ProjectSyncCapacityError extends Error {}
+export class ProjectSyncCapacityError extends Error {
+  constructor(
+    message: string,
+    readonly mayFitAfterCompaction = false,
+  ) {
+    super(message);
+  }
+}
 export class ProjectSyncFenceError extends Error {}
 
 const CHUNK_CHARS = 128 * 1024;
@@ -76,6 +83,9 @@ export async function projectPayloadHash(payload: string): Promise<string> {
 
 export class ProjectSyncJournal {
   private fenced: boolean;
+  get restoreFenced(): boolean {
+    return this.fenced;
+  }
   private peerAcknowledgements = { outbound: 0, inbound: 0 };
   constructor(
     private readonly sql: SqlStorage,
@@ -218,6 +228,7 @@ export class ProjectSyncJournal {
     if (this.bytes() + storedBytes > this.maxBytes)
       throw new ProjectSyncCapacityError(
         "Replication journal capacity exceeded",
+        storedBytes <= this.maxBytes,
       );
     for (const [chunk, value] of chunks.entries())
       this.sql.exec(

@@ -18,6 +18,39 @@ export type AccountLookup = { missing: number; deleted: string[] };
 export const unknownSyncOwner = () =>
   Response.json({ error: "unknown-owner" }, { status: 409 });
 
+/** Reauthorize an elevated Gallery link at execution, without retaining a login. */
+export async function currentGalleryReviewer(
+  env: IdentityEnv,
+  userId: string,
+): Promise<boolean | Response> {
+  try {
+    const response = await requestAuthority(
+      env,
+      "identities",
+      { userIds: [userId] },
+      false,
+    );
+    if (!response.ok) return unavailable();
+    const { identities } = (await readSyncJson(response, 16384)) as {
+      identities?: {
+        id: string;
+        status: string;
+        user?: { id: string; role?: string; isAdmin?: boolean };
+      }[];
+    };
+    const identity = identities?.[0];
+    if (identities?.length !== 1 || identity?.id !== userId)
+      return unavailable();
+    if (identity.status === "missing" || identity.status === "deleted")
+      return false;
+    if (identity.status !== "found" || identity.user?.id !== userId)
+      return unavailable();
+    return identity.user.role === "moderator" || identity.user.isAdmin === true;
+  } catch {
+    return unavailable();
+  }
+}
+
 /**
  * Look up existing account IDs at the identity authority: how many it
  * reports missing, 409 for an answer that names another account, or 503
@@ -28,6 +61,7 @@ export async function lookupAccounts(
   env: IdentityEnv,
   userIds: readonly string[],
   ownsAuthority: boolean,
+  signal?: AbortSignal,
 ): Promise<AccountLookup | Response> {
   if (!userIds.length) return { missing: 0, deleted: [] };
   let missing = 0;
@@ -40,6 +74,7 @@ export async function lookupAccounts(
         "identities",
         { userIds: batch },
         ownsAuthority,
+        signal,
       );
       if (!identity.ok) throw new Error("Identity unavailable");
       const result = (await readSyncJson(identity, 16384 * batch.length)) as {
@@ -100,6 +135,7 @@ async function requestAuthority(
   action: "identities" | "deletions",
   body: unknown,
   ownsAuthority: boolean,
+  signal?: AbortSignal,
 ): Promise<Response> {
   if (!env.PROJECT_IDENTITY_URL || !env.PROJECT_IDENTITY_TOKEN)
     return unavailable();
@@ -123,7 +159,9 @@ async function requestAuthority(
   const init: RequestInit = {
     method: "POST",
     redirect: "manual",
-    signal: AbortSignal.timeout(10_000),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+      : AbortSignal.timeout(10_000),
     headers: {
       Authorization: `Bearer ${env.PROJECT_IDENTITY_TOKEN}`,
       "Content-Type": "application/json",
