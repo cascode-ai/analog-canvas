@@ -249,6 +249,14 @@ export interface DesignNetlistAnalysisOptions {
    */
   deckSources?: readonly string[];
   /**
+   * Whether a run's deck carries the MOS stand-ins (`.model NMOS nmos
+   * level=54`) a netlist handed out carries: an ngspice run reads them as
+   * that netlist does (#2555). VACASK has no mapping for a Cell's own MOS
+   * card, so its deck carries none and says it needs one (#1420). A netlist
+   * handed out always carries them.
+   */
+  mosStandIns?: boolean;
+  /**
    * Whether the Cells the root does not reach are printed too, after it, so
    * that a file carries every Cell's drawing (the RNL export, which names
    * the root where a Cell printed beside it calls it).
@@ -355,6 +363,7 @@ function analyzeSnapshot(
     rootAsTopLevel: options.rootAsTopLevel ?? false,
     groundPin: options.groundPin ?? "global",
     deckSources: options.deckSources ?? [],
+    mosStandIns: options.mosStandIns ?? false,
     uncalledCells: options.uncalledCells ?? false,
     leaveOutCells: options.leaveOutCells ?? [],
     run: options.deckSources !== undefined,

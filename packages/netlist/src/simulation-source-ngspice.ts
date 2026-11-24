@@ -384,6 +384,7 @@ export function compileNgspiceSourceSimulation(
       rootAsTopLevel: byBinding.get(id)!.emission === "top-level",
       terminalInstrumentations: instrumentations,
       deckSources,
+      mosStandIns: true,
     });
     if (plan.ok) instrumentations = plan.terminalInstrumentations;
     else diagnostics.push(...plan.diagnostics.map(simulationNetlistDiagnostic));
@@ -397,6 +398,7 @@ export function compileNgspiceSourceSimulation(
       rootAsTopLevel: byBinding.get(id)!.emission === "top-level",
       terminalInstrumentations: instrumentations,
       deckSources,
+      mosStandIns: true,
     });
     if (!plan.ok)
       return {

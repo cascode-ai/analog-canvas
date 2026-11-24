@@ -167,7 +167,8 @@ describe("a generic target the netlist does not define (#1420)", () => {
         message: expect.stringMatching(/^M2 names PMOS, which the netlist/u),
       }),
     ]);
-    // A run's deck carries no stand-in (#1420) and says what it needs.
+    // An ngspice run's deck carries the stand-in the run's own files do not
+    // define, as the netlist handed out does (#2555).
     const folder = (id: string, card?: string) => {
       const created = createSimulationFolder({
         id,
@@ -181,15 +182,51 @@ describe("a generic target the netlist does not define (#1420)", () => {
       project.simulationFolders.push(created);
       const compiled = compileNgspiceSourceSimulation(project, created);
       if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics));
-      return undefinedFindings(compiled.warnings);
+      return {
+        deck: compiled.generated[0]!.text,
+        undefined: undefinedFindings(compiled.warnings),
+      };
     };
-    expect(folder("tb", ".model PMOS PMOS(level=1)")).toEqual([]);
+    const tb = folder("tb", ".model PMOS PMOS(level=1)");
+    expect(tb.undefined).toEqual([]);
+    expect(tb.deck).not.toContain(".model PMOS");
     // A card with no parameters is the author's too.
-    expect(folder("bare", ".model PMOS PMOS")).toEqual([]);
-    expect(folder("other")).toEqual([
-      expect.objectContaining({
-        message: expect.stringMatching(/^M2 names PMOS/u),
-      }),
+    const bare = folder("bare", ".model PMOS PMOS");
+    expect(bare.undefined).toEqual([]);
+    expect(bare.deck).not.toContain(".model PMOS");
+    const other = folder("other");
+    expect(other.undefined).toEqual([]);
+    expect(other.deck).toContain(".model PMOS pmos level=54\n");
+    // The imported deck's NMOS is still the author's.
+    expect(other.deck).not.toContain(".model NMOS");
+  });
+
+  it("keeps the MOS stand-ins in an ngspice run's deck (#2555)", () => {
+    // As a Gallery drawing under Abstract defaults binds them: no source,
+    // no card of its own, nothing in the run's files.
+    const project = mosProject([
+      { id: "m1", symbolId: "nmos", model: "NMOS" },
+      { id: "m2", symbolId: "pmos", model: "PMOS" },
     ]);
+    const exported = createDesignNetlistExport(project);
+    expect(exported.status === "ready" && exported.file.text).toContain(
+      ".model NMOS nmos level=54\n",
+    );
+    const created = createSimulationFolder({
+      id: "tb",
+      name: "tb",
+      profileId: "test",
+      engine: "ngspice",
+      documentId: "dut",
+    });
+    project.simulationFolders.push(created);
+    const compiled = compileNgspiceSourceSimulation(project, created);
+    if (!compiled.ok) throw new Error(JSON.stringify(compiled.diagnostics));
+    const deck = compiled.generated[0]!.text;
+    expect(deck).toContain("M1 drain gate source body NMOS");
+    expect(deck).toContain("M2 drain gate source body PMOS");
+    expect(deck).toContain(".model NMOS nmos level=54\n");
+    expect(deck).toContain(".model PMOS pmos level=54\n");
+    expect(undefinedFindings(compiled.warnings)).toEqual([]);
   });
 });
