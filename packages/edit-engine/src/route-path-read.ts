@@ -1,7 +1,26 @@
 import { buildEndpointObjectLookup, resolveRouteGeometry } from "@icm/derived";
-import type { SchematicDocument, RouteBranch } from "@icm/model";
+import {
+  routeEndpoints,
+  type SchematicDocument,
+  type RouteBranch,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { RouteEditPath } from "./route-geometry-edit.js";
+
+export function routeIdsByJunction(
+  routes: readonly RouteBranch[],
+): Map<string, string[]> {
+  const idsByJunction = new Map<string, string[]>();
+  for (const route of routes) {
+    for (const endpoint of routeEndpoints(route)) {
+      if (endpoint.kind !== "junction") continue;
+      const ids = idsByJunction.get(endpoint.junctionId) ?? [];
+      ids.push(route.id);
+      idsByJunction.set(endpoint.junctionId, ids);
+    }
+  }
+  return idsByJunction;
+}
 
 /** A synchronous read phase, never retained across mutations of a draft.
  * Route validation and attachment capture read the same exact geometry. */

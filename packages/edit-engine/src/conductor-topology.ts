@@ -2,7 +2,6 @@ import {
   createRoutePath,
   deriveStableId,
   routeEnd,
-  routeEndpoints,
   type Point,
   type RouteBranch,
   type RouteEndpoint,
@@ -21,6 +20,7 @@ import {
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
+import { routeIdsByJunction } from "./route-path-read.js";
 import { normalizeRouteGeometry, strongerMode } from "./route-geometry-edit.js";
 import { rebuildRoutePathWithRemap } from "./route-leg-mutation.js";
 import {
@@ -177,21 +177,6 @@ function normalizableRoutesByNet(
     groups.set(route.netId, group);
   }
   return groups;
-}
-
-function routeIdsByJunction(
-  routes: readonly RouteBranch[],
-): Map<string, string[]> {
-  const idsByJunction = new Map<string, string[]>();
-  for (const route of routes) {
-    for (const endpoint of routeEndpoints(route)) {
-      if (endpoint.kind !== "junction") continue;
-      const ids = idsByJunction.get(endpoint.junctionId) ?? [];
-      ids.push(route.id);
-      idsByJunction.set(endpoint.junctionId, ids);
-    }
-  }
-  return idsByJunction;
 }
 
 function endpointAtRouteSide(
