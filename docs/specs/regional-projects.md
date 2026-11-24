@@ -87,9 +87,9 @@ region's writer activates.
   recreate them. Unresolved branches are separate from ordinary save history.
 - New-project quota is coordinated by the overseas Project store, including
   durable grants to China; the total is twenty per owner. China applies the
-  grant's contiguous event before using it. An unavailable authority or pending
-  catch-up refuses creation; existing Project reads and saves remain local,
-  subject to the account authorization lease.
+  grant's contiguous event before using it. Only a sequence gap starts an
+  extra ordered pull, limited to one event and a two-second network budget;
+  the normal Project sync tick continues longer catch-up.
 - Retry an ambiguous creation with the same `Idempotency-Key` and content. The
   creation fingerprint includes the requested Gallery binding and travels with
   the Project; a changed request is refused in either region. A definite source
@@ -97,10 +97,25 @@ region's writer activates.
   The
   editor retains both in the current page, recovers the created binding, then
   conditionally saves newer edits before acknowledging them. A definite initial
-  refusal permits corrected content under the same key. Reloading an abandoned
-  attempt can leave a reserved slot: reservations never expire automatically,
-  because an accepted remote save may still be in transit. Reclaim only after
-  reconciling both regions; this delivery provides no automatic reclamation.
+  refusal permits corrected content under the same key. A lost quota reply
+  never releases an existing reservation.
+- With the domestic durable writer enabled, an authorized keyed create stores
+  one pending operation per account and key. HTTP 503 `project-create-pending`
+  with `Retry-After` acknowledges durable acceptance. The original key and
+  content can retrieve the resulting Project. Multiple attempts share one
+  business result; their receipts retain which attempt or timer completed it.
+  The sync tick resumes work after a browser closes. A transfer fences the
+  old executor before another generation can change the Project or its receipt.
+- Recovery input stays in the private local store for at most seven days of
+  timer operation, then requires scoped reconciliation. Completion and account
+  retirement erase the input. The store accepts at most twenty pending creates
+  per account, 512 overall, and 64 MiB of private input. The commit rechecks
+  Gallery ownership and any required moderator privilege. Attempt audit
+  records retain only opaque identifiers and outcomes for thirty days.
+- A reader advertises supported operation versions and the actual pending
+  inventory over loopback before a separate release enables writing. A
+  legacy claim without a linked durable operation requires independent proof.
+  Unknown formats and integrity conflicts do not authorize handoff.
 - Each producer has one ordered stream and installation epoch. Import checks
   payload hash, schema, owner, ancestry and contiguous sequence, then commits
   content and receipt together. Duplicate delivery is harmless; imports do not

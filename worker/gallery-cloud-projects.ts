@@ -14,6 +14,9 @@ import { sessionUserOf } from "./auth";
 import { sameOrigin } from "./same-origin";
 import { reserveRegionalProject } from "./project-quota";
 import { projectCreateIntent } from "./project-create-receipt";
+import createFormat from "./project-create-operation-format.json";
+import { beginProjectCreate } from "./project-create-executor";
+import { catchUpProjectQuota } from "./project-sync";
 import { includesProjectOwner } from "./project-region-scope";
 import {
   GALLERY_MAX_PROJECT_BYTES,
@@ -173,6 +176,23 @@ async function handleCloudProjects(
       ? { expectedRevision: Number(expectedRevisionMatch[1]) }
       : {}),
   };
+  if (env.regionalProjectCreateTicket && createFormat.write === 1)
+    return beginProjectCreate(
+      env,
+      {
+        ...fields,
+        updatedAt: new Date().toISOString(),
+        ...(body.galleryEntryId === undefined
+          ? {}
+          : {
+              galleryEntryId: body.galleryEntryId,
+              mayEditGallery:
+                user.isAdmin === true || user.role === "moderator",
+            }),
+      },
+      env.regionalProjectCreateTicket,
+      () => catchUpProjectQuota(env),
+    );
   const receipt = env.regionalProjectCreateTicket
     ? {
         ticket: env.regionalProjectCreateTicket,

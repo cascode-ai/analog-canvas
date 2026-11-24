@@ -17,8 +17,12 @@ import {
   GalleryDO as DeployedGalleryDO,
 } from "./index";
 
-export function sqliteState(queries?: string[], maxRowBytes = Infinity) {
-  const db = new DatabaseSync(":memory:");
+export function sqliteState(
+  queries?: string[],
+  maxRowBytes = Infinity,
+  databasePath = ":memory:",
+) {
+  const db = new DatabaseSync(databasePath);
   let transactionId = 0;
   return {
     storage: {

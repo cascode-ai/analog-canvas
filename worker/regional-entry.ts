@@ -76,8 +76,16 @@ export default {
           address?: unknown;
         } | null;
         if (
-          !validCreateTicket(body?.ticket) ||
-          !["register", "settle"].includes(String(body?.action))
+          !body ||
+          (!["capabilities", "diagnostics"].includes(String(body.action)) &&
+            !validCreateTicket(body.ticket)) ||
+          ![
+            "register",
+            "settle",
+            "capabilities",
+            "diagnostics",
+            "handoff",
+          ].includes(String(body.action))
         )
           return new Response(null, { status: 400 });
         if (body?.action === "register" && body.address !== undefined) {
