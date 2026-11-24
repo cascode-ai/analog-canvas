@@ -11,6 +11,8 @@ import type {
 import type { Point, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+export const DIAGNOSTIC_MARKER_HIT_RADIUS = 8.5;
+
 export interface DiagnosticMarker {
   key: string;
   point: Point;
@@ -18,12 +20,6 @@ export interface DiagnosticMarker {
   /** Findings sharing this point; the ring shows a numeral above one. */
   count: number;
   /** The highest-severity finding here — the click's navigation payload. */
-  diagnostic: Diagnostic;
-}
-
-interface MarkerEntry {
-  point: Point;
-  severity: "error" | "warning";
   diagnostic: Diagnostic;
 }
 
@@ -42,59 +38,62 @@ export function buildDiagnosticMarkers(input: {
   visualDiagnostics: readonly VisualDiagnostic[];
   reviewOpen: boolean;
 }): DiagnosticMarker[] {
-  const entries: MarkerEntry[] = [];
+  const byPoint = new Map<string, DiagnosticMarker>();
+  const lookup = input.connectivityIndex.documents.get(input.document.id);
+  function add(
+    point: Point,
+    severity: DiagnosticMarker["severity"],
+    diagnostic: Diagnostic,
+  ) {
+    const key = `${point.x},${point.y}`;
+    const marker = byPoint.get(key);
+    if (!marker)
+      byPoint.set(key, {
+        key,
+        point: { ...point },
+        severity,
+        diagnostic,
+        count: 1,
+      });
+    else {
+      marker.count++;
+      if (severity === "error" && marker.severity !== "error") {
+        marker.severity = severity;
+        marker.diagnostic = diagnostic;
+      }
+    }
+  }
   for (const diagnostic of input.electricalDiagnostics) {
     if (diagnostic.primary.documentId !== input.document.id) continue;
     if (diagnostic.severity !== "error" && diagnostic.severity !== "warning") {
       continue;
     }
     if (diagnosticPresentationGroup(diagnostic) !== "actionable") continue;
+    if (diagnostic.severity === "warning" && !input.reviewOpen) continue;
     const endpoint = diagnostic.primary.endpoint;
     if (!endpoint) continue;
     const point = resolveEndpointPoint(
       input.document,
       input.resolver,
       endpoint,
+      lookup,
     );
     if (!point) continue;
-    entries.push({ point, severity: diagnostic.severity, diagnostic });
+    add(point, diagnostic.severity, diagnostic);
   }
   for (const visual of input.visualDiagnostics) {
     if (!visual.point) continue;
     if (visual.severity !== "error" && visual.severity !== "warning") continue;
+    if (visual.severity === "warning" && !input.reviewOpen) continue;
     const diagnostic = adaptVisualDiagnostic(
       visual,
       input.document.id,
       input.connectivityIndex,
     );
     if (diagnosticPresentationGroup(diagnostic) !== "actionable") continue;
-    entries.push({
-      point: { ...visual.point },
-      severity: visual.severity,
-      diagnostic,
-    });
+    add(visual.point, visual.severity, diagnostic);
   }
-  const visible = entries.filter(
-    (entry) => entry.severity === "error" || input.reviewOpen,
+  return [...byPoint.values()].sort((left, right) =>
+    left.key.localeCompare(right.key, "en"),
   );
-  const byPoint = new Map<string, MarkerEntry[]>();
-  for (const entry of visible) {
-    const key = `${entry.point.x},${entry.point.y}`;
-    byPoint.set(key, [...(byPoint.get(key) ?? []), entry]);
-  }
-  return [...byPoint.entries()]
-    .map(([key, group]) => {
-      const severity = group.some((entry) => entry.severity === "error")
-        ? ("error" as const)
-        : ("warning" as const);
-      const primary = group.find((entry) => entry.severity === severity)!;
-      return {
-        key,
-        point: { ...primary.point },
-        severity,
-        count: group.length,
-        diagnostic: primary.diagnostic,
-      };
-    })
-    .sort((left, right) => left.key.localeCompare(right.key, "en"));
 }

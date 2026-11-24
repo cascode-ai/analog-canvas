@@ -266,6 +266,25 @@ function cameraViewportMetrics(
   };
 }
 
+/** World bounds visible in the SVG, including space exposed by letterboxing. */
+export function worldViewport(
+  camera: GridRect,
+  surface: { width: number; height: number },
+) {
+  const metrics = cameraViewportMetrics(camera, surface);
+  if (!metrics) return null;
+  const { scale, visibleWidth: width, visibleHeight: height } = metrics;
+  return {
+    scale,
+    bounds: {
+      x: camera.x + (camera.width - width) / 2,
+      y: camera.y + (camera.height - height) / 2,
+      width,
+      height,
+    },
+  };
+}
+
 /** Convert a CSS-pixel delta through the SVG's uniform viewBox scale. */
 export function cameraDeltaFromScreen(
   camera: GridRect,
