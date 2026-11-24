@@ -8,6 +8,7 @@ import {
 import {
   emptyAgentProject,
   liveAgentEditor,
+  personEdits,
 } from "./live-agent-editor.test-support";
 import { pinOrderOpProject } from "../../../../netlists/editor-pin-order/fixture.js";
 
@@ -65,6 +66,17 @@ function electricalState({
   return { nets, routes, junctions };
 }
 
+function terminalGroups(nets: SchematicDocument["nets"]) {
+  return nets
+    .map((net) =>
+      net.terminals
+        .map(({ instanceId }) => instanceId)
+        .sort()
+        .join(","),
+    )
+    .sort();
+}
+
 it("previews, cuts, reroutes and stretches through live Agent history", async () => {
   const { client } = liveAgentEditor({ project: circuit() });
   await client.connect("session-1.code");
@@ -94,16 +106,7 @@ it("previews, cuts, reroutes and stretches through live Agent history", async ()
   });
   const cut = await getCircuit();
   expect(cut.routes.map(({ id }) => id).sort()).toEqual(["ab", "ef"]);
-  expect(
-    cut.nets
-      .map((net) =>
-        net.terminals
-          .map(({ instanceId }) => instanceId)
-          .sort()
-          .join(","),
-      )
-      .sort(),
-  ).toEqual(["a,b", "c", "e,f"]);
+  expect(terminalGroups(cut.nets)).toEqual(["a,b", "c", "e,f"]);
   expect(cut.nets.find(({ id }) => id === "independent")).toEqual(
     before.nets.find(({ id }) => id === "independent"),
   );
@@ -197,4 +200,85 @@ it("rejects the same noncanonical external pin in Agent preview and commit", asy
     expect(JSON.stringify(result)).toContain("XAMP.in+");
     expect(controller.project).toEqual(before);
   }
+});
+
+it("keeps sibling cut previews separate when a person commits one of the cuts", async () => {
+  const { client, controller, service } = liveAgentEditor({
+    project: circuit(),
+  });
+  await client.connect("session-1.code");
+  personEdits(controller, [
+    path("ab", "a", "b", "chain"),
+    path("bc", "b", "c", "chain"),
+    path("ef", "e", "f", "independent"),
+  ]);
+  const before = controller.document;
+  const documentId = before.id;
+  const readState = async (revision: number) => {
+    const { document } = (await client.snapshot(documentId, { refresh: true }))
+      .snapshot;
+    expect(document.revision).toBe(revision);
+    return electricalState(document);
+  };
+  const original = await readState(before.revision);
+  const cut = (routeId: string) => ({
+    kind: "cut_connection" as const,
+    routeId,
+  });
+  let request = 0;
+  const transact = (routeId: string, dryRun: boolean, source = service) => {
+    const id = String(++request);
+    return source.handle({
+      apiVersion: "3.0",
+      operation: "transact",
+      requestId: id,
+      transactionId: id,
+      documentId,
+      expectedRevision: before.revision,
+      dryRun,
+      edits: [cut(routeId)],
+    });
+  };
+  const preview = async (routeId: string, source = service) => {
+    const result = await transact(routeId, true, source);
+    if (!result.ok || result.operation !== "transact")
+      throw new Error("Expected a successful cut preview");
+    expect(result.applied).toBe(false);
+    expect(result.diff.changedObjectIds).toContain(routeId);
+    return {
+      diff: result.diff,
+      diagnostics: result.diagnostics,
+      diagnosticDelta: result.diagnosticDelta,
+    };
+  };
+  const independent = await preview(
+    "ef",
+    liveAgentEditor({ project: controller.project }).service,
+  );
+  const branch = await preview("bc");
+  expect(branch.diagnostics).not.toEqual(independent.diagnostics);
+  expect(branch.diagnosticDelta).not.toEqual(independent.diagnosticDelta);
+  expect(await preview("ef")).toEqual(independent);
+  expect(await preview("bc")).toEqual(branch);
+  expect(controller.document).toEqual(before);
+
+  personEdits(controller, [cut("ef")]);
+  const after = controller.document;
+  expect(after.revision).toBe(before.revision + 1);
+  expect(await transact("bc", false)).toMatchObject({
+    ok: false,
+    error: { code: "STALE_REVISION" },
+  });
+  const committed = await readState(after.revision);
+  expect(committed).toMatchObject(electricalState(after));
+  expect(committed.routes.map(({ id }) => id)).toEqual(["ab", "bc"]);
+  expect(terminalGroups(committed.nets)).toEqual(["a,b,c", "e", "f"]);
+  expect(
+    await client.applyActions([{ kind: "undo" }], { documentId }),
+  ).toMatchObject({ ok: true });
+  expect(await readState(after.revision + 1)).toEqual(original);
+  expect(
+    await client.applyActions([{ kind: "redo" }], { documentId }),
+  ).toMatchObject({ ok: true });
+  expect(await readState(after.revision + 2)).toEqual(committed);
 });
