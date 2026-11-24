@@ -243,6 +243,7 @@ export function createIngress({
   );
   const liveProjects = new Set();
   const lookingUp = new Set();
+  let journalFailed = false;
   const stopReceipts = new AbortController();
   let retryTimer;
   function scheduleReceipts() {
@@ -312,9 +313,11 @@ export function createIngress({
   function persistUncertainty(writes) {
     try {
       onUncertaintyChange([...writes.values()]);
+      journalFailed = false;
       return true;
     } catch {
       // Keep maintenance fenced in memory if the state directory cannot be written.
+      journalFailed = true;
       console.error("Regional ingress could not persist write reconciliation.");
       return false;
     }
@@ -757,6 +760,35 @@ export function createIngress({
       (record) => !liveProjects.has(record.projectTicket),
     );
   }
+  async function holdReason() {
+    if (journalFailed) return "storage-error";
+    if (holding) return "already-held";
+    if (hasUncertainWrite()) return "uncertain-write";
+    holding = true;
+    const deadline = performance.now() + drainMs;
+    while ((active.size || lookingUp.size) && performance.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    let refusal;
+    if (journalFailed) refusal = "storage-error";
+    else if (hasUncertainWrite()) refusal = "uncertain-write";
+    else if (
+      uncertainWrites.size ||
+      lookingUp.size ||
+      [...active.keys()].some(
+        (request) => !["GET", "HEAD", "OPTIONS"].includes(request.method),
+      )
+    )
+      refusal = "active-write";
+    else if (active.size) refusal = "busy-drain";
+    if (refusal) {
+      resume();
+      return refusal;
+    }
+    for (const close of streams.values()) close();
+    streams.clear();
+    return null;
+  }
   return {
     server,
     status: () => ({
@@ -765,21 +797,8 @@ export function createIngress({
       active: active.size,
       uncertain: hasUncertainWrite(),
     }),
-    async hold() {
-      if (holding || hasUncertainWrite()) return false;
-      holding = true;
-      const deadline = performance.now() + drainMs;
-      while ((active.size || lookingUp.size) && performance.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-      if (active.size || uncertainWrites.size) {
-        resume();
-        return false;
-      }
-      for (const close of streams.values()) close();
-      streams.clear();
-      return true;
-    },
+    holdReason,
+    hold: async () => (await holdReason()) === null,
     resume,
     async close() {
       holding = true;
@@ -903,23 +922,31 @@ export async function serveIngress({
       }
       return res.writeHead(200).end();
     }
-    if (managed && operationReader !== null) return res.writeHead(409).end();
+    const refuseHold = (reason, status = 409) =>
+      res
+        .writeHead(status, { "content-type": "application/json" })
+        .end(JSON.stringify({ version: 1, reason }));
+    if (managed && operationReader !== null)
+      return refuseHold(operationReader < 0 ? "storage-error" : "already-held");
     if (
       req.url === "/hold" &&
       (supportsProjectHandoff() ||
         operationReader !== null ||
         declaresProjectOperations(release))
     )
-      res.writeHead(409).end();
+      refuseHold(
+        operationReader !== null ? "already-held" : "incompatible-control",
+      );
     else if (req.url === "/hold" || managed) {
-      if (!(await ingress.hold())) return res.writeHead(409).end();
+      const reason = await ingress.holdReason();
+      if (reason) return refuseHold(reason);
       if (managed) {
         try {
           writeFileSync(managedHold, managed[1], { mode: 0o600, flush: true });
           operationReader = Number(managed[1]);
         } catch {
           ingress.resume();
-          return res.writeHead(503).end();
+          return refuseHold("storage-error", 503);
         }
       }
       res.writeHead(200).end();

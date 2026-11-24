@@ -215,6 +215,10 @@ class Host:
             time.sleep(.05)
         try:
             entrance('hold-project-operations/' + str(reader) if reader is not None else 'hold')
+        except _maintenance.HoldRefused as error:
+            if error.reason == 'uncertain-write':
+                raise ReleaseError('uncertain-write') from error
+            raise
         except RuntimeError:
             if entrance('status')['uncertain']:
                 raise ReleaseError('uncertain-write')

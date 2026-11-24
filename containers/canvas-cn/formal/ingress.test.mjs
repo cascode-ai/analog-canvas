@@ -854,6 +854,68 @@ test("only confirmed receipts for each exact interrupted Agent write release mai
 });
 
 test.skipIf(process.platform === "win32")(
+  "a clean busy read releases dispatch, supplies a retryable hold diagnosis and permits the next backup",
+  async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "canvas-busy-hold-"));
+    const controlPath = join(root, "control.sock");
+    let received, finish;
+    const start = new Promise((resolve) => {
+      received = resolve;
+    });
+    const service = http.createServer((req, res) => {
+      if (req.url === "/slow") {
+        finish = () => res.end("done");
+        received();
+      } else res.end("live");
+    });
+    const runtime = await serveIngress({
+      port: 0,
+      upstreamPort: await listen(service),
+      drainMs: 30,
+      release: root,
+      uncertaintyPath: join(root, "journal"),
+      controlPath,
+    });
+    t.onTestFinished(async () => {
+      finish?.();
+      await runtime.stop();
+      service.closeAllConnections();
+      service.close();
+      await rm(root, { recursive: true, force: true });
+    });
+    const hold = () =>
+      new Promise((resolve, reject) => {
+        const check = http.request(
+          {
+            socketPath: controlPath,
+            path: "/hold-project-operations/0",
+            method: "POST",
+          },
+          async (reply) => {
+            let body = "";
+            for await (const chunk of reply) body += chunk;
+            resolve([reply.statusCode, body ? JSON.parse(body) : null]);
+          },
+        );
+        check.on("error", reject);
+        check.end();
+      });
+    const origin = "http://127.0.0.1:" + runtime.ingress.server.address().port;
+    const slow = fetch(origin + "/slow");
+    await start;
+    assert.deepEqual(await hold(), [409, { version: 1, reason: "busy-drain" }]);
+    assert.equal(await (await fetch(origin + "/")).text(), "live");
+    finish();
+    await (await slow).text();
+    assert.deepEqual(await hold(), [200, null]);
+    assert.deepEqual(await hold(), [
+      409,
+      { version: 1, reason: "already-held" },
+    ]);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
   "an operation-aware maintenance hold survives an entrance restart and refuses a legacy runner",
   async (t) => {
     const root = await mkdtemp(join(tmpdir(), "canvas-operation-hold-"));
@@ -966,10 +1028,12 @@ test.skipIf(process.platform === "win32")(
     await mkdir(uncertaintyPath + ".next");
     assert.equal((await request(port, "/save", "once")).status, 502);
     await rm(uncertaintyPath + ".next", { recursive: true });
+    assert.equal(await runtime.ingress.holdReason(), "storage-error");
     assert.equal(await hold(), 409);
     await runtime.stop();
 
     runtime = await serveIngress(options);
+    assert.equal(await runtime.ingress.holdReason(), "uncertain-write");
     assert.equal(await hold(), 409);
   },
 );
@@ -1000,7 +1064,7 @@ test("disconnecting a client does not cancel an accepted save or permit a handov
   await started;
   client.destroy();
   await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.equal(await ingress.hold(), false);
+  assert.equal(await ingress.holdReason(), "active-write");
   finish();
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(await ingress.hold(), true);

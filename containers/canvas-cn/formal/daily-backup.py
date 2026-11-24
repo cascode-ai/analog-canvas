@@ -47,5 +47,18 @@ def daily(host=None, serving=pathlib.Path('/opt/analog-canvas/current-formal')):
                 host.resume_background()
 
 
+def attempt():
+    # Only this pre-capture classification can schedule a fresh attempt.
+    try:
+        daily()
+    except release._maintenance.HoldRefused as error:
+        if error.reason != 'busy-drain':
+            raise
+        print('Daily backup deferred: busy-drain; normal dispatch and background work resumed.', flush=True)
+        # Reserved for the scheduler, outside flock's sysexits range.
+        return 42
+    return 0
+
+
 if __name__ == '__main__':
-    daily()
+    raise SystemExit(attempt())
