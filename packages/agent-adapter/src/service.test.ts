@@ -9,6 +9,7 @@ import {
   createRoutePath,
   createSimulationFolder,
   freezeSnapshot,
+  parseProjectSnapshot,
 } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import type { CircuitProject } from "@icm/model";
@@ -17,7 +18,8 @@ import {
   builtInSymbols,
   type SymbolResolver,
 } from "@icm/symbols";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as snapshots from "./snapshot.js";
 
 import { agentCircuitOpenApi } from "./openapi.js";
 import {
@@ -400,6 +402,18 @@ describe("current Agent Circuit API service", () => {
     expect(b.diagnostics).toEqual(a.diagnostics);
     expect(b.diff).toEqual(a.diff);
     expect(compact.getDocument()).toEqual(full.getDocument());
+    // The loopback store replaces its live Project document during commit.
+    const committed = full.service.handle({
+      ...request,
+      requestId: "commit",
+      transactionId: "commit",
+      dryRun: false,
+    });
+    expect(
+      committed.ok &&
+        committed.operation === "transact" &&
+        committed.diagnosticDelta,
+    ).toEqual(a.diagnosticDelta);
   });
   it("provides bounded real pin/bulk facts and rejects contradictory selectors", () => {
     const fixture = serviceFixture();
@@ -1045,14 +1059,31 @@ describe("current Agent Circuit API service", () => {
   });
 
   it("reuses one unchanged Snapshot and invalidates it after a commit", () => {
-    let resolveCalls = 0;
-    const countingResolver: SymbolResolver = {
-      resolve(symbolId, variantId) {
-        resolveCalls += 1;
-        return resolver.resolve(symbolId, variantId);
-      },
+    const builds = vi.spyOn(snapshots, "default");
+    let project = parseProjectSnapshot(fixtureProject());
+    const fixture = {
+      getDocument: () => project.documents[0]!,
+      service: createAgentCircuitService({
+        agentId: "snapshot-reuse",
+        resolver,
+        permissions: allPermissions,
+        store: {
+          getProject: () => project,
+          getDocument: () => project.documents[0]!,
+          commitDocument: (next) => {
+            project = parseProjectSnapshot(
+              {
+                ...project,
+                documents: project.documents.map((doc) =>
+                  doc.id === next.id ? next : doc,
+                ),
+              },
+              project,
+            );
+          },
+        },
+      }),
     };
-    const fixture = serviceFixture(allPermissions, {}, countingResolver);
     const snapshotRequest = (requestId: string) => ({
       apiVersion: "3.0" as const,
       requestId,
@@ -1061,11 +1092,9 @@ describe("current Agent Circuit API service", () => {
     });
 
     const first = fixture.service.handle(snapshotRequest("snapshot-first"));
-    const callsAfterFirst = resolveCalls;
     const second = fixture.service.handle(snapshotRequest("snapshot-second"));
 
-    expect(callsAfterFirst).toBeGreaterThan(0);
-    expect(resolveCalls).toBe(callsAfterFirst);
+    expect(builds).toHaveBeenCalledTimes(1);
     expect(second).toMatchObject({ ok: true, revision: 0 });
     if (
       !first.ok ||
@@ -1100,11 +1129,11 @@ describe("current Agent Circuit API service", () => {
       revision: 1,
       terminalConnectivityChanged: false,
     });
-    const callsAfterCommit = resolveCalls;
 
     const after = fixture.service.handle(snapshotRequest("snapshot-after"));
     expect(after).toMatchObject({ ok: true, revision: 1 });
-    expect(resolveCalls).toBeGreaterThan(callsAfterCommit);
+    expect(builds).toHaveBeenCalledTimes(2);
+    builds.mockRestore();
   });
 
   it("keeps Agent instance authoring identical to direct Edit Engine execution", () => {

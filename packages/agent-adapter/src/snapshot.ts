@@ -733,6 +733,7 @@ export function selectAgentInstances(
 
 function documentSnapshot(
   options: BuildAgentSessionSnapshotOptions,
+  diagnosticsFor: typeof diagnosticSnapshot,
 ): AgentSnapshotDocument {
   const { document, resolver } = options;
   const logicalNets = resolveDocumentLogicalNets(document);
@@ -906,7 +907,7 @@ function documentSnapshot(
     constraints: [...document.constraints]
       .sort((left, right) => left.id.localeCompare(right.id, "en"))
       .map((constraint) => structuredClone(constraint)),
-    diagnostics: diagnosticSnapshot(options.project, document, resolver),
+    diagnostics: diagnosticsFor(options.project, document, resolver),
   };
 }
 
@@ -953,9 +954,17 @@ function withoutKeptStyle<T extends { documentStyle?: unknown }>(object: T): T {
 export function buildAgentSessionSnapshot(
   options: BuildAgentSessionSnapshotOptions,
 ): AgentSessionSnapshot {
+  return assembleAgentSessionSnapshot(options, diagnosticSnapshot);
+}
+
+/** Internal service path, with the same document projection and canonical bytes. */
+export default function assembleAgentSessionSnapshot(
+  options: BuildAgentSessionSnapshotOptions,
+  diagnosticsFor: typeof diagnosticSnapshot,
+): AgentSessionSnapshot {
   const content = {
     project: projectIndex(options),
-    document: documentSnapshot(options),
+    document: documentSnapshot(options, diagnosticsFor),
   };
   const canonical = canonicalSnapshotContent(content);
   // ADR 0010: the Snapshot identity hash covers only electrical facts

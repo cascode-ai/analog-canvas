@@ -9,6 +9,10 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import type { ActionCall } from "./authoring-helper.js";
 import { agentDiagnosticIdentity } from "./diagnostics.js";
+import {
+  diagnosticDeltaOf,
+  diagnosticIdentityKeys,
+} from "./diagnostic-report.js";
 import type { AgentOperationHost } from "./host.js";
 import type {
   AgentCircuitRequest,
@@ -29,32 +33,6 @@ type DiagnosticsFor = (
   document: SchematicDocument,
   resolver: SymbolResolver,
 ) => AgentDiagnostic[];
-
-/** Added and removed findings between two states, as a receipt carries them. */
-export function diagnosticDeltaOf(
-  before: readonly AgentDiagnostic[],
-  after: readonly AgentDiagnostic[],
-  notes: readonly AgentDiagnostic[],
-  detail: "full" | "compact" | undefined,
-) {
-  const beforeIds = new Set(before.map(agentDiagnosticIdentity));
-  const afterIds = new Set(after.map(agentDiagnosticIdentity));
-  const removed = before.filter(
-    (diagnostic) => !afterIds.has(agentDiagnosticIdentity(diagnostic)),
-  );
-  return {
-    added: [
-      ...notes,
-      ...after.filter(
-        (diagnostic) => !beforeIds.has(agentDiagnosticIdentity(diagnostic)),
-      ),
-    ],
-    removed: detail === "compact" ? [] : removed,
-    ...(detail === "compact"
-      ? { removedIds: removed.map(agentDiagnosticIdentity) }
-      : {}),
-  };
-}
 
 export interface ActionCallsContext {
   request: TransactRequest & { actions: unknown[] };
@@ -175,7 +153,10 @@ export function runActionCalls(
     | { failure: Failure; indices: readonly number[]; part: number }
     | { answer: TransactAnswer };
   const notes = new Map<string, AgentDiagnostic>();
-  const answers: TransactAnswer[] = [];
+  const answers: Pick<
+    TransactAnswer,
+    "applied" | "diff" | "resolvedRoutes" | "projectStructure"
+  >[] = [];
   const outcome = context.atomically(
     (): Outcome => {
       for (const [index, indices] of parts.entries()) {
@@ -183,7 +164,8 @@ export function runActionCalls(
         if (!answer.ok) return { failure: answer, indices, part: index + 1 };
         if (answer.operation !== "transact")
           throw new Error("A planned call answered with no transaction");
-        answers.push(answer);
+        const { applied, diff, resolvedRoutes, projectStructure } = answer;
+        answers.push({ applied, diff, resolvedRoutes, projectStructure });
         const after = current();
         if (!after.document)
           return {
@@ -203,15 +185,20 @@ export function runActionCalls(
           };
         // What the call said beside the drawing's findings, such as the
         // markers a move carried along.
-        const standing = new Set(
-          context
-            .diagnosticsFor(after.project, after.document, after.resolver)
-            .map(agentDiagnosticIdentity),
-        );
+        let standing: Set<string> | undefined;
         for (const diagnostic of answer.diagnostics) {
+          if (diagnostic.severity !== "info") continue;
+          standing ??= new Set(
+            diagnosticIdentityKeys(
+              context.diagnosticsFor(
+                after.project,
+                after.document,
+                after.resolver,
+              ),
+            ),
+          );
           const identity = agentDiagnosticIdentity(diagnostic);
-          if (diagnostic.severity === "info" && !standing.has(identity))
-            notes.set(identity, diagnostic);
+          if (!standing.has(identity)) notes.set(identity, diagnostic);
         }
       }
       return { answer: summary() };
