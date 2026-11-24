@@ -141,7 +141,7 @@ export function buildBoundsSpatialIndex<T>(
   };
 }
 
-function segmentBounds(from: Point, to: Point): Rect {
+export function segmentBounds(from: Point, to: Point): Rect {
   return {
     x: Math.min(from.x, to.x),
     y: Math.min(from.y, to.y),

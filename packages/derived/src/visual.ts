@@ -46,6 +46,7 @@ import {
   drawnFreeTexts,
   resolveDraftingTextInkBounds,
 } from "./drafting-geometry.js";
+import { sameNetRouteOverlaps } from "./route-overlap.js";
 import { pointOnSegment } from "./segment-geometry.js";
 import {
   resolveCommittedDocumentLogicalNets,
@@ -54,6 +55,7 @@ import {
 import {
   buildBoundsSpatialIndex,
   buildDocumentSpatialIndex,
+  segmentBounds,
   type BoundsSpatialIndex,
   type DocumentSpatialIndex,
 } from "./spatial-index.js";
@@ -567,23 +569,17 @@ function pushRoutingQualityMetrics(
   candidateSearch: "indexed" | "legacy",
   endpointConnections?: ReadonlyMap<string, EndpointConnection>,
 ): void {
-  const routeCenterlines = document.routes
-    .map((route) => ({
-      route,
-      centerline: routingGeometry.routes.get(route.id)?.centerline,
-    }))
-    .filter(
-      (
-        entry,
-      ): entry is {
-        route: typeof entry.route;
-        centerline: readonly Point[];
-      } => entry.centerline !== undefined,
-    );
+  const drawnRoutes = document.routes.flatMap((route) => {
+    const geometry = routingGeometry.routes.get(route.id);
+    return geometry ? [{ route, geometry }] : [];
+  });
   // 1. Wire-through-symbol: a Route segment passes through an instance
   //    silhouette that is not one of its terminal endpoints.
   const backAcrossOwnPart = new Set<string>();
-  for (const { route, centerline } of routeCenterlines) {
+  for (const {
+    route,
+    geometry: { centerline },
+  } of drawnRoutes) {
     const contactTerminalInstances = (endpoint: RouteEndpoint) =>
       new Set(
         (
@@ -605,12 +601,7 @@ function pushRoutingQualityMetrics(
       const to = centerline[index]!;
       const candidateBounds =
         candidateSearch === "indexed"
-          ? instanceBoundsIndex.queryBounds({
-              x: Math.min(from.x, to.x),
-              y: Math.min(from.y, to.y),
-              width: Math.abs(to.x - from.x),
-              height: Math.abs(to.y - from.y),
-            })
+          ? instanceBoundsIndex.queryBounds(segmentBounds(from, to))
           : [...boundsById].map(([id, bounds]) => ({ id, bounds }));
       for (const { id: instanceId, bounds: box } of candidateBounds) {
         const inner = insetRect(box, WIRE_THROUGH_INSET);
@@ -651,63 +642,10 @@ function pushRoutingQualityMetrics(
 
   // 2. Same-Net route overlap: two Routes on the same Net share a collinear
   //    overlapping segment (not just a shared endpoint).
-  const overlappingRouteIdsByNet = new Map<string, Set<string>>();
-  const indexedRoutePairs = new Set<string>();
-  if (candidateSearch === "indexed") {
-    const routesById = new Map(
-      document.routes.map((route) => [route.id, route] as const),
-    );
-    for (const segment of document.routes.flatMap(
-      (route) => routingGeometry.routes.get(route.id)?.segments ?? [],
-    )) {
-      const route = routesById.get(segment.address.routeId);
-      if (!route) continue;
-      const bounds = {
-        x: Math.min(segment.from.x, segment.to.x),
-        y: Math.min(segment.from.y, segment.to.y),
-        width: Math.abs(segment.to.x - segment.from.x),
-        height: Math.abs(segment.to.y - segment.from.y),
-      };
-      for (const candidate of spatialIndex.routeSegments.queryBounds(bounds)) {
-        if (candidate.routeId === route.id || candidate.netId !== route.netId) {
-          continue;
-        }
-        indexedRoutePairs.add(
-          [route.id, candidate.routeId]
-            .sort((left, right) => left.localeCompare(right, "en"))
-            .join("\0"),
-        );
-      }
-    }
-  }
-  for (let leftIndex = 0; leftIndex < routeCenterlines.length; leftIndex += 1) {
-    for (
-      let rightIndex = leftIndex + 1;
-      rightIndex < routeCenterlines.length;
-      rightIndex += 1
-    ) {
-      const left = routeCenterlines[leftIndex]!;
-      const right = routeCenterlines[rightIndex]!;
-      if (left.route.netId !== right.route.netId) continue;
-      if (
-        candidateSearch === "indexed" &&
-        !indexedRoutePairs.has(
-          [left.route.id, right.route.id]
-            .sort((a, b) => a.localeCompare(b, "en"))
-            .join("\0"),
-        )
-      ) {
-        continue;
-      }
-      const overlap = firstCollinearOverlap(left.centerline, right.centerline);
-      if (overlap) {
-        const ids = overlappingRouteIdsByNet.get(left.route.netId) ?? new Set();
-        ids.add(left.route.id);
-        ids.add(right.route.id);
-        overlappingRouteIdsByNet.set(left.route.netId, ids);
-      }
-    }
-  }
+  const overlappingRouteIdsByNet = sameNetRouteOverlaps(
+    drawnRoutes,
+    candidateSearch === "indexed" ? spatialIndex.routeSegments : undefined,
+  );
   for (const [netId, routeIds] of overlappingRouteIdsByNet) {
     const objectIds = [...routeIds].sort((left, right) =>
       left.localeCompare(right, "en"),
@@ -733,14 +671,19 @@ function pushRoutingQualityMetrics(
   //    taps, is ordinary drafting: 1,300 of the Gallery's 1,860 findings on
   //    2026-10-04 were such.
   const routeEndsAt = new Map<string, number>();
-  for (const { centerline } of routeCenterlines) {
+  for (const {
+    geometry: { centerline },
+  } of drawnRoutes) {
     for (const point of [centerline[0], centerline.at(-1)]) {
       if (!point) continue;
       const key = `${point.x},${point.y}`;
       routeEndsAt.set(key, (routeEndsAt.get(key) ?? 0) + 1);
     }
   }
-  for (const { route, centerline } of routeCenterlines) {
+  for (const {
+    route,
+    geometry: { centerline },
+  } of drawnRoutes) {
     if (centerline.length < 2) continue;
     for (const [endpoint, at, next] of [
       [route.start, centerline[0]!, centerline[1]!],
@@ -869,40 +812,6 @@ function segmentIntersectsRect(from: Point, to: Point, box: Rect): boolean {
     maxY > box.y &&
     minY < box.y + box.height
   );
-}
-
-function firstCollinearOverlap(
-  left: readonly Point[],
-  right: readonly Point[],
-): { bounds?: Rect } | undefined {
-  for (let i = 1; i < left.length; i += 1) {
-    const la = left[i - 1]!;
-    const lb = left[i]!;
-    for (let j = 1; j < right.length; j += 1) {
-      const ra = right[j - 1]!;
-      const rb = right[j]!;
-      // Both segments must be collinear on the same axis-aligned line.
-      const sameHorizontal = la.y === lb.y && ra.y === rb.y && la.y === ra.y;
-      const sameVertical = la.x === lb.x && ra.x === rb.x && la.x === ra.x;
-      if (!sameHorizontal && !sameVertical) continue;
-      if (sameHorizontal) {
-        const start = Math.max(Math.min(la.x, lb.x), Math.min(ra.x, rb.x));
-        const end = Math.min(Math.max(la.x, lb.x), Math.max(ra.x, rb.x));
-        if (end > start) {
-          // Collinear overlap is a zero-thickness region; the diagnostic reports
-          // the overlap extent in parameters rather than a zero-area Rect.
-          return {};
-        }
-      } else {
-        const start = Math.max(Math.min(la.y, lb.y), Math.min(ra.y, rb.y));
-        const end = Math.min(Math.max(la.y, lb.y), Math.max(ra.y, rb.y));
-        if (end > start) {
-          return {};
-        }
-      }
-    }
-  }
-  return undefined;
 }
 
 function* ambiguousJunctionFindings(
