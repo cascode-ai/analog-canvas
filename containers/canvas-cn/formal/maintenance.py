@@ -10,17 +10,111 @@ import json
 import os
 import pathlib
 import re
+import secrets
 import shutil
 import socket
 import stat
 import subprocess
 import tempfile
 import time
+import tarfile
+import urllib.parse
 from contextlib import closing
 
 CONTROL = '/run/canvas-cn-ingress/control.sock'
 DISK_RESERVE = 1024**3
 BLOCK = 512 * 1024
+OPERATION_FORMAT = 'project-create-operation-format.json'
+ARCHIVED_OPERATIONS = 'project-operation-recovery.json'
+
+
+def operation_format(release, manifest=None):
+    """Capabilities are part of the SHA-verified release, including the rollback reader."""
+    if manifest is None:
+        manifest = json.loads((release / 'release.json').read_bytes())
+    if not isinstance(manifest, dict) or not isinstance(manifest.get('files'), dict):
+        raise ValueError('invalid-operation-release-manifest')
+    files = manifest['files']
+    path = release / OPERATION_FORMAT
+    if OPERATION_FORMAT not in files and not path.exists() and not path.is_symlink():
+        return (0, 0)
+    expected = operation_declaration_digest(files)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError('project-operation-format-missing')
+    return read_operation_format(path.read_bytes(), expected)
+
+
+def operation_declaration_digest(files):
+    value = files.get(OPERATION_FORMAT)
+    if not isinstance(value, str) or not re.fullmatch('[a-f0-9]{64}', value):
+        raise ValueError('invalid-operation-declaration-digest')
+    return value
+
+
+def read_operation_format(raw, expected):
+    if hashlib.sha256(raw).hexdigest() != expected:
+        raise ValueError('project-operation-format-digest')
+    value = json.loads(raw)
+    if (not isinstance(value, dict) or type(value.get('read')) is not int or
+            value['read'] != 1 or type(value.get('write')) is not int or value['write'] not in (0, 1)):
+        raise ValueError('unsupported-project-operation-format')
+    return value['read'], value['write']
+
+
+def pending_formats(value, fmt):
+    if (not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] != 2 or
+            value.get('operationVersions') != [fmt[0]] or type(value['operationVersions'][0]) is not int or
+            type(value.get('writeVersion')) is not int or
+            value['writeVersion'] != fmt[1] or not isinstance(value.get('pending'), list)):
+        raise ValueError('project-operation-capability-mismatch')
+    pending = value['pending']
+    seen = set()
+    for row in pending:
+        if (not isinstance(row, dict) or any(type(row.get(key)) is not int for key in
+                ('operationVersion', 'count', 'blocked')) or row['count'] < 1 or
+                not 0 <= row['blocked'] <= row['count'] or not 0 < row['operationVersion'] <= fmt[0] or
+                row['operationVersion'] in seen):
+            raise ValueError('unreadable-pending-project-operation')
+        seen.add(row['operationVersion'])
+    return pending
+
+
+def project_operations(local, fmt):
+    url = urllib.parse.urlsplit(local)
+    if url.scheme != 'http' or url.hostname != '127.0.0.1':
+        raise ValueError('project-operation-control-requires-loopback')
+    def probe(request):
+        with closing(http.client.HTTPConnection('127.0.0.1', url.port, timeout=3)) as conn:
+            conn.request('POST', '/__regional/project-create-receipt', json.dumps(request),
+                         {'Content-Type': 'application/json'})
+            reply = conn.getresponse()
+            body = reply.read(4097)
+            if len(body) > 4096:
+                raise ValueError('project-operation-capabilities-unavailable')
+            return reply.status, body
+    status, body = probe({'action': 'capabilities'})
+    if not fmt[0] and status == 400 and not body:
+        # V1 knows no operation inventory. Require its exact receipt handshake
+        # on a fresh, permanently too-old-to-register ticket before accepting that fact.
+        ticket = '0' * 12 + secrets.token_hex(26)
+        status, body = probe({'action': 'settle', 'ticket': ticket})
+        result = json.loads(body) if status == 200 else None
+        if (isinstance(result, dict) and type(result.get('version')) is int and
+                result == {'version': 1, 'ticket': ticket, 'state': 'unknown'}):
+            return []
+        raise ValueError('project-operation-legacy-reader-mismatch')
+    if not fmt[0] or status != 200:
+        raise ValueError('project-operation-capabilities-unavailable')
+    return pending_formats(json.loads(body), fmt)
+
+
+def required_reader(pending):
+    return max((row['operationVersion'] for row in pending), default=0)
+
+
+def inventory_digest(pending):
+    rows = sorted((row['operationVersion'], row['count'], row['blocked']) for row in pending)
+    return hashlib.sha256(json.dumps(rows, separators=(',', ':')).encode()).hexdigest()
 
 
 def seed_identity(info):
@@ -188,10 +282,22 @@ class Snapshot:
         if result.returncode not in ((0,) if final else (0, 24)):
             raise RuntimeError('snapshot-copy-failed')
 
-    def capture(self, release_record):
+    def capture(self, release_record, pending=None):
         self.captured = False
         self.copy(final=True)
         shutil.copyfile(release_record, self.stage / 'release.json')
+        fmt = operation_format(release_record.parent)
+        if fmt[0]:
+            # The control-plane inventory was read with dispatch held and
+            # background writers drained. The final copy covers the same
+            # SQLite state, including immutable request inputs and receipts.
+            if pending is None:
+                raise ValueError('missing-project-operation-inventory')
+            value = {'version': 2, 'operationVersions': [fmt[0]], 'writeVersion': fmt[1], 'pending': pending}
+            pending_formats(value, fmt)
+            value['releaseSha256'] = hashlib.sha256(release_record.read_bytes()).hexdigest()
+            shutil.copyfile(release_record.parent / OPERATION_FORMAT, self.stage / OPERATION_FORMAT)
+            (self.stage / ARCHIVED_OPERATIONS).write_text(json.dumps(value))
         self.captured = True
 
     def publish(self):
@@ -200,9 +306,12 @@ class Snapshot:
         archive = self.stage / 'state.tar.gz'
         # Compress after resuming the writer. New images can compress much less
         # than the forecast, and serving traffic can also consume free space.
+        members = ['state', 'artifacts']
+        if (self.stage / ARCHIVED_OPERATIONS).exists():
+            members.extend([OPERATION_FORMAT, ARCHIVED_OPERATIONS])
         try:
             with archive.open('wb') as output, subprocess.Popen(
-                ['tar', '-czf', '-', '-C', str(self.stage), 'state', 'artifacts'],
+                ['tar', '-czf', '-', '-C', str(self.stage), *members],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=dict(os.environ, GZIP='-1'),
             ) as tar, tar.stdout:
                 while chunk := tar.stdout.read(8 * 1024**2):
@@ -227,7 +336,57 @@ class Snapshot:
         prune_archives(self.backups)
         return destination
 
+
     def discard(self):
         if self.stage is not None:
             shutil.rmtree(self.stage)
             self.stage = None
+
+
+def verify_operation_restore(archive, reader, local=None):
+    """Read-only preflight before extracting, then optionally check the isolated restored runtime."""
+    fmt = operation_format(reader)
+    manifest = (archive / 'release.json').read_bytes()
+    files = json.loads(manifest).get('files')
+    if not isinstance(files, dict):
+        raise ValueError('invalid-operation-release-manifest')
+    expected = operation_declaration_digest(files) if OPERATION_FORMAT in files else None
+    checksum, filename = (archive / 'state.sha256').read_text().split()
+    if filename != 'state.tar.gz' or not re.fullmatch('[a-f0-9]{64}', checksum):
+        raise ValueError('invalid-backup-checksum')
+    with (archive / filename).open('rb') as source:
+        if hashlib.file_digest(source, 'sha256').hexdigest() != checksum:
+            raise ValueError('backup-checksum-mismatch')
+        source.seek(0)
+        proof = {}
+        with tarfile.open(fileobj=source, mode='r|gz') as bundle:
+            for item in bundle:
+                if item.name in (ARCHIVED_OPERATIONS, OPERATION_FORMAT):
+                    if item.name in proof or not item.isfile() or not 0 < item.size <= 8192:
+                        raise ValueError('invalid-archived-operation-proof')
+                    proof[item.name] = bundle.extractfile(item).read()
+    if expected is None and not proof:
+        if local and project_operations(local, fmt):
+            raise ValueError('restored-project-operation-inventory-mismatch')
+        return []
+    if set(proof) != {OPERATION_FORMAT, ARCHIVED_OPERATIONS}:
+        raise ValueError('missing-archived-operation-proof')
+    source_format = read_operation_format(proof[OPERATION_FORMAT], expected)
+    archived = json.loads(proof[ARCHIVED_OPERATIONS])
+    if archived.get('releaseSha256') != hashlib.sha256(manifest).hexdigest():
+        raise ValueError('backup-release-mismatch')
+    pending = pending_formats(archived, source_format)
+    if fmt[0] < max(source_format[1], required_reader(pending)):
+        raise ValueError('incompatible-restore-reader')
+    if local and project_operations(local, fmt) != pending:
+        raise ValueError('restored-project-operation-inventory-mismatch')
+    return pending
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Verify a formal backup against its proposed restore reader.')
+    parser.add_argument('--verify-restore', type=pathlib.Path, required=True)
+    parser.add_argument('--reader', type=pathlib.Path, required=True)
+    parser.add_argument('--isolated-url')
+    options = parser.parse_args()
+    print(json.dumps({'pending': verify_operation_restore(options.verify_restore, options.reader, options.isolated_url)}))
