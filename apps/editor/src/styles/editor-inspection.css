@@ -350,6 +350,19 @@
   background: var(--icm-accent-soft);
 }
 
+/* Screen readers can request the native, fully searchable list. Keep this
+   control outside ordinary pointer and Tab navigation until it is used. */
+.diagnostics-complete-list[aria-pressed="false"]:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .diagnostics ul {
   max-height: 12rem;
   overflow: auto;

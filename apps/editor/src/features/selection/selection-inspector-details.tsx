@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SpiceDiagnostic } from "@icm/spice";
 
 import type { EditorTool } from "../../interaction/interaction-state";
+import { DiagnosticList } from "./selection-inspector-details-list";
 import { NetTraceHopList } from "./net-trace-hop-list";
 
 export interface SelectionInspectorSnapshot {
@@ -394,33 +395,12 @@ export function ProjectDiagnosticsSection({
               No diagnostics match the current filters
             </p>
           ) : null}
-          <ul data-testid="project-diagnostics">
-            {visibleDiagnostics.map((diagnostic) => (
-              <li
-                key={diagnostic.id}
-                data-domain={diagnostic.domain}
-                data-document-id={diagnostic.primary.documentId}
-                data-severity={diagnostic.severity}
-                data-confidence={diagnostic.confidence}
-                data-presentation={diagnosticPresentationGroup(diagnostic)}
-              >
-                <button
-                  type="button"
-                  data-testid={`project-diagnostic-${diagnostic.id}`}
-                  disabled={checkStatus !== "current"}
-                  onClick={() => onSelectDiagnostic(diagnostic)}
-                >
-                  <strong>
-                    {diagnostic.domain.toUpperCase()} / {diagnostic.code}
-                  </strong>
-                  : {diagnostic.message}
-                  <small>
-                    Cell: {documentLabel(diagnostic.primary.documentId)}
-                  </small>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <DiagnosticList
+            findings={visibleDiagnostics}
+            current={checkStatus === "current"}
+            documentLabel={documentLabel}
+            onSelectDiagnostic={onSelectDiagnostic}
+          />
         </div>
       </details>
     </section>

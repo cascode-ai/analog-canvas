@@ -20,11 +20,12 @@ import {
   CanvasInputPlanes,
   ConnectedNetGlow,
   NetHighlightOverlay,
-  DiagnosticMarkersOverlay,
+  type DiagnosticMarkersOverlay,
   WireUnderSymbolOverlay,
   LabelTetherOverlay,
   type LabelTether,
 } from "./editor-canvas-overlays";
+import { ViewportDiagnosticMarkers } from "./diagnostic-markers-viewport";
 import { EditorCanvasHitLayer } from "./editor-canvas-hit-layer";
 import {
   type CanvasDrawingQueries,
@@ -465,7 +466,12 @@ export function EditorCanvasSurface({
             visibleIds={visibleIds}
           />
           <WireUnderSymbolOverlay {...wireUnderSymbol} />
-          <DiagnosticMarkersOverlay {...diagnosticMarkers} />
+          {diagnosticMarkers.markers.length > 0 && (
+            <ViewportDiagnosticMarkers
+              {...diagnosticMarkers}
+              camera={cameraRuntime}
+            />
+          )}
           {/* Above the diagnostics so a voltage is never hidden by a marker,
               and below the handles so it never covers something grabbable. */}
           <EditorDraftingHandles {...draftingHandles} />

@@ -32,6 +32,7 @@ import { registerCanvasObjectRetention } from "./canvas-object-retention";
 import { rectContainsRect } from "./canvas-geometry";
 import { instanceVisibleHitBox } from "./instance-geometry";
 import type { CameraRuntime } from "./camera-runtime";
+import { worldViewport } from "./fit-view";
 
 export function usesCanvasViewport(document: SchematicDocument): boolean {
   return (
@@ -351,21 +352,11 @@ export function useCanvasVisibleObjects(
       surface: DOMRect,
       animationFrame: boolean,
     ) => {
-      const scale = Math.min(
-        surface.width / camera.width,
-        surface.height / camera.height,
-      );
-      if (!(scale > 0)) return;
-      // xMidYMid meet exposes extra world coordinates in the letterbox.
-      const width = surface.width / scale,
-        height = surface.height / scale;
+      const viewport = worldViewport(camera, surface);
+      if (!viewport) return;
+      const { scale } = viewport;
       const visible = pad(
-        {
-          x: camera.x + (camera.width - width) / 2,
-          y: camera.y + (camera.height - height) / 2,
-          width,
-          height,
-        },
+        viewport.bounds,
         Math.max(24 / scale, endpointHitRadius),
       );
       const current = previous.current;

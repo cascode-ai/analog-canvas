@@ -398,3 +398,163 @@ test("a wire coverage finding frames the covered interval", async ({
     })
     .toBeLessThan(bounds.width / 3);
 });
+
+function manyFindings() {
+  const project = createEmptyProject("many-findings", "Many findings");
+  for (let i = 0; i < 100; i++) {
+    const id = "R" + (i + 1);
+    project.documents[0]!.instances.push({
+      ...placedInstance(
+        id,
+        "resistor",
+        (i % 10) * 180,
+        Math.floor(i / 10) * 160,
+      ),
+      reference: id,
+    });
+  }
+  return project;
+}
+
+test("long Issues lists keep their order, focus and last finding through scrolling and reflow", async ({
+  page,
+}) => {
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 401, json: { error: "unauthorized" } }),
+  );
+  const project = manyFindings();
+  await openProject(
+    page,
+    serializeProject(project),
+    "many-findings.icproj.json",
+  );
+  await clickNetlistWorkflowCommand(page, "check-and-save");
+  await page
+    .getByTestId("save-sign-in-dialog")
+    .getByRole("button", { name: "Not now", exact: true })
+    .click();
+  const list = page.getByTestId("project-diagnostics");
+  const row = (n: number) => list.locator(`[aria-posinset="${n}"] button`);
+  await expect(row(1)).toBeVisible();
+  const count = Number(await row(1).locator("..").getAttribute("aria-setsize"));
+  expect(count).toBeGreaterThanOrEqual(200);
+  await expect.poll(() => list.locator("button").count()).toBeLessThan(40);
+  const ax = await page.context().newCDPSession(page);
+  const accessibleButtons = async () =>
+    (await ax.send("Accessibility.getFullAXTree")).nodes
+      .filter((node) => node.role?.value === "button")
+      .map((node) => String(node.name?.value ?? ""));
+  const toggleName = "Show complete Issues list";
+  expect(await accessibleButtons()).toContain(toggleName);
+  expect(
+    (await accessibleButtons()).some((name) => name.includes("R50.")),
+  ).toBe(false);
+  const toggle = page.getByRole("button", { name: toggleName, exact: true });
+  await toggle.focus();
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  expect(
+    (await accessibleButtons()).filter((name) => name.includes("R50.")),
+  ).toHaveLength(2);
+  await list.getByRole("button", { name: /R50\./u }).first().click();
+  await expectStatus(page, "ERC_UNCONNECTED_PIN");
+  await toggle.focus();
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => list.locator("button").count()).toBeLessThan(40);
+  await ax.detach();
+  await row(1).focus();
+  for (let n = 2; n <= 20; n++) {
+    await page.keyboard.press("Tab");
+    await expect(row(n)).toBeFocused();
+  }
+  await list.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await expect(row(20)).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(row(19)).toBeFocused();
+  const width = await list.evaluate((el) => el.clientWidth);
+  const handle = page.getByTestId("properties-resize-handle");
+  for (let i = 0; i < 4; i++) await handle.press("Shift+ArrowRight");
+  await expect
+    .poll(() => list.evaluate((el) => el.clientWidth))
+    .toBeLessThan(width);
+  // Resizing focuses the divider. Reveal the list in the outer Properties
+  // panel before scrolling the list itself, just as a pointer user must.
+  await list.scrollIntoViewIfNeeded();
+  await expect(list).toBeInViewport({ ratio: 0.99 });
+  await list.hover();
+  await page.mouse.wheel(0, await list.evaluate((el) => el.scrollHeight));
+  await expect(row(count)).toBeInViewport({ ratio: 0.99 });
+  await expect.poll(() => list.locator("button").count()).toBeLessThan(40);
+  const last = row(count);
+  const code = (await last.locator("strong").innerText()).split(" / ")[1]!;
+  await last.click();
+  await expectStatus(page, code);
+});
+
+test("a zoomed Issues overlay keeps the visible and partly clipped marker rings", async ({
+  page,
+}) => {
+  await page.route("**/api/projects", (route) =>
+    route.fulfill({ status: 401, json: { error: "unauthorized" } }),
+  );
+  await openProject(
+    page,
+    serializeProject(manyFindings()),
+    "many-findings.icproj.json",
+  );
+  await clickNetlistWorkflowCommand(page, "check-and-save");
+  await page
+    .getByTestId("save-sign-in-dialog")
+    .getByRole("button", { name: "Not now", exact: true })
+    .click();
+  const canvas = page.getByTestId("schematic-canvas");
+  await canvas.focus();
+  await page.keyboard.press("f");
+  const hits = canvas.locator(".diagnostic-marker-hit");
+  await expect(hits).toHaveCount(200);
+  const fitted = await hits.evaluateAll((marks) =>
+    marks.map((el) => {
+      const rect = (el as SVGGraphicsElement).getBBox();
+      return {
+        id: el.getAttribute("data-testid")!,
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
+    }),
+  );
+  for (let i = 0; i < 6; i++)
+    await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  await expect.poll(() => hits.count()).toBeLessThan(100);
+  const required = await canvas.evaluate((el, marks) => {
+    const matrix = (el as SVGSVGElement).getScreenCTM()!;
+    const clip = el.getBoundingClientRect();
+    return marks
+      .filter((m) => {
+        const a = new DOMPoint(m.x, m.y).matrixTransform(matrix);
+        const b = new DOMPoint(m.x + m.width, m.y + m.height).matrixTransform(
+          matrix,
+        );
+        return (
+          a.x <= clip.right &&
+          b.x >= clip.left &&
+          a.y <= clip.bottom &&
+          b.y >= clip.top
+        );
+      })
+      .map((m) => m.id);
+  }, fitted);
+  expect(required.length).toBeGreaterThan(0);
+  expect(
+    await hits.evaluateAll((els) =>
+      els.map((e) => e.getAttribute("data-testid")),
+    ),
+  ).toEqual(expect.arrayContaining(required));
+  await canvas.focus();
+  await page.keyboard.press("f");
+  await expect(hits).toHaveCount(200);
+});

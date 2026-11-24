@@ -18,7 +18,10 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditorTool } from "../interaction/interaction-state";
 import { serializePolylinePoints } from "./canvas-geometry";
-import type { DiagnosticMarker } from "./diagnostic-markers";
+import {
+  DIAGNOSTIC_MARKER_HIT_RADIUS,
+  type DiagnosticMarker,
+} from "./diagnostic-markers";
 
 function endpointHidden(
   endpoint: RouteEndpoint,
@@ -387,7 +390,12 @@ export function DiagnosticMarkersOverlay({
           <path
             className="diagnostic-marker-hit"
             data-testid={`diagnostic-marker-${marker.key}`}
-            d={ringBandPath(marker.point.x, marker.point.y, 8.5, 3)}
+            d={ringBandPath(
+              marker.point.x,
+              marker.point.y,
+              DIAGNOSTIC_MARKER_HIT_RADIUS,
+              3,
+            )}
             fillRule="evenodd"
             onPointerDown={(event) => {
               if (event.button !== 0) return;
