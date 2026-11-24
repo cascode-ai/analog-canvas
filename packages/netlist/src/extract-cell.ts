@@ -588,15 +588,17 @@ export function extractCell(
   if (genericDepletion.length)
     reportGenericDepletionMos(document, genericDepletion, diagnostics);
   // A netlist handed out carries the MOS stand-ins, in either dialect, so it
-  // reads back with each part's channel; a run's deck does not (#1420).
-  const genericMos = options.run
-    ? []
-    : [GENERIC_NMOS_MODEL, GENERIC_PMOS_MODEL]
-        .map((model) => ({
-          model,
-          parts: carryGenericCard(model, "mos", true),
-        }))
-        .filter(({ parts }) => parts.length);
+  // reads back with each part's channel; so does an ngspice run's deck, which
+  // otherwise cannot find them (#2555). A VACASK run's does not (#1420).
+  const genericMos =
+    options.run && !options.mosStandIns
+      ? []
+      : [GENERIC_NMOS_MODEL, GENERIC_PMOS_MODEL]
+          .map((model) => ({
+            model,
+            parts: carryGenericCard(model, "mos", true),
+          }))
+          .filter(({ parts }) => parts.length);
   if (genericMos.length) reportGenericMos(document, genericMos, diagnostics);
   if (options.format === "spice")
     reportUndefinedGenericModels(

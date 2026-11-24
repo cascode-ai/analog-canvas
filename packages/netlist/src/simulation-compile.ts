@@ -240,6 +240,8 @@ export interface CompileStructuredSimulationOptions {
   readonly terminalInstrumentations?: readonly TerminalCurrentInstrumentation[];
   /** The run's own source text; a model it defines replaces a stand-in card. */
   readonly deckSources?: readonly string[];
+  /** The deck carries the MOS stand-ins, as an ngspice run's does (#2555). */
+  readonly mosStandIns?: boolean;
 }
 
 function diagnostic(
@@ -825,6 +827,7 @@ export function buildSimulationPlan(
     ...SIMULATION_DECK_GROUND,
     rootAsTopLevel: options.rootAsTopLevel ?? true,
     ...(options.deckSources ? { deckSources: options.deckSources } : {}),
+    ...(options.mosStandIns ? { mosStandIns: true } : {}),
   });
   // A null IR already carries at least one error, `MISSING_ROOT_CELL` among
   // them when the root Document is not in the Project.
