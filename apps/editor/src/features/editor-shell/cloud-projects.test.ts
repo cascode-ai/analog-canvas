@@ -74,6 +74,47 @@ it("keeps signed-out, missing and offline Cloud Projects distinct", async () => 
 });
 
 describe("Cloud Project client", () => {
+  it("keeps an accepted creation and saves newer edits after recovering its binding", async () => {
+    const requests: Request[] = [];
+    const fetchLike: typeof fetch = async (url, init) => {
+      const request = new Request(
+        new URL(String(url), "https://canvas.test"),
+        init,
+      );
+      requests.push(request);
+      if (requests.length === 1)
+        return Response.json(
+          { error: "project-create-pending" },
+          { status: 503 },
+        );
+      return Response.json({
+        project: {
+          ...summary,
+          saveToken: "head-created",
+          revision: requests.length - 1,
+        },
+      });
+    };
+    expect(await saveCloudProject(project, null, fetchLike)).toMatchObject({
+      status: "pending",
+      message: expect.stringContaining("My shelf"),
+    });
+    const edited = { ...project, name: "Updated while waiting" };
+    expect(await saveCloudProject(edited, null, fetchLike)).toMatchObject({
+      status: "saved",
+      project: { revision: 2 },
+    });
+    const [first, retry, update] = requests;
+    expect(first!.headers.get("idempotency-key")).toBeTruthy();
+    expect(retry!.headers.get("idempotency-key")).toBe(
+      first!.headers.get("idempotency-key"),
+    );
+    expect(await retry!.text()).toBe(await first!.text());
+    expect(update!.method).toBe("PUT");
+    expect(update!.headers.get("if-match")).toBe("head-created");
+    expect(await update!.json()).toMatchObject({ name: edited.name });
+  });
+
   it("creates an unbound Project and updates a bound revision", async () => {
     const created = respondWith(201, { project: summary });
     expect(await saveCloudProject(project, null, created.fetchLike)).toEqual({

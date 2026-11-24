@@ -41,6 +41,7 @@ export interface CloudProjectBinding {
 
 export type CloudProjectSaveOutcome =
   | { status: "saved"; project: CloudProjectSummary }
+  | { status: "pending"; message: string }
   | { status: "signed-out" }
   | { status: "too-large" }
   | { status: "limit"; projects: readonly CloudProjectSummary[] }
@@ -214,6 +215,15 @@ export async function saveCloudProject(
         ? "rejected"
         : "ambiguous";
   }
+  if (
+    creation &&
+    response.status === 503 &&
+    payload?.error === "project-create-pending"
+  )
+    return {
+      status: "pending",
+      message: "Your Project is being created. Check My shelf for it shortly.",
+    };
   if (response.status === 401) return { status: "signed-out" };
   if (response.status === 413) return { status: "too-large" };
   if (response.status === 404) {

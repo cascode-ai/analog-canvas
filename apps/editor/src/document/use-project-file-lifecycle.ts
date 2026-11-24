@@ -111,6 +111,7 @@ function cloudSaveFailureText(
       return `${CLOUD_PROJECT_COPY.singular} limit reached (${outcome.projects.length}/${limit})`;
     case "not-found":
       return `${CLOUD_PROJECT_COPY.singular} no longer exists; current work remains local`;
+    case "pending":
     case "rejected":
       return outcome.message;
   }
@@ -453,11 +454,13 @@ export function useProjectFileLifecycle({
       return outcome;
     }
     setPersistenceState(
-      outcome.status === "unreachable"
-        ? "offline"
-        : outcome.status === "conflict"
-          ? "conflict"
-          : "failed",
+      outcome.status === "pending"
+        ? "dirty"
+        : outcome.status === "unreachable"
+          ? "offline"
+          : outcome.status === "conflict"
+            ? "conflict"
+            : "failed",
     );
     setStatus(cloudSaveFailureText(outcome, projectStore.limit));
     return outcome;
