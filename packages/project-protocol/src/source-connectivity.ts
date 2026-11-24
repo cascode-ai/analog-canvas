@@ -10,6 +10,7 @@ import {
   ConnectionGraph,
   deriveDocumentContactEvidence,
   endpointKey,
+  indexJunctionsByNet,
   netEndpoints,
   resolveEndpointPoint,
 } from "@icm/derived";
@@ -74,8 +75,13 @@ export function captureSourceConnectivity(
   return project.documents.map((document) => {
     const graph = new ConnectionGraph();
     const nodes = new Map<string, RouteEndpoint>();
-    for (const net of document.nets)
-      for (const e of netEndpoints(document, net)) {
+    const junctionsByNet = indexJunctionsByNet(document.junctions);
+    const memberships = document.nets.map((net) => ({
+      net,
+      endpoints: netEndpoints(document, net, junctionsByNet.get(net.id) ?? []),
+    }));
+    for (const { endpoints } of memberships)
+      for (const e of endpoints) {
         nodes.set(endpointKey(e), e);
         graph.add(endpointKey(e));
       }
@@ -91,10 +97,7 @@ export function captureSourceConnectivity(
       graph.join(keys);
     }
     const unrouted: Endpoint[][] = [];
-    const nets = document.nets.map((net) => {
-      const endpoints = netEndpoints(document, net).sort((a, b) =>
-        endpointKey(a).localeCompare(endpointKey(b), "en"),
-      );
+    const nets = memberships.map(({ net, endpoints }) => {
       const groups = graph.groups(endpoints.map(endpointKey));
       if (groups.length > 1) {
         const link = groups.map((g) => nodes.get(g[0]!)!);

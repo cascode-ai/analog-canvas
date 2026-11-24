@@ -747,8 +747,8 @@ export function revokeInvalidatedSupplyBulkDefaults(
   changedObjectIds: Set<string>,
   deferNetPrune: (netId: string) => void,
 ): boolean {
-  const beforeLogical = resolveDocumentLogicalNets(before);
-  const afterLogical = resolveDocumentLogicalNets(draft);
+  let beforeLogical: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
+  let afterLogical: ReturnType<typeof resolveDocumentLogicalNets> | undefined;
   let changed = false;
 
   for (const [kind, field, expectedDomain] of [
@@ -758,6 +758,8 @@ export function revokeInvalidatedSupplyBulkDefaults(
     const beforeDefaultId = before.mosBulkDefaults?.[field];
     const afterDefaultId = draft.mosBulkDefaults?.[field];
     if (!beforeDefaultId || !afterDefaultId) continue;
+    beforeLogical ??= resolveDocumentLogicalNets(before);
+    afterLogical ??= resolveDocumentLogicalNets(draft);
     const beforeGroup = beforeLogical.byBaseNetId.get(beforeDefaultId);
     const wasSupply = beforeGroup?.powerDomain === expectedDomain;
     const remainsSupply =

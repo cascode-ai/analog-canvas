@@ -10,6 +10,7 @@ import {
 } from "@icm/derived";
 import type { RouteBranch, RouteEndpoint, SchematicDocument } from "@icm/model";
 import { routeEndpoints } from "@icm/model";
+import { routeIdsByJunction } from "./route-path-read.js";
 import type { SchematicEdit } from "./transaction.js";
 
 export interface VisualRouteDeletion {
@@ -52,12 +53,8 @@ export function proposeVisualRouteDeletion(
   const junctionsToRemove = new Set(junctionIds);
   const removedRailEndpointJunctionIds = new Set<string>();
   const removedRailNetIds = new Set<string>();
-  const includeRouteAndOwnedFamily = (route: RouteBranch): boolean => {
-    let changed = false;
-    if (!routesToRemove.has(route.id)) {
-      routesToRemove.add(route.id);
-      changed = true;
-    }
+  const includeRouteAndOwnedFamily = (route: RouteBranch): void => {
+    routesToRemove.add(route.id);
     const railComponent = derivePowerRailComponent(document, route.id);
     if (railComponent) {
       removedRailNetIds.add(route.netId);
@@ -65,56 +62,38 @@ export function proposeVisualRouteDeletion(
         removedRailEndpointJunctionIds.add(junctionId),
       );
       for (const routeId of railComponent.routeIds) {
-        if (!routesToRemove.has(routeId)) {
-          routesToRemove.add(routeId);
-          changed = true;
-        }
+        routesToRemove.add(routeId);
       }
     }
     const family = deriveMosBulkRouteFamily(document, route);
-    if (!family) return changed;
+    if (!family) return;
     for (const routeId of family.routeIds) {
       bulkRoutesToRemove.add(routeId);
-      if (!routesToRemove.has(routeId)) {
-        routesToRemove.add(routeId);
-        changed = true;
-      }
+      routesToRemove.add(routeId);
     }
-    return changed;
   };
   for (const routeId of routeIds) {
     const route = document.routes.find((candidate) => candidate.id === routeId);
     if (route) includeRouteAndOwnedFamily(route);
     else routesToRemove.add(routeId);
   }
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const route of document.routes) {
-      const touchesDeletedJunction = routeEndpoints(route).some(
+  const attachedRoutes = routeIdsByJunction(document.routes);
+  for (const route of document.routes) {
+    if (
+      !routesToRemove.has(route.id) &&
+      routeEndpoints(route).some(
         (endpoint) =>
           endpoint.kind === "junction" &&
           junctionsToRemove.has(endpoint.junctionId),
-      );
-      if (touchesDeletedJunction && !routesToRemove.has(route.id)) {
-        changed = includeRouteAndOwnedFamily(route) || changed;
-      }
-    }
-    for (const junction of document.junctions) {
-      if (junctionsToRemove.has(junction.id)) continue;
-      const attachedRoutes = document.routes.filter((route) =>
-        routeEndpoints(route).some(
-          (endpoint) =>
-            endpoint.kind === "junction" && endpoint.junctionId === junction.id,
-        ),
-      );
-      if (
-        attachedRoutes.length > 0 &&
-        attachedRoutes.every((route) => routesToRemove.has(route.id))
-      ) {
-        junctionsToRemove.add(junction.id);
-        changed = true;
-      }
+      )
+    )
+      includeRouteAndOwnedFamily(route);
+  }
+  // An orphan has no surviving arm and cannot expand the set of deleted Routes.
+  for (const junction of document.junctions) {
+    const arms = attachedRoutes.get(junction.id);
+    if (arms?.every((routeId) => routesToRemove.has(routeId))) {
+      junctionsToRemove.add(junction.id);
     }
   }
   const sortedRouteIds = [...routesToRemove].sort((a, b) =>
@@ -154,13 +133,7 @@ export function proposeVisualRouteDeletion(
   // junction already detached before this transaction needs an explicit edit;
   // otherwise a second remove would reject the transaction.
   const alreadyOrphanedJunctionIds = sortedJunctionIds.filter(
-    (junctionId) =>
-      !document.routes.some((route) =>
-        routeEndpoints(route).some(
-          (endpoint) =>
-            endpoint.kind === "junction" && endpoint.junctionId === junctionId,
-        ),
-      ),
+    (junctionId) => !attachedRoutes.has(junctionId),
   );
   const disconnectedBulkInstances = [
     ...new Set(

@@ -2,7 +2,6 @@ import {
   createRoutePath,
   deriveStableId,
   routeEnd,
-  routeEndpoints,
   type Point,
   type RouteBranch,
   type RouteEndpoint,
@@ -12,10 +11,16 @@ import {
 import {
   endpointKey,
   pointOnSegment,
-  resolveDocumentRoutingGeometry,
+  buildBoundsSpatialIndex,
+  buildEndpointObjectLookup,
+  SEGMENT_QUERY_PADDING,
+  segmentNeedsExactPointQuery,
+  resolveRouteGeometry,
+  type ResolvedRouteGeometry,
 } from "@icm/derived";
 import type { SymbolResolver } from "@icm/symbols";
 
+import { routeIdsByJunction } from "./route-path-read.js";
 import { normalizeRouteGeometry, strongerMode } from "./route-geometry-edit.js";
 import { rebuildRoutePathWithRemap } from "./route-leg-mutation.js";
 import {
@@ -174,21 +179,6 @@ function normalizableRoutesByNet(
   return groups;
 }
 
-function routeIdsByJunction(
-  routes: readonly RouteBranch[],
-): Map<string, string[]> {
-  const idsByJunction = new Map<string, string[]>();
-  for (const route of routes) {
-    for (const endpoint of routeEndpoints(route)) {
-      if (endpoint.kind !== "junction") continue;
-      const ids = idsByJunction.get(endpoint.junctionId) ?? [];
-      ids.push(route.id);
-      idsByJunction.set(endpoint.junctionId, ids);
-    }
-  }
-  return idsByJunction;
-}
-
 function endpointAtRouteSide(
   route: RouteBranch,
   point: Point,
@@ -267,8 +257,14 @@ export function normalizeSameNetConductorTopology(
   const changedObjectIds = new Set<string>();
   const coalescedEndpoints = new Map<string, string>();
   let changed = false;
-  // An explicit empty affected set is a no-op; omission still normalizes all Nets.
   if (netIds?.size === 0)
+    return { changed, changedRouteIds, changedObjectIds, coalescedEndpoints };
+  const routesByNet = normalizableRoutesByNet(document.routes, netIds);
+  // A lone straight wire has neither repeated coverage nor two arms to join.
+  for (const [id, routes] of routesByNet)
+    if (routes.length === 1 && routes[0]!.legs.length === 1)
+      routesByNet.delete(id);
+  if (!routesByNet.size)
     return { changed, changedRouteIds, changedObjectIds, coalescedEndpoints };
   const occupiedIds = new Set([
     ...document.instances.map((instance) => instance.id),
@@ -278,23 +274,36 @@ export function normalizeSameNetConductorTopology(
     ...document.annotations.map((annotation) => annotation.id),
     ...document.connectivityEvidence.map((evidence) => evidence.id),
   ]);
-  const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
-  let routesByNet: Map<string, RouteBranch[]> | undefined;
+  // Resolve the eligible conductors against the original, complete Cell.
+  // Normalizing an earlier Net below can replace Routes and Junctions.
+  const geometries = new Map<RouteBranch, ResolvedRouteGeometry>();
+  const lookup = buildEndpointObjectLookup(document);
+  for (const routes of routesByNet.values()) {
+    for (const route of routes) {
+      const geometry = resolveRouteGeometry(
+        document,
+        resolver,
+        route,
+        undefined,
+        lookup,
+      );
+      if (geometry) geometries.set(route, geometry);
+    }
+  }
   let junctionRouteIds: Map<string, string[]> | undefined;
   let protectedIds: Set<string> | undefined;
 
-  for (const net of [...document.nets].sort((left, right) =>
+  const nets = document.nets.filter((net) => routesByNet.has(net.id));
+  for (const net of nets.sort((left, right) =>
     left.id.localeCompare(right.id, "en"),
   )) {
-    if (netIds && !netIds.has(net.id)) continue;
-    routesByNet ??= normalizableRoutesByNet(document.routes, netIds);
     const routes = routesByNet.get(net.id);
     if (!routes) continue;
     routes.sort((left, right) => left.id.localeCompare(right.id, "en"));
 
     const routePoints = new Map(
       routes.flatMap((route) => {
-        const geometry = routingGeometry.routes.get(route.id);
+        const geometry = geometries.get(route);
         return geometry ? [[route.id, geometry.centerline] as const] : [];
       }),
     );
@@ -305,13 +314,30 @@ export function normalizeSameNetConductorTopology(
       for (const point of points) candidatePoints.set(pointKey(point), point);
     }
 
+    const points = [...candidatePoints.values()];
+    const pointIndex = buildBoundsSpatialIndex(
+      points.map((value) => ({
+        bounds: { ...value, width: 0, height: 0 },
+        value,
+      })),
+      Math.max(80, document.presentation.grid * 8),
+    );
     const atomicEdges = new Map<string, AtomicEdge>();
     let duplicateCoverage = false;
     let introducedInteriorVertex = false;
     for (const route of routes) {
-      const geometry = routingGeometry.routes.get(route.id)!;
+      const geometry = geometries.get(route)!;
       for (const segment of geometry.segments) {
-        const breakpoints = [...candidatePoints.values()]
+        const { from, to } = segment;
+        const candidates = segmentNeedsExactPointQuery(from, to)
+          ? points
+          : pointIndex.queryBounds({
+              x: Math.min(from.x, to.x) - SEGMENT_QUERY_PADDING,
+              y: Math.min(from.y, to.y) - SEGMENT_QUERY_PADDING,
+              width: Math.abs(from.x - to.x) + 2 * SEGMENT_QUERY_PADDING,
+              height: Math.abs(from.y - to.y) + 2 * SEGMENT_QUERY_PADDING,
+            });
+        const breakpoints = candidates
           .filter((point) =>
             pointOnClosedSegment(point, segment.from, segment.to),
           )
@@ -702,7 +728,6 @@ export function normalizeSameNetConductorTopology(
       }
     }
     // A repair can replace routes and retarget their external owners.
-    routesByNet = undefined;
     junctionRouteIds = undefined;
     protectedIds = undefined;
     changed = true;
