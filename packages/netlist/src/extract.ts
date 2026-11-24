@@ -85,27 +85,44 @@ function attachDiagnosticLocators(
   project: CircuitProject,
   diagnostics: NetlistDiagnostic[],
 ): void {
+  const targets = new Map<StableId, Map<StableId, NetlistDiagnostic[]>>();
   for (const item of diagnostics) {
-    const document = project.documents.find(
-      (candidate) => candidate.id === item.documentId,
-    );
-    if (!document) continue;
     const objectId = item.objectIds[0];
     if (!objectId) continue;
-    const kind = document.instances.some((item) => item.id === objectId)
-      ? "instance"
-      : document.nets.some((item) => item.id === objectId)
-        ? "net"
-        : document.routes.some((item) => item.id === objectId)
-          ? "route"
-          : document.junctions.some((item) => item.id === objectId)
-            ? "junction"
-            : document.annotations.some((item) => item.id === objectId)
-              ? "annotation"
-              : document.noConnects.some((item) => item.id === objectId)
-                ? "no-connect"
-                : null;
-    if (kind) item.primary = directObjectLocator(document.id, kind, objectId);
+    let byObject = targets.get(item.documentId);
+    if (!byObject) {
+      byObject = new Map();
+      targets.set(item.documentId, byObject);
+    }
+    const items = byObject.get(objectId);
+    if (items) items.push(item);
+    else byObject.set(objectId, [item]);
+  }
+
+  for (const document of project.documents) {
+    if (!targets.size) break;
+    const remaining = targets.get(document.id);
+    if (!remaining) continue;
+    targets.delete(document.id);
+    // The first matching kind owns the locator, including on a cross-kind ID collision.
+    for (const [kind, objects] of [
+      ["instance", document.instances],
+      ["net", document.nets],
+      ["route", document.routes],
+      ["junction", document.junctions],
+      ["annotation", document.annotations],
+      ["no-connect", document.noConnects],
+    ] as const) {
+      if (!remaining.size) break;
+      for (const { id } of objects) {
+        const items = remaining.get(id);
+        if (!items) continue;
+        for (const item of items)
+          item.primary = directObjectLocator(document.id, kind, id);
+        remaining.delete(id);
+        if (!remaining.size) break;
+      }
+    }
   }
 }
 
