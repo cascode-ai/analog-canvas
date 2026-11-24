@@ -83,7 +83,7 @@ export function pastedIdentities(
 export function nextUnconstrainedReference(
   current: string,
   sequence: number,
-  occupied: ReadonlySet<string>,
+  occupied: Pick<ReadonlySet<string>, "has">,
   reserved: ReadonlySet<string>,
 ): string {
   const suffix = /^(.*?)(\d+)$/u.exec(current);

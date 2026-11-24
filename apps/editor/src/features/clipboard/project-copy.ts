@@ -13,7 +13,8 @@ import {
 } from "@icm/model";
 import {
   resolveVisualAnchor,
-  resolveDocumentRoutingGeometry,
+  resolveRouteGeometry,
+  type ResolvedRouteGeometry,
   resolveEndpointConnection,
   sameDocumentStyle,
   endpointKey,
@@ -59,6 +60,7 @@ import {
   planCopiedSubstrateDefaults,
   validatedDefaultSubstrateTerminals,
 } from "./copy-substrate";
+import { copySourceReads } from "./copy-source-reads";
 import { proposePaste } from "./paste-proposal";
 
 import {
@@ -140,13 +142,30 @@ export function captureProjectCopy(
     document.netlist?.formalParameters ?? [],
   );
   const selectedInstances = new Set(clipboard.instances.map((i) => i.id));
-  const geometry = resolveDocumentRoutingGeometry(document, resolver);
+  const reads = copySourceReads(document);
+  const { lookup, routes: sourceRoutes } = reads;
+  const routes = new Map<string, ResolvedRouteGeometry>();
+  function geometryOf(id: string) {
+    const cached = routes.get(id);
+    if (cached) return cached;
+    const source = sourceRoutes.get(id);
+    if (!source) return;
+    const geometry = resolveRouteGeometry(
+      document,
+      resolver,
+      source,
+      undefined,
+      lookup,
+    );
+    if (geometry) routes.set(id, geometry);
+    return geometry ?? undefined;
+  }
   const netIds = new Set(clipboard.nets.map((n) => n.id));
-  const sourceNetIds = new Set(document.nets.map((net) => net.id));
+  const sourceNetIds = reads.nets;
   // Explicit wires can be copied without their connected devices. Materialize their
   // cut endpoints at the resolved pin positions, never carry a foreign terminal ID.
   for (const routeId of selection?.routeIds ?? []) {
-    const source = document.routes.find((r) => r.id === routeId);
+    const source = sourceRoutes.get(routeId);
     if (!source || clipboard.routes.some((r) => r.id === routeId)) continue;
     clipboard.routes.push(structuredClone(source));
   }
@@ -175,7 +194,7 @@ export function captureProjectCopy(
     Map<string, import("@icm/model").RouteEndpoint>
   >();
   clipboard.routes = clipboard.routes.flatMap((route) => {
-    const centerline = geometry.routes.get(route.id)?.centerline;
+    const centerline = geometryOf(route.id)?.centerline;
     if (!centerline?.length) return [route];
     const points = [
       centerline[0]!,
@@ -222,7 +241,7 @@ export function captureProjectCopy(
   for (const route of clipboard.routes) {
     for (const { netId } of routeElectricalConnections(route)) {
       if (!netIds.has(netId)) {
-        const net = document.nets.find((n) => n.id === netId);
+        const net = reads.nets.get(netId);
         if (!net) throw new Error(`Copied Wire ${route.id} has no Net`);
         clipboard.nets.push({
           ...structuredClone(net),
@@ -235,13 +254,11 @@ export function captureProjectCopy(
     }
     for (const [index, endpoint] of [route.start, routeEnd(route)].entries()) {
       if (endpoint.kind === "junction") {
-        const source = document.junctions.find(
-          (j) => j.id === endpoint.junctionId,
-        );
+        const source = lookup.junctionsById.get(endpoint.junctionId);
         if (source && !clipboard.junctions.some((j) => j.id === source.id))
           clipboard.junctions.push(structuredClone(source));
       } else if (!selectedInstances.has(endpoint.instanceId)) {
-        const resolved = geometry.routes.get(route.id);
+        const resolved = geometryOf(route.id);
         const position =
           index === 0 ? resolved?.centerline[0] : resolved?.centerline.at(-1);
         if (!position)
@@ -331,7 +348,7 @@ export function captureProjectCopy(
     ];
     for (const id of referencedNets) {
       if (netIds.has(id)) continue;
-      const net = document.nets.find((item) => item.id === id);
+      const net = reads.nets.get(id);
       if (!net)
         throw new Error(`Copied object references an unavailable Net: ${id}`);
       clipboard.nets.push({
@@ -351,7 +368,9 @@ export function captureProjectCopy(
   // it was. A pin's other links stay as the copy already decided (a Net its
   // record alone holds is not carried, as Ports never shared one).
   {
-    const copiedJunctions = new Set(clipboard.junctions.map((j) => j.id));
+    const copiedJunctions = clipboard.junctions.flatMap(
+      (j) => lookup.junctionsById.get(j.id) ?? [],
+    );
     const placed = new Set(
       clipboard.nets.flatMap((net) =>
         net.terminals.map((t) => endpointKey({ kind: "terminal", ...t })),
@@ -359,27 +378,31 @@ export function captureProjectCopy(
     );
     const key = (point: Point | undefined) =>
       point ? `${point.x},${point.y}` : null;
-    for (const net of document.nets) {
+    for (const net of reads.netsOf(selectedInstances)) {
       const pins = net.terminals.filter((terminal) =>
         selectedInstances.has(terminal.instanceId),
       );
       if (pins.length === 0) continue;
       const pinPoints = pins.map((terminal) =>
         key(
-          resolveEndpointConnection(document, resolver, {
-            kind: "terminal",
-            ...terminal,
-          })?.contactPoint,
+          resolveEndpointConnection(
+            document,
+            resolver,
+            {
+              kind: "terminal",
+              ...terminal,
+            },
+            lookup,
+          )?.contactPoint,
         ),
       );
       const points = [
         ...pinPoints,
-        ...document.junctions
+        ...copiedJunctions
           .filter(
             (j) =>
-              (j.members?.some((member) => member.netId === net.id) ??
-                j.netId === net.id) &&
-              copiedJunctions.has(j.id),
+              j.members?.some((member) => member.netId === net.id) ??
+              j.netId === net.id,
           )
           .map((junction) => key(junction.position)),
       ];
@@ -390,7 +413,7 @@ export function captureProjectCopy(
           ),
         )
         .flatMap((route) => {
-          const line = geometry.routes.get(route.id)?.centerline ?? [];
+          const line = geometryOf(route.id)?.centerline ?? [];
           return line.slice(1).map((end, index) => [line[index]!, end]);
         });
       const onWire = (point: Point) =>
@@ -456,7 +479,10 @@ export function captureProjectCopy(
   }
   const copiedRoutes = new Set(clipboard.routes.map((r) => r.id));
   // A selected Wire carries its own attached marker, even if its devices were cut.
-  for (const annotation of document.annotations) {
+  for (const annotation of reads.annotationsOf([
+    ...copiedRoutes,
+    ...(selection?.annotationIds ?? []),
+  ])) {
     if (
       ((annotation.anchor.kind === "route" &&
         copiedRoutes.has(annotation.anchor.routeId)) ||
@@ -479,7 +505,10 @@ export function captureProjectCopy(
     const carried = new Set(
       clipboard.connectivityEvidence.map((item) => item.id),
     );
-    for (const evidence of document.connectivityEvidence) {
+    for (const evidence of reads.claimsOf([
+      ...labelIds,
+      ...selectedInstances,
+    ])) {
       if (
         evidence.kind !== "name-claim" ||
         carried.has(evidence.id) ||
@@ -511,15 +540,15 @@ export function captureProjectCopy(
       if (anchor.kind !== "object" || !selectedInstances.has(anchor.objectId))
         continue;
       const copied = clipboard.nets.find((net) => net.id === annotation.netId);
-      const source = document.nets.find((net) => net.id === annotation.netId);
+      const source = reads.nets.get(annotation.netId!);
       if (
         !copied ||
         !source?.terminals.length ||
         source.terminals.some(
           (terminal) => terminal.instanceId !== anchor.objectId,
         ) ||
-        document.routes.some((route) => route.netId === source.id) ||
-        document.junctions.some((junction) => junction.netId === source.id)
+        reads.wiresOn.has(source.id) ||
+        reads.junctionsOn.has(source.id)
       )
         continue;
       for (const terminal of source.terminals) {
@@ -545,7 +574,13 @@ export function captureProjectCopy(
         ? owners.has(anchor.objectId)
         : copiedRoutes.has(anchor.routeId));
     if (internal) return anchor;
-    const resolved = resolveVisualAnchor(document, resolver, anchor, geometry);
+    if (anchor.kind === "route") geometryOf(anchor.routeId);
+    const resolved = resolveVisualAnchor(document, resolver, anchor, {
+      documentId: document.id,
+      documentRevision: document.revision,
+      routes,
+      endpointJoins: [],
+    });
     if (!resolved.resolved)
       throw new Error(
         resolved.diagnostic?.message ?? "Copied anchor cannot be resolved",

@@ -100,12 +100,15 @@ export function createNewInstance(
     ...(documentStyle ? { documentStyle } : {}),
     ...(signalFlowParameters ? { signalFlowParameters } : {}),
   };
-  const reference =
-    options.reference ??
-    nextReference(
-      createReferenceIndex(document, options.project),
-      referencePolicyForInstance(instance, options.project),
-    );
+  let reference = options.reference;
+  if (reference === undefined) {
+    const policy = referencePolicyForInstance(instance, options.project);
+    if (policy.kind !== "none")
+      reference = nextReference(
+        createReferenceIndex(document, options.project),
+        policy,
+      );
+  }
   if (reference) instance.reference = reference;
   return instance;
 }

@@ -1,6 +1,7 @@
 import {
   deriveStableId,
   hierarchicalSymbolId,
+  isFrozenSnapshot,
   projectCellInterface,
   projectCellSymbolArtwork,
   semanticTextDocument,
@@ -87,6 +88,43 @@ export function createBlockSymbol(
 type CellSymbolSource = Pick<SchematicDocument, "netlist"> &
   Partial<Pick<SchematicDocument, "annotations">>;
 
+type CellTerminal = NonNullable<
+  CellSymbolSource["netlist"]
+>["terminals"][number];
+type Annotations = SchematicDocument["annotations"];
+const terminalArtwork = new WeakMap<
+  Annotations,
+  WeakMap<CellTerminal, Annotations[number] | undefined>
+>();
+
+function terminalNameAnnotation(
+  annotations: Annotations | undefined,
+  terminal: CellTerminal,
+) {
+  const cached = annotations && terminalArtwork.get(annotations);
+  if (cached?.has(terminal)) return cached.get(terminal);
+  const annotation = annotations?.find(
+    (item) =>
+      (item.binding?.kind === "cell-terminal-name" &&
+        item.binding.terminalId === terminal.id) ||
+      (!item.binding &&
+        (item.id === terminal.interfaceAnnotationId ||
+          (item.kind === "instance-label" &&
+            item.anchor.kind === "object" &&
+            terminal.interfaceInstanceIds.includes(item.anchor.objectId)))),
+  );
+  if (
+    annotations &&
+    isFrozenSnapshot(annotations) &&
+    isFrozenSnapshot(terminal)
+  ) {
+    const entries = cached ?? new WeakMap();
+    entries.set(terminal, annotation);
+    if (!cached) terminalArtwork.set(annotations, entries);
+  }
+  return annotation;
+}
+
 /** Same representative declaration as the effective interface, including its authored format. */
 export function projectCellSymbolTerminals(
   document: CellSymbolSource,
@@ -95,16 +133,7 @@ export function projectCellSymbolTerminals(
     const terminal = document.netlist!.terminals.find(
       (item) => item.id === port.id,
     )!;
-    const annotation = document.annotations?.find(
-      (item) =>
-        (item.binding?.kind === "cell-terminal-name" &&
-          item.binding.terminalId === port.id) ||
-        (!item.binding &&
-          (item.id === terminal.interfaceAnnotationId ||
-            (item.kind === "instance-label" &&
-              item.anchor.kind === "object" &&
-              terminal.interfaceInstanceIds.includes(item.anchor.objectId)))),
-    );
+    const annotation = terminalNameAnnotation(document.annotations, terminal);
     return {
       ...port,
       ...(terminal.signal && terminal.signal.members.length > 1

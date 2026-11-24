@@ -6,6 +6,8 @@ import {
 import {
   hasExplicitMosBulkRoute,
   resolveMosBulkConnection,
+  mosBulkKind,
+  resolveCommittedDocumentLogicalNets,
   strandedMosBulkNet,
   endpointKey,
 } from "@icm/derived";
@@ -27,6 +29,7 @@ import type {
 import type { SymbolResolver } from "@icm/symbols";
 import { resolveDrawingOrder, routeElectricalConnections } from "@icm/model";
 
+import { copySelectionInputs } from "./copy-source-reads";
 import type { CopyContext } from "./project-copy";
 
 export interface SchematicClipboard {
@@ -200,7 +203,8 @@ export function copySelection(
   routingSelection?: ExplicitCopyRoutingSelection,
   resolver?: SymbolResolver,
 ): SchematicClipboard | null {
-  document = withPowerMarkerOwnership(document);
+  const source = withPowerMarkerOwnership(document);
+  document = copySelectionInputs(source, instanceIds, routingSelection);
   const selectedIds = new Set(instanceIds);
   const instances = document.instances.filter((instance) =>
     selectedIds.has(instance.id),
@@ -283,9 +287,17 @@ export function copySelection(
   // body drawn with a dashed wire is wired like any pin: it comes with its
   // wire or not at all.
   const bodyNets = new Map<string, string>();
+  let logicalNets:
+    ReturnType<typeof resolveCommittedDocumentLogicalNets> | undefined;
   for (const instance of instances) {
-    if (hasExplicitMosBulkRoute(document, instance.id)) continue;
-    const body = resolveMosBulkConnection(document, instance);
+    if (
+      netIds.size === 0 ||
+      !mosBulkKind(instance) ||
+      hasExplicitMosBulkRoute(source, instance.id)
+    )
+      continue;
+    logicalNets ??= resolveCommittedDocumentLogicalNets(source);
+    const body = resolveMosBulkConnection(source, instance, logicalNets);
     if (body?.net && netIds.has(body.net.id))
       bodyNets.set(instance.id, body.net.id);
   }
@@ -496,7 +508,7 @@ export function copySelection(
       }
     }
   }
-  const drawingOrder = copyDrawingOrder(document, clipboard);
+  const drawingOrder = copyDrawingOrder(source, clipboard);
   if (drawingOrder) clipboard.drawingOrder = drawingOrder;
   return clipboard;
 }
