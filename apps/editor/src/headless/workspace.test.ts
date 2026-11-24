@@ -4,7 +4,14 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { serializeProject } from "@icm/project-protocol";
 import { liveAgentEditor } from "../agent/live-agent-editor.test-support";
-import { compareNetlists, workspaceNetlist, workspaceSvg } from "./artifacts";
+import {
+  compareNetlists,
+  savedWorkspaceNetlist,
+  savedWorkspaceNetlistFormats,
+  workspaceNetlist,
+  workspaceNetlistFormats,
+  workspaceSvg,
+} from "./artifacts";
 import {
   createWorkspace,
   lockWorkspace,
@@ -155,6 +162,16 @@ describe("headless workspace (#1498)", () => {
     expect(sg13.status, sg13.messages.join("; ")).toBe("ready");
     expect(sg13.text).toContain("rppd");
     expect(netlist.text).not.toContain("rppd");
+    expect(
+      workspaceNetlistFormats(before, ["spice", "spectre"], "sg13g2"),
+    ).toEqual({
+      spice: workspaceNetlist(before, "spice", "sg13g2"),
+      spectre: sg13,
+    });
+    expect(savedWorkspaceNetlistFormats(before, ["spice", "spectre"])).toEqual({
+      spice: savedWorkspaceNetlist(before, "spice"),
+      spectre: savedWorkspaceNetlist(before, "spectre"),
+    });
     expect(local.editor.project).toBe(before);
     expect(await workspaceSvg(local.editor.project)).toContain("<svg");
     // By name, as MCP verify compares a drawing with an expected netlist.

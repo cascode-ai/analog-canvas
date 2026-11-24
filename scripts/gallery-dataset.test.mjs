@@ -89,7 +89,10 @@ async function gallery(state) {
     const match = /^\/api\/gallery\/([^/]+)(\/preview\.svg)?$/u.exec(
       url.pathname,
     );
-    if (match?.[2]) return send("<svg/>", "image/svg+xml");
+    if (match?.[2]) {
+      state.svgReads?.push(match[1]);
+      return send("<svg/>", "image/svg+xml");
+    }
     if (match) {
       state.reads.push(match[1]);
       return send({ projectText: JSON.stringify(state.projects[match[1]]) });
@@ -109,10 +112,14 @@ describe("the arguments", () => {
     expect(parseArgs([], { ANALOG_CANVAS_DATA: "/data" }).dir).toBe(
       "/data/gallery",
     );
-    expect(parseArgs(["out", "--full", "--only", "a,b"]).only).toEqual(
-      new Set(["a", "b"]),
-    );
+    expect(
+      parseArgs(["out", "--full", "--only", "a,b", "--cpu-workers", "3"]),
+    ).toMatchObject({
+      only: new Set(["a", "b"]),
+      cpuWorkers: 3,
+    });
     expect(() => parseArgs(["--workers", "0"])).toThrow(UsageError);
+    expect(() => parseArgs(["--cpu-workers", "0"])).toThrow(UsageError);
     expect(() => parseArgs(["--nope"])).toThrow(UsageError);
   });
 });
@@ -143,6 +150,58 @@ describe("the netlists of one Project", () => {
       JSON.stringify({ name: "amp", process: "abstract" }),
     );
     expect(own.files["saved.sp"]).toBe("* amp abstract spice\n");
+  });
+
+  it("projects each Process once across formats and isolates single-format throws", () => {
+    const calls = [];
+    const batchedHeadless = {
+      ...fakeHeadless,
+      workspaceNetlist: (project, format, process) => {
+        if (project.throwOn === `${process}:${format}`)
+          throw new Error("spectre boom");
+        return fakeHeadless.workspaceNetlist(project, format, process);
+      },
+      savedWorkspaceNetlistFormats: (project, formats) => {
+        calls.push(["saved", formats]);
+        return Object.fromEntries(
+          formats.map((f) => [
+            f,
+            fakeHeadless.savedWorkspaceNetlist(project, f),
+          ]),
+        );
+      },
+      workspaceNetlistFormats: (project, formats, process) => {
+        calls.push([process, formats]);
+        return Object.fromEntries(
+          formats.map((f) => [
+            f,
+            batchedHeadless.workspaceNetlist(project, f, process),
+          ]),
+        );
+      },
+    };
+    const { files, diagnostics } = exportNetlists(
+      batchedHeadless,
+      JSON.stringify({ name: "amp", throwOn: "sky130:spectre" }),
+    );
+    expect(calls).toEqual([
+      ["saved", ["spice", "spectre"]],
+      ["abstract", ["spice", "spectre"]],
+      ["sky130", ["spice", "spectre"]],
+    ]);
+    // SPICE survives even when Spectre threw during the batched call.
+    expect(Object.keys(files).sort()).toEqual([
+      "abstract.scs",
+      "abstract.sp",
+      "saved.scs",
+      "saved.sp",
+      "sky130.sp",
+    ]);
+    expect(diagnostics["sky130.scs"]).toEqual({
+      status: "blocked",
+      errors: ["spectre boom"],
+    });
+    expect(diagnostics["sky130.sp"]).toBeUndefined();
   });
 });
 
@@ -209,5 +268,149 @@ export const workspaceNetlist = (p, format, process) => ({ status: "ready", text
     expect(JSON.parse(readFileSync(join(d1, "meta.json"), "utf8")).name).toBe(
       "renamed",
     );
+  });
+
+  it("re-exports across CPU workers without re-fetching unchanged previews", async () => {
+    const state = {
+      changes: {},
+      walls: {},
+      latest: 1,
+      reads: [],
+      svgReads: [],
+      projects: {},
+    };
+    const base = await gallery(state);
+    const ids = ["c1", "c2", "c3", "c4", "c5"];
+    state.walls = { community: ids.map((id) => state.entry(id)), ds: [] };
+    state.projects = Object.fromEntries(ids.map((id) => [id, { name: id }]));
+
+    const makeBundle = (tag) => {
+      const bundle = join(temp(), `headless-${tag}.mjs`);
+      writeFileSync(
+        bundle,
+        `export const NETLIST_PROFILE_IDS = ["abstract", "custom"];
+export const parseProject = (text) => JSON.parse(text);
+export const savedWorkspaceNetlist = (p, format) => workspaceNetlist(p, format);
+export const savedWorkspaceNetlistFormats = (p, formats) => Object.fromEntries(formats.map((f) => [f, savedWorkspaceNetlist(p, f)]));
+export const workspaceNetlistFormats = (p, formats, process) => Object.fromEntries(formats.map((f) => [f, workspaceNetlist(p, f, process)]));
+export const embedFormalSvgFontsHeadless = async (svg) => svg.replace("<svg/>", "<svg><style>embedded-${tag}</style></svg>");
+export const workspaceNetlist = (p, format, process) => ({ status: "ready", text: "${tag} " + p.name + " " + (process ?? "saved") + " " + format + "\\n", messages: [], warnings: [] });`,
+      );
+      return bundle;
+    };
+
+    const dir = temp();
+    const quiet = () => {};
+    expect(
+      await run(
+        parseArgs([
+          dir,
+          "--base",
+          base,
+          "--bundle",
+          makeBundle("v1"),
+          "--cpu-workers",
+          "2",
+        ]),
+        quiet,
+      ),
+    ).toBe(0);
+    expect(state.svgReads.sort()).toEqual(ids);
+    expect(
+      readFileSync(join(dir, "circuits/c3/netlists/abstract.sp"), "utf8"),
+    ).toBe("v1 c3 abstract spice\n");
+
+    // Engine changes (v2), previewRevision stays p1: re-export every netlist, keep SVGs.
+    state.reads.length = 0;
+    state.svgReads.length = 0;
+    expect(
+      await run(
+        parseArgs([
+          dir,
+          "--base",
+          base,
+          "--bundle",
+          makeBundle("v2"),
+          "--cpu-workers",
+          "2",
+        ]),
+        quiet,
+      ),
+    ).toBe(0);
+    expect(state.reads.sort()).toEqual(ids);
+    expect(state.svgReads).toEqual([]);
+    expect(
+      readFileSync(join(dir, "circuits/c3/netlists/abstract.sp"), "utf8"),
+    ).toBe("v2 c3 abstract spice\n");
+    expect(
+      readFileSync(join(dir, "circuits/c3/schematic.svg"), "utf8"),
+    ).toContain("embedded-v1");
+
+    // --full still refreshes preview SVGs as well.
+    state.svgReads.length = 0;
+    expect(
+      await run(
+        parseArgs([
+          dir,
+          "--base",
+          base,
+          "--bundle",
+          makeBundle("v2"),
+          "--full",
+          "--cpu-workers",
+          "2",
+        ]),
+        quiet,
+      ),
+    ).toBe(0);
+    expect(state.svgReads.sort()).toEqual(ids);
+    expect(
+      readFileSync(join(dir, "circuits/c3/schematic.svg"), "utf8"),
+    ).toContain("embedded-v2");
+  });
+
+  it("fails cleanly without hanging when every CPU worker exits unexpectedly", async () => {
+    const state = {
+      changes: {},
+      walls: {},
+      latest: 1,
+      reads: [],
+      svgReads: [],
+      projects: {},
+    };
+    const base = await gallery(state);
+    const ids = ["c1", "c2", "c3"];
+    state.walls = { community: ids.map((id) => state.entry(id)), ds: [] };
+    state.projects = Object.fromEntries(ids.map((id) => [id, { name: id }]));
+    const bundle = join(temp(), "headless-exit.mjs");
+    writeFileSync(
+      bundle,
+      `import { isMainThread } from "node:worker_threads";
+export const NETLIST_PROFILE_IDS = ["abstract", "custom"];
+export const parseProject = (text) => JSON.parse(text);
+export const savedWorkspaceNetlist = () => ({ status: "ready", text: "", messages: [], warnings: [] });
+export const workspaceNetlist = savedWorkspaceNetlist;
+export const embedFormalSvgFontsHeadless = async (svg) => svg;
+if (!isMainThread) process.exit(0);`,
+    );
+    const dir = temp();
+    const quiet = () => {};
+    expect(
+      await run(
+        parseArgs([
+          dir,
+          "--base",
+          base,
+          "--bundle",
+          bundle,
+          "--cpu-workers",
+          "2",
+        ]),
+        quiet,
+      ),
+    ).toBe(1);
+    expect(
+      JSON.parse(readFileSync(join(dir, "snapshot.json"), "utf8")).engine,
+    ).toBeNull();
   });
 });

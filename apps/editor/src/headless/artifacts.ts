@@ -30,26 +30,18 @@ import {
  * structural comparison the editor, the Gallery and the MCP's verify use.
  */
 
-/**
- * The structural netlist of the top Cell, or why it is blocked. With a
- * `process` it exports as if Apply process had set it, as the editor's
- * read-netlist does, warning of each resistor and capacitor it converted by
- * value; the Project is left as it was.
- */
-export function workspaceNetlist(
-  project: CircuitProject,
-  format: NetlistFormat = "spice",
-  process?: Exclude<NetlistProfileId, "custom">,
-): {
+export interface WorkspaceNetlistExport {
   status: "ready" | "blocked";
   text: string | null;
   messages: string[];
   /** What the export warned about, as `CODE: message`. */
   warnings: string[];
-} {
-  const processed = process
-    ? netlistProcessProjection(project, process)
-    : { project, conversions: [] };
+}
+
+function exportProjectedNetlist(
+  processed: ReturnType<typeof netlistProcessProjection>,
+  format: NetlistFormat,
+): WorkspaceNetlistExport {
   // A GPDK045 Spectre file names the kit's library where its reader keeps it.
   const result = createDesignNetlistExport(processed.project, {
     format,
@@ -73,6 +65,52 @@ export function workspaceNetlist(
 }
 
 /**
+ * Export one Process in several netlist formats without projecting the Project
+ * again for each format.
+ */
+export function workspaceNetlistFormats<const F extends NetlistFormat>(
+  project: CircuitProject,
+  formats: readonly F[],
+  process?: Exclude<NetlistProfileId, "custom">,
+): Record<F, WorkspaceNetlistExport> {
+  const processed = process
+    ? netlistProcessProjection(project, process)
+    : { project, conversions: [] };
+  const results = {} as Record<F, WorkspaceNetlistExport>;
+  for (const format of formats)
+    results[format] = exportProjectedNetlist(processed, format);
+  return results;
+}
+
+/**
+ * The structural netlist of the top Cell, or why it is blocked. With a
+ * `process` it exports as if Apply process had set it, as the editor's
+ * read-netlist does, warning of each resistor and capacitor it converted by
+ * value; the Project is left as it was.
+ */
+export function workspaceNetlist(
+  project: CircuitProject,
+  format: NetlistFormat = "spice",
+  process?: Exclude<NetlistProfileId, "custom">,
+): WorkspaceNetlistExport {
+  return workspaceNetlistFormats(project, [format], process)[format];
+}
+
+/**
+ * Export the saved drawing's netlist in several formats while preparing its
+ * missing defaults once.
+ */
+export function savedWorkspaceNetlistFormats<const F extends NetlistFormat>(
+  project: CircuitProject,
+  formats: readonly F[],
+): Record<F, WorkspaceNetlistExport> {
+  const own = createNetlistExportProfile(
+    inferNetlistProcess(project, "abstract"),
+  );
+  return workspaceNetlistFormats(prepareNetlistExample(project, own), formats);
+}
+
+/**
  * The drawing's netlist in its own Process, as the Netlist panel shows it
  * once its missing defaults are filled: parts bound to nothing take the
  * Process's devices, authored models and values stay. The Process is the
@@ -81,11 +119,8 @@ export function workspaceNetlist(
 export function savedWorkspaceNetlist(
   project: CircuitProject,
   format: NetlistFormat = "spice",
-): ReturnType<typeof workspaceNetlist> {
-  const own = createNetlistExportProfile(
-    inferNetlistProcess(project, "abstract"),
-  );
-  return workspaceNetlist(prepareNetlistExample(project, own), format);
+): WorkspaceNetlistExport {
+  return savedWorkspaceNetlistFormats(project, [format])[format];
 }
 
 /**

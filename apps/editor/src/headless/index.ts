@@ -31,9 +31,12 @@ export { embedFormalSvgFontsHeadless } from "@icm/exporters/headless-raster";
 export {
   compareNetlists,
   savedWorkspaceNetlist,
+  savedWorkspaceNetlistFormats,
   workspaceNetlist,
+  workspaceNetlistFormats,
   workspaceSvg,
   type NetlistComparison,
+  type WorkspaceNetlistExport,
 } from "./artifacts";
 /** A Gallery testbench checked on this machine (scripts/gallery-sim-verify.mjs). */
 export {
