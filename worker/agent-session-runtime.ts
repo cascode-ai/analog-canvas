@@ -132,6 +132,8 @@ export type WebSocketPairShape = { 0: WebSocket; 1: WebSocket };
 export type WebSocketPairConstructor = new () => WebSocketPairShape;
 
 export type PendingForward = {
+  transaction: boolean;
+  receivingReceipt?: boolean;
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timeout: ReturnType<typeof setTimeout>;

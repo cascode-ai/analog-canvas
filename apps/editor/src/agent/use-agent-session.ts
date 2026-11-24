@@ -8,6 +8,10 @@ import {
 
 import {
   AGENT_API_VERSION,
+  DEFAULT_AGENT_SESSION_LIMITS,
+  TRANSACTION_RECEIPT_ENCODING,
+  encodeTransactionReceipt,
+  type AgentCircuitResponse,
   AGENT_HEARTBEAT_INTERVAL_MS,
   AGENT_HEARTBEAT_TIMEOUT_MS,
   AGENT_SESSION_PROTOCOL_VERSION,
@@ -748,24 +752,77 @@ export function useAgentSession(
             const reply = (
               kind: `${"circuit" | "file" | "simulation" | "project"}-response`,
               payload: unknown,
+              onDispatch?: () => void,
+              exceedsFrame = false,
             ) => {
               if (
                 socket.readyState !== WebSocket.OPEN ||
                 retireForAccountProject()
               )
                 return;
-              socket.send(
-                JSON.stringify({
-                  protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
-                  sessionId: live.sessionId,
-                  messageId: crypto.randomUUID(),
-                  requestId: parsed.data.requestId,
-                  sentAt: new Date().toISOString(),
-                  timing: responseTiming(),
-                  kind,
-                  payload,
-                }),
-              );
+              const envelope = {
+                protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
+                sessionId: live.sessionId,
+                messageId: crypto.randomUUID(),
+                requestId: parsed.data.requestId,
+                sentAt: new Date().toISOString(),
+                timing: responseTiming(),
+                kind,
+                payload,
+              };
+              const text = exceedsFrame ? "" : JSON.stringify(envelope);
+              const result = payload as AgentCircuitResponse;
+              if (
+                kind === "circuit-response" &&
+                result.ok &&
+                result.operation === "transact" &&
+                (exceedsFrame ||
+                  (text.length * 3 >
+                    DEFAULT_AGENT_SESSION_LIMITS.maxMessageBytes &&
+                    new Blob([text]).size >
+                      DEFAULT_AGENT_SESSION_LIMITS.maxMessageBytes))
+              ) {
+                // Publish revisions in commit order while a large receipt encodes.
+                onDispatch?.();
+                void encodeTransactionReceipt(result)
+                  .then(
+                    (data) => ({
+                      encoding: TRANSACTION_RECEIPT_ENCODING,
+                      data,
+                    }),
+                    (error: unknown) => ({
+                      encoding: TRANSACTION_RECEIPT_ENCODING,
+                      ...(error instanceof Error &&
+                      error.message === "MESSAGE_TOO_LARGE"
+                        ? {
+                            completed: {
+                              apiVersion: result.apiVersion,
+                              requestId: result.requestId,
+                              operation: result.operation,
+                              ok: result.ok,
+                              applied: result.applied,
+                              revision: result.revision,
+                            },
+                          }
+                        : {}),
+                    }),
+                  )
+                  .then((packed) => {
+                    if (
+                      liveRef.current === live &&
+                      live.socket === socket &&
+                      socket.readyState === WebSocket.OPEN &&
+                      !retireForAccountProject()
+                    ) {
+                      socket.send(
+                        JSON.stringify({ ...envelope, payload: packed }),
+                      );
+                    }
+                  });
+                return;
+              }
+              socket.send(text);
+              onDispatch?.();
             };
             if (parsed.data.kind === "event") {
               const sessionEvent = AgentSessionEventSchema.safeParse(
@@ -1116,8 +1173,11 @@ export function useAgentSession(
             ]);
             const payloadHash = sha256Hex(payloadKey);
             const cached = live.requestCache.get(parsed.data.requestId);
-            const sendResponse = (payload: unknown) =>
-              reply("circuit-response", payload);
+            const sendResponse = (
+              payload: unknown,
+              onDispatch?: () => void,
+              exceedsFrame = false,
+            ) => reply("circuit-response", payload, onDispatch, exceedsFrame);
             const sendRequestError = (
               code: "REQUEST_ID_REUSED" | "REQUEST_RESULT_UNAVAILABLE",
               message: string,
@@ -1202,9 +1262,17 @@ export function useAgentSession(
               finishWork();
               return;
             }
-            const responseBytes = new TextEncoder().encode(
-              JSON.stringify(result),
-            ).byteLength;
+            const serialized = JSON.stringify(result);
+            const exceedsFrame =
+              result.ok &&
+              result.operation === "transact" &&
+              serialized.length > DEFAULT_AGENT_SESSION_LIMITS.maxMessageBytes;
+            // UTF-8 occupies at least one byte per UTF-16 code unit. Large
+            // results are never cached, so only count exact bytes near the cap.
+            const responseBytes =
+              serialized.length > BROWSER_CACHE_MAX_BYTES
+                ? serialized.length
+                : new TextEncoder().encode(serialized).byteLength;
             if (responseBytes <= BROWSER_CACHE_MAX_BYTES) {
               live.requestCache.set(parsed.data.requestId, {
                 payloadHash,
@@ -1230,12 +1298,12 @@ export function useAgentSession(
               result.projectStructure
             )
               sendHeartbeat(live, socket);
-            sendResponse(result);
             if (
               circuitRequest.success &&
               isReadOnlyCircuitRequest(circuitRequest.data)
             )
               live.requestHashes.delete(parsed.data.requestId);
+            let onDispatch: (() => void) | undefined;
             if (
               result.ok &&
               result.operation === "transact" &&
@@ -1247,26 +1315,30 @@ export function useAgentSession(
                 circuitRequest.data.documentId,
                 result.revision,
               );
-              socket.send(
-                JSON.stringify({
-                  protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
-                  sessionId: live.sessionId,
-                  messageId: crypto.randomUUID(),
-                  requestId: parsed.data.requestId,
-                  sentAt: new Date().toISOString(),
-                  kind: "event",
-                  payload: {
-                    type: "document.revision-changed",
+              const documentId = circuitRequest.data.documentId;
+              onDispatch = () => {
+                socket.send(
+                  JSON.stringify({
+                    protocolVersion: AGENT_SESSION_PROTOCOL_VERSION,
                     sessionId: live.sessionId,
-                    documentId: circuitRequest.data.documentId,
-                    revision: result.revision,
-                    actorKind: "agent",
+                    messageId: crypto.randomUUID(),
                     requestId: parsed.data.requestId,
-                    changedObjectIds: [...result.diff.changedObjectIds],
-                  },
-                }),
-              );
+                    sentAt: new Date().toISOString(),
+                    kind: "event",
+                    payload: {
+                      type: "document.revision-changed",
+                      sessionId: live.sessionId,
+                      documentId,
+                      revision: result.revision,
+                      actorKind: "agent",
+                      requestId: parsed.data.requestId,
+                      changedObjectIds: [...result.diff.changedObjectIds],
+                    },
+                  }),
+                );
+              };
             }
+            sendResponse(result, onDispatch, exceedsFrame);
             finishWork();
           });
         };

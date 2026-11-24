@@ -17,6 +17,9 @@ import {
 } from "./agent-session-runtime";
 
 import {
+  encodeTransactionReceipt,
+  TRANSACTION_RECEIPT_ENCODING,
+  AgentTransactSuccessResponseSchema,
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
   AGENT_MCP_BOOTSTRAP_FORMAT,
   AgentFileResourceRequestSchema,
@@ -1680,6 +1683,7 @@ function editorEnd(
   editor: LiveEditor,
   object: () => AgentSessionDO,
   seen: (envelope: { kind: string }) => void = () => {},
+  reply: (payload: unknown) => unknown = (payload) => payload,
 ) {
   const families: string[] = [];
   const socket = {
@@ -1690,17 +1694,19 @@ function editorEnd(
       if (!envelope.kind.endsWith("-request")) return;
       const family = envelope.kind.slice(0, -"-request".length);
       families.push(family);
-      void editorAnswer(editor, family, envelope.payload).then((payload) =>
-        object().webSocketMessage(
-          socket,
-          JSON.stringify({
-            ...envelope,
-            kind: `${family}-response`,
-            timing: { workMs: 42, visibility: "hidden" },
-            payload,
-          }),
-        ),
-      );
+      void editorAnswer(editor, family, envelope.payload)
+        .then(reply)
+        .then((payload) =>
+          object().webSocketMessage(
+            socket,
+            JSON.stringify({
+              ...envelope,
+              kind: `${family}-response`,
+              timing: { workMs: 42, visibility: "hidden" },
+              payload,
+            }),
+          ),
+        );
     },
   } as unknown as WebSocket;
   return { socket, families };
@@ -3635,7 +3641,10 @@ describe("Agent idle expiry", () => {
 
 describe("Agent request ledger", () => {
   /** A claimed session whose editor answers every Circuit request. */
-  async function session(onForward: () => void = () => {}) {
+  async function session(
+    onForward: () => void = () => {},
+    reply?: (payload: unknown) => unknown,
+  ) {
     const storage = new MemoryStorage();
     const created = AgentSessionMachine.create({
       sessionId: "ledger-session",
@@ -3662,6 +3671,7 @@ describe("Agent request ledger", () => {
       (envelope) => {
         if (envelope.kind === "circuit-request") onForward();
       },
+      reply,
     );
     const socket = browser.socket;
     /** A fresh object on the same storage, as after eviction or a deploy. */
@@ -3719,6 +3729,63 @@ describe("Agent request ledger", () => {
       forwarded: () => browser.families.length,
     };
   }
+
+  it("returns the full large transaction and preserves proof on a retry after relay restart", async () => {
+    const diagnostic = {
+      code: "ERC_DANGLING_WIRE",
+      severity: "warning" as const,
+      message: "A loose wire. ".repeat(200),
+    };
+    const diagnostics = Array.from({ length: 6500 }, (_, i) => ({
+      ...diagnostic,
+      objectIds: ["wire-" + i],
+    }));
+    expect(JSON.stringify(diagnostics).length).toBeGreaterThan(16_000_000);
+    const s = await session(undefined, async (payload) => {
+      const result = AgentTransactSuccessResponseSchema.parse(payload);
+      return {
+        encoding: TRANSACTION_RECEIPT_ENCODING,
+        data: await encodeTransactionReceipt({ ...result, diagnostics }),
+      };
+    });
+    const first = await s.edit("large-write");
+    expect(first.status).toBe(200);
+    expect(first.headers.get("x-icm-agent-write-receipt")).toBe("complete");
+    expect(
+      ((await first.json()) as { diagnostics: unknown[] }).diagnostics,
+    ).toEqual(diagnostics);
+    s.open();
+    const retry = await s.edit("large-write");
+    expect(retry.status).toBe(409);
+    expect(retry.headers.get("x-icm-agent-write-receipt")).toBe("complete");
+    expect(await retry.json()).toMatchObject({
+      error: { code: "REQUEST_RESULT_UNAVAILABLE" },
+    });
+    expect(s.forwarded()).toBe(1);
+  });
+
+  it("preserves completion when a successful write has an unencodable receipt", async () => {
+    const s = await session(undefined, (payload) => {
+      const { apiVersion, requestId, operation, ok, applied, revision } =
+        AgentTransactSuccessResponseSchema.parse(payload);
+      return {
+        encoding: TRANSACTION_RECEIPT_ENCODING,
+        completed: { apiVersion, requestId, operation, ok, applied, revision },
+      };
+    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await s.edit("oversize-confirmed");
+      expect(response.status).toBe(409);
+      expect(response.headers.get("x-icm-agent-write-receipt")).toBe(
+        "complete",
+      );
+      expect(await response.json()).toMatchObject({
+        error: { code: "REQUEST_RESULT_UNAVAILABLE" },
+      });
+      s.open();
+    }
+    expect(s.forwarded()).toBe(1);
+  });
 
   it.each([-60_000, 60_000])(
     "keeps elapsed relay timings stable when the wall clock jumps by %d ms",
