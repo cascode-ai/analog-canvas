@@ -10,12 +10,14 @@ import {
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
   hostedSky130LargePnpRequest,
+  hostedSky130NpnRequest,
   hostedSky130Mos5vRequest,
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
   runHostedSky130LargePnpAcceptance,
+  runHostedSky130NpnAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
@@ -29,6 +31,7 @@ import {
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
   validateHostedSky130LargePnpResult,
+  validateHostedSky130NpnResult,
   validateHostedSky130Mos5vResult,
   validatePreviewSimulationResult,
 } from "./preview-simulation-smoke.mjs";
@@ -321,6 +324,50 @@ function largePnpResult(target, corner = "ff", expected = LARGE_PNP_FF) {
               name: "i(vpc3)",
               real: [expected.pnpAcCollectorReal],
               imag: [expected.pnpAcCollectorImag],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+const NPN_FF = {
+  npnCollectorCurrentA: -0.00002021844318399104,
+  npnBaseCurrentA: -5.488029410081249e-7,
+  npnAcCollectorReal: -0.0007103581501666225,
+  npnAcCollectorImag: 4.703743197854457e-7,
+};
+
+function npnResult(target, corner = "ff", expected = NPN_FF) {
+  const base = result(target);
+  return {
+    ...base,
+    metadata: {
+      ...base.metadata,
+      input: { inputRevision: `preview-sky130-npn-${corner}` },
+      configuration: { modelLibrary: { directive: "lib", section: corner } },
+      environment: {
+        ...base.metadata.environment,
+        fingerprint: CORNER_ENVIRONMENT_SHA,
+      },
+    },
+    data: {
+      analyses: [
+        {
+          analysis: "op",
+          probes: [
+            { name: "i(vcq)", value: expected.npnCollectorCurrentA },
+            { name: "i(vbq)", value: expected.npnBaseCurrentA },
+          ],
+        },
+        {
+          analysis: "ac",
+          probes: [
+            {
+              name: "i(vcq)",
+              real: [expected.npnAcCollectorReal],
+              imag: [expected.npnAcCollectorImag],
             },
           ],
         },
@@ -781,6 +828,45 @@ describe("the hosted SKY130 qualification", () => {
         "ff",
       ),
     ).toThrow(/pnpCollectorCurrentA at ff/u);
+  });
+
+  it("qualifies the four-terminal 5 V NPN Gallery model sources call", async () => {
+    const request = hostedSky130NpnRequest("ff");
+    expect(request.netlist).toContain(
+      "XQ1 c b e s sky130_fd_pr__npn_05v5_W1p00L1p00",
+    );
+    expect(request.testbench).toContain("VSQ s 0 0");
+    expect(
+      validateHostedSky130NpnResult(
+        npnResult("operator-host"),
+        "operator-host",
+        "ff",
+      ),
+    ).toEqual({ corner: "ff", ...NPN_FF });
+    let submitted;
+    await runHostedSky130NpnAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      corner: "ff",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(npnResult("operator-host"));
+      },
+    });
+    expect(submitted.environment).toEqual({
+      profileId: PROFILE_ID,
+      corner: "ff",
+    });
+    expect(() =>
+      validateHostedSky130NpnResult(
+        npnResult("operator-host", "ff", {
+          ...NPN_FF,
+          npnBaseCurrentA: -5.6e-7,
+        }),
+        "operator-host",
+        "ff",
+      ),
+    ).toThrow(/npnBaseCurrentA at ff/u);
   });
 
   it("refuses extended-device numerical drift", () => {

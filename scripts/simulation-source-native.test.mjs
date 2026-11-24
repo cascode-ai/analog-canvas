@@ -22,6 +22,7 @@ import {
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
   hostedSky130LargePnpRequest,
+  hostedSky130NpnRequest,
   hostedSky130Mos5vRequest,
   profile,
 } from "./lib/preview-simulation-qualification.mjs";
@@ -32,6 +33,7 @@ import {
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
   validateHostedSky130LargePnpResult,
+  validateHostedSky130NpnResult,
   validateHostedSky130Mos5vResult,
 } from "./lib/preview-simulation-sky130-validation.mjs";
 import { standardCellGates } from "../packages/simulation-service/test-support/standard-cell-gates.ts";
@@ -293,7 +295,7 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     );
   }
 
-  it("solves the extended devices, the HD cells' high-Vt PFET, the 5 V MOS pair and the 3.4 um PNP at every corner", async () => {
+  it("solves the extended devices, the HD cells' high-Vt PFET, the 5 V MOS pair, the 3.4 um PNP and the 5 V NPN at every corner", async () => {
     for (const corner of profile.qualifiedScope.sections) {
       validateHostedSky130ExtendedDeviceResult(
         await run(
@@ -318,8 +320,13 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
         "operator-host",
         corner,
       );
+      validateHostedSky130NpnResult(
+        await run(hostedSky130NpnRequest(corner), `npn-${corner}`),
+        "operator-host",
+        corner,
+      );
     }
-  }, 160_000);
+  }, 200_000);
 
   it("simulates Library gates bound to SKY130 HD standard cells (#1596)", async () => {
     const caps = CapabilitiesSchema.parse(

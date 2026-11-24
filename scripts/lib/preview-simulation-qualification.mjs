@@ -67,6 +67,20 @@ export const largePnpQualification = JSON.parse(
     "utf8",
   ),
 );
+/**
+ * The four-terminal 5 V NPN Gallery model sources call, substrate tied low,
+ * at every corner: forward-active OP collector and base currents and a 1 MHz
+ * AC collector current (≈gm).
+ */
+export const npnQualification = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../fixtures/simulation-acceptance/hosted-sky130-npn-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 if (qualification.profileId !== profile.id) {
   throw new Error(
     `Qualification ${qualification.fixtureId} targets ${String(qualification.profileId)}, not Profile ${profile.id}.`,
@@ -83,6 +97,7 @@ const evidencedDevices = new Set([
   ...(hvtPfetQualification.devices ?? []),
   ...(mos5vQualification.devices ?? []),
   ...(largePnpQualification.devices ?? []),
+  ...(npnQualification.devices ?? []),
 ]);
 if (
   evidencedDevices.size !== profile.qualifiedScope.devices.length ||
@@ -151,6 +166,7 @@ for (const fixture of [
   hvtPfetQualification,
   mos5vQualification,
   largePnpQualification,
+  npnQualification,
 ]) {
   const corners = Object.keys(fixture.expectedCorners ?? {});
   if (
@@ -407,6 +423,36 @@ export function hostedSky130LargePnpRequest(corner) {
     ].join("\n"),
     timeoutMs: 110_000,
     inputRevision: `preview-sky130-pnp-w3p40-${corner}`,
+    environment: { profileId: profile.id, corner },
+  };
+}
+
+export function hostedSky130NpnRequest(corner) {
+  return {
+    netlist: [
+      ".subckt npn_5v c b e s",
+      "XQ1 c b e s sky130_fd_pr__npn_05v5_W1p00L1p00",
+      ".ends npn_5v",
+    ].join("\n"),
+    testbench: [
+      "* 5 V NPN qualification",
+      "VCQ c 0 2",
+      "VBQ b 0 DC 0.8 AC 1",
+      "VEQ e 0 0",
+      "VSQ s 0 0",
+      "XDUT c b e s npn_5v",
+      ".control",
+      "set filetype=ascii",
+      "op",
+      "write out.raw i(vcq) i(vbq)",
+      "set appendwrite",
+      "ac lin 1 1meg 1meg",
+      "write out.raw i(vcq)",
+      ".endc",
+      ".end",
+    ].join("\n"),
+    timeoutMs: 110_000,
+    inputRevision: `preview-sky130-npn-${corner}`,
     environment: { profileId: profile.id, corner },
   };
 }

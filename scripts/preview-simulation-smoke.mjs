@@ -14,6 +14,7 @@ import {
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
   runHostedSky130LargePnpAcceptance,
+  runHostedSky130NpnAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
@@ -33,6 +34,7 @@ export {
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
   hostedSky130LargePnpRequest,
+  hostedSky130NpnRequest,
   hostedSky130Mos5vRequest,
   RC_TRAN_REQUEST,
   RESISTOR_NOISE_REQUEST,
@@ -48,6 +50,7 @@ export {
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
   validateHostedSky130LargePnpResult,
+  validateHostedSky130NpnResult,
   validateHostedSky130Mos5vResult,
   validateHostedSky130NoiseResult,
   validateHostedSky130Result,
@@ -59,6 +62,7 @@ export {
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
   runHostedSky130LargePnpAcceptance,
+  runHostedSky130NpnAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
@@ -206,6 +210,15 @@ async function main() {
       });
       console.log(
         `${target}: SKY130 ${largePnp.corner.toUpperCase()} 3.4 um PNP passed`,
+      );
+      const npn = await runHostedSky130NpnAcceptance({
+        baseUrl,
+        target,
+        corner,
+        fetchImpl,
+      });
+      console.log(
+        `${target}: SKY130 ${npn.corner.toUpperCase()} 5 V NPN passed`,
       );
     }
   }

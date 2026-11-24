@@ -228,6 +228,8 @@ describe("ngspice authored input identity", () => {
     ["sky130_fd_pr__nfet_g5v0d10v5", true],
     ["sky130_fd_pr__pfet_g5v0d10v5", true],
     ["sky130_fd_pr__nfet_03v3_nvt", false],
+    ["sky130_fd_pr__npn_05v5_W1p00L1p00", true],
+    ["sky130_fd_pr__npn_11v0_W1p00L1p00", false],
   ])(
     "checks a Gallery model source's %s against the hosted SKY130 Profile",
     async (master, qualified) => {
@@ -249,7 +251,11 @@ describe("ngspice authored input identity", () => {
               files: [
                 {
                   path: "mos.spice",
-                  text: `.subckt pair\nX1 d g s b ${master} w=3 l=0.5\n.ends pair\n`,
+                  text: `.subckt pair\n${
+                    master.includes("__npn_")
+                      ? `X1 c b e s ${master}`
+                      : `X1 d g s b ${master} w=3 l=0.5`
+                  }\n.ends pair\n`,
                 },
               ],
             },
@@ -285,11 +291,12 @@ describe("ngspice authored input identity", () => {
         });
     },
   );
-  // boboIC Gallery entries wrap the 3.4 um vertical PNP in a parameterized
-  // subcircuit; the parameter-dropping NPN stays outside the Profile.
+  // boboIC Gallery entries wrap the 3.4 um vertical PNP and the 5 V NPN in a
+  // parameterized subcircuit; the 11 V NPN stays outside the Profile.
   it.each([
     ["sky130_fd_pr__pnp_05v5_W3p40L3p40", "C B E", true],
-    ["sky130_fd_pr__npn_05v5_W1p00L1p00", "C B E 0", false],
+    ["sky130_fd_pr__npn_05v5_W1p00L1p00", "C B E 0", true],
+    ["sky130_fd_pr__npn_11v0_W1p00L1p00", "C B E 0", false],
   ])(
     "checks a Gallery model source's %s against the hosted SKY130 Profile",
     async (master, nodes, qualified) => {
