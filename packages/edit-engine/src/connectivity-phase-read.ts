@@ -40,25 +40,27 @@ export function prepareConnectivityPhaseRead(document: SchematicDocument) {
     }
   }
   const endpointsByNet = new Map<Net, RouteEndpoint[]>();
-  for (const net of document.nets) {
-    endpointsByNet.set(
-      net,
-      [
-        ...net.terminals.map((terminal) => ({
-          kind: "terminal" as const,
-          ...terminal,
-        })),
-        ...(junctionsByNet.get(net.id) ?? []),
-      ].sort((left, right) =>
-        endpointKey(left).localeCompare(endpointKey(right), "en"),
-      ),
+  // Ownership lookup needs every Net; only the affected conductors need
+  // their ordered terminal/Junction lists during this synchronous phase.
+  const netEndpoints = (net: Net): readonly RouteEndpoint[] => {
+    const cached = endpointsByNet.get(net);
+    if (cached) return cached;
+    const endpoints = [
+      ...net.terminals.map((terminal) => ({
+        kind: "terminal" as const,
+        ...terminal,
+      })),
+      ...(junctionsByNet.get(net.id) ?? []),
+    ].sort((left, right) =>
+      endpointKey(left).localeCompare(endpointKey(right), "en"),
     );
-  }
+    endpointsByNet.set(net, endpoints);
+    return endpoints;
+  };
   return {
     netsById,
     routesByNet,
-    netEndpoints: (net: Net): readonly RouteEndpoint[] =>
-      endpointsByNet.get(net) ?? [],
+    netEndpoints,
     ownerOf: (endpoint: RouteEndpoint): string | null =>
       endpoint.kind === "terminal"
         ? (terminalOwners

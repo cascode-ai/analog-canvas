@@ -154,13 +154,28 @@ export function captureNetLabelRouteAnchors(
   document: SchematicDocument,
   resolver: SymbolResolver,
   routeIds?: ReadonlySet<string>,
-  readPath = prepareRoutePathRead(document, resolver),
+  readPath?: ReturnType<typeof prepareRoutePathRead>,
 ): NetLabelRouteAnchor[] {
-  const polylines = document.routes.flatMap((route) => {
-    if (routeIds && !routeIds.has(route.id)) return [];
-    const polyline = readPath(route);
-    return polyline ? [{ route, polyline }] : [];
-  });
+  const anchoredIds = new Set(
+    document.annotations.flatMap(({ kind, anchor }) =>
+      (kind === "net-label" || kind === "power-label") &&
+      anchor.kind === "route" &&
+      (!routeIds || routeIds.has(anchor.routeId))
+        ? [anchor.routeId]
+        : [],
+    ),
+  );
+  if (!anchoredIds.size) return [];
+  const pathFor = readPath ?? prepareRoutePathRead(document, resolver);
+  const polylines = new Map(
+    document.routes.flatMap((route) => {
+      if (!anchoredIds.has(route.id)) return [];
+      const polyline = pathFor(route);
+      if (!polyline) return [];
+      anchoredIds.delete(route.id);
+      return [[route.id, { route, polyline }] as const];
+    }),
+  );
   return document.annotations.flatMap((annotation) => {
     const annotationAnchor = annotation.anchor;
     if (
@@ -169,9 +184,7 @@ export function captureNetLabelRouteAnchors(
     ) {
       return [];
     }
-    const entry = polylines.find(
-      ({ route }) => route.id === annotationAnchor.routeId,
-    );
+    const entry = polylines.get(annotationAnchor.routeId);
     if (!entry) return [];
     // Persisted-first: the stored legId/t/normalOffset are the anchor's
     // source of truth. Re-projecting from the grid-snapped fallbackPosition
@@ -246,7 +259,7 @@ export function captureRouteMarkerAnchors(
   document: SchematicDocument,
   resolver: SymbolResolver,
   routeIds?: ReadonlySet<string>,
-  readPath = prepareRoutePathRead(document, resolver),
+  readPath?: ReturnType<typeof prepareRoutePathRead>,
 ): RouteMarkerAnchor[] {
   return document.annotations.flatMap((annotation) => {
     const attachment = routeMarkerAttachment(annotation);
@@ -256,6 +269,7 @@ export function captureRouteMarkerAnchors(
       (candidate) => candidate.id === attachment.routeId,
     );
     if (!route) return [];
+    readPath ??= prepareRoutePathRead(document, resolver);
     const polyline = readPath(route);
     if (!polyline) return [];
     const segmentIndex = route.legs.findIndex(

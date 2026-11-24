@@ -11,7 +11,7 @@ import {
   type SchematicDocument,
 } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { normalizeSameNetConductorTopology } from "./conductor-topology.js";
 import {
@@ -65,6 +65,47 @@ function documentWith(
 }
 
 describe("same-Net conductor topology normalization", () => {
+  it("normalizes a local Net without asking for unrelated pin geometry", () => {
+    const document = documentWith(
+      [junction("left", 0, 0), junction("right", 40, 0)],
+      [route("first", "left", "right"), route("duplicate", "left", "right")],
+    );
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 1000, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({
+      id: "remote",
+      terminals: [{ instanceId: "R1", pinName: "1" }],
+    });
+    document.junctions.push({ ...junction("far", 1200, 0), netId: "remote" });
+    const remoteRoute = createRoutePath({
+      id: "remote-wire",
+      netId: "remote",
+      start: { kind: "terminal", instanceId: "R1", pinName: "1" },
+      end: endpoint("far"),
+      bends: [],
+      modes: ["manual"],
+    });
+    document.routes.push(remoteRoute);
+    const symbolReads = vi.spyOn(resolver, "resolve");
+    try {
+      expect(
+        normalizeSameNetConductorTopology(
+          document,
+          resolver,
+          new Set(["net-1"]),
+        ).changed,
+      ).toBe(true);
+      expect(document.routes).toContain(remoteRoute);
+      expect(document.routes).toHaveLength(2);
+      expect(symbolReads).not.toHaveBeenCalledWith("resistor", undefined);
+    } finally {
+      symbolReads.mockRestore();
+    }
+  });
+
   it("unions repeated coverage inside one Route and is idempotent", () => {
     const document = documentWith(
       [junction("a", 0, 0), junction("b", 50, 50)],
