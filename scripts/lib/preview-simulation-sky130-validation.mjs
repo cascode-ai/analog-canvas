@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   extendedQualification,
   hvtPfetQualification,
+  largePnpQualification,
   mos5vQualification,
   profile,
   qualification,
@@ -635,6 +636,94 @@ export function validateHostedSky130Mos5vResult(
     ["nfetAcDrainImag", tolerances.acCurrentA],
     ["pfetAcSourceReal", tolerances.acCurrentA],
     ["pfetAcSourceImag", tolerances.acCurrentA],
+  ];
+  for (const [name, tolerance] of checks) {
+    if (Math.abs(actual[name] - expected[name]) > tolerance)
+      throw new Error(
+        `${expectedTarget} solved ${name} at ${corner} as ${actual[name]}, expected ${expected[name]} ± ${tolerance}.`,
+      );
+  }
+  return { corner, ...actual };
+}
+
+export function validateHostedSky130LargePnpResult(
+  payload,
+  expectedTarget,
+  corner,
+) {
+  const expected = largePnpQualification.expectedCorners?.[corner];
+  if (!expected)
+    throw new Error(`No 3.4 um PNP evidence exists for ${corner}.`);
+  const result = object(payload, "simulation response");
+  if (object(result.execution, "execution metadata").target !== expectedTarget)
+    throw new Error(
+      `${expectedTarget} did not execute 3.4 um PNP at ${corner}.`,
+    );
+  if (object(result.outcome, "simulation outcome").status !== "completed")
+    throw new Error(
+      `${expectedTarget} did not complete 3.4 um PNP at ${corner}.`,
+    );
+  const metadata = object(result.metadata, "run metadata");
+  const modelLibrary = object(
+    object(metadata.configuration, "configuration metadata").modelLibrary,
+    "model selection",
+  );
+  if (
+    modelLibrary.directive !== profile.models.library.directive ||
+    modelLibrary.section !== corner
+  )
+    throw new Error(
+      `${expectedTarget} loaded ${String(modelLibrary.section)}, expected corner ${corner}.`,
+    );
+  const environment = object(metadata.environment, "environment metadata");
+  validatePinnedEnvironment(environment, expectedTarget);
+  if (
+    environment.fingerprint !==
+    largePnpQualification.evidence.environmentFingerprint
+  )
+    throw new Error(
+      `${expectedTarget} 3.4 um PNP evidence came from a different environment.`,
+    );
+  const data = object(result.data, "parsed result data");
+  const analyses = Array.isArray(data.analyses) ? data.analyses : [];
+  const operatingPoint = analyses.find(
+    (analysis) => analysis?.analysis === "op",
+  );
+  const ac = analyses.find((analysis) => analysis?.analysis === "ac");
+  if (!Array.isArray(operatingPoint?.probes) || !Array.isArray(ac?.probes))
+    throw new Error(
+      `${expectedTarget} returned incomplete 3.4 um PNP analyses for ${corner}.`,
+    );
+  const scalar = (name) => {
+    const probe = operatingPoint.probes.find(
+      (candidate) => candidate?.name === name,
+    );
+    if (typeof probe?.value !== "number")
+      throw new Error(`${expectedTarget} returned no ${name} for ${corner}.`);
+    return probe.value;
+  };
+  const collector = ac.probes.find(
+    (candidate) => candidate?.name === "i(vpc3)",
+  );
+  if (
+    !Array.isArray(collector?.real) ||
+    !Array.isArray(collector?.imag) ||
+    typeof collector.real[0] !== "number" ||
+    typeof collector.imag[0] !== "number"
+  )
+    throw new Error(`${expectedTarget} returned no AC i(vpc3) for ${corner}.`);
+  const actual = {
+    pnpEmitterCurrentA: scalar("i(vpe3)"),
+    pnpCollectorCurrentA: scalar("i(vpc3)"),
+    pnpAcCollectorReal: collector.real[0],
+    pnpAcCollectorImag: collector.imag[0],
+  };
+  const tolerances = largePnpQualification.tolerances;
+  const checks = [
+    ["pnpEmitterCurrentA", tolerances.pnpCurrentA],
+    ["pnpCollectorCurrentA", tolerances.pnpCurrentA],
+    ["pnpAcCollectorReal", tolerances.acCurrentA],
+    ["pnpAcCollectorImag", tolerances.acCurrentA],
   ];
   for (const [name, tolerance] of checks) {
     if (Math.abs(actual[name] - expected[name]) > tolerance)

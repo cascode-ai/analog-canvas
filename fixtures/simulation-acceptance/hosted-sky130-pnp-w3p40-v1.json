@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "sky130-pnp-w3p40-op-ac-v1",
+  "profileId": "sky130-core-continuous-ngspice46-v1",
+  "devices": ["sky130_fd_pr__pnp_05v5_W3p40L3p40"],
+  "analyses": ["op", "ac"],
+  "modelLibrary": {
+    "directive": "lib"
+  },
+  "expectedCorners": {
+    "tt": {
+      "pnpEmitterCurrentA": -0.000002203786427568133,
+      "pnpCollectorCurrentA": 0.000002062411342953593,
+      "pnpAcCollectorReal": -0.00007859392557161588,
+      "pnpAcCollectorImag": 7.303193461407595e-8
+    },
+    "ff": {
+      "pnpEmitterCurrentA": -0.000002230143822834485,
+      "pnpCollectorCurrentA": 0.000002057421433949801,
+      "pnpAcCollectorReal": -0.00007839946934998178,
+      "pnpAcCollectorImag": 6.325029121419261e-8
+    },
+    "ss": {
+      "pnpEmitterCurrentA": -0.00000218187073969256,
+      "pnpCollectorCurrentA": 0.000002069788107750357,
+      "pnpAcCollectorReal": -0.00007887734560804286,
+      "pnpAcCollectorImag": 8.250376389164704e-8
+    },
+    "fs": {
+      "pnpEmitterCurrentA": -0.000002165128750675205,
+      "pnpCollectorCurrentA": 0.000002084375277437805,
+      "pnpAcCollectorReal": -0.00007943146522864142,
+      "pnpAcCollectorImag": 8.715807045988874e-8
+    },
+    "sf": {
+      "pnpEmitterCurrentA": -0.000002358673904911956,
+      "pnpCollectorCurrentA": 0.000002047460182269474,
+      "pnpAcCollectorReal": -0.00007799328781496336,
+      "pnpAcCollectorImag": 5.914015255056647e-8
+    }
+  },
+  "tolerances": {
+    "pnpCurrentA": 1e-11,
+    "acCurrentA": 1e-12
+  },
+  "evidence": {
+    "observedAt": "2026-11-24",
+    "executor": "reference-ngspice46",
+    "environmentFingerprint": "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d"
+  }
+}

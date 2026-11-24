@@ -13,6 +13,7 @@ import {
   runHostedSky130CornerAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
+  runHostedSky130LargePnpAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
@@ -31,6 +32,7 @@ export {
   hostedSky130CornerRequest,
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
+  hostedSky130LargePnpRequest,
   hostedSky130Mos5vRequest,
   RC_TRAN_REQUEST,
   RESISTOR_NOISE_REQUEST,
@@ -45,6 +47,7 @@ export {
   validateHostedSky130CornerResult,
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
+  validateHostedSky130LargePnpResult,
   validateHostedSky130Mos5vResult,
   validateHostedSky130NoiseResult,
   validateHostedSky130Result,
@@ -55,6 +58,7 @@ export {
   runHostedSky130CornerAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
+  runHostedSky130LargePnpAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
@@ -193,6 +197,15 @@ async function main() {
       });
       console.log(
         `${target}: SKY130 ${mos5v.corner.toUpperCase()} 5 V MOS passed`,
+      );
+      const largePnp = await runHostedSky130LargePnpAcceptance({
+        baseUrl,
+        target,
+        corner,
+        fetchImpl,
+      });
+      console.log(
+        `${target}: SKY130 ${largePnp.corner.toUpperCase()} 3.4 um PNP passed`,
       );
     }
   }
