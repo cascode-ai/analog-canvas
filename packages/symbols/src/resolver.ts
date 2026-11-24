@@ -5,6 +5,7 @@ import {
   isFrozenSnapshot,
   isOptionalSupplyPin,
   projectCircuitSymbol,
+  projectContentSource,
   type CircuitProject,
 } from "@icm/model";
 import { builtInSymbols } from "./builtins.js";
@@ -211,6 +212,29 @@ export function createSymbolCatalog(
   return new InMemorySymbolResolver(definitions);
 }
 
+// A Project overlay's parameter callback closes over its Project. Only the
+// factory can prove that a replacement overlay reads exactly the same facts.
+const overlayInputs = new WeakMap<
+  SymbolResolver,
+  { key: object; parameters: SymbolResolver["resolveParameters"] }
+>();
+const overlayKeys = new WeakMap<
+  object,
+  WeakMap<InMemorySymbolResolver, object>
+>();
+
+/** An identity for all symbol and parameter reads, when both are immutable. */
+export function stableResolverSource(
+  resolver: SymbolResolver,
+): object | undefined {
+  if (!InMemorySymbolResolver.hasStableDefinitions(resolver)) return undefined;
+  if (!resolver.resolveParameters) return resolver;
+  const input = overlayInputs.get(resolver);
+  return input?.parameters === resolver.resolveParameters
+    ? input.key
+    : undefined;
+}
+
 export function createProjectSymbolResolver(
   project: Pick<CircuitProject, "documents" | "topDocumentId"> &
     Partial<
@@ -269,7 +293,7 @@ export function createProjectSymbolResolver(
     )
       generatedOverrides.push(definition);
   }
-  return new InMemorySymbolResolver(
+  const resolver = new InMemorySymbolResolver(
     generatedOverrides,
     overlay,
     (instance: ParameterOwner) => {
@@ -289,6 +313,19 @@ export function createProjectSymbolResolver(
       return instanceParameterContract(project, instance);
     },
   );
+  if (isFrozenSnapshot(project) && stableResolverSource(base)) {
+    const source = projectContentSource(project);
+    const keys =
+      overlayKeys.get(source) ?? new WeakMap<InMemorySymbolResolver, object>();
+    overlayKeys.set(source, keys);
+    const key = keys.get(base) ?? {};
+    keys.set(base, key);
+    overlayInputs.set(resolver, {
+      key,
+      parameters: resolver.resolveParameters,
+    });
+  }
+  return resolver;
 }
 
 export function findUnsupportedProjectSymbolIds(

@@ -1,4 +1,8 @@
-import { resolveDocumentRoutingGeometry, sha256Hex } from "@icm/derived";
+import {
+  forgetDerivedDocument,
+  resolveDocumentRoutingGeometry,
+  sha256Hex,
+} from "@icm/derived";
 import {
   actionRefusalNaming,
   planActions,
@@ -11,25 +15,23 @@ import {
 } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
 import {
-  isFrozenSnapshot,
   type CircuitProject,
   type Point,
   type SchematicDocument,
 } from "@icm/model";
 import { buildSvgScene, renderDocumentSvg } from "@icm/render-svg";
 import {
-  InMemorySymbolResolver,
   builtInSymbols,
   createProjectSymbolResolver,
   type SymbolResolver,
 } from "@icm/symbols";
 
 import { base64EncodeUtf8, utf8ByteLength } from "./platform.js";
+import { addedAmbiguousJunctions } from "./diagnostics.js";
 import {
-  addedAmbiguousJunctions,
-  agentProjectDiagnostics,
-  agentVisualDiagnostics,
-} from "./diagnostics.js";
+  createDiagnosticReader,
+  snapshotResolverSource,
+} from "./diagnostic-reader.js";
 import type {
   AgentHostSemanticIntentResult,
   AgentOperationHost,
@@ -57,15 +59,15 @@ import type {
 } from "./schema.js";
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
 import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
-import {
+import assembleAgentSessionSnapshot, {
   agentAnnotationTextMeasure,
   buildAgentBootstrapSnapshot,
-  buildAgentSessionSnapshot,
   selectAgentGeometry,
   selectAgentInstances,
 } from "./snapshot.js";
 import { terminalConnectivity } from "./terminal-connectivity.js";
-import { diagnosticDeltaOf, runActionCalls } from "./action-calls.js";
+import { runActionCalls } from "./action-calls.js";
+import { diagnosticCounts, diagnosticDeltaOf } from "./diagnostic-report.js";
 
 const OPERATIONS = ["capabilities", "snapshot", "transact", "render"] as const;
 
@@ -316,7 +318,7 @@ export function createAgentCircuitService(
     | {
         project: CircuitProject | undefined;
         document: SchematicDocument;
-        resolver: SymbolResolver;
+        resolver: object;
         includeSourceSpans: boolean;
         instanceLabels: boolean;
         drawingPresentation: boolean;
@@ -330,49 +332,48 @@ export function createAgentCircuitService(
         context: ReturnType<typeof buildAgentBootstrapSnapshot>;
       }
     | undefined;
-  let diagnosticsCache:
-    | {
-        project: CircuitProject | undefined;
-        document: SchematicDocument;
-        resolver: SymbolResolver;
-        diagnostics: AgentDiagnostic[];
-      }
-    | undefined;
-  const diagnosticsFor = (
+  const diagnosticsFor = createDiagnosticReader();
+  function snapshotFor(
     project: CircuitProject | undefined,
     document: SchematicDocument,
     resolver: SymbolResolver,
-    retain = true,
-  ): AgentDiagnostic[] => {
-    const cached = diagnosticsCache;
+    includeSourceSpans: boolean,
+    instanceLabels?: boolean,
+    drawingPresentation?: boolean,
+  ) {
+    const symbols = snapshotResolverSource(project, document, resolver);
+    const cached = snapshotCache;
     if (
-      cached &&
+      symbols &&
+      cached?.resolver === symbols &&
       cached.project === project &&
       cached.document === document &&
-      cached.resolver === resolver
+      cached.includeSourceSpans === includeSourceSpans &&
+      (instanceLabels === undefined ||
+        cached.instanceLabels === instanceLabels) &&
+      (drawingPresentation === undefined ||
+        cached.drawingPresentation === drawingPresentation)
     )
-      return cached.diagnostics;
-    const diagnostics = project
-      ? agentProjectDiagnostics(
-          project,
-          resolver,
-          document.id,
-          document.revision,
-        )
-      : agentVisualDiagnostics(document, resolver);
-    // A preview document is ephemeral. Keep the committed baseline available
-    // to the following preview or commit at the same revision.
-    if (retain) diagnosticsCache = { project, document, resolver, diagnostics };
-    else if (
-      cached &&
-      (!isFrozenSnapshot(cached.document) ||
-        (cached.project && !isFrozenSnapshot(cached.project)) ||
-        !InMemorySymbolResolver.hasStableDefinitions(cached.resolver))
-    ) {
-      diagnosticsCache = undefined;
-    }
-    return diagnostics;
-  };
+      return cached.snapshot;
+    const flags = {
+      includeSourceSpans,
+      instanceLabels: instanceLabels ?? false,
+      drawingPresentation: drawingPresentation ?? false,
+    };
+    const snapshot = assembleAgentSessionSnapshot(
+      {
+        ...(project ? { project } : {}),
+        document,
+        resolver,
+        ...flags,
+      },
+      diagnosticsFor,
+    );
+    snapshotCache = symbols
+      ? { project, document, resolver: symbols, ...flags, snapshot }
+      : undefined;
+    return snapshot;
+  }
   const response = (input: unknown): AgentCircuitResponse =>
     AgentCircuitResponseSchema.parse(input);
   const useHost = "host" in options;
@@ -498,6 +499,15 @@ export function createAgentCircuitService(
       const project = host
         ? host.getProject?.()
         : storeOptions!.store.getProject?.();
+      // In-process callers can edit a draft or a delegated catalog in place
+      // between requests without advancing the Document revision.
+      if (!snapshotResolverSource(project, document, resolver)) {
+        forgetDerivedDocument(document);
+        const stored = project?.documents.find(
+          (cell) => cell.id === document.id,
+        );
+        if (stored && stored !== document) forgetDerivedDocument(stored);
+      }
 
       if (request.operation === "snapshot") {
         if (!options.permissions.snapshot) {
@@ -663,12 +673,6 @@ export function createAgentCircuitService(
         }
         if (request.projection === "state") {
           const diagnostics = diagnosticsFor(project, document, resolver);
-          const errors = diagnostics.filter(
-            (item) => item.severity === "error",
-          ).length;
-          const warnings = diagnostics.filter(
-            (item) => item.severity === "warning",
-          ).length;
           const result = {
             apiVersion: request.apiVersion,
             requestId: request.requestId,
@@ -682,7 +686,7 @@ export function createAgentCircuitService(
             revision: document.revision,
             instanceCount: document.instances.length,
             netCount: document.nets.length,
-            counts: { errors, warnings, total: diagnostics.length },
+            counts: diagnosticCounts(diagnostics),
             ...(request.diagnosticDetail === "items" ? { diagnostics } : {}),
           };
           if (utf8ByteLength(JSON.stringify(result)) > limits.maxSnapshotBytes)
@@ -762,39 +766,14 @@ export function createAgentCircuitService(
         }
         const instanceLabels = request.instanceLabels === true;
         const drawingPresentation = request.drawingPresentation === true;
-        const cachedSnapshot = snapshotCache;
-        const snapshot =
-          cachedSnapshot !== undefined &&
-          cachedSnapshot.project === project &&
-          cachedSnapshot.document === document &&
-          cachedSnapshot.resolver === resolver &&
-          cachedSnapshot.includeSourceSpans === includeSourceSpans &&
-          cachedSnapshot.instanceLabels === instanceLabels &&
-          cachedSnapshot.drawingPresentation === drawingPresentation
-            ? cachedSnapshot.snapshot
-            : buildAgentSessionSnapshot({
-                ...(project ? { project } : {}),
-                document,
-                resolver,
-                includeSourceSpans,
-                instanceLabels,
-                drawingPresentation,
-              });
-        snapshotCache = {
+        const snapshot = snapshotFor(
           project,
           document,
           resolver,
           includeSourceSpans,
           instanceLabels,
           drawingPresentation,
-          snapshot,
-        };
-        diagnosticsCache = {
-          project,
-          document,
-          resolver,
-          diagnostics: snapshot.document.diagnostics,
-        };
+        );
         if (snapshot.byteLength > limits.maxSnapshotBytes) {
           return fail(
             "snapshot",
@@ -815,6 +794,16 @@ export function createAgentCircuitService(
             ? {
                 trace: (() => {
                   if (!project) return null;
+                  // A global trace reads child and global Nets outside the selected
+                  // Cell. In-place working-copy edits may keep their revisions.
+                  if (!snapshotResolverSource(project, document, resolver)) {
+                    for (const cell of project.documents)
+                      if (
+                        cell !== document &&
+                        !snapshotResolverSource(undefined, cell, resolver)
+                      )
+                        forgetDerivedDocument(cell);
+                  }
                   const trace = traceHierarchyNet(
                     buildProjectConnectivityIndex(project, resolver),
                     document.id,
@@ -869,32 +858,7 @@ export function createAgentCircuitService(
             allocateId,
             snapshot: () => {
               if (!options.permissions.snapshot) throw snapshotDenied;
-              const cached = snapshotCache;
-              const snapshot =
-                cached !== undefined &&
-                cached.project === project &&
-                cached.document === document &&
-                cached.resolver === resolver &&
-                !cached.includeSourceSpans
-                  ? cached.snapshot
-                  : buildAgentSessionSnapshot({
-                      ...(project ? { project } : {}),
-                      document,
-                      resolver,
-                      includeSourceSpans: false,
-                    });
-              snapshotCache = {
-                project,
-                document,
-                resolver,
-                includeSourceSpans: false,
-                instanceLabels:
-                  cached?.snapshot === snapshot && cached.instanceLabels,
-                drawingPresentation:
-                  cached?.snapshot === snapshot && cached.drawingPresentation,
-                snapshot,
-              };
-              return snapshot;
+              return snapshotFor(project, document, resolver, false);
             },
           });
         } catch (error) {
@@ -1718,6 +1682,19 @@ export function createAgentCircuitService(
             })),
           );
         }
+        // Undo/redo answers for the Cell the history step belonged to, which
+        // need not be the requested one (#2292).
+        const beforeDocument =
+          result.document.id === document.id
+            ? document
+            : (project?.documents.find(
+                (candidate) => candidate.id === result.document.id,
+              ) ?? document);
+        const beforeDiagnostics = diagnosticsFor(
+          project,
+          beforeDocument,
+          resolver,
+        );
         if (result.applied) {
           // The browser host commits through the controller/history dispatch;
           // only the in-process/loopback store commits independently here.
@@ -1757,19 +1734,6 @@ export function createAgentCircuitService(
                 ),
               }
             : undefined);
-        // Undo/redo answers for the Cell the history step belonged to, which
-        // need not be the requested one (#2292).
-        const beforeDocument =
-          result.document.id === document.id
-            ? document
-            : (project?.documents.find(
-                (candidate) => candidate.id === result.document.id,
-              ) ?? document);
-        const beforeDiagnostics = diagnosticsFor(
-          project,
-          beforeDocument,
-          resolver,
-        );
         const diagnostics = diagnosticsFor(
           proposedProject,
           result.document,

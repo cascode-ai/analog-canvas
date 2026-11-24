@@ -225,11 +225,30 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
         edits: [...edits],
       });
 
-    expect(
-      transact("document-opamp", [
-        { kind: "add_instance", instance: instance("Rchild") },
-      ]).ok,
-    ).toBe(true);
+    const currentDiagnostics = () => {
+      const fresh = createAgentCircuitService({
+        agentId: "oracle",
+        host,
+        permissions: allPermissions,
+      });
+      const result = fresh.handle({
+        apiVersion: "3.0",
+        requestId: "oracle",
+        operation: "snapshot",
+        documentId: "document-opamp",
+        projection: "state",
+        diagnosticDetail: "items",
+      });
+      if (!result.ok || !("diagnostics" in result) || !result.diagnostics)
+        throw new Error("Expected diagnostics");
+      return result.diagnostics;
+    };
+    const added = transact("document-opamp", [
+      { kind: "add_instance", instance: instance("Rchild") },
+    ]);
+    expect(added.ok && "diagnostics" in added && added.diagnostics).toEqual(
+      currentDiagnostics(),
+    );
     const undo = transact(top.id, [{ kind: "undo" }]);
     expect(undo).toMatchObject({
       ok: true,
@@ -240,7 +259,16 @@ describe("BrowserAgentHost + Agent Circuit service", () => {
       controller.project.documents.find((item) => item.id === "document-opamp")!
         .instances,
     ).toEqual([]);
+    expect(undo.ok && "diagnostics" in undo && undo.diagnostics).toEqual(
+      currentDiagnostics(),
+    );
     const redo = transact(top.id, [{ kind: "redo" }]);
+    const restored = currentDiagnostics();
+    expect(restored.length).toBeGreaterThan(0);
+    expect(restored.every((item) => item.revision === 3)).toBe(true);
+    expect(redo.ok && "diagnostics" in redo && redo.diagnostics).toEqual(
+      restored,
+    );
     expect(redo).toMatchObject({
       ok: true,
       applied: true,

@@ -5,6 +5,7 @@ import type { CircuitProject, SchematicDocument } from "./schema/types.js";
 import { shareEqualProjectStructure } from "./snapshot-structural-sharing.js";
 
 const validatedSnapshots = new WeakSet<CircuitProject>();
+const restoredProjects = new WeakMap<object, CircuitProject>();
 const restoredContent = new WeakMap<SchematicDocument, SchematicDocument>();
 
 /** The immutable document whose content history restored, apart from revision. */
@@ -13,6 +14,13 @@ export function documentContentSource(
 ): SchematicDocument {
   return restoredContent.get(document) ?? document;
 }
+/** The whole Project whose content history restored, including all other Cells and sources. */
+export function projectContentSource(
+  project: Pick<CircuitProject, "documents">,
+): object {
+  return restoredProjects.get(project) ?? project;
+}
+
 const validatedResults = new WeakMap<
   CircuitProject,
   { source: string; snapshot?: CircuitProject }
@@ -108,6 +116,7 @@ export function restoreProjectSnapshot(
   )
     return parseProjectSnapshot(next, source);
   const snapshot = freezeSnapshot(next);
+  restoredProjects.set(snapshot, restoredProjects.get(source) ?? source);
   validatedSnapshots.add(snapshot);
   return snapshot;
 }
