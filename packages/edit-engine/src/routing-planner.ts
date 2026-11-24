@@ -23,7 +23,7 @@ import {
 } from "./wire-segment-drag.js";
 import type { Point, SchematicDocument, ScreenFlip } from "@icm/model";
 import { routeEndpoints, isFrozenSnapshot } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { InMemorySymbolResolver, type SymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./transaction.js";
 import { projectRoutingGeometryRead } from "./routing-geometry-projection.js";
 import { newlyTouchedRouteEndpoints } from "./transaction-connectivity-normalizer.js";
@@ -270,37 +270,32 @@ export function prepareWireSegmentMove(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ) {
-  const references = isFrozenSnapshot(document)
-    ? new Map(
+  let references:
+    Map<string, readonly [string, string | undefined]> | undefined;
+  let symbols: string | undefined;
+  let source: WireSegmentDragSource | undefined;
+  const read = (): WireSegmentDragSource => {
+    if (!isFrozenSnapshot(document))
+      return prepareWireSegmentDragSource(
+        document,
+        resolveDocumentRoutingGeometry(document, resolver),
+      );
+    // Caller-owned Symbols can change in place. The owned catalog already
+    // guarantees stable definitions, even when it delegates to another catalog.
+    let currentSymbols: string | undefined;
+    if (!InMemorySymbolResolver.hasStableDefinitions(resolver)) {
+      references ??= new Map(
         document.instances.map((instance) => [
           JSON.stringify([instance.symbolId, instance.symbolVariantId]),
           [instance.symbolId, instance.symbolVariantId] as const,
         ]),
-      )
-    : undefined;
-  let symbols: string | undefined;
-  let source: WireSegmentDragSource | undefined;
-  return (
-    routeId: string,
-    segmentIndex: number,
-    target: Point,
-    origin?: Point,
-  ) => {
-    if (!references)
-      return proposeWireSegmentMove(
-        document,
-        resolver,
-        routeId,
-        segmentIndex,
-        target,
-        origin,
       );
-    // Resolver identity is not a promise of unchanged custom Symbols.
-    const currentSymbols = JSON.stringify(
-      [...references.values()].map(
-        ([id, variant]) => resolver.resolve(id, variant) ?? null,
-      ),
-    );
+      currentSymbols = JSON.stringify(
+        [...references.values()].map(
+          ([id, variant]) => resolver.resolve(id, variant) ?? null,
+        ),
+      );
+    }
     if (!source || symbols !== currentSymbols) {
       source = prepareWireSegmentDragSource(
         document,
@@ -308,16 +303,37 @@ export function prepareWireSegmentMove(
       );
       symbols = currentSymbols;
     }
-    return planWireSegmentMove(
+    return source;
+  };
+  const plan = !isFrozenSnapshot(document)
+    ? proposeWireSegmentMove.bind(undefined, document, resolver)
+    : (routeId: string, segmentIndex: number, target: Point, origin?: Point) =>
+        planWireSegmentMove(
+          document,
+          resolver,
+          routeId,
+          segmentIndex,
+          target,
+          origin,
+          read(),
+        );
+  // The pointer paints geometry; the final plan also checks electrical contacts.
+  const preview = (
+    routeId: string,
+    segmentIndex: number,
+    target: Point,
+    origin?: Point,
+  ) =>
+    proposeWireSegmentDragFromSource(
       document,
       resolver,
       routeId,
       segmentIndex,
       target,
       origin,
-      source,
+      read(),
     );
-  };
+  return Object.assign(plan, { preview });
 }
 
 function planWireSegmentMove(

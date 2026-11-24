@@ -447,6 +447,9 @@ test("a connected wire's segments drag with a live preview, a diagonal along the
   await drag([legMiddle, { x: legMiddle.x, y: legMiddle.y + 40 }], async () => {
     await expect.poll(() => polylinePoints(drawn)).not.toEqual(jogged);
     preview = await polylinePoints(drawn);
+    // The moved conductor owns its ink until release, including after the
+    // previous preview frame has been reset.
+    await expect(drawn).not.toHaveAttribute("stroke", "none");
   });
   const moved = await polylinePoints(wire);
   expect(moved).toEqual(preview);

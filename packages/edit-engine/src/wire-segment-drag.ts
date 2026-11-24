@@ -237,7 +237,7 @@ export function proposeWireSegmentDragFromSource(
   origin: Point | undefined,
   read: WireSegmentDragSource,
 ): WireSegmentDragProposal {
-  if (!document.routes.some((route) => route.id === routeId))
+  if (!read.routesById.has(routeId))
     throw new Error(`Route not found: ${routeId}`);
   const plan = (at: Point) =>
     tidyDragProposal(

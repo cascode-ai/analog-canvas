@@ -27,6 +27,8 @@ import {
   deriveNetConnectivityContext,
 } from "@icm/derived";
 import {
+  freezeSnapshot,
+  isFrozenSnapshot,
   routeEndpoints,
   snapGridPoint,
   type DerivedPoint,
@@ -465,6 +467,13 @@ export function createSelectionMoveController({
             sourceVisibleEndpoints,
             movingObjectIds,
           ));
+    if (
+      !cachedFacts &&
+      !projectedDocument &&
+      sceneSnapTargetIndex &&
+      isFrozenSnapshot(sceneSnapTargetIndex)
+    )
+      freezeSnapshot(staticTargets);
     gestureFacts = cachedFacts ?? {
       source: sourceDocument,
       preview,
@@ -500,9 +509,8 @@ export function createSelectionMoveController({
           {
             rawDelta,
             movingAnchors,
-            targetAnchors: routeTargets.length
-              ? [...staticTargets, ...routeTargets]
-              : staticTargets,
+            targetAnchors: staticTargets,
+            additionalTargetAnchors: routeTargets,
             primaryAnchorId,
             grid: pitch,
             tolerance,
@@ -635,15 +643,18 @@ export function createSelectionMoveController({
       preparedCache.contact === contact
     )
       return preparedCache.value;
-    const planTransform =
+    const facts =
       gestureFacts?.source === sourceDocument &&
       gestureFacts.preview === preview
-        ? gestureFacts.planTransform
-        : prepareInstanceContactTransform(sourceDocument, resolver, {
-            instanceIds: preview.movePlan.instanceIds,
-            routeIds: preview.movePlan.translatedRouteIds,
-            junctionIds: preview.movePlan.translatedJunctionIds,
-          });
+        ? gestureFacts
+        : undefined;
+    const planTransform =
+      facts?.planTransform ??
+      prepareInstanceContactTransform(sourceDocument, resolver, {
+        instanceIds: preview.movePlan.instanceIds,
+        routeIds: preview.movePlan.translatedRouteIds,
+        junctionIds: preview.movePlan.translatedJunctionIds,
+      });
     const routingPlan = planTransform(delta, contact);
     const plan = {
       ...routingPlan,
@@ -658,7 +669,7 @@ export function createSelectionMoveController({
       (plan.edits.length === 0 || (delta.x === 0 && delta.y === 0)) &&
       !plan.diagnostics.some((d) => d.severity === "error")
     ) {
-      const geometry = resolveDocumentRoutingGeometry(sourceDocument, resolver);
+      let fallbackGeometry: ResolvedDocumentRoutingGeometry | undefined;
       const value: PreparedSelectionMove = {
         plan,
         previewDocument: sourceDocument,
@@ -667,7 +678,12 @@ export function createSelectionMoveController({
             ...plan.affected.internalRoutes,
             ...plan.affected.boundaryRoutes,
           ].flatMap((id) => {
-            const route = geometry.routes.get(id);
+            const route =
+              facts?.routingGeometry.routes.get(id) ??
+              (fallbackGeometry ??= resolveDocumentRoutingGeometry(
+                sourceDocument,
+                resolver,
+              )).routes.get(id);
             return route ? [[id, route.centerline] as const] : [];
           }),
         ),

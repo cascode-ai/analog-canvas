@@ -7,6 +7,7 @@ export interface CanvasDragVisual {
   translateObject(objectId: string, delta: Point): void;
   setPolyline(points: readonly Point[]): void;
   setObjectPolyline(objectId: string, points: readonly Point[]): void;
+  resetGeometry(): void;
   restore(): void;
 }
 
@@ -336,6 +337,25 @@ export function startCanvasDragVisual(
     }
   };
 
+  const resetGeometry = (): void => {
+    offsets.clear();
+    stretch(() => null, [...tethers.values()]);
+    for (const arrow of couplings.values()) {
+      if (arrow.d === null) arrow.shaft?.removeAttribute("d");
+      else arrow.shaft?.setAttribute("d", arrow.d);
+      for (const item of arrow.moved) {
+        if (item.transform === null) item.element.removeAttribute("transform");
+        else item.element.setAttribute("transform", item.transform);
+      }
+    }
+    for (const item of saved) {
+      if (item.transform === null) item.element.removeAttribute("transform");
+      else item.element.setAttribute("transform", item.transform);
+      if (item.points === null) item.element.removeAttribute("points");
+      else item.element.setAttribute("points", item.points);
+    }
+  };
+
   return {
     translate(delta) {
       for (const item of saved) {
@@ -384,24 +404,10 @@ export function startCanvasDragVisual(
         }
       }
     },
+    resetGeometry,
     restore() {
+      resetGeometry();
       routeInk.restore();
-      stretch(() => null, [...tethers.values()]);
-      for (const arrow of couplings.values()) {
-        if (arrow.d === null) arrow.shaft?.removeAttribute("d");
-        else arrow.shaft?.setAttribute("d", arrow.d);
-        for (const item of arrow.moved) {
-          if (item.transform === null)
-            item.element.removeAttribute("transform");
-          else item.element.setAttribute("transform", item.transform);
-        }
-      }
-      for (const item of saved) {
-        if (item.transform === null) item.element.removeAttribute("transform");
-        else item.element.setAttribute("transform", item.transform);
-        if (item.points === null) item.element.removeAttribute("points");
-        else item.element.setAttribute("points", item.points);
-      }
       releaseObjects?.();
     },
   };

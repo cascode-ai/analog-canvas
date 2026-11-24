@@ -1095,17 +1095,25 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
           ? [...segmentRouteIds, ...segmentJunctionIds]
           : []),
       ]));
+    const previewRoutes = new Map<string, RouteGeometryRecord | undefined>([
+      [routeId, record],
+    ]);
+    const originalJunctions = new Map<string, Point | undefined>();
     const previewJunctions = (
       moves: readonly { junctionId: string; position: Point }[],
     ) => {
       for (const move of moves) {
-        const original = options.document.junctions.find(
-          (j) => j.id === move.junctionId,
-        );
+        if (!originalJunctions.has(move.junctionId))
+          originalJunctions.set(
+            move.junctionId,
+            options.document.junctions.find((j) => j.id === move.junctionId)
+              ?.position,
+          );
+        const original = originalJunctions.get(move.junctionId);
         if (!original) continue;
         dragVisual().translateObject(move.junctionId, {
-          x: move.position.x - original.position.x,
-          y: move.position.y - original.position.y,
+          x: move.position.x - original.x,
+          y: move.position.y - original.y,
         });
       }
     };
@@ -1220,11 +1228,13 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             y: snapCoordinate(point.y, grid),
           };
           const origin = segmentDragOrigin(start, point, snapped, grid);
-          const plan = segmentPlanner(routeId, segmentIndex, snapped, origin);
-          const proposal = plan.preview?.routes.find(
-            (candidate) => candidate.routeId === routeId,
+          const proposal = segmentPlanner.preview(
+            routeId,
+            segmentIndex,
+            snapped,
+            origin,
           );
-          if (!proposal) return;
+          if (!proposal.routes.some((item) => item.routeId === routeId)) return;
           // Remember how far the drag actually planned. Releasing past that
           // point used to plan once more, fail, and snap the wire back to
           // where it started, discarding everything the preview had shown.
@@ -1235,11 +1245,16 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
           // cut across at an angle and the drag read as a triangle.
           // Restore arms no longer affected by this plan (for example after
           // returning from a carried Junction to a fixed-end dogleg).
-          dragVisual().restore();
-          for (const item of plan.preview?.routes ?? []) {
-            const affected = options.routeGeometryRecords.find(
-              (r) => r.route.id === item.routeId,
-            );
+          dragVisual().resetGeometry();
+          for (const item of proposal.routes) {
+            if (!previewRoutes.has(item.routeId))
+              previewRoutes.set(
+                item.routeId,
+                options.routeGeometryRecords.find(
+                  (r) => r.route.id === item.routeId,
+                ),
+              );
+            const affected = previewRoutes.get(item.routeId);
             if (!affected) continue;
             dragVisual().setObjectPolyline(
               item.routeId,
@@ -1247,11 +1262,11 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
                 affected.route,
                 affected.geometry.centerline,
                 item.waypoints,
-                plan.preview?.junctions ?? [],
+                proposal.junctions,
               ),
             );
           }
-          previewJunctions(plan.preview?.junctions ?? []);
+          previewJunctions(proposal.junctions);
         } catch {
           // Keep the last valid preview; commit lands on it instead.
         }
