@@ -8,6 +8,7 @@ import {
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
   hostedSky130LargePnpRequest,
+  hostedSky130NpnRequest,
   hostedSky130Mos5vRequest,
   RC_TRAN_REQUEST,
   REQUEST_ERRORS,
@@ -26,6 +27,7 @@ import {
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
   validateHostedSky130LargePnpResult,
+  validateHostedSky130NpnResult,
   validateHostedSky130Mos5vResult,
   validateHostedSky130NoiseResult,
   validateHostedSky130Result,
@@ -160,6 +162,29 @@ export async function runHostedSky130LargePnpAcceptance({
       `[infrastructure:http-${response.status}] ${target} ${corner} 3.4 um PNP qualification failed.`,
     );
   return validateHostedSky130LargePnpResult(payload, target, corner);
+}
+
+export async function runHostedSky130NpnAcceptance({
+  baseUrl,
+  target,
+  corner,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: simulationSmokeHeaders(),
+    body: JSON.stringify({
+      ...hostedSky130NpnRequest(corner),
+      executorTarget: target,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const payload = await response.json();
+  if (!response.ok)
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} ${corner} 5 V NPN qualification failed.`,
+    );
+  return validateHostedSky130NpnResult(payload, target, corner);
 }
 
 export async function runHostedSky130ExtendedDeviceAcceptance({

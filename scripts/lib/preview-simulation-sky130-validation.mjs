@@ -3,6 +3,7 @@ import {
   extendedQualification,
   hvtPfetQualification,
   largePnpQualification,
+  npnQualification,
   mos5vQualification,
   profile,
   qualification,
@@ -724,6 +725,88 @@ export function validateHostedSky130LargePnpResult(
     ["pnpCollectorCurrentA", tolerances.pnpCurrentA],
     ["pnpAcCollectorReal", tolerances.acCurrentA],
     ["pnpAcCollectorImag", tolerances.acCurrentA],
+  ];
+  for (const [name, tolerance] of checks) {
+    if (Math.abs(actual[name] - expected[name]) > tolerance)
+      throw new Error(
+        `${expectedTarget} solved ${name} at ${corner} as ${actual[name]}, expected ${expected[name]} ± ${tolerance}.`,
+      );
+  }
+  return { corner, ...actual };
+}
+
+export function validateHostedSky130NpnResult(payload, expectedTarget, corner) {
+  const expected = npnQualification.expectedCorners?.[corner];
+  if (!expected) throw new Error(`No 5 V NPN evidence exists for ${corner}.`);
+  const result = object(payload, "simulation response");
+  if (object(result.execution, "execution metadata").target !== expectedTarget)
+    throw new Error(`${expectedTarget} did not execute 5 V NPN at ${corner}.`);
+  if (object(result.outcome, "simulation outcome").status !== "completed")
+    throw new Error(`${expectedTarget} did not complete 5 V NPN at ${corner}.`);
+  const metadata = object(result.metadata, "run metadata");
+  const modelLibrary = object(
+    object(metadata.configuration, "configuration metadata").modelLibrary,
+    "model selection",
+  );
+  if (
+    modelLibrary.directive !== profile.models.library.directive ||
+    modelLibrary.section !== corner
+  )
+    throw new Error(
+      `${expectedTarget} loaded ${String(modelLibrary.section)}, expected corner ${corner}.`,
+    );
+  const environment = object(metadata.environment, "environment metadata");
+  validatePinnedEnvironment(environment, expectedTarget);
+  if (
+    environment.fingerprint !== npnQualification.evidence.environmentFingerprint
+  )
+    throw new Error(
+      `${expectedTarget} 5 V NPN evidence came from a different environment.`,
+    );
+  const data = object(result.data, "parsed result data");
+  const analyses = Array.isArray(data.analyses) ? data.analyses : [];
+  const operatingPoint = analyses.find(
+    (analysis) => analysis?.analysis === "op",
+  );
+  const ac = analyses.find((analysis) => analysis?.analysis === "ac");
+  if (!Array.isArray(operatingPoint?.probes) || !Array.isArray(ac?.probes))
+    throw new Error(
+      `${expectedTarget} returned incomplete 5 V NPN analyses for ${corner}.`,
+    );
+  const scalar = (name) => {
+    const probe = operatingPoint.probes.find(
+      (candidate) => candidate?.name === name,
+    );
+    if (typeof probe?.value !== "number")
+      throw new Error(`${expectedTarget} returned no ${name} for ${corner}.`);
+    return probe.value;
+  };
+  const complex = (name) => {
+    const probe = ac.probes.find((candidate) => candidate?.name === name);
+    if (
+      !Array.isArray(probe?.real) ||
+      !Array.isArray(probe?.imag) ||
+      typeof probe.real[0] !== "number" ||
+      typeof probe.imag[0] !== "number"
+    )
+      throw new Error(
+        `${expectedTarget} returned no AC ${name} for ${corner}.`,
+      );
+    return [probe.real[0], probe.imag[0]];
+  };
+  const [npnAcCollectorReal, npnAcCollectorImag] = complex("i(vcq)");
+  const actual = {
+    npnCollectorCurrentA: scalar("i(vcq)"),
+    npnBaseCurrentA: scalar("i(vbq)"),
+    npnAcCollectorReal,
+    npnAcCollectorImag,
+  };
+  const tolerances = npnQualification.tolerances;
+  const checks = [
+    ["npnCollectorCurrentA", tolerances.bjtCurrentA],
+    ["npnBaseCurrentA", tolerances.bjtCurrentA],
+    ["npnAcCollectorReal", tolerances.acCurrentA],
+    ["npnAcCollectorImag", tolerances.acCurrentA],
   ];
   for (const [name, tolerance] of checks) {
     if (Math.abs(actual[name] - expected[name]) > tolerance)

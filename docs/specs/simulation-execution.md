@@ -142,10 +142,24 @@ type ModelLibrarySelection =
   otherwise `/health` and `/run` stay not ready, never downgraded.
 - Qualified scope: core and LVT 1.8 V NFET/PFET, high-Vt 1.8 V PFET, 5 V
   `nfet_g5v0d10v5`/`pfet_g5v0d10v5`, `res_high_po`, `cap_mim_m3_1`,
-  three-terminal `pnp_05v5_W0p68L0p68` and `pnp_05v5_W3p40L3p40`; corners
-  `tt/ff/ss/fs/sf`; OP/DC/AC/TRAN/Noise. New devices need a hosted OP/AC
-  fixture at every corner. Excluded: SKY130 diode (unresolved in the continuous
-  library) and four-terminal NPN (ngspice 46 discards parameters).
+  three-terminal `pnp_05v5_W0p68L0p68` and `pnp_05v5_W3p40L3p40`,
+  four-terminal `npn_05v5_W1p00L1p00`; corners `tt/ff/ss/fs/sf`;
+  OP/DC/AC/TRAN/Noise. New devices need a hosted OP/AC fixture at every corner.
+  Excluded: SKY130 diode (unresolved in the continuous library).
+- The NPN (`C B E S`, substrate `S`) was left out under #712 because ngspice 46
+  prints `unrecognized parameter ... ignored` on its card. Those are fields
+  only (#1313, fixed by #1389): `dcap` (2, HSPICE's forward-bias
+  junction-capacitance equation; no DC effect, ngspice uses its `FC` form) and
+  `gap1`, `gap2`, `tsky130_fd_pr__res_generic_m1`, `tsky130_fd_pr__res_generic_m2` (all 0, temperature terms). The rest of the
+  Gummel-Poon card applies. At 27 °C and `VCE` = 2 V, IC for `VBE` 0.60-0.90 V
+  matches a hand Gummel-Poon solution of the card's own values (BF 39.28 x
+  0.98501, NF 1.0394, IKF 0.838 mA, RE 30 Ω, RB 602.5 Ω, TBF1/TNF1/TIKF1 from
+  TREF 30 °C) within 0.03 %. Beta (29.0, 35.8, 36.8, 33.9, 27.5 at 0.60, 0.70,
+  0.80, 0.85, 0.90 V) matches within 0.07. The 1 MHz collector current matches
+  gm/(1 + (gm + gπ)·RE + gπ·RB) within 0.01 %. Every section loads
+  `parameters_res_nom.spice`, so the NPN's DC is the same at all five corners
+  and only its junction capacitances move
+  (`hosted-sky130-npn-v1.json`).
 
 #### Standard cells
 
