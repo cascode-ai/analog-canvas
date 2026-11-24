@@ -1,4 +1,8 @@
-import { flattenRichText, transformPoint } from "@icm/model";
+import {
+  createAnnotationNameClaimReader,
+  flattenRichText,
+  transformPoint,
+} from "@icm/model";
 import type {
   Annotation,
   Point,
@@ -99,11 +103,9 @@ export function createLabelClearanceContext(
   const routing = resolveDocumentRoutingGeometry(document, resolver);
   const logical = resolveDocumentLogicalNets(document);
   const grid = document.presentation.grid;
-  const visible = document.annotations.filter((a) =>
-    isSchematicAnnotationVisible(document, a, logical, undefined, resolver),
-  );
+  const readClaims = createAnnotationNameClaimReader(document);
   const measurements = new WeakMap<Annotation, AnnotationPresentation>();
-  const measure = (annotation: Annotation) => {
+  const measure = (annotation: Annotation, text?: RichTextDocument) => {
     let measured = measurements.get(annotation);
     if (!measured) {
       measured = resolveAnnotationPresentation(
@@ -113,6 +115,7 @@ export function createLabelClearanceContext(
         style,
         routing,
         logical,
+        text,
       );
       measurements.set(annotation, measured);
     }
@@ -120,7 +123,30 @@ export function createLabelClearanceContext(
   };
   // Drawn extents, capitals to subscripts, as VISUAL_LABEL_OVERLAP measures:
   // a line box's extra ascent reached into a label's own part.
-  const labels = new Map(visible.map((a) => [a.id, measure(a).inkBounds]));
+  const labels = new Map<string, Rect>();
+  const visible: Annotation[] = [];
+  for (const annotation of document.annotations) {
+    if (annotation.visible === false) continue;
+    const text = resolveAnnotationText(
+      document,
+      annotation,
+      logical,
+      resolver,
+      readClaims,
+    );
+    if (
+      !isSchematicAnnotationVisible(
+        document,
+        annotation,
+        logical,
+        text,
+        resolver,
+      )
+    )
+      continue;
+    visible.push(annotation);
+    labels.set(annotation.id, measure(annotation, text).inkBounds);
+  }
   // Free drawing text is in the way too: a switch's name arranged onto a φ2
   // note read as one smudge with it (#1323). Its box is the text's line box.
   for (const object of document.drafting?.objects ?? [])

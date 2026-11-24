@@ -2,6 +2,7 @@ import {
   createEmptyDocument,
   createEmptyProject,
   createRoutePath,
+  type Annotation,
 } from "@icm/model";
 import {
   createProjectSymbolResolver,
@@ -46,6 +47,275 @@ describe("Project Connectivity Index logical aliases", () => {
     expect(countOwnershipReads(64)).toBeLessThanOrEqual(
       5 * countOwnershipReads(16),
     );
+  });
+
+  it("binds free labels and builds virtual edges in proportion to independent Nets", () => {
+    function countReads(count: number) {
+      const project = createEmptyProject("labels", "Labels");
+      const doc = project.documents[0]!;
+      const work = { routeNet: 0, labelId: 0, labelKind: 0 };
+      for (let i = 0; i < count; i++) {
+        const netId = `net-${i}`;
+        const first = `a-${i}`;
+        const last = `b-${i}`;
+        const y = 20 * i;
+        doc.nets.push({ id: netId, terminals: [] });
+        doc.junctions.push(
+          { id: first, netId, position: { x: 0, y } },
+          { id: last, netId, position: { x: 40, y } },
+        );
+        doc.routes.push({
+          ...createRoutePath({
+            id: `route-${i}`,
+            netId,
+            start: { kind: "junction", junctionId: first },
+            end: { kind: "junction", junctionId: last },
+            bends: [],
+            modes: ["manual"],
+          }),
+          get netId() {
+            work.routeNet++;
+            return netId;
+          },
+        });
+        doc.annotations.push({
+          get id() {
+            work.labelId++;
+            return `label-${i}`;
+          },
+          get kind(): "net-label" {
+            work.labelKind++;
+            return "net-label";
+          },
+          netId,
+          anchor: { kind: "free", position: { x: 20, y } },
+          content: { runs: [{ kind: "text", value: `sig${i}` }] },
+          alignment: "start",
+          rotation: 0,
+          locked: false,
+        });
+      }
+      const context = buildProjectConnectivityIndex(
+        project,
+        resolver,
+      ).documents.get(doc.id)!;
+      expect(context.netLabelBindingsByNetId.size).toBe(count);
+      expect(context.netLabelBindingsByNetId.get("net-0")?.[0]?.routeId).toBe(
+        "route-0",
+      );
+      return work;
+    }
+    const small = countReads(16),
+      large = countReads(64);
+    for (const key of ["routeNet", "labelId", "labelKind"] as const)
+      expect(large[key], key).toBeLessThanOrEqual(5 * small[key]);
+  });
+
+  it("resolves route-less free labels from the endpoints of their own Net", () => {
+    function reads(count: number) {
+      const project = createEmptyProject("route-less", "Route-less labels");
+      const doc = project.documents[0]!;
+      const work = { netIds: 0, junctionIds: 0, junctionNets: 0 };
+      for (let i = 0; i < count; i++) {
+        const netId = `n${i}`,
+          junctionId = `j${i}`;
+        doc.nets.push({
+          get id() {
+            work.netIds++;
+            return netId;
+          },
+          terminals: [],
+        });
+        doc.junctions.push({
+          get id() {
+            work.junctionIds++;
+            return junctionId;
+          },
+          get netId() {
+            work.junctionNets++;
+            return netId;
+          },
+          position: { x: i * 50, y: 0 },
+        });
+        doc.annotations.push({
+          id: `label${i}`,
+          kind: "net-label",
+          netId,
+          anchor: { kind: "free", position: { x: i * 50, y: 5 } },
+          alignment: "start",
+          rotation: 0,
+          locked: false,
+        });
+      }
+      const bindings = buildProjectConnectivityIndex(
+        project,
+        resolver,
+      ).documents.get(doc.id)!.netLabelBindingsByNetId;
+      expect(bindings.get(`n${count - 1}`)?.[0]?.endpoint).toEqual({
+        kind: "junction",
+        junctionId: `j${count - 1}`,
+      });
+      return work;
+    }
+    const small = reads(16),
+      large = reads(64);
+    for (const key of ["junctionNets", "junctionIds", "netIds"] as const)
+      expect(large[key], key).toBeLessThanOrEqual(5 * small[key]);
+  });
+
+  it("keeps a colon-bearing Junction distinct from a bus member when binding labels and tracing their Net", () => {
+    const project = createEmptyProject("endpoint-identity", "Trace");
+    const doc = project.documents[0]!;
+    for (const id of ["wire", "lane", "other-lane"])
+      doc.nets.push({ id, terminals: [] });
+    doc.junctions.push(
+      { id: "j:member:m", netId: "wire", position: { x: 0, y: 0 } },
+      { id: "middle", netId: "wire", position: { x: 10, y: 0 } },
+      {
+        id: "j",
+        netId: "lane",
+        position: { x: 100, y: 0 },
+        members: [
+          { id: "m", netId: "lane" },
+          { id: "other", netId: "other-lane" },
+        ],
+      },
+    );
+    for (const x of [0, 10])
+      doc.annotations.push({
+        id: `label-${x}`,
+        kind: "net-label",
+        netId: "wire",
+        content: { runs: [{ kind: "text", value: "SIG" }] },
+        anchor: { kind: "free", position: { x, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+    const index = buildProjectConnectivityIndex(project, resolver);
+    const bindings = index.documents
+      .get(doc.id)!
+      .netLabelBindingsByNetId.get("wire")!;
+    const first = { kind: "junction" as const, junctionId: "j:member:m" };
+    const second = { kind: "junction" as const, junctionId: "middle" };
+    expect(bindings.map((binding) => binding.endpoint)).toEqual([
+      first,
+      second,
+    ]);
+    expect(computeNetHighlight(index, doc.id, "wire", first)).toMatchObject({
+      netId: "wire",
+      visibleEndpoints: [first, second],
+      junctions: ["j:member:m", "middle"],
+      routes: [],
+      virtualEdges: [
+        { kind: "net-label", from: first, to: second, evidence: "SIG" },
+      ],
+    });
+  });
+
+  it("measures route-less endpoints against the first matching Junction in a draft with duplicate IDs", () => {
+    const project = createEmptyProject(
+      "duplicate-endpoints",
+      "Draft junctions",
+    );
+    const doc = project.documents[0]!;
+    doc.nets.push({ id: "n", terminals: [] }, { id: "other", terminals: [] });
+    doc.junctions.push(
+      { id: "duplicate", netId: "n", position: { x: 0, y: 0 } },
+      { id: "middle", netId: "n", position: { x: 10, y: 0 } },
+      { id: "duplicate", netId: "other", position: { x: 40, y: 0 } },
+    );
+    doc.annotations.push({
+      id: "label",
+      kind: "net-label",
+      netId: "n",
+      anchor: { kind: "free", position: { x: 1, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    const bindings = buildProjectConnectivityIndex(
+      project,
+      resolver,
+    ).documents.get(doc.id)!.netLabelBindingsByNetId;
+    expect(bindings.get("n")?.[0]?.endpoint).toEqual({
+      kind: "junction",
+      junctionId: "duplicate",
+    });
+  });
+
+  it("attaches free labels by primary Route Net, breaking distance ties by ID and falling back to endpoints", () => {
+    const project = createEmptyProject("bus", "Bus");
+    const doc = project.documents[0]!;
+    for (const id of ["primary", "lane", "isolated", "empty"])
+      doc.nets.push({ id, terminals: [] });
+    const members = [
+      { id: "p", netId: "primary", startMemberId: "p", endMemberId: "p" },
+      { id: "l", netId: "lane", startMemberId: "l", endMemberId: "l" },
+    ];
+    const junctionMembers = members.map(({ id, netId }) => ({ id, netId }));
+    for (const [id, y] of [
+      ["z-bus", -10],
+      ["a-bus", 10],
+    ] as const) {
+      const start = id + "-start",
+        end = id + "-end";
+      doc.junctions.push(
+        {
+          id: start,
+          netId: "primary",
+          members: junctionMembers,
+          position: { x: 0, y },
+        },
+        {
+          id: end,
+          netId: "primary",
+          members: junctionMembers,
+          position: { x: 40, y },
+        },
+      );
+      doc.routes.push(
+        createRoutePath({
+          id,
+          netId: "primary",
+          members,
+          start: { kind: "junction", junctionId: start },
+          end: { kind: "junction", junctionId: end },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    doc.junctions.push({
+      id: "solo",
+      netId: "isolated",
+      position: { x: 20, y: 0 },
+    });
+    for (const net of doc.nets)
+      doc.annotations.push({
+        id: net.id + "-label",
+        kind: "net-label",
+        netId: net.id,
+        anchor: { kind: "free", position: { x: 20, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+    const context = buildProjectConnectivityIndex(
+      project,
+      resolver,
+    ).documents.get(doc.id)!;
+    const bindings = context.netLabelBindingsByNetId;
+    expect(bindings.get("primary")?.[0]?.routeId).toBe("a-bus");
+    expect(bindings.get("lane")?.[0]).toMatchObject({
+      endpoint: { kind: "junction", junctionId: "a-bus-end", memberId: "l" },
+    });
+    expect(bindings.get("lane")?.[0]).not.toHaveProperty("routeId");
+    expect(bindings.get("isolated")?.[0]?.endpoint).toEqual({
+      kind: "junction",
+      junctionId: "solo",
+    });
+    expect(bindings.has("empty")).toBe(false);
   });
 
   it("retains label virtual edges while sharing document connectivity work", () => {
@@ -122,6 +392,35 @@ describe("Project Connectivity Index logical aliases", () => {
         from: { kind: "junction", junctionId: "J1" },
         to: { kind: "junction", junctionId: "J3" },
         evidence: "BIAS",
+      },
+    ]);
+
+    // In a draft, duplicate IDs resolve to the first annotation for both bindings.
+    const labels = document.annotations.map((item, index): Annotation => ({
+      ...item,
+      id: "duplicate",
+      binding: undefined,
+      content: {
+        runs: [{ kind: "text", value: index === 0 ? "FIRST" : "LAST" }],
+      },
+    }));
+    const draft = {
+      ...document,
+      annotations: labels,
+      connectivityEvidence: [],
+    };
+    const duplicate = buildProjectConnectivityIndex(
+      { ...project, documents: [draft] },
+      resolver,
+    )
+      .documents.get(draft.id)
+      ?.logicalNetByBaseNetId.get("net-bias");
+    expect(duplicate?.virtualEdges).toEqual([
+      {
+        kind: "net-label",
+        from: { kind: "junction", junctionId: "J1" },
+        to: { kind: "junction", junctionId: "J3" },
+        evidence: "FIRST",
       },
     ]);
   });

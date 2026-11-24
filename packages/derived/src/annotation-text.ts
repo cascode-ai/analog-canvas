@@ -1,4 +1,5 @@
 import {
+  findAnnotationNameClaim,
   boundAnnotationName,
   collapsedArrayReference,
   rewriteRichTextIdentifier,
@@ -10,6 +11,7 @@ import {
 } from "@icm/model";
 import type {
   Annotation,
+  AnnotationNameClaimReader,
   RichTextDocument,
   SchematicDocument,
 } from "@icm/model";
@@ -86,6 +88,7 @@ export function resolveAnnotationText(
   annotation: Annotation,
   logicalNets?: ResolvedDocumentLogicalNets,
   resolver?: SymbolResolver,
+  readClaims?: AnnotationNameClaimReader,
 ): RichTextDocument {
   const semanticLabel = (name: string): RichTextDocument =>
     labelTextDocument(name, document.presentation);
@@ -176,21 +179,21 @@ export function resolveAnnotationText(
           ? annotation.formatOverride
           : semanticLabel(name);
       }
-      const ownerClaim = document.connectivityEvidence.find(
+      const ownerClaim = findAnnotationNameClaim(
+        document,
+        binding.netId,
         (evidence) =>
-          evidence.kind === "name-claim" &&
-          evidence.netId === binding.netId &&
-          ((evidence.owner.kind === "net-label" &&
+          (evidence.owner?.kind === "net-label" &&
             evidence.owner.annotationId === annotation.id) ||
-            (annotation.anchor.kind === "object" &&
-              evidence.owner.kind === "power-marker" &&
-              evidence.owner.objectId === annotation.anchor.objectId)),
+          (annotation.anchor.kind === "object" &&
+            evidence.owner?.kind === "power-marker" &&
+            evidence.owner.objectId === annotation.anchor.objectId),
+        readClaims,
       );
       const logicalName = (
         logicalNets ?? resolveDocumentLogicalNets(document)
       ).byBaseNetId.get(binding.netId)?.name;
-      const ownerClaimName =
-        ownerClaim?.kind === "name-claim" ? ownerClaim.name : undefined;
+      const ownerClaimName = ownerClaim?.name;
       if (
         annotation.formatOverride &&
         binding.memberEndpoint &&
@@ -235,8 +238,9 @@ export function resolveAnnotationName(
   document: SchematicDocument,
   annotation: Annotation,
   logicalNets?: ResolvedDocumentLogicalNets,
+  readClaims?: AnnotationNameClaimReader,
 ): string {
-  const name = boundAnnotationName(document, annotation);
+  const name = boundAnnotationName(document, annotation, readClaims);
   if (annotation.binding?.kind === "net-name")
     return (
       name ||
@@ -249,7 +253,15 @@ export function resolveAnnotationName(
   if (alias) return alias.name;
   return (
     name ??
-    flattenRichText(resolveAnnotationText(document, annotation, logicalNets))
+    flattenRichText(
+      resolveAnnotationText(
+        document,
+        annotation,
+        logicalNets,
+        undefined,
+        readClaims,
+      ),
+    )
   );
 }
 

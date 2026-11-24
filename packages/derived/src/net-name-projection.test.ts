@@ -45,6 +45,37 @@ function addClaim(
 }
 
 describe("Project Net name projection", () => {
+  it("reads naming evidence in proportion to the number of independent Nets", () => {
+    function countReads(count: number) {
+      const project = createEmptyProject("project", "Project", "top");
+      const doc = project.documents[0]!;
+      let reads = 0;
+      for (let i = 0; i < count; i++) {
+        const id = `n-${i}`;
+        doc.nets.push({ id, terminals: [] });
+        doc.connectivityEvidence.push({
+          kind: "net-name-hint",
+          id: `hint-${i}`,
+          get netId() {
+            reads++;
+            return id;
+          },
+          sourceName: `sig${i}`,
+          origin: "spice-import",
+        });
+      }
+      const projected = deriveProjectNetNameProjection(
+        project,
+      ).byDocumentId.get(doc.id)!;
+      expect(projected.size).toBe(count);
+      expect(projected.get(`n-${count - 1}`)?.preferredSpelling).toBe(
+        `sig${count - 1}`,
+      );
+      return reads;
+    }
+    expect(countReads(64)).toBeLessThanOrEqual(5 * countReads(16));
+  });
+
   it("prefers current object-owned spelling independently of Evidence ID", () => {
     const project = createEmptyProject("project", "Project", "top");
     const top = project.documents[0]!;
@@ -120,6 +151,53 @@ describe("Project Net name projection", () => {
       spellings: ["VDD", "vdd"],
       preferredSpelling: "VDD",
     });
+  });
+
+  it("assigns each scalar spelling of a bus label and a formal port to its current logical Net", () => {
+    const project = createEmptyProject("project", "Bus", "top");
+    const doc = project.documents[0]!;
+    for (const id of ["bundle", "high", "low"])
+      doc.nets.push({ id, terminals: [] });
+    const members = [
+      { id: "m1", netId: "high", name: "bus<1>" },
+      { id: "m0", netId: "low", name: "bus<0>" },
+    ];
+    doc.netlist = {
+      name: "top",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "port",
+          name: "BUS<1:0>",
+          netId: "bundle",
+          direction: "inout",
+          interfaceInstanceIds: [],
+          signal: {
+            expression: "BUS<1:0>",
+            members: members.map((m) => ({ ...m, name: m.name.toUpperCase() })),
+          },
+        },
+      ],
+    };
+    doc.connectivityEvidence.push({
+      id: "claim",
+      kind: "name-claim",
+      owner: { kind: "net-label", annotationId: "label" },
+      netId: "bundle",
+      scope: "local",
+      name: "bus<1:0>",
+      signal: { expression: "bus<1:0>", members },
+    });
+    function names(id: string) {
+      return deriveProjectNetNameProjection(project)
+        .byDocumentId.get(doc.id)
+        ?.get(id)?.spellings;
+    }
+    expect(names("bundle")).toEqual([]);
+    expect(names("high")).toEqual(["BUS<1>", "bus<1>"]);
+    expect(names("low")).toEqual(["BUS<0>", "bus<0>"]);
+    members.reverse();
+    expect(names("high")).toEqual(["BUS<1>", "bus<1>"]);
   });
 
   it("uses a unique source hint only for an otherwise unnamed Net", () => {

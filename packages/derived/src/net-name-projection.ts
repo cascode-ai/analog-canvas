@@ -3,7 +3,13 @@ import {
   scalarCellTerminals,
   scalarConnectivityEvidence,
 } from "@icm/model";
-import type { CircuitProject, SchematicDocument } from "@icm/model";
+import type {
+  CellNetlistTerminal,
+  CircuitProject,
+  ConnectivityEvidence,
+  SchematicDocument,
+} from "@icm/model";
+import { groupedBy } from "./grouped-by.js";
 
 import {
   resolveDocumentLogicalNets,
@@ -79,19 +85,18 @@ function hierarchyDepths(project: CircuitProject): ReadonlyMap<string, number> {
 }
 
 function candidatesForLogicalNet(
-  document: SchematicDocument,
   logicalNet: ResolvedLogicalNet,
   documentDepth: number,
+  evidenceItems: readonly ConnectivityEvidence[],
+  terminals: readonly CellNetlistTerminal[],
 ): readonly NameCandidate[] {
-  const memberNetIds = new Set(logicalNet.baseNetIds);
   const foldedIdentity = logicalNet.name
     ? foldNetName(logicalNet.name)
     : undefined;
   const authoritative: NameCandidate[] = [];
   const hints: NameCandidate[] = [];
 
-  for (const evidence of scalarConnectivityEvidence(document)) {
-    if (!memberNetIds.has(evidence.netId)) continue;
+  for (const evidence of evidenceItems) {
     if (evidence.kind === "name-claim") {
       if (foldedIdentity && foldNetName(evidence.name) !== foldedIdentity) {
         continue;
@@ -116,8 +121,7 @@ function candidatesForLogicalNet(
     }
   }
 
-  for (const terminal of scalarCellTerminals(document.netlist)) {
-    if (!memberNetIds.has(terminal.netId)) continue;
+  for (const terminal of terminals) {
     if (foldedIdentity && foldNetName(terminal.name) !== foldedIdentity) {
       continue;
     }
@@ -148,12 +152,10 @@ function candidatesForLogicalNet(
 function projectedName(
   document: SchematicDocument,
   logicalNet: ResolvedLogicalNet,
-  documentDepth: number,
+  nameCandidates: readonly NameCandidate[],
   reachable: boolean,
 ): MutableProjection {
-  const candidates = [
-    ...candidatesForLogicalNet(document, logicalNet, documentDepth),
-  ].sort(compareCandidates);
+  const candidates = [...nameCandidates].sort(compareCandidates);
   return {
     value: {
       documentId: document.id,
@@ -183,11 +185,28 @@ export function deriveProjectNetNameProjection(
     const reachableDepth = depths.get(document.id);
     const documentDepth = reachableDepth ?? Number.MAX_SAFE_INTEGER;
     const byLogicalNetId = new Map<string, MutableProjection>();
-    for (const logicalNet of resolveDocumentLogicalNets(document).groups) {
+    const logical = resolveDocumentLogicalNets(document);
+    const groupId = (item: { netId: string }) =>
+      logical.byBaseNetId.get(item.netId)?.id;
+    const evidenceByGroup = groupedBy(
+      scalarConnectivityEvidence(document),
+      groupId,
+    );
+    const terminalsByGroup = groupedBy(
+      scalarCellTerminals(document.netlist),
+      groupId,
+    );
+    for (const logicalNet of logical.groups) {
+      const candidates = candidatesForLogicalNet(
+        logicalNet,
+        documentDepth,
+        evidenceByGroup.get(logicalNet.id) ?? [],
+        terminalsByGroup.get(logicalNet.id) ?? [],
+      );
       const projected = projectedName(
         document,
         logicalNet,
-        documentDepth,
+        candidates,
         reachableDepth !== undefined,
       );
       byLogicalNetId.set(logicalNet.id, projected);

@@ -3,8 +3,14 @@ import {
   referencedDocumentId,
 } from "./project-hierarchy.js";
 import { registerDocumentCache } from "./document-caches.js";
-import { deriveStableId, documentContentSource, foldNetName } from "@icm/model";
+import {
+  createAnnotationNameClaimReader,
+  deriveStableId,
+  documentContentSource,
+  foldNetName,
+} from "@icm/model";
 import type {
+  AnnotationNameClaimReader,
   CircuitProject,
   Net,
   RouteEndpoint,
@@ -26,12 +32,8 @@ import {
   type ObjectLocator,
   type HierarchyFrame,
 } from "./object-locator.js";
-import type { ResolvedNetLabelBinding } from "./net-label.js";
 import { resolveAnnotationName } from "./annotation-text.js";
-import {
-  resolveDocumentLogicalNets,
-  type ResolvedDocumentLogicalNets,
-} from "./logical-net.js";
+import { resolveDocumentLogicalNets } from "./logical-net.js";
 import type { DocumentDerivedContext } from "./document-derived-context.js";
 
 /**
@@ -236,6 +238,7 @@ function buildDocumentIndex(
   }
 
   const baseRecords = new Map<string, NetConnectivityRecord>();
+  const readClaims = createAnnotationNameClaimReader(document);
   for (const net of document.nets) {
     baseRecords.set(
       net.id,
@@ -245,8 +248,7 @@ function buildDocumentIndex(
         net,
         routingGuidanceByNet.get(net.id) ?? [],
         connectivityContext,
-        connectivityContext.routesByNetId.get(net.id) ?? [],
-        connectivityContext.junctionsByNetId.get(net.id) ?? [],
+        readClaims,
       ),
     );
   }
@@ -322,9 +324,11 @@ function buildNetRecord(
   net: Net,
   routingGuidance: readonly RoutingGuide[],
   connectivityContext: NetConnectivityContext,
-  routesForNet: readonly SchematicDocument["routes"][number][],
-  junctionsForNet: readonly SchematicDocument["junctions"][number][],
+  readClaims: AnnotationNameClaimReader,
 ): NetConnectivityRecord {
+  const routesForNet = connectivityContext.routesByNetId.get(net.id) ?? [];
+  const junctionsForNet =
+    connectivityContext.junctionsByNetId.get(net.id) ?? [];
   const logicalEndpoints: EndpointRef[] = [
     ...net.terminals.map((terminal) =>
       terminalEndpoint(
@@ -345,6 +349,7 @@ function buildNetRecord(
     resolver,
     net,
     connectivityContext,
+    readClaims,
   ).components;
 
   const routes = routesForNet
@@ -358,8 +363,8 @@ function buildNetRecord(
   const virtualEdges = deriveLabelVirtualEdges(
     document,
     net,
-    connectivityContext.netLabelBindingsByNetId.get(net.id) ?? [],
-    connectivityContext.logicalNetResolution,
+    connectivityContext,
+    readClaims,
   );
 
   return {
@@ -384,17 +389,23 @@ function buildNetRecord(
 function deriveLabelVirtualEdges(
   document: SchematicDocument,
   net: Net,
-  bindings: readonly ResolvedNetLabelBinding[],
-  logicalNets: ResolvedDocumentLogicalNets,
+  context: NetConnectivityContext,
+  readClaims: AnnotationNameClaimReader,
 ): VirtualConnectivityEdge[] {
+  const bindings = context.netLabelBindingsByNetId.get(net.id) ?? [];
+  const logicalNets = context.logicalNetResolution;
   const groups = new Map<
     string,
     { kind: VirtualConnectivityEdge["kind"]; endpoints: EndpointRef[] }
   >();
   for (const binding of bindings) {
-    const annotation = document.annotations.find(
-      (candidate) => candidate.id === binding.annotationId,
-    )!;
+    // The ID index keeps the last duplicate; drafts historically use the first.
+    const annotation =
+      context.annotationsById.size === document.annotations.length
+        ? context.annotationsById.get(binding.annotationId)!
+        : document.annotations.find(
+            (item) => item.id === binding.annotationId,
+          )!;
     if (
       annotation.binding?.kind === "net-name" &&
       (annotation.binding.memberEndpoint || annotation.binding.memberEndpoints)
@@ -404,6 +415,7 @@ function deriveLabelVirtualEdges(
       document,
       annotation,
       logicalNets,
+      readClaims,
     ).trim();
     if (label.length === 0) continue;
     const group = groups.get(label) ?? {
@@ -413,8 +425,8 @@ function deriveLabelVirtualEdges(
     group.endpoints.push(binding.endpoint);
     groups.set(label, group);
   }
-  for (const annotation of document.annotations) {
-    if (annotation.kind !== "power-label" || annotation.netId !== net.id) {
+  for (const annotation of context.annotationsByNetId.get(net.id) ?? []) {
+    if (annotation.kind !== "power-label") {
       continue;
     }
     const binding = bindings.find(
@@ -425,6 +437,7 @@ function deriveLabelVirtualEdges(
       document,
       annotation,
       logicalNets,
+      readClaims,
     ).trim();
     if (label.length === 0) continue;
     const group = groups.get(label) ?? {
