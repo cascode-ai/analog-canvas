@@ -22,6 +22,7 @@ import {
   endpointKey,
   isVisibleEndpoint,
   isMosBulkTerminal,
+  readMosBulkVisibility,
   findRouteSegmentsAtPoint,
   resolveDocumentLogicalNets,
   resolveDrawingScene,
@@ -67,17 +68,26 @@ export function createPlacementContactContext(
 ) {
   const revision = document.revision;
   let logicalNets: ResolvedDocumentLogicalNets | undefined;
+  let bulkVisibility: ReturnType<typeof readMosBulkVisibility> | undefined;
   let geometry: ResolvedDocumentRoutingGeometry | undefined;
   let index: DocumentSpatialIndex | undefined;
   let drawing: ResolvedDrawingScene | undefined;
   let hasOpaqueFill: boolean | undefined;
-  const lookup: EndpointObjectLookup = {
+  const getLogicalNets = () =>
+    (logicalNets ??= resolveDocumentLogicalNets(document));
+  const lookup = {
     instancesById: new Map(document.instances.map((item) => [item.id, item])),
     junctionsById: new Map(document.junctions.map((item) => [item.id, item])),
     get logicalNetResolution() {
-      return (logicalNets ??= resolveDocumentLogicalNets(document));
+      return getLogicalNets();
     },
-  };
+    get isMosBulkVisible() {
+      return (bulkVisibility ??= readMosBulkVisibility(
+        document,
+        getLogicalNets(),
+      ));
+    },
+  } satisfies EndpointObjectLookup;
   // Match the previous field-by-field search exactly: a display-style endpoint
   // key can alias ("R:1", "2") with ("R", "1:2").
   const netsByInstance = new Map<string, Map<string, string>>();
@@ -114,7 +124,7 @@ export function createPlacementContactContext(
     },
     routesById: new Map(document.routes.map((route) => [route.id, route])),
     get logicalNets() {
-      return lookup.logicalNetResolution!;
+      return lookup.logicalNetResolution;
     },
     get routingGeometry() {
       return routingGeometry();

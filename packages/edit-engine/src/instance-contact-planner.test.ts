@@ -229,6 +229,42 @@ describe("dropping a two-pin part over the end of a Wire", () => {
       )?.netId,
     ).toBe("first");
   });
+  it("reads hidden MOS bodies once per target and observes explicit wiring on a later draft", () => {
+    const document = createEmptyDocument("main", "Main");
+    const devices = ["M1", "M2"].map((id, index) => ({
+      ...resistor(id, { x: 100 * index, y: 0 }),
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+    }));
+    document.instances.push(...devices);
+    document.nets.push({ id: "bias", terminals: [] });
+    const bias = document.nets[0]!;
+    const terminals = bias.terminals;
+    let membershipReads = 0;
+    Object.defineProperty(bias, "terminals", {
+      get() {
+        membershipReads++;
+        return terminals;
+      },
+    });
+    const context = createPlacementContactContext(document, resolver);
+    const pins = (
+      instance: Instance,
+      read: ReturnType<typeof createPlacementContactContext>,
+    ) =>
+      placementWireSources(document, resolver, instance, read).flatMap(
+        ({ endpoint }) =>
+          endpoint.kind === "terminal" ? [endpoint.pinName] : [],
+      );
+    expect(pins(devices[0]!, context)).not.toContain("B");
+    membershipReads = 0;
+    expect(pins(devices[1]!, context)).not.toContain("B");
+    expect(membershipReads).toBe(0);
+
+    document.nets[0]!.terminals.push({ instanceId: "M2", pinName: "B" });
+    const updated = createPlacementContactContext(document, resolver);
+    expect(pins(devices[1]!, updated)).toContain("B");
+  });
   it("reads a replaced instance's new position, not the snapshot lookup", () => {
     const document = wireEndingInATee();
     const context = createPlacementContactContext(document, resolver);
