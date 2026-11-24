@@ -5,6 +5,7 @@ import {
   DIVIDER_DC_REQUEST,
   DIVIDER_REQUEST,
   hostedSky130CornerRequest,
+  hostedSky130DiodeRequest,
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
   hostedSky130LargePnpRequest,
@@ -24,6 +25,7 @@ import { object } from "./preview-simulation-validation-core.mjs";
 import { simulationSmokeHeaders } from "./simulation-smoke-headers.mjs";
 import {
   validateHostedSky130CornerResult,
+  validateHostedSky130DiodeResult,
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
   validateHostedSky130LargePnpResult,
@@ -185,6 +187,29 @@ export async function runHostedSky130NpnAcceptance({
       `[infrastructure:http-${response.status}] ${target} ${corner} 5 V NPN qualification failed.`,
     );
   return validateHostedSky130NpnResult(payload, target, corner);
+}
+
+export async function runHostedSky130DiodeAcceptance({
+  baseUrl,
+  target,
+  corner,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: simulationSmokeHeaders(),
+    body: JSON.stringify({
+      ...hostedSky130DiodeRequest(corner),
+      executorTarget: target,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const payload = await response.json();
+  if (!response.ok)
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} ${corner} diode qualification failed.`,
+    );
+  return validateHostedSky130DiodeResult(payload, target, corner);
 }
 
 export async function runHostedSky130ExtendedDeviceAcceptance({

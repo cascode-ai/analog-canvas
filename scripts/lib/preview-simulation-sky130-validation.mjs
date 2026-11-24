@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import {
+  DIODE_JUNCTIONS,
+  diodeQualification,
   extendedQualification,
   hvtPfetQualification,
   largePnpQualification,
@@ -807,6 +809,106 @@ export function validateHostedSky130NpnResult(payload, expectedTarget, corner) {
     ["npnBaseCurrentA", tolerances.bjtCurrentA],
     ["npnAcCollectorReal", tolerances.acCurrentA],
     ["npnAcCollectorImag", tolerances.acCurrentA],
+  ];
+  for (const [name, tolerance] of checks) {
+    if (Math.abs(actual[name] - expected[name]) > tolerance)
+      throw new Error(
+        `${expectedTarget} solved ${name} at ${corner} as ${actual[name]}, expected ${expected[name]} ± ${tolerance}.`,
+      );
+  }
+  return { corner, ...actual };
+}
+
+export function validateHostedSky130DiodeResult(
+  payload,
+  expectedTarget,
+  corner,
+) {
+  const expected = diodeQualification.expectedCorners?.[corner];
+  if (!expected) throw new Error(`No diode evidence exists for ${corner}.`);
+  const result = object(payload, "simulation response");
+  if (object(result.execution, "execution metadata").target !== expectedTarget)
+    throw new Error(
+      `${expectedTarget} did not execute the diodes at ${corner}.`,
+    );
+  if (object(result.outcome, "simulation outcome").status !== "completed")
+    throw new Error(
+      `${expectedTarget} did not complete the diodes at ${corner}.`,
+    );
+  const metadata = object(result.metadata, "run metadata");
+  const modelLibrary = object(
+    object(metadata.configuration, "configuration metadata").modelLibrary,
+    "model selection",
+  );
+  if (
+    modelLibrary.directive !== profile.models.library.directive ||
+    modelLibrary.section !== corner
+  )
+    throw new Error(
+      `${expectedTarget} loaded ${String(modelLibrary.section)}, expected corner ${corner}.`,
+    );
+  const environment = object(metadata.environment, "environment metadata");
+  validatePinnedEnvironment(environment, expectedTarget);
+  if (
+    environment.fingerprint !==
+    diodeQualification.evidence.environmentFingerprint
+  )
+    throw new Error(
+      `${expectedTarget} diode evidence came from a different environment.`,
+    );
+  const data = object(result.data, "parsed result data");
+  const analyses = Array.isArray(data.analyses) ? data.analyses : [];
+  const operatingPoint = analyses.find(
+    (analysis) => analysis?.analysis === "op",
+  );
+  const ac = analyses.find((analysis) => analysis?.analysis === "ac");
+  if (!Array.isArray(operatingPoint?.probes) || !Array.isArray(ac?.probes))
+    throw new Error(
+      `${expectedTarget} returned incomplete diode analyses for ${corner}.`,
+    );
+  const scalar = (name) => {
+    const probe = operatingPoint.probes.find(
+      (candidate) => candidate?.name === name,
+    );
+    if (typeof probe?.value !== "number")
+      throw new Error(`${expectedTarget} returned no ${name} for ${corner}.`);
+    return probe.value;
+  };
+  const complex = (name) => {
+    const probe = ac.probes.find((candidate) => candidate?.name === name);
+    if (
+      !Array.isArray(probe?.real) ||
+      !Array.isArray(probe?.imag) ||
+      typeof probe.real[0] !== "number" ||
+      typeof probe.imag[0] !== "number"
+    )
+      throw new Error(
+        `${expectedTarget} returned no AC ${name} for ${corner}.`,
+      );
+    return [probe.real[0], probe.imag[0]];
+  };
+  const [pw2ndAcReal, pw2ndAcImag] = complex("i(vnr)");
+  const [pd2nwAcReal, pd2nwAcImag] = complex("i(vpr)");
+  const actual = {
+    ...Object.fromEntries(
+      DIODE_JUNCTIONS.map(({ key, vector }) => [key, scalar(vector)]),
+    ),
+    pw2ndAcReal,
+    pw2ndAcImag,
+    pd2nwAcReal,
+    pd2nwAcImag,
+  };
+  const tolerances = diodeQualification.tolerances;
+  const checks = [
+    ...DIODE_JUNCTIONS.map(({ key }) => [
+      key,
+      key.includes("Reverse")
+        ? tolerances.leakageCurrentA
+        : tolerances.forwardCurrentA,
+    ]),
+    ...["pw2ndAcReal", "pw2ndAcImag", "pd2nwAcReal", "pd2nwAcImag"].map(
+      (key) => [key, tolerances.acCurrentA],
+    ),
   ];
   for (const [name, tolerance] of checks) {
     if (Math.abs(actual[name] - expected[name]) > tolerance)

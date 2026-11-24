@@ -558,6 +558,11 @@ Nx`), `pnpMPA` (`c b e`; `a p m`), `rsil`/`rppd`/`rhigh` (`1 2 bn`;
 - Import reads an `M` card naming a reviewed SKY130 transistor without a
   same-name `.model` as its `X` wrapper; a model binding naming a reviewed device
   warns `REVIEWED_DEVICE_AS_MODEL_CARD`.
+- SKY130's `diode_pw2nd_05v5` and `diode_pd2nw_05v5` are reviewed wrappers
+  (`a c`, from the Diode's A and K): `area` in µm² and `perim` in µm pass
+  through as written (wrapper defaults 1 and 1; outside 0.01 µm²–1 mm² or
+  0–4 mm warns `REVIEWED_PARAMETER_OUT_OF_RANGE`), then `m`. A model binding
+  of either name warns as above, pointing to Properties only.
 
 #### Substrate and negative supplies
 

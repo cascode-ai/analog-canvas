@@ -421,6 +421,63 @@ describe("reviewed external device bindings", () => {
     ]);
   });
 
+  it("calls SKY130's junction diodes as the subcircuits its library defines", () => {
+    for (const [master, id] of [
+      ["sky130_fd_pr__diode_pw2nd_05v5", "sky130-diode-pw2nd-05v5"],
+      ["sky130_fd_pr__diode_pd2nw_05v5", "sky130-diode-pd2nw-05v5"],
+    ] as const) {
+      const binding = resolveReviewedExternalBinding(master, ["a", "c"]);
+      expect(binding).toMatchObject({
+        id,
+        libraryId: "sky130_fd_pr",
+        symbolId: "diode",
+        deviceClass: "diode",
+        terminals: [
+          { targetName: "a", pinName: "A", interaction: "canvas" },
+          { targetName: "c", pinName: "K", interaction: "canvas" },
+        ],
+      });
+      // `.subckt <name> a c mult=1 area=1 perim=1` under scale=1.0u: plain
+      // square micrometres and micrometres, passed through unconverted.
+      expect(
+        binding?.parameters.map((parameter) => [
+          parameter.name,
+          parameter.defaultValue,
+          parameter.targetDefaultValue,
+          parameter.targetUnit,
+        ]),
+      ).toEqual([
+        ["area", "1", "1", undefined],
+        ["perim", "1", "1", undefined],
+        ["m", "1", "1", undefined],
+      ]);
+      expect(
+        resolveReviewedExternalBinding(master, ["c", "a"]),
+      ).toBeUndefined();
+      // An area written in m², a unit slip, is named.
+      expect(
+        reviewedParameterIssues(binding!, { area: "100p", perim: "40" }, "XD1"),
+      ).toEqual([
+        expect.objectContaining({
+          code: "REVIEWED_PARAMETER_OUT_OF_RANGE",
+          parameter: "area",
+        }),
+      ]);
+      expect(
+        reviewedParameterIssues(binding!, { area: "100", perim: "40" }, "XD1"),
+      ).toEqual([]);
+    }
+    expect(reviewedExternalModelSuggestions("diode", "sky130_fd_pr")).toEqual([
+      "sky130_fd_pr__diode_pw2nd_05v5",
+      "sky130_fd_pr__diode_pd2nw_05v5",
+    ]);
+    expect(reviewedExternalModelSuggestions("diode", "sg13g2_pr")).toEqual([]);
+    // Only the plain 5 V pair is reviewed; the LVT and 11 V diodes are not.
+    expect(
+      reviewedExternalBindingForMaster("sky130_fd_pr__diode_pw2nd_05v5_lvt"),
+    ).toBeUndefined();
+  });
+
   it("binds IHP SG13G2 devices with the interfaces of the PDK's own ngspice models", () => {
     // `.subckt` lines and xschem parameter order of IHP-Open-PDK
     // ihp-sg13g2/libs.tech (5e6d592e, 2026-09-01).

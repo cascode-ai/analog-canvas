@@ -16,6 +16,14 @@ vertical PNP sizes (`pnp_05v5_W0p68L0p68`, `pnp_05v5_W3p40L3p40`), and
 the four-terminal `npn_05v5_W1p00L1p00` (`C B E S`, `S` as below). Its ngspice
 46 `unrecognized parameter ... ignored` warnings name HSPICE-only fields
 (`dcap`, `gap1`, `gap2`, `tsky130_fd_pr__res_generic_m1`, `tsky130_fd_pr__res_generic_m2`); its Gummel-Poon parameters apply.
+It also qualifies the `diode_pw2nd_05v5`/`diode_pd2nw_05v5` diodes.
+
+A SKY130 diode is a `.subckt <name> a c` wrapper, not a model: bind the Diode
+to it (Properties model, or `set-model`) so it exports
+`XD1 a k sky130_fd_pr__diode_pw2nd_05v5 area=100 perim=40` (area µm²,
+perimeter µm, `m` parallel copies). A model binding of that name exports a D
+card ngspice cannot run and warns `REVIEWED_DEVICE_AS_MODEL_CARD`; choose the
+model again. Apply process gives a diode the generic `DIODE` instead.
 
 A Profile's `cellLibraries` declare the standard-cell libraries it defines and
 how a deck loads them. Hosted SKY130 ngspice offers `sky130_fd_sc_hd`: Prepare

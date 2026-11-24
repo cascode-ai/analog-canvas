@@ -35,6 +35,8 @@ export type ReviewedExternalBindingId =
   | "sky130-pnp-05v5-w0p68l0p68"
   | "sky130-pnp-05v5-w3p40l3p40"
   | "sky130-npn-05v5-w1p00l1p00"
+  | "sky130-diode-pw2nd-05v5"
+  | "sky130-diode-pd2nw-05v5"
   | "sg13g2-lv-nmos"
   | "sg13g2-lv-pmos"
   | "sg13g2-hv-nmos"
@@ -134,9 +136,10 @@ export interface ReviewedExternalDeviceBinding {
     | "mos-varactor"
     | "npn"
     | "pnp"
+    | "diode"
     | StandardCellGateSymbolId;
   readonly deviceClass:
-    "mos" | "resistor" | "capacitor" | "inductor" | "bjt" | "logic";
+    "mos" | "resistor" | "capacitor" | "inductor" | "bjt" | "diode" | "logic";
   readonly terminals: readonly ReviewedExternalTerminalBinding[];
   readonly parameters: readonly ReviewedExternalParameterBinding[];
   /**
@@ -785,6 +788,65 @@ const sky130VerticalPnpBinding = (
   parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
 });
 
+/**
+ * A SKY130 junction diode. The continuous library defines each one as a
+ * `.subckt <name> a c` wrapper around its D card (models_diodes.spice), not
+ * as a model, so it is called on an X line; a D line naming it stops ngspice
+ * with "could not find a valid modelname". The wrapper takes the junction's
+ * area and perimeter as plain square micrometres and micrometres (the
+ * library's `.option scale=1.0u`), so they pass through as written; its own
+ * defaults are 1 and 1. `mult` is declared but never read inside, so
+ * parallel copies are the X-line multiplier, which ngspice 46 applies
+ * exactly.
+ */
+const sky130DiodeBinding = (
+  id: ReviewedExternalBindingId,
+  masterName: string,
+): ReviewedExternalDeviceBinding => ({
+  id,
+  libraryId: "sky130_fd_pr",
+  masterName,
+  invocationKind: "external-subcircuit",
+  symbolId: "diode",
+  deviceClass: "diode",
+  terminals: [
+    { targetName: "a", pinName: "A", interaction: "canvas" },
+    { targetName: "c", pinName: "K", interaction: "canvas" },
+  ],
+  parameters: [
+    {
+      name: "area",
+      label: "Area",
+      required: false,
+      editor: "text",
+      unitHint: "µm²",
+      placeholder: "1",
+      defaultValue: "1",
+      help: "Junction area in square micrometres, as the SKY130 wrapper takes it",
+      displayRole: "none",
+      targetDefaultValue: "1",
+      spiceOrder: 0,
+      // Past 1 mm², or below 0.01 µm², is a unit slip: an area in m² such as 100p.
+      numericLimits: { minimum: 0.01, maximum: 1e6 },
+    },
+    {
+      name: "perim",
+      label: "Perimeter",
+      required: false,
+      editor: "text",
+      unitHint: "µm",
+      placeholder: "1",
+      defaultValue: "1",
+      help: "Junction perimeter in micrometres, as the SKY130 wrapper takes it",
+      displayRole: "none",
+      targetDefaultValue: "1",
+      spiceOrder: 1,
+      numericLimits: { minimum: 0, maximum: 4e3 },
+    },
+    count("m", "M", "ngspice X-line parallel multiplier", 2),
+  ],
+});
+
 const bjtTerminalsWithSubstrate =
   (): readonly ReviewedExternalTerminalBinding[] => [
     ...bjtCanvasTerminals(),
@@ -1228,6 +1290,15 @@ export const reviewedExternalDeviceBindings: readonly ReviewedExternalDeviceBind
       terminals: bjtTerminalsWithSubstrate(),
       parameters: [count("m", "M", "ngspice X-line parallel multiplier", 0)],
     },
+    // N+ in P-well and P+ in N-well, the 5 V junction diodes.
+    sky130DiodeBinding(
+      "sky130-diode-pw2nd-05v5",
+      "sky130_fd_pr__diode_pw2nd_05v5",
+    ),
+    sky130DiodeBinding(
+      "sky130-diode-pd2nw-05v5",
+      "sky130_fd_pr__diode_pd2nw_05v5",
+    ),
     sg13MosBinding("sg13g2-lv-nmos", "sg13_lv_nmos", "nmos", "150n", "130n"),
     sg13MosBinding("sg13g2-lv-pmos", "sg13_lv_pmos", "pmos", "150n", "130n"),
     sg13MosBinding("sg13g2-hv-nmos", "sg13_hv_nmos", "nmos", "300n", "450n"),

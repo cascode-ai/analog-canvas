@@ -3077,6 +3077,76 @@ describe("reviewed external MOS model targets", () => {
   });
 });
 
+describe("SKY130 junction diodes as model targets", () => {
+  it("switches a diode between a model card and its SKY130 wrapper", () => {
+    const project = createEmptyProject("project", "Project");
+    project.documents[0]!.instances.push({
+      id: "D1",
+      symbolId: "diode",
+      placement: null,
+      reference: "D1",
+      netlist: {
+        binding: {
+          kind: "model",
+          deviceClass: "diode",
+          name: "sky130_fd_pr__diode_pw2nd_05v5",
+        },
+        parameters: { area: "2" },
+      },
+    });
+    // The same name chosen again calls it on an X line, as its library
+    // defines it, rather than keeping the D card ngspice cannot run.
+    const external = executeProjectTransaction(project, {
+      transactionId: "set-sky130-diode",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetDeviceModelTarget(
+        project,
+        project.topDocumentId,
+        "D1",
+        "sky130_fd_pr__diode_pw2nd_05v5",
+      ),
+    });
+    expect(external.ok).toBe(true);
+    if (!external.ok) return;
+    const instance = external.project.documents[0]!.instances[0]!;
+    // It keeps its D Reference; the netlist calls it as XD1.
+    expect(instance).toMatchObject({
+      symbolId: "diode",
+      reference: "D1",
+      netlist: { binding: { kind: "external-subcircuit" } },
+    });
+    expect(instance.netlist?.parameters).toMatchObject({ area: "2" });
+    expect(external.project.externalSubcircuitDefinitions[0]).toMatchObject({
+      name: "sky130_fd_pr__diode_pw2nd_05v5",
+      terminals: [{ name: "a" }, { name: "c" }],
+    });
+
+    const ordinary = executeProjectTransaction(external.project, {
+      transactionId: "set-generic-diode",
+      projectId: external.project.id,
+      expectedStructureRevision: external.project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planSetDeviceModelTarget(
+        external.project,
+        external.project.topDocumentId,
+        "D1",
+        "DIODE",
+      ),
+    });
+    expect(ordinary.ok).toBe(true);
+    if (!ordinary.ok) return;
+    expect(ordinary.project.documents[0]!.instances[0]).toMatchObject({
+      symbolId: "diode",
+      reference: "D1",
+      netlist: {
+        binding: { kind: "model", deviceClass: "diode", name: "DIODE" },
+      },
+    });
+  });
+});
+
 describe("arranging a Cell's block Pins by name (#1320)", () => {
   type Project = ReturnType<typeof createEmptyProject>;
   function commit(project: Project, edits: readonly ProjectStructureEdit[]) {

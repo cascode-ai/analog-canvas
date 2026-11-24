@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { validateQualifiedModelSelection } from "./lib/preview-simulation-sky130-validation.mjs";
+import { diodeQualification } from "./lib/preview-simulation-qualification.mjs";
 
 import {
   compileHostedSky130Project,
   compileHostedSky130NoiseProject,
   compileHostedSky130TransientProject,
   hostedSky130CornerRequest,
+  hostedSky130DiodeRequest,
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
   hostedSky130LargePnpRequest,
@@ -14,6 +16,7 @@ import {
   hostedSky130Mos5vRequest,
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
+  runHostedSky130DiodeAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
   runHostedSky130LargePnpAcceptance,
@@ -28,6 +31,7 @@ import {
   validateDcDividerResult,
   validateHostedSky130Result,
   validateHostedSky130CornerResult,
+  validateHostedSky130DiodeResult,
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
   validateHostedSky130LargePnpResult,
@@ -368,6 +372,63 @@ function npnResult(target, corner = "ff", expected = NPN_FF) {
               name: "i(vcq)",
               real: [expected.npnAcCollectorReal],
               imag: [expected.npnAcCollectorImag],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+const DIODES_FF = diodeQualification.expectedCorners.ff;
+const DIODE_VECTORS = {
+  pw2ndForward0p5A: "idnf1",
+  pw2ndForward0p6A: "idnf2",
+  pw2ndForward0p7A: "idnf3",
+  pw2ndReverse3p3A: "idnr",
+  pd2nwForward0p5A: "idpf1",
+  pd2nwForward0p6A: "idpf2",
+  pd2nwForward0p7A: "idpf3",
+  pd2nwReverse3p3A: "idpr",
+};
+
+function diodeResult(target, corner = "ff", expected = DIODES_FF) {
+  const base = result(target);
+  return {
+    ...base,
+    metadata: {
+      ...base.metadata,
+      input: { inputRevision: `preview-sky130-diodes-${corner}` },
+      configuration: { modelLibrary: { directive: "lib", section: corner } },
+      environment: {
+        ...base.metadata.environment,
+        fingerprint: CORNER_ENVIRONMENT_SHA,
+      },
+    },
+    data: {
+      analyses: [
+        {
+          analysis: "op",
+          probes: [
+            { name: "v(nf1)", value: 0.5 },
+            ...Object.entries(DIODE_VECTORS).map(([key, name]) => ({
+              name,
+              value: expected[key],
+            })),
+          ],
+        },
+        {
+          analysis: "ac",
+          probes: [
+            {
+              name: "i(vnr)",
+              real: [expected.pw2ndAcReal],
+              imag: [expected.pw2ndAcImag],
+            },
+            {
+              name: "i(vpr)",
+              real: [expected.pd2nwAcReal],
+              imag: [expected.pd2nwAcImag],
             },
           ],
         },
@@ -867,6 +928,54 @@ describe("the hosted SKY130 qualification", () => {
         "ff",
       ),
     ).toThrow(/npnBaseCurrentA at ff/u);
+  });
+
+  it("qualifies the SKY130 junction diodes Gallery drawings place", async () => {
+    const request = hostedSky130DiodeRequest("ff");
+    expect(request.netlist).toContain(
+      "XDNF1 nf1 0 sky130_fd_pr__diode_pw2nd_05v5 area=100 perim=40",
+    );
+    expect(request.netlist).toContain(
+      "XDPR pr 0 sky130_fd_pr__diode_pd2nw_05v5 area=100 perim=40",
+    );
+    // The junction's own current, not the source's, which the wrapper's
+    // tiny series resistance leaves resolved only to about 2^-17 A.
+    expect(request.testbench).toContain(
+      "let idnr = @d.xdut.xdnr.dsky130_fd_pr__diode_pw2nd_05v5[id]",
+    );
+    expect(
+      validateHostedSky130DiodeResult(
+        diodeResult("operator-host"),
+        "operator-host",
+        "ff",
+      ),
+    ).toEqual({ corner: "ff", ...DIODES_FF });
+    let submitted;
+    await runHostedSky130DiodeAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      corner: "ff",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(diodeResult("operator-host"));
+      },
+    });
+    expect(submitted.environment).toEqual({
+      profileId: PROFILE_ID,
+      corner: "ff",
+    });
+    // A leakage a femtoamp off, or the tt capacitance at ff, is drift.
+    for (const [key, value] of [
+      ["pd2nwReverse3p3A", DIODES_FF.pd2nwReverse3p3A - 1e-15],
+      ["pw2ndAcImag", diodeQualification.expectedCorners.tt.pw2ndAcImag],
+    ])
+      expect(() =>
+        validateHostedSky130DiodeResult(
+          diodeResult("operator-host", "ff", { ...DIODES_FF, [key]: value }),
+          "operator-host",
+          "ff",
+        ),
+      ).toThrow(new RegExp(`${key} at ff`, "u"));
   });
 
   it("refuses extended-device numerical drift", () => {

@@ -2017,6 +2017,72 @@ describe("voltage-controlled switch", () => {
     ).toEqual(["XC1", "XM1", "XQ1", "XQ2", "XR1"]);
   });
 
+  it("calls the SKY130 junction diodes on X lines, area in µm² and perimeter in µm", () => {
+    // The continuous library defines each diode as `.subckt <name> a c`
+    // under `.option scale=1.0u`, so a D card naming it finds no model.
+    const project = createEmptyProject("project", "Project");
+    const document = project.documents[0]!;
+    const diodes = [
+      [
+        "sky-pw2nd",
+        "sky130_fd_pr__diode_pw2nd_05v5",
+        "XD1",
+        { area: "100", perim: "40" },
+      ],
+      [
+        "sky-pd2nw",
+        "sky130_fd_pr__diode_pd2nw_05v5",
+        "XD2",
+        { perim: "4", area: "1", m: "3" },
+      ],
+      ["sky-pw2nd-default", "sky130_fd_pr__diode_pw2nd_05v5", "XD3", {}],
+    ] as const;
+    for (const [id, name, reference, parameters] of diodes) {
+      project.externalSubcircuitDefinitions.push({
+        id,
+        name,
+        terminals: ["a", "c"].map((terminal, index) => ({
+          id: `${id}-terminal-${index}`,
+          name: terminal,
+          direction: "passive",
+        })),
+        formalParameters: [],
+        interfaceStatus: "declared",
+      });
+      document.instances.push({
+        id: reference,
+        symbolId: "diode",
+        placement: null,
+        reference,
+        netlist: {
+          binding: { kind: "external-subcircuit", definitionId: id },
+          parameters: { ...parameters },
+        },
+      });
+      (["A", "K"] as const).forEach((pinName, index) => {
+        const netId = `${reference}-${pinName}`;
+        document.nets.push({
+          id: netId,
+          terminals: [{ instanceId: reference, pinName }],
+        });
+        claimNet(document, netId, `${reference}_${index}`);
+      });
+    }
+
+    const analysis = analyzeDesignNetlist(project, { format: "spice" });
+    expect(analysis.diagnostics).toEqual([]);
+    const text = printSpiceNetlist(analysis.ir!);
+    expect(text).toContain(
+      "XD1 XD1_0 XD1_1 sky130_fd_pr__diode_pw2nd_05v5 area=100 perim=40",
+    );
+    expect(text).toContain(
+      "XD2 XD2_0 XD2_1 sky130_fd_pr__diode_pd2nw_05v5 area=1 perim=4 m=3",
+    );
+    // A part with no size takes the wrapper's own area=1 perim=1.
+    expect(text).toMatch(/^XD3 XD3_0 XD3_1 sky130_fd_pr__diode_pw2nd_05v5$/mu);
+    expect(text).not.toMatch(/^D/mu);
+  });
+
   it("gives a SKY130 count its wrapper reads only for mismatch again as m (#2447)", () => {
     const parts = [
       ["XR1", "sky130-res-high-po", { w: "1u", l: "5.5u", mult: "3" }],

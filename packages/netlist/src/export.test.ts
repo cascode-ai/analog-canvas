@@ -1478,6 +1478,57 @@ describe("netlist extractability", () => {
     expect(findings(oneTransistor({ body: true }))).toEqual([]);
   });
 
+  it("warns when a diode's model card names a SKY130 diode, which its library defines as a subcircuit", () => {
+    // Gallery drawings placed SKY130's diode as `D1 a c <name>`; the
+    // continuous library defines it as `.subckt <name> a c`, so ngspice stops
+    // with "could not find a valid modelname" while the export said ready.
+    const project = createEmptyProject("diode", "Diode");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "D1",
+      symbolId: "diode",
+      reference: "D1",
+      netlist: {
+        binding: {
+          kind: "model",
+          deviceClass: "diode",
+          name: "sky130_fd_pr__diode_pw2nd_05v5",
+        },
+        parameters: {},
+      },
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push(
+      { id: "net-a", terminals: [{ instanceId: "D1", pinName: "A" }] },
+      { id: "net-k", terminals: [{ instanceId: "D1", pinName: "K" }] },
+    );
+    expect(
+      analyzeDesignNetlist(project).diagnostics.filter(
+        (item) => item.code !== "GENERATED_NET_NAME",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        code: "REVIEWED_DEVICE_AS_MODEL_CARD",
+        severity: "warning",
+        objectIds: ["D1"],
+        message: expect.stringContaining(
+          "Choose the model again in Properties to call it as XD1",
+        ),
+      }),
+    ]);
+    // A diode model of the author's own raises nothing.
+    document.instances[0]!.netlist!.binding = {
+      kind: "model",
+      deviceClass: "diode",
+      name: "dmine",
+    };
+    expect(
+      analyzeDesignNetlist(project).diagnostics.filter(
+        (item) => item.code !== "GENERATED_NET_NAME",
+      ),
+    ).toEqual([]);
+  });
+
   it("blocks a drawing whose process fields are missing, or whose netlist record is absent", () => {
     // Older Projects, imports and Agent-authored instances reach the exporter
     // with no netlist object at all. It binds nothing and sets no parameter,

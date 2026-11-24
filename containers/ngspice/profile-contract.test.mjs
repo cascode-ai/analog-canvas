@@ -80,6 +80,8 @@ describe("the hosted SKY130 Profile", () => {
         "sky130_fd_pr__pnp_05v5_W0p68L0p68",
         "sky130_fd_pr__pnp_05v5_W3p40L3p40",
         "sky130_fd_pr__npn_05v5_W1p00L1p00",
+        "sky130_fd_pr__diode_pw2nd_05v5",
+        "sky130_fd_pr__diode_pd2nw_05v5",
       ],
       sections: ["tt", "ff", "ss", "fs", "sf"],
       analyses: ["op", "dc", "ac", "tran", "noise"],
