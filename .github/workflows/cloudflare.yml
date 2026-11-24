@@ -21,6 +21,16 @@ on:
         required: false
         default: "main"
         type: string
+      sync_secrets:
+        description: "Sync cloudflare-production secrets to the Worker"
+        required: false
+        default: true
+        type: boolean
+      reconcile_resources:
+        description: "Reconcile production queues and R2 buckets"
+        required: false
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -47,13 +57,43 @@ jobs:
           fetch-depth: 0
       - name: Resolve the release commit
         id: release
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          BEFORE_SHA: ${{ github.event.before }}
+          INPUT_SYNC_SECRETS: ${{ inputs.sync_secrets }}
+          INPUT_RECONCILE: ${{ inputs.reconcile_resources }}
         run: |
+          set -euo pipefail
           release_sha="$(git rev-parse 'HEAD^{commit}')"
           if ! git merge-base --is-ancestor "$release_sha" origin/main; then
             echo "::error::$release_sha is not on main. Merge it first; only merged commits are released."
             exit 1
           fi
           echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+          reconcile="false"
+          sync_secrets="false"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ "$INPUT_RECONCILE" != "false" ]] && reconcile="true"
+            [[ "$INPUT_SYNC_SECRETS" != "false" ]] && sync_secrets="true"
+          elif [[ "$REF_TYPE" == "tag" ]]; then
+            reconcile="true"
+            sync_secrets="true"
+          else
+            changed_files=""
+            if [[ -n "$BEFORE_SHA" ]] && [[ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]] \
+              && git rev-parse --verify "$BEFORE_SHA^{commit}" >/dev/null 2>&1; then
+              changed_files="$(git diff --name-only "$BEFORE_SHA" "$release_sha")"
+            else
+              changed_files="$(git diff-tree --no-commit-id --name-only -r -m --first-parent "$release_sha")"
+            fi
+            if grep -Eq '^(wrangler\.jsonc|\.github/workflows/cloudflare\.yml)$' <<<"$changed_files"; then
+              reconcile="true"
+              sync_secrets="true"
+            fi
+          fi
+          echo "reconcile_resources=$reconcile" >> "$GITHUB_OUTPUT"
+          echo "sync_secrets=$sync_secrets" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v4
         with:
           version: 11.16.0
@@ -79,6 +119,7 @@ jobs:
         env:
           SIMULATION_UPSTREAM_TOKEN: ${{ secrets.SIMULATION_UPSTREAM_TOKEN }}
       - name: Reconcile production simulation resources
+        if: steps.release.outputs.reconcile_resources == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -143,15 +184,16 @@ jobs:
           CANDIDATE_DIR: ${{ runner.temp }}/analog-canvas-candidate
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      # Secrets in the cloudflare-production environment are synced to the
-      # Worker on every deploy; rotate by updating that secret and re-running
-      # this workflow. A name GitHub does not hold is skipped, which
-      # keeps the Worker's own value (docs/deployment.md, "Where the
-      # credentials live"); a provider never configured stays dark. The guard is
-      # shell-level because the secrets context is not available in step
-      # `if` expressions. GitHub forbids secret names starting with
-      # GITHUB_, hence GH_OAUTH_*.
+      # Secrets in the cloudflare-production environment are synced on manual
+      # dispatches, v* tag releases, and pushes touching wrangler.jsonc or this
+      # workflow; rotate by updating that secret and dispatching this workflow.
+      # A name GitHub does not hold is skipped, which keeps the Worker's own
+      # value (docs/deployment.md, "Where the credentials live"); a provider
+      # never configured stays dark. The guard is shell-level because the
+      # secrets context is not available in step `if` expressions. GitHub
+      # forbids secret names starting with GITHUB_, hence GH_OAUTH_*.
       - name: Sync worker secrets
+        if: steps.release.outputs.sync_secrets == 'true'
         run: |
           for name in GH_OAUTH_CLIENT_ID GH_OAUTH_CLIENT_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AUTH_EMAIL_FROM ADMIN_EMAILS ADMIN_EMAILS_EXTRA SIMULATION_UPSTREAM_TOKEN GALLERY_BACKUP_TOKEN STORE_BACKUP_TOKEN RESOURCE_ACTION_PEER RESOURCE_SYNC_PEER_TOKEN; do
             value="${!name}"

@@ -7,6 +7,7 @@ import {
   countSpecTests,
   locateSpecTest,
   planCiValidation,
+  unitShardMatrix,
 } from "./ci-validation-plan.mjs";
 import { loadGateCatalog, planValidation } from "./validation-gates.mjs";
 
@@ -157,6 +158,91 @@ describe("CI validation planning", () => {
       });
     },
   );
+
+  it("scopes optional core jobs and unit shards to affected paths", () => {
+    const workerOnly = ciPlan(["worker/gallery-wall.ts"]);
+    expect(workerOnly).toMatchObject({
+      heavy: true,
+      build: true,
+      unitBuilt: true,
+      performance: false,
+      release: false,
+      regionalPython: false,
+      unitMode: "affected",
+      unitArgs: ["worker/gallery-wall.ts"],
+    });
+    expect(unitShardMatrix(workerOnly)).toEqual(["1/1"]);
+
+    // Subprocess-tested script pulls its sibling test; skips heavy build jobs.
+    const scriptOnly = ciPlan(["scripts/gallery-dataset.mjs"]);
+    expect(scriptOnly).toMatchObject({
+      build: false,
+      unitMode: "affected",
+      unitArgs: [
+        "scripts/gallery-dataset.mjs",
+        "scripts/gallery-dataset.test.mjs",
+      ],
+      unitStrict: true,
+    });
+
+    // Standalone-only test routes to core_unit_built, not core_unit.
+    const standaloneOnly = ciPlan(["scripts/resource-seed-runtime.test.mjs"]);
+    expect(standaloneOnly).toMatchObject({
+      build: true,
+      unitBuilt: true,
+      unitMode: "none",
+    });
+
+    const regional = ciPlan(["worker/regional-entry.ts"]);
+    expect(regional).toMatchObject({
+      regionalPython: true,
+      unitBuilt: true,
+      build: true,
+      performance: false,
+      release: false,
+      unitMode: "affected",
+    });
+
+    // Unclassified container paths fail closed to full core checks.
+    const container = ciPlan(["containers/canvas-cn/formal/sync_tick.py"]);
+    expect(container).toMatchObject({
+      regionalPython: true,
+      unitBuilt: true,
+      build: true,
+      performance: true,
+      release: true,
+      unitMode: "full",
+    });
+    expect(unitShardMatrix(container)).toHaveLength(5);
+
+    const canvas = ciPlan(["apps/editor/src/canvas/fit-view.ts"]);
+    expect(canvas).toMatchObject({
+      build: true,
+      release: true,
+      performance: true,
+      unitBuilt: false,
+      regionalPython: false,
+      unitMode: "affected",
+    });
+
+    const e2eOnly = ciPlan(["apps/editor/e2e/wheel-behavior.spec.ts"]);
+    expect(e2eOnly).toMatchObject({
+      build: false,
+      unitMode: "none",
+    });
+
+    // Non-spec e2e helpers remain traceable for unit tests that import them.
+    const e2eHelper = ciPlan(["apps/editor/e2e/bipolar-project.ts"]);
+    expect(e2eHelper.unitMode).toBe("affected");
+    expect(e2eHelper.unitArgs).toContain("apps/editor/e2e/bipolar-project.ts");
+
+    // Deleted sources fall back to full unit shards.
+    const deleted = planCiValidation(
+      planValidation(["worker/gallery-wall.ts"], catalog),
+      { exists: () => false },
+    );
+    expect(deleted.unitMode).toBe("full");
+  });
 
   it("routes Gallery sources, Shelf, snapshot history, duplicate correspondence and project sessions to their actual browser workflows (#1646)", () => {
     for (const path of [
@@ -582,9 +668,21 @@ describe("CI validation planning", () => {
       "apps/editor/src/app/App.tsx",
       "apps/editor/e2e/component-property-workflows.spec.ts",
     ];
-    expect(ciPlan([...product, "apps/editor/src/app/App.test.tsx"])).toEqual(
-      ciPlan(product),
-    );
+    const base = ciPlan(product);
+    expect(
+      ciPlan([...product, "apps/editor/src/app/App.test.tsx"]),
+    ).toMatchObject({
+      heavy: base.heavy,
+      browser: base.browser,
+      mode: base.mode,
+      e2eArgs: base.e2eArgs,
+      reasons: base.reasons,
+      build: base.build,
+      release: base.release,
+      performance: base.performance,
+      unitBuilt: base.unitBuilt,
+      regionalPython: base.regionalPython,
+    });
   });
 
   it("runs crash recovery and two located smoke cases for unmapped engine, worker and netlist paths", () => {

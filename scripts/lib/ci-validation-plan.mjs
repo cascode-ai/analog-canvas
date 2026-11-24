@@ -1,7 +1,195 @@
 import { readFileSync, readdirSync } from "node:fs";
+import { strictUnitRun, unitSourcePaths } from "./verify-pr-selection.mjs";
 
 function unique(values) {
   return [...new Set(values)];
+}
+
+const TEST_FILE = /\.test\.(?:[cm]?[jt]sx?)$/u;
+const CI_INFRA_PATH =
+  /^(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|vitest\.config\.ts|tsconfig[^/]*\.json|\.github\/workflows\/|config\/validation-gates\.json|scripts\/(?:ci-plan|check-core-results|ci-package-build|test-standalone-setup)\.mjs|scripts\/lib\/(?:ci-validation-plan|ci-package-build|validation-gates|verify-pr-selection)\.mjs)$/u;
+
+const STANDALONE_SCRIPT_PATH =
+  /^scripts\/(?:analyze-native-simulation-examples|build-native-simulation-examples|native-example-runner|run-native-simulation-examples|package-vacask-|resource-seed-runtime|simulation-control-runtime|vacask-model-symbols)/u;
+
+const RELEASE_SCRIPT_PATH =
+  /^scripts\/(?:package-|editor-|visual-golden|export-golden|pwa-icons|agent-api-artifacts|mcp-release|check-mcp-distribution|lib\/(?:headless-bundle|mcp-release-integrity))/u;
+
+const FULL_UNIT_SHARDS = ["1/5", "2/5", "3/5", "4/5", "5/5"];
+const MAX_AFFECTED_UNIT_SOURCES = 60;
+
+function readStandaloneTestSet() {
+  try {
+    const source = readFileSync("vitest.config.ts", "utf8");
+    const block = /const standaloneTests = \[([\s\S]*?)\];/u.exec(source)?.[1];
+    return new Set(
+      block ? [...block.matchAll(/"([^"]+)"/gu)].map((match) => match[1]) : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+const STANDALONE_TESTS = readStandaloneTestSet();
+
+function canAffectRegionalPython(path) {
+  return (
+    CI_INFRA_PATH.test(path) ||
+    path.startsWith("containers/") ||
+    /^wrangler(?:\.[^/]+)?\.jsonc$/u.test(path) ||
+    path.startsWith("worker/regional-") ||
+    path.startsWith("scripts/regional-") ||
+    path === "scripts/python-tests.mjs"
+  );
+}
+
+function canAffectUnitBuilt(path) {
+  return (
+    CI_INFRA_PATH.test(path) ||
+    STANDALONE_TESTS.has(path) ||
+    (path.startsWith("packages/") && !TEST_FILE.test(path)) ||
+    (path.startsWith("worker/") && !TEST_FILE.test(path)) ||
+    path.startsWith("apps/editor/src/examples/") ||
+    path === "apps/editor/package.json" ||
+    path.startsWith("config/") ||
+    /^containers\/(?:ngspice|vacask|canvas-cn)\//u.test(path) ||
+    STANDALONE_SCRIPT_PATH.test(path) ||
+    path.startsWith("scripts/lib/")
+  );
+}
+
+function canAffectPerformance(path) {
+  return (
+    CI_INFRA_PATH.test(path) ||
+    (/^packages\/(?:model|derived|edit-engine|render-svg|symbols|components|agent-adapter|project-protocol|spice|devices|math-typesetting|netlist|simulation-service)\//u.test(
+      path,
+    ) &&
+      !TEST_FILE.test(path)) ||
+    (/^apps\/editor\/src\/(?:canvas|document|agent|features\/clipboard)\//u.test(
+      path,
+    ) &&
+      !TEST_FILE.test(path)) ||
+    path.startsWith("apps/editor/benchmarks/") ||
+    path === "scripts/performance-baseline.mjs" ||
+    path === "scripts/measure-edit-workloads.mjs" ||
+    /^scripts\/lib\/(?:scaling-|edit-performance|diagnostic-scaling)/u.test(
+      path,
+    ) ||
+    /^fixtures\/(?:performance|spice-baseline)\//u.test(path)
+  );
+}
+
+function canAffectRelease(path) {
+  return (
+    CI_INFRA_PATH.test(path) ||
+    (/^apps\/(?:editor|mcp-server|desktop)\//u.test(path) &&
+      !path.startsWith("apps/editor/e2e/") &&
+      !TEST_FILE.test(path)) ||
+    (path.startsWith("packages/") && !TEST_FILE.test(path)) ||
+    path.startsWith("fixtures/") ||
+    path.startsWith("config/") ||
+    RELEASE_SCRIPT_PATH.test(path) ||
+    /^vite(?:\.[^/]+)?\.config\./u.test(path)
+  );
+}
+
+function allCoreScopes(enabled) {
+  return {
+    regionalPython: enabled,
+    unitBuilt: enabled,
+    performance: enabled,
+    release: enabled,
+    build: enabled,
+    unitMode: enabled ? "full" : "none",
+    unitArgs: [],
+    unitStrict: false,
+  };
+}
+
+function isE2eSpec(path) {
+  return /^apps\/editor\/e2e\/.+\.spec\.[cm]?[jt]sx?$/u.test(path);
+}
+
+function isE2eHelper(path) {
+  return (
+    path.startsWith("apps/editor/e2e/") &&
+    /\.(?:[cm]?[jt]sx?)$/u.test(path) &&
+    !isE2eSpec(path)
+  );
+}
+
+function planCoreScopes(
+  plan,
+  changedImplementationPaths,
+  { forceFull, exists },
+) {
+  if (
+    forceFull ||
+    plan.requiresFull ||
+    changedImplementationPaths.some((path) => CI_INFRA_PATH.test(path))
+  ) {
+    return allCoreScopes(true);
+  }
+
+  const regionalPython = changedImplementationPaths.some(
+    canAffectRegionalPython,
+  );
+  const unitBuilt = changedImplementationPaths.some(canAffectUnitBuilt);
+  const performance = changedImplementationPaths.some(canAffectPerformance);
+  const release = changedImplementationPaths.some(canAffectRelease);
+  const build = unitBuilt || performance || release;
+  const flags = { regionalPython, unitBuilt, performance, release, build };
+
+  // Include non-spec e2e helpers (e.g. bipolar-project.ts, label-census.ts)
+  // because unit tests import them, and exclude standalone tests (handled by
+  // core_unit_built) so core_unit never demands a match in modules/isolated.
+  const baseSources = unique([
+    ...unitSourcePaths(changedImplementationPaths),
+    ...changedImplementationPaths.filter(isE2eHelper),
+  ]).filter((path) => !STANDALONE_TESTS.has(path));
+
+  // Subprocess-tested CLI scripts (spawnSync/execFileSync) have no static ES
+  // import graph; attach their sibling *.test.mjs when present.
+  const siblingScriptTests = baseSources
+    .filter(
+      (path) => /^scripts\/[^/]+\.mjs$/u.test(path) && !TEST_FILE.test(path),
+    )
+    .map((path) => path.replace(/\.mjs$/u, ".test.mjs"))
+    .filter((testPath) => !STANDALONE_TESTS.has(testPath) && exists(testPath));
+  const sources = unique([...baseSources, ...siblingScriptTests]);
+
+  const accounted = new Set([
+    ...baseSources,
+    ...changedImplementationPaths.filter(
+      (path) => isE2eSpec(path) || STANDALONE_TESTS.has(path),
+    ),
+  ]);
+  const untraceable = changedImplementationPaths.some(
+    (path) => !accounted.has(path) || path.startsWith("apps/desktop/scripts/"),
+  );
+  const requiresFullUnits =
+    Boolean(plan.groupPaths.highRisk?.length) ||
+    untraceable ||
+    baseSources.some((path) => !exists(path)) ||
+    sources.some((path) => /\s/u.test(path)) ||
+    sources.length > MAX_AFFECTED_UNIT_SOURCES;
+
+  if (requiresFullUnits) {
+    return { ...flags, unitMode: "full", unitArgs: [], unitStrict: false };
+  }
+  if (sources.length === 0) {
+    return { ...flags, unitMode: "none", unitArgs: [], unitStrict: false };
+  }
+  return {
+    ...flags,
+    unitMode: "affected",
+    unitArgs: sources.sort(),
+    unitStrict: strictUnitRun(sources),
+  };
+}
+
+export function unitShardMatrix(plan) {
+  return plan.unitMode === "full" ? FULL_UNIT_SHARDS : ["1/1"];
 }
 
 function implementationPaths(plan) {
@@ -86,13 +274,17 @@ function browserImplementationPaths(plan) {
  * fallback for unmapped product paths. Unresolved fixture use is conservative;
  * `--force-full` remains for local planning.
  */
-export function planCiValidation(plan, { forceFull = false } = {}) {
+export function planCiValidation(
+  plan,
+  { forceFull = false, exists = () => true } = {},
+) {
   if (forceFull) {
     return {
       heavy: true,
       browser: true,
       mode: "full",
       e2eArgs: [],
+      ...planCoreScopes(plan, plan.paths, { forceFull: true, exists }),
       reasons: ["full validation was requested by the workflow event"],
     };
   }
@@ -104,9 +296,15 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
       browser: false,
       mode: "documentation",
       e2eArgs: [],
+      ...allCoreScopes(false),
       reasons: ["the change contains no implementation paths"],
     };
   }
+
+  const coreScopes = planCoreScopes(plan, changedImplementationPaths, {
+    forceFull: false,
+    exists,
+  });
 
   const changedBrowserPaths = browserImplementationPaths(plan);
   if (changedBrowserPaths.length === 0) {
@@ -115,6 +313,7 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
       browser: false,
       mode: "non-browser",
       e2eArgs: [],
+      ...coreScopes,
       reasons: ["the implementation change cannot affect the browser product"],
     };
   }
@@ -141,6 +340,7 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
         ...focusedArgs,
         ...fallbackBrowserArgs(focusedArgs),
       ]).sort(),
+      ...coreScopes,
       reasons: [
         ...focusedArgs.map((arg) => `focused browser contract: ${arg}`),
         "the small browser fallback covers unmapped product impact",
@@ -154,6 +354,7 @@ export function planCiValidation(plan, { forceFull = false } = {}) {
     browser: true,
     mode: "focused",
     e2eArgs: focusedArgs,
+    ...coreScopes,
     reasons: focusedArgs.map((arg) => `focused browser contract: ${arg}`),
   };
 }
@@ -232,6 +433,8 @@ export function formatCiValidationPlan(plan) {
     "CI validation plan",
     `Mode: ${plan.mode}`,
     `Implementation jobs: ${plan.heavy ? "enabled" : "skipped"}`,
+    `Unit mode: ${plan.unitMode}`,
+    `Optional core jobs: build=${plan.build} unit_built=${plan.unitBuilt} performance=${plan.performance} release=${plan.release} regional_python=${plan.regionalPython}`,
     `Browser job: ${plan.browser ? "enabled" : "skipped"}`,
     `Browser selection: ${plan.e2eArgs.length > 0 ? plan.e2eArgs.join(" ") : plan.mode === "full" ? "all specs" : "none"}`,
     ...plan.reasons.map((reason) => `  - ${reason}`),
@@ -251,6 +454,8 @@ export function formatCiValidationPlanMarkdown(plan) {
     "",
     `- Mode: **${plan.mode}**`,
     `- Implementation jobs: ${plan.heavy ? "enabled" : "skipped"}`,
+    `- Unit mode: **${plan.unitMode}**`,
+    `- Optional core jobs: build=${plan.build}, unit_built=${plan.unitBuilt}, performance=${plan.performance}, release=${plan.release}, regional_python=${plan.regionalPython}`,
     `- Browser job: ${plan.browser ? "enabled" : "skipped"}`,
     `- Browser selection: ${browserSelection}`,
     "",

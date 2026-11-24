@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { appendFile } from "node:fs/promises";
 
 import {
@@ -5,6 +6,7 @@ import {
   formatCiValidationPlan,
   formatCiValidationPlanMarkdown,
   planCiValidation,
+  unitShardMatrix,
 } from "./lib/ci-validation-plan.mjs";
 import {
   collectChangedPaths,
@@ -31,7 +33,10 @@ const paths =
     ? explicitPaths
     : collectChangedPaths(base, { ignoredPaths: catalog.ignoredPaths });
 const gatePlan = planValidation(paths, catalog);
-const ciPlan = planCiValidation(gatePlan, { forceFull });
+const ciPlan = planCiValidation(gatePlan, {
+  forceFull,
+  exists: existsSync,
+});
 
 process.stdout.write(formatCiValidationPlan(ciPlan));
 
@@ -47,6 +52,15 @@ if (githubOutput) {
       `browser_shards=${JSON.stringify(browserShardMatrix(ciPlan))}`,
       `mode=${ciPlan.mode}`,
       `e2e_args=${ciPlan.e2eArgs.join(" ")}`,
+      `regional_python=${String(ciPlan.regionalPython)}`,
+      `build=${String(ciPlan.build)}`,
+      `unit_built=${String(ciPlan.unitBuilt)}`,
+      `performance=${String(ciPlan.performance)}`,
+      `release=${String(ciPlan.release)}`,
+      `unit_mode=${ciPlan.unitMode}`,
+      `unit_shards=${JSON.stringify(unitShardMatrix(ciPlan))}`,
+      `unit_args=${ciPlan.unitArgs.join(" ")}`,
+      `unit_strict=${String(ciPlan.unitStrict)}`,
       "",
     ].join("\n"),
   );

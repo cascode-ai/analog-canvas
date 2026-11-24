@@ -105,9 +105,12 @@ Environment secrets are reachable only from `main` (and `v*` tags).
   `bootstrap-tunnel` or `vacask-preview`; the deploy token cannot manage
   tunnels or DNS).
 - Worker-only runtime secrets: OAuth client secrets, `RESEND_API_KEY`,
-  `AUTH_EMAIL_FROM`, `ADMIN_EMAILS`, `ADMIN_EMAILS_EXTRA`. The deploy sync
-  skips names GitHub lacks. Change one by adding it to `cloudflare-production`
-  and deploying, or `wrangler secret put <NAME>`.
+  `AUTH_EMAIL_FROM`, `ADMIN_EMAILS`, `ADMIN_EMAILS_EXTRA`. Routine merges skip
+  redundant secret sync and queue/R2 reconciliation; manual `workflow_dispatch`
+  runs, `v*` tag releases, and pushes changing `cloudflare.yml` or
+  `wrangler.jsonc` run them, skipping names GitHub lacks. Change a secret by
+  adding it to `cloudflare-production` and dispatching `Deploy Cloudflare`, or
+  via `wrangler secret put <NAME>`.
 - Repository secrets (not credentials): `SIM_HOST_ADDR`, `SIM_HOST_USER`,
   `SIM_HOST_KNOWN_HOSTS`. Rotate the host key: Simulator host workflow
   `authorize-ssh-key` with the new public key, store the private key in
@@ -217,9 +220,10 @@ Production's release, never a separate build.
   work for both regions. [`region.jsonc`](../containers/canvas-cn/formal/region.jsonc)
   lists only the region's differences, each exclusion with its reason.
   `node scripts/regional-runtime.mjs` generates `config.capnp`, the scheduled
-  timer and the runtime's credential list; `pnpm regional:check` (CI static)
-  fails on a stale file, an unclassified Production binding or a failing host
-  runner test. A change adding Production configuration adds its regional
+  timer and the runtime's credential list; `ci:static` runs
+  `regional-runtime.mjs --check` on every PR and `pnpm regional:python` runs in
+  CI when regional, container or workflow paths change (`pnpm regional:check`
+  runs both locally). A change adding Production configuration adds its regional
   mapping or exclusion in the same commit. `bundle.jsonc` carries
   `wrangler.jsonc`'s bundling `rules`; the release writes every module the
   Worker bundles (entry as `index.js`, WebAssembly, data) into `worker/` with
