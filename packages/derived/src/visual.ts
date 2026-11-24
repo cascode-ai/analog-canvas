@@ -905,6 +905,70 @@ function firstCollinearOverlap(
   return undefined;
 }
 
+function* ambiguousJunctionFindings(
+  document: SchematicDocument,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  routesById: ReadonlyMap<string, SchematicDocument["routes"][number]>,
+  spatialIndex: DocumentSpatialIndex,
+  candidateSearch: "indexed" | "legacy",
+): Generator<VisualDiagnostic> {
+  for (const junction of document.junctions) {
+    // Aggregate anchors have no junction dot: each scalar contact is explicit
+    // in a member-qualified endpoint, and crossings retain their plain ink.
+    if (junction.members) continue;
+    for (const route of candidateRoutesAtPoint(
+      document,
+      routesById,
+      junction.position,
+      spatialIndex,
+      candidateSearch,
+    )) {
+      if (route.netId === junction.netId) continue;
+      const centerline = routingGeometry.routes.get(route.id)?.centerline;
+      if (
+        centerline
+          ?.slice(1)
+          .some((to, index) =>
+            pointOnSegment(junction.position, centerline[index]!, to),
+          )
+      ) {
+        yield {
+          code: "VISUAL_AMBIGUOUS_JUNCTION",
+          severity: "error",
+          category: "structural",
+          confidence: "high",
+          gateEligible: true,
+          message: `Junction ${junction.id} lies on unrelated route ${route.id}`,
+          objectIds: [junction.id, route.id],
+          point: junction.position,
+          parameters: {
+            junctionNetId: junction.netId,
+            routeNetId: route.netId,
+          },
+        };
+      }
+    }
+  }
+}
+
+/** Transaction preflight checks just the structural junction rule. */
+export function diagnoseAmbiguousJunctions(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): VisualDiagnostic[] {
+  if (!document.junctions.length || !document.routes.length) return [];
+  const routing = resolveDocumentRoutingGeometry(document, resolver);
+  return [
+    ...ambiguousJunctionFindings(
+      document,
+      routing,
+      new Map(document.routes.map((route) => [route.id, route])),
+      buildDocumentSpatialIndex(document, routing),
+      "indexed",
+    ),
+  ];
+}
+
 export function diagnoseVisualQuality(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -1145,43 +1209,14 @@ export function diagnoseVisualQuality(
       }
     }
   }
-  for (const junction of document.junctions) {
-    // Aggregate anchors have no junction dot: each scalar contact is explicit
-    // in a member-qualified endpoint, and crossings retain their plain ink.
-    if (junction.members) continue;
-    for (const route of candidateRoutesAtPoint(
-      document,
-      routesById,
-      junction.position,
-      spatialIndex,
-      candidateSearch,
-    )) {
-      if (route.netId === junction.netId) continue;
-      const centerline = routingGeometry.routes.get(route.id)?.centerline;
-      if (
-        centerline
-          ?.slice(1)
-          .some((to, index) =>
-            pointOnSegment(junction.position, centerline[index]!, to),
-          )
-      ) {
-        diagnostics.push({
-          code: "VISUAL_AMBIGUOUS_JUNCTION",
-          severity: "error",
-          category: "structural",
-          confidence: "high",
-          gateEligible: true,
-          message: `Junction ${junction.id} lies on unrelated route ${route.id}`,
-          objectIds: [junction.id, route.id],
-          point: junction.position,
-          parameters: {
-            junctionNetId: junction.netId,
-            routeNetId: route.netId,
-          },
-        });
-      }
-    }
-  }
+  for (const finding of ambiguousJunctionFindings(
+    document,
+    routingGeometry,
+    routesById,
+    spatialIndex,
+    candidateSearch,
+  ))
+    diagnostics.push(finding);
 
   // The terminal twin of the ambiguous-junction rule: a visible pin whose
   // contact point rests on a Net it does not belong to reads as connected

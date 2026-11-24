@@ -8,7 +8,7 @@ import {
   drawnSupplyNet,
   drawsSupply,
   mosBulkKind,
-  resolveMosBulkConnection,
+  readMosBulkConnections,
   resolveCommittedDocumentLogicalNets,
   type PlacedMosBodies,
   type PlacedMosBody,
@@ -214,11 +214,11 @@ export function withImplicitMosSupplies(
   const blockSupplies = blockSuppliesToDefault(source, options);
   const cellRails = boundGateSuppliesToDefault(source);
   const missing = source.documents.flatMap((document) => {
+    if (!document.instances.some(mosBulkKind)) return [];
     const logical = resolveCommittedDocumentLogicalNets(document);
+    const readBody = readMosBulkConnections(document, logical);
     return document.instances.flatMap((instance) =>
-      mosBulkKind(instance) &&
-      resolveMosBulkConnection(document, instance, logical)?.status ===
-        "unresolved"
+      readBody(instance)?.status === "unresolved"
         ? [{ documentId: document.id, instanceId: instance.id }]
         : [],
     );
@@ -315,15 +315,19 @@ export function withImplicitMosSupplies(
     // An imported part with no fourth node is unresolved even under a Cell
     // default, which it takes here; every other body that reaches this point
     // has no default and takes the conventional supply.
-    const configured = document.nets.find(
-      (candidate) => candidate.id === configuredId,
-    );
+    const configured =
+      configuredId === undefined
+        ? undefined
+        : document.nets.find((candidate) => candidate.id === configuredId);
     const net = configured ?? defaults(document)[kind];
-    // An unresolved policy-owned orphan can still carry stale B membership.
-    for (const candidate of document.nets)
-      candidate.terminals = candidate.terminals.filter(
-        (pin) => pin.instanceId !== instance.id || pin.pinName !== "B",
-      );
+    // Only a stranded policy binding can make a physically present B
+    // unresolved. Ordinary missing bodies have no membership to remove.
+    if (instance.mosBulkBinding) {
+      for (const candidate of document.nets)
+        candidate.terminals = candidate.terminals.filter(
+          (pin) => pin.instanceId !== instance.id || pin.pinName !== "B",
+        );
+    }
     net.terminals.push({ instanceId: instance.id, pinName: "B" });
     let placed = placedBodies.get(document.id);
     if (!placed) placedBodies.set(document.id, (placed = new Map()));

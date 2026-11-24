@@ -467,6 +467,41 @@ export function supplyDefaultMosBulkNet(
   );
 }
 
+interface MosBulkRead {
+  bodyNets: ReadonlyMap<string, Net>;
+  unconnectedBodies: ReadonlySet<string>;
+  defaultSupply(kind: MosBulkKind): Net | undefined;
+}
+
+/** One synchronous read of all body connections. A new pass observes the
+ * current Cell even when a transaction has edited a draft at the same revision. */
+export function readMosBulkConnections(
+  document: SchematicDocument,
+  logicalNets: ResolvedDocumentLogicalNets,
+): (instance: Instance) => MosBulkResolution | undefined {
+  const supplies = new Map<MosBulkKind, Net | undefined>();
+  const read: MosBulkRead = {
+    bodyNets: indexMosBodyNets(document.nets),
+    unconnectedBodies: new Set(
+      document.noConnects.flatMap(({ endpoint }) =>
+        endpoint.kind === "terminal" && endpoint.pinName === "B"
+          ? [endpoint.instanceId]
+          : [],
+      ),
+    ),
+    defaultSupply(kind) {
+      if (!supplies.has(kind))
+        supplies.set(
+          kind,
+          supplyDefaultMosBulkNet(document, kind, logicalNets),
+        );
+      return supplies.get(kind);
+    },
+  };
+  return (instance) =>
+    resolveInstanceBody(document, instance, logicalNets, read);
+}
+
 /**
  * Single authority for MOS body intent. Net membership remains the electrical
  * truth; this function only explains where that truth came from: explicit B
@@ -483,17 +518,27 @@ export function resolveMosBulkConnection(
     typeof instanceOrId === "string"
       ? document.instances.find((candidate) => candidate.id === instanceOrId)
       : instanceOrId;
-  if (!instance || !mosBulkKind(instance)) return undefined;
+  return instance && resolveInstanceBody(document, instance, logicalNets);
+}
 
-  const connectedNet = connectedMosBodyNet(document, instance.id);
+function resolveInstanceBody(
+  document: SchematicDocument,
+  instance: Instance,
+  logicalNets?: ResolvedDocumentLogicalNets,
+  read?: MosBulkRead,
+): MosBulkResolution | undefined {
+  if (!mosBulkKind(instance)) return undefined;
+
+  const connectedNet = read
+    ? read.bodyNets.get(instance.id)
+    : connectedMosBodyNet(document, instance.id);
   // A body alone on the Net its own policy binding named, with no geometry,
   // no name and no Cell terminal, is what a paste or a deleted supply marker
   // left behind — not a connection anybody drew. Reading it as one strands
   // the body on a node nothing else reaches: the netlist writes that node
   // once and a matched pair ends up with one body on ground and the other on
   // nothing. Reclaim it here the way reconciliation does on an edit.
-  const residue = strandedMosBulkNet(document, instance);
-  if (connectedNet && !residue) {
+  if (connectedNet && !strandedMosBulkNet(document, instance)) {
     const origin = hasExplicitMosBulkRoute(document, instance.id)
       ? undefined
       : instance.mosBulkBinding;
@@ -506,12 +551,14 @@ export function resolveMosBulkConnection(
   }
 
   if (
-    document.noConnects.some(
-      (item) =>
-        item.endpoint.kind === "terminal" &&
-        item.endpoint.instanceId === instance.id &&
-        item.endpoint.pinName === "B",
-    )
+    read
+      ? read.unconnectedBodies.has(instance.id)
+      : document.noConnects.some(
+          (item) =>
+            item.endpoint.kind === "terminal" &&
+            item.endpoint.instanceId === instance.id &&
+            item.endpoint.pinName === "B",
+        )
   ) {
     return {
       status: "no-connect",
@@ -549,7 +596,9 @@ export function resolveMosBulkConnection(
     };
   }
 
-  const supply = supplyDefaultMosBulkNet(document, kind, logicalNets);
+  const supply = read
+    ? read.defaultSupply(kind)
+    : supplyDefaultMosBulkNet(document, kind, logicalNets);
   if (supply) {
     return {
       status: "supply-default",

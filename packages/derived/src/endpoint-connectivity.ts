@@ -4,7 +4,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import type { DocumentConnectivityIndex } from "./connectivity-index.js";
 import { endpointKey } from "./endpoint.js";
 import { resolveDocumentLogicalNets } from "./logical-net.js";
-import { resolveMosBulkConnection } from "./mos-bulk.js";
+import { readMosBulkConnections } from "./mos-bulk.js";
 
 export type EndpointMembership = "unbound" | "singleton" | "peer-connected";
 
@@ -47,7 +47,13 @@ export function createEndpointConnectivityClassifier(
   index: DocumentConnectivityIndex | undefined,
   resolver: SymbolResolver,
 ): EndpointConnectivityClassifier {
-  const logicalResolution = resolveDocumentLogicalNets(document);
+  const logicalResolution =
+    index?.logicalNetResolution ?? resolveDocumentLogicalNets(document);
+  let readBody: ReturnType<typeof readMosBulkConnections> | undefined;
+  const instanceById = (id: string) =>
+    index
+      ? index.instancesById.get(id)
+      : document.instances.find((instance) => instance.id === id);
   const noConnectKeys = new Set(
     document.noConnects.map((record) => endpointKey(record.endpoint)),
   );
@@ -87,9 +93,7 @@ export function createEndpointConnectivityClassifier(
     const sourceDeclared = Boolean(logicalGroup?.sourceNetIds.length);
     let implicit = false;
     if (endpoint.kind === "terminal") {
-      const instance = document.instances.find(
-        (candidate) => candidate.id === endpoint.instanceId,
-      );
+      const instance = instanceById(endpoint.instanceId);
       const resolved = instance
         ? resolver.resolve(instance.symbolId, instance.symbolVariantId)
         : undefined;
@@ -130,21 +134,16 @@ export function createEndpointConnectivityClassifier(
         pinName: "B",
       };
       const assessment = assess(endpoint);
-      const instance = document.instances.find(
-        (candidate) => candidate.id === instanceId,
-      );
-      const resolution = instance
-        ? resolveMosBulkConnection(document, instance)
-        : undefined;
+      const instance = instanceById(instanceId);
+      readBody ??= readMosBulkConnections(document, logicalResolution);
+      const resolution = instance && readBody(instance);
       const configuredDefault =
         resolution?.status === "cell-default" ||
         resolution?.status === "instance-override" ||
         resolution?.status === "supply-default";
       const externalPeers = assessment.peerEndpoints.filter((candidate) => {
         if (candidate.kind !== "terminal") return true;
-        const peerInstance = document.instances.find(
-          (item) => item.id === candidate.instanceId,
-        );
+        const peerInstance = instanceById(candidate.instanceId);
         const peerResolved = peerInstance
           ? resolver.resolve(
               peerInstance.symbolId,

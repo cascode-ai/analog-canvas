@@ -1,3 +1,4 @@
+import { forgetDerivedDocument } from "@icm/derived";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -7,6 +8,7 @@ import {
   createEmptyProject,
   createRoutePath,
   createSimulationFolder,
+  freezeSnapshot,
 } from "@icm/model";
 import { parseProject } from "@icm/project-protocol";
 import type { CircuitProject } from "@icm/model";
@@ -30,6 +32,7 @@ import { AGENT_EDIT_KINDS, createAgentCircuitService } from "./service.js";
 import {
   addedAmbiguousJunctions,
   agentProjectDiagnostics,
+  agentVisualDiagnostics,
 } from "./diagnostics.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -264,6 +267,92 @@ describe("current Agent Circuit API service", () => {
       }
     },
   );
+  it("previews a later draft against the current working copy at the same revision", () => {
+    const reused = serviceFixture();
+    const fresh = serviceFixture();
+    const find = (fixture: typeof fresh, id: string) =>
+      fixture.getDocument().instances.find((item) => item.id === id)!;
+    const placement = find(fresh, "M1").placement!;
+    const preview = (fixture: typeof fresh) =>
+      fixture.service.handle({
+        apiVersion: "3.0",
+        requestId: "preview",
+        transactionId: "preview",
+        operation: "transact",
+        documentId: fixture.getDocument().id,
+        expectedRevision: 0,
+        dryRun: true,
+        edits: [{ kind: "place_instance", instanceId: "M1", placement }],
+      });
+    for (const fixture of [reused, fresh]) {
+      find(fixture, "M1").placement = null;
+      fixture.getProject().documents[0] = fixture.getDocument();
+    }
+    expect(preview(reused)).toMatchObject({ ok: true, applied: false });
+    for (const fixture of [reused, fresh]) {
+      find(fixture, "M2").placement = null;
+      forgetDerivedDocument(fixture.getDocument());
+    }
+    const expected = preview(fresh);
+    expect(expected).toMatchObject({ ok: true, applied: false });
+    expect(preview(reused)).toEqual(expected);
+  });
+
+  it("does not remember a preview baseline across a change in a delegated symbol catalog", () => {
+    let withSparePin = false;
+    const mutableCatalog: SymbolResolver = {
+      resolve(id, variant) {
+        const symbol = resolver.resolve(id, variant);
+        if (!withSparePin || !symbol?.definition.pins[0]) return symbol;
+        return {
+          ...symbol,
+          definition: {
+            ...symbol.definition,
+            pins: [
+              ...symbol.definition.pins,
+              { ...symbol.definition.pins[0], name: "SPARE", role: "passive" },
+            ],
+          },
+        };
+      },
+    };
+    const fixture = serviceFixture(allPermissions, {}, mutableCatalog);
+    const fresh = serviceFixture(allPermissions, {}, mutableCatalog);
+    const document = fixture.getDocument();
+    for (const host of [fixture, fresh]) {
+      host.getProject().documents[0] = host.getDocument();
+      freezeSnapshot(host.getProject());
+    }
+    const request = {
+      apiVersion: "3.0",
+      requestId: "preview",
+      transactionId: "preview",
+      operation: "transact",
+      documentId: document.id,
+      expectedRevision: 0,
+      dryRun: true,
+      edits: [
+        {
+          kind: "move_instance",
+          instanceId: "M1",
+          position: { x: 1000, y: 1000 },
+        },
+      ],
+    };
+    expect(fixture.service.handle(request)).toMatchObject({ ok: true });
+    withSparePin = true;
+    forgetDerivedDocument(document);
+    const expected = fresh.service.handle(request);
+    const next = fixture.service.handle(request);
+    expect(next).toMatchObject({ ok: true, applied: false });
+    if (!next.ok || next.operation !== "transact")
+      throw new Error("preview failed");
+    expect(
+      next.diagnostics.some((d) => d.parameters?.pinName === "SPARE"),
+    ).toBe(true);
+    expect(next).toEqual(expected);
+  });
+
   it("compacts removed diagnostic bodies without changing the preview or current diagnostics", () => {
     const full = serviceFixture();
     const compact = serviceFixture();
@@ -1296,6 +1385,11 @@ describe("ambiguous Junctions are refused, not committed (#1257)", () => {
         point: { x: 50, y: 0 },
       }),
     ]);
+    expect(addedAmbiguousJunctions(before, after, resolver)).toEqual(
+      agentVisualDiagnostics(after, resolver).filter(
+        (finding) => finding.code === "VISUAL_AMBIGUOUS_JUNCTION",
+      ),
+    );
     // One that was already there is not the change's doing.
     expect(addedAmbiguousJunctions(after, after, resolver)).toEqual([]);
   });
