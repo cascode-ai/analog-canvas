@@ -154,6 +154,8 @@ export function buildDocumentDerivedContext(
       endpointLookup,
     },
   );
+  const netsById = new Map(document.nets.map((net) => [net.id, net]));
+  const labelLookup = { netsById, routesById };
   const netLabelBindingsByNetId = new Map<string, ResolvedNetLabelBinding[]>();
   for (const annotation of document.annotations) {
     const binding = resolveNetLabelBinding(
@@ -161,6 +163,7 @@ export function buildDocumentDerivedContext(
       resolver,
       annotation,
       routingGeometry,
+      labelLookup,
     );
     if (!binding) continue;
     const bindings = netLabelBindingsByNetId.get(binding.netId) ?? [];
@@ -194,7 +197,7 @@ export function buildDocumentDerivedContext(
     documentId: document.id,
     documentRevision: document.revision,
     instancesById,
-    netsById: new Map(document.nets.map((item) => [item.id, item])),
+    netsById,
     routesById,
     junctionsById,
     annotationsById: new Map(

@@ -1,5 +1,6 @@
 import type { Annotation, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
+import type { DocumentDerivedContext } from "./document-derived-context.js";
 
 import { endpointKey, netEndpoints, resolveEndpointPoint } from "./endpoint.js";
 import { resolveVisualAnchor } from "./anchor.js";
@@ -33,22 +34,29 @@ export function resolveNetLabelBinding(
     document,
     resolver,
   ),
+  lookup?: Pick<DocumentDerivedContext, "netsById" | "routesById">,
 ): ResolvedNetLabelBinding | null {
   if (
     (annotation.kind !== "net-label" && annotation.kind !== "power-label") ||
     !annotation.netId ||
-    !document.nets.some((net) => net.id === annotation.netId)
+    !(lookup
+      ? lookup.netsById.has(annotation.netId)
+      : document.nets.some((net) => net.id === annotation.netId))
   ) {
     return null;
   }
   const netId = annotation.netId;
   const anchor = annotation.anchor;
   if (anchor.kind === "route") {
-    const route = document.routes.find(
-      (candidate) =>
-        candidate.id === anchor.routeId && candidate.netId === netId,
-    );
-    if (route) {
+    // A draft can repeat a Route ID. Its first matching Route on this Net wins.
+    const route =
+      lookup && lookup.routesById.size === document.routes.length
+        ? lookup.routesById.get(anchor.routeId)
+        : document.routes.find(
+            (candidate) =>
+              candidate.id === anchor.routeId && candidate.netId === netId,
+          );
+    if (route?.netId === netId) {
       return {
         annotationId: annotation.id,
         netId,

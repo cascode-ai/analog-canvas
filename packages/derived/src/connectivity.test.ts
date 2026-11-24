@@ -160,5 +160,19 @@ describe("shared connectivity context (#17)", () => {
     expect(
       deriveNetConnectivity(document, resolver, document.nets[0]!, context),
     ).toEqual(deriveNetConnectivity(document, resolver, document.nets[0]!));
+
+    // An unfinished draft can contain a second Route with the same ID.
+    // Both the previous binding and a new read must still select the first.
+    document.routes[1]!.id = "route-a";
+    for (const read of [
+      context,
+      deriveNetConnectivityContext(document, resolver),
+    ]) {
+      expect(
+        read.netLabelBindingsByNetId
+          .get("net-bias")
+          ?.find(({ annotationId }) => annotationId === "label-z")?.endpoint,
+      ).toEqual({ kind: "junction", junctionId: "J1" });
+    }
   });
 });
