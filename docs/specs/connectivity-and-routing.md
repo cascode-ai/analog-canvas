@@ -281,17 +281,20 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
   The [diagnostic envelope](../../packages/derived/src/diagnostics/diagnostic.ts)
   keeps domain, confidence, severity and gate eligibility distinct.
 
-| Code                           | Reports                                                                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ERC_TOUCHING_NOT_CONNECTED`   | A pin on another Logical Net's Route, or two pins on one point on different Logical Nets (each pair once). Crossings and `NoConnect` pins exempt.                                   |
-| `ERC_DANGLING_WIRE`            | A wire end at a Junction nothing else reaches; a Junction standing on a pin is a contact, and rail ends, labelled wires and ends with a same-Net label within four grid steps are exempt. |
-| `ERC_NET_LABEL_NAMES_NOTHING`  | A Net Label whose Net reaches no pin, wire or Junction.                                                                                                                             |
-| `ERC_LABEL_REFERENCE_MISMATCH` | A name label reading another part's name while that part shows something else.                                                                                                      |
-| `ERC_UNDRIVEN_GATE_NET`        | Two or more sense-only pins (gate, bulk, block input) with no Cell Pin, global/supply name or other pin (capacitors drive; local names do not). A lone gate is `ERC_FLOATING_GATE`. |
-| `ERC_SHORTED_DEVICE`           | A two-pin part with both pins on one Logical Net.                                                                                                                                   |
-| `ERC_NET_JOINED_ONLY_IN_DATA`  | A drawn part of a Net no wire or own name joins to the rest (touching counts; unwired pins are `ERC_UNCONNECTED_PIN`; guided imports skipped).                                      |
-| `ERC_OVERLAPPING_NETS`         | Error: different Logical Nets' wires along one line over a common span (each pair once, with span).                                                                                 |
-| `ERC_INSTANCE_NOT_DRAWN`       | Instances the sheet does not draw.                                                                                                                                                  |
+| Code                              | Reports                                                                                                                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ERC_TOUCHING_NOT_CONNECTED`      | A pin on another Logical Net's Route, or two pins on one point on different Logical Nets (each pair once). Crossings and `NoConnect` pins exempt; a supply marker's says it is not joined.                          |
+| `ERC_DANGLING_WIRE`               | A wire end at a Junction nothing else reaches; a Junction standing on a pin is a contact, and rail ends, labelled wires and ends with a same-Net label within four grid steps are exempt.                           |
+| `ERC_NET_LABEL_NAMES_NOTHING`     | A Net Label whose Net reaches no pin, wire or Junction.                                                                                                                                                             |
+| `ERC_LABEL_REFERENCE_MISMATCH`    | A name label reading another part's name while that part shows something else.                                                                                                                                      |
+| `ERC_UNDRIVEN_GATE_NET`           | Two or more sense-only pins (gate, bulk, block input) with no Cell Pin, global/supply name or other pin (capacitors drive; local names do not). A lone gate is `ERC_FLOATING_GATE`.                                 |
+| `ERC_UNCONNECTED_CELL_PIN`        | A Cell Pin whose Net reaches no part but its own Port (supply, global and bus Pins exempt).                                                                                                                         |
+| `ERC_LOOKALIKE_NET_NAMES`         | Net names of one Cell equal once `0`/`O` and `1`/`l`/`I` are read alike (each set once).                                                                                                                            |
+| `ERC_CONFLICTING_VOLTAGE_OUTPUTS` | Two or more ideal voltage sources (V, E, H) across one pair of Logical Nets, or with behavioural block outputs (op-amp, logic, comparator; not a transconductor or a Cell-bound block) forcing one Net from ground. |
+| `ERC_SHORTED_DEVICE`              | A two-pin part with both pins on one Logical Net.                                                                                                                                                                   |
+| `ERC_NET_JOINED_ONLY_IN_DATA`     | A drawn part of a Net no wire or own name joins to the rest (touching counts; unwired pins are `ERC_UNCONNECTED_PIN`; guided imports skipped).                                                                      |
+| `ERC_OVERLAPPING_NETS`            | Error: different Logical Nets' wires along one line over a common span (each pair once, with span).                                                                                                                 |
+| `ERC_INSTANCE_NOT_DRAWN`          | Instances the sheet does not draw.                                                                                                                                                                                  |
 
 ## Imported routing guidance
 

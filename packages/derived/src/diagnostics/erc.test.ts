@@ -2261,3 +2261,289 @@ describe("a Library part bound to an external definition (#1928)", () => {
     );
   });
 });
+
+describe("common Gallery wiring mistakes (#2557)", () => {
+  type Document = CircuitProject["documents"][number];
+  const placed = (id: string, symbolId: string, x = 0, y = 0) => ({
+    id,
+    reference: id,
+    symbolId,
+    placement: {
+      position: { x, y },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  });
+  const net = (id: string, ...terminals: string[]) => ({
+    id,
+    terminals: terminals.map((terminal) => {
+      const [instanceId, pinName] = terminal.split(".") as [string, string];
+      return { instanceId, pinName };
+    }),
+  });
+  const found = (project: CircuitProject, code: string) =>
+    run(project).filter((item) => item.code === code);
+
+  describe("a Cell Pin its Cell does not connect", () => {
+    function cellPin(): { project: CircuitProject; document: Document } {
+      const project = emptyProject();
+      const document = project.documents[0]!;
+      document.instances.push(placed("P1", "port"), placed("R1", "resistor"));
+      document.nets.push(net("net-in", "P1.P"), net("net-r", "R1.1", "R1.2"));
+      document.netlist!.terminals.push({
+        id: "pin-in",
+        name: "IN",
+        netId: "net-in",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      });
+      return { project, document };
+    }
+
+    it("warns about a Port whose Net reaches no other part", () => {
+      const { project } = cellPin();
+      expect(found(project, "ERC_UNCONNECTED_CELL_PIN")).toEqual([
+        expect.objectContaining({
+          id: "erc:unconnected-cell-pin:doc:pin-in",
+          severity: "warning",
+          confidence: "high",
+          gateEligible: false,
+          message: expect.stringContaining(
+            "Cell Pin IN is connected to nothing in this Cell",
+          ),
+          primary: expect.objectContaining({
+            kind: "instance",
+            objectId: "P1",
+          }),
+          parameters: { terminalId: "pin-in", name: "IN", netId: "net-in" },
+        }),
+      ]);
+      // The Port's own pin is a formal boundary: no second, generic finding.
+      expect(codes(project)).not.toContain("ERC_UNCONNECTED_PIN");
+    });
+
+    it.each<[string, (document: Document) => void]>([
+      [
+        "a part's pin",
+        (document) => {
+          document.nets[0]!.terminals.push({ instanceId: "R1", pinName: "1" });
+          document.nets[1]!.terminals.shift();
+        },
+      ],
+      [
+        "a supply",
+        (document) =>
+          document.connectivityEvidence.push({
+            id: "claim-vdd",
+            kind: "name-claim",
+            netId: "net-in",
+            name: "VDD",
+            scope: "global",
+            powerDomain: "vdd",
+            owner: { kind: "power-marker", objectId: "P1" },
+          }),
+      ],
+    ])("stays quiet once the Pin reaches %s", (_, connect) => {
+      const { project, document } = cellPin();
+      connect(document);
+      expect(found(project, "ERC_UNCONNECTED_CELL_PIN")).toEqual([]);
+    });
+  });
+
+  it("names a supply marker drawn on a wire it is not joined to", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    // The marker's pin lands at (0, 0), on the middle of the supply wire.
+    const at = resolver.resolve("vdd-port")!.definition.pins[0]!.at;
+    document.instances.push(placed("VDD1", "vdd-port", -at.x, -at.y));
+    document.nets.push(net("vdd", "VDD1.P"), net("rail"));
+    document.connectivityEvidence.push({
+      id: "claim-vdd",
+      kind: "name-claim",
+      netId: "vdd",
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VDD1" },
+    });
+    document.junctions.push(
+      { id: "left", netId: "rail", position: { x: -50, y: 0 } },
+      { id: "right", netId: "rail", position: { x: 50, y: 0 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "rail-wire",
+        netId: "rail",
+        start: { kind: "junction", junctionId: "left" },
+        end: { kind: "junction", junctionId: "right" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    expect(found(project, "ERC_TOUCHING_NOT_CONNECTED")).toEqual([
+      expect.objectContaining({
+        severity: "warning",
+        message:
+          "Supply marker VDD1 sits on a wire of Net rail without being joined to it, so that wire does not get its supply; join the marker's pin to the wire",
+        primary: expect.objectContaining({ objectId: "VDD1:P" }),
+        parameters: expect.objectContaining({ routeId: "rail-wire" }),
+      }),
+    ]);
+  });
+
+  describe("Net names that differ only by look-alike characters", () => {
+    function named(...names: string[]): CircuitProject {
+      const project = emptyProject();
+      const document = project.documents[0]!;
+      names.forEach((name, index) => {
+        document.instances.push(placed(`R${index}`, "resistor", index * 100));
+        document.nets.push(net(`net-${index}`, `R${index}.1`, `R${index}.2`));
+        document.connectivityEvidence.push({
+          id: `claim-${index}`,
+          kind: "name-claim",
+          netId: `net-${index}`,
+          name,
+          scope: "local",
+          owner: { kind: "net-label", annotationId: `label-${index}` },
+        });
+      });
+      return project;
+    }
+
+    it.each([
+      ["X0", "XO"],
+      ["V1", "Vl"],
+      ["CLK1", "CLKI"],
+    ])("warns about %s beside %s", (first, second) => {
+      const findings = found(named(first, second), "ERC_LOOKALIKE_NET_NAMES");
+      expect(findings).toEqual([
+        expect.objectContaining({
+          severity: "warning",
+          confidence: "high",
+          gateEligible: false,
+          message: expect.stringContaining(
+            "differ only by look-alike characters",
+          ),
+          parameters: expect.objectContaining({ count: 2 }),
+        }),
+      ]);
+      expect(findings[0]!.message).toContain(first);
+      expect(findings[0]!.message).toContain(second);
+    });
+
+    it("stays quiet for distinct names and for one name in two cases", () => {
+      expect(
+        found(named("VIN", "VLN", "OUT", "VOUT"), "ERC_LOOKALIKE_NET_NAMES"),
+      ).toEqual([]);
+      // Names that differ only by case are one Logical Net already.
+      expect(found(named("out", "OUT"), "ERC_LOOKALIKE_NET_NAMES")).toEqual([]);
+    });
+  });
+
+  describe("two voltage-forcing outputs on one Net", () => {
+    function forced(
+      parts: readonly (readonly [string, string])[],
+      nets: readonly (readonly string[])[],
+    ): CircuitProject {
+      const project = emptyProject();
+      const document = project.documents[0]!;
+      parts.forEach(([id, symbolId], index) =>
+        document.instances.push(placed(id, symbolId, index * 200)),
+      );
+      nets.forEach(([id, ...pins]) => document.nets.push(net(id!, ...pins)));
+      document.instances.push(placed("G1", "ground", 0, 300));
+      document.nets
+        .find((item) => item.id === "gnd")
+        ?.terminals.push({
+          instanceId: "G1",
+          pinName: "0",
+        });
+      document.connectivityEvidence.push({
+        id: "claim-gnd",
+        kind: "name-claim",
+        netId: "gnd",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "G1" },
+      });
+      return project;
+    }
+    const conflicts = (project: CircuitProject) =>
+      found(project, "ERC_CONFLICTING_VOLTAGE_OUTPUTS");
+
+    it("warns about two ideal sources across one pair of Nets", () => {
+      const project = forced(
+        [
+          ["V1", "voltage-source"],
+          ["V2", "voltage-source"],
+        ],
+        [
+          ["out", "V1.+", "V2.+"],
+          ["gnd", "V1.-", "V2.-"],
+        ],
+      );
+      expect(conflicts(project)).toEqual([
+        expect.objectContaining({
+          severity: "warning",
+          confidence: "high",
+          gateEligible: false,
+          message: expect.stringMatching(
+            /^2 voltage outputs \(V1, V2\) force the voltage of Net out from ground/u,
+          ),
+          primary: expect.objectContaining({ objectId: "V1:+" }),
+          parameters: { netId: "out", count: 2 },
+        }),
+      ]);
+    });
+
+    it("warns about an op-amp output and an inverter output on one Net", () => {
+      const project = forced(
+        [
+          ["U1", "opamp"],
+          ["U2", "inverter"],
+        ],
+        [["out", "U1.OUT", "U2.Y"], ["gnd"]],
+      );
+      expect(conflicts(project)).toEqual([
+        expect.objectContaining({
+          message: expect.stringContaining("(U1.OUT, U2.Y)"),
+        }),
+      ]);
+    });
+
+    it("stays quiet for sources in series, one output and a transconductor", () => {
+      expect(
+        conflicts(
+          forced(
+            [
+              ["V1", "voltage-source"],
+              ["V2", "voltage-source"],
+            ],
+            [
+              ["top", "V1.+"],
+              ["mid", "V1.-", "V2.+"],
+              ["gnd", "V2.-"],
+            ],
+          ),
+        ),
+      ).toEqual([]);
+      expect(
+        conflicts(
+          forced(
+            [
+              ["U1", "opamp"],
+              ["G2", "transconductance"],
+              ["V1", "voltage-source"],
+            ],
+            [
+              ["out", "U1.OUT", "G2.Y"],
+              ["in", "V1.+", "U1.IN+"],
+              ["gnd", "V1.-"],
+            ],
+          ),
+        ),
+      ).toEqual([]);
+    });
+  });
+});

@@ -1,6 +1,7 @@
 import {
   boundAnnotationName,
   flattenRichText,
+  foldNetName,
   hasRichTextOverbar,
   isOptionalSupplyPin,
   projectCellInterface,
@@ -38,6 +39,7 @@ import {
   instanceParameterContract,
   namesModelOutsideSources,
   milliScaleReading,
+  subcircuitDescriptor,
   validateDeviceParameters,
   type QuantityForms,
 } from "@icm/devices";
@@ -796,6 +798,14 @@ export function runErcChecks(
       resolver,
       diagnostics,
     );
+    reportUnconnectedCellPins(document, docIndex, logicalNets, diagnostics);
+    reportLookAlikeNetNames(document, logicalNets, diagnostics);
+    reportConflictingVoltageOutputs(
+      project,
+      document,
+      logicalNets,
+      diagnostics,
+    );
     reportDanglingWires(document, docIndex, diagnostics);
     reportNetLabelsNamingNothing(document, diagnostics);
     reportOverbarNameMismatches(document, diagnostics);
@@ -1111,6 +1121,228 @@ function reportUndrivenGateNets(
       primary: first!,
       related: [...rest, directObjectLocator(document.id, "net", record.netId)],
       parameters: { netId: record.netId, count: pins.length },
+    });
+  }
+}
+
+/**
+ * A Cell Pin whose Net reaches no part of the Cell but its own Port: a wire
+ * that ends on the Port's artwork without joining its pin, or a Port placed
+ * and never wired, leaves the Pin connected to nothing, so whatever a parent
+ * wires to it goes nowhere (#2557). A Pin on a supply or global Net, and a
+ * bus Pin, are left alone; two Pins joined to each other count as connected.
+ */
+function reportUnconnectedCellPins(
+  document: CircuitProject["documents"][number],
+  docIndex: ReturnType<ProjectConnectivityIndex["documents"]["get"]>,
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  diagnostics: ErcDiagnostic[],
+): void {
+  if (!docIndex) return;
+  for (const terminal of document.netlist?.terminals ?? []) {
+    if (terminal.signal && terminal.signal.members.length > 1) continue;
+    const net = logicalNets.byBaseNetId.get(terminal.netId);
+    if (net && (net.scope === "global" || net.powerDomain !== "none")) continue;
+    const own = new Set(terminal.interfaceInstanceIds);
+    const record = docIndex.logicalNetByBaseNetId.get(terminal.netId);
+    const reached = (record?.logicalEndpoints ?? []).some(
+      (endpoint) =>
+        endpoint.kind === "terminal" && !own.has(endpoint.instanceId),
+    );
+    if (reached) continue;
+    const portId = terminal.interfaceInstanceIds[0];
+    diagnostics.push({
+      id: `erc:unconnected-cell-pin:${document.id}:${terminal.id}`,
+      domain: "erc",
+      code: "ERC_UNCONNECTED_CELL_PIN",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `Cell Pin ${terminal.name} is connected to nothing in this Cell: its Net reaches no part but its own Port, so whatever a parent wires to it goes nowhere. Wire the Port's pin, or remove the Pin`,
+      primary: portId
+        ? directObjectLocator(document.id, "instance", portId)
+        : terminal.interfaceAnnotationId
+          ? directObjectLocator(
+              document.id,
+              "annotation",
+              terminal.interfaceAnnotationId,
+            )
+          : directObjectLocator(document.id, "net", terminal.netId),
+      related: [directObjectLocator(document.id, "net", terminal.netId)],
+      parameters: {
+        terminalId: terminal.id,
+        name: terminal.name,
+        netId: terminal.netId,
+      },
+    });
+  }
+}
+
+/**
+ * Net names read the same once look-alike characters are: digit 0 and letter
+ * O, digit 1 and letters l and I. The characters are read as written, before
+ * case folds: I and l look alike, but i and L do not.
+ */
+function lookAlikeKey(name: string): string {
+  return foldNetName(name.replace(/[Oo]/gu, "0").replace(/[Il|]/gu, "1"));
+}
+
+/**
+ * Two Nets of one Cell whose names differ only by look-alike characters, X0
+ * and XO, or V1 and Vl: the drawing reads one node, the netlist keeps two
+ * (#2557). Reported once for each set of such names.
+ */
+function reportLookAlikeNetNames(
+  document: CircuitProject["documents"][number],
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  diagnostics: ErcDiagnostic[],
+): void {
+  const byKey = new Map<string, Map<string, (typeof logicalNets.groups)[0]>>();
+  for (const net of logicalNets.groups) {
+    if (!net.name) continue;
+    const names = byKey.get(lookAlikeKey(net.name)) ?? new Map();
+    const folded = foldNetName(net.name);
+    if (!names.has(folded)) names.set(folded, net);
+    byKey.set(lookAlikeKey(net.name), names);
+  }
+  for (const [key, names] of byKey) {
+    if (names.size < 2) continue;
+    const nets = [...names.values()].sort((left, right) =>
+      left.name!.localeCompare(right.name!, "en"),
+    );
+    const listed = nets.map((net) => net.name!);
+    diagnostics.push({
+      id: `erc:lookalike-net-names:${document.id}:${key}`,
+      domain: "erc",
+      code: "ERC_LOOKALIKE_NET_NAMES",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `Net names ${listed.slice(0, -1).join(", ")} and ${listed.at(-1)} differ only by look-alike characters (0 and O, 1, l and I), so they are ${listed.length === 2 ? "two" : "separate"} Nets; rename one if they are meant to be the same node`,
+      primary: directObjectLocator(document.id, "net", nets[0]!.id),
+      related: nets
+        .slice(1)
+        .map((net) => directObjectLocator(document.id, "net", net.id)),
+      parameters: { names: listed.join(","), count: listed.length },
+    });
+  }
+}
+
+/** Device classes that force the voltage across their two pins. */
+const VOLTAGE_SOURCE_CLASSES = new Set(["voltage-source", "vcvs", "ccvs"]);
+
+/**
+ * Two voltage-forcing outputs that set the same voltage: two ideal voltage
+ * sources across one pair of Nets, or ideal sources and behavioural block
+ * outputs (op-amp, inverter, gate, comparator) on one Net against ground
+ * (#2557). Each forces its voltage with no resistance, so the netlist has no
+ * consistent solution, or one the simulator reports as a voltage loop. A
+ * behavioural output counts as forced from ground; a transconductor's output
+ * is a current and does not count, nor does a block bound to a Cell.
+ */
+function reportConflictingVoltageOutputs(
+  project: CircuitProject,
+  document: CircuitProject["documents"][number],
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  diagnostics: ErcDiagnostic[],
+): void {
+  const netOfTerminal = new Map<string, string>();
+  for (const net of document.nets)
+    for (const terminal of net.terminals)
+      netOfTerminal.set(
+        `${terminal.instanceId}\u0000${terminal.pinName}`,
+        logicalNets.byBaseNetId.get(net.id)?.id ?? net.id,
+      );
+  const GROUND = "\u0000ground";
+  const side = (netId: string): string =>
+    logicalNets.byId.get(netId)?.powerDomain === "ground" ? GROUND : netId;
+  type Output = { instanceId: string; pinName: string; text: string };
+  const byPair = new Map<
+    string,
+    { sides: [string, string]; outputs: Output[] }
+  >();
+  const add = (a: string, b: string, output: Output) => {
+    if (a === b) return;
+    const sides = [a, b].sort() as [string, string];
+    const key = sides.join("\u0000");
+    const entry = byPair.get(key) ?? { sides, outputs: [] };
+    entry.outputs.push(output);
+    byPair.set(key, entry);
+  };
+  for (const instance of document.instances) {
+    const binding = instance.netlist?.binding?.kind;
+    if (
+      binding === "subcircuit" ||
+      binding === "external-subcircuit" ||
+      binding === "unresolved-subcircuit"
+    )
+      continue;
+    const label = instance.reference ?? instance.id;
+    const netOf = (pinName: string) =>
+      netOfTerminal.get(`${instance.id}\u0000${pinName}`);
+    const device = deviceDescriptor(instance.symbolId, project);
+    if (device && VOLTAGE_SOURCE_CLASSES.has(device.deviceClass)) {
+      const [plus, minus] = device.pinOrder;
+      const a = plus ? netOf(plus) : undefined;
+      const b = minus ? netOf(minus) : undefined;
+      if (a && b)
+        add(side(a), side(b), {
+          instanceId: instance.id,
+          pinName: plus!,
+          text: label,
+        });
+      continue;
+    }
+    const block = subcircuitDescriptor(instance.symbolId, project);
+    if (!block || block.target.includes("transconductance")) continue;
+    for (const port of block.ports) {
+      if (port.direction !== "output" || !("pinName" in port)) continue;
+      const netId = netOf(port.pinName);
+      if (netId)
+        add(side(netId), GROUND, {
+          instanceId: instance.id,
+          pinName: port.pinName,
+          text: `${label}.${port.pinName}`,
+        });
+    }
+  }
+  const nameOf = (id: string) =>
+    id === GROUND ? "ground" : (logicalNets.byId.get(id)?.name ?? id);
+  for (const { sides, outputs } of byPair.values()) {
+    if (outputs.length < 2) continue;
+    outputs.sort((left, right) =>
+      left.text.localeCompare(right.text, "en", { numeric: true }),
+    );
+    const [first, ...rest] = outputs;
+    const forced = sides.filter((id) => id !== GROUND);
+    const where =
+      forced.length === 1
+        ? `Net ${nameOf(forced[0]!)}`
+        : `Nets ${nameOf(sides[0])} and ${nameOf(sides[1])}`;
+    diagnostics.push({
+      id: `erc:conflicting-voltage-outputs:${document.id}:${sides.join(":")}`,
+      domain: "erc",
+      code: "ERC_CONFLICTING_VOLTAGE_OUTPUTS",
+      severity: "warning",
+      confidence: "high",
+      gateEligible: false,
+      message: `${outputs.length} voltage outputs (${outputs
+        .map((output) => output.text)
+        .join(
+          ", ",
+        )}) force the voltage of ${where}${forced.length === 1 ? " from ground" : ""}: ideal sources and behavioural outputs cannot share it, so the circuit has no consistent solution. Keep one, or put a resistance between them`,
+      primary: terminalLocator(document.id, first!.instanceId, first!.pinName),
+      related: [
+        ...rest.map((output) =>
+          terminalLocator(document.id, output.instanceId, output.pinName),
+        ),
+        ...forced.map((id) => directObjectLocator(document.id, "net", id)),
+      ],
+      parameters: {
+        netId: forced[0]!,
+        ...(forced[1] ? { otherNetId: forced[1] } : {}),
+        count: outputs.length,
+      },
     });
   }
 }
@@ -1607,9 +1839,11 @@ function reportPinsTouchingAnotherNet(
         severity: "warning",
         confidence: "high",
         gateEligible: false,
-        message: pinLogicalId
-          ? `Pin ${instance.id}.${pin.name} sits on a wire of Net ${first.netId} but belongs to a different Net`
-          : `Pin ${instance.id}.${pin.name} sits on a wire of Net ${first.netId} without being connected to it`,
+        message: supplyMarkerForSymbol(instance.symbolId)
+          ? `Supply marker ${instance.reference ?? instance.id} sits on a wire of Net ${first.netId} without being joined to it, so that wire does not get its supply; join the marker's pin to the wire`
+          : pinLogicalId
+            ? `Pin ${instance.id}.${pin.name} sits on a wire of Net ${first.netId} but belongs to a different Net`
+            : `Pin ${instance.id}.${pin.name} sits on a wire of Net ${first.netId} without being connected to it`,
         primary: terminalLocator(document.id, instance.id, pin.name),
         related: [
           directObjectLocator(document.id, "route", first.route.id),
