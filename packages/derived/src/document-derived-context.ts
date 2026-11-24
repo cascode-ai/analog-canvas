@@ -155,7 +155,24 @@ export function buildDocumentDerivedContext(
     },
   );
   const netsById = new Map(document.nets.map((net) => [net.id, net]));
-  const labelLookup = { netsById, routesById };
+  // A free label attaches to a Route on its primary Net. Electrical bus
+  // membership also indexes the other lanes, which are not attachment targets.
+  const routesByPrimaryNetId = document.routes.some((route) => route.members)
+    ? groupedBy(document.routes, (route) => route.netId)
+    : routesByNetId;
+  const labelLookup = {
+    netsById,
+    routesById,
+    routesByPrimaryNetId,
+    junctionsByNetId,
+    junctionsById,
+    // The geometry lookup keeps the last duplicate object. Legacy drafts
+    // resolve the first one when measuring distances to fallback endpoints.
+    ...(junctionsById.size === document.junctions.length &&
+    instancesById.size === document.instances.length
+      ? { endpointLookup }
+      : {}),
+  };
   const netLabelBindingsByNetId = new Map<string, ResolvedNetLabelBinding[]>();
   for (const annotation of document.annotations) {
     const binding = resolveNetLabelBinding(

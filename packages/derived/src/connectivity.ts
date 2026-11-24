@@ -3,7 +3,13 @@ import {
   routeEnd,
   routeElectricalConnections,
 } from "@icm/model";
-import type { Net, Point, RouteEndpoint, SchematicDocument } from "@icm/model";
+import type {
+  AnnotationNameClaimReader,
+  Net,
+  Point,
+  RouteEndpoint,
+  SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { assessImportReference } from "./import-reference.js";
 
@@ -101,6 +107,7 @@ export function deriveNetConnectivity(
   resolver: SymbolResolver,
   net: Net,
   context?: NetConnectivityContext,
+  readClaims?: AnnotationNameClaimReader,
 ): VisibleNetConnectivity {
   if (
     context &&
@@ -188,6 +195,7 @@ export function deriveNetConnectivity(
       document,
       annotation,
       context?.logicalNetResolution,
+      readClaims,
     ).trim();
     const key = endpointKey(binding.endpoint);
     if (label.length === 0 || !nodes.has(key)) continue;
@@ -210,6 +218,7 @@ export function deriveNetConnectivity(
       document,
       annotation,
       context?.logicalNetResolution,
+      readClaims,
     ).trim();
     if (label.length === 0) continue;
     const group = labeledEndpoints.get(label) ?? [];

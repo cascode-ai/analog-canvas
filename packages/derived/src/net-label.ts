@@ -2,7 +2,12 @@ import type { Annotation, RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import type { DocumentDerivedContext } from "./document-derived-context.js";
 
-import { endpointKey, netEndpoints, resolveEndpointPoint } from "./endpoint.js";
+import {
+  endpointKey,
+  netEndpoints,
+  resolveEndpointPoint,
+  type EndpointObjectLookup,
+} from "./endpoint.js";
 import { resolveVisualAnchor } from "./anchor.js";
 import { nearestRouteSegment } from "./route-query.js";
 import {
@@ -17,6 +22,16 @@ export interface ResolvedNetLabelBinding {
   segmentIndex?: number;
   legId?: string;
   endpoint: RouteEndpoint;
+}
+
+interface NetLabelLookup extends Pick<
+  DocumentDerivedContext,
+  "netsById" | "routesById"
+> {
+  routesByPrimaryNetId?: DocumentDerivedContext["routesByNetId"];
+  junctionsByNetId?: DocumentDerivedContext["junctionsByNetId"];
+  junctionsById?: DocumentDerivedContext["junctionsById"];
+  endpointLookup?: EndpointObjectLookup;
 }
 
 /**
@@ -34,7 +49,7 @@ export function resolveNetLabelBinding(
     document,
     resolver,
   ),
-  lookup?: Pick<DocumentDerivedContext, "netsById" | "routesById">,
+  lookup?: NetLabelLookup,
 ): ResolvedNetLabelBinding | null {
   if (
     (annotation.kind !== "net-label" && annotation.kind !== "power-label") ||
@@ -68,11 +83,13 @@ export function resolveNetLabelBinding(
     }
   }
   if (anchor.kind === "object") {
-    const junction = document.junctions.find(
-      (candidate) =>
-        candidate.id === anchor.objectId && candidate.netId === netId,
-    );
-    if (junction) {
+    const junction =
+      lookup?.junctionsById?.size === document.junctions.length
+        ? lookup.junctionsById.get(anchor.objectId)
+        : document.junctions.find(
+            (item) => item.id === anchor.objectId && item.netId === netId,
+          );
+    if (junction?.netId === netId) {
       return {
         annotationId: annotation.id,
         netId,
@@ -86,8 +103,10 @@ export function resolveNetLabelBinding(
     annotation.anchor,
     routingGeometry,
   ).position;
-  const routeCandidates = document.routes
-    .filter((route) => route.netId === netId)
+  const routes = lookup?.routesByPrimaryNetId
+    ? (lookup.routesByPrimaryNetId.get(netId) ?? [])
+    : document.routes.filter((route) => route.netId === netId);
+  const routeCandidates = routes
     .flatMap((route) => {
       const geometry = routingGeometry.routes.get(route.id);
       const hit = geometry ? nearestRouteSegment(geometry, position) : null;
@@ -121,13 +140,20 @@ export function resolveNetLabelBinding(
     };
   }
 
-  const net = document.nets.find((candidate) => candidate.id === netId)!;
-  const endpoint = netEndpoints(document, net)
+  const net =
+    lookup && lookup.netsById.size === document.nets.length
+      ? lookup.netsById.get(netId)!
+      : document.nets.find((candidate) => candidate.id === netId)!;
+  const junctions = lookup?.junctionsByNetId
+    ? (lookup.junctionsByNetId.get(netId) ?? [])
+    : document.junctions;
+  const endpoint = netEndpoints(document, net, junctions)
     .flatMap((candidate) => {
       const endpointPosition = resolveEndpointPoint(
         document,
         resolver,
         candidate,
+        lookup?.endpointLookup,
       );
       return endpointPosition
         ? [

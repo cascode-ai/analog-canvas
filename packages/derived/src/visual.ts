@@ -1,5 +1,10 @@
 import { registerDocumentCache } from "./document-caches.js";
-import { flattenRichText, routeEnd, transformPoint } from "@icm/model";
+import {
+  createAnnotationNameClaimReader,
+  flattenRichText,
+  routeEnd,
+  transformPoint,
+} from "@icm/model";
 import type { Point, Rect, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
   adaptiveSignalFlowBounds,
@@ -986,6 +991,7 @@ export function diagnoseVisualQuality(
   // Agent diagnostics can read a mutable proposal before commit. Share its
   // naming view only for this pass, including labels outside the viewport.
   let logicalNets = options.logicalNetResolution;
+  const readClaims = createAnnotationNameClaimReader(document);
   const annotationBounds = document.annotations.flatMap((annotation) => {
     if (annotation.visible === false) return [];
     if (annotation.binding?.kind === "net-name")
@@ -995,6 +1001,7 @@ export function diagnoseVisualQuality(
       annotation,
       logicalNets,
       resolver,
+      readClaims,
     );
     if (
       !isSchematicAnnotationVisible(
