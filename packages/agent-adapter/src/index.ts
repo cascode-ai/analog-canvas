@@ -20,3 +20,5 @@ export * from "./snapshot.js";
 export * from "./transport-errors.js";
 
 export * from "./component-resource.js";
+
+export * from "./transaction-receipt.js";

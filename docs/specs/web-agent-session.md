@@ -272,8 +272,16 @@ reconciles, never blindly replays.
 - The relay checks bearer, session/document binding, scope, expiry, body size
   and rate before forwarding. File Resource payloads ≤ 10 MB decoded
   (`fileResource.maxBytes`, advertised and enforced by the editor; clients
-  build in no ceiling). Relay body/message ceiling 16 MB (base64 headroom,
-  under the 32 MiB Durable Object WebSocket message).
+  build in no ceiling). The relay body/message ceiling is 16 MB. An editor
+  can encode an oversized successful Circuit transaction as bounded gzip
+  pages on its private socket. The relay validates the complete receipt
+  before sending public JSON, including all ordered diagnostics and deltas.
+  The private frame allows up to 64 MB expanded and 11.9 MB compressed.
+  Each diagnostic page and the header containing the diff must fit 2 MB.
+  The editor separately confirms success if the receipt exceeds these limits.
+  The relay records completion and returns `REQUEST_RESULT_UNAVAILABLE`.
+  Its usual write ledger also retains proof after a delivered large result
+  is discarded.
 - Secrets use constant-time comparison and redacted telemetry. Responses are
   `no-store`; payloads and secrets stay out of analytics and recovery.
   Offline, revoked, expired, replaced, taken-over, wrong-site,

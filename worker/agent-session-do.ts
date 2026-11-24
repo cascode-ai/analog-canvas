@@ -3,6 +3,9 @@ import {
   regionalDeviceDirectory,
 } from "./agent-regional-routing";
 import {
+  TRANSACTION_RECEIPT_ENCODING,
+  openTransactionReceipt,
+  ValidatedTransactionReceipt,
   AGENT_SSE_KEEPALIVE_INTERVAL_MS,
   AGENT_SESSION_PROTOCOL_VERSION,
   AgentAdapterVersionSchema,
@@ -683,9 +686,38 @@ export class AgentSessionDO {
       envelope.kind === "project-response"
     ) {
       const pending = this.pendingForwards.get(envelope.requestId);
-      if (!pending || pending.socket !== socket) return;
+      if (!pending || pending.socket !== socket || pending.receivingReceipt)
+        return;
       if (envelope.timing)
         this.editorTimings.set(envelope.requestId, envelope.timing);
+      if (
+        pending.transaction &&
+        envelope.kind === "circuit-response" &&
+        typeof envelope.payload === "object" &&
+        envelope.payload !== null &&
+        "encoding" in envelope.payload &&
+        envelope.payload.encoding === TRANSACTION_RECEIPT_ENCODING
+      ) {
+        pending.receivingReceipt = true;
+        try {
+          const receipt = await openTransactionReceipt(
+            envelope.payload,
+            envelope.requestId,
+          );
+          if (this.pendingForwards.get(envelope.requestId) !== pending) return;
+          pending.resolve(receipt);
+        } catch (error) {
+          if (this.pendingForwards.get(envelope.requestId) !== pending) return;
+          pending.reject(
+            error instanceof Error
+              ? error
+              : new Error("INVALID_BROWSER_RESPONSE"),
+          );
+        }
+        clearTimeout(pending.timeout);
+        this.pendingForwards.delete(envelope.requestId);
+        return;
+      }
       const response =
         envelope.kind === "circuit-response"
           ? AgentCircuitResponseSchema.safeParse(envelope.payload)
@@ -1246,16 +1278,27 @@ export class AgentSessionDO {
         request.headers.get("x-agent-workspace") ?? undefined,
         trace,
       );
-      if (trace) trace.result = result as RequestTrace["result"];
-      const response = result as AgentCircuitResponse;
-      machine.completeRequest(
-        circuitRequest.requestId,
-        result,
-        Date.now(),
+      const packed =
+        result instanceof ValidatedTransactionReceipt ? result : undefined;
+      const response = packed?.header ?? (result as AgentCircuitResponse);
+      if (trace) trace.result = response;
+      const succeeded =
         response.ok === true &&
-          response.requestId === circuitRequest.requestId &&
-          response.operation === circuitRequest.operation,
-      );
+        response.requestId === circuitRequest.requestId &&
+        response.operation === circuitRequest.operation;
+      if (packed)
+        machine.completeRequestWithoutResult(
+          circuitRequest.requestId,
+          Date.now(),
+          succeeded,
+        );
+      else
+        machine.completeRequest(
+          circuitRequest.requestId,
+          result,
+          Date.now(),
+          succeeded,
+        );
       if (circuitRequest.operation !== "capabilities")
         machine.recordActivity(Date.now());
       await this.persist();
@@ -1264,10 +1307,33 @@ export class AgentSessionDO {
         sessionId: machine.sessionId,
         requestId: circuitRequest.requestId,
       });
-      return jsonResponse(result, 200, allowedOrigin, {
-        ...this.relayTiming(circuitRequest, "circuit", result, forwardStarted),
+      const extras = {
+        ...this.relayTiming(
+          circuitRequest,
+          "circuit",
+          response,
+          forwardStarted,
+        ),
         ...(await writeReceiptHeaders()),
-      });
+      };
+      if (packed) {
+        const body = packed.body();
+        if (!body)
+          return jsonResponse(
+            errorBody(
+              "REQUEST_RESULT_UNAVAILABLE",
+              errorMessage("REQUEST_RESULT_UNAVAILABLE"),
+            ),
+            transportStatus("REQUEST_RESULT_UNAVAILABLE"),
+            allowedOrigin,
+            extras,
+          );
+        const headers = relayHeaders(allowedOrigin);
+        for (const [name, value] of Object.entries(extras))
+          headers.set(name, value);
+        return new Response(body, { headers });
+      }
+      return jsonResponse(result, 200, allowedOrigin, extras);
     } catch (error) {
       if (this.deviceRevokedUntil)
         return this.deviceRevokedResponse(allowedOrigin);
@@ -2099,6 +2165,8 @@ export class AgentSessionDO {
             : FORWARD_TIMEOUT_MS,
         );
         this.pendingForwards.set(requestId, {
+          transaction:
+            kind === "circuit-request" && payload.operation === "transact",
           resolve,
           reject,
           timeout,

@@ -825,11 +825,15 @@ export class AgentSessionMachine {
   }
 
   /**
-   * Complete a request without retaining its result. Used for exported bytes:
+   * Complete a request without retaining exported bytes or an oversized receipt:
    * a retry with the same requestId is rejected instead of replaying a stale
    * browser artifact through the Durable Object.
    */
-  completeRequestWithoutResult(requestId: string, now: number): void {
+  completeRequestWithoutResult(
+    requestId: string,
+    now: number,
+    circuitWriteSucceeded = false,
+  ): void {
     const pending = this.internals.pending.get(requestId);
     this.activeRequests.delete(requestId);
     if (pending?.replayMode === "read")
@@ -840,7 +844,9 @@ export class AgentSessionMachine {
         startedAt: pending?.startedAt ?? now,
         completedAt: now,
         replayMode: "write",
+        ...(circuitWriteSucceeded ? { circuitWriteSucceeded: true } : {}),
       });
+    if (circuitWriteSucceeded && pending?.replayMode === "write") return;
     this.internals.cache.set(requestId, {
       unavailable: true,
       completedAt: now,
