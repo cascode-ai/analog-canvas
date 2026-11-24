@@ -70,6 +70,12 @@ class FakeHost:
     def uncertain_write(self):
         return self.uncertain
 
+    def held_operations(self):
+        return None, None
+
+    def seal_operation_inventory(self, pending):
+        self.calls.append(('seal-inventory',))
+
     def systemctl(self, *args, check=True):
         self.calls.append(('systemctl',) + args)
 
@@ -79,10 +85,10 @@ class FakeHost:
     def backup(self, target):
         self.calls.append(('backup', target.name))
 
-    def hold(self):
+    def hold(self, reader=None):
         self.calls.append(('hold',))
 
-    def capture(self, serving):
+    def capture(self, serving, pending=None):
         self.calls.append(('capture', serving.name))
 
     def resume(self):
@@ -249,6 +255,59 @@ class ReadinessTest(unittest.TestCase):
 
 @unittest.skipUnless(can_symlink(), 'the release link is a Linux symlink')
 class ReleaseTest(unittest.TestCase):
+    def operation_reader(self, read=1, write=0):
+        old = self.current.resolve()
+        declaration = json.dumps({'read': read, 'write': write}).encode()
+        path = 'project-create-operation-format.json'
+        (old / path).write_bytes(declaration)
+        manifest = json.loads((old / 'release.json').read_text())
+        manifest['files'][path] = digest(declaration)
+        (old / 'release.json').write_text(json.dumps(manifest))
+
+    def test_store_inventory_survives_release_and_prevents_legacy_rollback_without_an_entrance_marker(self):
+        self.operation_reader()
+        pending = [{'operationVersion': 1, 'count': 3, 'blocked': 0}]
+        active = []
+        class Host(FakeHost):
+            def hold(self, reader=None): self.calls.append(('hold', reader))
+            def capture(self, serving, inventory=None): active.extend(inventory)
+            def cancel_operation_hold(self): self.calls.append(('cancel',))
+        host = Host()
+        with patch.object(release._maintenance, 'project_operations', return_value=pending):
+            # A store with persistent intent can be rolled back to a read-only
+            # compatible reader, but never to a pre-operation runtime.
+            refused = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
+            self.assertEqual(refused['status'], 'incompatible-project-operation-format')
+            self.assertIn(('cancel',), host.calls)
+            self.assertFalse(any(c[:2] == ('systemctl','stop') for c in host.calls))
+            self.files['project-create-operation-format.json'] = b'{"read":1,"write":1}'
+            allowed = release.tick(self.args(0), host, FakeProduction(self.files), now=1001)
+        self.assertEqual(allowed['status'], 'installed')
+        self.assertIn(('hold', 1), host.calls)
+        self.assertEqual(active, pending)
+
+    def test_writer_cannot_switch_past_its_legacy_rollback_reader(self):
+        self.files['project-create-operation-format.json'] = b'{"read":1,"write":1}'
+        host = FakeHost()
+        result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'incompatible-project-operation-format')
+        self.assertNotIn(('hold',), host.calls)
+        self.assertEqual(self.current.resolve().name, OLD)
+
+    def test_candidate_bound_to_an_empty_store_rolls_back_before_releasing_waiting_users(self):
+        self.operation_reader()
+        self.files['project-create-operation-format.json'] = b'{"read":1,"write":1}'
+        pending = [{'operationVersion': 1, 'count': 1, 'blocked': 0}]
+        released = []
+        host = FakeHost()
+        def inventory(local, fmt):
+            return pending if self.current.resolve().name == OLD else []
+        with patch.object(release._maintenance, 'project_operations', side_effect=inventory), \
+                patch.object(host, 'resume', side_effect=lambda: released.append(self.current.resolve().name)):
+            result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
+        self.assertEqual(result['status'], 'rolled-back')
+        self.assertEqual(released, [OLD])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         # Resolved, as the release resolves it (macOS links /var to /private/var).
@@ -567,6 +626,22 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(result['status'], 'rolled-back')
         self.assertEqual(self.current.resolve().name, OLD)
         self.assertEqual(self.nginx.read_bytes(), b'private site')
+
+    def test_interrupted_rollback_uses_the_persisted_entrance_floor_when_the_release_journal_lacks_it(self):
+        new = self.releases / NEW
+        new.mkdir()
+        (new / 'release.json').write_text(json.dumps({'commit': NEW, 'files': {}}))
+        self.current.unlink()
+        self.current.symlink_to(new)
+        self.operation_reader()
+        pathlib.Path(self.args().state).write_text(json.dumps({'previous': str(self.releases / OLD)}))
+        self.smoked = False
+        host = FakeHost()
+        with patch.object(host, 'held_operations', return_value=(1, None)):
+            with self.assertRaisesRegex(release.ReleaseError, 'incompatible-project-operation-format'):
+                release.tick(self.args(0), host, FakeProduction(self.files))
+        self.assertEqual(self.current.resolve(), new)
+        self.assertEqual(host.calls, [])
 
     def test_records_a_failed_backup_so_the_runtime_is_not_stopped_every_minute(self):
         host = FakeHost()

@@ -126,8 +126,14 @@ loopback and persists it before forwarding the authenticated creation. The
 domestic Project store claims that ticket before reserving a quota slot. The
 store commits the creation and its receipt in the same transaction. A lost
 reply triggers a local receipt lookup. A committed creation or an atomically
-cancelled, unclaimed ticket releases only that attempt. An in-flight claim,
-missing proof or older marker keeps maintenance fenced. The marker records
+cancelled, unclaimed ticket releases only that attempt. A capable local
+store can also return a version 2 handoff after privately storing the full
+creation intent and revoking the old executor. The entrance validates the
+ticket, operation version and operation binding before removing the marker.
+The store then owns recovery across restarts. Other Projects can proceed
+without consuming an entrance journal slot for the waiting creation.
+A live writer, an unproven claim or an older unknown marker still fences
+maintenance. The marker records
 an opaque ticket and may include the interruption phase and socket error code.
 Keep it private. A lookup never submits a Project or advances a sync cursor.
 The store may prune unclaimed tickets after ten minutes and finished claims
@@ -146,6 +152,41 @@ handover checks pass. If an older workerd serves its usual missing-route
 response at registration, the new entrance forwards the create once under the
 legacy write fence. A rollback after registration cannot trigger a second
 dispatch; an unrecognized response on the private route returns 503.
+
+Install the operation-aware entrance and maintenance tools before enabling a
+new operation writer. The package hashes the Worker's
+`project-create-operation-format.json` into `release.json`. Deploy a reader
+with `{"read":1,"write":0}` first. Enable writes in a later release when its
+rollback target already reads version 1. Both the release and daily backup
+stop dispatch, drain existing writers and check the loopback store's pending
+versions and counts. Unknown markers still block both. An incompatible
+rollback or unreadable inventory cannot start a handover. The protected
+control socket remembers the required reader and a digest of the counts by
+version and blocking state across an entrance restart. Before resuming
+traffic or sync, the runtime must return the same inventory. This also
+applies after a failed release rolls back and after the daily backup.
+
+Use the existing host tools to distinguish waiting from a maintenance block.
+From the domestic host, POST `{"action":"capabilities"}` as JSON to
+`http://127.0.0.1:8792/__regional/project-create-receipt`. Each
+`pending` row gives the number of recoverable operations and its
+`blocked` subset. Ordinary waits resume on the Project sync timer. For
+operations needing attention, POST `{"action":"diagnostics"}` to the same
+private endpoint. It lists up to 20 opaque operation references, the reason,
+the first observed time and the scheduled retry time. Timestamps are Unix
+milliseconds. A separate global write fence appears as `uncertain: true` in
+`curl --unix-socket /run/canvas-cn-ingress/control.sock http://localhost/status`.
+Inspect only the time and category of the private entrance records, leaving
+the record and the original ticket intact until acceptance is proven.
+
+The stopped-state backup includes the complete store, its operation inputs
+and receipts, its hashed format declaration, and the pending inventory.
+Before restoring to an isolated copy, run
+`python3 maintenance.py --verify-restore ARCHIVE_DIRECTORY --reader RELEASE_DIRECTORY`.
+After starting the isolated reader, repeat with
+`--isolated-url http://127.0.0.1:PORT` before allowing its recovery timer
+to run. The second check compares the reopened store's inventory against the
+archive. Only verified releases should be used as readers.
 
 An incomplete marker update or an unclean entrance stop leaves maintenance
 fenced, including when the latest marker could not be written. Keep one

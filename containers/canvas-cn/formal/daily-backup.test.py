@@ -1,6 +1,9 @@
 """Daily handover recovers service and replication before archiving."""
 import importlib.util
 import pathlib
+import hashlib
+import json
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -32,12 +35,34 @@ class Host:
 
 
 class DailyTest(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.serving = pathlib.Path(self.directory.name)
+        (self.serving / 'release.json').write_text('{"files":{}}')
     def test_sync_can_remove_restart_fence_before_compression_finishes(self):
         host = Host()
         with patch.object(daily.release, 'smoke', return_value=True):
-            daily.daily(host)
+            daily.daily(host, self.serving)
         self.assertLess(host.events.index('resume'), host.events.index('sync'))
         self.assertLess(host.events.index('sync'), host.events.index('archive'))
+
+    def test_restarting_on_an_empty_store_cannot_release_the_held_entrance(self):
+        declaration = b'{"read":1,"write":0}'
+        name = daily.release._maintenance.OPERATION_FORMAT
+        (self.serving / name).write_bytes(declaration)
+        (self.serving / 'release.json').write_text(json.dumps({'files': {name: hashlib.sha256(declaration).hexdigest()}}))
+        class ManagedHost(Host):
+            def hold(self, reader=None): self.event('hold')
+            def seal_operation_inventory(self, pending): self.event('seal')
+        host = ManagedHost()
+        pending = [{'operationVersion': 1, 'count': 1, 'blocked': 0}]
+        with patch.object(daily.release, 'smoke', return_value=True), \
+                patch.object(daily.release._maintenance, 'project_operations', side_effect=[pending, [], []]):
+            with self.assertRaisesRegex(RuntimeError, 'backup-runtime-not-ready'):
+                daily.daily(host, self.serving)
+        self.assertNotIn('resume', host.events)
+        self.assertNotIn('archive', host.events)
 
     def test_slow_start_gets_same_readiness_budget_as_release(self):
         host = Host()
@@ -63,14 +88,14 @@ class DailyTest(unittest.TestCase):
         with patch.object(daily.release.urllib.request, 'build_opener', return_value=Opener()), \
              patch.object(pathlib.Path, 'read_text', return_value='test-token'), \
              patch.object(daily.release.time, 'sleep'):
-            daily.daily(host)
+            daily.daily(host, self.serving)
         self.assertIn('archive', host.events)
 
     def test_failed_restart_still_restores_paused_timers(self):
         host = Host('start')
         with patch.object(daily.release, 'smoke', return_value=False):
             with self.assertRaises(OSError):
-                daily.daily(host)
+                daily.daily(host, self.serving)
         self.assertIn('sync', host.events)
         self.assertNotIn('resume', host.events)
         self.assertNotIn('archive', host.events)

@@ -80,6 +80,16 @@ async function projectReceipt(port, action, ticket, signal, address) {
     }
     if (limited) return { rateLimitBody: Buffer.from(input, "latin1") };
     const proof = JSON.parse(input);
+    if (action === "handoff") {
+      return proof.version === 2 &&
+        proof.ticket === ticket &&
+        proof.state === "handed-off" &&
+        proof.operationVersion === 1 &&
+        typeof proof.operation === "string" &&
+        hexDigest.test(proof.operation)
+        ? "handed-off"
+        : "unknown";
+    }
     if (
       proof.version === 1 &&
       proof.ticket === ticket &&
@@ -217,10 +227,12 @@ export function createIngress({
   queueMs = 5_000,
   drainMs = 3_000,
   receiptRetryMs = 30_000,
+  supportsProjectHandoff = () => false,
+  initiallyHeld = false,
   uncertaintyRecords = [],
   onUncertaintyChange = () => {},
 } = {}) {
-  let holding = false;
+  let holding = initiallyHeld;
   let uncertainWrites = new Map(
     uncertaintyRecords.map((record) => [
       record.projectTicket
@@ -262,15 +274,29 @@ export function createIngress({
     )
       return;
     lookingUp.add(ticket);
-    const state = await projectReceipt(
+    let state = await projectReceipt(
       upstreamPort,
       "settle",
       ticket,
       stopReceipts.signal,
     );
+    if (
+      state === "claimed" &&
+      !stopReceipts.signal.aborted &&
+      supportsProjectHandoff()
+    ) {
+      // Only the store can withdraw the old executor's write authority and
+      // accept durable responsibility for this exact ticket.
+      state = await projectReceipt(
+        upstreamPort,
+        "handoff",
+        ticket,
+        stopReceipts.signal,
+      );
+    }
     lookingUp.delete(ticket);
     if (stopReceipts.signal.aborted) return;
-    if (state === "committed" || state === "denied") {
+    if (state === "committed" || state === "denied" || state === "handed-off") {
       const remaining = new Map(uncertainWrites);
       remaining.delete(key);
       if (persistUncertainty(remaining)) uncertainWrites = remaining;
@@ -770,14 +796,47 @@ export function createIngress({
   };
 }
 
+// The old release runner knows only /hold. Refuse it even when this release's
+// declared capability file is missing or its manifest cannot be read.
+function declaresProjectOperations(release) {
+  try {
+    const files = JSON.parse(
+      readFileSync(release + "/release.json", "utf8"),
+    ).files;
+    return (
+      files === null ||
+      typeof files !== "object" ||
+      Array.isArray(files) ||
+      Object.hasOwn(files, "project-create-operation-format.json")
+    );
+  } catch {
+    return true;
+  }
+}
+
 // This control socket is never exposed through nginx or a TCP listener.
 export async function serveIngress({
   port = 8794,
   controlPath = "/run/canvas-cn-ingress/control.sock",
   uncertaintyPath = "/var/lib/canvas-cn-ingress/uncertain-write",
+  release = "/opt/analog-canvas/current-formal",
+  supportsProjectHandoff = () =>
+    existsSync(release + "/project-create-operation-format.json"),
   ...options
 } = {}) {
   const running = uncertaintyPath + ".running";
+  const managedHold = uncertaintyPath + ".operation-hold";
+  let operationReader = null;
+  let operationInventory = null;
+  try {
+    const stored = /^([01])(?:\n([0-9a-f]{64}))?$/u.exec(
+      readFileSync(managedHold, "utf8"),
+    );
+    operationReader = stored ? Number(stored[1]) : -1;
+    operationInventory = stored?.[2] ?? null;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   const interrupted =
     existsSync(running) || existsSync(uncertaintyPath + ".next");
   const uncertaintyRecords = loadUncertainty(uncertaintyPath);
@@ -797,6 +856,8 @@ export async function serveIngress({
   let stateStored = !interrupted;
   const ingress = createIngress({
     ...options,
+    supportsProjectHandoff,
+    initiallyHeld: operationReader !== null,
     uncertaintyRecords,
     onUncertaintyChange(records) {
       stateStored = false;
@@ -807,18 +868,77 @@ export async function serveIngress({
   const control = http.createServer(async (req, res) => {
     req.resume();
     if (req.method === "GET" && req.url === "/status") {
-      res
-        .writeHead(200, { "Content-Type": "application/json" })
-        .end(JSON.stringify(ingress.status()));
+      res.writeHead(200, { "Content-Type": "application/json" }).end(
+        JSON.stringify({
+          ...ingress.status(),
+          operationReader,
+          operationInventory,
+        }),
+      );
       return;
     }
     if (req.method !== "POST") {
       res.writeHead(405).end();
       return;
     }
-    if (req.url === "/hold")
-      res.writeHead((await ingress.hold()) ? 200 : 409).end();
-    else if (req.url === "/resume") {
+    const managed = /^\/hold-project-operations\/(0|1)$/u.exec(req.url);
+    const seal = /^\/seal-project-operations\/([0-9a-f]{64})$/u.exec(req.url);
+    if (seal) {
+      if (
+        operationReader === null ||
+        operationReader < 0 ||
+        (operationInventory !== null && operationInventory !== seal[1])
+      )
+        return res.writeHead(409).end();
+      // Atomic replacement preserves the unsealed hold if recording fails.
+      try {
+        writeFileSync(managedHold + ".next", operationReader + "\n" + seal[1], {
+          mode: 0o600,
+          flush: true,
+        });
+        renameSync(managedHold + ".next", managedHold);
+        operationInventory = seal[1];
+      } catch {
+        return res.writeHead(503).end();
+      }
+      return res.writeHead(200).end();
+    }
+    if (managed && operationReader !== null) return res.writeHead(409).end();
+    if (
+      req.url === "/hold" &&
+      (supportsProjectHandoff() ||
+        operationReader !== null ||
+        declaresProjectOperations(release))
+    )
+      res.writeHead(409).end();
+    else if (req.url === "/hold" || managed) {
+      if (!(await ingress.hold())) return res.writeHead(409).end();
+      if (managed) {
+        try {
+          writeFileSync(managedHold, managed[1], { mode: 0o600, flush: true });
+          operationReader = Number(managed[1]);
+        } catch {
+          ingress.resume();
+          return res.writeHead(503).end();
+        }
+      }
+      res.writeHead(200).end();
+    } else if (req.url === "/resume" && operationReader !== null) {
+      res.writeHead(409).end();
+    } else if (
+      req.url === "/resume" ||
+      req.url === "/resume-project-operations"
+    ) {
+      if (operationReader !== null) {
+        if (operationReader < 0) return res.writeHead(409).end();
+        try {
+          rmSync(managedHold);
+        } catch {
+          return res.writeHead(503).end();
+        }
+        operationReader = null;
+        operationInventory = null;
+      }
       ingress.resume();
       res.writeHead(200).end();
     } else res.writeHead(404).end();

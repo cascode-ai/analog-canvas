@@ -7,23 +7,26 @@ release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 
 
-def daily(host=None):
+def daily(host=None, serving=pathlib.Path('/opt/analog-canvas/current-formal')):
     host = host or release.Host()
-    serving = pathlib.Path('/opt/analog-canvas/current-formal').resolve()
+    serving = serving.resolve()
     credentials = pathlib.Path('/etc/analog-canvas-formal')
     held, stopped = False, False
     try:
         host.recover_entrance('http://127.0.0.1:8792', credentials)
         host.backup(serving)
         host.pause_background()
-        host.hold()
+        operations = release.hold_operations(host, 'http://127.0.0.1:8792', serving, serving)
+        inventory = release._maintenance.inventory_digest(operations) if operations is not None else None
         held = True
         stopped = True
         host.systemctl('stop', 'canvas-cn-formal.service')
-        host.capture(serving)
+        host.capture(serving, operations)
         host.systemctl('start', 'canvas-cn-formal.service')
         stopped = False
-        if not release.smoke('http://127.0.0.1:8792', credentials):
+        required = release._maintenance.required_reader(operations or [])
+        if (not release.smoke('http://127.0.0.1:8792', credentials) or
+                not release.operation_reader_ready('http://127.0.0.1:8792', serving, required, inventory)):
             raise RuntimeError('backup-runtime-not-ready')
         host.resume()
         held = False
@@ -33,7 +36,9 @@ def daily(host=None):
         try:
             if stopped:
                 host.systemctl('start', 'canvas-cn-formal.service')
-            if held and release.smoke('http://127.0.0.1:8792', credentials):
+            if (held and release.smoke('http://127.0.0.1:8792', credentials) and
+                    release.operation_reader_ready('http://127.0.0.1:8792', serving,
+                                                   release._maintenance.required_reader(operations or []), inventory)):
                 host.resume()
         finally:
             try:

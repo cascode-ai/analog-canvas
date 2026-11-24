@@ -224,6 +224,15 @@ export async function createRegionalRelease(dist, sha, work, options = {}) {
     join(root, "packages/project-protocol/src/file-format.json"),
     join(target, "project-format.json"),
   );
+  // Reader releases publish their Worker's own declaration. Older source
+  // trees have no operation protocol in the signed release manifest.
+  const operationFormat = "project-create-operation-format.json";
+  await copyFile(
+    join(root, "worker", operationFormat),
+    join(target, operationFormat),
+  ).catch((error) => {
+    if (error.code !== "ENOENT") throw error;
+  });
   const build = options.bundle ?? bundle;
   await (options.bundleWorker ?? bundleWorker)(
     join(FORMAL, "bundle.jsonc"),

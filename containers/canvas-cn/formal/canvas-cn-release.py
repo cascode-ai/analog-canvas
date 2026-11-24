@@ -13,6 +13,7 @@ import argparse
 import importlib.util
 import concurrent.futures
 import hashlib
+import http.client
 import json
 import os
 import pathlib
@@ -169,10 +170,12 @@ def carry_previous_assets(current, target):
 class Host:
     """The privileged operations; replaced in tests."""
 
-    def __init__(self, run=subprocess.run, maintenance_dir=pathlib.Path('/var/lib/canvas-cn-maintenance')):
+    def __init__(self, run=subprocess.run, maintenance_dir=pathlib.Path('/var/lib/canvas-cn-maintenance'),
+                 current_release=pathlib.Path('/opt/analog-canvas/current-formal'), local='http://127.0.0.1:8792'):
         self.run = run
         self.snapshot = None
         self.maintenance_dir = pathlib.Path(maintenance_dir)
+        self.current_release, self.local = current_release, local
 
     def systemctl(self, *args, check=True):
         return self.run(['systemctl', *args], check=check, capture_output=True)
@@ -183,6 +186,13 @@ class Host:
     def uncertain_write(self):
         return entrance('status')['uncertain']
 
+    def held_operations(self):
+        status = entrance('status')
+        return status.get('operationReader'), status.get('operationInventory')
+
+    def seal_operation_inventory(self, pending):
+        entrance('seal-project-operations/' + _maintenance.inventory_digest(pending))
+
     def backup(self, release):
         if not pathlib.Path('/run/canvas-cn-ingress/control.sock').is_socket():
             raise ReleaseError('entrance-not-installed')
@@ -191,7 +201,7 @@ class Host:
         self.snapshot = Snapshot()
         self.snapshot.prepare()
 
-    def hold(self):
+    def hold(self, reader=None):
         # A timer being stopped does not finish an already running tick.
         # Keep serving while a bounded sync tick finishes; the entrance's
         # separate 3-second request drain starts only after this wait.
@@ -204,7 +214,7 @@ class Host:
                 raise ReleaseError('background-busy')
             time.sleep(.05)
         try:
-            entrance('hold')
+            entrance('hold-project-operations/' + str(reader) if reader is not None else 'hold')
         except RuntimeError:
             if entrance('status')['uncertain']:
                 raise ReleaseError('uncertain-write')
@@ -222,6 +232,8 @@ class Host:
         record = self.maintenance_dir / 'paused.json'
         if not record.exists():
             return
+        if pathlib.Path(_maintenance.CONTROL).is_socket() and entrance('status').get('operationReader') is not None:
+            return
         paused = json.loads(record.read_text())
         if not isinstance(paused, list) or any(timer not in SYNC_TIMERS for timer in paused):
             raise ReleaseError('invalid-paused-timers')
@@ -229,11 +241,22 @@ class Host:
             self.systemctl('start', timer)
         record.unlink()
 
-    def capture(self, serving):
-        self.snapshot.capture(serving / 'release.json')
+    def capture(self, serving, pending=None):
+        self.snapshot.capture(serving / 'release.json', pending)
 
     def resume(self):
-        entrance('resume')
+        required, inventory = self.held_operations()
+        if required is None:
+            entrance('resume')
+            return
+        if (type(required) is not int or required not in (0, 1) or
+                not operation_reader_ready(self.local, self.current_release, required, inventory)):
+            raise ReleaseError('incompatible-project-operation-format')
+        entrance('resume-project-operations')
+
+    def cancel_operation_hold(self):
+        # The caller still owns the lock and has not stopped or switched any process.
+        entrance('resume-project-operations')
 
     def finish_backup(self):
         self.snapshot.publish()
@@ -245,13 +268,19 @@ class Host:
     def recover_entrance(self, local, credentials):
         if not pathlib.Path('/run/canvas-cn-ingress/control.sock').is_socket():
             return
-        if not entrance('status')['holding'] and not (self.maintenance_dir / 'paused.json').exists():
+        status = entrance('status')
+        if not status['holding'] and not (self.maintenance_dir / 'paused.json').exists():
             return
+        required = status.get('operationReader')
+        if (required is not None and
+                (type(required) is not int or required not in (0, 1) or
+                 _maintenance.operation_format(self.current_release)[0] < required)):
+            raise ReleaseError('incompatible-project-operation-format')
         if not self.active('canvas-cn-formal.service'):
             self.systemctl('start', 'canvas-cn-formal.service')
         if not smoke(local, credentials):
             raise ReleaseError('release-failed')
-        entrance('resume')
+        self.resume()
         self.resume_background()
 
     def nginx_reload(self):
@@ -428,8 +457,42 @@ def compatible_project_formats(serving, candidate):
     return new['read'] >= old['read'] and old['write'] <= new['write'] <= old['read']
 
 
+def hold_operations(host, local, serving, candidate):
+    old = _maintenance.operation_format(serving)
+    new = _maintenance.operation_format(candidate)
+    if not (old[0] or new[0]):
+        host.hold()
+        return None
+    host.hold(reader=max(min(old[0], new[0]), old[1], new[1]))
+    try:
+        pending = _maintenance.project_operations(local, old)
+        if _maintenance.required_reader(pending) > new[0]:
+            raise ReleaseError('incompatible-project-operation-format')
+        host.seal_operation_inventory(pending)
+        return pending if old[0] else None
+    except Exception as error:
+        host.cancel_operation_hold()
+        if isinstance(error, ReleaseError):
+            raise
+        raise ReleaseError('project-operation-proof-unavailable') from error
+
+
+def operation_reader_ready(local, release, required=0, inventory=None):
+    try:
+        fmt = _maintenance.operation_format(release)
+        if fmt[0] < required:
+            return False
+        if not fmt[0] and inventory is None:
+            # Legacy-only handovers predate managed operation inventories.
+            return True
+        pending = _maintenance.project_operations(local, fmt)
+        return inventory is None or _maintenance.inventory_digest(pending) == inventory
+    except (OSError, ValueError, http.client.HTTPException):
+        return False
+
+
 def tick(args, host=None, fetcher=None, now=None):
-    host = host or Host()
+    host = host or Host(current_release=pathlib.Path(args.current), local=args.local)
     fetcher = fetcher or Fetcher(args.origin)
     now = time.time() if now is None else now
     state_path = pathlib.Path(args.state)
@@ -447,12 +510,20 @@ def tick(args, host=None, fetcher=None, now=None):
     if not (serving / VERIFIED).exists():
         # A runner stopped between switch and smoke left this release unproved.
         previous = state.get('previous')
+        journal = state.get('operationReader', 0)
+        floor, inventory = host.held_operations()
+        if (type(journal) is not int or journal not in (0, 1) or
+                floor is not None and (type(floor) is not int or floor not in (0, 1))):
+            raise ReleaseError('incompatible-project-operation-format')
+        required = max(journal, floor or 0)
         if smoke(args.local, credentials, attempts=args.smoke_attempts,
-                 require_memory=(serving / 'memory.mjs').is_file()):
+                 require_memory=(serving / 'memory.mjs').is_file()) and operation_reader_ready(args.local, serving, required, inventory):
             (serving / VERIFIED).write_text('')
             host.recover_entrance(args.local, credentials)
         elif previous and pathlib.Path(previous).is_dir() and pathlib.Path(previous) != serving:
             previous = pathlib.Path(previous)
+            if _maintenance.operation_format(previous)[0] < max(required, _maintenance.operation_format(serving)[1]):
+                raise ReleaseError('incompatible-project-operation-format')
             restored_site = nginx_config(previous, public_settings())
             if not site.is_file() or site.read_bytes() != restored_site:
                 write_nginx_site(site, restored_site)
@@ -518,6 +589,13 @@ def tick(args, host=None, fetcher=None, now=None):
         if path.is_file() and path.relative_to(partial).as_posix() not in manifest['files']:
             path.unlink()
     downloaded = assemble(fetcher, manifest, serving, partial)
+    old_format = _maintenance.operation_format(serving)
+    new_format = _maintenance.operation_format(partial, manifest)
+    # Readers land first. Both the target and automatic rollback must be able
+    # to read what either runtime can write during an interrupted handover.
+    if old_format[0] < new_format[1] or new_format[0] < old_format[1]:
+        return dict(result, health='failed', reason='release-failed', status='incompatible-project-operation-format',
+                    failedCommit=commit, failedReason='release-failed')
     if not compatible_project_formats(serving, partial):
         return dict(result, health='failed', reason='release-failed', status='incompatible-project-format',
                     failedCommit=commit, failedReason='release-failed')
@@ -552,16 +630,20 @@ def tick(args, host=None, fetcher=None, now=None):
             return dict(result, status='source-changed', pending={})
         host.pause_background()
         try:
-            host.hold()
+            operations = hold_operations(host, args.local, serving, target)
         except Exception as error:
             if isinstance(error, ReleaseError) and error.reason == 'uncertain-write':
                 return dict(result, health='failed', reason='release-failed', status='uncertain-write')
+            if isinstance(error, ReleaseError) and error.reason in ('incompatible-project-operation-format', 'project-operation-proof-unavailable'):
+                return dict(result, health='failed', reason='release-failed', status=error.reason)
             return dict(result, status='handover-deferred', pending=pending)
         try:
             # Persisted before switching, so an interrupted runner can roll back.
-            save(state_path, dict(state, previous=str(serving), installing=commit))
+            required = _maintenance.required_reader(operations or [])
+            inventory = _maintenance.inventory_digest(operations or []) if old_format[0] or new_format[0] else None
+            save(state_path, dict(state, previous=str(serving), installing=commit, operationReader=required))
             host.systemctl('stop', 'canvas-cn-formal.service')
-            host.capture(serving)
+            host.capture(serving, operations)
             install_units(target, unit_dir, host, changed, added)
             nginx_new = nginx_config(target, public_settings())
             if nginx_new != nginx_before:
@@ -573,7 +655,7 @@ def tick(args, host=None, fetcher=None, now=None):
                 host.systemctl('restart', 'canvas-cn-operator.service')
             host.systemctl('start', 'canvas-cn-formal.service')
             ok = smoke(args.local, credentials, attempts=args.smoke_attempts,
-                       require_memory=(target / 'memory.mjs').is_file())
+                       require_memory=(target / 'memory.mjs').is_file()) and operation_reader_ready(args.local, target, required, inventory)
         except Exception:
             ok = False
         if ok:
@@ -599,6 +681,8 @@ def tick(args, host=None, fetcher=None, now=None):
                         status='installed', serving=commit, previous=str(serving),
                         downloadedBytes=downloaded, lastCaughtUpAt=now)
         # Restore the serving release exactly: link, units, nginx site, processes.
+        if _maintenance.operation_format(serving)[0] < max(required, new_format[1]):
+            raise ReleaseError('incompatible-project-operation-format')
         host.systemctl('stop', 'canvas-cn-formal.service', check=False)
         switch(current, serving)
         for name in changed + added:
@@ -620,7 +704,7 @@ def tick(args, host=None, fetcher=None, now=None):
             host.systemctl('restart', 'canvas-cn-operator.service', check=False)
         host.systemctl('restart', 'canvas-cn-formal.service', check=False)
         restored = smoke(args.local, credentials, attempts=args.smoke_attempts,
-                         require_memory=(serving / 'memory.mjs').is_file())
+                         require_memory=(serving / 'memory.mjs').is_file()) and operation_reader_ready(args.local, serving, required, inventory)
         if restored:
             host.resume()
         return dict(result, health='failed', reason='release-rolled-back' if restored else 'release-failed',
@@ -681,6 +765,16 @@ def main():
     for key in ['lastCaughtUpAt', 'failedCommit', 'failedReason', 'previous', 'archivePending']:
         if key not in result and key in previous:
             result[key] = previous[key]
+    if 'status' not in result and state_path.exists():
+        # The interrupted attempt can have saved a newer journal inside tick().
+        try:
+            journal = json.loads(state_path.read_text())
+        except (OSError, ValueError):
+            journal = previous
+        if journal.get('installing'):
+            for field in ('installing', 'operationReader', 'previous'):
+                if field in journal:
+                    result[field] = journal[field]
     save(state_path, result)
     print(json.dumps(result))
     return 0 if result['health'] == 'ok' else 1

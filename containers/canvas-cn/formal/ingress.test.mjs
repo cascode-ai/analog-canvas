@@ -1,12 +1,88 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import { once } from "node:events";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { createIngress, serveIngress } from "./ingress.mjs";
+
+test("a durable fenced handoff releases only its attempt and makes room for an unrelated create", async (t) => {
+  const tickets = Array.from({ length: 128 }, (_, i) =>
+    i.toString(16).padStart(64, "0"),
+  );
+  const retained = tickets.map((projectTicket) => ({
+    category: "projects",
+    at: "2026-11-24",
+    projectTicket,
+  }));
+  let records = retained,
+    newTicket;
+  const backend = http.createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    if (req.url === "/__regional/project-create-receipt") {
+      const { action, ticket } = JSON.parse(body);
+      if (action === "register") newTicket = ticket;
+      res.end(
+        JSON.stringify(
+          action === "handoff"
+            ? {
+                version: 2,
+                ticket: tickets[0],
+                operationVersion: 1,
+                operation: "a".repeat(64),
+                state: "handed-off",
+              }
+            : {
+                version: 1,
+                ticket,
+                state:
+                  action === "register"
+                    ? "registered"
+                    : ticket === newTicket
+                      ? "committed"
+                      : "claimed",
+              },
+        ),
+      );
+    } else
+      res
+        .writeHead(201, { "x-icm-project-create-protocol": "1" })
+        .end("created");
+  });
+  const ingress = createIngress({
+    upstreamPort: await listen(backend),
+    receiptRetryMs: 5,
+    supportsProjectHandoff: () => true,
+    uncertaintyRecords: retained,
+    onUncertaintyChange: (value) => {
+      records = value;
+    },
+  });
+  const port = await listen(ingress.server);
+  t.onTestFinished(async () => {
+    await ingress.close();
+    backend.closeAllConnections();
+    backend.close();
+  });
+  await vi.waitFor(() => assert.equal(records.length, 127));
+  assert.equal(
+    records.some((r) => r.projectTicket === tickets[0]),
+    false,
+  );
+  assert.equal(
+    (
+      await request(port, "/api/projects", "synthetic", {
+        cookie: "icm_session=test",
+        "idempotency-key": "new-project",
+      })
+    ).status,
+    201,
+  );
+  assert.equal(await ingress.hold(), false);
+});
 
 test("a lost Cloud Project response reconciles from its private receipt without repeating the creation", async (t) => {
   let ticket;
@@ -778,6 +854,72 @@ test("only confirmed receipts for each exact interrupted Agent write release mai
 });
 
 test.skipIf(process.platform === "win32")(
+  "an operation-aware maintenance hold survives an entrance restart and refuses a legacy runner",
+  async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "canvas-operation-hold-"));
+    const options = {
+      port: 0,
+      release: root,
+      controlPath: join(root, "control.sock"),
+      uncertaintyPath: join(root, "uncertain-write"),
+    };
+    let runtime = await serveIngress(options);
+    t.onTestFinished(async () => {
+      await runtime.stop();
+      await rm(root, { recursive: true, force: true });
+    });
+    const control = (path) =>
+      new Promise((resolve, reject) => {
+        const check = http.request(
+          {
+            socketPath: options.controlPath,
+            path,
+            method: path === "/status" ? "GET" : "POST",
+          },
+          async (reply) => {
+            let body = "";
+            for await (const chunk of reply) body += chunk;
+            resolve({ code: reply.statusCode, body });
+          },
+        );
+        check.on("error", reject);
+        check.end();
+      });
+    await writeFile(join(root, "release.json"), '{"files":[]}');
+    assert.equal((await control("/hold")).code, 409);
+    await writeFile(
+      join(root, "release.json"),
+      '{"files":{"project-create-operation-format.json":"declared"}}',
+    );
+    assert.equal((await control("/hold")).code, 409);
+    assert.equal((await control("/hold-project-operations/1")).code, 200);
+    const digest = "a".repeat(64);
+    assert.equal(
+      (await control("/seal-project-operations/" + digest)).code,
+      200,
+    );
+    assert.equal(
+      (await control("/seal-project-operations/" + "b".repeat(64))).code,
+      409,
+    );
+    await runtime.stop();
+    runtime = await serveIngress(options);
+    const status = JSON.parse((await control("/status")).body);
+    assert.equal(status.holding, true);
+    assert.equal(status.operationReader, 1);
+    assert.equal(status.operationInventory, digest);
+    assert.equal((await control("/hold-project-operations/0")).code, 409);
+    assert.equal((await control("/resume")).code, 409);
+    assert.equal((await control("/resume-project-operations")).code, 200);
+    assert.equal(JSON.parse((await control("/status")).body).holding, false);
+    assert.equal(
+      JSON.parse((await control("/status")).body).operationInventory,
+      null,
+    );
+  },
+);
+
+test.skipIf(process.platform === "win32")(
   "the control socket preserves a failed journal write across an ingress restart",
   async (t) => {
     const root = await mkdtemp(join(tmpdir(), "canvas-ingress-"));
@@ -787,7 +929,9 @@ test.skipIf(process.platform === "win32")(
       for await (const chunk of req) void chunk;
       req.socket.destroy();
     });
+    await writeFile(join(root, "release.json"), '{"files":{}}');
     const options = {
+      release: root,
       upstreamPort: await listen(backend),
       port: 0,
       controlPath,

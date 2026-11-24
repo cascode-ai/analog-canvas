@@ -19,6 +19,44 @@ spec.loader.exec_module(maintenance)
 Snapshot = maintenance.Snapshot
 
 
+class OperationReaderTest(unittest.TestCase):
+    def test_a_legacy_declaration_requires_a_live_v1_receipt_reader(self):
+        upgraded = False
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def do_POST(self):
+                request = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                if request['action'] == 'capabilities' and not upgraded:
+                    self.send_response(400)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.end_headers()
+                body = ({'version':2, 'operationVersions':[1], 'writeVersion':1, 'pending':[]}
+                        if upgraded else {'version':1, 'ticket':request['ticket'], 'state':'unknown'})
+                self.wfile.write(json.dumps(body).encode())
+        with http.server.HTTPServer(('127.0.0.1', 0), Handler) as server:
+            url = f'http://127.0.0.1:{server.server_port}'
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+            try:
+                self.assertEqual(maintenance.project_operations(url, (0, 0)), [])
+                upgraded = True
+                with self.assertRaisesRegex(ValueError, 'capabilities-unavailable'):
+                    maintenance.project_operations(url, (0, 0))
+            finally:
+                server.shutdown()
+                thread.join()
+        with self.assertRaises(OSError):
+            maintenance.project_operations(url, (0, 0))
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, 'invalid-operation-release-manifest'):
+                maintenance.operation_format(pathlib.Path(folder), {})
+            with self.assertRaisesRegex(ValueError, 'invalid-operation-declaration-digest'):
+                maintenance.operation_format(pathlib.Path(folder), {'files': {maintenance.OPERATION_FORMAT: None}})
+
+
 @unittest.skipUnless(os.name == 'posix', 'requires a Unix socket')
 class EntranceTest(unittest.TestCase):
     def test_status_hold_refusal_and_resume_use_the_private_http_socket(self):
@@ -59,6 +97,42 @@ class EntranceTest(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which('rsync'), 'requires Linux rsync')
 class SnapshotTest(unittest.TestCase):
+    def test_restore_preserves_pending_input_and_receipt_and_refuses_a_legacy_reader(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as folder:
+            root = pathlib.Path(folder)
+            data = root / 'data'
+            (data / 'state/projects').mkdir(parents=True)
+            (data / 'artifacts').mkdir()
+            db = data / 'state/projects/synthetic.sqlite'
+            with sqlite3.connect(db) as store:
+                store.execute('CREATE TABLE intents (payload TEXT, receipt TEXT)')
+                store.execute('INSERT INTO intents VALUES (?,?)', ('synthetic drawing', 'synthetic receipt'))
+            release, legacy = root / 'reader', root / 'legacy'
+            release.mkdir()
+            legacy.mkdir()
+            declaration = b'{"read":1,"write":0}'
+            (release / maintenance.OPERATION_FORMAT).write_bytes(declaration)
+            (release / 'release.json').write_text(json.dumps({'commit':'a'*40, 'files':{
+                maintenance.OPERATION_FORMAT:hashlib.sha256(declaration).hexdigest()}}))
+            (legacy / 'release.json').write_text('{"files":{}}')
+            pending = [{'operationVersion':1,'count':1,'blocked':0}]
+            backup = Snapshot(data, root / 'backups')
+            backup.prepare()
+            backup.capture(release / 'release.json', pending)
+            result = backup.publish()
+            with self.assertRaisesRegex(ValueError, 'incompatible-restore-reader'):
+                maintenance.verify_operation_restore(result, legacy)
+            self.assertEqual(maintenance.verify_operation_restore(result, release), pending)
+            restored = root / 'restored.sqlite'
+            with tarfile.open(result / 'state.tar.gz') as archive:
+                restored.write_bytes(archive.extractfile('state/projects/synthetic.sqlite').read())
+            with sqlite3.connect(restored) as store:
+                self.assertEqual(store.execute('SELECT * FROM intents').fetchall(), [('synthetic drawing','synthetic receipt')])
+            with patch.object(maintenance, 'project_operations', return_value=[]):
+                with self.assertRaisesRegex(ValueError, 'inventory-mismatch'):
+                    maintenance.verify_operation_restore(result, release, 'http://127.0.0.1:8792')
+
     @unittest.skipUnless(os.name == 'posix', 'requires Linux I/O accounting')
     def test_small_edit_to_large_database_fits_the_stopped_write_budget(self):
         import resource
@@ -75,7 +149,7 @@ class SnapshotTest(unittest.TestCase):
             db = data / 'state' / 'gallery' / ('a' * 64 + '.sqlite')
             db.write_bytes(b'A' * (32 * 1024 * 1024))
             record = root / 'release.json'
-            record.write_text('{}')
+            record.write_text('{"files":{}}')
             snapshot = Snapshot(data, root / 'backups')
             with db.open('r+b') as dbfile, mmap.mmap(dbfile.fileno(), 0) as mapped:
                 before = output_bytes()
@@ -113,7 +187,7 @@ class SnapshotTest(unittest.TestCase):
             recent = past('20261111T060000Z-release', 'c')
             past('20261111T070000Z-release', 'd')
             record = root / 'release.json'
-            record.write_text(json.dumps({'commit': 'e' * 40}))
+            record.write_text(json.dumps({'commit': 'e' * 40, 'files': {}}))
             data = root / 'data'
             (data / 'state').mkdir(parents=True)
             (data / 'artifacts').mkdir()
@@ -154,7 +228,7 @@ class SnapshotTest(unittest.TestCase):
             asset = os.urandom(9 * 1024**2)
             (data / 'artifacts' / 'image').write_bytes(asset)
             record = root / 'release.json'
-            record.write_text('{}')
+            record.write_text('{"files":{}}')
             snapshot = Snapshot(data, backups)
             snapshot.prepare()
             snapshot.capture(record)
@@ -188,7 +262,7 @@ class SnapshotTest(unittest.TestCase):
             db = data / 'state' / 'mapped.sqlite'
             db.write_bytes(b'init')
             record = root / 'release.json'
-            record.write_text('{"commit":"old"}')
+            record.write_text('{"commit":"old","files":{}}')
             snapshot = Snapshot(data, root / 'backups')
             with db.open('r+b') as file, mmap.mmap(file.fileno(), 0) as mapped:
                 mapped[:] = b'base'
@@ -209,7 +283,7 @@ class SnapshotTest(unittest.TestCase):
             db.write_bytes(b'before')
             (data / 'state' / 'deleted').write_text('obsolete')
             record = root / 'release.json'
-            record.write_text('{"commit":"old"}')
+            record.write_text('{"commit":"old","files":{}}')
             snapshot = Snapshot(data, root / 'backups')
             snapshot.prepare()
             self.assertEqual(list((root / 'backups').glob('20*')), [])
