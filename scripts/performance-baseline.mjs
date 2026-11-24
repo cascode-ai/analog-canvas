@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { pathToFileURL } from "node:url";
 import { cpus } from "node:os";
+import { createBoundLabelProject } from "./lib/diagnostic-scaling-fixtures.mjs";
 import { editSampling } from "./lib/edit-performance.mjs";
 import { compareEditPerformance } from "./lib/edit-performance-comparison.mjs";
 
@@ -13,11 +14,7 @@ import {
   parseProjectSnapshot,
 } from "../packages/edit-engine/dist/index.js";
 import { buildProjectConnectivityIndex } from "../packages/derived/dist/index.js";
-import {
-  CircuitProjectSchema,
-  createEmptyProject,
-  createRoutePath,
-} from "../packages/model/dist/index.js";
+import { CircuitProjectSchema } from "../packages/model/dist/index.js";
 import { serializeProject } from "../packages/project-protocol/dist/index.js";
 import { renderDocumentSvg } from "../packages/render-svg/dist/index.js";
 import { importSpiceSources } from "../packages/spice/dist/index.js";
@@ -96,59 +93,12 @@ const generated = await measure(createEditPerformanceProject);
 const project = generated.result;
 let document = project.documents[0];
 const resolver = new InMemorySymbolResolver(builtInSymbols);
-const connectivityProject = createEmptyProject(
+const connectivityProject = createBoundLabelProject(
+  200,
   "connectivity-performance",
   "Connectivity Performance",
 );
 const connectivityDocument = connectivityProject.documents[0];
-for (let index = 0; index < 200; index += 1) {
-  const netId = `net-${index}`;
-  const leftJunctionId = `J${index}-left`;
-  const rightJunctionId = `J${index}-right`;
-  const y = index * 20;
-  connectivityDocument.nets.push({ id: netId, terminals: [] });
-  connectivityDocument.junctions.push(
-    { id: leftJunctionId, netId, position: { x: 0, y } },
-    { id: rightJunctionId, netId, position: { x: 40, y } },
-  );
-  const route = createRoutePath({
-    id: `route-${index}`,
-    netId,
-    start: { kind: "junction", junctionId: leftJunctionId },
-    end: { kind: "junction", junctionId: rightJunctionId },
-    bends: [],
-    modes: ["manual"],
-  });
-  connectivityDocument.routes.push(route);
-  const annotationId = `label-${index}`;
-  connectivityDocument.annotations.push({
-    id: annotationId,
-    kind: "net-label",
-    binding: { kind: "net-name", netId },
-    netId,
-    anchor: {
-      kind: "route",
-      routeId: route.id,
-      legId: route.legs[0].id,
-      t: 0.5,
-      normalOffset: 10,
-      direction: "forward",
-      orientation: "horizontal",
-      fallbackPosition: { x: 20, y: y - 10 },
-    },
-    alignment: "middle",
-    rotation: 0,
-    locked: false,
-  });
-  connectivityDocument.connectivityEvidence.push({
-    id: `claim-${index}`,
-    kind: "name-claim",
-    netId,
-    name: `NET_${index}`,
-    owner: { kind: "net-label", annotationId },
-    scope: "local",
-  });
-}
 const validatedConnectivityProject =
   CircuitProjectSchema.parse(connectivityProject);
 
