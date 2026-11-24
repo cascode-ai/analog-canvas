@@ -166,6 +166,17 @@ version and blocking state across an entrance restart. Before resuming
 traffic or sync, the runtime must return the same inventory. This also
 applies after a failed release rolls back and after the daily backup.
 
+The daily backup keeps its three-second drain. If only in-flight HTTP
+reads remain when that drain expires, the entrance returns `busy-drain`
+and resumes dispatch. The same daily service releases the normal release
+and backup locks, resumes replication and waits 60 seconds before its next
+attempt, then 180 seconds before a final attempt. Each attempt checks the
+current release again. The journal for `canvas-cn-formal-backup.service`
+records the deferral or final failure. Outstanding writes, a hold already
+in effect, storage errors and unrecognized refusals end the run immediately.
+The unit permits 96 minutes overall. After the first hour the scheduler
+declines a new attempt, leaving the original 30-minute backup budget intact.
+
 Use the existing host tools to distinguish waiting from a maintenance block.
 From the domestic host, POST `{"action":"capabilities"}` as JSON to
 `http://127.0.0.1:8792/__regional/project-create-receipt`. Each

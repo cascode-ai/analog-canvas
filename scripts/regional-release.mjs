@@ -46,6 +46,7 @@ export const RELEASE_SOURCES = [
   "formal-backup.sh",
   "maintenance.py",
   "daily-backup.py",
+  "daily-backup-schedule.py",
   "ingress.mjs",
   "canvas-cn-release.py",
   "scheduled-tick.py",

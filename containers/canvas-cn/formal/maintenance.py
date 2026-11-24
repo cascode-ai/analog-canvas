@@ -169,13 +169,32 @@ class ControlConnection(http.client.HTTPConnection):
         self.sock.connect(CONTROL)
 
 
+class HoldRefused(RuntimeError):
+    def __init__(self, reason):
+        super().__init__('entrance-hold-refused: ' + reason)
+        self.reason = reason
+
+
 def entrance(action):
     with closing(ControlConnection('localhost', timeout=8)) as connection:
         connection.request('GET' if action == 'status' else 'POST', '/' + action, body=b'')
         response = connection.getresponse()
-        body = response.read()
         if response.status != 200:
+            if (action in ('hold', 'hold-project-operations/0', 'hold-project-operations/1') and
+                    response.status in (409, 503) and response.getheader('Content-Type') == 'application/json'):
+                try:
+                    raw = response.read(257)
+                    body = json.loads(raw) if len(raw) <= 256 else None
+                except (UnicodeError, ValueError):
+                    body = None
+                if (isinstance(body, dict) and set(body) == {'version','reason'} and
+                        type(body['version']) is int and body['version'] == 1 and isinstance(body['reason'], str) and
+                        body['reason'] in ('busy-drain','active-write','uncertain-write','storage-error',
+                                           'already-held','incompatible-control') and
+                        (response.status == 409 or body['reason'] == 'storage-error')):
+                    raise HoldRefused(body['reason'])
             raise RuntimeError('entrance-' + action + '-refused')
+        body = response.read()
         return json.loads(body) if body else None
 
 

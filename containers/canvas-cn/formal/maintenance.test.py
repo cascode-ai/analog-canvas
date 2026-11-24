@@ -94,6 +94,33 @@ class EntranceTest(unittest.TestCase):
                     thread.join()
             self.assertEqual(seen, [('GET', '/status'), ('POST', '/hold'), ('POST', '/resume')])
 
+    def test_the_control_client_accepts_only_the_versioned_busy_reason_on_a_hold_conflict(self):
+        payload = b'{"version":1,"reason":"busy-drain"}'
+        status = 409
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args): pass
+            def do_POST(self):
+                self.send_response(status)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(payload)
+        with tempfile.TemporaryDirectory() as folder:
+            control = str(pathlib.Path(folder) / 'control.sock')
+            with socketserver.UnixStreamServer(control, Handler) as server, patch.object(maintenance, 'CONTROL', control):
+                thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=.01))
+                thread.start()
+                try:
+                    with self.assertRaises(maintenance.HoldRefused) as busy:
+                        maintenance.entrance('hold-project-operations/1')
+                    self.assertEqual(busy.exception.reason, 'busy-drain')
+                    for status, payload in ((503, payload), (409, b'{"version":true,"reason":"busy-drain"}'), (409, b'')):
+                        with self.assertRaises(RuntimeError) as unknown:
+                            maintenance.entrance('hold-project-operations/1')
+                        self.assertNotIsInstance(unknown.exception, maintenance.HoldRefused)
+                finally:
+                    server.shutdown()
+                    thread.join()
+
 
 @unittest.skipUnless(shutil.which('rsync'), 'requires Linux rsync')
 class SnapshotTest(unittest.TestCase):

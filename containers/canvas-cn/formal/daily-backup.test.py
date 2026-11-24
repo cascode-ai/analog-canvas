@@ -3,6 +3,8 @@ import importlib.util
 import pathlib
 import hashlib
 import json
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -10,6 +12,9 @@ from unittest.mock import patch
 spec = importlib.util.spec_from_file_location('daily', pathlib.Path(__file__).with_name('daily-backup.py'))
 daily = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(daily)
+spec = importlib.util.spec_from_file_location('scheduler', pathlib.Path(__file__).with_name('daily-backup-schedule.py'))
+scheduler = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(scheduler)
 
 
 class Host:
@@ -46,6 +51,56 @@ class DailyTest(unittest.TestCase):
             daily.daily(host, self.serving)
         self.assertLess(host.events.index('resume'), host.events.index('sync'))
         self.assertLess(host.events.index('sync'), host.events.index('archive'))
+
+    def test_only_a_clean_drain_refusal_gets_the_reserved_retry_exit(self):
+        class Busy(Host):
+            def hold(self):
+                raise daily.release._maintenance.HoldRefused('busy-drain')
+        host = Busy()
+        run = daily.daily
+        with patch.object(daily, 'daily', side_effect=lambda: run(host, self.serving)):
+            self.assertEqual(daily.attempt(), 42)
+        self.assertEqual(host.events[-2:], ['discard', 'sync'])
+        self.assertNotIn('capture', host.events)
+        for refusal in (daily.release._maintenance.HoldRefused('active-write'),
+                        daily.release._maintenance.HoldRefused('uncertain-write'),
+                        RuntimeError('entrance-hold-refused')):
+            with self.subTest(reason=str(refusal)), patch.object(daily, 'daily', side_effect=refusal):
+                with self.assertRaises(type(refusal)):
+                    daily.attempt()
+
+    @unittest.skipUnless(shutil.which('flock') and pathlib.Path('/usr/bin/bash').exists(), 'Linux maintenance locks')
+    def test_scheduled_retries_are_bounded_and_release_the_real_lock_between_attempts(self):
+        script, lock = self.serving / 'attempt.sh', self.serving / 'release.lock'
+        for results, code, delays, archived in [
+                ('42 0', 0, [60], 1), ('42 42 42', 1, [60, 180], 0), ('1', 1, [], 0)]:
+            with self.subTest(results=results):
+                (self.serving / 'results').write_text(results)
+                script.write_text('cd "$(dirname "$0")"\nread -r status rest < results || :\n'
+                                  'printf "%s" "$rest" > results\n'
+                                  'if test "$status" = 0; then echo archive >> published; fi\nexit "$status"\n')
+                published = self.serving / 'published'
+                published.unlink(missing_ok=True)
+                pauses = []
+                def wait(seconds):
+                    subprocess.run(['flock', '-n', lock, 'true'], check=True)
+                    pauses.append(seconds)
+                with patch.object(scheduler.time, 'sleep', side_effect=wait):
+                    self.assertEqual(scheduler.scheduled(script, lock), code)
+                self.assertEqual(pauses, delays)
+                self.assertEqual(len(published.read_text().splitlines()) if published.exists() else 0, archived)
+                self.assertEqual((self.serving / 'results').read_text(), '')
+
+    def test_a_slow_first_attempt_cannot_start_a_retry_with_less_than_the_original_unit_budget(self):
+        from configparser import ConfigParser
+        config = ConfigParser()
+        config.read(pathlib.Path(__file__).with_name('canvas-cn-formal-backup.service'))
+        expires = int(config['Service']['TimeoutStartSec'])
+        with patch.object(scheduler.time, 'monotonic', side_effect=[0, expires - 1799]), \
+                patch.object(scheduler.time, 'sleep'), \
+                patch.object(scheduler.subprocess, 'run', return_value=subprocess.CompletedProcess([], 42)) as run:
+            self.assertEqual(scheduler.scheduled(), 1)
+        run.assert_called_once()
 
     def test_restarting_on_an_empty_store_cannot_release_the_held_entrance(self):
         declaration = b'{"read":1,"write":0}'
