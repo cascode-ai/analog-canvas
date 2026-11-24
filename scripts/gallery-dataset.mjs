@@ -3,7 +3,8 @@
 // circuit: its figure, our drawing, and every netlist we can export from it,
 // SPICE and Spectre side by side for the saved Process and each open one.
 //
-//   node scripts/gallery-dataset.mjs [DIR] [--base URL] [--workers N] [--full]
+//   node scripts/gallery-dataset.mjs [DIR] [--base URL] [--workers N]
+//                                    [--cpu-workers N] [--full]
 //                                    [--bundle PATH] [--only ID,ID]
 //
 // DIR defaults to $ANALOG_CANVAS_DATA/gallery, else
@@ -40,9 +41,15 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { availableParallelism, homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  Worker,
+  isMainThread,
+  parentPort,
+  workerData,
+} from "node:worker_threads";
 
 const root = resolve(import.meta.dirname, "..");
 const BASE = "https://analog-canvas.tokenzhang.com";
@@ -50,10 +57,12 @@ const DEFAULT_BUNDLE = resolve(
   root,
   "output/headless/analog-canvas-headless.mjs",
 );
+const DEFAULT_CPU_WORKERS = Math.min(Math.max(1, availableParallelism()), 8);
 const FORMATS = [
   ["spice", "sp"],
   ["spectre", "scs"],
 ];
+const FORMAT_NAMES = FORMATS.map(([format]) => format);
 const EXT = {
   "image/png": "png",
   "image/jpeg": "jpg",
@@ -61,7 +70,7 @@ const EXT = {
   "image/gif": "gif",
 };
 
-const USAGE = `Usage: node scripts/gallery-dataset.mjs [DIR] [--base URL] [--workers N] [--full] [--bundle PATH] [--only ID,ID]
+const USAGE = `Usage: node scripts/gallery-dataset.mjs [DIR] [--base URL] [--workers N] [--cpu-workers N] [--full] [--bundle PATH] [--only ID,ID]
 
 --only reads just those circuits and records no progress.
 DIR defaults to $ANALOG_CANVAS_DATA/gallery, else ~/Documents/analog-canvas-data/gallery.`;
@@ -81,6 +90,7 @@ export function parseArgs(argv, env = process.env) {
     dir: defaultDir(env),
     base: BASE,
     workers: 32,
+    cpuWorkers: DEFAULT_CPU_WORKERS,
     full: false,
     bundle: undefined,
     only: undefined,
@@ -99,6 +109,10 @@ export function parseArgs(argv, env = process.env) {
       options.workers = Number(value());
       if (!Number.isInteger(options.workers) || options.workers < 1)
         throw new UsageError("--workers takes a whole number above 0");
+    } else if (arg === "--cpu-workers") {
+      options.cpuWorkers = Number(value());
+      if (!Number.isInteger(options.cpuWorkers) || options.cpuWorkers < 1)
+        throw new UsageError("--cpu-workers takes a whole number above 0");
     } else if (arg === "--full") options.full = true;
     else if (arg === "--bundle") options.bundle = resolve(value());
     else if (arg === "--only")
@@ -210,7 +224,7 @@ async function loadHeadless(bundle) {
     );
   }
   const engine = createHash("sha256").update(readFileSync(path)).digest("hex");
-  return { headless: await import(pathToFileURL(path).href), engine };
+  return { headless: await import(pathToFileURL(path).href), engine, path };
 }
 
 /**
@@ -225,20 +239,41 @@ export function exportNetlists(headless, projectText) {
   const files = {};
   const diagnostics = {};
   for (const variant of ["saved", ...processes]) {
+    const isSaved = variant === "saved";
+    const exportBatch = isSaved
+      ? headless.savedWorkspaceNetlistFormats
+      : headless.workspaceNetlistFormats;
+    const exportOne = (format) =>
+      isSaved
+        ? headless.savedWorkspaceNetlist(project, format)
+        : headless.workspaceNetlist(project, format, variant);
+
+    let byFormat = null;
+    if (typeof exportBatch === "function") {
+      try {
+        byFormat = isSaved
+          ? exportBatch(project, FORMAT_NAMES)
+          : exportBatch(project, FORMAT_NAMES, variant);
+      } catch {
+        // Fall back per format so a throw in one format does not drop the other.
+        byFormat = null;
+      }
+    }
     for (const [format, ext] of FORMATS) {
       const name = `${variant}.${ext}`;
       let result;
-      try {
-        result =
-          variant === "saved"
-            ? headless.savedWorkspaceNetlist(project, format)
-            : headless.workspaceNetlist(project, format, variant);
-      } catch (error) {
-        result = {
-          status: "blocked",
-          messages: [error instanceof Error ? error.message : String(error)],
-          warnings: [],
-        };
+      if (byFormat) {
+        result = byFormat[format];
+      } else {
+        try {
+          result = exportOne(format);
+        } catch (error) {
+          result = {
+            status: "blocked",
+            messages: [error instanceof Error ? error.message : String(error)],
+            warnings: [],
+          };
+        }
       }
       if (result.status === "ready")
         files[name] = result.text.replace(/^\n+/u, "");
@@ -252,6 +287,116 @@ export function exportNetlists(headless, projectText) {
     }
   }
   return { files, diagnostics };
+}
+
+/**
+ * Run CPU-bound netlist export and SVG font embedding across Node worker
+ * threads so the event loop stays free for concurrent downloads. Workers are
+ * spawned lazily on first job so metadata-only passes pay no startup cost.
+ */
+function createCpuPool(bundlePath, headless, count) {
+  if (count <= 1) {
+    return {
+      exportNetlists: async (projectText) =>
+        exportNetlists(headless, projectText),
+      embedSvg: (svgText) => headless.embedFormalSvgFontsHeadless(svgText),
+      close: async () => {},
+    };
+  }
+  const scriptPath = fileURLToPath(import.meta.url);
+  const idle = [];
+  const queue = [];
+  const workers = [];
+  let alive = 0;
+  let started = false;
+  let fatalError = null;
+  let nextId = 1;
+  let closed = false;
+
+  const dispatch = () => {
+    while (idle.length && queue.length) {
+      const slot = idle.pop();
+      const job = queue.shift();
+      slot.current = job;
+      slot.worker.postMessage({
+        id: job.id,
+        kind: job.kind,
+        payload: job.payload,
+      });
+    }
+  };
+
+  const ensureStarted = () => {
+    if (started) return;
+    started = true;
+    alive = count;
+    for (let i = 0; i < count; i += 1) {
+      const worker = new Worker(scriptPath, {
+        workerData: { galleryDatasetWorker: true, bundlePath },
+        execArgv: [],
+      });
+      const slot = { worker, current: null, dead: false };
+      workers.push(slot);
+      idle.push(slot);
+      worker.on("message", ({ id, value, error }) => {
+        const job = slot.current;
+        slot.current = null;
+        if (!closed && !slot.dead) {
+          idle.push(slot);
+          dispatch();
+        }
+        if (!job || job.id !== id) return;
+        if (error !== undefined) job.reject(new Error(error));
+        else job.resolve(value);
+      });
+      const failSlot = (reason) => {
+        if (slot.dead) return;
+        slot.dead = true;
+        alive -= 1;
+        const idx = idle.indexOf(slot);
+        if (idx >= 0) idle.splice(idx, 1);
+        const job = slot.current;
+        slot.current = null;
+        if (job) job.reject(reason);
+        if (alive <= 0) {
+          fatalError ??= reason;
+          while (queue.length) queue.shift().reject(fatalError);
+        }
+      };
+      worker.on("error", (error) => failSlot(error));
+      worker.on("exit", (code) => {
+        if (!closed) failSlot(new Error(`CPU worker exited with code ${code}`));
+      });
+    }
+  };
+
+  const enqueue = (kind, payload) =>
+    new Promise((resolveJob, rejectJob) => {
+      if (closed || fatalError) {
+        rejectJob(fatalError ?? new Error("CPU pool is closed"));
+        return;
+      }
+      ensureStarted();
+      queue.push({
+        id: nextId++,
+        kind,
+        payload,
+        resolve: resolveJob,
+        reject: rejectJob,
+      });
+      dispatch();
+    });
+
+  return {
+    exportNetlists: (projectText) => enqueue("export", projectText),
+    embedSvg: (svgText) => enqueue("embedSvg", svgText),
+    close: async () => {
+      closed = true;
+      while (queue.length)
+        queue.shift().reject(new Error("CPU pool is closed"));
+      await Promise.all(workers.map(({ worker }) => worker.terminate()));
+    },
+  };
 }
 
 function replaceNetlists(dir, { files, diagnostics }) {
@@ -275,7 +420,11 @@ function replaceImage(dir, stem, got) {
 export async function run(options, log = console.log) {
   const { dir, base, workers } = options;
   const started = new Date();
-  const { headless, engine } = await loadHeadless(options.bundle);
+  const {
+    headless,
+    engine,
+    path: bundlePath,
+  } = await loadHeadless(options.bundle);
   const circuitsDir = join(dir, "circuits");
   mkdirSync(circuitsDir, { recursive: true });
 
@@ -395,110 +544,136 @@ export async function run(options, log = console.log) {
 
   const stats = { netlists: 0, previews: 0, figures: 0, references: 0 };
   let done = 0;
-  const failed = await pool(todo, workers, async (entry) => {
-    const id = entry.id;
-    const d = join(circuitsDir, id);
-    mkdirSync(d, { recursive: true });
-    const q = encodeURIComponent(id);
+  const cpuCount =
+    todo.length > 1 ? Math.min(options.cpuWorkers ?? 1, todo.length) : 1;
+  const cpu = createCpuPool(bundlePath, headless, cpuCount);
+  let failed;
+  try {
+    failed = await pool(todo, workers, async (entry) => {
+      const id = entry.id;
+      const d = join(circuitsDir, id);
+      mkdirSync(d, { recursive: true });
+      const q = encodeURIComponent(id);
 
-    const project = await get(base, `/api/gallery/${q}?download=1`);
-    if (!project?.projectText) throw new Error("reply without its Project");
-    const revision = createHash("sha256")
-      .update(project.projectText)
-      .digest("hex");
-    if (reexport || readText(join(d, ".project-revision")) !== revision) {
-      replaceNetlists(d, exportNetlists(headless, project.projectText));
-      write(join(d, ".project-revision"), revision);
-      stats.netlists += 1;
-    }
+      const svg = join(d, "schematic.svg");
+      const preview = entry.previewRevision ?? "";
+      const needSvg =
+        full ||
+        !existsSync(svg) ||
+        readText(join(d, ".preview-revision")) !== preview;
 
-    const svg = join(d, "schematic.svg");
-    const preview = entry.previewRevision ?? "";
-    if (
-      reexport ||
-      !existsSync(svg) ||
-      readText(join(d, ".preview-revision")) !== preview
-    ) {
-      const got = await get(
-        base,
-        `/api/gallery/${q}/preview.svg?v=${encodeURIComponent(preview)}&render=formula-label-v5`,
-        true,
+      const referenceMarker = join(d, ".reference-revision");
+      const wantRef = entry.referenceRevision ?? "";
+      const needRef = Boolean(
+        entry.hasReference &&
+        (!readdirSync(d).some((file) => file.startsWith("reference.")) ||
+          readText(referenceMarker) !== wantRef),
       );
-      if (got) {
+
+      const comparison = comparisons.get(id);
+      const needFigure = Boolean(comparison?.figureRevision && figureStale(id));
+      const sourceKey = comparison ? encodeURIComponent(comparison.source) : "";
+
+      const [project, gotSvg, gotRef, gotFigure, gotComparison] =
+        await Promise.all([
+          get(base, `/api/gallery/${q}?download=1`),
+          needSvg
+            ? get(
+                base,
+                `/api/gallery/${q}/preview.svg?v=${encodeURIComponent(preview)}&render=formula-label-v5`,
+                true,
+              )
+            : null,
+          needRef ? get(base, `/api/gallery/${q}/reference`, true) : null,
+          needFigure
+            ? get(
+                base,
+                `/api/gallery/sources/${sourceKey}/comparisons/${q}/figure?v=${encodeURIComponent(comparison.figureRevision)}`,
+                true,
+              )
+            : null,
+          needFigure
+            ? get(base, `/api/gallery/sources/${sourceKey}/comparisons/${q}`)
+            : null,
+        ]);
+
+      if (!project?.projectText) throw new Error("reply without its Project");
+      const revision = createHash("sha256")
+        .update(project.projectText)
+        .digest("hex");
+      const needExport =
+        reexport || readText(join(d, ".project-revision")) !== revision;
+
+      const [exported, embeddedSvg] = await Promise.all([
+        needExport ? cpu.exportNetlists(project.projectText) : null,
+        gotSvg ? cpu.embedSvg(gotSvg.body.toString("utf8")) : null,
+      ]);
+
+      if (exported) {
+        replaceNetlists(d, exported);
+        write(join(d, ".project-revision"), revision);
+        stats.netlists += 1;
+      }
+
+      if (embeddedSvg !== null) {
         // The site's preview names its faces; embedded, it draws the same
         // everywhere (#2427).
-        write(
-          svg,
-          await headless.embedFormalSvgFontsHeadless(got.body.toString("utf8")),
-        );
+        write(svg, embeddedSvg);
         write(join(d, ".preview-revision"), preview);
         stats.previews += 1;
       }
-    }
 
-    const referenceMarker = join(d, ".reference-revision");
-    if (entry.hasReference) {
-      const want = entry.referenceRevision ?? "";
-      const have = readdirSync(d).some((file) => file.startsWith("reference."));
-      if (!have || readText(referenceMarker) !== want) {
-        const got = await get(base, `/api/gallery/${q}/reference`, true);
-        if (got) {
-          replaceImage(d, "reference", got);
-          write(referenceMarker, want);
+      if (entry.hasReference) {
+        if (gotRef) {
+          replaceImage(d, "reference", gotRef);
+          write(referenceMarker, wantRef);
           stats.references += 1;
         }
+      } else {
+        for (const file of readdirSync(d))
+          if (file.startsWith("reference.") || file === ".reference-revision")
+            rmSync(join(d, file));
       }
-    } else {
-      for (const file of readdirSync(d))
-        if (file.startsWith("reference.") || file === ".reference-revision")
-          rmSync(join(d, file));
-    }
 
-    const comparison = comparisons.get(id);
-    if (comparison?.figureRevision && figureStale(id)) {
-      const key = encodeURIComponent(comparison.source);
-      const got = await get(
-        base,
-        `/api/gallery/sources/${key}/comparisons/${q}/figure?v=${encodeURIComponent(comparison.figureRevision)}`,
-        true,
+      if (needFigure) {
+        if (gotFigure) {
+          replaceImage(d, "figure", gotFigure);
+          stats.figures += 1;
+        }
+        const text = gotComparison?.sourceNetlist ?? "";
+        rmSync(join(d, "source.sp"), { force: true });
+        if (text) write(join(d, "source.sp"), text);
+        write(join(d, ".figure-revision"), comparison.figureRevision);
+      }
+
+      const { likedByViewer: _viewer, ...meta } = entry;
+      write(
+        join(d, "meta.json"),
+        json({
+          ...meta,
+          url: `${base}/g/${id}`,
+          ...(comparison
+            ? {
+                dataset: Object.fromEntries(
+                  [
+                    "source",
+                    "verdict",
+                    "category",
+                    "detail",
+                    "reason",
+                    "families",
+                  ].map((key) => [key, comparison[key] ?? null]),
+                ),
+              }
+            : {}),
+        }),
       );
-      if (got) {
-        replaceImage(d, "figure", got);
-        stats.figures += 1;
-      }
-      const text =
-        (await get(base, `/api/gallery/sources/${key}/comparisons/${q}`))
-          ?.sourceNetlist ?? "";
-      rmSync(join(d, "source.sp"), { force: true });
-      if (text) write(join(d, "source.sp"), text);
-      write(join(d, ".figure-revision"), comparison.figureRevision);
-    }
-
-    const { likedByViewer: _viewer, ...meta } = entry;
-    write(
-      join(d, "meta.json"),
-      json({
-        ...meta,
-        url: `${base}/g/${id}`,
-        ...(comparison
-          ? {
-              dataset: Object.fromEntries(
-                [
-                  "source",
-                  "verdict",
-                  "category",
-                  "detail",
-                  "reason",
-                  "families",
-                ].map((key) => [key, comparison[key] ?? null]),
-              ),
-            }
-          : {}),
-      }),
-    );
-    done += 1;
-    if (done % 200 === 0) log(`read ${done} / ${todo.length}`);
-  });
+      done += 1;
+      if (done % 200 === 0) log(`read ${done} / ${todo.length}`);
+    });
+  } finally {
+    await cpu.close();
+  }
 
   // A partial run (--only, or with failures) records no progress, so the
   // next one reads what it missed.
@@ -519,7 +694,7 @@ export async function run(options, log = console.log) {
         "saved",
         ...headless.NETLIST_PROFILE_IDS.filter((id) => id !== "custom"),
       ],
-      formats: FORMATS.map(([format]) => format),
+      formats: FORMAT_NAMES,
     }),
   );
   log(
@@ -530,7 +705,30 @@ export async function run(options, log = console.log) {
   return failed.length ? 1 : 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+async function handleWorkerMessage(headless, { id, kind, payload }) {
+  try {
+    const value =
+      kind === "export"
+        ? exportNetlists(headless, payload)
+        : await headless.embedFormalSvgFontsHeadless(payload);
+    parentPort.postMessage({ id, value });
+  } catch (error) {
+    parentPort.postMessage({
+      id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+if (!isMainThread && workerData?.galleryDatasetWorker) {
+  const headless = await import(pathToFileURL(workerData.bundlePath).href);
+  parentPort.on("message", (message) => {
+    void handleWorkerMessage(headless, message);
+  });
+} else if (
+  isMainThread &&
+  import.meta.url === pathToFileURL(process.argv[1] ?? "").href
+) {
   try {
     process.exitCode = await run(parseArgs(process.argv.slice(2)));
   } catch (error) {
