@@ -155,6 +155,52 @@ describe("source Spec v1", () => {
     );
   });
   it.each([
+    ["<= 1.8m", 1.8e-3],
+    ["<= 16.5u", 16.5e-6],
+    ["<= 16.5U", 16.5e-6],
+    ["<= 2.5MEG", 2.5e6],
+    ["<= 2.5meg", 2.5e6],
+    ["<= 10k", 10e3],
+    ["<= 10K", 10e3],
+    ["<= 3g", 3e9],
+    ["<= 4T", 4e12],
+    ["<= 2n", 2e-9],
+    ["<= 7p", 7e-12],
+    ["<= 9f", 9e-15],
+    ["<= -1.5e-3k", -1.5],
+    ["<= .5u", 0.5e-6],
+  ])("reads the SPICE-suffixed bound %s exactly (#2558)", (rule, value) => {
+    expect(evaluate(`* @spec peak ${rule} unit=V`).results[0]).toMatchObject({
+      reason: expect.not.stringMatching(/invalid-spec/u),
+      expected: { kind: "limit", operator: "<=", value },
+    });
+  });
+  it("judges suffixed range and target bounds as their scientific form (#2558)", () => {
+    const value = "per10               =  1.014310e-02";
+    for (const [suffixed, plain] of [
+      ["range 9.0m 11.1m", "range 9.0e-3 11.1e-3"],
+      ["range 16.5u 24.8u", "range 16.5e-6 24.8e-6"],
+      ["target 10.1m tol 50u", "target 10.1e-3 tol 50e-6"],
+      ["target 10m tol 1u", "target 10e-3 tol 1e-6"],
+    ]) {
+      const [a, b] = [suffixed, plain].map(
+        (rule) =>
+          evaluate(
+            `* @spec peak ${rule} unit=s`,
+            value.replace("per10", "peak"),
+          ).results[0],
+      );
+      expect(a).toMatchObject({
+        judgment: b!.judgment,
+        reason: b!.reason,
+        expected: b!.expected,
+      });
+    }
+    expect(
+      evaluate("* @spec peak range 1.7 1.9k unit=V").results[0],
+    ).toMatchObject({ judgment: "pass" });
+  });
+  it.each([
     ["<= 1.8", "pass"],
     ["< 1.8", "failed"],
     [">= 1.8", "pass"],
@@ -181,15 +227,18 @@ describe("source Spec v1", () => {
     ).toBe(true);
   });
   it.each([
-    ["<= 1m", 'Bound "1m" is not a decimal or scientific number; write 1e-3.'],
+    // Trailing unit text, a bare M, atto and mil stay refused (#2558).
     [
-      "< 2.5MEG",
-      'Bound "2.5MEG" is not a decimal or scientific number; write 2.5e6.',
+      "> 10kOhm",
+      'Bound "10kOhm" is not a decimal or scientific number or one with a SPICE suffix (f p n u m k meg g t); write 10e3.',
     ],
-    ["> 10kOhm", "write 10e3."],
     ["<= 1M", "write 1e-3 (SPICE reads M as milli) or 1e6 for mega."],
-    // Every suffix the SPICE reader knows, atto included.
-    ["<= 5a", 'Bound "5a" is not a decimal or scientific number; write 5e-18.'],
+    [
+      "<= 5a",
+      'Bound "5a" is not a decimal or scientific number or one with a SPICE suffix (f p n u m k meg g t); write 5e-18.',
+    ],
+    ["<= 2mil", "write 0.0000508."],
+    ["<= 1e999k", 'Bound "1e999k" is too large to be a finite number.'],
     ["<= NaN", 'Bound "NaN" is not a decimal or scientific number such as'],
     ["<= 1e999", 'Bound "1e999" is too large to be a finite number.'],
     [
@@ -214,12 +263,12 @@ describe("source Spec v1", () => {
       });
     },
   );
-  it("names a SPICE-suffixed bound in the run, in specs.csv and on save (#1311)", () => {
+  it("names a refused SPICE-suffixed bound in the run, in specs.csv and on save (#1311)", () => {
     const rule =
-      '* @spec per10 range 9.0m 11.1m unit=s label="ten periods of the Wien-bridge oscillator"';
+      '* @spec per10 range 9.0ms 11.1ms unit=s label="ten periods of the Wien-bridge oscillator"';
     const detail =
-      'Bound "9.0m" is not a decimal or scientific number; write 9.0e-3. ' +
-      'Bound "11.1m" is not a decimal or scientific number; write 11.1e-3.';
+      'Bound "9.0ms" is not a decimal or scientific number or one with a SPICE suffix (f p n u m k meg g t); write 9.0e-3. ' +
+      'Bound "11.1ms" is not a decimal or scientific number or one with a SPICE suffix (f p n u m k meg g t); write 11.1e-3.';
     const files = [
       {
         path: "run.cir",

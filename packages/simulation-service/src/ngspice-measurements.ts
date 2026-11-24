@@ -11,6 +11,9 @@ export function ngspiceMeasurementResults(
   log: string,
 ): NonNullable<SimulationOutputData["nativeMeasurements"]> {
   const declarations = new Map<string, string>();
+  // `find … at=X` reads its sweep at X; outside it ngspice reports no value
+  // ("out of interval"), as on a one-point DC sweep (#2558).
+  const findsAt = new Set<string>();
   const graph = inspectSimulationSourceGraph({
     kind: "source",
     entry,
@@ -29,8 +32,15 @@ export function ngspiceMeasurementResults(
     if (!["meas", "measure"].includes(command.toLowerCase())) continue;
     const args = "arguments" in statement ? statement.arguments : [];
     const name = args[1];
-    if (name && /^[A-Za-z_][A-Za-z0-9_]*$/u.test(name))
+    if (name && /^[A-Za-z_][A-Za-z0-9_]*$/u.test(name)) {
       declarations.set(name.toLowerCase(), name);
+      const words = args.map((arg) => arg.toLowerCase());
+      if (
+        words.includes("find") &&
+        words.some((arg) => /^at(?:=|$)/u.test(arg))
+      )
+        findsAt.add(name.toLowerCase());
+    }
   }
   const result: NonNullable<SimulationOutputData["nativeMeasurements"]> = [];
   const counts = new Map<string, number>();
@@ -61,7 +71,10 @@ export function ngspiceMeasurementResults(
         occurrence: 0,
         status: "unavailable",
         detail:
-          "No finite scalar was reported by ngspice. The command may have failed or not executed; inspect Console.",
+          "No finite scalar was reported by ngspice. The command may have failed or not executed; inspect Console." +
+          (findsAt.has(key)
+            ? " A find … at= measurement needs an analysis that spans that point; a one-point DC sweep spans none, so sweep across it."
+            : ""),
       });
   return result;
 }

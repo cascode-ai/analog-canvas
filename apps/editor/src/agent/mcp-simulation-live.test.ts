@@ -420,7 +420,8 @@ describe("MCP simulation tools on the live editor", () => {
     const editor = liveAgentEditor({ project });
     const tool = tools({ client: editor.client });
     await tool("connect", { claimCode: "session-1.code" });
-    // #1311: ngspice reads 40m, but a Spec bound takes no SPICE suffix.
+    // #1311: a Spec bound takes no trailing unit text; a bare SPICE suffix
+    // such as 9.0m is a bound since #2558.
     const source = (bounds: string) =>
       [
         "Wien-bridge oscillator",
@@ -445,7 +446,7 @@ describe("MCP simulation tools on the live editor", () => {
       )!.text;
     const first = editor.controller.project.structureRevision;
     const calls = editor.http.fileCalls.length;
-    const warned = await save(first, "9.0m 11.1m");
+    const warned = await save(first, "9.0ms 11.1ms");
     expect(warned).toMatchObject({
       ok: true,
       update: {
@@ -457,14 +458,14 @@ describe("MCP simulation tools on the live editor", () => {
       {
         path: "run.cir",
         line: 4,
-        message: expect.stringMatching(/"9\.0m".*write 9\.0e-3/u),
+        message: expect.stringMatching(/"9\.0ms".*write 9\.0e-3/u),
       },
     ]);
     // A warning, not a refusal; checked from the request, nothing reread.
-    expect(saved()).toBe(source("9.0m 11.1m"));
+    expect(saved()).toBe(source("9.0ms 11.1ms"));
     expect(editor.http.fileCalls).toHaveLength(calls + 1);
     // A refused update wrote nothing, so it warns about nothing.
-    const refused = await save(first, "9.0m 11.1m");
+    const refused = await save(first, "9.0ms 11.1ms");
     expect(refused).toMatchObject({
       ok: false,
       error: { code: "PROJECT_REVISION_CONFLICT" },
@@ -487,7 +488,7 @@ describe("MCP simulation tools on the live editor", () => {
             path: "run.cir",
             textDigest: valid.update.files[0].textDigest,
             oldText: "range 9.0e-3",
-            newText: "range 9.0m",
+            newText: "range 9.0ms",
           },
         ],
       },
@@ -496,10 +497,10 @@ describe("MCP simulation tools on the live editor", () => {
       {
         path: "run.cir",
         line: 4,
-        message: expect.stringMatching(/"9\.0m".*write 9\.0e-3/u),
+        message: expect.stringMatching(/"9\.0ms".*write 9\.0e-3/u),
       },
     ]);
-    expect(saved()).toBe(source("9.0m 11.1e-3"));
+    expect(saved()).toBe(source("9.0ms 11.1e-3"));
     expect(editor.http.fileCalls.slice(beforeEdit)).toMatchObject([
       { input: { action: "update" } },
       { input: { action: "read", path: "run.cir", offset: 0 } },
