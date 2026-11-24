@@ -285,6 +285,76 @@ describe("ngspice authored input identity", () => {
         });
     },
   );
+  // boboIC Gallery entries wrap the 3.4 um vertical PNP in a parameterized
+  // subcircuit; the parameter-dropping NPN stays outside the Profile.
+  it.each([
+    ["sky130_fd_pr__pnp_05v5_W3p40L3p40", "C B E", true],
+    ["sky130_fd_pr__npn_05v5_W1p00L1p00", "C B E 0", false],
+  ])(
+    "checks a Gallery model source's %s against the hosted SKY130 Profile",
+    async (master, nodes, qualified) => {
+      const project = createEmptyProject("gallery-pnp", "Gallery PNP");
+      const applied = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        transactionId: "gallery-pnp-source",
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "owner",
+              revision: 0,
+              language: "spice",
+              entry: "bjt.spice",
+              dependencies: [],
+              files: [
+                {
+                  path: "bjt.spice",
+                  text: [
+                    ".subckt IV_SKY_PNP C B E params: AREA=1",
+                    `XPDK ${nodes} ${master} m={AREA}`,
+                    ".ends IV_SKY_PNP",
+                    ".subckt mirror",
+                    "XQ c b e IV_SKY_PNP AREA=4",
+                    ".ends mirror",
+                    "",
+                  ].join("\n"),
+                },
+              ],
+            },
+            definitions: [{ definitionId: "mirror", entry: "mirror" }],
+          },
+        ],
+      });
+      expect(applied.ok).toBe(true);
+      if (!applied.ok) return;
+      const next = applied.project;
+      next.documents[0]!.instances.push(
+        createExternalSubcircuitInstance(
+          "XTOP",
+          next.externalSubcircuitDefinitions[0]!,
+          { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        ),
+      );
+      const folder = createSimulationFolder({
+        id: "process",
+        name: "Process",
+        profileId: "ngspice",
+        engine: "ngspice",
+        documentId: next.topDocumentId,
+      });
+      next.simulationFolders = [folder];
+      const caps = nativeSweepFixture().caps;
+      caps.profiles[0]!.devices = hostedSky130.qualifiedScope.devices;
+      const prepared = await prepareNgspiceExecutionInput(next, folder, caps);
+      expect(prepared.ok, JSON.stringify(prepared)).toBe(qualified);
+      if (!prepared.ok)
+        expect(prepared.error.diagnostics?.[0]).toMatchObject({
+          code: "MODEL_SOURCE_PROFILE_CONFLICT",
+        });
+    },
+  );
   it.each([false, true])(
     "protects global device models while respecting a testbench's local scope (%s)",
     async (local) => {

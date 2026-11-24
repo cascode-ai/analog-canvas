@@ -78,6 +78,7 @@ describe("the hosted SKY130 Profile", () => {
         "sky130_fd_pr__res_high_po",
         "sky130_fd_pr__cap_mim_m3_1",
         "sky130_fd_pr__pnp_05v5_W0p68L0p68",
+        "sky130_fd_pr__pnp_05v5_W3p40L3p40",
       ],
       sections: ["tt", "ff", "ss", "fs", "sf"],
       analyses: ["op", "dc", "ac", "tran", "noise"],

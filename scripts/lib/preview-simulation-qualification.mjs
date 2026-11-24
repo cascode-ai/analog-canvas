@@ -54,6 +54,19 @@ export const mos5vQualification = JSON.parse(
     "utf8",
   ),
 );
+/**
+ * The 3.4 um vertical PNP Gallery model sources call (#1614), at every corner:
+ * forward-active OP currents and a 1 MHz AC collector current (transconductance).
+ */
+export const largePnpQualification = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../fixtures/simulation-acceptance/hosted-sky130-pnp-w3p40-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 if (qualification.profileId !== profile.id) {
   throw new Error(
     `Qualification ${qualification.fixtureId} targets ${String(qualification.profileId)}, not Profile ${profile.id}.`,
@@ -69,6 +82,7 @@ const evidencedDevices = new Set([
   ...(extendedQualification.devices ?? []),
   ...(hvtPfetQualification.devices ?? []),
   ...(mos5vQualification.devices ?? []),
+  ...(largePnpQualification.devices ?? []),
 ]);
 if (
   evidencedDevices.size !== profile.qualifiedScope.devices.length ||
@@ -133,7 +147,11 @@ if (
   );
 }
 
-for (const fixture of [hvtPfetQualification, mos5vQualification]) {
+for (const fixture of [
+  hvtPfetQualification,
+  mos5vQualification,
+  largePnpQualification,
+]) {
   const corners = Object.keys(fixture.expectedCorners ?? {});
   if (
     fixture.profileId !== profile.id ||
@@ -360,6 +378,35 @@ export function hostedSky130Mos5vRequest(corner) {
     ].join("\n"),
     timeoutMs: 110_000,
     inputRevision: `preview-sky130-5v-mos-${corner}`,
+    environment: { profileId: profile.id, corner },
+  };
+}
+
+export function hostedSky130LargePnpRequest(corner) {
+  return {
+    netlist: [
+      ".subckt pnp_w3p40 pc pb pe",
+      "XQP3 pc pb pe sky130_fd_pr__pnp_05v5_W3p40L3p40",
+      ".ends pnp_w3p40",
+    ].join("\n"),
+    testbench: [
+      "* 3.4 um PNP qualification",
+      "VPE3 pe 0 1.8",
+      "VPB3 pb 0 DC 1.1 AC 1",
+      "VPC3 pc 0 0",
+      "XDUT pc pb pe pnp_w3p40",
+      ".control",
+      "set filetype=ascii",
+      "op",
+      "write out.raw i(vpe3) i(vpc3)",
+      "set appendwrite",
+      "ac lin 1 1meg 1meg",
+      "write out.raw i(vpc3)",
+      ".endc",
+      ".end",
+    ].join("\n"),
+    timeoutMs: 110_000,
+    inputRevision: `preview-sky130-pnp-w3p40-${corner}`,
     environment: { profileId: profile.id, corner },
   };
 }

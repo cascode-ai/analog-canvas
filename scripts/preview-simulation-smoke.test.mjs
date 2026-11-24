@@ -9,11 +9,13 @@ import {
   hostedSky130CornerRequest,
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
+  hostedSky130LargePnpRequest,
   hostedSky130Mos5vRequest,
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
+  runHostedSky130LargePnpAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
   runHostedSky130TransientAcceptance,
@@ -26,6 +28,7 @@ import {
   validateHostedSky130CornerResult,
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
+  validateHostedSky130LargePnpResult,
   validateHostedSky130Mos5vResult,
   validatePreviewSimulationResult,
 } from "./preview-simulation-smoke.mjs";
@@ -274,6 +277,50 @@ function mos5vResult(target, corner = "ff", expected = MOS_5V_FF) {
               name: "i(vsp5)",
               real: [expected.pfetAcSourceReal],
               imag: [expected.pfetAcSourceImag],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+const LARGE_PNP_FF = {
+  pnpEmitterCurrentA: -0.000002230143822834485,
+  pnpCollectorCurrentA: 0.000002057421433949801,
+  pnpAcCollectorReal: -0.00007839946934998178,
+  pnpAcCollectorImag: 6.325029121419261e-8,
+};
+
+function largePnpResult(target, corner = "ff", expected = LARGE_PNP_FF) {
+  const base = result(target);
+  return {
+    ...base,
+    metadata: {
+      ...base.metadata,
+      input: { inputRevision: `preview-sky130-pnp-w3p40-${corner}` },
+      configuration: { modelLibrary: { directive: "lib", section: corner } },
+      environment: {
+        ...base.metadata.environment,
+        fingerprint: CORNER_ENVIRONMENT_SHA,
+      },
+    },
+    data: {
+      analyses: [
+        {
+          analysis: "op",
+          probes: [
+            { name: "i(vpe3)", value: expected.pnpEmitterCurrentA },
+            { name: "i(vpc3)", value: expected.pnpCollectorCurrentA },
+          ],
+        },
+        {
+          analysis: "ac",
+          probes: [
+            {
+              name: "i(vpc3)",
+              real: [expected.pnpAcCollectorReal],
+              imag: [expected.pnpAcCollectorImag],
             },
           ],
         },
@@ -696,6 +743,44 @@ describe("the hosted SKY130 qualification", () => {
         "ff",
       ),
     ).toThrow(/pfetAcSourceImag at ff/u);
+  });
+
+  it("qualifies the 3.4 um PNP Gallery model sources call", async () => {
+    const request = hostedSky130LargePnpRequest("ff");
+    expect(request.netlist).toContain(
+      "XQP3 pc pb pe sky130_fd_pr__pnp_05v5_W3p40L3p40",
+    );
+    expect(
+      validateHostedSky130LargePnpResult(
+        largePnpResult("operator-host"),
+        "operator-host",
+        "ff",
+      ),
+    ).toEqual({ corner: "ff", ...LARGE_PNP_FF });
+    let submitted;
+    await runHostedSky130LargePnpAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      corner: "ff",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(largePnpResult("operator-host"));
+      },
+    });
+    expect(submitted.environment).toEqual({
+      profileId: PROFILE_ID,
+      corner: "ff",
+    });
+    expect(() =>
+      validateHostedSky130LargePnpResult(
+        largePnpResult("operator-host", "ff", {
+          ...LARGE_PNP_FF,
+          pnpCollectorCurrentA: 2.1e-6,
+        }),
+        "operator-host",
+        "ff",
+      ),
+    ).toThrow(/pnpCollectorCurrentA at ff/u);
   });
 
   it("refuses extended-device numerical drift", () => {
