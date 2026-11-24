@@ -130,6 +130,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("accepts a keyed create with the shipped writer and retains it when the quota response is lost", async () => {
+  operationFormat.write = shippedWriteVersion;
+  const f = await fixture();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockRejectedValue(new Error("Lost quota response")),
+  );
+  await f.control("register");
+  const reply = await f.create();
+  expect(reply.status).toBe(503);
+  expect(await reply.json()).toMatchObject({ error: "project-create-pending" });
+  expect(await (await f.capabilities()).json()).toEqual({
+    version: 2,
+    operationVersions: [1],
+    writeVersion: 1,
+    pending: [{ operationVersion: 1, count: 1, blocked: 0 }],
+  });
+});
+
 it("advertises the recoverable format before any writer is enabled", async () => {
   const f = await fixture();
   const caps = await f.capabilities();
