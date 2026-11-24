@@ -480,10 +480,13 @@ test("long Issues lists keep their order, focus and last finding through scrolli
   await expect
     .poll(() => list.evaluate((el) => el.clientWidth))
     .toBeLessThan(width);
-  await list.evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
-  });
-  await expect(row(count)).toBeInViewport();
+  // Resizing focuses the divider. Reveal the list in the outer Properties
+  // panel before scrolling the list itself, just as a pointer user must.
+  await list.scrollIntoViewIfNeeded();
+  await expect(list).toBeInViewport({ ratio: 0.99 });
+  await list.hover();
+  await page.mouse.wheel(0, await list.evaluate((el) => el.scrollHeight));
+  await expect(row(count)).toBeInViewport({ ratio: 0.99 });
   await expect.poll(() => list.locator("button").count()).toBeLessThan(40);
   const last = row(count);
   const code = (await last.locator("strong").innerText()).split(" / ")[1]!;
