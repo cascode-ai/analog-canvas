@@ -1,4 +1,7 @@
-import { projectHierarchyCalls } from "./project-hierarchy.js";
+import {
+  projectHierarchyCalls,
+  referencedDocumentId,
+} from "./project-hierarchy.js";
 import { registerDocumentCache } from "./document-caches.js";
 import { deriveStableId, documentContentSource, foldNetName } from "@icm/model";
 import type {
@@ -461,7 +464,7 @@ function buildHierarchyIndex(
   const edges: HierarchyEdge[] = [];
   for (const parent of project.documents) {
     for (const instance of parent.instances) {
-      const childId = referencedDocumentId(project, instance);
+      const childId = referencedDocumentId(instance, documents);
       if (!childId) continue;
       const child = project.documents.find(
         (candidate) => candidate.id === childId,
@@ -586,55 +589,45 @@ function buildGlobalNetIndex(
   );
 }
 
-/** Resolve only the stable imported hierarchy link written by the importer. */
-function referencedDocumentId(
-  project: CircuitProject,
-  instance: SchematicDocument["instances"][number],
-): string | null {
-  const binding = instance.netlist?.binding;
-  const childId =
-    binding?.kind === "subcircuit" ? binding.childDocumentId : undefined;
-  if (
-    typeof childId === "string" &&
-    project.documents.some((candidate) => candidate.id === childId)
-  ) {
-    return childId;
-  }
-  return null;
-}
-
 function buildObjectIndex(
-  project: CircuitProject,
   documents: ReadonlyMap<string, DocumentConnectivityIndex>,
 ): ProjectObjectIndex {
   return {
     resolve(documentId, objectId) {
-      const document = project.documents.find(
-        (candidate) => candidate.id === documentId,
-      );
       const documentIndex = documents.get(documentId);
-      if (!document) return undefined;
-      if (document.id === objectId) {
+      if (!documentIndex) return undefined;
+      if (documentId === objectId) {
         return directObjectLocator(documentId, "document", objectId);
       }
-      if (documentIndex?.instancesById.has(objectId)) {
+      if (documentIndex.instancesById.has(objectId)) {
         return directObjectLocator(documentId, "instance", objectId);
       }
-      if (documentIndex?.netsById.has(objectId)) {
+      if (documentIndex.netsById.has(objectId)) {
         return directObjectLocator(documentId, "net", objectId);
       }
-      if (documentIndex?.routesById.has(objectId)) {
+      if (documentIndex.routesById.has(objectId)) {
         return directObjectLocator(documentId, "route", objectId);
       }
-      if (documentIndex?.junctionsById.has(objectId)) {
+      if (documentIndex.junctionsById.has(objectId)) {
         return directObjectLocator(documentId, "junction", objectId);
       }
-      if (documentIndex?.annotationsById.has(objectId)) {
+      if (documentIndex.annotationsById.has(objectId)) {
         return directObjectLocator(documentId, "annotation", objectId);
       }
       return undefined;
     },
   };
+}
+
+/** The local geometry, connectivity and object locators needed by diagnostic rules. */
+export function buildCellDiagnosticIndex(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): Pick<ProjectConnectivityIndex, "documents" | "objectIndex"> {
+  const documents = new Map([
+    [document.id, buildDocumentIndex(document, resolver, false)],
+  ]);
+  return { documents, objectIndex: buildObjectIndex(documents) };
 }
 
 export function buildProjectConnectivityIndex(
@@ -660,6 +653,6 @@ export function buildProjectConnectivityIndex(
     documents,
     hierarchy: buildHierarchyIndex(project, resolver, documents),
     globalNets: buildGlobalNetIndex(project, documents),
-    objectIndex: buildObjectIndex(project, documents),
+    objectIndex: buildObjectIndex(documents),
   };
 }

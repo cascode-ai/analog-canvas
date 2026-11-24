@@ -41,6 +41,7 @@ export function portableCellIdentifier(
 export function findExternalMasterCollisions(
   project: CircuitProject,
   documents: readonly SchematicDocument[] = project.documents,
+  callers: readonly SchematicDocument[] = documents,
 ): {
   documentId: string;
   instanceId: string;
@@ -57,7 +58,7 @@ export function findExternalMasterCollisions(
     ).toLowerCase();
     if (!names.has(key)) names.set(key, document);
   }
-  return documents.flatMap((document) =>
+  return callers.flatMap((document) =>
     document.instances.flatMap((instance) => {
       const binding = instance.netlist?.binding;
       if (

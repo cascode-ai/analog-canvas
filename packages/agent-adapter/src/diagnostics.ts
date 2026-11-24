@@ -1,6 +1,6 @@
 import {
   diagnoseAmbiguousJunctions,
-  diagnoseProject,
+  diagnoseCell,
   diagnoseVisualQuality,
   diagnoseLabelClearance,
 } from "@icm/derived";
@@ -62,60 +62,60 @@ export function agentProjectDiagnostics(
   documentId: string,
   revision: number,
 ): AgentDiagnostic[] {
-  const diagnostics: AgentDiagnostic[] = diagnoseProject(project, resolver)
-    .filter((diagnostic) => diagnostic.primary.documentId === documentId)
-    .map((diagnostic) => ({
-      code: diagnostic.code,
-      domain: diagnostic.domain,
-      severity: diagnostic.severity,
-      confidence: diagnostic.confidence,
-      gateEligible: diagnostic.gateEligible,
-      message: diagnostic.message,
-      objectIds: diagnosticObjectIds(diagnostic),
-      primary: locatorWithoutSource(diagnostic.primary),
-      related: diagnostic.related.map(locatorWithoutSource),
-      revision,
-      parameters: { ...diagnostic.parameters },
-    }));
   const document = project.documents.find((d) => d.id === documentId);
-  if (document)
-    diagnostics.push(
-      ...diagnoseLabelClearance(document, resolver).map((item) => ({
-        ...item,
+  if (!document) return [];
+  const diagnostics: AgentDiagnostic[] = diagnoseCell(
+    project,
+    document,
+    resolver,
+  ).map((diagnostic) => ({
+    code: diagnostic.code,
+    domain: diagnostic.domain,
+    severity: diagnostic.severity,
+    confidence: diagnostic.confidence,
+    gateEligible: diagnostic.gateEligible,
+    message: diagnostic.message,
+    objectIds: diagnosticObjectIds(diagnostic),
+    primary: locatorWithoutSource(diagnostic.primary),
+    related: diagnostic.related.map(locatorWithoutSource),
+    revision,
+    parameters: { ...diagnostic.parameters },
+  }));
+  diagnostics.push(
+    ...diagnoseLabelClearance(document, resolver).map((item) => ({
+      ...item,
+      objectIds: [...item.objectIds],
+      revision,
+    })),
+  );
+  const exportResult = createDesignNetlistExport(project, {
+    format: "spice",
+    rootDocumentId: documentId,
+  });
+  diagnostics.push(
+    ...exportResult.diagnostics.map((item) => {
+      const { sourceRef: _sourceRef, ...primary } = item.primary;
+      return {
+        code: item.code,
+        domain: "spice" as const,
+        severity: item.severity,
+        category: "structural" as const,
+        confidence: "high" as const,
+        gateEligible: true,
+        message: item.message,
         objectIds: [...item.objectIds],
+        primary: {
+          ...primary,
+          hierarchyPath: primary.hierarchyPath.map((frame) => ({ ...frame })),
+        },
         revision,
-      })),
-    );
-  if (document) {
-    const exportResult = createDesignNetlistExport(project, {
-      format: "spice",
-      rootDocumentId: documentId,
-    });
-    diagnostics.push(
-      ...exportResult.diagnostics.map((item) => {
-        const { sourceRef: _sourceRef, ...primary } = item.primary;
-        return {
-          code: item.code,
-          domain: "spice" as const,
-          severity: item.severity,
-          category: "structural" as const,
-          confidence: "high" as const,
-          gateEligible: true,
-          message: item.message,
-          objectIds: [...item.objectIds],
-          primary: {
-            ...primary,
-            hierarchyPath: primary.hierarchyPath.map((frame) => ({ ...frame })),
-          },
-          revision,
-          parameters: {
-            documentId: item.documentId,
-            ...(item.parameter ? { parameter: item.parameter } : {}),
-          },
-        };
-      }),
-    );
-  }
+        parameters: {
+          documentId: item.documentId,
+          ...(item.parameter ? { parameter: item.parameter } : {}),
+        },
+      };
+    }),
+  );
   return diagnostics;
 }
 

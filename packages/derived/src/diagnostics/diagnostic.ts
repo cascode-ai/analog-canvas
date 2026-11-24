@@ -1,9 +1,16 @@
 import type { ProjectConnectivityIndex } from "../connectivity-index.js";
-import { buildProjectConnectivityIndex } from "../connectivity-index.js";
+import {
+  buildCellDiagnosticIndex,
+  buildProjectConnectivityIndex,
+} from "../connectivity-index.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { VisualDiagnostic } from "../visual.js";
 import { diagnoseVisualQuality } from "../visual.js";
-import type { CircuitProject, DerivedPoint } from "@icm/model";
+import type {
+  CircuitProject,
+  DerivedPoint,
+  SchematicDocument,
+} from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 import { runErcChecks } from "./erc.js";
 import { assessImportReference } from "../import-reference.js";
@@ -90,7 +97,7 @@ const ROUTING_VISUAL_CODES = new Set([
 ]);
 
 function locatorFromIndex(
-  index: ProjectConnectivityIndex,
+  index: Pick<ProjectConnectivityIndex, "objectIndex">,
   documentId: string,
   objectId: string,
 ): ObjectLocator {
@@ -120,7 +127,7 @@ function visualDiagnosticIdentity(visual: VisualDiagnostic): string {
 export function adaptVisualDiagnostic(
   visual: VisualDiagnostic,
   documentId: string,
-  index: ProjectConnectivityIndex,
+  index: Pick<ProjectConnectivityIndex, "objectIndex">,
 ): Diagnostic {
   const [primaryId, ...relatedIds] = visual.objectIds;
   const primary = primaryId
@@ -175,13 +182,35 @@ export function collectProjectDiagnosticEvidence(
   resolver: SymbolResolver,
   index = buildProjectConnectivityIndex(project, resolver),
   options: DiagnosticDomainOptions = {},
+) {
+  return collectDiagnosticEvidence(project, resolver, index, options);
+}
+
+/** A Cell's findings may depend on definitions and callers elsewhere in its Project. */
+export function diagnoseCell(
+  project: CircuitProject,
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+): readonly Diagnostic[] {
+  const index = buildCellDiagnosticIndex(document, resolver);
+  return collectDiagnosticEvidence(project, resolver, index, {}, document)
+    .diagnostics;
+}
+
+function collectDiagnosticEvidence(
+  project: CircuitProject,
+  resolver: SymbolResolver,
+  index: Pick<ProjectConnectivityIndex, "documents" | "objectIndex">,
+  options: DiagnosticDomainOptions,
+  target?: SchematicDocument,
 ): {
   diagnostics: readonly Diagnostic[];
   visualByDocument: ReadonlyMap<string, readonly VisualDiagnostic[]>;
 } {
   const wanted = options.domains ?? (["erc", "visual"] as const);
+  const documents = target ? [target] : project.documents;
   const visualByDocument = new Map<string, readonly VisualDiagnostic[]>();
-  const visual = (wanted.includes("visual") ? project.documents : []).flatMap(
+  const visual = (wanted.includes("visual") ? documents : []).flatMap(
     (document) => {
       const documentIndex = index.documents.get(document.id);
       const findings = diagnoseVisualQuality(document, resolver, {
@@ -203,9 +232,11 @@ export function collectProjectDiagnosticEvidence(
   );
   return {
     diagnostics: mergeDiagnostics(
-      wanted.includes("erc") ? runErcChecks(project, index, resolver) : [],
+      wanted.includes("erc")
+        ? runErcChecks(project, index, resolver, target)
+        : [],
       wanted.includes("visual")
-        ? project.documents.flatMap((document) =>
+        ? documents.flatMap((document) =>
             assessImportReference(
               document,
               resolver,

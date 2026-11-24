@@ -10,7 +10,7 @@ import {
   resolveDraftingObjectGeometry,
   resolveDocumentRoutingGeometry,
   resolveVisualAnchor,
-  buildProjectConnectivityIndex,
+  referencedDocumentId,
   endpointKey,
   resolveAnnotationText,
   type ResolvedDocumentRoutingGeometry,
@@ -366,12 +366,9 @@ function projectDocuments(
 
 function projectIndex(options: BuildAgentSessionSnapshotOptions) {
   const documents = projectDocuments(options);
-  const calls = options.project
-    ? buildProjectConnectivityIndex(
-        { ...options.project, documents: [...documents] },
-        options.resolver,
-      ).hierarchy.calls
-    : [];
+  const documentIds = new Set(
+    options.project ? documents.map((cell) => cell.id) : [],
+  );
   return {
     id: options.project?.id ?? `project-${options.document.id}`,
     name: options.project?.name ?? options.document.name,
@@ -418,12 +415,7 @@ function projectIndex(options: BuildAgentSessionSnapshotOptions) {
                   instanceId: instance.id,
                   targetName,
                   targetKind,
-                  targetDocumentId:
-                    calls.find(
-                      (call) =>
-                        call.parentDocumentId === document.id &&
-                        call.instanceId === instance.id,
-                    )?.childDocumentId ?? null,
+                  targetDocumentId: referencedDocumentId(instance, documentIds),
                   targetDefinitionId:
                     binding?.kind === "external-subcircuit"
                       ? binding.definitionId
