@@ -21,6 +21,73 @@ import {
   expectModelSourceMapping,
 } from "./external-model-fixture.test-support.js";
 
+it("locates every generated Net name with work proportional to the drawing", () => {
+  function exportUnnamedNets(count: number) {
+    const project = createEmptyProject("unnamed", "Unnamed Nets");
+    const document = project.documents[0]!;
+    let reads = 0;
+    const ids = Array.from({ length: count }, (_, index) => `net-${index}`);
+    document.nets = ids.map((id) => ({
+      get id() {
+        reads++;
+        return id;
+      },
+      terminals: [],
+    }));
+    const result = createDesignNetlistExport(project);
+    expect(result.status).toBe("ready");
+    expect(result.diagnostics.map(({ primary }) => primary)).toEqual(
+      ids.sort().map((objectId) => ({
+        documentId: document.id,
+        kind: "net",
+        hierarchyPath: [],
+        objectId,
+      })),
+    );
+    return reads;
+  }
+  const small = exportUnnamedNets(128);
+  expect(exportUnnamedNets(256)).toBeLessThan(3 * small);
+});
+
+it("locates a blocked export within each Cell using only its first diagnostic object", () => {
+  const project = createEmptyProject("cells", "Cells");
+  const top = project.documents[0]!;
+  const child = createEmptyDocument("child", "Child");
+  project.documents.push(child);
+  top.netlist!.name = "Stage";
+  child.netlist!.name = "STAGE";
+  top.nets.push({ id: "shared", terminals: [] });
+  child.nets.push(
+    { id: "shared", terminals: [] },
+    { id: child.id, terminals: [] },
+  );
+  child.instances.push({
+    id: "shared",
+    symbolId: "resistor",
+    reference: "R1",
+    placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+  });
+  const result = createDesignNetlistExport(project, { uncalledCells: true });
+  expect(result.status).toBe("blocked");
+  const locators = result.diagnostics
+    .filter(({ code }) => code === "GENERATED_NET_NAME")
+    .map(({ primary }) => [primary.documentId, primary.kind, primary.objectId]);
+  expect(locators).toEqual(
+    expect.arrayContaining([
+      [top.id, "net", "shared"],
+      [child.id, "instance", "shared"],
+      [child.id, "net", child.id],
+    ]),
+  );
+  expect(
+    result.diagnostics.find(({ code }) => code === "DUPLICATE_CELL_NAME"),
+  ).toMatchObject({
+    objectIds: [top.id, child.id],
+    primary: { documentId: child.id, kind: "document", objectId: child.id },
+  });
+});
+
 describe("complete external model export", () => {
   it("refuses an interface-only legacy model even when experiments contain its body", () => {
     const project = externalModelFixture();
