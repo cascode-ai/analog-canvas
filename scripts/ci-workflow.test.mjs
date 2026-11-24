@@ -161,13 +161,9 @@ describe("CI workflow", () => {
 
   it("runs every unit shard and the built-entry tests without masking a failure", () => {
     const unit = jobs.core_unit;
-    expect(unit.strategy.matrix.shard).toEqual([
-      "1/5",
-      "2/5",
-      "3/5",
-      "4/5",
-      "5/5",
-    ]);
+    expect(unit.strategy.matrix.shard).toBe(
+      "${{ fromJSON(needs.changes.outputs.unit_shards) }}",
+    );
     expect(unit.strategy["fail-fast"]).toBe("false");
     const built = jobs.core_unit_built;
     for (const item of [unit, ...unit.steps, built, ...built.steps])
@@ -182,13 +178,51 @@ describe("CI workflow", () => {
     expect(stepRunning(built, "pnpm ci:unit:built").env).toMatchObject({
       ICM_CI_PACKAGE_BUILD: "1",
     });
+    // Optional heavy jobs stay gated on their plan flags.
+    const full = {
+      outputs: {
+        heavy: "true",
+        build: "true",
+        unit_built: "true",
+        performance: "true",
+        release: "true",
+        unit_mode: "full",
+      },
+    };
+    const minimal = {
+      outputs: {
+        heavy: "true",
+        build: "false",
+        unit_built: "false",
+        performance: "false",
+        release: "false",
+        unit_mode: "affected",
+      },
+    };
+    for (const id of [
+      "core_build",
+      "core_unit_built",
+      "core_performance",
+      "core_release",
+    ]) {
+      expect(enabled(jobs[id], "merge_group", full)).toBe(true);
+      expect(enabled(jobs[id], "merge_group", minimal)).toBe(false);
+    }
+    expect(enabled(jobs.core_unit, "merge_group", minimal)).toBe(true);
+    expect(
+      enabled(jobs.core_unit, "merge_group", {
+        outputs: { heavy: "true", unit_mode: "none" },
+      }),
+    ).toBe(false);
   });
 
   it("runs every Vitest project once, the built-entry project only on the shared build", () => {
     const projects = (script) =>
       [...script.matchAll(/--project (\S+)/gu)].map((match) => match[1]);
     const sharded = projects(scripts["ci:unit"]);
+    const affected = projects(scripts["ci:unit:affected"]);
     const built = projects(scripts["ci:unit:built"]);
+    expect(affected).toEqual(sharded);
     expect(built).toEqual(["standalone"]);
     expect([...sharded, ...built].sort()).toEqual(
       vitestConfig.test.projects.map((project) => project.test.name).sort(),

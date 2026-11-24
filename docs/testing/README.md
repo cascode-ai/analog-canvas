@@ -61,8 +61,8 @@ stage is unnecessary when its checks already have valid evidence.
 - Run full local unit and browser suites once for shared-core, validation
   infrastructure or uncertain impact (the plan's high-risk/full-fallback routes).
   Ordinary changes need their affected checks, not a full suite per ticket.
-  The queue still qualifies its merged candidate with full ordinary units and
-  mapped browser tests.
+  The queue qualifies its merged candidate with affected or full ordinary units
+  and mapped browser tests.
 - Reuse evidence only for the same candidate, inputs, configuration and environment.
   List completed checks and outstanding obligations in the PR; run only the
   remainder. A repair or rebase invalidates affected evidence; uncertain impact
@@ -123,28 +123,33 @@ checks and any named original case.
 ## Pull-request checks
 
 The merge queue runs two required checks once on the PR merged with current
-`main`: `Core contracts` (static, ordinary unit/module suite, build, goldens,
-smoke, packaging, performance budgets) and `Browser tests` (specs mapped to
-changed product paths). The primary CI workflow plans PR scope and checks
-Test-Impact trailers; the additional environment workflows below also run on
-affected PRs. They are separate from the two required queue checks. `Core
-contracts` accepts only when every prerequisite job succeeds; a failed,
-cancelled or unexpectedly skipped one fails it. The primary workflow's PR and
-documentation-only skips remain unchanged.
+`main`: `Core contracts` (static, affected or sharded unit/module suite, and
+the path-scoped shared build, standalone, performance-budget and release jobs)
+and `Browser tests` (specs mapped to changed product paths). Regional host
+Python tests (`pnpm regional:python`) run inside `Core static` only when
+regional, container or workflow paths change. The primary CI workflow plans PR
+scope and checks Test-Impact trailers; the additional environment workflows
+below also run on affected PRs. They are separate from the two required queue
+checks. `Core contracts` accepts only when every planned job succeeds and every
+unplanned optional job is skipped; a failed, cancelled, unexpectedly skipped or
+inconsistent plan fails it. The primary workflow's PR and documentation-only
+skips remain unchanged.
 
 Queue formatting checks use the merged candidate's changed files within the
 normal formatting scope. Formatter configuration, ignore rules or lockfile
 changes, or an untrusted base/configuration, require the full formatting check.
 All other static contracts still run in full.
 
-Unit shards start with the plan and resolve workspace sources through Vitest.
-Any test that resolves a workspace package outside Vitest's own resolver (a
-child Node process or a bundler such as esbuild) reads `packages/*/dist` and
-belongs to the `standalone` Vitest project
-([vitest.config.ts](../../vitest.config.ts)). CI runs that project once against
-the shared package build (`pnpm ci:unit:built`), whose output must match the
-candidate, platform, toolchain, source inputs and file digests; locally it
-builds its own dependencies.
+When every changed implementation path is a present, traceable workspace source
+outside `highRisk` and CI infrastructure (at most 60 files), `Core unit` runs
+`vitest related` on one runner; shared-core, deletions, untraceable files or
+broad diffs run all five unit shards. Any test that resolves a workspace
+package outside Vitest's own resolver (a child Node process or a bundler such
+as esbuild) reads `packages/*/dist` and belongs to the `standalone` Vitest
+project ([vitest.config.ts](../../vitest.config.ts)). CI runs that project
+against the shared package build (`pnpm ci:unit:built`) when affected paths
+change, whose output must match the candidate, platform, toolchain, source
+inputs and file digests; locally it builds its own dependencies.
 
 ## Environment-dependent execution
 

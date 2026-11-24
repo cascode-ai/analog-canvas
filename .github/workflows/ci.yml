@@ -28,6 +28,15 @@ jobs:
       browser_shards: ${{ steps.plan.outputs.browser_shards }}
       mode: ${{ steps.plan.outputs.mode }}
       e2e_args: ${{ steps.plan.outputs.e2e_args }}
+      regional_python: ${{ steps.plan.outputs.regional_python }}
+      build: ${{ steps.plan.outputs.build }}
+      unit_built: ${{ steps.plan.outputs.unit_built }}
+      performance: ${{ steps.plan.outputs.performance }}
+      release: ${{ steps.plan.outputs.release }}
+      unit_mode: ${{ steps.plan.outputs.unit_mode }}
+      unit_shards: ${{ steps.plan.outputs.unit_shards }}
+      unit_args: ${{ steps.plan.outputs.unit_args }}
+      unit_strict: ${{ steps.plan.outputs.unit_strict }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -92,11 +101,14 @@ jobs:
         env:
           FORMAT_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: pnpm ci:static
+      - name: Regional host Python tests
+        if: needs.changes.outputs.regional_python == 'true'
+        run: pnpm regional:python
 
   core_build:
     name: Core package build
     needs: changes
-    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true' && needs.changes.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -128,13 +140,13 @@ jobs:
   core_unit:
     name: Core unit (${{ matrix.shard }})
     needs: changes
-    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true' && needs.changes.outputs.unit_mode != 'none'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1/5, 2/5, 3/5, 4/5, 5/5]
+        shard: ${{ fromJSON(needs.changes.outputs.unit_shards) }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -145,13 +157,27 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Unit and integration tests
+      - name: Unit and integration tests (full shards)
+        if: needs.changes.outputs.unit_mode == 'full'
         run: pnpm ci:unit --shard=${{ matrix.shard }}
+      - name: Unit and integration tests (affected)
+        if: needs.changes.outputs.unit_mode == 'affected'
+        env:
+          UNIT_ARGS: ${{ needs.changes.outputs.unit_args }}
+          UNIT_STRICT: ${{ needs.changes.outputs.unit_strict }}
+        run: |
+          read -r -a paths <<< "$UNIT_ARGS"
+          test "${#paths[@]}" -gt 0
+          pass_flag="--passWithNoTests"
+          if [[ "$UNIT_STRICT" == "true" ]]; then
+            pass_flag="--no-passWithNoTests"
+          fi
+          pnpm ci:unit:affected "$pass_flag" "${paths[@]}"
 
   core_unit_built:
     name: Core unit (built packages)
     needs: [changes, core_build]
-    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true' && needs.changes.outputs.unit_built == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -178,7 +204,7 @@ jobs:
   core_performance:
     name: Core performance
     needs: [changes, core_build]
-    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true' && needs.changes.outputs.performance == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -203,7 +229,7 @@ jobs:
   core_release:
     name: Core release
     needs: [changes, core_build]
-    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true'
+    if: github.event_name == 'merge_group' && needs.changes.outputs.heavy == 'true' && needs.changes.outputs.release == 'true'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
