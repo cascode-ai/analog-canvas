@@ -38,8 +38,11 @@ export {
 /** A Gallery testbench checked on this machine (scripts/gallery-sim-verify.mjs). */
 export {
   localSimulationCheck,
+  LOCAL_SG13G2_MODELS_ID,
+  LOCAL_SG13G2_PROFILE_ID,
   LOCAL_SIMULATION_MODELS_ID,
   LOCAL_SIMULATION_PROFILE_ID,
+  sg13g2Startup,
   type LocalSimulationCheck,
   type LocalSimulator,
 } from "./simulation-check";

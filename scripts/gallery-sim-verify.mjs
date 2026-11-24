@@ -7,11 +7,11 @@
 //
 //   node scripts/gallery-sim-verify.mjs ID [ID...] | --all
 //       [--apply] [--origin URL] [--ngspice BIN] [--models FILE]
-//       [--library ID=FILE]... [--bundle FILE]
+//       [--sg13g2 DIR] [--library ID=FILE]... [--bundle FILE]
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
   DEFAULT_ORIGIN,
@@ -34,15 +34,28 @@ const MODELS_ENV = "ANALOG_CANVAS_SKY130_LIB";
 const CONTINUOUS_MODELS =
   ".volare/circuit-bench-2.0.8/opt/sky130/continuous/sky130.lib.spice";
 const PROFILE = resolve(root, "containers/ngspice/hosted-sky130-profile.json");
-const USAGE = `usage: node scripts/gallery-sim-verify.mjs ID [ID...] | --all [--apply] [--origin URL] [--ngspice BIN] [--models FILE] [--library ID=FILE]... [--bundle FILE]
+const SG13G2_PROFILE = resolve(root, "containers/ngspice/sg13g2/profile.json");
+const SG13G2_ENV = "ANALOG_CANVAS_SG13G2";
+/**
+ * Where the hosted SG13G2 image's /opt/sg13g2 (sg13g2.lib.spice beside the
+ * IHP models and their OSDI modules) is laid out here; its standard cells,
+ * the image's /opt/sg13g2-cells, beside it.
+ */
+const SG13G2_ROOT = "opt/sg13g2";
+const USAGE = `usage: node scripts/gallery-sim-verify.mjs ID [ID...] | --all [--apply] [--origin URL] [--ngspice BIN] [--models FILE] [--sg13g2 DIR] [--library ID=FILE]... [--bundle FILE]
 
 Runs each entry's testbench with the local ngspice and judges it as the hosted
-check does. Without --apply nothing is recorded. --all takes every public entry
-with a testbench. --models names the SKY130 library file the Profile's models
-load from: the hosted simulator's continuous library (default $${MODELS_ENV},
-else ~/${CONTINUOUS_MODELS}). --library ID=FILE names another Profile library;
-the Profile's standard cells default to the copy in containers/ngspice/cells. The Owner token comes
-from $ANALOG_CANVAS_OWNER_TOKEN or ~/.config/analog-canvas/owner-token.`;
+check does, under the Profile each folder names: the hosted SKY130 or SG13G2
+ngspice Profile. Without --apply nothing is recorded. --all takes every public
+entry with a testbench. --models names the SKY130 library file the Profile's
+models load from: the hosted simulator's continuous library (default
+$${MODELS_ENV}, else ~/${CONTINUOUS_MODELS}). --sg13g2 names the directory laid
+out as the SG13G2 image's /opt/sg13g2: sg13g2.lib.spice, models/ and the OSDI
+modules in osdi/ (default $${SG13G2_ENV}, else ~/${SG13G2_ROOT}); its standard
+cells are sg13g2-cells/sg13g2_stdcell.spice beside it. --library ID=FILE names
+another Profile library; the SKY130 Profile's standard cells default to the
+copy in containers/ngspice/cells. The Owner token comes from
+$ANALOG_CANVAS_OWNER_TOKEN or ~/.config/analog-canvas/owner-token.`;
 
 export class UsageError extends Error {}
 
@@ -52,6 +65,38 @@ export function defaultModels(env = process.env, home = homedir()) {
   if (fromEnv) return resolve(fromEnv);
   const continuous = join(home, CONTINUOUS_MODELS);
   return existsSync(continuous) ? continuous : null;
+}
+
+/** The SG13G2 image's /opt/sg13g2 laid out here, or null. */
+export function defaultSg13g2(env = process.env, home = homedir()) {
+  const fromEnv = env[SG13G2_ENV]?.trim();
+  if (fromEnv) return resolve(fromEnv);
+  const installed = join(home, SG13G2_ROOT);
+  return existsSync(join(installed, "sg13g2.lib.spice")) ? installed : null;
+}
+
+/**
+ * The SG13G2 Profile's libraries in `directory`, laid out as the image's
+ * /opt: the models library, and the standard cells beside it when there.
+ */
+export function sg13g2Libraries(directory, profile = SG13G2_PROFILE) {
+  if (!directory) return {};
+  const { models, cellLibraries = [] } = JSON.parse(
+    readFileSync(profile, "utf8"),
+  );
+  return Object.fromEntries([
+    [models.id, join(directory, basename(models.library.runtimePath))],
+    ...cellLibraries
+      .map((cell) => [
+        cell.id,
+        join(
+          dirname(directory),
+          basename(dirname(cell.library.runtimePath)),
+          basename(cell.library.runtimePath),
+        ),
+      ])
+      .filter(([, file]) => existsSync(file)),
+  ]);
 }
 
 /** The hosted Profile's standard-cell libraries, from the copies this checkout vendors. */
@@ -79,6 +124,7 @@ export function parseArguments(argv, env = process.env, home = homedir()) {
     origin: DEFAULT_ORIGIN,
     ngspice: "ngspice",
     models: defaultModels(env, home),
+    sg13g2: defaultSg13g2(env, home),
     libraries: defaultLibraries(),
     bundle: undefined,
   };
@@ -95,6 +141,7 @@ export function parseArguments(argv, env = process.env, home = homedir()) {
     else if (arg === "--origin") options.origin = postOrigin(value());
     else if (arg === "--ngspice") options.ngspice = value();
     else if (arg === "--models") options.models = resolve(value());
+    else if (arg === "--sg13g2") options.sg13g2 = resolve(value());
     else if (arg === "--bundle") options.bundle = resolve(value());
     else if (arg === "--library") {
       const [id, file] = value().split(/=(.*)/su);
@@ -279,10 +326,11 @@ export async function main(
     ...(options.models
       ? { [headless.LOCAL_SIMULATION_MODELS_ID]: options.models }
       : {}),
+    ...sg13g2Libraries(options.sg13g2),
     ...options.libraries,
   };
   log(
-    `${options.apply ? "Recording" : "Dry run (no --apply): nothing is recorded"}; ngspice ${options.ngspice}, models ${libraries[headless.LOCAL_SIMULATION_MODELS_ID] ?? "none"}, ${options.origin}`,
+    `${options.apply ? "Recording" : "Dry run (no --apply): nothing is recorded"}; ngspice ${options.ngspice}, models ${libraries[headless.LOCAL_SIMULATION_MODELS_ID] ?? "none"}, SG13G2 ${options.sg13g2 ?? "none"}, ${options.origin}`,
   );
   const results = await verifyEntries({
     ids: options.ids,

@@ -5,7 +5,9 @@
  * goes through the Worker's ngspice route in-process, with this module's
  * runner standing where the hosted container stands, so the deck, the model
  * library load and the result are composed by the same code; only the
- * simulator and its model files are this machine's.
+ * simulator and its model files are this machine's. Two Profiles run here:
+ * the hosted SKY130 one, and the hosted SG13G2 one, whose startup file loads
+ * the IHP models' OSDI modules from where this machine keeps them.
  */
 import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -46,8 +48,10 @@ import {
   type SimulationEnvironmentMetadata,
 } from "@icm/spice-run";
 import hostedProfile from "../../../../containers/ngspice/hosted-sky130-profile.json" with { type: "json" };
+import sg13g2Profile from "../../../../containers/ngspice/sg13g2/profile.json" with { type: "json" };
 import {
   routeNgspiceSimulationRequest,
+  type NgspiceProfile,
   type NgspiceRunner,
 } from "../../../../worker/simulation-ngspice";
 
@@ -57,25 +61,65 @@ export interface LocalSimulator {
   ngspice: string;
   /**
    * A SPICE library file for each Profile dependency a run mounts, by its
-   * id: the models (`sky130A-continuous`), a standard-cell library.
+   * id: the models (`sky130A-continuous`; SG13G2's `sg13g2.lib.spice`, in
+   * the directory that holds its `models` and `osdi` as the image's
+   * /opt/sg13g2 does), a standard-cell library.
    */
   libraries: Readonly<Record<string, string>>;
   /** One run's deadline; 120 s, the hosted ceiling, when left out. */
   timeoutMs?: number;
 }
 
-/** The Profile a local check runs: the hosted SKY130 ngspice Profile. */
+/** The hosted SKY130 ngspice Profile, which a local check runs. */
 export const LOCAL_SIMULATION_PROFILE_ID = hostedProfile.id;
 /** The dependency id of that Profile's model library. */
 export const LOCAL_SIMULATION_MODELS_ID = hostedProfile.models.id;
+/** The hosted SG13G2 ngspice Profile, which a local check also runs. */
+export const LOCAL_SG13G2_PROFILE_ID = sg13g2Profile.id;
+/** The dependency id of that Profile's model library. */
+export const LOCAL_SG13G2_MODELS_ID = sg13g2Profile.models.id;
+
+/**
+ * The startup file of the hosted SG13G2 image
+ * (containers/ngspice/sg13g2/hosted.spiceinit) with its model root, the
+ * image's /opt/sg13g2, at `root`: the corner libraries' source path and the
+ * IHP Verilog-A models compiled to OSDI.
+ */
+export function sg13g2Startup(root: string): string {
+  return [
+    "set filetype=ascii",
+    `set sourcepath = ( ${root}/models )`,
+    ...["psp103", "psp103_nqs", "r3_cmc"].map(
+      (module) => `osdi ${root}/osdi/${module}.osdi`,
+    ),
+    "",
+  ].join("\n");
+}
+
+interface LocalProfile {
+  profile: NgspiceProfile;
+  /** The run's startup file from this machine's libraries; null: it has none. */
+  startup(libraries: LocalSimulator["libraries"]): string | null;
+}
+
+/** The Profiles a local check runs, each with how its startup file is made here. */
+const LOCAL_PROFILES: readonly LocalProfile[] = [
+  // The hosted harness's startup file (containers/ngspice/hosted.spiceinit).
+  { profile: hostedProfile, startup: () => "set filetype=ascii\n" },
+  {
+    profile: sg13g2Profile,
+    startup: (libraries) => {
+      const models = libraries[sg13g2Profile.models.id];
+      return models ? sg13g2Startup(dirname(models)) : null;
+    },
+  },
+];
 
 /** A circuit's verdict, or why this machine cannot give one. */
 export type LocalSimulationCheck =
   | { kind: "verdict"; check: SimulationCheck }
   | { kind: "cannot-run"; folder: string; code: string; message: string };
 
-/** The hosted harness's startup file (containers/ngspice/hosted.spiceinit). */
-const STARTUP = "set filetype=ascii\n";
 const DEFAULT_TIMEOUT_MS = 120_000;
 
 function sha256Bytes(bytes: Buffer | string): string {
@@ -117,18 +161,21 @@ async function resolveBinary(binary: string): Promise<string | null> {
  * observed rather than pinned, the binary and the model file by their own
  * digests. Null when ngspice does not answer.
  */
-async function localSimulatorFacts(simulator: LocalSimulator): Promise<{
+async function localSimulatorFacts(
+  simulator: LocalSimulator,
+  profile: NgspiceProfile,
+): Promise<{
   binary: string;
   environment: SimulationEnvironmentMetadata;
 } | null> {
   const binary = await resolveBinary(simulator.ngspice);
   const version = binary ? await ngspiceVersion(binary) : null;
   if (!binary || !version) return null;
-  const models = simulator.libraries[LOCAL_SIMULATION_MODELS_ID];
+  const models = simulator.libraries[profile.models.id];
   const environment = await createSimulationEnvironmentMetadata({
     executor: "local-host",
     reproducibility: "observed",
-    profileId: LOCAL_SIMULATION_PROFILE_ID,
+    profileId: profile.id,
     platform: `${process.platform}/${process.arch}`,
     simulator: {
       name: "ngspice",
@@ -137,7 +184,7 @@ async function localSimulatorFacts(simulator: LocalSimulator): Promise<{
     },
     models: models
       ? {
-          id: LOCAL_SIMULATION_MODELS_ID,
+          id: profile.models.id,
           contentSha256: sha256Bytes(await readFile(models)),
         }
       : null,
@@ -245,6 +292,7 @@ function runNgspice(
  */
 function localRunner(
   simulator: LocalSimulator,
+  { profile, startup }: LocalProfile,
   {
     binary,
     environment,
@@ -260,7 +308,7 @@ function localRunner(
           status: "ready",
           environment,
           // What a run may mount: the Profile's libraries this machine has.
-          dependencies: [hostedProfile.models, ...hostedProfile.cellLibraries]
+          dependencies: [profile.models, ...profile.cellLibraries]
             .filter((library) => simulator.libraries[library.id])
             .map((library) => ({
               id: library.id,
@@ -277,6 +325,12 @@ function localRunner(
             "simulation-dependency-unavailable",
             `This machine has no library for ${dependency.id}; name its file with --library ${dependency.id}=<file>.`,
           );
+      const startupFile = startup(simulator.libraries);
+      if (startupFile === null)
+        return refuse(
+          "simulation-dependency-unavailable",
+          `A run under ${profile.id} loads its startup from the model library; this machine has none for ${profile.models.id}.`,
+        );
       const directory = await mkdtemp(join(tmpdir(), "gallery-sim-check-"));
       try {
         for (const file of body.files ?? []) {
@@ -294,7 +348,7 @@ function localRunner(
         }
         await mkdir(dirname(join(directory, entryPath)), { recursive: true });
         await writeFile(join(directory, entryPath), body.deck, "utf8");
-        await writeFile(join(directory, ".spiceinit"), STARTUP, "utf8");
+        await writeFile(join(directory, ".spiceinit"), startupFile, "utf8");
         const run = await runNgspice(
           binary,
           directory,
@@ -352,10 +406,10 @@ function notHere(problem: Pick<Problem, "code" | "recovery">): boolean {
 
 /**
  * Check one circuit's testbench on this machine: folder after folder, until
- * one does not pass. A verdict the hosted rule gives, marked `local`; or
- * `cannot-run` when a folder names a Profile other than the local one, or
- * its run could not happen here (no simulator, no library for a
- * dependency), so nothing is recorded for it.
+ * one does not pass, each under the Profile its experiment names. A verdict
+ * the hosted rule gives, marked `local`; or `cannot-run` when a folder names
+ * a Profile no local check runs, or its run could not happen here (no
+ * simulator, no library for a dependency), so nothing is recorded for it.
  */
 export async function localSimulationCheck(
   projectText: string,
@@ -391,36 +445,55 @@ export async function localSimulationCheck(
   }
   const folders = project.simulationFolders;
   if (folders.length === 0) return verdict([], 0);
+  // An unreadable experiment is the default Profile's to refuse, as hosted.
+  const profiles = new Map<string, LocalProfile>();
   for (const folder of folders) {
     const config = readSimulationExperimentConfig(folder);
-    if (config.ok && config.config.environment.profileId !== hostedProfile.id)
+    const profileId = config.ok
+      ? config.config.environment.profileId
+      : hostedProfile.id;
+    const local = LOCAL_PROFILES.find(
+      ({ profile }) => profile.id === profileId,
+    );
+    if (!local)
       return {
         kind: "cannot-run",
         folder: folder.name,
         code: "profile-not-local",
-        message: `This folder runs under the Profile ${config.config.environment.profileId}; a local check runs ${hostedProfile.id} only.`,
+        message: `This folder runs under the Profile ${profileId}; a local check runs ${LOCAL_PROFILES.map(({ profile }) => profile.id).join(" or ")} only.`,
       };
+    profiles.set(folder.id, local);
   }
-  const facts = await localSimulatorFacts(simulator);
-  if (!facts)
-    return {
-      kind: "cannot-run",
-      folder: folders[0]!.name,
-      code: "ngspice-unavailable",
-      message: `${simulator.ngspice} does not run here or does not say its version.`,
-    };
-  const runner = localRunner(simulator, facts);
-  const executor = createHostedExecutor(
-    (async (input: RequestInfo | URL, init?: RequestInit) =>
-      (await routeNgspiceSimulationRequest(
-        new Request(
-          new URL(String(input), "http://local-simulation-check"),
-          init,
-        ),
-        { NGSPICE: { getByName: () => runner } },
-      )) ??
-      Response.json({ error: "not-found" }, { status: 404 })) as typeof fetch,
-  );
+  const executors = new Map<string, ReturnType<typeof createHostedExecutor>>();
+  const executorFor = async (local: LocalProfile) => {
+    const known = executors.get(local.profile.id);
+    if (known) return known;
+    const facts = await localSimulatorFacts(simulator, local.profile);
+    if (!facts) return null;
+    const runner = localRunner(simulator, local, facts);
+    const ours = JSON.stringify(facts.environment);
+    const executor = createHostedExecutor(
+      (async (input: RequestInfo | URL, init?: RequestInit) =>
+        (await routeNgspiceSimulationRequest(
+          new Request(
+            new URL(String(input), "http://local-simulation-check"),
+            init,
+          ),
+          { NGSPICE: { getByName: () => runner } },
+          undefined,
+          local.profile,
+          // This machine's run, which the route would otherwise refuse for
+          // not being the Profile's pinned image.
+          {
+            acceptEnvironment: async (environment) =>
+              JSON.stringify(environment) === ours,
+          },
+        )) ??
+        Response.json({ error: "not-found" }, { status: 404 })) as typeof fetch,
+    );
+    executors.set(local.profile.id, executor);
+    return executor;
+  };
   const results: SimulationCheckFolder[] = [];
   for (const folder of folders) {
     const cannotRun = (problem: Pick<Problem, "code" | "message">) => ({
@@ -429,6 +502,12 @@ export async function localSimulationCheck(
       code: problem.code,
       message: problem.message,
     });
+    const executor = await executorFor(profiles.get(folder.id)!);
+    if (!executor)
+      return cannotRun({
+        code: "ngspice-unavailable",
+        message: `${simulator.ngspice} does not run here or does not say its version.`,
+      });
     let checked: SimulationCheckFolder;
     try {
       const prepared = await prepareFolderExecutionInput(
