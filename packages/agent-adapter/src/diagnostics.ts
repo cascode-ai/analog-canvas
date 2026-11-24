@@ -1,10 +1,11 @@
 import {
+  diagnoseAmbiguousJunctions,
   diagnoseProject,
   diagnoseVisualQuality,
   diagnoseLabelClearance,
 } from "@icm/derived";
 import { createDesignNetlistExport } from "@icm/netlist";
-import type { Diagnostic, ObjectLocator } from "@icm/derived";
+import type { Diagnostic, ObjectLocator, VisualDiagnostic } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -33,7 +34,14 @@ export function agentVisualDiagnostics(
   return [
     ...diagnoseVisualQuality(document, resolver),
     ...diagnoseLabelClearance(document, resolver),
-  ].map((item) => ({
+  ].map((item) => agentVisualDiagnostic(item, document.revision));
+}
+
+function agentVisualDiagnostic(
+  item: VisualDiagnostic,
+  revision: number,
+): AgentDiagnostic {
+  return {
     code: item.code,
     severity: item.severity,
     category: item.category,
@@ -41,11 +49,11 @@ export function agentVisualDiagnostics(
     gateEligible: item.gateEligible,
     message: item.message,
     objectIds: [...item.objectIds],
-    revision: document.revision,
+    revision,
     ...(item.bounds ? { bounds: item.bounds } : {}),
     ...(item.point ? { point: item.point } : {}),
     ...(item.parameters ? { parameters: { ...item.parameters } } : {}),
-  }));
+  };
 }
 
 export function agentProjectDiagnostics(
@@ -122,8 +130,8 @@ export function addedAmbiguousJunctions(
   resolver: SymbolResolver,
 ): AgentDiagnostic[] {
   const ambiguous = (document: SchematicDocument) =>
-    agentVisualDiagnostics(document, resolver).filter(
-      (item) => item.code === "VISUAL_AMBIGUOUS_JUNCTION",
+    diagnoseAmbiguousJunctions(document, resolver).map((finding) =>
+      agentVisualDiagnostic(finding, document.revision),
     );
   const at = (item: AgentDiagnostic) =>
     item.point ? `${item.point.x},${item.point.y}` : "";

@@ -15,7 +15,6 @@ import {
   resolveDocumentLogicalNets,
   validateLogicalNetContract,
 } from "../logical-net.js";
-import { resolveMosBulkConnection } from "../mos-bulk.js";
 import { resolveEndpointPoint } from "../endpoint.js";
 import { resolveDocumentRoutingGeometry } from "../resolved-route-geometry.js";
 import { findRouteSegmentsAtPoint } from "../route-query.js";
@@ -713,18 +712,10 @@ export function runErcChecks(
         }
 
         if (role === "bulk") {
-          const resolution = resolveMosBulkConnection(document, instance);
-          const bulkAssessment = endpointConnectivity.assessMosBulk(
-            instance.id,
-          );
-          const configuredDefault =
-            resolution?.status === "cell-default" ||
-            resolution?.status === "instance-override" ||
-            resolution?.status === "supply-default";
           if (
             netId &&
-            !bulkAssessment.electricallySatisfied &&
-            !configuredDefault
+            !endpointConnectivity.assessMosBulk(instance.id)
+              .electricallySatisfied
           ) {
             diagnostics.push({
               id: `erc:bulk-unresolved:${document.id}:${instance.id}:${pin.name}`,

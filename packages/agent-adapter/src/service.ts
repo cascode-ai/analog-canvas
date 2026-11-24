@@ -10,9 +10,15 @@ import {
   planWireBatch,
 } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
-import type { CircuitProject, Point, SchematicDocument } from "@icm/model";
+import {
+  isFrozenSnapshot,
+  type CircuitProject,
+  type Point,
+  type SchematicDocument,
+} from "@icm/model";
 import { buildSvgScene, renderDocumentSvg } from "@icm/render-svg";
 import {
+  InMemorySymbolResolver,
   builtInSymbols,
   createProjectSymbolResolver,
   type SymbolResolver,
@@ -336,6 +342,7 @@ export function createAgentCircuitService(
     project: CircuitProject | undefined,
     document: SchematicDocument,
     resolver: SymbolResolver,
+    retain = true,
   ): AgentDiagnostic[] => {
     const cached = diagnosticsCache;
     if (
@@ -353,7 +360,17 @@ export function createAgentCircuitService(
           document.revision,
         )
       : agentVisualDiagnostics(document, resolver);
-    diagnosticsCache = { project, document, resolver, diagnostics };
+    // A preview document is ephemeral. Keep the committed baseline available
+    // to the following preview or commit at the same revision.
+    if (retain) diagnosticsCache = { project, document, resolver, diagnostics };
+    else if (
+      cached &&
+      (!isFrozenSnapshot(cached.document) ||
+        (cached.project && !isFrozenSnapshot(cached.project)) ||
+        !InMemorySymbolResolver.hasStableDefinitions(cached.resolver))
+    ) {
+      diagnosticsCache = undefined;
+    }
     return diagnostics;
   };
   const response = (input: unknown): AgentCircuitResponse =>
@@ -1459,6 +1476,7 @@ export function createAgentCircuitService(
             result.proposedProject,
             proposedDocument,
             effectiveResolver,
+            !request.dryRun,
           );
           return response({
             apiVersion: request.apiVersion,
@@ -1756,6 +1774,7 @@ export function createAgentCircuitService(
           proposedProject,
           result.document,
           committedResolver,
+          !request.dryRun,
         );
         return response({
           apiVersion: request.apiVersion,
