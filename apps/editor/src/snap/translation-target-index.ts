@@ -1,4 +1,4 @@
-import type { Point } from "@icm/model";
+import { isFrozenSnapshot, type Point } from "@icm/model";
 import type { SnapAnchor } from "./engine";
 
 interface Entry {
@@ -24,13 +24,14 @@ function coordinateIndex(
   // index: checking N coordinates is still far cheaper than movingCount*N.
   if (
     cached &&
-    cached.entries.length === targets.length &&
-    cached.entries.every(
-      (entry, i) =>
-        entry.target === targets[i] &&
-        entry.x === targets[i]!.point.x &&
-        entry.y === targets[i]!.point.y,
-    )
+    (isFrozenSnapshot(targets) ||
+      (cached.entries.length === targets.length &&
+        cached.entries.every(
+          (entry, i) =>
+            entry.target === targets[i] &&
+            entry.x === targets[i]!.point.x &&
+            entry.y === targets[i]!.point.y,
+        )))
   )
     return cached;
   const entries = targets.map((target, order) => ({

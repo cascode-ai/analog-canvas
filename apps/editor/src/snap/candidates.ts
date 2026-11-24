@@ -6,7 +6,13 @@ import {
 } from "@icm/derived";
 import type { ResolvedDocumentRoutingGeometry } from "@icm/derived";
 import type { WireSource } from "@icm/edit-engine";
-import type { Point, Rect, SchematicDocument } from "@icm/model";
+import {
+  freezeSnapshot,
+  isFrozenSnapshot,
+  type Point,
+  type Rect,
+  type SchematicDocument,
+} from "@icm/model";
 import { resolveInstanceSymbol, type SymbolResolver } from "@icm/symbols";
 
 import { closestPointOnSegment } from "../canvas/canvas-geometry";
@@ -409,11 +415,16 @@ export function sceneSnapTargetsForCalculation(
 ): readonly SnapAnchor[] {
   const cached = calculationTargets.get(index);
   if (
-    cached?.length === index.targets.length &&
-    index.targets.every((target, at) => target.anchor === cached[at])
+    cached &&
+    (isFrozenSnapshot(index) ||
+      (cached.length === index.targets.length &&
+        index.targets.every((target, at) => target.anchor === cached[at])))
   )
     return cached;
-  const targets = Object.freeze(index.targets.map((target) => target.anchor));
+  const anchors = index.targets.map((target) => target.anchor);
+  const targets = isFrozenSnapshot(index)
+    ? freezeSnapshot(anchors)
+    : Object.freeze(anchors);
   calculationTargets.set(index, targets);
   return targets;
 }
@@ -462,7 +473,15 @@ export function buildSceneSnapTargetIndex(
       targets.push({ anchor, objectId: object.id });
     }
   }
-  return { targets };
+  if (!isFrozenSnapshot(document)) return { targets };
+  // The index owns its anchors. Source points and WireSource endpoints may
+  // belong to other readers, so snapshot those before sharing a frozen index.
+  for (const { anchor } of targets) {
+    if (!isFrozenSnapshot(anchor.point)) anchor.point = { ...anchor.point };
+    if (anchor.electrical?.kind === "endpoint")
+      anchor.electrical.endpoint = { ...anchor.electrical.endpoint };
+  }
+  return freezeSnapshot({ targets });
 }
 
 export function sceneSnapTargetsExcluding(

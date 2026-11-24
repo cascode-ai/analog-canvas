@@ -1,4 +1,4 @@
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, freezeSnapshot } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 
@@ -81,13 +81,13 @@ describe("copy placement alignment", () => {
       snapPendingCopyPlacement({ ...options, position: { x: 32, y: 52 } }),
     ).toEqual({ point: { x: 30, y: 50 }, guides: [] });
   });
-  it("keeps repeated pointer placement off the full canvas sorting path", () => {
+  it("keeps repeated pointer placement off full canvas scans and sorts", () => {
     const document = createEmptyDocument("main", "Main");
     document.instances = Array.from({ length: 100 }, (_, index) =>
       resistor(`R${index}`, 10000 + index * 100, 10000),
     );
     const sceneSnapTargetIndex = buildSceneSnapTargetIndex(
-      document,
+      freezeSnapshot(document),
       resolver,
       [],
     );
@@ -105,6 +105,19 @@ describe("copy placement alignment", () => {
       tolerance: 3,
     };
     snapPendingCopyPlacement({ ...options, position: { x: 3003, y: 203 } });
+    const originalEvery = Array.prototype.every;
+    let fullTargetScans = 0;
+    const every = vi
+      .spyOn(Array.prototype, "every")
+      .mockImplementation(function (
+        this: unknown[],
+        predicate: (value: unknown, index: number, array: unknown[]) => unknown,
+        thisArg?: unknown,
+      ) {
+        if (this.length >= sceneSnapTargetIndex.targets.length)
+          fullTargetScans++;
+        return originalEvery.call(this, predicate, thisArg);
+      });
     const originalSort = Array.prototype.sort;
     let fullTargetSorts = 0;
     // Count real runtime work, without replacing any Snap/planner answer.
@@ -122,7 +135,9 @@ describe("copy placement alignment", () => {
         ).toEqual({ point: { x: x - 3, y: 200 }, guides: [] });
       }
       expect(fullTargetSorts).toBe(0);
+      expect(fullTargetScans).toBe(0);
     } finally {
+      every.mockRestore();
       sort.mockRestore();
     }
   });

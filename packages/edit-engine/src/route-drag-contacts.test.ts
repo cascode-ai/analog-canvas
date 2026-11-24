@@ -516,14 +516,13 @@ describe("segment landing on an endpoint", () => {
     });
     try {
       for (const y of [20, 30, 40]) {
-        expect(prepare("r", 0, { x: 50, y }).preview?.junctions).toEqual([
+        expect(prepare.preview("r", 0, { x: 50, y }).junctions).toEqual([
           { junctionId: "A", position: { x: 0, y } },
           { junctionId: "B", position: { x: 100, y } },
         ]);
       }
-      // One full projection of the changed canvas per frame remains necessary;
-      // the unchanged source must not be resolved twice again per frame.
-      expect(fullSorts).toBeLessThanOrEqual(3);
+      // Moving the preview only needs the changed conductor geometry.
+      expect(fullSorts).toBe(0);
       expect(fullRouteIterations).toBe(0);
     } finally {
       spy.mockRestore();
