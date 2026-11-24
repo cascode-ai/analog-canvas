@@ -47,7 +47,10 @@ import {
   resolveDraftingTextInkBounds,
 } from "./drafting-geometry.js";
 import { pointOnSegment } from "./segment-geometry.js";
-import type { ResolvedDocumentLogicalNets } from "./logical-net.js";
+import {
+  resolveCommittedDocumentLogicalNets,
+  type ResolvedDocumentLogicalNets,
+} from "./logical-net.js";
 import {
   buildBoundsSpatialIndex,
   buildDocumentSpatialIndex,
@@ -1007,40 +1010,46 @@ export function diagnoseVisualQuality(
   }
 
   const styleProfile = resolveDocumentStyleProfile(document.presentation);
-  const annotationBounds = document.annotations
-    .filter((annotation) =>
-      isSchematicAnnotationVisible(
+  // Agent diagnostics can read a mutable proposal before commit. Share its
+  // naming view only for this pass, including labels outside the viewport.
+  let logicalNets = options.logicalNetResolution;
+  const annotationBounds = document.annotations.flatMap((annotation) => {
+    if (annotation.visible === false) return [];
+    if (annotation.binding?.kind === "net-name")
+      logicalNets ??= resolveCommittedDocumentLogicalNets(document);
+    const text = resolveAnnotationText(
+      document,
+      annotation,
+      logicalNets,
+      resolver,
+    );
+    if (
+      !isSchematicAnnotationVisible(
         document,
         annotation,
-        options.logicalNetResolution,
-        undefined,
+        logicalNets,
+        text,
         resolver,
-      ),
+      )
     )
-    .map((annotation) => {
-      return {
+      return [];
+    return [
+      {
         id: annotation.id,
-        name: flattenRichText(
-          resolveAnnotationText(
-            document,
-            annotation,
-            options.logicalNetResolution,
-            resolver,
-          ),
-        ).trim(),
-        // What is drawn, capitals to subscripts: the line box's extra ascent
-        // and descent made two stacked rows, or a label and its part, read
-        // as overlapping when nothing touched (#1105).
+        name: flattenRichText(text).trim(),
+        // The ink extent covers the drawn capitals and subscripts (#1105).
         bounds: resolveAnnotationPresentation(
           document,
           resolver,
           annotation,
           styleProfile,
           routingGeometry,
-          options.logicalNetResolution,
+          logicalNets,
+          text,
         ).inkBounds,
-      };
-    });
+      },
+    ];
+  });
   for (const cluster of overlappingClusters(annotationBounds)) {
     const inOrder = orderedOverlap(cluster, paintRanks.annotation);
     const objectIds = inOrder.map((item) => item.id);

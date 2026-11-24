@@ -12,6 +12,7 @@ import {
   endpointKey,
   isVisibleEndpoint,
   netEndpoints,
+  indexJunctionsByNet,
   resolveEndpointOutwardDirection,
   resolveEndpointPoint,
   type EndpointConnection,
@@ -305,6 +306,7 @@ function netContacts(
   net: Net,
   geometry: ResolvedDocumentRoutingGeometry,
   routesForNet: readonly SchematicDocument["routes"][number][],
+  junctionsForNet: readonly SchematicDocument["junctions"][number][],
   endpointConnections?: ReadonlyMap<string, EndpointConnection>,
   endpointLookup?: EndpointObjectLookup,
   routeLookup?: {
@@ -316,7 +318,7 @@ function netContacts(
     ...groupCoincidentEndpoints(
       document,
       resolver,
-      netEndpoints(document, net),
+      netEndpoints(document, net, junctionsForNet),
       endpointLookup,
       endpointConnections,
     ),
@@ -403,6 +405,7 @@ export function deriveDocumentContactEvidence(
   resolver: SymbolResolver,
   routingGeometry = resolveDocumentRoutingGeometry(document, resolver),
   options: {
+    junctionsByNetId?: ReturnType<typeof indexJunctionsByNet>;
     routesByNetId?: ReadonlyMap<
       string,
       readonly SchematicDocument["routes"][number][]
@@ -438,6 +441,8 @@ export function deriveDocumentContactEvidence(
       }
       return grouped;
     })();
+  const junctionsByNetId =
+    options.junctionsByNetId ?? indexJunctionsByNet(document.junctions);
   const contacts = [...document.nets]
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
     .flatMap((net) =>
@@ -447,6 +452,7 @@ export function deriveDocumentContactEvidence(
         net,
         routingGeometry,
         routesByNetId.get(net.id) ?? [],
+        junctionsByNetId.get(net.id) ?? [],
         options.endpointConnections,
         endpointLookup,
         routeLookup,

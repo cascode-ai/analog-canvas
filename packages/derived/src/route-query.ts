@@ -12,7 +12,7 @@ import {
   intersectSegments,
   pointOnSegment,
   projectPointToSegment,
-  SEGMENT_EPSILON,
+  SEGMENT_QUERY_PADDING,
 } from "./segment-geometry.js";
 import type { DocumentSpatialIndex } from "./spatial-index.js";
 
@@ -157,7 +157,7 @@ export function findRouteSegmentsAtPoint(
   }
   if (spatialIndex?.shortRouteSegments) {
     const addresses: RouteSegmentAddress[] = [];
-    const padding = SEGMENT_EPSILON * 2;
+    const padding = SEGMENT_QUERY_PADDING;
     const widened = {
       x: point.x - padding,
       y: point.y - padding,

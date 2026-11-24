@@ -439,14 +439,14 @@ describe("resolved logical Nets", () => {
       { id: "P1", symbolId: "port", placement: null },
     );
     document.nets.push(
-      { id: "net-marker", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
+      { id: "net-z-marker", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
       { id: "net-port", terminals: [{ instanceId: "P1", pinName: "P" }] },
     );
     document.netlist!.terminals.push(
       {
         id: "terminal-vdd1",
         name: "VDD",
-        netId: "net-marker",
+        netId: "net-z-marker",
         direction: "inout",
         interfaceInstanceIds: ["VDD1"],
       },
@@ -463,7 +463,7 @@ describe("resolved logical Nets", () => {
     expect(groups).toHaveLength(1);
     expect(groups[0]).toMatchObject({
       name: "VDD",
-      baseNetIds: ["net-marker", "net-port"],
+      baseNetIds: ["net-port", "net-z-marker"],
       formalTerminalIds: ["terminal-p1", "terminal-vdd1"],
       powerDomain: "vdd",
       conflicts: [],

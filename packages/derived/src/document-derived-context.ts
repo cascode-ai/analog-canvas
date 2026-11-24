@@ -1,3 +1,4 @@
+import { groupedBy } from "./grouped-by.js";
 import { registerDocumentCache } from "./document-caches.js";
 import {
   routeEnd,
@@ -28,6 +29,7 @@ import {
 } from "./spatial-index.js";
 import {
   endpointKey,
+  indexJunctionsByNet,
   buildEndpointObjectLookup,
   resolveEndpointConnection,
   type EndpointConnection,
@@ -78,23 +80,6 @@ const contextCache = registerDocumentCache(
   new WeakMap<SchematicDocument, CachedDocumentDerivedContext>(),
 );
 
-function groupedBy<T>(
-  values: readonly T[],
-  keyOf: (value: T) => string | readonly string[] | undefined,
-): ReadonlyMap<string, readonly T[]> {
-  const groups = new Map<string, T[]>();
-  for (const value of values) {
-    const key = keyOf(value);
-    if (!key) continue;
-    for (const entry of typeof key === "string" ? [key] : new Set(key)) {
-      const group = groups.get(entry) ?? [];
-      group.push(value);
-      groups.set(entry, group);
-    }
-  }
-  return groups;
-}
-
 export function buildDocumentDerivedContext(
   document: SchematicDocument,
   resolver: SymbolResolver,
@@ -113,10 +98,7 @@ export function buildDocumentDerivedContext(
     (item) => item.members?.map((member) => member.netId) ?? item.netId,
   );
   const routesById = new Map(document.routes.map((route) => [route.id, route]));
-  const junctionsByNetId = groupedBy(
-    document.junctions,
-    (item) => item.members?.map((member) => member.netId) ?? item.netId,
-  );
+  const junctionsByNetId = indexJunctionsByNet(document.junctions);
   const annotationsByNetId = groupedBy(
     document.annotations,
     (item) => item.netId,
@@ -156,6 +138,7 @@ export function buildDocumentDerivedContext(
     document,
     resolver,
     endpointConnections,
+    endpointLookup,
   );
   const spatialIndex = buildDocumentSpatialIndex(document, routingGeometry);
   const contactEvidence = deriveDocumentContactEvidence(
@@ -163,6 +146,7 @@ export function buildDocumentDerivedContext(
     resolver,
     routingGeometry,
     {
+      junctionsByNetId,
       routesByNetId,
       routesById,
       spatialIndex,

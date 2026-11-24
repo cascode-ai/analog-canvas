@@ -18,6 +18,36 @@ import { computeNetHighlight } from "./net-highlight.js";
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
 describe("Project Connectivity Index logical aliases", () => {
+  it("enumerates Junction ownership in proportion to the number of independent Nets", () => {
+    function countOwnershipReads(count: number) {
+      const project = createEmptyProject("separate", "Separate conductors");
+      const document = project.documents[0]!;
+      let reads = 0;
+      for (let i = 0; i < count; i++) {
+        const id = "net-" + i;
+        document.nets.push({ id, terminals: [] });
+        document.junctions.push({
+          id: "j-" + i,
+          get netId() {
+            reads++;
+            return id;
+          },
+          position: { x: i * 20, y: 0 },
+        });
+      }
+      const index = buildProjectConnectivityIndex(
+        project,
+        resolver,
+      ).documents.get(document.id)!;
+      expect(index.endpointToBaseNetId.size).toBe(count);
+      return reads;
+    }
+
+    expect(countOwnershipReads(64)).toBeLessThanOrEqual(
+      5 * countOwnershipReads(16),
+    );
+  });
+
   it("retains label virtual edges while sharing document connectivity work", () => {
     const project = createEmptyProject("project-labels", "Labels");
     const document = project.documents[0]!;

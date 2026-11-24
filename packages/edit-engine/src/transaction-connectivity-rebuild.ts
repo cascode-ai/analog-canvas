@@ -38,7 +38,6 @@ function partitionNet(
   groups: string[][],
   changed: Set<string>,
 ): void {
-  if (groups.length < 2) return;
   const logical = resolveDocumentLogicalNets(draft).byBaseNetId.get(net.id);
   const identity = logical
     ? {
@@ -52,6 +51,7 @@ function partitionNet(
   const byEndpoint = new Map<string, string>();
   const terminals = net.terminals;
   const ids: string[] = [];
+  const terminalsByNet = new Map<string, Net["terminals"]>();
   groups.forEach((group, index) => {
     const id =
       index === 0
@@ -59,13 +59,16 @@ function partitionNet(
         : uniquePhysicalContactId(draft, "net", `split:${net.id}:${group[0]}`);
     ids.push(id);
     for (const key of group) byEndpoint.set(key, id);
-    const members = terminals.filter((t) =>
-      group.includes(endpointKey({ kind: "terminal", ...t })),
-    );
+    const members: Net["terminals"] = [];
+    terminalsByNet.set(id, members);
     if (index === 0) net.terminals = members;
     else draft.nets.push({ id, terminals: members });
     changed.add(id);
   });
+  for (const terminal of terminals) {
+    const id = byEndpoint.get(endpointKey({ kind: "terminal", ...terminal }));
+    if (id !== undefined) terminalsByNet.get(id)!.push(terminal);
+  }
   for (const junction of draft.junctions) {
     if (junction.members) {
       for (const member of junction.members) {
@@ -541,13 +544,19 @@ export function rebuildEditedConnectivity(
     const preferredKeys =
       edits.cutEndsByNet.get(net.id) ??
       net.terminals.map((t) => endpointKey({ kind: "terminal", ...t }));
-    const primary = preferredKeys
-      .map((key) => groups.findIndex((group) => group.includes(key)))
-      .find((index) => index >= 0);
+    if (groups.length < 2) continue;
+    const groupByKey = new Map(
+      groups.flatMap((group, index) =>
+        group.map((key) => [key, index] as const),
+      ),
+    );
+    const preferred = preferredKeys.find((key) => groupByKey.has(key));
+    const primary =
+      preferred === undefined ? undefined : groupByKey.get(preferred);
     if (primary !== undefined && primary > 0)
       groups.unshift(...groups.splice(primary, 1));
     partitionNet(draft, net, groups, changed);
-    if (groups.length > 1) read = prepareConnectivityPhaseRead(draft);
+    read = prepareConnectivityPhaseRead(draft);
   }
   // Existing Net IDs choose stable identities only after the graph is known.
   // Two unconnected paths carrying the same stale hint remain separate.
@@ -580,6 +589,11 @@ export function rebuildEditedConnectivity(
       routesByRoot.set(root, routes);
     }
   }
+  const aggregateHints = new Set(
+    draft.junctions.flatMap(
+      (junction) => junction.members?.map((member) => member.netId) ?? [],
+    ),
+  );
   for (const keys of graph.groups([...endpoints.keys()])) {
     const groupEndpoints = keys.map((key) => endpoints.get(key)!);
     const owners = [
@@ -602,22 +616,25 @@ export function rebuildEditedConnectivity(
       );
       const result = mergeBaseNets(draft, target, source, changed);
       if (!result.ok) return result;
-      read = prepareConnectivityPhaseRead(draft);
       netId = target;
     }
+    if (owners.length > 1) read = prepareConnectivityPhaseRead(draft);
     if (!netId && hint !== undefined) {
       netId = occupiedHints.has(hint)
         ? uniquePhysicalContactId(draft, "net", keys[0]!)
         : hint;
       occupiedHints.add(netId);
       draft.nets.push({ id: netId, terminals: [] });
+      // A previously unowned aggregate Junction lane now has a real Net.
+      if (aggregateHints.has(netId)) read = prepareConnectivityPhaseRead(draft);
       changed.add(netId);
     }
     if (netId === undefined) continue;
+    // Graph components are disjoint. Appending a terminal cannot affect
+    // any remaining endpoint lookup, including those of later components.
     for (const e of groupEndpoints) {
       if (read.ownerOf(e) !== netId) {
         addEndpointToNet(draft, netId, e);
-        read = prepareConnectivityPhaseRead(draft);
         changed.add(netId);
       }
       removeNoConnectForEndpoint(draft, e, changed);

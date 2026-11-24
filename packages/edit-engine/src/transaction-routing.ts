@@ -302,7 +302,9 @@ export function validateRoute(
   if (
     membership === "committed" &&
     route.presentation === "power-rail" &&
-    !resolveDocumentLogicalNets(document).byBaseNetId.get(route.netId)?.name
+    !(
+      lookup?.logicalNetResolution ?? resolveDocumentLogicalNets(document)
+    ).byBaseNetId.get(route.netId)?.name
   ) {
     return `Power rail ${route.id} must belong to a named Net`;
   }
@@ -319,7 +321,8 @@ export function validateRoute(
       if (problem) return problem;
       if (
         membership === "committed" &&
-        (!memberNet || !endpointBelongsToNet(document, memberNet, endpoint))
+        (!memberNet ||
+          !endpointBelongsToNet(document, memberNet, endpoint, lookup))
       ) {
         return `Route endpoint is not a member of ${edge.netId}`;
       }
