@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "sky130-diodes-op-ac-v1",
+  "profileId": "sky130-core-continuous-ngspice46-v1",
+  "devices": [
+    "sky130_fd_pr__diode_pw2nd_05v5",
+    "sky130_fd_pr__diode_pd2nw_05v5"
+  ],
+  "analyses": ["op", "ac"],
+  "modelLibrary": {
+    "directive": "lib"
+  },
+  "expectedCorners": {
+    "tt": {
+      "pw2ndForward0p5A": 6.68096494557503e-7,
+      "pw2ndForward0p6A": 1.329336046205092e-5,
+      "pw2ndForward0p7A": 0.0002644965525280905,
+      "pw2ndReverse3p3A": -3.514212731312526e-12,
+      "pd2nwForward0p5A": 3.166468961824975e-8,
+      "pd2nwForward0p6A": 5.398757561952798e-7,
+      "pd2nwForward0p7A": 9.204878646313298e-6,
+      "pd2nwReverse3p3A": -3.321975792739813e-12,
+      "pw2ndAcReal": 0.0,
+      "pw2ndAcImag": -4.088101807033984e-7,
+      "pd2nwAcReal": 0.0,
+      "pd2nwAcImag": -2.651748442033257e-7
+    },
+    "ff": {
+      "pw2ndForward0p5A": 6.68096494557503e-7,
+      "pw2ndForward0p6A": 1.329336046205092e-5,
+      "pw2ndForward0p7A": 0.0002644965525280905,
+      "pw2ndReverse3p3A": -3.514212731312526e-12,
+      "pd2nwForward0p5A": 3.166468961824975e-8,
+      "pd2nwForward0p6A": 5.398757561952798e-7,
+      "pd2nwForward0p7A": 9.204878646313298e-6,
+      "pd2nwReverse3p3A": -3.321975792739813e-12,
+      "pw2ndAcReal": 0.0,
+      "pw2ndAcImag": -3.421892623665483e-7,
+      "pd2nwAcReal": 0.0,
+      "pd2nwAcImag": -2.465968549833573e-7
+    },
+    "ss": {
+      "pw2ndForward0p5A": 6.68096494557503e-7,
+      "pw2ndForward0p6A": 1.329336046205092e-5,
+      "pw2ndForward0p7A": 0.0002644965525280905,
+      "pw2ndReverse3p3A": -3.514212731312526e-12,
+      "pd2nwForward0p5A": 3.166468961824975e-8,
+      "pd2nwForward0p6A": 5.398757561952798e-7,
+      "pd2nwForward0p7A": 9.204878646313298e-6,
+      "pd2nwReverse3p3A": -3.321975792739813e-12,
+      "pw2ndAcReal": 0.0,
+      "pw2ndAcImag": -4.693746519187167e-7,
+      "pd2nwAcReal": 0.0,
+      "pd2nwAcImag": -2.817482719660337e-7
+    },
+    "fs": {
+      "pw2ndForward0p5A": 6.68096494557503e-7,
+      "pw2ndForward0p6A": 1.329336046205092e-5,
+      "pw2ndForward0p7A": 0.0002644965525280905,
+      "pw2ndReverse3p3A": -3.514212731312526e-12,
+      "pd2nwForward0p5A": 3.166468961824975e-8,
+      "pd2nwForward0p6A": 5.398757561952798e-7,
+      "pd2nwForward0p7A": 9.204878646313298e-6,
+      "pd2nwReverse3p3A": -3.321975792739813e-12,
+      "pw2ndAcReal": 0.0,
+      "pw2ndAcImag": -4.9662866396561e-7,
+      "pd2nwAcReal": 0.0,
+      "pd2nwAcImag": -2.390797495186303e-7
+    },
+    "sf": {
+      "pw2ndForward0p5A": 6.68096494557503e-7,
+      "pw2ndForward0p6A": 1.329336046205092e-5,
+      "pw2ndForward0p7A": 0.0002644965525280905,
+      "pw2ndReverse3p3A": -3.514212731312526e-12,
+      "pd2nwForward0p5A": 3.166468961824975e-8,
+      "pd2nwForward0p6A": 5.398757561952798e-7,
+      "pd2nwForward0p7A": 9.204878646313298e-6,
+      "pd2nwReverse3p3A": -3.321975792739813e-12,
+      "pw2ndAcReal": 0.0,
+      "pw2ndAcImag": -3.149352503196551e-7,
+      "pd2nwAcReal": 0.0,
+      "pd2nwAcImag": -2.892653774307607e-7
+    }
+  },
+  "tolerances": {
+    "forwardCurrentA": 1e-10,
+    "leakageCurrentA": 1e-16,
+    "acCurrentA": 1e-12
+  },
+  "evidence": {
+    "observedAt": "2026-11-24",
+    "executor": "reference-ngspice46",
+    "environmentFingerprint": "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d"
+  }
+}

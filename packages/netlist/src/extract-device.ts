@@ -196,11 +196,17 @@ export function extractDeviceInstance(
       // that name, which older placements and imports wrote, is one the
       // SKY130 simulation profile cannot run (#1249).
       const name = netlist.binding.name;
+      // SKY130's Process gives a diode the generic DIODE, so only Properties
+      // calls a SKY130 diode on its X line.
+      const remedy =
+        netlist.binding.deviceClass === "diode"
+          ? "Choose the model again in Properties"
+          : "Choose the model again in Properties, or Apply process,";
       diagnostic(
         diagnostics,
         document.id,
         "REVIEWED_DEVICE_AS_MODEL_CARD",
-        `${instance.reference!} names ${name} as a model card, but ${name} is a subcircuit in its process library, so the SKY130 simulation cannot run this line. Choose the model again in Properties, or Apply process, to call it as X${instance.reference!}.`,
+        `${instance.reference!} names ${name} as a model card, but ${name} is a subcircuit in its process library, so the SKY130 simulation cannot run this line. ${remedy} to call it as X${instance.reference!}.`,
         [instance.id],
         "warning",
       );

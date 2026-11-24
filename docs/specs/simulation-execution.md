@@ -143,9 +143,16 @@ type ModelLibrarySelection =
 - Qualified scope: core and LVT 1.8 V NFET/PFET, high-Vt 1.8 V PFET, 5 V
   `nfet_g5v0d10v5`/`pfet_g5v0d10v5`, `res_high_po`, `cap_mim_m3_1`,
   three-terminal `pnp_05v5_W0p68L0p68` and `pnp_05v5_W3p40L3p40`,
-  four-terminal `npn_05v5_W1p00L1p00`; corners `tt/ff/ss/fs/sf`;
+  four-terminal `npn_05v5_W1p00L1p00`, the 5 V junction diodes
+  `diode_pw2nd_05v5`/`diode_pd2nw_05v5`; corners `tt/ff/ss/fs/sf`;
   OP/DC/AC/TRAN/Noise. New devices need a hosted OP/AC fixture at every corner.
-  Excluded: SKY130 diode (unresolved in the continuous library).
+  Excluded: the other SKY130 diodes (LVT, HVT, 11 V, ESD, photodiode).
+- The continuous library defines each diode as `.subckt <name> a c` (area in
+  µm², perimeter in µm under `scale=1.0u`), so it runs only as an `X` call. Its
+  corners move only the junction capacitance. Its series resistance (981 pΩ
+  over the area) leaves a DC terminal current resolved to about eps·V/RS
+  (2^-17 A at 100 µm²; a leakage reads 0): the fixture compares the junction's
+  own current `@d…[id]` and the AC current, which are exact.
 - The NPN (`C B E S`, substrate `S`) was left out under #712 because ngspice 46
   prints `unrecognized parameter ... ignored` on its card. Those are fields
   only (#1313, fixed by #1389): `dcap` (2, HSPICE's forward-bias

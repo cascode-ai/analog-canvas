@@ -11,6 +11,7 @@ import { EXECUTORS, profile } from "./lib/preview-simulation-qualification.mjs";
 import {
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
+  runHostedSky130DiodeAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
   runHostedSky130LargePnpAcceptance,
@@ -31,6 +32,7 @@ export {
   DIVIDER_DC_REQUEST,
   DIVIDER_REQUEST,
   hostedSky130CornerRequest,
+  hostedSky130DiodeRequest,
   hostedSky130ExtendedDeviceRequest,
   hostedSky130HvtPfetRequest,
   hostedSky130LargePnpRequest,
@@ -47,6 +49,7 @@ export {
 } from "./lib/preview-simulation-validation.mjs";
 export {
   validateHostedSky130CornerResult,
+  validateHostedSky130DiodeResult,
   validateHostedSky130ExtendedDeviceResult,
   validateHostedSky130HvtPfetResult,
   validateHostedSky130LargePnpResult,
@@ -59,6 +62,7 @@ export {
 export {
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
+  runHostedSky130DiodeAcceptance,
   runHostedSky130ExtendedDeviceAcceptance,
   runHostedSky130HvtPfetAcceptance,
   runHostedSky130LargePnpAcceptance,
@@ -219,6 +223,15 @@ async function main() {
       });
       console.log(
         `${target}: SKY130 ${npn.corner.toUpperCase()} 5 V NPN passed`,
+      );
+      const diodes = await runHostedSky130DiodeAcceptance({
+        baseUrl,
+        target,
+        corner,
+        fetchImpl,
+      });
+      console.log(
+        `${target}: SKY130 ${diodes.corner.toUpperCase()} diodes passed`,
       );
     }
   }

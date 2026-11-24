@@ -81,6 +81,20 @@ export const npnQualification = JSON.parse(
     "utf8",
   ),
 );
+/**
+ * The SKY130 5 V junction diodes Gallery drawings place, at every corner: the
+ * junction's own current forward and reverse, and the 1 MHz AC current of a
+ * reverse-biased junction (its capacitance).
+ */
+export const diodeQualification = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../fixtures/simulation-acceptance/hosted-sky130-diodes-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 if (qualification.profileId !== profile.id) {
   throw new Error(
     `Qualification ${qualification.fixtureId} targets ${String(qualification.profileId)}, not Profile ${profile.id}.`,
@@ -98,6 +112,7 @@ const evidencedDevices = new Set([
   ...(mos5vQualification.devices ?? []),
   ...(largePnpQualification.devices ?? []),
   ...(npnQualification.devices ?? []),
+  ...(diodeQualification.devices ?? []),
 ]);
 if (
   evidencedDevices.size !== profile.qualifiedScope.devices.length ||
@@ -167,6 +182,7 @@ for (const fixture of [
   mos5vQualification,
   largePnpQualification,
   npnQualification,
+  diodeQualification,
 ]) {
   const corners = Object.keys(fixture.expectedCorners ?? {});
   if (
@@ -453,6 +469,65 @@ export function hostedSky130NpnRequest(corner) {
     ].join("\n"),
     timeoutMs: 110_000,
     inputRevision: `preview-sky130-npn-${corner}`,
+    environment: { profileId: profile.id, corner },
+  };
+}
+
+/** The junction-current vectors the diode request writes, by diode and bias. */
+export const DIODE_JUNCTIONS = [
+  ["pw2nd", "n", "sky130_fd_pr__diode_pw2nd_05v5"],
+  ["pd2nw", "p", "sky130_fd_pr__diode_pd2nw_05v5"],
+].flatMap(([name, letter, master]) =>
+  [
+    ["Forward0p5", "f1", "0.5"],
+    ["Forward0p6", "f2", "0.6"],
+    ["Forward0p7", "f3", "0.7"],
+    ["Reverse3p3", "r", "DC -3.3 AC 1"],
+  ].map(([bias, node, source]) => ({
+    key: `${name}${bias}A`,
+    vector: `id${letter}${node}`,
+    node: `${letter}${node}`,
+    source,
+    master,
+  })),
+);
+
+export function hostedSky130DiodeRequest(corner) {
+  // Each wrapper's series resistance (981 pΩ, over the area) is so small
+  // that a terminal current reads only to about eps·V/RS, 2^-17 A at
+  // 100 µm², and a leakage as 0: the junction's own current is compared.
+  const nodes = DIODE_JUNCTIONS.map((junction) => junction.node).join(" ");
+  return {
+    netlist: [
+      `.subckt diodes ${nodes}`,
+      ...DIODE_JUNCTIONS.map(
+        ({ node, master }) =>
+          `XD${node.toUpperCase()} ${node} 0 ${master} area=100 perim=40`,
+      ),
+      ".ends diodes",
+    ].join("\n"),
+    testbench: [
+      "* SKY130 diode qualification",
+      ...DIODE_JUNCTIONS.map(
+        ({ node, source }) => `V${node.toUpperCase()} ${node} 0 ${source}`,
+      ),
+      `XDUT ${nodes} diodes`,
+      ".control",
+      "set filetype=ascii",
+      "op",
+      ...DIODE_JUNCTIONS.map(
+        ({ vector, node, master }) =>
+          `let ${vector} = @d.xdut.xd${node}.d${master}[id]`,
+      ),
+      `write out.raw ${DIODE_JUNCTIONS.map((junction) => junction.vector).join(" ")}`,
+      "set appendwrite",
+      "ac lin 1 1meg 1meg",
+      "write out.raw i(vnr) i(vpr)",
+      ".endc",
+      ".end",
+    ].join("\n"),
+    timeoutMs: 110_000,
+    inputRevision: `preview-sky130-diodes-${corner}`,
     environment: { profileId: profile.id, corner },
   };
 }

@@ -7,6 +7,7 @@ import {
 import {
   executeProjectTransaction,
   createExternalSubcircuitInstance,
+  planSetDeviceModelTarget,
 } from "../../edit-engine/src/index.js";
 import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 import { locateSimulationText, createDesignNetlistExport } from "@icm/netlist";
@@ -360,6 +361,103 @@ describe("ngspice authored input identity", () => {
         expect(prepared.error.diagnostics?.[0]).toMatchObject({
           code: "MODEL_SOURCE_PROFILE_CONFLICT",
         });
+    },
+  );
+  it.each(["sky130_fd_pr__diode_pw2nd_05v5", "sky130_fd_pr__diode_pd2nw_05v5"])(
+    "runs a drawn %s and a model source calling it on the hosted SKY130 Profile",
+    async (master) => {
+      const project = createEmptyProject("gallery-diode", "Gallery diode");
+      const applied = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: 0,
+        transactionId: "gallery-diode-source",
+        actor: { kind: "agent", id: "test" },
+        edits: [
+          {
+            kind: "apply_model_source",
+            source: {
+              id: "owner",
+              revision: 0,
+              language: "spice",
+              entry: "esd.spice",
+              dependencies: [],
+              files: [
+                {
+                  path: "esd.spice",
+                  text: `.subckt esd pad\nXD1 0 pad ${master} area=100 perim=40\n.ends esd\n`,
+                },
+              ],
+            },
+            definitions: [{ definitionId: "esd", entry: "esd" }],
+          },
+        ],
+      });
+      expect(applied.ok).toBe(true);
+      if (!applied.ok) return;
+      let next = applied.project;
+      const top = next.documents[0]!;
+      top.instances.push(
+        createExternalSubcircuitInstance(
+          "XTOP",
+          next.externalSubcircuitDefinitions[0]!,
+          { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        ),
+        {
+          id: "D2",
+          symbolId: "diode",
+          reference: "D2",
+          placement: {
+            position: { x: 100, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+          netlist: {
+            binding: { kind: "model", deviceClass: "diode", name: "DIODE" },
+            parameters: {},
+          },
+        },
+      );
+      top.nets.push(
+        {
+          id: "pad",
+          terminals: [
+            { instanceId: "D2", pinName: "K" },
+            { instanceId: "XTOP", pinName: "pad" },
+          ],
+        },
+        { id: "gnd", terminals: [{ instanceId: "D2", pinName: "A" }] },
+      );
+      // Choosing the diode in Properties binds the drawn part to its wrapper.
+      const bound = executeProjectTransaction(next, {
+        projectId: next.id,
+        expectedStructureRevision: next.structureRevision,
+        transactionId: "gallery-diode-model",
+        actor: { kind: "agent", id: "test" },
+        edits: planSetDeviceModelTarget(next, top.id, "D2", master),
+      });
+      expect(bound.ok, JSON.stringify(bound)).toBe(true);
+      if (!bound.ok) return;
+      next = bound.project;
+      const folder = createSimulationFolder({
+        id: "process",
+        name: "Process",
+        profileId: "ngspice",
+        engine: "ngspice",
+        documentId: next.topDocumentId,
+      });
+      next.simulationFolders = [folder];
+      const caps = nativeSweepFixture().caps;
+      caps.profiles[0]!.devices = hostedSky130.qualifiedScope.devices;
+      const prepared = await prepareNgspiceExecutionInput(next, folder, caps);
+      expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+      if (!prepared.ok) return;
+      const deck = prepared.input.files
+        .map((file) => ("text" in file ? file.text : ""))
+        .join("\n");
+      expect(deck).toMatch(
+        new RegExp(`^XD2 \\S+ \\S+ ${master} area=1 perim=1 m=1$`, "mu"),
+      );
+      expect(deck).not.toMatch(new RegExp(`^D\\S* .*${master}`, "mu"));
     },
   );
   it.each([false, true])(
