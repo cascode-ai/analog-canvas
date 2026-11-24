@@ -292,12 +292,26 @@ async function describeRefusal(
   };
 }
 
+/** What an in-process caller adds to the route; the deployed Worker sets none. */
+export interface NgspiceRouteOptions {
+  /**
+   * Also accept this run environment for a Profile that otherwise must be its
+   * pinned image: the caller's own executor, whose observed environment it
+   * vouches for (the Owner's local Gallery check, #1545).
+   */
+  acceptEnvironment?: (environment: unknown) => Promise<boolean>;
+}
+
 export async function routeNgspiceSimulationRequest(
   request: Request,
   env: SimulationEnv,
   runnerKey: string | undefined = undefined,
   profile: NgspiceProfile = hostedSky130Profile,
+  { acceptEnvironment }: NgspiceRouteOptions = {},
 ): Promise<Response | null> {
+  const accepted = async (environment: unknown) =>
+    (await matchesProfile(environment, profile)) ||
+    (!!acceptEnvironment && (await acceptEnvironment(environment)));
   const modelDependency = {
     id: profile.models.id,
     sha256: profile.models.contentSha256,
@@ -389,7 +403,7 @@ export async function routeNgspiceSimulationRequest(
         if (
           health.ok &&
           facts.status === "ready" &&
-          (await matchesProfile(facts.environment, profile))
+          (await accepted(facts.environment))
         )
           ready = true;
         // A browser executor keeps the whole rawfile: no limit to advertise.
@@ -763,8 +777,10 @@ export async function routeNgspiceSimulationRequest(
       (payload.environment as { executor?: unknown } | undefined)?.executor ===
       "browser-wasm";
     if (
-      (profile.id !== hostedSky130Profile.id || browserRun) &&
-      !(await matchesProfile(payload.environment, profile))
+      browserRun
+        ? !(await matchesProfile(payload.environment, profile))
+        : profile.id !== hostedSky130Profile.id &&
+          !(await accepted(payload.environment))
     )
       throw new Error("Simulation result does not match the selected Profile");
     return Response.json(

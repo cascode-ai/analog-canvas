@@ -444,13 +444,22 @@ status, checkedAt, folders}` → `{recorded: true, check}`. The server makes the
     an entry without a testbench is 409 `no-testbench`. The verdict replaces the
     entry's, with `origin: "local"`, and ends its hosted check.
 - `node scripts/gallery-sim-verify.mjs ID…|--all [--apply]` is that check: the
-  headless engine (output/headless) prepares each folder, runs it through the
-  Worker's ngspice route with the local ngspice and the hosted simulator's
-  model files (`--models`, default the image's continuous library unpacked at
-  `~/.volare/circuit-bench-2.0.8`; the Profile's standard cells from
-  `containers/ngspice/cells`; `--library ID=FILE`), and judges it. Dry run without
-  `--apply`. Only the hosted SKY130 ngspice Profile runs; another Profile, no
-  ngspice or a missing library is "cannot run" and records nothing.
+  headless engine (output/headless) prepares each folder under the Profile its
+  experiment names, runs it through the Worker's ngspice route with the local
+  ngspice and the hosted simulator's model files, and judges it. Dry run without
+  `--apply`. Another Profile, no ngspice or a missing library is "cannot run"
+  and records nothing. Two Profiles run:
+  - hosted SKY130: `--models`, default the image's continuous library unpacked
+    at `~/.volare/circuit-bench-2.0.8`; standard cells from
+    `containers/ngspice/cells`;
+  - hosted SG13G2: `--sg13g2 DIR` (default `$ANALOG_CANVAS_SG13G2`, else
+    `~/opt/sg13g2`), laid out as the image's `/opt/sg13g2`: `sg13g2.lib.spice`,
+    the IHP `models/` and the OSDI modules in `osdi/`; standard cells at
+    `sg13g2-cells/sg13g2_stdcell.spice` beside it. The run's startup is the
+    image's `hosted.spiceinit` with `/opt/sg13g2` at `DIR`, so the ngspice needs
+    OSDI;
+  - either: `--library ID=FILE` names a Profile library.
+
 - Hosted check, optional: only the Owner starts it: `POST
 /api/gallery/simulation-checks` (Owner account, same-origin, else 401/403
   `owner-only`) queues `{"ids": [...]}` (≤500) or `{"all": true}` and answers 202

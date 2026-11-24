@@ -1,5 +1,9 @@
 import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import sg13g2Profile from "../containers/ngspice/sg13g2/profile.json" with { type: "json" };
 import { localSimulationCheck } from "../apps/editor/src/headless/simulation-check.ts";
 import { routeGalleryRequest } from "../worker/gallery.ts";
 import { dividerProjectText } from "../worker/gallery-simulation-checks.test-support.ts";
@@ -16,6 +20,7 @@ import {
   UsageError,
   describeResult,
   parseArguments,
+  sg13g2Libraries,
   verifyEntries,
 } from "./gallery-sim-verify.mjs";
 
@@ -56,6 +61,37 @@ describe("gallery-sim-verify arguments", () => {
     expect(() =>
       parseArguments(["g-1", "--origin", "http://example.com"], {}, home),
     ).toThrow(/https/u);
+  });
+
+  it("finds the SG13G2 image's /opt/sg13g2 laid out here", () => {
+    const home = mkdtempSync(join(tmpdir(), "sim-verify-home-"));
+    expect(parseArguments(["g-1"], {}, home).sg13g2).toBeNull();
+    expect(sg13g2Libraries(null)).toEqual({});
+    mkdirSync(join(home, "opt/sg13g2"), { recursive: true });
+    writeFileSync(join(home, "opt/sg13g2/sg13g2.lib.spice"), "");
+    expect(parseArguments(["g-1"], {}, home).sg13g2).toBe(
+      join(home, "opt/sg13g2"),
+    );
+    expect(
+      parseArguments(["g-1"], { ANALOG_CANVAS_SG13G2: "/s" }, home).sg13g2,
+    ).toBe("/s");
+    expect(parseArguments(["g-1", "--sg13g2", "/d"], {}, home).sg13g2).toBe(
+      "/d",
+    );
+    // The models always; the standard cells, the image's /opt/sg13g2-cells, once there.
+    const models = {
+      [sg13g2Profile.models.id]: join(home, "opt/sg13g2/sg13g2.lib.spice"),
+    };
+    expect(sg13g2Libraries(join(home, "opt/sg13g2"))).toEqual(models);
+    mkdirSync(join(home, "opt/sg13g2-cells"));
+    writeFileSync(join(home, "opt/sg13g2-cells/sg13g2_stdcell.spice"), "");
+    expect(sg13g2Libraries(join(home, "opt/sg13g2"))).toEqual({
+      ...models,
+      [sg13g2Profile.cellLibraries[0].id]: join(
+        home,
+        "opt/sg13g2-cells/sg13g2_stdcell.spice",
+      ),
+    });
   });
 });
 

@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { routeSimulationRequest, type SimulationEnv } from "./simulation";
+import { routeNgspiceSimulationRequest } from "./simulation-ngspice";
 import sky130 from "../containers/ngspice/hosted-sky130-profile.json";
 import sg13 from "../containers/ngspice/sg13g2/profile.json";
 import {
@@ -252,4 +253,45 @@ it("refuses the retired SG13 Profile without substituting the final model", asyn
     expect((await result!.json()).error).toBe("simulation-profile-unavailable");
   }
   expect(fetcher).not.toHaveBeenCalled();
+});
+
+it("takes an observed run environment for SG13 only from a caller that vouches for it", async () => {
+  const observed = await createSimulationEnvironmentMetadata({
+    executor: "local-host",
+    reproducibility: "observed",
+    profileId: sg13.id,
+    platform: "linux/x64",
+    simulator: { ...sg13.simulator, name: "ngspice" },
+    models: { id: sg13.models.id, contentSha256: "0".repeat(64) },
+    startupSha256: null,
+  });
+  const runner = {
+    fetch: async () =>
+      Response.json({ status: "ready", environment: observed }),
+  };
+  const configured = async (
+    options?: Parameters<typeof routeNgspiceSimulationRequest>[4],
+  ) =>
+    (
+      await (await routeNgspiceSimulationRequest(
+        post({
+          operation: "capabilities",
+          environment: { profileId: sg13.id },
+        }),
+        { NGSPICE: { getByName: () => runner } },
+        undefined,
+        sg13,
+        options,
+      ))!.json()
+    ).configured;
+  expect(await configured()).toBe(false);
+  expect(
+    await configured({
+      acceptEnvironment: async (environment) =>
+        JSON.stringify(environment) === JSON.stringify(observed),
+    }),
+  ).toBe(true);
+  expect(await configured({ acceptEnvironment: async () => false })).toBe(
+    false,
+  );
 });
