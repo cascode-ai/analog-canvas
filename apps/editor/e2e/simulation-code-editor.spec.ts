@@ -151,10 +151,10 @@ test("diagnostics stay on their line: an invalid Spec before any run, invalid te
 }) => {
   const editor = sourceEditor(page);
   // The run's parser checks the annotation as it is written (#1311).
-  await editor.fill("Wien bridge\n// @spec per10 range 9.0m 11.1m unit=s\n");
+  await editor.fill("Wien bridge\n// @spec per10 range 9.0ms 11.1ms unit=s\n");
   await page.locator(".cm-lintRange").first().hover();
   await expect(page.locator(".cm-tooltip-lint")).toContainText(
-    'Bound "9.0m" is not a decimal or scientific number; write 9.0e-3.',
+    'Bound "9.0ms" is not a decimal or scientific number or one with a SPICE suffix (f p n u m k meg g t); write 9.0e-3.',
   );
   await editor.fill("* test\ncontrol\nanalysis\nendc\n");
   await expect(page.locator(".cm-lintRange-error")).toHaveCount(1);

@@ -59,4 +59,20 @@ describe("ngspice measurement reports", () => {
     );
     expect(result.every((item) => item.status === "unavailable")).toBe(true);
   });
+
+  it("hints that find … at needs an analysis spanning the point (#2558)", () => {
+    const sweep = [
+      {
+        path: "run.cir",
+        text: "* test\n.control\ndc vin 0.9 0.9 0.01\nmeas dc vx find v(x) at=0.9\nmeas dc vy find v(y) at = 0.9\nmeas dc top MAX v(x)\n.endc\n",
+      },
+    ];
+    const result = ngspiceMeasurementResults(sweep, "run.cir", "");
+    const hint = "needs an analysis that spans that point";
+    expect(result.map((item) => item.detail.includes(hint))).toEqual([
+      true,
+      true,
+      false,
+    ]);
+  });
 });

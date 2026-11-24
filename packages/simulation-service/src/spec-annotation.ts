@@ -16,10 +16,45 @@ import {
 const SIMULATION_SPEC_LINE = /^\s*(?:\*|\/\/)\s*@spec\b/iu;
 
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/iu;
-const number = (text: string | undefined): number | null =>
-  text && DECIMAL.test(text) && Number.isFinite(Number(text))
-    ? Number(text)
-    : null;
+/**
+ * A decimal or scientific number with one SPICE scale suffix and nothing
+ * after it (#2558): `16.5u`, `2.5meg`, `10k`. Case-insensitive, as SPICE,
+ * except a bare `M`, which SPICE reads as milli and VACASK as mega; it is
+ * refused with both readings rather than guessed. Atto, `mil` and trailing
+ * unit text (`10kOhm`) stay refused with the accepted form.
+ */
+const SUFFIXED =
+  /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|[tgkmunpf])$/iu;
+const SUFFIX_POWER: Record<string, number> = {
+  t: 12,
+  g: 9,
+  meg: 6,
+  k: 3,
+  m: -3,
+  u: -6,
+  n: -9,
+  p: -12,
+  f: -15,
+};
+/** `mantissa e (exponent + power)`, so 16.5u reads exactly as 16.5e-6. */
+const scaledText = (numeric: string, power: number) => {
+  const [mantissa, exponent = "0"] = numeric.split(/e/iu);
+  return `${mantissa}e${Number(exponent) + power}`;
+};
+const suffixed = (text: string): number | null => {
+  const match = SUFFIXED.exec(text);
+  if (!match || match[2] === "M") return null;
+  const value = Number(
+    scaledText(match[1]!, SUFFIX_POWER[match[2]!.toLowerCase()]!),
+  );
+  return Number.isFinite(value) ? value : null;
+};
+const number = (text: string | undefined): number | null => {
+  if (!text) return null;
+  if (DECIMAL.test(text))
+    return Number.isFinite(Number(text)) ? Number(text) : null;
+  return suffixed(text);
+};
 const quote = (text: string) => JSON.stringify(text);
 const excerpt = (text: string) => {
   const trimmed = text.trim();
@@ -42,15 +77,14 @@ export interface SimulationSpecAnnotation {
 
 const SPICE_NUMERIC = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/iu;
 
-/** The same number in the notation a Spec accepts, for a SPICE-suffixed one. */
+/** The same number in the notation a Spec accepts, for a refused SPICE one. */
 function spiceSuffixReplacement(token: string): string | undefined {
   const parsed = parseSpiceNumber(token);
   if (!parsed?.suffix) return undefined;
   if (parsed.suffix === "mil")
     return String(Number(parsed.value.toPrecision(12)));
   const numeric = SPICE_NUMERIC.exec(token)![0];
-  const [mantissa, exponent = "0"] = numeric.split(/e/iu);
-  const scaled = (power: number) => `${mantissa}e${Number(exponent) + power}`;
+  const scaled = (power: number) => scaledText(numeric, power);
   const power = Math.round(Math.log10(spiceScaleFactor(parsed.suffix)!));
   // SPICE reads M as milli; most other tools, VACASK among them, as mega.
   if (parsed.suffix === "m" && token[numeric.length] === "M")
@@ -60,13 +94,13 @@ function spiceSuffixReplacement(token: string): string | undefined {
 
 function numberProblem(role: string, token: string): string[] {
   if (number(token) !== null) return [];
-  if (DECIMAL.test(token))
+  if (DECIMAL.test(token) || (SUFFIXED.test(token) && !token.endsWith("M")))
     return [`${role} ${quote(token)} is too large to be a finite number.`];
   const replacement = spiceSuffixReplacement(token);
   return [
     replacement
-      ? `${role} ${quote(token)} is not a decimal or scientific number; write ${replacement}.`
-      : `${role} ${quote(token)} is not a decimal or scientific number such as 0.5 or 2e-3.`,
+      ? `${role} ${quote(token)} is not a decimal or scientific number or one with a SPICE suffix (f p n u m k meg g t); write ${replacement}.`
+      : `${role} ${quote(token)} is not a decimal or scientific number such as 0.5, 2e-3 or 16.5u.`,
   ];
 }
 

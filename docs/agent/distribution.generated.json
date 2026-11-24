@@ -5,7 +5,7 @@
   "sources": [
     {
       "source": "docs/agent/simulation-specs.md",
-      "sha256": "b3112ef75f2da39bc9e9b30dd950df2733b766bb12fa36f0ac56047d33464332"
+      "sha256": "7caf3941763b66354d640425e7a90cfa12b92dab18ca14d97d2846bdf7b54411"
     },
     {
       "source": "docs/agent/mcp-quickstart.md",
@@ -695,7 +695,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "a7892f82bfdf6b062c52452ba87951921c9654ce6c9e47bb3998ea727b02989a"
+      "sha256": "2e11bca9a31387ea87d9df6e995352d88d464b63b809204fd6e1e74719eac708"
     },
     {
       "file": "packages/agent-adapter/src/agent-docs.generated.ts",
@@ -727,7 +727,7 @@
         "docs/agent/shared/simulation.md",
         "docs/agent/circuit-style-knowledge.md"
       ],
-      "sha256": "a202429a824c9d3b1d081003036f395142b76479b697f8d929795e0f4c90f997"
+      "sha256": "07aae320c92a638d155421198b5b454296a193359280eba84477ef88b17895a6"
     },
     {
       "file": "packages/agent-adapter/src/agent-skills.generated.ts",

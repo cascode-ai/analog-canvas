@@ -30,8 +30,11 @@ VACASK), beside a uniquely named measurement in a reachable source file:
 ```
 
 - Conditions: `< N`, `<= N`, `> N`, `>= N`, `range MIN MAX` (inclusive),
-  `target VALUE tol ABSOLUTE_TOLERANCE`. Numbers are decimal/scientific; SPICE
-  suffixes and expressions are unsupported.
+  `target VALUE tol ABSOLUTE_TOLERANCE`. Numbers are decimal/scientific or
+  take one SPICE scale suffix, case-insensitive: `f p n u m k meg g t`
+  (`16.5u` judges as `16.5e-6`, `2.5MEG` as `2.5e6`). A bare `M` is refused,
+  since SPICE reads it as milli and VACASK as mega: write `m` or `meg`.
+  Atto, `mil`, trailing unit text (`10kOhm`) and expressions are unsupported.
 - `unit` declares the measurement's numeric unit; it is not inferred or
   dimension-checked (a result in seconds is `1e-6 unit=s`, not `1 unit=us`).
   Unit `1` means dimensionless.
@@ -44,12 +47,18 @@ VACASK), beside a uniquely named measurement in a reachable source file:
   superscript, overbar) or one inline `math` run; strings up to 256
   characters. The measurement name is unchanged.
 - Invalid metadata is `invalid-spec`; its `detail` names each bad token and the
-  accepted form (e.g. `Bound "9.0m" is not a decimal or scientific number;
-  write 9.0e-3.`), checked before any run and shown in the Code editor. An
+  accepted form (e.g. `Bound "9.0ms" is not a decimal or scientific number or
+  one with a SPICE suffix (f p n u m k meg g t); write 9.0e-3.`), checked before any run and shown in the Code editor. An
   MCP/CLI source `update` (whole writes from their text; `replacements` or
   `patches` read back once) returns `specWarnings:[{path,line,message}]`,
   omitted when none: a warning, not a refusal. A raw File Resource receipt
   carries none.
+
+A measurement reads only the analysis it names: `meas dc NAME find v(x) at=X`
+needs a sweep that spans X, so a one-point DC sweep (`dc vin 0.9 0.9 0.01`)
+reports no value ("out of interval"): its Spec is `measurement-missing`, with
+that hint in its detail, or, when the run then fails, every Spec is
+`run-incomplete`. Sweep across the point instead (`dc vin 0.8 1.0 0.01`).
 
 Without a rule, each valid VACASK `report_measurement` value still appears as
 `unconstrained` with the postprocessor's declared unit. Unavailable reports
