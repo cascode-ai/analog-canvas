@@ -6,7 +6,11 @@ import { parseProject } from "@icm/project-protocol";
 import { executeTransaction } from "@icm/edit-engine";
 import type { CircuitProject } from "@icm/model";
 import { resolveDocumentRoutingGeometry } from "@icm/derived";
-import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
+import {
+  InMemorySymbolResolver,
+  builtInSymbols,
+  createProjectSymbolResolver,
+} from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -24,12 +28,14 @@ import {
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
-function fixtureProject(): CircuitProject {
+function fixtureProject(folder = "differential-stage"): CircuitProject {
   return parseProject(
     readFileSync(
       resolve(
         process.cwd(),
-        "fixtures/projects/differential-stage/project.icproj.json",
+        "fixtures/projects",
+        folder,
+        "project.icproj.json",
       ),
       "utf8",
     ),
@@ -37,6 +43,42 @@ function fixtureProject(): CircuitProject {
 }
 
 describe("Agent Document Snapshot", () => {
+  it("reports every stale caller on the unchanged child and export blockers at their owning Cell", () => {
+    const project = fixtureProject("hierarchical-gain-stage");
+    const parent = project.documents[0]!;
+    const child = project.documents[1]!;
+    const read = (document: CircuitProject["documents"][number]) =>
+      buildAgentSessionSnapshot({
+        project,
+        document,
+        resolver: createProjectSymbolResolver(project, builtInSymbols),
+      }).document.diagnostics;
+    const staleCallers = () =>
+      read(child)
+        .find((finding) => finding.code === "ERC_HIERARCHY_INTERFACE_STALE")
+        ?.related?.map(({ documentId, objectId }) => [documentId, objectId]);
+    expect(staleCallers()).toBeUndefined();
+    parent.instances.find(({ id }) => id === "X2")!.symbolId = "resistor";
+    expect(staleCallers()).toEqual([[parent.id, "X2"]]);
+    parent.instances.find(({ id }) => id === "X1")!.symbolId = "resistor";
+    expect(staleCallers()).toEqual([
+      [parent.id, "X1"],
+      [parent.id, "X2"],
+    ]);
+    expect(read(parent)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "MISSING_REQUIRED_PARAMETER",
+          domain: "spice",
+          primary: expect.objectContaining({
+            documentId: child.id,
+            objectId: "R1",
+          }),
+        }),
+      ]),
+    );
+  });
+
   it("reads and edits an independent Junction color through the native contract", () => {
     const project = fixtureProject();
     const document = project.documents[0]!;

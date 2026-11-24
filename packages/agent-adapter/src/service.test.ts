@@ -893,6 +893,51 @@ describe("current Agent Circuit API service", () => {
     ).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
   });
 
+  it.each(["state", "full"] as const)(
+    "reads %s findings without resolving an independent Cell's parts",
+    (projection) => {
+      const symbolsRead: string[] = [];
+      const fixture = serviceFixture(
+        allPermissions,
+        {},
+        {
+          resolve(id, variant) {
+            symbolsRead.push(id);
+            return resolver.resolve(id, variant);
+          },
+        },
+      );
+      const independent = createEmptyDocument("independent", "Independent");
+      independent.instances.push({
+        id: "L1",
+        symbolId: "inductor",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      independent.nets.push({
+        id: "independent-net",
+        terminals: [{ instanceId: "L1", pinName: "P" }],
+      });
+      fixture.getProject().documents.push(independent);
+      const result = fixture.service.handle({
+        apiVersion: "3.0",
+        requestId: "target-" + projection,
+        operation: "snapshot",
+        projection,
+        ...(projection === "state" ? { diagnosticDetail: "items" } : {}),
+        documentId: fixture.getDocument().id,
+      });
+      expect(result).toMatchObject({
+        ok: true,
+        diagnostics: expect.any(Array),
+      });
+      expect(symbolsRead).not.toContain("inductor");
+    },
+  );
+
   it("reads current state and the saved folder directory without returning source bodies", () => {
     const fixture = serviceFixture();
     const documentId = fixture.getDocument().id;

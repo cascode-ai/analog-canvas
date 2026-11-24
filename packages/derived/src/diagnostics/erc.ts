@@ -6,7 +6,11 @@ import {
   projectCellInterface,
   routeEnd,
 } from "@icm/model";
-import type { CircuitProject, RouteEndpoint } from "@icm/model";
+import type {
+  CircuitProject,
+  RouteEndpoint,
+  SchematicDocument,
+} from "@icm/model";
 import { variantHiddenPinNames, type SymbolResolver } from "@icm/symbols";
 
 import type { ProjectConnectivityIndex } from "../connectivity-index.js";
@@ -107,13 +111,15 @@ function partPinMismatch(
 
 export function runErcChecks(
   project: CircuitProject,
-  index: ProjectConnectivityIndex,
+  index: Pick<ProjectConnectivityIndex, "documents">,
   resolver: SymbolResolver,
+  target?: SchematicDocument,
 ): readonly ErcDiagnostic[] {
   const diagnostics: ErcDiagnostic[] = [];
   const documents = [...project.documents].sort((a, b) =>
     a.id.localeCompare(b.id, "en"),
   );
+  const checkedDocuments = target ? [target] : documents;
   // Parameters of imported PDK models no schema describes, by Cell: one
   // finding each, not one error per name (#2294).
   const unverifiedByDocument = new Map<
@@ -121,7 +127,11 @@ export function runErcChecks(
     { instanceId: string; text: string }[]
   >();
 
-  for (const collision of findExternalMasterCollisions(project, documents)) {
+  for (const collision of findExternalMasterCollisions(
+    project,
+    documents,
+    checkedDocuments,
+  )) {
     diagnostics.push({
       id: `erc:master-name-collision:${collision.documentId}:${collision.instanceId}`,
       domain: "erc",
@@ -146,7 +156,7 @@ export function runErcChecks(
     });
   }
 
-  for (const document of documents) {
+  for (const document of checkedDocuments) {
     const docIndex = index.documents.get(document.id);
     const endpointConnectivity = createEndpointConnectivityClassifier(
       document,
@@ -822,7 +832,12 @@ export function runErcChecks(
     }
   >();
   for (const parent of documents) {
-    for (const instance of [...parent.instances].sort((left, right) =>
+    const callers = parent.instances.filter(
+      ({ netlist }) =>
+        netlist?.binding?.kind === "subcircuit" &&
+        (!target || netlist.binding.childDocumentId === target.id),
+    );
+    for (const instance of callers.sort((left, right) =>
       left.id.localeCompare(right.id, "en"),
     )) {
       const childBinding = instance.netlist?.binding;

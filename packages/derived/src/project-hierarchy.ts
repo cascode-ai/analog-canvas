@@ -1,4 +1,8 @@
-import type { CircuitProject, HierarchyFrame } from "@icm/model";
+import type {
+  CircuitProject,
+  HierarchyFrame,
+  SchematicDocument,
+} from "@icm/model";
 
 interface CellOccurrence {
   rootDocumentId: string;
@@ -8,6 +12,18 @@ interface CellOccurrence {
 
 const COUNT_LIMIT = 1_000_000;
 
+/** A structural call exists when its captured child definition is in the Project. */
+export function referencedDocumentId(
+  instance: SchematicDocument["instances"][number],
+  documentIds: Pick<ReadonlySet<string>, "has">,
+): string | null {
+  const binding = instance.netlist?.binding;
+  return binding?.kind === "subcircuit" &&
+    documentIds.has(binding.childDocumentId)
+    ? binding.childDocumentId
+    : null;
+}
+
 /** Shared structural calls, independent of resolved Symbols, Pins or wiring. */
 export function projectHierarchyCalls(
   project: CircuitProject,
@@ -16,15 +32,12 @@ export function projectHierarchyCalls(
   const calls: HierarchyFrame[] = [];
   for (const parent of project.documents) {
     for (const instance of parent.instances) {
-      const binding = instance.netlist?.binding;
-      if (
-        binding?.kind === "subcircuit" &&
-        documentIds.has(binding.childDocumentId)
-      ) {
+      const childDocumentId = referencedDocumentId(instance, documentIds);
+      if (childDocumentId !== null) {
         calls.push({
           parentDocumentId: parent.id,
           instanceId: instance.id,
-          childDocumentId: binding.childDocumentId,
+          childDocumentId,
         });
       }
     }

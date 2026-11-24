@@ -25,6 +25,7 @@ export {
 export * from "./hierarchy-navigation.js";
 export {
   buildProjectHierarchy,
+  referencedDocumentId,
   reconcileHierarchyPath,
   type ProjectHierarchy,
 } from "./project-hierarchy.js";
