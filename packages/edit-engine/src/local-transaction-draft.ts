@@ -94,7 +94,7 @@ const drafts = new WeakMap<
   }
 >();
 type Fallback = NonNullable<ReturnType<typeof fallbackReason>>;
-export type TransactionDraftWork =
+type TransactionDraftWork =
   | { readonly mode: "full"; readonly reason: Fallback }
   | { readonly mode: "local"; readonly rowsCopied: number };
 const validatedDraftWork = new WeakMap<
