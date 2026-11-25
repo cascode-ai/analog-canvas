@@ -293,7 +293,8 @@ the open Project when Publish opens; the Worker does not.
   including a text.
 - `label-clearance`: every `VISUAL_LABEL_*` visual finding above `info`
   (`isLabelClearanceAdvice`: today `VISUAL_LABEL_CLEARANCE`,
-  `VISUAL_LABEL_OVERLAP`; a new label code joins by severity) in any Cell;
+  `VISUAL_LABEL_CROWDED`, `VISUAL_LABEL_OVERLAP`; a new label code joins by
+  severity) in any Cell;
   `subject` is the part the label names.
 - The Publish dialog lists each failure with its count and up to 8 findings
   ("… and N more"). **Arrange labels** runs `arrange-labels` with

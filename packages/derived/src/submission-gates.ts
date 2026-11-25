@@ -71,7 +71,8 @@ const FINDING_LIMIT = 50;
 
 /**
  * A label finding Publish advises on: any `VISUAL_LABEL_*` code above info
- * (VISUAL_LABEL_CLEARANCE, VISUAL_LABEL_OVERLAP), so a new label code is
+ * (VISUAL_LABEL_CLEARANCE, VISUAL_LABEL_CROWDED, VISUAL_LABEL_OVERLAP), so
+ * a new label code is
  * advised by its severity alone. Info notes (a label far from its owner, two
  * names reading as one) stay out.
  */
