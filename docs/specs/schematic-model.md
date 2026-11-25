@@ -102,8 +102,10 @@ cross-Document edits use one Project transaction guarded by
 resolves from explicit membership, then a configured cell-default Net, then
 the one wired supply marker of its domain in the Cell (`ground` for NMOS; a
 `vdd`-role marker, `vdd-port` or `named-ground`, for PMOS) as read-only
-`supply-default`, never written. Placing a Named Ground sets an absent NMOS
-cell default, as Ground does. None or
+`supply-default`, never written. Placing or pasting a Named Ground, or a
+`vdd-port` or power rail named as a negative supply (`VSS`, `VEE`, `VNEG`,
+with optional `A`/`D`/`P` prefix), sets an absent NMOS cell default, as Ground
+does. None or
 several markers leave B unresolved; export then places it as
 [netlist export](netlist-export.md#implicit-supplies-and-mos-bodies) states.
 Persisted `supply-default` bindings stay readable. Cross-Document copy turns

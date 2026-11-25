@@ -194,6 +194,9 @@ describe("drawn VDD rail construction", () => {
     expect(result.document.mosBulkDefaults).toEqual({
       nmosNetId: plan.netId,
     });
+    expect(
+      result.document.nets.find((net) => net.id === plan.netId)?.terminals,
+    ).toContainEqual({ instanceId: "M1", pinName: "B" });
   });
 
   it("commits the explicit VDD Net and visual rail in one transaction", () => {

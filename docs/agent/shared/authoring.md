@@ -341,7 +341,8 @@ information). Hidden bulk needs no decorative wire.
   net such as VSS, AGND) to `VSS`; `ground` (always node 0) takes none.
   Optional `direction` (default passive) applies to these markers only
   (native `terminalDirections` keys must be new markers). The first explicit
-  supply in a batch initializes an absent bulk default (`named-ground` the
+  supply in a batch initializes an absent bulk default (`named-ground`, or a
+  `vdd-port` or power rail named as a negative supply such as `VSS`/`VEE`, the
   NMOS one), so a signal input (`VIN`) is a `port`, not a `vdd-port`. A
   `vdd-port`'s name stands beside its bar, `arrange-labels` `side:"top"`
   centres it (house style); a `named-ground`'s stands centred below its bars.

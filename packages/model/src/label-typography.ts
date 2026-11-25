@@ -369,13 +369,21 @@ export function renamedLabelFormat(
   // A format that spells its name character by character keeps each
   // character's style, so an authored subscript survives the rename. A new
   // name with an underscore places its subscript at that underscore, the
-  // historical encoding a stored display may use to spell its name. An
-  // overbar is name-bearing (`_bar`), so overbarred formats always pass
-  // through `rewriteRichTextIdentifier` to drop stale bars on non-`_bar`
-  // names instead of rendering double-negated text.
+  // historical encoding a stored display may use to spell its name. On scalar
+  // signal bindings (`net-name`, `cell-terminal-name`), an overbar is
+  // name-bearing (`_bar`), so overbarred formats pass through
+  // `rewriteRichTextIdentifier` to drop stale bars on non-`_bar` renames
+  // instead of rendering double-negated text; on References and bus/bundle
+  // expressions an overbar remains styling.
+  const scalarSignalOverbar =
+    (annotation.binding?.kind === "net-name" ||
+      annotation.binding?.kind === "cell-terminal-name") &&
+    !nextName.includes("<") &&
+    !nextName.includes(",") &&
+    hasRichTextOverbar(format);
   if (
     !nextName.includes("_") &&
-    !hasRichTextOverbar(format) &&
+    !scalarSignalOverbar &&
     flattenRichText(format) === previousName
   )
     return rewriteRichTextPlainText(format, nextName);

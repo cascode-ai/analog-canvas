@@ -11,6 +11,11 @@ import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 /** The Project's external definitions, where a part's PDK wrapper is read. */
 type Definitions = Pick<CircuitProject, "externalSubcircuitDefinitions">;
 
+/** Which body default a drawn power rail settles: NMOS for a negative-named rail, else PMOS. */
+export function powerRailBodyDomain(netName: string): "ground" | "vdd" {
+  return namesNegativeSupply(netName) ? "ground" : "vdd";
+}
+
 /**
  * Which body default a placed supply marker settles: Ground and a Named
  * Ground (VSS, AGND) the NMOS body's; VDD Power the PMOS body's unless it
@@ -23,7 +28,18 @@ export function supplyMarkerBodyDomain(
 ): "ground" | "vdd" | undefined {
   if (symbolId === "ground" || symbolId === "named-ground") return "ground";
   if (symbolId !== "vdd-port") return undefined;
-  return name && namesNegativeSupply(name) ? "ground" : "vdd";
+  return name ? powerRailBodyDomain(name) : "vdd";
+}
+
+/** Project `mosBulkDefaults` with one domain assigned to `netId`. */
+export function withMosBulkDefault(
+  defaults: SchematicDocument["mosBulkDefaults"],
+  domain: "ground" | "vdd",
+  netId: string,
+): NonNullable<SchematicDocument["mosBulkDefaults"]> {
+  return domain === "ground"
+    ? { ...defaults, nmosNetId: netId }
+    : { ...defaults, pmosNetId: netId };
 }
 
 /**

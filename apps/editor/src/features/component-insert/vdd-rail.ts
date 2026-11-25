@@ -23,7 +23,8 @@ import type { SymbolResolver } from "@icm/symbols";
 
 import {
   planInitialMosBulkDefault,
-  supplyMarkerBodyDomain,
+  powerRailBodyDomain,
+  withMosBulkDefault,
 } from "./mos-bulk-defaults";
 
 export interface VddRailConstruction {
@@ -252,7 +253,7 @@ export function planVddRailEdits(
         },
       ])
     : { edits: [], endpointGroups: [] };
-  const bodyDomain = supplyMarkerBodyDomain("vdd-port", netName) ?? "vdd";
+  const bodyDomain = powerRailBodyDomain(netName);
   const bulkDefaultEdits = planInitialMosBulkDefault(
     document,
     bodyDomain,
@@ -271,12 +272,11 @@ export function planVddRailEdits(
           nets: document.nets.some((net) => net.id === netId)
             ? document.nets
             : [...document.nets, { id: netId, terminals: [] }],
-          mosBulkDefaults: {
-            ...document.mosBulkDefaults,
-            ...(bodyDomain === "ground"
-              ? { nmosNetId: netId }
-              : { pmosNetId: netId }),
-          },
+          mosBulkDefaults: withMosBulkDefault(
+            document.mosBulkDefaults,
+            bodyDomain,
+            netId,
+          ),
         };
         const railKey = endpointKey({
           kind: "junction",

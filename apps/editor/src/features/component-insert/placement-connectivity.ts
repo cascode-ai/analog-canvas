@@ -212,11 +212,7 @@ export function planInsertedInstanceConnections(
           netId: powerNetId,
           grid: document.presentation.grid,
           // An existing supply keeps its name; a fresh marker claims its own.
-          name:
-            context.contactContext.logicalNets.byBaseNetId.get(powerNetId)
-              ?.name ??
-            supplyMarkerForSymbol(instance.symbolId)?.name ??
-            "VDD",
+          name: supplyName ?? "VDD",
         })
       : null;
   const instances = document.instances.some(

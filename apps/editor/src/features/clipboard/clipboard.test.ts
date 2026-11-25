@@ -2072,6 +2072,106 @@ describe("captureDocumentComposition", () => {
     }
   });
 
+  it("routes pasted negative-named vdd-port and named-ground markers to the NMOS bulk default", () => {
+    const source = createEmptyDocument("source", "Source");
+    source.instances.push(
+      {
+        id: "VSS1",
+        symbolId: "vdd-port",
+        placement: {
+          position: { x: 100, y: 200 },
+          rotation: 180,
+          mirror: "none",
+        },
+      },
+      {
+        id: "VDD1",
+        symbolId: "vdd-port",
+        placement: { position: { x: 100, y: 40 }, rotation: 0, mirror: "none" },
+      },
+    );
+    source.nets.push(
+      { id: "net-vss", terminals: [{ instanceId: "VSS1", pinName: "P" }] },
+      { id: "net-vdd", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
+    );
+    source.netlist = {
+      name: "source",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "term-vss",
+          name: "VSS",
+          netId: "net-vss",
+          direction: "inout",
+          interfaceInstanceIds: ["VSS1"],
+        },
+        {
+          id: "term-vdd",
+          name: "VDD",
+          netId: "net-vdd",
+          direction: "inout",
+          interfaceInstanceIds: ["VDD1"],
+        },
+      ],
+    };
+
+    const fragment = captureDocumentComposition(source)!;
+    const target = createEmptyDocument("target", "Target");
+    const proposal = proposePaste(target, fragment, { x: 0, y: 0 }, 1);
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "paste-vss-vdd",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.mosBulkDefaults).toEqual({
+      nmosNetId: proposal.idRemap.nets["net-vss"],
+      pmosNetId: proposal.idRemap.nets["net-vdd"],
+    });
+
+    // A pasted named-ground alone also sets nmosNetId and leaves pmosNetId unset.
+    const namedGroundSource = createEmptyDocument("ng-source", "NG Source");
+    namedGroundSource.instances.push({
+      id: "VSS2",
+      symbolId: "named-ground",
+      placement: { position: { x: 100, y: 200 }, rotation: 0, mirror: "none" },
+    });
+    namedGroundSource.nets.push({
+      id: "net-ng",
+      terminals: [{ instanceId: "VSS2", pinName: "P" }],
+    });
+    const ngTarget = createEmptyDocument("ng-target", "NG Target");
+    const ngProposal = proposePaste(
+      ngTarget,
+      captureDocumentComposition(namedGroundSource)!,
+      { x: 0, y: 0 },
+      1,
+    );
+    const ngResult = executeTransaction(
+      ngTarget,
+      {
+        transactionId: "paste-named-ground",
+        documentId: ngTarget.id,
+        expectedRevision: ngTarget.revision,
+        actor: { kind: "human", id: "test" },
+        edits: ngProposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(ngResult.ok).toBe(true);
+    if (!ngResult.ok) return;
+    expect(ngResult.document.mosBulkDefaults).toEqual({
+      nmosNetId: ngProposal.idRemap.nets["net-ng"],
+    });
+  });
+
   it("keeps a target Cell's own body policy when a composition is pasted", () => {
     const source = createLibraryExampleProject(
       "fully-differential-two-stage-op-amp",
