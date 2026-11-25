@@ -3757,6 +3757,7 @@ function WorkspaceEditor({
     model: {
       document,
       resolver,
+      routingGeometry: documentConnectivity?.routingGeometry,
       drawingScene,
       wiringEndpoints,
       routeGeometryRecords,
