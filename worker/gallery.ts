@@ -11,7 +11,12 @@ import { readCurationRequest } from "./gallery-curation";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject } from "@icm/project-protocol";
 import { type CircuitProject } from "@icm/model";
-import { sessionUserOf, type SessionUser } from "./auth";
+import {
+  hasBearer,
+  ownerTokenUserOf,
+  sessionUserOf,
+  type SessionUser,
+} from "./auth";
 import {
   GALLERY_SOURCES,
   gallerySourceByKey,
@@ -580,8 +585,17 @@ export async function routeGalleryRequest(
   const editedSource = segments[0] ? gallerySourceOfEntryId(segments[0]) : null;
   if (editedSource && segments.length === 1 && request.method === "PUT")
     return handleDatasetEntryEdit(request, env, editedSource, segments[0]!);
+  const isDatasetCuration =
+    Boolean(editedSource) &&
+    segments.length === 2 &&
+    segments[1] === "curation" &&
+    request.method === "PATCH";
   if (source) {
-    if (request.method !== "GET" && request.method !== "HEAD")
+    if (
+      request.method !== "GET" &&
+      request.method !== "HEAD" &&
+      !isDatasetCuration
+    )
       return Response.json({ error: "dataset-read-only" }, { status: 403 });
     env = withGalleryStore(env, source);
   }
@@ -876,6 +890,7 @@ export async function routeGalleryRequest(
     if (
       payload.entry &&
       !viewer?.isAdmin &&
+      !viewer?.isOwner &&
       (!viewer || viewer.id !== payload.ownerUserId)
     ) {
       delete payload.entry.attention;
@@ -946,14 +961,26 @@ export async function routeGalleryRequest(
     segments[1] === "curation" &&
     request.method === "PATCH"
   ) {
-    if (!sameOrigin(request))
+    const viaToken = hasBearer(request);
+    if (!viaToken && !sameOrigin(request))
       return Response.json({ error: "forbidden" }, { status: 403 });
-    const user = await sessionUserOf(request, env);
+    const user = viaToken
+      ? await ownerTokenUserOf(request, env)
+      : await sessionUserOf(request, env);
     if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-    const access = await entryManager(request, env, segments[0]!);
-    if (!access.found)
+    if (viaToken && !user.isOwner)
+      return Response.json({ error: "owner-only" }, { status: 403 });
+    const existing = await callGallery<{ ownerUserId?: string | null }>(
+      env,
+      "any-entry",
+      { id: segments[0] },
+    );
+    if (existing.status !== 200)
       return Response.json({ error: "not-found" }, { status: 404 });
-    if (!user.isAdmin && !access.owner)
+    const isEntryOwner =
+      existing.payload.ownerUserId !== null &&
+      existing.payload.ownerUserId === user.id;
+    if (!user.isAdmin && !user.isOwner && !isEntryOwner)
       return Response.json({ error: "forbidden" }, { status: 403 });
     const body = await readCurationRequest(request);
     if (body instanceof Response) return body;

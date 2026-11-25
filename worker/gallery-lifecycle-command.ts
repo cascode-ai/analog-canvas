@@ -44,6 +44,7 @@ export function lifecycleCommand(
     if (!row) return Response.json({ error: "not-found" }, { status: 404 });
     if (
       !user.isAdmin &&
+      !(action === "curation" && user.isOwner) &&
       !(action === "details" && user.role === "moderator") &&
       row.owner_user_id !== user.id
     )

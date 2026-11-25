@@ -61,8 +61,9 @@ export async function gallerySourceCounts(env: GalleryEnv) {
 
 /**
  * Why an Owner tool a script may call is refused, or the Owner calling: the
- * Owner's same-origin session or an Owner token (#1769). Only dataset and
- * comparison imports and the local simulation check (#1545) accept a token.
+ * Owner's same-origin session or an Owner token (#1769). Used on dataset and
+ * comparison imports and the local simulation check (#1545); Gallery curation
+ * also accepts an Owner token.
  */
 export async function ownerToolRefusal(
   request: Request,
@@ -88,9 +89,8 @@ const GALLERY_SOURCE_IMPORT_BATCH = 10;
 /**
  * The Owner imports circuits into a reference dataset (#1510): each under
  * the id its dataset gives it, inserted or replaced in place, attributed to
- * the dataset. Same checks as a submission's Project; nothing else writes
- * to a dataset's store. The Owner's same-origin session or an Owner token
- * (#1769) authorizes it; the token opens no other route.
+ * the dataset. Same checks as a submission's Project. The Owner's same-origin
+ * session or an Owner token (#1769) authorizes it.
  */
 export async function handleSourceImport(
   request: Request,

@@ -1145,6 +1145,160 @@ it("preserves Dataset lifecycle refusal rather than using the Community store", 
   expect(await result.json()).toMatchObject({ error: "dataset-read-only" });
 });
 
+it("forwards Dataset curation with an Owner API token across regions and blocks bearer escalation on other lifecycle routes", async () => {
+  const { cn, overseas, auth, publish } = await pair();
+  const ownerCookie = await ownerAccountOf(auth.source);
+  const outsiderCookie = await signIn(
+    auth.source.authDurable,
+    "outsider@example.com",
+  );
+  const cnOutsider = await auth.connect(outsiderCookie);
+  const mint = async (cookie: string) =>
+    (
+      (await (
+        await auth.source.authDurable.fetch(
+          new Request(`${ORIGIN}/api/auth/owner-tokens`, {
+            method: "POST",
+            headers: { Origin: ORIGIN, Cookie: cookie },
+            body: JSON.stringify({ label: "regional-curation" }),
+          }),
+        )
+      ).json()) as { token: string }
+    ).token;
+  const ownerToken = await mint(ownerCookie);
+  const outsiderToken = await mint(outsiderCookie);
+
+  const imported = await overseas.route(
+    new Request(`${ORIGIN}/api/gallery/sources/analoggenie/entries`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${ownerToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        entries: [
+          {
+            id: "ag-309",
+            name: "AnalogGenie #309",
+            tags: ["amplifier"],
+            projectText: wiredProjectText(),
+          },
+        ],
+      }),
+    }),
+  );
+  expect(imported.status, await imported.clone().text()).toBe(200);
+
+  // Replicate initial dataset row to CN so CN knows the entry's writer region.
+  const sourceStore = overseas.env.GALLERY.getByName("source:analoggenie");
+  const cnStore = cn.env.GALLERY.getByName("source:analoggenie");
+  const changes = await sourceStore.fetch(
+    "https://store/resource-sync/changes",
+    {
+      method: "POST",
+      body: JSON.stringify({ stream: "analoggenie", after: 0 }),
+    },
+  );
+  expect(
+    (
+      await cnStore.fetch("https://store/resource-sync/receive", {
+        method: "POST",
+        body: JSON.stringify({
+          stream: "analoggenie",
+          envelope: await changes.json(),
+        }),
+      })
+    ).status,
+  ).toBe(200);
+
+  const initial = (await (
+    await cn.call("/api/gallery/ag-309?summary=1")
+  ).json()) as {
+    entry: { previewRevision: string; curationRevision: number };
+  };
+
+  // Non-owner bearer token and invalid bearer are refused.
+  const nonOwner = await cn.route(
+    new Request(`${ORIGIN}/api/gallery/ag-309/curation`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${outsiderToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        tags: ["amplifier", "multi circuit"],
+        expectedPreviewRevision: initial.entry.previewRevision,
+        expectedCurationRevision: initial.entry.curationRevision,
+      }),
+    }),
+  );
+  expect(nonOwner.status).toBe(403);
+  expect(await nonOwner.json()).toEqual({ error: "owner-only" });
+
+  // Owner bearer token sets attention, then tag-only omitted attention preserves it across regions.
+  const withAttention = await cn.route(
+    new Request(`${ORIGIN}/api/gallery/ag-309/curation`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${ownerToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        tags: ["amplifier", "small signal model"],
+        attention: {
+          status: "needs-attention",
+          issues: [{ kind: "other", detail: "keep across tag-only update" }],
+        },
+        expectedPreviewRevision: initial.entry.previewRevision,
+        expectedCurationRevision: initial.entry.curationRevision,
+      }),
+    }),
+  );
+  expect(withAttention.status, await withAttention.clone().text()).toBe(200);
+
+  const tagOnly = await cn.route(
+    new Request(`${ORIGIN}/api/gallery/ag-309/curation`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${ownerToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        tags: ["amplifier", "small signal model", "multi circuit"],
+        expectedPreviewRevision: initial.entry.previewRevision,
+        expectedCurationRevision: 1,
+      }),
+    }),
+  );
+  expect(tagOnly.status, await tagOnly.clone().text()).toBe(200);
+  expect((await tagOnly.json()).entry).toMatchObject({
+    tags: ["amplifier", "small signal model", "multi circuit"],
+    attention: { status: "needs-attention" },
+    curationRevision: 2,
+  });
+  expect(
+    (await (await cn.call("/api/gallery/ag-309?summary=1")).json()).entry,
+  ).toMatchObject({
+    tags: ["amplifier", "small signal model", "multi circuit"],
+    curationRevision: 2,
+  });
+
+  // Regression: a non-curation lifecycle route must never forward Authorization to escalate to Owner.
+  const communityId = await publish(overseas);
+  const escalated = await cn.route(
+    new Request(`${ORIGIN}/api/gallery/${communityId}/recycle`, {
+      method: "POST",
+      headers: {
+        Cookie: cnOutsider,
+        Origin: ORIGIN,
+        Authorization: `Bearer ${ownerToken}`,
+        "idempotency-key": crypto.randomUUID(),
+      },
+    }),
+  );
+  expect(escalated.status).toBe(401);
+});
+
 it("preserves the known commit when catch-up throws and reconciles the same operation", async () => {
   const { cn, overseas, publish, loseNextCatchup } = await pair();
   const id = await publish(overseas),

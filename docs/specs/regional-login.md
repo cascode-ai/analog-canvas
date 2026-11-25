@@ -158,7 +158,7 @@ production bindings, migrations or credentials are activated by this change.
 | Authority `POST /api/auth/regional/identities`  | Authenticated importer. Each of up to 100 requested IDs is `found` with its user, `deleted` or `missing`.                                |
 | Authority `POST /api/auth/regional/deletions`   | Authenticated region. `{after}` reads one ordered job as `{version: 1, job}`. `{acknowledge: sequence}` records completed China cleanup. |
 | Authority `POST /api/auth/regional/account`     | Authenticated region; `{grant, method, path, body}` → `{result: {status, body}, user, expiresAt}` for the exact account allowlist.       |
-| Authority `POST /api/auth/regional/owner-token` | Authenticated region; `{token}` → `{user}` or 401. Only internal import authorization consumes this result.                              |
+| Authority `POST /api/auth/regional/owner-token` | Authenticated region; `{token}` → `{user}` or 401. Consumed only by internal Owner-token route authorization.                            |
 | Authority `POST /api/auth/regional/security`    | Authenticated region; `{path, body}` for the exact internal notification operation → `{result: {status, body}}`.                         |
 | Regional `GET /api/auth/me`                     | Browser; `{user, authorization: "active" \| "expired" \| "anonymous"}`.                                                                  |
 

@@ -4,7 +4,7 @@ Status: `accepted`
 
 Primary owner: Gallery, Component Library, Auth and regional replication.
 This is the required behavior. The opt-in command route covers Community Gallery withdrawal, restoration,
-deletion, curation and name/description edits, plus first publication, drawing updates/fixes/takeover, references, version restore, rejection, Dataset imports/comparisons, User Component save/status, Community/Dataset review submission and resolution, like changes and writer-routed maintenance. Per-entry opens use
+deletion and name/description edits, Community/Dataset curation, plus first publication, drawing updates/fixes/takeover, references, version restore, rejection, Dataset imports/comparisons, User Component save/status, Community/Dataset review submission and resolution, like changes and writer-routed maintenance. Per-entry opens use
 the region components in [regional publications](regional-resources.md).
 
 ## Command delivery
@@ -15,10 +15,10 @@ the region components in [regional publications](regional-resources.md).
 - AUTH issues a 120-second opaque capability bound to one command digest and its
   destination. Redemption revalidates the original session or regional grant,
   including its current subject. A session change invalidates the capability.
-  Dataset import, single Community entry updates and local simulation-check
-  verification routes also accept an Owner token: AUTH revalidates the current
-  token and Owner role before issuing and redeeming the bounded capability. The
-  peer never receives the original Owner token.
+  Dataset import, single Community entry updates, Gallery curation and local
+  simulation-check verification routes also accept an Owner token: AUTH
+  revalidates the current token and Owner role before issuing and redeeming the
+  bounded capability. The peer never receives the original Owner token.
 - A peer command or writer lookup may wait through a domestic maintenance hold
   of up to 60 seconds. The transport allows 120 seconds, including execution;
   upstream proxies must not expire sooner. This does not replay a sent command

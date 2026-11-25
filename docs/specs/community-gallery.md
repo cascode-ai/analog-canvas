@@ -229,14 +229,23 @@ preloads it. "Open the editor anyway" opens it for that tab
 - `attention=1` needs a session: authors see their own pending entries,
   administrators all. Details are hidden from everyone else. Review actions
   never unpublish or change Project, name, owner, likes, preview or statistics.
-- `PATCH /api/gallery/<id>/curation` (same-origin; author or administrator):
-  `tags`, `attention` (`null` or `{status: "needs-attention" | "resolved",
-issues: [{kind, detail}]}`), `expectedPreviewRevision`,
+- `PATCH /api/gallery/<id>/curation` (author or administrator same-origin
+  session, or `Authorization: Bearer <Owner token>` without the same-origin
+  check; applies to reference dataset entries too for administrators and the
+  Owner token): `tags`, optional `attention` (`null` or
+  `{status: "needs-attention" | "resolved", issues: [{kind, detail}]}`;
+  omitting `attention` preserves any existing attention finding and its
+  `assessedPreviewRevision`), `expectedPreviewRevision`,
   `expectedCurationRevision`. Empty pending findings are invalid; stale
-  revisions answer 409. Metadata changes snapshot a version; curation is backed up.
+  revisions answer 409. Metadata changes snapshot a version; curation is backed
+  up.
 - [`curate-gallery.mjs`](../../scripts/curate-gallery.mjs) validates bulk audits
-  without writing; applying needs an origin, a session cookie file and a
-  before/after receipt, and skips changed entries.
+  without writing; applying needs an origin, a before/after receipt, and either
+  a session cookie file or an Owner API token (`--token` / `--token-file` /
+  `ANALOG_CANVAS_OWNER_TOKEN`), and skips changed entries. Entries may supply
+  either replacement `tags` or additive `addTags` (with `preserveAttention: true`
+  for tag-only updates that preserve existing tag order and server-side
+  attention).
 
 ## Publishing
 
@@ -525,9 +534,9 @@ simulator, reason?, origin?, folders}` with per-Spec condition, value, unit and
   ignore their own selection. Dataset statistics are cached by normalized
   filters, access scope and data revision; imports and netlist-mark
   recomputation invalidate them.
-- Every write answers 403 `dataset-read-only` except a like, a review, a
-  fix of its drawing and the Owner's imports; entries have no owner or AI
-  mark (they count under `datasets`, not `human`) and show no owner tools;
+- Every write answers 403 `dataset-read-only` except a like, a review,
+  curation, a fix of its drawing and the Owner's imports; entries have no owner
+  or AI mark (they count under `datasets`, not `human`) and show no owner tools;
   an opened copy publishes as a new community entry, or saves as a fix.
 - Fixing a dataset's drawing: the Owner, admins, moderators and any account
   with at least 10 public circuits of its own may, from the editor's Save fix
@@ -551,10 +560,10 @@ createdAt?}]}` (≤10), validated like submissions with the prefix
   post from the CLI with `pnpm gallery:import-batches … --post`
   ([Batch drawing](../agent/batch-drawing.md)).
 - API tokens (#1769, "Owner tokens" when the Owner's): one labelled token per
-  machine. The Owner's opens that import, the comparison import below and the
-  [local simulation check](#simulation-checks); any account's edits the
-  [selection board](selection-boards.md) as that account; no other route
-  accepts one, and a token does not expire until it is revoked.
+  machine. The Owner's opens that import, the comparison import below, gallery
+  curation and the [local simulation check](#simulation-checks); any account's
+  edits the [selection board](selection-boards.md) as that account; no other
+  route accepts one, and a token does not expire until it is revoked.
   A person's own same-origin session (else 401; 403 for an AI account) mints
   one with `POST /api/auth/owner-tokens {label}` → `{id, label, token,
 createdAt}` (`acot_…`, shown once; AuthDO keeps its SHA-256), lists that
@@ -774,8 +783,9 @@ tokens and codes are stored.
   authority revocation.
 - Super-admin is computed per request from `ADMIN_EMAILS` ∪ `ADMIN_EMAILS_EXTRA`
   (comma-separated, case-insensitive). The session cookie is the only write
-  credential, except an Owner token on the dataset import
-  ([Reference datasets](#reference-datasets)).
+  credential, except the Owner API token routes listed under
+  [Reference datasets](#reference-datasets) and the collaborator token on the
+  [selection board](selection-boards.md).
 
 ### AI seats
 
