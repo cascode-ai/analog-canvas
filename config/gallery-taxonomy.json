@@ -194,6 +194,7 @@
       "single ended",
       "fully differential",
       "pseudo differential",
+      "multi circuit",
       "feedback",
       "feedforward",
       "continuous time",

@@ -21,7 +21,7 @@ export function validCurationRequest(
   if (!body || typeof body !== "object" || Array.isArray(body)) return false;
   const value = body as Record<string, unknown>;
   return (
-    validGalleryAttention(value.attention) &&
+    (value.attention === undefined || validGalleryAttention(value.attention)) &&
     Array.isArray(value.tags) &&
     value.tags.length <= 12 &&
     value.tags.every((tag) => typeof tag === "string" && tag.length <= 32) &&

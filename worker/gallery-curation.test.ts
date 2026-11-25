@@ -8,7 +8,9 @@ import {
   cookieHeaders,
   environment,
   makerOf,
+  ownerAccountOf,
   pagedStoreBackup,
+  projectText,
   route,
   signIn,
   submitOne,
@@ -410,5 +412,204 @@ describe("Gallery visual curation", () => {
         )
         .one().curation_json,
     ).toBe(current);
+  });
+
+  it("allows admins and Owner API tokens to curate reference dataset entries, preserves omitted attention, and refuses unauthorized callers", async () => {
+    const env = environment();
+    const ownerCookie = await ownerAccountOf(env);
+    const adminCookie = await adminOf(env);
+    const makerCookie = await makerOf(env);
+    const mintToken = async (cookie: string) =>
+      (
+        (await (
+          await env.authDurable.fetch(
+            new Request(`${ORIGIN}/api/auth/owner-tokens`, {
+              method: "POST",
+              headers: { Origin: ORIGIN, Cookie: cookie },
+              body: JSON.stringify({ label: "curation-cli" }),
+            }),
+          )
+        ).json()) as { token: string }
+      ).token;
+    const ownerToken = await mintToken(ownerCookie);
+    const makerToken = await mintToken(makerCookie);
+
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/sources/analoggenie/entries`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${ownerToken}`,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              entries: [
+                {
+                  id: "ag-308",
+                  name: "AnalogGenie #308",
+                  tags: ["amplifier"],
+                  projectText: projectText("AnalogGenie #308"),
+                },
+              ],
+            }),
+          }),
+        )
+      ).status,
+    ).toBe(200);
+
+    const read = async (headers: HeadersInit) =>
+      (await (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/ag-308?summary=1`, { headers }),
+        )
+      ).json()) as {
+        entry: {
+          tags: string[];
+          attention?: { status: string; issues: unknown[] } | null;
+          previewRevision: string;
+          curationRevision: number;
+        };
+      };
+
+    const initial = await read({});
+    const payload = {
+      tags: ["amplifier", "small signal model"],
+      attention: {
+        status: "needs-attention",
+        issues: [
+          { kind: "other", detail: "Multiple sub-circuits on one sheet." },
+        ],
+      },
+      expectedPreviewRevision: initial.entry.previewRevision,
+      expectedCurationRevision: initial.entry.curationRevision,
+    };
+
+    // Refusals: non-admin session, non-owner API token, invalid bearer, cross-origin without bearer, ?source= mismatch.
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/ag-308/curation`, {
+            method: "PATCH",
+            headers: {
+              ...cookieHeaders(makerCookie),
+              Origin: ORIGIN,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }),
+        )
+      ).status,
+    ).toBe(403);
+    const makerBearerRes = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/ag-308/curation`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${makerToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }),
+    );
+    expect(makerBearerRes.status).toBe(403);
+    expect(await makerBearerRes.json()).toEqual({ error: "owner-only" });
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/ag-308/curation`, {
+            method: "PATCH",
+            headers: {
+              Authorization: "Bearer acot_invalid",
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }),
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/ag-308/curation`, {
+            method: "PATCH",
+            headers: {
+              ...cookieHeaders(adminCookie),
+              Origin: "https://evil.example",
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          }),
+        )
+      ).status,
+    ).toBe(403);
+    const mismatchedSource = await route(
+      env,
+      new Request(
+        `${ORIGIN}/api/gallery/community1/curation?source=analoggenie`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${ownerToken}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      ),
+    );
+    expect(mismatchedSource.status).toBe(403);
+    expect(await mismatchedSource.json()).toEqual({
+      error: "dataset-read-only",
+    });
+
+    // Admin browser session curates the dataset entry (setting attention).
+    const byAdmin = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/ag-308/curation`, {
+        method: "PATCH",
+        headers: {
+          ...cookieHeaders(adminCookie),
+          Origin: ORIGIN,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      }),
+    );
+    expect(byAdmin.status).toBe(200);
+
+    // Owner API token appends a tag with omitted attention; existing attention stays intact.
+    const byOwnerToken = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/ag-308/curation`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${ownerToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          tags: ["amplifier", "small signal model", "multi circuit"],
+          expectedPreviewRevision: initial.entry.previewRevision,
+          expectedCurationRevision: 1,
+        }),
+      }),
+    );
+    expect(byOwnerToken.status).toBe(200);
+    expect(
+      (await byOwnerToken.json()) as Record<string, unknown>,
+    ).toMatchObject({
+      entry: {
+        tags: ["amplifier", "small signal model", "multi circuit"],
+        curationRevision: 2,
+      },
+    });
+    const afterAsAdmin = await read(cookieHeaders(adminCookie));
+    expect(afterAsAdmin.entry.attention).toEqual(payload.attention);
+    const afterAsPublic = await read({});
+    expect(afterAsPublic.entry.attention).toBeUndefined();
   });
 });

@@ -64,10 +64,16 @@ export function curate(
       { status: 409 },
     );
   }
+  const keepAttention = body.attention === undefined;
   const curation: GalleryCuration = {
-    attention: body.attention as GalleryAttention | null,
+    attention: keepAttention
+      ? (previous?.attention ?? null)
+      : (body.attention as GalleryAttention | null),
     revision: (previous?.revision ?? 0) + 1,
-    assessedPreviewRevision: String(body.expectedPreviewRevision),
+    assessedPreviewRevision: keepAttention
+      ? (previous?.assessedPreviewRevision ??
+        String(body.expectedPreviewRevision))
+      : String(body.expectedPreviewRevision),
     updatedAt: String(body.at),
     updatedBy: String(body.userId),
     source: body.source === "visual-audit" ? "visual-audit" : "manual",

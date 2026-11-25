@@ -1,14 +1,23 @@
 import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import type { GalleryEnv } from "./gallery-store";
 import type { ResourceSyncEnv } from "./resource-sync";
-import { sessionUserOf, type SessionUser } from "./auth";
+import {
+  hasBearer,
+  ownerTokenUserOf,
+  sessionUserOf,
+  type SessionUser,
+} from "./auth";
 import { digest, sessionIdentity } from "./regional-auth-contract";
 import { sameOrigin } from "./same-origin";
 import { readSyncJson } from "./project-sync-http";
 import { catchUpResource } from "./resource-action-catchup";
 import { readCurationRequest, validCurationRequest } from "./gallery-curation";
 import type { GalleryEntrySummary } from "./gallery-store";
-import { gallerySourceOfEntryId, gallerySourceByKey } from "./gallery-sources";
+import {
+  gallerySourceByKey,
+  gallerySourceOfEntryId,
+  galleryStoreName,
+} from "./gallery-sources";
 import { galleryDetails } from "./gallery-details-request";
 import { routeRegionalComponentActions } from "./regional-component-actions";
 import { routeRegionalReviewActions } from "./regional-review-actions";
@@ -62,10 +71,15 @@ export async function routeRegionalResourceActions(
               : "DELETE"))
   )
     return null;
+  const idSource = !incoming ? gallerySourceOfEntryId(match![1]!) : null;
+  const querySource = !incoming
+    ? gallerySourceByKey(url.searchParams.get("source"))
+    : null;
   if (
     !incoming &&
-    (gallerySourceOfEntryId(match![1]!) ||
-      gallerySourceByKey(url.searchParams.get("source")))
+    (match![2] !== "curation"
+      ? Boolean(idSource || querySource)
+      : Boolean(querySource && !idSource))
   )
     return null;
   if (!env.RESOURCE_ACTION_PEER || !env.RESOURCE_REGION)
@@ -85,18 +99,30 @@ export async function routeRegionalResourceActions(
   } catch {
     return fail("action-not-configured", 503);
   }
-  const store = env.GALLERY.getByName("gallery");
-  const call = (operation: string, body: unknown) =>
-    store.fetch("https://gallery/" + operation, {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+  const viaToken = !incoming && match![2] === "curation" && hasBearer(request);
+  const storeFor = (id: string) => {
+    const source = gallerySourceOfEntryId(id);
+    const stream = source?.key ?? "gallery";
+    const store = env.GALLERY.getByName(galleryStoreName(source));
+    return {
+      stream,
+      call: (operation: string, body: unknown) =>
+        store.fetch("https://gallery/" + operation, {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+    };
+  };
   const auth = async (operation: string, body: unknown) =>
     env
       .AUTH!.getByName("auth")
       .fetch("https://auth/internal/resource-action-" + operation, {
         method: "POST",
-        headers: { cookie: request.headers.get("cookie") ?? "" },
+        headers: viaToken
+          ? { authorization: request.headers.get("authorization") ?? "" }
+          : !incoming
+            ? { cookie: request.headers.get("cookie") ?? "" }
+            : {},
         body: JSON.stringify(body),
       });
   let committed = false;
@@ -109,6 +135,7 @@ export async function routeRegionalResourceActions(
       input?: Record<string, unknown>;
     };
     let user: SessionUser | null;
+    let targetStore: ReturnType<typeof storeFor>;
     if (incoming) {
       const body = (await readSyncJson(request, 65536)) as Record<
         string,
@@ -139,7 +166,7 @@ export async function routeRegionalResourceActions(
         return fail("invalid-curation", 400);
       if (command.action === "details" && !galleryDetails(command.input))
         return fail("invalid-fields", 400);
-      if (gallerySourceOfEntryId(command.id))
+      if (gallerySourceOfEntryId(command.id) && command.action !== "curation")
         return fail("dataset-read-only", 403);
       const verified = await auth("verify", {
         token: request.headers.get("authorization")?.replace(/^Bearer /, ""),
@@ -147,17 +174,23 @@ export async function routeRegionalResourceActions(
       });
       if (!verified.ok) return fail("unauthorized", verified.status);
       user = sessionIdentity((await verified.json()).user);
+      targetStore = storeFor(command.id);
     } else {
-      if (!sameOrigin(request)) return fail("forbidden", 403);
-      user = await sessionUserOf(request, env);
+      if (!viaToken && !sameOrigin(request)) return fail("forbidden", 403);
+      user = viaToken
+        ? await ownerTokenUserOf(request, env)
+        : await sessionUserOf(request, env);
       if (!user) return fail("unauthorized", 401);
+      if (viaToken && !user.isOwner) return fail("owner-only", 403);
       let input: Record<string, unknown> | undefined;
       if (match![2] === "curation") {
         const parsed = await readCurationRequest(request);
         if (parsed instanceof Response) return parsed;
         input = {
           tags: parsed.tags,
-          attention: parsed.attention,
+          ...(parsed.attention !== undefined
+            ? { attention: parsed.attention }
+            : {}),
           expectedPreviewRevision: parsed.expectedPreviewRevision,
           expectedCurationRevision: parsed.expectedCurationRevision,
           ...(parsed.source === "visual-audit"
@@ -187,8 +220,9 @@ export async function routeRegionalResourceActions(
           : crypto.randomUUID());
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(key))
         return fail("invalid-command-id", 400);
-      const location = await call("resource-sync/location", {
-        stream: "gallery",
+      targetStore = storeFor(match![1]!);
+      const location = await targetStore.call("resource-sync/location", {
+        stream: targetStore.stream,
         id: match![1],
       });
       if (!location.ok) return location;
@@ -201,10 +235,11 @@ export async function routeRegionalResourceActions(
       };
     }
     if (!user) return fail("unauthorized", 401);
+    const { stream, call } = targetStore;
     const binding = await digest(JSON.stringify(command));
     if (incoming || command.target === env.RESOURCE_REGION) {
       const location = await call("resource-sync/location", {
-        stream: "gallery",
+        stream,
         id: command.id,
       });
       if ((await location.json()).origin !== env.RESOURCE_REGION)
@@ -221,7 +256,7 @@ export async function routeRegionalResourceActions(
         return outcome.superseded
           ? fail("action-superseded", 409)
           : lifecycleAnswer(outcome);
-      const status = await call("resource-sync/status", { stream: "gallery" });
+      const status = await call("resource-sync/status", { stream });
       const head = await status.json();
       return answer({
         ...outcome,
@@ -270,7 +305,7 @@ export async function routeRegionalResourceActions(
     if (
       !(await catchUpResource(
         call,
-        "gallery",
+        stream,
         peer.origin,
         env.RESOURCE_SYNC_PEER_TOKEN,
         result,
