@@ -481,6 +481,49 @@ describe("evaluateSubmissionGates", () => {
     expect(warnings!.findings).toHaveLength(warnings!.count);
   });
 
+  it("advises in Publish when an output Net Label has no formal Port (#2557)", () => {
+    const target = project();
+    const document = target.documents[0]!;
+    document.instances = [dualInstance("I1", "R1"), dualInstance("I2", "R2")];
+    document.nets = [
+      {
+        id: "n-in",
+        terminals: [
+          { instanceId: "I1", pinName: "L" },
+          { instanceId: "I2", pinName: "L" },
+        ],
+      },
+      {
+        id: "n-out",
+        terminals: [
+          { instanceId: "I1", pinName: "R" },
+          { instanceId: "I2", pinName: "R" },
+        ],
+      },
+    ];
+    document.connectivityEvidence.push({
+      id: "claim-vout",
+      kind: "name-claim",
+      netId: "n-out",
+      name: "Vout",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "label-vout" },
+    });
+
+    const report = gates(target);
+    expect(report.ok).toBe(false);
+    expect(report.failures.map((failure) => failure.code)).toEqual([
+      "erc-warnings",
+    ]);
+    expect(report.failures[0]!.findings).toEqual([
+      expect.objectContaining({
+        code: "ERC_IO_LABEL_WITHOUT_PORT",
+        documentId: document.id,
+        objectIds: ["n-out"],
+      }),
+    ]);
+  });
+
   it("advises on every label code above info, a new one included", () => {
     expect(
       [

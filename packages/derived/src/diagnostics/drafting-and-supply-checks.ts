@@ -1,6 +1,8 @@
 import { deviceDescriptor, subcircuitDescriptor } from "@icm/devices";
 import {
   flattenRichText,
+  scalarCellTerminals,
+  scalarConnectivityEvidence,
   type CircuitProject,
   type Point,
   type Rect,
@@ -43,6 +45,13 @@ const SIGNAL_DRAFTING_TEXT =
  */
 const CUSTOM_SUPPLY_NAME =
   /^(?:[PADI]V(?:DD|SS|CC|EE)[A-Z0-9_]*|V(?:DD|SS|CC|EE)[A-Z0-9_]+|SA[PN]|VBAT[A-Z0-9_]*)$/iu;
+
+/**
+ * Unambiguous external input, output, or clock Net Label names (#2557) —
+ * distinct from internal nodes (`n1`, `tail`, `mid`, `vb1`) and supply rails.
+ */
+const IO_OR_CLOCK_NET_NAME =
+  /^(?:(?:[VI]_?(?:in|out)|in(?:put)?|out(?:put)?|vo)(?:[0-9]+[pnb+-]?|[pnb+-]|_(?:[0-9]+[pnb+-]?|p|n|b|bar|in|out|pos|neg|plus|minus|cm|diff|[+-]))?|(?:clk|clock)(?:[0-9]+[pnb+-]?|[pnb+-]|_(?:[0-9]+[pnb+-]?|p|n|b|bar|in|out|pos|neg|plus|minus|cm|diff|[+-]))?|(?:phi|[Φφ])(?:[0-9]+[pnb+-]?|[pnb+-]|_(?:[0-9]+[pnb+-]?|p|n|b|bar|in|out|pos|neg|plus|minus|[+-]))?)$/iu;
 
 const BEHAVIORAL_OUTPUT_CLASSES: ReadonlySet<string> = new Set([
   "opamp",
@@ -293,6 +302,137 @@ function reportFloatingCustomSupplies(
   }
 }
 
+/**
+ * Flag connected output, input, or clock Nets named only by a local Net Label
+ * with no formal Port, so the Cell cannot be driven or read (#2557).
+ *
+ * Self-driven portless testbenches (containing an independent voltage source
+ * and no formal Ports), nets driven directly by an independent source, global
+ * or supply nets, and singleton nets (already reported as floating endpoints)
+ * stay quiet.
+ */
+function reportIoNetLabelsWithoutPort(
+  project: CircuitProject,
+  document: Document,
+  logicalNets: LogicalNets,
+  diagnostics: ErcDiagnostic[],
+): void {
+  const placedInstances = document.instances.filter(
+    (instance) => instance.placement !== null,
+  );
+  if (placedInstances.length === 0) return;
+
+  const instanceById = new Map(
+    placedInstances.map((instance) => [instance.id, instance]),
+  );
+  const netById = new Map(document.nets.map((net) => [net.id, net]));
+
+  let hasIndependentVoltageSource = false;
+  const portNetIds = new Set<string>();
+  for (const instance of placedInstances) {
+    if (instance.symbolId === "port" || instance.symbolId === "port-filled") {
+      continue;
+    }
+    const descriptor = deviceDescriptor(instance.symbolId, project);
+    if (descriptor?.deviceClass === "voltage-source") {
+      hasIndependentVoltageSource = true;
+    }
+  }
+
+  for (const terminal of scalarCellTerminals(document.netlist)) {
+    const logicalId =
+      logicalNets.byBaseNetId.get(terminal.netId)?.id ?? terminal.netId;
+    portNetIds.add(logicalId);
+  }
+  for (const group of logicalNets.groups) {
+    if (group.formalTerminalIds.length > 0) {
+      portNetIds.add(group.id);
+      continue;
+    }
+    for (const baseNetId of group.baseNetIds) {
+      const baseNet = netById.get(baseNetId);
+      if (!baseNet) continue;
+      if (
+        baseNet.terminals.some((terminal) => {
+          const instance = instanceById.get(terminal.instanceId);
+          return (
+            instance?.symbolId === "port" ||
+            instance?.symbolId === "port-filled"
+          );
+        })
+      ) {
+        portNetIds.add(group.id);
+        break;
+      }
+    }
+  }
+
+  // A portless Cell with an independent voltage source is a self-driven
+  // testbench whose signals are probed with Net Labels rather than Cell Ports.
+  if (hasIndependentVoltageSource && portNetIds.size === 0) return;
+
+  const netLabelLogicalIds = new Set<string>();
+  for (const evidence of scalarConnectivityEvidence(document)) {
+    if (evidence.kind === "name-claim" && evidence.owner.kind === "net-label") {
+      const logicalId =
+        logicalNets.byBaseNetId.get(evidence.netId)?.id ?? evidence.netId;
+      netLabelLogicalIds.add(logicalId);
+    }
+  }
+  if (netLabelLogicalIds.size === 0) return;
+
+  for (const group of logicalNets.groups) {
+    if (!netLabelLogicalIds.has(group.id)) continue;
+    if (portNetIds.has(group.id)) continue;
+    if (group.powerDomain !== "none" || group.scope === "global") continue;
+
+    const name = group.name?.trim();
+    if (!name || !IO_OR_CLOCK_NET_NAME.test(name)) continue;
+
+    const connectedTerminals = new Set<string>();
+    let hasIndependentSource = false;
+    for (const baseNetId of group.baseNetIds) {
+      const baseNet = netById.get(baseNetId);
+      if (!baseNet) continue;
+      for (const terminal of baseNet.terminals) {
+        const instance = instanceById.get(terminal.instanceId);
+        if (!instance) continue;
+        connectedTerminals.add(
+          `${terminal.instanceId}\u0000${terminal.pinName}`,
+        );
+        const descriptor = deviceDescriptor(instance.symbolId, project);
+        if (
+          descriptor?.deviceClass === "voltage-source" ||
+          descriptor?.deviceClass === "current-source"
+        ) {
+          hasIndependentSource = true;
+        }
+      }
+    }
+
+    // Single-pin nets already report as floating endpoints (ERC_FLOATING_GATE /
+    // ERC_UNCONNECTED_PIN), and nets driven directly by an independent source
+    // are already driven internally.
+    if (connectedTerminals.size < 2 || hasIndependentSource) continue;
+
+    diagnostics.push({
+      id: `erc:io-label-without-port:${document.id}:${group.id}`,
+      domain: "erc",
+      code: "ERC_IO_LABEL_WITHOUT_PORT",
+      severity: "warning",
+      confidence: "medium",
+      gateEligible: false,
+      message: `Net ${name} uses a Net Label without a formal Port, so this Cell cannot be driven or read on ${name}; place a Port if ${name} is an external signal`,
+      primary: directObjectLocator(document.id, "net", group.id),
+      related: [],
+      parameters: {
+        netId: group.id,
+        netName: name,
+      },
+    });
+  }
+}
+
 export function reportDraftingAndSupplyChecks(
   project: CircuitProject,
   document: Document,
@@ -309,4 +449,5 @@ export function reportDraftingAndSupplyChecks(
     diagnostics,
   );
   reportFloatingCustomSupplies(project, document, logicalNets, diagnostics);
+  reportIoNetLabelsWithoutPort(project, document, logicalNets, diagnostics);
 }
