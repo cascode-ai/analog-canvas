@@ -64,11 +64,11 @@ describe("the size of a Gallery circuit", () => {
 
   it("reads the sizes a request names, in order, ignoring unknown ones", () => {
     expect(
-      requestedComponentRanges(["26-", "bogus", "0-5"]).map(
+      requestedComponentRanges(["41-", "bogus", "0-10"]).map(
         (range) => range.key,
       ),
-    ).toEqual(["0-5", "26-"]);
-    expect(requestedComponentRanges("0-5")).toEqual([]);
+    ).toEqual(["0-10", "41-"]);
+    expect(requestedComponentRanges("0-10")).toEqual([]);
     // The sizes meet without a gap or an overlap.
     GALLERY_COMPONENT_RANGES.slice(1).forEach((range, index) =>
       expect(range.min).toBe(GALLERY_COMPONENT_RANGES[index]!.max! + 1),

@@ -187,7 +187,7 @@ it("asks for Needs attention with its reason, AI, Liked and sizes, and reads the
     netlistable: 0,
     liked: 1,
     attentionKinds: { "global-vdd": 2, "suspected-disconnection": 1 },
-    componentRanges: { "0-5": 1, "6-10": 1, "26-": 1 },
+    componentRanges: { "0-10": 1, "11-20": 1, "41-": 1 },
   };
   const fetchLike = vi
     .fn<typeof fetch>()
@@ -200,19 +200,19 @@ it("asks for Needs attention with its reason, AI, Liked and sizes, and reads the
     attentionKind: "suspected-disconnection",
     ai: "ai" as const,
     liked: true,
-    parts: ["6-10", "26-"],
+    parts: ["11-20", "41-"],
   };
   expect(await loadGalleryFeed(fetchLike, filters)).toMatchObject({
     filterCounts,
   });
   expect(fetchLike).toHaveBeenLastCalledWith(
-    "/api/gallery?attention=1&reason=suspected-disconnection&ai=1&liked=1&parts=6-10%2C26-",
+    "/api/gallery?attention=1&reason=suspected-disconnection&ai=1&liked=1&parts=11-20%2C41-",
     { credentials: "same-origin" },
   );
   // The tag counts beside the wall are narrowed the same way.
   await loadGalleryTagSummary(fetchLike, { ...filters, ai: "human" });
   expect(fetchLike).toHaveBeenLastCalledWith(
-    "/api/gallery/tags?attention=1&reason=suspected-disconnection&ai=0&liked=1&parts=6-10%2C26-",
+    "/api/gallery/tags?attention=1&reason=suspected-disconnection&ai=0&liked=1&parts=11-20%2C41-",
     { credentials: "same-origin" },
   );
   // A reason means nothing outside Needs attention.

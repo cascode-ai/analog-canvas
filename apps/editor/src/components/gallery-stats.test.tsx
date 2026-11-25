@@ -41,11 +41,11 @@ const summary = (
     { kind: "inductor", count: 3 },
   ],
   sizes: [
-    { key: "0-5", circuits: 8 },
-    { key: "6-10", circuits: 12 },
-    { key: "11-15", circuits: 10 },
-    { key: "16-25", circuits: 6 },
-    { key: "26-", circuits: 4 },
+    { key: "0-10", circuits: 8 },
+    { key: "11-20", circuits: 12 },
+    { key: "21-30", circuits: 10 },
+    { key: "31-40", circuits: 6 },
+    { key: "41-", circuits: 4 },
   ],
   transistorBins: [
     { key: "0", circuits: 4 },
@@ -88,7 +88,7 @@ describe("the Gallery's statistics", () => {
     expect(markup).toContain("Inductors 3");
     expect(markup).toContain(">1,303<");
     // Columns name their ranges; the weeks stack people and AI.
-    expect(markup).toContain(">26+<");
+    expect(markup).toContain(">41+<");
     expect(markup).toContain(">AI<");
     expect(markup).toContain(">Maker<");
   });

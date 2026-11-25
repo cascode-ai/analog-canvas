@@ -63,7 +63,7 @@ describe("Gallery landing preload", () => {
       { ...defaultFilters, netlistable: true },
       { ...defaultFilters, liked: true },
       { ...defaultFilters, attention: true },
-      { ...defaultFilters, parts: ["6-10"] },
+      { ...defaultFilters, parts: ["11-20"] },
     ]) {
       // A remembered or linked narrowing preloads its own query ...
       expect(

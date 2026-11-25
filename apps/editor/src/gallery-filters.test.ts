@@ -14,7 +14,7 @@ import {
 describe("gallery filter preferences", () => {
   it("reads every narrowing choice out of a link", () => {
     const { filters, narrowed } = parseGalleryFilterQuery(
-      "?view=shelf&author=alice&owner=account-alice&tags=bias,opamp&q=mirror&netlist=1&liked=1&parts=6-10,26-",
+      "?view=shelf&author=alice&owner=account-alice&tags=bias,opamp&q=mirror&netlist=1&liked=1&parts=11-20,41-",
     );
     expect(filters).toEqual({
       view: "shelf",
@@ -30,7 +30,7 @@ describe("gallery filter preferences", () => {
       liked: true,
       attention: false,
       attentionKind: null,
-      parts: ["6-10", "26-"],
+      parts: ["11-20", "41-"],
       source: null,
       hideDatasets: false,
     });
@@ -243,7 +243,7 @@ describe("gallery filter preferences", () => {
 
   it("opens a reload unsearched and on both netlist sides, keeping every other filter and view (#1675)", () => {
     const link =
-      "?view=shelf&author=alice&owner=account-alice&tags=bias&q=mirror&netlist=1&ai=0&liked=1&attention=1&reason=global-vdd&parts=6-10&source=analoggenie";
+      "?view=shelf&author=alice&owner=account-alice&tags=bias&q=mirror&netlist=1&ai=0&liked=1&attention=1&reason=global-vdd&parts=11-20&source=analoggenie";
     expect(resolveGalleryFilters(link, null, { reload: true })).toEqual({
       view: "shelf",
       author: "alice",
@@ -258,7 +258,7 @@ describe("gallery filter preferences", () => {
       liked: true,
       attention: true,
       attentionKind: "global-vdd",
-      parts: ["6-10"],
+      parts: ["11-20"],
       source: "analoggenie",
       hideDatasets: false,
     });
@@ -361,17 +361,17 @@ describe("gallery filter preferences", () => {
   it("carries part-count sizes through a link and storage", () => {
     const filters = {
       ...createDefaultGalleryFilters(),
-      parts: ["0-5", "11-15"],
+      parts: ["0-10", "21-30"],
     };
     const search = galleryFilterSearch("", filters);
-    expect(new URLSearchParams(search).get("parts")).toBe("0-5,11-15");
+    expect(new URLSearchParams(search).get("parts")).toBe("0-10,21-30");
     expect(parseGalleryFilterQuery(search)).toMatchObject({
       filters,
       narrowed: true,
     });
     expect(
-      parseStoredGalleryFilters(JSON.stringify({ parts: ["26-", 7, "x"] })),
-    ).toEqual({ ...createDefaultGalleryFilters(), parts: ["26-"] });
+      parseStoredGalleryFilters(JSON.stringify({ parts: ["41-", 7, "x"] })),
+    ).toEqual({ ...createDefaultGalleryFilters(), parts: ["41-"] });
   });
 
   it("lets a narrowing link replace the stored preference outright", () => {

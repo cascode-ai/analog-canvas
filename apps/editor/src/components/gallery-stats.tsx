@@ -128,7 +128,7 @@ const KIND_LABELS: Record<string, string> = {
 const average = (total: number, count: number) =>
   count ? (Math.round((total / count) * 10) / 10).toLocaleString("en-US") : "0";
 
-/** A bin's key as its label: `6-10` reads 6–10 and an open `26-` 26+. */
+/** A bin's key as its label: `11-20` reads 11–20 and an open `41-` 41+. */
 const range = (key: string) =>
   key.endsWith("-") ? `${key.slice(0, -1)}+` : key.replace("-", "–");
 
