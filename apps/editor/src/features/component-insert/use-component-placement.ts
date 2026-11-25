@@ -85,10 +85,7 @@ import {
 import { uprightOrUp } from "../drafting/drafting-manipulation";
 
 type TransactionResult = { ok: boolean; revision: number };
-import {
-  describePlacementNearMiss,
-  findPlacementNearMisses,
-} from "./placement-near-miss";
+import { describePlacementNearMiss } from "./placement-near-miss";
 
 export interface UseComponentPlacementOptions {
   recentStorageKey: string;
@@ -264,7 +261,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       options.setStatus(error instanceof Error ? error.message : String(error));
       return;
     }
-    const { contact, projectedDocument } = connectionPlan;
+    const { contact } = connectionPlan;
     const placementEdits: SchematicEdit[] = [
       { kind: "add_instance", instance },
       ...connectionPlan.edits,
@@ -293,14 +290,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
     // person is already reading. It reports; it never connects.
     const nearMiss = contact.matched
       ? null
-      : describePlacementNearMiss(
-          findPlacementNearMisses(
-            projectedDocument,
-            options.resolver,
-            instance,
-          ),
-          id,
-        );
+      : describePlacementNearMiss(connectionPlan.nearMisses, id);
     options.setStatus(
       contact.ambiguous
         ? `Added ${named}; overlapping pins are ambiguous, wire explicitly · click to place another · Esc exits`
@@ -524,11 +514,7 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
       const nearMiss =
         plan.connection && !contact?.matched
           ? describePlacementNearMiss(
-              findPlacementNearMisses(
-                plan.connection.projectedDocument,
-                plan.resolver,
-                plan.instance,
-              ),
+              plan.connection.nearMisses,
               plan.instance.id,
             )
           : null;
