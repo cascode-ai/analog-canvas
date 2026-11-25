@@ -1,7 +1,8 @@
 import { createEmptyDocument, createRoutePath } from "@icm/model";
 import type { Instance, SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { planInsertedInstanceConnections } from "./placement-connectivity";
 
 import {
   describePlacementNearMiss,
@@ -150,6 +151,143 @@ describe("placement near misses", () => {
     expect(
       findPlacementNearMisses(document, resolver, resistorAt(300, 330)),
     ).toEqual([]);
+  });
+
+  it("does no exact segment distance work when placing away from every wire", () => {
+    const document = documentWithWire();
+    const instance = resistorAt(900, 900);
+    const plan = planInsertedInstanceConnections(
+      document,
+      resolver,
+      instance,
+      [],
+    );
+    const distance = vi.spyOn(Math, "hypot");
+    try {
+      expect(plan.nearMisses).toEqual([]);
+      expect(distance).not.toHaveBeenCalled();
+    } finally {
+      distance.mockRestore();
+    }
+  });
+
+  it("keeps the original Route ID tie order when equally close wires were authored in reverse", () => {
+    const document = documentWithWire();
+    document.nets.push({ id: "earlier", terminals: [] });
+    document.junctions.push(
+      { id: "a", netId: "earlier", position: { x: 200, y: 320 } },
+      { id: "b", netId: "earlier", position: { x: 400, y: 320 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "a",
+        netId: "earlier",
+        start: { kind: "junction", junctionId: "a" },
+        end: { kind: "junction", junctionId: "b" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const plan = planInsertedInstanceConnections(
+      document,
+      resolver,
+      resistorAt(300, 330),
+      [],
+    );
+    expect(plan.nearMisses[0]).toEqual({
+      pinName: "1",
+      netId: "earlier",
+      netLabel: "a wire",
+      gridsAway: 1,
+    });
+  });
+
+  it("handles diagonal, very short and just-outside segments at a pin", () => {
+    const document = documentWithWire();
+    const instance = resistorAt(300, 330);
+    const read = () =>
+      planInsertedInstanceConnections(document, resolver, instance, [])
+        .nearMisses;
+    document.junctions[0]!.position = { x: 289, y: 312 };
+    document.junctions[1]!.position = { x: 295, y: 320 };
+    expect(read()[0]).toMatchObject({ pinName: "1", gridsAway: 1 });
+    document.junctions[0]!.position = { x: 300, y: 290 };
+    document.junctions[1]!.position = { x: 301, y: 290 };
+    expect(read()[0]).toMatchObject({ pinName: "1", gridsAway: 2 });
+    document.junctions[0]!.position.y = 289;
+    document.junctions[1]!.position.y = 289;
+    expect(read()).toEqual([]);
+  });
+
+  it("keeps a two-grid hint when a long segment's clamped endpoint rounds past its box", () => {
+    const document = documentWithWire();
+    document.presentation.grid = 1;
+    document.junctions[0]!.position = { x: Number.MAX_SAFE_INTEGER, y: 300 };
+    document.junctions[1]!.position = { x: -4, y: 300 };
+    const misses = findPlacementNearMisses(
+      document,
+      resolver,
+      resistorAt(-7, 320),
+    );
+    expect(misses).toEqual([
+      { pinName: "1", netId: "net-vdd", netLabel: "a wire", gridsAway: 2 },
+    ]);
+  });
+
+  it("includes a fractional terminal exactly two grids across the far edge of the query", () => {
+    const symbol = builtInSymbols.find(({ id }) => id === "resistor")!;
+    const fractional = new InMemorySymbolResolver([
+      {
+        ...symbol,
+        defaultVariantId: "fractional",
+        variants: [
+          {
+            id: "fractional",
+            hiddenPinNames: ["1", "2"],
+            auxiliaryPins: symbol.pins.map((pin) => ({
+              name: pin.name,
+              direction: "east",
+              at: { x: -1.7, y: pin.at.y },
+              routing: { escape: "outward", preferredLanding: pin.at },
+            })),
+          },
+        ],
+      },
+    ]);
+    const doc = createEmptyDocument("fractional", "Fractional");
+    doc.presentation.grid = 10;
+    const start = { ...resistorAt(-490, 300), id: "R1" };
+    const end = { ...resistorAt(-490, 400), id: "R2" };
+    const terminals = [start, end].map((instance) => ({
+      instanceId: instance.id,
+      pinName: "1",
+    }));
+    doc.instances.push(start, end);
+    doc.nets.push({ id: "wire", terminals });
+    doc.routes.push(
+      createRoutePath({
+        id: "route",
+        netId: "wire",
+        start: { kind: "terminal", ...terminals[0]! },
+        end: { kind: "terminal", ...terminals[1]! },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const plan = planInsertedInstanceConnections(
+      doc,
+      fractional,
+      resistorAt(-510, 350),
+      [],
+    );
+    expect(plan.nearMisses).toEqual(
+      ["1", "2"].map((pinName) => ({
+        pinName,
+        netId: "wire",
+        netLabel: "a wire",
+        gridsAway: 2,
+      })),
+    );
   });
 
   it("never hints about a pin the symbol hides", () => {

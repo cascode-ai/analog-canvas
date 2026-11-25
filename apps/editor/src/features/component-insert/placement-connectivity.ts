@@ -25,6 +25,7 @@ import {
   planInitialMosBulkDefault,
   supplyMarkerBodyDomain,
 } from "./mos-bulk-defaults";
+import { findPlacementNearMisses } from "./placement-near-miss";
 import { vddPowerLabelAnnotation } from "./vdd-power-label";
 import { razaviManualBulkConnectionEdits } from "../../presentation/razavi-presentation";
 
@@ -249,6 +250,10 @@ export function planInsertedInstanceConnections(
     instances === document.instances && addedNets.length === 0
       ? document
       : { ...document, instances, nets: [...document.nets, ...addedNets] };
+  const logicalNets =
+    projection === document
+      ? context.contactContext.logicalNets
+      : resolveDocumentLogicalNets(projection);
   const edits: SchematicEdit[] = [
     ...contact.edits,
     ...standalonePower.edits,
@@ -258,7 +263,7 @@ export function planInsertedInstanceConnections(
       : razaviManualBulkConnectionEdits(
           projection,
           projection.instances,
-          resolveDocumentLogicalNets(projection),
+          logicalNets,
         )),
     ...(vddPowerLabel &&
     !document.annotations.some(
@@ -279,6 +284,30 @@ export function planInsertedInstanceConnections(
   return {
     edits,
     contact,
+    get nearMisses() {
+      // Existing Wires keep their geometry when the overlay adds a fresh
+      // instance. An unresolved Route or a Junction anchored to the new pin
+      // can acquire a different endpoint in the projection.
+      const read = context.contactContext;
+      const sameGeometry =
+        instances === document.instances ||
+        (read.routingGeometry.routes.size === document.routes.length &&
+          !document.junctions.some(
+            (junction) => junction.contactAnchor?.instanceId === instance.id,
+          ));
+      return findPlacementNearMisses(
+        projection,
+        resolver,
+        instance,
+        sameGeometry
+          ? {
+              geometry: read.routingGeometry,
+              spatialIndex: read.spatialIndex,
+              logicalNets,
+            }
+          : undefined,
+      );
+    },
     get projectedDocument(): SchematicDocument {
       return (projectedDocument ??= structuredClone(projection));
     },

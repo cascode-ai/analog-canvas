@@ -28,6 +28,8 @@ export interface DocumentSpatialIndex {
   readonly documentId: string;
   readonly documentRevision: number;
   readonly routeSegments: BoundsSpatialIndex<IndexedRouteSegment>;
+  /** A clamped floating-point projection can escape the stored segment bounds. */
+  readonly hasInexactDistanceBounds?: true;
   /** Short segments need the exact point predicate, not a fixed-distance box. */
   readonly shortRouteSegments?: readonly IndexedRouteSegment[];
 }
@@ -160,6 +162,7 @@ export function buildDocumentSpatialIndex(
   ) {
     throw new Error("Spatial index received stale routing geometry");
   }
+  let hasInexactDistanceBounds = false;
   const segments = document.routes.flatMap((route) => {
     const geometry = routingGeometry.routes.get(route.id);
     return (geometry?.segments ?? []).map((segment) => {
@@ -169,13 +172,28 @@ export function buildDocumentSpatialIndex(
           : segment.from.x === segment.to.x
             ? ("vertical" as const)
             : ("other" as const);
+      const bounds = segmentBounds(segment.from, segment.to);
+      if (!hasInexactDistanceBounds) {
+        const dx = segment.to.x - segment.from.x;
+        const dy = segment.to.y - segment.from.y;
+        // distanceToSegment clamps t to [0,1] then uses from + t*delta.
+        // Its last point and the index's origin + span can round differently.
+        const x = segment.from.x + dx,
+          y = segment.from.y + dy;
+        hasInexactDistanceBounds =
+          !Number.isFinite(dx * dx + dy * dy) ||
+          Math.min(segment.from.x, x) < bounds.x ||
+          Math.max(segment.from.x, x) > bounds.x + bounds.width ||
+          Math.min(segment.from.y, y) < bounds.y ||
+          Math.max(segment.from.y, y) > bounds.y + bounds.height;
+      }
       return {
         routeId: route.id,
         netId: route.netId,
         segmentIndex: segment.address.segmentIndex,
         from: segment.from,
         to: segment.to,
-        bounds: segmentBounds(segment.from, segment.to),
+        bounds,
         orientation,
       };
     });
@@ -183,6 +201,9 @@ export function buildDocumentSpatialIndex(
   return {
     documentId: document.id,
     documentRevision: document.revision,
+    ...(hasInexactDistanceBounds
+      ? { hasInexactDistanceBounds: true as const }
+      : {}),
     shortRouteSegments: segments.filter(({ from, to }) =>
       segmentNeedsExactPointQuery(from, to),
     ),

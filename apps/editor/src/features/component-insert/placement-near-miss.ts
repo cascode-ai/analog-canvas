@@ -1,4 +1,8 @@
 import {
+  buildDocumentSpatialIndex,
+  type ResolvedDocumentLogicalNets,
+  type DocumentSpatialIndex,
+  type ResolvedDocumentRoutingGeometry,
   resolveDocumentLogicalNets,
   resolveDocumentRoutingGeometry,
 } from "@icm/derived";
@@ -53,6 +57,13 @@ function distanceToSegment(point: Point, from: Point, to: Point): number {
   return Math.hypot(point.x - (from.x + t * dx), point.y - (from.y + t * dy));
 }
 
+function* allSegments(geometry: ResolvedDocumentRoutingGeometry) {
+  for (const route of geometry.routes.values()) {
+    for (const segment of route.segments)
+      yield { routeId: route.routeId, from: segment.from, to: segment.to };
+  }
+}
+
 /**
  * Pins of a just-placed Instance that sit within a couple of grid squares of
  * a wire they did not connect to, nearest first.
@@ -65,6 +76,11 @@ export function findPlacementNearMisses(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instance: Instance,
+  prepared?: {
+    geometry: ResolvedDocumentRoutingGeometry;
+    spatialIndex: DocumentSpatialIndex;
+    logicalNets: ResolvedDocumentLogicalNets;
+  },
 ): readonly PlacementNearMiss[] {
   const grid = document.presentation.grid;
   if (grid <= 0 || !instance.placement) return [];
@@ -73,8 +89,13 @@ export function findPlacementNearMisses(
     instance.symbolVariantId,
   );
   if (!resolved) return [];
-  const geometry = resolveDocumentRoutingGeometry(document, resolver);
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const geometry =
+    prepared?.geometry ?? resolveDocumentRoutingGeometry(document, resolver);
+  const spatial =
+    prepared?.spatialIndex ?? buildDocumentSpatialIndex(document, geometry);
+  const logicalNets =
+    prepared?.logicalNets ?? resolveDocumentLogicalNets(document);
+  const radius = grid * NEAR_MISS_MAX_GRIDS;
 
   const misses: PlacementNearMiss[] = [];
   for (const pin of resolved.definition.pins) {
@@ -93,13 +114,31 @@ export function findPlacementNearMisses(
       instance.placement.position,
       instance.placement,
     );
-    let nearest: { netId: string; distance: number } | null = null;
-    for (const route of geometry.routes.values()) {
-      for (const segment of route.segments) {
-        const distance = distanceToSegment(at, segment.from, segment.to);
-        if (nearest === null || distance < nearest.distance) {
-          nearest = { netId: route.netId, distance };
-        }
+    let nearest: { routeId: string; distance: number } | null = null;
+    // The index preserves document order. The original geometry traversal used
+    // stable English Route ID order first, then the order of the Route's legs.
+    const padding =
+      4 * Number.EPSILON * Math.max(Math.abs(at.x), Math.abs(at.y), radius);
+    const reach = radius + padding;
+    const candidates =
+      spatial.hasInexactDistanceBounds ||
+      !Number.isFinite(at.x * at.x + at.y * at.y + reach * reach)
+        ? allSegments(geometry)
+        : spatial.routeSegments.queryBounds({
+            x: at.x - reach,
+            y: at.y - reach,
+            width: 2 * reach,
+            height: 2 * reach,
+          });
+    for (const segment of candidates) {
+      const distance = distanceToSegment(at, segment.from, segment.to);
+      if (
+        nearest === null ||
+        distance < nearest.distance ||
+        (distance === nearest.distance &&
+          segment.routeId.localeCompare(nearest.routeId, "en") < 0)
+      ) {
+        nearest = { routeId: segment.routeId, distance };
       }
     }
     if (!nearest) continue;
@@ -111,10 +150,11 @@ export function findPlacementNearMisses(
     // Only whole-grid gaps read as "one square short". A pin resting mid-square
     // is off the grid entirely, which is a different mistake.
     if (!Number.isInteger(gridsAway)) continue;
+    const netId = geometry.routes.get(nearest.routeId)!.netId;
     misses.push({
       pinName: pin.name,
-      netId: nearest.netId,
-      netLabel: logicalNets.byBaseNetId.get(nearest.netId)?.name ?? "a wire",
+      netId,
+      netLabel: logicalNets.byBaseNetId.get(netId)?.name ?? "a wire",
       gridsAway,
     });
   }
