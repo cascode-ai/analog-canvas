@@ -97,7 +97,13 @@ function activeStatementFate(
       return ["preserved", "control"];
     case "directive":
       return ["preserved", statement.name];
-    default:
+    case "conditional":
+    case "function":
+    case "global":
+    case "include":
+    case "library":
+    case "model":
+    case "parameter":
       return ["declaration", statement.kind];
   }
 }
