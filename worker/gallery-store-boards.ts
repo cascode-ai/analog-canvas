@@ -3,8 +3,8 @@
 // author and preview revision beside the board's own facts. A board may also hold
 // circuits of a reference dataset, which live in that dataset's store: the board
 // keeps their ids, and worker/boards.ts reads their facts from their own store. Every change is kept
-// as an event: who, when, what. A board's id is its unguessable link; who may read
-// or change one is decided by worker/boards.ts, never here.
+// as an event: who, when, what. There is one board (mainBoardId); who may read
+// or change it is decided by worker/boards.ts, never here.
 
 import { parseProject } from "@icm/project-protocol";
 import { getRazaviCatalogEntry } from "@icm/symbols";
@@ -33,6 +33,31 @@ const BOARD_NOTE_MAX = 500;
 const BOARD_SLOTS_MAX = 500;
 /** How many of a board's latest events a read returns. */
 const BOARD_EVENTS_READ = 300;
+
+/** The one board's id when no board is kept yet; its first change makes it. */
+export const MAIN_BOARD_ID = "SelectionBoard0000000000";
+const MAIN_BOARD_TITLE = "Selection board";
+const MAIN_BOARD_SLOTS = 50;
+
+/** The region that writes a board it makes, as a regional create chooses it. */
+export function boardCreationRegion(id: string): "cn" | "overseas" {
+  return id.charCodeAt(0) % 2 === 0 ? "cn" : "overseas";
+}
+
+/** The one board: the oldest board kept, so an earlier board stays the board, else MAIN_BOARD_ID. */
+export function mainBoardId(sql: SqlStorage): string {
+  return (
+    sql
+      .exec<{ id: string }>(
+        "SELECT id FROM boards ORDER BY created_at, id LIMIT 1",
+      )
+      .toArray()[0]?.id ?? MAIN_BOARD_ID
+  );
+}
+
+function boardExists(sql: SqlStorage, id: string): boolean {
+  return sql.exec("SELECT 1 FROM boards WHERE id = ?", id).toArray().length > 0;
+}
 
 export function installBoards(sql: SqlStorage): void {
   sql.exec(`
@@ -547,8 +572,6 @@ function apply(
       return;
     case "unlock":
       if (!board.locked_at) return;
-      if (!actor.admin && actor.id !== board.created_by)
-        throw new BoardError("not-allowed", 403);
       sql.exec("UPDATE boards SET locked_at = NULL WHERE id = ?", board.id);
       record(sql, board.id, actor, "unlock");
       return;
@@ -622,6 +645,23 @@ export function boardEntries(sql: SqlStorage, ids: unknown): Response {
 
 /** A board as its page shows it: its facts, its items in order, its latest events. */
 export function boardRead(sql: SqlStorage, id: string): Response {
+  if (id === MAIN_BOARD_ID && !boardExists(sql, id))
+    return Response.json({
+      board: {
+        id,
+        title: MAIN_BOARD_TITLE,
+        slots: MAIN_BOARD_SLOTS,
+        createdBy: null,
+        createdById: null,
+        createdAt: null,
+        lockedAt: null,
+        revision: 0,
+      },
+      items: [],
+      events: [],
+      entryNames: {},
+      types: BOARD_TYPES,
+    });
   try {
     const board = boardRow(sql, id);
     const items = sql
@@ -764,6 +804,20 @@ export function boardChange(
   const datasetPublic = datasetPublicOf(body);
   try {
     state.storage.transactionSync(() => {
+      // The one board's first change makes it.
+      if (id === MAIN_BOARD_ID && !boardExists(sql, id)) {
+        sql.exec(
+          `INSERT INTO boards (id, title, slots, created_by, created_by_name, created_at, revision)
+           VALUES (?, ?, ?, ?, ?, ?, 0)`,
+          id,
+          MAIN_BOARD_TITLE,
+          MAIN_BOARD_SLOTS,
+          actor.id,
+          actor.name,
+          now(),
+        );
+        record(sql, id, actor, "create", { detail: MAIN_BOARD_TITLE });
+      }
       for (const change of changes)
         apply(sql, boardRow(sql, id), actor, change, datasetPublic);
       sql.exec("UPDATE boards SET revision = revision + 1 WHERE id = ?", id);

@@ -5,6 +5,8 @@ import {
   boardCreate,
   boardChange,
   forgetBoardAccount,
+  boardCreationRegion,
+  MAIN_BOARD_ID,
 } from "./gallery-store-boards";
 import type { SessionUser } from "./auth";
 import { retiredAccount } from "./retired-accounts";
@@ -250,7 +252,16 @@ export class RegionalBoards {
       return failure("account-deleted", 403);
     if (body.operation === "create" && !user.isAdmin)
       return failure("admin-only", 403);
-    if (body.operation !== "create" && this.origin(id) !== this.region)
+    // The one board not made yet is written by the region its first change makes it in.
+    const unmadeMain =
+      id === MAIN_BOARD_ID &&
+      this.origin(id) === null &&
+      boardCreationRegion(id) === this.region;
+    if (
+      body.operation !== "create" &&
+      this.origin(id) !== this.region &&
+      !unmadeMain
+    )
       return failure("wrong-writer");
     try {
       return this.state.storage.transactionSync(() => {

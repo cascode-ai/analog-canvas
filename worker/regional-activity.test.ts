@@ -179,6 +179,29 @@ async function pair(enabled = true) {
   return { overseas, cn, auth, transfer, publish };
 }
 
+/** The one board's first change, which makes it, named and holding the entries. */
+function start(title: string, entries: string[] = []) {
+  return {
+    changes: [
+      { kind: "rename", title },
+      ...entries.map((entry) => ({ kind: "add", entry })),
+    ],
+  };
+}
+
+/** A board as a store holds it, by id. */
+async function storeBoard(
+  site: { env: { GALLERY: GalleryNamespaceLike } },
+  id: string,
+) {
+  return (
+    await site.env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/board-read",
+      { method: "POST", body: JSON.stringify({ id }) },
+    )
+  ).json();
+}
+
 it("keeps a private bookmark and its removal across both entrances and retries", async () => {
   const { cn, overseas, transfer, publish } = await pair();
   const id = await publish();
@@ -275,17 +298,15 @@ it("edits a foreign Board once and preserves its items, locks and event identiti
   const { cn, overseas, transfer, publish } = await pair();
   const entry = await publish();
   const created = await overseas.call(
-    "/api/boards",
+    "/api/board/changes",
     "POST",
-    { title: "Shared selection", entries: [entry] },
+    start("Shared selection", [entry]),
     "create-board",
-    true,
   );
   expect(created.status, await created.clone().text()).toBe(200);
-  const original = await created.json(),
-    id = original.board.id;
+  const original = await created.json();
   await transfer(overseas, cn, "gallery-activity");
-  const read = await cn.call(`/api/boards/${id}`);
+  const read = await cn.call("/api/board");
   expect(read.status, await read.clone().text()).toBe(200);
   expect(await read.json()).toMatchObject({
     board: original.board,
@@ -300,7 +321,7 @@ it("edits a foreign Board once and preserves its items, locks and event identiti
     ],
   };
   const response = await cn.call(
-    `/api/boards/${id}/changes`,
+    "/api/board/changes",
     "POST",
     changes,
     "board-note",
@@ -312,48 +333,55 @@ it("edits a foreign Board once and preserves its items, locks and event identiti
   cn.restart();
   overseas.restart();
   const replay = await cn.call(
-    `/api/boards/${id}/changes`,
+    "/api/board/changes",
     "POST",
     changes,
     "board-note",
   );
   expect(replay.status, await replay.clone().text()).toBe(200);
   expect((await replay.json()).events).toEqual(updated.events);
-  const refused = await cn.call(
-    `/api/boards/${id}/changes`,
+  // Any collaborator unlocks it, not only its maker.
+  const unlocked = await cn.call(
+    "/api/board/changes",
     "POST",
     { expectedRevision: updated.board.revision, changes: [{ kind: "unlock" }] },
     "not-the-maker",
   );
-  expect(refused.status).toBe(403);
+  expect(unlocked.status, await unlocked.clone().text()).toBe(200);
+  expect((await unlocked.json()).board.lockedAt).toBeNull();
 });
 
 it("seeds legacy Boards from both regions without colliding event sequences or losing concurrent changes", async () => {
   const { cn, overseas, transfer } = await pair(false);
-  const one = await (
-    await overseas.call(
-      "/api/boards",
-      "POST",
-      { title: "Existing overseas" },
-      undefined,
-      true,
-    )
-  ).json();
-  const two = await (
-    await cn.call(
-      "/api/boards",
-      "POST",
-      { title: "Existing China" },
-      undefined,
-      true,
-    )
-  ).json();
+  // Boards kept from when there were several, each made in its own region.
+  const legacy = async (site: typeof cn, id: string, title: string) =>
+    (
+      await site.env.GALLERY.getByName("gallery").fetch(
+        "https://gallery/board-create",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            id,
+            title,
+            slots: 50,
+            actor: { id: "legacy-maker", name: "Legacy maker", admin: true },
+          }),
+        },
+      )
+    ).json();
+  const one = await legacy(
+    overseas,
+    "LegacyOverseasBoard00000",
+    "Existing overseas",
+  );
+  const two = await legacy(cn, "LegacyChinaBoard00000000", "Existing China");
   expect(one.events[0].seq).toBe(1);
   expect(two.events[0].seq).toBe(1);
   cn.activate();
   overseas.activate();
+  // Before the seed reaches it, China's own legacy board is its board.
   const updated = await cn.call(
-    `/api/boards/${two.board.id}/changes`,
+    "/api/board/changes",
     "POST",
     {
       expectedRevision: 1,
@@ -361,13 +389,13 @@ it("seeds legacy Boards from both regions without colliding event sequences or l
     },
     "seed-edit",
   );
-  expect(updated.status).toBe(200);
+  expect(updated.status, await updated.clone().text()).toBe(200);
   await transfer(cn, overseas, "gallery-activity");
   await transfer(overseas, cn, "gallery-activity");
   for (const site of [cn, overseas]) {
-    const old = await (await site.call(`/api/boards/${one.board.id}`)).json();
+    const old = await storeBoard(site, one.board.id);
     expect(old.events).toEqual(one.events);
-    const other = await (await site.call(`/api/boards/${two.board.id}`)).json();
+    const other = await storeBoard(site, two.board.id);
     expect(other.board.title).toBe("Kept during seed");
     expect(other.events.at(-1)).toEqual(two.events[0]);
   }
@@ -377,16 +405,14 @@ it("refuses a stale Board batch without partially applying its earlier changes",
   const { cn, overseas, publish } = await pair();
   const entry = await publish();
   const created = await overseas.call(
-    "/api/boards",
+    "/api/board/changes",
     "POST",
-    { title: "Atomic board", entries: [entry] },
+    start("Atomic board", [entry]),
     "atomic-board",
-    true,
   );
-  const original = await created.json(),
-    id = original.board.id;
+  expect(created.status, await created.clone().text()).toBe(200);
   const failed = await cn.call(
-    `/api/boards/${id}/changes`,
+    "/api/board/changes",
     "POST",
     {
       expectedRevision: 1,
@@ -399,17 +425,17 @@ it("refuses a stale Board batch without partially applying its earlier changes",
   );
   expect(failed.status).toBe(404);
   expect(
-    (await (await overseas.call(`/api/boards/${id}`)).json()).board,
+    (await (await overseas.call("/api/board")).json()).board,
   ).toMatchObject({ title: "Atomic board", revision: 1 });
   const valid = await cn.call(
-    `/api/boards/${id}/changes`,
+    "/api/board/changes",
     "POST",
     { expectedRevision: 1, changes: [{ kind: "slots", slots: 2 }] },
     "valid-batch",
   );
   expect(valid.status).toBe(200);
   const stale = await overseas.call(
-    `/api/boards/${id}/changes`,
+    "/api/board/changes",
     "POST",
     {
       expectedRevision: 1,
@@ -489,24 +515,22 @@ it("converges concurrent bookmark removals and refuses replay over a newer save"
 
 it("reconciles Board creation after the response is lost and the entrance changes", async () => {
   const { cn, overseas } = await pair();
-  const body = { title: "One creation" };
+  const body = start("One creation");
   const first = await overseas.call(
-    "/api/boards",
+    "/api/board/changes",
     "POST",
     body,
     "lost-create",
-    true,
   );
   expect(first.status).toBe(200);
   const original = await first.json();
   cn.restart();
   overseas.restart();
   const retried = await cn.call(
-    "/api/boards",
+    "/api/board/changes",
     "POST",
     body,
     "lost-create",
-    true,
   );
   expect(retried.status, await retried.clone().text()).toBe(200);
   const current = await retried.json();
@@ -518,16 +542,15 @@ it("does not restore a deleted account from delayed bookmarks or Board history",
   const { cn, overseas, publish, transfer } = await pair();
   const entry = await publish();
   const created = await overseas.call(
-    "/api/boards",
+    "/api/board/changes",
     "POST",
-    { title: "Retained selection" },
+    start("Retained selection"),
     "privacy-board",
     true,
   );
   expect(created.status).toBe(200);
-  const board = (await created.json()).board;
   const changed = await overseas.call(
-    `/api/boards/${board.id}/changes`,
+    "/api/board/changes",
     "POST",
     {
       expectedRevision: 1,
@@ -554,7 +577,7 @@ it("does not restore a deleted account from delayed bookmarks or Board history",
   await transfer(overseas, cn, "gallery-activity");
   cn.restart();
   const retained = await cn.call(
-    `/api/boards/${board.id}`,
+    "/api/board",
     "GET",
     undefined,
     undefined,
@@ -577,13 +600,11 @@ it("does not restore a deleted account from delayed bookmarks or Board history",
 it("catches up a newly published circuit before adding it to a foreign Board", async () => {
   const { cn, overseas, transfer } = await pair(false);
   const created = await overseas.call(
-    "/api/boards",
+    "/api/board/changes",
     "POST",
-    { title: "Existing writer" },
-    undefined,
-    true,
+    start("Existing writer"),
   );
-  const id = (await created.json()).board.id;
+  expect(created.status).toBe(200);
   cn.activate();
   overseas.activate();
   await transfer(overseas, cn, "gallery-activity");
@@ -594,7 +615,7 @@ it("catches up a newly published circuit before adding it to a foreign Board", a
   expect(published.status).toBe(201);
   const entry = (await published.json()).id;
   const added = await cn.call(
-    `/api/boards/${id}/changes`,
+    "/api/board/changes",
     "POST",
     { expectedRevision: 1, changes: [{ kind: "add", entryId: entry }] },
     "add-new-publication",

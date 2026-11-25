@@ -29,10 +29,15 @@ it("captures private bookmarks, boards and open counts without exposing them to 
     (await route(env, new Request(`${ORIGIN}/api/gallery/${id}`))).status,
   ).toBe(200);
   const board = await routeBoardsRequest(
-    new Request(`${ORIGIN}/api/boards`, {
+    new Request(`${ORIGIN}/api/board/changes`, {
       method: "POST",
       headers: { cookie, origin: ORIGIN },
-      body: JSON.stringify({ title: "Backup board", entries: [id] }),
+      body: JSON.stringify({
+        changes: [
+          { kind: "rename", title: "Backup board" },
+          { kind: "add", entry: id },
+        ],
+      }),
     }),
     env,
   );

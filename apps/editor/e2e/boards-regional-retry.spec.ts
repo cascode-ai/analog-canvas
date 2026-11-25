@@ -4,10 +4,9 @@ import { BOARD_PAGE } from "../../../worker/boards-page";
 test("keeps a Board retry after reload but sends a newly chosen circuit as a new command", async ({
   page,
 }) => {
-  const id = "abcdefghijklmnopqrstuvwx";
   const state = {
     board: {
-      id,
+      id: "SelectionBoard0000000000",
       title: "Selection",
       revision: 1,
       slots: 10,
@@ -28,13 +27,11 @@ test("keeps a Board retry after reload but sends a newly chosen circuit as a new
     key: string | undefined;
     body: { changes: { entry: string }[] };
   }[] = [];
-  await page.route(`**/boards/${id}`, (route) =>
+  await page.route("**/boards", (route) =>
     route.fulfill({ contentType: "text/html", body: BOARD_PAGE }),
   );
-  await page.route(`**/api/boards/${id}`, (route) =>
-    route.fulfill({ json: state }),
-  );
-  await page.route(`**/api/boards/${id}/changes`, async (route) => {
+  await page.route("**/api/board", (route) => route.fulfill({ json: state }));
+  await page.route("**/api/board/changes", async (route) => {
     calls.push({
       key: route.request().headers()["idempotency-key"],
       body: route.request().postDataJSON(),
@@ -46,7 +43,7 @@ test("keeps a Board retry after reload but sends a newly chosen circuit as a new
         : { json: state },
     );
   });
-  await page.goto(`/boards/${id}`);
+  await page.goto("/boards");
   const add = async (entry: string) => {
     await page.locator("#add-entries").fill(entry);
     await page.locator("#add-go").click();
@@ -57,7 +54,7 @@ test("keeps a Board retry after reload but sends a newly chosen circuit as a new
   await add("first-circuit");
   await expect(page.locator("#status")).toHaveText("unconfirmed");
   await add("second-circuit");
-  await expect(page.locator("#status")).toContainText("已加入");
+  await expect(page.locator("#status")).toContainText("Added");
   expect(calls).toHaveLength(3);
   expect(calls[0]?.key).toBeTruthy();
   expect(calls[1]).toEqual(calls[0]);

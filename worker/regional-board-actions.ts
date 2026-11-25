@@ -1,18 +1,17 @@
 import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
 import { sessionUserOf, type SessionUser } from "./auth";
-import { sha256Hex } from "@icm/derived";
 import { digest, sessionIdentity } from "./regional-auth-contract";
 import { readSyncJson } from "./project-sync-http";
 import { sameOrigin } from "./same-origin";
 import { catchUpResource } from "./resource-action-catchup";
 import {
   datasetPublicIds,
-  entryIdOf,
   storeChanges,
   withDatasetEntries,
   withViewer,
 } from "./boards";
 import { gallerySourceOfEntryId } from "./gallery-sources";
+import { boardCreationRegion, MAIN_BOARD_ID } from "./gallery-store-boards";
 import type { ResourceActionEnv } from "./regional-resource-actions";
 
 const peerPath = "/api/resource-actions/board";
@@ -23,17 +22,6 @@ const answer = (body: unknown, status = 200) =>
     headers: { "cache-control": "no-store", "x-robots-tag": "noindex" },
   });
 const fail = (error: string, status: number) => answer({ error }, status);
-function boardId(actor: string, command: string) {
-  const alphabet =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let value = BigInt("0x" + sha256Hex(JSON.stringify([actor, command]))),
-    id = "";
-  for (let i = 0; i < 24; i++) {
-    id += alphabet[Number(value % 62n)];
-    value /= 62n;
-  }
-  return id;
-}
 type Command = {
   id: string;
   operation: "create" | "change";
@@ -50,10 +38,9 @@ export async function routeRegionalBoardActions(
 ): Promise<Response | null> {
   const url = new URL(request.url),
     incoming = url.pathname === peerPath;
-  const match =
-    /^\/api\/boards(?:\/([A-Za-z0-9]{24})(?:\/(changes|export|preview\/[^/]+))?)?$/.exec(
-      url.pathname,
-    );
+  const match = /^\/api\/board(?:\/(changes|export|preview\/[^/]+))?$/.exec(
+    url.pathname,
+  );
   if (
     !incoming &&
     (!match || !(request.method === "GET" || request.method === "POST"))
@@ -114,13 +101,16 @@ export async function routeRegionalBoardActions(
       return (await (await call("activity-board-location", { id })).json())
         .origin as string | null;
     };
-    // A link may arrive before the background seed; discovery is only needed for
-    // a missing Board. Existing Boards continue to read their local snapshot.
+    // The one board may be written in the other region before the background
+    // seed; discovery is only needed while it is missing here.
+    const mainId = incoming
+      ? ""
+      : ((await (await call("board-main", {})).json()).id as string);
     if (!incoming && request.method === "GET") {
-      if (match?.[1]) await locate(match[1]);
+      await locate(mainId);
       return null;
     }
-    if (!incoming && match?.[1] && match[2] !== "changes") return null;
+    if (!incoming && match?.[1] !== "changes") return null;
     let command: Command, user: SessionUser | null;
     if (incoming) {
       const body = (await readSyncJson(request, 256 * 1024)) as Command;
@@ -158,44 +148,30 @@ export async function routeRegionalBoardActions(
         return fail("bad-request", 400);
       if (body.accountId !== undefined && body.accountId !== user.id)
         return fail("account-changed", 409);
-      const operation = match![1] ? "change" : "create";
-      if (operation === "create" && !user.isAdmin)
-        return fail("admin-only", 403);
       const commandId =
         request.headers.get("idempotency-key") ?? crypto.randomUUID();
       if (!/^[A-Za-z0-9_-]{1,128}$/.test(commandId))
         return fail("invalid-command", 400);
-      const id = match![1] ?? boardId(user.id, commandId);
-      const changes =
-        operation === "change" ? storeChanges(body.changes) : null;
-      if (operation === "change" && !changes) return fail("bad-changes", 400);
+      const changes = storeChanges(body.changes);
+      if (!changes) return fail("bad-changes", 400);
       if (
         body.expectedRevision !== undefined &&
         (!Number.isSafeInteger(body.expectedRevision) ||
           Number(body.expectedRevision) < 1)
       )
         return fail("bad-revision", 400);
-      const entries = Array.isArray(body.entries)
-        ? body.entries.map(entryIdOf)
-        : [];
-      if (entries.some((id) => !id)) return fail("bad-entry", 400);
       command = {
-        id,
-        operation,
+        id: mainId,
+        operation: "change",
+        // The one board not made yet is made by its first change, in the region a create picks.
         target:
-          operation === "create"
-            ? id.charCodeAt(0) % 2 === 0
-              ? "cn"
-              : "overseas"
-            : ((await locate(id)) ?? ""),
+          (await locate(mainId)) ??
+          (mainId === MAIN_BOARD_ID ? boardCreationRegion(mainId) : ""),
         commandId,
         ...(body.expectedRevision === undefined
           ? {}
           : { expectedRevision: Number(body.expectedRevision) }),
-        input:
-          operation === "create"
-            ? { title: body.title, slots: body.slots ?? 50, entries }
-            : { changes },
+        input: { changes },
       };
       if (!command.target) return fail("board-not-found", 404);
     }

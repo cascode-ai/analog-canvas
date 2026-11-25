@@ -105,6 +105,7 @@ import {
   boardEntries,
   boardPreview,
   boardRead,
+  mainBoardId,
   entryPreview,
   forgetBoardAccount,
   installBoards,
@@ -799,6 +800,8 @@ export class GalleryDO {
         return deleteAccount(this.state, String(body.userId ?? ""));
       case "board-create":
         return boardCreate(this.state, body);
+      case "board-main":
+        return Response.json({ id: mainBoardId(this.sql) });
       case "board-read":
         return boardRead(this.sql, String(body.id));
       case "board-change":
