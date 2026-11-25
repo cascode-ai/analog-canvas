@@ -1,7 +1,7 @@
 import type { ProjectConnectivityIndex } from "../connectivity-index.js";
 import {
   buildCellDiagnosticIndex,
-  buildProjectConnectivityIndex,
+  buildCommittedProjectConnectivityIndex,
 } from "../connectivity-index.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 import type { VisualDiagnostic } from "../visual.js";
@@ -180,7 +180,7 @@ export interface DiagnosticDomainOptions {
 export function collectProjectDiagnosticEvidence(
   project: CircuitProject,
   resolver: SymbolResolver,
-  index = buildProjectConnectivityIndex(project, resolver),
+  index = buildCommittedProjectConnectivityIndex(project, resolver),
   options: DiagnosticDomainOptions = {},
 ) {
   return collectDiagnosticEvidence(project, resolver, index, options);
@@ -192,7 +192,7 @@ export function diagnoseCell(
   document: SchematicDocument,
   resolver: SymbolResolver,
 ): readonly Diagnostic[] {
-  const index = buildCellDiagnosticIndex(document, resolver);
+  const index = buildCellDiagnosticIndex(document, resolver, "committed");
   return collectDiagnosticEvidence(project, resolver, index, {}, document)
     .diagnostics;
 }
@@ -277,7 +277,7 @@ function collectDiagnosticEvidence(
 export function diagnoseProject(
   project: CircuitProject,
   resolver: SymbolResolver,
-  index = buildProjectConnectivityIndex(project, resolver),
+  index = buildCommittedProjectConnectivityIndex(project, resolver),
   options: DiagnosticDomainOptions = {},
 ): readonly Diagnostic[] {
   return collectProjectDiagnosticEvidence(project, resolver, index, options)
@@ -291,7 +291,7 @@ export function diagnoseProject(
 export function diagnoseProjectSnapshot(
   project: CircuitProject,
   resolver: SymbolResolver,
-  index = buildProjectConnectivityIndex(project, resolver),
+  index = buildCommittedProjectConnectivityIndex(project, resolver),
   options: DiagnosticDomainOptions = {},
 ): LiveDiagnosticSnapshot {
   return {

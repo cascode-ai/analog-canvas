@@ -25,7 +25,7 @@ export function referencedDocumentId(
 }
 
 /** Shared structural calls, independent of resolved Symbols, Pins or wiring. */
-export function projectHierarchyCalls(
+function projectHierarchyCalls(
   project: CircuitProject,
 ): HierarchyFrame[] {
   const documentIds = new Set(project.documents.map((cell) => cell.id));

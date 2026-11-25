@@ -1,14 +1,13 @@
-import {
-  projectHierarchyCalls,
-  referencedDocumentId,
-} from "./project-hierarchy.js";
+import { buildProjectConnectivityRelations } from "./project-connectivity-relations.js";
 import { registerDocumentCache } from "./document-caches.js";
 import {
   createAnnotationNameClaimReader,
   deriveStableId,
   documentContentSource,
+  readDocumentChangeJournal,
   isFrozenSnapshot,
   foldNetName,
+  freezeSnapshot,
 } from "@icm/model";
 import type {
   AnnotationNameClaimReader,
@@ -17,7 +16,14 @@ import type {
   RouteEndpoint,
   SchematicDocument,
 } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { InMemorySymbolResolver, type SymbolResolver } from "@icm/symbols";
+import {
+  changedRecordOwners,
+  hasLocalRecordDependencies,
+  sameRecordInputs,
+  sameConnectivitySymbols,
+  type RecordInputs,
+} from "./connectivity-record-reuse.js";
 
 import {
   deriveImportedRoutingGuidance,
@@ -34,7 +40,6 @@ import {
   type HierarchyFrame,
 } from "./object-locator.js";
 import { resolveAnnotationName } from "./annotation-text.js";
-import { resolveDocumentLogicalNets } from "./logical-net.js";
 import type { DocumentDerivedContext } from "./document-derived-context.js";
 
 /**
@@ -137,6 +142,25 @@ const terminalEndpoint = (
   ...(memberId ? { memberId } : {}),
 });
 
+interface BaseRecord {
+  record: NetConnectivityRecord;
+  endpointKeys: readonly string[];
+  bodies?: { endpoint: RouteEndpoint; visible: boolean }[];
+}
+interface GlobalMembership {
+  foldedName: string;
+  netId: string;
+}
+interface CellRecordState {
+  baseRecords: ReadonlyMap<string, BaseRecord>;
+  globals: readonly GlobalMembership[];
+  hasBodyPins: boolean;
+  local: boolean;
+}
+const emptyGlobals: readonly GlobalMembership[] = Object.freeze([]);
+const emptyBaseRecords = new Map<string, BaseRecord>();
+const recordStates = new WeakMap<DocumentConnectivityIndex, CellRecordState>();
+
 interface CachedDocumentIndex {
   revision: number;
   resolver: SymbolResolver;
@@ -148,17 +172,31 @@ const documentIndexCache = registerDocumentCache(
   new WeakMap<SchematicDocument, CachedDocumentIndex>(),
 );
 
-/** Read the index already built for this exact immutable Cell and symbol context. */
+// Public views are independently mutable. They can never seed a committed
+// record cache or expose one of its maps, records or geometry points.
+const publicIndexCache = registerDocumentCache(
+  new WeakMap<SchematicDocument, CachedDocumentIndex>(),
+);
+
+/** Read a previously indexed immutable Cell. Internal readers share the committed projection. */
 export function cachedDocumentConnectivityIndex(
   document: SchematicDocument,
   resolver?: SymbolResolver,
-): DocumentConnectivityIndex | undefined {
-  const cached = documentIndexCache.get(document);
-  return isFrozenSnapshot(document) &&
-    cached?.revision === document.revision &&
-    cached.resolver === resolver
-    ? cached.index
-    : undefined;
+  ownership: "public" | "committed" = "public",
+) {
+  const shared = ownership === "committed";
+  if (!resolver || !isFrozenSnapshot(document)) return undefined;
+  const requestedCache = shared ? documentIndexCache : publicIndexCache;
+  const existing = requestedCache.get(document);
+  if (
+    existing?.revision === document.revision &&
+    existing.resolver === resolver
+  )
+    return existing.index;
+  const other = (shared ? publicIndexCache : documentIndexCache).get(document);
+  if (other?.revision === document.revision && other.resolver === resolver)
+    return buildDocumentIndex(document, resolver, false, shared);
+  return undefined;
 }
 
 /**
@@ -195,21 +233,120 @@ function normalizeRoutingGuidance(line: RoutingGuide): RoutingGuide {
   };
 }
 
-function buildDocumentIndex(
+interface PreviousRecords extends RecordInputs {
+  index: DocumentConnectivityIndex;
+  touched: ReadonlySet<string>;
+  baseRecords: ReadonlyMap<string, BaseRecord>;
+}
+
+function previousCellRecords(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  context: DocumentDerivedContext,
+) {
+  const journal = readDocumentChangeJournal(document);
+  const cached = journal && documentIndexCache.get(journal.before);
+  const source = cached && recordStates.get(cached.index);
+  const local =
+    isFrozenSnapshot(document) &&
+    InMemorySymbolResolver.hasStableDefinitions(resolver) &&
+    hasLocalRecordDependencies(
+      document,
+      context,
+      Boolean(source?.local),
+      journal,
+    );
+  let previous: PreviousRecords | undefined;
+  let isolatedAddition = false;
+  if (
+    local &&
+    source?.local &&
+    cached &&
+    journal &&
+    cached.revision === journal.before.revision &&
+    sameConnectivitySymbols(journal.before, cached.resolver, resolver)
+  ) {
+    const touched = changedRecordOwners(journal);
+    if (touched) {
+      previous = {
+        document: journal.before,
+        index: cached.index,
+        claims: createAnnotationNameClaimReader(journal.before),
+        baseRecords: source.baseRecords,
+        touched,
+      };
+      isolatedAddition =
+        !touched.size &&
+        !source.hasBodyPins &&
+        !document.netlist?.terminals.length &&
+        !context.netLabelBindingsByNetId.size &&
+        !cached.index.netLabelBindingsByNetId.size &&
+        journal.fields.every(
+          (field) =>
+            field === "revision" ||
+            field === "instances" ||
+            field === "annotations" ||
+            field === "sourceStatus" ||
+            field === "drawingOrder",
+        ) &&
+        journal.rows.every(
+          (row) =>
+            row.change === "added" &&
+            (row.collection === "instances" ||
+              (row.collection === "annotations" &&
+                !context.annotationsById.get(row.id)?.netId)),
+        );
+    }
+  }
+  return { local, previous, isolatedAddition, priorGlobals: source?.globals };
+}
+
+function reusableRecord(
+  net: Net,
+  previous: PreviousRecords | undefined,
+  current: RecordInputs,
+  resolver: SymbolResolver,
+) {
+  if (
+    !previous ||
+    previous.touched.has(net.id) ||
+    previous.index.netsById.get(net.id) !== net
+  )
+    return undefined;
+  const prior = previous.baseRecords.get(net.id);
+  if (!prior || !sameRecordInputs(net.id, previous, current)) return undefined;
+  // MOS body visibility can change when a different Net becomes the supply.
+  if (
+    prior.bodies?.some(
+      ({ endpoint, visible }) =>
+        isVisibleEndpoint(
+          current.document,
+          resolver,
+          endpoint,
+          current.index,
+        ) !== visible,
+    )
+  )
+    return undefined;
+  return prior;
+}
+
+function buildDocumentIndex(
+  snapshot: SchematicDocument,
+  resolver: SymbolResolver,
   reuseRestoredContent: boolean,
+  shared: boolean,
 ): DocumentConnectivityIndex {
-  const cached = documentIndexCache.get(document);
-  if (cached?.revision === document.revision && cached.resolver === resolver) {
+  const cache = shared ? documentIndexCache : publicIndexCache;
+  const cached = cache.get(snapshot);
+  if (cached?.revision === snapshot.revision && cached.resolver === resolver) {
     return cached.index;
   }
   if (reuseRestoredContent) {
-    const source = documentContentSource(document);
-    const prior =
-      source !== document ? documentIndexCache.get(source) : undefined;
+    const source = documentContentSource(snapshot);
+    const prior = source !== snapshot ? cache.get(source) : undefined;
     if (prior?.revision === source.revision && prior.resolver === resolver) {
-      const documentRevision = document.revision;
+      const documentRevision = snapshot.revision;
       const routingGeometry = {
         ...prior.index.routingGeometry,
         documentRevision,
@@ -224,7 +361,9 @@ function buildDocumentIndex(
             : { ...prior.index.directRoutingGeometry, documentRevision },
         spatialIndex: { ...prior.index.spatialIndex, documentRevision },
       };
-      documentIndexCache.set(document, {
+      const records = recordStates.get(prior.index);
+      if (records) recordStates.set(index, records);
+      cache.set(snapshot, {
         revision: documentRevision,
         resolver,
         index,
@@ -232,16 +371,36 @@ function buildDocumentIndex(
       return index;
     }
   }
+  // Public geometry helpers expose writable maps and routed nodes for their Cell.
+  // Private derivation keys keep those caches separate while sharing frozen authored rows.
+  const document = isFrozenSnapshot(snapshot)
+    ? shared
+      ? freezeSnapshot({ ...snapshot })
+      : { ...snapshot }
+    : snapshot;
   const connectivityContext = deriveNetConnectivityContext(document, resolver);
-  const endpointToBaseNetId = new Map<string, string>();
-  for (const net of document.nets) {
-    for (const endpoint of netEndpoints(
-      document,
-      net,
-      connectivityContext.junctionsByNetId.get(net.id) ?? [],
-    )) {
-      endpointToBaseNetId.set(endpointKey(endpoint), net.id);
-    }
+  const { local, previous, isolatedAddition, priorGlobals } = shared
+    ? previousCellRecords(snapshot, resolver, connectivityContext)
+    : {
+        local: false,
+        previous: undefined,
+        isolatedAddition: false,
+        priorGlobals: undefined,
+      };
+
+  // A newly placed, unattached part changes the scene, but no electrical
+  // membership, label, formal or body visibility. Keep the ordered directories.
+  const isolatedState =
+    isolatedAddition && previous && recordStates.get(previous.index);
+  if (previous && isolatedState) {
+    const index = { ...previous.index, ...connectivityContext };
+    recordStates.set(index, isolatedState);
+    cache.set(snapshot, {
+      revision: document.revision,
+      resolver,
+      index,
+    });
+    return index;
   }
 
   const routingGuidanceByNet = new Map<string, RoutingGuide[]>();
@@ -259,11 +418,20 @@ function buildDocumentIndex(
     }
   }
 
-  const baseRecords = new Map<string, NetConnectivityRecord>();
+  const baseRecords = new Map<string, BaseRecord>();
   const readClaims = createAnnotationNameClaimReader(document);
+  const inputs = { document, index: connectivityContext, claims: readClaims };
+  const sharedOwners =
+    previous &&
+    previous.document.nets === document.nets &&
+    previous.document.junctions === document.junctions
+      ? previous.index.endpointToBaseNetId
+      : undefined;
+  const newOwners = new Map<string, string>();
+  let hasBodyPins = false;
   for (const net of document.nets) {
-    baseRecords.set(
-      net.id,
+    const entry =
+      reusableRecord(net, previous, inputs, resolver) ??
       buildNetRecord(
         document,
         resolver,
@@ -271,30 +439,34 @@ function buildDocumentIndex(
         routingGuidanceByNet.get(net.id) ?? [],
         connectivityContext,
         readClaims,
-      ),
-    );
+      );
+    baseRecords.set(net.id, entry);
+    hasBodyPins ||= Boolean(entry.bodies);
+    if (!sharedOwners)
+      for (const key of entry.endpointKeys) newOwners.set(key, net.id);
   }
+  const endpointToBaseNetId = sharedOwners ?? newOwners;
   const logicalNets = new Map<string, NetConnectivityRecord>();
   const logicalNetByBaseNetId = new Map<string, NetConnectivityRecord>();
+  const globals: GlobalMembership[] = [];
   for (const group of connectivityContext.logicalNetResolution.groups) {
-    const records = group.baseNetIds.map((netId) => baseRecords.get(netId)!);
-    const aggregate: NetConnectivityRecord = {
-      netId: group.id,
-      baseNetIds: group.baseNetIds,
-      logicalEndpoints: uniqueEndpoints(
-        records.flatMap((record) => record.logicalEndpoints),
-      ),
-      visibleEndpoints: uniqueEndpoints(
-        records.flatMap((record) => record.visibleEndpoints),
-      ),
-      routedComponents: records.flatMap((record) => record.routedComponents),
-      routes: uniqueStrings(records.flatMap((record) => record.routes)),
-      junctions: uniqueStrings(records.flatMap((record) => record.junctions)),
-      virtualEdges: records.flatMap((record) => record.virtualEdges),
-      routingGuidance: uniqueRoutingGuidance(
-        records.flatMap((record) => record.routingGuidance),
-      ),
-    };
+    const prior = previous?.index.logicalNets.get(group.id);
+    const reuse =
+      prior &&
+      prior.baseNetIds.length === group.baseNetIds.length &&
+      group.baseNetIds.every(
+        (id, i) =>
+          prior.baseNetIds[i] === id &&
+          previous?.baseRecords.get(id) === baseRecords.get(id),
+      );
+    const aggregate = reuse
+      ? prior
+      : aggregateNetRecords(
+          group,
+          group.baseNetIds.map((id) => baseRecords.get(id)!.record),
+        );
+    if (group.scope === "global" && group.name)
+      globals.push({ foldedName: foldNetName(group.name), netId: group.id });
     logicalNets.set(group.id, aggregate);
     for (const baseNetId of group.baseNetIds) {
       logicalNetByBaseNetId.set(baseNetId, aggregate);
@@ -308,12 +480,52 @@ function buildDocumentIndex(
     logicalNets,
     logicalNetByBaseNetId,
   };
-  documentIndexCache.set(document, {
+  cache.set(snapshot, {
     revision: document.revision,
     resolver,
     index,
   });
+  const memberships = !globals.length
+    ? emptyGlobals
+    : priorGlobals &&
+        priorGlobals.length === globals.length &&
+        globals.every(
+          (entry, i) =>
+            entry.netId === priorGlobals[i]?.netId &&
+            entry.foldedName === priorGlobals[i]?.foldedName,
+        )
+      ? priorGlobals
+      : globals;
+  recordStates.set(index, {
+    baseRecords: local ? baseRecords : emptyBaseRecords,
+    globals: memberships,
+    hasBodyPins,
+    local,
+  });
   return index;
+}
+
+function aggregateNetRecords(
+  group: { id: string; baseNetIds: readonly string[] },
+  records: readonly NetConnectivityRecord[],
+): NetConnectivityRecord {
+  return {
+    netId: group.id,
+    baseNetIds: group.baseNetIds,
+    logicalEndpoints: uniqueEndpoints(
+      records.flatMap((record) => record.logicalEndpoints),
+    ),
+    visibleEndpoints: uniqueEndpoints(
+      records.flatMap((record) => record.visibleEndpoints),
+    ),
+    routedComponents: records.flatMap((record) => record.routedComponents),
+    routes: uniqueStrings(records.flatMap((record) => record.routes)),
+    junctions: uniqueStrings(records.flatMap((record) => record.junctions)),
+    virtualEdges: records.flatMap((record) => record.virtualEdges),
+    routingGuidance: uniqueRoutingGuidance(
+      records.flatMap((record) => record.routingGuidance),
+    ),
+  };
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
@@ -347,7 +559,7 @@ function buildNetRecord(
   routingGuidance: readonly RoutingGuide[],
   connectivityContext: NetConnectivityContext,
   readClaims: AnnotationNameClaimReader,
-): NetConnectivityRecord {
+): BaseRecord {
   const routesForNet = connectivityContext.routesByNetId.get(net.id) ?? [];
   const junctionsForNet =
     connectivityContext.junctionsByNetId.get(net.id) ?? [];
@@ -361,10 +573,19 @@ function buildNetRecord(
     ),
   ].sort((a, b) => endpointKey(a).localeCompare(endpointKey(b), "en"));
 
-  const visibleEndpoints = netEndpoints(document, net, junctionsForNet).filter(
-    (endpoint) =>
-      isVisibleEndpoint(document, resolver, endpoint, connectivityContext),
-  );
+  const endpoints = netEndpoints(document, net, junctionsForNet);
+  let bodies: BaseRecord["bodies"];
+  const visibleEndpoints = endpoints.filter((endpoint) => {
+    const visible = isVisibleEndpoint(
+      document,
+      resolver,
+      endpoint,
+      connectivityContext,
+    );
+    if (endpoint.kind === "terminal" && endpoint.pinName === "B")
+      (bodies ??= []).push({ endpoint, visible });
+    return visible;
+  });
 
   const routedComponents = deriveNetConnectivity(
     document,
@@ -390,15 +611,19 @@ function buildNetRecord(
   );
 
   return {
-    netId: net.id,
-    baseNetIds: [net.id],
-    logicalEndpoints,
-    visibleEndpoints,
-    routedComponents,
-    routes,
-    junctions,
-    virtualEdges,
-    routingGuidance,
+    endpointKeys: endpoints.map(endpointKey),
+    ...(bodies ? { bodies } : {}),
+    record: {
+      netId: net.id,
+      baseNetIds: [net.id],
+      logicalEndpoints,
+      visibleEndpoints,
+      routedComponents,
+      routes,
+      junctions,
+      virtualEdges,
+      routingGuidance,
+    },
   };
 }
 
@@ -490,140 +715,6 @@ function deriveLabelVirtualEdges(
   return edges;
 }
 
-function buildHierarchyIndex(
-  project: CircuitProject,
-  resolver: SymbolResolver,
-  documents: ReadonlyMap<string, DocumentConnectivityIndex>,
-): HierarchyConnectivityIndex {
-  const calls = projectHierarchyCalls(project);
-  const edges: HierarchyEdge[] = [];
-  for (const parent of project.documents) {
-    for (const instance of parent.instances) {
-      const childId = referencedDocumentId(instance, documents);
-      if (!childId) continue;
-      const child = project.documents.find(
-        (candidate) => candidate.id === childId,
-      );
-      if (!child) continue;
-      const childIndex = documents.get(childId);
-      if (!childIndex) continue;
-      const resolved = resolver.resolve(
-        instance.symbolId,
-        instance.symbolVariantId,
-      );
-      if (!resolved) continue;
-      for (const pin of resolved.definition.pins) {
-        const childTerminals = (child.netlist?.terminals ?? []).filter(
-          (terminal) => foldNetName(terminal.name) === foldNetName(pin.name),
-        );
-        if (pin.signalMembers?.length) {
-          for (const parentMember of pin.signalMembers) {
-            const matches = childTerminals.flatMap((terminal) =>
-              (terminal.signal?.members ?? []).flatMap((member) =>
-                member.id === parentMember.id ? [{ terminal, member }] : [],
-              ),
-            );
-            // Use the captured formal identity, never a member's position or
-            // spelling. Missing/ambiguous mappings cannot create trace edges.
-            if (matches.length !== 1) continue;
-            const { terminal, member } = matches[0]!;
-            if (!childIndex.logicalNetByBaseNetId.has(member.netId)) continue;
-            edges.push({
-              parentDocumentId: parent.id,
-              instanceId: instance.id,
-              parentPinName: pin.name,
-              parentMemberId: parentMember.id,
-              parentMemberName: parentMember.name,
-              childDocumentId: childId,
-              childTerminalName: terminal.name,
-              childMemberId: member.id,
-              childMemberName: member.name,
-              childNetId: member.netId,
-            });
-          }
-          continue;
-        }
-        if (
-          childTerminals.some(
-            (terminal) => (terminal.signal?.members.length ?? 0) > 1,
-          )
-        )
-          continue;
-        const childLogicalNets = childTerminals.map((terminal) =>
-          childIndex.logicalNetByBaseNetId.get(terminal.netId),
-        );
-        // A name identifies the projected interface pin, not electrical
-        // equivalence. Only preserve an edge when every authored member is
-        // already connected by the child's independent connectivity facts.
-        if (
-          childLogicalNets.length === 0 ||
-          childLogicalNets.some((record) => !record) ||
-          new Set(childLogicalNets.map((record) => record!.netId)).size !== 1
-        ) {
-          continue;
-        }
-        const childTerminal = childTerminals[0]!;
-        edges.push({
-          parentDocumentId: parent.id,
-          instanceId: instance.id,
-          parentPinName: pin.name,
-          childDocumentId: childId,
-          childTerminalName: childTerminal.name,
-          childNetId: childTerminal.netId,
-        });
-      }
-    }
-  }
-  edges.sort(
-    (a, b) =>
-      a.parentDocumentId.localeCompare(b.parentDocumentId, "en") ||
-      a.instanceId.localeCompare(b.instanceId, "en") ||
-      a.parentPinName.localeCompare(b.parentPinName, "en") ||
-      (a.parentMemberId ?? "").localeCompare(b.parentMemberId ?? "", "en"),
-  );
-  calls.sort(
-    (a, b) =>
-      a.parentDocumentId.localeCompare(b.parentDocumentId, "en") ||
-      a.instanceId.localeCompare(b.instanceId, "en") ||
-      a.childDocumentId.localeCompare(b.childDocumentId, "en"),
-  );
-  return { calls, edges };
-}
-
-function buildGlobalNetIndex(
-  project: CircuitProject,
-  documents: ReadonlyMap<string, DocumentConnectivityIndex>,
-): ReadonlyMap<string, GlobalNetGroup> {
-  const groups = new Map<string, NetObjectRef[]>();
-  for (const document of project.documents) {
-    const logicalNets =
-      documents.get(document.id)?.logicalNetResolution ??
-      resolveDocumentLogicalNets(document);
-    for (const logicalNet of logicalNets.groups) {
-      if (logicalNet.scope !== "global" || !logicalNet.name) continue;
-      const foldedName = foldNetName(logicalNet.name);
-      const refs = groups.get(foldedName) ?? [];
-      refs.push({ documentId: document.id, netId: logicalNet.id });
-      groups.set(foldedName, refs);
-    }
-  }
-  return new Map(
-    [...groups.entries()]
-      .sort(([left], [right]) => left.localeCompare(right, "en"))
-      .map(([foldedName, nets]) => [
-        foldedName,
-        {
-          foldedName,
-          nets: nets.sort(
-            (left, right) =>
-              left.documentId.localeCompare(right.documentId, "en") ||
-              left.netId.localeCompare(right.netId, "en"),
-          ),
-        },
-      ]),
-  );
-}
-
 function buildObjectIndex(
   documents: ReadonlyMap<string, DocumentConnectivityIndex>,
 ): ProjectObjectIndex {
@@ -658,36 +749,60 @@ function buildObjectIndex(
 export function buildCellDiagnosticIndex(
   document: SchematicDocument,
   resolver: SymbolResolver,
+  ownership: "public" | "committed" = "public",
 ): Pick<ProjectConnectivityIndex, "documents" | "objectIndex"> {
+  const shared = ownership === "committed" && isFrozenSnapshot(document);
   const documents = new Map([
-    [document.id, buildDocumentIndex(document, resolver, false)],
+    [document.id, buildDocumentIndex(document, resolver, false, shared)],
   ]);
   return { documents, objectIndex: buildObjectIndex(documents) };
 }
 
-export function buildProjectConnectivityIndex(
+function projectIndex(
   project: CircuitProject,
   resolver: SymbolResolver,
-  /** The editor retains an immutable resolver across geometry-only history. */
-  options?: { reuseRestoredContent: boolean },
+  reuseRestoredContent: boolean,
+  shared: boolean,
 ): ProjectConnectivityIndex {
   const documents = new Map<string, DocumentConnectivityIndex>();
   for (const document of project.documents) {
     documents.set(
       document.id,
-      buildDocumentIndex(
-        document,
-        resolver,
-        options?.reuseRestoredContent === true,
-      ),
+      buildDocumentIndex(document, resolver, reuseRestoredContent, shared),
     );
   }
   return {
     projectId: project.id,
     topDocumentId: project.topDocumentId,
     documents,
-    hierarchy: buildHierarchyIndex(project, resolver, documents),
-    globalNets: buildGlobalNetIndex(project, documents),
+    ...buildProjectConnectivityRelations(
+      project,
+      resolver,
+      documents,
+      (index) => recordStates.get(index)?.globals ?? emptyGlobals,
+      shared,
+    ),
     objectIndex: buildObjectIndex(documents),
   };
+}
+
+export function buildProjectConnectivityIndex(
+  project: CircuitProject,
+  resolver: SymbolResolver,
+  options?: { reuseRestoredContent: boolean },
+): ProjectConnectivityIndex {
+  return projectIndex(
+    project,
+    resolver,
+    options?.reuseRestoredContent === true,
+    false,
+  );
+}
+
+/** Canvas and Agent reads consume immutable committed records, and return their own serializable results. */
+export function buildCommittedProjectConnectivityIndex(
+  project: CircuitProject,
+  resolver: SymbolResolver,
+): ProjectConnectivityIndex {
+  return projectIndex(project, resolver, true, isFrozenSnapshot(project));
 }

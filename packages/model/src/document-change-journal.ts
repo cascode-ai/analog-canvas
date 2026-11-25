@@ -235,7 +235,7 @@ export function recordCommittedDocumentChanges(
   }
 }
 
-/** @internal Pins the committed change contract for incremental connectivity. The previous Cell can expire independently. */
+/** Pins the committed change contract for incremental connectivity. The previous Cell can expire independently. */
 export function readDocumentChangeJournal(after: SchematicDocument) {
   const transition = transitions.get(after);
   const before = transition?.previous.deref();

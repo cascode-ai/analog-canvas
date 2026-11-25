@@ -92,7 +92,7 @@ export function EditorDraftingHitTargets({
   const electricalRank = scene.rank({ kind: "electrical" });
   const routingGeometry = useMemo(
     () =>
-      cachedDocumentConnectivityIndex(document, resolver)
+      cachedDocumentConnectivityIndex(document, resolver, "committed")
         ?.directRoutingGeometry ??
       resolveDocumentRoutingGeometry(document, resolver),
     [document, resolver],

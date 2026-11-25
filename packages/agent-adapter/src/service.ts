@@ -58,7 +58,10 @@ import type {
   AgentProjectResourceCapability,
 } from "./schema.js";
 import { AgentAuthoringCommandSchema } from "./authoring-command.js";
-import { buildProjectConnectivityIndex, traceHierarchyNet } from "@icm/derived";
+import {
+  buildCommittedProjectConnectivityIndex,
+  traceHierarchyNet,
+} from "@icm/derived";
 import assembleAgentSessionSnapshot, {
   agentAnnotationTextMeasure,
   buildAgentBootstrapSnapshot,
@@ -805,7 +808,7 @@ export function createAgentCircuitService(
                         forgetDerivedDocument(cell);
                   }
                   const trace = traceHierarchyNet(
-                    buildProjectConnectivityIndex(project, resolver),
+                    buildCommittedProjectConnectivityIndex(project, resolver),
                     document.id,
                     request.traceNet.netId,
                     undefined,

@@ -357,7 +357,11 @@ function SelectionHitTargets({
   children,
   controlSensorCandidate,
 }: SelectionHitTargetProps & { children: ReactNode }) {
-  const committed = cachedDocumentConnectivityIndex(document, resolver);
+  const committed = cachedDocumentConnectivityIndex(
+    document,
+    resolver,
+    "committed",
+  );
   const routingGeometry = useMemo(
     () =>
       committed?.directRoutingGeometry ??

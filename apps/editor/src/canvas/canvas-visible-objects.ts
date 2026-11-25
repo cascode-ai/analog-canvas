@@ -146,7 +146,11 @@ export function createCanvasDrawingQueries(
       add(instance.id, pad(box, stroke * miter));
     }
   }
-  const committed = cachedDocumentConnectivityIndex(document, resolver);
+  const committed = cachedDocumentConnectivityIndex(
+    document,
+    resolver,
+    "committed",
+  );
   const geometry =
     committed?.directRoutingGeometry ??
     resolveDocumentRoutingGeometry(document, resolver);
