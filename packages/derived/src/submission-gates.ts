@@ -5,22 +5,20 @@ import { buildProjectConnectivityIndex } from "./connectivity-index.js";
 import { runErcChecks } from "./diagnostics/erc.js";
 
 /**
- * Gallery submission quality gates (roadmap phase G3). One deterministic
- * evaluator runs in the publish dialog (live feedback) and in the worker
- * (authoritative enforcement), so the API can never accept what the UI
- * would refuse. Policy set by the owner:
+ * Gallery submission quality advice (informational only; publishing stays
+ * open). Surfaces:
  *
- * - no ERC errors;
- * - no floating endpoints — every visible pin is wired into a net with
- *   other members or carries a sanctioned intent (formal boundary, global
- *   supply, implicit pin, or explicit NoConnect) already classified by ERC;
- * - no near-empty submissions — at least 2 instances, or a drawing with
- *   at least 3 drafting objects including a text (pure block diagrams
- *   stay submittable).
+ * - ERC errors;
+ * - ERC warnings not already grouped under floating endpoints;
+ * - floating endpoints — every visible pin is wired into a net with other
+ *   members or carries a sanctioned intent (formal boundary, global supply,
+ *   implicit pin, or explicit NoConnect) already classified by ERC;
+ * - near-empty submissions — fewer than 2 instances and fewer than 3
+ *   drafting objects including a text (pure block diagrams stay clean).
  */
 
 export type SubmissionGateCode =
-  "erc-errors" | "floating-endpoints" | "empty-project";
+  "erc-errors" | "erc-warnings" | "floating-endpoints" | "empty-project";
 
 export interface SubmissionGateFailure {
   code: SubmissionGateCode;
@@ -51,6 +49,17 @@ function terminalLabel(parameters: Record<string, unknown>): string {
     : "(terminal)";
 }
 
+function formatDiagnosticExamples(
+  diagnostics: readonly {
+    code: string;
+    primary: { objectId: string };
+  }[],
+): string[] {
+  return diagnostics
+    .slice(0, EXAMPLE_LIMIT)
+    .map((diagnostic) => `${diagnostic.code}: ${diagnostic.primary.objectId}`);
+}
+
 export function evaluateSubmissionGates(
   project: CircuitProject,
   resolver: SymbolResolver,
@@ -70,11 +79,20 @@ export function evaluateSubmissionGates(
       code: "erc-errors",
       message: "The schematic has electrical rule errors",
       count: errors.length,
-      examples: errors
-        .slice(0, EXAMPLE_LIMIT)
-        .map(
-          (diagnostic) => `${diagnostic.code}: ${diagnostic.primary.objectId}`,
-        ),
+      examples: formatDiagnosticExamples(errors),
+    });
+  }
+
+  const warnings = diagnostics.filter(
+    (diagnostic) =>
+      diagnostic.severity === "warning" && !FLOATING_CODES.has(diagnostic.code),
+  );
+  if (warnings.length > 0) {
+    failures.push({
+      code: "erc-warnings",
+      message: "The schematic has electrical rule warnings",
+      count: warnings.length,
+      examples: formatDiagnosticExamples(warnings),
     });
   }
 

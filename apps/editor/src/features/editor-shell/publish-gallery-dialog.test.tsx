@@ -243,6 +243,12 @@ describe("PublishGalleryDialog", () => {
           ok: false,
           failures: [
             {
+              code: "erc-warnings",
+              message: "The schematic has electrical rule warnings",
+              count: 1,
+              examples: ["ERC_UNDRIVEN_GATE_NET: net-g"],
+            },
+            {
               code: "floating-endpoints",
               message:
                 "Floating endpoints: wire each pin, name its net, or mark it NoConnect",
@@ -260,6 +266,7 @@ describe("PublishGalleryDialog", () => {
     // sketch is legitimate to share.
     expect(markup).not.toContain("publish-gallery-gates-blocking");
     expect(markup).toContain("publishing stays open");
+    expect(markup).toContain("ERC_UNDRIVEN_GATE_NET: net-g");
     expect(markup).toContain("M1.g, R2.2");
     expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
   });
