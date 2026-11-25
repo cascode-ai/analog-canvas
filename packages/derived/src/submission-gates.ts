@@ -1,6 +1,7 @@
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+import { resolveAnnotationName } from "./annotation-text.js";
 import { buildCommittedProjectConnectivityIndex } from "./connectivity-index.js";
 import { runErcChecks } from "./diagnostics/erc.js";
 import { diagnoseLabelClearance } from "./label-clearance.js";
@@ -160,15 +161,20 @@ function ercFindings(
   }));
 }
 
-/** The part a label names, else the label's own text kind. */
+/** The part a label names, else what the label reads (a Net's name). */
 function labelExample(document: SchematicDocument, labelId: string): string {
   const label = document.annotations.find((item) => item.id === labelId);
-  const anchor = label?.anchor;
+  if (!label) return labelId;
+  const anchor = label.anchor;
   const owner =
-    anchor?.kind === "object"
+    anchor.kind === "object"
       ? document.instances.find((item) => item.id === anchor.objectId)
       : undefined;
-  return owner?.reference ?? owner?.id ?? labelId;
+  return (
+    owner?.reference ??
+    owner?.id ??
+    (resolveAnnotationName(document, label) || labelId)
+  );
 }
 
 function labelFindings(
