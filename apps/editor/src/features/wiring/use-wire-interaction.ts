@@ -34,6 +34,7 @@ import {
   prepareWireSegmentMove,
   proposeWireCommitThroughContacts,
   type SchematicEdit,
+  type PreparedTransaction,
   type ExpectedElectricalEffect,
   type RoutingOperationIntent,
   type RoutingOperationPlan,
@@ -161,7 +162,10 @@ export interface UseWireInteractionOptions {
     nextRoutingSuffix: () => number;
     transact: (
       edits: SchematicEdit[],
-      options?: { completesWireSession?: boolean },
+      options?: {
+        completesWireSession?: boolean;
+        prepared?: PreparedTransaction;
+      },
     ) => TransactionResult;
     setStatus: (status: string) => void;
   };
@@ -334,7 +338,10 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
       options.setStatus(gate.message);
       return { ok: false, revision: options.document.revision };
     }
-    return options.transact([...gate.edits], transactionOptions);
+    return options.transact([...gate.edits], {
+      ...transactionOptions,
+      prepared: gate.evaluated.preparedTransaction,
+    });
   };
   const proposalFor = (
     intent: RoutingOperationIntent,

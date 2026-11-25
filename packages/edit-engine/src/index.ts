@@ -48,6 +48,7 @@ export * from "./undrawn-instances.js";
 export * from "./transaction.js";
 export {
   prepareTransaction,
+  adoptPreparedCanvasTransaction,
   type PreparedTransaction,
 } from "./prepared-transaction.js";
 export * from "./transaction-preflight.js";

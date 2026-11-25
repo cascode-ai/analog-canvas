@@ -14,6 +14,7 @@ import {
 import { hierarchicalSymbolId } from "@icm/symbols";
 import {
   planSetCellSymbolPresentation,
+  prepareTransaction,
   proposeBlockSymbolLayout,
 } from "@icm/edit-engine";
 import { serializeProject, parseProject } from "@icm/project-protocol";
@@ -42,6 +43,93 @@ function hierarchicalProject() {
 }
 
 describe("EditorDocumentController", () => {
+  it("commits a prepared Canvas edit without copying the result Document into either handoff", () => {
+    const controller = new EditorDocumentController(hierarchicalProject());
+    const before = controller.document;
+    const edits = [{ kind: "add_instance" as const, instance: instance("R1") }];
+    const candidate = prepareTransaction(
+      before,
+      {
+        transactionId: "preview",
+        documentId: before.id,
+        expectedRevision: before.revision,
+        actor: { kind: "human", id: "human-local" },
+        edits,
+        dryRun: true,
+      },
+      {
+        symbolResolver: controller.resolver,
+        externalSubcircuitDefinitions:
+          controller.project.externalSubcircuitDefinitions,
+      },
+    );
+    expect(candidate.result.ok).toBe(true);
+    candidate.result.document.name = "Mutable preview";
+    const clone = vi.spyOn(globalThis, "structuredClone");
+    try {
+      const result = controller.commitPreparedCanvasTransaction(
+        edits,
+        candidate.prepared!,
+      );
+      expect(result.ok).toBe(true);
+      expect(result.document).toBe(controller.document);
+      expect(result.document.name).toBe(before.name);
+      expect(result.document.instances.map((i) => i.id)).toContain("R1");
+      expect(
+        clone.mock.calls.filter(
+          ([value]) =>
+            typeof value === "object" &&
+            value !== null &&
+            (("id" in value && value.id === before.id) ||
+              ("document" in value &&
+                typeof value.document === "object" &&
+                value.document !== null &&
+                "id" in value.document &&
+                value.document.id === before.id)),
+        ),
+      ).toHaveLength(0);
+      expect(
+        controller.commitPreparedCanvasTransaction(edits, candidate.prepared!),
+      ).toMatchObject({
+        ok: false,
+        error: { code: "STALE_REVISION" },
+      });
+    } finally {
+      clone.mockRestore();
+    }
+    expect(controller.transact([{ kind: "undo" }]).document.instances).toEqual(
+      before.instances,
+    );
+  });
+  it("preserves the Project, revision and history when a prepared Canvas edit is a no-op", () => {
+    const controller = new EditorDocumentController(hierarchicalProject());
+    const before = controller.project;
+    const edits = [{ kind: "noop" as const }];
+    const candidate = prepareTransaction(
+      controller.document,
+      {
+        transactionId: "preview-noop",
+        documentId: controller.document.id,
+        expectedRevision: controller.document.revision,
+        actor: { kind: "human", id: "human-local" },
+        edits,
+      },
+      {
+        symbolResolver: controller.resolver,
+        externalSubcircuitDefinitions: before.externalSubcircuitDefinitions,
+      },
+    );
+    expect(
+      controller.commitPreparedCanvasTransaction(edits, candidate.prepared!),
+    ).toMatchObject({
+      ok: true,
+      applied: false,
+      revision: before.documents[0]!.revision,
+      diff: { changedObjectIds: [] },
+    });
+    expect(controller.project).toBe(before);
+    expect(controller.canUndo).toBe(false);
+  });
   it("restores every rotated and mirrored caller of an asymmetric layout in one Undo, with atomic stale/no-op/refused edits", () => {
     const project = hierarchicalProject();
     const root = project.documents[0]!,

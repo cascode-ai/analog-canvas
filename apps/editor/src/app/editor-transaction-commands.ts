@@ -4,6 +4,7 @@ import {
 } from "@icm/edit-engine";
 import type {
   EditTransactionResult,
+  PreparedTransaction,
   ProjectStructureEdit,
   ProjectTransaction,
   ProjectTransactionResult,
@@ -20,6 +21,7 @@ import type { InteractionMode } from "../interaction/interaction-state";
 import type { EditorContactEvidence } from "../document/document-controller";
 
 interface TransactionOptions {
+  prepared?: PreparedTransaction;
   completesWireSession?: boolean;
   preserveInteraction?: boolean;
 }
@@ -48,6 +50,7 @@ export interface EditorTransactionCommandDependencies {
   transactDocument: (
     edits: readonly SchematicEdit[],
     evidence?: EditorContactEvidence,
+    prepared?: PreparedTransaction,
   ) => EditTransactionResult;
   getCurrentInteractionKind: () => InteractionMode;
   cancelAllTransientInteraction: () => void;
@@ -160,6 +163,7 @@ export function createEditorTransactionCommands({
         contactEvidence && resolver
           ? { document, resolver, evidence: contactEvidence }
           : undefined,
+        options.prepared,
       );
     } catch (error) {
       cancelAllTransientInteraction();

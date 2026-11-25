@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createEmptyDocument, freezeSnapshot } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
-import { executeTransaction, prepareTransaction } from "./index.js";
+import {
+  adoptPreparedCanvasTransaction,
+  executeTransaction,
+  prepareTransaction,
+} from "./index.js";
 
 describe("prepared atomic transactions", () => {
   it("detaches rejected owned snapshots at the public engine and preparation boundaries", () => {
@@ -28,6 +32,59 @@ describe("prepared atomic transactions", () => {
     kind: "add_instance" as const,
     instance: { id: "R1", symbolId: "resistor", placement: null },
   };
+  it("refuses to adopt changed Canvas inputs even when a replacement Cell has the same id and revision", () => {
+    const source = freezeSnapshot(createEmptyDocument("sheet", "Original"));
+    const context = {
+      symbolResolver: new InMemorySymbolResolver(builtInSymbols),
+    };
+    const request = {
+      transactionId: "wire",
+      documentId: source.id,
+      expectedRevision: 0,
+      actor: { kind: "human" as const, id: "canvas" },
+      edits: [addResistor],
+    };
+    const token = prepareTransaction(source, request, context).prepared!;
+    const replacement = freezeSnapshot(structuredClone(source));
+    for (const result of [
+      adoptPreparedCanvasTransaction(
+        replacement,
+        request.edits,
+        token,
+        context,
+      ),
+      adoptPreparedCanvasTransaction(
+        source,
+        [{ kind: "noop" }],
+        token,
+        context,
+      ),
+      adoptPreparedCanvasTransaction(source, request.edits, token, {
+        symbolResolver: new InMemorySymbolResolver([]),
+      }),
+      adoptPreparedCanvasTransaction(
+        source,
+        request.edits,
+        { ...token },
+        context,
+      ),
+    ]) {
+      expect(result).toMatchObject({
+        ok: false,
+        applied: false,
+        error: { code: "EDIT_PRECONDITION" },
+        revision: 0,
+      });
+      expect(result.document.instances).toEqual([]);
+    }
+    expect(
+      adoptPreparedCanvasTransaction(source, request.edits, token, context),
+    ).toMatchObject({
+      ok: true,
+      applied: true,
+      document: { instances: [{ id: "R1" }] },
+    });
+  });
   it("checks content when a prepared immutable source is replaced at the same revision", () => {
     const source = freezeSnapshot(createEmptyDocument("sheet", "Original"));
     const request = {
