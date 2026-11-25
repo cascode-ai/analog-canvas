@@ -2746,6 +2746,7 @@ function WorkspaceEditor({
     commitPendingNetLabelDraft,
     commitTextEditing,
     escapeTextEditing,
+    cancelTextEditing,
     clearTextEditing,
     deleteTextEditing,
     netLabelPlacement,
@@ -8795,10 +8796,7 @@ function WorkspaceEditor({
             onTextUpdate: updateTextEditing,
             onTextCommit: commitTextEditing,
             onTextEscape: escapeTextEditing,
-            onTextCancel: () => {
-              clearTextEditing();
-              setStatus("Cancelled text changes");
-            },
+            onTextCancel: cancelTextEditing,
             onTextDelete: deleteTextEditing,
             onDisplayAliasChange: setTextDisplayAlias,
           }}

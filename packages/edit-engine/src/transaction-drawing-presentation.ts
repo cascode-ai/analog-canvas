@@ -6,6 +6,7 @@ import {
 import type { DrawingOrderEntry, SchematicDocument } from "@icm/model";
 import {
   annotationOwningInstanceId,
+  draftingLabelOwnerId,
   gatheredDrawingLabelOwners,
   instanceSupportsBodyFill,
   isSchematicAnnotationVisible,
@@ -105,16 +106,20 @@ function relativeInsertionIndex(
       ? target.id
       : target.kind === "annotation"
         ? gatheredLabels.get(target.id)
-        : undefined;
+        : target.kind === "drafting"
+          ? (gatheredLabels.get(target.id) ?? target.id)
+          : undefined;
   if (!after && ownerId)
     return order.findIndex(
-      (entry) => entry.kind === "instance" && entry.id === ownerId,
+      (entry) =>
+        (entry.kind === "instance" || entry.kind === "drafting") &&
+        entry.id === ownerId,
     );
   let index = order.indexOf(target) + Number(after);
   while (after && ownerId) {
     const entry = order[index];
     if (
-      entry?.kind !== "annotation" ||
+      (entry?.kind !== "annotation" && entry?.kind !== "drafting") ||
       gatheredLabels.get(entry.id) !== ownerId
     )
       break;
@@ -252,6 +257,17 @@ function applyDrawingOrder(
     if (owner && instances.has(owner)) owners.set(annotation.id, owner);
     if (!inserting && owner && ids.has(owner)) ids.add(annotation.id);
   }
+  for (const object of drafting.values()) {
+    const owner = draftingLabelOwnerId(object);
+    if (
+      owner &&
+      owner !== object.id &&
+      (drafting.has(owner) || instances.has(owner))
+    ) {
+      owners.set(object.id, owner);
+      if (!inserting && ids.has(owner)) ids.add(object.id);
+    }
+  }
 
   for (const id of ids) {
     const entry = objects.get(id);
@@ -345,7 +361,11 @@ function applyDrawingOrder(
       case "circuit-marks":
         return false;
       case "drafting":
-        return true;
+        return (
+          (!ids.has(owners.get(entry.id) ?? "") &&
+            !gatheredLabels.has(entry.id)) ||
+          edit.objectIds.includes(entry.id)
+        );
     }
   };
   const index = reorderIndex(
@@ -363,7 +383,7 @@ function applyDrawingOrder(
   );
   const ownedLabels = new Map<string, DrawingOrderEntry[]>();
   for (const entry of selected) {
-    if (entry.kind !== "annotation") continue;
+    if (entry.kind !== "annotation" && entry.kind !== "drafting") continue;
     const owner = owners.get(entry.id);
     if (!owner || !ids.has(owner)) continue;
     const labels = ownedLabels.get(owner) ?? [];
@@ -373,9 +393,13 @@ function applyDrawingOrder(
   const ordered = inserting
     ? [...ids].map((id) => objects.get(id)!)
     : selected.flatMap((entry) => {
-        if (entry.kind === "annotation" && ids.has(owners.get(entry.id) ?? ""))
+        if (
+          (entry.kind === "annotation" || entry.kind === "drafting") &&
+          ids.has(owners.get(entry.id) ?? "")
+        )
           return [];
-        if (entry.kind !== "instance") return [entry];
+        if (entry.kind !== "instance" && entry.kind !== "drafting")
+          return [entry];
         return [entry, ...(ownedLabels.get(entry.id) ?? [])];
       });
   const next = [...rest.slice(0, index), ...ordered, ...rest.slice(index)];

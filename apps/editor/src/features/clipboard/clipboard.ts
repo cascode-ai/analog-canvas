@@ -210,8 +210,14 @@ export function copySelection(
     selectedIds.has(instance.id),
   );
   const selectedDrafting = new Set(draftingIds);
-  const draftingObjects = (document.drafting?.objects ?? []).filter((object) =>
-    selectedDrafting.has(object.id),
+  // A rectangle's label is a drafting child anchored to its box, so copying
+  // the box carries its label even when only the box was clicked.
+  const draftingObjects = (document.drafting?.objects ?? []).filter(
+    (object) =>
+      selectedDrafting.has(object.id) ||
+      (object.kind === "text" &&
+        object.anchor.kind === "object" &&
+        selectedDrafting.has(object.anchor.objectId)),
   );
   // A drawing-only selection is a complete copy: notes and callouts are
   // worth duplicating on their own, and requiring a part alongside them made

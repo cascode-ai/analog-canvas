@@ -242,6 +242,7 @@ export function createSelectionTransformController({
       ...placedSelection,
       ...closure.internalJunctions,
       ...closure.internalRoutes,
+      ...draftingObjects.map((object) => object.id),
     ]);
     const draftingEdits = draftingObjects.flatMap((object): SchematicEdit[] => {
       const next = mirrorDraftingObject(

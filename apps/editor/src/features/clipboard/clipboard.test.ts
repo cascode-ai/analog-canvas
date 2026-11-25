@@ -3040,4 +3040,62 @@ describe("a copy stands on its own", () => {
       preview.drafting!.objects.map((object) => object.id),
     );
   });
+
+  it("carries a rectangle's anchored label when copying only the selected rectangle", () => {
+    const document = createEmptyDocument("doc", "Rect label copy");
+    document.drafting = {
+      objects: [
+        {
+          id: "box-1",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          center: { x: 100, y: 100 },
+          width: 80,
+          height: 40,
+          rotation: 0,
+          lineStyle: "solid",
+        },
+        {
+          id: "fir-label",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: {
+            kind: "object",
+            objectId: "box-1",
+            localOffset: { x: 0, y: 0 },
+            fallbackPosition: { x: 100, y: 100 },
+          },
+          content: { runs: [{ kind: "text", value: "FIR" }] },
+          alignment: "middle",
+          rotation: 0,
+          typographyToken: "label",
+        },
+      ],
+    };
+
+    const clipboard = copySelection(document, [], ["box-1"]);
+    expect(clipboard?.draftingObjects.map((object) => object.id)).toEqual([
+      "box-1",
+      "fir-label",
+    ]);
+
+    const proposal = proposePaste(document, clipboard!, { x: 120, y: 0 }, 1);
+    const pastedObjects = proposal.edits.flatMap((edit) =>
+      edit.kind === "upsert_drafting_object" ? [edit.object] : [],
+    );
+    const pastedBox = pastedObjects.find(
+      (object) => object.kind === "rectangle",
+    );
+    const pastedLabel = pastedObjects.find((object) => object.kind === "text");
+    expect(pastedBox).toBeDefined();
+    expect(pastedLabel?.kind === "text" && pastedLabel.anchor).toEqual({
+      kind: "object",
+      objectId: pastedBox!.id,
+      localOffset: { x: 0, y: 0 },
+      fallbackPosition: { x: 220, y: 100 },
+    });
+  });
 });

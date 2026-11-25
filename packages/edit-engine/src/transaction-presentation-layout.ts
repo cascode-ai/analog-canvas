@@ -11,6 +11,7 @@ import {
   annotationOwningInstanceId,
   displayableInstanceParameter,
   displayableInstanceValue,
+  draftingLabelOwnerId,
 } from "@icm/derived";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
@@ -293,7 +294,53 @@ export function applyPresentationLayoutEdit(
         }
       }
       if (existingIndex >= 0) objects[existingIndex] = parsed;
-      else objects.push(parsed);
+      else {
+        objects.push(parsed);
+        const owner = draftingLabelOwnerId(parsed);
+        if (
+          owner &&
+          owner !== parsed.id &&
+          draft.drawingOrder &&
+          !draft.drawingOrder.some(
+            (entry) => entry.kind === "drafting" && entry.id === parsed.id,
+          )
+        ) {
+          const hostIndex = draft.drawingOrder.findIndex(
+            (entry) =>
+              (entry.kind === "drafting" || entry.kind === "instance") &&
+              entry.id === owner,
+          );
+          if (hostIndex >= 0) {
+            let insertAt = hostIndex + 1;
+            while (insertAt < draft.drawingOrder.length) {
+              const entry = draft.drawingOrder[insertAt]!;
+              if (entry.kind === "drafting") {
+                const candidate = objects.find((item) => item.id === entry.id);
+                if (candidate && draftingLabelOwnerId(candidate) === owner) {
+                  insertAt += 1;
+                  continue;
+                }
+              } else if (entry.kind === "annotation") {
+                const candidate = draft.annotations.find(
+                  (item) => item.id === entry.id,
+                );
+                if (
+                  candidate &&
+                  annotationOwningInstanceId(candidate) === owner
+                ) {
+                  insertAt += 1;
+                  continue;
+                }
+              }
+              break;
+            }
+            draft.drawingOrder.splice(insertAt, 0, {
+              kind: "drafting",
+              id: parsed.id,
+            });
+          }
+        }
+      }
       changedObjectIds.add(parsed.id);
       return { ok: true, connectivityChanged: false };
     }

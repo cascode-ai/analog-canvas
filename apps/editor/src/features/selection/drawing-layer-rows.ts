@@ -1,5 +1,6 @@
 import {
   annotationOwningInstanceId,
+  draftingLabelOwnerId,
   gatheredDrawingLabelOwners,
   isSchematicAnnotationVisible,
   resolveAnnotationText,
@@ -77,11 +78,11 @@ export function drawingLayerRows(
       ];
     }),
   );
-  const annotationOwners = new Map<string, string>();
+  const labelOwners = new Map<string, string>();
   const annotations = new Map(
     document.annotations.flatMap((annotation) => {
       const ownerId = annotationOwningInstanceId(annotation);
-      if (ownerId) annotationOwners.set(annotation.id, ownerId);
+      if (ownerId) labelOwners.set(annotation.id, ownerId);
       const content = resolveAnnotationText(
         document,
         annotation,
@@ -112,8 +113,9 @@ export function drawingLayerRows(
       ];
     }),
   );
-  const drafting = new Map(
-    (document.drafting?.objects ?? []).map((object) => {
+  const draftingObjects = document.drafting?.objects ?? [];
+  const drafting = new Map<string, DrawingLayerRow>(
+    draftingObjects.map((object) => {
       const label = draftingKindLabels[object.kind];
       const content =
         object.kind === "text" || object.kind === "callout"
@@ -129,8 +131,18 @@ export function drawingLayerRows(
       ] as const;
     }),
   );
+  for (const object of draftingObjects) {
+    const ownerId = draftingLabelOwnerId(object);
+    if (!ownerId || ownerId === object.id) continue;
+    const owner = instances.get(ownerId) ?? drafting.get(ownerId);
+    const row = drafting.get(object.id);
+    if (!owner || !row) continue;
+    labelOwners.set(object.id, ownerId);
+    row.ownerId = ownerId;
+    row.ownerLabel = owner.label;
+  }
 
-  const gathered = gatheredDrawingLabelOwners(scene.order, annotationOwners);
+  const gathered = gatheredDrawingLabelOwners(scene.order, labelOwners);
   const rows: DrawingLayerRow[] = [];
   for (const entry of scene.order) {
     const row: DrawingLayerRow | undefined =
@@ -148,14 +160,17 @@ export function drawingLayerRows(
                     : "Circuit marks",
               };
     if (!row) continue;
-    if (entry.kind === "annotation" && row.ownerId) {
-      const instance = instances.get(row.ownerId);
-      if (instance) {
+    if (
+      (entry.kind === "annotation" || entry.kind === "drafting") &&
+      row.ownerId
+    ) {
+      const owner = instances.get(row.ownerId) ?? drafting.get(row.ownerId);
+      if (owner) {
         if (gathered.has(entry.id)) {
-          (instance.attached ??= []).unshift(row);
+          (owner.attached ??= []).unshift(row);
           continue;
         }
-        (instance.separate ??= []).unshift(row);
+        (owner.separate ??= []).unshift(row);
       }
     }
     rows.push(row);

@@ -311,13 +311,13 @@ export function ObjectsLayersPanel({
                 {objectButton(row, true)}
                 {locateButton(row)}
               </div>
-              {isExpanded && entry.kind === "instance" ? (
+              {isExpanded && hasChildren && "id" in entry ? (
                 <div
                   className="objects-layer-children"
                   role="group"
                   aria-label={row.label + " contents"}
                 >
-                  {row.formula ? (
+                  {row.formula && entry.kind === "instance" ? (
                     <button
                       type="button"
                       className="objects-layer-select"
