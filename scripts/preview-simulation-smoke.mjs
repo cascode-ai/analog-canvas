@@ -18,6 +18,7 @@ import {
   runHostedSky130NpnAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
+  runHostedSky130ResXhighPoAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewDcSmoke,
   runPreviewResistorNoiseSmoke,
@@ -38,6 +39,7 @@ export {
   hostedSky130LargePnpRequest,
   hostedSky130NpnRequest,
   hostedSky130Mos5vRequest,
+  hostedSky130ResXhighPoRequest,
   RC_TRAN_REQUEST,
   RESISTOR_NOISE_REQUEST,
 } from "./lib/preview-simulation-qualification.mjs";
@@ -56,6 +58,7 @@ export {
   validateHostedSky130NpnResult,
   validateHostedSky130Mos5vResult,
   validateHostedSky130NoiseResult,
+  validateHostedSky130ResXhighPoResult,
   validateHostedSky130Result,
   validateHostedSky130TransientResult,
 } from "./lib/preview-simulation-sky130-validation.mjs";
@@ -69,6 +72,7 @@ export {
   runHostedSky130NpnAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
+  runHostedSky130ResXhighPoAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewDcSmoke,
   runPreviewResistorNoiseSmoke,
@@ -232,6 +236,15 @@ async function main() {
       });
       console.log(
         `${target}: SKY130 ${diodes.corner.toUpperCase()} diodes passed`,
+      );
+      const resXhigh = await runHostedSky130ResXhighPoAcceptance({
+        baseUrl,
+        target,
+        corner,
+        fetchImpl,
+      });
+      console.log(
+        `${target}: SKY130 ${resXhigh.corner.toUpperCase()} res_xhigh_po passed`,
       );
     }
   }

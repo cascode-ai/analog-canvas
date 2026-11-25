@@ -25,6 +25,7 @@ import {
   hostedSky130LargePnpRequest,
   hostedSky130NpnRequest,
   hostedSky130Mos5vRequest,
+  hostedSky130ResXhighPoRequest,
   profile,
 } from "./lib/preview-simulation-qualification.mjs";
 import {
@@ -37,6 +38,7 @@ import {
   validateHostedSky130LargePnpResult,
   validateHostedSky130NpnResult,
   validateHostedSky130Mos5vResult,
+  validateHostedSky130ResXhighPoResult,
 } from "./lib/preview-simulation-sky130-validation.mjs";
 import { standardCellGates } from "../packages/simulation-service/test-support/standard-cell-gates.ts";
 
@@ -332,8 +334,16 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
         "operator-host",
         corner,
       );
+      validateHostedSky130ResXhighPoResult(
+        await run(
+          hostedSky130ResXhighPoRequest(corner),
+          `res-xhigh-po-${corner}`,
+        ),
+        "operator-host",
+        corner,
+      );
     }
-  }, 240_000);
+  }, 260_000);
 
   it("simulates Library gates bound to SKY130 HD standard cells (#1596)", async () => {
     const caps = CapabilitiesSchema.parse(

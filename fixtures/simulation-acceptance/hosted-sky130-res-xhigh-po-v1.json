@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "sky130-res-xhigh-po-op-ac-v1",
+  "profileId": "sky130-core-continuous-ngspice46-v1",
+  "devices": ["sky130_fd_pr__res_xhigh_po"],
+  "analyses": ["op", "ac"],
+  "modelLibrary": {
+    "directive": "lib"
+  },
+  "expectedCorners": {
+    "tt": {
+      "resCurrentInA": -0.00004716779843953571,
+      "resCurrentOutA": 0.00004716779843953567,
+      "narrowCurrentInA": -0.00001360085873743783,
+      "resAcInReal": -0.00004725584928531347,
+      "resAcInImag": -3.797472753648814e-7,
+      "resAcOutReal": 0.00004725584928531527,
+      "resAcOutImag": 0
+    },
+    "ff": {
+      "resCurrentInA": -0.00004716779789239525,
+      "resCurrentOutA": 0.0000471677978923962,
+      "narrowCurrentInA": -0.00001360085818709333,
+      "resAcInReal": -0.00004725584873716687,
+      "resAcInImag": -3.797472709398601e-7,
+      "resAcOutReal": 0.00004725584873716827,
+      "resAcOutImag": 0
+    },
+    "ss": {
+      "resCurrentInA": -0.0000471677989866727,
+      "resCurrentOutA": 0.00004716779898667513,
+      "narrowCurrentInA": -0.00001360085928778579,
+      "resAcInReal": -0.0000472558498334618,
+      "resAcInImag": -3.797472797899026e-7,
+      "resAcOutReal": 0.00004725584983346226,
+      "resAcOutImag": 0
+    },
+    "fs": {
+      "resCurrentInA": -0.00004716779843953571,
+      "resCurrentOutA": 0.00004716779843953567,
+      "narrowCurrentInA": -0.00001360085873743783,
+      "resAcInReal": -0.00004725584928531347,
+      "resAcInImag": -3.797472753648814e-7,
+      "resAcOutReal": 0.00004725584928531527,
+      "resAcOutImag": 0
+    },
+    "sf": {
+      "resCurrentInA": -0.00004716779843953571,
+      "resCurrentOutA": 0.00004716779843953567,
+      "narrowCurrentInA": -0.00001360085873743783,
+      "resAcInReal": -0.00004725584928531347,
+      "resAcInImag": -3.797472753648814e-7,
+      "resAcOutReal": 0.00004725584928531527,
+      "resAcOutImag": 0
+    }
+  },
+  "tolerances": {
+    "dcCurrentA": 1e-10,
+    "acCurrentA": 1e-11
+  },
+  "evidence": {
+    "observedAt": "2026-11-25",
+    "executor": "reference-ngspice46",
+    "environmentFingerprint": "33c245e5df6dc12077b6a2e4ebf308777b0e9014fe9bfdafc3285c614688561d"
+  }
+}

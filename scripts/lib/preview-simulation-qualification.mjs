@@ -95,6 +95,20 @@ export const diodeQualification = JSON.parse(
     "utf8",
   ),
 );
+/**
+ * The SKY130 2 kOhm/sq high-resistance poly resistor (`res_xhigh_po`) at every
+ * corner: nominal-width (w=1, l=10) and narrow-crowding (w=0.35, l=10) DC
+ * currents plus 100 MHz AC differential conductance and substrate capacitance.
+ */
+export const resXhighPoQualification = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../fixtures/simulation-acceptance/hosted-sky130-res-xhigh-po-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 if (qualification.profileId !== profile.id) {
   throw new Error(
     `Qualification ${qualification.fixtureId} targets ${String(qualification.profileId)}, not Profile ${profile.id}.`,
@@ -113,6 +127,7 @@ const evidencedDevices = new Set([
   ...(largePnpQualification.devices ?? []),
   ...(npnQualification.devices ?? []),
   ...(diodeQualification.devices ?? []),
+  ...(resXhighPoQualification.devices ?? []),
 ]);
 if (
   evidencedDevices.size !== profile.qualifiedScope.devices.length ||
@@ -183,6 +198,7 @@ for (const fixture of [
   largePnpQualification,
   npnQualification,
   diodeQualification,
+  resXhighPoQualification,
 ]) {
   const corners = Object.keys(fixture.expectedCorners ?? {});
   if (
@@ -528,6 +544,38 @@ export function hostedSky130DiodeRequest(corner) {
     ].join("\n"),
     timeoutMs: 110_000,
     inputRevision: `preview-sky130-diodes-${corner}`,
+    environment: { profileId: profile.id, corner },
+  };
+}
+
+export function hostedSky130ResXhighPoRequest(corner) {
+  return {
+    netlist: [
+      ".subckt res_xhigh rin rout nrin nrout sub",
+      "XR1 rin rout sub sky130_fd_pr__res_xhigh_po w=1 l=10 mult=1",
+      "XR2 nrin nrout sub sky130_fd_pr__res_xhigh_po w=0.35 l=10 mult=1",
+      ".ends res_xhigh",
+    ].join("\n"),
+    testbench: [
+      "* SKY130 res_xhigh_po qualification",
+      "VRIN rin 0 DC 1 AC 1",
+      "VROUT rout 0 0",
+      "VNRIN nrin 0 1",
+      "VNROUT nrout 0 0",
+      "VSUB sub 0 0",
+      "XDUT rin rout nrin nrout sub res_xhigh",
+      ".control",
+      "set filetype=ascii",
+      "op",
+      "write out.raw i(vrin) i(vrout) i(vnrin)",
+      "set appendwrite",
+      "ac lin 1 100meg 100meg",
+      "write out.raw i(vrin) i(vrout)",
+      ".endc",
+      ".end",
+    ].join("\n"),
+    timeoutMs: 110_000,
+    inputRevision: `preview-sky130-res-xhigh-po-${corner}`,
     environment: { profileId: profile.id, corner },
   };
 }

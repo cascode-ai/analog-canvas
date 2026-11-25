@@ -303,6 +303,7 @@ describe("the hosted SKY130 standard cells (#1596)", () => {
     expect(profile.devices).toContain("sky130_fd_pr__npn_05v5_W1p00L1p00");
     expect(profile.devices).toContain("sky130_fd_pr__diode_pw2nd_05v5");
     expect(profile.devices).toContain("sky130_fd_pr__diode_pd2nw_05v5");
+    expect(profile.devices).toContain("sky130_fd_pr__res_xhigh_po");
   });
 
   it("offers the cell library only once the running simulator measured it", async () => {
