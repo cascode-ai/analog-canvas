@@ -22,34 +22,28 @@ function fallbackReason(
   const addedInstances = new Set<string>();
   if (
     edits.some((edit) => {
-      switch (edit.kind) {
-        case "noop":
-        case "merge_nets":
-          return false;
-        case "set_instance_netlist":
-          return !addedInstances.has(edit.instanceId);
-        case "bulk_patch_instance_netlist":
-          return edit.assignments.some(
-            (assignment) => !addedInstances.has(assignment.instanceId),
-          );
-        case "add_instance":
-          addedInstances.add(edit.instance.id);
-          return Boolean(
-            edit.instance.mosBulkBinding ||
-            edit.instance.sourceRef ||
-            edit.instance.importProvenance,
-          );
-        case "add_junction":
-          return Boolean(edit.members);
-        case "set_route_path":
-          return Boolean(edit.route.members);
-        case "connect_endpoints":
-          return Boolean(edit.from.memberId || edit.to.memberId);
-        case "upsert_schematic_annotation":
-          return !instanceCaption(edit.annotation);
-        default:
-          return true;
+      if (edit.kind === "noop" || edit.kind === "merge_nets") return false;
+      if (edit.kind === "set_instance_netlist")
+        return !addedInstances.has(edit.instanceId);
+      if (edit.kind === "bulk_patch_instance_netlist")
+        return edit.assignments.some(
+          (assignment) => !addedInstances.has(assignment.instanceId),
+        );
+      if (edit.kind === "add_instance") {
+        addedInstances.add(edit.instance.id);
+        return Boolean(
+          edit.instance.mosBulkBinding ||
+          edit.instance.sourceRef ||
+          edit.instance.importProvenance,
+        );
       }
+      if (edit.kind === "add_junction") return Boolean(edit.members);
+      if (edit.kind === "set_route_path") return Boolean(edit.route.members);
+      if (edit.kind === "connect_endpoints")
+        return Boolean(edit.from.memberId || edit.to.memberId);
+      if (edit.kind === "upsert_schematic_annotation")
+        return !instanceCaption(edit.annotation);
+      return true;
     })
   )
     return "edit-family";

@@ -172,13 +172,9 @@ export function followStyledContactJunctions(
     )
       continue;
     const index = draft.junctions.findIndex((j) => j.id === id);
-    if (index < 0) continue;
-    const junction = writableDraftRow(
-      draft,
-      draft.junctions,
-      draft.junctions[index]!,
-      index,
-    );
+    const existing = draft.junctions[index];
+    if (!existing) continue;
+    const junction = writableDraftRow(draft, draft.junctions, existing, index);
     junction.position = { ...connection.gridLanding };
     if (connection.endpoint.kind === "terminal") {
       junction.contactAnchor = {
