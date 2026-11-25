@@ -26,7 +26,7 @@ async function fixture() {
   await writeFile(join(worker, "index.js"), "export default {};\n");
   await writeFile(
     join(editor, "index.html"),
-    '<script type="module" src="/assets/app-test.js"></script>\n',
+    '<!doctype html><script type="module" src="/assets/app-test.js"></script>\n',
   );
   await writeFile(
     join(editor, "assets", "app-test.js"),
@@ -119,5 +119,70 @@ describe("deployment candidate", () => {
     });
     await expect(verify(() => "gzip")).rejects.toThrow(/brotli entry/u);
     await expect(verify(() => "br")).rejects.toThrow(/does not accept/u);
+  });
+
+  it("retries transient edge-propagation 404s and fails fast on 401", async () => {
+    const { output } = await fixture();
+    const shell = await readFile(join(output, "editor", "index.html"), "utf8");
+    const entry = await readFile(
+      join(output, "editor", "assets", "app-test.js"),
+    );
+
+    let gzipCalls = 0;
+    const flakyServe = async (url, init) => {
+      if (url.pathname === "/editor") {
+        return new Response(shell, {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        });
+      }
+      if (url.pathname === "/assets/app-test.js") {
+        const encoding = init.headers["accept-encoding"];
+        if (encoding === "gzip" && gzipCalls++ === 0) {
+          return new Response("propagating", { status: 404 });
+        }
+        return new Response(entry, {
+          status: 200,
+          headers: {
+            "content-type": "text/javascript",
+            "content-encoding": encoding,
+          },
+        });
+      }
+      return new Response("missing", { status: 404 });
+    };
+
+    await expect(
+      verifyDeployedCandidate(output, "https://candidate.example", flakyServe, {
+        retries: 2,
+        retryDelayMs: 0,
+      }),
+    ).resolves.toEqual({
+      commit: COMMIT,
+      version: "1.2.3",
+      entry: "/assets/app-test.js",
+    });
+    expect(gzipCalls).toBe(2);
+
+    let authCalls = 0;
+    const unauthorizedServe = async (url) => {
+      if (url.pathname === "/editor") {
+        return new Response(shell, {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        });
+      }
+      authCalls += 1;
+      return new Response("Staging is not public.", { status: 401 });
+    };
+    await expect(
+      verifyDeployedCandidate(
+        output,
+        "https://candidate.example",
+        unauthorizedServe,
+        { retries: 3, retryDelayMs: 0 },
+      ),
+    ).rejects.toThrow(/401: another Worker holds this domain/u);
+    expect(authCalls).toBe(1);
   });
 });

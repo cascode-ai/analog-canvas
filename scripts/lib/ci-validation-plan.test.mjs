@@ -163,15 +163,29 @@ describe("CI validation planning", () => {
     const workerOnly = ciPlan(["worker/gallery-wall.ts"]);
     expect(workerOnly).toMatchObject({
       heavy: true,
-      build: true,
-      unitBuilt: true,
+      build: false,
+      unitBuilt: false,
       performance: false,
       release: false,
       regionalPython: false,
+      browserNeedsMcp: false,
       unitMode: "affected",
       unitArgs: ["worker/gallery-wall.ts"],
     });
     expect(unitShardMatrix(workerOnly)).toEqual(["1/1"]);
+
+    // Worker DO/sync/simulation files still run standalone built-package tests.
+    for (const path of [
+      "worker/resource-sync.ts",
+      "worker/simulation-control-do.ts",
+    ]) {
+      expect(ciPlan([path]), path).toMatchObject({
+        build: true,
+        unitBuilt: true,
+        performance: false,
+        release: false,
+      });
+    }
 
     // Subprocess-tested script pulls its sibling test; skips heavy build jobs.
     const scriptOnly = ciPlan(["scripts/gallery-dataset.mjs"]);
@@ -196,8 +210,8 @@ describe("CI validation planning", () => {
     const regional = ciPlan(["worker/regional-entry.ts"]);
     expect(regional).toMatchObject({
       regionalPython: true,
-      unitBuilt: true,
-      build: true,
+      unitBuilt: false,
+      build: false,
       performance: false,
       release: false,
       unitMode: "affected",
@@ -211,6 +225,11 @@ describe("CI validation planning", () => {
       build: true,
       performance: true,
       release: true,
+      releaseDesktop: true,
+      releaseEditor: true,
+      releaseGolden: true,
+      releaseAgentArtifacts: true,
+      releaseMcp: true,
       unitMode: "full",
     });
     expect(unitShardMatrix(container)).toHaveLength(5);
@@ -219,10 +238,47 @@ describe("CI validation planning", () => {
     expect(canvas).toMatchObject({
       build: true,
       release: true,
+      releaseDesktop: true,
+      releaseEditor: true,
+      releaseGolden: false,
+      releaseAgentArtifacts: false,
+      releaseMcp: false,
       performance: true,
       unitBuilt: false,
       regionalPython: false,
+      browserNeedsMcp: false,
       unitMode: "affected",
+    });
+
+    // Pure MCP edits skip editor/desktop/golden checks and request MCP browser build.
+    expect(ciPlan(["apps/mcp-server/src/server.ts"])).toMatchObject({
+      release: true,
+      releaseDesktop: false,
+      releaseEditor: false,
+      releaseGolden: false,
+      releaseAgentArtifacts: true,
+      releaseMcp: true,
+      browserNeedsMcp: true,
+    });
+
+    // Netlist edits do not trigger edit-performance budgets or rendering goldens.
+    expect(ciPlan(["packages/netlist/src/extract.ts"])).toMatchObject({
+      build: true,
+      unitBuilt: true,
+      performance: false,
+      release: true,
+      releaseEditor: true,
+      releaseGolden: false,
+      releaseMcp: true,
+      browserNeedsMcp: false,
+    });
+
+    // Simulation runner package runs standalone tests without triggering release packaging.
+    expect(ciPlan(["packages/spice-run/src/rawfile.ts"])).toMatchObject({
+      build: true,
+      unitBuilt: true,
+      performance: false,
+      release: false,
     });
 
     const e2eOnly = ciPlan(["apps/editor/e2e/wheel-behavior.spec.ts"]);

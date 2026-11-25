@@ -117,6 +117,28 @@ describe("CI workflow", () => {
       stepRunning(jobs.core_release, "pnpm test:desktop-build"),
     ])
       expect(step["timeout-minutes"]).toBe("5");
+    expect(
+      stepRunning(jobs.core_release, "pnpm test:desktop-build").if,
+    ).toContain("release_desktop");
+    expect(
+      stepRunning(
+        jobs.core_release,
+        "node scripts/editor-production-smoke.mjs --check",
+      ).if,
+    ).toContain("release_editor");
+    expect(
+      stepRunning(jobs.core_release, "node scripts/visual-golden.mjs --check")
+        .if,
+    ).toContain("release_golden");
+    expect(
+      stepRunning(
+        jobs.core_release,
+        "node scripts/agent-api-artifacts.mjs --check",
+      ).if,
+    ).toContain("release_agent_artifacts");
+    expect(
+      stepRunning(jobs.core_release, "node scripts/mcp-release-smoke.mjs").if,
+    ).toContain("release_mcp");
   });
 
   it("retains each browser shard report on failure without hiding its result", () => {

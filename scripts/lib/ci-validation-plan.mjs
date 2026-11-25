@@ -43,12 +43,18 @@ function canAffectRegionalPython(path) {
   );
 }
 
+const UNIT_BUILT_PACKAGE_PATH =
+  /^packages\/(?:model|derived|devices|symbols|components|project-protocol|netlist|spice|spice-run|simulation-service)\//u;
+
+const UNIT_BUILT_WORKER_PATH =
+  /^worker\/(?:index|resource-|gallery-do|component-library-do|simulation)/u;
+
 function canAffectUnitBuilt(path) {
   return (
     CI_INFRA_PATH.test(path) ||
     STANDALONE_TESTS.has(path) ||
-    (path.startsWith("packages/") && !TEST_FILE.test(path)) ||
-    (path.startsWith("worker/") && !TEST_FILE.test(path)) ||
+    (UNIT_BUILT_PACKAGE_PATH.test(path) && !TEST_FILE.test(path)) ||
+    (UNIT_BUILT_WORKER_PATH.test(path) && !TEST_FILE.test(path)) ||
     path.startsWith("apps/editor/src/examples/") ||
     path === "apps/editor/package.json" ||
     path.startsWith("config/") ||
@@ -61,7 +67,7 @@ function canAffectUnitBuilt(path) {
 function canAffectPerformance(path) {
   return (
     CI_INFRA_PATH.test(path) ||
-    (/^packages\/(?:model|derived|edit-engine|render-svg|symbols|components|agent-adapter|project-protocol|spice|devices|math-typesetting|netlist|simulation-service)\//u.test(
+    (/^packages\/(?:model|derived|edit-engine|render-svg|symbols|components|agent-adapter|project-protocol|spice|devices|math-typesetting)\//u.test(
       path,
     ) &&
       !TEST_FILE.test(path)) ||
@@ -79,18 +85,88 @@ function canAffectPerformance(path) {
   );
 }
 
-function canAffectRelease(path) {
+const EDITOR_RUNTIME_PACKAGE_PATH =
+  /^packages\/(?:model|derived|edit-engine|render-svg|exporters|symbols|components|devices|math-typesetting|project-protocol|spice|netlist|rnl|agent-adapter)\//u;
+
+const GOLDEN_PACKAGE_PATH =
+  /^packages\/(?:model|derived|render-svg|exporters|symbols|components|math-typesetting)\//u;
+
+const AGENT_ARTIFACT_PACKAGE_PATH =
+  /^packages\/(?:agent-adapter|model|devices|components|symbols)\//u;
+
+const MCP_PACKAGE_PATH =
+  /^packages\/(?:agent-adapter|model|derived|edit-engine|devices|symbols|components|project-protocol|netlist|spice|rnl|render-svg|exporters)\//u;
+
+function isEditorSource(path) {
+  return (
+    path.startsWith("apps/editor/") &&
+    !path.startsWith("apps/editor/e2e/") &&
+    !TEST_FILE.test(path)
+  );
+}
+
+function canAffectReleaseDesktop(path) {
   return (
     CI_INFRA_PATH.test(path) ||
-    (/^apps\/(?:editor|mcp-server|desktop)\//u.test(path) &&
-      !path.startsWith("apps/editor/e2e/") &&
-      !TEST_FILE.test(path)) ||
-    (path.startsWith("packages/") && !TEST_FILE.test(path)) ||
-    path.startsWith("fixtures/") ||
-    path.startsWith("config/") ||
-    RELEASE_SCRIPT_PATH.test(path) ||
+    (path.startsWith("apps/desktop/") && !TEST_FILE.test(path)) ||
+    isEditorSource(path) ||
+    (EDITOR_RUNTIME_PACKAGE_PATH.test(path) && !TEST_FILE.test(path)) ||
+    /^vite\.desktop\.config\./u.test(path)
+  );
+}
+
+function canAffectReleaseEditor(path) {
+  return (
+    CI_INFRA_PATH.test(path) ||
+    isEditorSource(path) ||
+    (EDITOR_RUNTIME_PACKAGE_PATH.test(path) && !TEST_FILE.test(path)) ||
+    /^fixtures\/editor-production-smoke\//u.test(path) ||
+    /^scripts\/editor-/u.test(path) ||
     /^vite(?:\.[^/]+)?\.config\./u.test(path)
   );
+}
+
+function canAffectReleaseGolden(path) {
+  return (
+    CI_INFRA_PATH.test(path) ||
+    (GOLDEN_PACKAGE_PATH.test(path) && !TEST_FILE.test(path)) ||
+    (path.startsWith("fixtures/") &&
+      !path.startsWith("fixtures/editor-production-smoke/")) ||
+    /^scripts\/(?:visual-golden|export-golden|pwa-icons)/u.test(path)
+  );
+}
+
+function canAffectReleaseAgentArtifacts(path) {
+  return (
+    CI_INFRA_PATH.test(path) ||
+    (AGENT_ARTIFACT_PACKAGE_PATH.test(path) && !TEST_FILE.test(path)) ||
+    (path.startsWith("apps/mcp-server/") && !TEST_FILE.test(path)) ||
+    path === "scripts/agent-api-artifacts.mjs"
+  );
+}
+
+function canAffectReleaseMcp(path) {
+  return (
+    CI_INFRA_PATH.test(path) ||
+    (path.startsWith("apps/mcp-server/") && !TEST_FILE.test(path)) ||
+    (path.startsWith("apps/editor/src/agent/") && !TEST_FILE.test(path)) ||
+    (MCP_PACKAGE_PATH.test(path) && !TEST_FILE.test(path)) ||
+    path === "config/agent-mcp-distribution.json" ||
+    /^scripts\/(?:package-mcp|package-release|mcp-release|check-mcp-distribution|lib\/(?:headless-bundle|mcp-release-integrity))/u.test(
+      path,
+    )
+  );
+}
+
+const MCP_BROWSER_SPECS = new Set([
+  "apps/editor/e2e/agent-connection.spec.ts",
+  "apps/editor/e2e/mcp-native-simulation.spec.ts",
+  "apps/editor/e2e/sg13g2-simulation.spec.ts",
+]);
+
+function browserSelectionNeedsMcp(mode, e2eArgs) {
+  if (mode === "full") return true;
+  return e2eArgs.some((arg) => MCP_BROWSER_SPECS.has(arg.split(":")[0]));
 }
 
 function allCoreScopes(enabled) {
@@ -99,6 +175,11 @@ function allCoreScopes(enabled) {
     unitBuilt: enabled,
     performance: enabled,
     release: enabled,
+    releaseDesktop: enabled,
+    releaseEditor: enabled,
+    releaseGolden: enabled,
+    releaseAgentArtifacts: enabled,
+    releaseMcp: enabled,
     build: enabled,
     unitMode: enabled ? "full" : "none",
     unitArgs: [],
@@ -136,9 +217,34 @@ function planCoreScopes(
   );
   const unitBuilt = changedImplementationPaths.some(canAffectUnitBuilt);
   const performance = changedImplementationPaths.some(canAffectPerformance);
-  const release = changedImplementationPaths.some(canAffectRelease);
+  const releaseDesktop = changedImplementationPaths.some(
+    canAffectReleaseDesktop,
+  );
+  const releaseEditor = changedImplementationPaths.some(canAffectReleaseEditor);
+  const releaseGolden = changedImplementationPaths.some(canAffectReleaseGolden);
+  const releaseAgentArtifacts = changedImplementationPaths.some(
+    canAffectReleaseAgentArtifacts,
+  );
+  const releaseMcp = changedImplementationPaths.some(canAffectReleaseMcp);
+  const release =
+    releaseDesktop ||
+    releaseEditor ||
+    releaseGolden ||
+    releaseAgentArtifacts ||
+    releaseMcp;
   const build = unitBuilt || performance || release;
-  const flags = { regionalPython, unitBuilt, performance, release, build };
+  const flags = {
+    regionalPython,
+    unitBuilt,
+    performance,
+    release,
+    releaseDesktop,
+    releaseEditor,
+    releaseGolden,
+    releaseAgentArtifacts,
+    releaseMcp,
+    build,
+  };
 
   // Include non-spec e2e helpers (e.g. bipolar-project.ts, label-census.ts)
   // because unit tests import them, and exclude standalone tests (handled by
@@ -282,6 +388,7 @@ export function planCiValidation(
     return {
       heavy: true,
       browser: true,
+      browserNeedsMcp: true,
       mode: "full",
       e2eArgs: [],
       ...planCoreScopes(plan, plan.paths, { forceFull: true, exists }),
@@ -294,6 +401,7 @@ export function planCiValidation(
     return {
       heavy: false,
       browser: false,
+      browserNeedsMcp: false,
       mode: "documentation",
       e2eArgs: [],
       ...allCoreScopes(false),
@@ -311,6 +419,7 @@ export function planCiValidation(
     return {
       heavy: true,
       browser: false,
+      browserNeedsMcp: false,
       mode: "non-browser",
       e2eArgs: [],
       ...coreScopes,
@@ -332,14 +441,16 @@ export function planCiValidation(
     (path) => !coveredPaths.has(path),
   );
   if (focusedArgs.length === 0 || uncoveredPaths.length > 0) {
+    const e2eArgs = unique([
+      ...focusedArgs,
+      ...fallbackBrowserArgs(focusedArgs),
+    ]).sort();
     return {
       heavy: true,
       browser: true,
+      browserNeedsMcp: browserSelectionNeedsMcp("fallback", e2eArgs),
       mode: "fallback",
-      e2eArgs: unique([
-        ...focusedArgs,
-        ...fallbackBrowserArgs(focusedArgs),
-      ]).sort(),
+      e2eArgs,
       ...coreScopes,
       reasons: [
         ...focusedArgs.map((arg) => `focused browser contract: ${arg}`),
@@ -352,6 +463,7 @@ export function planCiValidation(
   return {
     heavy: true,
     browser: true,
+    browserNeedsMcp: browserSelectionNeedsMcp("focused", focusedArgs),
     mode: "focused",
     e2eArgs: focusedArgs,
     ...coreScopes,
