@@ -2546,4 +2546,309 @@ describe("common Gallery wiring mistakes (#2557)", () => {
       ).toEqual([]);
     });
   });
+
+  describe("fully differential op-amp positive feedback (#2568)", () => {
+    function diffAmp(
+      parts: readonly (readonly [string, string])[],
+      nets: readonly (readonly string[])[],
+    ): CircuitProject {
+      const project = emptyProject();
+      const document = project.documents[0]!;
+      parts.forEach(([id, symbolId], index) =>
+        document.instances.push(placed(id, symbolId, index * 200)),
+      );
+      nets.forEach(([id, ...pins]) => document.nets.push(net(id!, ...pins)));
+      return project;
+    }
+    const positiveFeedback = (project: CircuitProject) =>
+      found(project, "ERC_OPAMP_POSITIVE_FEEDBACK");
+
+    it("warns when straight-across passives connect same-sign outputs to inputs", () => {
+      const project = diffAmp(
+        [
+          ["U1", "opamp-differential-wide"],
+          ["R1", "resistor"],
+          ["C1", "capacitor"],
+        ],
+        [
+          ["vinp", "U1.IN+", "R1.1"],
+          ["vop", "U1.OUT+", "R1.2"],
+          ["vinn", "U1.IN-", "C1.1"],
+          ["von", "U1.OUT-", "C1.2"],
+        ],
+      );
+      expect(positiveFeedback(project)).toEqual([
+        expect.objectContaining({
+          severity: "warning",
+          confidence: "high",
+          gateEligible: false,
+          primary: expect.objectContaining({ objectId: "U1" }),
+          message: expect.stringMatching(
+            /U1.*OUT\+ to IN\+ through R1.*OUT- to IN- through C1.*positive feedback/u,
+          ),
+          parameters: {
+            instanceId: "U1",
+            pairs: "OUT+->IN+,OUT-->IN-",
+          },
+        }),
+      ]);
+    });
+
+    it("warns on direct wire or switch same-sign feedback", () => {
+      const direct = diffAmp(
+        [["U1", "opamp-differential"]],
+        [["fb", "U1.OUT+", "U1.IN+"]],
+      );
+      expect(positiveFeedback(direct)).toEqual([
+        expect.objectContaining({
+          message: expect.stringContaining("OUT+ directly to IN+"),
+          parameters: { instanceId: "U1", pairs: "OUT+->IN+" },
+        }),
+      ]);
+
+      const switched = diffAmp(
+        [
+          ["U1", "opamp-differential"],
+          ["S1", "ideal-switch"],
+        ],
+        [
+          ["vinn", "U1.IN-", "S1.1"],
+          ["von", "U1.OUT-", "S1.2"],
+        ],
+      );
+      expect(positiveFeedback(switched)).toEqual([
+        expect.objectContaining({
+          message: expect.stringContaining("OUT- to IN- through S1"),
+          parameters: { instanceId: "U1", pairs: "OUT-->IN-" },
+        }),
+      ]);
+
+      // 2-hop series RC and 3-hop switched-capacitor positive feedback
+      const seriesRc = diffAmp(
+        [
+          ["U1", "opamp-differential-wide"],
+          ["R1", "resistor"],
+          ["C1", "capacitor"],
+        ],
+        [
+          ["vop", "U1.OUT+", "R1.1"],
+          ["mid", "R1.2", "C1.1"],
+          ["vinp", "C1.2", "U1.IN+"],
+        ],
+      );
+      expect(positiveFeedback(seriesRc)).toEqual([
+        expect.objectContaining({
+          message: expect.stringContaining("OUT+ to IN+ through C1, R1"),
+          parameters: { instanceId: "U1", pairs: "OUT+->IN+" },
+        }),
+      ]);
+
+      const switchedCap = diffAmp(
+        [
+          ["U1", "opamp-differential"],
+          ["S1", "ideal-switch"],
+          ["C1", "capacitor"],
+          ["S2", "ideal-switch"],
+        ],
+        [
+          ["vop", "U1.OUT+", "S1.1"],
+          ["n1", "S1.2", "C1.1"],
+          ["n2", "C1.2", "S2.1"],
+          ["vinp", "S2.2", "U1.IN+"],
+        ],
+      );
+      expect(positiveFeedback(switchedCap)).toEqual([
+        expect.objectContaining({
+          parameters: { instanceId: "U1", pairs: "OUT+->IN+" },
+        }),
+      ]);
+    });
+
+    it("stays quiet for negative feedback, mixed bridges, fixed inputs, choppers, voltmeters, and Cell-bound op-amps", () => {
+      const groundClaim = (project: CircuitProject) => {
+        project.documents[0]!.connectivityEvidence.push({
+          id: "claim-gnd",
+          kind: "name-claim",
+          netId: "gnd",
+          name: "0",
+          scope: "global",
+          powerDomain: "ground",
+          owner: { kind: "power-marker", objectId: "G1" },
+        });
+        return project;
+      };
+
+      // Negative feedback (crossed outputs or crossed wires)
+      expect(
+        positiveFeedback(
+          diffAmp(
+            [
+              ["U1", "opamp-differential-crossed"],
+              ["R1", "resistor"],
+              ["R2", "resistor"],
+            ],
+            [
+              ["vinn", "U1.IN-", "R1.1"],
+              ["vop", "U1.OUT+", "R1.2"],
+              ["vinp", "U1.IN+", "R2.1"],
+              ["von", "U1.OUT-", "R2.2"],
+            ],
+          ),
+        ),
+      ).toEqual([]);
+
+      // Mixed positive + negative feedback (single-hop or multi-hop negative)
+      expect(
+        positiveFeedback(
+          diffAmp(
+            [
+              ["U1", "opamp-differential"],
+              ["Rpos", "resistor"],
+              ["Rneg", "resistor"],
+            ],
+            [
+              ["vinp", "U1.IN+", "Rpos.1"],
+              ["vinn", "U1.IN-", "Rneg.1"],
+              ["vop", "U1.OUT+", "Rpos.2", "Rneg.2"],
+            ],
+          ),
+        ),
+      ).toEqual([]);
+
+      expect(
+        positiveFeedback(
+          diffAmp(
+            [
+              ["U1", "opamp-differential"],
+              ["Cn", "capacitor"],
+              ["R1", "resistor"],
+              ["C1", "capacitor"],
+            ],
+            [
+              ["vinp", "U1.IN+", "Cn.1"],
+              ["vop", "U1.OUT+", "Cn.2", "R1.1"],
+              ["mid", "R1.2", "C1.1"],
+              ["vinn", "C1.2", "U1.IN-"],
+            ],
+          ),
+        ),
+      ).toEqual([]);
+
+      // Load resistor to an input fixed to ground, a voltage source, stacked
+      // voltage sources, or a floating differential source across IN+/IN-.
+      const toGround = groundClaim(
+        diffAmp(
+          [
+            ["U1", "opamp-differential"],
+            ["RL", "resistor"],
+            ["G1", "ground"],
+          ],
+          [
+            ["gnd", "G1.0", "U1.IN+", "RL.1"],
+            ["vop", "U1.OUT+", "RL.2"],
+          ],
+        ),
+      );
+      expect(positiveFeedback(toGround)).toEqual([]);
+
+      const toSource = groundClaim(
+        diffAmp(
+          [
+            ["U1", "opamp-differential"],
+            ["RL", "resistor"],
+            ["V1", "voltage-source"],
+            ["G1", "ground"],
+          ],
+          [
+            ["gnd", "G1.0", "V1.-"],
+            ["vinp", "V1.+", "U1.IN+", "RL.1"],
+            ["vop", "U1.OUT+", "RL.2"],
+          ],
+        ),
+      );
+      expect(positiveFeedback(toSource)).toEqual([]);
+
+      const toStackedSource = groundClaim(
+        diffAmp(
+          [
+            ["U1", "opamp-differential"],
+            ["RL", "resistor"],
+            ["Vcm", "voltage-source"],
+            ["Vdm", "voltage-source"],
+            ["G1", "ground"],
+          ],
+          [
+            ["gnd", "G1.0", "Vcm.-"],
+            ["mid", "Vcm.+", "Vdm.-"],
+            ["vinp", "Vdm.+", "U1.IN+", "RL.1"],
+            ["vop", "U1.OUT+", "RL.2"],
+          ],
+        ),
+      );
+      expect(positiveFeedback(toStackedSource)).toEqual([]);
+
+      const toFloatingDiffSource = diffAmp(
+        [
+          ["U1", "opamp-differential"],
+          ["RL", "resistor"],
+          ["Vdiff", "voltage-source"],
+        ],
+        [
+          ["vinp", "Vdiff.+", "U1.IN+", "RL.1"],
+          ["vinn", "Vdiff.-", "U1.IN-"],
+          ["vop", "U1.OUT+", "RL.2"],
+        ],
+      );
+      expect(positiveFeedback(toFloatingDiffSource)).toEqual([]);
+
+      // Chopper INP/INN are not a 2-pin passive bridge
+      expect(
+        positiveFeedback(
+          diffAmp(
+            [
+              ["U1", "opamp-differential"],
+              ["CH1", "chopper"],
+            ],
+            [
+              ["vinp", "U1.IN+", "CH1.INP"],
+              ["vop", "U1.OUT+", "CH1.INN"],
+            ],
+          ),
+        ),
+      ).toEqual([]);
+
+      // Voltmeter across OUT+ and IN+ is not feedback
+      expect(
+        positiveFeedback(
+          diffAmp(
+            [
+              ["U1", "opamp-differential"],
+              ["VM1", "voltmeter"],
+            ],
+            [
+              ["vinp", "U1.IN+", "VM1.+"],
+              ["vop", "U1.OUT+", "VM1.-"],
+            ],
+          ),
+        ),
+      ).toEqual([]);
+
+      // Cell-bound differential op-amp is skipped
+      const bound = diffAmp(
+        [
+          ["U1", "opamp-differential"],
+          ["R1", "resistor"],
+        ],
+        [
+          ["vinp", "U1.IN+", "R1.1"],
+          ["vop", "U1.OUT+", "R1.2"],
+        ],
+      );
+      bound.documents[0]!.instances[0]!.netlist = {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: "ota-child" },
+      };
+      expect(positiveFeedback(bound)).toEqual([]);
+    });
+  });
 });
