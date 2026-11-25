@@ -2852,3 +2852,308 @@ describe("common Gallery wiring mistakes (#2557)", () => {
     });
   });
 });
+
+describe("switch-based circuits (#2604)", () => {
+  type Document = CircuitProject["documents"][number];
+  const placed = (id: string, symbolId: string, x = 0) => ({
+    id,
+    reference: id,
+    symbolId,
+    placement: {
+      position: { x, y: 0 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    },
+  });
+  const net = (id: string, ...terminals: string[]) => ({
+    id,
+    terminals: terminals.map((terminal) => {
+      const [instanceId, pinName] = terminal.split(".") as [string, string];
+      return { instanceId, pinName };
+    }),
+  });
+  /** A circuit of parts and Nets, with Net gnd as ground when drawn. */
+  function circuit(
+    parts: readonly (readonly [string, string])[],
+    nets: readonly (readonly string[])[],
+  ): { project: CircuitProject; document: Document } {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    parts.forEach(([id, symbolId], index) =>
+      document.instances.push(placed(id, symbolId, index * 200)),
+    );
+    nets.forEach(([id, ...pins]) => document.nets.push(net(id!, ...pins)));
+    if (document.nets.some((item) => item.id === "gnd")) {
+      document.instances.push(placed("G1", "ground", -200));
+      document.nets
+        .find((item) => item.id === "gnd")!
+        .terminals.push({ instanceId: "G1", pinName: "0" });
+      document.connectivityEvidence.push({
+        id: "claim-gnd",
+        kind: "name-claim",
+        netId: "gnd",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "power-marker", objectId: "G1" },
+      });
+    }
+    return { project, document };
+  }
+  /** Name a Net with a Net Label, as a clock box's φ1 is. */
+  function nameNet(document: Document, netId: string, name: string) {
+    document.annotations.push({
+      id: `label-${netId}`,
+      kind: "net-label",
+      binding: { kind: "net-name", netId },
+      netId,
+      anchor: { kind: "free", position: { x: 0, y: 0 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: `claim-${netId}`,
+      kind: "name-claim",
+      netId,
+      name,
+      scope: "local",
+      owner: { kind: "net-label", annotationId: `label-${netId}` },
+    });
+  }
+  /** Write a clock phase on a switch's name label. */
+  function clock(document: Document, instanceId: string, phase: string) {
+    document.annotations.push({
+      id: `phase-${instanceId}`,
+      kind: "instance-label",
+      anchor: {
+        kind: "object",
+        objectId: instanceId,
+        localOffset: { x: 20, y: 0 },
+        fallbackPosition: { x: 20, y: 0 },
+      },
+      content: { runs: [{ kind: "text", value: phase }] },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+  }
+  const found = (project: CircuitProject, code: string) =>
+    run(project).filter((item) => item.code === code);
+
+  describe("a switch clock only a DC source sets", () => {
+    function clockBox(waveform?: string) {
+      const built = circuit(
+        [
+          ["S1", "ideal-switch"],
+          ["S2", "externally-controlled-switch"],
+          ["V1", "voltage-source"],
+        ],
+        [
+          ["phi", "V1.+", "S2.CTRL"],
+          ["gnd", "V1.-", "S1.2", "S2.N"],
+          ["a", "S1.1", "S2.P"],
+        ],
+      );
+      nameNet(built.document, "phi", "PHI1");
+      clock(built.document, "S1", "PHI1");
+      built.document.instances.find((item) => item.id === "V1")!.netlist = {
+        parameters: { dc: "1", ...(waveform ? { waveform } : {}) },
+      };
+      return built.project;
+    }
+
+    it("warns about a phase Net held by a DC source", () => {
+      expect(found(clockBox(), "ERC_SWITCH_CLOCK_DC")).toEqual([
+        expect.objectContaining({
+          severity: "warning",
+          gateEligible: false,
+          message: expect.stringMatching(
+            /^Clock PHI1 of switches S1 and S2 is set only by DC source V1, so they never toggle/u,
+          ),
+          primary: expect.objectContaining({ objectId: "V1" }),
+          parameters: { netId: "phi", sourceInstanceId: "V1", count: 2 },
+        }),
+      ]);
+    });
+
+    it("stays quiet for a PULSE clock", () => {
+      expect(found(clockBox("pulse"), "ERC_SWITCH_CLOCK_DC")).toEqual([]);
+    });
+  });
+
+  describe("a switch left on its own name beside phased ones", () => {
+    function mixed(firstPhase: string, secondPhase?: string) {
+      const built = circuit(
+        [
+          ["S1", "ideal-switch"],
+          ["S2", "ideal-switch"],
+          ["C1", "capacitor"],
+        ],
+        [
+          ["a", "S1.1", "C1.1"],
+          ["b", "S1.2", "S2.1"],
+          ["gnd", "S2.2", "C1.2"],
+        ],
+      );
+      clock(built.document, "S1", firstPhase);
+      if (secondPhase) clock(built.document, "S2", secondPhase);
+      return built.project;
+    }
+
+    it("warns about the switch the netlist gives a clock pin of its own", () => {
+      expect(found(mixed("PHI1"), "ERC_SWITCH_CLOCKED_BY_OWN_NAME")).toEqual([
+        expect.objectContaining({
+          message: expect.stringMatching(
+            /^Switch S2 shows its own name, so it is clocked by a phase S2 of its own, while the Cell's other switches read phase PHI1/u,
+          ),
+          primary: expect.objectContaining({ objectId: "S2" }),
+        }),
+      ]);
+    });
+
+    it("stays quiet when every switch is phased or phases follow switch names", () => {
+      expect(
+        found(mixed("PHI1", "PHI2"), "ERC_SWITCH_CLOCKED_BY_OWN_NAME"),
+      ).toEqual([]);
+      expect(found(mixed("S1"), "ERC_SWITCH_CLOCKED_BY_OWN_NAME")).toEqual([]);
+      expect(
+        found(
+          circuit(
+            [["S1", "ideal-switch"]],
+            [
+              ["a", "S1.1"],
+              ["b", "S1.2"],
+            ],
+          ).project,
+          "ERC_SWITCH_CLOCKED_BY_OWN_NAME",
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  describe("shorted and parallel switches", () => {
+    it("warns about a CTRL switch whose switched pins share a Net", () => {
+      const { project } = circuit(
+        [["S1", "externally-controlled-switch"]],
+        [
+          ["a", "S1.P", "S1.N"],
+          ["c", "S1.CTRL"],
+        ],
+      );
+      expect(found(project, "ERC_SHORTED_DEVICE")).toEqual([
+        expect.objectContaining({
+          message:
+            "S1's switched pins P and N are on one Net, so the switch is shorted",
+          parameters: { instanceId: "S1", netId: "a" },
+        }),
+      ]);
+    });
+
+    function parallel(second: string, secondPhase: string) {
+      const built = circuit(
+        [
+          ["S1", "ideal-switch"],
+          ["S2", "ideal-switch"],
+        ],
+        [
+          ["a", "S1.1", ...(second === "a-b" ? ["S2.1"] : [])],
+          ["b", "S1.2", ...(second === "a-b" ? ["S2.2"] : ["S2.1"])],
+          ...(second === "a-b" ? [] : [["c", "S2.2"]]),
+        ],
+      );
+      clock(built.document, "S1", "PHI1");
+      clock(built.document, "S2", secondPhase);
+      return built.project;
+    }
+
+    it("warns about duplicate switches and switches across one pair on two clocks", () => {
+      expect(found(parallel("a-b", "PHI1"), "ERC_PARALLEL_SWITCHES")).toEqual([
+        expect.objectContaining({
+          message: expect.stringMatching(
+            /^Switches S1 and S2 join the same two Nets on the same clock PHI1, so all but one are duplicates/u,
+          ),
+          parameters: {
+            netId: "a",
+            otherNetId: "b",
+            count: 2,
+            sameClock: true,
+          },
+        }),
+      ]);
+      expect(found(parallel("a-b", "PHI2"), "ERC_PARALLEL_SWITCHES")).toEqual([
+        expect.objectContaining({
+          message: expect.stringContaining("on clocks PHI1 and PHI2"),
+          parameters: expect.objectContaining({ sameClock: false }),
+        }),
+      ]);
+    });
+
+    it("stays quiet for switches in series and a CTRL switch across two Nets", () => {
+      expect(found(parallel("b-c", "PHI1"), "ERC_PARALLEL_SWITCHES")).toEqual(
+        [],
+      );
+      const { project } = circuit(
+        [["S1", "externally-controlled-switch"]],
+        [
+          ["a", "S1.P"],
+          ["b", "S1.N"],
+          ["c", "S1.CTRL"],
+        ],
+      );
+      expect(found(project, "ERC_SHORTED_DEVICE")).toEqual([]);
+    });
+  });
+
+  describe("a switched-capacitor node with no DC path", () => {
+    // An op-amp's inputs held by capacitors, joined only to each other by a
+    // reset switch: no phase gives them a DC level (a comparator's front end).
+    function frontEnd(resetToGround: boolean) {
+      return circuit(
+        [
+          ["U1", "opamp"],
+          ["C1", "capacitor"],
+          ["C2", "capacitor"],
+          ["S1", "ideal-switch"],
+          ["S2", "ideal-switch"],
+        ],
+        [
+          ["inp", "U1.IN+", "C1.1", "S1.1"],
+          ["inn", "U1.IN-", "C2.1", "S1.2", ...(resetToGround ? ["S2.1"] : [])],
+          ["out", "U1.OUT", "C1.2", "C2.2"],
+          ...(resetToGround ? [["gnd", "S2.2"]] : [["x", "S2.1", "S2.2"]]),
+        ],
+      );
+    }
+
+    it("warns about the Nets a reset switch joins only to each other", () => {
+      expect(found(frontEnd(false).project, "ERC_NO_DC_PATH")).toEqual([
+        expect.objectContaining({
+          severity: "warning",
+          gateEligible: false,
+          message: expect.stringMatching(
+            /^2 Nets have no DC path in any phase: they reach only capacitors, switches and inputs \(C1\.1, C2\.1, S1\.1, S1\.2, U1\.IN-, U1\.IN\+\)/u,
+          ),
+          parameters: { netId: "inn", count: 2 },
+        }),
+      ]);
+    });
+
+    it("stays quiet once a switch reaches ground or a Net is a Cell Pin", () => {
+      expect(found(frontEnd(true).project, "ERC_NO_DC_PATH")).toEqual([]);
+      const { project, document } = frontEnd(false);
+      document.instances.push(placed("P1", "port"));
+      document.nets
+        .find((item) => item.id === "inp")!
+        .terminals.push({ instanceId: "P1", pinName: "P" });
+      document.netlist!.terminals.push({
+        id: "pin-inp",
+        name: "INP",
+        netId: "inp",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      });
+      expect(found(project, "ERC_NO_DC_PATH")).toEqual([]);
+    });
+  });
+});
